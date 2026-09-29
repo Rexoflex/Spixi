@@ -1085,8 +1085,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--icon-neutral-01);
 }
 .c-txlist-item[data-type="received"] .c-txlist-item__direction {
-  border-color: var(--outline-success-inverse);
-  color: var(--text-success);
+  border-color: var(--outline-amount-positive);   /* ★ #1048 */
+  color: var(--text-amount-positive);
 }
 .c-txlist-item[data-type="failed"] .c-txlist-item__direction { color: var(--text-error); }
 
@@ -1179,7 +1179,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-neutral-02);
 }
 
-.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-success); }
+.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-amount-positive); }   /* ★ #1048: a green the eye separates from the black sent amounts */
 .c-txlist-item[data-type="pending"] .c-txlist-item__amount { color: var(--text-neutral-02); }
 .c-txlist-item[data-type="failed"] .c-txlist-item__amount,
 .c-txlist-item[data-type="failed"] .c-txlist-item__fiat {

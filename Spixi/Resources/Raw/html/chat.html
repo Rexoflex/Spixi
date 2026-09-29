@@ -1883,7 +1883,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* ★ #1004 (D-03, Damir 2026-09-28): a pending amount is NOT a warning — orange read as an error.
    The status (chip / quiet foot) carries "pending"; the number stays the primary ink. Was --text-warning. */
 .c-tcard__amount[data-tone="pending"] { color: var(--text-neutral-01); }
-.c-tcard__amount[data-tone="positive"] { color: var(--text-success); }
+.c-tcard__amount[data-tone="positive"] { color: var(--text-amount-positive); }   /* ★ #1048 */
 .c-tcard__amount[data-tone="neutral"] { color: var(--text-neutral-01); }
 .c-tcard__amount[data-tone="void"] {
   color: var(--text-neutral-disabled);

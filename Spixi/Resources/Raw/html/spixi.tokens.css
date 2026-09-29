@@ -698,6 +698,13 @@
      the other three surfaces. ⚠ Damir: this is a token dial — say the word and it reverts
      to 600 with the tip alone scoped instead. */
   --text-success: var(--success-700);
+  /* ★ #1048 (Damir 2026-09-29, wallet screenshots: a received "+0.05" in light was "barely distinguishable"
+     from the black sent amounts): success-700 #075022 is 1.91:1 from the #131415 text ink — green in name,
+     black to the eye. A RECEIVED AMOUNT (and its direction circle) takes success-600 #007030: 5.98:1 on the
+     list ground, 6.25 on white (AA), and 2.95:1 away from the black ink (was 1.91). --text-success itself
+     stays 700 — the tonal success BADGE sits on success-100, where 600 would read 4.28 (under AA). */
+  --text-amount-positive: var(--success-600);
+  --outline-amount-positive: var(--success-300);   /* the received circle's ring: 200 was the neutral ring's twin */
   --text-success-inverse: var(--success-300);
   --text-warning: var(--warning-700);
   --text-warning-inverse: var(--warning-300);
@@ -1023,6 +1030,8 @@
   --text-link: var(--info-300);
   --text-link-hover: var(--info-200);
   --text-success: var(--success-400);
+  --text-amount-positive: var(--text-success);        /* ★ #1048: dark was already clear (success-400 on the dark list) */
+  --outline-amount-positive: var(--outline-success-inverse);
   --text-success-inverse: var(--success-800);
   --text-warning: var(--warning-400);
   --text-warning-inverse: var(--warning-800);

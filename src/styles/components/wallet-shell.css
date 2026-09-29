@@ -154,7 +154,7 @@
   border: var(--outline-width-1) solid var(--outline-neutral-04);
   color: var(--icon-neutral-01);
 }
-.c-txsheet__dir[data-type="received"] { border-color: var(--outline-success-inverse); color: var(--text-success); }
+.c-txsheet__dir[data-type="received"] { border-color: var(--outline-amount-positive); color: var(--text-amount-positive); }   /* ★ #1048 */
 .c-txsheet__dir[data-type="failed"] { color: var(--text-error); }
 .c-txsheet__headtext { min-width: 0; max-width: 100%; }
 .c-txsheet__title {
@@ -199,7 +199,7 @@
                        dark received one 4.50:1 (18px semibold is not large text). Size carries the hierarchy, as on the hero. */
 }
 .c-txsheet__stamp { display: flex; justify-content: center; }
-.c-txsheet__amount[data-type="received"] { color: var(--text-success); }
+.c-txsheet__amount[data-type="received"] { color: var(--text-amount-positive); }   /* ★ #1048 */
 .c-txsheet__amount[data-type="pending"] { color: var(--text-neutral-02); }          /* mirrors txlist pending muting */
 .c-txsheet__amount[data-type="failed"] { color: var(--text-neutral-disabled); text-decoration: line-through; }
 .c-txsheet__fiat {

@@ -37295,7 +37295,7 @@ console.log('★★ #1001–#1010 — the premium polish round');
     const tb = stripCssComments(rdP('src/styles/components/typed-bubbles.css'));
     ok(/\.c-tcard__amount\[data-tone="pending"\] \{ color: var\(--text-neutral-01\); \}/.test(tb)
        && !/\.c-tcard__amount[^{]*\{[^}]*--text-warning/.test(tb)
-       && /\.c-tcard__amount\[data-tone="positive"\] \{ color: var\(--text-success\); \}/.test(tb)
+       && /\.c-tcard__amount\[data-tone="positive"\] \{ color: var\(--text-amount-positive\); \}/.test(tb)   /* ★ #1048: the amount green, one step brighter in light */
        && /\.c-tcard__amount\[data-tone="void"\] \{[^}]*text-decoration: line-through;/.test(tb),
       '★★ #1004: pending amounts use the primary ink (the status carries "pending"); completed incoming stays green, void stays struck — no amount reads --text-warning');
   }
@@ -37509,7 +37509,7 @@ console.log('★★ #1001–#1010 — the premium polish round');
         if (!/(__amount|__balance|__fiat)(?![\w-]*row)/.test(m[1])) continue;
         for (const c of m[2].matchAll(/(?:^|;)\s*color:\s*([^;]+?)\s*(?=;|$)/g)) {   // #1024: the last declaration may have no ';'
           n++;
-          if (!/^var\(--text-(neutral-0[1-3]|neutral-disabled|success|on-[\w-]+|action-[\w-]+)\)$/.test(c[1].trim())) bad.push(f + ' ' + m[1].trim() + ' → ' + c[1].trim());
+          if (!/^var\(--text-(neutral-0[1-3]|neutral-disabled|success|amount-positive|on-[\w-]+|action-[\w-]+)\)$/.test(c[1].trim())) bad.push(f + ' ' + m[1].trim() + ' → ' + c[1].trim());   // ★ #1048: + the received-amount green
         }
       }
     }
@@ -38337,6 +38337,17 @@ console.log('★★ #1028+ — the overnight finalization');
     r.credits = /\.c-settings-contrib__credit \{[^}]*text-align: start;/.test(sa) && !/\.c-settings-contrib__credit \{[^}]*text-align: center;/.test(sa)
       && /h\.className = 'c-settings__label c-settings-contrib__credits-title';/.test(rdO('src/components/settings-app.js'));
     r.hero = /strings\.availableBalance \|\| 'Available balance'/.test(rdO('src/components/wallet-hero.js'));
+    /* ★ #1048 (Damir: a received "+0.05" in light was "barely distinguishable" from black): every received AMOUNT
+       reads the amount green — ≥ 4.5:1 on the list ground and white, and clearly further from the text ink than
+       success-700 was; the badge keeps --text-success (700: its tonal ground needs it) */
+    const ag = resolveTok('light', '--text-amount-positive'), ink = resolveTok('light', '--text-neutral-01');
+    const cssAll = ['txlist-item', 'wallet-shell', 'typed-bubbles'].map((f) => stripCssComments(rdO('src/styles/components/' + f + '.css'))).join('\n');
+    r.amountGreen = !!ag && crO(ag, resolveTok('light', '--surface-screen')) >= 4.5 && crO(ag, '#ffffff') >= 4.5
+      && crO(ag, ink) > crO(resolveTok('light', '--success-700'), ink) + 0.8
+      && /\.c-txlist-item\[data-type="received"\] \.c-txlist-item__amount \{ color: var\(--text-amount-positive\); \}/.test(cssAll)
+      && /\.c-txsheet__amount\[data-type="received"\] \{ color: var\(--text-amount-positive\); \}/.test(cssAll)
+      && !/__amount[^{]*\{[^}]*color: var\(--text-success\)/.test(cssAll)
+      && /\.c-badge\[data-weight="tonal"\]\[data-type="success"\] \{[^}]*color: var\(--text-success\);/.test(stripCssComments(rdO('src/styles/components/badge.css')));
     /* ★ #1044 (Damir): an OUTGOING sticker's meta chip is the sent bubble's colour + ink (its ticks were near
        invisible on the canvas chip); the failed status wears the app's one failure glyph, not the bare "!" */
     const mbc = stripCssComments(rdO('src/styles/components/message-bubble.css'));

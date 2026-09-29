@@ -26,6 +26,7 @@ X.10 dial (grow 0.2 → 0.3 s) only if Damir asks.
    Use the pushPageLoaded column path; expand-to-full-window and back via a NATIVE/trusted-frame control, never
    inside the mini-app page. Mobile unchanged. Mini-app WebView stays isolated (security-handover-gate: Windows
    storage partition still open).
+ - Background for the two items below: `docs/agent-hub-note.md` (idea only, v1 first).
  - MANIFEST PERMISSIONS (design with the session pane; agent mode will reuse both): define the declared-permission fields
    a mini-app manifest carries (e.g. sign in as you · sign transactions · local storage · multi-user · device
    access · message scopes). Shape them so AI-agent scopes ("Can message: drivers", "Reads: telemetry",

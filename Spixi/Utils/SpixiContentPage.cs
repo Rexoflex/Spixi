@@ -3376,7 +3376,10 @@ namespace SPIXI
                          * the ONE process-wide Android bar pair from ITS surface — so a warm park
                          * finishing while the user sat on the Wallet hero left dark glyphs on the
                          * blue hero. The page the user actually sees takes the bars back. */
-                        try { repaintSystemBars(visibleSurfacePage(op.host)); }
+                        /* ★ #1042 (#46 r2): NULL fallback, not op.host — with a fallback the resolver returns
+                         * that page and never reaches the root navigation's CurrentPage, so a page pushed
+                         * directly (scan, backup, a call) inside the warm window would get Home's bars. */
+                        try { repaintSystemBars(visibleSurfacePage(null)); }
                         catch (Exception ex) { Logging.warn("warm park repaint: " + ex.GetType().Name); }
                     }
                     else if (op.overlayMode)

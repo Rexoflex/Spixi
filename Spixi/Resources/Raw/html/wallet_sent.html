@@ -1290,7 +1290,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    left a gap before the tail; flex items are blockified, so a drag-select of the id gets a line
    break between the two halves. The Copy button is the copy path (it copies the raw id), and a
    reader still gets every character — the flex row wins on what the user sees. */
-.c-txsheet__rowvalue--id { display: flex; justify-content: flex-end; min-width: 0; }
+.c-txsheet__rowvalue--id { display: flex; justify-content: flex-end; min-width: 0; direction: ltr; unicode-bidi: isolate; }   /* #1042: an id reads left-to-right in any document */
 .c-txsheet__idhead { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-txsheet__idtail { flex: none; white-space: nowrap; }
 /* fee ⓘ + one-line explanation (Damir #135) */

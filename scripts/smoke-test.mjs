@@ -38326,7 +38326,7 @@ console.log('★★ #1028+ — the overnight finalization');
     /* ★ #1041 (auditor A): a WARM park (loaded off-screen) hands the process-wide bars back to the visible page */
     const wp = cs.indexOf('Logging.info("warm park ready: "');
     const wpEnd = cs.indexOf('else if (op.overlayMode)', wp);
-    r.warmParkRepaint = wp > 0 && wpEnd > wp && /repaintSystemBars\(visibleSurfacePage\(op\.host\)\);/.test(cs.slice(wp, wpEnd));
+    r.warmParkRepaint = wp > 0 && wpEnd > wp && /repaintSystemBars\(visibleSurfacePage\(null\)\);/.test(cs.slice(wp, wpEnd));
     /* ★ #1041 (auditor A): the sub-cent line takes the app language's decimal mark */
     r.subCentLocale = /if \(n === '<0\.01'\) return '<\$' \+ groupAmountDisplay\('0\.01'\);/.test(stripCode(rdO('src/components/money.js')));
     /* ⑥ the lighter settings ground: lighter than grey-50, and the white card still lifts off it */
@@ -38345,10 +38345,17 @@ console.log('★★ #1028+ — the overnight finalization');
     /* ★ #1041 (Damir: "delivered at reduced opacity"): the faded delivered tick sits ON the 3:1 non-text floor in
        both themes (computed from the tokens, not asserted by hand), and below full opacity */
     const mixO = (fg, bg, a) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(fg.slice(i, i + 2), 16) * a + parseInt(bg.slice(i, i + 2), 16) * (1 - a)).toString(16).padStart(2, '0')).join('');
+    /* ★ #1042 (#46 r2): the floor holds on the PINNED row's wash too (an rgba over the screen), and ≥ 3 exactly —
+       the first cut tested only the bare ground with a 2.95 tolerance a one-step regression slipped under */
+    const overO = (rgba, bg) => { const m = /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/.exec(rgba || ''); if (!m) return null;
+      return mixO('#' + [m[1], m[2], m[3]].map((x) => Number(x).toString(16).padStart(2, '0')).join(''), bg, Number(m[4])); };
     r.deliveredFade = ['light', 'dark'].every((t) => {
       const a = Number(resolveTok(t, '--tick-delivered-opacity')), fg = resolveTok(t, '--icon-neutral-03'), bg = resolveTok(t, '--surface-screen');
-      return a > 0 && a < 1 && crO(mixO(fg, bg, a), bg) >= 2.95;
-    });
+      const pinned = overO(resolveTok(t, '--surface-pinned'), bg);
+      return a > 0 && a < 1 && !!pinned && crO(mixO(fg, bg, a), bg) >= 3 && crO(mixO(fg, pinned, a), pinned) >= 3;
+    }) && /\.c-chatlist-item\[aria-current\] \.c-status-icon\[data-tone="delivered"\] \{ opacity: 1; \}/.test(cl);
+    const csw = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
+    r.warmNullFallback = /try \{ repaintSystemBars\(visibleSurfacePage\(null\)\); \}/.test(csw);
     /* ★ #1041 (Damir: the incoming timestamp "clashes with the message"): received meta children at 0.7, like sent */
     r.recvMeta = /\.c-bubble-row\[data-direction="received"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(stripCssComments(rdO('src/styles/components/message-bubble.css')));
     r.readTick = readTok === '--icon-success' && delTok === '--icon-neutral-03'

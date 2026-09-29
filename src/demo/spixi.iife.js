@@ -13571,8 +13571,7 @@ function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer, disclo
       icon: icon('external-link', { size: 18 }), iconPosition: 'trailing',   // #710: an Explorer link opens outside the app
       onClick: latched(() => sheet, () => onExplorer(tx)),
     });
-    if (content.contains(details)) details.append(explorerBtn);
-    else content.append(explorerBtn);
+    details.append(explorerBtn);   // #1042 (r2): `details` always holds metaBox and is always appended, so this is the only branch
   }
 
   /* ★ #453 (Damir on device): the sheet had no way out except the scrim or a swipe. Every

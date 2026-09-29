@@ -1,16 +1,27 @@
-X.8 FIX, then THE OFFICE (Mac + iPhone).
+X.8 KEYBOARD FIX + MENU FADE-OUT, then THE OFFICE (Mac + iPhone).
 
 0 · Read `docs/handoff-2026-09-29b.md` FIRST (§9 = the latest state, §2 = the office plan), then DECISIONS #1057–#1070.
-Check: PC HEAD carries #1057–#1070 (committed 2026-09-30; push = Damir); `node scripts/smoke-test.mjs` =
-BASELINE OK 4985 / the 2 KNOWN (with the Ixian-Core sibling).
+Check: PC HEAD = d3bf6338 or later (#1057–#1070; push = Damir); `node scripts/smoke-test.mjs` = BASELINE OK 4985 /
+the 2 KNOWN (with the Ixian-Core sibling). #1065 (keyboard stays up) and #1067 (menu grows in) are the base.
 
-1 · X.8 failed (#1065 — the keyboard must stay up when you long-press a message while typing). Damir gave no note.
-Ask him ONE question first: which step fails and on which device. Then read overlay.js keepEditableFocus,
-message-menu.js and desktop-anchors.js (vv cap) against the answer. Also (Damir): the long-press menu must FADE OUT the way it grows in (#1067 mirror on close, both menus).
-Fix both, render/measure, Opus #46 loop that also
-covers #1067 + #1068 (never reviewed), smoke, land, a short walk sheet. X.3 passed after warm-up — do not touch it.
+1 · X.8 on ANDROID (Damir): keyboard up → long-press a message → the keyboard CLOSES and the menu opens → the menu
+closes → the keyboard COMES BACK. The field loses focus at the long-press on the BUBBLE; #1065 only guards the MENU
+(no focus move on open, mousedown prevented on menu/scrim) and then restores focus. Verify first (#294): find what
+blurs the textarea during the press — the bubble's touch/pointer handlers (pressable / long-press arming), the
+native long-press text selection or `contextmenu`, or a focus call in the menu-open path. Add a `[KBDIAG]` log
+(document.activeElement + event type at touchstart/pointerdown/contextmenu/blur) if the source does not say.
+Then fix at the source (keep the field focused through the press), not by re-focusing afterwards. Windows has no
+soft keyboard — the check is Android; iPhone at the office.
 
-2 · The office walk (handoff §2): Mac/iPhone rows of `docs/walk-artifact-overnight-1028.html`, W.15 of
-`docs/walk-artifact-1050.html`, and X.1 · X.7 · X.8 · X.9 · X.10 of `docs/walk-artifact-1058.html` on the iPhone.
+2 · Same files (Damir): the long-press menu must FADE OUT the way it grows in (#1067 mirror on close: scale 1 → 0.92
++ fade on the same curve, remove after transitionend with a timeout belt; reduced motion = instant). Both the message
+menu and the chats-row menu (`anchorSheetToRow`). Render/measure open AND close.
 
-3 · Fix round from the office findings → Opus #46 loop → deliver. Commit + push = Damir. Chat replies in ASD-STE100 (#931).
+3 · Opus #46 loop over items 1–2 AND #1067 + #1068 (never reviewed) → FULL pipeline (bundle BEFORE shells) → smoke
+in the container twin → land on the PC → short walk sheet (Artifact). X.3 passed after warm-up — do not touch it.
+X.10 dial (grow 0.2 → 0.3 s) only if Damir asks.
+
+4 · The office walk (handoff §2): Mac/iPhone rows of `docs/walk-artifact-overnight-1028.html`, W.15 of
+`docs/walk-artifact-1050.html`, X.1 · X.7 · X.8 · X.9 · X.10 of `docs/walk-artifact-1058.html`, and items 1–2 on the iPhone.
+
+5 · Fix round from the office findings → Opus #46 loop → deliver. Commit + push = Damir. Chat replies in ASD-STE100 (#931).

@@ -663,5 +663,6 @@
   "copyFailedOpenQr": "コピーできませんでした。QRコードを開いて完全なアドレスをコピーしてください。",
   "groundBrandGradient": "ブランドグラデーション",
   "patternStyleContours": "等高線",
-  "tapToDownload": "タップしてダウンロード"
+  "tapToDownload": "タップしてダウンロード",
+  "viewOnIxiScope": "ixiscope で表示"
 }

@@ -1,0 +1,18 @@
+#1050–#1056: tx sheet, notifications and tonal button polish from the premium walk
+
+- Tx sheet: the address is one continuous mono block (word-break: break-all), no group gaps.
+- "See details" takes the Close button's type (label-sm, --font-secondary); chevron 16.
+- 24 px air above the toggle; the details render ABOVE it so the toggle stays under the
+  finger (bottom sheet); a capped sheet's scroller absorbs the shift.
+- Explorer button: tonal, "View on ixiscope" (new key viewOnIxiScope, 12 drafts;
+  viewTxExplorer retired).
+- Notifications: OneSignal in its own card, its note as a footnote under that card;
+  no empty card.
+- Tonal button: own AA palette in every state (light ink primary-700 on 100/200/300;
+  dark blue ink primary-300 on 700/800/900). CHAT_KB_CEIL 688 -> 690 (+720 chars, stated).
+- Dark outgoing bubble #2160c2 -> #1a4a96 (dark only; light unchanged).
+- Pre-launch audit handoff reviewed against the tree (#1054).
+- Tx details = a receipt card; the drawer grows smoothly (WAAPI), toggle never moves.
+- Pins: scroll compensation executed in jsdom; last-wins CSS reads; Opus #46 r1 + r2 CLEAN.
+- Suite: BASELINE OK 4970 / the 2 KNOWN.
+

@@ -663,5 +663,6 @@
   "copyFailedOpenQr": "Tidak dapat menyalin. Buka kode QR untuk menyalin alamat lengkap.",
   "groundBrandGradient": "Gradien merek",
   "patternStyleContours": "Kontur",
-  "tapToDownload": "Ketuk untuk mengunduh"
+  "tapToDownload": "Ketuk untuk mengunduh",
+  "viewOnIxiScope": "Lihat di ixiscope"
 }

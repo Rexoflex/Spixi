@@ -740,5 +740,6 @@
   "copyFailedOpenQr": "Kopieren fehlgeschlagen. Öffne den QR-Code, um die vollständige Adresse zu kopieren.",
   "groundBrandGradient": "Markenverlauf",
   "patternStyleContours": "Konturen",
-  "tapToDownload": "Zum Herunterladen tippen"
+  "tapToDownload": "Zum Herunterladen tippen",
+  "viewOnIxiScope": "In ixiscope ansehen"
 }

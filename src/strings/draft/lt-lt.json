@@ -662,5 +662,6 @@
   "copyFailedOpenQr": "Nepavyko nukopijuoti. Atidarykite QR kodą, kad nukopijuotumėte visą adresą.",
   "groundBrandGradient": "Prekės ženklo gradientas",
   "patternStyleContours": "Kontūrai",
-  "tapToDownload": "Palieskite, kad atsisiųstumėte"
+  "tapToDownload": "Palieskite, kad atsisiųstumėte",
+  "viewOnIxiScope": "Peržiūrėti per ixiscope"
 }

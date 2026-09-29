@@ -7557,10 +7557,14 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   /* ★ Session I re-base (#735⑥, sheet 1d = A): the blue softened one step to #2160C2, REVERSIBLY —
      #1956b2 rides in every token comment. The property is unchanged: ONE blue, both themes,
      fallback ≡ gradient. */
-  ok(/--gradient-bubble-sent: #2160c2;/.test(lightN81) && /--gradient-bubble-sent: #2160c2;/.test(darkN81)
-    && /--surface-bubble-sent: #2160c2;/.test(lightN81) && /--surface-bubble-sent: #2160c2;/.test(darkN81)
+  /* ★ #1055 RE-BASE (Damir 2026-09-29, a rendered 3-way on the real chat components): the N81 "ONE blue in both
+     themes" rule is RETIRED for dark — #2160c2 read loud on the near-black #989 canvas. Dark = #1a4a96 (same hue, two
+     steps deeper; white text 8.52:1). Light is unchanged. The property kept: in EACH theme the solid fallback AGREES
+     with the gradient token, and dark is darker than light (never the reverse). */
+  ok(/--gradient-bubble-sent: #2160c2;/.test(lightN81) && /--gradient-bubble-sent: #1a4a96;/.test(darkN81)
+    && /--surface-bubble-sent: #2160c2;/.test(lightN81) && /--surface-bubble-sent: #1a4a96;/.test(darkN81)
     && (lightN81.match(/#1956b2/g) || []).length >= 2,
-    '★ N81 → Session I: ONE outgoing blue #2160C2 in BOTH themes (was #1956B2, kept in the comments as the reversal), and the solid fallback AGREES with the gradient token');
+    '★ N81 → Session I → #1055: light outgoing blue #2160C2, dark #1A4A96 (a deeper step of the same hue on the near-black canvas); in each theme the solid fallback AGREES with the gradient token');
   /* ★ N81 (#422, #46 audit MAJOR): the flat bubble INTRODUCED a sub-AA timestamp.
    * Dark's old sent gradient (#353FB7→#2046A7) carried --neutral-300 at 5.06–5.17;
    * on the flat #1956B2 the same ink measures 4.28 at 12px regular. One ink in both
@@ -8348,7 +8352,10 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      sheet remap inlined via the bundle and the stylesheets, and their docblocks. Headroom under 680 is 1 367. */
   /* ★ #1028: 680 → 688 — the native copy route, the tick crossfade + replay, the sent-file tick and the platform
      carrier in every head (+~4.4 KB measured on chat.html; index.html has room). Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 688, INDEX_KB_CEIL = 531;
+  /* ★ #1052: 688 → 690 — the tonal button's own palette (4 private props on .c-button, 4 on the destructive intent,
+     3 retargeted tonal rules + their docblock) inlines into every shell via button.css. MEASURED on chat.html:
+     704 335 → 705 055 chars (+720); headroom under 688 had been 177. Headroom under 690 is 1 505. Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 690, INDEX_KB_CEIL = 531;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -13812,8 +13819,8 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
   /* —— N25 + the explorer copy ——————————————————————————————————————————— */
   ok(/toggle\.className = 'c-txsheet__disclose';/.test(ws43) && /details\.hidden = true;/.test(ws43),
     '★ N25 (#443): address / date / fee / transaction id sit behind a "See details" disclosure. Status stays outside it — it is the other half of "did it go through", which is the question the sheet exists to answer at a glance');
-  ok(/label: strings\.viewTxExplorer \|\| 'View transaction on Explorer'/.test(ws43),
-    '★ #443 (Damir): the tx-details explorer button says what it does. The old "View address in Explorer" copy came from the address-only verb the wallet tab used to have');
+  ok(/label: strings\.viewOnIxiScope \|\| 'View on ixiscope', type: 'tonal'/.test(stripCode(ws43)) && !/viewTxExplorer/.test(ws43),
+    '★ #443 → #1051 (Damir): the tx-details explorer button names the explorer — "View on ixiscope", TONAL (the old "View transaction on Explorer" key is retired)');
   ok(/current_url\.StartsWith\("ixian:txexplorer:", StringComparison\.Ordinal\)/.test(hp434)
     && /\?p=transaction&id=\{1\}/.test(hp434),
     '★ #443: W3 CLOSED on HomePage — a tx-scoped explorer verb, mirroring WalletSentPage:130 so the two surfaces cannot drift');
@@ -24462,11 +24469,21 @@ console.log('P2 (#708): the push-provider opt-out — row, latch, verb, apply');
   ok(/open Spixi/.test(offIos.textContent) && !/checks for new messages/.test(offIos.textContent)
      && /checks for new messages/.test(offAnd.textContent) && !/open Spixi/.test(offAnd.textContent),
     '★★ #708 EXECUTED (re-based): with the switch OFF the NOTE names the platform cost — iOS "when you open Spixi", Android "checks for new messages itself" — the #712 claim boundaries moved, they did not vanish');
-  ok(withAnd.querySelectorAll('.c-settings__group').length === 1
-     && withAnd.querySelectorAll('.c-settings__group > .c-settings__section').length === withAnd.querySelectorAll('.c-settings__switch').length
-     && withAnd.querySelectorAll('.c-settings__switch').length >= 2
-     && withAnd.querySelector('.c-settings-notifs__push-note').parentElement !== withAnd.querySelector('.c-settings__group'),
-    '★ #735 §9 (sheet 3b): ONE card holds every switch row (Account\'s grouping grammar) and the P2 note sits under the group, not inside it');
+  {
+    /* ★ #1050 RE-BASE (Damir PR.17): the display rows share ONE card (#735 §9 sheet 3b, held); the OneSignal row is its
+       OWN card, and its note is that card's FOOTNOTE — the next sibling of the card inside the card's wrap, never inside a card. */
+    const cards = [...withAnd.querySelectorAll('.c-settings__group')];
+    const pushCard = cards.find((c) => /OneSignal/.test(c.textContent));
+    const pnote = withAnd.querySelector('.c-settings-notifs__push-note');
+    ok(cards.length === 2 && !!pushCard && pushCard.querySelectorAll('.c-settings__switch').length === 1 && pushCard === cards[1]
+       && cards[0].querySelectorAll('.c-settings__switch').length >= 1 && !/OneSignal/.test(cards[0].textContent)
+       && withAnd.querySelectorAll('.c-settings__group > .c-settings__section').length === withAnd.querySelectorAll('.c-settings__switch').length
+       && !!pnote && !pnote.closest('.c-settings__group') && pnote.previousElementSibling === pushCard && pnote.parentElement === pushCard.parentElement,
+      '★ #1050 (re-bases #735 §9 sheet 3b): display rows in ONE card, OneSignal in its OWN card, the note directly under THAT card (its footnote), never inside a card');
+    const onlyPush = mk({ platform: 'android', pushProvider: true, onEnabled: undefined, onPreviews: undefined, onSounds: undefined });
+    ok(onlyPush.querySelectorAll('.c-settings__group').length === 1 && [...onlyPush.querySelectorAll('.c-settings__group')].every((g) => g.children.length > 0),
+      '★ #1050: no EMPTY card — with only the OneSignal row, the display card is not rendered');
+  }
   ok(!/OneSignal/.test(noCap.textContent) && !/OneSignal/.test(noHandler.textContent),
     '★ #708: no cap or no handler → NO row. Windows/Mac carry a stub SPushService, so a switch there would change nothing — the cap is withheld and the row never renders (the W-g rule)');
   {
@@ -38272,14 +38289,16 @@ console.log('★★ #1028+ — the overnight finalization');
     const txid = '6276945-dtF5wbngiPc43jbAbDpXyZ9QwErTyAbC';
     const sh = S.openTxSheet({ tx: { amount: '+0.05', fiat: '<$0.01', address: addr, name: 'Yooyooboi', txid, status: 'confirmed', direction: 'in', timeText: 'Sep 24, 21:50' }, host: W.document.body, onExplorer() {} });
     const amt = sh.querySelector('.c-txsheet__amount');
-    const groups = [...sh.querySelectorAll('.c-txsheet__addrgroup')];
+    const addrEl = sh.querySelector('.c-txsheet__addrvalue');
     const idVal = sh.querySelector('.c-txsheet__rowvalue--id');
     r.sheet = !!amt && (amt.querySelector('.c-txsheet__unit') || {}).textContent === 'IXI'
       && amt.querySelector('.c-txsheet__amountvalue').textContent === '+0.05'
       && sh.querySelectorAll('.c-badge').length === 1 && !!sh.querySelector('.c-txsheet__stamp .c-badge')
       && ![...sh.querySelectorAll('.c-txsheet__rowlabel')].some((l) => l.textContent === 'Status')
       && sh.querySelector('.c-txsheet__addrvalue').textContent === addr
-      && groups.length === Math.ceil(addr.length / 4) && groups.every((g) => g.textContent.length >= 1 && g.textContent.length <= 4)
+      /* ★ #1050 (Damir PR.7): ONE continuous block — the node's only child is ONE text node holding the exact address
+         (no group spans, nothing a reader can take for a space) */
+      && !sh.querySelector('.c-txsheet__addrgroup') && addrEl.childNodes.length === 1 && addrEl.firstChild.nodeType === 3 && addrEl.firstChild.nodeValue === addr
       /* ★ #1041 (auditor B MAJOR-2): the FULL id stays in the DOM (a reader and a drag-select get all of it); the
          last 8 characters are their own non-shrinking span, the head ellipsizes */
       && !!idVal && idVal.textContent === txid && idVal.title === txid
@@ -38292,20 +38311,125 @@ console.log('★★ #1028+ — the overnight finalization');
     r.stampOrder = !!stampEl && !stampEl.closest('.c-txsheet__head') && !!(amt.compareDocumentPosition(stampEl) & W.Node.DOCUMENT_POSITION_FOLLOWING);
     /* ★ #1041 (Damir: "too many buttons"): the Explorer link lives INSIDE the details drawer when there is one
        (hidden with it); a host with the details always open (disclose:false, the detail page) still shows it */
-    const exp = [...sh.querySelectorAll('.c-button')].find((b) => /Explorer/.test(b.textContent));
+    const exp = [...sh.querySelectorAll('.c-button')].find((b) => /ixiscope/.test(b.textContent));
     const sh3 = S.openTxSheet({ tx: { amount: '+1', txid, status: 'confirmed', direction: 'in', timeText: 'x' }, host: W.document.body, onExplorer() {}, disclose: false });
-    const exp3 = [...sh3.querySelectorAll('.c-button')].find((b) => /Explorer/.test(b.textContent));
+    const exp3 = [...sh3.querySelectorAll('.c-button')].find((b) => /ixiscope/.test(b.textContent));
     r.explorerInDetails = !!exp && !!exp.closest('.c-txsheet__details') && sh.querySelector('.c-txsheet__details').hidden === true
-      && !!exp3 && !exp3.closest('[hidden]');
+      && !!exp3 && !exp3.closest('[hidden]') && exp.dataset.type === 'tonal';
+    /* ★ #1051 (Damir): the toggle never moves under the finger — the details render ABOVE it (a bottom sheet grows
+       upward, so the toggle and Close keep their place), a capped sheet's scroller absorbs the shift, and the toggle
+       has air above it (margin on the toggle rule). EXECUTED: open + close from the same element. */
+    const tg = sh.querySelector('.c-txsheet__disclose'), dt = sh.querySelector('.c-txsheet__details');
+    /* LAST-WINS over every rule whose selector list names EXACTLY `sel` (a later override counts; @media wrappers unwrapped) */
+    const lastDecl = (css, sel, prop) => {
+      let val = null; const flat = css.replace(/@media[^{]*\{/g, '');
+      for (const m of flat.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!m[1].split(',').map((x) => x.trim()).includes(sel)) continue;
+        for (const d of m[2].split(';')) { const i = d.indexOf(':'); if (i > 0 && d.slice(0, i).trim() === prop) val = d.slice(i + 1).trim(); }
+      }
+      return val;
+    };
+    const wscAll = stripCssComments(rdO('src/styles/components/wallet-shell.css'));
+    /* EXECUTED: a capped sheet (its scroller overflows) — the scroller absorbs the toggle's shift on open AND close */
+    const sh4 = S.openTxSheet({ tx: { amount: '+1', address: addr, txid, status: 'confirmed', direction: 'in', timeText: 'x' }, host: W.document.body });
+    const tg4 = sh4.querySelector('.c-txsheet__disclose'), dt4 = sh4.querySelector('.c-txsheet__details'), scr = tg4.parentElement;
+    Object.defineProperty(scr, 'scrollHeight', { value: 1000, configurable: true });
+    Object.defineProperty(scr, 'clientHeight', { value: 500, configurable: true });
+    Object.defineProperty(scr, 'scrollTop', { value: 100, writable: true, configurable: true });
+    scr.style.overflowY = 'auto';
+    tg4.getBoundingClientRect = () => ({ top: dt4.hidden ? 400 : 700, bottom: 0, left: 0, right: 0, width: 0, height: 0 });
+    tg4.click(); const stOpen = scr.scrollTop; tg4.click(); const stClose = scr.scrollTop;
+    r.scrollComp = dt4.hidden === true && stOpen === 400 && stClose === 100;
+    /* ★ #1056 (Damir, option 1): the forensic half is ONE receipt CARD (address + rows inside it, the Explorer
+       action under it, inside the drawer), and the drawer GROWS instead of jumping — EXECUTED with a stubbed WAAPI:
+       open animates from 0, close animates to 0 and hides only on finish, a tap mid-close RE-OPENS (the stale
+       finish must not hide it), and reduced motion never animates. */
+    /* a mutation that breaks the drawer must FAIL this clause, never abort the suite */
+    try {
+      const sh5 = S.openTxSheet({ tx: { amount: '+1', address: addr, txid, status: 'confirmed', direction: 'in', timeText: 'x' }, host: W.document.body, onExplorer() {} });
+      const dt5 = sh5.querySelector('.c-txsheet__details'), tg5 = sh5.querySelector('.c-txsheet__disclose'), card5 = dt5.querySelector('.c-txsheet__card');
+      const exp5 = [...dt5.querySelectorAll('.c-button')].find((x) => /ixiscope/.test(x.textContent));
+      dt5.parentElement.style.rowGap = '12px';            // the real .c-txsheet gap (no stylesheet in this window)
+      let rectH = 57;                                      // the drawer's live height until an animation is CANCELLED
+      const calls = []; let last = null;
+      dt5.animate = (frames, opts) => { last = { frames, opts, cancel() { this.cancelled = true; rectH = 300; }, onfinish: null }; calls.push(last); return last; };
+      tg5.click(); const a1 = calls.at(-1);
+      const openOk = !!a1 && a1.frames[0].height === '0px' && dt5.hidden === false && tg5.getAttribute('aria-expanded') === 'true';
+      a1?.onfinish?.();
+      const openSettled = !dt5.style.overflow && !dt5.style.height;
+      tg5.click(); const a2 = calls.at(-1);
+      const closingVisible = !!a2 && a2 !== a1 && a2.frames.at(-1).height === '0px' && a2.frames.at(-1).marginTop === '-12px'
+        && dt5.hidden === false && dt5.style.height === '0px' && dt5.style.opacity === '0' && dt5.style.marginTop === '-12px' && tg5.getAttribute('aria-expanded') === 'false';
+      dt5.getBoundingClientRect = () => ({ top: 0, bottom: rectH, left: 0, right: 0, width: 0, height: rectH });   // mid-close: 57px tall; a cancel() snaps it (so the read must come FIRST)
+      tg5.click(); const a3 = calls.at(-1);                 // tap mid-close → re-open
+      a2?.onfinish?.();                         // the stale close finishing must NOT hide the re-opened card
+      const reopenOk = !!a2 && a2.cancelled === true && !!a3 && a3 !== a2 && a3.frames[0].height === '57px' && dt5.hidden === false && tg5.getAttribute('aria-expanded') === 'true';
+      delete dt5.getBoundingClientRect;
+      a3?.onfinish?.();
+      tg5.click(); calls.at(-1)?.onfinish?.();
+      const closedOk = dt5.hidden === true && !dt5.style.height && !dt5.style.overflow && !dt5.style.opacity && !dt5.style.marginTop;
+      /* capped sheet: the scroller overflows → instant, no animation (the #1051 compensation path) */
+      const scr5 = tg5.parentElement; Object.defineProperty(scr5, 'scrollHeight', { value: 1000, configurable: true }); Object.defineProperty(scr5, 'clientHeight', { value: 500, configurable: true }); scr5.style.overflowY = 'auto';
+      const nC = calls.length; tg5.click(); const cappedOk = calls.length === nC && dt5.hidden === false; tg5.click();
+      scr5.style.overflowY = ''; delete scr5.scrollHeight; delete scr5.clientHeight;
+      const prevMM = W.matchMedia; W.matchMedia = () => ({ matches: true });
+      const n0 = calls.length; tg5.click(); const rmOk = calls.length === n0 && dt5.hidden === false; tg5.click();
+      W.matchMedia = prevMM;
+      /* an Explorer-only transaction (no address, date, fee or id): the drawer opens to just the action, no empty card */
+      const sh7 = S.openTxSheet({ tx: { amount: '+1', status: 'confirmed', direction: 'in' }, host: W.document.body, onExplorer() {} });
+      const d7 = sh7.querySelector('.c-txsheet__details');
+      const explorerOnlyOk = !!sh7.querySelector('.c-txsheet__disclose') && !!d7 && !d7.querySelector('.c-txsheet__card')
+        && [...d7.querySelectorAll('.c-button')].some((x) => /ixiscope/.test(x.textContent));
+      const sh8 = S.openTxSheet({ tx: { amount: '+1', status: 'confirmed', direction: 'in' }, host: W.document.body });
+      const nothingOk = !sh8.querySelector('.c-txsheet__disclose');   // nothing to disclose → no toggle
+      const wsc5 = stripCssComments(rdO('src/styles/components/wallet-shell.css'));
+      const cardRule = (/\.c-txsheet__card \{([^}]*)\}/.exec(wsc5) || [])[1] || '';
+      r.detailsCard = !!card5 && card5.parentElement === dt5 && !!card5.querySelector('.c-txsheet__addr') && !!card5.querySelector('.c-txsheet__meta')
+        && !!exp5 && !card5.contains(exp5) && exp5.parentElement === dt5
+        && /background: var\(--surface-sheet-card\);/.test(cardRule) && /border-radius: var\(--radius-16\);/.test(cardRule) && /padding: var\(--spacing-16\);/.test(cardRule)
+      && /\.c-txsheet__card \.c-txsheet__addr \{ background: transparent; padding: 0; \}/.test(wsc5)
+      && /\.c-txsheet__card \.c-txsheet__row \{ border-block-end-color: var\(--outline-on-card\); \}/.test(wsc5)
+      && openSettled && cappedOk && explorerOnlyOk && nothingOk
+        && openOk && closingVisible && reopenOk && closedOk && rmOk;
+    } catch (e) { r.detailsCard = false; }
+    const tgSrc = stripCode(rdO('src/components/wallet-shell.js'));
+    let tgOk = !!tg && tg.previousElementSibling === dt && dt.hidden === true;
+    if (tgOk) { tg.click(); tgOk = dt.hidden === false && tg.previousElementSibling === dt && tg.getAttribute('aria-expanded') === 'true'; tg.click(); tgOk = tgOk && dt.hidden === true && tg.getAttribute('aria-expanded') === 'false'; }
+    r.toggleStays = tgOk && lastDecl(wscAll, '.c-txsheet__disclose', 'margin-block-start') === 'var(--spacing-12)'
+      && /content\.append\(details, toggle\);/.test(tgSrc) && !/content\.append\(toggle, details\);/.test(tgSrc);
     const sh2 = S.openTxSheet({ tx: { amount: '••••••', status: 'pending', direction: 'out' }, host: W.document.body });
     r.maskedNoUnit = !sh2.querySelector('.c-txsheet__unit');
-    /* ★ #1041 (auditor B MAJOR-1 / m1 / n1): the address box is a BLOCK of inline-block groups (a flex row made
-       every group a line in a selection / innerText), LTR-isolated; the unit carries no opacity */
+    /* ★ #1041 (auditor B MAJOR-1 / m1 / n1) → #1050: the address box is a BLOCK holding ONE text node (a flex row made
+       every child a line in a selection / innerText), LTR-isolated, wrapping at any character; the unit carries no opacity */
     const wsc = stripCssComments(rdO('src/styles/components/wallet-shell.css'));
     const addrRule = (/\.c-txsheet__addrvalue \{([^}]*)\}/.exec(wsc) || [])[1] || '';
     r.addrCss = /display: block;/.test(addrRule) && !/display: flex/.test(addrRule) && /direction: ltr;/.test(addrRule) && /unicode-bidi: isolate;/.test(addrRule)
-      && /\.c-txsheet__addrgroup \{[^}]*display: inline-block;/.test(wsc)
+      && /word-break: break-all;/.test(addrRule) && !/\.c-txsheet__addrgroup/.test(wsc) && !/margin-inline-end/.test(addrRule)
       && !/opacity/.test((/\.c-txsheet__unit \{([^}]*)\}/.exec(wsc) || [])[1] || 'opacity');
+    /* ★ #1050 (Damir PR.7 screenshot): "See details" = the Close button's size role. DERIVED from button.css: the
+       disclosure declares the same family and the same font-size token as a 44 button, and never label-lg again. */
+    const bc = stripCssComments(rdO('src/styles/components/button.css'));
+    /* both sides LAST-WINS (r2): a later override on the 44 button or the disclosure breaks the equality */
+    const b44 = (prop) => lastDecl(bc, '.c-button[data-size="44"]', prop), bBase = (prop) => lastDecl(bc, '.c-button', prop);
+    const dq = (prop) => lastDecl(wscAll, '.c-txsheet__disclose', prop);
+    r.discloseType = !!b44('font-size') && dq('font-size') === b44('font-size')
+      && !!bBase('font-family') && dq('font-family') === bBase('font-family')
+      && dq('font-weight') === bBase('font-weight') && dq('line-height') === 'var(--line-height-label-sm)'
+      && /icon\('chevron-down', \{ size: 16 \}\)/.test(stripCode(rdO('src/components/wallet-shell.js')));
+    /* ★ #1052 (Damir): the TONAL BUTTON passes AA in EVERY state in both themes (resolved tokens, computed), lifts off the
+       sheet it sits on, and button.css paints the tonal type from ITS pair — default intent — for bg AND ink in all three states */
+    r.tonalAA = ['light', 'dark'].every((t) => {
+      const ink = resolveTok(t, '--text-button-tonal');
+      return !!ink && ['default', 'hover', 'pressed'].every((st) => { const bg = resolveTok(t, '--surface-button-tonal-' + st); return !!bg && crO(ink, bg) >= 4.5; })
+        && crO(resolveTok(t, '--surface-button-tonal-default'), resolveTok(t, '--surface-sheet')) >= 1.3;
+    }) && lastDecl(bc, '.c-button[data-type="tonal"]', 'background') === 'var(--_tb)' && lastDecl(bc, '.c-button[data-type="tonal"]', 'color') === 'var(--_tb-ink)'
+      && lastDecl(bc, '.c-button[data-type="tonal"]:hover', 'background') === 'var(--_tb-hover)' && lastDecl(bc, '.c-button[data-type="tonal"]:active', 'background') === 'var(--_tb-pressed)'
+      && lastDecl(bc, '.c-button', '--_tb') === 'var(--surface-button-tonal-default)' && lastDecl(bc, '.c-button', '--_tb-ink') === 'var(--text-button-tonal)'
+      && lastDecl(bc, '.c-button', '--_tb-hover') === 'var(--surface-button-tonal-hover)' && lastDecl(bc, '.c-button', '--_tb-pressed') === 'var(--surface-button-tonal-pressed)'
+      /* ★ #1053 (Damir: "no white label — part of the blue family"): in BOTH themes the ink is a mid-family primary step,
+         never the near-white 50/100 */
+      && (() => { const inks = [...stripCssComments(rdO('src/styles/tokens.css')).matchAll(/--text-button-tonal:\s*var\(--primary-(\d+)\);/g)].map((m) => Number(m[1]));
+        return inks.length === 2 && inks.every((n) => n >= 200 && n <= 800); })();
     /* ④ the chat appearance: a pinch-set scale names itself; picking a preset removes the note; tiles name themselves */
     const custom = S.createChatAppearance({ textScale: 1.18, onTextScale() {} });
     const note = custom.querySelector('.c-settings-appearance__custom');
@@ -38397,7 +38521,7 @@ console.log('★★ #1028+ — the overnight finalization');
       && ['light', 'dark'].every((t) => { const bg = resolveTok(t, '--surface-screen'), pin = overO(resolveTok(t, '--surface-pinned'), bg);
         return crO(resolveTok(t, readTok), bg) >= 3 && !!pin && crO(resolveTok(t, readTok), pin) >= 3 && resolveTok(t, readTok) !== resolveTok(t, delTok); });
     ok(Object.values(r).every((v) => v === true),
-      '★★ #1040 (Damir 2026-09-29): one fiat rule (2 dp, "<$0.01") in every shell · the tx sheet reads as a receipt (unit, ONE status stamp, address in groups of four, id cut in the MIDDLE) · a pinch-set text size names itself · Background tiles name themselves · the re-presented Account page repaints the status bar · the settings ground is one step lighter · credits are a list · "Available balance" — ' + JSON.stringify(r));
+      '★★ #1040 (Damir 2026-09-29; + #1052 tonal button AA): one fiat rule (2 dp, "<$0.01") in every shell · the tx sheet reads as a receipt (unit, ONE status stamp, the address as ONE mono block (#1050), id cut in the MIDDLE) · a pinch-set text size names itself · Background tiles name themselves · the re-presented Account page repaints the status bar · the settings ground is one step lighter · credits are a list · "Available balance" — ' + JSON.stringify(r));
   }
 }
 /* ══ OVERNIGHT-1028-END ══ */

@@ -225,19 +225,18 @@
 }
 .c-txsheet__addrvalue {
   flex: 1; min-width: 0;
-  /* ★ #1041 (#46 r1, auditor B MAJOR-1): a BLOCK, not a flex row — flex made every group a
-     block item, so a drag-select / innerText / a screen reader got 17 lines ("4dXR\ncrJC…")
-     instead of the one address. Inline-block groups wrap between groups and select as ONE
-     string. LTR-isolated so an RTL document cannot lay the groups out right-to-left. */
+  /* ★ #1041 (#46 r1, auditor B MAJOR-1): a BLOCK, not a flex row — a flex row made every child
+     its own line in a drag-select / innerText / a screen reader. ★ #1050: the child is ONE text
+     node now (no groups, no gaps — PR.7), so it selects, reads and copies as the one address.
+     LTR-isolated so an RTL document cannot reorder it. */
   display: block;
   direction: ltr; unicode-bidi: isolate; text-align: start;
   font-family: var(--font-mono);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-01);
-  overflow-wrap: anywhere;                     /* the FULL address is the verification truth (#99) */
+  word-break: break-all;                       /* ★ #1050: one continuous block, wraps at ANY character (the FULL address is the verification truth, #99) */
 }
-.c-txsheet__addrgroup { display: inline-block; white-space: nowrap; margin-inline-end: 0.45em; }
 
 .c-txsheet__meta { display: flex; flex-direction: column; }
 .c-txsheet__row {
@@ -312,8 +311,9 @@
 
 /* ★ N25 (#443): the "See details" disclosure. Address / date / fee / transaction id
    sit behind it; the amount, the counterparty and the status stay in the first
-   glance. No height animation — the sheet is already a moving surface and a second
-   transition inside it reads as lag, not polish. */
+   glance. ★ #1056 (Damir, option 1) REVERSES the old "no height animation" call: the drawer
+   now GROWS (wallet-shell.js, WAAPI, 220/180ms, reduced motion = instant) because the
+   instant jump was what read as "off"; the toggle itself never moves (#1051). */
 .c-txsheet__disclose {
   display: flex;
   align-items: center;
@@ -321,13 +321,18 @@
   gap: var(--spacing-4);
   width: 100%;
   min-height: 44px;
+  margin-block-start: var(--spacing-12);   /* ★ #1051 (Damir): air between the content and the toggle — 24 with the sheet's 12 gap */
   padding: var(--spacing-8) var(--spacing-12);
   border: 0;
-  border-radius: var(--radius-12);
+  /* ★ #1050 (Damir, PR.7 screenshot): the SAME type as the Close button under it — a 44 text
+     button (button.css: --font-secondary, semibold, label-sm, pill radius). It was label-lg in
+     the body face, so the secondary action read LARGER than Close. One size role for both. */
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--text-action-default);
-  font-size: var(--font-size-label-lg);
-  line-height: var(--line-height-label-lg);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -344,6 +349,19 @@
    12 parent; in an 8 parent the negative margin cancels the gap exactly and the label
    sits flush on the chip. */
 .c-txsheet__details { display: flex; flex-direction: column; gap: var(--spacing-12); }
+/* ★ #1056 (Damir): the details are a RECEIPT CARD — one lifted surface (the sheet-card role:
+   lighter than the dark sheet, a quiet grey step on the light one), no inner boxes. The address
+   loses its own grey chip inside the card (a box in a box) and sits flush with the rows; the
+   row dividers take the on-card hairline. */
+.c-txsheet__card {
+  display: flex; flex-direction: column; gap: var(--spacing-12);
+  padding: var(--spacing-16);
+  border-radius: var(--radius-16);
+  background: var(--surface-sheet-card);
+}
+.c-txsheet__card .c-txsheet__addr { background: transparent; padding: 0; }
+.c-txsheet__card .c-txsheet__row { border-block-end-color: var(--outline-on-card); }
+.c-txsheet__card .c-txsheet__row:last-child { padding-block-end: 0; }
 
 /* #452: the scan CARD and the fixed-starting-point line inside the "Missing a
    transaction?" sheet both live in scan-progress.css, beside the ring they share. */

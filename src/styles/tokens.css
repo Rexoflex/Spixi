@@ -492,6 +492,14 @@
   --surface-action-tonal-hover: var(--primary-200);
   --surface-action-tonal-pressed: var(--primary-300);
   --surface-action-tonal-disabled: var(--neutral-200);
+  /* ★ #1052 (Damir): the TONAL BUTTON's own pair. It borrowed the tonal surface family, whose ink
+     (--text-action-default, primary-600) fell to 4.21:1 on hover and 3.44:1 pressed in light, and
+     2.67 / 1.46 in dark. One step darker ink here passes AA in every state: 7.06 / 6.29 / 5.14.
+     The shared --surface-action-tonal-* family (medallions, chips, text/outline :active) is untouched. */
+  --surface-button-tonal-default: var(--primary-100);
+  --surface-button-tonal-hover: var(--primary-200);
+  --surface-button-tonal-pressed: var(--primary-300);
+  --text-button-tonal: var(--primary-700);
 
   /* surface/destructive */
   --surface-destructive-default: var(--error-600);
@@ -906,6 +914,15 @@
   --surface-action-tonal-hover: var(--primary-600);
   --surface-action-tonal-pressed: var(--primary-500);
   --surface-action-tonal-disabled: var(--neutral-700);
+  /* ★ #1052 → #1053 (Damir: "no white label — part of the blue family"): dark tonal button —
+     primary-700 LIFTS off the dark sheet (1.64:1; the old primary-800 was 1.20 and read as a
+     hole) and the ink is a BLUE, primary-300. A lighter hover surface would drop the blue ink
+     under AA (300 on 600 = 3.44), so hover and press SINK instead: 5.14 default / 7.04 hover
+     (primary-800) / 9.11 pressed (primary-900). */
+  --surface-button-tonal-default: var(--primary-700);
+  --surface-button-tonal-hover: var(--primary-800);
+  --surface-button-tonal-pressed: var(--primary-900);
+  --text-button-tonal: var(--primary-300);
 
   /* surface/destructive */
   /* ★ #1018 (Damir's dark sweep, 2026-09-28): the dark destructive fill mirrors the dark ACTION
@@ -935,7 +952,7 @@
   --surface-sheet-card-pressed: var(--neutral-500);  /* ★ #1030: now one visible step past hover (was equal to it) */
   --surface-card-hover: var(--neutral-600);          /* ★ Session Y: 1.187:1 on the neutral-800 card after #884 ② (was 1.223 on grey-600; 700 would be 1.048 — invisible) */
   --surface-card-pressed: var(--neutral-500);        /* 1.309:1 (was 1.357) */
-  --surface-bubble-sent: #2160c2;      /* ★ Session I (sheet 1d = A): was #1956b2 — matches --gradient-bubble-sent in both themes */
+  --surface-bubble-sent: #1a4a96;      /* ★ #1055 (Damir 2026-09-29, rendered 3-way): DARK ONLY — #2160c2 read loud on the near-black canvas; #1a4a96 = the same hue two steps deeper. White text 8.52:1 (was 5.97), 2.32:1 off the canvas. Light keeps #2160c2. Reversal = #2160c2 (Session I sheet 1d = A). */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "incoming bubbles on dark mode need a bit more
      colour tuning so it stands out a bit more". MEASURED, and the number explains the
      report: #1a1d24 sat +5.72 ΔL* above the dark BASE but only +2.86 above the canvas
@@ -1045,7 +1062,7 @@
   --text-bubble-received-meta: var(--neutral-400);
   /* saturated deep-blue outgoing bubble → LIGHT glyphs pop (mirror light mode; the
      old 700/800 values were tuned for the pale primary-400 bubble). */
-  --icon-bubble-read: #8ff5b4;                    /* ★ Session X: the same mint — the bubble is the same blue in both themes (see light) */
+  --icon-bubble-read: #8ff5b4;                    /* ★ Session X: the same mint as light. #1055: the dark bubble is now the deeper #1a4a96; the mint measures 6.45:1 on it */
   --icon-bubble-delivered: var(--text-bubble-sent-meta); /* iOS-16 (#283): neutral like sent — see light-mode note */
   --icon-bubble-failed: var(--error-200);
 
@@ -1816,7 +1833,7 @@
   /* OUTGOING (sent) bubble fill — ★ N81 (#422): the SAME #1956B2 as light. Damir
      asked for one outgoing blue across both themes, so the dark-only two-stop
      gradient (#353FB7→#2046A7) is retired. */
-  --gradient-bubble-sent: #2160c2;     /* ★ Session I (#735⑥): was #1956b2 — the reversal */
+  --gradient-bubble-sent: #1a4a96;     /* ★ #1055: DARK ONLY, matches --surface-bubble-sent (the fallback must not disagree). Reversal = #2160c2 */
   /* ★ N82(b) (#427): the dark override is GONE — see the light block. Dark inherits
      `transparent` from :root now, on Damir's pick made against the rendered
      comparison. Restoring dark alone = put this line back with

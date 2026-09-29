@@ -837,6 +837,11 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
   const details = document.createElement('div');
   details.className = 'c-txsheet__details';
   details.hidden = true;
+  /* ★ #1056 (Damir): the forensic half reads as ONE receipt CARD — address, date, fee and id on
+     a lifted surface, the Explorer action under the card (a tonal button on a tinted card read
+     muddy). `details` stays the disclosure container (the toggle and the pins address it). */
+  const card = document.createElement('div');
+  card.className = 'c-txsheet__card';
   txSheetSeq += 1;
   const detailsId = 'c-txsheet-details-' + txSheetSeq;
 
@@ -853,19 +858,14 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
     addrRow.className = 'c-txsheet__addr';
     const addr = document.createElement('span');
     addr.className = 'c-txsheet__addrvalue u-tabular';
-    /* ★ #1040: the address in GROUPS OF FOUR, in a monospace face — the IBAN grammar, so a
-       user comparing it against another screen can hold a group at a time. The groups are
-       SPANS with a CSS gap, never spaces: the node's text (and anything the user selects
-       and copies) stays the exact address. The copy button copies tx.address, unchanged. */
-    const addrStr = String(tx.address);
-    for (let i = 0; i < addrStr.length; i += 4) {
-      const g = document.createElement('span');
-      g.className = 'c-txsheet__addrgroup';
-      g.textContent = addrStr.slice(i, i + 4);
-      addr.append(g);
-    }
+    /* ★ #1040 → #1050 (Damir, PR.7 on the premium walk): ONE continuous block. #1040 split the
+       address into groups of four with a CSS gap; copy stayed exact, but a reader took the gaps
+       for spaces and would retype them. Now the node holds ONE text node — the exact address —
+       in a monospace face, wrapping at any character (`word-break: break-all` in the CSS). The
+       copy button copies tx.address, unchanged. */
+    addr.textContent = String(tx.address);
     addrRow.append(addr, copyButton(tx.address, addrLabel.textContent, strings));
-    details.append(addrLabel, addrRow);   // N25
+    card.append(addrLabel, addrRow);   // N25 · #1056: inside the card
   }
 
   /* meta — rows render only when the bridge provided the field (data-honest).
@@ -935,7 +935,11 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
     rows.push(idRow);
   }
   metaBox.append(...rows);
-  details.append(metaBox);
+  if (rows.length) card.append(metaBox);   // #1056: inside the card (an empty meta list adds nothing)
+  if (card.childElementCount) details.append(card);
+  /* #1056 (#46 r1 NIT): "is there anything to disclose" = the card has content OR there is an Explorer
+     action. The old test (details.children.length) became always-true once the card wrapper existed. */
+  const hasDetails = card.childElementCount > 0 || !!onExplorer;
 
   /* N25 disclosure. Rendered only when there is something to disclose — a row with
      no address, no date, no fee and no id would otherwise offer an empty drawer.
@@ -943,30 +947,96 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
      wallet_sent.html is the transaction DETAIL page — hiding the detail behind a tap
      there inverts the screen, and its #285 "Show amounts" reveal re-renders, which
      would have collapsed the drawer again every time. */
-  if (details.children.length && !disclose) {
+  if (hasDetails && !disclose) {
     content.append(details);
     details.hidden = false;
-  } else if (details.children.length) {
+  } else if (hasDetails) {
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'c-txsheet__disclose';
     toggle.setAttribute('aria-expanded', 'false');
     const tlabel = document.createElement('span');
     tlabel.textContent = strings.seeDetails || 'See details';
-    const chev = icon('chevron-down', { size: 18 });
+    const chev = icon('chevron-down', { size: 16 });   // ★ #1050: sized with the label-sm text (was 18 with label-lg)
     chev.classList.add('c-txsheet__chev');
     toggle.append(tlabel, chev);
     toggle.setAttribute('aria-controls', detailsId);   // audit NIT-18
     details.id = detailsId;
+    /* ★ #1056 (Damir, option 1): the details open as a CARD and the sheet GROWS smoothly instead of
+       jumping. The toggle still never moves under the finger (#1051): a bottom sheet grows
+       upward, so animating the card's height keeps the toggle and Close where they are.
+       ANIMATE only when the sheet is NOT at its height cap (at the cap the sheet scrolls, and the
+       scroller absorbs the shift instantly — the #1051 compensation), when motion is allowed, and
+       where WAAPI exists (every WebView we ship; jsdom has none → instant, same state).
+       State lives in `isOpen`, not `details.hidden`: during a close the card is still visible
+       for 180 ms, and a tap then must re-open it, not close it twice. */
+    let isOpen = false, anim = null, animSeq = 0;
+    const findScroller = () => {
+      let sc = toggle.parentElement;
+      while (sc && !(sc.scrollHeight > sc.clientHeight && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+      return sc;
+    };
+    const motionOk = () => typeof details.animate === 'function'
+      && !(typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const EASE = 'cubic-bezier(0.2, 0, 0, 1)';
+    const settle = () => {
+      details.style.overflow = ''; details.style.height = ''; details.style.opacity = ''; details.style.marginTop = '';
+    };
+    /* The drawer at height 0 is still a flex item, so the parent's 12px gap would pop in and out at the
+       ends of the animation (#46 r1 MINOR-1): the collapsed keyframe also takes the gap back. */
+    const gapBack = () => '-' + (parseFloat(getComputedStyle(details.parentElement || details).rowGap) || 0) + 'px';   // px, not var(): WAAPI keyframes must not depend on var() support
     toggle.addEventListener('click', () => {
-      const open = details.hidden;
-      details.hidden = !open;
+      const open = !isOpen;
+      isOpen = open;
+      const seq = ++animSeq;
+      /* A tap mid-animation continues from WHERE THE DRAWER IS (#46 r1 MINOR-2), never from 0 or full. */
+      let from = null;
+      if (anim) {
+        const cs = getComputedStyle(details);
+        from = { height: details.getBoundingClientRect().height, opacity: Number.isFinite(parseFloat(cs.opacity)) ? parseFloat(cs.opacity) : 1, marginTop: cs.marginTop };
+        anim.cancel(); anim = null; settle();
+      }
+      /* ★ #1051 (Damir): the toggle STAYS where the finger is, so a second tap closes what the
+         first opened. The details render ABOVE the toggle (append order below) — a BOTTOM
+         sheet grows upward, so the toggle and Close keep their place. When the sheet is at its
+         height cap and scrolls instead, the scroller is moved by the toggle's own shift.
+         SCOPE: the mobile bottom sheet. The desktop centered dialog grows both ways, but no
+         desktop production path opens this with a toggle (desktop tx taps go to wallet_sent,
+         disclose:false — every production row carries a txid; a txid-less row would fall back here). TRADE-OFF (#1051, stated): the revealed content sits BEFORE the
+         toggle in DOM order, so Tab from "Hide details" goes to Close — the drawer is reached
+         with Shift+Tab. Damir's ask (a fixed tap target) wins over the WAI disclosure order. */
+      const before = toggle.getBoundingClientRect().top;
+      details.hidden = false;                 // open: reveal now · close: still visible until it settles
+      const sc = findScroller();              // capped sheet (it scrolls) → no animation, instant + compensation
+      if (sc || !motionOk()) {
+        if (!open) details.hidden = true;
+        if (sc) sc.scrollTop += toggle.getBoundingClientRect().top - before;
+      } else {
+        const h = details.offsetHeight;
+        details.style.overflow = 'hidden';    // a flex item's auto min-height would stop the shrink at its content
+        const shut = { height: '0px', opacity: 0, marginTop: gapBack() };
+        const full = { height: h + 'px', opacity: 1, marginTop: '0px' };
+        const start = from ? { height: from.height + 'px', opacity: from.opacity, marginTop: from.marginTop } : (open ? shut : full);
+        const left = from && h > 0 ? (open ? (h - from.height) / h : from.height / h) : 1;
+        if (!open) {                          // hold the collapsed state inline so the frame after the last keyframe
+          details.style.height = '0px';       // cannot snap back to full height before onfinish hides it (#46 r1 MINOR-3)
+          details.style.opacity = '0';
+          details.style.marginTop = shut.marginTop;
+        }
+        anim = details.animate([start, open ? full : shut],
+          { duration: Math.max(60, Math.round((open ? 220 : 180) * Math.min(1, Math.max(0, left)))), easing: EASE });
+        anim.onfinish = () => {
+          if (seq !== animSeq) return;        // a later tap owns the card now
+          anim = null; settle();
+          if (!open) details.hidden = true;
+        };
+      }
       toggle.setAttribute('aria-expanded', String(open));
       if (open) toggle.dataset.open = ''; else delete toggle.dataset.open;
       tlabel.textContent = open ? (strings.hideDetails || 'Hide details')
                                 : (strings.seeDetails || 'See details');
     });
-    content.append(toggle, details);
+    content.append(details, toggle);   // ★ #1051: details ABOVE the toggle — the toggle never moves under the finger
   }
 
   /* explorer — routes through the external-link confirm in the shell (onExplorer duty).
@@ -978,11 +1048,12 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
      the details are always open (the wallet_sent page, disclose:false) it shows as before. */
   if (onExplorer) {
     const explorerBtn = createButton({
-      label: strings.viewTxExplorer || 'View transaction on Explorer', type: 'outline', size: 44, width: 'full',
+      /* ★ #1051 (Damir): TONAL, and it names the explorer — "View on ixiscope". */
+      label: strings.viewOnIxiScope || 'View on ixiscope', type: 'tonal', size: 44, width: 'full',
       icon: icon('external-link', { size: 18 }), iconPosition: 'trailing',   // #710: an Explorer link opens outside the app
       onClick: latched(() => sheet, () => onExplorer(tx)),
     });
-    details.append(explorerBtn);   // #1042 (r2): `details` always holds metaBox and is always appended, so this is the only branch
+    details.append(explorerBtn);   // #1042 (r2) → #1056: an Explorer action alone makes `hasDetails` true, so `details` is always appended when this runs
   }
 
   /* ★ #453 (Damir on device): the sheet had no way out except the scrim or a swipe. Every

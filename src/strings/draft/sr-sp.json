@@ -740,5 +740,6 @@
   "copyFailedOpenQr": "Kopiranje nije uspelo. Otvorite QR kod da biste kopirali celu adresu.",
   "groundBrandGradient": "Brend gradijent",
   "patternStyleContours": "Konture",
-  "tapToDownload": "Dodirnite za preuzimanje"
+  "tapToDownload": "Dodirnite za preuzimanje",
+  "viewOnIxiScope": "Prikaži u ixiscope"
 }

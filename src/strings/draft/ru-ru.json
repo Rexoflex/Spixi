@@ -740,5 +740,6 @@
   "copyFailedOpenQr": "Не удалось скопировать. Откройте QR-код, чтобы скопировать полный адрес.",
   "groundBrandGradient": "Фирменный градиент",
   "patternStyleContours": "Контуры",
-  "tapToDownload": "Нажмите, чтобы скачать"
+  "tapToDownload": "Нажмите, чтобы скачать",
+  "viewOnIxiScope": "Открыть в ixiscope"
 }

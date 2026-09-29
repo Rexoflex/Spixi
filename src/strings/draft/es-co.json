@@ -740,5 +740,6 @@
   "copyFailedOpenQr": "No se pudo copiar. Abre el código QR para copiar la dirección completa.",
   "groundBrandGradient": "Degradado de marca",
   "patternStyleContours": "Contornos",
-  "tapToDownload": "Toca para descargar"
+  "tapToDownload": "Toca para descargar",
+  "viewOnIxiScope": "Ver en ixiscope"
 }

@@ -60,6 +60,14 @@
   --_tonal: var(--surface-action-tonal-default);
   --_tonal-hover: var(--surface-action-tonal-hover);
   --_tonal-pressed: var(--surface-action-tonal-pressed);
+  /* ★ #1052: the TONAL BUTTON's own palette (its surface + ink), AA in every state for the DEFAULT intent.
+     --_tonal above stays the shared tonal surface, which the outline/text :active states also paint.
+     ⚠ The destructive intent maps --_tb* to its existing tonal pair, which is NOT AA on hover/pressed
+     (no destructive tonal button exists today) — give it its own pair before using one. */
+  --_tb: var(--surface-button-tonal-default);
+  --_tb-hover: var(--surface-button-tonal-hover);
+  --_tb-pressed: var(--surface-button-tonal-pressed);
+  --_tb-ink: var(--text-button-tonal);
   --_ink: var(--text-action-default);
   --_ink-hover: var(--text-action-hover);
   --_ink-pressed: var(--text-action-pressed);
@@ -119,6 +127,10 @@
   --_tonal: var(--surface-destructive-tonal-default);
   --_tonal-hover: var(--surface-destructive-tonal-hover);
   --_tonal-pressed: var(--surface-destructive-tonal-pressed);
+  --_tb: var(--_tonal);
+  --_tb-hover: var(--_tonal-hover);
+  --_tb-pressed: var(--_tonal-pressed);
+  --_tb-ink: var(--text-error);
   --_ink: var(--text-error);
   --_ink-hover: var(--text-error);
   --_ink-pressed: var(--text-error);
@@ -136,7 +148,7 @@
 /* types */
 .c-button[data-type="fill"] { background: var(--_fill); color: var(--_on-fill); }
 
-.c-button[data-type="tonal"] { background: var(--_tonal); color: var(--_ink); }
+.c-button[data-type="tonal"] { background: var(--_tb); color: var(--_tb-ink); }
 
 .c-button[data-type="outline"] {
   background: transparent;
@@ -149,14 +161,14 @@
 /* hover guarded per DECISIONS #43 (no sticky hover on touch WebViews) */
 @media (hover: hover) and (pointer: fine) {
   .c-button[data-type="fill"]:hover { background: var(--_fill-hover); }
-  .c-button[data-type="tonal"]:hover { background: var(--_tonal-hover); }
+  .c-button[data-type="tonal"]:hover { background: var(--_tb-hover); }
   .c-button[data-type="outline"]:hover { color: var(--_ink-hover); border-color: var(--_ink-hover); background: var(--surface-interactive-hover); }
   .c-button[data-type="text"]:hover { color: var(--_ink-hover); background: var(--surface-interactive-hover); }
 }
 
 /* :active AFTER the hover block so pressed wins while both match (source order at equal specificity) */
 .c-button[data-type="fill"]:active { background: var(--_fill-pressed); }
-.c-button[data-type="tonal"]:active { background: var(--_tonal-pressed); }
+.c-button[data-type="tonal"]:active { background: var(--_tb-pressed); }
 .c-button[data-type="outline"]:active { color: var(--_ink-pressed); border-color: var(--_ink-pressed); background: var(--_tonal); }
 .c-button[data-type="text"]:active { color: var(--_ink-pressed); background: var(--_tonal); }
 
@@ -1711,9 +1723,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    inside it. Centred with the QR and the chip above it. */
 .c-settings__addrinfo { align-self: center; }
 
-/* ★ #712: the push-provider note reads as a paragraph under its row, not as a row */
+/* ★ #712: the push-provider note reads as a paragraph under its row, not as a row.
+   ★ #1050: it is the FOOTNOTE of the OneSignal card now — inside that card's wrap (no flex gap
+   there), 8 below the card edge (the same 8 it had under the shared card: 12 gap − 4), inset
+   16 from the card edge (the #712 value — it lines up near the row's disc, not its label);
+   the grouped-list footer pattern. */
 .c-settings-notifs__push-note {
-  margin-block-start: calc(-1 * var(--spacing-4));
+  margin-block-start: var(--spacing-8);
   padding-inline: var(--spacing-16);
 }
 

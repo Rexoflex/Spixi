@@ -665,9 +665,13 @@
    inside it. Centred with the QR and the chip above it. */
 .c-settings__addrinfo { align-self: center; }
 
-/* ★ #712: the push-provider note reads as a paragraph under its row, not as a row */
+/* ★ #712: the push-provider note reads as a paragraph under its row, not as a row.
+   ★ #1050: it is the FOOTNOTE of the OneSignal card now — inside that card's wrap (no flex gap
+   there), 8 below the card edge (the same 8 it had under the shared card: 12 gap − 4), inset
+   16 from the card edge (the #712 value — it lines up near the row's disc, not its label);
+   the grouped-list footer pattern. */
 .c-settings-notifs__push-note {
-  margin-block-start: calc(-1 * var(--spacing-4));
+  margin-block-start: var(--spacing-8);
   padding-inline: var(--spacing-16);
 }
 

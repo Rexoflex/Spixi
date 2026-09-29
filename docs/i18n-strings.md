@@ -1118,7 +1118,7 @@ Summary: **804** keys · **141** map to a legacy id · **663** new · legacy dic
 | `txPending` | Pending | label | short |  | `chat-payment-status-pending` |
 | `txUnknown` | Unknown | label | short |  | — |
 | `viewAllExplorer` | View all transactions on Explorer | label | medium |  | `index-missing-tx-view-all` |
-| `viewTxExplorer` | View transaction on Explorer | label | medium |  | — |
+| `viewOnIxiScope` | View on ixiscope | label | short |  | — |
 | `walletEmptyAll` | No activity yet | title | short |  | `index-no-transactions-title` |
 | `walletEmptyBody` | Payments you send and receive show up here. | text | medium |  | — |
 | `walletEmptyCta` | Show my address | text | short |  | — |

@@ -662,5 +662,6 @@
   "copyFailedOpenQr": "无法复制。请打开 QR 码以复制完整地址。",
   "groundBrandGradient": "品牌渐变",
   "patternStyleContours": "等高线",
-  "tapToDownload": "点按下载"
+  "tapToDownload": "点按下载",
+  "viewOnIxiScope": "在 ixiscope 中查看"
 }

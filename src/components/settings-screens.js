@@ -901,7 +901,17 @@ export function createNotificationsScreen({
        it only where a push provider exists (never on Windows, where SPushService is a
        stub — a switch that changes nothing is a lie). */
     if (capabilities.pushProvider && onPushProvider) {
-      body.append(switchRow({
+      /* ★ #1050 (Damir, PR.17 on the premium walk): OneSignal is its OWN card, with its note as a
+         FOOTNOTE directly under that card — the grouped-list footer pattern. In the shared card
+         the note sat under all four rows and read as a caption for the whole group; the note is
+         about THIS switch only. Card 1 keeps the display rows (allow · sender · sounds). */
+      const pushWrap = document.createElement('div');
+      pushWrap.className = 'c-settings__groupwrap c-settings-notifs__push';
+      const pushGroup = document.createElement('div');
+      pushGroup.className = 'c-settings__group';
+      pushWrap.append(pushGroup);
+      screenBody.append(pushWrap);
+      pushGroup.append(switchRow({
         glyph: 'cloud-bolt', hue: 'info',   // ★ Session H: a cloud that wakes the device. NOT 'world' (the Language row) and NOT 'topology-star' (the secure notice, Damir 2026-08-30) — one glyph, one meaning (#602). bell-ringing was exported too; 'bell' already means "Allow notifications" one row above, so a second bell would blur it
         label: strings.notifPushProvider || 'Instant delivery via OneSignal',
         /* ★ Session I (#735 §9, Damir: "the OneSignal sub-label is confusing"): the SUB is
@@ -927,7 +937,7 @@ export function createNotificationsScreen({
       const note = document.createElement('p');
       note.className = 'c-settings__note c-settings-notifs__push-note';
       note.setAttribute('aria-live', 'polite');
-      screenBody.append(note);   // ★ Session I: under the GROUP, not inside the card
+      pushWrap.append(note);   // ★ #1050: the footnote of the OneSignal card, inside its wrap (under the card, never inside it)
       note.textContent = pushProvider
         ? (strings.notifPushProviderOn || 'On: OneSignal wakes this device the moment a message arrives. OneSignal receives a push token for this device and sees its IP address. It never sees your messages or your contacts.')
         : (platform === 'ios'
@@ -935,6 +945,7 @@ export function createNotificationsScreen({
           : (strings.notifPushProviderOffAndroid || 'Off: nothing more is sent to OneSignal and this device is unsubscribed there. Spixi checks for new messages itself and notifies you when it finds some, so they can arrive a little later. The record OneSignal already holds is not deleted by this switch.'));
     }
   }
+  if (!body.children.length) groupWrap.remove();   // ★ #1050: never an empty card (e.g. only the push row rendered)
   return el;
 }
 

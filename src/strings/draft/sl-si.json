@@ -741,5 +741,6 @@
   "copyFailedOpenQr": "Kopiranje ni uspelo. Odprite kodo QR, da kopirate celoten naslov.",
   "groundBrandGradient": "Blagovni preliv",
   "patternStyleContours": "Plastnice",
-  "tapToDownload": "Tapnite za prenos"
+  "tapToDownload": "Tapnite za prenos",
+  "viewOnIxiScope": "Ogled v ixiscope"
 }

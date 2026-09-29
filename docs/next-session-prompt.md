@@ -22,11 +22,11 @@ in the container twin → land on the PC → short walk sheet (Artifact). X.3 pa
 X.10 dial (grow 0.2 → 0.3 s) only if Damir asks.
 
 3b · Desktop polish round (Damir's images attached: the huddle card + the mini-apps screen):
- - Mini-app in the DETAIL PANE on desktop (today: PushAsync full page at SingleChatPage:1978, HomePage:5132/5248).
+ - SESSION PANE (Damir's name): a mini-app opens in the detail pane on desktop (today: PushAsync full page at SingleChatPage:1978, HomePage:5132/5248).
    Use the pushPageLoaded column path; expand-to-full-window and back via a NATIVE/trusted-frame control, never
    inside the mini-app page. Mobile unchanged. Mini-app WebView stays isolated (security-handover-gate: Windows
    storage partition still open).
- - MANIFEST PERMISSIONS (design with the pane, agent mode will reuse it): define the declared-permission fields
+ - MANIFEST PERMISSIONS (design with the session pane; agent mode will reuse both): define the declared-permission fields
    a mini-app manifest carries (e.g. sign in as you · sign transactions · local storage · multi-user · device
    access · message scopes). Shape them so AI-agent scopes ("Can message: drivers", "Reads: telemetry",
    "Cannot pay") fit the same model later. A permission is shown ONLY if it is declared in the manifest AND

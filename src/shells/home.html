@@ -503,6 +503,7 @@
     showBackupNudge, showRatingNudge,
     attachPressFeedback,
     formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
+    fiatLine,                              // ★ #1040: one fiat display rule (2 dp, sub-cent = "<$0.01")
     zeroAmount,                          // N32: absolute-zero balance → "0.00" (money.js dial),
     applyPushedTheme,
   } = window.Spixi;
@@ -3829,7 +3830,7 @@
       setWalletBalance(hero, {
         balance: balance ? groupAmountDisplay(zeroAmount(balance) ? '0.00' : balance) : '',
         fiat: (fiatBalance != null && fiatBalance !== '')
-          ? '$' + groupAmountDisplay(zeroAmount(fiatBalance) ? '0.00' : fiatBalance) : '',
+          ? (fiatLine(zeroAmount(fiatBalance) ? '0' : fiatBalance) || '') : '',   // ★ #1040: the one fiat rule
       });
     },
 
@@ -3908,9 +3909,9 @@
       // the legacy port ROUNDED via parseFloat); fiat groups, decimals verbatim.
       // Sign by direction; failed rows stay unsigned per Figma (txlist-item comment).
       const amtN = amount ? formatIxiAmount(amount) : '';
-      const ftN = fiat ? groupAmountDisplay(fiat) : '';
       const amt = amtN ? (status === 'failed' ? amtN : sign + amtN) : '';
-      const ft = ftN ? (status === 'failed' ? '$' + ftN : sign + '$' + ftN) : '';
+      // ★ #1040: fiat through the ONE rule — 2 dp, a sub-cent value reads "<$0.01" (unsigned)
+      const ft = fiat ? fiatLine(fiat, status === 'failed' ? '' : sign) : '';
       // #276 (#211 canon sweep): `counterparty` is nickname OR raw address (W4
       // ambiguity) — an address-shaped one renders MIDDLE-TRUNCATED (Damir F5:
       // tx rows showed full base58). The raw value is kept as `address` so

@@ -343,7 +343,17 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
        dial" were both true when written and are both false now; they are rewritten rather
        than left as a pointer to a row that no longer exists (#772). */
     face.style.setProperty('--chat-pattern-opacity', o.off ? '0' : patternLevelVar(1, swatchBoost(o.id)));
-    b.append(face);
+    /* ★ #1040 (Damir 2026-09-29: the two tiles "are not clear" — a slashed tile and a faint
+       wave): each tile now NAMES itself with a small pill inside its bottom corner. This
+       revisits #774's "label on aria-label + title only", whose reason was localized labels
+       overflowing the old PILL row; a tile is ~170px wide and the pill ellipsizes, so the
+       longest locale string ("Izklopljeno") still fits. The pill is aria-hidden — the
+       button's aria-label stays the accessible name, so a reader does not hear it twice. */
+    const cap = document.createElement('span');
+    cap.className = 'c-settings-swatch__label';
+    cap.setAttribute('aria-hidden', 'true');
+    cap.textContent = o.label;
+    b.append(face, cap);
     b.addEventListener('click', () => {
       if (o.id === current) return;
       current = o.id;
@@ -666,12 +676,30 @@ export function createChatAppearance({
   const sLab = document.createElement('h3');
   sLab.className = 'c-settings__label';
   sLab.textContent = strings.textSize || 'Message text size';
+  /* ★ #1040 (Damir 2026-09-29: "no size shows as selected — that is because I pinch-zoomed
+     in a chat"): a pinch in the conversation stores ANY scale, so the four presets can all
+     be unchecked. Say so instead of looking broken: a one-line note under the control names
+     the custom size, and picking a preset replaces it (the note goes with it). */
+  const isPreset = TEXT_SIZES.some((o) => o.value === textScale);
+  let customNote = null;
+  if (!isPreset && Number.isFinite(Number(textScale)) && Number(textScale) > 0) {
+    customNote = document.createElement('p');
+    customNote.className = 'c-settings__note c-settings-appearance__custom';
+    const pct = Math.round(Number(textScale) * 100);
+    customNote.textContent = (strings.textSizeCustom || 'Custom size ({0}%), set by pinching in a chat. Pick a size to replace it.')
+      .split('{0}').join(String(pct));
+  }
   sizeSec.append(sLab, segGroup({
     options: TEXT_SIZES.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
     current: textScale,
     ariaLabel: strings.textSize || 'Message text size',
-    onPick: (v) => { preview.style.setProperty('--chat-text-scale', String(v)); if (onTextScale) onTextScale(v); },
+    onPick: (v) => {
+      preview.style.setProperty('--chat-text-scale', String(v));
+      if (customNote) { customNote.remove(); customNote = null; }
+      if (onTextScale) onTextScale(v);
+    },
   }));
+  if (customNote) sizeSec.append(customNote);
   // AND-35 (#371, Damir dial): Text size first, then Background.
   /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
      does not exist, so only two are appended. A live theme flip re-renders this whole
@@ -868,7 +896,9 @@ export function createNotificationsScreen({
            explanation — the #712 claim boundaries: token + IP to OneSignal, the per-platform
            off cost, the record it keeps — lives in the NOTE below, which follows the switch.
            The two old per-platform sub keys retire (their locales are rebuilt). */
-        sub: strings.notifPushProviderSub || 'Wakes this device the moment a message arrives. Uses OneSignal, a push provider.',
+        /* ★ #1040 (Damir 2026-09-29): the sub said the same sentence the note below the card says —
+           it is now just the WHO; the note keeps the full what-happens explanation (#712). */
+        sub: strings.notifPushProviderSub || 'Uses OneSignal, a push provider.',
         checked: pushProvider, live, failText, onToggle: onPushProvider,
       }));
       /* ★ #712 (Damir): THE FEEDBACK IS PROMINENT AND SAYS WHAT HAPPENS IN BOTH STATES.

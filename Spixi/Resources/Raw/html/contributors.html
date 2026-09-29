@@ -1856,6 +1856,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings-contrib__lead { text-align: center; }
 .c-settings-contrib__card { padding: var(--spacing-12); }
+.c-settings-contrib__card--credits { padding-block: var(--spacing-4); }   /* ★ #1040: the rows carry their own 12 block padding */
 .c-settings-contrib__list {
   margin: 0;
   padding: 0;
@@ -1878,10 +1879,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 /* ★ #502 — asset credits. A LIST, not chips: a chip is a name and these are
    facts, so they read as stacked rows with the label above its source. */
 .c-settings-contrib__credits-title {
-  text-align: center;
+  /* ★ #1040 (Damir 2026-09-29: "left-align the credits, like a list"): the heading takes the
+     hub's section-label look and sits at the card's start edge; only the margin is local */
   margin-block: var(--spacing-16) var(--spacing-8);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
 }
 .c-settings-contrib__credits {
   margin: 0;
@@ -1889,13 +1889,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-8);
 }
+/* ★ #1040: rows, start-aligned, one hairline between them (the on-card role, #886) —
+   three centred paragraphs read as a poem; a list reads as facts */
 .c-settings-contrib__credit {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  text-align: center;
+  text-align: start;
+  padding-block: var(--spacing-12);
+  padding-inline: var(--spacing-4);
+}
+.c-settings-contrib__credit + .c-settings-contrib__credit {
+  border-block-start: var(--outline-width-1) solid var(--outline-on-card);
 }
 .c-settings-contrib__credit-what {
   color: var(--text-neutral-01);

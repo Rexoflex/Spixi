@@ -2315,6 +2315,25 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 @media (hover: hover) and (pointer: fine) {
   .c-settings-swatch:hover { border-color: var(--outline-action-hover); }
 }
+/* ★ #1040: the tile's own name, a small pill in its bottom corner (aria-hidden — the
+   button's aria-label is the accessible name) */
+.c-settings-swatch__label {
+  position: absolute;
+  inset-block-end: var(--spacing-8);
+  inset-inline-start: var(--spacing-8);
+  max-width: calc(100% - 2 * var(--spacing-8));
+  padding: var(--spacing-2) var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-settings-card);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+}
+.c-settings-swatch[aria-checked='true'] .c-settings-swatch__label { color: var(--text-action-default); }
+.c-settings-appearance__custom { margin: var(--spacing-8) 0 0; }
 .c-settings-swatch:active { border-color: var(--outline-action-pressed); }
 .c-settings-swatch[aria-checked='true'] {
   border-color: var(--outline-action-default);

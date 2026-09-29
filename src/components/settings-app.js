@@ -481,14 +481,14 @@ export function createSettingsContributors({
   /* ★ #502: the asset credits, under their own heading and their own card. */
   if (credits.length) {
     const h = document.createElement('h3');
-    h.className = 'c-settings__note c-settings-contrib__credits-title';
+    h.className = 'c-settings__label c-settings-contrib__credits-title';   // ★ #1040: the hub's section-label grammar ("Preferences"), not a centred note
     h.textContent = strings.creditsTitle || 'Credits';
     body.append(h);
 
     const creditsWrap = document.createElement('div');
     creditsWrap.className = 'c-settings__groupwrap';
     const creditsCard = document.createElement('div');
-    creditsCard.className = 'c-settings__group c-settings-contrib__card';
+    creditsCard.className = 'c-settings__group c-settings-contrib__card c-settings-contrib__card--credits';
     const creditsList = document.createElement('ul');
     creditsList.className = 'c-settings-contrib__credits';
     for (const c of credits) {

@@ -1590,3 +1590,10 @@ One question per row: does this exposure exist at the baseline?
 | #1028 (P.22) | new push `updateFileTicks(id, sent, confirmed, read)` + `addFile` arg 14 (the relay flag) | flags only — no text, name or path; the shell ignores a received file or an unknown id | nothing introduced |
 | #1028 (R.6) | Catalyst chrome pass pushes the measured page/WINDOW top inset through the EXISTING `setInsetTop` | a number, no page or user data; one `[M6]` log line carries two numbers | nothing introduced |
 | #1029–#1034 | CSS tokens (pattern alpha, sheet ground + remaps, tile/disc shades) · the Canvas radiogroup keys · the restore picker label · the platform carrier in 16 more shell heads | no verb, key, sink, fetch or log line | none |
+
+## Premium + clarity round (#1040, 2026-09-29) — Damir's Android screenshots
+
+| Row | Change | Exposure | Verdict |
+|---|---|---|---|
+| #1040 | `representParkedOverlay` runs the existing `applyPlatformPageChrome()` on a re-present, + ONE log line `"representParkedOverlay chrome: " + ex.GetType().Name` | the chrome pass is the one the fresh present already runs; the log carries an exception TYPE only | nothing introduced |
+| #1040 | one fiat display rule (`fiatLine` / `formatFiatAmount`, money.js) · tx sheet receipt layout (unit, stamp, grouped address, middle-cut id — the copy button still copies the full raw value) · appearance tile labels + the pinch-size note · lighter settings ground · credits list · three string values | no verb, no `spixi.*` key, no sink (all `textContent`), no fetch, no WebView setting | nothing introduced |

@@ -344,6 +344,40 @@ export function formatIxiAmount(value) {
   return groupAmountDisplay(sign + int.replace(/,/g, '') + (frac ? '.' + frac : ''));
 }
 
+/** ★ #1040 (Damir 2026-09-29, Android screenshots: "+$0.00000089", "-$0.00018005" read as
+ *  debug output): the FIAT display rule, ONE home for every fiat line (wallet rows, the tx
+ *  sheet, the hero, the tx detail page, the chat payment card).
+ *  C# pushes the raw human-format number, unsigned, un-grouped or comma-grouped.
+ *    - a nonzero value under one cent → the string '<0.01' (callers render "<$0.01", no sign:
+ *      a sign on "less than" reads as nonsense);
+ *    - any other number → exactly 2 decimals, ROUNDED half-up on the decimal STRING (never a
+ *      float: 0.005 must be 0.01), integer part grouped in the app language;
+ *    - anything that is not a plain number → '' (a fiat line is never worth a wrong number).
+ *  Returns the digits only; the caller owns the sign and the "$". */
+export function formatFiatAmount(value) {
+  const m = String(value == null ? '' : value).trim().match(/^([\d,]+)(?:\.(\d+))?$/);
+  if (!m) return '';
+  const intDigits = m[1].replace(/,/g, '').replace(/^0+(?=\d)/, '') || '0';
+  const frac = m[2] || '';
+  const isZero = /^0+$/.test(intDigits) && /^0*$/.test(frac);
+  if (isZero) return groupAmountDisplay('0.00');
+  if (intDigits === '0' && /^00/.test(frac.padEnd(2, '0')) && !/^00[5-9]/.test(frac)) return '<0.01';
+  // half-up on the string: cents = int*100 + first two frac digits (+1 if the third is ≥ 5)
+  let cents = BigInt(intDigits) * 100n + BigInt((frac + '00').slice(0, 2));
+  if (frac.length > 2 && frac[2] >= '5') cents += 1n;
+  const whole = cents / 100n, rest = cents % 100n;
+  return groupAmountDisplay(whole.toString() + '.' + rest.toString().padStart(2, '0'));
+}
+
+/** ★ #1040: the whole fiat LINE — sign + "$" + formatFiatAmount. A sub-cent value is
+ *  "<$0.01" with NO sign; an unusable value is '' (the caller renders no line). */
+export function fiatLine(value, sign = '') {
+  const n = formatFiatAmount(value);
+  if (!n) return '';
+  if (n === '<0.01') return '<$0.01';
+  return (sign || '') + '$' + n;
+}
+
 /** N32 — TRUE for an amount string whose numeric value is exactly zero
  *  ("0", "0.0", "0,00", "+0"). Non-numeric and empty strings are NOT zero —
  *  the hero keeps its empty-until-pushed state. */

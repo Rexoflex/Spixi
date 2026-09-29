@@ -640,7 +640,12 @@ console.log('wallet.html');
   ok(!!sheet && sheet.getAttribute('aria-label') === 'Transaction details', 'row tap → labelled tx sheet');
   ok(!!sheet.querySelector('.c-txsheet__head .c-avatar'), 'contact tx → avatar in the sheet head');
   const rowLabels = [...sheet.querySelectorAll('.c-txsheet__rowlabel')].map((l) => l.textContent);
-  ok(rowLabels.includes('Status') && rowLabels.includes('Fee'), 'Status always + Fee when provided');
+  /* ★ #1040 RE-BASE (#835 inversion, not a deletion): the Status ROW is gone — the stamp under the
+     amount IS the status (Damir 2026-09-29: "Confirmed" read twice). The property kept: the status
+     is on the sheet exactly once, as the badge, and Fee still rows when provided. */
+  ok(!rowLabels.includes('Status') && rowLabels.includes('Fee')
+     && sheet.querySelectorAll('.c-txsheet__stamp .c-badge').length === 1,
+    '★ #1040: the status reads ONCE (the stamp under the amount, not a second Status row) + Fee when provided');
   ok((sheet.querySelector('.c-txsheet__addrvalue') || {}).textContent === '4kdJ2fN8w1qLxCvB7tRz9fQz', 'FULL address in the chip');
   const explorerBtn = [...sheet.querySelectorAll('.c-button')].pop();
   explorerBtn.click(); explorerBtn.click();
@@ -12775,7 +12780,7 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   const sh370 = njs(read('src/components/settings-shell.js'));
   /* ★ #1007 (D-08c) RE-BASE: Downloads' sub ("Files you received in chats") only restated its
      title and is dropped, with Contacts' and Declined requests'. The two that ADD information stay. */
-  ok(sh370.includes("strings.chatAppearanceSub || 'Background, opacity and text size'")
+  ok(sh370.includes("strings.chatAppearanceSub || 'Background, canvas and text size'")   /* ★ #1040: no opacity control since #774 */
     && sh370.includes("strings.appLockSub || 'Password check when Spixi opens'")
     && !/strings\.(downloadsSub|contactsSub|declinedRequestsSub|spixiAddressSub)\b/.test(sh370),
     'I-11 (#371) → #1007: SOME rows carry subs — Chat appearance, App lock (a sub must ADD information; the restating Downloads / Contacts / Declined-requests / address subs are gone)');
@@ -24446,7 +24451,10 @@ console.log('P2 (#708): the push-provider opt-out — row, latch, verb, apply');
   const offIos = mk({ platform: 'ios', pushProvider: false });
   const offAnd = mk({ platform: 'android', pushProvider: false });
   const subOf = (el) => (el.querySelector('.c-settings__row-sub:last-of-type') || {}).textContent || '';
-  ok(/OneSignal/.test(withIos.textContent) && /Wakes this device the moment a message arrives/.test(subOf(withIos)) && /Wakes this device the moment a message arrives/.test(subOf(withAnd))
+  /* ★ #1040 RE-BASE: the sub is the WHO only ("Uses OneSignal, a push provider.") — its first
+     sentence repeated the note under the card. The property held: identical on both platforms, never "Off:". */
+  ok(/OneSignal/.test(withIos.textContent) && /^Uses OneSignal, a push provider\.$/.test(subOf(withIos)) && subOf(withIos) === subOf(withAnd)
+     && !/Wakes this device/.test(subOf(withIos)) && /wakes this device/.test(withIos.textContent)
      && !/^Off:/.test(subOf(withIos)) && !/^Off:/.test(subOf(withAnd)),
     '★★ #735 §9 EXECUTED: the OneSignal SUB is the same state-neutral sentence on iOS and Android — it says what the switch does, never "Off: …" under a switch that is on');
   ok(/open Spixi/.test(offIos.textContent) && !/checks for new messages/.test(offIos.textContent)
@@ -38220,6 +38228,77 @@ console.log('★★ #1028+ — the overnight finalization');
       if (!h || !pr || !(lumO(resolveTok('dark', pr)) > lumO(resolveTok('dark', h))) || crO(resolveTok('dark', pr), resolveTok('dark', h)) < 1.11) bad.push('pressed not past hover'); }
     ok(equal.length >= 5 && unhandled.length === 0 && bad.length === 0,
       '★★ #1035 (auditor C, MAJOR): every dark token equal to the sheet ground (' + equal.length + ': ' + equal.join(' ') + ') is remapped inside .c-sheet/.c-modal or allow-listed with a reason; each remap target lifts ≥ 1.11 off the dark sheet and is value-identical in light — unhandled: ' + JSON.stringify(unhandled) + ' · bad: ' + JSON.stringify(bad));
+  }
+
+  /* ══ PREMIUM-1040 ══ ★★ #1040 — the premium/clarity round (Damir 2026-09-29, Android screenshots). */
+  console.log('★★ #1040 — premium + clarity round');
+  {
+    const W = mkWin(), S = W.Spixi, r = {};
+    /* ① one fiat rule: 2 dp, half-up on the string, sub-cent = "<$0.01" unsigned, junk = '' */
+    r.fiat = S.fiatLine('0.00000089', '+') === '<$0.01' && S.fiatLine('0.00018005', '-') === '<$0.01'
+      && S.fiatLine('0.005', '+') === '+$0.01' && S.fiatLine('0.0049') === '<$0.01'
+      && S.fiatLine('850.3') === '$850.30' && S.fiatLine('0.995', '-') === '-$1.00'
+      && S.fiatLine('22.47', '+') === '+$22.47' && S.fiatLine('0') === '$0.00'
+      && S.fiatLine('abc') === '' && S.fiatLine('') === '' && S.fiatLine('$1.00') === '';
+    /* ② every fiat LINE in the shells goes through it — derived: no shell builds "$" + a number itself */
+    const shellDir = join(root, 'src/shells');
+    const rogue = [];
+    for (const f of readdirSync(shellDir).filter((n) => n.endsWith('.html'))) {
+      const code = stripCode(readFileSync(join(shellDir, f), 'utf8'));
+      if (/'\$'\s*\+/.test(code) || /"\$"\s*\+/.test(code)) rogue.push(f);
+    }
+    const home = stripCode(rdO('src/shells/home.html')), chat = stripCode(rdO('src/shells/chat.html')), sent = stripCode(rdO('src/shells/wallet_sent.html'));
+    r.shells = rogue.length === 0
+      && /const ft = fiat \? fiatLine\(fiat, status === 'failed' \? '' : sign\) : '';/.test(home)
+      && /\(fiatLine\(zeroAmount\(fiatBalance\) \? '0' : fiatBalance\) \|\| ''\)/.test(home)
+      && /return fiatLine\(f\);/.test(chat) && /fiatLine\(e\.fiat, sign\)/.test(sent);
+    /* ③ the tx sheet receipt: unit on a real amount only, ONE status (the stamp), grouped address, middle-cut id */
+    const addr = '4dXRcrJCdDfbggd6DySMZAWkJZegAMLwbQiHDDqwoi9ZboYRvcS45JptaYhE2Xvvg';
+    const txid = '6276945-dtF5wbngiPc43jbAbDpXyZ9QwErTyAbC';
+    const sh = S.openTxSheet({ tx: { amount: '+0.05', fiat: '<$0.01', address: addr, name: 'Yooyooboi', txid, status: 'confirmed', direction: 'in', timeText: 'Sep 24, 21:50' }, host: W.document.body, onExplorer() {} });
+    const amt = sh.querySelector('.c-txsheet__amount');
+    const groups = [...sh.querySelectorAll('.c-txsheet__addrgroup')];
+    const idVal = [...sh.querySelectorAll('.c-txsheet__row')].map((x) => x.querySelector('.c-txsheet__rowvalue')).find((v) => v && v.title === txid);
+    r.sheet = !!amt && (amt.querySelector('.c-txsheet__unit') || {}).textContent === 'IXI'
+      && amt.querySelector('.c-txsheet__amountvalue').textContent === '+0.05'
+      && sh.querySelectorAll('.c-badge').length === 1 && !!sh.querySelector('.c-txsheet__stamp .c-badge')
+      && ![...sh.querySelectorAll('.c-txsheet__rowlabel')].some((l) => l.textContent === 'Status')
+      && sh.querySelector('.c-txsheet__addrvalue').textContent === addr
+      && groups.length === Math.ceil(addr.length / 4) && groups.every((g) => g.textContent.length >= 1 && g.textContent.length <= 4)
+      && !!idVal && idVal.textContent.includes('…') && idVal.textContent !== txid
+      && idVal.textContent.startsWith(txid.slice(0, 10)) && idVal.textContent.endsWith(txid.slice(-8));
+    /* the stamp is the receipt's LAST line of the amount block — after the amount, outside the head row */
+    const stampEl = sh.querySelector('.c-txsheet__stamp');
+    r.stampOrder = !!stampEl && !stampEl.closest('.c-txsheet__head') && !!(amt.compareDocumentPosition(stampEl) & W.Node.DOCUMENT_POSITION_FOLLOWING);
+    const sh2 = S.openTxSheet({ tx: { amount: '••••••', status: 'pending', direction: 'out' }, host: W.document.body });
+    r.maskedNoUnit = !sh2.querySelector('.c-txsheet__unit');
+    /* ④ the chat appearance: a pinch-set scale names itself; picking a preset removes the note; tiles name themselves */
+    const custom = S.createChatAppearance({ textScale: 1.18, onTextScale() {} });
+    const note = custom.querySelector('.c-settings-appearance__custom');
+    r.customNote = !!note && /118%/.test(note.textContent);
+    const pill = custom.querySelector('.c-settings-seg__pill');
+    pill.click();
+    r.noteGoes = !custom.querySelector('.c-settings-appearance__custom');
+    r.presetNoNote = !S.createChatAppearance({ textScale: 1 }).querySelector('.c-settings-appearance__custom');
+    const tiles = [...custom.querySelectorAll('.c-settings-swatch')];
+    r.tileLabels = tiles.length >= 2 && tiles.every((t) => { const c = t.querySelector('.c-settings-swatch__label'); return !!c && c.getAttribute('aria-hidden') === 'true' && c.textContent === t.getAttribute('aria-label'); });
+    /* ⑤ the re-presented Account page runs the chrome pass (the Android status-bar glyph defect) */
+    const cs = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
+    const i0 = cs.indexOf('public static bool representParkedOverlay(');
+    const i1 = cs.indexOf('\n        public ', i0 + 10);
+    const body = i0 > 0 ? cs.slice(i0, i1 > i0 ? i1 : undefined) : '';
+    const rv = body.indexOf('revealStage(op);'), ch = body.indexOf('op.target.applyPlatformPageChrome();');
+    r.represent = rv > 0 && ch > rv;
+    /* ⑥ the lighter settings ground: lighter than grey-50, and the white card still lifts off it */
+    const g = resolveTok('light', '--surface-settings-ground');
+    r.ground = g === '#f3f5f7' && lumO(g) > lumO('#edf0f2') && crO('#ffffff', g) >= 1.08 && resolveTok('dark', '--surface-settings-ground') === resolveTok('dark', '--surface-screen');
+    /* ⑦ credits read as a start-aligned list under a hub section label; the hero label is sentence case */
+    const sa = stripCssComments(rdO('src/styles/components/settings-app.css'));
+    r.credits = /\.c-settings-contrib__credit \{[^}]*text-align: start;/.test(sa) && !/\.c-settings-contrib__credit \{[^}]*text-align: center;/.test(sa)
+      && /h\.className = 'c-settings__label c-settings-contrib__credits-title';/.test(rdO('src/components/settings-app.js'));
+    r.hero = /strings\.availableBalance \|\| 'Available balance'/.test(rdO('src/components/wallet-hero.js'));
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1040 (Damir 2026-09-29): one fiat rule (2 dp, "<$0.01") in every shell · the tx sheet reads as a receipt (unit, ONE status stamp, address in groups of four, id cut in the MIDDLE) · a pinch-set text size names itself · Background tiles name themselves · the re-presented Account page repaints the status bar · the settings ground is one step lighter · credits are a list · "Available balance" — ' + JSON.stringify(r));
   }
 }
 /* ══ OVERNIGHT-1028-END ══ */

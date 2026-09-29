@@ -5820,6 +5820,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     isPseudoAddressNick,            // D-19b (#370): blind roster "x"+address pseudo-keys never display
     isAddressShaped,                // ★ #589: the ONE address-shape test — a NICK is never middle-truncated
     groupAmountDisplay,             // ★ C2 (Session AD): the fiat sub-line groups like the wallet tab (money.js)
+    fiatLine,                       // ★ #1040: the fiat sub-line takes the one fiat rule (money.js)
     formatIxiAmount,                // ★ C6 (Session AD): the tip total ("Tipped 5 IXI"), the #77 amount rule
     createNativeBridge, installExecuteUiCommand,
     /* ★ N81 (#422) — MISSED IN THE FIRST CUT, caught by the #46 audit executing the
@@ -6031,7 +6032,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   function fiatDisplay(fiat) {
     const f = String(fiat == null ? '' : fiat).trim();
     if (!f || !/^\d+(\.\d+)?$/.test(f)) return '';
-    try { return '$' + groupAmountDisplay(f); } catch (e) { return ''; }
+    try { return fiatLine(f); } catch (e) { return ''; }   // ★ #1040: the one fiat rule (2 dp, "<$0.01")
   }
 
   /* #264 (Damir nice-to-have ⑤): "{0} has accepted your contact request" arrives

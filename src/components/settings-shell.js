@@ -903,7 +903,7 @@ export function createSettingsHub({
     label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
     // I-11 (#371): subs on SOME rows only — where the label alone does not say
     // what is inside (15c A14: one line, truncates; write to the width).
-    sub: strings.chatAppearanceSub || 'Background, opacity and text size',
+    sub: strings.chatAppearanceSub || 'Background, canvas and text size',   // ★ #1040: there is no opacity control since Session M (#774); the Canvas row is the third thing on the screen
     onClick: () => onChatAppearance(),
   }).section);
 

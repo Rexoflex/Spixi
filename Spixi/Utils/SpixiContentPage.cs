@@ -1309,6 +1309,23 @@ namespace SPIXI
                      * drift. L8 already cleared `op.closing` above so the `finally` reset
                      * inside slideStageIn works on the resurrected op. */
                     revealStage(op);
+                    /* ★ #1040 (Damir 2026-09-29, Android screenshots): the RE-PRESENT path never
+                     * ran the chrome pass the fresh present runs (`op.target.applyPlatformPageChrome()`
+                     * after the push), so the status-bar glyphs kept the PREVIOUS screen's answer —
+                     * from the Wallet hero that is LIGHT glyphs, over the light Account topbar: the
+                     * clock and battery all but vanished on Account, Notifications, Contributors,
+                     * How to use and Chat appearance (all one parked page). The pass is the same
+                     * one the fresh path runs; on Android it repaints the ONE process-wide bar pair
+                     * from this page's own surface, which is right because this page is now the
+                     * visible one. */
+                    try
+                    {
+                        op.target.applyPlatformPageChrome();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("representParkedOverlay chrome: " + ex.GetType().Name);
+                    }
                     try
                     {
                         op.host.onOverlayPresented(op.target);

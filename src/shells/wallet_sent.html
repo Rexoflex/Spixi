@@ -144,6 +144,7 @@
     createButton,                        // #285: the per-view reveal button
     formatTxTimestamp,                   // iOS-55 (#325): epoch → localized display (docLocale)
     groupAmountDisplay,                  // ★ I-6 (#360): locale-aware amount display (money.js),
+    fiatLine,                            // ★ #1040: the one fiat display rule (money.js)
     applyPushedTheme,
   } = window.Spixi;
   const strings = window.SL || {};
@@ -297,7 +298,7 @@
       address: masked ? '' : (e.address || ''),
       avatar: (masked || unknown) ? null : e.avatar,
       amount: masked ? WALLET_MASK : ((e.amount != null && e.amount !== '') ? sign + amountWithCommas(e.amount) : ''),
-      fiat: masked ? '' : ((e.fiat != null && e.fiat !== '') ? sign + '$' + amountWithCommas(e.fiat) : ''),
+      fiat: masked ? '' : ((e.fiat != null && e.fiat !== '') ? fiatLine(e.fiat, sign) : ''),   // ★ #1040: the one fiat rule
       fee: masked ? '' : ((d.fee != null && d.fee !== '') ? amountWithCommas(d.fee) + ' IXI' : ''),
       timeText: txTimeDisplay(e.timeText || d.time || ''),
     };
@@ -356,7 +357,8 @@
         type: 'outline', size: 32,
         onClick: () => { revealed = true; render(); },
       }));
-      const head = detail.querySelector('.c-txsheet__head');
+      // ★ #1040: under the receipt's status stamp (the amount block now ends there)
+      const head = detail.querySelector('.c-txsheet__stamp') || detail.querySelector('.c-txsheet__head');
       if (head) head.after(revealHost); else detail.prepend(revealHost);
     }
     // Re-review MINOR-1: a live status re-render replaces the card in place — if

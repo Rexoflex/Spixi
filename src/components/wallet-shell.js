@@ -39,7 +39,7 @@ import { createTxItem } from './txlist-item.js';
 import { createChip, setChipSelected } from './chip.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, truncateAddressMiddle } from './avatar.js';
 import { createSearchField } from './search-field.js';
 import { createScanRing, setScanRing } from './scan-progress.js';   // #452: the sheet card's ring
 import { setWalletHeroCompact } from './wallet-hero.js';
@@ -791,14 +791,27 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
     htext.append(title);
   }
   head.append(htext);
-  head.append(createBadge({ label: strings[meta.key] || meta.label, type: meta.type, weight: 'tonal', icon: meta.glyph }));
   content.append(head);
 
-  /* amount */
+  /* ★★ #1040 (Damir 2026-09-29: "make it more premium or clear"): the RECEIPT layout —
+     identity, amount and status stacked on one centred axis (the head is a column now,
+     the CSS owns it). The amount carries its UNIT ("+0.05 IXI", the hero's grammar —
+     a bare number read like a count), and the status badge sits UNDER the amount as the
+     receipt's stamp instead of competing with the name in the header row. */
   const amt = document.createElement('div');
   amt.className = 'c-txsheet__amount u-tabular';
   amt.dataset.type = type;
-  amt.textContent = tx.amount || '';
+  const amtValue = document.createElement('span');
+  amtValue.className = 'c-txsheet__amountvalue';
+  amtValue.textContent = tx.amount || '';
+  amt.append(amtValue);
+  // the unit only rides a real number — a masked amount ("••••") stays bare, as on the hero
+  if (/\d/.test(String(tx.amount || ''))) {
+    const unit = document.createElement('span');
+    unit.className = 'c-txsheet__unit';
+    unit.textContent = 'IXI';   // i18n-lint-ok:proper-noun (the currency code, never translated)
+    amt.append(unit);
+  }
   content.append(amt);
   if (tx.fiat) {
     const fiat = document.createElement('div');
@@ -806,6 +819,10 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
     fiat.textContent = tx.fiat;
     content.append(fiat);
   }
+  const stamp = document.createElement('div');
+  stamp.className = 'c-txsheet__stamp';
+  stamp.append(createBadge({ label: strings[meta.key] || meta.label, type: meta.type, weight: 'tonal', icon: meta.glyph }));
+  content.append(stamp);
 
   /* ★ N25 (#443, Damir): everything below the amount is SECONDARY — the address, the
      date, the fee and the transaction id — and it used to make the sheet a wall of
@@ -832,7 +849,17 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
     addrRow.className = 'c-txsheet__addr';
     const addr = document.createElement('span');
     addr.className = 'c-txsheet__addrvalue u-tabular';
-    addr.textContent = tx.address;
+    /* ★ #1040: the address in GROUPS OF FOUR, in a monospace face — the IBAN grammar, so a
+       user comparing it against another screen can hold a group at a time. The groups are
+       SPANS with a CSS gap, never spaces: the node's text (and anything the user selects
+       and copies) stays the exact address. The copy button copies tx.address, unchanged. */
+    const addrStr = String(tx.address);
+    for (let i = 0; i < addrStr.length; i += 4) {
+      const g = document.createElement('span');
+      g.className = 'c-txsheet__addrgroup';
+      g.textContent = addrStr.slice(i, i + 4);
+      addr.append(g);
+    }
     addrRow.append(addr, copyButton(tx.address, addrLabel.textContent, strings));
     details.append(addrLabel, addrRow);   // N25
   }
@@ -845,8 +872,11 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
      It stays available — just one tap down, with the rest of the forensic detail. */
   const metaBox = document.createElement('div');
   metaBox.className = 'c-txsheet__meta';
+  /* ★ #1040 (Damir 2026-09-29): the Status ROW is gone. D2 moved it into the drawer so the
+     collapsed view did not say "Confirmed" twice — expanded, it still did (the badge sat
+     right above it). The stamp under the amount IS the status, on every host (the sheet
+     and the wallet_sent detail page both render it). */
   const rows = [
-    sheetRow(strings.status || 'Status', strings[meta.key] || meta.label),
     // timeText = pre-formatted native-bridge time string (verbatim); timestamp = epoch (formatted)
     sheetRow(strings.date || 'Date',
       (tx.timeText != null && tx.timeText !== '') ? tx.timeText
@@ -877,7 +907,11 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
     rows.push(feeRow);
   }
   if (tx.txid) {
-    const idRow = sheetRow(strings.txId || 'Transaction ID', tx.txid);
+    /* ★ #1040: MIDDLE-truncated (the #211 address canon) — the end-ellipsis hid the tail,
+       which is the half a user checks against an explorer. The full id stays in `title`
+       and in what the copy button copies. */
+    const idRow = sheetRow(strings.txId || 'Transaction ID', truncateAddressMiddle(tx.txid, 10, 8));
+    idRow.querySelector('.c-txsheet__rowvalue').title = String(tx.txid);
     idRow.append(copyButton(tx.txid, strings.txId || 'Transaction ID', strings));
     rows.push(idRow);
   }

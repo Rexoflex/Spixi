@@ -26,6 +26,7 @@
 :root {
   /* color/grey */
   --grey-10: #f9fafb;
+  --grey-25: #f3f5f7;   /* ★ #1040: the settings ground, one step lighter than grey-50 */
   --grey-50: #edf0f2;
   --grey-100: #e8ecee;
   --grey-200: #dde2e9;
@@ -182,6 +183,7 @@
   --font-display: "Sora", system-ui, sans-serif; /* brand wordmark/hero ONLY */
   --font-primary: var(--font-ui);               /* headings, display (was Sora) */
   --font-secondary: var(--font-ui);             /* body, labels (was Source Sans 3) */
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Roboto Mono", monospace;   /* ★ #1040: addresses in groups of four (tx sheet) — the platform's own mono, nothing embedded */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -1616,7 +1618,10 @@
      the darker surface). Scoped to the settings family (.c-settings / .c-settings-danger);
      every other card surface is untouched. An input inside a hub card takes the grey so it
      is still visible on the white card. Dark keeps today's pair (card over screen). */
-  --surface-settings-ground: var(--neutral-50);
+  /* ★ #1040 (Damir 2026-09-29: "the grey could be lighter, it seems quite strong"): one step
+     lighter — #F3F5F7, between grey-10 and grey-50. The white card still lifts (measured in the
+     suite), and the hub keeps its inset-grouped read. Was var(--neutral-50) #EDF0F2. */
+  --surface-settings-ground: var(--grey-25);
   --surface-settings-card: #ffffff;
   --surface-input-on-settings-card: var(--neutral-50);
 

@@ -4002,8 +4002,16 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 }
 
 /* —— tx detail sheet —— */
+/* ★★ #1040 (Damir 2026-09-29, "more premium or clear"): the RECEIPT layout. Identity,
+   amount and the status stamp sit on ONE centred axis — the grammar every payment app's
+   detail uses — and the forensic half (address, date, fee, id) stays left-aligned below
+   the disclosure, where scanning a column is the job. */
 .c-txsheet { display: flex; flex-direction: column; gap: var(--spacing-12); }
-.c-txsheet__head { display: flex; align-items: center; gap: var(--spacing-12); }
+.c-txsheet__head {
+  display: flex; flex-direction: column; align-items: center; gap: var(--spacing-8);
+  text-align: center;
+  padding-block-start: var(--spacing-4);
+}
 /* direction circle mirrors c-txlist-item's (48, same state inks) so list → sheet reads
    as the same object */
 .c-txsheet__dir {
@@ -4015,7 +4023,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 }
 .c-txsheet__dir[data-type="received"] { border-color: var(--outline-success-inverse); color: var(--text-success); }
 .c-txsheet__dir[data-type="failed"] { color: var(--text-error); }
-.c-txsheet__headtext { flex: 1; min-width: 0; }
+.c-txsheet__headtext { min-width: 0; max-width: 100%; }
 .c-txsheet__title {
   margin: 0;
   font-family: var(--font-secondary);
@@ -4034,15 +4042,29 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   color: var(--text-neutral-02);
 }
 .c-txsheet__who { overflow-wrap: anywhere; }
-.c-txsheet__head .c-badge { flex: none; }
+/* the amount: one size up from the old heading-md, with the unit one step smaller
+   beside it — the hero's value + unit pair, so the sheet and the hero read as one family */
 .c-txsheet__amount {
+  display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap;
+  gap: var(--spacing-4);
+  margin-block-start: var(--spacing-4);
   font-family: var(--font-primary);
-  font-size: var(--font-size-heading-md);
-  line-height: var(--line-height-heading-md);
+  font-size: var(--font-size-heading-lg);
+  line-height: var(--line-height-heading-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
+  text-align: center;
   overflow-wrap: anywhere;
 }
+.c-txsheet__amountvalue { min-width: 0; }
+.c-txsheet__unit {
+  font-size: var(--font-size-label-lg);
+  line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold);
+  color: inherit;
+  opacity: 0.75;
+}
+.c-txsheet__stamp { display: flex; justify-content: center; }
 .c-txsheet__amount[data-type="received"] { color: var(--text-success); }
 .c-txsheet__amount[data-type="pending"] { color: var(--text-neutral-02); }          /* mirrors txlist pending muting */
 .c-txsheet__amount[data-type="failed"] { color: var(--text-neutral-disabled); text-decoration: line-through; }
@@ -4050,6 +4072,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   margin-block-start: calc(-1 * var(--spacing-8));
   font-size: var(--font-size-body-md);
   color: var(--text-neutral-02);
+  text-align: center;
 }
 
 /* address — member-sheet addr-chip pattern (#99): full address, wraps, copy morphs */
@@ -4068,11 +4091,14 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 }
 .c-txsheet__addrvalue {
   flex: 1; min-width: 0;
+  display: flex; flex-wrap: wrap; column-gap: 0.45em; row-gap: 2px;   /* ★ #1040: groups of four */
+  font-family: var(--font-mono);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-01);
   overflow-wrap: anywhere;                     /* the FULL address is the verification truth (#99) */
 }
+.c-txsheet__addrgroup { white-space: nowrap; }
 
 .c-txsheet__meta { display: flex; flex-direction: column; }
 .c-txsheet__row {
@@ -5996,6 +6022,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     showBackupNudge, showRatingNudge,
     attachPressFeedback,
     formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
+    fiatLine,                              // ★ #1040: one fiat display rule (2 dp, sub-cent = "<$0.01")
     zeroAmount,                          // N32: absolute-zero balance → "0.00" (money.js dial),
     applyPushedTheme,
   } = window.Spixi;
@@ -9322,7 +9349,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       setWalletBalance(hero, {
         balance: balance ? groupAmountDisplay(zeroAmount(balance) ? '0.00' : balance) : '',
         fiat: (fiatBalance != null && fiatBalance !== '')
-          ? '$' + groupAmountDisplay(zeroAmount(fiatBalance) ? '0.00' : fiatBalance) : '',
+          ? (fiatLine(zeroAmount(fiatBalance) ? '0' : fiatBalance) || '') : '',   // ★ #1040: the one fiat rule
       });
     },
 
@@ -9401,9 +9428,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       // the legacy port ROUNDED via parseFloat); fiat groups, decimals verbatim.
       // Sign by direction; failed rows stay unsigned per Figma (txlist-item comment).
       const amtN = amount ? formatIxiAmount(amount) : '';
-      const ftN = fiat ? groupAmountDisplay(fiat) : '';
       const amt = amtN ? (status === 'failed' ? amtN : sign + amtN) : '';
-      const ft = ftN ? (status === 'failed' ? '$' + ftN : sign + '$' + ftN) : '';
+      // ★ #1040: fiat through the ONE rule — 2 dp, a sub-cent value reads "<$0.01" (unsigned)
+      const ft = fiat ? fiatLine(fiat, status === 'failed' ? '' : sign) : '';
       // #276 (#211 canon sweep): `counterparty` is nickname OR raw address (W4
       // ambiguity) — an address-shaped one renders MIDDLE-TRUNCATED (Damir F5:
       // tx rows showed full base58). The raw value is kept as `address` so

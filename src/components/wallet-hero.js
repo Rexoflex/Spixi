@@ -92,7 +92,7 @@ export function createWalletHero({
   bal.className = 'c-wallet-hero__balance';
   const label = document.createElement('div');
   label.className = 'c-wallet-hero__label';
-  label.textContent = strings.availableBalance || 'Available Balance';
+  label.textContent = strings.availableBalance || 'Available balance';   // ★ #1040: sentence case, like every other label
   bal.append(label);
 
   const row = document.createElement('div');

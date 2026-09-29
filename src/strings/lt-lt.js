@@ -571,6 +571,7 @@ export const ltlt = {
   removedTitle: "Programėlė pašalinta",
   repeatMismatch: "Slaptažodžiai nesutampa.",
   repeatPassword: "Patvirtinkite slaptažodį",
+  replaceFile: "Pakeisti failą",
   reply: "Atsakyti",
   replyTo: "Rodyti žinutę, į kurią atsakyta",
   replyUnavailable: "Pradinis pranešimas",

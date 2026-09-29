@@ -571,6 +571,7 @@ export const dede = {
   removedTitle: "App entfernt",
   repeatMismatch: "Die Passwörter stimmen nicht überein.",
   repeatPassword: "Passwort bestätigen",
+  replaceFile: "Datei ersetzen",
   reply: "Antworten",
   replyTo: "Beantwortete Nachricht anzeigen",
   replyUnavailable: "Ursprüngliche Nachricht",

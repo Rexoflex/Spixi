@@ -571,6 +571,7 @@ export const cncn = {
   removedTitle: "应用已移除",
   repeatMismatch: "两次输入的密码不匹配。",
   repeatPassword: "确认密码",
+  replaceFile: "更换文件",
   reply: "回复",
   replyTo: "查看被回复的消息",
   replyUnavailable: "原始消息",

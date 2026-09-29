@@ -571,6 +571,7 @@ export const idid = {
   removedTitle: "Aplikasi Dihapus",
   repeatMismatch: "Kata sandi tidak cocok.",
   repeatPassword: "Konfirmasi kata sandi",
+  replaceFile: "Ganti file",
   reply: "Balas",
   replyTo: "Tampilkan pesan yang dibalas",
   replyUnavailable: "Pesan asli",

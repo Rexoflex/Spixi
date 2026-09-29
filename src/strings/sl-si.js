@@ -571,6 +571,7 @@ export const slsi = {
   removedTitle: "Aplikacija odstranjena",
   repeatMismatch: "Gesli se ne ujemata.",
   repeatPassword: "Potrdite geslo",
+  replaceFile: "Zamenjaj datoteko",
   reply: "Odgovori",
   replyTo: "Prikaži sporočilo, na katero odgovarjate",
   replyUnavailable: "Izvirno sporočilo",

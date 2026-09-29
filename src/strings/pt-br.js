@@ -571,6 +571,7 @@ export const ptbr = {
   removedTitle: "Aplicativo removido",
   repeatMismatch: "As senhas não coincidem.",
   repeatPassword: "Confirmar senha",
+  replaceFile: "Substituir arquivo",
   reply: "Responder",
   replyTo: "Mostrar mensagem respondida",
   replyUnavailable: "Mensagem original",

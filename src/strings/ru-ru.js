@@ -571,6 +571,7 @@ export const ruru = {
   removedTitle: "Приложение удалено",
   repeatMismatch: "Пароли не совпадают.",
   repeatPassword: "Подтвердите пароль",
+  replaceFile: "Заменить файл",
   reply: "Ответить",
   replyTo: "Показать сообщение, на которое ответили",
   replyUnavailable: "Исходное сообщение",

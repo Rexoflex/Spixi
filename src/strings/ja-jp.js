@@ -571,6 +571,7 @@ export const jajp = {
   removedTitle: "アプリが削除されました",
   repeatMismatch: "パスワードが一致しません。",
   repeatPassword: "パスワードを確認",
+  replaceFile: "ファイルを変更",
   reply: "返信",
   replyTo: "返信元のメッセージを表示",
   replyUnavailable: "元のメッセージ",

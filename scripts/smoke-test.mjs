@@ -38066,6 +38066,22 @@ console.log('★★ #1028+ — the overnight finalization');
       '★ #1032 (the #1024 dial): the Canvas radiogroup has ONE tab stop (the checked dot), arrows move focus AND select (wrapping), Home/End jump, Tab is left to the browser — ' + JSON.stringify(r));
     W.close();
   }
+  {
+    /* —— #1034 (polish Q1): the restore view's FILE-SET state is distinct —— */
+    const W = mkWin(), S = W.Spixi, d = W.document;
+    const el = S.createLaunchShell({ view: 'restore', strings: {} });
+    d.body.append(el);
+    const btnLabel = () => { const c = el.querySelector('.c-launch__card'); const b = c && c.querySelector('.c-button .c-button__label'); return b ? b.textContent : null; };
+    const card = () => el.querySelector('.c-launch__card');
+    const before = btnLabel();
+    S.setLaunchFile(el, 'spixi-backup.ixi');
+    const set = btnLabel(), setAttr = card().hasAttribute('data-file-set'), rowShown = !el.querySelector('.c-launch__file').hidden;
+    S.setLaunchFile(el, '');
+    const back = btnLabel(), backAttr = card().hasAttribute('data-file-set');
+    ok(before === 'Choose backup file…' && set === 'Replace file' && setAttr && rowShown && back === 'Choose backup file…' && !backAttr,
+      '★ #1034 (polish Q1): picking a backup file flips the picker to "Replace file" (+ data-file-set, the ✓ row shows the name); an empty name flips it back — ' + JSON.stringify({ before, set, setAttr, rowShown, back, backAttr }));
+    W.close();
+  }
 }
 /* ══ OVERNIGHT-1028-END ══ */
 

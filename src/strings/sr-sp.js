@@ -571,6 +571,7 @@ export const srsp = {
   removedTitle: "Aplikacija uklonjena",
   repeatMismatch: "Lozinke se ne poklapaju.",
   repeatPassword: "Potvrdite lozinku",
+  replaceFile: "Zameni datoteku",
   reply: "Odgovori",
   replyTo: "Prikaži poruku na koju se odgovara",
   replyUnavailable: "Originalna poruka",

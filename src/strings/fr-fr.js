@@ -571,6 +571,7 @@ export const frfr = {
   removedTitle: "Application supprimée",
   repeatMismatch: "Les mots de passe ne correspondent pas.",
   repeatPassword: "Confirmez le mot de passe",
+  replaceFile: "Remplacer le fichier",
   reply: "Répondre",
   replyTo: "Afficher le message auquel vous répondez",
   replyUnavailable: "Message d’origine",

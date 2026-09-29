@@ -32,7 +32,7 @@
 
 | # | Quirk | State / fix |
 |---|---|---|
-| Q1 | Restore: file-set state must be distinct ("Replace file") | FE launch-shell tweak (restore view state machine) — queue next launch batch |
+| Q1 | Restore: file-set state must be distinct ("Replace file") | **BUILT #1034** (2026-09-29): `setLaunchFile` flips the picker label to "Replace file" + `data-file-set`; new key `replaceFile` (12 drafts) |
 | Q2 | Create-screen gradients too hot (soften like lock #206⑥) | FE tokens/launch CSS dial — same batch as Q1 |
 | Q3 | Send/receive IXI demo-parity analysis | **GATE — wallet-send LAST (#232)**; analysis doc allowed earlier |
 | Q4 | Incoming chat payment missing "+" / off-component | **✅ #252** — received direct payments '+' (title-carrier match, collision-guarded); requests/sent stay bare (matrix canon) |

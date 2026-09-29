@@ -129,12 +129,20 @@ these are a scope decision, not a defect list.
 
 ## §3 · Ours, buildable today, no decision needed
 
-iOS-56b edge-swipe in subscreens · iOS-18 multi-user picker still on the old design ·
 AND-28 existing contacts show no avatar (verify-first, needs the phone) · AND-36 rotation leaves a
 row highlighted (mechanism narrowed in #826 — the highlight only clears when a conversation CLOSES,
-and a rotation re-homes rather than closes; one repro decides it, and #897 may have moved it) ·
-the four landscape rows (AND-31/32/33/34 — one render-first round) · Q1 restore file-set state ·
-the wallet sync/block-height surface.
+and a rotation re-homes rather than closes; one repro decides it, and #897 may have moved it).
+
+⚠ **2026-09-29 (overnight, #1034): FIVE of the seven rows this list still carried were verified
+against the tree — FOUR were ALREADY BUILT and ONE was built tonight** (the #660 class again; 11 of
+the 19 rows this list has carried were built when someone checked): **iOS-56b** — `attachEdgeBack`
+in 15 shells since L3 (#706, Session G), settings/contact_details/app_details/downloads/… included
+→ an **iPhone re-verify**, not a build · **iOS-18** — the multi-user picker is the redesigned
+contacts-shell picker (`HomePage.pickAppTargets`, #W9); the legacy `WalletRecipientPage` was
+deleted in Session N → re-verify · **AND-31/32/33/34** — BUILT #918 and walked (#922/#924, AC.19
+etc.) · **the wallet sync / block-height surface** — BUILT #444 (`setScanProgress`, HomePage:4309;
+the #440 rules) · **Q1** — BUILT tonight (#1034): the restore picker says "Replace file" once a file
+is set (`docs/sheets/overnight-1028/q1-restore-file.png`).
 
 ⚠ **FIVE MORE rows left this list on 2026-09-19 because they were already built (#905, the #660
 class — 7 of the 17 rows this list has carried were already built when someone checked):** **iOS-43** (Session J removed the

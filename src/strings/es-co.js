@@ -571,6 +571,7 @@ export const esco = {
   removedTitle: "Aplicación eliminada",
   repeatMismatch: "Las contraseñas no coinciden.",
   repeatPassword: "Confirmar contraseña",
+  replaceFile: "Reemplazar archivo",
   reply: "Responder",
   replyTo: "Mostrar mensaje respondido",
   replyUnavailable: "Mensaje original",

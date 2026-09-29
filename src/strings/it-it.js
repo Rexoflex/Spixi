@@ -571,6 +571,7 @@ export const itit = {
   removedTitle: "App rimossa",
   repeatMismatch: "Le password non corrispondono.",
   repeatPassword: "Conferma password",
+  replaceFile: "Sostituisci file",
   reply: "Rispondi",
   replyTo: "Mostra il messaggio citato",
   replyUnavailable: "Messaggio originale",

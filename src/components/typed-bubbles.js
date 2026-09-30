@@ -566,12 +566,14 @@ function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
  *    missed    incoming, nobody answered   → phone-x, the ONLY red state (title + disc)
  *    noanswer  outgoing, nobody answered   → phone-x, neutral grey
  *    declined  THIS device declined        → phone-off, neutral grey, NO call-back (#87⑦)
+ *    rejected  the PEER declined (outgoing) → phone-off, neutral grey, call-back kept (★ #1080 F11 — you may try again)
  *  The glyph pair phone-off (turned down) / phone-x (nobody answered) is the chats row's
  *  (#46 loop 2026-08-29) — a pin reads both surfaces. Call-back shows for ok / missed /
  *  noanswer when the host wires it; the shell passes none while the call is live (C4). */
 export function createCallBubble({
   missed = false,          // C# "never connected" (rang out) — incoming → missed, outgoing → no answer
   declined = false,        // #87⑦ / #572 ④: this device declined — wins over `missed`
+  rejected = false,        // ★ #1080 F11: the peer declined our call — wins over `missed`, loses to `declined`
   title = '',              // C#-localized label, verbatim (it knows "No answer" vs "Missed call")
   direction = 'received',  // bridge knows localSender (audit)
   directionLabel = '',     // kept for API compatibility; the title already names the direction
@@ -582,16 +584,17 @@ export function createCallBubble({
   strings = getStrings(),
 } = {}) {
   const outgoing = direction === 'sent';
-  const outcome = declined ? 'declined' : missed ? (outgoing ? 'noanswer' : 'missed') : 'ok';
+  const outcome = declined ? 'declined' : rejected ? 'rejected' : missed ? (outgoing ? 'noanswer' : 'missed') : 'ok';
   const { row, el } = cardShell(direction, 'call', 'compact', gutter);
   if (outcome === 'missed') row.dataset.missed = '';
   row.dataset.callOutcome = outcome;
-  const glyph = outcome === 'declined' ? 'phone-off'
+  const glyph = (outcome === 'declined' || outcome === 'rejected') ? 'phone-off'
     : outcome === 'ok' ? (outgoing ? 'phone-outgoing' : 'phone-incoming')
     : 'phone-x';
   const heading = outcome === 'declined'
     ? (strings.youDeclinedCall || 'You declined')
-    : (title || (outcome === 'missed' ? (strings.missedCall || 'Missed voice call')
+    : (title || (outcome === 'rejected' ? (strings.callDeclined || 'Call declined')
+      : outcome === 'missed' ? (strings.missedCall || 'Missed voice call')
       : outcome === 'noanswer' ? (strings.noAnswer || 'No answer')
       : (strings.voiceCall || 'Voice call')));
 

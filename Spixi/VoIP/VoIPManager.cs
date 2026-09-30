@@ -89,6 +89,24 @@ namespace SPIXI.VoIP
                 && msg.type == FriendMessageType.voiceCallEnd
                 && msg.message == declinedLocallyMarker;
         }
+        /* ★ #1080 F11 (Damir, walk C.5/C.6: "the caller gets no 'call declined' bubble"): the CALLER's half of
+         * #572 ④. When the peer turns the call down, onRejectedCall ends the session — and with an empty body
+         * the caller's card read "No answer", the same as a call that simply rang out. The decline is written
+         * into the body the same way, as "-2" — a negative that Int32.Parse accepts and that fails the
+         * `seconds > 0` test, so a DOWNGRADED binary degrades to "(0:00)" instead of throwing (the "-1" note
+         * above holds for this value too). Never collides: a real duration is written only when ACCEPTED. */
+        public const string declinedRemotelyMarker = "-2";
+
+        /// <summary>True when the PEER declined the call this message records (the caller's side).</summary>
+        public static bool isDeclinedRemotely(FriendMessage? msg)
+        {
+            return msg != null
+                && msg.type == FriendMessageType.voiceCallEnd
+                && msg.message == declinedRemotelyMarker;
+        }
+
+        private static bool currentCallDeclinedRemotely = false;   // ★ #1080 F11: set by onRejectedCall, reset with every call field
+
         public static long currentCallInitiated { get; private set; } = 0;
 
         public static bool isInitiated()
@@ -474,6 +492,12 @@ namespace SPIXI.VoIP
                             // a genuine "Missed call".
                             fm.message = declinedLocallyMarker;
                         }
+                        else if (currentCallDeclinedRemotely)
+                        {
+                            // ★ #1080 F11: the peer declined — the caller's card says so ("Call declined"),
+                            // not "No answer".
+                            fm.message = declinedRemotelyMarker;
+                        }
                         /* ★★ #572 ④, review MAJOR-1: THE CHATS ROW READS A DEEP COPY.
                          * `metaData.setLastMessage` stores `new FriendMessage(msg.getBytes())`
                          * (Ixian-Core Friend.cs:126-129), so mutating `fm` here reaches the
@@ -517,6 +541,7 @@ namespace SPIXI.VoIP
             currentCallAccepted = false;
             currentCallInitiator = false;   // F5-1 r2 (loop A-8): every other call field resets here — a latched initiator would poison the A-1 predicate on the NEXT call
             currentCallDeclinedLocally = false;   // r3 (R-2): same rule — a latched decline would eat the NEXT call's missed row
+            currentCallDeclinedRemotely = false;   // ★ #1080 F11: same rule
             currentCallCodec = null;
             currentCallStartedTime = 0;
             currentCallInitiated = 0;
@@ -665,6 +690,7 @@ namespace SPIXI.VoIP
             {
                 return;
             }
+            currentCallDeclinedRemotely = true;   // ★ #1080 F11: endVoIPSession writes the caller's "Call declined" marker
             Logging.info("SND call-tone: busy");   // sound belt (#518)
             SPlatformUtils.startDialtone(DialtoneType.busy);
             SpixiContentPage.broadcastHideCallBar();   // C18
@@ -902,6 +928,8 @@ namespace SPIXI.VoIP
             {
                 if (!hasSession(session_id) || controlsClosed)
                 {
+                    Logging.info("Call: mute {0} ignored (no live call)", muted ? "on" : "off");   // ★ #1080 F12
+                    broadcastControlsAsync();   // ★ #1080 F12: echo the real state (the shell flipped optimistically)
                     return;
                 }
                 currentCallMuted = muted;
@@ -925,27 +953,33 @@ namespace SPIXI.VoIP
         {
             if (!hasSession(session_id))
             {
+                // ★ #1080 F12: the shell flips the toggle optimistically — a refused tap must echo the real state
+                Logging.info("Call: speaker {0} ignored (no live session)", on ? "on" : "off");
+                broadcastControlsAsync();
                 return;
             }
             bool applied = true;
+            bool ended = false;
             lock (controlLock)
             {
                 if (!hasSession(session_id) || controlsClosed)
                 {
-                    return;   // the call ended while this tap was in flight
+                    ended = true;   // the call ended while this tap was in flight
                 }
                 // Before the session starts there is no audio route to change yet — keep the
                 // wish; startVoIPSession applies it after the player/recorder set the session.
-                if (audioPlayer != null || audioRecorder != null)
+                else if (audioPlayer != null || audioRecorder != null)
                 {
                     applied = SPlatformUtils.setSpeakerphone(on);
                 }
-                if (applied)
+                if (applied && !ended)
                 {
                     currentCallSpeaker = on;
                 }
             }
-            Logging.info("Call: speaker {0} ({1})", on ? "on" : "off", applied ? "applied" : "refused");
+            // ★ #1080 F12: every arrival is logged and ECHOED, refused or not — the shell flips the toggle
+            // optimistically, so C#'s answer must always come back to overwrite it.
+            Logging.info("Call: speaker {0} ({1})", on ? "on" : "off", ended ? "ignored, the call ended" : applied ? "applied" : "refused");
             broadcastControlsAsync();
         }
 

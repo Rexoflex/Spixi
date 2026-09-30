@@ -145,11 +145,18 @@ export function showCallScreen({
 
   const ctl = document.createElement('div');
   ctl.className = 'c-callscreen__controls';
+  /* ★ #1080 F12: the optimistic flip — see callbar.js (the same toggles, the same echo). */
+  const flip = (key, send) => () => {
+    const want = !entry.audio[key];
+    if (send(want) === false) return;   // the shell refused (no live session) — nothing flips (#46 r1)
+    entry.audio[key] = want;
+    apply(entry, strings);
+  };
   if (caps.mute && onMute) {
-    ctl.append(labelled(callToggle('mute', 'microphone', strings.callMute || 'Mute', () => onMute(!entry.audio.muted)), strings.callMute || 'Mute'));
+    ctl.append(labelled(callToggle('mute', 'microphone', strings.callMute || 'Mute', flip('muted', onMute)), strings.callMute || 'Mute'));
   }
   if (caps.speaker && onSpeaker) {
-    ctl.append(labelled(callToggle('speaker', 'volume', strings.callSpeaker || 'Speaker', () => onSpeaker(!entry.audio.speaker)), strings.callSpeaker || 'Speaker'));
+    ctl.append(labelled(callToggle('speaker', 'volume', strings.callSpeaker || 'Speaker', flip('speaker', onSpeaker)), strings.callSpeaker || 'Speaker'));
   }
   const end = document.createElement('button');
   end.type = 'button';
@@ -162,9 +169,12 @@ export function showCallScreen({
   el.append(card);
 
   host.append(el);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (el.isConnected && screens.get(host) && screens.get(host).el === el) el.dataset.open = '';
-  }));
+  /* ★ #1080 F10: data-open now DRIVES the fade-in (call-screen.css) — so it must always land. rAF does not
+     run while the native stage is hidden (the #917 spare finding), so a 300ms timer backs the two frames up;
+     whichever fires first opens it, the second is a no-op. */
+  const open = () => { if (el.isConnected && screens.get(host) && screens.get(host).el === el) el.dataset.open = ''; };
+  requestAnimationFrame(() => requestAnimationFrame(open));
+  setTimeout(open, 300);
 
   const entry = { el, startedAt, audio: { muted: !!audio.muted, speaker: !!audio.speaker }, timer: 0,
     idKey: [name, address, avatar || ''].join('\n') };

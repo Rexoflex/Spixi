@@ -1,0 +1,153 @@
+<title>Walk 1080 fix round</title>
+<style>
+/* Walk sheet #1080 (the walk fix round). Layout: one narrow column — a header with the build steps, then one card per walk row with P / F / N/A and a note; a sticky results bar. */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--font)}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:20px 96px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:22px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.sub{color:var(--ink-2);margin:4px 0 0}
+.steps{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.steps h2,.sec{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0 0 8px;font-weight:600}
+.steps ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+code{font:13px var(--mono);background:var(--brand-soft);color:var(--ink);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+.where{font-size:12px;color:var(--ink-2);background:var(--brand-soft);border-radius:999px;padding:2px 9px}
+.new{font-size:11px;font-weight:700;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:1px 7px}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl button{font:600 13px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.ctl button:focus-visible,.bar button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:760px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{display:none;width:100%;min-height:120px;font:13px var(--mono)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Walk #1080 — the fix round</h1>
+    <p class="sub">The 18 walk findings from #1074–#1078, two new asks (N1, N2) and C.17. Android and Windows F5, two devices for the call and typing rows.</p>
+  </header>
+
+  <section class="steps">
+    <h2>Before you start</h2>
+    <ol>
+      <li>Run the smoke test: <code>node scripts/smoke-test.mjs</code>. The last line must be <code>BASELINE OK</code> with the 2 KNOWN (#136 · B3); expect 5013 (or 5015 with the Ixian-Core folder beside the repo).</li>
+      <li>C# changed: wipe <code>Spixi\obj</code> and <code>Spixi\bin</code>. Windows: build with <b>F5</b> (never <code>dotnet build</code>, #663). Android: Debug build and deploy.</li>
+      <li>This is the first compile of this C#. A build error is this batch's bug — paste it in the chat.</li>
+      <li>Mark each row. Tap <b>Copy results</b> at the end and paste them in the chat.</li>
+    </ol>
+  </section>
+
+  <div class="sec">Rows</div>
+  <div id="rows"></div>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+  <textarea id="out" readonly aria-label="Results text"></textarea>
+</div></div>
+
+<script>
+const ROWS=[
+ {id:'F1',t:'Account → Contacts, no flash',w:'Android',d:'Account → Contacts. Repeat three times.',p:'Contacts appears at once over Account. The chats list never shows in between. Back returns to Account.',n:1},
+ {id:'F2',t:'Squares on every Account screen',w:'Android + Windows',d:'Open Notifications, Privacy, Delete data, Declined requests, Downloads, Backup, About and Contributors.',p:'Every row icon is the same bright rounded SQUARE as on the Account list. About\'s logo and Contributors\' heart stay big. Chat info and contact details keep their own round icons.',n:1},
+ {id:'F3',t:'Brighter squares',w:'Android · light + dark',d:'Open Account in both themes.',p:'The squares are more saturated than the last build. Theme is still amber, not yellow.',n:1},
+ {id:'F4',t:'Desktop Account hover / selected / press',w:'Windows F5 · light + dark',d:'Move the mouse over Account rows. Click a row. Hover the selected row. Press and hold a row.',p:'Hover is a quiet grey step. The selected row is a slightly deeper grey and stays the same under the mouse. A press on the selected row is one grey step deeper, never blue. Downloads rows behave the same.',n:1},
+ {id:'F5',t:'One colour across the two top bars',w:'Windows F5',d:'Open Account, then any sublevel beside it.',p:'The Account top bar and the sublevel top bar have the same ground colour. No hairline under either.',n:1},
+ {id:'F6',t:'Nickname edit, one thin ring',w:'Windows + Android',d:'Edit your own nickname (Account). Edit a contact\'s nickname (contact details).',p:'One 1px blue border. No thick double ring.',n:1},
+ {id:'F7',t:'Resize with Account open',w:'Windows F5',d:'Open Account. Drag the window narrow, then wide, then narrow. Close Account while narrow. Open it again.',p:'Narrow: Account fills the window with its own rail, no chat strip beside it. Wide: the pane again, rail on the left highlights Account. After close, the rail highlights the tab you were on.',n:1},
+ {id:'F8',t:'Desktop ring over a dimmed app',w:'Windows · call the PC',d:'Look behind the ring card.',p:'The app shows through, dimmed. No solid grey ground.',n:1},
+ {id:'F9',t:'Desktop call card: round corners, no ring',w:'Windows · in call',d:'Minimise the call to the card. Click its name, then minimise again with the mouse. Then press Tab.',p:'The card has round corners and its own soft shadow. A mouse click shows no blue focus ring. Tab shows the ring again. Shift alone does not.',n:1},
+ {id:'F10',t:'Card → full screen fades in',w:'Android + Windows · in call',d:'Tap the card to open the full call view.',p:'The full view fades and scales in (short). With Reduce motion on, it appears at once.',n:1},
+ {id:'F11',t:'Caller sees "Call declined"',w:'Two devices',d:'A calls B. B taps Decline. Repeat with Decline → Message.',p:'On A, the chat shows a call card "Call declined" with a call-back button. The chats list row also says Call declined.',n:1},
+ {id:'F11b',t:'Busy callee (record only)',w:'Two devices',d:'B is already in a call. A calls B.',p:'Record what A sees. Today it says "Call declined" (the app cannot tell a busy reject apart). Mark P if it says that; note if you want other wording.',n:1},
+ {id:'F12',t:'Speaker / Mute answer every tap',w:'Android Debug · in call',d:'On the card, tap Speaker quickly several times. Then Mute several times.',p:'Every tap flips the button at once. The final state matches what you hear.',n:1},
+ {id:'F13',t:'Select circles in one column',w:'Windows F5 · group chat',d:'Select messages in a group chat with incoming and outgoing messages.',p:'All circles line up in one column on the left.',n:1},
+ {id:'F14',t:'Selected tint on a gradient',w:'Windows · light + dark',d:'Set Chat appearance → gradient. Select messages.',p:'Selected rows have a see-through blue tint. The gradient shows through.',n:1},
+ {id:'F15',t:'Green canvas (light only)',w:'Android + Windows',d:'Chat appearance → pick the green circle in the light theme. Open a chat. Then switch to dark.',p:'Light: the chat has the green gradient. Dark: no green circle is offered, Flat is checked, and chats show the flat dark ground. Tapping Flat in dark saves Flat.',n:1},
+ {id:'F16',t:'Dark unread strip',w:'Android · dark',d:'Open a chat with unread messages.',p:'The "Unread messages" strip is clearly visible on the dark canvas.',n:1},
+ {id:'F17',t:'Typing in the top bar',w:'Two devices · 1:1 and group',d:'Type on B while A has the chat open.',p:'A\'s top bar shows three moving dots and "Typing" (group: "<name> is typing") where Online was. It returns to Online when B sends or stops.',n:1},
+ {id:'F17b',t:'Typing, screen reader (optional)',w:'Android TalkBack',d:'Let B type on and off for a while. Then turn airplane mode on and off on A.',p:'TalkBack does not read every typing flicker. It reads "Connecting…" when it appears.',n:1},
+ {id:'F18',t:'Pinned row lighter',w:'Android · light',d:'Look at a pinned chat row.',p:'The pinned row has a very light blue wash, lighter than before. Note: on desktop, when the mouse is over a pinned row it looks like any hovered row (the pin icon still shows) — tell us if that is a problem.',n:1},
+ {id:'N1',t:'Bubbles 1px taller',w:'Android + Windows',d:'Open any chat.',p:'Each bubble has 1px more space above and below the text than the last build. In a group, note if the 32px avatar next to a one-line bubble now looks misaligned.',n:1},
+ {id:'N2',t:'Typing dots in the chat row',w:'Two devices',d:'On B, type in a chat with A. On A, look at the chats list.',p:'The row shows three moving blue dots before "is typing" (no "..." at the end). The dots stop when B stops. A new contact that is still connecting shows "Setting up a secure connection…" with no dots.',n:1},
+ {id:'C.17',t:'Call while LOCKED',w:'Android · app lock on',d:'Lock the app. Call it from the other device. Then unlock.',p:'While locked: it rings (sound), but NO call UI shows over the lock. After unlock: the ring (or the card if it was answered) appears within a moment.',n:0},
+];
+const KEY='walk-1080-v1';
+let state={};
+try{state=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){state={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+const host=document.getElementById('rows');
+ROWS.forEach(r=>{
+  const s=state[r.id]||{};
+  const el=document.createElement('article');el.className='row';el.dataset.v=s.v||'';
+  el.innerHTML=`<div class="top"><span class="id">${r.id}</span><span class="title">${r.t}</span>${r.n?'<span class="new">NEW</span>':''}<span class="where">${r.w}</span></div>
+  <dl><dt>Do</dt><dd>${r.d}</dd><dt>Pass when</dt><dd>${r.p}</dd></dl>
+  <div class="ctl" role="group" aria-label="Result for ${r.id}">
+    <button type="button" data-k="P">Pass</button><button type="button" data-k="F">Fail</button><button type="button" data-k="N">N/A</button>
+  </div>
+  <textarea id="note-${r.id}" placeholder="Note (optional)" aria-label="Note for ${r.id}"></textarea>`;
+  const ta=el.querySelector('textarea');ta.value=s.note||'';
+  ta.addEventListener('input',()=>{state[r.id]={...(state[r.id]||{}),note:ta.value};save();});
+  el.querySelectorAll('.ctl button').forEach(b=>{
+    b.setAttribute('aria-pressed',String(s.v===b.dataset.k));
+    b.addEventListener('click',()=>{
+      const cur=(state[r.id]||{}).v; const v=cur===b.dataset.k?'':b.dataset.k;
+      state[r.id]={...(state[r.id]||{}),v};save();el.dataset.v=v;
+      el.querySelectorAll('.ctl button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===v)));tally();
+    });
+  });
+  host.appendChild(el);
+});
+function tally(){
+  let p=0,f=0,n=0;ROWS.forEach(r=>{const v=(state[r.id]||{}).v;if(v==='P')p++;else if(v==='F')f++;else if(v==='N')n++;});
+  const left=ROWS.length-p-f-n;
+  document.getElementById('tally').innerHTML=`<b class="p">${p} P</b> · <b class="f">${f} F</b> · <b class="n">${n} N/A</b>${left?` · ${left} left`:''}`;
+}
+tally();
+function text(){
+  let p=0,f=0,n=0;const lines=ROWS.map(r=>{const s=state[r.id]||{};const v=s.v==='P'?'P':s.v==='F'?'F':s.v==='N'?'N/A':'—';
+    if(s.v==='P')p++;else if(s.v==='F')f++;else if(s.v==='N')n++;
+    return `${r.id} ${v}${s.note?' — '+s.note.trim():''}`;});
+  return `Walk #1080–#1082 (Android + Windows F5 · two devices): ${p} P · ${f} F · ${n} N/A\n`+lines.join('\n');
+}
+document.getElementById('copy').addEventListener('click',async()=>{
+  const t=text();const out=document.getElementById('out');const btn=document.getElementById('copy');
+  try{await navigator.clipboard.writeText(t);btn.textContent='Copied';setTimeout(()=>btn.textContent='Copy results',1500);}
+  catch(e){out.style.display='block';out.value=t;out.focus();out.select();btn.textContent='Select and copy';}
+});
+document.getElementById('reset').addEventListener('click',()=>{
+  const btn=document.getElementById('reset');
+  if(btn.dataset.armed!=='1'){btn.dataset.armed='1';btn.textContent='Tap again to clear';setTimeout(()=>{btn.dataset.armed='';btn.textContent='Clear'},2500);return;}
+  state={};save();location.reload();
+});
+</script>

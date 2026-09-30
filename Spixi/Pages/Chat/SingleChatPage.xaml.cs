@@ -3526,15 +3526,17 @@ namespace SPIXI
                  * correctly; this label is the other half, and it is read from history,
                  * so it needs the durable marker rather than a live flag. */
                 bool declinedLocally = VoIPManager.isDeclinedLocally(message);
-                if(message.message == "" || declinedLocally)
+                bool declinedRemotely = VoIPManager.isDeclinedRemotely(message);   // ★ #1080 F11: the PEER declined (caller's side)
+                if(message.message == "" || declinedLocally || declinedRemotely)
                 {
                     if(message.type == FriendMessageType.voiceCallEnd || !VoIPManager.hasSession(message.id))
                     {
                         declined = true;
-                        if (declinedLocally)
+                        if (declinedLocally || declinedRemotely)
                         {
                             // The user saw the call and answered it with a decline. Same
                             // wording on both sides: this device turned the call down.
+                            // ★ #1080 F11: …and the caller's card when the PEER turned it down.
                             text = SpixiLocalization._SL("chat-call-declined") ?? "Call declined";
                         }
                         else if (message.localSender)
@@ -3570,7 +3572,9 @@ namespace SPIXI
                  * ixian:callback into a busy refusal); the card re-pushes with false when the
                  * call ends (VoIPManager.endVoIPSession → insertMessage). */
                 bool callActive = message.type == FriendMessageType.voiceCall && !declined && VoIPManager.hasSession(message.id);
-                push(batch, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs, declinedLocally.ToString(), callActive.ToString());
+                /* ★ #1080 F11: a 10th arg, `declinedRemotely` — the peer declined this OUTGOING call. Last, never
+                 * reordered; an older shell ignores it and keeps its no-answer card with C#'s new label. */
+                push(batch, "addCall", Crypto.hashToString(message.id), text, declined.ToString(), message.timestamp.ToString(), message.localSender.ToString(), (declined && !message.localSender).ToString(), duration_secs, declinedLocally.ToString(), callActive.ToString(), declinedRemotely.ToString());
             }
 
             updateMessageReadStatus(message, channel);

@@ -37,8 +37,15 @@
 /* position context for the tick (below); the bubble/card is a NEARER positioned
    ancestor, so overlap reactions keep anchoring where they did. */
 [data-selecting] .c-bubble-row[role="checkbox"] { position: relative; }
+/* ★ #1080 F13 (Damir, desktop screenshot 2026-09-30: "select checkboxes not aligned for incoming
+   and outgoing"): a row that carries a sender GUTTER takes the composer's smaller start inset
+   (--bubble-avatar-inset, Session K), a plain row the 16px one — so in select mode the circle
+   sat 8px further left on every group-incoming row than on a sent row. The circle is one COLUMN:
+   while selecting, every row starts at the same inset. The tick reads the same token, so it
+   follows. Outside select mode the avatar keeps its composer-edge alignment. */
+[data-selecting] .c-bubble-row[data-gutter] { --bubble-row-inset: var(--spacing-16); }
 [data-selecting] .c-bubble-row[data-selected] {
-  background: var(--surface-action-tonal-default);
+  background: var(--surface-select-row);   /* ★ #1080 F14: translucent — the chat ground shows through (was the opaque --surface-action-tonal-default) */
   border-radius: var(--radius-12);
   /* ★ #993 (review of #989, m1): a SENT card's dark edge rises on the selection wash (1.07:1
      without it); light's value is transparent = unchanged. The card reads this custom property. */

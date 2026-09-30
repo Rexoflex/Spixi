@@ -1189,6 +1189,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   width: 100%;
   text-align: center;
 }
+/* ★ #1080 F6 (Damir, walk ⑥: the nickname edit "a heavy blue double ring"): the field only EXISTS while
+   editing, and its 1px action border already says "you are typing here" — the app-wide 2px focus ring
+   (base.css :focus-visible, offset 2) drew a SECOND ring around it. One 1px ring now (the #252 Q10
+   desktop 1px grammar): the field's own action border, which keyboard users still see. */
+.c-settings__nick-input:focus-visible { outline: none; }   /* the 1px --outline-action-default border above IS the ring */
 .c-settings__nick-error {
   font-size: var(--font-size-body-sm);
   color: var(--text-error);
@@ -1786,43 +1791,84 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 /* ★ #1076 (Damir 2026-09-30, "colours a bit off, darker … spacing between rows bigger"; picks:
    B · rounded square, Account screen ONLY, amber instead of yellow, more saturated lime).
-   Scope = the Account hub root (.c-settings--hub). Every other c-settings surface, chat-info,
-   contact details and the scan card keep the #1017/#1031 discs and today's row heights. */
-.c-settings--hub .c-disc {
+   ★ #1080 F2 (walk A.7 FAIL, Damir: "all Account screens, just not the user/contact avatars"):
+   the scope was the hub LIST only (.c-settings--hub); "Account screen only" meant the Account
+   AREA. Scope = `.c-account`, carried by the hub root AND by the <body> of the three shells that
+   ARE Account (settings.html · downloads.html · settings_backup.html), so every sublevel
+   (Notifications, Privacy, Delete data, Declined, Downloads, Backup, Language, Theme, Chat
+   appearance, How to use, About…) and every sheet those shells open get the same discs, row
+   heights and 16 gap. Avatars are .c-avatar, never .c-disc, so no avatar is touched. chat-info,
+   contact details, the Contacts takeover (home.html) and the scan card keep the #1017/#1031
+   discs and today's row heights. */
+.c-account .c-disc {
   width: 30px;
   height: 30px;
   border-radius: 9px;
   background: var(--disc-grad, var(--disc-hub-1));   /* NO --disc-shade: the brighter pairs are the point */
   box-shadow: none;
 }
-.c-settings--hub .c-disc > svg { width: 20px; height: 20px; filter: var(--disc-hub-glyph-lift); }
-.c-settings--hub .c-disc[data-hue='primary'] { --disc-grad: var(--disc-hub-7); }
-.c-settings--hub .c-disc[data-hue='accent']  { --disc-grad: var(--disc-hub-8); }
-.c-settings--hub .c-disc[data-hue='info']    { --disc-grad: var(--disc-hub-6); }
-.c-settings--hub .c-disc[data-hue='success'] { --disc-grad: var(--disc-hub-4); }
-.c-settings--hub .c-disc[data-hue='warning'] { --disc-grad: var(--disc-hub-2); }
-.c-settings--hub .c-disc[data-grad='1']  { --disc-grad: var(--disc-hub-1); }
-.c-settings--hub .c-disc[data-grad='2']  { --disc-grad: var(--disc-hub-2); }
-.c-settings--hub .c-disc[data-grad='3']  { --disc-grad: var(--disc-hub-3); }
-.c-settings--hub .c-disc[data-grad='4']  { --disc-grad: var(--disc-hub-4); }
-.c-settings--hub .c-disc[data-grad='5']  { --disc-grad: var(--disc-hub-5); }
-.c-settings--hub .c-disc[data-grad='6']  { --disc-grad: var(--disc-hub-6); }
-.c-settings--hub .c-disc[data-grad='7']  { --disc-grad: var(--disc-hub-7); }
-.c-settings--hub .c-disc[data-grad='8']  { --disc-grad: var(--disc-hub-8); }
-.c-settings--hub .c-disc[data-grad='9']  { --disc-grad: var(--disc-hub-9); }
-.c-settings--hub .c-disc[data-grad='10'] { --disc-grad: var(--disc-hub-10); }
-.c-settings--hub .c-disc[data-grad='11'] { --disc-grad: var(--disc-hub-11); }
-.c-settings--hub .c-disc[data-hue='error'] { --disc-grad: var(--disc-hub-error); }   /* red stays red, LAST wins */
+.c-account .c-disc > svg { width: 20px; height: 20px; filter: var(--disc-hub-glyph-lift); }
+.c-account .c-disc[data-hue='primary'] { --disc-grad: var(--disc-hub-7); }
+.c-account .c-disc[data-hue='accent']  { --disc-grad: var(--disc-hub-8); }
+.c-account .c-disc[data-hue='info']    { --disc-grad: var(--disc-hub-6); }
+.c-account .c-disc[data-hue='success'] { --disc-grad: var(--disc-hub-4); }
+.c-account .c-disc[data-hue='warning'] { --disc-grad: var(--disc-hub-2); }
+.c-account .c-disc[data-grad='1']  { --disc-grad: var(--disc-hub-1); }
+.c-account .c-disc[data-grad='2']  { --disc-grad: var(--disc-hub-2); }
+.c-account .c-disc[data-grad='3']  { --disc-grad: var(--disc-hub-3); }
+.c-account .c-disc[data-grad='4']  { --disc-grad: var(--disc-hub-4); }
+.c-account .c-disc[data-grad='5']  { --disc-grad: var(--disc-hub-5); }
+.c-account .c-disc[data-grad='6']  { --disc-grad: var(--disc-hub-6); }
+.c-account .c-disc[data-grad='7']  { --disc-grad: var(--disc-hub-7); }
+.c-account .c-disc[data-grad='8']  { --disc-grad: var(--disc-hub-8); }
+.c-account .c-disc[data-grad='9']  { --disc-grad: var(--disc-hub-9); }
+.c-account .c-disc[data-grad='10'] { --disc-grad: var(--disc-hub-10); }
+.c-account .c-disc[data-grad='11'] { --disc-grad: var(--disc-hub-11); }
+.c-account .c-disc[data-hue='error'] { --disc-grad: var(--disc-hub-error); }   /* red stays red, LAST wins */
 /* the roomier rows: +8 on every height, 16 between disc and label (the stacked label keeps gap 0 —
    a gap there would split title from sub; its disc gutter moves to 30 + 16 instead). */
-.c-settings--hub .c-settings__row { min-height: calc(var(--row-h-nav) + 8px); padding-block: 6px; }
-.c-settings--hub .c-settings__row[data-row="switch"],
-.c-settings--hub .c-settings__row--backup { min-height: calc(var(--row-h-switch) + 8px); }
-.c-settings--hub .c-settings__row[data-row="stacked"] { min-height: calc(var(--row-h-stacked) + 6px); }
-.c-settings--hub .c-settings__row-label:not(.c-settings__row-label--stack),
-.c-settings--hub .c-settings__row-top { gap: var(--spacing-16); }
-.c-settings--hub .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
-.c-settings--hub .c-settings__row-sub { margin-top: 2px; }
+.c-account .c-settings__row { min-height: calc(var(--row-h-nav) + 8px); padding-block: 6px; }
+.c-account .c-settings__row[data-row="switch"],
+.c-account .c-settings__row--backup { min-height: calc(var(--row-h-switch) + 8px); }
+.c-account .c-settings__row[data-row="stacked"] { min-height: calc(var(--row-h-stacked) + 6px); }
+.c-account .c-settings__row-label:not(.c-settings__row-label--stack),
+.c-account .c-settings__row-top { gap: var(--spacing-16); }
+.c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
+.c-account .c-settings__row-sub { margin-top: 2px; }
+/* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
+   quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
+   press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.
+   The selected row lives in settings.html (body[data-pane], the only place a row is "current"). */
+@media (hover: hover) and (pointer: fine) {
+  .c-account .c-settings__row:not(.c-settings__row--static):not([aria-current="true"]):hover { background-color: var(--surface-account-row-hover); }   /* a SELECTED row keeps its selected tone under the mouse (#46 r1) */
+}
+:root[data-desktop] .c-account {
+  --surface-press-row: rgba(13, 17, 24, 0.03);         /* sanctioned: the press overlay's own alpha family (tokens.css --surface-press-row), halved for desktop Account (#1080 F4) */
+  --surface-press-row-hover: rgba(13, 17, 24, 0.05);   /* sanctioned: same */
+}
+:root[data-desktop][data-theme="dark"] .c-account {
+  --surface-press-row: rgba(237, 240, 242, 0.03);      /* sanctioned: same */
+  --surface-press-row-hover: rgba(237, 240, 242, 0.05);/* sanctioned: same */
+}
+/* ★ #1080 F4 (#46 r1): the Downloads file rows are Account rows too — same height step and the same
+   quiet hover (settings-app.css paints the generic interactive hover at (0,1,0)). */
+.c-account .c-settings-dl__open { min-height: calc(var(--row-h-nav) + 8px); }
+@media (hover: hover) and (pointer: fine) {
+  .c-account .c-settings-dl__open:hover { background-color: var(--surface-account-row-hover); }
+}
+/* ★ #1080 F4 (#46 r1): a SELECTED Account row presses neutral, one step past its selected tone —
+   base.css presses [aria-current] rows in the action-tonal family, which would flash blue here. */
+html:root .c-account .c-settings__row[aria-current][data-pressed="row"]::before,
+html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
+  background: var(--surface-account-row-pressed);
+}
+/* ★ #1080 F2: the two ART discs (About's logo, Contributors' heart) are 64px hero tiles, not row
+   icons — they keep their size and take the same squircle at scale (9/30 of 64 ≈ 19). Without this
+   the (0,2,0) row rule above would shrink them to 30. */
+.c-account .c-disc.c-settings-about__logo,
+.c-account .c-disc.c-settings-contrib__art-disc { width: 64px; height: 64px; border-radius: 19px; }
+.c-account .c-disc.c-settings-about__logo > svg,
+.c-account .c-disc.c-settings-contrib__art-disc > svg { width: 32px; height: 32px; }
 
 </style>
 <style data-src="../styles/components/subscreen-slide.css">
@@ -5252,7 +5298,13 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   /* A5 (#348) review MAJOR-4: background-COLOR. This is (0,3,1) — the SAME specificity
      as base.css's pressed selected-row rule — and it is declared later, so the shorthand
      silently reset the fill image and the selected hub row had no press feedback. */
-  body[data-pane] .c-settings__row[aria-current="true"] { background-color: var(--surface-action-tonal-default); }
+  body[data-pane] .c-settings__row[aria-current="true"] { background-color: var(--surface-account-row-selected); }   /* ★ #1080 F4 (Damir, picked N · neutral): was the action tonal (primary-100 / -800) — "far too strong" */
+  /* ★ #1080 F5 (Damir, walk ⑧, picked A of a rendered 2-way): in the peer pane the hub bar had no
+     hairline and the sublevel bar had one, and neither matched the ground. Both bars now take the
+     settings GROUND and neither draws a line — one flat surface, the pane divider is the only rule.
+     Desktop pane only; the phone keeps its bars (one screen at a time, nothing to match). */
+  body[data-pane] .c-topbar { background: var(--surface-settings-ground); }
+  body[data-pane] .sd-detail .c-topbar[data-variant="view"] { border-bottom-color: transparent; }
   body[data-pane] .c-settings__themes { padding: var(--spacing-16); }
   body[data-pane] .c-settings__opts { padding: var(--spacing-16); }
   body[data-pane] .c-settings-backup__hero > .c-settings-backup__cta { width: auto; min-width: 240px; margin-inline: auto; }
@@ -5268,7 +5320,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
-<body>
+<body class="c-account"><!-- ★ #1080 F2: this shell IS Account — the Account disc + row dials (settings-shell.css) reach every sublevel and sheet -->
   <!-- Splash boot cover (Batch B) — logo injected right after icons.iife.js below;
        dropped in signalReady (window load). -->
   <div class="app-boot" id="app-boot"><div class="app-boot__logo" id="app-boot-logo" role="status" aria-label="Loading" data-sl-aria="loading"></div></div>
@@ -5674,7 +5726,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          while chat.html's ladder honoured the flat. Both stored values are read now. */
       // ★ #855 → #998: 'gradient' is ADMITTED again (the brand gradient, light only);
       // any other value falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
-      if (gr === 'flat' || gr === 'gradient') chatGround = gr;   // ★ #998: anything else, incl. absent/corrupt → the default above
+      if (gr === 'flat' || gr === 'gradient' || gr === 'green') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too   // ★ #998: anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
   }
@@ -7219,7 +7271,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       const on = (v === '1' || v === 'true' || v === true);
       if (on === paneMode) return;
       paneMode = on;
-      markPaneOpen(on);                     // #589: the rail's one source of truth
+      /* #589: the rail's one source of truth. ★ #1080 F7 (#46 r1): setPaneMode('0') now also means "the
+         window went narrow" — the Account page is STILL OPEN (drawn full-window), so the flag is only ever
+         SET here; its clears stay on the real exits (pagehide + onSettingsClosed). */
+      if (on) markPaneOpen(true);
       if (on) document.body.dataset.pane = '';
       else delete document.body.dataset.pane;
       renderLayout();

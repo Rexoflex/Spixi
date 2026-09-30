@@ -283,6 +283,11 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   min-width: 0;
   width: 100%;
 }
+/* ★ #1080 F6 (Damir, walk ⑥: the nickname edit "a heavy blue double ring"): the field only EXISTS while
+   editing, and its 1px action border already says "you are typing here" — the app-wide 2px focus ring
+   (base.css :focus-visible, offset 2) drew a SECOND ring around it. One 1px ring now (the #252 Q10
+   desktop 1px grammar): the field's own action border, which keyboard users still see. */
+.c-chat-info__nick-input:focus-visible { outline: none; }   /* the 1px --outline-action-default border above IS the ring */
 .c-chat-info__nick-error {
   font-size: var(--font-size-body-sm);
   color: var(--text-error);

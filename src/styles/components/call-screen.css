@@ -68,6 +68,22 @@
   padding: calc(var(--safe-top, 0px) + var(--spacing-12)) calc(var(--safe-right, 0px) + var(--spacing-20)) calc(var(--safe-bottom, 0px) + var(--spacing-32)) calc(var(--safe-left, 0px) + var(--spacing-20));
 }
 .c-callscreen__card > :not(.c-callbg) { position: relative; }   /* content above the backdrop */
+/* ★ #1080 F10 (walk C.12, Damir picked B of a rendered 2-way): the card ↔ full call screen switch is no
+   longer instant — the expanded view FADES IN with a slight scale (0.96 → 1) over the call ground (phone)
+   or the scrim (desktop), on the house curve; the way back is the minimised card's own fade-in
+   (callbar.css, data-open). CSS only — the stage geometry is C#'s and snaps as before. data-open is set
+   two frames after mount (call-screen.js, with a backstop); reduced motion shows it at once. The true
+   "grow" (A) is the post-freeze follow-up: it needs a transparent phone stage and C# sequencing. */
+.c-callscreen__card {
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
+}
+.c-callscreen[data-open] .c-callscreen__card { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .c-callscreen__card { opacity: 1; transform: none; transition: none; }
+}
 .c-callscreen__top {
   position: relative;
   display: flex;

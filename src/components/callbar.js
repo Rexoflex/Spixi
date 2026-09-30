@@ -126,8 +126,19 @@ export function showCallBar({
 
   const ctl = document.createElement('div');
   ctl.className = 'c-callbar__controls';
-  if (caps.mute && onMute) ctl.append(callToggle('mute', 'microphone', strings.callMute || 'Mute', () => onMute(!entry.audio.muted)));
-  if (caps.speaker && onSpeaker) ctl.append(callToggle('speaker', 'volume', strings.callSpeaker || 'Speaker', () => onSpeaker(!entry.audio.speaker)));
+  /* ★ #1080 F12 (walk C.8, Damir: "the Speaker button on the minimised card is not always responsive"):
+     the toggle sent !entry.audio.X and changed NOTHING on screen until C#'s echo (setCallAudio, broadcast
+     from the pool) came back — so a second tap inside that window sent the SAME value again and the
+     button looked dead. The tap now flips the local state at once (optimistic, like the chat switches);
+     C#'s echo stays the authority and overwrites it (a refused route comes back "off"). */
+  const flip = (key, send) => () => {
+    const want = !entry.audio[key];
+    if (send(want) === false) return;   // the shell refused (no live session) — nothing flips (#46 r1)
+    entry.audio[key] = want;
+    applyAudio(entry, strings);
+  };
+  if (caps.mute && onMute) ctl.append(callToggle('mute', 'microphone', strings.callMute || 'Mute', flip('muted', onMute)));
+  if (caps.speaker && onSpeaker) ctl.append(callToggle('speaker', 'volume', strings.callSpeaker || 'Speaker', flip('speaker', onSpeaker)));
 
   const hangup = document.createElement('button');
   hangup.type = 'button';
@@ -139,9 +150,11 @@ export function showCallBar({
   el.append(ctl);
 
   host.append(el);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (el.isConnected && callBars.get(host) && callBars.get(host).el === el) el.dataset.open = '';
-  }));
+  /* ★ #1080 (#46 r1): the same backstop as call-screen.js — rAF does not run while the native stage is
+     hidden, and data-open drives the bar's fade-in; whichever fires first opens it. */
+  const open = () => { if (el.isConnected && callBars.get(host) && callBars.get(host).el === el) el.dataset.open = ''; };
+  requestAnimationFrame(() => requestAnimationFrame(open));
+  setTimeout(open, 300);
 
   const entry = { el, startedAt, audio: { muted: !!audio.muted, speaker: !!audio.speaker }, timer: 0,
     idKey: [name, address, avatar || ''].join('\n') };

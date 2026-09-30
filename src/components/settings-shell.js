@@ -400,7 +400,7 @@ export function createSettingsHub({
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
-  el.className = 'c-settings c-settings--hub';   // ★ #1076: the Account hub's own disc + row dials (hub only)
+  el.className = 'c-settings c-settings--hub c-account';   // ★ #1076 → #1080 F2: the Account disc + row dials (.c-account — the settings shells' <body> carries it too, so the sublevels match)
 
   const topbar = createTopbar({
     // #320 (Damir F5 of #315): NO onBack = the hub is a PEER TAB (iOS-46) — its

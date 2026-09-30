@@ -43,6 +43,28 @@ namespace SPIXI
         // NON-pane page must never be re-presented into a WIDE window (and vice versa).
         public bool isPaneMode { get { return paneMode; } }
 
+        /* ★ #1080 F7: a pane-built Account page follows the window across the breakpoint — narrow shows the
+         * full-window layout (the shell's own rail), wide the pane again. Only a page BUILT as a pane ever
+         * carries the stage margin that brings it here; `paneMode` stays the construction truth (it routes
+         * the BackupPage column), this only moves what the shell draws. */
+        // (#46 r1) the LAST width state, so a reload's onLoad pushes the truth (not the construction mode)
+        // and a resize that does not cross the breakpoint pushes nothing.
+        bool windowWide = true;
+
+        public void applyWindowWide(bool wide)
+        {
+            if (!paneMode)
+            {
+                return;
+            }
+            if (wide == windowWide)
+            {
+                return;
+            }
+            windowWide = wide;
+            Utils.sendUiCommand(this, "setPaneMode", wide ? "1" : "0");
+        }
+
         public SettingsPage(bool pane_mode = false, double master_width = 0)
         {
             paneMode = pane_mode;
@@ -121,7 +143,7 @@ namespace SPIXI
             // lays out master-detail before it ever becomes visible.
             if (paneMode)
             {
-                Utils.sendUiCommand(this, "setPaneMode", "1");
+                Utils.sendUiCommand(this, "setPaneMode", windowWide ? "1" : "0");   // #1080 F7 (#46 r1): a reload in a narrow window stays narrow
                 if (masterWidth > 0)
                 {
                     // #245: hub column width = native list column − rail (invariant digits)

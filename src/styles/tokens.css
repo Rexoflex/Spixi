@@ -535,6 +535,17 @@
      near-invisible class #870 named (its floor was ~1.11). Same shape as the sheet pair, one
      ramp further: hover 200/600 (1.137 · 1.223), pressed 300/500 (1.423 · 1.357). */
   --surface-card-hover: var(--neutral-200);
+  /* ★ #1080 F4 (Damir, walk ②: desktop Account hover / selected / pressed "far too strong"; picked N ·
+     neutral of a rendered 3-way). The Account rows sit on the WHITE settings card: hover 1.10:1 and
+     selected 1.17:1 against it (the card pair above is 1.29 — the step he rejected). Neutral only, no
+     brand tint. Scope = the Account shells (.c-account); every other card row keeps the #878 pair. */
+  --surface-account-row-hover: #f4f5f7;
+  /* ★ #1080 F14 (Damir, desktop screenshot: "colour tint doesn't work on gradient for selected messages";
+     picked S16 of a rendered 3-way): the select-mode row wash is TRANSLUCENT action blue, so the chat
+     ground (flat, brand or green gradient) shows through instead of an opaque tonal band. */
+  --surface-select-row: rgba(48, 80, 189, 0.16);
+  --surface-account-row-selected: #eceef2;
+  --surface-account-row-pressed: #e3e6eb;    /* ★ #1080 F4 (#46 r1): a SELECTED Account row presses one neutral step deeper (1.08:1 on the selected tone) — base.css would press it action-tonal */
   --surface-card-pressed: var(--neutral-300);
   --surface-bubble-sent: #2160c2;      /* ★ Session I (#735⑥, sheet 1d = A): softened one step, REVERSIBLY — was #1956b2 (N81 #422). White text 5.97:1 (was 6.96); meta ink 5.05:1. Matches --gradient-bubble-sent; the fallback must not disagree */
   --surface-bubble-received: #ffffff;   /* ★ N81 (#422) — pure white on the cream canvas (Damir) */
@@ -603,7 +614,13 @@
      9% #e4e5e8 (1.101, was). 7% is one visible step down while keeping four times the
      5% margin over hover. Reversal: 0.09. DARK IS UNCHANGED — it is a light LIFT, not an
      ink wash, so "lighter" there would mean the opposite operation; ask before moving it. */
-  --surface-pinned: rgba(13, 19, 36, 0.07);
+  /* ★ #1080 F18 (Damir 2026-09-30, Android light screenshot: "tone down the pinned row backdrop, too strong now"):
+     7% of the ink → 5% of the ACTION blue. Composited over the #f9fafb ground it is #eff2f8 (was #e8eaec) — about
+     half the lightness step off the ground. ⚠ HONEST (#46 r1): it does NOT separate from the neutral hover (#edf0f2)
+     by hue in any way a reader can rely on — the two are ~1.01:1 apart, so a HOVERED pinned row reads as an unpinned
+     hovered row. The pin glyph still marks it. That is the price of "lighter"; it is logged as a Damir dial (#1081).
+     The ticks keep ≥ 3:1 on it (the #1041/#1047 pins compute that). Dark unchanged. Reversal: rgba(13, 19, 36, 0.07). */
+  --surface-pinned: rgba(48, 80, 189, 0.05);
   --surface-menu: var(--neutral-10);
   --surface-sheet: var(--surface-menu);   /* ★ #1030: the SHEET/DIALOG ground (.c-sheet · .c-modal); light = the menu surface, unchanged */
   /* ★ #1035 (#46 auditor C, MAJOR): the tones a component INSIDE a sheet paints that equal the dark sheet
@@ -956,6 +973,10 @@
   --surface-sheet-card-hover: var(--neutral-600);    /* ★ #1030: was 500 */
   --surface-sheet-card-pressed: var(--neutral-500);  /* ★ #1030: now one visible step past hover (was equal to it) */
   --surface-card-hover: var(--neutral-600);          /* ★ Session Y: 1.187:1 on the neutral-800 card after #884 ② (was 1.223 on grey-600; 700 would be 1.048 — invisible) */
+  --surface-account-row-hover: #212327;      /* ★ #1080 F4: 1.09:1 on the #1A1C1F card (the card pair is 1.187) */
+  --surface-select-row: rgba(118, 157, 255, 0.22);   /* ★ #1080 F14: brand-400 at 22% over the dark ground */
+  --surface-account-row-selected: #27292e;   /* ★ #1080 F4: 1.17:1 */
+  --surface-account-row-pressed: #2e3136;    /* ★ #1080 F4 (#46 r1): 1.12:1 on the selected tone */
   --surface-card-pressed: var(--neutral-500);        /* 1.309:1 (was 1.357) */
   --surface-bubble-sent: #1a4a96;      /* ★ #1055 (Damir 2026-09-29, rendered 3-way): DARK ONLY — #2160c2 read loud on the near-black canvas; #1a4a96 = the same hue two steps deeper. White text 8.52:1 (was 5.97), 2.32:1 off the canvas. Light keeps #2160c2. Reversal = #2160c2 (Session I sheet 1d = A). */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "incoming bubbles on dark mode need a bit more
@@ -1206,7 +1227,7 @@
   /* ★ PICKED 2026-09-02 (sheet 1a = A, "TG-tight"): single-line bubble 32 CSS = 80 px on the
      Motorola (was 40 = 100; WA 82, TG 72). Reversal values in the trailing comments. */
   --bubble-line-height: 20px;                         /* was var(--line-height-body-md) = 24 on mobile · 21 desktop (#227) */
-  --bubble-pad-y: 6px;                                /* was var(--spacing-8) */
+  --bubble-pad-y: 7px;                                /* ★ #1082 (Damir 2026-09-30: +1px top and bottom): was 6 (Session I sheet 1a = A); before that var(--spacing-8) */
   --bubble-pad-x: 11px;                               /* was var(--spacing-12) */
   /* ★ Damir 2026-09-08, picked B off a four-option render (docs/sheets/session-s/): the day
      pill and the unread strip go GLASS — a translucent fill over a real backdrop blur, no
@@ -1471,6 +1492,10 @@
      is text-neutral-01 (#131415) at 10%. */
   --surface-chat-glass: rgba(249, 250, 251, 0.58);
   --outline-chat-glass: rgba(19, 20, 21, 0.10);
+  /* ★ #1080 F16: the unread strip's own roles. Light = the glass it had (unchanged); dark lifts (below). */
+  --surface-unread-strip: var(--surface-chat-glass);
+  --outline-unread-strip: var(--outline-chat-glass);
+  --text-unread-strip: var(--text-neutral-02);
   --chat-canvas-base: #ECEEF1;   /* ★★ #1002 (D-09, Damir 2026-09-28): MIST — a near-neutral cool grey; the chrome stays neutral. Was #E4EAF3 — Session J (#744/A14, Damir 2026-09-02: "light mode background: E4EAF3") — a cool blue-grey again, a step deeper than AUG's #ebf0f5; white bubbles measure 1.22:1 against it. Reversal = #EEECEF (Session I k2); before that #ebf0f5 (AUG) */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the unread messages strip is not very visible,
      and the Today badge also". MEASURED, and it is a direct consequence of the new ground:
@@ -1626,20 +1651,27 @@
   /* ★ #1076 (Damir 2026-09-30: "colours a bit off, darker"; picked B · rounded square, Account
      screen only, "amber instead of yellow and more saturated lime"): the Account hub's brighter
      disc pairs. NO --disc-shade under them. The disc is decoration (the row label names the row),
-     so the white glyph is under 3:1 on the light pairs by Damir's ruling. Other screens keep
+     so the white glyph is under 3:1 on the light pairs by Damir's ruling. Scope: every Account
+     shell (.c-account, #1080 F2 widened it from the hub to the sublevels); other screens keep
      --disc-grad-N. */
-  --disc-hub-1: linear-gradient(180deg, #FF8A4C 0%, #F2622B 100%);   /* orange */
-  --disc-hub-2: linear-gradient(180deg, #FFB23F 0%, #F28A0A 100%);   /* amber (replaces sunflower) */
-  --disc-hub-3: linear-gradient(180deg, #8FDD2A 0%, #4CB81A 100%);   /* saturated lime */
-  --disc-hub-4: linear-gradient(180deg, #5ED67A 0%, #2DB85A 100%);   /* green */
-  --disc-hub-5: linear-gradient(180deg, #3FDDBB 0%, #12C09D 100%);   /* teal */
-  --disc-hub-6: linear-gradient(180deg, #4DD4F2 0%, #19AEE3 100%);   /* cyan */
-  --disc-hub-7: linear-gradient(180deg, #5CB6FF 0%, #2E88F7 100%);   /* blue */
-  --disc-hub-8: linear-gradient(180deg, #A9A5FF 0%, #7D6CF4 100%);   /* violet */
-  --disc-hub-9: linear-gradient(180deg, #CB9DFF 0%, #A266EE 100%);   /* purple */
-  --disc-hub-10: linear-gradient(180deg, #F794D6 0%, #E4549F 100%);   /* pink */
-  --disc-hub-11: linear-gradient(180deg, #FF8FA2 0%, #F2526C 100%);   /* rose */
-  --disc-hub-error: linear-gradient(180deg, #FF7A70 0%, #EC3F3A 100%);   /* red, destructive */
+  /* ★ #1080 F3 (Damir, walk ③ "a bit too bland" → picked +22% of a rendered 3-way): every pair
+     below is the #1076 pair with OKLCH chroma × 1.22 and lightness − 0.02, hue held, gamut-fit by
+     chroma (so amber stays amber — no drift toward yellow). Reversal = the #1076 pairs:
+     1 #FF8A4C/#F2622B · 2 #FFB23F/#F28A0A · 3 #8FDD2A/#4CB81A · 4 #5ED67A/#2DB85A · 5 #3FDDBB/#12C09D ·
+     6 #4DD4F2/#19AEE3 · 7 #5CB6FF/#2E88F7 · 8 #A9A5FF/#7D6CF4 · 9 #CB9DFF/#A266EE · 10 #F794D6/#E4549F ·
+     11 #FF8FA2/#F2526C · error #FF7A70/#EC3F3A. */
+  --disc-hub-1: linear-gradient(180deg, #FF7717 0%, #FC4500 100%);   /* orange */
+  --disc-hub-2: linear-gradient(180deg, #FFA600 0%, #F27F00 100%);   /* amber (replaces sunflower) */
+  --disc-hub-3: linear-gradient(180deg, #80D900 0%, #2DB500 100%);   /* saturated lime */
+  --disc-hub-4: linear-gradient(180deg, #29D562 0%, #00B73F 100%);   /* green */
+  --disc-hub-5: linear-gradient(180deg, #00DCB3 0%, #00BD96 100%);   /* teal */
+  --disc-hub-6: linear-gradient(180deg, #00D1F6 0%, #00A9E7 100%);   /* cyan */
+  --disc-hub-7: linear-gradient(180deg, #35B0FF 0%, #007DFF 100%);   /* blue */
+  --disc-hub-8: linear-gradient(180deg, #A29BFF 0%, #785AFF 100%);   /* violet */
+  --disc-hub-9: linear-gradient(180deg, #C98FFF 0%, #A250FC 100%);   /* purple */
+  --disc-hub-10: linear-gradient(180deg, #FB83D5 0%, #EB319C 100%);   /* pink */
+  --disc-hub-11: linear-gradient(180deg, #FF7D97 0%, #FC295D 100%);   /* rose */
+  --disc-hub-error: linear-gradient(180deg, #FF645C 0%, #F60011 100%);   /* red, destructive */
   --disc-hub-glyph-lift: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));   /* soft lift under the white glyph */
 
   /* state washes over strong surfaces (hero gradient, success call bar) —
@@ -1834,6 +1866,13 @@
      neutral-100 at 10%. Same rule as light — the fill IS the ground, seen through blur. */
   --surface-chat-glass: rgba(15, 17, 19, 0.55);   /* ★ #989: follows ink-900 #0F1113 (was rgba(16, 21, 30, .55) = the old #10151e) */
   --outline-chat-glass: rgba(233, 236, 243, 0.10);
+  /* ★ #1080 F16 (Damir, Android dark screenshot: "make unread strip on dark more visible"; picked U1 ·
+     neutral lift of a rendered 2-way): the dark glass was ink-900 at 55% over the ink-950 canvas — the
+     strip and the canvas were one tone. A light lift, brighter hairlines and the primary ink. The day pill
+     keeps --surface-chat-glass (unchanged). */
+  --surface-unread-strip: rgba(233, 236, 243, 0.08);
+  --outline-unread-strip: rgba(233, 236, 243, 0.18);
+  --text-unread-strip: var(--text-neutral-01);
   --surface-chat-chip: var(--surface-neutral-02);
   /* dark keeps the outline token for the Off-swatch slash — see the light block for why
      light needed its own. Dark's ground did not move at E1c and #701 makes it DARKER,
@@ -1944,6 +1983,16 @@
      (#94D2E3 0%, #94CAE9 23.16%, #99C2ED 46.31%, #A2B8EC 69.47%, #ADAEE8 92.62%). */
   --gradient-chat: linear-gradient(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%), var(--chat-canvas-base);
   --chat-pattern-ink: #3A2F66;
+}
+/* ★★ #1080 F15 (Damir 2026-09-30, picked G2 of a rendered 3-way, from his green title-bar colours):
+   the GREEN gradient — light only, never the default, same two selectors as the brand rule (the chat
+   root + the settings preview/dot). The ink is a deep green at the same level as the brand ink.
+   There is NO dark rule on purpose: in dark a stored 'green' paints the flat midnight ground.
+   Reversal = delete this rule and the CHAT_GROUNDS member. */
+:root:not([data-theme='dark'])[data-chat-ground='green'],
+:root:not([data-theme='dark']) [data-chat-ground='green'] {
+  --gradient-chat: linear-gradient(160deg, #D6EBC6 0%, #D2EDA8 45%, #CFE9BD 100%), var(--chat-canvas-base);
+  --chat-pattern-ink: #2F5A1E;
 }
 /* ⚠★ AND THE FLAT TILE HAS TO SAY SO EXPLICITLY. Custom properties INHERIT: once <html>
    carries data-chat-ground='gradient', the wash above cascades into every descendant —

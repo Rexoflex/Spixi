@@ -1144,6 +1144,20 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 }
 .c-excerpt__mention { color: var(--text-action-default); }
 .c-excerpt[data-type="typing"] .c-excerpt__text { color: var(--text-action-default); }
+/* ★ #1082: the peer-typing dots in the row — the topbar's three-dot wave (typing-indicator.css owns the
+   keyframes and the reduced-motion stop), 4px on the action ink, never shrinking under the ellipsis. */
+.c-excerpt__typing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  color: var(--text-action-default);
+}
+.c-excerpt__typing .c-typing__dot {
+  width: 4px;   /* sanctioned: the row dot, the topbar's size */
+  height: 4px;
+  background: currentColor;
+}
 /* M5 outgoing contact request — "Request sent" reads as a status, typing tone.
    #273: request-done ("Contact Accepted") keeps the SAME look — only the pending
    semantics differ (filter/chip exclude it via the distinct excerpt kind). */
@@ -1190,6 +1204,83 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 :root[data-desktop] .c-chatlist-item { padding-block: var(--spacing-8); }
 
 </style>
+<style data-src="../styles/components/typing-indicator.css">
+/* c-typing — "is typing" pill (batch 3, #66 code-first). Received-bubble
+   language: same surface/radius so it reads as an incoming placeholder. */
+
+/* hugs the composer (Damir 2026-07-03): tighter than the group gap above,
+   spacing-4 below — the scroll container's bottom padding must be
+   var(--spacing-4) for the full effect (demo/shell duty).
+   Doubled class = load-order-proof vs .c-bubble-row's margin (audit r3) */
+.c-bubble-row.c-bubble-row--typing { margin-top: var(--spacing-8); }
+
+.c-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-16);
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
+     relied on elevation to separate, so it took the same incoming hairline the
+     received bubble carries.
+     ★ N82(b) (#427): the token is `transparent` in BOTH themes now (Damir's pick
+     on the rendered comparison), so this rule paints nothing and is kept only as
+     the one-line reversal hook. See tokens.css --border-bubble-received. */
+  box-shadow: inset 0 0 0 1px var(--border-bubble-received);
+}
+
+.c-typing__name {
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+
+.c-typing__dots { display: inline-flex; gap: var(--spacing-4); }
+.c-typing__dot {
+  width: 6px;  /* sanctioned: dot glyph, no size token this small */
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--icon-neutral-02);
+  /* loop = 4× duration-300 so the wave stays token-driven */
+  animation: c-typing-wave calc(var(--duration-300) * 4) var(--easing-standard) infinite;
+}
+.c-typing__dot:nth-child(2) { animation-delay: calc(var(--duration-300) * 0.66); }
+.c-typing__dot:nth-child(3) { animation-delay: calc(var(--duration-300) * 1.33); }
+
+@keyframes c-typing-wave {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+
+/* duration tokens collapse to 0 under reduced motion — a 0s infinite loop
+   would spin the style engine, so kill the animation outright */
+@media (prefers-reduced-motion: reduce) {
+  .c-typing__dot { animation: none; opacity: 0.6; }
+}
+
+/* ★ #1080 F17 (Damir, Android: "when the counterpart is typing, also show 3 animated dots and 'typing' in the
+   top bar sub-line where 'Online' is"): the chat topbar's sub-line swaps its presence text for the same
+   three-dot wave + the typing words while the peer types, in the action ink (the Telegram/WhatsApp grammar).
+   The dots are the pill's own (.c-typing__dot, same wave, same reduced-motion stop), a size smaller, on
+   currentColor so they take the line's ink. chat.html paints it (paintTopbarSub) from state. */
+.c-topbar__sub[data-typing] { color: var(--text-action-default); }
+.c-topbar__typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-end: var(--spacing-4);
+  vertical-align: middle;
+}
+.c-topbar__typing .c-typing__dot {
+  width: 4px;   /* sanctioned: the sub-line dot, a size smaller than the pill's 6 */
+  height: 4px;
+  background: currentColor;
+}
+
+</style><!-- ★ #1082: the row's typing dots ride the pill's wave + reduced-motion stop -->
 <style data-src="../styles/components/chip.css">
 /* c-chip — mirrors Figma chip/{small,large} + code-first selected/disabled
    (docs/chip-search-spec.md, DECISIONS #50). Semantic tokens only. */
@@ -6836,6 +6927,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     try {
         contactsView = mountContacts({
         host: document.body, bridge, strings, purpose, appId: appId || '',
+        enterInstant: returnTo === 'account',     // ★ #1080 F1: the Account hand-off is one frame (Account IS the cover) — no slide, so coverpainted fires on an opaque takeover
         paneAvailable: () => paneAvailable,       // #836: live read at tap time, not a mount-time snapshot
         onExitSettled: () => syncHomeOverlay(),   // ★ Session H MAJOR-1: the cover is gone NOW — report the real 0
         getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
@@ -7650,7 +7742,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   /** raw excerpt + pushed kind → chatlist excerpt { type, text }. */
   function excerptFromPush(raw, statusType, name, excerptKind) {
     const decoded = decodeEntities(raw);
-    if (statusType === 'typing') return { type: 'typing', text: decoded };
+    if (statusType === 'typing') return { type: 'typing', text: decoded, dots: true };   // ★ #1082: a person typing → the dots
     const trimmed = (decoded || '').trim();
     const k = PUSHED_EXCERPT_KINDS.has(String(excerptKind || '')) ? String(excerptKind) : 'text';
     // M5: the OUTGOING pending request → the styled "Request sent" row (the pushed
@@ -7662,7 +7754,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
        nick had not arrived yet. ⚠ canonExcerptText, never the raw text — B4 (#231):
        addresses are NEVER shown in full in an excerpt. */
     if (k === 'connected') return { type: 'connected', text: canonExcerptText(decoded, name) };
-    if (k === 'typing') return { type: 'typing', text: decoded };
+    if (k === 'typing') return { type: 'typing', text: decoded, dots: true };
     if (k !== 'text') return { type: k, text: trimmed };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)

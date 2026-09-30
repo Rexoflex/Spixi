@@ -196,6 +196,20 @@
 }
 .c-excerpt__mention { color: var(--text-action-default); }
 .c-excerpt[data-type="typing"] .c-excerpt__text { color: var(--text-action-default); }
+/* ★ #1082: the peer-typing dots in the row — the topbar's three-dot wave (typing-indicator.css owns the
+   keyframes and the reduced-motion stop), 4px on the action ink, never shrinking under the ellipsis. */
+.c-excerpt__typing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  color: var(--text-action-default);
+}
+.c-excerpt__typing .c-typing__dot {
+  width: 4px;   /* sanctioned: the row dot, the topbar's size */
+  height: 4px;
+  background: currentColor;
+}
 /* M5 outgoing contact request — "Request sent" reads as a status, typing tone.
    #273: request-done ("Contact Accepted") keeps the SAME look — only the pending
    semantics differ (filter/chip exclude it via the distinct excerpt kind). */

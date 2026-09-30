@@ -98,6 +98,10 @@ export const CHAT_GROUNDS = [
      ink #3A2F66). The restore was the one line #855 promised; the label is a NEW key because
      "Gradient" translations named the retired teal wash. */
   { id: 'gradient', key: 'groundBrandGradient', label: 'Brand gradient' },
+  /* ★★ #1080 F15 (Damir 2026-09-30, from his green title-bar screenshot; picked G2 of a rendered
+     3-way): a SOFT GREEN gradient — LIGHT ONLY (`lightOnly`). There is no dark green rule, so in dark
+     the dot is not offered and a stored 'green' paints the flat midnight ground (tokens.css). */
+  { id: 'green', key: 'groundGreenGradient', label: 'Green gradient', lightOnly: true },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -571,7 +575,13 @@ export function createChatAppearance({
      from a rendered 3-way at both chat widths): the Canvas row is shown in BOTH themes now. It
      REVERSES the dark half of #774 ③ / #855 ("in dark the row is absent" — there was no dark
      gradient to choose then). The one pref paints per theme: tokens.css has a light AND a dark rule. */
-  let groundCurrent = CHAT_GROUNDS.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  /* ★ #1080 F15: the grounds THIS theme can paint — a lightOnly member is not offered in dark (read from the
+     live document, like the rest of this block), so a stored light-only pick shows as the flat it paints. */
+  const groundsHere = CHAT_GROUNDS.filter((o) => !o.lightOnly || document.documentElement.getAttribute('data-theme') !== 'dark');
+  let groundCurrent = groundsHere.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  /* (#46 r1) what is STORED, as distinct from what is shown: in dark a stored 'green' shows the flat dot
+     checked, and a tap on that dot must still WRITE 'flat' (else the stored light-only pick is unreachable). */
+  let groundStored = chatGround;
   /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
      at build it inherited the document's, and settings.html's root never carries one, so the
      preview painted FLAT under a Gradient swatch. It is stamped from the current value at build. */
@@ -587,7 +597,7 @@ export function createChatAppearance({
      moment a second member returns to CHAT_GROUNDS. Writing `if (false)` or deleting the
      block would make the restore a re-implementation instead of a one-line revert, and
      would hide that this is the SAME rule the dark branch already applies. */
-  if (CHAT_GROUNDS.length > 1) {
+  if (groundsHere.length > 1) {
     groundSec = document.createElement('div');
     groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
     /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a
@@ -648,7 +658,7 @@ export function createChatAppearance({
       kids[n].focus();
       kids[n].click();   // a radio arrow SELECTS (the click handler is a no-op on the current one)
     });
-    for (const o of CHAT_GROUNDS) {
+    for (const o of groundsHere) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-settings-appearance__dot';
@@ -660,8 +670,9 @@ export function createChatAppearance({
       face.setAttribute('data-chat-ground', o.id);
       b.append(face);
       b.addEventListener('click', () => {
-        if (groundCurrent === o.id) return;
+        if (groundCurrent === o.id && groundStored === o.id) return;
         groundCurrent = o.id;
+        groundStored = o.id;
         paint();
         preview.setAttribute('data-chat-ground', o.id);
         if (onChatGround) onChatGround(o.id);

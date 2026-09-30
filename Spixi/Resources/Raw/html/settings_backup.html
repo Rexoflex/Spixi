@@ -883,6 +883,813 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 [data-overlay-root]:focus { outline: none; }
 
 </style><!-- c-modal (password confirm) -->
+<style data-src="../styles/components/settings-shell.css">
+/* c-settings — Account hub + danger screen (docs/settings-shell-spec.md,
+   #146 build · #147 premium round: centered QR-forward hero, tinted icon
+   discs [--disc-* pairs], group CARDS on --surface-settings-card (#1007), theme preview tiles,
+   danger tone split). Sub-screens (settings-screens.js) reuse the row/section
+   grammar defined here; their own classes live in settings-screens.css. */
+
+.c-settings,
+.c-settings-danger {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-settings-ground);   /* ★ #1007: grey ground (light) — was --surface-screen */
+}
+.c-settings__body {
+  flex: 1;
+  min-height: 0;                    /* flex-column scroll rule (#136①) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--screen-gap);                      /* ★ Session I canon: 12 (was 16) */
+  padding: var(--screen-pad) var(--spacing-16) var(--spacing-32);   /* ★ Session I canon: 12 top (was 16) */
+}
+/* #148: children of a SCROLLING flex column are shrinkable by default — the
+   56px CTA was compressing under overflow (Damir screenshot). Never shrink. */
+.c-settings__body > *,
+.c-settings-danger__body > * { flex: none; }
+
+/* clip-hidden live region */
+.c-settings__live,
+.c-settings-danger__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  margin: 0;
+}
+
+.c-settings__label {
+  margin: 0 0 var(--spacing-8);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  letter-spacing: var(--tracking-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+  padding-inline-start: var(--spacing-4);
+}
+.c-settings__note {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  padding-inline: var(--spacing-4);
+}
+
+/* —— identity hero: CENTERED + QR-FORWARD (#147) —— */
+.c-settings__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding-top: var(--spacing-4);    /* ★ Session I canon: hero tightened (was 8) */
+}
+.c-settings__avatar {
+  flex: none;
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings__avatar:disabled { cursor: default; }
+.c-settings__avatar-edit {            /* affordance: this avatar is editable */
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  width: 24px;                      /* sanctioned: edit-dot dim */
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  border: 2px solid var(--surface-settings-ground);   /* sanctioned: ring cut against the hub ground (#1007 moved it off --surface-screen), badge-ring precedent (#48) */
+}
+.c-settings__avatar:disabled .c-settings__avatar-edit { display: none; }
+.c-settings__name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  min-width: 0;
+  max-width: 100%;
+}
+/* ★ Session Z (#884 ⑥): the ghost mirrors the pencil — a 44 icon-only button is 44 wide
+   (`.c-button[data-icon-only][data-size="44"]`, button.css) — so the NAME is what the
+   row centres, not the name+pencil pair. It hides with the pencil while the editor is
+   open (the input then centres alone). The suite reads both widths from the sheets. */
+.c-settings__nick-ghost { flex: none; width: 44px; }
+.c-settings__name {
+  min-width: 0;                     /* nowrap flex item — the #140③ class */
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-settings__nick-input {
+  font: inherit;
+  font-size: var(--font-size-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+  background: var(--surface-input);
+  border: var(--outline-width-1) solid var(--outline-action-default);
+  border-radius: var(--radius-8);
+  padding: var(--spacing-2) var(--spacing-8);
+  min-width: 0;
+  width: 100%;
+  text-align: center;
+}
+/* ★ #1080 F6 (Damir, walk ⑥: the nickname edit "a heavy blue double ring"): the field only EXISTS while
+   editing, and its 1px action border already says "you are typing here" — the app-wide 2px focus ring
+   (base.css :focus-visible, offset 2) drew a SECOND ring around it. One 1px ring now (the #252 Q10
+   desktop 1px grammar): the field's own action border, which keyboard users still see. */
+.c-settings__nick-input:focus-visible { outline: none; }   /* the 1px --outline-action-default border above IS the ring */
+.c-settings__nick-error {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-error);
+  text-align: center;
+}
+
+/* QR — history of this block, kept visible (never deleted):
+   · #147 put the code on the hub; N86 ② (Damir) moved it behind a "Show QR" reveal
+     ("quite overpowering" in dark mode) and N86 ① dropped the 12px card padding
+     with the full measured-geometry argument (encoder-verified cell/quiet-zone
+     table, the radius-vs-quiet-zone corner arithmetic).
+   · ★ Batch E (d) (#557, Damir 2026-08-22 / #551) then removed the hub's OWN card
+     entirely: the row opens `openAddressSheet` — ONE address surface (#443/#453),
+     no second QR construction to drift (#149③'s defect class, retired here).
+   The N86 ① measured-geometry docblock + card now live in chat-info.css ONLY
+   (that surface keeps its inline reveal); the sheet's card geometry lives in
+   wallet-receive.css (.c-addr-sheet__qrcard — padding 0 per F5-5 ①, width by
+   min(), the same `quiet = 4` encoder floor pinned in qr.js). Re-measure THERE
+   if the payload or the encoder changes. */
+/* ★ Batch E (d) (#557, Damir 2026-08-22 / #551): the hub renders NO QR card of its
+   own any more — the `.c-settings__qr` box is GONE. The "Show QR" row opens
+   `openAddressSheet` (wallet-receive.css owns that surface: .c-addr-sheet__qrcard,
+   padding 0 per F5-5 ①, the same measured-geometry rules the docblock above pins).
+   The row keeps N86's affordance position (under the address, action-tinted) and
+   the chevron is a STATIC chevron-right — it opens a dialog, it discloses nothing
+   in place, so the aria-expanded rotation went with the box. */
+.c-settings__qr-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 44px;
+  padding: 0 var(--spacing-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border-radius: var(--radius-8);
+}
+.c-settings__qr-chevron {
+  margin-inline-start: auto;
+}
+
+.c-settings__address-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  max-width: 100%;
+  min-width: 0;
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+}
+.c-settings__address-value {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  word-break: break-all;            /* FULL address — truth stays whole (#99) */
+  text-align: start;
+}
+.c-settings__copy {                 /* 32px icon button (#145④) */
+  flex: none;
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-action-default);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-settings__copy::after { content: ''; position: absolute; inset: -6px; }   /* hit area */
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__copy:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__copy:active { background: var(--surface-interactive-pressed); }
+
+/* —— groups: CARD surfaces (#147 — flat hairline rows read utilitarian) —— */
+.c-settings__groupwrap { display: flex; flex-direction: column; }
+.c-settings__group {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-settings-card);   /* ★ #1007: WHITE in light (was --surface-card #EDF0F2) */
+  border-radius: var(--radius-16);
+  padding: var(--spacing-4);
+  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the softer Account-card shadow (light); dark = elevation-1 */
+  --surface-input: var(--surface-input-on-settings-card);   /* #150③ → #1007: an input on the white card takes the grey */
+}
+/* ★ Session AF (#949, Damir on the AE walk): NO hairline between rows of the same card — the
+   card's own edge groups them and the line inside was noise. (It was the #884 ⑤ /
+   #882 (b) `--outline-on-card` border-top on `.c-settings__section + .c-settings__section`.)
+   Separation between GROUPS is the card gap + the section label, unchanged. */
+
+/* —— rows: disc · label · value · chevron —— */
+.c-settings__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52 "44 target + disc breathing room"); switch rows 56 below */
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
+     base.css — see chatlist-item.css. State rules set background-COLOR only. */
+}
+.c-settings__row--static { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-card-hover); }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
+}
+/* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
+.c-settings__row-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-width: 0;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--row-title-weight);   /* ★ Session J: one notch over the sub (tokens.css) */
+}
+.c-settings__row-sub { font-weight: var(--font-weight-regular, 400); }   /* ★ Session J: the sub does NOT inherit the title's Medium */
+.c-settings__row-value {
+  margin-inline-start: auto;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  flex: none;
+}
+.c-settings__row > svg:last-child { color: var(--icon-neutral-02); flex: none; }
+
+/* tinted icon disc: PROMOTED to base.css as .c-disc (#148 — shared with
+   chat-info/contact for one consistent treatment) */
+
+/* stacked (two-line) rows — backup nudge, quiet danger rows */
+.c-settings__row-label--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  /* N59 → N59b (Damir screenshot, 2026-08-17): the disc now centres against the
+     title+sub GROUP, not against the title line alone. The first cut pulled the
+     sub up under a title that stayed centred in the 32px disc box — the text
+     block read bottom-weighted ("dragging down, uncentered"). The disc leaves
+     the flow (absolute, centred on the whole label); the stack carries the
+     gutter; the sub needs no pull-up — the dead space is gone at the source. */
+  position: relative;
+  padding-inline-start: calc(32px + var(--spacing-12));
+  gap: 0;
+  flex: 1;
+}
+.c-settings__row-label--stack .c-disc {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.c-settings__row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+.c-settings__row-sub,
+.c-settings__backup-sub {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  /* ★ #712 (Damir on device, 2026-08-30): the sub-label WRAPS. It was a single
+     ellipsised line, and on a phone "Message text is never shown in notific…" and
+     "Off: messages arrive when Spixi check…" cut the sentence exactly where the
+     meaning was. A sub-label is an explanation; an explanation that ends in "…" is
+     not one. Two or three lines cost nothing in a stacked row. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  min-width: 0;
+}
+.c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
+.c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
+.c-settings__row[data-row="stacked"] { min-height: var(--row-h-stacked); }   /* ★ Session J: a nav row with a sub-line (the third height; Damir's pick) */
+.c-settings__backup-badge { flex: none; }
+
+/* —— switch (chat-info parity) —— */
+.c-settings__switch {
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border-radius: var(--radius-full);
+  background: var(--switch-track-off);   /* #148: dedicated pair — neutral-03 vanished on card surfaces */
+  cursor: pointer;
+  transition: background-color var(--duration-200) var(--easing-standard),
+              border-color var(--duration-200) var(--easing-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings__switch::after {        /* 44px target on a 28px control */
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.c-settings__switch[aria-checked='true'] {
+  background: var(--surface-action-default);
+  border-color: var(--surface-action-default);
+}
+.c-settings__switch[aria-busy='true'] { opacity: var(--opacity-disabled); }   /* pending auth (lock OFF) */
+.c-settings__switch-knob {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--switch-knob);        /* #148: on-action ink went near-black in dark — invisible knob */
+  box-shadow: var(--elevation-1);
+  transition: transform var(--duration-200) var(--easing-standard);
+}
+.c-settings__switch[aria-checked='true'] .c-settings__switch-knob {
+  transform: translateX(20px);
+}
+
+/* —— option sheet (language & friends — sd-sheet grammar, #145③ slot) —— */
+.c-settings__opts { display: flex; flex-direction: column; gap: var(--spacing-4); }
+/* #148⑥: long pickers scroll inside a taller sheet (search joins later) */
+/* #965: the list keeps its cap on desktop (a centred dialog); a phone opens the sheet
+   TALL instead (overlay.css .c-sheet[data-tall]) and the list fills it. Its NATIVE
+   scrollbar is hidden — the drawn indicator (.c-scrollind) is the always-visible one. */
+.c-settings__opts--scroll {
+  max-height: min(56vh, 480px);     /* sanctioned: tall-sheet clearance */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding-inline-end: var(--spacing-16);   /* room for the indicator */
+}
+.c-settings__opts--scroll::-webkit-scrollbar { display: none; }
+.c-settings__opts-frame { position: relative; }
+.c-scrollind {
+  position: absolute;
+  top: var(--spacing-4);
+  bottom: var(--spacing-4);
+  inset-inline-end: 0;
+  width: 4px;                       /* sanctioned: indicator width */
+  border-radius: var(--radius-full);
+  background: var(--surface-neutral-03);
+  display: none;
+}
+.c-settings__opts-frame[data-overflow] > .c-scrollind { display: block; }
+.c-scrollind__thumb {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  border-radius: var(--radius-full);
+  background: var(--icon-neutral-02);
+  touch-action: none;
+  cursor: grab;
+}
+/* a wider invisible grab area, so a finger can catch a 4 px thumb */
+.c-scrollind__thumb::before { content: ''; position: absolute; inset: 0 -10px; }
+.c-scrollind__thumb[data-drag] { cursor: grabbing; background: var(--icon-neutral-01); }
+/* a frame exists only in a long picker SHEET, and on a phone that sheet is always tall */
+:root:not([data-desktop]) .c-settings__opts-frame { flex: 1 1 auto; min-height: 0; }
+:root:not([data-desktop]) .c-settings__opts-frame > .c-settings__opts--scroll { max-height: none; height: 100%; }
+/* ★ L15 (2026-08-31): the slot holds either the platform's emoji or a PNG. The width
+   is the same 28px it always was, so no row moves on any platform. */
+.c-settings__opt-flag {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;                      /* sanctioned: flag slot */
+  line-height: 1;
+}
+/* ★ L15: ONE box, two fillings. The emoji is a glyph so it is sized by font-size and
+   needs no border; the PNG is a picture and gets the hairline, because several of the
+   flags are mostly WHITE (jp, id) and without an edge they read as a hole in a light
+   sheet. The two are deliberately NOT made to look identical — each is the best version
+   of itself on the platform that gets it. */
+.c-flag { display: block; }
+.c-flag--emoji {
+  font-size: 20px;                  /* sanctioned: emoji flag optical size */
+  line-height: 1;
+}
+.c-flag--img {
+  width: 20px;                      /* sanctioned: flag artwork box (img/flags/*.png are 40px wide) */
+  height: auto;
+  border-radius: 2px;               /* sanctioned: flag corner */
+  box-shadow: 0 0 0 1px var(--outline-neutral-02);
+}
+.c-settings__opts-hint {
+  margin: 0 0 var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-height: 48px;
+  padding: 0 var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__opt:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__opt:active { background: var(--surface-interactive-pressed); }
+.c-settings__opt-label {
+  flex: 1;                          /* #148⑥: keeps the check slot pinned right when a flag leads */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+.c-settings__opt-status {           /* fixed slot: check OR spinner — label never moves */
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-success);
+}
+.c-settings__opt-check { visibility: hidden; }
+.c-settings__opt[aria-checked='true'] { font-weight: var(--font-weight-semibold); }
+.c-settings__opt[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
+.c-settings__opt[data-loading] .c-settings__opt-check { display: none; }
+
+/* —— theme sheet: VISUAL PREVIEW TILES (#147) —— */
+.c-settings__themes {
+  display: flex;
+  gap: var(--spacing-8);
+}
+.c-settings__theme {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--duration-100) var(--easing-standard);
+}
+.c-settings__theme[aria-checked='true'] { border-color: var(--outline-action-default); }
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__theme:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__theme:active { background: var(--surface-interactive-pressed); }
+/* the mini screen — FIXED paints (a preview shows its OWN mode, --surface-qr precedent) */
+.c-settings__theme-art {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  height: 64px;                     /* sanctioned: preview miniature dim */
+  padding: var(--spacing-8);
+  border-radius: var(--radius-8);
+  background: var(--preview-light-surface);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  overflow: hidden;
+}
+.c-settings__theme-line {
+  height: 6px;                      /* sanctioned: preview miniature bars */
+  border-radius: var(--radius-full);
+  background: var(--preview-light-line);
+}
+.c-settings__theme-line:first-child { width: 40%; background: var(--surface-action-default); }
+.c-settings__theme-line:nth-child(2) { width: 90%; }
+.c-settings__theme-line:nth-child(3) { width: 65%; }
+.c-settings__theme[data-mode='dark'] .c-settings__theme-art { background: var(--preview-dark-surface); }
+.c-settings__theme[data-mode='dark'] .c-settings__theme-line { background: var(--preview-dark-line); }
+.c-settings__theme[data-mode='dark'] .c-settings__theme-line:first-child { background: var(--surface-action-default); }
+/* System = diagonal split: light art + a dark wedge clipped over the right half */
+.c-settings__theme[data-mode='system'] .c-settings__theme-art {
+  position: relative;
+}
+.c-settings__theme[data-mode='system'] .c-settings__theme-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--preview-dark-surface);
+  clip-path: polygon(100% 0, 100% 100%, 35% 100%);
+}
+.c-settings__theme-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+.c-settings__theme-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings__theme[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
+.c-settings__theme[data-loading] .c-settings__opt-check { display: none; }
+
+/* —— avatar sheet —— */
+.c-settings__avatar-sheet { display: flex; flex-direction: column; gap: var(--spacing-4); }
+.c-settings__avatar-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 48px;
+  padding: 0 var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-md);
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__avatar-option:hover { background: var(--surface-interactive-hover); }
+}
+.c-settings__avatar-option:active { background: var(--surface-interactive-pressed); }
+.c-settings__avatar-option svg { color: var(--icon-neutral-02); }
+.c-settings__avatar-option[data-destructive] { color: var(--text-error); }
+.c-settings__avatar-option[data-destructive] svg { color: currentColor; }
+
+/* —— danger screen (#147 tone split) —— */
+.c-settings-danger__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-32);
+}
+/* N5 — the Delete-data screen is RESPONSIVE (Damir, master-worklist). The hub
+   keeps its one-line truncating subtitles (the I-11 row-rhythm dial), but on
+   THIS screen the sub lines are the safety copy ("Messages go from this
+   device…") — they must WRAP, never truncate. Scoped to the danger body so no
+   hub row changes. No min-width work is needed: .c-settings__row-label already
+   ships min-width:0 (the #140③ class, :235-241) and the other flex hops sit on
+   the COLUMN axis — 341-next C1's shrink theory was half-stale (loop rounds
+   B-NIT-6 + re-review MINOR-1). */
+.c-settings-danger__body .c-settings__row-sub {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.c-settings-danger__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+.c-settings-danger__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-12);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  background: var(--surface-settings-card);   /* ★ #1007: the danger screen shares the grey ground — its cards go white too */
+  cursor: pointer;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-settings-danger__card:hover { background: var(--surface-card-hover); }   /* ★ Session Z (#46 loop A-4): the card IS --surface-card — the screen pair was its own colour */
+}
+.c-settings-danger__card:active { background: var(--surface-card-pressed); }
+.c-settings-danger__card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 24px;
+  color: var(--text-error);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings-danger__card-title svg { color: currentColor; flex: none; }
+.c-settings-danger__card-sub {
+  padding-inline-start: calc(20px + var(--spacing-12));   /* sanctioned: aligns under the 20px glyph */
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+/* the standing irreversibility strip (#150⑥) — every delete confirm wears it */
+.c-settings-danger__confirm-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-12);
+  background: var(--disc-error-bg);
+  color: var(--disc-error-ink);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings-danger__confirm-warn svg { flex: none; }
+.c-settings-danger__confirm-error {
+  margin: var(--spacing-8) 0 0;
+  color: var(--text-error);
+  font-size: var(--font-size-body-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-settings__switch, .c-settings__switch-knob { transition: none; }
+}
+
+/* #443's hand-built explainer body RETIRED by ★ Batch E (d) (#557, loop C-7): the
+   "What is this address?" action opens openAddressSheet now — the sheet carries
+   the explainer (.c-addr-sheet__info, wallet-receive.css). Dead rules removed;
+   they shipped inlined into every shell. */
+
+/* #453: the address explainer is a text action UNDER the address chip, not a third icon
+   inside it. Centred with the QR and the chip above it. */
+.c-settings__addrinfo { align-self: center; }
+
+/* ★ #712: the push-provider note reads as a paragraph under its row, not as a row.
+   ★ #1050: it is the FOOTNOTE of the OneSignal card now — inside that card's wrap (no flex gap
+   there), 8 below the card edge (the same 8 it had under the shared card: 12 gap − 4), inset
+   16 from the card edge (the #712 value — it lines up near the row's disc, not its label);
+   the grouped-list footer pattern. */
+.c-settings-notifs__push-note {
+  margin-block-start: var(--spacing-8);
+  padding-inline: var(--spacing-16);
+}
+
+/* ★ #978 (#970) — Declined requests (the un-block path). The note and the empty line are the
+   row-sub role (body-sm, neutral-02) on the screen's own inline padding; a row is the static
+   settings row with the address (truncated canon, #211) and a 32 outline Unblock. */
+.c-settings__ignored-note,
+.c-settings__ignored-empty {
+  margin: 0;
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__ignored-row { gap: var(--spacing-12); }
+.c-settings__ignored-addr {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.c-settings__ignored-row .c-button { flex: none; }
+
+/* ★ #1007 (D-08b): the address in the profile header — middle-truncated, Copy + QR under the name */
+.c-settings__addr {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin-top: calc(-1 * var(--spacing-4));
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__addr-text { padding-inline-end: var(--spacing-4); }
+.c-settings__addr-btn { position: relative; }   /* ink = the text button's own action ink (#1013 r2 n4: a colour here lost to .c-button[data-type] and never applied) */
+/* ⚠ #1012 (Opus r1 m8): a 44px hit area on the 32px buttons (the #990 house rule) */
+.c-settings__addr-btn::after { content: ''; position: absolute; inset: -6px; }
+/* ★ #1013 (r2 n4): the two 44px areas overlapped by 8px across the 4px gap — a tap between them
+   reached whichever painted last. 12px between the buttons = the two -6px areas meet, no overlap. */
+.c-settings__addr-btn + .c-settings__addr-btn { margin-inline-start: var(--spacing-8); }
+/* r1 NIT: the nickname field in the hero sat on the grey ground in its own grey — it takes the
+   card's surface there (white in light; dark = the same neutral-800 it had) */
+.c-settings__hero { --surface-input: var(--surface-settings-card); }
+
+/* ★ #1076 (Damir 2026-09-30, "colours a bit off, darker … spacing between rows bigger"; picks:
+   B · rounded square, Account screen ONLY, amber instead of yellow, more saturated lime).
+   ★ #1080 F2 (walk A.7 FAIL, Damir: "all Account screens, just not the user/contact avatars"):
+   the scope was the hub LIST only (.c-settings--hub); "Account screen only" meant the Account
+   AREA. Scope = `.c-account`, carried by the hub root AND by the <body> of the three shells that
+   ARE Account (settings.html · downloads.html · settings_backup.html), so every sublevel
+   (Notifications, Privacy, Delete data, Declined, Downloads, Backup, Language, Theme, Chat
+   appearance, How to use, About…) and every sheet those shells open get the same discs, row
+   heights and 16 gap. Avatars are .c-avatar, never .c-disc, so no avatar is touched. chat-info,
+   contact details, the Contacts takeover (home.html) and the scan card keep the #1017/#1031
+   discs and today's row heights. */
+.c-account .c-disc {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--disc-grad, var(--disc-hub-1));   /* NO --disc-shade: the brighter pairs are the point */
+  box-shadow: none;
+}
+.c-account .c-disc > svg { width: 20px; height: 20px; filter: var(--disc-hub-glyph-lift); }
+.c-account .c-disc[data-hue='primary'] { --disc-grad: var(--disc-hub-7); }
+.c-account .c-disc[data-hue='accent']  { --disc-grad: var(--disc-hub-8); }
+.c-account .c-disc[data-hue='info']    { --disc-grad: var(--disc-hub-6); }
+.c-account .c-disc[data-hue='success'] { --disc-grad: var(--disc-hub-4); }
+.c-account .c-disc[data-hue='warning'] { --disc-grad: var(--disc-hub-2); }
+.c-account .c-disc[data-grad='1']  { --disc-grad: var(--disc-hub-1); }
+.c-account .c-disc[data-grad='2']  { --disc-grad: var(--disc-hub-2); }
+.c-account .c-disc[data-grad='3']  { --disc-grad: var(--disc-hub-3); }
+.c-account .c-disc[data-grad='4']  { --disc-grad: var(--disc-hub-4); }
+.c-account .c-disc[data-grad='5']  { --disc-grad: var(--disc-hub-5); }
+.c-account .c-disc[data-grad='6']  { --disc-grad: var(--disc-hub-6); }
+.c-account .c-disc[data-grad='7']  { --disc-grad: var(--disc-hub-7); }
+.c-account .c-disc[data-grad='8']  { --disc-grad: var(--disc-hub-8); }
+.c-account .c-disc[data-grad='9']  { --disc-grad: var(--disc-hub-9); }
+.c-account .c-disc[data-grad='10'] { --disc-grad: var(--disc-hub-10); }
+.c-account .c-disc[data-grad='11'] { --disc-grad: var(--disc-hub-11); }
+.c-account .c-disc[data-hue='error'] { --disc-grad: var(--disc-hub-error); }   /* red stays red, LAST wins */
+/* the roomier rows: +8 on every height, 16 between disc and label (the stacked label keeps gap 0 —
+   a gap there would split title from sub; its disc gutter moves to 30 + 16 instead). */
+.c-account .c-settings__row { min-height: calc(var(--row-h-nav) + 8px); padding-block: 6px; }
+.c-account .c-settings__row[data-row="switch"],
+.c-account .c-settings__row--backup { min-height: calc(var(--row-h-switch) + 8px); }
+.c-account .c-settings__row[data-row="stacked"] { min-height: calc(var(--row-h-stacked) + 6px); }
+.c-account .c-settings__row-label:not(.c-settings__row-label--stack),
+.c-account .c-settings__row-top { gap: var(--spacing-16); }
+.c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
+.c-account .c-settings__row-sub { margin-top: 2px; }
+/* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
+   quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
+   press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.
+   The selected row lives in settings.html (body[data-pane], the only place a row is "current"). */
+@media (hover: hover) and (pointer: fine) {
+  .c-account .c-settings__row:not(.c-settings__row--static):not([aria-current="true"]):hover { background-color: var(--surface-account-row-hover); }   /* a SELECTED row keeps its selected tone under the mouse (#46 r1) */
+}
+:root[data-desktop] .c-account {
+  --surface-press-row: rgba(13, 17, 24, 0.03);         /* sanctioned: the press overlay's own alpha family (tokens.css --surface-press-row), halved for desktop Account (#1080 F4) */
+  --surface-press-row-hover: rgba(13, 17, 24, 0.05);   /* sanctioned: same */
+}
+:root[data-desktop][data-theme="dark"] .c-account {
+  --surface-press-row: rgba(237, 240, 242, 0.03);      /* sanctioned: same */
+  --surface-press-row-hover: rgba(237, 240, 242, 0.05);/* sanctioned: same */
+}
+/* ★ #1080 F4 (#46 r1): the Downloads file rows are Account rows too — same height step and the same
+   quiet hover (settings-app.css paints the generic interactive hover at (0,1,0)). */
+.c-account .c-settings-dl__open { min-height: calc(var(--row-h-nav) + 8px); }
+@media (hover: hover) and (pointer: fine) {
+  .c-account .c-settings-dl__open:hover { background-color: var(--surface-account-row-hover); }
+}
+/* ★ #1080 F4 (#46 r1): a SELECTED Account row presses neutral, one step past its selected tone —
+   base.css presses [aria-current] rows in the action-tonal family, which would flash blue here. */
+html:root .c-account .c-settings__row[aria-current][data-pressed="row"]::before,
+html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
+  background: var(--surface-account-row-pressed);
+}
+/* ★ #1080 F2: the two ART discs (About's logo, Contributors' heart) are 64px hero tiles, not row
+   icons — they keep their size and take the same squircle at scale (9/30 of 64 ≈ 19). Without this
+   the (0,2,0) row rule above would shrink them to 30. */
+.c-account .c-disc.c-settings-about__logo,
+.c-account .c-disc.c-settings-contrib__art-disc { width: 64px; height: 64px; border-radius: 19px; }
+.c-account .c-disc.c-settings-about__logo > svg,
+.c-account .c-disc.c-settings-contrib__art-disc > svg { width: 32px; height: 32px; }
+
+</style><!-- ★ #1080 F2 (#46 r1): the .c-account dials live here — without it the body class reached nothing -->
 <style data-src="../styles/components/settings-backup.css">
 /* c-settings-backup — Backup screen (backup-ux-spec §3.2 / settings-shell-spec §5, #146).
    Hero art = token-styled placeholder; .c-settings-backup__art is the
@@ -1294,7 +2101,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
-<body>
+<body class="c-account"><!-- ★ #1080 F2: this shell IS Account — the Account disc + row dials (settings-shell.css) reach every sublevel and sheet -->
   <div id="backup-root"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading" data-sl-aria="loading"></div></div></div>
 
 <script src="spixi.icons.js"></script>

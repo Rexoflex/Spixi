@@ -112,6 +112,21 @@ namespace SPIXI
         private const double appTopBarDip = 56;       // tokens.css --layout-bar-top
         private const double cardRadiusDip = 16;
         public static readonly Color callGround = Color.FromArgb("#14161c");   // = surfaceColorStringFor("call.html")
+        /* ★ #1080 F8/F9 (walk C.2 FAIL + C.11 + Damir ①/⑦): on DESKTOP the call stage is TRANSPARENT and
+         * call.html paints everything itself — the ring's dark scrim OVER the app (the app visible and
+         * dimmed behind the card, C.2) and the minimised card with its own 16px corners and shadow (C.11).
+         * WHY: WebView2 is a separate composition visual that a MAUI Border does not clip, so the native
+         * rounding never reached the card on Windows (sharp corners), and an opaque stage under a scrim
+         * can only ever read as a solid ground. The phone keeps the opaque dark stage (#1074: no white
+         * flash on a ring). The desktop pre-paint frame stays invisible because the stage is revealed
+         * only on shell-ready (Opacity 0 until then). */
+#if WINDOWS || MACCATALYST
+        public static readonly Color stageGround = Colors.Transparent;
+        private const double cardShadowPadDip = 8;    // = call.html --call-card-pad on desktop: room for the card's own shadow (12 → 8, #46 r1: a smaller dead strip around the card)
+#else
+        public static readonly Color stageGround = callGround;
+        private const double cardShadowPadDip = 0;
+#endif
         private static bool expanded = false;         // "full" vs "bar" for the live call
         private static string expandedSession = "";   // the call the expanded flag was chosen for
 #if WINDOWS || MACCATALYST
@@ -139,6 +154,27 @@ namespace SPIXI
             InitializeComponent();
             NavigationPage.SetHasNavigationBar(this, false);
             loadPage(webView, "call.html");
+#if MACCATALYST
+            /* ★ #1080 F8/F9: a WKWebView is OPAQUE by default and a clear MAUI background does not reach it;
+             * the desktop call surface needs the page itself to be see-through (scrim over the app, rounded
+             * card). Set on the platform view as soon as it exists. */
+            webView.HandlerChanged += (s, e) =>
+            {
+                try
+                {
+                    if (webView.Handler?.PlatformView is WebKit.WKWebView wk)
+                    {
+                        wk.Opaque = false;
+                        wk.BackgroundColor = UIKit.UIColor.Clear;
+                        wk.ScrollView.BackgroundColor = UIKit.UIColor.Clear;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("CallPage: transparent WKWebView not applied: " + ex.GetType().Name);
+                }
+            };
+#endif
         }
 
         public override void recalculateLayout()
@@ -697,7 +733,7 @@ namespace SPIXI
                 {
                     Opacity = 0,                 // revealed on shell-ready (or the timeout)
                     InputTransparent = true,
-                    BackgroundColor = callGround,   // ★ #1074: the dark call ground in both themes — never a white flash
+                    BackgroundColor = stageGround,   // ★ #1074: the dark call ground (phone) · ★ #1080 F8: transparent on desktop — call.html paints the scrim / card
                     StrokeThickness = 0,
                     Stroke = Colors.Transparent,
                     Padding = new Thickness(0),
@@ -918,15 +954,22 @@ namespace SPIXI
 #endif
                     double top = topInset + appTopBarDip + cardGapDip;
                     stage.VerticalOptions = LayoutOptions.Start;
+#if WINDOWS || MACCATALYST
+                    /* ★ #1080 F9: the transparent stage is the card PLUS a shadow margin on every side; call.html
+                     * draws the rounded card inset by --call-card-pad with its own shadow (WebView2 ignores a
+                     * Border's clip, so the native rounding could never reach it). No native shape/shadow here. */
+                    double pad = cardShadowPadDip;
+                    double avail = hostGrid != null && hostGrid.Width > 0 ? hostGrid.Width - (2 * 16) : cardWidthDip;
+                    stage.HeightRequest = cardHeightDip + (2 * pad);
+                    stage.StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(0) };
+                    stage.Shadow = null;
+                    stage.HorizontalOptions = LayoutOptions.End;
+                    stage.WidthRequest = Math.Max(240, Math.Min(cardWidthDip, avail)) + (2 * pad);
+                    stage.Margin = new Thickness(0, Math.Max(0, top - pad), Math.Max(0, 16 - pad), 0);
+#else
                     stage.HeightRequest = cardHeightDip;
                     stage.StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(cardRadiusDip) };
                     stage.Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.28f, Radius = 20, Offset = new Point(0, 6) };
-#if WINDOWS || MACCATALYST
-                    double avail = hostGrid != null && hostGrid.Width > 0 ? hostGrid.Width - (2 * 16) : cardWidthDip;
-                    stage.HorizontalOptions = LayoutOptions.End;
-                    stage.WidthRequest = Math.Max(240, Math.Min(cardWidthDip, avail));
-                    stage.Margin = new Thickness(0, top, 16, 0);
-#else
                     double sideL = cardSideDip, sideR = cardSideDip;
 #if ANDROID
                     // #46 r1 MINOR-9: a landscape phone puts the nav bar / cutout on a SIDE

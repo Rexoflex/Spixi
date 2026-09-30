@@ -93,7 +93,7 @@ const EXCERPT_GLYPHS = {
   request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
   'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
 };
-export function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
+export function createExcerpt({ type = 'text', text = '', sender = null, dots = false, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
@@ -117,6 +117,23 @@ export function createExcerpt({ type = 'text', text = '', sender = null, strings
   }
   const glyph = EXCERPT_GLYPHS[type];
   if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
+  /* ★ #1082 (Damir 2026-09-30: "the animated typing dots from the top bar in the chat row too"): a PEER
+     typing excerpt (the shell sets `dots`; the #109 handshake line shares the typing tone but is not a
+     person typing, so it gets none) leads with the same three-dot wave (typing-indicator.css), aria-hidden —
+     the words say it — and the dots ARE the ellipsis, so a trailing "…" / "..." is dropped. */
+  const typingDots = type === 'typing' && dots;
+  if (typingDots) {
+    const d = document.createElement('span');
+    d.className = 'c-excerpt__typing';
+    d.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 3; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'c-typing__dot';
+      d.append(dot);
+    }
+    el.append(d);
+    text = text.replace(/\s*(…|\.\.\.)\s*$/, '');
+  }
   const t = document.createElement('span');
   t.className = 'c-excerpt__text';
   if (type === 'draft') {

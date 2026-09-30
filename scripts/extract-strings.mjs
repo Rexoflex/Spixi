@@ -89,6 +89,7 @@ const DYNAMIC = {
      the brand gradient is a different thing. groundGradient is therefore retired for good
      (the #855 "for now" resolved the other way: the OPTION returned, the old LABEL did not). */
   groundBrandGradient: 'Brand gradient',
+  groundGreenGradient: 'Green gradient',   // ★ #1080 F15: CHAT_GROUNDS is read as strings[o.key] — unextractable, so it lives here
   // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key], so it is
   // unextractable and MUST live here. It did not, so the
   // three style names existed in the locale files only until the next extract run —

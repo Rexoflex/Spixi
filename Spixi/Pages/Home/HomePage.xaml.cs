@@ -559,6 +559,7 @@ namespace SPIXI
                 // (the mobile takeover presentation). Property flips only, no re-attach;
                 // infoPaneCol2Open stays set so re-widening restores the pane.
                 SpixiContentPage.relayoutPinnedOverlays(false);
+                relayoutAccountPane(false);   // ★ #1080 F7
             }
             else
             {
@@ -575,10 +576,27 @@ namespace SPIXI
                 updateInfoPaneWidth();
                 // #225-M2: re-pin re-homed overlays back to their columns.
                 SpixiContentPage.relayoutPinnedOverlays(true);
+                relayoutAccountPane(true);    // ★ #1080 F7
             }
 
             pushPaneAvailable();   // #836: the shell forks Add contact / Add app on this
 
+        }
+
+        /* ★ #1080 F7: the Account pane across the breakpoint — its stage margin (the rail strip) follows the
+         * window (SpixiContentPage.relayoutInsetOverlays) and the settings shell is told which layout it is in,
+         * so a narrow window shows the full-window Account (its own rail) instead of a pane beside a strip of
+         * whatever sits under it. Called on every size change on each side of the breakpoint; the shell's
+         * setPaneMode handler is a no-op when the value does not change. */
+        private static void relayoutAccountPane(bool wide)
+        {
+            foreach (SpixiContentPage page in SpixiContentPage.relayoutInsetOverlays(wide))
+            {
+                if (page is SettingsPage settings)
+                {
+                    settings.applyWindowWide(wide);
+                }
+            }
         }
 
         // #247: size (or close) the info-pane column against the current window +
@@ -2984,16 +3002,18 @@ namespace SPIXI
                     // #572 ④: the row keys on the SAME evidence the bubble does, so a
                     // declined call cannot say "Missed call" in one place and not the other.
                     bool declinedLocally = VoIPManager.isDeclinedLocally(lastmsg);
-                    if ((lastmsg.message == "" || declinedLocally)
+                    bool declinedRemotely = VoIPManager.isDeclinedRemotely(lastmsg);   // ★ #1080 F11: the caller's row reads "Call declined" too
+                    bool declinedAny = declinedLocally || declinedRemotely;   // ★ #1080 F11: either side turned it down
+                    if ((lastmsg.message == "" || declinedAny)
                         && (lastmsg.type == FriendMessageType.voiceCallEnd || !VoIPManager.hasSession(lastmsg.id)))
                     {
-                        excerpt = declinedLocally
+                        excerpt = declinedAny
                             ? (SpixiLocalization._SL("chat-call-declined") ?? "Call declined")
                             : lastmsg.localSender
                             ? SpixiLocalization._SL("chat-call-no-answer")
                             : SpixiLocalization._SL("chat-call-missed");
                         // CH6: no-answer (outgoing) and missed (incoming) share one glyph
-                        excerptKind = declinedLocally ? "call-declined" : "call-missed";
+                        excerptKind = declinedAny ? "call-declined" : "call-missed";
                         // review NIT: "You: No answer" reads wrong — the label already
                         // says whose side it was. Skip the self-prefix for this one.
                         skipSelfPrefix = true;

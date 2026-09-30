@@ -1,0 +1,32 @@
+#1080–#1082 walk fix round (F1–F18) + the Opus #46 loop (4 rounds, CLEAN) + bubble pad +1 + typing dots in the chat row
+
+Account: no flash on Account → Contacts (no entry slide on the hand-off); the
+Account squares + row dials on every Account screen (.c-account scope); brighter
+hub squares (+22% chroma, hue held); quiet neutral desktop hover / selected /
+press (selected presses neutral, hover spares it); one ground across both pane
+top bars; nickname fields with one 1px ring; the Account pane follows the window
+across the breakpoint (C#: relayoutInsetOverlays + applyWindowWide, pushed only
+on a crossing, a reload keeps the width).
+
+Calls: desktop ring over a dimmed app (transparent stage/page/WebView), the card
+draws its own rounded corners + shadow in an 8 dip pad, no focus ring after a
+pointer tap; the full view fades in (300 ms backstop); the caller sees "Call
+declined" (VoIPManager "-2" marker, 10th addCall arg, rejected outcome, chats
+row); Speaker/Mute flip at once and C# always echoes.
+
+Chat: select circles in one column; see-through select tint; light-only green
+canvas (dark shows flat, tapping Flat saves Flat); visible dark unread strip;
+typing in the topbar sub-line (three dots, aria-live muted while it shows,
+Connecting… still announced, cleared on peer/channel switch); pinned wash 5%
+action blue.
+
+#1082: chat bubbles +1px top and bottom (--bubble-pad-y 6 → 7); the chat row
+shows the three-dot typing wave before "is typing" (not on the handshake line).
+
+Pins: #1080 + #1082 blocks (every clause mutation-killed, 32 mutations); re-based #589,
+N56, #1006; CHAT_KB_CEIL 693 → 698, INDEX_KB_CEIL 531 → 535 (stated). Smoke BASELINE OK 5013 / the 2 KNOWN.
+Walked #1083: 19 P · 3 F · 1 N/A on Windows + Android; F8/F9/F10 + notes F1/F6/F12
+deferred to the session after next (handoff-2026-09-30d §4).
+C# changed (compiled on the walk): CallPage · SpixiContentPage · HomePage ·
+SettingsPage · VoIPManager · SingleChatPage.
+

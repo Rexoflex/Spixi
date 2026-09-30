@@ -80,6 +80,14 @@ export function mountContacts({
      tapped rather than snapshotted at mount. Absent → the #827 in-shell takeover, which
      is the behaviour every host had before this option existed. */
   paneAvailable,
+  /* ★ #1080 F1 (#1077 option a, Damir's pick): the Account → Contacts hand-off mounts the
+     takeover with NO entry slide. The L14 handshake sends `ixian:coverpainted` two frames
+     after this mount and HomePage then pops the Account page; with the 300 ms slide the
+     cover was still mostly off-screen at that moment, so the release uncovered the chats
+     list under it for ~0.2 s (Damir's video, frame by frame). On that path the Account page
+     IS the visual cover — the swap is one frame, Account → Contacts. Every other opener
+     (FAB, topbar Contacts, app picker) keeps the slide. */
+  enterInstant = false,
 } = {}) {
   /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
      a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
@@ -277,7 +285,7 @@ export function mountContacts({
   });
   overlay.append(picker);
   host.append(overlay);
-  slideSubscreenIn(host, overlay, null, { positioned: false, append: false });   // ★ Session H: slides in over the list (instant on desktop / reduced motion — the stylesheet decides)
+  if (!enterInstant) slideSubscreenIn(host, overlay, null, { positioned: false, append: false });   // ★ Session H: slides in over the list (instant on desktop / reduced motion — the stylesheet decides)
 
   return {
     el: overlay,

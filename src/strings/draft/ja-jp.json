@@ -81,7 +81,7 @@
   "callAction": "通話",
   "callBack": "かけ直す",
   "callBusy": "通話中です。先にその通話を終了してください。",
-  "callDeclined": "通話拒否",
+  "callDeclined": "着信拒否",
   "callUnavailable": "このチャットでは通話できません。",
   "cancelFailed": "リクエストをキャンセルできませんでした。もう一度お試しください。",
   "cancelHandshake": "ハンドシェイクをキャンセル",
@@ -691,5 +691,6 @@
   "privacySub": "メディアの自動ダウンロード",
   "howToUseSub": "チャット、支払い、アプリ",
   "aboutSub": "リンクと法的情報",
-  "deleteDataSub": "チャット、連絡先、アカウント"
+  "deleteDataSub": "チャット、連絡先、アカウント",
+  "groundGreenGradient": "グリーングラデーション"
 }

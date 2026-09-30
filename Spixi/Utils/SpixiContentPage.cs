@@ -198,7 +198,14 @@ namespace SPIXI
                  * --call-ground and its instant html background, so the native stage, the
                  * pre-paint frame and the first painted pixels agree (no light flash on a ring). */
                 case "call.html":
+#if WINDOWS || MACCATALYST
+                    /* ★ #1080 F8/F9: on desktop the call page is SEE-THROUGH (CallPage.stageGround) — the ring's
+                     * scrim dims the app behind it and the card rounds itself. The WebView2 default background
+                     * (alpha 0) and the page/content backgrounds follow this value. */
+                    return "#00000000";
+#else
                     return "#14161c";
+#endif
                 // ★★ L1 (#640): wallet_request.html and wallet_send_2.html left this list
                 // with the pages that loaded them (WalletReceivePage / WalletSend2Page,
                 // both deleted). ★ Session N (legacy purge): wallet_recipient.html and
@@ -2684,6 +2691,46 @@ namespace SPIXI
                     Logging.warn("relayoutPinnedOverlays: " + ex);
                 }
             }
+        }
+
+        /* ★ #1080 F7 (Damir, walk ⑤: "resizing the Account pane: the RAIL disappears and a chat shows
+         * below it"). relayoutPinnedOverlays skips full-span ops on purpose — but the Account pane is a
+         * full-span op with a STAGE MARGIN (the 72dip rail strip, #245), and that margin only makes sense
+         * while the home shell draws the rail. Below the breakpoint the home shell draws a bottom bar, the
+         * strip showed whatever sat under it (the conversation, re-homed full-span by the loop above), and
+         * the Account shell still laid out as a pane. Narrow → the margin drops to 0 (the stage covers the
+         * window, like the phone takeover) and the op's MEMORY (op.stageMargin) is kept; wide → the margin
+         * returns. Presentation-only property flips. Returns the inset pages touched so the host can tell
+         * each one which layout it is in (SettingsPage.applyWindowWide). MAIN THREAD ONLY. */
+        public static List<SpixiContentPage> relayoutInsetOverlays(bool wide)
+        {
+            List<PreloadOp> ops;
+            lock (preloadLock)
+            {
+                ops = new List<PreloadOp>(overlayStack);
+                if (activePreload != null && activePreload.overlayMode)
+                {
+                    ops.Add(activePreload);
+                }
+            }
+            List<SpixiContentPage> touched = new List<SpixiContentPage>();
+            foreach (PreloadOp op in ops)
+            {
+                if (op.column >= 0 || op.stageMargin == default(Thickness))
+                {
+                    continue;
+                }
+                try
+                {
+                    op.stage.Margin = wide ? op.stageMargin : new Thickness(0);
+                    touched.Add(op.target);
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("relayoutInsetOverlays: " + ex.GetType().Name);
+                }
+            }
+            return touched;
         }
 
         // Native pushes (legacy wallet/scan/mini-app pages, modals) issued FROM an

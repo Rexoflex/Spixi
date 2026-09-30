@@ -25,6 +25,10 @@
   /* ★ #1074: the call surface is DARK in both themes — = --call-ground, CallPage.callGround and
      surfaceColorStringFor("call.html"), so the pre-paint frame never flashes light. */
   html, html[data-theme="dark"] { background: #14161c; }
+  /* ★ #1080 F8/F9: DESKTOP is see-through — the stage and the WebView are transparent (CallPage.stageGround,
+     surfaceColorStringFor), so the ring's scrim dims the app behind it and the card rounds itself. The
+     data-desktop flag is set by the script above, before this rule is parsed. */
+  html[data-desktop], html[data-desktop][data-theme="dark"] { background: transparent; }
 </style>
 
 <link rel="stylesheet" href="spixi.tokens.css">
@@ -768,6 +772,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: calc(var(--safe-top, 0px) + var(--spacing-12)) calc(var(--safe-right, 0px) + var(--spacing-20)) calc(var(--safe-bottom, 0px) + var(--spacing-32)) calc(var(--safe-left, 0px) + var(--spacing-20));
 }
 .c-callscreen__card > :not(.c-callbg) { position: relative; }   /* content above the backdrop */
+/* ★ #1080 F10 (walk C.12, Damir picked B of a rendered 2-way): the card ↔ full call screen switch is no
+   longer instant — the expanded view FADES IN with a slight scale (0.96 → 1) over the call ground (phone)
+   or the scrim (desktop), on the house curve; the way back is the minimised card's own fade-in
+   (callbar.css, data-open). CSS only — the stage geometry is C#'s and snaps as before. data-open is set
+   two frames after mount (call-screen.js, with a backstop); reduced motion shows it at once. The true
+   "grow" (A) is the post-freeze follow-up: it needs a transparent phone stage and C# sequencing. */
+.c-callscreen__card {
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
+}
+.c-callscreen[data-open] .c-callscreen__card { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .c-callscreen__card { opacity: 1; transform: none; transition: none; }
+}
 .c-callscreen__top {
   position: relative;
   display: flex;
@@ -1273,6 +1293,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      verbs (callExpand/callMinimise/callMute/callSpeaker/callSilence/callDeclineMsg).
      C# owns the call. */
   html, body { margin: 0; height: 100%; background: var(--call-ground); }
+  :root[data-desktop], :root[data-desktop] body { background: transparent; }   /* ★ #1080 F8/F9: see the head note */
   body { overflow: hidden; }
   /* ★ #1074 — three modes, one document (CallPage.setMode):
        ring — full-window; c-callin renders over the call ground.
@@ -1295,6 +1316,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     box-shadow: none;
     transform: none;
   }
+  /* ★ #1080 F9 (walk C.11, Damir ⑦: "desktop call card sharp corners"): on desktop the native stage is
+     the card PLUS --call-card-pad on every side (CallPage.cardShadowPadDip — keep the two equal), and
+     transparent — so the card draws its OWN 16px corners and shadow here. WebView2 is a composition
+     visual a MAUI Border cannot clip, which is why the native rounding never reached it. */
+  :root[data-desktop] { --call-card-pad: 8px; }   /* (#46 r1) 12 → 8: the pad is click-through-dead window area around the card */
+  :root[data-desktop] body[data-mode="bar"] .c-callbar {
+    top: var(--call-card-pad); left: var(--call-card-pad); right: var(--call-card-pad); bottom: var(--call-card-pad);
+    height: auto;
+    border-radius: var(--radius-16, 16px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);    /* sanctioned: the card's own shadow, fitted inside the 8px pad (the native Border shadow it replaces: black 0.28) */
+  }
+  /* ★ #1080 F9 (Damir ⑦: "a blue focus ring shows on the left"): after a POINTER swap (Minimise / the
+     card / Accept) the new view takes focus for keyboard and screen-reader users (r4 MINOR-2) — and
+     Chromium paints a programmatic focus with no prior focused element as :focus-visible. A pointer
+     swap marks the target data-noring; the ring comes back on the first key press (renderCall). */
+  [data-noring]:focus-visible { outline: none; }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -1383,6 +1420,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    * (no mic permission) and the ring must come back — the one case a latched ring rebuilds. */
   const actedRings = new Map();
   let userSwapAt = 0;       // a tap on Minimise / the card / Accept (WebKit never focuses a tapped button — r3 NIT-3)
+  /* ★ #1080 F9: the last input kind, so a POINTER swap moves focus without painting a ring */
+  let lastInput = '';
+  document.addEventListener('pointerdown', () => { lastInput = 'pointer'; }, true);
+  document.addEventListener('keydown', (e) => {
+    /* (#46 r1) a modifier press, an IME composition or the Android 229 key is not keyboard navigation */
+    if (e.isComposing || e.keyCode === 229 || ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
+    lastInput = 'keyboard';
+    for (const n of document.querySelectorAll('[data-noring]')) n.removeAttribute('data-noring');
+  }, true);
   let lastCallMode = '';   // 'full' | 'bar' — the call view on screen, for the focus hand-off
 
   function dropRing() {
@@ -1448,8 +1494,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       startedAt,
       caps: { mute: caps.mute, speaker: caps.speaker },
       audio: { muted: audio.muted, speaker: audio.speaker },
-      onMute: (on) => { if (barSession) bridge.send('ixian:callMute:' + (on ? '1' : '0') + ':' + barSession); },
-      onSpeaker: (on) => { if (barSession) bridge.send('ixian:callSpeaker:' + (on ? '1' : '0') + ':' + barSession); },
+      /* ★ #1080 F12 (#46 r1): the shell's own copy moves with the optimistic flip, so a re-render
+         before C#'s echo cannot paint the old state back; no live session → false = no flip. */
+      onMute: (on) => { if (!barSession) return false; audio.muted = !!on; bridge.send('ixian:callMute:' + (on ? '1' : '0') + ':' + barSession); return true; },
+      onSpeaker: (on) => { if (!barSession) return false; audio.speaker = !!on; bridge.send('ixian:callSpeaker:' + (on ? '1' : '0') + ':' + barSession); return true; },
       onHangUp: hangUpOnce,
       strings,
     };
@@ -1476,7 +1524,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     if (swapped) userSwapAt = 0;
     if (el && swapped && document.hasFocus() && (lostFocus || userSwap)) {
       const target = el.querySelector(audio.expanded ? '.c-callscreen__min' : '.c-callbar__main');
-      if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
+      if (target && typeof target.focus === 'function') {
+        if (lastInput === 'pointer') target.setAttribute('data-noring', '');   // ★ #1080 F9
+        target.focus({ preventScroll: true });
+      }
     }
   }
 

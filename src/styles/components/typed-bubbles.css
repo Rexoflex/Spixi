@@ -215,6 +215,7 @@
   background: var(--surface-destructive-tonal-default);
   color: var(--icon-error);
 }
+.c-bubble-row[data-call-outcome="rejected"] .c-tcard__medallion,   /* ★ #1080 F11: the peer declined — the declined grammar */
 .c-bubble-row[data-call-outcome="declined"] .c-tcard__medallion,
 .c-bubble-row[data-call-outcome="noanswer"] .c-tcard__medallion {
   background: var(--surface-neutral-03);
@@ -222,6 +223,7 @@
 }
 /* ⚠ #1012 (Opus r1 m5): "no answer" is ALWAYS outgoing, so it sits on the #1003 sent tint —
    neutral-03 measured 1.04:1 there and the disc vanished. One step deeper on the sent side. */
+.c-bubble-row[data-direction="sent"][data-call-outcome="rejected"] .c-tcard__medallion,
 .c-bubble-row[data-direction="sent"][data-call-outcome="declined"] .c-tcard__medallion,
 .c-bubble-row[data-direction="sent"][data-call-outcome="noanswer"] .c-tcard__medallion { background: var(--surface-neutral-04); }
 /* the round 36px call-back button — the only tap target on the card */
@@ -419,11 +421,11 @@
   /* ★ GLASS (Damir picked B, 2026-09-08). ⚠ FULL-BLEED IS DELIBERATE — he asked for the
      strip to stay the full width ("i like the full length unread"); option D turned it
      into a centred pill and was NOT taken. Only the fill and the hairlines change. */
-  background: var(--surface-chat-glass);
+  background: var(--surface-unread-strip);   /* ★ #1080 F16: its own role (light = the glass; dark lifts) */
   -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
   backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
-  border-block: var(--outline-width-1) solid var(--outline-chat-glass);
-  color: var(--text-neutral-02);
+  border-block: var(--outline-width-1) solid var(--outline-unread-strip);
+  color: var(--text-unread-strip);
   font-size: var(--font-size-label-xs);
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);

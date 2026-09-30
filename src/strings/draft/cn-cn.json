@@ -81,7 +81,7 @@
   "callAction": "通话",
   "callBack": "回拨",
   "callBusy": "正在通话中。请先结束该通话。",
-  "callDeclined": "通话已拒绝",
+  "callDeclined": "已拒接",
   "callUnavailable": "无法在此聊天中通话。",
   "cancelFailed": "无法取消请求。请重试。",
   "cancelHandshake": "取消握手",
@@ -690,5 +690,6 @@
   "privacySub": "自动下载媒体",
   "howToUseSub": "聊天、付款和应用",
   "aboutSub": "链接和法律信息",
-  "deleteDataSub": "聊天、联系人或账户"
+  "deleteDataSub": "聊天、联系人或账户",
+  "groundGreenGradient": "绿色渐变"
 }

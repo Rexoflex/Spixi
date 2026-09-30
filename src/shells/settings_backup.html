@@ -34,6 +34,7 @@
 <link rel="stylesheet" href="../styles/components/button.css">
 <link rel="stylesheet" href="../styles/components/topbar.css">
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (password confirm) -->
+<link rel="stylesheet" href="../styles/components/settings-shell.css"><!-- ★ #1080 F2 (#46 r1): the .c-account dials live here — without it the body class reached nothing -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css">
 <link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
@@ -59,7 +60,7 @@
   @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
 </style>
 </head>
-<body>
+<body class="c-account"><!-- ★ #1080 F2: this shell IS Account — the Account disc + row dials (settings-shell.css) reach every sublevel and sheet -->
   <div id="backup-root"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading" data-sl-aria="loading"></div></div></div>
 
 <script src="../components/icons.iife.js"></script>

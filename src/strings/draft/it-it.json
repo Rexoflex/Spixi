@@ -85,7 +85,7 @@
   "callAction": "Chiama",
   "callBack": "Richiama",
   "callBusy": "È in corso una chiamata. Termina prima quella chiamata.",
-  "callDeclined": "Chiamata rifiutata",
+  "callDeclined": "Chiamata Rifiutata",
   "callUnavailable": "Non puoi effettuare chiamate in questa chat.",
   "cancelFailed": "Impossibile annullare la richiesta. Riprova.",
   "cancelHandshake": "Annulla handshake",
@@ -698,5 +698,6 @@
   "privacySub": "Download dei media",
   "howToUseSub": "Chat, pagamenti e app",
   "aboutSub": "Link e note legali",
-  "deleteDataSub": "Chat, contatti o account"
+  "deleteDataSub": "Chat, contatti o account",
+  "groundGreenGradient": "Sfumatura verde"
 }

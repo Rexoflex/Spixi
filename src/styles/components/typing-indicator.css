@@ -53,3 +53,22 @@
 @media (prefers-reduced-motion: reduce) {
   .c-typing__dot { animation: none; opacity: 0.6; }
 }
+
+/* ★ #1080 F17 (Damir, Android: "when the counterpart is typing, also show 3 animated dots and 'typing' in the
+   top bar sub-line where 'Online' is"): the chat topbar's sub-line swaps its presence text for the same
+   three-dot wave + the typing words while the peer types, in the action ink (the Telegram/WhatsApp grammar).
+   The dots are the pill's own (.c-typing__dot, same wave, same reduced-motion stop), a size smaller, on
+   currentColor so they take the line's ink. chat.html paints it (paintTopbarSub) from state. */
+.c-topbar__sub[data-typing] { color: var(--text-action-default); }
+.c-topbar__typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-end: var(--spacing-4);
+  vertical-align: middle;
+}
+.c-topbar__typing .c-typing__dot {
+  width: 4px;   /* sanctioned: the sub-line dot, a size smaller than the pill's 6 */
+  height: 4px;
+  background: currentColor;
+}

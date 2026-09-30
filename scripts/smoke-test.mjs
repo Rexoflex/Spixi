@@ -2186,12 +2186,13 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const dots = [...appear.querySelectorAll('.c-settings-appearance__dots [role="radio"]')];
   ok(!!groundRow && !!appear.querySelector('.c-settings-appearance__groundsec')
     && appear.querySelector('.c-settings-appearance__dots').getAttribute('role') === 'radiogroup'
-    && dots.length === 2 && dots.map((b) => b.getAttribute('aria-label')).join('|') === 'Solid|Brand gradient'
+    /* ★ #1080 F15 RE-BASE (Damir picked G2): a THIRD light ground, the green gradient — three circles in light (dark keeps two, below) */
+    && dots.length === 3 && dots.map((b) => b.getAttribute('aria-label')).join('|') === 'Solid|Brand gradient|Green gradient'
     && dots.every((b) => b.tagName === 'BUTTON' && b.querySelector('.c-settings-appearance__dot-face').getAttribute('data-chat-ground') === b.dataset.value)
-    && dots[0].getAttribute('aria-checked') === 'true' && dots[1].getAttribute('aria-checked') === 'false'
-    && !/Solid|Brand gradient/.test(groundRow.textContent)
+    && dots[0].getAttribute('aria-checked') === 'true' && dots[1].getAttribute('aria-checked') === 'false' && dots[2].getAttribute('aria-checked') === 'false'
+    && !/Solid|Brand gradient|Green gradient/.test(groundRow.textContent)
     && appear.querySelectorAll('.c-settings-swatches').length === 1,
-    '★★ #998 → #1019: in LIGHT the Canvas choice is TWO COLOUR CIRCLES in a radiogroup (each face paints the ground it picks through the chat\'s own token rules), named "Solid" / "Brand gradient" for screen readers only — no words on screen, no sheet; Solid is checked by default; still not a third tile pair (#774)');
+    '★★ #998 → #1019 → #1080: in LIGHT the Canvas choice is THREE COLOUR CIRCLES in a radiogroup (each face paints the ground it picks through the chat\'s own token rules), named "Solid" / "Brand gradient" / "Green gradient" for screen readers only — no words on screen, no sheet; Solid is checked by default; still not a third tile pair (#774)');
   const prevPreview = appear.querySelector('.c-settings-appearance__preview');
   if (dots[1]) dots[1].click();
   ok(groundPick === 'gradient' && prevPreview.getAttribute('data-chat-ground') === 'gradient'
@@ -3291,7 +3292,9 @@ console.log('chatlist-item / chats-shell — M5 request grammar');
     const homeLT = readFileSync(join(root, 'src/shells/home.html'), 'utf8');
     ok(/const PANE_OPEN_KEY = 'spixi\.pane\.account';/.test(setSrc)
        && /if \(paneMode\) markPaneOpen\(true\);/.test(setSrc)
-       && /markPaneOpen\(on\);/.test(setSrc)
+       /* ★ #1080 F7 (#46 r1) RE-BASE: setPaneMode('0') now also means "the window went narrow" while the page is
+          still open, so the push only ever SETS the flag; the clears stay on the real exits below */
+       && /if \(on\) markPaneOpen\(true\);/.test(setSrc)
        && /markPaneOpen\(false\);/.test(setSrc)
        && /pagehide['"], \(\) => markPaneOpen\(false\)\)/.test(setSrc),
       '★★ #589: the pane keeps a DURABLE flag while it is up, set on both entry paths and cleared on every exit including a kill the app does not see');
@@ -6005,7 +6008,8 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
           && /topInset = win\.SafeAreaInsets\.Top;/.test(cpc)
           && /double top = topInset \+ appTopBarDip \+ cardGapDip;/.test(cpc)
           && /stage\.Margin = new Thickness\(sideL, top, sideR, 0\);/.test(cpc)
-          && /stage\.Margin = new Thickness\(0, top, 16, 0\);/.test(cpc),
+          /* ★ #1080 F9 RE-BASE: the desktop stage is the card + a shadow pad, so its margin is `top` minus that pad */
+          && /stage\.Margin = new Thickness\(0, Math\.Max\(0, top - pad\), Math\.Max\(0, 16 - pad\), 0\);/.test(cpc),
           '★ AND-7 → #1074: the minimised call CARD sits below the top inset on BOTH platforms (Android TopInsetDip · iOS/Mac SafeAreaInsets.Top) plus the app\'s top bar and a gap — phone and desktop margins both carry that one `top`');
         /* ★ break-my-verdict MINOR-2: this is a TWO-SIDED contract and only the C# side was
          * pinned. Deleting either CSS line reaches the same user-visible failure from the
@@ -8400,7 +8404,19 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
   /* ★ #1071: 690 → 691 — the menu close curve + the scrim pair (+2 rules) and --easing-standard-mirror inline
      into every shell via overlay.css / tokens. MEASURED on chat.html: 706 114 → 706 525 chars (+411); headroom under
      690 had been 446, under 691 it is 1 059. Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 691, INDEX_KB_CEIL = 531;
+  /* ★ #1080: 691 → 693 — the select-row wash role + the gutter-inset select rule (chat-select.css), the unread-strip
+     roles, the green ground rule, the Account row tokens and the rejected call outcome (tokens / typed-bubbles inline
+     into every shell). MEASURED on chat.html: 706 525 → 708 178 chars (+1 653); headroom under 691 had been 1 059,
+     under 693 it is 1 454. Stated, not silent (#345). */
+  /* ★ #1080 F17 + the #46 r1/r2 fixes (#1081): 693 → 698 — the topbar typing line (paintTopbarSub, its state, the live-region
+     mute and the three call sites + their docblocks), the peer/channel typing resets and the Account/call rules that
+     inline via tokens. MEASURED on chat.html after the #1081 r3 fix: 708 178 → 713 883 chars (+5 705); under 697 it would not
+     fit, so 698 (headroom 869). Stated, not silent (#345). */
+  /* ★ #1082: INDEX 531 → 535 — home.html now links typing-indicator.css (the chat row's typing dots ride the
+     pill's wave + reduced-motion stop) plus the #1080/#1081 Account/token rules. MEASURED on index.html:
+     541 991 (start of #1080) → 546 149 chars (+4 158); 531 would not fit; headroom under 535 is 1 691.
+     Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 698, INDEX_KB_CEIL = 535;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -13000,9 +13016,12 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
        since it was committed. The floor the old message records is preserved and is why
        the dial stopped at 7 rather than 5: at 5% the composite is a perceptual TIE with
        the neutral-50 hover (contrast 1.014) — an unreadable marker; 7% sits at 1.054. */
-    ok(/--surface-pinned: rgba\(13, 19, 36, 0\.07\);/.test(tok)
+    /* ★ #1080 F18 RE-BASE (Damir: "tone down the pinned row backdrop"): light = the action blue at 5% — lighter than
+       the 7% ink. ⚠ HONEST (#46 r1): it is ~1.01:1 off the neutral hover, so a HOVERED pinned row does not read as
+       pinned by its ground alone (the pin glyph still marks it) — the Damir dial logged in #1081. */
+    ok(/--surface-pinned: rgba\(48, 80, 189, 0\.05\);/.test(tok)
       && /--surface-pinned: rgba\(233, 236, 243, 0\.06\);/.test(tok),
-      '★ N56: --surface-pinned in BOTH themes — light at 7% (#815, his dial; 5% composited to a perceptual TIE with the neutral-50 hover at 1.014 — an unreadable marker, which is the floor the ladder stops above); dark is a LIGHT lift, not a brand darken (brand-900 sits darker than the neutral-900 screen and would vanish, the #194 lesson)');
+      '★ N56 → #1080 F18: --surface-pinned in BOTH themes — light = action blue at 5% (#1080, lighter than the #815 7% ink by Damir\'s ask; it sits ~1.01:1 off the neutral hover, so under the mouse the pin glyph carries the marker — the #1081 dial); dark is a LIGHT lift, not a brand darken (brand-900 sits darker than the neutral-900 screen and would vanish, the #194 lesson)');
     const css = read('src/styles/components/chatlist-item.css');
     ok(/\.c-chatlist-item\[data-pinned\]:not\(\[aria-current\]\) \{ background-color: var\(--surface-pinned\); \}/.test(css),
       'N56: the pinned wash paints on the row, selected still wins (the :not() keeps the ladder: selected > pinned > hover)');
@@ -19237,12 +19256,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★ #572 ④ (review MAJOR-1): the chats row reads a DEEP COPY. Ixian-Core setLastMessage stores `new FriendMessage(msg.getBytes())`, so mutating the message reaches the log and NOT the row — without this refresh the bubble said "Call declined" and the row said "Missed call", and the stale copy is what persists');
     ok(/bool declinedLocally = VoIPManager\.isDeclinedLocally\(message\);/.test(scp)
        && /text = SpixiLocalization\._SL\("chat-call-declined"\) \?\? "Call declined";/.test(scp)
-       && /duration_secs, declinedLocally\.ToString\(\), callActive\.ToString\(\)\);/.test(scp),
+       && /duration_secs, declinedLocally\.ToString\(\), callActive\.ToString\(\), declinedRemotely\.ToString\(\)\);/.test(scp),   // ★ #1080 F11: the 10th arg follows, LAST
       '★ #572 ④: the bubble writer labels it "Call declined" and passes the flag as the 8th addCall arg — new args go LAST, so an older shell is unaffected (Session AD C4: the 9th is the ACTIVE flag, after it)');
     ok(/bool declinedLocally = VoIPManager\.isDeclinedLocally\(lastmsg\);/.test(hp)
        && /\? \(SpixiLocalization\._SL\("chat-call-declined"\) \?\? "Call declined"\)/.test(hp),
       '★ #572 ④: the chats-list excerpt reads the SAME evidence — one call cannot say "Missed call" in the list and "Call declined" in the chat');
-    ok(/addCall\(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally, active\)/.test(ch)   // Session AD C4: 9th arg
+    ok(/addCall\(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally, active, declinedRemotely\)/.test(ch)   // Session AD C4: 9th arg · ★ #1080 F11: 10th
        && /declinedLocally === undefined \? false : asBool\(declinedLocally\)/.test(ch)
        && /declined: !!rec\.declinedLocal,/.test(ch),
       '★ #572 ④: the shell prefers the 8th arg and treats UNDEFINED as false, so an old exe keeps its present rendering; the card gets the declined variant (phone-x, no call-back nudge — #87⑦)');
@@ -20909,7 +20928,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        `call-declined`, the other arm `call-missed`, and the shell admits both kinds. */
     const hp602 = stripCode(rdf('Spixi/Pages/Home/HomePage.xaml.cs'));   // CODE (#771)
     ok(!/canonEntry\(|id="sl-ex-call-declined"/.test(home602)
-       && /excerptKind = declinedLocally \? "call-declined" : "call-missed";/.test(hp602)
+       /* ★ #1080 F11 RE-BASE: the arm is `declinedAny` = a LOCAL or a PEER decline (the caller's row says it too) */
+       && /excerptKind = declinedAny \? "call-declined" : "call-missed";/.test(hp602)
+       && /bool declinedAny = declinedLocally \|\| declinedRemotely;/.test(hp602)
        && /'call-missed', 'call-declined'/.test(home602),
       '★★ #602 → CH6: the declined call is a PUSHED kind (`call-declined`, chosen beside the phrase in HomePage), never a reverse-mapped phrase — it works in every locale by construction');
     ok(/"phone-x"/.test(rdf('src/components/icons.js')),
@@ -20923,8 +20944,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* ★ #1006 RE-BASE (D-07): the card is one row now and the ANSWERED call shows its DIRECTION
        (phone-outgoing / phone-incoming); the property this pin holds is unchanged — declined =
        the crossed phone, unanswered (missed AND no answer) = the phone with the small x. */
-    ok(/const glyph = outcome === 'declined' \? 'phone-off'\s*: outcome === 'ok' \? \(outgoing \? 'phone-outgoing' : 'phone-incoming'\)\s*: 'phone-x';/.test(rdf('src/demo/spixi.iife.js'))
-       && /const outcome = declined \? 'declined' : missed \? \(outgoing \? 'noanswer' : 'missed'\) : 'ok';/.test(rdf('src/demo/spixi.iife.js')),
+    /* ★ #1080 F11 RE-BASE: a PEER decline is its own outcome ('rejected') on the SAME crossed phone as the local decline */
+    ok(/const glyph = \(outcome === 'declined' \|\| outcome === 'rejected'\) \? 'phone-off'\s*: outcome === 'ok' \? \(outgoing \? 'phone-outgoing' : 'phone-incoming'\)\s*: 'phone-x';/.test(rdf('src/demo/spixi.iife.js'))
+       && /const outcome = declined \? 'declined' : rejected \? 'rejected' : missed \? \(outgoing \? 'noanswer' : 'missed'\) : 'ok';/.test(rdf('src/demo/spixi.iife.js')),
       '★★ #602/#621 r2: the call CARD uses the SAME pair as the chats row — declined = the crossed phone, unanswered = the phone with the small x. The card kept the pre-swap pair after #621 swapped the row, and no pin compared the two');
     ok(/"phone-off"/.test(rdf('src/components/icons.js')),
       '★ #602 r2: BOTH glyphs are in the registry. The first cut checked only phone-x, and createExcerpt degrades SILENTLY on a missing key — so deleting phone-off would have lost the declined glyph with the pin green');
@@ -24961,7 +24983,8 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
     '★★ Session H [home]: Receive and Send slide in; the user\'s own Back (arrow, hardware back → closeTopHomeTakeover, the all-clear return) slides out; a tab switch removes at once (a programmatic close brings its own transition)');
   const cp = nc(rdF('src/bridge/contacts-page.js'));
   ok(/if \(reason === 'back'\) slideSubscreenOut\(host, overlay, \(\) => \{ overlay\.remove\(\); if \(onExitSettled\) \{ try \{ onExitSettled\(\); \} catch \(e\) \{\} \} \}, \{ positioned: false \}\);\s*else overlay\.remove\(\);\s*if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp)
-     && /host\.append\(overlay\);\s*slideSubscreenIn\(host, overlay, null, \{ positioned: false, append: false \}\);/.test(cp)
+     /* ★ #1080 F1 RE-BASE: the entry slide is skipped for the Account hand-off (enterInstant) — every other opener still slides */
+     && /host\.append\(overlay\);\s*if \(!enterInstant\) slideSubscreenIn\(host, overlay, null, \{ positioned: false, append: false \}\);/.test(cp)
      && /if \(closed\) return;\s*closed = true;/.test(cp),
     '★★ Session H [contacts]: the takeover slides in on mount and out on Back only; onClose (handle nulled, C# told) fires at the START of the exit — only pixels linger, the closed latch guards a second exit');
   const ls = nc(rdF('src/components/launch-shell.js'));
@@ -25509,10 +25532,10 @@ console.log('Session I ③: the premium pass token batch');
   const bub = stripCssComments(rdF('src/styles/components/message-bubble.css'));
   const val = (name, block = dial) => ((block.match(new RegExp('--' + name + ': ([^;]+);')) || [])[1] || '').trim();
   /* 1a = A (TG-tight): the bubble role is its OWN dial set — body-md (≈90 riders) is untouched */
-  ok(val('bubble-line-height') === '20px' && val('bubble-pad-y') === '6px' && val('bubble-pad-x') === '11px' && val('bubble-radius') === '18px'
+  ok(val('bubble-line-height') === '20px' && val('bubble-pad-y') === '7px' /* ★ #1082 (Damir: +1px top and bottom) — was 6 */ && val('bubble-pad-x') === '11px' && val('bubble-radius') === '18px'
      && val('bubble-gap-group') === '10px' && val('bubble-gap-inner') === '2px' && val('bubble-meta-margin-top') === '4px'   /* ★ Session T: 3 → 1, DECISIONS #813 dial D ("gap 1 / corner 4"), walked. The pin lagged because Session S predicted a smoke number instead of running the suite. ★ #904 (Damir 2026-09-19, after eleven days on D): 1 → 2 — dial C's GAP comes back, D's 4px corner stays (he asked for the gap, not the pair). GATE 46 still holds the inequality that IS the feature: inner < group */
      && /--font-size-body-md: 16px;\s*--line-height-body-md: 24px;/.test(light),
-    '★★ 1a = A: bubble 16/20 · pad 6×11 · radius 18 · in-group 2 (#904; was 1 at #813 dial D) · group 10 · meta tail 4 (single-line 32 CSS = 80 px on the Motorola; was 40 = 100) — and body-md itself is UNTOUCHED at 16/24 (the #423 lesson: ~90 riders)');
+    '★★ 1a = A: bubble 16/20 · pad 7×11 (#1082 +1 top/bottom; was 6) · radius 18 · in-group 2 (#904; was 1 at #813 dial D) · group 10 · meta tail 4 (single-line 34 CSS ≈ 85 px on the Motorola since #1082; 32 = 80 at Session I; was 40 = 100) — and body-md itself is UNTOUCHED at 16/24 (the #423 lesson: ~90 riders)');
   ok(/padding: var\(--bubble-pad-y\) var\(--bubble-pad-x\);/.test(bub) && /border-radius: var\(--bubble-radius\);/.test(bub)
      && /line-height: calc\(var\(--bubble-line-height\) \* var\(--chat-text-scale, 1\)\);/.test(bub)
      && /margin-top: var\(--bubble-gap-group\);/.test(bub) && /\.c-bubble-row\[data-position="last"\] \{ margin-top: var\(--bubble-gap-inner\); \}/.test(bub)
@@ -25713,10 +25736,12 @@ console.log('Session I ③: the premium pass token batch');
      'flat'. The negative half inverts with the ruling: what must not happen now is a ladder
      that still CLOSES on 'flat' and silently drops the user's Brand gradient pick on reload.
      So each of the three must NAME 'gradient' in live code (stripped, #771). */
-  ok(/if\(g!=='flat'&&g!=='gradient'\)g='flat';/.test(rdF('src/shells/chat.html'))
-    && /if \(gr !== 'flat' && gr !== 'gradient'\) gr = 'flat';/.test(rdF('src/shells/chat.html'))
+  /* ★★ #1080 F15 RE-BASE (Damir picked G2): a THIRD value, 'green' (light only), joins the allowlist in all
+     three ladders — the same rule, one member longer; the default is still 'flat'. */
+  ok(/if\(g!=='flat'&&g!=='gradient'&&g!=='green'\)g='flat';/.test(rdF('src/shells/chat.html'))
+    && /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green'\) gr = 'flat';/.test(rdF('src/shells/chat.html'))
     && /let chatGround = 'flat';/.test(rdF('src/shells/settings.html'))
-    && /if \(gr === 'flat' \|\| gr === 'gradient'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
+    && /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
     && (stripCode(rdF('src/shells/chat.html')).match(/'gradient'/g) || []).length >= 2
     && /'gradient'/.test(stripCode(rdF('src/shells/settings.html'))),
     '★★ #835 → #855 → #998: SOLID is the default and the BRAND gradient is admitted again by all three ladders (the #690 rule). Superseded #855 text: SOLID is the ONLY light ground, and all three ladders CLOSE on it — chat.html\'s pre-paint script, chat.html\'s live re-resolve, and settings.html\'s readChatPrefs (the #690 three-ladder rule). The NEGATIVE half is the point: no ladder may ADMIT \'gradient\', so a stored gradient falls through to solid instead of stranding the user on a canvas the picker cannot change. Superseded: gradient default-ON everywhere (#835 flipped the default; #855 retired the option)');
@@ -25905,9 +25930,10 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
      GREEN while lying about what it checks (#772, inside a pin). */
   /* ★ #998 re-base: the brand gradient is an option again, so the read-back is the TWO-value
      one this pin tested before #855 — prose and assertion re-based together (#859). */
-  ok(/if \(gr === 'flat' \|\| gr === 'gradient'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
+  /* ★ #1080 F15 re-base: three stored grounds now (Solid · Brand gradient · Green gradient) — prose and assertion together (#859) */
+  ok(/if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
      && /preview\.setAttribute\('data-chat-ground', groundCurrent\);/.test(rdF('src/components/settings-screens.js')),
-    '★ #755 → #855 → #998 (Damir, Windows: "shows the gradient selected but doesn\'t have it applied"): settings reads back every LIVE stored ground — two again (Solid · Brand gradient, #998) — and the live preview is stamped with the current ground at BUILD, not only on a pick. The original defect was that a stored \'flat\' fell through to the gradient default, so the picker re-opened on the value the chat did not have');
+    '★ #755 → #855 → #998 → #1080 (Damir, Windows: "shows the gradient selected but doesn\'t have it applied"): settings reads back every LIVE stored ground — three now (Solid · Brand gradient · Green gradient, #1080) — and the live preview is stamped with the current ground at BUILD, not only on a pick. The original defect was that a stored \'flat\' fell through to the gradient default, so the picker re-opened on the value the chat did not have');
   ok(/background: var\(--surface-input, var\(--surface-neutral-02\)\);/.test(rdF('src/styles/components/search-field.css')),
     '★ #755 (Damir, members search in chat info): the search field reads --surface-input, so on a card it takes the on-card white (#150③) and on a screen it stays neutral-02');
   /* ★ Session J #756 — the [KBTRAY] verdict built; pick D on the tails */
@@ -27889,7 +27915,7 @@ console.log('★★ Session O — the #46 loop over Sessions M + N');
        terms are in the test; pinning the literal would have to be re-edited every time the
        guard grows a term, which is how a pin ends up "fixed" by spelling. */
     ok(/let groundSec = null;/.test(ss)
-      && /if \(CHAT_GROUNDS\.length > 1\) \{\s*groundSec = document\.createElement\('div'\);/.test(ss)   /* ★ #1066: isLight left the guard (a dark gradient exists) */
+      && /if \(groundsHere\.length > 1\) \{\s*groundSec = document\.createElement\('div'\);/.test(ss)   /* ★ #1066: isLight left the guard (a dark gradient exists) · ★ #1080 F15: the guard counts the grounds THIS theme can paint (the green one is light-only) */
       && /body\.append\(sizeSec, styleSec\);\s*if \(groundSec\) body\.append\(groundSec\);/.test(ss)
       && !/body\.append\(sizeSec, styleSec, groundSec\)/.test(ss),
       '★★ Session O ⑥: the Colour section is CREATED inside the isLight guard and appended only when it exists — the unconditional create+append shipped an empty section element into dark, and CSS cannot hide a card it has no way to distinguish. ⓘ #855 widened that guard to `isLight && CHAT_GROUNDS.length > 1`, so the row is absent in BOTH themes now; the create/append shape is what this asserts');
@@ -33096,6 +33122,10 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     'the day pill': ['src/styles/components/message-bubble.css', '.c-datesep__pill'],
     'the unread strip': ['src/styles/components/typed-bubbles.css', '.c-unread-divider'],
   };
+  /* ★ #1080 F16 RE-BASE (Damir, Android dark: "make unread strip more visible"; picked U1): the strip reads its
+     OWN fill role, whose LIGHT value IS the glass token and whose DARK value is a translucent lift (still a glass
+     — the backdrop stays). The day pill keeps the glass token itself. Both roles are asserted in both themes below. */
+  const fill48 = { 'the day pill': '--surface-chat-glass', 'the unread strip': '--surface-unread-strip' };
   const built48 = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.tokens.css'), 'utf8');
   const bad48 = [];
   for (const [what, [file, sel]] of Object.entries(files48)) {
@@ -33103,7 +33133,7 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     const rule = (css.split(sel + ' {')[1] || '').split('}')[0];
     if (!/backdrop-filter: blur\(var\(--blur-chat-glass\)\)/.test(rule)) bad48.push(what + ': no unprefixed backdrop-filter on the token');
     if (!/-webkit-backdrop-filter: blur\(var\(--blur-chat-glass\)\)/.test(rule)) bad48.push(what + ': no -webkit- form (WebKit shipped prefixed first)');
-    if (!/background: var\(--surface-chat-glass\)/.test(rule)) bad48.push(what + ': the fill is not the glass token');
+    if (!new RegExp('background: var\\(' + fill48[what] + '\\)').test(rule)) bad48.push(what + ': the fill is not its glass role (' + fill48[what] + ')');
     if (/color-mix\(/.test(rule)) bad48.push(what + ': uses color-mix, which is NEWER than the feature it dresses');
     // the @supports block for THIS selector: condition tests both spellings, block restores an opaque fill
     const sup = css.match(/@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{([\s\S]*?)\n\}/g) || [];
@@ -33112,10 +33142,10 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
     else if (!/background:\s*var\(--surface-chat-chip\)/.test(mine[0])) bad48.push(what + ': the fallback restores no opaque background');
   }
   // ⓓ the tokens exist where the shells read them
-  const tokens48 = ['--surface-chat-glass', '--outline-chat-glass', '--blur-chat-glass'];
+  const tokens48 = ['--surface-chat-glass', '--outline-chat-glass', '--blur-chat-glass', '--surface-unread-strip', '--outline-unread-strip', '--text-unread-strip'];
   const missTok = tokens48.filter((t) => !new RegExp(t + ':\\s*[^;]+;').test(built48));
   // and both THEMES declare the two that flip (one declaration each is a theme that lost its value)
-  const perTheme = ['--surface-chat-glass', '--outline-chat-glass']
+  const perTheme = ['--surface-chat-glass', '--outline-chat-glass', '--surface-unread-strip', '--outline-unread-strip']
     .filter((t) => (built48.match(new RegExp(t + ':', 'g')) || []).length < 2);
   ok(bad48.length === 0 && missTok.length === 0 && perTheme.length === 0,
     '★★ GATE 48: both separators carry the prefixed AND unprefixed backdrop-filter on --blur-chat-glass, take their fill from --surface-chat-glass, use no color-mix, and each has an @supports fallback whose condition tests BOTH spellings and whose block restores the opaque chip. Failing: ['
@@ -34613,17 +34643,19 @@ console.log('#907: the history window counts visible messages');
      ADMIT 'gradient' again while still defaulting to 'flat' and still refusing any other
      value. A ladder that dropped 'gradient' now would strand a user on Solid after every
      reload — the mirror image of the failure #855 guarded. */
-  const grounds62 = [...scr62.matchAll(/\{ id: '(flat|gradient)', key: 'ground/g)].map((m) => m[1]);
-  const rowDerived62 = /if \(CHAT_GROUNDS\.length > 1\) \{/.test(scr62);   // ★ #1066: both themes
+  /* ★ #1080 F15 RE-BASE (Damir picked G2): a third member, 'green' — LIGHT ONLY — so the row is guarded on
+     the grounds THIS theme can paint (groundsHere), and every ladder admits the three values. */
+  const grounds62 = [...scr62.matchAll(/\{ id: '(flat|gradient|green)', key: 'ground/g)].map((m) => m[1]);
+  const rowDerived62 = /if \(groundsHere\.length > 1\) \{/.test(scr62) && /const groundsHere = CHAT_GROUNDS\.filter\(/.test(scr62);   // ★ #1066: both themes · #1080: per theme
   const gDefaults62 = {
-    'chat.html head': /if\(g!=='flat'&&g!=='gradient'\)g='flat'/.test(headScript62),
-    'chat.html readPatternPrefs': /if \(gr !== 'flat' && gr !== 'gradient'\) gr = 'flat';/.test(stripCode(chat62)),
-    'settings.html readChatPrefs': /let chatGround = 'flat';/.test(set62) && /if \(gr === 'flat' \|\| gr === 'gradient'\) chatGround = gr;/.test(set62),
+    'chat.html head': /if\(g!=='flat'&&g!=='gradient'&&g!=='green'\)g='flat'/.test(headScript62),
+    'chat.html readPatternPrefs': /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green'\) gr = 'flat';/.test(stripCode(chat62)),
+    'settings.html readChatPrefs': /let chatGround = 'flat';/.test(set62) && /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green'\) chatGround = gr;/.test(set62),
   };
   const gStale62 = Object.keys(gDefaults62).filter((k) => !gDefaults62[k]);
-  ok(grounds62.join() === 'flat,gradient' && rowDerived62 && gStale62.length === 0,
-    '★★ GATE 62 (d) → #998: THE BRAND GRADIENT IS AN OPTION AGAIN AND EVERY LADDER ADMITS IT — CHAT_GROUNDS = '
-    + JSON.stringify(grounds62) + ' · the Canvas row is guarded on CHAT_GROUNDS.length > 1 (' + rowDerived62
+  ok(grounds62.join() === 'flat,gradient,green' && rowDerived62 && gStale62.length === 0,
+    '★★ GATE 62 (d) → #998 → #1080: THE BRAND AND GREEN GRADIENTS ARE OPTIONS AND EVERY LADDER ADMITS THEM — CHAT_GROUNDS = '
+    + JSON.stringify(grounds62) + ' · the Canvas row is guarded on groundsHere.length > 1 (' + rowDerived62
     + ') · ladders ' + JSON.stringify(gDefaults62)
     + (gStale62.length ? ' · STALE=' + JSON.stringify(gStale62) : '')
     + '. Superseded (#855): the gradient option was retired and every ladder dropped it.');
@@ -39148,6 +39180,564 @@ console.log('#1074 — call surface premium');
   }
 }
 /* ══ #1074-END ══ */
+
+/* ══ #1080-START — walk #1074–#1078 fix round (F1–F16) ══════════════════════════════════
+ * Each clause names its finding. Behaviour where jsdom can show it (the built call shell's focus
+ * hand-off, the call card outcomes, the call screen's open state); properties over stripped
+ * source elsewhere. C# is read with stripCode (#771: comments are not code). */
+console.log('#1080 — walk #1074–#1078 fix round');
+{
+  const rd8 = (p) => readFileSync(join(root, p), 'utf8');
+  const b64y = (s) => Buffer.from(String(s), 'utf8').toString('base64');
+  /* one method body, by brace depth from its signature — never a character window */
+  const body8 = (src, sig) => {
+    const i = src.indexOf(sig);
+    if (i < 0) return '';
+    /* the BODY brace follows the parameter list's closing paren (a destructured JS param has braces of its own) */
+    let pd = 0, k0 = src.indexOf('(', i);
+    for (; k0 < src.length; k0++) { if (src[k0] === '(') pd++; else if (src[k0] === ')') { pd--; if (pd === 0) break; } }
+    const o = src.indexOf('{', k0);
+    let d = 0;
+    for (let k = o; k < src.length; k++) {
+      if (src[k] === '{') d++;
+      else if (src[k] === '}') { d--; if (d === 0) return src.slice(o, k + 1); }
+    }
+    return '';
+  };
+  /* sRGB relative luminance + contrast (WCAG) */
+  const lum = (hex) => {
+    const n = hex.replace('#', '');
+    const c = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  /* OKLCH chroma of an sRGB hex (Björn Ottosson's OKLab) */
+  const chroma = (hex) => {
+    const n = hex.replace('#', '');
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+    const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+    return Math.hypot(A, B);
+  };
+  const hue = (hex) => {
+    const n = hex.replace('#', '');
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+    const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+    return ((Math.atan2(B, A) * 180 / Math.PI) + 360) % 360;
+  };
+  const tokensCss = stripCssComments(rd8('src/styles/tokens.css'));
+  /* per-theme token value: the LAST declaration in a plain `:root` block (light) or in a bare
+     `[data-theme="dark"]` block (dark) — tokens.css interleaves both, so a text slice would lie */
+  const tokRules = cssRulesOf(rd8('src/styles/tokens.css'), 'src/styles/tokens.css');
+  const tokVal = (prelude, name) => {
+    let v = '';
+    for (const r of tokRules) {
+      if (r.prelude.trim() !== prelude) continue;
+      const d = cssDecls(r.body).filter((x) => x.prop === '--' + name);
+      if (d.length) v = d[d.length - 1].value;
+    }
+    return v;
+  };
+  const lightTok = (n) => tokVal(':root', n), darkTok = (n) => tokVal('[data-theme="dark"]', n);
+
+  /* —— F1 (#1077 a): the Account → Contacts hand-off mounts with NO entry slide —— */
+  {
+    const cp = stripCode(rd8('src/bridge/contacts-page.js'));
+    const home = stripCode(rd8('src/shells/home.html'));
+    const mountBody = body8(cp, 'export function mountContacts(');
+    const mountParams = cp.slice(cp.indexOf('export function mountContacts('), cp.indexOf(mountBody));
+    const slideCalls = mountBody.match(/slideSubscreenIn\s*\(/g) || [];
+    ok(/enterInstant\s*=\s*false/.test(mountParams)
+       && slideCalls.length === 1
+       && /if\s*\(\s*!\s*enterInstant\s*\)\s*slideSubscreenIn\s*\(\s*host\s*,\s*overlay\b/.test(mountBody)
+       && /mountContacts\(\{[^}]*enterInstant:\s*returnTo\s*===\s*'account'/.test(home),
+      '★★ #1080 F1: mountContacts takes `enterInstant` (default false) and its ONE entry slide is skipped when it is set — and home.html sets it exactly for the Account hand-off (returnTo === \'account\'), so the L14 coverpainted fires on an OPAQUE takeover and the chats list is never uncovered');
+  }
+
+  /* —— F2: the Account squircles + row dials reach EVERY Account screen —— */
+  {
+    const bodyHas = (p) => /<body class="c-account"/.test(rd8(p));
+    const shellsOk = ['src/shells/settings.html', 'src/shells/downloads.html', 'src/shells/settings_backup.html'].every(bodyHas);
+    const hubRoot = /el\.className\s*=\s*'c-settings c-settings--hub c-account'/.test(stripCode(rd8('src/components/settings-shell.js')));
+    const discRules = rulesFor('.c-disc').filter((r) => /\.c-account\b/.test(r.selector) && r.file.endsWith('settings-shell.css'));
+    const rowDisc = discRules.find((r) => /^\.c-account \.c-disc$/.test(r.selector.trim()));
+    const hubLeft = cssRulesWhere((s) => /\.c-settings--hub\s/.test(s)).length;
+    const art = discRules.filter((r) => /c-settings-about__logo|c-settings-contrib__art-disc/.test(r.selector) && /width:\s*64px/.test(r.body));
+    /* no OTHER shell carries the scope: the Contacts takeover, chat-info and contact details keep their own discs */
+    const others = readdirSync(join(root, 'src/shells')).filter((f) => f.endsWith('.html')
+      && !['settings.html', 'downloads.html', 'settings_backup.html'].includes(f)
+      && /class="c-account"|c-account['"]/.test(rd8('src/shells/' + f)));
+    /* (#46 r1) the body class reaches NOTHING unless the shell links the stylesheet that carries the rules */
+    const linked = ['src/shells/settings.html', 'src/shells/downloads.html', 'src/shells/settings_backup.html']
+      .every((p) => /<link rel="stylesheet" href="\.\.\/styles\/components\/settings-shell\.css">/.test(rd8(p)));
+    /* …and no OTHER component builds the scope (it belongs to the Account shells and the hub root only) */
+    const compOthers = readdirSync(join(root, 'src/components')).filter((f) => f.endsWith('.js') && f !== 'settings-shell.js'
+      && /c-account\b/.test(stripCode(rd8('src/components/' + f))));
+    /* the error disc keeps the LAST word over the positional families (source order at equal specificity) */
+    const discAll = cssRulesWhere((sel) => /^\.c-account \.c-disc\[data-(hue|grad)=/.test(sel.trim()));
+    const errLast = discAll.length > 0 && /error/.test(discAll[discAll.length - 1].selector);
+    ok(shellsOk && hubRoot && !!rowDisc && /border-radius:\s*9px/.test(rowDisc.body) && /width:\s*30px/.test(rowDisc.body)
+       && hubLeft === 0 && art.length === 2 && others.length === 0 && linked && compOthers.length === 0 && errLast,
+      '★★ #1080 F2 (walk A.7): the Account disc + row rules are scoped `.c-account` (no `.c-settings--hub` rule left), carried by the hub root AND the <body> of settings/downloads/settings_backup — every sublevel and sheet — each of those shells LINKS settings-shell.css, the error disc rule comes last, the two 64px art discs keep their size and NO other shell or component carries the scope — ' + JSON.stringify({ shellsOk, hubRoot, rowDisc: !!rowDisc, hubLeft, art: art.length, others, linked, compOthers, errLast, discRules: discAll.length }));
+  }
+
+  /* —— F3: the hub squircles are MORE saturated (≥ 1.15× the #1076 chroma, or at the gamut edge) —— */
+  {
+    const was = { 1: ['#FF8A4C', '#F2622B'], 2: ['#FFB23F', '#F28A0A'], 3: ['#8FDD2A', '#4CB81A'], 4: ['#5ED67A', '#2DB85A'], 5: ['#3FDDBB', '#12C09D'], 6: ['#4DD4F2', '#19AEE3'], 7: ['#5CB6FF', '#2E88F7'], 8: ['#A9A5FF', '#7D6CF4'], 9: ['#CB9DFF', '#A266EE'], 10: ['#F794D6', '#E4549F'], 11: ['#FF8FA2', '#F2526C'], error: ['#FF7A70', '#EC3F3A'] };
+    const bad = [], ratios = [];
+    for (const [k, [a, b]] of Object.entries(was)) {
+      const v = lightTok('disc-hub-' + k);
+      const hx = (v.match(/#[0-9a-fA-F]{6}/g) || []);
+      if (hx.length !== 2) { bad.push(k + ':unparsed'); continue; }
+      /* (#46 r1: the old "or at the gamut edge" escape let ANY edge colour pass) — every stop is at least as
+         chromatic as its #1076 stop, keeps its hue within 6° (amber stays amber), and the set is ≥ 1.10× on average */
+      [[hx[0], a], [hx[1], b]].forEach(([nw, od]) => {
+        const dh = Math.min(Math.abs(hue(nw) - hue(od)), 360 - Math.abs(hue(nw) - hue(od)));
+        ratios.push(chroma(nw) / chroma(od));
+        if (!(chroma(nw) >= chroma(od)) || dh > 6) bad.push(k + ':' + nw + ':dh=' + dh.toFixed(1));
+      });
+    }
+    const mean = ratios.reduce((x, y) => x + y, 0) / (ratios.length || 1);
+    ok(bad.length === 0 && ratios.length === 24 && mean >= 1.10, '★ #1080 F3 (walk ③, Damir picked +22%): every --disc-hub stop is at least as chromatic as #1076, hue held within 6°, mean chroma ×' + mean.toFixed(2) + ' — bad: ' + JSON.stringify(bad));
+  }
+
+  /* —— F4: desktop Account hover / selected / pressed = one QUIET neutral step —— */
+  {
+    const lh = lightTok('surface-account-row-hover'), ls = lightTok('surface-account-row-selected');
+    const dh = darkTok('surface-account-row-hover'), ds = darkTok('surface-account-row-selected');
+    const card = '#ffffff', dcard = '#1a1c1f';
+    const neutral = (h) => { const n = h.replace('#', ''); const c = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16)); return Math.max(...c) - Math.min(...c) <= 12; };
+    const steps = { lh: cr(lh, card), ls: cr(ls, card), dh: cr(dh, dcard), ds: cr(ds, dcard) };
+    const quiet = Object.values(steps).every((v) => v >= 1.03 && v < 1.2);
+    const st = stripCode(rd8('src/shells/settings.html'));
+    const selRule = /body\[data-pane\] \.c-settings__row\[aria-current="true"\]\s*\{\s*background-color:\s*var\(--surface-account-row-selected\)/.test(st);
+    /* the hover is a hover-media rule AND leaves the selected row alone (#46 r1: it out-specified the selected tone) */
+    const shellCss = rd8('src/styles/components/settings-shell.css');
+    const hoverMedia = /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.c-account \.c-settings__row:not\(\.c-settings__row--static\):not\(\[aria-current="true"\]\):hover \{ background-color: var\(--surface-account-row-hover\); \}/.test(stripCssComments(shellCss));
+    const hover = hoverMedia;
+    /* BOTH desktop press blocks halve the sweep (light ink AND dark lift) */
+    const pressBlocks = cssRulesWhere((s) => /^:root\[data-desktop\](\[data-theme="dark"\])? \.c-account$/.test(s.trim()))
+      .filter((r) => /--surface-press-row:\s*rgba\([^)]*0\.0[0-4]\)/.test(r.body) && /--surface-press-row-hover:\s*rgba\([^)]*0\.0[0-6]\)/.test(r.body));
+    const press = pressBlocks.length === 2;
+    /* a SELECTED row presses neutral (base.css would press it action-tonal) */
+    const selPress = cssRulesWhere((s) => /\.c-account \.c-settings__row\[aria-current\]\[data-pressed="row"\]::before/.test(s))
+      .some((r) => /var\(--surface-account-row-pressed\)/.test(r.body) && /\[data-pressfade\]::before/.test(r.prelude));   /* both press states in ONE rule (the prelude, not the split subject) */
+    const lp = lightTok('surface-account-row-pressed'), dp = darkTok('surface-account-row-pressed');
+    const pressedStep = !!lp && !!dp && neutral(lp) && neutral(dp) && cr(lp, ls) >= 1.03 && cr(dp, ds) >= 1.03 && cr(lp, card) > cr(ls, card);
+    /* the Downloads file rows are Account rows too */
+    const dlHover = /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.c-account \.c-settings-dl__open:hover \{ background-color: var\(--surface-account-row-hover\); \}/.test(stripCssComments(shellCss));
+    ok(quiet && [lh, ls, dh, ds].every(neutral) && selRule && hover && press && selPress && pressedStep && dlHover,
+      '★★ #1080 F4 (walk ②, Damir picked N · neutral): the desktop Account row hover / selected are neutral and QUIET against their card (1.03–1.2:1, no brand hue), the selected rule and the hover read them, the hover lives in the hover media and SPARES the selected row, both desktop press blocks are halved, a selected row presses one neutral step deeper (never the action tonal), and the Downloads rows share the hover — ' + JSON.stringify({ steps, selRule, hover, press, selPress, pressedStep, dlHover }));
+  }
+
+  /* —— F5: the Account pane's two bars match — the ground colour, no hairline —— */
+  {
+    const st = stripCode(rd8('src/shells/settings.html'));
+    ok(/body\[data-pane\] \.c-topbar\s*\{\s*background:\s*var\(--surface-settings-ground\)/.test(st)
+       && /body\[data-pane\] \.sd-detail \.c-topbar\[data-variant="view"\]\s*\{\s*border-bottom-color:\s*transparent/.test(st),
+      '★ #1080 F5 (walk ⑧, Damir picked A): in the desktop pane both top bars take the settings ground and the sublevel bar draws no hairline — the hub bar and the detail bar are one surface');
+  }
+
+  /* —— F6: the nickname edit field draws ONE 1px ring, not a double one —— */
+  {
+    const fields = ['.c-settings__nick-input', '.c-chat-info__nick-input'].map((sel) => {
+      const base = rulesFor(sel).find((r) => cssSubject(r.selector) === sel);
+      const fv = cssRulesWhere((s) => s.trim() === sel + ':focus-visible');
+      return !!base && /border:\s*var\(--outline-width-1\)\s*solid\s*var\(--outline-action-default\)/.test(base.body)
+        && fv.some((r) => /outline:\s*none/.test(r.body));
+    });
+    ok(fields.every(Boolean), '★ #1080 F6 (walk ⑥): own + contact nickname fields keep their 1px action border and drop the app-wide 2px focus outline — ' + JSON.stringify(fields));
+  }
+
+  /* —— F7: the Account pane follows the window across the breakpoint —— */
+  {
+    const scp = stripCode(rd8('Spixi/Utils/SpixiContentPage.cs'));
+    const hp = stripCode(rd8('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const sp = stripCode(rd8('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    const inset = body8(scp, 'public static List<SpixiContentPage> relayoutInsetOverlays(bool wide)');
+    const size = body8(hp, 'private void OnPageSizeChanged(');
+    const narrowArm = size.slice(0, size.indexOf('else'));
+    const wideArm = size.slice(size.indexOf('else'));
+    const apply = body8(sp, 'public void applyWindowWide(bool wide)');
+    ok(/op\.column\s*>=\s*0\s*\|\|\s*op\.stageMargin\s*==\s*default\(Thickness\)/.test(inset)
+       && /op\.stage\.Margin\s*=\s*wide\s*\?\s*op\.stageMargin\s*:\s*new Thickness\(0\)/.test(inset)
+       && !/op\.stageMargin\s*=(?!=)/.test(inset)
+       && /relayoutAccountPane\(false\)/.test(narrowArm) && /relayoutAccountPane\(true\)/.test(wideArm)
+       && /if\s*\(!paneMode\)\s*\{\s*return;\s*\}/.test(apply) && /"setPaneMode",\s*wide\s*\?\s*"1"\s*:\s*"0"/.test(apply)
+       /* (#46 r1) only a CROSSING pushes, and a reload's onLoad pushes the remembered width, not the construction mode */
+       && /if\s*\(wide == windowWide\)\s*\{\s*return;\s*\}\s*windowWide = wide;/.test(apply)
+       && /"setPaneMode",\s*windowWide\s*\?\s*"1"\s*:\s*"0"\)/.test(sp) && !/"setPaneMode",\s*"1"\)/.test(sp)
+       /* (#46 r2) the value REACHES the shell: the helper passes its own `wide` through, and every re-margined op is collected */
+       && /foreach \(SpixiContentPage page in SpixiContentPage\.relayoutInsetOverlays\(wide\)\)\s*\{\s*if \(page is SettingsPage settings\)\s*\{\s*settings\.applyWindowWide\(wide\);/.test(body8(hp, 'private static void relayoutAccountPane(bool wide)'))
+       && /op\.stage\.Margin = wide \? op\.stageMargin : new Thickness\(0\);\s*touched\.Add\(op\.target\);/.test(inset) && /return touched;/.test(inset)
+       /* the shell keeps the Account-open flag across a narrow window (only real exits clear it) */
+       && /if \(on\) markPaneOpen\(true\);/.test(body8(stripCode(rd8('src/shells/settings.html')), 'setPaneMode(v)'))
+       && !/markPaneOpen\(on\)/.test(body8(stripCode(rd8('src/shells/settings.html')), 'setPaneMode(v)')),
+      '★★ #1080 F7 (walk ⑤): across the breakpoint the Account pane\'s rail-strip margin drops to 0 (narrow) and returns (wide) while the op KEEPS its memory, both size arms call it, and a pane-built SettingsPage is told which layout it is in');
+  }
+
+  /* —— F8 / F9: the desktop call surface is see-through; the card rounds itself —— */
+  {
+    const scp = stripCode(rd8('Spixi/Utils/SpixiContentPage.cs'));
+    const cp = stripCode(rd8('Spixi/Pages/Call/CallPage.xaml.cs'));
+    const callCase = /case "call\.html":\s*#if WINDOWS \|\| MACCATALYST\s*return "#00000000";\s*#else\s*return "#14161c";\s*#endif/.test(scp);
+    const ground = /#if WINDOWS \|\| MACCATALYST\s*public static readonly Color stageGround = Colors\.Transparent;\s*private const double cardShadowPadDip = (\d+);/.exec(cp);
+    const phoneGround = /#else\s*public static readonly Color stageGround = callGround;/.test(cp);
+    const stageUses = /BackgroundColor = stageGround/.test(cp) && !/BackgroundColor = callGround/.test(cp);
+    const layout = body8(cp, 'private static void applyStageLayout()');
+    const deskBar = (/#if WINDOWS \|\| MACCATALYST([\s\S]*?)#else/.exec(layout.slice(layout.indexOf('if (mode == "bar")'))) || [])[1] || '';
+    const deskOk = /stage\.Shadow = null/.test(deskBar) && /CornerRadius\(0\)/.test(deskBar) && /\+ \(2 \* pad\)/.test(deskBar);
+    const call = rd8('src/shells/call.html');
+    const padCss = /:root\[data-desktop\]\s*\{\s*--call-card-pad:\s*(\d+)px;/.exec(stripCssComments(call));
+    const padEq = !!ground && !!padCss && ground[1] === padCss[1];
+    const headClear = /html\[data-desktop\], html\[data-desktop\]\[data-theme="dark"\] \{ background: transparent; \}/.test(call)
+      && call.indexOf("setAttribute('data-desktop'") < call.indexOf('html[data-desktop], html[data-desktop][data-theme="dark"]');
+    const card = /:root\[data-desktop\] body\[data-mode="bar"\] \.c-callbar \{[^}]*top: var\(--call-card-pad\)[^}]*border-radius: var\(--radius-16, 16px\)/.test(stripCssComments(call));
+    const bodyClear = /:root\[data-desktop\], :root\[data-desktop\] body \{ background: transparent; \}/.test(stripCssComments(call));
+    /* F9 ring: the CSS half — a pointer-landed node draws no focus-visible outline */
+    const noring = /\[data-noring\]:focus-visible \{ outline: none; \}/.test(stripCssComments(call));
+    /* the keyboard clear ignores modifiers / IME (#46 r1) */
+    const keyGuard = /if \(e\.isComposing \|\| e\.keyCode === 229 \|\| \['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'\]\.includes\(e\.key\)\) return;\s*lastInput = 'keyboard';/.test(stripCode(call));
+    ok(callCase && !!ground && phoneGround && stageUses && deskOk && padEq && headClear && card && bodyClear && noring && keyGuard,
+      '★★ #1080 F8/F9 (walk C.2 + C.11): on desktop the call page, WebView and stage are TRANSPARENT (the ring scrim dims the app; phones keep the opaque dark stage), the bar stage is the card + a shadow pad with no native shape/shadow, the pad is ONE number in C# and CSS, the head paints nothing before the scrim, and the card draws its own 16px corners, the body paints nothing either, a pointer-landed node draws no ring and a modifier/IME key does not bring it back — ' + JSON.stringify({ callCase, ground: !!ground, phoneGround, stageUses, deskOk, padEq, headClear, card, bodyClear, noring, keyGuard }));
+  }
+
+  /* —— F9 (focus) + F10: behaviour on the BUILT call shell —— */
+  {
+    const built = join(root, 'Spixi/Resources/Raw/html/call.html');
+    const vc = new VirtualConsole();
+    vc.on('jsdomError', () => {});
+    const dom = new JSDOM(readFileSync(built, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, url: 'file://' + built, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(2500);
+    const w = dom.window, d = w.document;
+    const push = (fn, ...a) => w.executeUiCommand(w[fn], ...a.map(b64y));
+    d.hasFocus = () => true;
+    const sid = 'c0ffee01', t0 = String(Math.floor(Date.now() / 1000) - 5);
+    push('setCallCaps', '1', '1', '0', '0');
+    push('setCallAudio', '0', '0', '0', '1', '0');
+    push('setCallUi', 'incall', 'Bob', '', '', t0, sid, 'ADDR1');
+    await sleep(120);
+    const r = {};
+    const scr = d.querySelector('.c-callscreen');
+    r.opens = !!scr && scr.hasAttribute('data-open');   // F10: the fade-in state lands (rAF or the 300ms backstop)
+    /* F9: a POINTER tap on Minimise → the card takes focus WITHOUT a ring */
+    d.querySelector('.c-callscreen__min').dispatchEvent(new w.Event('pointerdown', { bubbles: true }));
+    d.querySelector('.c-callscreen__min').click();
+    push('setCallAudio', '0', '0', '0', '0', '0');
+    push('setCallUi', 'incall', 'Bob', '', '', t0, sid, 'ADDR1');
+    await sleep(120);
+    const main = d.querySelector('.c-callbar__main');
+    r.pointerNoRing = !!main && d.activeElement === main && main.hasAttribute('data-noring');
+    d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Shift', bubbles: true }));
+    r.modifierKeepsNoRing = !!main && main.hasAttribute('data-noring');
+    d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    r.keyRestoresRing = !!main && !main.hasAttribute('data-noring');
+    /* F12: a tap flips the toggle AT ONCE (optimistic) and sends the flipped value; C#'s echo stays the authority */
+    const wantSpk = () => d.querySelector('.c-callbar .c-callctl[data-kind="speaker"]');
+    const spk = wantSpk();
+    r.spkPressedAfterTap = false;
+    if (spk) {
+      spk.click();
+      r.spkPressedAfterTap = spk.getAttribute('aria-pressed') === 'true';
+      spk.click();
+      r.secondTapFlipsBack = spk.getAttribute('aria-pressed') === 'false';
+      push('setCallAudio', '0', '1', '0', '0', '0');   // the echo says ON
+      push('setCallUi', 'incall', 'Bob', '', '', t0, sid, 'ADDR1');
+      await sleep(80);
+      r.echoWins = wantSpk().getAttribute('aria-pressed') === 'true';
+      /* (#46 r1) the SHELL's own copy moved with the flip: a re-render before the echo keeps the new state */
+      wantSpk().click();                                   // → off, optimistic
+      push('setCallUi', 'incall', 'Bob', '', '', t0, sid, 'ADDR1');   // a re-render with NO echo in between
+      await sleep(80);
+      r.rerenderKeepsFlip = wantSpk().getAttribute('aria-pressed') === 'false';
+    }
+    r.barOpens = !!d.querySelector('.c-callbar') && d.querySelector('.c-callbar').hasAttribute('data-open');
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1080 F9/F10/F12 on the built call shell: the expanded view reaches its open (fade-in) state · a POINTER swap lands focus with no ring and a key press brings the ring back · a Speaker tap flips at once, a second tap flips back, and C#\'s echo overwrites — ' + JSON.stringify(r));
+  }
+  {
+    const css = stripCssComments(rd8('src/styles/components/call-screen.css'));
+    const js = stripCode(rd8('src/components/call-screen.js'));
+    ok(/\.c-callscreen__card \{\s*opacity: 0;\s*transform: scale\(0\.96\);/.test(css)
+       && /\.c-callscreen\[data-open\] \.c-callscreen__card \{ opacity: 1; transform: none; \}/.test(css)
+       && /@media \(prefers-reduced-motion: reduce\) \{\s*\.c-callscreen__card \{ opacity: 1; transform: none; transition: none; \}/.test(css)
+       && /setTimeout\(open, 300\)/.test(js) && /requestAnimationFrame\(\(\) => requestAnimationFrame\(open\)\)/.test(js),
+      '★ #1080 F10 (walk C.12, Damir picked B): the expanded call view fades + scales in on data-open, which is set by two frames OR a 300ms backstop (a hidden stage runs no rAF), and reduced motion shows it at once');
+  }
+
+  /* —— F11: the caller's card says "Call declined" —— */
+  {
+    const vm = stripCode(rd8('Spixi/VoIP/VoIPManager.cs'));
+    const rej = body8(vm, 'public static void onRejectedCall(');
+    const end = body8(vm, 'private static void endVoIPSession(');
+    const markerOrder = end.indexOf('fm.message = declinedLocallyMarker') > 0
+      && end.indexOf('fm.message = declinedLocallyMarker') < end.indexOf('fm.message = declinedRemotelyMarker');
+    const scp = stripCode(rd8('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const hp = stripCode(rd8('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const c = {
+      marker: /public const string declinedRemotelyMarker = "-2";/.test(vm),
+      setBeforeEnd: rej.indexOf('currentCallDeclinedRemotely = true') >= 0 && rej.indexOf('currentCallDeclinedRemotely = true') < rej.indexOf('endVoIPSession()'),
+      written: /else if \(currentCallDeclinedRemotely\)\s*\{\s*fm\.message = declinedRemotelyMarker;/.test(end) && markerOrder,
+      reset: /currentCallDeclinedRemotely = false;/.test(end),
+      pushArg: /"addCall",[^;]*callActive\.ToString\(\),\s*declinedRemotely\.ToString\(\)\)/.test(scp),
+      label: /if\s*\(declinedLocally \|\| declinedRemotely\)\s*\{\s*text = SpixiLocalization\._SL\("chat-call-declined"\)/.test(scp),
+      /* (#46 r2) the OUTER gates carry the peer decline too — without them a "-2" body falls to the duration label */
+      outerCard: /if\s*\(message\.message == "" \|\| declinedLocally \|\| declinedRemotely\)/.test(scp),
+      outerRow: /if \(\(lastmsg\.message == "" \|\| declinedAny\)/.test(hp),
+      row: /bool declinedAny = declinedLocally \|\| declinedRemotely;/.test(hp) && /excerptKind = declinedAny \? "call-declined"/.test(hp),
+    };
+    ok(Object.values(c).every(Boolean), '★★ #1080 F11 (walk C.5/C.6): a PEER decline is written into the caller\'s call body as "-2" (set before the session ends, after the local marker, reset per call), the card pushes it as the 10th addCall arg with the "Call declined" label, and the chats row agrees — ' + JSON.stringify(c));
+    const hadWin = globalThis.window, hadDoc = globalThis.document;
+    const cdom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
+    globalThis.window = cdom.window; globalThis.document = cdom.window.document;
+    try {
+      const W = cdom.window;
+      W.eval(readFileSync(join(root, 'src/components/icons.iife.js'), 'utf8'));
+      W.eval(readFileSync(join(root, 'src/demo/spixi.iife.js'), 'utf8'));
+      const S = W.Spixi;
+      const rj = S.createCallBubble({ direction: 'sent', missed: true, rejected: true, title: 'Call declined', timestamp: 1790600000000, onCallBack: () => {}, strings: {} });
+      const both = S.createCallBubble({ direction: 'received', missed: true, declined: true, rejected: true, title: 'x', timestamp: 1790600000000, onCallBack: () => {}, strings: {} });
+      ok(rj.dataset.callOutcome === 'rejected' && !!rj.querySelector('.c-tcard__call-back')
+         && rj.querySelector('.c-tcard__title').textContent === 'Call declined'
+         && both.dataset.callOutcome === 'declined' && !both.querySelector('.c-tcard__call-back'),
+        '★ #1080 F11: the card renders the peer decline as its own outcome (phone-off, C#\'s "Call declined", call-back KEPT — you may try again), and the local decline still wins over it (no call-back)');
+      const ch = stripCode(rd8('src/shells/chat.html'));
+      ok(/addCall\(id, text, declined, time, outgoing, missed, durationSecs, declinedLocally, active, declinedRemotely\)/.test(ch)
+         && /rejected: !!rec\.declinedRemote/.test(ch)
+         && rulesFor('.c-tcard__medallion').some((r) => /data-call-outcome="rejected"/.test(r.selector)),
+        '★ #1080 F11: the chat shell reads the 10th arg into the card, and the rejected outcome gets the declined medallion tint');
+    } finally {
+      globalThis.window = hadWin; globalThis.document = hadDoc;
+    }
+  }
+
+  /* —— F12 (C#): every speaker / mute arrival is logged and ECHOED —— */
+  {
+    const vm = stripCode(rd8('Spixi/VoIP/VoIPManager.cs'));
+    const spk = body8(vm, 'public static void setSpeaker(');
+    const mute = body8(vm, 'public static void setMuted(');
+    const earlyEcho = /if \(!hasSession\(session_id\)\)\s*\{\s*Logging\.info\([^;]*\);\s*broadcastControlsAsync\(\);\s*return;\s*\}/.test(spk);
+    const tailEcho = /broadcastControlsAsync\(\);\s*\}$/.test(spk.trim());
+    const noSilentReturn = (spk.match(/return;/g) || []).length === 1;
+    const muteEcho = /if \(!hasSession\(session_id\) \|\| controlsClosed\)\s*\{\s*Logging\.info\([^;]*\);\s*broadcastControlsAsync\(\);\s*return;\s*\}/.test(mute);
+    const shell = stripCode(rd8('src/shells/call.html'));
+    const refuse = /onMute: \(on\) => \{ if \(!barSession\) return false; audio\.muted = !!on;/.test(shell)
+      && /onSpeaker: \(on\) => \{ if \(!barSession\) return false; audio\.speaker = !!on;/.test(shell);
+    const comps = ['src/components/callbar.js', 'src/components/call-screen.js'].every((p) => {
+      const f = body8(stripCode(rd8(p)), 'const flip = (key, send) => () =>');
+      return /const want = !entry\.audio\[key\];\s*if \(send\(want\) === false\) return;\s*entry\.audio\[key\] = want;/.test(f);
+    });
+    const barBackstop = /setTimeout\(open, 300\)/.test(stripCode(rd8('src/components/callbar.js')));
+    ok(earlyEcho && tailEcho && noSilentReturn && muteEcho && refuse && comps && barBackstop,
+      '★ #1080 F12 (walk C.8): setSpeaker / setMuted never return silently — a refused or late tap logs its arrival and echoes the real state, so the shell\'s optimistic flip is always corrected; with no live session the shell REFUSES (returns false) and the component flips nothing; the bar opens on the same 300ms backstop as the screen — ' + JSON.stringify({ earlyEcho, tailEcho, noSilentReturn, muteEcho, refuse, comps, barBackstop }));
+  }
+
+  /* —— F13 + F14: select mode — one circle column, a see-through wash —— */
+  {
+    const inset = cssRulesWhere((s) => s.trim() === '[data-selecting] .c-bubble-row[data-gutter]')
+      .some((r) => /--bubble-row-inset:\s*var\(--spacing-16\)/.test(r.body));
+    const plain = rulesFor('.c-bubble-row').some((r) => r.selector.trim() === '.c-bubble-row' && /--bubble-row-inset:\s*var\(--spacing-16\)/.test(r.body));
+    const tickReads = cssRulesWhere((s) => /\[data-selected\]::after$/.test(s.trim())).some((r) => /inset-inline-start:\s*calc\(var\(--bubble-row-inset/.test(r.body));
+    const wash = cssRulesWhere((s) => s.trim() === '[data-selecting] .c-bubble-row[data-selected]').find((r) => /background:/.test(r.body));
+    const alpha = (v) => { const m = /rgba\(\s*\d+,\s*\d+,\s*\d+,\s*([\d.]+)\s*\)/.exec(v); return m ? parseFloat(m[1]) : 1; };
+    const lv = lightTok('surface-select-row'), dv = darkTok('surface-select-row');
+    ok(inset && plain && tickReads && !!wash && /var\(--surface-select-row\)/.test(wash.body)
+       && alpha(lv) > 0 && alpha(lv) < 0.3 && alpha(dv) > 0 && alpha(dv) < 0.3,
+      '★★ #1080 F13 + F14 (Damir, desktop screenshot): in select mode a gutter row takes the plain 16px inset so the circle (and its tick, which reads the same token) is ONE column on sent and received rows — and the selected wash is a translucent action tint (alpha < 0.3 both themes) so the chat ground shows through — ' + JSON.stringify({ inset, plain, tickReads, lv, dv }));
+  }
+
+  /* —— F15: the light-only green gradient is a THIRD canvas, in all three ladders —— */
+  {
+    const ss = stripCode(rd8('src/components/settings-screens.js'));
+    const ch = rd8('src/shells/chat.html');
+    const st = stripCode(rd8('src/shells/settings.html'));
+    const member = /\{ id: 'green', key: 'groundGreenGradient', label: 'Green gradient', lightOnly: true \}/.test(ss);
+    const filtered = /const groundsHere = CHAT_GROUNDS\.filter\(\(o\) => !o\.lightOnly \|\| document\.documentElement\.getAttribute\('data-theme'\) !== 'dark'\);/.test(ss)
+      && /for \(const o of groundsHere\)/.test(ss) && /if \(groundsHere\.length > 1\)/.test(ss) && !/for \(const o of CHAT_GROUNDS\)/.test(ss);
+    const head = /if\(g!=='flat'&&g!=='gradient'&&g!=='green'\)g='flat';/.test(ch);
+    const ladder = /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green'\) gr = 'flat';/.test(stripCode(ch));
+    const third = /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green'\) chatGround = gr;/.test(st);
+    const lightRule = /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='green'\],\s*:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='green'\]\s*\{/.test(tokensCss);
+    const noDark = !/(?<!not\()\[data-theme=['"]dark['"]\][^{]*\[data-chat-ground=['"]green['"]\]/.test(tokensCss);
+    const extract = /groundGreenGradient: 'Green gradient'/.test(rd8('scripts/extract-strings.mjs'));
+    /* behaviour (#46 r1): in DARK a stored 'green' shows TWO dots, none of them green, the flat one checked —
+       and a tap on that flat dot still WRITES 'flat' (the stored light-only pick must stay reachable) */
+    let darkDots = -1, darkNoGreen = false, darkFlatChecked = false, darkTapWrites = '';
+    {
+      const hadWin = globalThis.window, hadDoc = globalThis.document;
+      const gdom = new JSDOM('<!doctype html><html data-theme="dark"><body></body></html>', { pretendToBeVisual: true });
+      globalThis.window = gdom.window; globalThis.document = gdom.window.document;
+      try {
+        const W = gdom.window;
+        W.eval(readFileSync(join(root, 'src/components/icons.iife.js'), 'utf8'));
+        W.eval(readFileSync(join(root, 'src/demo/spixi.iife.js'), 'utf8'));
+        const scr = W.Spixi.createChatAppearance({ chatGround: 'green', onChatGround: (id) => { darkTapWrites = id; }, strings: {} });
+        W.document.body.append(scr);
+        const dots = [...W.document.querySelectorAll('.c-settings-appearance__dot')];
+        darkDots = dots.length;
+        darkNoGreen = !dots.some((b) => b.dataset.value === 'green');
+        const flat = dots.find((b) => b.dataset.value === 'flat');
+        darkFlatChecked = !!flat && flat.getAttribute('aria-checked') === 'true';
+        if (flat) flat.click();
+      } finally { globalThis.window = hadWin; globalThis.document = hadDoc; }
+    }
+    const darkFixture = darkDots === 2 && darkNoGreen && darkFlatChecked && darkTapWrites === 'flat';
+    const c = { member, filtered, head, ladder, third, lightRule, noDark, extract, darkFixture };
+    ok(Object.values(c).every(Boolean), '★★ #1080 F15 (Damir picked G2): the green gradient is a light-only CHAT_GROUNDS member, offered only where it paints, admitted by all THREE ladders (head, chat, settings), painted by a light-only rule (none in dark — it falls to the flat midnight), its label is extractable, and in dark a stored green shows the flat dot checked while a tap on it still writes \'flat\' — ' + JSON.stringify(c) + JSON.stringify({ darkDots, darkNoGreen, darkFlatChecked, darkTapWrites }));
+  }
+
+  /* —— F16: the dark unread strip is visible —— */
+  {
+    const strip = rulesFor('.c-unread-divider').find((r) => r.selector.trim() === '.c-unread-divider');
+    const uses = !!strip && /background:\s*var\(--surface-unread-strip\)/.test(strip.body)
+      && /border-block:[^;]*var\(--outline-unread-strip\)/.test(strip.body) && /color:\s*var\(--text-unread-strip\)/.test(strip.body);
+    const lightSame = lightTok('surface-unread-strip') === 'var(--surface-chat-glass)';
+    const dBg = darkTok('surface-unread-strip'), dGlass = darkTok('surface-chat-glass');
+    const a = (v) => { const m = /rgba\(\s*(\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\s*\)/.exec(v); return m ? m.slice(1).map(Number) : null; };
+    /* composite each over the dark canvas (ink-950 #0C0E10) — the strip must now LIFT off it */
+    const over = (rgba) => { const [r, g, b, al] = rgba; const bg = [12, 14, 16]; return '#' + [r, g, b].map((c, i) => Math.round(c * al + bg[i] * (1 - al)).toString(16).padStart(2, '0')).join(''); };
+    const was = a(dGlass) ? cr(over(a(dGlass)), '#0c0e10') : 0, now = a(dBg) ? cr(over(a(dBg)), '#0c0e10') : 0;
+    ok(uses && lightSame && now > was && now >= 1.1 && darkTok('text-unread-strip') === 'var(--text-neutral-01)',
+      '★ #1080 F16 (Damir, Android dark: "make unread strip more visible"; picked U1): the strip reads its own roles, light keeps the glass, and dark LIFTS off the canvas (' + was.toFixed(2) + ' → ' + now.toFixed(2) + ':1) with the primary ink');
+  }
+
+  /* —— F17: the peer's typing rides the TOPBAR sub-line too (built chat shell) —— */
+  {
+    const built = join(root, 'Spixi/Resources/Raw/html/chat.html');
+    const vc = new VirtualConsole();
+    const errs17 = [];
+    vc.on('jsdomError', (e) => { if (!/navigation|Not implemented/i.test(e.message)) errs17.push(e.message); });
+    const dom = new JSDOM(readFileSync(built, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, url: 'file://' + built, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(2500);
+    const w = dom.window, d = w.document;
+    const push = (fn, ...a) => w.executeUiCommand(w[fn], ...a.map(b64y));
+    const sub = () => d.querySelector('#chat-topbar .c-topbar__sub');
+    const r = {};
+    push('onChatScreenReady', 'PEER1');
+    push('setChatMode', '0', '0', '', 'False', '', 'True', 'False');
+    push('setOnlineStatus', 'Online');
+    await sleep(120);
+    r.presence = !!sub() && sub().textContent === 'Online' && !sub().hasAttribute('data-typing');
+    push('showUserTyping', '', '');
+    await sleep(60);
+    r.typing = !!sub() && sub().hasAttribute('data-typing') && sub().querySelectorAll('.c-topbar__typing .c-typing__dot').length === 3
+      && sub().querySelector('.c-topbar__typing').getAttribute('aria-hidden') === 'true' && /typing/i.test(sub().textContent) && !/…|\.\.\./.test(sub().textContent);
+    push('setOnlineStatus', 'Online');   // a presence tick REBUILDS the bar — the typing line must survive it
+    await sleep(120);
+    r.survivesRebuild = !!sub() && sub().hasAttribute('data-typing');
+    /* (#46 r1) the live region is MUTED while the typing line is up, and the words are aria-hidden too */
+    r.liveMuted = !!sub() && sub().getAttribute('aria-live') === 'off' && !!sub().querySelector('.c-topbar__typing + span[aria-hidden="true"]');
+    push('addThem', 'x1', 'PEER1', '', '', 'hi', String(Math.floor(Date.now() / 1000)), 'True', 'True', 'True', 'False', 'False', 'contact', '');
+    await sleep(120);
+    r.messageEndsIt = !!sub() && !sub().hasAttribute('data-typing') && sub().textContent === 'Online';
+    await sleep(60);
+    r.liveRestored = !!sub() && sub().getAttribute('aria-live') === 'polite';
+    /* (#46 r2) Connecting… arriving WHILE the typing line is up is ANNOUNCED — the mute is lifted before the write */
+    push('showUserTyping', '', '');
+    await sleep(40);
+    push('showWarning', 'Connecting to Ixian S2...');
+    /* read at once, no frame: the region must already be live when the text lands (a rAF restore is too late) */
+    r.connectingAnnounced = !!sub() && sub().getAttribute('aria-live') === 'polite' && !sub().hasAttribute('data-live-was')
+      && sub().textContent === 'Connecting to Ixian S2...';
+    push('showWarning', '');
+    await sleep(60);
+    /* connectivity cleared while the peer still types → the typing line comes BACK, muted (#46 r3) */
+    r.typingReturns = !!sub() && sub().hasAttribute('data-typing') && sub().getAttribute('aria-live') === 'off';
+    /* the race: typing hidden and re-shown in the SAME frame never saves 'off' as the region's own value (#46 r3) */
+    push('addThem', 'x2', 'PEER1', '', '', 'yo', String(Math.floor(Date.now() / 1000)), 'True', 'True', 'True', 'False', 'False', 'contact', '');
+    push('showUserTyping', '', '');
+    r.raceSavesPolite = !!sub() && sub().getAttribute('data-live-was') === 'polite';
+    push('addThem', 'x3', 'PEER1', '', '', 'yo2', String(Math.floor(Date.now() / 1000)), 'True', 'True', 'True', 'False', 'False', 'contact', '');
+    await sleep(60);
+    r.raceRestores = !!sub() && sub().getAttribute('aria-live') === 'polite';
+    /* a new peer (the pre-warmed spare) never inherits the old peer's typing line */
+    push('showUserTyping', '', '');
+    await sleep(40);
+    push('onChatScreenReady', 'PEER2');
+    push('setOnlineStatus', 'Online');
+    await sleep(120);
+    r.peerSwitchClears = !!sub() && !sub().hasAttribute('data-typing');
+    r.noErrors = errs17.length === 0;
+    const chSrc = stripCode(rd8('src/shells/chat.html'));
+    r.pseudoNickGuard = /const pushedNick = String\(nick \|\| ''\);\s*name = \(\(pushedNick && !isPseudoAddressNick\(pushedNick\)\) \? pushedNick : ''\)/.test(chSrc);
+    r.channelSwitchClears = /setStlUnread\(0\);[^\n]*\n\s*hideTyping\(\);/.test(chSrc);
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1080 F17 (Damir, Android: "show 3 dots and typing in the top bar where Online is"): on the BUILT chat shell a typing push swaps the topbar sub-line for three aria-hidden dots + the typing words (the dots ARE the ellipsis), a presence rebuild keeps it, the live region is muted while it shows and restored after, the peer\'s message restores the presence text, a peer or channel switch clears it, and a pseudo-address nick never names the typist — ' + JSON.stringify(r) + (errs17.length ? ' errors: ' + errs17.join(' | ') : ''));
+  }
+}
+/* ══ #1080-END ══ */
+/* ══ #1082-START — bubble pad +1 · the typing dots in the chat row ══════════════════════════════ */
+console.log('#1082 — typing dots in the chat row');
+{
+  const rd82 = (p) => readFileSync(join(root, p), 'utf8');
+  const home = stripCode(rd82('src/shells/home.html'));
+  /* the shell marks ONLY the two peer-typing paths; the handshake line (same tone) carries no dots */
+  const fromPush = (/function excerptFromPush\([^)]*\)\s*\{([\s\S]*?)\n  \}/.exec(home) || [])[1] || '';
+  const typingReturns = fromPush.match(/return \{ type: 'typing'[^}]*\}/g) || [];
+  const shellMarks = typingReturns.length === 2 && typingReturns.every((r) => /dots: true/.test(r));
+  const handshakes = home.match(/excerpt = \{ type: 'typing', text: \(strings && strings\.handshakeEstablishing\)[^}]*\}/g) || [];
+  const handshakeClean = handshakes.length === 2 && handshakes.every((h) => !/dots/.test(h));
+  /* the link is LIVE (not inside an HTML comment) and the BUILT home document carries the wave (review MINOR) */
+  const linked = /<link rel="stylesheet" href="\.\.\/styles\/components\/typing-indicator\.css">/.test(rd82('src/shells/home.html').replace(/<!--[\s\S]*?-->/g, ''))
+    && /@keyframes c-typing-wave/.test(rd82('Spixi/Resources/Raw/html/index.html'));
+  /* the rules live in chatlist-item.css (a stylesheet home loads), the dot is the topbar's 4px, and the row rule
+     sets NO animation (the reduced-motion stop in typing-indicator.css must keep winning) */
+  const rowRules = cssRulesOf(rd82('src/styles/components/chatlist-item.css'), 'src/styles/components/chatlist-item.css');
+  const dotRule = rowRules.find((r) => r.prelude.trim() === '.c-excerpt__typing .c-typing__dot');
+  const boxRule = rowRules.find((r) => r.prelude.trim() === '.c-excerpt__typing');
+  const rule = !!dotRule && /background:\s*currentColor/.test(dotRule.body) && /width:\s*4px/.test(dotRule.body) && /height:\s*4px/.test(dotRule.body)
+    && !/animation/.test(stripCssComments(dotRule.body)) && !!boxRule && !/animation/.test(stripCssComments(boxRule.body))
+    && /flex:\s*none/.test(boxRule.body) && /color:\s*var\(--text-action-default\)/.test(boxRule.body);
+  /* behaviour on the bundle: a peer typing excerpt leads with three aria-hidden dots and drops the ellipsis;
+     the same type without `dots` (the handshake) and every other type get none */
+  const hadWin = globalThis.window, hadDoc = globalThis.document;
+  const dom82 = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
+  globalThis.window = dom82.window; globalThis.document = dom82.window.document;
+  let b = {};
+  try {
+    const W = dom82.window;
+    W.eval(readFileSync(join(root, 'src/components/icons.iife.js'), 'utf8'));
+    W.eval(readFileSync(join(root, 'src/demo/spixi.iife.js'), 'utf8'));
+    const S = W.Spixi;
+    const t = S.createExcerpt({ type: 'typing', text: 'is typing...', dots: true, strings: {} });
+    const t2 = S.createExcerpt({ type: 'typing', text: 'Mika is typing…', dots: true, strings: {} });
+    const hs = S.createExcerpt({ type: 'typing', text: 'Setting up a secure connection…', strings: {} });
+    const tx = S.createExcerpt({ type: 'text', text: 'hi', dots: true, strings: {} });
+    const box = t.querySelector('.c-excerpt__typing');
+    b = {
+      dots: !!box && box.querySelectorAll('.c-typing__dot').length === 3 && box.getAttribute('aria-hidden') === 'true' && t.firstElementChild === box,
+      noEllipsis: t.querySelector('.c-excerpt__text').textContent === 'is typing' && t2.querySelector('.c-excerpt__text').textContent === 'Mika is typing',
+      handshakeNone: !hs.querySelector('.c-excerpt__typing') && /…$/.test(hs.textContent),
+      otherNone: !tx.querySelector('.c-excerpt__typing'),
+    };
+  } finally { globalThis.window = hadWin; globalThis.document = hadDoc; }
+  ok(shellMarks && handshakeClean && linked && rule && Object.values(b).every(Boolean),
+    '★★ #1082 (Damir: "the animated typing indicator from the top bar in the chat row too"): a PEER typing row leads with the three-dot wave (aria-hidden, the topbar\'s 4px dots on the action ink, the pill\'s keyframes via typing-indicator.css now linked in home.html) and the dots replace the trailing ellipsis — the handshake line, which shares the typing tone, gets none — ' + JSON.stringify({ shellMarks, typingReturns: typingReturns.length, handshakeClean, linked, rule, ...b }));
+}
+/* ══ #1082-END ══ */
+
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

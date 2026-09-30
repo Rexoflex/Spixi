@@ -2110,7 +2110,7 @@ const EXCERPT_GLYPHS = {
   request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
   'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
 };
-function createExcerpt({ type = 'text', text = '', sender = null, strings = getStrings() } = {}) {
+function createExcerpt({ type = 'text', text = '', sender = null, dots = false, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
   el.className = 'c-excerpt';
@@ -2134,6 +2134,23 @@ function createExcerpt({ type = 'text', text = '', sender = null, strings = getS
   }
   const glyph = EXCERPT_GLYPHS[type];
   if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
+  /* ★ #1082 (Damir 2026-09-30: "the animated typing dots from the top bar in the chat row too"): a PEER
+     typing excerpt (the shell sets `dots`; the #109 handshake line shares the typing tone but is not a
+     person typing, so it gets none) leads with the same three-dot wave (typing-indicator.css), aria-hidden —
+     the words say it — and the dots ARE the ellipsis, so a trailing "…" / "..." is dropped. */
+  const typingDots = type === 'typing' && dots;
+  if (typingDots) {
+    const d = document.createElement('span');
+    d.className = 'c-excerpt__typing';
+    d.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 3; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'c-typing__dot';
+      d.append(dot);
+    }
+    el.append(d);
+    text = text.replace(/\s*(…|\.\.\.)\s*$/, '');
+  }
   const t = document.createElement('span');
   t.className = 'c-excerpt__text';
   if (type === 'draft') {
@@ -4515,8 +4532,19 @@ function showCallBar({
 
   const ctl = document.createElement('div');
   ctl.className = 'c-callbar__controls';
-  if (caps.mute && onMute) ctl.append(callToggle('mute', 'microphone', strings.callMute || 'Mute', () => onMute(!entry.audio.muted)));
-  if (caps.speaker && onSpeaker) ctl.append(callToggle('speaker', 'volume', strings.callSpeaker || 'Speaker', () => onSpeaker(!entry.audio.speaker)));
+  /* ★ #1080 F12 (walk C.8, Damir: "the Speaker button on the minimised card is not always responsive"):
+     the toggle sent !entry.audio.X and changed NOTHING on screen until C#'s echo (setCallAudio, broadcast
+     from the pool) came back — so a second tap inside that window sent the SAME value again and the
+     button looked dead. The tap now flips the local state at once (optimistic, like the chat switches);
+     C#'s echo stays the authority and overwrites it (a refused route comes back "off"). */
+  const flip = (key, send) => () => {
+    const want = !entry.audio[key];
+    if (send(want) === false) return;   // the shell refused (no live session) — nothing flips (#46 r1)
+    entry.audio[key] = want;
+    applyAudio(entry, strings);
+  };
+  if (caps.mute && onMute) ctl.append(callToggle('mute', 'microphone', strings.callMute || 'Mute', flip('muted', onMute)));
+  if (caps.speaker && onSpeaker) ctl.append(callToggle('speaker', 'volume', strings.callSpeaker || 'Speaker', flip('speaker', onSpeaker)));
 
   const hangup = document.createElement('button');
   hangup.type = 'button';
@@ -4528,9 +4556,11 @@ function showCallBar({
   el.append(ctl);
 
   host.append(el);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (el.isConnected && callBars.get(host) && callBars.get(host).el === el) el.dataset.open = '';
-  }));
+  /* ★ #1080 (#46 r1): the same backstop as call-screen.js — rAF does not run while the native stage is
+     hidden, and data-open drives the bar's fade-in; whichever fires first opens it. */
+  const open = () => { if (el.isConnected && callBars.get(host) && callBars.get(host).el === el) el.dataset.open = ''; };
+  requestAnimationFrame(() => requestAnimationFrame(open));
+  setTimeout(open, 300);
 
   const entry = { el, startedAt, audio: { muted: !!audio.muted, speaker: !!audio.speaker }, timer: 0,
     idKey: [name, address, avatar || ''].join('\n') };
@@ -6284,12 +6314,14 @@ function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
  *    missed    incoming, nobody answered   → phone-x, the ONLY red state (title + disc)
  *    noanswer  outgoing, nobody answered   → phone-x, neutral grey
  *    declined  THIS device declined        → phone-off, neutral grey, NO call-back (#87⑦)
+ *    rejected  the PEER declined (outgoing) → phone-off, neutral grey, call-back kept (★ #1080 F11 — you may try again)
  *  The glyph pair phone-off (turned down) / phone-x (nobody answered) is the chats row's
  *  (#46 loop 2026-08-29) — a pin reads both surfaces. Call-back shows for ok / missed /
  *  noanswer when the host wires it; the shell passes none while the call is live (C4). */
 function createCallBubble({
   missed = false,          // C# "never connected" (rang out) — incoming → missed, outgoing → no answer
   declined = false,        // #87⑦ / #572 ④: this device declined — wins over `missed`
+  rejected = false,        // ★ #1080 F11: the peer declined our call — wins over `missed`, loses to `declined`
   title = '',              // C#-localized label, verbatim (it knows "No answer" vs "Missed call")
   direction = 'received',  // bridge knows localSender (audit)
   directionLabel = '',     // kept for API compatibility; the title already names the direction
@@ -6300,16 +6332,17 @@ function createCallBubble({
   strings = getStrings(),
 } = {}) {
   const outgoing = direction === 'sent';
-  const outcome = declined ? 'declined' : missed ? (outgoing ? 'noanswer' : 'missed') : 'ok';
+  const outcome = declined ? 'declined' : rejected ? 'rejected' : missed ? (outgoing ? 'noanswer' : 'missed') : 'ok';
   const { row, el } = cardShell(direction, 'call', 'compact', gutter);
   if (outcome === 'missed') row.dataset.missed = '';
   row.dataset.callOutcome = outcome;
-  const glyph = outcome === 'declined' ? 'phone-off'
+  const glyph = (outcome === 'declined' || outcome === 'rejected') ? 'phone-off'
     : outcome === 'ok' ? (outgoing ? 'phone-outgoing' : 'phone-incoming')
     : 'phone-x';
   const heading = outcome === 'declined'
     ? (strings.youDeclinedCall || 'You declined')
-    : (title || (outcome === 'missed' ? (strings.missedCall || 'Missed voice call')
+    : (title || (outcome === 'rejected' ? (strings.callDeclined || 'Call declined')
+      : outcome === 'missed' ? (strings.missedCall || 'Missed voice call')
       : outcome === 'noanswer' ? (strings.noAnswer || 'No answer')
       : (strings.voiceCall || 'Voice call')));
 
@@ -8836,11 +8869,18 @@ function showCallScreen({
 
   const ctl = document.createElement('div');
   ctl.className = 'c-callscreen__controls';
+  /* ★ #1080 F12: the optimistic flip — see callbar.js (the same toggles, the same echo). */
+  const flip = (key, send) => () => {
+    const want = !entry.audio[key];
+    if (send(want) === false) return;   // the shell refused (no live session) — nothing flips (#46 r1)
+    entry.audio[key] = want;
+    apply(entry, strings);
+  };
   if (caps.mute && onMute) {
-    ctl.append(labelled(callToggle('mute', 'microphone', strings.callMute || 'Mute', () => onMute(!entry.audio.muted)), strings.callMute || 'Mute'));
+    ctl.append(labelled(callToggle('mute', 'microphone', strings.callMute || 'Mute', flip('muted', onMute)), strings.callMute || 'Mute'));
   }
   if (caps.speaker && onSpeaker) {
-    ctl.append(labelled(callToggle('speaker', 'volume', strings.callSpeaker || 'Speaker', () => onSpeaker(!entry.audio.speaker)), strings.callSpeaker || 'Speaker'));
+    ctl.append(labelled(callToggle('speaker', 'volume', strings.callSpeaker || 'Speaker', flip('speaker', onSpeaker)), strings.callSpeaker || 'Speaker'));
   }
   const end = document.createElement('button');
   end.type = 'button';
@@ -8853,9 +8893,12 @@ function showCallScreen({
   el.append(card);
 
   host.append(el);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (el.isConnected && screens.get(host) && screens.get(host).el === el) el.dataset.open = '';
-  }));
+  /* ★ #1080 F10: data-open now DRIVES the fade-in (call-screen.css) — so it must always land. rAF does not
+     run while the native stage is hidden (the #917 spare finding), so a 300ms timer backs the two frames up;
+     whichever fires first opens it, the second is a no-op. */
+  const open = () => { if (el.isConnected && screens.get(host) && screens.get(host).el === el) el.dataset.open = ''; };
+  requestAnimationFrame(() => requestAnimationFrame(open));
+  setTimeout(open, 300);
 
   const entry = { el, startedAt, audio: { muted: !!audio.muted, speaker: !!audio.speaker }, timer: 0,
     idKey: [name, address, avatar || ''].join('\n') };
@@ -21753,6 +21796,14 @@ function mountContacts({
      tapped rather than snapshotted at mount. Absent → the #827 in-shell takeover, which
      is the behaviour every host had before this option existed. */
   paneAvailable,
+  /* ★ #1080 F1 (#1077 option a, Damir's pick): the Account → Contacts hand-off mounts the
+     takeover with NO entry slide. The L14 handshake sends `ixian:coverpainted` two frames
+     after this mount and HomePage then pops the Account page; with the 300 ms slide the
+     cover was still mostly off-screen at that moment, so the release uncovered the chats
+     list under it for ~0.2 s (Damir's video, frame by frame). On that path the Account page
+     IS the visual cover — the swap is one frame, Account → Contacts. Every other opener
+     (FAB, topbar Contacts, app picker) keeps the slide. */
+  enterInstant = false,
 } = {}) {
   /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
      a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
@@ -21950,7 +22001,7 @@ function mountContacts({
   });
   overlay.append(picker);
   host.append(overlay);
-  slideSubscreenIn(host, overlay, null, { positioned: false, append: false });   // ★ Session H: slides in over the list (instant on desktop / reduced motion — the stylesheet decides)
+  if (!enterInstant) slideSubscreenIn(host, overlay, null, { positioned: false, append: false });   // ★ Session H: slides in over the list (instant on desktop / reduced motion — the stylesheet decides)
 
   return {
     el: overlay,
@@ -23098,7 +23149,7 @@ function createSettingsHub({
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
-  el.className = 'c-settings c-settings--hub';   // ★ #1076: the Account hub's own disc + row dials (hub only)
+  el.className = 'c-settings c-settings--hub c-account';   // ★ #1076 → #1080 F2: the Account disc + row dials (.c-account — the settings shells' <body> carries it too, so the sublevels match)
 
   const topbar = createTopbar({
     // #320 (Damir F5 of #315): NO onBack = the hub is a PEER TAB (iOS-46) — its
@@ -24393,6 +24444,10 @@ const CHAT_GROUNDS = [
      ink #3A2F66). The restore was the one line #855 promised; the label is a NEW key because
      "Gradient" translations named the retired teal wash. */
   { id: 'gradient', key: 'groundBrandGradient', label: 'Brand gradient' },
+  /* ★★ #1080 F15 (Damir 2026-09-30, from his green title-bar screenshot; picked G2 of a rendered
+     3-way): a SOFT GREEN gradient — LIGHT ONLY (`lightOnly`). There is no dark green rule, so in dark
+     the dot is not offered and a stored 'green' paints the flat midnight ground (tokens.css). */
+  { id: 'green', key: 'groundGreenGradient', label: 'Green gradient', lightOnly: true },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -24866,7 +24921,13 @@ function createChatAppearance({
      from a rendered 3-way at both chat widths): the Canvas row is shown in BOTH themes now. It
      REVERSES the dark half of #774 ③ / #855 ("in dark the row is absent" — there was no dark
      gradient to choose then). The one pref paints per theme: tokens.css has a light AND a dark rule. */
-  let groundCurrent = CHAT_GROUNDS.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  /* ★ #1080 F15: the grounds THIS theme can paint — a lightOnly member is not offered in dark (read from the
+     live document, like the rest of this block), so a stored light-only pick shows as the flat it paints. */
+  const groundsHere = CHAT_GROUNDS.filter((o) => !o.lightOnly || document.documentElement.getAttribute('data-theme') !== 'dark');
+  let groundCurrent = groundsHere.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  /* (#46 r1) what is STORED, as distinct from what is shown: in dark a stored 'green' shows the flat dot
+     checked, and a tap on that dot must still WRITE 'flat' (else the stored light-only pick is unreachable). */
+  let groundStored = chatGround;
   /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
      at build it inherited the document's, and settings.html's root never carries one, so the
      preview painted FLAT under a Gradient swatch. It is stamped from the current value at build. */
@@ -24882,7 +24943,7 @@ function createChatAppearance({
      moment a second member returns to CHAT_GROUNDS. Writing `if (false)` or deleting the
      block would make the restore a re-implementation instead of a one-line revert, and
      would hide that this is the SAME rule the dark branch already applies. */
-  if (CHAT_GROUNDS.length > 1) {
+  if (groundsHere.length > 1) {
     groundSec = document.createElement('div');
     groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
     /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a
@@ -24943,7 +25004,7 @@ function createChatAppearance({
       kids[n].focus();
       kids[n].click();   // a radio arrow SELECTS (the click handler is a no-op on the current one)
     });
-    for (const o of CHAT_GROUNDS) {
+    for (const o of groundsHere) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-settings-appearance__dot';
@@ -24955,8 +25016,9 @@ function createChatAppearance({
       face.setAttribute('data-chat-ground', o.id);
       b.append(face);
       b.addEventListener('click', () => {
-        if (groundCurrent === o.id) return;
+        if (groundCurrent === o.id && groundStored === o.id) return;
         groundCurrent = o.id;
+        groundStored = o.id;
         paint();
         preview.setAttribute('data-chat-ground', o.id);
         if (onChatGround) onChatGround(o.id);

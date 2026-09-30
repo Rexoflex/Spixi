@@ -7390,6 +7390,23 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#337 iOS-62: the bootRepin ACTIVATION call survives in onChatScreenLoaded (the abort list alone was pinned — decorative)');
   ok(/@media \(hover: hover\) and \(pointer: fine\) \{ \.chat-app-picker__item:hover/.test(chat337),
     '#337: the app-invite picker hover rides the AND-18 guard (sweep miss)');
+  /* ★ #1085 (office walk OV.23): the app-invite picker shows each app's OWN icon tile + publisher, and a
+     search + tall sheet past APP_PICKER_MANY. The icon is taken ONLY from a pushed data:image/ URI — a remote
+     http(s) icon would be fetched by the <img> and reveal this device's IP to the publisher (#82 / #214). */
+  {
+    const src1085 = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
+    const fn1085 = src1085.slice(src1085.indexOf('  function openAppPicker() {'), src1085.indexOf('  /* incoming contact-request pane (#109)'));
+    ok(/createAppIcon\(\{ src: appPickerIconSrc\(app\.icon\), name: app\.name, size: 40 \}\)/.test(fn1085)
+      && /function appPickerIconSrc\(icon\) \{\s*const v = String\(icon \|\| ''\);\s*return \/\^data:image\\\/\/i\.test\(v\) \? v : null;\s*\}/.test(fn1085)
+      && !/app\.icon(?!\))/.test(fn1085.replace('appPickerIconSrc(app.icon)', '')),
+      '★ #1085: the app-invite picker renders the app icon through appPickerIconSrc (data:image/ only — no remote fetch) and nowhere else');
+    ok(/const APP_PICKER_MANY = 6;/.test(fn1085) && /if \(chatApps\.length > APP_PICKER_MANY\) \{/.test(fn1085)
+      && /createSearchField\(\{/.test(fn1085) && /sheet\.dataset\.tall = '';/.test(fn1085)
+      && /\.split\('\{q\}'\)\.join\(/.test(fn1085)
+      && /addApp\(id, name, icon, publisher\) \{ chatApps\.push\(\{ id: String\(id\), name: name \|\| String\(id\), icon: icon \|\| '', publisher: publisher \|\| '' \}\)/.test(src1085)
+      && /<link rel="stylesheet" href="\.\.\/styles\/components\/apps-icon\.css">/.test(src1085),
+      '★ #1085: more than 6 apps → search field + tall sheet; the no-match text uses split/join (#288); addApp keeps the icon; chat.html links apps-icon.css');
+  }
   // W4 ride-along MAJOR: typed objects hold their own rail — the 680px desktop
   // bubble raise must not stretch fixed-width cards/tiles/file rows.
   const toks337 = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
@@ -8416,7 +8433,10 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      pill's wave + reduced-motion stop) plus the #1080/#1081 Account/token rules. MEASURED on index.html:
      541 991 (start of #1080) → 546 149 chars (+4 158); 531 would not fit; headroom under 535 is 1 691.
      Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 698, INDEX_KB_CEIL = 535;
+  /* ★ #1085 (office walk OV.23): 698 → 704 — the app-invite picker: chat.html now links apps-icon.css (the icon
+     tiles) and carries the picker rules, the search/tall-sheet path and the data:-only icon filter. MEASURED on
+     chat.html: 713 883 → 720 041 chars (+6 158); 703 would not fit; headroom under 704 is 855. Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 704, INDEX_KB_CEIL = 535;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle

@@ -1,0 +1,316 @@
+<title>Office Walk 1083</title>
+<style>
+/* Walk sheet — the office day after #1080–#1083 (iPhone + Mac). Same look as walk-artifact-1080: a header with the build steps, one card per walk row with P / F / N/A and a note, grouped in sections; a sticky results bar. */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --warn:#8a5a00; --warn-soft:#fbf0dc;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b;
+  --warn:#f0c46a; --warn-soft:#33270f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b;
+  --warn:#f0c46a; --warn-soft:#33270f; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--font)}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:22px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.sub{color:var(--ink-2);margin:4px 0 0}
+.steps{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.steps h2,.sec{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+.sec{margin-top:10px}
+.steps h3{font-size:14px;margin:0}
+.steps ol,.steps ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.steps p{margin:0}
+.warnbox{background:var(--warn-soft);border-radius:10px;padding:8px 12px;color:var(--ink)}
+.warnbox b{color:var(--warn)}
+pre{margin:0;font:12.5px/1.5 var(--mono);background:var(--brand-soft);color:var(--ink);padding:8px 10px;border-radius:8px;overflow-x:auto;white-space:pre}
+code{font:13px var(--mono);background:var(--brand-soft);color:var(--ink);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+details{border-top:1px solid var(--line);padding-top:8px}
+details summary{cursor:pointer;font-weight:600}
+details>div{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+.where{font-size:12px;color:var(--ink-2);background:var(--brand-soft);border-radius:999px;padding:2px 9px}
+.known{font-size:11px;font-weight:700;color:var(--warn);border:1px solid var(--warn);border-radius:999px;padding:1px 7px}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl button{font:600 13px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.ctl button:focus-visible,.bar button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:760px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{display:none;width:100%;min-height:120px;font:13px var(--mono)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Office walk — iPhone + Mac after #1080–#1083</h1>
+    <p class="sub">HEAD <code>97bbf3e8</code>. The open office rows, the premium round, #1050–#1082 and the call surface, on the iPhone and the Mac. Each row has a device tag.</p>
+  </header>
+
+  <section class="steps" aria-labelledby="bys">
+    <h2 id="bys">Before you start</h2>
+    <p class="warnbox"><b>zsh:</b> paste one line at a time. Do not paste lines that start with <code>#</code>. If a paste shows <code>[200~</code>, run <code>printf '\e[?2004l'</code>.</p>
+
+    <details open><summary>a · Repo state</summary><div>
+<pre>cd ~/Documents/GitHub/Spixi
+git --no-optional-locks log -1 --oneline
+git --no-optional-locks status --short
+ls ../Ixian-Core/IXICore.projitems</pre>
+      <p>Good: <code>97bbf3e8 #1080–#1082 walk fix round …</code>, an empty status, and the Ixian-Core file exists. The C# build imports <code>../../Ixian-Core/IXICore.projitems</code>, so the sibling folder is required.</p>
+      <p>Optional (the PC has the #962 patch locally, the Mac does not): <code>git -C ../Ixian-Core apply --check ../Spixi/docs/core-patches/962-accept-null-guard.patch</code>. Apply only if you want the Mac to match the PC.</p>
+    </div></details>
+
+    <details><summary>b · Tools</summary><div>
+<pre>node --version
+dotnet --version
+dotnet workload list
+xcodebuild -version
+xcode-select -p
+shasum -a 256 local-nuget/RocksDB.0.0.42.nupkg
+ls -la Spixi/Platforms/iOS/NativeLibraries/RocksDB.xcframework/ios-arm64/librocksdb_full.a
+ls node_modules/jsdom node_modules/eslint node_modules/globals</pre>
+      <p>Good: node v20 or newer · dotnet 10.x · workloads include <code>maui</code>, <code>ios</code>, <code>maccatalyst</code> · an Xcode version · a path · SHA-256 <code>5fedf9d7…2a56851</code> · a 29.5 MB <code>.a</code> · three folders.</p>
+      <p>Missing workloads: <code>sudo dotnet workload install maui</code>. No command line tools: <code>xcode-select --install</code>, then <code>sudo xcodebuild -license accept</code>. Missing test modules: <code>npm i --no-save jsdom eslint globals</code> (install all three together).</p>
+    </div></details>
+
+    <details><summary>c · Pipeline + smoke (about 6 min)</summary><div>
+<pre>node scripts/extract-strings.mjs && node scripts/build-locales.mjs && node scripts/build-strings-iife.mjs && node scripts/build-demo-bundle.mjs && node scripts/build-shells.mjs
+git --no-optional-locks status --short
+node scripts/build-shells.mjs --check && node scripts/extract-strings.mjs --check
+node scripts/smoke-test.mjs</pre>
+      <p>Good: the status is empty after the pipeline, both checks pass, and the last smoke line is <code>BASELINE OK</code> with the 2 KNOWN (#136 · B3). Expect 5015 with Ixian-Core beside the repo (5013 without). Compare with your last run on this Mac, not with the number (#895).</p>
+      <p><b>If a generated file changes: stop and paste <code>git --no-optional-locks status --short</code> in the chat.</b></p>
+    </div></details>
+
+    <details><summary>d · Wipe build output</summary><div>
+<pre>rm -rf Spixi/obj Spixi/bin Spixi-PushService/obj Spixi-PushService/bin</pre>
+      <p>C# changed since the last Mac build. Also wipe when you move between the Simulator and the iPhone (the RocksDB slice differs).</p>
+    </div></details>
+
+    <details><summary>e · iPhone (Debug, device) — Simulator as fallback</summary><div>
+<pre>xcrun devicectl list devices
+ls ~/Library/MobileDevice/Provisioning\ Profiles
+dotnet build Spixi/Spixi.csproj -f net10.0-ios -c Debug -p:RuntimeIdentifier=ios-arm64
+xcrun devicectl device install app --device &lt;id&gt; Spixi/bin/Debug/net10.0-ios/ios-arm64/Spixi.app
+xcrun devicectl device process launch --device &lt;id&gt; com.ixilabs.spixi</pre>
+      <ul>
+        <li><code>-p:RuntimeIdentifier=ios-arm64</code> is required. Without it, Debug builds a Simulator app.</li>
+        <li>Do not add <code>-p:CodesignKey</code> (the certificate name does not match) or <code>-p:CodesignProvision</code> (it also re-signs the extension with the wrong profile). Never add <code>-p:CodesignEntitlements=</code> (it removes push).</li>
+        <li>Profiles in that folder: an App Development profile for <code>com.ixilabs.spixi</code> with Push + App Group <code>group.com.ixilabs.spixi</code>, and one for <code>com.ixilabs.spixi.Spixi-PushService</code> with the same App Group. These worked on 2026-09-24 and 09-27.</li>
+        <li>This is the first iOS compile of #1040–#1082 C# (CallPage, VoIPManager, the recorders, SPlatformUtils, SpixiContentPage, HomePage, SettingsPage, SingleChatPage). A compile error: paste the first error line in the chat. It is fixed before the walk.</li>
+      </ul>
+      <p>Simulator (no push, no camera, extension not signed):</p>
+<pre>xcrun simctl list devices available
+xcrun simctl boot "iPhone 17 Pro"
+open -a Simulator
+dotnet build Spixi/Spixi.csproj -f net10.0-ios -c Debug
+xcrun simctl install booted Spixi/bin/Debug/net10.0-ios/iossimulator-arm64/Spixi.app
+xcrun simctl launch booted com.ixilabs.spixi</pre>
+    </div></details>
+
+    <details><summary>f · Mac (Mac Catalyst, Debug)</summary><div>
+<pre>xcrun vtool -show-build Spixi/Platforms/MacCatalyst/NativeLibraries/librocksdb.dylib | grep -A3 LC_BUILD_VERSION
+dotnet build Spixi/Spixi.csproj -f net10.0-maccatalyst -c Debug
+find Spixi/bin/Debug/net10.0-maccatalyst -maxdepth 2 -name Spixi.app</pre>
+      <p>Good: <code>platform MACCATALYST · minos 15.0</code>. The dylib (route B, #920) is on this Mac since 2026-07-20. If it is missing, follow <code>Spixi/Platforms/MacCatalyst/NativeLibraries/README.md</code>. Then run <code>&lt;path from find&gt;/Contents/MacOS/Spixi</code>. The app must boot past <code>RocksDBStorage.prepareStorageInternal</code>. A crash at the first call = the missing mic/camera keys of #1026 = a stale build: wipe (d) and build again.</p>
+      <p>OV.27 (Release): wipe, then <code>-c Release</code>. Release is universal and needs the <code>lipo</code> dylib from the README. Launch with <code>open &lt;path&gt;/Spixi.app</code>.</p>
+    </div></details>
+
+    <details><summary>g · Logs</summary><div>
+      <ul>
+        <li><b>Push extension (iPhone):</b> Console.app → the iPhone → Start streaming → search <code>spush</code> or <code>subsystem:com.ixilabs.spixi.push</code>.</li>
+        <li><b>App lines</b> (<code>[SPUSH-APP]</code>, <code>[cam-perm]</code>, <code>[KBDIAG]</code>, <code>[M6]</code>, <code>[M5]</code>, <code>[DIVIDER]</code>) go to <code>ixian.log</code>, not to Console.app. iPhone: Account → tap Version 10 times → Developer → share log. Mac: <code>find ~/Documents ~/Library/Containers -name ixian.log 2&gt;/dev/null</code>.</li>
+        <li><b>Web Inspector (Debug only):</b> iPhone Settings → Apps → Safari → Advanced → Web Inspector ON. Mac Safari → Settings → Advanced → Show features for web developers. Then Develop → the device → the Spixi page.</li>
+      </ul>
+      <p class="warnbox"><b>Not verified:</b> the Mac ixian.log path; Web Inspector on Mac Catalyst (the flag that makes the WebViews visible is set only in the iOS handler — the Mac WebViews may not show); the Simulator device name.</p>
+    </div></details>
+
+    <p>Mark each row. <b>Known</b> = it fails on Windows/Android and is on the next fix list (#1083) — record what the iPhone/Mac do, do not expect a fix. Tap <b>Copy results</b> at the end and paste them in the chat.</p>
+  </section>
+
+  <div id="rows"></div>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+  <textarea id="out" readonly aria-label="Results text"></textarea>
+</div></div>
+
+<script>
+const SECTIONS=[
+ ['B','Build'],
+ ['O','Open office rows (overnight #1028)'],
+ ['P','Premium round + #1050 on the iPhone / Mac'],
+ ['X','#1058–#1072 on the iPhone'],
+ ['F','#1080–#1082 on the iPhone / Mac'],
+ ['C','Call surface (#1074)'],
+ ['M','Mac-specific + push sanity'],
+];
+const ROWS=[
+ {s:'B',id:'B.1',t:'Pipeline + smoke',w:'Mac',d:'Steps a–c.',p:'Clean tree after the pipeline. BASELINE OK / the 2 KNOWN. Note the count.'},
+ {s:'B',id:'B.2',t:'iPhone build + launch',w:'iPhone',d:'Steps d–e.',p:'Build succeeded (app + Spixi-PushService). The app launches on the iPhone.'},
+ {s:'B',id:'B.3',t:'Mac build + boot',w:'Mac',d:'Step f.',p:'Build succeeded. The app boots to the chats list; storage opens.'},
+
+ {s:'O',id:'OV.3',t:'Copy → Notes',w:'iPhone',d:'Long-press a message → Copy. Paste in Notes.',p:'The text pastes. A "Copied" toast shows.'},
+ {s:'O',id:'OV.4',t:'Copy → TextEdit',w:'Mac',d:'Message menu → Copy. Paste in TextEdit.',p:'The text pastes. A toast shows.'},
+ {s:'O',id:'OV.5',t:'Account header Copy address',w:'both',d:'Account → the Copy icon beside the address. Paste in another app.',p:'The icon turns into a check for about 1.4 s. The address pastes.'},
+ {s:'O',id:'R.8',t:'Paste a Spixi copy into Add contact',w:'Mac',d:'Copy an address with Spixi\'s own Copy. Add contact → ⌘V, then right-click → Paste.',p:'Both paste. Put the [M5] lines from ixian.log in the note.'},
+ {s:'O',id:'OV.10',t:'Tick crossfade',w:'iPhone',d:'Send a text to an online peer. Then with Reduce Motion ON.',p:'The tick goes sent → delivered → read with a short fade. Reduce Motion: an instant swap.'},
+ {s:'O',id:'OV.11',t:'Sent file has ticks',w:'iPhone',d:'Send a file.',p:'The sent file card shows time + tick; it moves to delivered and read like a text.'},
+ {s:'O',id:'OV.13',t:'Title-bar hairline',w:'Mac · light + dark',d:'Chats list, a chat, Account. Then Wallet, lock, launch, a call.',p:'A 1px line under the title bar on the first three. None on Wallet, lock, launch, call. Paste the [M6] line in the note.'},
+ {s:'O',id:'OV.14',t:'Hairline after full screen',w:'Mac',d:'Toggle full screen, then change page.',p:'The line sits right after the next page change.'},
+ {s:'O',id:'OV.15',t:'Call while another app is active',w:'Mac',d:'Make another app active. Call the Mac. Answer.',p:'The call card/strip is not clipped. Hang-up is fully visible.'},
+ {s:'O',id:'OV.22',t:'Edge-swipe back in Account',w:'iPhone',d:'Open an Account subscreen. Swipe from the left edge.',p:'The swipe returns one level.'},
+ {s:'O',id:'OV.23',t:'App invite picker',w:'iPhone',d:'Invite to a multi-user app.',p:'The picker has the redesign look.'},
+ {s:'O',id:'OV.25',t:'Outgoing call bubble (#1026)',w:'Mac',d:'Call a contact from a chat. Hang up.',p:'The outgoing call card appears in the chat.'},
+ {s:'O',id:'OV.27',t:'Mac Release launch',w:'Mac',d:'Step f, Release paragraph.',p:'Welcome screen, Dock icon, input works. If open fails with -54, note it (TestFlight task).'},
+
+ {s:'P',id:'PR.1',t:'Transaction receipt sheet',w:'iPhone · light + dark',d:'Wallet → tap a transaction.',p:'IXI unit, one status stamp. "See details" = the same size as Close. About 24px under the status.'},
+ {s:'P',id:'PR.2',t:'See details opens above the button',w:'iPhone',d:'Tap See details, then the same spot again. Then tap twice fast.',p:'Details open above the button; the button does not move; the second tap closes. A fast re-tap reopens smoothly.'},
+ {s:'P',id:'PR.3',t:'Details card',w:'iPhone',d:'Look at the open details.',p:'Address, date, fee and ID in ONE card. The address is one mono block, no gaps. Copy gives the exact address.'},
+ {s:'P',id:'PR.4',t:'View on ixiscope',w:'iPhone · light + dark',d:'The button under the card. Press and hold it.',p:'Tonal button, label "View on ixiscope". Readable in every state. It opens the explorer after the link confirm.'},
+ {s:'P',id:'PR.5',t:'Tx detail pane',w:'Mac',d:'Wallet → click a transaction.',p:'The same card, address one block, "View on ixiscope" under it.'},
+ {s:'P',id:'PR.6',t:'Fiat lines',w:'both',d:'Wallet list + a transaction + a chat payment card.',p:'Fiat at 2 dp, "<$0.01" for tiny values, no line when the price is unknown.'},
+ {s:'P',id:'PR.7',t:'Ticks and times in chat',w:'iPhone · light + dark',d:'A chat with your own and received messages.',p:'Read = green, delivered = faded, received timestamps quieter (0.7). All readable.'},
+ {s:'P',id:'PR.8',t:'Sent sticker chip + failed glyph',w:'iPhone',d:'A sent sticker. A failed message (airplane mode, send).',p:'The sticker chip is bubble blue. The failed glyph is the rounded alert square.'},
+ {s:'P',id:'PR.9',t:'Account status bar',w:'iPhone · light + dark',d:'Open Account, leave, open it again.',p:'Status-bar glyphs are readable every time (dark on light, light on dark).'},
+ {s:'P',id:'PR.10',t:'Notifications cards',w:'iPhone · light + dark',d:'Account → Notifications.',p:'Card 1: Allow · Show sender name · In-app sounds. Card 2: OneSignal alone, the note under it. (W.11 is Android-only: its note names the Android cost.)'},
+ {s:'P',id:'PR.11',t:'Sent bubble colour (dark)',w:'iPhone · dark',d:'Any chat with your own messages.',p:'Sent bubbles are the deeper, calmer blue. Ticks and time readable.'},
+
+ {s:'X',id:'X.1',t:'Contours pattern',w:'iPhone · light + dark',d:'Open a chat.',p:'Visible but quiet in both themes.'},
+ {s:'X',id:'X.7',t:'Selection slide',w:'iPhone',d:'Long-press → Select. Then close select mode.',p:'Bubbles slide right smoothly as the circles appear; they slide back on close.'},
+ {s:'X',id:'X.8',t:'Keyboard on long-press',w:'iPhone · keyboard up',d:'Type a few letters. Long-press a message → Copy. Again, tap outside.',p:'Record what the keyboard does. The #1071 guard is Chromium-only (WebKit skips it). P = keyboard stays; F = it closes; note if it comes back.'},
+ {s:'X',id:'X.9',t:'Dark brand gradient',w:'iPhone · dark',d:'Account → Chat appearance → second Canvas circle. Open a chat.',p:'The blue-violet gradient at the top of the chat, plain canvas at the bottom.'},
+ {s:'X',id:'X.10',t:'Menu grows in',w:'iPhone',d:'Long-press a message. Long-press a chat row.',p:'The menu grows out of the pressed item. No slide from the bottom.'},
+ {s:'X',id:'Y.4',t:'Menu fades out',w:'iPhone',d:'Open the message menu; tap outside. Open again, pick Copy.',p:'The menu shrinks back and fades; the wash fades with it.'},
+ {s:'X',id:'Y.5',t:'Chats-row menu fades out',w:'iPhone',d:'Long-press a chat row; tap outside.',p:'Same close as Y.4.'},
+ {s:'X',id:'Y.6',t:'Menu → dialog hand-off',w:'iPhone',d:'Row → Delete chat → Cancel. Message → Tip → close.',p:'The menu is gone at once when the dialog opens. No flicker of the wash.'},
+ {s:'X',id:'Y.7',t:'Tip while typing',w:'iPhone · keyboard up',d:'Long-press → Tip. Close the sheet.',p:'After the sheet closes, the keyboard comes back with your text.'},
+ {s:'X',id:'Y.11',t:'Missing a transaction? sheet',w:'iPhone',d:'Wallet → tap the "?" pill.',p:'One card, one sentence, a light-blue "View on ixiscope" button.'},
+
+ {s:'F',id:'F1',t:'Account → Contacts, no flash',w:'both',d:'Account → Contacts, three times.',p:'Contacts appears at once. The chats list never shows between.',k:1},
+ {s:'F',id:'F2',t:'Squares on every Account screen',w:'both',d:'Open every Account sublevel.',p:'Every row icon is the bright rounded square. Chat info keeps round icons.'},
+ {s:'F',id:'F3',t:'Brighter squares',w:'both · light + dark',d:'Account in both themes.',p:'Saturated squares; Theme is amber, not yellow.'},
+ {s:'F',id:'F4',t:'Account hover / selected / press',w:'Mac · light + dark',d:'Hover rows, click one, hover the selected row, press and hold.',p:'Quiet grey steps; the selected row stays the same under the mouse; never blue.'},
+ {s:'F',id:'F5',t:'One colour across the two top bars',w:'Mac',d:'Open Account, then a sublevel.',p:'Same top-bar colour, no hairline under either.'},
+ {s:'F',id:'F6',t:'Nickname edit',w:'both',d:'Edit your nickname and a contact\'s nickname.',p:'One 1px blue border. Note if the field jumps or the text gets smaller.',k:1},
+ {s:'F',id:'F7',t:'Resize with Account open',w:'Mac',d:'Open Account. Drag narrow, wide, narrow. Close while narrow. Open again.',p:'Narrow: Account fills the window. Wide: the pane with the rail. After close the rail shows your tab.'},
+ {s:'F',id:'F8',t:'Desktop ring over a dimmed app',w:'Mac',d:'Call the Mac. Look behind the ring card.',p:'The app shows through, dimmed.',k:1},
+ {s:'F',id:'F9',t:'Desktop call card',w:'Mac · in call',d:'Minimise to the card. Click the name, minimise again. Press Tab.',p:'Round corners, own shadow, no square behind it. No focus ring on a click; Tab shows it.',k:1},
+ {s:'F',id:'F10',t:'Card → full screen',w:'both · in call',d:'Open the full call view from the card.',p:'A short fade/scale in. No flicker.',k:1},
+ {s:'F',id:'F11',t:'Caller sees "Call declined"',w:'both · two devices',d:'Call the other device; it declines. Repeat with Decline → Message.',p:'A "Call declined" card with call-back, in the chat and the chats row.'},
+ {s:'F',id:'F11b',t:'Busy callee (record)',w:'both · two devices',d:'The callee is in a call. Call it.',p:'Record what you see ("Call declined" today).'},
+ {s:'F',id:'F12',t:'Speaker / Mute every tap',w:'iPhone Debug · in call',d:'Tap Speaker fast several times, then Mute.',p:'Every tap flips at once; the final state matches the audio. Note the lag.',k:1},
+ {s:'F',id:'F13',t:'Select circles in one column',w:'Mac · group chat',d:'Select messages in a group.',p:'All circles in one column on the left.'},
+ {s:'F',id:'F14',t:'Selected tint on a gradient',w:'both · light + dark',d:'Gradient canvas on. Select messages.',p:'See-through blue tint; the gradient shows through.'},
+ {s:'F',id:'F15',t:'Green canvas, light only',w:'both',d:'Light: pick the green circle. Switch to dark.',p:'Light: green gradient. Dark: no green circle, Flat checked.'},
+ {s:'F',id:'F16',t:'Dark unread strip',w:'iPhone · dark',d:'Open a chat with unread messages.',p:'The "Unread messages" strip is clearly visible.'},
+ {s:'F',id:'F17',t:'Typing in the top bar',w:'both · two devices',d:'Type on the other device (1:1 and group).',p:'Three moving dots + "Typing" where Online was; back to Online after.'},
+ {s:'F',id:'F17b',t:'Typing, VoiceOver (optional)',w:'iPhone VoiceOver',d:'Let the other side type on and off. Airplane mode on/off.',p:'VoiceOver does not read every flicker; it reads "Connecting…".'},
+ {s:'F',id:'F18',t:'Pinned row lighter',w:'iPhone · light (Mac: hover)',d:'Look at a pinned chat row. On the Mac, hover it.',p:'A very light blue wash. Mac hover looks like any hovered row (pin icon shows).'},
+ {s:'F',id:'N1',t:'Bubbles 1px taller',w:'both',d:'Open a group chat.',p:'1px more space above and below the text. Note if the 32px avatar looks misaligned.'},
+ {s:'F',id:'N2',t:'Typing dots in the chat row',w:'both · two devices',d:'Type on the other device; look at the chats list.',p:'Three moving blue dots before "is typing"; they stop when typing stops.'},
+
+ {s:'C',id:'C.1',t:'Incoming ring (phone)',w:'iPhone',d:'Call the iPhone with the app open on Chats.',p:'Full screen, dark ground, caller colour/photo, "End-to-end encrypted", pulsing avatar, Silence + Message pills, red Decline, green Accept.'},
+ {s:'C',id:'C.2',t:'Incoming ring (desktop)',w:'Mac',d:'Call the Mac.',p:'A centered dark card over a dim. No Silence pill on the Mac.'},
+ {s:'C',id:'C.3',t:'Silence',w:'iPhone · ringing',d:'Tap Silence.',p:'Sound + vibration stop on this device. The pill shows "Silenced". Accept/Decline still work.'},
+ {s:'C',id:'C.4',t:'Decline',w:'both · ringing',d:'Tap Decline.',p:'The ring closes; the caller sees the call end; no second ring.'},
+ {s:'C',id:'C.5',t:'Decline with a preset message',w:'iPhone · ringing',d:'Message → "I’m in a meeting."',p:'The sheet names the caller. The call ends; the caller gets the text as a chat message.'},
+ {s:'C',id:'C.6',t:'Decline with your own text',w:'both · ringing',d:'Message → Write a message… → send.',p:'The keyboard does not cover the field. The caller gets your line. Empty text does not send.'},
+ {s:'C',id:'C.8',t:'Accept → call screen',w:'iPhone · ringing',d:'Tap Accept.',p:'Expanded call screen: timer ticking, Mute (+ Speaker in Debug), red End, minimise top-left.'},
+ {s:'C',id:'C.9',t:'Mute',w:'both · in call',d:'Mute, speak, unmute.',p:'Button pressed, mic crossed out, "… · Muted". Silence on the other side; no drop after 10 s.'},
+ {s:'C',id:'C.10',t:'Speaker',w:'iPhone Debug · in call',d:'Tap Speaker twice.',p:'Loudspeaker and back. No Speaker button on the Mac.'},
+ {s:'C',id:'C.11',t:'Minimise → card',w:'iPhone · in call',d:'Tap minimise.',p:'A dark card below the top bar; the app stays usable.'},
+ {s:'C',id:'C.12',t:'Card → expand → minimise',w:'iPhone · in call',d:'Tap the name on the card; then the minimise button.',p:'Full screen opens; minimise folds it back to the card. (The Android back-key half does not apply.)'},
+ {s:'C',id:'C.13',t:'Desktop card',w:'Mac · in call',d:'Resize narrow and wide.',p:'The card top right, below the top bar; the list and chat stay usable; the divider grip is free.'},
+ {s:'C',id:'C.14',t:'Hang up',w:'both · in call',d:'Tap the red button.',p:'The call ends on both sides; a second tap does nothing.'},
+ {s:'C',id:'C.15',t:'Outgoing call',w:'both',d:'From a chat, tap call.',p:'iPhone: full screen "Calling…", timer starts on answer. Mac: the card "Calling…".'},
+ {s:'C',id:'C.16',t:'Remote hang-up',w:'both · in call',d:'Let the other side hang up.',p:'The card/screen closes by itself.'},
+ {s:'C',id:'C.17',t:'Call while locked',w:'iPhone · app lock on',d:'Lock the app. Call it. Unlock.',p:'Locked: it rings, no call UI over the lock. After unlock the ring or card appears.'},
+ {s:'C',id:'C.18',t:'Lock during a call',w:'iPhone · in call',d:'Background long enough to lock; return.',p:'The lock covers everything; after unlock the card is back and the call runs.'},
+ {s:'C',id:'C.19',t:'Both themes',w:'iPhone · light',d:'Repeat C.1 and C.11 in light.',p:'Call views dark in both themes; status-bar glyphs readable on the ring.'},
+ {s:'C',id:'C.20',t:'Landscape',w:'iPhone · landscape',d:'Rotate during a call.',p:'Nothing under the notch or the home indicator.'},
+ {s:'C',id:'C.21',t:'Encryption line',w:'both',d:'Read the chip.',p:'Only "End-to-end encrypted".'},
+ {s:'C',id:'C.22',t:'VoiceOver (optional)',w:'iPhone VoiceOver',d:'Focus Mute, double-tap, focus again.',p:'"Mute, button, not pressed" → "… pressed".'},
+
+ {s:'M',id:'M1',t:'No empty bubble after accept',w:'Mac',d:'Accept a contact request.',p:'No empty received bubble under the "connected" chip.'},
+ {s:'M',id:'M2',t:'Pane divider',w:'Mac',d:'Drag the left pane edge.',p:'The ↔ cursor shows and the pane resizes.'},
+ {s:'M',id:'M3',t:'Dock icon (dial)',w:'Mac',d:'Look at the Dock icon.',p:'Note only: does the logo still read small?'},
+ {s:'M',id:'M4',t:'Dock badge + bounce',w:'Mac',d:'App in the background; receive a message.',p:'A count badge and one bounce.'},
+ {s:'M',id:'M7',t:'Short log above the composer',w:'both',d:'A chat one message short of scrolling. Send one more.',p:'The newest bubble always sits fully above the composer.'},
+ {s:'M',id:'iO.R',t:'Push sanity (killed app)',w:'iPhone',d:'Kill Spixi. Get two messages from one contact, then one from a muted contact.',p:'Two rows with the sender, grouped; the muted one silent. Console.app shows the [SPUSH] lines.'},
+];
+const KEY='walk-office-1083';
+let state={};
+try{state=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){state={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+const host=document.getElementById('rows');
+SECTIONS.forEach(([sk,name])=>{
+  const h=document.createElement('div');h.className='sec';h.textContent=name;host.appendChild(h);
+  ROWS.filter(r=>r.s===sk).forEach(r=>{
+    const s=state[r.id]||{};
+    const el=document.createElement('article');el.className='row';el.dataset.v=s.v||'';
+    el.innerHTML=`<div class="top"><span class="id">${r.id}</span><span class="title">${r.t}</span>${r.k?'<span class="known">KNOWN</span>':''}<span class="where">${r.w}</span></div>
+    <dl><dt>Do</dt><dd>${r.d}</dd><dt>Pass when</dt><dd>${r.p}</dd></dl>
+    <div class="ctl" role="group" aria-label="Result for ${r.id}">
+      <button type="button" data-k="P">Pass</button><button type="button" data-k="F">Fail</button><button type="button" data-k="N">N/A</button>
+    </div>
+    <textarea id="note-${r.id}" placeholder="Note (optional)" aria-label="Note for ${r.id}"></textarea>`;
+    const ta=el.querySelector('textarea');ta.value=s.note||'';
+    ta.addEventListener('input',()=>{state[r.id]={...(state[r.id]||{}),note:ta.value};save();});
+    el.querySelectorAll('.ctl button').forEach(b=>{
+      b.setAttribute('aria-pressed',String(s.v===b.dataset.k));
+      b.addEventListener('click',()=>{
+        const cur=(state[r.id]||{}).v; const v=cur===b.dataset.k?'':b.dataset.k;
+        state[r.id]={...(state[r.id]||{}),v};save();el.dataset.v=v;
+        el.querySelectorAll('.ctl button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===v)));tally();
+      });
+    });
+    host.appendChild(el);
+  });
+});
+function tally(){
+  let p=0,f=0,n=0;ROWS.forEach(r=>{const v=(state[r.id]||{}).v;if(v==='P')p++;else if(v==='F')f++;else if(v==='N')n++;});
+  const left=ROWS.length-p-f-n;
+  document.getElementById('tally').innerHTML=`<b class="p">${p} P</b> · <b class="f">${f} F</b> · <b class="n">${n} N/A</b>${left?` · ${left} left`:''}`;
+}
+tally();
+function text(){
+  let p=0,f=0,n=0;const lines=ROWS.map(r=>{const s=state[r.id]||{};const v=s.v==='P'?'P':s.v==='F'?'F':s.v==='N'?'N/A':'—';
+    if(s.v==='P')p++;else if(s.v==='F')f++;else if(s.v==='N')n++;
+    return `${r.id} [${r.w}] ${v}${s.note?' — '+s.note.trim():''}`;});
+  return `Office walk #1083 (iPhone + Mac, HEAD 97bbf3e8): ${p} P · ${f} F · ${n} N/A\n`+lines.join('\n');
+}
+document.getElementById('copy').addEventListener('click',async()=>{
+  const t=text();const out=document.getElementById('out');const btn=document.getElementById('copy');
+  try{await navigator.clipboard.writeText(t);btn.textContent='Copied';setTimeout(()=>btn.textContent='Copy results',1500);}
+  catch(e){out.style.display='block';out.value=t;out.focus();out.select();btn.textContent='Select and copy';}
+});
+document.getElementById('reset').addEventListener('click',()=>{
+  const btn=document.getElementById('reset');
+  if(btn.dataset.armed!=='1'){btn.dataset.armed='1';btn.textContent='Tap again to clear';setTimeout(()=>{btn.dataset.armed='';btn.textContent='Clear'},2500);return;}
+  state={};save();location.reload();
+});
+</script>

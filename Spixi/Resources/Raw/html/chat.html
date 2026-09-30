@@ -4659,6 +4659,55 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 .c-search-field__clear:active { color: var(--text-action-pressed); }
 
 </style><!-- ★ Session Z (#882 (c)): kept for the W5 in-chat send compose (createWalletSend renders the recipient search) — the W-h gate derives this from the import graph; the comment that once said "chat-info member filter" was the wrong reason for a right link -->
+<style data-src="../styles/components/apps-icon.css">
+/* c-app-icon — rounded-square app-image tile (square sibling of c-avatar).
+   Same deterministic gradient placeholder recipe as the avatar (--ai-h1/h2 from
+   JS, S/L themed here so it tracks light/dark). Sizes 48/64 are component-intrinsic
+   tile dimensions (sanctioned px — apps use a distinct scale from avatars). */
+
+:root {
+  --app-icon-grad-s1: 58%; --app-icon-grad-l1: 48%;
+  --app-icon-grad-s2: 55%; --app-icon-grad-l2: 34%;
+}
+[data-theme="dark"] {
+  --app-icon-grad-s1: 52%; --app-icon-grad-l1: 62%;
+  --app-icon-grad-s2: 48%; --app-icon-grad-l2: 48%;
+}
+
+.c-app-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 48px; height: 48px;                 /* component-intrinsic tile size */
+  border-radius: var(--radius-12);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  color: var(--text-neutral-inverse-01);     /* initial/glyph over the gradient */
+  overflow: hidden;
+}
+.c-app-icon[data-size="64"] { width: 64px; height: 64px; border-radius: var(--radius-16); }
+
+.c-app-icon[data-placeholder] {
+  background-image: linear-gradient(135deg,
+    hsl(var(--ai-h1, 0), var(--app-icon-grad-s1), var(--app-icon-grad-l1)),
+    hsl(var(--ai-h2, 40), var(--app-icon-grad-s2), var(--app-icon-grad-l2)));
+}
+
+.c-app-icon__img { width: 100%; height: 100%; object-fit: cover; }
+
+.c-app-icon__initial {
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-semibold);
+  font-size: 18px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.c-app-icon[data-size="56"] .c-app-icon__initial { font-size: 21px; }   /* recents/related tiles */
+.c-app-icon[data-size="64"] .c-app-icon__initial { font-size: 24px; }
+.c-app-icon[data-size="72"] .c-app-icon__initial { font-size: 28px; }   /* details hero icon */
+
+</style><!-- ★ #1085: the app-invite picker icon tiles -->
 <!-- ★ Session Z (#882 (c)): chat-info.css · txlist-item.css are NO LONGER linked here — they served only the in-chat info takeover #249 retired (its member/txs lists); every info route emits ixian:details and the ContactDetails shell (its own WebView) styles itself. -->
 <style data-src="../styles/components/banner.css">
 /* c-banner — warning strip under the top bar. Passive status: no scrim/trap.
@@ -5614,16 +5663,33 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   }
   .chat-event__chip svg { flex: none; color: var(--icon-accent); }
   /* attach → App-invite picker (inside a c-sheet) */
-  .chat-app-picker { display: flex; flex-direction: column; gap: var(--spacing-4); }
+  /* ★ #1085 (office walk OV.23, Damir: "should be nicer, show apps; many apps → an entire
+     screen with search"): each row = the app's own icon tile + name + publisher; more than
+     APP_PICKER_MANY apps → a search field and a TALL sheet (phone: opens below the top bar,
+     #965 grammar; desktop: a fixed-height dialog) whose LIST scrolls under a fixed search. */
+  .chat-app-picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
+  .chat-app-picker__list { display: flex; flex-direction: column; gap: var(--spacing-2); margin-inline: calc(-1 * var(--spacing-8)); }
   .chat-app-picker__item {
     display: flex; align-items: center; gap: var(--spacing-12);
-    padding: var(--spacing-12); border: 0; border-radius: var(--radius-12);
+    min-height: 56px; padding: var(--spacing-8); border: 0; border-radius: var(--radius-12);
     background: transparent; color: var(--text-neutral-01, inherit); font: inherit;
     text-align: start; cursor: pointer; width: 100%;
   }
   @media (hover: hover) and (pointer: fine) { .chat-app-picker__item:hover { background: var(--surface-interactive-hover); } } /* #337: AND-18 sweep miss */
+  .chat-app-picker__item:active { background: var(--surface-interactive-pressed); }
+  .chat-app-picker__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .chat-app-picker__name, .chat-app-picker__pub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chat-app-picker__name { font-weight: 600; }
+  .chat-app-picker__pub { font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); color: var(--text-neutral-02); }
+  .chat-app-picker__go { flex: none; color: var(--icon-neutral-02); }
   .chat-app-picker__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
+  .chat-app-picker[data-many] { flex: 1 1 auto; min-height: 0; }
+  .chat-app-picker[data-many] .chat-app-picker__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  :root[data-desktop] .c-sheet.chat-app-picker-sheet[data-tall] {
+    display: flex; flex-direction: column; overflow: hidden;
+    height: min(560px, 76%);
+  }
+  :root[data-desktop] .c-sheet.chat-app-picker-sheet[data-tall] > .c-sheet__content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   /* ★ Session Z (#882 (c)): the `.chat-info-takeover` cover rules are gone with the dead
      takeover (see the tombstone at the old block). The send compose below keeps the same
      full-viewport cover grammar on its own rules. */
@@ -5889,6 +5955,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     createModal, openModal, showToast, createButton,
     createWarningBanner, setWarning, createContactRequest,
     createSheet, openSheet, closeSheet,
+    createAppIcon, createSearchField,   // ★ #1085: the app-invite picker (icon tiles + search)
     addReactions: applyReactions,   // component free-fn; aliased — the bridge handler below is also `addReactions`
     truncateAddressMiddle,          // #211 canon: chat surfaces show addresses truncated, never in full
     attachContextMenuAnchors, anchorSheetAbove,   // Batch C (M6): desktop sheet grammar (no-op on mobile)
@@ -9005,27 +9072,79 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     const s = window.SL || {};
     const content = document.createElement('div');
     content.className = 'chat-app-picker';
+    const sheet = createSheet({ title: s.inviteApp || 'Invite an app', content, host: overlayHost, strings: s });
+    sheet.classList.add('chat-app-picker-sheet');
     if (!chatApps.length) {
       const empty = document.createElement('p');
       empty.className = 'chat-app-picker__empty';
       empty.textContent = s.noApps || 'No apps installed yet.';
       content.append(empty);
     } else {
+      const list = document.createElement('div');
+      list.className = 'chat-app-picker__list';
+      const rows = [];
       for (const app of chatApps) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'chat-app-picker__item';
-        if (window.SpixiIcons && window.SpixiIcons.icon) b.append(window.SpixiIcons.icon('rocket', { size: 20 }));
+        // ★ #1085: the app's OWN icon. Only a pushed `data:image/` URI is used (C# sends
+        // local icons through Utils.imageToDataUri, X1 #217); a remote http(s) icon is NOT
+        // fetched — an image load would reveal this device's IP to the publisher (#82 /
+        // #214 class). createAppIcon falls back to the gradient tile.
+        b.append(createAppIcon({ src: appPickerIconSrc(app.icon), name: app.name, size: 40 }));
+        const txt = document.createElement('span');
+        txt.className = 'chat-app-picker__text';
         const nm = document.createElement('span');
         nm.className = 'chat-app-picker__name';
         nm.textContent = app.name;
-        b.append(nm);
+        txt.append(nm);
+        if (app.publisher) {
+          const pub = document.createElement('span');
+          pub.className = 'chat-app-picker__pub';
+          pub.textContent = app.publisher;
+          txt.append(pub);
+        }
+        b.append(txt);
+        if (window.SpixiIcons && window.SpixiIcons.icon) {
+          const go = window.SpixiIcons.icon('chevron-right', { size: 20 });
+          go.classList.add('chat-app-picker__go');
+          b.append(go);
+        }
         b.addEventListener('click', () => { closeSheet(sheet); bridge.send('ixian:app:' + app.id); });
-        content.append(b);
+        rows.push({ el: b, q: (app.name + ' ' + (app.publisher || '')).toLowerCase() });
+        list.append(b);
+      }
+      if (chatApps.length > APP_PICKER_MANY) {
+        // Many apps: search + a tall sheet whose list scrolls under the fixed search.
+        const none = document.createElement('p');
+        none.className = 'chat-app-picker__empty';
+        none.hidden = true;
+        const search = createSearchField({
+          placeholder: s.searchApps || 'Find installed apps',
+          onInput: (v) => {
+            const q = String(v || '').trim().toLowerCase();
+            let shown = 0;
+            for (const r of rows) { const hit = !q || r.q.indexOf(q) !== -1; r.el.hidden = !hit; if (hit) shown++; }
+            none.hidden = shown !== 0;
+            list.hidden = shown === 0;   // the empty list must not hold the flex space above the message
+            // split/join, not String.replace: a `$&` in the query must stay literal (#288)
+            if (!shown) none.textContent = (s.appsEmptySearch || 'No apps match “{q}”').split('{q}').join(String(v || '').trim());
+          },
+        });
+        content.dataset.many = '';
+        sheet.dataset.tall = '';
+        content.append(search, list, none);
+      } else {
+        content.append(list);
       }
     }
-    const sheet = createSheet({ title: s.inviteApp || 'Invite an app', content, host: overlayHost, strings: s });
     openSheet(sheet);
+  }
+  /* ★ #1085: more than this many installed apps → search + tall sheet. */
+  const APP_PICKER_MANY = 6;
+  function appPickerIconSrc(icon) {
+    const v = String(icon || '');
+    return /^data:image\//i.test(v) ? v : null;
   }
 
   /* incoming contact-request pane (#109) — showContactRequest fires when the
@@ -10814,7 +10933,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     },
     // installed multi-user apps (loadApps, xaml:1088 — addApp(id,name,icon,publisher))
     // → the attach "App invite" picker. icon path doesn't resolve in-shell → omitted.
-    addApp(id, name, icon, publisher) { chatApps.push({ id: String(id), name: name || String(id), publisher: publisher || '' }); },
+    addApp(id, name, icon, publisher) { chatApps.push({ id: String(id), name: name || String(id), icon: icon || '', publisher: publisher || '' }); },   // ★ #1085: icon kept (data: only is shown)
     clearApps() { chatApps.length = 0; },
     // BOT CHANNELS (chat.js:1353/250/1345). setSelectedChannel names the current
     // channel + reveals the bar; addChannelToSelector rows arrive (pull-on-open)

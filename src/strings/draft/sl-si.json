@@ -117,8 +117,6 @@
   "capx_Storage": "Lahko shranjuje podatke v vašo napravo, da si stvari zapomni med sejami.",
   "capx_TransactionSigning": "Lahko vas prosi za odobritev plačil IXI. Vsako plačilo vedno potrdite sami.",
   "categories": "Kategorije",
-  "chainScanNote": "Spixi pregleduje najnovejše bloke in išče transakcije z vašim naslovom.",
-  "chainScanNoteStarting": "Spixi ugotavlja, kako daleč je napredovala veriga blokov. To običajno traja nekaj trenutkov po odprtju aplikacije.",
   "chainScanStarting": "Zaganjanje preverjanja",
   "chainScanTitle": "Iskanje vaših transakcij",
   "changePassword": "Spremeni geslo denarnice",
@@ -368,11 +366,8 @@
   "miniAppInfo": "Mini aplikacije so lahke spletne aplikacije, ki varno tečejo znotraj Spixija. Dodajajte le aplikacije iz virov, ki jim zaupate.",
   "missedCall": "Zgrešeni glasovni klic",
   "missingTx": "Manjka transakcija?",
-  "missingTxBody": "Spixi bere vašo zgodovino neposredno z verige blokov Ixian. Nedavne transakcije se lahko prikažejo z zamikom, zelo stare pa tukaj morda niso navedene.",
-  "missingTxOldest": "Spixi pregleduje bloke šele od stalne začetne točke naprej. Starejših transakcij tukaj ni. Celotno zgodovino najdete v ixiscope-u.",
   "missingTxScanDone": "Spixi je končal pregled najnovejših blokov, zato manjkajoča transakcija ne čaka na to.",
   "missingTxScanUnknown": "Spixi še ni mogel doseči omrežja, zato vaših transakcij še ni iskal.",
-  "missingTxScanning": "Spixi še vedno pregleduje najnovejše bloke in išče vaše transakcije ({percent}% končano). Kar še ni pregledal, se bo pojavilo sproti.",
   "modal": "Pogovorno okno",
   "moreApps": "Več mini aplikacij",
   "moreContacts": "{n} več. Tipkajte naprej za zoženje izbora",
@@ -742,5 +737,11 @@
   "groundBrandGradient": "Blagovni preliv",
   "patternStyleContours": "Plastnice",
   "tapToDownload": "Tapnite za prenos",
-  "viewOnIxiScope": "Ogled v ixiscope"
+  "viewOnIxiScope": "Ogled v ixiscope",
+  "missingTxCheckingHead": "Preverjanje verige blokov",
+  "missingTxOlder": "Transakcije pred začetnim blokom Spixija tukaj niso prikazane. ixiscope prikaže celotno zgodovino.",
+  "missingTxScanSub": "Preverjenih {0}% novih blokov",
+  "missingTxStartingSub": "To običajno traja nekaj trenutkov.",
+  "missingTxUpToDate": "Posodobljeno",
+  "missingTxUpToDateSub": "Spixi je preveril najnovejše bloke."
 }

@@ -102,8 +102,6 @@
   "capx_Storage": "Gali išsaugoti duomenis jūsų įrenginyje, kad prisimintų informaciją tarp sesijų.",
   "capx_TransactionSigning": "Gali prašyti patvirtinti IXI mokėjimus. Kiekvieną iš jų visada patvirtinate patys.",
   "categories": "Kategorijos",
-  "chainScanNote": "Spixi peržiūri naujausius blokus ir ieško operacijų su jūsų adresu.",
-  "chainScanNoteStarting": "Spixi nustato, kiek toli pažengė blokų grandinė. Paprastai tai trunka kelias akimirkas po programėlės atidarymo.",
   "chainScanStarting": "Pradedama patikra",
   "chainScanTitle": "Ieškoma jūsų operacijų",
   "changePhoto": "Keisti nuotrauką",
@@ -322,11 +320,8 @@
   "miniAppInfo": "Mini programėlės yra lengvos web programėlės, kurios saugiai veikia Spixi viduje. Pridėkite tik programėles iš šaltinių, kuriais pasitikite.",
   "missedCall": "Praleistas balso skambutis",
   "missingTx": "Trūksta operacijos?",
-  "missingTxBody": "Spixi jūsų istoriją skaito tiesiai iš Ixian blokų grandinės. Naujausios operacijos gali pasirodyti ne iš karto, o labai senos čia gali būti nerodomos.",
-  "missingTxOldest": "Spixi tikrina blokus tik nuo nustatyto pradžios taško. Senesnės operacijos čia nerodomos. Visą istoriją rasite naršyklėje.",
   "missingTxScanDone": "Spixi baigė tikrinti naujausius blokus, todėl trūkstama operacija laukia ne dėl to.",
   "missingTxScanUnknown": "Spixi kol kas nepavyko pasiekti tinklo, todėl jūsų operacijų dar neieškojo.",
-  "missingTxScanning": "Spixi vis dar tikrina naujausius blokus, ieškodama jūsų operacijų (atlikta {percent}%). Tai, ko dar nepasiekė, atsiras eigoje.",
   "modal": "Dialogas",
   "moreApps": "Daugiau mini programėlių",
   "moreContacts": "Dar {n}. Rašykite toliau, kad susiaurintumėte",
@@ -663,5 +658,11 @@
   "groundBrandGradient": "Prekės ženklo gradientas",
   "patternStyleContours": "Kontūrai",
   "tapToDownload": "Palieskite, kad atsisiųstumėte",
-  "viewOnIxiScope": "Peržiūrėti per ixiscope"
+  "viewOnIxiScope": "Peržiūrėti per ixiscope",
+  "missingTxCheckingHead": "Tikrinama blokų grandinė",
+  "missingTxOlder": "Operacijos iki Spixi pradinio bloko čia nerodomos. ixiscope rodo visą istoriją.",
+  "missingTxScanSub": "Patikrinta {0}% naujų blokų",
+  "missingTxStartingSub": "Paprastai tai užtrunka kelias akimirkas.",
+  "missingTxUpToDate": "Atnaujinta",
+  "missingTxUpToDateSub": "Spixi patikrino naujausius blokus."
 }

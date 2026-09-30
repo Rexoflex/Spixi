@@ -8364,7 +8364,10 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
   /* ★ #1052: 688 → 690 — the tonal button's own palette (4 private props on .c-button, 4 on the destructive intent,
      3 retargeted tonal rules + their docblock) inlines into every shell via button.css. MEASURED on chat.html:
      704 335 → 705 055 chars (+720); headroom under 688 had been 177. Headroom under 690 is 1 505. Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 690, INDEX_KB_CEIL = 531;
+  /* ★ #1071: 690 → 691 — the menu close curve + the scrim pair (+2 rules) and --easing-standard-mirror inline
+     into every shell via overlay.css / tokens. MEASURED on chat.html: 706 114 → 706 525 chars (+411); headroom under
+     690 had been 446, under 691 it is 1 059. Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 691, INDEX_KB_CEIL = 531;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -17070,9 +17073,41 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   // pin that counts its own explanation is testing nothing.
   ok(!/once it reaches the network/.test(walletJs2.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')),
     '★ COPY: the sheet BODY was the worse half — "once it reaches the network" states outright that Spixi is offline, which is the misreading being fixed AND is now false in the common case');
-  ok(/chainScanStarting:/.test(enUs) && /chainScanNoteStarting:/.test(enUs)
+  ok(/chainScanStarting:/.test(enUs)   /* ★ #1072: chainScanNoteStarting retired with the sheet's prose (A layout) */
     && !/chainScanConnecting:/.test(enUs) && !/chainScanNoteUnknown:/.test(enUs),
     '★ COPY: the retired keys are GONE from the dictionary, not left orphaned beside their replacements');
+}
+
+console.log('#1072 — the missing-tx sheet, layout A (one status card, one sentence, tonal ixiscope)');
+{
+  /* EXECUTED on the bundle: three scan states → the card's state, glyph and copy; the old prose is gone. */
+  const dom72 = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', pretendToBeVisual: true });
+  const W = dom72.window;
+  W.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+  W.eval(readFileSync(join(root, 'src/components/icons.iife.js'), 'utf8')); W.eval(readFileSync(join(root, 'src/demo/spixi.iife.js'), 'utf8'));
+  const S = W.Spixi, d = W.document;
+  const host = d.createElement('div'); d.body.append(host);
+  const r = {};
+  const open = (scan) => { const sh = S.openMissingTxSheet({ host, onExplorer() {}, scan, strings: {} }); const c = sh.querySelector('.c-misstx__status'); const out = { st: c ? c.dataset.state : undefined, ring: !!(c && c.querySelector('svg') && !c.querySelector('.c-misstx__check')), check: !!(c && c.querySelector('.c-misstx__check')), head: c && c.querySelector('.c-misstx__statushead').textContent, sub: c && c.querySelector('.c-misstx__statussub').textContent, body: (sh.querySelector('.c-misstx__body') || {}).textContent, btn: sh.querySelector('.c-misstx__actions button'), blocks: sh.querySelector('.c-misstx').children.length, old: !!sh.querySelector('.c-misstx__scancard, .c-misstx__origin') }; S.closeSheet(sh); return out; };
+  const a = open({ state: 'unknown' }), b = open({ state: 'scanning', percent: 41.6 }), c = open({ state: 'done', percent: 100 }), n = open(null);
+  const hi = open({ state: 'scanning', percent: 150 }), lo = open({ state: 'scanning', percent: -5 });
+  r.unknown = a.st === 'unknown' && a.ring && a.head === 'Starting the check' && a.sub === 'This usually takes a few moments.';
+  r.scanning = b.st === 'scanning' && b.ring && b.head === 'Checking the blockchain' && b.sub === '42% of new blocks checked';
+  r.clamp = hi.sub === '100% of new blocks checked' && lo.sub === '0% of new blocks checked';
+  r.done = c.st === 'done' && c.check && c.head === 'Up to date' && c.sub === 'Spixi has checked the latest blocks.';
+  /* r1 MAJOR: no report yet = NO card — the sheet never claims "up to date" for blocks nobody checked */
+  r.noReport = n.st === undefined && n.blocks === 2 && /starting block/.test(n.body);
+  r.three = [a, b, c].every((x) => x.blocks === 3 && !x.old && /starting block/.test(x.body));
+  r.tonal = !!a.btn && a.btn.dataset.type === 'tonal' && /ixiscope/.test(a.btn.textContent);
+  /* r1 MAJOR-2: every locale's card keys are single-line and placeholder-honest (a stale draft once
+     put a two-sentence {percent} paragraph into the headline key) */
+  for (const loc of ['de-de', 'sl-si', 'fr-fr']) {
+    const L = JSON.parse(readFileSync(join(root, 'src/strings/' + loc + '.json'), 'utf8'));
+    r['loc_' + loc] = !/[{}]/.test(L.missingTxCheckingHead || '') && (L.missingTxCheckingHead || '').length < 60
+      && /\{0\}/.test(L.missingTxScanSub || '{0}') && !('missingTxScanning' in L);
+  }
+  ok(Object.values(r).every((v) => v === true),
+    '★ #1072 (Damir picked A): the missing-tx sheet = ONE status card (unknown → a spinning ring + "Starting the check" · scanning → the ring + the clamped percent · done → a check + "Up to date" · NO report → no card) + ONE sentence (nothing before the starting block is listed) + the tonal "View on ixiscope" — three blocks, the old scan card and origin paragraph gone — ' + JSON.stringify(r));
 }
 
 console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fee, native confirm');
@@ -18610,10 +18645,29 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★ Batch E (a) (#587 rebase): both exits anchor (handshaking + main) and all three gestures thread the row through — the anchor now also carries the ADDRESS, so a row a flush replaced can be re-resolved');
   /* ★ #1067 REBASE (Damir: "animate slightly, not instant"): the rest state is scale(0.92) + opacity 0 —
      it GROWS out of the pressed message (the origin is set by anchorSheetToRow), still no travel */
-  ok(/:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \{[^}]*transform: scale\(0\.92\);[^}]*opacity: 0;[^}]*transition: opacity var\(--duration-200\) var\(--easing-standard\),\s*transform var\(--duration-200\) var\(--easing-standard\);/.test(ovCssE)
-     && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\]\[data-open\] \{ transform: none; opacity: 1; \}/.test(ovCssE)
+  /* ★ #1071 REBASE (Damir: "fade OUT the way it grows in"): the rest-state rule times the CLOSE with the
+     time-mirror of the open curve; the [data-open] rule keeps --easing-standard for the open */
+  ok(/:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \{[^}]*transform: scale\(0\.92\);[^}]*opacity: 0;[^}]*transition: opacity var\(--duration-200\) var\(--easing-standard-mirror\),\s*transform var\(--duration-200\) var\(--easing-standard-mirror\);/.test(ovCssE)
+     && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\]\[data-open\] \{\s*transform: none; opacity: 1;\s*transition-timing-function: var\(--easing-standard\);[^}]*\}/.test(ovCssE)
      && /:root:not\(\[data-desktop\]\) \.c-sheet\[data-m-anchor\] \.c-sheet__handle \{ display: none; \}/.test(ovCssE),
-    '★ Batch E (a) CSS: the mobile anchored variant FADES IN PLACE (a panel sliding from the bottom edge would point at the wrong origin), drops the drag handle, and stays scoped OFF desktop');
+    '★ Batch E (a) CSS: the mobile anchored variant FADES IN PLACE (a panel sliding from the bottom edge would point at the wrong origin), drops the drag handle, and stays scoped OFF desktop; ★ #1071: it CLOSES on the mirrored curve and OPENS on --easing-standard');
+  {
+    const da71 = stripCode(readFileSync(join(root, 'src/components/desktop-anchors.js'), 'utf8'));
+    ok(/:root:not\(\[data-desktop\]\) \.c-scrim\[data-m-anchor-scrim\] \{ transition-timing-function: var\(--easing-standard-mirror\); \}/.test(ovCssE)
+       && /:root:not\(\[data-desktop\]\) \.c-scrim\[data-m-anchor-scrim\]\[data-open\] \{ transition-timing-function: var\(--easing-standard\); \}/.test(ovCssE)
+       && /scrimEl\.dataset\.mAnchorScrim = '';/.test(da71)
+       && /const presented = isOverlayOpen\(sheet\);/.test(da71) && /if \(presented && !isOverlayOpen\(sheet\)\) return;\s*place\(\);/.test(da71),
+      '★ #1071 r1 (B MINOR + NIT): the anchored menu\'s scrim is tagged and follows the menu both ways (open standard, close mirrored), and a CLOSING menu is never re-placed by a viewport change');
+  }
+  {
+    /* ★ #1071: --easing-standard-mirror IS the time-reverse of --easing-standard — (x1,y1,x2,y2) → (1−x2, 1−y2, 1−x1, 1−y1).
+       A drifted standard curve with a stale mirror would make the close stop matching the open. */
+    const tk71 = stripCssComments(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8'));
+    const cb = (name) => { const m = new RegExp(name + ': cubic-bezier\\(([^)]+)\\);').exec(tk71); return m ? m[1].split(',').map(Number) : null; };
+    const st = cb('--easing-standard'), mi = cb('--easing-standard-mirror');
+    ok(!!st && !!mi && [1 - st[2], 1 - st[3], 1 - st[0], 1 - st[1]].every((v, i) => Math.abs(v - mi[i]) < 1e-9),
+      '★ #1071: --easing-standard-mirror is the exact time-mirror of --easing-standard (' + JSON.stringify({ st, mi }) + ') — every close frame at t equals the open frame at 200 − t');
+  }
   /* r3 (loop E-1): the safe-region + own-scroller cap — a menu that outgrows the
      host with body scroll locked is unreachable UI, and top=8 puts the react row
      under the Dynamic Island (the #288 inset class). */
@@ -18656,7 +18710,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const sh68 = stripCssComments(readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8'));
     ok(/--elevation-settings-card: 0 1px 2px rgba\(17, 18, 19, 0\.03\), 0 1px 3px rgba\(17, 18, 19, 0\.05\);/.test(tk68)
        && /--elevation-settings-card: var\(--elevation-1\);/.test(tk68)
-       && /\.c-settings__group \{[^}]*box-shadow: var\(--elevation-settings-card\);/.test(sh68),
+       && /\.c-settings__group \{[^}]*box-shadow: var\(--elevation-settings-card\);/.test(sh68)
+       /* ★ #1071 (#46 C MINOR-4): EVERY consumer, and the dark value inside the dark block */
+       && (stripCssComments(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8')).match(/box-shadow: var\(--elevation-settings-card\);/g) || []).length === 1
+       && (stripCssComments(readFileSync(join(root, 'src/styles/components/settings-app.css'), 'utf8')).match(/box-shadow: var\(--elevation-settings-card\);/g) || []).length === 1
+       && (stripCssComments(readFileSync(join(root, 'src/styles/components/settings-backup.css'), 'utf8')).match(/box-shadow: var\(--elevation-settings-card\);/g) || []).length === 2
+       && /\[data-theme=["']?dark["']?\][^{]*\{[^}]*--elevation-settings-card: var\(--elevation-1\);/.test(tk68)
+       && !/\[data-theme=["']?dark["']?\][^{]*\{[^}]*--elevation-settings-card: 0 1px 2px/.test(tk68),
       '★ #1068 (Damir): the Account card groups take a SOFTER light shadow (half of elevation-1\'s alpha, same geometry); dark keeps elevation-1');
   }
   /* — (b) the mobile scrim, one level deeper — */
@@ -26935,7 +26995,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
 
     /* ★ B4 (⑥): ONE detach(), reached from the observer AND the isConnected belt — source half. */
     ok(/const detach = \(\) => \{\s*if \(detached\) return;\s*detached = true;\s*try \{ window\.removeEventListener\('resize', reflow\); \} catch \(e\) \{\}\s*try \{ if \(window\.visualViewport\) window\.visualViewport\.removeEventListener\('resize', reflow\); \} catch \(e\) \{\}\s*try \{ if \(window\.visualViewport\) window\.visualViewport\.removeEventListener\('scroll', reflow\); \} catch \(e\) \{\}\s*try \{ if \(goneObs\) goneObs\.disconnect\(\); \} catch \(e\) \{\}\s*goneObs = null;\s*\};/.test(daNC)   /* ★ #1065 r1: + the visual-viewport SCROLL leg, in the same one detach() */
-       && /const reflow = \(\) => \{\s*if \(!sheet\.isConnected\) \{\s*detach\(\);\s*return;\s*\}\s*place\(\);\s*\};/.test(daNC)
+       && /const reflow = \(\) => \{\s*if \(!sheet\.isConnected\) \{\s*detach\(\);\s*return;\s*\}\s*if \(presented && !isOverlayOpen\(sheet\)\) return;\s*place\(\);\s*\};/.test(daNC)   /* ★ #1071: + the closing gate */
        && /goneObs = new MutationObserver\(\(\) => \{ if \(!sheet\.isConnected\) detach\(\); \}\);\s*goneObs\.observe\(sheet\.parentNode, \{ childList: true \}\);/.test(daNC)
        && /\} catch \(e\) \{ goneObs = null; \}/.test(daNC)
        && (daNC.match(/window\.removeEventListener\('resize', reflow\)/g) || []).length === 1
@@ -38285,6 +38345,91 @@ console.log('★★ #1028+ — the overnight finalization');
            && /e\.preventDefault\(\);\s*if \(menuOverField\(\)\) return;\s*send\(\);/.test(cp)
            && /if \(e\.key === 'Escape' && composerCtx\.has\(el\) && !menuOverField\(\)\) cancelComposerContext\(el\);/.test(cp),
           '★ #1065 r2 (MINOR-3): while the message menu is up over the focused composer, Enter does not send and Esc closes the MENU only — the reply/edit context survives');
+      }
+    }
+    {
+      /* ★★ #1071 (X.8, Damir on Android: the keyboard closed at the long-press and came back on close).
+         Blink's long-press runs HandleMouseFocus on the pressed node with no DOM event; a CANCELED touch
+         pointerdown is the only page-side switch (suppress_mouse_events_from_gestures_). EXECUTED: the
+         cancel happens exactly when a TOUCH press lands on a message while a text field holds focus. */
+      const W = mkWin(), S = W.Spixi, d = W.document;
+      const host = d.createElement('div'); d.body.append(host);
+      const ta = d.createElement('textarea'); host.append(ta);
+      const row = d.createElement('div'); row.className = 'c-bubble-row'; row.dataset.direction = 'received';
+      row.innerHTML = '<div class="c-bubble">hi</div>'; host.append(row);
+      S.attachMessageMenu(row, { host, text: 'hi', onAction() {} });
+      const bub = row.querySelector('.c-bubble');
+      const press = (type) => {
+        const ev = new W.Event('pointerdown', { bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'pointerType', { value: type }); Object.defineProperty(ev, 'button', { value: 0 });
+        Object.defineProperty(ev, 'clientX', { value: 5 }); Object.defineProperty(ev, 'clientY', { value: 5 });
+        bub.dispatchEvent(ev);
+        const up = new W.Event('pointerup', { bubbles: true }); bub.dispatchEvent(up);   // cancels the long-press timer
+        return ev.defaultPrevented;
+      };
+      const r = {};
+      ta.focus();
+      r.touchKept = press('touch') === true && d.activeElement === ta;
+      r.mousePlain = press('mouse') === false;
+      ta.blur();
+      r.noFieldPlain = press('touch') === false;
+      ta.focus();
+      host.dataset.selecting = '';
+      r.selectingPlain = press('touch') === false;
+      delete host.dataset.selecting;
+      ta.readOnly = true;
+      r.readOnlyPlain = press('touch') === false;   // not a text entry → nothing to keep
+      ta.readOnly = false;
+      ta.focus();
+      r.penKept = press('pen') === true;
+      /* r1 (A MAJOR-1): a guarded SHORT tap keeps the old blur at click — the field lets go and the
+         focusable under the finger takes focus (an overlay it opens restores there, not the composer) */
+      const link = d.createElement('button'); link.className = 'c-bubble__link'; bub.append(link);
+      ta.focus();
+      const ev = new W.Event('pointerdown', { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, 'pointerType', { value: 'touch' }); Object.defineProperty(ev, 'button', { value: 0 });
+      link.dispatchEvent(ev);
+      link.dispatchEvent(new W.Event('pointerup', { bubbles: true }));
+      link.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true }));
+      r.tapRestores = ev.defaultPrevented === true && d.activeElement === link;
+      ta.focus();
+      d.documentElement.setAttribute('data-platform', 'ios');
+      r.webkitPlain = press('touch') === false;
+      d.documentElement.removeAttribute('data-platform');
+      ok(Object.values(r).every((v) => v === true),
+        '★★ #1071 (X.8): a TOUCH press on a message while a text field holds focus cancels its pointerdown (Blink then skips the long-press focus move — the keyboard stays up); a mouse press, no focused field, a read-only field and selection mode keep the old path — ' + JSON.stringify(r));
+      const mm = stripCode(readFileSync(join(root, 'src/components/message-menu.js'), 'utf8'));
+      const kb = mm.slice(mm.indexOf('const kbdiag = '), mm.indexOf("target.addEventListener('pointerdown'"));
+      const calls = kb.match(/console\.\w+\(/g) || [];
+      ok(calls.length === 2
+         && kb.includes("console.log('[KBDIAG] open via=' + via + ' guarded=' + guarded + ' ae=' + tag(document.activeElement));")
+         && kb.includes("console.log('[KBDIAG] +400ms ae=' + tag(document.activeElement));")
+         && kb.includes("const tag = (n) => (n ? n.tagName + (n.className && typeof n.className === 'string' ? '.' + n.className.split(' ')[0] : '') : 'null');")
+         && /try \{[\s\S]*\} catch \(err\)/.test(kb)
+         && (mm.match(/kbdiag\('(timer|contextmenu)'\);/g) || []).length === 2,
+        '★ #1071 [KBDIAG] (security gate lens, r1 C MINOR-3: EXACT expressions): the X.8 walk probe logs only the path, the guard flag and an element TAG + first class — never message text, a name or an address — two console calls, inside a try, once per open path (timer + contextmenu)');
+      /* r1 (B MAJOR): the HAND-OFF — close a long-press menu and open another overlay in the same task:
+         the closing menu is hidden at once (it sits above the new scrim), its scrim swaps for the new one
+         at full strength; an ordinary close keeps the mirrored fade */
+      {
+        const rowB = d.createElement('div'); rowB.className = 'c-bubble-row'; rowB.dataset.direction = 'received';
+        rowB.innerHTML = '<div class="c-bubble">x</div>'; host.append(rowB);
+        const m1 = S.createSheet({ content: d.createElement('div'), host, strings: {} });
+        S.openSheet(m1); m1.dataset.mAnchor = '';
+        const sc1 = m1.previousElementSibling;
+        rowB.dataset.menuLift = '';
+        const m1opts = { onDismiss: () => { delete rowB.dataset.menuLift; } };
+        S.setOverlayOpts(m1, m1opts);
+        S.closeSheet(m1);
+        const plainClose = m1.style.opacity === '' && m1.isConnected;
+        const modal = S.createModal({ title: 't', body: 'b', actions: [{ label: 'ok', type: 'text' }], host, strings: {} });
+        S.openModal(modal);
+        const newScrim = modal.previousElementSibling;
+        const r2 = { plainClose, removed: !m1.isConnected && !sc1.isConnected, unlifted: rowB.dataset.menuLift === undefined,
+          newScrimFull: !!newScrim && newScrim.dataset.open === '' && newScrim.style.transition === '' };
+        S.closeModal(modal);
+        ok(Object.values(r2).every((v) => v === true),
+          '★ #1071 r1/r2 (B MAJOR, r2 MINOR-1): a menu → dialog HAND-OFF removes the closing anchored menu AND its scrim at once — onDismiss runs, so no lifted message stays above the new scrim — and the new scrim starts at full strength (no menu through the dialog, no dim pulse); a plain close keeps the fade — ' + JSON.stringify(r2));
       }
     }
   }

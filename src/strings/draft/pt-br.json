@@ -117,8 +117,6 @@
   "capx_Storage": "Pode salvar dados no seu dispositivo para lembrar informações entre sessões.",
   "capx_TransactionSigning": "Pode pedir que você aprove pagamentos em IXI. Você sempre confirma cada um deles.",
   "categories": "Categorias",
-  "chainScanNote": "O Spixi está verificando os blocos recentes em busca de transações com o seu endereço.",
-  "chainScanNoteStarting": "O Spixi está calculando até onde a blockchain avançou. Isso costuma levar alguns instantes depois de abrir o aplicativo.",
   "chainScanStarting": "Iniciando a verificação",
   "chainScanTitle": "Procurando suas transações",
   "changePassword": "Alterar senha da carteira",
@@ -368,11 +366,8 @@
   "miniAppInfo": "Mini apps são aplicativos web leves que rodam com segurança dentro do Spixi. Adicione apenas apps de fontes em que você confia.",
   "missedCall": "Chamada de voz perdida",
   "missingTx": "Falta uma transação?",
-  "missingTxBody": "O Spixi lê seu histórico diretamente da blockchain Ixian. Transações recentes podem levar um momento para aparecer, e as muito antigas podem não estar listadas aqui.",
-  "missingTxOldest": "O Spixi só verifica blocos a partir de um ponto de partida fixo. Transações anteriores a esse ponto não aparecem aqui. O Explorer tem seu histórico completo.",
   "missingTxScanDone": "O Spixi terminou de verificar os blocos recentes, então uma transação que falta não está esperando por isso.",
   "missingTxScanUnknown": "O Spixi ainda não conseguiu acessar a rede, então ainda não procurou suas transações.",
-  "missingTxScanning": "O Spixi ainda está verificando os blocos recentes em busca das suas transações ({percent}% concluído). O que ele ainda não alcançou vai aparecer conforme avança.",
   "modal": "Diálogo",
   "moreApps": "Mais mini apps",
   "moreContacts": "Mais {n}. Continue digitando para restringir",
@@ -741,5 +736,11 @@
   "groundBrandGradient": "Degradê da marca",
   "patternStyleContours": "Contornos",
   "tapToDownload": "Toque para baixar",
-  "viewOnIxiScope": "Ver no ixiscope"
+  "viewOnIxiScope": "Ver no ixiscope",
+  "missingTxCheckingHead": "Verificando a blockchain",
+  "missingTxOlder": "Transações anteriores ao bloco inicial do Spixi não aparecem aqui. O ixiscope mostra todo o seu histórico.",
+  "missingTxScanSub": "{0}% dos novos blocos verificados",
+  "missingTxStartingSub": "Isso costuma levar alguns instantes.",
+  "missingTxUpToDate": "Atualizado",
+  "missingTxUpToDateSub": "O Spixi verificou os blocos mais recentes."
 }

@@ -1085,78 +1085,76 @@ export function openTxSheet({ tx = {}, host, strings = getStrings(), onExplorer,
 /* ————————————————————— missing-tx explainer sheet (#98) ————————————————————— */
 
 export function openMissingTxSheet({ host, strings = getStrings(), onExplorer, scan = null } = {}) {
+  /* ★★ #1072 (Damir picked A of three renders, `docs/sheets/1071/misstx-*.png`: "this block of text
+   * seems quite heavy — premiumize this sheet"). Was: a 3-line paragraph, a card with a 3-line note,
+   * a second paragraph and a FILL button — four blocks of prose for one question. Now ONE status card
+   * (a glyph + one line + one short line) and ONE sentence, then the tonal ixiscope button (#1051's
+   * grammar on the tx sheet).
+   *
+   * The card answers "is it still arriving?" in all three states the wallet row knows
+   * (`scanProgressState`): unknown = "Starting the check" (the #2026-08-22 copy, kept — never
+   * "Connecting"), scanning = the percent, done = a check. ★ done is the row being HIDDEN, which is the
+   * row's own "caught up" reading (#440) — the card claims only that the latest blocks were checked;
+   * no report yet (`null`) = no card at all.
+   * The sentence is the standing truth (#443): nothing older than Spixi's fixed starting block is ever
+   * listed, so ixiscope is the real resolution. */
   const content = document.createElement('div');
   content.className = 'c-misstx';
-  const body = document.createElement('p');
-  body.className = 'c-misstx__body';
-  body.textContent = strings.missingTxBody
-    || 'Spixi reads your history directly from the Ixian blockchain. Recent transactions can take a moment to appear, and very old ones may not be listed here.';
-  content.append(body);
 
-  /* ★ #440/#443/#452: this sheet finally has a CONCRETE answer, and it is TWO answers.
-   *
-   * ① While a scan is running, the scan IS the answer — shown as a card with the large
-   *    ring, the same reading the slim row on the wallet shows, because the row is what
-   *    opened this sheet.
-   * ② ★ AND ALWAYS, running or not: Spixi only looks at blocks from a FIXED STARTING
-   *    POINT built into the app and never walks back past it, so a transaction older
-   *    than that point will never be listed here no matter how long anyone waits. The
-   *    sheet used to end at "the scan is finished, so that is not why", which closes off
-   *    the true explanation at exactly the moment it is needed (Damir, on device). That
-   *    also makes the Explorer button the real resolution rather than a consolation. */
-  if (scan && (scan.state === 'scanning' || scan.state === 'unknown')) {
-    const card = document.createElement('div');
-    card.className = 'c-misstx__scancard';
-    card.dataset.state = scan.state;
-
-    const ring = createScanRing({ size: 56, stroke: 5, showPercent: scan.state === 'scanning' });
-    if (scan.state === 'unknown') setScanRing(ring, { indeterminate: true });
-    else setScanRing(ring, { percent: Number(scan.percent) || 0 });
-
-    const col = document.createElement('div');
-    col.className = 'c-misstx__scancol';
-    const h = document.createElement('p');
-    h.className = 'c-misstx__scanhead';
-    const b = document.createElement('p');
-    b.className = 'c-misstx__scanbody';
-    if (scan.state === 'scanning') {
-      h.textContent = strings.chainScanTitle || 'Checking for your transactions';
-      b.textContent = strings.chainScanNote
-        || 'Spixi is looking through recent blocks for transactions that involve your address.';
-    } else {
-      /* ★ COPY (Damir, 2026-08-22): "Connecting" read as "the app has no connection".
-     It never meant that — and after the F6 fix it is plainly wrong, because this state now
-     also fires while we ARE connected and the peer heights simply are not credible yet.
-     "Starting the check" names the same activity as the scanning state and marks it as
-     not-yet-underway, so the two read as one sequence rather than two different things. */
-      h.textContent = strings.chainScanStarting || 'Starting the check';
-      /* ⚠ And the BODY was the worse half: "once it reaches the network" states outright
-         that Spixi is offline, which is the very thing Damir flagged people misreading —
-         and it is now false in the common case. It describes what is actually happening
-         instead: working out how far the chain has moved. */
-      b.textContent = strings.chainScanNoteStarting
-        || 'Spixi is working out how far the blockchain has moved. This usually takes a few moments after you open the app.';
-    }
-    col.append(h, b);
-    card.append(ring, col);
-    content.append(card);
+  /* #1072 r1 (MAJOR): no scan report yet (`null` until the first push, or an older exe) = NO card —
+     the sheet never claims "up to date" for blocks nobody has checked. */
+  const st = !scan ? null : (scan.state === 'scanning' || scan.state === 'unknown') ? scan.state : 'done';
+  if (st) {
+  const card = document.createElement('div');
+  card.className = 'c-misstx__status';
+  card.dataset.state = st;
+  let glyph;
+  if (st === 'done') {
+    glyph = document.createElement('span');
+    glyph.className = 'c-misstx__check';
+    glyph.setAttribute('aria-hidden', 'true');
+    glyph.append(icon('check', { size: 22 }));
+  } else {
+    glyph = createScanRing({ size: 28, stroke: 3 });
+    if (st === 'unknown') setScanRing(glyph, { indeterminate: true });
+    else setScanRing(glyph, { percent: Number(scan.percent) || 0 });
+  }
+  const col = document.createElement('div');
+  col.className = 'c-misstx__statuscol';
+  const h = document.createElement('p');
+  h.className = 'c-misstx__statushead';
+  const sub = document.createElement('p');
+  sub.className = 'c-misstx__statussub';
+  if (st === 'scanning') {
+    h.textContent = strings.missingTxCheckingHead || 'Checking the blockchain';   // one line in the card (the row keeps chainScanTitle)
+    const pct = String(Math.max(0, Math.min(100, Math.round(Number(scan.percent) || 0))));
+    sub.textContent = (strings.missingTxScanSub || '{0}% of new blocks checked').split('{0}').join(pct);
+  } else if (st === 'unknown') {
+    h.textContent = strings.chainScanStarting || 'Starting the check';
+    sub.textContent = strings.missingTxStartingSub || 'This usually takes a few moments.';
+  } else {
+    h.textContent = strings.missingTxUpToDate || 'Up to date';
+    sub.textContent = strings.missingTxUpToDateSub || 'Spixi has checked the latest blocks.';
+  }
+  col.append(h, sub);
+  card.append(glyph, col);
+  content.append(card);
   }
 
-  const origin = document.createElement('p');
-  origin.className = 'c-misstx__origin';
-  origin.textContent = strings.missingTxOldest
-    || 'Spixi only checks blocks from a fixed starting point. Transactions older than that are not listed here. The Explorer has your full history.';
-  content.append(origin);
+  const body = document.createElement('p');
+  body.className = 'c-misstx__body';
+  body.textContent = strings.missingTxOlder
+    || "Transactions from before Spixi's starting block are not listed here. ixiscope shows your full history.";
+  content.append(body);
 
   const actions = document.createElement('div');
   actions.className = 'c-misstx__actions';
-  // single action — no refresh command exists in the bridge (Damir #135); the list
-  // already rebuilds on every addPaymentActivity tick
+  // single action — no refresh command exists in the bridge (Damir #135)
   if (onExplorer) {
-    // legacy parity: `ixian:explorer` opens THIS address on explorer.ixian.io
+    // legacy parity: `ixian:explorer` opens THIS address on the explorer; #1072: tonal + named (#1051)
     actions.append(createButton({
-      label: strings.viewAllExplorer || 'View all transactions on Explorer', type: 'fill', size: 44, width: 'full',
-      icon: icon('external-link', { size: 18 }), iconPosition: 'trailing',   // #710: an Explorer link opens outside the app
+      label: strings.viewOnIxiScope || 'View on ixiscope', type: 'tonal', size: 44, width: 'full',
+      icon: icon('external-link', { size: 18 }), iconPosition: 'trailing',   // #710: opens outside the app
       onClick: latched(() => sheet, () => onExplorer(null)),
     }));
   }

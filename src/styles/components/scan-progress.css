@@ -81,35 +81,27 @@
 }
 .c-scanprog__chev { flex: none; display: inline-flex; color: var(--icon-neutral-02); }
 
-/* ————— the sheet card ———————————————————————————————————————————————————————
+/* ————— the sheet status card (#1072: A — one glyph, one line, one short line) —————
  * Lives in wallet-shell.css's sheet, but the tokens belong with the ring. */
-.c-misstx__scancard {
+.c-misstx__status {
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
-  padding: var(--spacing-12);
+  padding: var(--spacing-12) var(--spacing-16);
   border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
-  margin-block-end: var(--spacing-12);
+  background: var(--surface-sheet-card);   /* #1018: a card inside a sheet lifts */
 }
-.c-misstx__scancol { flex: 1 1 auto; min-width: 0; }
-.c-misstx__scanhead {
-  margin: 0 0 var(--spacing-2);
+.c-misstx__check { flex: none; display: inline-flex; width: 28px; justify-content: center; color: var(--icon-success); }
+.c-misstx__statuscol { flex: 1 1 auto; min-width: 0; }
+.c-misstx__statushead {
+  margin: 0;
   color: var(--text-neutral-01);
   font-size: var(--font-size-label-lg);
   line-height: var(--line-height-label-lg);
   font-weight: var(--font-weight-semibold);
 }
-.c-misstx__scanbody {
+.c-misstx__statussub {
   margin: 0;
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-}
-/* ★ The standing truth, shown whether or not a scan is running: Spixi never walks back
-   past its fixed starting point, so an older transaction will never be listed. */
-.c-misstx__origin {
-  margin: var(--spacing-8) 0 0;
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);

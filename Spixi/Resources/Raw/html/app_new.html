@@ -999,11 +999,18 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* ★ #1067: grow out of the pressed message (origin set in desktop-anchors.js); compositor-only */
   transform: scale(0.92);
   opacity: 0;
-  transition: opacity var(--duration-200) var(--easing-standard),
-              transform var(--duration-200) var(--easing-standard);
+  /* ★ #1071: times the CLOSE (the open, mirrored) */
+  transition: opacity var(--duration-200) var(--easing-standard-mirror),
+              transform var(--duration-200) var(--easing-standard-mirror);
 }
-:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
+:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] {
+  transform: none; opacity: 1;
+  transition-timing-function: var(--easing-standard);
+}
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
+/* ★ #1071: its scrim moves with it */
+:root:not([data-desktop]) .c-scrim[data-m-anchor-scrim] { transition-timing-function: var(--easing-standard-mirror); }
+:root:not([data-desktop]) .c-scrim[data-m-anchor-scrim][data-open] { transition-timing-function: var(--easing-standard); }
 
 /* ★★ #993 (F1): an overlay ROOT takes focus on a pointer open (overlay.js) so the first row shows no
    ring; the root itself must not ring either — it is a dialog container (tabindex -1, never a Tab

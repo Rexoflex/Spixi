@@ -80,7 +80,7 @@
   background: var(--surface-card-raised);
   color: var(--icon-neutral-02);
   border: 2px solid var(--surface-settings-card);     /* sanctioned (#1013: follows the panel's card token): ring cut against the panel, badge-ring precedent (#48) */
-  box-shadow: var(--elevation-settings-card);   /* ★ #1068: the Account card family's softer shadow */
+  box-shadow: var(--elevation-1);   /* ★ #1071 (#46 C NIT): a decorative badge, not a card — matches art-disc */
 }
 .c-settings-backup__art-sat[data-pos='a'] { inset-block-start: 0; inset-inline-end: 0; }
 .c-settings-backup__art-sat[data-pos='b'] { inset-block-end: 0; inset-inline-end: 10px; }   /* sanctioned */

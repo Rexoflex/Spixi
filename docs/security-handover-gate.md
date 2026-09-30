@@ -1597,3 +1597,10 @@ One question per row: does this exposure exist at the baseline?
 |---|---|---|---|
 | #1040 | `representParkedOverlay` runs the existing `applyPlatformPageChrome()` on a re-present, + ONE log line `"representParkedOverlay chrome: " + ex.GetType().Name` | the chrome pass is the one the fresh present already runs; the log carries an exception TYPE only | nothing introduced |
 | #1040 | one fiat display rule (`fiatLine` / `formatFiatAmount`, money.js) · tx sheet receipt layout (unit, stamp, grouped address, middle-cut id — the copy button still copies the full raw value) · appearance tile labels + the pinch-size note · lighter settings ground · credits list · three string values | no verb, no `spixi.*` key, no sink (all `textContent`), no fetch, no WebView setting | nothing introduced |
+
+## #1071 (2026-09-30) — X.8 keyboard + the menu fade-out
+
+| Row | Change | Exposure | Verdict |
+|---|---|---|---|
+| #1071 | `[KBDIAG]` probe in `message-menu.js` — 2 `console.log` lines per long-press open (path · guard flag · active element TAG + first class), reaches `ixian.log` via the Android console forwarder | a new log line; carries no message text, name, address or id (pinned: exact expressions, 2 console calls) | INTRODUCED (a log line) — accepted for the X.8 walk; **retire at the freeze with `[M5]`** |
+| #1071 | pointerdown cancel on a message while a field is focused · close curve token · scrim tag · overlay hand-off | no verb, key, sink, fetch or WebView setting | nothing introduced |

@@ -102,8 +102,6 @@
   "capx_Storage": "可以在您的设备上保存数据，以便在会话之间记住相关内容。",
   "capx_TransactionSigning": "可以请求您批准 IXI 付款。每笔付款都始终由您亲自确认。",
   "categories": "分类",
-  "chainScanNote": "Spixi 正在查看最近的区块，寻找与你的地址相关的交易。",
-  "chainScanNoteStarting": "Spixi 正在确定区块链的进度。打开应用后通常需要片刻。",
   "chainScanStarting": "正在开始检查",
   "chainScanTitle": "正在查找你的交易",
   "changePhoto": "更换照片",
@@ -322,11 +320,8 @@
   "miniAppInfo": "迷你应用是在 Spixi 中安全运行的轻量级网页应用。请只添加来自您信任来源的应用。",
   "missedCall": "未接语音来电",
   "missingTx": "有交易丢失了吗？",
-  "missingTxBody": "Spixi 直接从 Ixian 区块链读取您的交易历史。最近的交易可能需要片刻才会显示，而非常早期的交易可能不会在此列出。",
-  "missingTxOldest": "Spixi 只从一个固定的起始点开始检查区块。早于该点的交易不会在这里列出。完整记录请在浏览器中查看。",
   "missingTxScanDone": "Spixi 已检查完最近的区块，所以缺少的交易并不是在等这个。",
   "missingTxScanUnknown": "Spixi 还无法连接到网络，因此尚未查找你的交易。",
-  "missingTxScanning": "Spixi 仍在检查最近的区块以查找你的交易（已完成 {percent}%）。尚未检查的部分会随进度陆续出现。",
   "modal": "对话框",
   "moreApps": "更多迷你应用",
   "moreContacts": "还有 {n} 位，继续输入以缩小范围",
@@ -663,5 +658,11 @@
   "groundBrandGradient": "品牌渐变",
   "patternStyleContours": "等高线",
   "tapToDownload": "点按下载",
-  "viewOnIxiScope": "在 ixiscope 中查看"
+  "viewOnIxiScope": "在 ixiscope 中查看",
+  "missingTxCheckingHead": "正在检查区块链",
+  "missingTxOlder": "Spixi 起始区块之前的交易不会在此列出。ixiscope 显示您的完整历史。",
+  "missingTxScanSub": "已检查 {0}% 的新区块",
+  "missingTxStartingSub": "通常只需片刻。",
+  "missingTxUpToDate": "已是最新",
+  "missingTxUpToDateSub": "Spixi 已检查最新区块。"
 }

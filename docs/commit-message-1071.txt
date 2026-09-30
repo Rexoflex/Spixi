@@ -1,0 +1,20 @@
+#1071/#1072: X.8 keyboard fix, the long-press menu fade-out, the missing-tx sheet
+
+- message-menu.js: cancel the touch pointerdown on a message while a text field has focus
+  (Blink long-press HandleMouseFocus skipped); a guarded tap keeps the old blur; WebKit hosts
+  skip; [KBDIAG] walk probe (retire at the freeze)
+- overlay.css + tokens.css: --easing-standard-mirror; the anchored menu and its scrim close on
+  the open curve played backwards
+- overlay.js: menu -> dialog hand-off removes the closing menu at once, new scrim full strength;
+  isEditableEl exported
+- desktop-anchors.js: scrim tag; a closing menu is not re-placed on a viewport change
+- settings-backup.css: art-sat badge back to elevation-1
+- smoke: #1071 pins, #1068 consumer pins, CHAT_KB_CEIL 690 -> 691 (stated)
+- docs: DECISIONS #1071, security gate row (KBDIAG), handoff §10, walk sheet 1071,
+  call-premium-plan.md
+
+#1072: the "Missing a transaction?" sheet, layout A (one status card, one sentence,
+tonal ixiscope); no card before the first scan report; 6 new keys, 5 retired, drafts cleaned.
+
+Opus #46: r1 3 auditors -> r2 NOT CLEAN -> r3 CLEAN. Suite 4991 / the 2 KNOWN.
+Walked 11 P · 0 F · 0 N/A (Android + Windows F5), #1073.

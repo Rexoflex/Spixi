@@ -22,7 +22,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
-import { setOverlayOpts } from './overlay.js';   // ★ #1065
+import { setOverlayOpts, isEditableEl } from './overlay.js';   // ★ #1065 · #1071
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { anchorSheetToRow } from './desktop-anchors.js';   // ★ Batch E (a) (#557): mobile anchored dropdown
 
@@ -44,6 +44,8 @@ export function messageMenuTarget(row) {
   return (row.querySelector && row.querySelector('.c-bubble, .c-tcard, .c-fbubble, .c-mbubble')) || row;
 }
 const LONG_PRESS_MS = 500;   // §5b
+/* ★ #1071: the Blink long-press focus move (X.8) does not exist in WebKit — the guard skips iOS/Mac */
+const WEBKIT_HOST = () => /^(ios|maccatalyst)$/.test(document.documentElement.getAttribute('data-platform') || '');
 const MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
 export function openMessageMenu({
@@ -187,6 +189,7 @@ export function attachMessageMenu(row, opts = {}) {
   let startX = 0;
   let startY = 0;
   let fired = false;
+  let guarded = false;   // ★ #1071: this press was canceled to keep a focused field (KBDIAG reads it)
 
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
   /* While the log is in SELECTION mode every gesture belongs to the selection:
@@ -194,12 +197,29 @@ export function attachMessageMenu(row, opts = {}) {
      over the selection bar. Evaluated at fire time (rows are re-wired on every
      re-render, but the mode can start and end between two of them). */
   const selecting = () => !!(row.closest && row.closest('[data-selecting]'));
+  /* ★ #1071 [KBDIAG]: X.8 walk evidence — retire at the freeze with [M5] */
+  const kbdiag = (via) => {
+    try {
+      const tag = (n) => (n ? n.tagName + (n.className && typeof n.className === 'string' ? '.' + n.className.split(' ')[0] : '') : 'null');
+      console.log('[KBDIAG] open via=' + via + ' guarded=' + guarded + ' ae=' + tag(document.activeElement));
+      setTimeout(() => { console.log('[KBDIAG] +400ms ae=' + tag(document.activeElement)); }, 400);
+    } catch (err) { /* diagnostics never break the gesture */ }
+  };
 
   target.addEventListener('pointerdown', (e) => {
     // ANY new gesture resets suppression — a right-click leaves fired=true
     // (no click event follows), which swallowed the next right-click (audit r4)
     fired = false;
+    guarded = false;
     if (e.button !== 0) return; // right button → contextmenu path
+    /* ★★ #1071 (X.8): Blink's long-press focuses the pressed node (HandleMouseFocus) with no DOM
+       event — the bubble is not focusable, so the composer blurred and the keyboard went. A canceled
+       touch pointerdown is Blink's one switch (suppress_mouse_events_from_gestures_); click and
+       contextmenu still fire. Only while a field holds focus; selection mode keeps its grammar;
+       WebKit (iOS/Mac) never took this path and is left alone. A TAP keeps its old blur (click). */
+    guarded = (e.pointerType === 'touch' || e.pointerType === 'pen') && !selecting() && !WEBKIT_HOST()
+      && isEditableEl(document.activeElement);
+    if (guarded) e.preventDefault();
     // #265 (Damir ①): long-press is a TOUCH gesture — on desktop a held MOUSE
     // button must not pop a menu (right-click is the one desktop path). A
     // touch-screen desktop keeps long-press (Opus review MINOR-7: gating on the
@@ -212,6 +232,7 @@ export function attachMessageMenu(row, opts = {}) {
       timer = null;
       if (selecting()) return;          // selection mode owns the gesture
       fired = true;
+      kbdiag('timer');
       openMessageMenu({ row, ...opts });
     }, LONG_PRESS_MS);
   });
@@ -220,7 +241,7 @@ export function attachMessageMenu(row, opts = {}) {
                   Math.abs(e.clientY - startY) > MOVE_CANCEL_PX)) cancel();
   });
   target.addEventListener('pointerup', cancel);
-  target.addEventListener('pointercancel', cancel);
+  target.addEventListener('pointercancel', () => { cancel(); guarded = false; });   // ★ #1071 r2: a press that became a scroll
   // long-press fired → the release click must not trigger bubble actions
   // (file open / card buttons); capture phase swallows it once
   target.addEventListener('click', (e) => {
@@ -228,6 +249,17 @@ export function attachMessageMenu(row, opts = {}) {
       e.preventDefault();
       e.stopPropagation();
       fired = false;
+      return;
+    }
+    /* ★ #1071 r1: a guarded TAP gets the focus move Blink skipped (blur first — no ring) */
+    if (guarded) {
+      guarded = false;
+      const f = document.activeElement;
+      if (isEditableEl(f)) {
+        f.blur();
+        const to = e.target && e.target.closest && e.target.closest('button:not(:disabled), a[href], input:not(:disabled), select, textarea, [tabindex]');
+        if (to instanceof HTMLElement) to.focus({ preventScroll: true });
+      }
     }
   }, true);
 
@@ -240,6 +272,7 @@ export function attachMessageMenu(row, opts = {}) {
     if (fired) return;
     cancel();
     fired = true;
+    kbdiag('contextmenu');
     openMessageMenu({ row, ...opts });
   });
 }

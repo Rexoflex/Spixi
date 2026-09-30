@@ -106,7 +106,7 @@ function onDocKeydown(e) {
  * from that field, and a pointer inside the overlay or on its scrim never takes focus (mousedown
  * default prevented — the click still fires). The keyboard stays up; a keyboard user still reaches the
  * overlay with Tab (onDocKeydown) and closes it with Esc. Only the message menu asks for it. */
-function isEditableEl(n) {
+export function isEditableEl(n) {   // ★ #1071: message-menu.js reads it at the press (X.8)
   if (!n || n.nodeType !== 1) return false;
   if (n.isContentEditable) return true;
   const tag = n.tagName;
@@ -145,9 +145,21 @@ export function openOverlay(el, opts) {
   const host = opts.host || document.body;
   const opener = document.activeElement;
 
+  /* ★ #1071 r1/r2: menu → overlay HAND-OFF — a closing anchored menu (z-44, above the new scrim) is
+     removed at once (onDismiss too: no lifted row over the new scrim); the new scrim starts at full
+     strength where the old one was visible, so the dim never pulses or flashes. */
+  let handoff = false;
+  for (const n of [...host.children]) {
+    if (!n.matches || !n.matches('.c-sheet[data-m-anchor]') || n.hasAttribute('data-open') || !pendingRemoval.has(n)) continue;
+    const sc = n.previousElementSibling;
+    if (sc && sc.classList.contains('c-scrim') && !sc.hasAttribute('data-dt-clear')) handoff = true;
+    pendingRemoval.get(n)();
+  }
+
   const scrim = document.createElement('div');
   scrim.className = 'c-scrim';
   scrim.setAttribute('aria-hidden', 'true');
+  if (handoff) { scrim.style.transition = 'none'; scrim.dataset.open = ''; }   // ★ #1071: full strength from frame one
   // bound ALWAYS, policy checked at CLICK time — open-time binding froze the
   // policy and made in-flight setOverlayOpts a silent no-op (tip-audit C1)
   scrim.addEventListener('click', () => {
@@ -156,6 +168,7 @@ export function openOverlay(el, opts) {
 
   host.append(scrim, el);
   host.dataset.overlayOpen = '';
+  if (handoff) { void scrim.offsetHeight; scrim.style.removeProperty('transition'); }   // commit, then its own close fades normally
 
   if (stack.length === 0) {
     document.addEventListener('keydown', onDocKeydown);

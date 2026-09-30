@@ -1828,11 +1828,18 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* ★ #1067: grow out of the pressed message (origin set in desktop-anchors.js); compositor-only */
   transform: scale(0.92);
   opacity: 0;
-  transition: opacity var(--duration-200) var(--easing-standard),
-              transform var(--duration-200) var(--easing-standard);
+  /* ★ #1071: times the CLOSE (the open, mirrored) */
+  transition: opacity var(--duration-200) var(--easing-standard-mirror),
+              transform var(--duration-200) var(--easing-standard-mirror);
 }
-:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] { transform: none; opacity: 1; }
+:root:not([data-desktop]) .c-sheet[data-m-anchor][data-open] {
+  transform: none; opacity: 1;
+  transition-timing-function: var(--easing-standard);
+}
 :root:not([data-desktop]) .c-sheet[data-m-anchor] .c-sheet__handle { display: none; }
+/* ★ #1071: its scrim moves with it */
+:root:not([data-desktop]) .c-scrim[data-m-anchor-scrim] { transition-timing-function: var(--easing-standard-mirror); }
+:root:not([data-desktop]) .c-scrim[data-m-anchor-scrim][data-open] { transition-timing-function: var(--easing-standard); }
 
 /* ★★ #993 (F1): an overlay ROOT takes focus on a pointer open (overlay.js) so the first row shows no
    ring; the root itself must not ring either — it is a dialog container (tabindex -1, never a Tab
@@ -2629,35 +2636,27 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-scanprog__chev { flex: none; display: inline-flex; color: var(--icon-neutral-02); }
 
-/* ————— the sheet card ———————————————————————————————————————————————————————
+/* ————— the sheet status card (#1072: A — one glyph, one line, one short line) —————
  * Lives in wallet-shell.css's sheet, but the tokens belong with the ring. */
-.c-misstx__scancard {
+.c-misstx__status {
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
-  padding: var(--spacing-12);
+  padding: var(--spacing-12) var(--spacing-16);
   border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
-  margin-block-end: var(--spacing-12);
+  background: var(--surface-sheet-card);   /* #1018: a card inside a sheet lifts */
 }
-.c-misstx__scancol { flex: 1 1 auto; min-width: 0; }
-.c-misstx__scanhead {
-  margin: 0 0 var(--spacing-2);
+.c-misstx__check { flex: none; display: inline-flex; width: 28px; justify-content: center; color: var(--icon-success); }
+.c-misstx__statuscol { flex: 1 1 auto; min-width: 0; }
+.c-misstx__statushead {
+  margin: 0;
   color: var(--text-neutral-01);
   font-size: var(--font-size-label-lg);
   line-height: var(--line-height-label-lg);
   font-weight: var(--font-weight-semibold);
 }
-.c-misstx__scanbody {
+.c-misstx__statussub {
   margin: 0;
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-}
-/* ★ The standing truth, shown whether or not a scan is running: Spixi never walks back
-   past its fixed starting point, so an older transaction will never be listed. */
-.c-misstx__origin {
-  margin: var(--spacing-8) 0 0;
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
@@ -4192,14 +4191,14 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-txsheet__copy:active { background: var(--surface-interactive-pressed); }
 
 /* —— missing-tx sheet (#98; title rendered by c-sheet) —— */
-.c-misstx { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-misstx { display: flex; flex-direction: column; gap: var(--spacing-16); }   /* #1072: 16 — three blocks, not five */
 .c-misstx__body {
   margin: 0;
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
   color: var(--text-neutral-02);
 }
-.c-misstx__actions { display: flex; flex-direction: column; gap: var(--spacing-8); margin-block-start: var(--spacing-4); }
+.c-misstx__actions { display: flex; flex-direction: column; gap: var(--spacing-8); }
 
 /* ★ N25 (#443): the "See details" disclosure. Address / date / fee / transaction id
    sit behind it; the amount, the counterparty and the status stay in the first
@@ -7985,8 +7984,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   /* ★ #443 (Damir): the address-scoped OVERRIDE is retired. A tx-scoped verb now
      exists (ixian:txexplorer:<txid>, HomePage), so the tx sheet's button opens the
      TRANSACTION and carries the component's own "View transaction on Explorer" copy.
-     The "Missing a transaction?" sheet keeps its own address-scoped label
-     (viewAllExplorer) and its own null-tx call below. */
+     The "Missing a transaction?" sheet keeps its own null-tx call below (#1072: its
+     label is "View on ixiscope", viewOnIxiScope). */
   /* Audit NIT-17: with the override gone this is a pass-through, and it stays a PROXY
      on purpose — `?lang=pseudo` replaces window.SL with a get-trap proxy whose target is
      empty, so anything that copies (Object.assign, spread) comes out blank and the whole
@@ -8010,8 +8009,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       : 'ixian:explorer'),
     /* #440/#443: a GETTER, not a value — the "Missing a transaction?" sheet reads the
        LIVE scan state when it opens. `null` until the first push, which is the correct
-       degrade on an exe that does not send setScanProgress: the sheet keeps its old
-       generic body and adds no false claim. */
+       degrade on an exe that does not send setScanProgress: the sheet shows NO status
+       card (#1072) and adds no false claim. */
     scan: () => scanState,
     /* ★ #589 (Damir F5 2026-08-26): the zero-state CTA reads "Show my address", so
        it OPENS THE ADDRESS. It used to open the whole Receive takeover — a screen

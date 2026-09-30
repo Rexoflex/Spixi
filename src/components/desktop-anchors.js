@@ -40,6 +40,8 @@
  *   and when a rect cannot be measured (jsdom, detached hosts) — those keep
  *   the bottom sheet.
  */
+import { isOverlayOpen } from './overlay.js';   // ★ #1071: a CLOSING menu is not re-placed
+
 export function isDesktopPresentation() {
   return document.documentElement.hasAttribute('data-desktop');
 }
@@ -177,6 +179,9 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
   /* ★ #1067: tag + place with transitions OFF (else it slides up from the bottom-sheet state) */
   sheet.style.transition = 'none';
   sheet.dataset.mAnchor = '';
+  /* ★ #1071: the scrim follows the menu's curves (open standard, close mirrored) — overlay.css */
+  const scrimEl = sheet.previousElementSibling;
+  if (scrimEl && scrimEl.classList && scrimEl.classList.contains('c-scrim')) scrimEl.dataset.mAnchorScrim = '';
   /* ═══ ★★★ RE-ANCHOR ON A VIEWPORT CHANGE (Damir on device, Android) ═══════════
    * *"composer is open and I long press — the composer closes, the messages get moved
    * down, but the dropdown is somewhere top where the messages used to be."*
@@ -292,6 +297,7 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
    * itself forever on every resize. */
   let detached = false;
   let goneObs = null;
+  const presented = isOverlayOpen(sheet);   // ★ #1071: every caller opens first, then anchors
   const detach = () => {
     if (detached) return;
     detached = true;
@@ -306,6 +312,7 @@ export function anchorSheetToRow(sheet, row, { host = document.body, align = nul
       detach();
       return;
     }
+    if (presented && !isOverlayOpen(sheet)) return;   // ★ #1071: CLOSING — a returning keyboard must not move a fading menu
     place();
   };
   try { window.addEventListener('resize', reflow); } catch (e) {}

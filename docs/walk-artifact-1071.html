@@ -1,0 +1,141 @@
+<title>Walk 1071</title>
+<style>
+/* Walk sheet #1071. Layout: one narrow column — a header with the build steps, then one card per walk row with P / F / N/A and a note; a sticky results bar. */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--font)}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:20px 96px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:22px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.sub{color:var(--ink-2);margin:4px 0 0}
+.steps{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.steps h2,.sec{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0 0 8px;font-weight:600}
+.steps ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+code{font:13px var(--mono);background:var(--brand-soft);color:var(--ink);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+.where{font-size:12px;color:var(--ink-2);background:var(--brand-soft);border-radius:999px;padding:2px 9px}
+.new{font-size:11px;font-weight:700;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:1px 7px}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl button{font:600 13px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.ctl button:focus-visible,.bar button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:760px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{display:none;width:100%;min-height:120px;font:13px var(--mono)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Walk #1071–#1072</h1>
+    <p class="sub">X.8 keyboard fix, the long-press menu fade-out, the menu → dialog hand-off. Android Debug + Windows F5. The same rows repeat on the iPhone at the office.</p>
+  </header>
+
+  <section class="steps">
+    <h2>Before you start</h2>
+    <ol>
+      <li>Smoke = <code>BASELINE OK — 4990 pass / the 2 KNOWN</code>.</li>
+      <li>Windows: build with <b>F5</b>. Do not use <code>dotnet build</code> (#663).</li>
+      <li>Android: Debug build and deploy.</li>
+      <li>Mark each row. Tap <b>Copy results</b> at the end and paste them in the chat.</li>
+    </ol>
+  </section>
+
+  <div class="sec">Rows</div>
+  <div id="rows"></div>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+  <textarea id="out" readonly aria-label="Results text"></textarea>
+</div></div>
+
+<script>
+const ROWS=[
+ {id:'Y.1',t:'X.8 again: keyboard stays up on long-press',w:'Android · chat · keyboard open',d:'Type a few letters. Long-press a message. Close the menu (tap outside). Repeat and pick Copy.',p:'The keyboard does not move at any point: not at the press, not when the menu opens, not when it closes. The typed text stays. Log (adb logcat or ixian.log): <code>[KBDIAG] open via=… guarded=true ae=TEXTAREA.c-composer__input</code> and <code>[KBDIAG] +400ms ae=TEXTAREA…</code>.',n:1},
+ {id:'Y.2',t:'Short tap on a bubble still closes the keyboard',w:'Android · chat · keyboard open',d:'Tap once on the text of a message.',p:'The keyboard closes, as before. Nothing else happens.',n:1},
+ {id:'Y.3',t:'Link / photo tap while typing',w:'Android · chat · keyboard open',d:'Tap a link in a message → Cancel. Tap a photo → close the viewer.',p:'The dialog or viewer opens. After you close it, the keyboard does NOT come back by itself.',n:1},
+ {id:'Y.4',t:'Message menu fades OUT',w:'Android · chat',d:'Long-press a message. Close the menu with a tap outside. Open again and pick React or Copy.',p:'The menu shrinks back into the message and fades (about 0.2 s), like the open played backwards. The dark wash fades with it. It does not vanish at once.',n:1},
+ {id:'Y.5',t:'Chats-row menu fades OUT',w:'Android · Chats',d:'Long-press a chat row. Tap outside. Open again and pick Pin or Mute.',p:'Same close as Y.4: shrink + fade into the row.',n:1},
+ {id:'Y.6',t:'Menu → dialog hand-off',w:'Android · Chats + chat',d:'Long-press a row → Delete chat → Cancel. In a chat: long-press a message → Tip → close.',p:'The menu is gone at once when the dialog or Tip sheet opens. You never see the menu through the dialog. The dark wash does not flicker or pulse. The pressed message is not left bright above the wash.',n:1},
+ {id:'Y.7',t:'Tip from the menu while typing',w:'Android · chat · keyboard open',d:'Long-press a message → Tip. Close the Tip sheet.',p:'The keyboard may go down for the Tip sheet. After the sheet closes, the keyboard comes back with your text (#1065 restore). Mark N/A if this feels wrong and say why.',n:1},
+ {id:'Y.8',t:'Selection mode unchanged',w:'Android · chat',d:'Long-press → Select. Tap other messages. Close select mode.',p:'Selection works as before (X.7 slide still smooth).',n:1},
+ {id:'Y.9',t:'Desktop menus unchanged',w:'Windows F5',d:'Right-click a message and a chat row. Pick an item. Right-click → Delete chat.',p:'The right-click menus look and close as before. The Delete dialog opens normally.',n:1},
+ {id:'Y.11',t:'Missing a transaction? sheet',w:'Android + Windows · Wallet',d:'Tap the "?" / "Missing a transaction?" pill. Once while the check runs, once after.',p:'One card (spinner or check + two short lines), one sentence, a light-blue "View on ixiscope" button that opens the explorer. Right after app start, before any check: no card, only the sentence and the button.',n:1},
+ {id:'Y.10',t:'Backup art badge',w:'Android + Windows · light · Account → Backup',d:'Look at the small round badges around the backup picture.',p:'The small badges have the same soft shadow as the big disc. The backup cards keep the softer card shadow.',n:1},
+];
+const KEY='walk-1071-v1';
+let state={};
+try{state=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){state={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+const host=document.getElementById('rows');
+ROWS.forEach(r=>{
+  const s=state[r.id]||{};
+  const el=document.createElement('article');el.className='row';el.dataset.v=s.v||'';
+  el.innerHTML=`<div class="top"><span class="id">${r.id}</span><span class="title">${r.t}</span>${r.n?'<span class="new">NEW</span>':''}<span class="where">${r.w}</span></div>
+  <dl><dt>Do</dt><dd>${r.d}</dd><dt>Pass when</dt><dd>${r.p}</dd></dl>
+  <div class="ctl" role="group" aria-label="Result for ${r.id}">
+    <button type="button" data-k="P">Pass</button><button type="button" data-k="F">Fail</button><button type="button" data-k="N">N/A</button>
+  </div>
+  <textarea id="note-${r.id}" placeholder="Note (optional)" aria-label="Note for ${r.id}"></textarea>`;
+  const ta=el.querySelector('textarea');ta.value=s.note||'';
+  ta.addEventListener('input',()=>{state[r.id]={...(state[r.id]||{}),note:ta.value};save();});
+  el.querySelectorAll('.ctl button').forEach(b=>{
+    b.setAttribute('aria-pressed',String(s.v===b.dataset.k));
+    b.addEventListener('click',()=>{
+      const cur=(state[r.id]||{}).v; const v=cur===b.dataset.k?'':b.dataset.k;
+      state[r.id]={...(state[r.id]||{}),v};save();el.dataset.v=v;
+      el.querySelectorAll('.ctl button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===v)));tally();
+    });
+  });
+  host.appendChild(el);
+});
+function tally(){
+  let p=0,f=0,n=0;ROWS.forEach(r=>{const v=(state[r.id]||{}).v;if(v==='P')p++;else if(v==='F')f++;else if(v==='N')n++;});
+  const left=ROWS.length-p-f-n;
+  document.getElementById('tally').innerHTML=`<b class="p">${p} P</b> · <b class="f">${f} F</b> · <b class="n">${n} N/A</b>${left?` · ${left} left`:''}`;
+}
+tally();
+function text(){
+  let p=0,f=0,n=0;const lines=ROWS.map(r=>{const s=state[r.id]||{};const v=s.v==='P'?'P':s.v==='F'?'F':s.v==='N'?'N/A':'—';
+    if(s.v==='P')p++;else if(s.v==='F')f++;else if(s.v==='N')n++;
+    return `${r.id} ${v}${s.note?' — '+s.note.trim():''}`;});
+  return `Walk #1071 (Android + Windows F5): ${p} P · ${f} F · ${n} N/A\n`+lines.join('\n');
+}
+document.getElementById('copy').addEventListener('click',async()=>{
+  const t=text();const out=document.getElementById('out');const btn=document.getElementById('copy');
+  try{await navigator.clipboard.writeText(t);btn.textContent='Copied';setTimeout(()=>btn.textContent='Copy results',1500);}
+  catch(e){out.style.display='block';out.value=t;out.focus();out.select();btn.textContent='Select and copy';}
+});
+document.getElementById('reset').addEventListener('click',()=>{
+  const btn=document.getElementById('reset');
+  if(btn.dataset.armed!=='1'){btn.dataset.armed='1';btn.textContent='Tap again to clear';setTimeout(()=>{btn.dataset.armed='';btn.textContent='Clear'},2500);return;}
+  state={};save();location.reload();
+});
+</script>

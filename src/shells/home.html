@@ -2405,8 +2405,8 @@
   /* ★ #443 (Damir): the address-scoped OVERRIDE is retired. A tx-scoped verb now
      exists (ixian:txexplorer:<txid>, HomePage), so the tx sheet's button opens the
      TRANSACTION and carries the component's own "View transaction on Explorer" copy.
-     The "Missing a transaction?" sheet keeps its own address-scoped label
-     (viewAllExplorer) and its own null-tx call below. */
+     The "Missing a transaction?" sheet keeps its own null-tx call below (#1072: its
+     label is "View on ixiscope", viewOnIxiScope). */
   /* Audit NIT-17: with the override gone this is a pass-through, and it stays a PROXY
      on purpose — `?lang=pseudo` replaces window.SL with a get-trap proxy whose target is
      empty, so anything that copies (Object.assign, spread) comes out blank and the whole
@@ -2430,8 +2430,8 @@
       : 'ixian:explorer'),
     /* #440/#443: a GETTER, not a value — the "Missing a transaction?" sheet reads the
        LIVE scan state when it opens. `null` until the first push, which is the correct
-       degrade on an exe that does not send setScanProgress: the sheet keeps its old
-       generic body and adds no false claim. */
+       degrade on an exe that does not send setScanProgress: the sheet shows NO status
+       card (#1072) and adds no false claim. */
     scan: () => scanState,
     /* ★ #589 (Damir F5 2026-08-26): the zero-state CTA reads "Show my address", so
        it OPENS THE ADDRESS. It used to open the whole Receive takeover — a screen

@@ -26,6 +26,31 @@ namespace SPIXI.VoIP
         static IAudioPlayer? audioPlayer = null;
         static IAudioRecorder? audioRecorder = null;
 
+        /* ★ #1074 (call premium, 1:1): the three LOCAL call controls. Each is state the
+         * call surface SHOWS — CallPage.pushAudio echoes it back, so a button always shows
+         * what C# did, never its own guess. All of them (+ the ring generation below) reset at
+         * the start of a call AND in endVoIPSession (resetCallControls): a new call never
+         * inherits a mute, a loudspeaker or a silenced ring from the last one. */
+        public static bool currentCallMuted { get; private set; }
+        public static bool currentCallSpeaker { get; private set; }
+        public static bool currentCallRingSilenced { get; private set; }
+        /* ★ #1074 (#46 r2 MAJOR-1): bumps when an Accept is REFUSED (no mic permission) and
+         * the ring must come back. The shell latches a ring the user answered; a higher
+         * generation is the one signal that lifts that latch, so a stale echo can never
+         * rebuild an answered ring and a refused Accept always can. */
+        public static int currentCallRingGen { get; private set; }
+        /* the control setters (UI thread), startVoIPSession's recorder hand-over and the
+         * reset at call start/end (network, UI or ring-timeout thread) all take this lock */
+        private static readonly object controlLock = new object();
+        /* set inside controlLock when a call ends, cleared when the next one starts: a
+         * setSpeaker that reaches the lock just after the teardown cannot re-raise the flag
+         * (#46 r3 NIT-4 — the session id is cleared only after the lock is released) */
+        private static bool controlsClosed = false;
+
+        /* The largest decline-with-message text C# accepts. Presets are one short line; a
+         * custom reply is a normal chat message, so the composer's own limit is the ceiling. */
+        public const int DECLINE_MESSAGE_MAX = 500;
+
         static long lastPacketReceivedTime = 0;
         static Thread? lastPacketReceivedCheckThread = null;
         private static readonly object lastPacketReceivedLock = new object();
@@ -84,6 +109,7 @@ namespace SPIXI.VoIP
 
             SSpixiPermissions.requestAudioRecordingPermissions();
 
+            lock (controlLock) { resetCallControls(false); }   // ★ #1074 (#46 r1 MINOR-3): a new call never inherits a control
             currentCallSessionId = Guid.NewGuid().ToByteArray();
             currentCallContact = friend;
             currentCallCalleeAccepted = false;
@@ -122,6 +148,7 @@ namespace SPIXI.VoIP
                 return false;
             }
 
+            lock (controlLock) { resetCallControls(false); }   // ★ #1074 (#46 r1 MINOR-3)
             currentCallSessionId = session_id;
             currentCallContact = friend;
             currentCallCalleeAccepted = true;
@@ -237,9 +264,46 @@ namespace SPIXI.VoIP
                 audioPlayer = SAudioPlayer.Instance();
                 audioPlayer.start(currentCallCodec);
 
-                audioRecorder = SAudioRecorder.Instance();
-                audioRecorder.start(currentCallCodec);
-                audioRecorder.setOnSoundDataReceived((data) =>
+                // ★ #1074: a mute tapped while DIALING lands here — the recorder did not exist
+                // yet. Set BEFORE start (r1 NIT) so not one unmuted frame is encoded; under
+                // controlLock (#46 r4 MINOR-1) so a mute tapped at the same moment is never lost
+                // between the recorder's creation and its first frame.
+                // #46 r5 MINOR-1: a hang-up that raced this Accept already closed the controls —
+                // never start a recorder for a call that has ended (the mic would stay live).
+                IAudioRecorder recorder = SAudioRecorder.Instance();
+                bool closedMeanwhile;
+                lock (controlLock)
+                {
+                    closedMeanwhile = controlsClosed;
+                    if (!closedMeanwhile)
+                    {
+                        audioRecorder = recorder;
+                        recorder.setMuted(currentCallMuted);
+                    }
+                }
+                if (closedMeanwhile)
+                {
+                    Logging.info("Call: ended before the audio session started — recorder not started");
+                    return;
+                }
+                recorder.start(currentCallCodec);
+                // ★ #1074: the recorder and player each (re)set the platform audio session on
+                // start (iOS SetCategory resets a route override), so the route goes on AFTER
+                // them — and the flag follows the platform's answer (r1 MINOR-8): a refused
+                // route must not stay "on" in the UI.
+                lock (controlLock)
+                {
+                    if (currentCallSpeaker)
+                    {
+                        currentCallSpeaker = SPlatformUtils.setSpeakerphone(true);
+                        if (!currentCallSpeaker)
+                        {
+                            Logging.info("Call: speaker refused at session start");
+                            broadcastControlsAsync();
+                        }
+                    }
+                }
+                recorder.setOnSoundDataReceived((data) =>
                 {
                     StreamProcessor.sendAppData(currentCallContact, currentCallSessionId, data);
                 });
@@ -359,17 +423,22 @@ namespace SPIXI.VoIP
                 Logging.error("Exception occured in endVoIPSession 1: " + e);
             }
 
+            // #46 r5 MINOR-1: take the recorder AND close the controls in one step, so a
+            // startVoIPSession racing this teardown either hands its recorder over before this
+            // (and it is disposed here) or sees controlsClosed and never starts it.
+            IAudioRecorder? endingRecorder;
+            lock (controlLock)
+            {
+                endingRecorder = audioRecorder;
+                audioRecorder = null;
+                controlsClosed = true;
+            }
             try
             {
-                if (audioRecorder != null)
-                {
-                    audioRecorder.Dispose();
-                    audioRecorder = null;
-                }
+                endingRecorder?.Dispose();
             }
             catch (Exception e)
             {
-                audioRecorder = null;
                 Logging.error("Exception occured in endVoIPSession 2: " + e);
             }
 
@@ -426,6 +495,20 @@ namespace SPIXI.VoIP
                     }
                 }
 
+            }
+
+            // ★ #1074: the local controls never outlive their call. The route is reset
+            // UNCONDITIONALLY where the platform can route (#46 r2 MINOR-8: a setSpeaker that
+            // raced this teardown could leave the loudspeaker on for the next call), under
+            // the same lock the setters take.
+            lock (controlLock)
+            {
+                if (SPlatformUtils.callSpeakerRoute)
+                {
+                    try { SPlatformUtils.setSpeakerphone(false); }
+                    catch (Exception e) { Logging.warn("endVoIPSession: speaker route not reset: " + e.GetType().Name); }
+                }
+                resetCallControls(true);
             }
 
             currentCallSessionId = null;
@@ -514,6 +597,7 @@ namespace SPIXI.VoIP
                 // EVERY path — dialog or no dialog. A denied user still can't accept
                 // (correct — no mic) but can always Decline; an explain-affordance
                 // (copy + settings deep-link) = Damir dial, DECISIONS #335.
+                lock (controlLock) { currentCallRingGen++; }   // ★ #1074: lift the shell's answered-ring latch
                 UIHelpers.refreshAppRequests = true;
                 return;
             }
@@ -782,6 +866,147 @@ namespace SPIXI.VoIP
                     lastPacketReceivedCheckThread = null;
                 }
                 hangupCall(currentCallSessionId, true);
+            }
+        }
+
+        /* ════ ★ #1074 — THE CALL CONTROLS (1:1) ═══════════════════════════════════════
+         * Entry points for CallPage's LOCAL verbs (callMute / callSpeaker / callSilence /
+         * callDeclineMsg). Every one is session-checked: a stale card on a dead or a
+         * different call does nothing. None of them signs, moves keys, or touches a file. */
+
+        /** ★ #1074: the three local controls back to off. Called at every call START (a tap that
+         *  raced a teardown on the UI thread can no longer carry into the next call — r1 MINOR-3)
+         *  and at the end. */
+        private static void resetCallControls(bool closed)
+        {
+            controlsClosed = closed;
+            currentCallMuted = false;
+            currentCallSpeaker = false;
+            currentCallRingSilenced = false;
+            currentCallRingGen = 0;
+        }
+
+        /** ★ #1074 (#46 r1 MINOR-7): the setters run on the UI thread (CallPage.onNavigating);
+         *  broadcastCallState reaches CallPage.showBar/showRing, which read the avatar file
+         *  (imageToDataUri) BEFORE they dispatch — so it runs on the pool, never inline. */
+        private static void broadcastControlsAsync()
+        {
+            System.Threading.Tasks.Task.Run(() => SpixiContentPage.broadcastCallState());
+        }
+
+        /** Mute = zeroed PCM, frames keep flowing (see IAudioRecorder.setMuted). Allowed while
+         *  dialing too — startVoIPSession applies it when the recorder exists. */
+        public static void setMuted(byte[] session_id, bool muted)
+        {
+            lock (controlLock)   // #46 r4 MINOR-1: paired with startVoIPSession's recorder hand-over
+            {
+                if (!hasSession(session_id) || controlsClosed)
+                {
+                    return;
+                }
+                currentCallMuted = muted;
+                try
+                {
+                    audioRecorder?.setMuted(muted);
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("setMuted: " + e.GetType().Name);
+                }
+            }
+            Logging.info("Call: mute {0}", muted ? "on" : "off");
+            broadcastControlsAsync();
+        }
+
+        /** Loudspeaker ⇄ ear speaker. Only reachable where the platform cap is on
+         *  (SPlatformUtils.callSpeakerRoute, checked in CallPage.onCallControl); the flag follows the platform's answer, so a
+         *  refused route never shows as applied. */
+        public static void setSpeaker(byte[] session_id, bool on)
+        {
+            if (!hasSession(session_id))
+            {
+                return;
+            }
+            bool applied = true;
+            lock (controlLock)
+            {
+                if (!hasSession(session_id) || controlsClosed)
+                {
+                    return;   // the call ended while this tap was in flight
+                }
+                // Before the session starts there is no audio route to change yet — keep the
+                // wish; startVoIPSession applies it after the player/recorder set the session.
+                if (audioPlayer != null || audioRecorder != null)
+                {
+                    applied = SPlatformUtils.setSpeakerphone(on);
+                }
+                if (applied)
+                {
+                    currentCallSpeaker = on;
+                }
+            }
+            Logging.info("Call: speaker {0} ({1})", on ? "on" : "off", applied ? "applied" : "refused");
+            broadcastControlsAsync();
+        }
+
+        /** Silence the LOCAL ring only. The call keeps ringing for the caller and the #265
+         *  ring timeout still ends it; Accept / Decline stay live. */
+        public static void silenceRinging(byte[] session_id)
+        {
+            lock (controlLock)   // #46 r4 MINOR-1: stopRinging is global — never silence the NEXT ring
+            {
+                if (!hasSession(session_id) || controlsClosed || currentCallAccepted || currentCallInitiator)
+                {
+                    return;
+                }
+                SPlatformUtils.stopRinging();
+                currentCallRingSilenced = true;
+            }
+            Logging.info("Call: ring silenced");
+            broadcastControlsAsync();
+        }
+
+        /** Decline + one normal chat message to the caller. The text goes over the SAME
+         *  path the composer uses (Node.addMessageWithType + sendChatMessage, channel 0):
+         *  stored, shown in the chat, delivered like any message. No new sink.
+         *  Refused when the call is not an unanswered INCOMING ring on this session. */
+        public static bool rejectCallWithMessage(byte[] session_id, string text)
+        {
+            if (!hasSession(session_id) || currentCallInitiator
+                || (currentCallAccepted && currentCallCalleeAccepted))
+            {
+                return false;
+            }
+            string msg = (text ?? "").Trim(new char[] { ' ', '\t', '\r', '\n' });
+            if (msg.Length < 1 || msg.Length > DECLINE_MESSAGE_MAX)
+            {
+                return false;
+            }
+            Friend? friend = currentCallContact;
+            rejectCall(session_id);
+            // r1 NIT: rejectCall has its own guards — send only if the reject really ended THIS call
+            if (friend == null || hasSession(session_id))
+            {
+                return false;
+            }
+            try
+            {
+                SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.chat, Encoding.UTF8.GetBytes(msg), 0);
+                byte[] spixi_msg_bytes = spixi_message.getBytes();
+                FriendMessage? fm = Node.addMessageWithType(null, FriendMessageType.standard, friend.walletAddress, 0, msg, true, null, 0, true, true, spixi_msg_bytes.Length);
+                if (fm == null)
+                {
+                    Logging.error("Decline message could not be stored — not sending it.");
+                    return false;
+                }
+                CoreStreamProcessor.sendChatMessage(friend, fm, 0);
+                Logging.info("Call: declined with a message ({0} chars)", msg.Length);   // length only, never the text
+                return true;
+            }
+            catch (Exception e)
+            {
+                Logging.error("Decline message failed: " + e.GetType().Name);
+                return false;
             }
         }
 

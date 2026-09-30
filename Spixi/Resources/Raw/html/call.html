@@ -22,8 +22,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi — Call</title>
 <style>
-  html { background: #f9fafb; }
-  html[data-theme="dark"] { background: #13171b; }
+  /* ★ #1074: the call surface is DARK in both themes — = --call-ground, CallPage.callGround and
+     surfaceColorStringFor("call.html"), so the pre-paint frame never flashes light. */
+  html, html[data-theme="dark"] { background: #14161c; }
 </style>
 
 <link rel="stylesheet" href="spixi.tokens.css">
@@ -696,10 +697,180 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 [data-overlay-root]:focus { outline: none; }
 
 </style><!-- c-callin rides the overlay stack -->
+<style data-src="../styles/components/call-screen.css">
+/* ★ #1074 (call premium) — the shared call backdrop + e2e chip, and c-callscreen, the
+   EXPANDED in-call view (Damir's pick B/F). Dark call ground in both themes (tokens.css
+   §4 --call-*). Phone: full screen. Desktop: a centered card over a dim.            */
+
+/* ——— the caller's colour behind the ring and the call screen ——— */
+.c-callbg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--call-ground);
+  pointer-events: none;
+}
+/* identity hue: --av-c1/--av-c2 come from .c-idhue[data-hue] (avatar.css, #591) */
+.c-callbg::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--av-c1) 55%, transparent), transparent 58%),
+    radial-gradient(circle at 20% 92%, color-mix(in srgb, var(--av-c2) 30%, transparent), transparent 55%);
+  filter: blur(40px);
+}
+/* a real photo: the photo itself, heavily blurred and dimmed (the Telegram/iOS grammar) */
+.c-callbg__img {
+  position: absolute;
+  inset: -10%;
+  width: 120%;
+  height: 120%;
+  object-fit: cover;
+  filter: blur(48px) saturate(1.1) brightness(0.6);
+  opacity: 0.35;    /* #46 r1 MINOR-3: a bright photo must not wash out the white ink */
+}
+/* a scrim at the foot keeps the controls on a steady ground whatever the colour */
+.c-callbg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 45%, color-mix(in srgb, var(--call-ground) 80%, transparent) 100%);
+}
+
+.c-calle2e {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--call-chip);
+  color: var(--call-ink-2);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-sm);
+}
+
+/* ——— c-callscreen ——— */
+.c-callscreen {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-60);
+  display: flex;
+  flex-direction: column;
+  color: var(--call-ink);
+  background: var(--call-ground);
+}
+.c-callscreen__card {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--safe-top, 0px) + var(--spacing-12)) calc(var(--safe-right, 0px) + var(--spacing-20)) calc(var(--safe-bottom, 0px) + var(--spacing-32)) calc(var(--safe-left, 0px) + var(--spacing-20));
+}
+.c-callscreen__card > :not(.c-callbg) { position: relative; }   /* content above the backdrop */
+.c-callscreen__top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+.c-callscreen__min { position: absolute; left: 0; top: 0; }
+[dir="rtl"] .c-callscreen__min { left: auto; right: 0; }
+.c-callscreen__who {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  text-align: center;
+  min-height: 0;
+}
+.c-callscreen__avatar { margin-bottom: var(--spacing-12); }
+.c-callscreen__name {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-display-md);
+  line-height: var(--line-height-display-md);
+  letter-spacing: var(--tracking-heading-md);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+.c-callscreen__state {
+  margin: 0;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--call-ink-2);
+}
+.c-callscreen__controls {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--spacing-24);
+}
+.c-callscreen__ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+.c-callscreen__ctl-label {
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--call-ink-2);
+}
+.c-callscreen__controls .c-callctl { width: 60px; height: 60px; }
+.c-callscreen__end {
+  width: 132px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--call-end);
+  color: var(--call-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter var(--duration-100) var(--easing-standard),
+              transform var(--duration-100) var(--easing-decelerate);
+}
+.c-callscreen__end:focus-visible { outline-color: var(--call-ink); }
+@media (hover: hover) and (pointer: fine) {
+  .c-callscreen__end:hover { filter: brightness(1.08); }
+}
+.c-callscreen__end:active { transform: scale(0.96); }
+
+/* desktop: the same content as a centered card over a dim (the stage is full-window) */
+:root[data-desktop] .c-callscreen {
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-scrim);
+}
+:root[data-desktop] .c-callscreen__card {
+  flex: none;
+  width: min(400px, calc(100% - 2 * var(--spacing-24)));
+  padding: var(--spacing-20) var(--spacing-24) var(--spacing-24);
+  border-radius: var(--radius-24);
+  overflow: hidden;
+  background: var(--call-ground);
+  box-shadow: var(--elevation-3);
+}
+:root[data-desktop] .c-callscreen__who { flex: none; padding-block: var(--spacing-24); }
+:root[data-desktop] .c-callscreen__name { font-size: var(--font-size-heading-md); line-height: var(--line-height-heading-md); }
+:root[data-desktop] .c-callscreen__controls .c-callctl { width: 52px; height: 52px; }
+:root[data-desktop] .c-callscreen__end { width: 120px; height: 52px; }
+
+</style>
 <style data-src="../styles/components/call-overlay.css">
-/* c-callin — incoming call overlay (#86): identity on top of the scrim,
-   three labeled action circles. Call layer (z-60, above modals like the
-   callbar it hands over to). */
+/* c-callin — incoming call (★ #1074 premium, Damir's pick A/E). The caller's colour
+   behind them (c-callbg, call-screen.css), the e2e chip, a large avatar with a ring
+   pulse, the quiet row (Silence · Message), then Decline / Accept. Dark call ground in
+   both themes (tokens.css §4 --call-*). Call layer (z-60, above modals like the card it
+   hands over to). Phone: full screen. Desktop: a centered card (the stage is full-window). */
 
 .c-callin {
   position: absolute;
@@ -707,17 +878,23 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   z-index: var(--z-60);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding-inline: var(--spacing-24);
-  /* iOS edge-to-edge: the full-window ring (CallPage) bleeds under the status bar +
-     home indicator — keep identity/actions clear of both. env() = 0 elsewhere. */
-  padding-top: var(--safe-top, 0px);   /* ★ AND-7 */
-  padding-bottom: var(--safe-bottom, 0px);
-  background: var(--surface-scrim); /* + overlay scrim ⇒ near-black stage */
+  color: var(--call-ink);
+  background: var(--call-ground);
 }
+.c-callin__card {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* iOS/Android edge-to-edge: the full-window ring bleeds under the status bar + home
+     indicator — keep identity/actions clear of both. */
+  padding: calc(var(--safe-top, 0px) + var(--spacing-16)) calc(var(--safe-right, 0px) + var(--spacing-24)) calc(var(--safe-bottom, 0px) + var(--spacing-40)) calc(var(--safe-left, 0px) + var(--spacing-24));
+}
+.c-callin__card > :not(.c-callbg) { position: relative; }   /* content above the backdrop */
 
-/* halves composition (Damir): identity centers in the TOP half, actions
-   center in the BOTTOM half — each flexes to 50% and centers its content */
+.c-callin__top { display: flex; justify-content: center; }
+
 .c-callin__identity {
   flex: 1;
   display: flex;
@@ -726,65 +903,89 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   justify-content: center;
   gap: var(--spacing-8);
   text-align: center;
+  min-height: 0;
 }
-/* ringing pulse — decorative; finite tokens don't fit a ring, so guard it */
+/* ringing pulse — two soft rings; decorative, reduced-motion safe */
 .c-callin__avatar {
   position: relative;
   display: flex;
+  margin-bottom: var(--spacing-16);
   border-radius: var(--radius-full);
 }
-.c-callin__avatar::before {
+.c-callin__avatar::before,
+.c-callin__avatar::after {
   content: '';
   position: absolute;
-  inset: calc(-1 * var(--spacing-8));
+  inset: calc(-1 * var(--spacing-12));
   border-radius: var(--radius-full);
-  border: var(--outline-width-2) solid var(--surface-wash-on-hero-pressed);
-  animation: c-callin-pulse calc(var(--duration-300) * 5) var(--easing-standard) infinite;
+  border: var(--outline-width-2) solid var(--call-btn-pressed);
+  animation: c-callin-pulse calc(var(--duration-300) * 6) var(--easing-standard) infinite;
 }
+.c-callin__avatar::after { animation-delay: calc(var(--duration-300) * 3); }
 @keyframes c-callin-pulse {
-  0% { transform: scale(0.85); opacity: 0; }
-  40% { opacity: 1; }
-  100% { transform: scale(1.25); opacity: 0; }
+  0% { transform: scale(0.9); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .c-callin__avatar::before { animation: none; opacity: 0.6; transform: none; }
+  .c-callin__avatar::after { animation: none; opacity: 0; }
 }
 
-/* ═════ DESKTOP presentation (#264, Damir: "optimize the call UI on desktop") —
-   FE half only: the ring still covers just THIS WebView (one pane's DOM cannot
-   cover another — ★ #221); TRUE full-viewport coverage rides the C18(a)
-   broadcast (every visible pane rings at once). Here: the phone-shaped
-   halves composition reads stretched in a wide pane → compress the identity/
-   actions into a centered COLUMN card rhythm with a width cap. */
-:root[data-desktop] .c-callin { justify-content: center; }
-:root[data-desktop] .c-callin__identity {
-  flex: 0 0 auto;
-  padding-bottom: var(--spacing-32, 32px);
-}
-:root[data-desktop] .c-callin__actions {
-  flex: 0 0 auto;
-  width: min(420px, 100%);
-}
 .c-callin__name {
+  max-width: 100%;
   font-family: var(--font-primary);
-  font-size: var(--font-size-heading-sm);
-  line-height: var(--line-height-heading-sm);
+  font-size: var(--font-size-display-md);
+  line-height: var(--line-height-display-md);
+  letter-spacing: var(--tracking-heading-md);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-on-scrim);
+  overflow-wrap: anywhere;
 }
 .c-callin__sub {
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-on-scrim);
-  opacity: 0.72; /* sanctioned: muted-on-scrim, no dedicated token yet */
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--call-ink-2);
 }
 
-.c-callin__actions {
-  flex: 1;
+/* the quiet row: Silence · Message */
+.c-callin__quick {
   display: flex;
-  align-items: center; /* vertical center of the bottom half */
   justify-content: center;
-  gap: var(--spacing-32);
+  flex-wrap: wrap;
+  gap: var(--spacing-12);
+  margin-bottom: var(--spacing-32);
+}
+.c-callin__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: var(--size-target-min);
+  padding: 0 var(--spacing-16);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--call-btn);
+  color: var(--call-ink);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-callin__pill:disabled { cursor: default; }
+.c-callin__pill[data-done] { background: transparent; color: var(--call-ink-2); }
+.c-callin__pill:focus-visible { outline-color: var(--call-ink); }
+@media (hover: hover) and (pointer: fine) {
+  .c-callin__pill:not(:disabled):hover { background: var(--call-btn-hover); }
+}
+.c-callin__pill:not(:disabled):active { background: var(--call-btn-pressed); }
+
+.c-callin__actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-around;
+  width: min(320px, 100%);
 }
 .c-callin__action {
   display: flex;
@@ -793,184 +994,307 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   gap: var(--spacing-8);
 }
 .c-callin__circle {
-  width: 56px;  /* button/56 scale */
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-full);
-  /* ★ #46 r2 C1: a fallback only — every kind below sets its own ink, because none of the
-     three circles is --surface-action-default. Kept so a new kind is never inkless. */
-  color: var(--icon-neutral-on-action);
+  color: var(--call-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform var(--duration-100) var(--easing-decelerate),
-              background-color var(--duration-100) var(--easing-standard);
+              filter var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-callin__circle:hover { transform: scale(1.06); }
+  .c-callin__circle:hover { transform: scale(1.05); filter: brightness(1.06); }
 }
-.c-callin__circle:active { transform: scale(0.96); }
-/* freeze audit: on-scrim focus ring (see media-viewer note) */
-.c-callin__circle:focus-visible { outline-color: var(--icon-on-scrim); }
-/* ★ #46 r2 C1: green and red fills, not the action blue. In dark the inherited on-action
-   white glyph measured 1.87:1 on --success-300 #91c69b and 2.63:1 on --error-400 #f1786e.
-   The role inks give 9.45:1 / 6.72:1 dark and 5.98:1 / 6.36:1 light. Fills unchanged.
-   Reversal: delete the two color declarations and the glyphs fall back to the 1.87/2.63 white. */
-.c-callin__circle[data-kind="accept"] { background: var(--surface-success); color: var(--icon-neutral-on-success); }
-.c-callin__circle[data-kind="decline"] { background: var(--surface-error); color: var(--icon-neutral-on-error); }
-.c-callin__circle[data-kind="ignore"] {
-  background: var(--surface-wash-on-hero-pressed); /* quiet, tertiary */
-  color: var(--icon-on-scrim);
-}
+.c-callin__circle:active { transform: scale(0.95); }
+.c-callin__circle:focus-visible { outline-color: var(--call-ink); }
+.c-callin__circle[data-kind="accept"] { background: var(--call-accept); }
+.c-callin__circle[data-kind="decline"] { background: var(--call-end); }
+.c-callin__circle[data-kind="ignore"] { background: var(--call-btn); }
 .c-callin__label {
   font-size: var(--font-size-label-sm);
   line-height: var(--line-height-label-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-on-scrim);
+  color: var(--call-ink);
+}
+
+/* ═════ DESKTOP (#264 → #1074): a centered card over a dim — the phone halves
+   composition reads stretched in a wide window. The stage is full-window. */
+:root[data-desktop] .c-callin {
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-scrim);
+}
+:root[data-desktop] .c-callin__card {
+  flex: none;
+  width: min(400px, calc(100% - 2 * var(--spacing-24)));
+  padding: var(--spacing-24) var(--spacing-24) var(--spacing-24);
+  border-radius: var(--radius-24);
+  overflow: hidden;
+  background: var(--call-ground);
+  box-shadow: var(--elevation-3);
+}
+:root[data-desktop] .c-callin__identity { flex: none; padding-block: var(--spacing-32) var(--spacing-24); }
+:root[data-desktop] .c-callin__name { font-size: var(--font-size-heading-md); line-height: var(--line-height-heading-md); }
+:root[data-desktop] .c-callin__actions { margin-bottom: var(--spacing-24); }
+:root[data-desktop] .c-callin__circle { width: 60px; height: 60px; }
+/* desktop order: the actions first, the quiet row under them (render E) */
+:root[data-desktop] .c-callin__quick { order: 3; margin-bottom: 0; }
+
+/* ——— decline with a message (a c-sheet above the ring) ———
+   The ring is z-60, above the overlay scrim; the sheet rides above the ring and the
+   ring dims itself while it is open (call-overlay.js sets [data-sheet]). */
+/* one class, loaded after overlay.css — wins the tie by source order; `.c-sheet` itself keeps ONE z-index everywhere (#506②) */
+.c-declinemsg-sheet { z-index: calc(var(--z-60) + 2); }
+.c-callin[data-sheet] .c-callin__card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--surface-scrim-deep);
+}
+.c-declinemsg__sub {
+  margin: 0 0 var(--spacing-16);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-declinemsg__list { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-declinemsg__opt {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-sheet-card);
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-declinemsg__opt svg { flex: none; color: var(--icon-neutral-02); }
+.c-declinemsg__write { color: var(--text-action-default); }
+.c-declinemsg__write svg { color: var(--text-action-default); }
+@media (hover: hover) and (pointer: fine) {
+  .c-declinemsg__opt:hover { background: var(--surface-sheet-card-hover); }
+}
+.c-declinemsg__opt:active { background: var(--surface-sheet-card-pressed); }
+.c-declinemsg__form {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+}
+.c-declinemsg__form[hidden] { display: none; }
+.c-declinemsg__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 var(--spacing-16);
+  border: 1px solid var(--outline-input);
+  border-radius: var(--radius-12);
+  background: var(--surface-input, var(--surface-sheet-card));
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: var(--font-size-body-md);
+}
+.c-declinemsg__send {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+  cursor: pointer;
 }
 
 </style>
 <style data-src="../styles/components/callbar.css">
-/* c-callbar — active call strip pinned to the top of the host.
-   z-60: ABOVE modals — an active call never hides (DESIGN_SYSTEM.md §2).
-   Success surface = universal "call in progress"; on-action ink inverts
-   correctly with the brighter success surface in dark mode. */
+/* c-callbar — the MINIMISED in-call CARD (★ #1074, Damir's pick D1: the dark call ground
+   in both app themes; "below the top bar … a call card, not a full-bleed strip").
+   Production: the native CallPage stage IS the card (a rounded Border below the app's
+   top bar, CallPage.applyStageLayout), and call.html makes this element fill it edge to
+   edge. Standalone (demos): it floats as a rounded card under the host's top bar.
+   z-60: ABOVE modals — an active call never hides (DESIGN_SYSTEM.md §2). */
 
 .c-callbar {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: calc(var(--layout-bar-top) + var(--spacing-8));
+  left: var(--spacing-12);
+  right: var(--spacing-12);
   z-index: var(--z-60);
-  display: flex;
-  align-items: stretch;
-  min-height: var(--size-target-min);
-  background: var(--surface-success);
-  /* ★ #46 r2 C1: green fill, not the action blue — dark --success-300 #91c69b took the
-     on-action white at 1.87:1. --text-neutral-on-success = 9.45:1 dark / 5.98:1 light. */
-  color: var(--text-neutral-on-success);
-  box-shadow: var(--elevation-2);
-  transform: translateY(-100%);
-  transition: transform var(--duration-200) var(--easing-standard);
-}
-.c-callbar[data-open] { transform: translateY(0); }
-
-/* #264 desktop: a full-width strip across a wide window reads like a system
-   alert — cap + center it as a floating pill under the top edge. Same DOM,
-   same z, presentation only (C18 delivery gaps unchanged). */
-:root[data-desktop] .c-callbar {
-  left: 50%;
-  right: auto;
-  top: var(--spacing-8);
-  width: min(560px, calc(100% - 2 * var(--spacing-16)));
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  transform: translate(-50%, calc(-100% - var(--spacing-8)));
-}
-:root[data-desktop] .c-callbar[data-open] { transform: translate(-50%, 0); }
-
-.c-callbar__main {
-  flex: 1;
-  min-width: 0;
+  box-sizing: border-box;
+  height: var(--call-card-h, 64px);
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  padding-inline: var(--spacing-16);
+  padding-inline: var(--spacing-12) var(--spacing-12);
+  border-radius: var(--radius-16, 16px);
+  background: var(--call-ground);
+  color: var(--call-ink);
+  box-shadow: var(--elevation-3);
+  opacity: 0;
+  transform: translateY(calc(-1 * var(--spacing-8)));
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
+}
+.c-callbar[data-open] { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .c-callbar { transition: none; transform: none; }
+}
+:root[data-desktop] .c-callbar {
+  left: auto;
+  right: var(--spacing-16);
+  width: min(380px, calc(100% - 2 * var(--spacing-16)));
+}
+
+/* identity region: avatar + name / state line. A BUTTON only when onReturn (expand)
+   is wired (audit #257); otherwise inert. */
+.c-callbar__main {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  margin: 0;
+  padding: 0 var(--spacing-4);
   border: 0;
+  border-radius: var(--radius-12, 12px);
   background: transparent;
   color: inherit;
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-label-sm);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--tracking-label-sm);
-  cursor: pointer;
+  font: inherit;
   text-align: start;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.c-callbar__main svg { flex: none; }
-
-.c-callbar__text {
+.c-callbar__main .c-avatar { flex: none; }
+.c-callbar__who {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.c-callbar__name {
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-callbar__state {
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--call-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.c-callbar__time { flex: none; opacity: 0.85; }
-
-.c-callbar__hangup {
+.c-callbar__controls {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: var(--size-target-min);
+  gap: var(--spacing-8);
+}
+
+/* the round call controls (shared with c-callscreen) */
+.c-callctl {
+  flex: none;
+  width: 44px;    /* #46 r1 MINOR-4: 44px touch target */
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
-  background: transparent;
-  color: inherit; /* white hangup glyph on green — red-on-green reads muddy */
+  border-radius: var(--radius-full);
+  background: var(--call-btn);
+  color: var(--call-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard),
+              color var(--duration-100) var(--easing-standard),
+              transform var(--duration-100) var(--easing-decelerate);
 }
+.c-callctl[aria-pressed="true"] { background: var(--call-btn-on); color: var(--call-btn-on-ink); }
+.c-callctl:focus-visible { outline-color: var(--call-ink); }
+
+.c-callbar__hangup {
+  flex: none;
+  width: 56px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--call-end);
+  color: var(--call-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter var(--duration-100) var(--easing-standard),
+              transform var(--duration-100) var(--easing-decelerate);
+}
+.c-callbar__hangup:focus-visible { outline-color: var(--call-ink); }
+
 @media (hover: hover) and (pointer: fine) {
-  .c-callbar__main:hover,
-  .c-callbar__hangup:hover { background: var(--surface-wash-on-success); } /* tokenized (Figma mirroring 2026-07-02) */
+  .c-callbar__main:not([data-static]):hover { background: var(--call-btn); }
+  .c-callctl:not([aria-pressed="true"]):hover { background: var(--call-btn-hover); }
+  .c-callbar__hangup:hover { filter: brightness(1.08); }
 }
-.c-callbar__main:active,
-.c-callbar__hangup:active { background: var(--surface-wash-on-success-pressed); }
+.c-callbar__main:not([data-static]):active { background: var(--call-btn-hover); }
+.c-callctl:not([aria-pressed="true"]):active { background: var(--call-btn-pressed); }
+.c-callctl:active,
+.c-callbar__hangup:active { transform: scale(0.95); }
 
 </style>
 <style>
   /* Q4-③ (#270): THE native call surface — loaded ONLY by CallPage, the one
      C#-presented cover that replaced the per-pane call-ui broadcasts (Damir F5:
-     N rings/N bars on desktop, roster-less identities). Two modes, one document:
-       ring    — CallPage presents this WebView FULL-WINDOW; the c-callin overlay
-                 renders over the themed body (its own scrim included).
-       bar     — CallPage re-margins the stage to a TOP STRIP: this viewport IS
-                 the strip (~64dip, --call-bar-h must match CallPage.barHeightDip),
-                 and the callbar pins to its top edge.
+     N rings/N bars on desktop, roster-less identities). The modes are below (#1074).
      Identity (nick + avatar data-URI, X1) is pushed by C# — always right.
-     SECURITY: this page emits ONLY the existing global call verbs
-     (ixian:appAccept/appReject/hangUp) — intent only, C# owns the call. */
-  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+     SECURITY: this page emits intent only — the global call verbs
+     (ixian:appAccept/appReject/hangUp) and, since #1074, the CallPage-only control
+     verbs (callExpand/callMinimise/callMute/callSpeaker/callSilence/callDeclineMsg).
+     C# owns the call. */
+  html, body { margin: 0; height: 100%; background: var(--call-ground); }
   body { overflow: hidden; }
-  :root { --call-bar-h: 64px; }
-  /* bar mode: the strip fills the (short) viewport; hairline under it so the
-     strip reads as a shelf over whatever pane sits beneath the native stage. */
-  body[data-mode="bar"] .c-callbar {
-    position: fixed; top: 0; left: 0; right: 0;
-    /* Edge-to-edge: the strip's native stage starts at the SCREEN top, so the bar
-       surface paints under the status bar and the content row sits below it.
-       ★ CallPage MUST grow the stage by the SAME inset (barHeightDip + safe top) —
-       on iOS from SafeAreaInsets.Top, on Android from MainActivity.TopInsetDip since
-       AND-7 (#401) removed the root-view top padding. If those two ever disagree the
-       64dip content row is clipped inside `body { overflow: hidden }`. Windows keeps
-       --safe-top at 0 and the stage keeps its plain 64dip. */
-    height: calc(var(--call-bar-h) + var(--safe-top, 0px));   /* ★ AND-7 */
-    padding-top: var(--safe-top, 0px);
-    box-sizing: border-box;
-    border-bottom: 1px solid var(--outline-neutral-03, rgba(128,128,128,0.18));
-  }
-  /* Review MAJOR (Q4 loop): callbar.css's #264 DESKTOP rule (:root[data-desktop]
-     .c-callbar, specificity 0-3-0) OUT-SPECIFIES the rule above (0-2-1) — and this
-     shell sets data-desktop on every desktop UA. It floats the bar as a centered
-     560px pill offset 8px from the top… inside a stage viewport that is EXACTLY
-     --call-bar-h tall with overflow:hidden ⇒ the pill's bottom 8px (and its radius)
-     were CLIPPED, with the rest of the opaque native stage showing as a band around
-     it. The floating pill is a DOM-overlay grammar; this stage IS the strip, so the
-     production call surface takes the strip back on desktop too (the demos keep the
-     pill — callbar.css is untouched). Damir: art dial. */
+  /* ★ #1074 — three modes, one document (CallPage.setMode):
+       ring — full-window; c-callin renders over the call ground.
+       full — full-window; c-callscreen, the expanded in-call view.
+       bar  — the minimised CARD: the native stage is a rounded Border BELOW the app's top
+              bar (CallPage.applyStageLayout) and --call-card-h tall, so the card fills
+              this viewport edge to edge — no radius, shadow or inset here (the native
+              Border clips + shadows it), and NO safe-top padding (the card sits under the
+              top bar, not under the status bar). */
+  :root { --call-card-h: 64px; }
+  /* #46 r2 MINOR-6: the card exists only in bar mode — a card still fading out after a
+     bar → full or bar → ring swap must not float over the new view (or take its taps). */
+  body:not([data-mode="bar"]) .c-callbar { display: none; }
+  body[data-mode="bar"] .c-callbar,
   :root[data-desktop] body[data-mode="bar"] .c-callbar {
-    left: 0; right: 0; width: auto;
-    top: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: auto;
+    height: 100%;
     border-radius: 0;
-    transform: translateY(-100%);
+    box-shadow: none;
+    transform: none;
   }
-  :root[data-desktop] body[data-mode="bar"] .c-callbar[data-open] {
-    transform: translateY(0);
-  }
-  /* ring mode: c-callin + its scrim render over the themed full-window body.
-     Desktop (#264): the ring reads as a centered card — call-overlay.css owns it. */
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -997,14 +1321,24 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    *          ixian:hangUp:<sid> — the existing global verbs (onNavigatingGlobal;
    *          VoIPManager routes them; ★ mini-apps still can't reach any of this —
    *          acceptsCallPushes gates are untouched).
+   *   ★ #1074 (call premium):
+   *   C#→JS  setCallCaps(mute, speaker, silence, declineMsg) — "1"/"0" per platform;
+   *          a control renders only when its cap is on (no dead buttons).
+   *          setCallAudio(muted, speaker, silenced, expanded, ringGen) — C#'s echo; pushed
+   *          BEFORE setCallUi so the kind renders with current state.
+   *   JS→C#  (CallPage-local, never global — mini-apps and other shells cannot send them)
+   *          ixian:callExpand · ixian:callMinimise · ixian:callMute:<0|1>:<sid> ·
+   *          ixian:callSpeaker:<0|1>:<sid> · ixian:callSilence:<sid> ·
+   *          ixian:callDeclineMsg:<sid>:<base64url UTF-8>
    *   Dismissal is NATIVE: C# tears the surface down on accept-elsewhere /
    *   decline / remote hang-up / the #265 ring timeout — this shell never
    *   self-dismisses (no local verb exists; a hidden-but-ringing call would lie).
    * ————————————————————————————————————————————————————————————————————————— */
   const {
-    showIncomingCall, hideIncomingCall,
+    showIncomingCall, hideIncomingCall, updateIncomingCall,
     showCallBar, hideCallBar,
-    createNativeBridge, installExecuteUiCommand,
+    showCallScreen, hideCallScreen,
+    createNativeBridge, installExecuteUiCommand, utf8ToB64Url, dismissTopOverlay,
     applyPushedTheme,
     } = window.Spixi;
   const strings = window.SL || {};
@@ -1028,97 +1362,197 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     return /^(data:image\/|https?:\/\/)/.test(s) ? s : null;
   }
 
+  /* ★ #1074: what THIS platform can do (setCallCaps) and C#'s echo of the live controls
+   * (setCallAudio). Every cap defaults OFF — a control renders only after C# says its verb
+   * is wired here (no dead buttons, #256/#264). */
+  const caps = { mute: false, speaker: false, silence: false, declineMsg: false };
+  const audio = { muted: false, speaker: false, silenced: false, expanded: false, ringGen: 0 };
+  let last = null;          // the last setCallUi payload — re-rendered when caps/audio change
+
   let ringEl = null;        // live c-callin (singleton)
   let ringSession = '';
-  let barSession = '';      // hang-up target while the bar is up
+  let barSession = '';      // hang-up target while the call UI is up
   const hungUp = new Set(); // sessions this surface already hung up (one-shot per call)
+  /* ★ #1074 (#46 r1 MAJOR-1/2): sessions whose ring the USER already answered here —
+   * Accept, Decline or Decline-with-message. call-overlay.js dismisses its own ring on
+   * those, and C#'s next push can still say "ring" for a moment (the silence echo, the
+   * setCallAudio that precedes every setCallUi). A ring for an acted session is NEVER
+   * rebuilt: a second live ring over the in-call card could Decline the answered call. */
+  /* ★ #46 r2 MAJOR-1: keyed sid → the ring GENERATION at the tap. C# bumps the generation
+   * (VoIPManager.currentCallRingGen, 5th setCallAudio arg) only when an Accept is REFUSED
+   * (no mic permission) and the ring must come back — the one case a latched ring rebuilds. */
+  const actedRings = new Map();
+  let userSwapAt = 0;       // a tap on Minimise / the card / Accept (WebKit never focuses a tapped button — r3 NIT-3)
+  let lastCallMode = '';   // 'full' | 'bar' — the call view on screen, for the focus hand-off
 
   function dropRing() {
     if (!ringEl) return;
     const el = ringEl;
     ringEl = null;
     ringSession = '';
-    hideIncomingCall(el);
+    hideIncomingCall(el);   // idempotent: a ring already dismissing is simply removed
   }
 
   function renderRing(name, avatar, text, sid, addr) {
-    // Review MINOR: call-overlay.js DISMISSES the ring itself when an action latches
-    // (Accept/Decline), but nothing reset our identity latch — so between the tap and
-    // C#'s next push the shell believed a ring for `sid` was live while the DOM was
-    // empty. A re-assert in that window (any page's OnAppearing → broadcastCallState)
-    // then rendered NOTHING behind a full-window, back-swallowing cover. Treat a
-    // detached ring as gone.
-    if (ringEl && !ringEl.isConnected) { ringEl = null; ringSession = ''; }
-    // #335 reviewer (MAJOR-residual): a DISMISSING ring is still CONNECTED for up
-    // to ~400ms (overlay.js removes on transitionend / a 400ms fallback) but its
-    // data-open is deleted SYNCHRONOUSLY at dismiss — the AND-11 gate's re-arm
-    // tick could land in that window, match `ringSession === sid` on the dying
-    // element, and be SWALLOWED → the blank cover the gate exists to prevent.
-    // Treat a no-longer-open ring as gone too ('' while open → the `in` test).
-    if (ringEl && !('open' in ringEl.dataset)) { ringEl = null; ringSession = ''; }
-    if (ringEl && ringSession === sid) return;    // same ring — keep it (no restart/refocus)
+    if (actedRings.has(sid)) {
+      if (audio.ringGen <= actedRings.get(sid)) {   // answered here — C# is moving on; never rebuild
+        if (ringEl && ringSession === sid && !ringEl.isConnected) { ringEl = null; ringSession = ''; }
+        return;
+      }
+      actedRings.delete(sid);                        // C# re-rang it (a refused Accept) — show it again
+      if (ringEl && ringSession === sid) dropRing();
+    }
+    if (ringEl && ringSession === sid && ringEl.isConnected) {
+      updateIncomingCall(ringEl, { silenced: audio.silenced, strings });   // same ring — only the echo moves
+      return;
+    }
     dropRing();
     ringSession = sid;
+    const acted = (fn) => (...a) => { actedRings.set(sid, audio.ringGen); fn(...a); };
     ringEl = showIncomingCall({
       host: document.body,
       ignore: false,       // Accept/Decline only — no local-dismiss verb exists (C# keeps ringing)
       caller: { name: name || '', address: addr || '', avatar: resolveAvatar(avatar) },
       sub: text || '',     // C#-localized "Incoming call" line
-      onAccept: () => bridge.send('ixian:appAccept:' + addr + ':' + sid),
-      onDecline: () => bridge.send('ixian:appReject:' + addr + ':' + sid),
+      // r4 MINOR-2: Accept's dismissal hands focus back to <body>; the first call view
+      // that follows counts as a user swap, so focus lands on it (keyboard/screen reader)
+      onAccept: acted(() => { userSwapAt = Date.now(); bridge.send('ixian:appAccept:' + addr + ':' + sid); }),
+      onDecline: acted(() => bridge.send('ixian:appReject:' + addr + ':' + sid)),
+      // ★ #1074: each quiet action only when its verb is wired on this platform
+      onSilence: caps.silence ? () => bridge.send('ixian:callSilence:' + sid) : undefined,
+      onDeclineMessage: caps.declineMsg
+        ? acted((text) => bridge.send('ixian:callDeclineMsg:' + sid + ':' + utf8ToB64Url(text)))
+        : undefined,
       strings,
     });
+    updateIncomingCall(ringEl, { silenced: audio.silenced, strings });
   }
 
-  function renderBar(text, startedSecs, sid) {
+  function hangUpOnce() {
+    const target = barSession;
+    if (!target) return;                     // already ended — idempotent
+    barSession = '';
+    hungUp.add(target);
+    bridge.send('ixian:hangUp:' + target);   // C# tears the surface down
+  }
+
+  function renderCall(name, avatar, addr, startedSecs, sid, text, prevFocus) {
     dropRing();
-    // Review MINOR: a re-assert (dialing → in-call, or any page's OnAppearing →
-    // broadcastCallState) used to RE-ARM the hang-up latch after the user had already
-    // hung up — a second tap then re-fired ixian:hangUp on a session C# was tearing
-    // down. Hang-up is one-shot per session, for the life of this surface.
+    // A re-assert must never re-arm a hang-up the user already made (review MINOR).
     barSession = hungUp.has(sid) ? '' : sid;
     const t = Number(startedSecs) || 0;
-    showCallBar({
+    const startedAt = t > 0 ? t * 1000 : null;   // 0 ⇒ dialing, no timer
+    const common = {
       host: document.body,
-      text: String(text || ''),
-      startedAt: t > 0 ? t * 1000 : null,        // 0 ⇒ dialing, no timer (spixi.js:304)
-      // no onReturn: this surface can't navigate the app (return-to-call =
-      // logged follow-up — needs a C#-routed verb); the main region renders
-      // INERT (callbar.js #257 grammar), hang-up is the live action.
-      onHangUp: () => {
-        const target = barSession;
-        if (!target) return;                     // already ended — idempotent
-        barSession = '';
-        hungUp.add(target);
-        bridge.send('ixian:hangUp:' + target);   // C# tears the surface down
-      },
+      name: name || '', address: addr || '', avatar: resolveAvatar(avatar),
+      startedAt,
+      caps: { mute: caps.mute, speaker: caps.speaker },
+      audio: { muted: audio.muted, speaker: audio.speaker },
+      onMute: (on) => { if (barSession) bridge.send('ixian:callMute:' + (on ? '1' : '0') + ':' + barSession); },
+      onSpeaker: (on) => { if (barSession) bridge.send('ixian:callSpeaker:' + (on ? '1' : '0') + ':' + barSession); },
+      onHangUp: hangUpOnce,
       strings,
-    });
+    };
+    /* #46 r1 MINOR-9 · r2 NIT-11 · r3 NIT-3: when the view SWAPS and this document has
+     * focus, land focus in the new view if (a) the swap removed the control that held focus
+     * here (hardware back, a mode change), or (b) the user tapped Minimise / the card /
+     * Accept (WebKit never focuses a tapped button). Never otherwise: taking focus this
+     * WebView does not hold would pull it (and the keyboard) away from another pane. */
+    const hadFocus = document.hasFocus() && !!prevFocus && prevFocus !== document.body;
+    const userSwap = userSwapAt > 0 && Date.now() - userSwapAt < 3000;
+    let el;
+    if (audio.expanded) {
+      hideCallBar(document.body);
+      el = showCallScreen({ ...common, onMinimise: () => { userSwapAt = Date.now(); bridge.send('ixian:callMinimise'); } });
+    } else {
+      hideCallScreen(document.body);
+      // the card's identity region opens the full call screen (C#-owned expand)
+      el = showCallBar({ ...common, text: String(text || ''), onReturn: () => { userSwapAt = Date.now(); bridge.send('ixian:callExpand'); } });
+    }
+    const lostFocus = hadFocus && (!prevFocus.isConnected || (!el.contains(prevFocus) && !!prevFocus.closest('.c-callbar:not([data-open])')));
+    const mode = audio.expanded ? 'full' : 'bar';
+    const swapped = mode !== lastCallMode;
+    lastCallMode = mode;
+    if (swapped) userSwapAt = 0;
+    if (el && swapped && document.hasFocus() && (lostFocus || userSwap)) {
+      const target = el.querySelector(audio.expanded ? '.c-callscreen__min' : '.c-callbar__main');
+      if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
+    }
   }
 
+  function render() {
+    if (!last) return;
+    const { kind, name, avatar, text, startedSecs, sid, addr } = last;
+    if (kind === 'ring') {
+      document.body.dataset.mode = 'ring';
+      lastCallMode = '';
+      hideCallBar(document.body);
+      hideCallScreen(document.body);
+      barSession = '';
+      renderRing(name, avatar, text, sid, addr);
+    } else if (kind === 'dialing' || kind === 'incall') {
+      const prevFocus = document.activeElement;   // read BEFORE the mode flips (the card's display rule)
+      document.body.dataset.mode = audio.expanded ? 'full' : 'bar';
+      renderCall(name, avatar, addr, startedSecs, sid, text, prevFocus);
+    }
+    // any other kind: leave the surface exactly as it is (an unknown kind used to
+    // fall into 'bar' mode and paint an empty opaque strip).
+  }
+
+  const flag = (v) => String(v) === '1';
+
   const handlers = {
-    /* ★ N71 (#421): the live re-theme push. C# used to RELOAD every page on an OS
-     * theme flip, which threw the user back to Chats (N78) and discarded unsaved
-     * input; it pushes now, so this shell must be able to receive one. Shared body
-     * (theme-runtime.js) — never re-derive 'auto' from matchMedia here, the
-     * WebView's prefers-color-scheme can disagree with the app theme. */
+    /* ★ N71 (#421): the live re-theme push (theme-runtime.js). The call views are dark
+     * in both themes (#1074); the decline sheet still follows the app theme. */
     setTheme(name) { applyPushedTheme(name); },
-    /* the ONE push — full current state, replayable (see contract above) */
+    /* the ONE state push — full current state, replayable (see contract above) */
     setCallUi(kind, name, avatar, text, startedSecs, sessionId, address) {
-      const k = String(kind || '');
-      const sid = String(sessionId || '');
-      const addr = String(address || '');
-      if (k === 'ring') {
-        document.body.dataset.mode = 'ring';
+      last = {
+        kind: String(kind || ''), name, avatar, text, startedSecs,
+        sid: String(sessionId || ''), addr: String(address || ''),
+      };
+      render();
+    },
+    /* ★ #1074: platform caps — mute · speaker · silence · decline-with-message. Fixed per
+     * platform, so a change only happens at the first push; the views are rebuilt then,
+     * but an acted ring is never resurrected (renderRing). */
+    setCallCaps(mute, speaker, silence, declineMsg) {
+      const next = { mute: flag(mute), speaker: flag(speaker), silence: flag(silence), declineMsg: flag(declineMsg) };
+      const changed = Object.keys(next).some((k) => next[k] !== caps[k]);
+      Object.assign(caps, next);
+      if (changed && last) {
         hideCallBar(document.body);
-        barSession = '';
-        renderRing(name, avatar, text, sid, addr);
-      } else if (k === 'dialing' || k === 'incall') {
-        document.body.dataset.mode = 'bar';
-        renderBar(text, startedSecs, sid);
+        hideCallScreen(document.body);
+        dropRing();
+        render();
       }
-      // any other kind: leave the surface exactly as it is (an unknown kind used to
-      // fall into 'bar' mode and paint an empty opaque strip).
+    },
+    /* ★ #1074: C#'s echo of the live controls — the buttons show what C# did. It only
+     * UPDATES what is on screen (#46 r1 MAJOR-2: it used to re-render from the previous
+     * setCallUi, rebuilding a live ring after Accept). C# always follows it with setCallUi,
+     * which is the one push that creates views. */
+    setCallAudio(muted, speaker, silenced, expanded, ringGen) {
+      audio.muted = flag(muted);
+      audio.speaker = flag(speaker);
+      audio.silenced = flag(silenced);
+      audio.expanded = flag(expanded);
+      const g = Number(ringGen);
+      audio.ringGen = Number.isFinite(g) && g >= 0 ? Math.floor(g) : 0;   // an older C# sends no 5th arg → 0
+      if (!last) return;
+      if (last.kind === 'ring') {
+        if (ringEl && ringEl.isConnected && ringSession === last.sid) updateIncomingCall(ringEl, { silenced: audio.silenced, strings });
+      } else {
+        render();   // dialing/in-call: mutates the live card/screen in place (or swaps the mode)
+      }
+    },
+    /* ★ #1074 (#46 r1 MINOR-7): Android back while the ring is up. The ring cannot be
+     * dismissed (escDismiss:false consumes it), so this closes only an open sheet above it. */
+    callBack() { dismissTopOverlay(); },
+    /* ★ #1074 (#46 r1 MINOR-6): the iOS keyboard (CallPage attaches the native observer) —
+     * the decline-with-message sheet rides --kb-inset (overlay.css). Validated number only. */
+    __setKbInset(h) {
+      const px = Math.max(0, Math.round(Number(h) || 0));
+      document.documentElement.style.setProperty('--kb-inset', (px > 60 ? px : 0) + 'px');
     },
   };
   bridge.exposeAll(handlers);

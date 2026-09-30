@@ -5506,16 +5506,21 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
   ok(!d.querySelector('.c-callin'), 'an answered ring dismisses itself');
 
   // —— callbar: dialing (null startedAt) vs in-call, singleton mutate ——
-  S.showCallBar({ host: d.body, text: 'Calling Han…', startedAt: null, onHangUp: () => {} });
+  /* ★ #1074: the minimised call is a CARD — avatar · name · one state line
+     ("Calling…" / "1:05 · Connected") · controls. The old __text/__time pair is gone;
+     the property is unchanged: dialing shows no timer, a real startedAt mutates the
+     SAME card into a duration. */
+  S.showCallBar({ host: d.body, name: 'Han', startedAt: null, onHangUp: () => {} });
   let bar = d.querySelector('.c-callbar');
-  let time = bar && bar.querySelector('.c-callbar__time');
-  ok(!!bar && !!time && time.hidden && time.textContent === '',
-    'startedAt:null = DIALING — the bar shows, no timer ticks (legacy spixi.js:304)');
-  S.showCallBar({ host: d.body, text: 'Han', startedAt: Date.now() - 65000, onHangUp: () => {} });
+  let state = bar && bar.querySelector('.c-callbar__state');
+  ok(!!bar && !!state && !/\d+:\d\d/.test(state.textContent) && state.textContent.length > 0,
+    'startedAt:null = DIALING — the card shows a "Calling…" line, no duration ticks (legacy spixi.js:304)');
+  const firstBar = bar;
+  S.showCallBar({ host: d.body, name: 'Han', startedAt: Date.now() - 65000, onHangUp: () => {} });
   bar = d.querySelector('.c-callbar');
-  time = bar && bar.querySelector('.c-callbar__time');
-  ok(d.querySelectorAll('.c-callbar').length === 1 && !!time && !time.hidden && /\d+:\d\d/.test(time.textContent),
-    'a real startedAt flips the SAME bar to in-call with a duration (singleton mutate — no teardown flash)');
+  state = bar && bar.querySelector('.c-callbar__state');
+  ok(d.querySelectorAll('.c-callbar').length === 1 && bar === firstBar && !!state && /1:0\d/.test(state.textContent),
+    'a real startedAt flips the SAME card to in-call with a duration (singleton mutate — no teardown flash)');
   S.hideCallBar(d.body);
   ok(!d.querySelector('.c-callbar'), 'hideCallBar removes the bar');
 
@@ -5641,8 +5646,18 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
   // MINOR-5: the bar strip is sized, not margin-derived from an unmeasured grid.
   // #282: the bar strip grows by the iOS status-bar inset — the assignment rides
   // stripHeight (barHeightDip + inset); still SIZED directly, never margin-derived.
-  ok(/double stripHeight = barHeightDip;/.test(callPage) && /stage\.HeightRequest = stripHeight;/.test(callPage) && !/h - barHeightDip/.test(callPage),
-    'MINOR-5: the bar stage is SIZED, not margin-derived from an unmeasured grid height (which collapsed to a full-window input blocker)');
+  /* ★ #1074 REBASED: the bar is a CARD now (a fixed height below the app's top bar), so
+     the strip-height arithmetic is gone. The property is unchanged: the bar stage is
+     SIZED directly, never derived from the grid's measured Height (-1/NaN before the
+     first arrange), and its height is the SAME number call.html fills. */
+  {
+    const sl = callPage.indexOf('private static void applyStageLayout()');
+    const barBr = sl > 0 ? callPage.slice(callPage.indexOf('if (mode == "bar")', sl), callPage.indexOf('else', callPage.indexOf('stage.Margin = new Thickness(sideL', sl))) : '';
+    const cardH = (/private const double cardHeightDip = (\d+);/.exec(callPage) || [])[1];
+    const cssH = (/--call-card-h:\s*(\d+)px/.exec(callShell) || [])[1];
+    ok(barBr.length > 0 && /stage\.HeightRequest = cardHeightDip;/.test(barBr) && !/hostGrid\.Height/.test(barBr) && !!cardH && cardH === cssH,
+      'MINOR-5 (#1074 card): the bar stage is SIZED (HeightRequest = cardHeightDip = ' + cardH + '), never margin-derived from an unmeasured grid height, and call.html\'s --call-card-h is the same number (' + cssH + ')');
+  }
   // ★ the inbound mini-app gate survives the removal of the (now dead) enumerator.
   ok(!/public static List<SpixiContentPage> getLivePages/.test(scp)
     && /public virtual bool acceptsCallPushes => true;/.test(scp)
@@ -5651,8 +5666,15 @@ console.log('native call surface (Q4-③/#270) — call.html contract + the call
   // the FE half: hang-up is one-shot per session; an unknown kind paints nothing.
   ok(/const hungUp = new Set\(\)/.test(callShell) && /hungUp\.has\(sid\) \? '' : sid/.test(callShell),
     'call.html: hang-up is ONE-SHOT per session (a re-assert cannot re-arm it)');
-  ok(/if \(ringEl && !ringEl\.isConnected\)/.test(callShell),
-    'call.html: a self-dismissed ring clears its latch (no blank full-window cover on a re-assert)');
+  /* ★ #1074 REBASED (#46 r1 MAJOR-1/2): the old guard forgot a ring by `!isConnected`
+     alone, and #1074's setCallAudio re-render rebuilt a ring the user had just answered.
+     The latch is now per SESSION: an answered ring is never rebuilt, and a stale one is
+     always hidden before it is forgotten. Behaviour is pinned on the BUILT shell below. */
+  ok(/const actedRings = new Map\(\);/.test(callShell)
+    && /function renderRing\([^)]*\) \{\s*if \(actedRings\.has\(sid\)\) \{\s*if \(audio\.ringGen <= actedRings\.get\(sid\)\)/.test(callShell)
+    && /actedRings\.set\(sid, audio\.ringGen\)/.test(callShell)
+    && /function dropRing\(\) \{[\s\S]{0,200}?hideIncomingCall\(el\);/.test(callShell),
+    'call.html: an answered ring is latched per session (actedRings) and a dropped ring is always hidden, never just forgotten');
   ok(/:root\[data-desktop\] body\[data-mode="bar"\] \.c-callbar/.test(callShell),
     'call.html: the desktop #264 floating-pill rule is overridden in bar mode (the stage IS the strip — no clipped pill)');
 }
@@ -5975,16 +5997,27 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
       const home = rd('src/shells/home.html');
       {
         const cp = rd('Spixi/Pages/Call/CallPage.xaml.cs');
-        ok(/#elif ANDROID[\s\S]{0,900}?stripHeight \+= Spixi\.MainActivity\.TopInsetDip;/.test(cp)
-          && /stripHeight \+= win\.SafeAreaInsets\.Top;/.test(cp),
-          '★ AND-7 audit MAJOR-1: the in-call STRIP grows by the inset on BOTH platforms. call.html\'s bar grew by --safe-top, and on Android the native stage stayed 64dip — inside `body { overflow: hidden }` that clips the identity row and the HANG-UP control, on the one surface a user must be able to hit during a call');
+        /* ★ #1074 REBASED: the in-call strip became a CARD below the app's top bar. The
+         * AND-7 property survives in its new form: the card is placed BELOW the platform's
+         * top inset on BOTH platforms (never under the clock), by one arithmetic. */
+        const cpc = stripCode(cp);
+        ok(/#elif ANDROID[\s\S]{0,600}?topInset = Spixi\.MainActivity\.TopInsetDip;/.test(cpc)
+          && /topInset = win\.SafeAreaInsets\.Top;/.test(cpc)
+          && /double top = topInset \+ appTopBarDip \+ cardGapDip;/.test(cpc)
+          && /stage\.Margin = new Thickness\(sideL, top, sideR, 0\);/.test(cpc)
+          && /stage\.Margin = new Thickness\(0, top, 16, 0\);/.test(cpc),
+          '★ AND-7 → #1074: the minimised call CARD sits below the top inset on BOTH platforms (Android TopInsetDip · iOS/Mac SafeAreaInsets.Top) plus the app\'s top bar and a gap — phone and desktop margins both carry that one `top`');
         /* ★ break-my-verdict MINOR-2: this is a TWO-SIDED contract and only the C# side was
          * pinned. Deleting either CSS line reaches the same user-visible failure from the
          * other direction, and the structural env() sweep cannot see a REMOVED site. */
         const callSrc = rd('src/shells/call.html');
-        ok(/height: calc\(var\(--call-bar-h\) \+ var\(--safe-top, 0px\)\)/.test(callSrc)
-          && /padding-top: var\(--safe-top, 0px\)/.test(callSrc),
-          '★ AND-7 MAJOR-1, the OTHER half: the bar GROWS by and PADS by the same inset the native stage grew by. If the two ever disagree the hang-up control is clipped or sits under the clock');
+        /* the OTHER half: the native stage is already below the inset, so call.html must
+         * NOT pad by it again — the card fills the stage edge to edge. A leftover
+         * safe-top pad would push the hang-up row out of a 64dip card. */
+        const barCss = stripCssComments((callSrc.match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
+        const barRule = (/body\[data-mode="bar"\] \.c-callbar,[^{]*\{([^}]*)\}/.exec(barCss) || [])[1] || '';
+        ok(/height: 100%;/.test(barRule) && /top: 0; left: 0; right: 0; bottom: 0;/.test(barRule) && !/safe-top/.test(barCss),
+          '★ AND-7 → #1074, the OTHER half: in card mode call.html fills the native stage edge to edge and pads by NO safe-top (the stage already sits below it — padding twice would clip the hang-up row)');
       }
       {
         /* ★ N77 (#413, Damir 2026-08-19): MEASURE the community-bot open before building
@@ -12800,7 +12833,7 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   /* ★ #1007 (D-08c) RE-BASE: Downloads' sub ("Files you received in chats") only restated its
      title and is dropped, with Contacts' and Declined requests'. The two that ADD information stay. */
   ok(sh370.includes("strings.chatAppearanceSub || 'Background and text size'")   /* ★ #1040/#1041: no opacity control since #774; Canvas is light-only */
-    && sh370.includes("strings.appLockSub || 'Password check when Spixi opens'")
+    && sh370.includes("strings.appLockSub || 'Password on app open'")   /* ★ #1078: shortened to one line on a 360px phone */
     && !/strings\.(downloadsSub|contactsSub|declinedRequestsSub|spixiAddressSub)\b/.test(sh370),
     'I-11 (#371) → #1007: SOME rows carry subs — Chat appearance, App lock (a sub must ADD information; the restating Downloads / Contacts / Declined-requests / address subs are gone)');
   const as370 = njs(read('src/components/apps-shell.js'));
@@ -27214,21 +27247,22 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
         }
       }
     }
-    /* ⚠ A census over an empty corpus passes trivially. These nine rows are the ones C1
-       actually moved; every one must be FOUND, or the walk broke rather than the code. */
+    /* ⚠ A census over an empty corpus passes trivially. These rows are the ones C1
+       actually moved; every one must be FOUND, or the walk broke rather than the code.
+       ★ #1074: the three call rows (ring decline/accept, the old green callbar) LEFT the
+       census — the call views paint on their own dark --call-* ground in both themes and
+       ink from --call-ink; the pin after this one holds their contrast. The floor drops
+       by those three (12 → 9 rows expected at minimum; 11 are found today). */
     const CENSUS_EXPECT = [
       'src/styles/components/bottomnav.css .c-bottomnav__badge → --surface-error',
       'src/styles/components/scroll-latest.css .c-scroll-latest__badge → --surface-error',
       'src/shells/chat.html <style> .chat-mention-fab__badge → --surface-error',
-      'src/styles/components/call-overlay.css .c-callin__circle[data-kind="decline"] → --surface-error',
-      'src/styles/components/call-overlay.css .c-callin__circle[data-kind="accept"] → --surface-success',
-      'src/styles/components/callbar.css .c-callbar → --surface-success',
       'src/styles/components/button.css .c-button[data-success] → --surface-success',
       'src/styles/components/system-notice.css .c-sysnotice__medallion → --surface-accent',
       'src/styles/components/chats-swipe.css .c-swipe__action[data-action="mute"] → --surface-neutral-inverse-01',
     ];
     const censusMissing = CENSUS_EXPECT.filter((e) => !fillRows.includes(e));
-    ok(inkOffenders.length === 0 && fillOffenders.length === 0 && censusMissing.length === 0 && fillRows.length >= 12,
+    ok(inkOffenders.length === 0 && fillOffenders.length === 0 && censusMissing.length === 0 && fillRows.length >= 9,
       '★★★ #46 r2 C1 (①) THE CONSUMER CENSUS — every solid fill that is NOT --surface-action-default inks from its OWN role, computed over every stylesheet AND every shell <style> block, from BOTH directions: no rule puts an on-action ink on a non-action fill (except the two inkless bases whose variants carry both), and no rule fills with --surface-error/success/accent/destructive-default/neutral-inverse-01 while INHERITING its ink. Inheriting is how the defect got in: `.c-swipe__action[data-action="mute"]` set only a background and took the base white, 1.14:1 in dark. THIS is the pin that would have caught C1; the token pin above it is green for the defect and green for the fix, because it never asks who reads the token. Census rows found: ' + fillRows.length + '. Ink offenders: ' + (inkOffenders.join(' · ') || 'none') + '. Fill offenders: ' + (fillOffenders.join(' · ') || 'none') + '. Expected rows missing: ' + (censusMissing.join(' · ') || 'none'));
 
     /* ★ C1 (①b): the private button palette, which the census cannot see — .c-button inks
@@ -36221,8 +36255,8 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
   const shaped = pushes.filter((p) => /try\s*\{\s*foreach \(SpixiContentPage page in getLiveShellPages\(true\)\)/.test(p.body) && /finally\s*\{\s*SpixiContentPage\.disposeParkedOverlay\(\);/.test(p.body));
   const topBody = pushes[0].body;
   ok(shaped.length === 3 && /CallPage\.relayoutStageForInsets\(\);/.test(topBody) && topBody.indexOf('CallPage.relayoutStageForInsets') > topBody.indexOf('finally')
-     && /public static void relayoutStageForInsets\(\)\s*\{\s*applyStageLayout\(\);\s*\}/.test(cp) && /stripHeight \+= Spixi\.MainActivity\.TopInsetDip;/.test(cp),
-    '★ #926 ③ (NIT-9 · MINOR-4): all three inset pushes (' + shaped.map((p) => p.n).join(', ') + ') enumerate inside try and drop the parked Account in FINALLY (the latch already holds the value — a throw must not strand a stale inset), and the top push re-asserts the in-call stage (64 + TopInsetDip) after the documents got theirs');
+     && /public static void relayoutStageForInsets\(\)\s*\{\s*applyStageLayout\(\);\s*\}/.test(cp) && /topInset = Spixi\.MainActivity\.TopInsetDip;/.test(cp),
+    '★ #926 ③ (NIT-9 · MINOR-4): all three inset pushes (' + shaped.map((p) => p.n).join(', ') + ') enumerate inside try and drop the parked Account in FINALLY (the latch already holds the value — a throw must not strand a stale inset), and the top push re-asserts the in-call stage (the #1074 card, placed below TopInsetDip) after the documents got theirs');
   /* ④ MINOR-5 · MINOR-6: the chrome pass pushes the sides; a mini-app is natively padded on all four edges */
   const chrome = (/internal void applyPlatformPageChrome\(\)\s*\{([\s\S]*?)\n        \}/.exec(scp) || [])[1] || '';
   ok(/Utils\.sendUiCommand\(this, "setInsetSides",\s*MainActivity\.LeftInsetDip\.ToString\([^)]*\),\s*MainActivity\.RightInsetDip\.ToString\([^)]*\)\);/.test(chrome)
@@ -38174,7 +38208,8 @@ console.log('★★ #1028+ — the overnight finalization');
       && /if \(macTop >= 0 && macTop < 1000\)\s*\{\s*Utils\.sendUiCommand\(this, "setInsetTop"/.test(blk)
       && /winTop = uiWin\.SafeAreaInsets\.Top;/.test(blk) && blk.indexOf('macTop = Math.Max(macTop, winTop);') > latchEnd && blk.indexOf('macTop = Math.Max(macTop, winTop);') < pushAt
       /* ★ #1036 (r2 M1): the call strip grows by the window inset on the Mac too, or the pushed --safe-top clips its hang-up row */
-      && /double stripHeight = barHeightDip;\s*#if IOS \|\| MACCATALYST[\s\S]{0,1400}?\.FirstOrDefault\(w => w\.IsKeyWindow\);\s*if \(win == null\)\s*\{\s*win = Application\.Current\?\.Windows\?\.FirstOrDefault\(\)\?\.Handler\?\.PlatformView as UIKit\.UIWindow;\s*\}\s*if \(win != null\)\s*\{\s*stripHeight \+= win\.SafeAreaInsets\.Top;/.test(stripCode(rdO('Spixi/Pages/Call/CallPage.xaml.cs')));   /* ★ #1037: no key window (another app active) → the first window */
+      /* ★ #1074 REBASED: the strip is a card placed BELOW the window inset (topInset), not grown by it */
+      && /double topInset = 0;\s*#if IOS \|\| MACCATALYST[\s\S]{0,1400}?\.FirstOrDefault\(w => w\.IsKeyWindow\);\s*if \(win == null\)\s*\{\s*win = Application\.Current\?\.Windows\?\.FirstOrDefault\(\)\?\.Handler\?\.PlatformView as UIKit\.UIWindow;\s*\}\s*if \(win != null\)\s*\{\s*topInset = win\.SafeAreaInsets\.Top;/.test(stripCode(rdO('Spixi/Pages/Call/CallPage.xaml.cs')));   /* ★ #1037: no key window (another app active) → the first window */
     ok(Object.values(r).every((v) => v === true),
       '★★ #1028 (walk R.6): every shell (source + built) carries the platform carrier and setInsetTop; on the Mac the title-bar line is ALWAYS 1px at --safe-top (y = 0 when the native bar sits above the WebView), and the Catalyst chrome pass pushes the measured overlap into --safe-top on EVERY pass — ' + JSON.stringify(r) + ' lacking: ' + JSON.stringify(lacks.slice(0, 5)));
   }
@@ -38856,6 +38891,263 @@ console.log('★★ #1028+ — the overnight finalization');
   }
 }
 /* ══ OVERNIGHT-1028-END ══ */
+
+/* ══ #1074-START — the call surface premium (1:1) · #1073 window size ══════════════════
+ * Behaviour on the BUILT call.html (jsdom, the real executeUiCommand wire), then the C#
+ * properties, then the call-token contrast the census no longer covers. */
+console.log('#1074 — call surface premium');
+{
+  const rdX = (p) => readFileSync(join(root, p), 'utf8');
+  const b64x = (s) => Buffer.from(String(s), 'utf8').toString('base64');
+  {
+    const built = join(root, 'Spixi/Resources/Raw/html/call.html');
+    const vc = new VirtualConsole();
+    const errs = [];
+    vc.on('jsdomError', (e) => { if (!/navigation|Not implemented/i.test(e.message)) errs.push(e.message); });
+    const dom = new JSDOM(readFileSync(built, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, url: 'file://' + built, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+      },
+    });
+    await sleep(2500);
+    const w = dom.window, d = w.document;
+    const push = (fn, ...a) => w.executeUiCommand(w[fn], ...a.map(b64x));
+    const rings = () => d.querySelectorAll('.c-callin').length;
+    const r = {};
+    r.globals = ['setCallUi', 'setCallCaps', 'setCallAudio', 'callBack', '__setKbInset'].every((g) => typeof w[g] === 'function');
+    const sid = 'a1b2c3d4';
+    push('setCallCaps', '1', '0', '1', '1');
+    push('setCallAudio', '0', '0', '0', '0');
+    push('setCallUi', 'ring', 'Bob', '', 'Incoming', '0', sid, 'ADDR1');
+    await sleep(80);
+    r.oneRing = rings() === 1;
+    r.caps = !!d.querySelector('.c-callin__pill[data-kind="silence"]') && !!d.querySelector('.c-callin__pill[data-kind="message"]');
+    push('setCallAudio', '0', '0', '1', '0');
+    push('setCallUi', 'ring', 'Bob', '', 'Incoming', '0', sid, 'ADDR1');
+    await sleep(80);
+    r.silenceEchoNoStack = rings() === 1 && !!d.querySelector('.c-callin__pill[data-kind="silence"][data-done]');
+    d.querySelector('.c-callin__circle[data-kind="accept"]')?.click();
+    /* r2 MAJOR-3: wait PAST the overlay's 400 ms removal — a push inside the fade takes the
+       "same ring, still connected" branch and would pass with the latch deleted */
+    await sleep(600);
+    push('setCallAudio', '0', '0', '1', '0', '0');
+    push('setCallUi', 'ring', 'Bob', '', 'Incoming', '0', sid, 'ADDR1');   // a stale ring push after Accept
+    await sleep(80);
+    r.answeredNeverRebuilt = rings() === 0;
+    /* r2 MAJOR-1: a REFUSED Accept (no mic) — C# bumps the ring generation and re-rings; the
+       latch lifts for exactly that, and the ring the user needs to Decline comes back */
+    push('setCallAudio', '0', '0', '1', '0', '1');
+    push('setCallUi', 'ring', 'Bob', '', 'Incoming', '0', sid, 'ADDR1');
+    await sleep(80);
+    r.refusedAcceptReRings = rings() === 1;
+    const hasFocus0 = d.hasFocus.bind(d);
+    d.hasFocus = () => true;   // r4 MINOR-2: Accept counts as a user swap — focus lands on the next view
+    d.querySelector('.c-callin__circle[data-kind="accept"]')?.click();
+    await sleep(600);
+    push('setCallAudio', '0', '0', '1', '1', '1');
+    push('setCallUi', 'ring', 'Bob', '', 'Incoming', '0', sid, 'ADDR1');   // same generation: stale again
+    await sleep(80);
+    r.sameGenStaysLatched = rings() === 0;
+    push('setCallAudio', '0', '0', '1', '1', '0');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(80);
+    r.expandedScreen = d.querySelectorAll('.c-callscreen').length === 1 && d.querySelectorAll('.c-callbar').length === 0 && rings() === 0;
+    r.acceptFocusLands = !!d.querySelector('.c-callscreen__min') && d.activeElement === d.querySelector('.c-callscreen__min');
+    d.hasFocus = hasFocus0;
+    /* r3: the full screen's mute CAPTION is its accessible name and never flips (WCAG 2.5.3) */
+    push('setCallAudio', '1', '0', '0', '1', '0');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(80);
+    const capEl = d.querySelector('.c-callscreen .c-callctl[data-kind="mute"]');
+    const cap = capEl && capEl.parentElement.querySelector('.c-callscreen__ctl-label');
+    const muteWord = (w.SL && w.SL.callMute) || 'Mute';
+    r.fullMuteCaptionFixed = !!cap && cap.textContent === muteWord && capEl.getAttribute('aria-label') === muteWord && capEl.getAttribute('aria-pressed') === 'true';
+    /* r3 NIT-3: a tap on Minimise lands focus on the card — and ONLY when this document has focus */
+    const realHasFocus = d.hasFocus.bind(d);
+    d.hasFocus = () => true;
+    d.querySelector('.c-callscreen__min').click();
+    push('setCallAudio', '1', '0', '0', '0');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(80);
+    r.focusLandsOnCard = d.activeElement === d.querySelector('.c-callbar__main');
+    /* r4 MINOR-3: a C#-ONLY swap (no tap here) never moves focus, even with the document focused */
+    const probe = d.createElement('button'); d.body.append(probe); probe.focus();
+    push('setCallAudio', '1', '0', '0', '1');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(80);
+    r.noFocusOnCsharpSwap = d.activeElement === probe;
+    /* …and a card-less tap then a swap lands on the full view's Minimise; a second C#-only swap does not move it */
+    push('setCallAudio', '1', '0', '0', '0');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(500);
+    probe.focus();
+    d.querySelector('.c-callbar__main').click();
+    push('setCallAudio', '1', '0', '0', '1');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(80);
+    r.focusLandsOnMinimise = d.activeElement === d.querySelector('.c-callscreen__min');
+    probe.focus();
+    push('setCallAudio', '1', '0', '0', '0');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(80);
+    r.tapIsOneShot = d.activeElement === probe;
+    probe.remove();
+    await sleep(500);
+    /* r3: a card still fading after bar → full is not rendered over the call screen */
+    d.hasFocus = () => false;
+    d.querySelector('.c-callbar__main').click();
+    push('setCallAudio', '1', '0', '0', '1');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(30);
+    const fading = d.querySelector('.c-callbar');
+    r.fadingCardHidden = !!fading && w.getComputedStyle(fading).display === 'none';
+    r.noFocusWithoutFocus = d.activeElement !== d.querySelector('.c-callscreen__min');
+    d.hasFocus = realHasFocus;
+    push('setCallAudio', '1', '0', '0', '0');
+    push('setCallUi', 'incall', 'Bob', '', '', String(Math.floor(Date.now() / 1000) - 5), sid, 'ADDR1');
+    await sleep(500);
+    const mute = d.querySelector('.c-callbar .c-callctl[data-kind="mute"]');
+    r.minimisedCard = d.querySelectorAll('.c-callscreen').length === 0 && d.querySelectorAll('.c-callbar').length === 1
+      && !!mute && mute.getAttribute('aria-pressed') === 'true' && mute.getAttribute('aria-label') === (w.SL && w.SL.callMute || 'Mute');
+    r.noSpeakerWithoutCap = !d.querySelector('.c-callctl[data-kind="speaker"]');
+    const sid2 = 'ffee0011';
+    push('setCallAudio', '0', '0', '0', '0');
+    push('setCallUi', 'ring', 'Ann', '', 'Incoming', '0', sid2, 'ADDR2');
+    await sleep(80);
+    d.querySelector('.c-callin__pill[data-kind="message"]')?.click();
+    await sleep(80);
+    r.sheetOpens = d.querySelectorAll('.c-declinemsg-sheet').length === 1 && d.querySelector('.c-callin').dataset.sheet !== undefined;
+    w.callBack();
+    await sleep(500);
+    r.backClosesSheetOnly = d.querySelectorAll('.c-declinemsg-sheet').length === 0 && rings() === 1 && d.querySelector('.c-callin').dataset.sheet === undefined;
+    /* r2 MINOR-5: re-open INSIDE the old sheet's exit fade — its late onDismiss must not undim the ring */
+    d.querySelector('.c-callin__pill[data-kind="message"]')?.click();
+    await sleep(80);
+    w.callBack();
+    await sleep(60);
+    d.querySelector('.c-callin__pill[data-kind="message"]')?.click();
+    await sleep(600);
+    r.reopenKeepsDim = d.querySelector('.c-callin').dataset.sheet !== undefined && [...d.querySelectorAll('.c-declinemsg-sheet')].filter((x) => x.dataset.open !== undefined).length === 1;
+    w.callBack();
+    await sleep(500);
+    d.querySelector('.c-callin__pill[data-kind="message"]')?.click();
+    await sleep(80);
+    d.querySelector('.c-declinemsg__opt')?.click();
+    await sleep(600);
+    push('setCallAudio', '0', '0', '0', '0');
+    push('setCallUi', 'ring', 'Ann', '', 'Incoming', '0', sid2, 'ADDR2');
+    await sleep(80);
+    r.declinedWithMessageNeverRebuilt = rings() === 0 && d.querySelectorAll('.c-declinemsg-sheet').length === 0;
+    const kb = (v) => { w.__setKbInset(v); return d.documentElement.style.getPropertyValue('--kb-inset'); };
+    r.kbInset = kb(300) === '300px' && kb(30) === '0px' && kb('x') === '0px' && kb(-5) === '0px';
+    r.noErrors = errs.length === 0;
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1074 (#46 r1 MAJOR-1/2) BEHAVIOUR on the BUILT call.html: one ring per session · a Silence echo updates the ring in place · an ANSWERED ring is never rebuilt by a stale push (it could Decline the live call) · expanded → the call screen, minimised → the card with mute pressed and a FIXED accessible name · no Speaker without its cap · hardware back closes the decline sheet, never the ring · a ring declined with a message is never rebuilt · --kb-inset takes a validated number only — ' + JSON.stringify(r) + (errs.length ? ' errors: ' + errs.slice(0, 3).join(' | ') : ''));
+  }
+  {
+    /* C#: the new control verbs are CallPage-only, their args are validated, and the caps
+       reach the shell BEFORE the state push (no dead button on the first paint). */
+    const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));
+    /* every `lock (controlLock) { … }` body in a slice, brace-matched (r4/r5: properties, not layout) */
+    const braceFrom = (src, o) => { let dep = 0, k = o; for (; k < src.length; k++) { if (src[k] === '{') dep++; else if (src[k] === '}' && --dep === 0) break; } return src.slice(o, k + 1); };
+    const lockBodies = (src) => { const out = []; let i = 0; while ((i = src.indexOf('lock (controlLock)', i)) >= 0) { const b = braceFrom(src, src.indexOf('{', i)); out.push(b); i += 18; } return out; };
+    const method = (src, head) => { const i = src.indexOf(head); return i < 0 ? '' : braceFrom(src, src.indexOf('{', i)); };
+    const walk = (dir, out = []) => { for (const f of readdirSync(join(root, dir), { withFileTypes: true })) { const p = dir + '/' + f.name; if (f.isDirectory()) { if (!/\/(bin|obj)$/.test(p)) walk(p, out); } else if (p.endsWith('.cs')) out.push(p); } return out; };
+    const verbHomes = walk('Spixi').filter((p) => /"ixian:call(Expand|Minimise)"|verb == "call(Mute|Speaker|Silence|DeclineMsg)"/.test(stripCode(rdX(p))));
+    const r = {};
+    r.homes = verbHomes.length === 1 && verbHomes[0] === 'Spixi/Pages/Call/CallPage.xaml.cs';
+    r.hexOnly = /hex\.Length > 128 \|\| hex\.Length % 2 != 0/.test(cp) && /\(c >= '0' && c <= '9'\) \|\| \(c >= 'a' && c <= 'f'\) \|\| \(c >= 'A' && c <= 'F'\)/.test(cp);
+    r.boolArg = /\(parts\[2\] != "0" && parts\[2\] != "1"\)/.test(cp);
+    r.speakerGated = /else if \(SPlatformUtils\.callSpeakerRoute\)\s*\{\s*VoIPManager\.setSpeaker/.test(cp);
+    r.silenceGated = /verb == "callSilence" && parts\.Length == 3 && SPlatformUtils\.callRings/.test(cp);
+    const iCaps = cp.indexOf('"setCallCaps"'), iAudio = cp.indexOf('"setCallAudio"'), iUi = cp.indexOf('"setCallUi"');
+    r.capsFirst = iCaps > 0 && iCaps < iAudio && iAudio < iUi;
+    r.stageBorder = /Border\?? callStage/.test(cp) || /static Border\? callStage/.test(cp);
+    const ssi = (/private static void setStageInput\(Border stage, bool accepts\)\s*\{([\s\S]*?)\n        \}/.exec(cp) || [])[1] || '';
+    r.innerCascade = /CascadeInputTransparent = true/.test(cp)
+      && /stage\.InputTransparent = !accepts;/.test(ssi) && /innerView\.InputTransparent = !accepts;/.test(ssi)
+      && /if \(stage\.Content is ContentView innerView\)/.test(ssi);
+    const vm = stripCode(rdX('Spixi/VoIP/VoIPManager.cs'));
+    const rj = vm.slice(vm.indexOf('public static bool rejectCallWithMessage('), vm.indexOf('public static void setVolume('));
+    r.rejectGuards = /currentCallInitiator/.test(rj) && /\.Trim\(/.test(rj) && rj.indexOf('.Trim(') < rj.indexOf('DECLINE_MESSAGE_MAX')
+      && /msg\.Length < 1 \|\| msg\.Length > DECLINE_MESSAGE_MAX/.test(rj);
+    r.noTextLogged = (rj.match(/Logging\.[a-z]+\([^;]*;/g) || []).every((l) => !/\b(msg|text)\b(?!\.Length)/.test(l.replace(/msg\.Length/g, '')));
+    const jsMax = (/export const DECLINE_MESSAGE_MAX = (\d+);/.exec(rdX('src/components/call-overlay.js')) || [])[1];
+    const csMax = (/const int DECLINE_MESSAGE_MAX = (\d+);/.exec(vm) || [])[1];
+    r.maxAgree = !!jsMax && jsMax === csMax;
+    r.muteZeroed = ['Android', 'iOS', 'MacCatalyst', 'Windows'].every((pl) => {
+      const src = stripCode(rdX('Spixi/Platforms/' + pl + '/SAudioRecorder.cs'));
+      /* r4 mutation #16: EVERY encode branch zeroes — Android has two (shorts for Opus, bytes otherwise) */
+      const encodes = (src.match(/audioEncoder\.encode\(/g) || []).length;
+      const zeroed = (src.match(/if \(muted\)\s*\{\s*Array\.Clear\((\w+), [^;]+\);\s*\}\s*audioEncoder\.encode\(\1, /g) || []).length;
+      return /public void setMuted\(bool is_muted\)/.test(src) && encodes >= 1 && zeroed === encodes && (pl !== 'Android' || zeroed === 2);
+    });
+    /* startVoIPSession: the recorder is handed over AND muted inside the lock, refused when the
+       call closed meanwhile (r5 MINOR-1), and started only after that lock — never before the mute */
+    const svs = method(vm, 'private static void startVoIPSession()');
+    const hand = lockBodies(svs).find((b) => /audioRecorder = recorder;/.test(b)) || '';
+    const handAt = hand ? svs.indexOf(hand) : -1;
+    r.muteBeforeStart = /recorder\.setMuted\(currentCallMuted\);/.test(hand) && /controlsClosed/.test(hand)
+      && handAt > 0 && svs.indexOf('recorder.start(') > handAt + hand.length;
+    const mtB = lockBodies(method(vm, 'public static void setMuted(byte[] session_id'));
+    const srB = lockBodies(method(vm, 'public static void silenceRinging('));
+    r.muteSilenceLocked = mtB.some((b) => /!hasSession\(session_id\) \|\| controlsClosed/.test(b) && /currentCallMuted = muted;/.test(b) && /audioRecorder\?\.setMuted\(muted\)/.test(b))
+      && srB.some((b) => /controlsClosed/.test(b) && /SPlatformUtils\.stopRinging\(\);/.test(b) && /currentCallRingSilenced = true;/.test(b));
+    /* endVoIPSession takes the recorder and closes the controls in ONE lock step (r5 MINOR-1) */
+    const evs = method(vm, 'private static void endVoIPSession()');
+    r.endTakesRecorder = lockBodies(evs).some((b) => /audioRecorder = null;/.test(b) && /controlsClosed = true;/.test(b));
+    const acc = method(vm, 'public static void acceptCall(');
+    r.ringGen = lockBodies(acc).some((b) => /currentCallRingGen\+\+;/.test(b)) && acc.indexOf('currentCallRingGen++') > 0 && acc.indexOf('currentCallRingGen++') < acc.indexOf('UIHelpers.refreshAppRequests = true;')
+      && /VoIPManager\.currentCallRingGen\.ToString\(/.test(cp);
+    /* r2 MINOR-8: the route resets UNCONDITIONALLY at the end of a call, under the setters' lock */
+    const spk = vm.slice(vm.indexOf('public static void setSpeaker('), vm.indexOf('public static', vm.indexOf('public static void setSpeaker(') + 10));
+    r.setterLocked = /lock \(controlLock\)\s*\{\s*if \(!hasSession\(session_id\) \|\| controlsClosed\)/.test(spk);
+    const rcc = method(vm, 'private static void resetCallControls(bool closed)');
+    r.resetAll = /controlsClosed = closed;/.test(rcc) && /currentCallRingGen = 0;/.test(rcc) && /currentCallMuted = false;/.test(rcc) && /currentCallSpeaker = false;/.test(rcc) && /currentCallRingSilenced = false;/.test(rcc)
+      && ['public static void initiateCall(', 'public static bool onReceivedCall('].every((h) => lockBodies(method(vm, h)).some((b) => /resetCallControls\(false\);/.test(b)));
+    const sx = (/private static void setExpanded\(bool on\)\s*\{([\s\S]*?)\n        \}/.exec(cp) || [])[1] || '';
+    r.expandOffUi = /System\.Threading\.Tasks\.Task\.Run\(\(\) => SpixiContentPage\.broadcastCallState\(\)\);/.test(sx) && !/^\s*SpixiContentPage\.broadcastCallState\(\);/m.test(sx);
+    const bb = (/protected override bool OnBackButtonPressed\(\)\s*\{([\s\S]*?)\n        \}/.exec(cp) || [])[1] || '';
+    r.modalBackForwards = /if \(isRingPresented\(\)\)\s*\{\s*forwardBackToShell\(\);\s*return true;/.test(bb);
+    /* r4 NIT-5 · r5 NIT-3: inside ONE lock body of endVoIPSession (brace-matched, anchored on code) the route
+       resets UNCONDITIONALLY where the platform can route, AND the controls reset closed */
+    r.routeReset = lockBodies(evs).some((b) => /if \(SPlatformUtils\.callSpeakerRoute\)\s*\{\s*try \{ SPlatformUtils\.setSpeakerphone\(false\); \}/.test(b) && /resetCallControls\(true\);/.test(b));
+    const app = stripCode(rdX('Spixi/Platforms/Windows/App.xaml.cs'));
+    r.win1073 = /bool firstRun = width < minW \|\| height < minH;/.test(app)
+      && /if \(op\.State == OverlappedPresenterState\.Maximized\)/.test(app)
+      && /if \(op\.State != OverlappedPresenterState\.Restored\)\s*\{\s*return;/.test(app)
+      && app.indexOf('if (op.State != OverlappedPresenterState.Restored)') < app.indexOf('Preferences.Default.Set("windowWidth"');
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1074 C#: the control verbs live ONLY in CallPage · a session id is 2–128 hex or refused · a toggle arg is exactly "0"/"1" · Speaker and Silence answer only where the platform can do them · caps → audio → state, in that order (no dead button on the first paint) · the stage is a Border with an input-transparent inner cascade · decline-with-message refuses the caller side, trims BEFORE the length check and logs the length only (both sides agree on the max) · mute ZEROES the PCM on all four recorders (a gap would trip the peer\'s 10 s dead-call timer) and is set before the recorder starts · #1073: a size under the minimum counts as no save, and only the RESTORED state saves a size — ' + JSON.stringify(r) + ' homes: ' + JSON.stringify(verbHomes));
+  }
+  {
+    /* The call views paint on their own dark ground in both themes, outside the census. */
+    const tok = stripCssComments(rdX('src/styles/tokens.css'));
+    const val = (n) => { let v = (new RegExp('--' + n + ':\\s*([^;]+);').exec(tok) || [])[1]; for (let i = 0; i < 4 && v && /^var\(--/.test(v); i++) v = (new RegExp('--' + v.slice(6, -1) + ':\\s*([^;]+);').exec(tok) || [])[1]; return (v || '').trim(); };
+    const lumC = (hex) => { const h = hex.replace('#', ''); const c = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((u) => (u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4))); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+    const cr = (a, b) => { const x = lumC(a), y = lumC(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const over = (rgba, bg) => { const m = /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/.exec(rgba); if (!m) return rgba; const a = Number(m[4]); return '#' + [1, 2, 3].map((k, i) => Math.round(Number(m[k]) * a + parseInt(bg.slice(1 + 2 * i, 3 + 2 * i), 16) * (1 - a)).toString(16).padStart(2, '0')).join(''); };
+    const ground = val('call-ground'), ink = val('call-ink');
+    const r = {
+      end: cr(ink, val('call-end')) >= 3,
+      accept: cr(ink, val('call-accept')) >= 3,
+      ink2: cr(over(val('call-ink-2'), ground), ground) >= 4.5,
+      onToggle: cr(val('call-btn-on-ink'), val('call-btn-on')) >= 4.5,
+      groundMatchesNative: /Color\.FromArgb\("#14161c"\)/.test(rdX('Spixi/Pages/Call/CallPage.xaml.cs')) && ground.toLowerCase() === '#14161c',
+    };
+    /* every rule that fills with a call fill inks from --call-ink (on itself or its base class) */
+    const fillers = cssRulesWhere((s) => true).filter((rr) => /background:\s*var\(--call-(end|accept)\)/.test(rr.body));
+    r.inkedFills = fillers.length >= 3 && fillers.every((rr) => {
+      const base = (/^(\.[a-z0-9_-]+)/i.exec(cssSubject(rr.selector)) || [])[1];
+      return /color:\s*var\(--call-ink\)/.test(rr.body) || rulesFor(base).some((b) => /(^|;)\s*color:\s*var\(--call-ink\)/.test(b.body));
+    });
+    ok(Object.values(r).every((v) => v === true),
+      '★ #1074: the call palette holds its own contrast — white on End/Accept ≥ 3:1 (24px+ glyphs), the secondary ink ≥ 4.5:1 on the call ground, an ON toggle ≥ 4.5:1, every End/Accept fill inks from --call-ink, and the CSS ground equals the native stage colour (no seam) — ' + JSON.stringify(r) + ' fillers: ' + fillers.length);
+  }
+}
+/* ══ #1074-END ══ */
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

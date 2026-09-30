@@ -1,85 +1,138 @@
-/* c-callbar — active call strip pinned to the top of the host.
-   z-60: ABOVE modals — an active call never hides (DESIGN_SYSTEM.md §2).
-   Success surface = universal "call in progress"; on-action ink inverts
-   correctly with the brighter success surface in dark mode. */
+/* c-callbar — the MINIMISED in-call CARD (★ #1074, Damir's pick D1: the dark call ground
+   in both app themes; "below the top bar … a call card, not a full-bleed strip").
+   Production: the native CallPage stage IS the card (a rounded Border below the app's
+   top bar, CallPage.applyStageLayout), and call.html makes this element fill it edge to
+   edge. Standalone (demos): it floats as a rounded card under the host's top bar.
+   z-60: ABOVE modals — an active call never hides (DESIGN_SYSTEM.md §2). */
 
 .c-callbar {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: calc(var(--layout-bar-top) + var(--spacing-8));
+  left: var(--spacing-12);
+  right: var(--spacing-12);
   z-index: var(--z-60);
-  display: flex;
-  align-items: stretch;
-  min-height: var(--size-target-min);
-  background: var(--surface-success);
-  /* ★ #46 r2 C1: green fill, not the action blue — dark --success-300 #91c69b took the
-     on-action white at 1.87:1. --text-neutral-on-success = 9.45:1 dark / 5.98:1 light. */
-  color: var(--text-neutral-on-success);
-  box-shadow: var(--elevation-2);
-  transform: translateY(-100%);
-  transition: transform var(--duration-200) var(--easing-standard);
-}
-.c-callbar[data-open] { transform: translateY(0); }
-
-/* #264 desktop: a full-width strip across a wide window reads like a system
-   alert — cap + center it as a floating pill under the top edge. Same DOM,
-   same z, presentation only (C18 delivery gaps unchanged). */
-:root[data-desktop] .c-callbar {
-  left: 50%;
-  right: auto;
-  top: var(--spacing-8);
-  width: min(560px, calc(100% - 2 * var(--spacing-16)));
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  transform: translate(-50%, calc(-100% - var(--spacing-8)));
-}
-:root[data-desktop] .c-callbar[data-open] { transform: translate(-50%, 0); }
-
-.c-callbar__main {
-  flex: 1;
-  min-width: 0;
+  box-sizing: border-box;
+  height: var(--call-card-h, 64px);
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
-  padding-inline: var(--spacing-16);
+  padding-inline: var(--spacing-12) var(--spacing-12);
+  border-radius: var(--radius-16, 16px);
+  background: var(--call-ground);
+  color: var(--call-ink);
+  box-shadow: var(--elevation-3);
+  opacity: 0;
+  transform: translateY(calc(-1 * var(--spacing-8)));
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
+}
+.c-callbar[data-open] { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .c-callbar { transition: none; transform: none; }
+}
+:root[data-desktop] .c-callbar {
+  left: auto;
+  right: var(--spacing-16);
+  width: min(380px, calc(100% - 2 * var(--spacing-16)));
+}
+
+/* identity region: avatar + name / state line. A BUTTON only when onReturn (expand)
+   is wired (audit #257); otherwise inert. */
+.c-callbar__main {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  margin: 0;
+  padding: 0 var(--spacing-4);
   border: 0;
+  border-radius: var(--radius-12, 12px);
   background: transparent;
   color: inherit;
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-label-sm);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--tracking-label-sm);
-  cursor: pointer;
+  font: inherit;
   text-align: start;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.c-callbar__main svg { flex: none; }
-
-.c-callbar__text {
+.c-callbar__main .c-avatar { flex: none; }
+.c-callbar__who {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.c-callbar__name {
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-callbar__state {
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--call-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.c-callbar__time { flex: none; opacity: 0.85; }
-
-.c-callbar__hangup {
+.c-callbar__controls {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: var(--size-target-min);
+  gap: var(--spacing-8);
+}
+
+/* the round call controls (shared with c-callscreen) */
+.c-callctl {
+  flex: none;
+  width: 44px;    /* #46 r1 MINOR-4: 44px touch target */
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
-  background: transparent;
-  color: inherit; /* white hangup glyph on green — red-on-green reads muddy */
+  border-radius: var(--radius-full);
+  background: var(--call-btn);
+  color: var(--call-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard),
+              color var(--duration-100) var(--easing-standard),
+              transform var(--duration-100) var(--easing-decelerate);
 }
+.c-callctl[aria-pressed="true"] { background: var(--call-btn-on); color: var(--call-btn-on-ink); }
+.c-callctl:focus-visible { outline-color: var(--call-ink); }
+
+.c-callbar__hangup {
+  flex: none;
+  width: 56px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--call-end);
+  color: var(--call-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter var(--duration-100) var(--easing-standard),
+              transform var(--duration-100) var(--easing-decelerate);
+}
+.c-callbar__hangup:focus-visible { outline-color: var(--call-ink); }
+
 @media (hover: hover) and (pointer: fine) {
-  .c-callbar__main:hover,
-  .c-callbar__hangup:hover { background: var(--surface-wash-on-success); } /* tokenized (Figma mirroring 2026-07-02) */
+  .c-callbar__main:not([data-static]):hover { background: var(--call-btn); }
+  .c-callctl:not([aria-pressed="true"]):hover { background: var(--call-btn-hover); }
+  .c-callbar__hangup:hover { filter: brightness(1.08); }
 }
-.c-callbar__main:active,
-.c-callbar__hangup:active { background: var(--surface-wash-on-success-pressed); }
+.c-callbar__main:not([data-static]):active { background: var(--call-btn-hover); }
+.c-callctl:not([aria-pressed="true"]):active { background: var(--call-btn-pressed); }
+.c-callctl:active,
+.c-callbar__hangup:active { transform: scale(0.95); }

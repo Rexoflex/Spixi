@@ -22,8 +22,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi — Call</title>
 <style>
-  html { background: #f9fafb; }
-  html[data-theme="dark"] { background: #13171b; }
+  /* ★ #1074: the call surface is DARK in both themes — = --call-ground, CallPage.callGround and
+     surfaceColorStringFor("call.html"), so the pre-paint frame never flashes light. */
+  html, html[data-theme="dark"] { background: #14161c; }
 </style>
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
@@ -31,59 +32,41 @@
 <link rel="stylesheet" href="../styles/components/button.css">
 <link rel="stylesheet" href="../styles/components/avatar.css">
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-callin rides the overlay stack -->
+<link rel="stylesheet" href="../styles/components/call-screen.css">
 <link rel="stylesheet" href="../styles/components/call-overlay.css">
 <link rel="stylesheet" href="../styles/components/callbar.css">
 <style>
   /* Q4-③ (#270): THE native call surface — loaded ONLY by CallPage, the one
      C#-presented cover that replaced the per-pane call-ui broadcasts (Damir F5:
-     N rings/N bars on desktop, roster-less identities). Two modes, one document:
-       ring    — CallPage presents this WebView FULL-WINDOW; the c-callin overlay
-                 renders over the themed body (its own scrim included).
-       bar     — CallPage re-margins the stage to a TOP STRIP: this viewport IS
-                 the strip (~64dip, --call-bar-h must match CallPage.barHeightDip),
-                 and the callbar pins to its top edge.
+     N rings/N bars on desktop, roster-less identities). The modes are below (#1074).
      Identity (nick + avatar data-URI, X1) is pushed by C# — always right.
-     SECURITY: this page emits ONLY the existing global call verbs
-     (ixian:appAccept/appReject/hangUp) — intent only, C# owns the call. */
-  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+     SECURITY: this page emits intent only — the global call verbs
+     (ixian:appAccept/appReject/hangUp) and, since #1074, the CallPage-only control
+     verbs (callExpand/callMinimise/callMute/callSpeaker/callSilence/callDeclineMsg).
+     C# owns the call. */
+  html, body { margin: 0; height: 100%; background: var(--call-ground); }
   body { overflow: hidden; }
-  :root { --call-bar-h: 64px; }
-  /* bar mode: the strip fills the (short) viewport; hairline under it so the
-     strip reads as a shelf over whatever pane sits beneath the native stage. */
-  body[data-mode="bar"] .c-callbar {
-    position: fixed; top: 0; left: 0; right: 0;
-    /* Edge-to-edge: the strip's native stage starts at the SCREEN top, so the bar
-       surface paints under the status bar and the content row sits below it.
-       ★ CallPage MUST grow the stage by the SAME inset (barHeightDip + safe top) —
-       on iOS from SafeAreaInsets.Top, on Android from MainActivity.TopInsetDip since
-       AND-7 (#401) removed the root-view top padding. If those two ever disagree the
-       64dip content row is clipped inside `body { overflow: hidden }`. Windows keeps
-       --safe-top at 0 and the stage keeps its plain 64dip. */
-    height: calc(var(--call-bar-h) + var(--safe-top, 0px));   /* ★ AND-7 */
-    padding-top: var(--safe-top, 0px);
-    box-sizing: border-box;
-    border-bottom: 1px solid var(--outline-neutral-03, rgba(128,128,128,0.18));
-  }
-  /* Review MAJOR (Q4 loop): callbar.css's #264 DESKTOP rule (:root[data-desktop]
-     .c-callbar, specificity 0-3-0) OUT-SPECIFIES the rule above (0-2-1) — and this
-     shell sets data-desktop on every desktop UA. It floats the bar as a centered
-     560px pill offset 8px from the top… inside a stage viewport that is EXACTLY
-     --call-bar-h tall with overflow:hidden ⇒ the pill's bottom 8px (and its radius)
-     were CLIPPED, with the rest of the opaque native stage showing as a band around
-     it. The floating pill is a DOM-overlay grammar; this stage IS the strip, so the
-     production call surface takes the strip back on desktop too (the demos keep the
-     pill — callbar.css is untouched). Damir: art dial. */
+  /* ★ #1074 — three modes, one document (CallPage.setMode):
+       ring — full-window; c-callin renders over the call ground.
+       full — full-window; c-callscreen, the expanded in-call view.
+       bar  — the minimised CARD: the native stage is a rounded Border BELOW the app's top
+              bar (CallPage.applyStageLayout) and --call-card-h tall, so the card fills
+              this viewport edge to edge — no radius, shadow or inset here (the native
+              Border clips + shadows it), and NO safe-top padding (the card sits under the
+              top bar, not under the status bar). */
+  :root { --call-card-h: 64px; }
+  /* #46 r2 MINOR-6: the card exists only in bar mode — a card still fading out after a
+     bar → full or bar → ring swap must not float over the new view (or take its taps). */
+  body:not([data-mode="bar"]) .c-callbar { display: none; }
+  body[data-mode="bar"] .c-callbar,
   :root[data-desktop] body[data-mode="bar"] .c-callbar {
-    left: 0; right: 0; width: auto;
-    top: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: auto;
+    height: 100%;
     border-radius: 0;
-    transform: translateY(-100%);
+    box-shadow: none;
+    transform: none;
   }
-  :root[data-desktop] body[data-mode="bar"] .c-callbar[data-open] {
-    transform: translateY(0);
-  }
-  /* ring mode: c-callin + its scrim render over the themed full-window body.
-     Desktop (#264): the ring reads as a centered card — call-overlay.css owns it. */
 </style>
 </head>
 <body>
@@ -109,14 +92,24 @@
    *          ixian:hangUp:<sid> — the existing global verbs (onNavigatingGlobal;
    *          VoIPManager routes them; ★ mini-apps still can't reach any of this —
    *          acceptsCallPushes gates are untouched).
+   *   ★ #1074 (call premium):
+   *   C#→JS  setCallCaps(mute, speaker, silence, declineMsg) — "1"/"0" per platform;
+   *          a control renders only when its cap is on (no dead buttons).
+   *          setCallAudio(muted, speaker, silenced, expanded, ringGen) — C#'s echo; pushed
+   *          BEFORE setCallUi so the kind renders with current state.
+   *   JS→C#  (CallPage-local, never global — mini-apps and other shells cannot send them)
+   *          ixian:callExpand · ixian:callMinimise · ixian:callMute:<0|1>:<sid> ·
+   *          ixian:callSpeaker:<0|1>:<sid> · ixian:callSilence:<sid> ·
+   *          ixian:callDeclineMsg:<sid>:<base64url UTF-8>
    *   Dismissal is NATIVE: C# tears the surface down on accept-elsewhere /
    *   decline / remote hang-up / the #265 ring timeout — this shell never
    *   self-dismisses (no local verb exists; a hidden-but-ringing call would lie).
    * ————————————————————————————————————————————————————————————————————————— */
   const {
-    showIncomingCall, hideIncomingCall,
+    showIncomingCall, hideIncomingCall, updateIncomingCall,
     showCallBar, hideCallBar,
-    createNativeBridge, installExecuteUiCommand,
+    showCallScreen, hideCallScreen,
+    createNativeBridge, installExecuteUiCommand, utf8ToB64Url, dismissTopOverlay,
     applyPushedTheme,
     } = window.Spixi;
   const strings = window.SL || {};
@@ -140,97 +133,197 @@
     return /^(data:image\/|https?:\/\/)/.test(s) ? s : null;
   }
 
+  /* ★ #1074: what THIS platform can do (setCallCaps) and C#'s echo of the live controls
+   * (setCallAudio). Every cap defaults OFF — a control renders only after C# says its verb
+   * is wired here (no dead buttons, #256/#264). */
+  const caps = { mute: false, speaker: false, silence: false, declineMsg: false };
+  const audio = { muted: false, speaker: false, silenced: false, expanded: false, ringGen: 0 };
+  let last = null;          // the last setCallUi payload — re-rendered when caps/audio change
+
   let ringEl = null;        // live c-callin (singleton)
   let ringSession = '';
-  let barSession = '';      // hang-up target while the bar is up
+  let barSession = '';      // hang-up target while the call UI is up
   const hungUp = new Set(); // sessions this surface already hung up (one-shot per call)
+  /* ★ #1074 (#46 r1 MAJOR-1/2): sessions whose ring the USER already answered here —
+   * Accept, Decline or Decline-with-message. call-overlay.js dismisses its own ring on
+   * those, and C#'s next push can still say "ring" for a moment (the silence echo, the
+   * setCallAudio that precedes every setCallUi). A ring for an acted session is NEVER
+   * rebuilt: a second live ring over the in-call card could Decline the answered call. */
+  /* ★ #46 r2 MAJOR-1: keyed sid → the ring GENERATION at the tap. C# bumps the generation
+   * (VoIPManager.currentCallRingGen, 5th setCallAudio arg) only when an Accept is REFUSED
+   * (no mic permission) and the ring must come back — the one case a latched ring rebuilds. */
+  const actedRings = new Map();
+  let userSwapAt = 0;       // a tap on Minimise / the card / Accept (WebKit never focuses a tapped button — r3 NIT-3)
+  let lastCallMode = '';   // 'full' | 'bar' — the call view on screen, for the focus hand-off
 
   function dropRing() {
     if (!ringEl) return;
     const el = ringEl;
     ringEl = null;
     ringSession = '';
-    hideIncomingCall(el);
+    hideIncomingCall(el);   // idempotent: a ring already dismissing is simply removed
   }
 
   function renderRing(name, avatar, text, sid, addr) {
-    // Review MINOR: call-overlay.js DISMISSES the ring itself when an action latches
-    // (Accept/Decline), but nothing reset our identity latch — so between the tap and
-    // C#'s next push the shell believed a ring for `sid` was live while the DOM was
-    // empty. A re-assert in that window (any page's OnAppearing → broadcastCallState)
-    // then rendered NOTHING behind a full-window, back-swallowing cover. Treat a
-    // detached ring as gone.
-    if (ringEl && !ringEl.isConnected) { ringEl = null; ringSession = ''; }
-    // #335 reviewer (MAJOR-residual): a DISMISSING ring is still CONNECTED for up
-    // to ~400ms (overlay.js removes on transitionend / a 400ms fallback) but its
-    // data-open is deleted SYNCHRONOUSLY at dismiss — the AND-11 gate's re-arm
-    // tick could land in that window, match `ringSession === sid` on the dying
-    // element, and be SWALLOWED → the blank cover the gate exists to prevent.
-    // Treat a no-longer-open ring as gone too ('' while open → the `in` test).
-    if (ringEl && !('open' in ringEl.dataset)) { ringEl = null; ringSession = ''; }
-    if (ringEl && ringSession === sid) return;    // same ring — keep it (no restart/refocus)
+    if (actedRings.has(sid)) {
+      if (audio.ringGen <= actedRings.get(sid)) {   // answered here — C# is moving on; never rebuild
+        if (ringEl && ringSession === sid && !ringEl.isConnected) { ringEl = null; ringSession = ''; }
+        return;
+      }
+      actedRings.delete(sid);                        // C# re-rang it (a refused Accept) — show it again
+      if (ringEl && ringSession === sid) dropRing();
+    }
+    if (ringEl && ringSession === sid && ringEl.isConnected) {
+      updateIncomingCall(ringEl, { silenced: audio.silenced, strings });   // same ring — only the echo moves
+      return;
+    }
     dropRing();
     ringSession = sid;
+    const acted = (fn) => (...a) => { actedRings.set(sid, audio.ringGen); fn(...a); };
     ringEl = showIncomingCall({
       host: document.body,
       ignore: false,       // Accept/Decline only — no local-dismiss verb exists (C# keeps ringing)
       caller: { name: name || '', address: addr || '', avatar: resolveAvatar(avatar) },
       sub: text || '',     // C#-localized "Incoming call" line
-      onAccept: () => bridge.send('ixian:appAccept:' + addr + ':' + sid),
-      onDecline: () => bridge.send('ixian:appReject:' + addr + ':' + sid),
+      // r4 MINOR-2: Accept's dismissal hands focus back to <body>; the first call view
+      // that follows counts as a user swap, so focus lands on it (keyboard/screen reader)
+      onAccept: acted(() => { userSwapAt = Date.now(); bridge.send('ixian:appAccept:' + addr + ':' + sid); }),
+      onDecline: acted(() => bridge.send('ixian:appReject:' + addr + ':' + sid)),
+      // ★ #1074: each quiet action only when its verb is wired on this platform
+      onSilence: caps.silence ? () => bridge.send('ixian:callSilence:' + sid) : undefined,
+      onDeclineMessage: caps.declineMsg
+        ? acted((text) => bridge.send('ixian:callDeclineMsg:' + sid + ':' + utf8ToB64Url(text)))
+        : undefined,
       strings,
     });
+    updateIncomingCall(ringEl, { silenced: audio.silenced, strings });
   }
 
-  function renderBar(text, startedSecs, sid) {
+  function hangUpOnce() {
+    const target = barSession;
+    if (!target) return;                     // already ended — idempotent
+    barSession = '';
+    hungUp.add(target);
+    bridge.send('ixian:hangUp:' + target);   // C# tears the surface down
+  }
+
+  function renderCall(name, avatar, addr, startedSecs, sid, text, prevFocus) {
     dropRing();
-    // Review MINOR: a re-assert (dialing → in-call, or any page's OnAppearing →
-    // broadcastCallState) used to RE-ARM the hang-up latch after the user had already
-    // hung up — a second tap then re-fired ixian:hangUp on a session C# was tearing
-    // down. Hang-up is one-shot per session, for the life of this surface.
+    // A re-assert must never re-arm a hang-up the user already made (review MINOR).
     barSession = hungUp.has(sid) ? '' : sid;
     const t = Number(startedSecs) || 0;
-    showCallBar({
+    const startedAt = t > 0 ? t * 1000 : null;   // 0 ⇒ dialing, no timer
+    const common = {
       host: document.body,
-      text: String(text || ''),
-      startedAt: t > 0 ? t * 1000 : null,        // 0 ⇒ dialing, no timer (spixi.js:304)
-      // no onReturn: this surface can't navigate the app (return-to-call =
-      // logged follow-up — needs a C#-routed verb); the main region renders
-      // INERT (callbar.js #257 grammar), hang-up is the live action.
-      onHangUp: () => {
-        const target = barSession;
-        if (!target) return;                     // already ended — idempotent
-        barSession = '';
-        hungUp.add(target);
-        bridge.send('ixian:hangUp:' + target);   // C# tears the surface down
-      },
+      name: name || '', address: addr || '', avatar: resolveAvatar(avatar),
+      startedAt,
+      caps: { mute: caps.mute, speaker: caps.speaker },
+      audio: { muted: audio.muted, speaker: audio.speaker },
+      onMute: (on) => { if (barSession) bridge.send('ixian:callMute:' + (on ? '1' : '0') + ':' + barSession); },
+      onSpeaker: (on) => { if (barSession) bridge.send('ixian:callSpeaker:' + (on ? '1' : '0') + ':' + barSession); },
+      onHangUp: hangUpOnce,
       strings,
-    });
+    };
+    /* #46 r1 MINOR-9 · r2 NIT-11 · r3 NIT-3: when the view SWAPS and this document has
+     * focus, land focus in the new view if (a) the swap removed the control that held focus
+     * here (hardware back, a mode change), or (b) the user tapped Minimise / the card /
+     * Accept (WebKit never focuses a tapped button). Never otherwise: taking focus this
+     * WebView does not hold would pull it (and the keyboard) away from another pane. */
+    const hadFocus = document.hasFocus() && !!prevFocus && prevFocus !== document.body;
+    const userSwap = userSwapAt > 0 && Date.now() - userSwapAt < 3000;
+    let el;
+    if (audio.expanded) {
+      hideCallBar(document.body);
+      el = showCallScreen({ ...common, onMinimise: () => { userSwapAt = Date.now(); bridge.send('ixian:callMinimise'); } });
+    } else {
+      hideCallScreen(document.body);
+      // the card's identity region opens the full call screen (C#-owned expand)
+      el = showCallBar({ ...common, text: String(text || ''), onReturn: () => { userSwapAt = Date.now(); bridge.send('ixian:callExpand'); } });
+    }
+    const lostFocus = hadFocus && (!prevFocus.isConnected || (!el.contains(prevFocus) && !!prevFocus.closest('.c-callbar:not([data-open])')));
+    const mode = audio.expanded ? 'full' : 'bar';
+    const swapped = mode !== lastCallMode;
+    lastCallMode = mode;
+    if (swapped) userSwapAt = 0;
+    if (el && swapped && document.hasFocus() && (lostFocus || userSwap)) {
+      const target = el.querySelector(audio.expanded ? '.c-callscreen__min' : '.c-callbar__main');
+      if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
+    }
   }
 
+  function render() {
+    if (!last) return;
+    const { kind, name, avatar, text, startedSecs, sid, addr } = last;
+    if (kind === 'ring') {
+      document.body.dataset.mode = 'ring';
+      lastCallMode = '';
+      hideCallBar(document.body);
+      hideCallScreen(document.body);
+      barSession = '';
+      renderRing(name, avatar, text, sid, addr);
+    } else if (kind === 'dialing' || kind === 'incall') {
+      const prevFocus = document.activeElement;   // read BEFORE the mode flips (the card's display rule)
+      document.body.dataset.mode = audio.expanded ? 'full' : 'bar';
+      renderCall(name, avatar, addr, startedSecs, sid, text, prevFocus);
+    }
+    // any other kind: leave the surface exactly as it is (an unknown kind used to
+    // fall into 'bar' mode and paint an empty opaque strip).
+  }
+
+  const flag = (v) => String(v) === '1';
+
   const handlers = {
-    /* ★ N71 (#421): the live re-theme push. C# used to RELOAD every page on an OS
-     * theme flip, which threw the user back to Chats (N78) and discarded unsaved
-     * input; it pushes now, so this shell must be able to receive one. Shared body
-     * (theme-runtime.js) — never re-derive 'auto' from matchMedia here, the
-     * WebView's prefers-color-scheme can disagree with the app theme. */
+    /* ★ N71 (#421): the live re-theme push (theme-runtime.js). The call views are dark
+     * in both themes (#1074); the decline sheet still follows the app theme. */
     setTheme(name) { applyPushedTheme(name); },
-    /* the ONE push — full current state, replayable (see contract above) */
+    /* the ONE state push — full current state, replayable (see contract above) */
     setCallUi(kind, name, avatar, text, startedSecs, sessionId, address) {
-      const k = String(kind || '');
-      const sid = String(sessionId || '');
-      const addr = String(address || '');
-      if (k === 'ring') {
-        document.body.dataset.mode = 'ring';
+      last = {
+        kind: String(kind || ''), name, avatar, text, startedSecs,
+        sid: String(sessionId || ''), addr: String(address || ''),
+      };
+      render();
+    },
+    /* ★ #1074: platform caps — mute · speaker · silence · decline-with-message. Fixed per
+     * platform, so a change only happens at the first push; the views are rebuilt then,
+     * but an acted ring is never resurrected (renderRing). */
+    setCallCaps(mute, speaker, silence, declineMsg) {
+      const next = { mute: flag(mute), speaker: flag(speaker), silence: flag(silence), declineMsg: flag(declineMsg) };
+      const changed = Object.keys(next).some((k) => next[k] !== caps[k]);
+      Object.assign(caps, next);
+      if (changed && last) {
         hideCallBar(document.body);
-        barSession = '';
-        renderRing(name, avatar, text, sid, addr);
-      } else if (k === 'dialing' || k === 'incall') {
-        document.body.dataset.mode = 'bar';
-        renderBar(text, startedSecs, sid);
+        hideCallScreen(document.body);
+        dropRing();
+        render();
       }
-      // any other kind: leave the surface exactly as it is (an unknown kind used to
-      // fall into 'bar' mode and paint an empty opaque strip).
+    },
+    /* ★ #1074: C#'s echo of the live controls — the buttons show what C# did. It only
+     * UPDATES what is on screen (#46 r1 MAJOR-2: it used to re-render from the previous
+     * setCallUi, rebuilding a live ring after Accept). C# always follows it with setCallUi,
+     * which is the one push that creates views. */
+    setCallAudio(muted, speaker, silenced, expanded, ringGen) {
+      audio.muted = flag(muted);
+      audio.speaker = flag(speaker);
+      audio.silenced = flag(silenced);
+      audio.expanded = flag(expanded);
+      const g = Number(ringGen);
+      audio.ringGen = Number.isFinite(g) && g >= 0 ? Math.floor(g) : 0;   // an older C# sends no 5th arg → 0
+      if (!last) return;
+      if (last.kind === 'ring') {
+        if (ringEl && ringEl.isConnected && ringSession === last.sid) updateIncomingCall(ringEl, { silenced: audio.silenced, strings });
+      } else {
+        render();   // dialing/in-call: mutates the live card/screen in place (or swaps the mode)
+      }
+    },
+    /* ★ #1074 (#46 r1 MINOR-7): Android back while the ring is up. The ring cannot be
+     * dismissed (escDismiss:false consumes it), so this closes only an open sheet above it. */
+    callBack() { dismissTopOverlay(); },
+    /* ★ #1074 (#46 r1 MINOR-6): the iOS keyboard (CallPage attaches the native observer) —
+     * the decline-with-message sheet rides --kb-inset (overlay.css). Validated number only. */
+    __setKbInset(h) {
+      const px = Math.max(0, Math.round(Number(h) || 0));
+      document.documentElement.style.setProperty('--kb-inset', (px > 60 ? px : 0) + 'px');
     },
   };
   bridge.exposeAll(handlers);

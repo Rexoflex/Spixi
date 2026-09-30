@@ -400,7 +400,7 @@ export function createSettingsHub({
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('div');
-  el.className = 'c-settings';
+  el.className = 'c-settings c-settings--hub';   // ★ #1076: the Account hub's own disc + row dials (hub only)
 
   const topbar = createTopbar({
     // #320 (Damir F5 of #315): NO onBack = the hub is a PEER TAB (iOS-46) — its
@@ -910,6 +910,7 @@ export function createSettingsHub({
   if (capabilities.globalNotifications && onNotifications) prefs.card.append(settingRow({
     glyph: 'bell', hue: 'warning',
     label: strings.notifications || 'Notifications', key: 'notifications',
+    sub: strings.notificationsSub || 'Sounds, previews and badges',
     onClick: () => onNotifications(),
   }).section);
 
@@ -922,7 +923,7 @@ export function createSettingsHub({
   if (onLock) sec.card.append(authSwitchRow({
     glyph: 'lock', hue: 'success',              // #146 icon gap resolved — 'lock' exported
     label: strings.appLock || 'App lock',
-    sub: strings.appLockSub || 'Password check when Spixi opens',   // I-11 (#371)
+    sub: strings.appLockSub || 'Password on app open',   // I-11 (#371)
     checked: lockEnabled,
     failMsg: strings.lockFailed || 'Couldn’t turn on the app lock.',
     onToggle: onLock,
@@ -937,7 +938,7 @@ export function createSettingsHub({
   if (capabilities.paymentAuth && onPaymentAuth) sec.card.append(authSwitchRow({
     glyph: 'wallet', hue: 'warning',
     label: strings.paymentAuth || 'Confirm payments',
-    sub: strings.paymentAuthSub || 'PIN or biometrics before anything is sent',
+    sub: strings.paymentAuthSub || 'Verify each payment',
     checked: paymentAuth,
     failMsg: strings.paymentAuthFailed || 'Couldn’t turn on payment confirmation.',
     onToggle: onPaymentAuth,
@@ -955,6 +956,7 @@ export function createSettingsHub({
   if (capabilities.changePassword && onChangePassword) sec.card.append(settingRow({
     glyph: 'pencil', hue: 'primary', key: 'encpass',
     label: strings.changePassword || 'Change Spixi password',
+    sub: strings.changePasswordSub || 'Unlocks Spixi and your wallet',
     onClick: () => onChangePassword(),
   }).section);
 
@@ -972,6 +974,7 @@ export function createSettingsHub({
   if ((capabilities.readReceipts || capabilities.typing || capabilities.mediaAutoload) && onPrivacy) sec.card.append(settingRow({
     glyph: 'eye-off', hue: 'info', key: 'privacy',
     label: strings.privacy || 'Privacy',
+    sub: strings.privacySub || 'Automatic media download',
     onClick: () => onPrivacy(),
   }).section);
 
@@ -1009,11 +1012,12 @@ export function createSettingsHub({
      always available (ungated). */
   if (onHowTo) app.card.append(settingRow({
     glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
-    key: 'howto',
+    key: 'howto', sub: strings.howToUseSub || 'Chats, payments and apps',
     onClick: () => onHowTo(),
   }).section);
   if (onAbout) app.card.append(settingRow({
     glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About', key: 'about',
+    sub: strings.aboutSub || 'Links and legal',
     onClick: () => onAbout(),
   }).section);
   /* Downloads — CAPABILITY-GATED: HomePage-driven separate page, no SettingsPage
@@ -1043,7 +1047,7 @@ export function createSettingsHub({
     const dz = group();
     dz.card.append(settingRow({
       glyph: 'trash', hue: 'error', label: strings.deleteData || 'Delete data…',
-      key: 'danger',
+      key: 'danger', sub: strings.deleteDataSub || 'Chats, contacts or account',
       onClick: () => onDanger(),
     }).section);
     body.append(dz.wrap);

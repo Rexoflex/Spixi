@@ -193,6 +193,12 @@ namespace SPIXI
                  * (tokens.css --gradient-lock note). */
                 case "intro.html":
                     return "#1b163c";
+                /* ★ #1074 (call premium): the call surface is DARK in both app themes (Damir's
+                 * pick D1 — calls read dark, like the platform dialers). Same value as call.html's
+                 * --call-ground and its instant html background, so the native stage, the
+                 * pre-paint frame and the first painted pixels agree (no light flash on a ring). */
+                case "call.html":
+                    return "#14161c";
                 // ★★ L1 (#640): wallet_request.html and wallet_send_2.html left this list
                 // with the pages that loaded them (WalletReceivePage / WalletSend2Page,
                 // both deleted). ★ Session N (legacy purge): wallet_recipient.html and
@@ -4634,9 +4640,9 @@ namespace SPIXI
         /// inset gains nothing from being told about it, and each entry is one more
         /// document the observer has to be correct for.
         /// </summary>
-        private static readonly string[] KEYBOARD_INSET_SHELLS = { "chat.html", "index.html", "intro.html" };
+        private static readonly string[] KEYBOARD_INSET_SHELLS = { "chat.html", "index.html", "intro.html", "call.html" };   // ★ #1074: the decline-with-message field
 
-        private void attachKeyboardInsetObserver()
+        protected void attachKeyboardInsetObserver()   // ★ #1074: protected — CallPage (an in-place stage, no OnAppearing) attaches it itself
         {
             if (kbChangeObserver != null)
                 return;

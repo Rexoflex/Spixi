@@ -457,6 +457,7 @@ namespace SPIXI
             {
                 SpixiContentPage.disposeParkedOverlay();   // #926 NIT-9: ALWAYS — the latch already holds the value, a throw must not strand a parked page on a stale inset
             }
+            CallPage.relayoutStageForInsets();   // ★ #1074: the in-call CARD's side margins carry the side insets
         }
 #endif
 

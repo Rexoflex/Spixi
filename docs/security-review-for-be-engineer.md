@@ -785,3 +785,19 @@ process-wide, 64 000-char cap, strict base64url/UTF-8, no payload in any log. **
 compromised chat WebView, in the foreground, can still write once per 750 ms. Options for you: a
 native confirm for text that looks like an address, or a signed per-tap token from the native layer
 (the WebView cannot mint one). Nothing to do before handover if the bound is acceptable.
+
+### CALL CONTROLS (INTRODUCED #1074) — mute · speaker · silence · decline-with-message
+
+`Pages/Call/CallPage.xaml.cs` `onCallControl` handles five new `ixian:call*` verbs from the call
+shell's OWN WebView only (never `onNavigatingGlobal`, so no mini-app and no other shell reaches
+them). Every argument is validated (a flag is exactly `0`/`1`, a session id is 2–128 hex) and every
+`VoIPManager` entry point re-checks `hasSession`. **Mute** zeroes the PCM before the encoder (frames
+keep flowing — stopping them would trip the peer's 10 s no-packet hang-up). **Silence** stops only
+the local ring of an unanswered incoming call. **Speaker** changes the audio route only, and is OFF
+behind a per-platform const on Windows/Mac and in Release Android/iOS until walked. **Decline with a
+message** (`ixian:callDeclineMsg:<sid>:<base64url>`) rejects the call and sends ONE normal chat
+message through the composer's own path (`Node.addMessageWithType` + `sendChatMessage`): trimmed,
+1–500 chars, refused unless the session is an unanswered INCOMING ring, text never logged. The one
+thing for you to judge: a user-typed string leaves without the composer screen in front of it (the
+sheet names the recipient; three presets or a typed line). Nothing signs, moves keys, touches a
+file or fetches.

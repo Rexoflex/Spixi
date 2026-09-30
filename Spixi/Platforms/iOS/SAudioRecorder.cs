@@ -19,6 +19,12 @@ namespace Spixi
         private IAudioEncoder audioEncoder = null;
 
         bool running = false;
+        volatile bool muted = false;   // ★ #1074: zero the PCM, keep the frames flowing
+
+        public void setMuted(bool is_muted)
+        {
+            muted = is_muted;
+        }
 
         List<byte[]> outputBuffers = new List<byte[]>();
 
@@ -217,6 +223,10 @@ namespace Spixi
             {
                 try
                 {
+                    if (muted)
+                    {
+                        Array.Clear(buffer, offset, size);   // ★ #1074: silence, not a gap
+                    }
                     audioEncoder.encode(buffer, offset, size);
                 }
                 catch (Exception e)

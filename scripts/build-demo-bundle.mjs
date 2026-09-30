@@ -73,7 +73,8 @@ const FILES = [
   'src/components/channel-sheet.js',
   'src/components/member-sheet.js',
   'src/components/media-viewer.js',
-  'src/components/call-overlay.js',
+  'src/components/call-screen.js',   // ★ #1074: the expanded in-call view (imports callbar.js — must follow it)
+  'src/components/call-overlay.js',  // ★ #1074: imports call-screen.js (backdrop + e2e chip) — must follow it
   // Q4-③ (#270): call-ui.js DELETED — the per-shell call glue is dead; calls
   // present on the native CallPage (call.html uses call-overlay + callbar directly).
   'src/components/contact-request.js',

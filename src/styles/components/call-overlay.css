@@ -1,6 +1,8 @@
-/* c-callin — incoming call overlay (#86): identity on top of the scrim,
-   three labeled action circles. Call layer (z-60, above modals like the
-   callbar it hands over to). */
+/* c-callin — incoming call (★ #1074 premium, Damir's pick A/E). The caller's colour
+   behind them (c-callbg, call-screen.css), the e2e chip, a large avatar with a ring
+   pulse, the quiet row (Silence · Message), then Decline / Accept. Dark call ground in
+   both themes (tokens.css §4 --call-*). Call layer (z-60, above modals like the card it
+   hands over to). Phone: full screen. Desktop: a centered card (the stage is full-window). */
 
 .c-callin {
   position: absolute;
@@ -8,17 +10,23 @@
   z-index: var(--z-60);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding-inline: var(--spacing-24);
-  /* iOS edge-to-edge: the full-window ring (CallPage) bleeds under the status bar +
-     home indicator — keep identity/actions clear of both. env() = 0 elsewhere. */
-  padding-top: var(--safe-top, 0px);   /* ★ AND-7 */
-  padding-bottom: var(--safe-bottom, 0px);
-  background: var(--surface-scrim); /* + overlay scrim ⇒ near-black stage */
+  color: var(--call-ink);
+  background: var(--call-ground);
 }
+.c-callin__card {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* iOS/Android edge-to-edge: the full-window ring bleeds under the status bar + home
+     indicator — keep identity/actions clear of both. */
+  padding: calc(var(--safe-top, 0px) + var(--spacing-16)) calc(var(--safe-right, 0px) + var(--spacing-24)) calc(var(--safe-bottom, 0px) + var(--spacing-40)) calc(var(--safe-left, 0px) + var(--spacing-24));
+}
+.c-callin__card > :not(.c-callbg) { position: relative; }   /* content above the backdrop */
 
-/* halves composition (Damir): identity centers in the TOP half, actions
-   center in the BOTTOM half — each flexes to 50% and centers its content */
+.c-callin__top { display: flex; justify-content: center; }
+
 .c-callin__identity {
   flex: 1;
   display: flex;
@@ -27,65 +35,89 @@
   justify-content: center;
   gap: var(--spacing-8);
   text-align: center;
+  min-height: 0;
 }
-/* ringing pulse — decorative; finite tokens don't fit a ring, so guard it */
+/* ringing pulse — two soft rings; decorative, reduced-motion safe */
 .c-callin__avatar {
   position: relative;
   display: flex;
+  margin-bottom: var(--spacing-16);
   border-radius: var(--radius-full);
 }
-.c-callin__avatar::before {
+.c-callin__avatar::before,
+.c-callin__avatar::after {
   content: '';
   position: absolute;
-  inset: calc(-1 * var(--spacing-8));
+  inset: calc(-1 * var(--spacing-12));
   border-radius: var(--radius-full);
-  border: var(--outline-width-2) solid var(--surface-wash-on-hero-pressed);
-  animation: c-callin-pulse calc(var(--duration-300) * 5) var(--easing-standard) infinite;
+  border: var(--outline-width-2) solid var(--call-btn-pressed);
+  animation: c-callin-pulse calc(var(--duration-300) * 6) var(--easing-standard) infinite;
 }
+.c-callin__avatar::after { animation-delay: calc(var(--duration-300) * 3); }
 @keyframes c-callin-pulse {
-  0% { transform: scale(0.85); opacity: 0; }
-  40% { opacity: 1; }
-  100% { transform: scale(1.25); opacity: 0; }
+  0% { transform: scale(0.9); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .c-callin__avatar::before { animation: none; opacity: 0.6; transform: none; }
+  .c-callin__avatar::after { animation: none; opacity: 0; }
 }
 
-/* ═════ DESKTOP presentation (#264, Damir: "optimize the call UI on desktop") —
-   FE half only: the ring still covers just THIS WebView (one pane's DOM cannot
-   cover another — ★ #221); TRUE full-viewport coverage rides the C18(a)
-   broadcast (every visible pane rings at once). Here: the phone-shaped
-   halves composition reads stretched in a wide pane → compress the identity/
-   actions into a centered COLUMN card rhythm with a width cap. */
-:root[data-desktop] .c-callin { justify-content: center; }
-:root[data-desktop] .c-callin__identity {
-  flex: 0 0 auto;
-  padding-bottom: var(--spacing-32, 32px);
-}
-:root[data-desktop] .c-callin__actions {
-  flex: 0 0 auto;
-  width: min(420px, 100%);
-}
 .c-callin__name {
+  max-width: 100%;
   font-family: var(--font-primary);
-  font-size: var(--font-size-heading-sm);
-  line-height: var(--line-height-heading-sm);
+  font-size: var(--font-size-display-md);
+  line-height: var(--line-height-display-md);
+  letter-spacing: var(--tracking-heading-md);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-on-scrim);
+  overflow-wrap: anywhere;
 }
 .c-callin__sub {
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-on-scrim);
-  opacity: 0.72; /* sanctioned: muted-on-scrim, no dedicated token yet */
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--call-ink-2);
 }
 
-.c-callin__actions {
-  flex: 1;
+/* the quiet row: Silence · Message */
+.c-callin__quick {
   display: flex;
-  align-items: center; /* vertical center of the bottom half */
   justify-content: center;
-  gap: var(--spacing-32);
+  flex-wrap: wrap;
+  gap: var(--spacing-12);
+  margin-bottom: var(--spacing-32);
+}
+.c-callin__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: var(--size-target-min);
+  padding: 0 var(--spacing-16);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--call-btn);
+  color: var(--call-ink);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-callin__pill:disabled { cursor: default; }
+.c-callin__pill[data-done] { background: transparent; color: var(--call-ink-2); }
+.c-callin__pill:focus-visible { outline-color: var(--call-ink); }
+@media (hover: hover) and (pointer: fine) {
+  .c-callin__pill:not(:disabled):hover { background: var(--call-btn-hover); }
+}
+.c-callin__pill:not(:disabled):active { background: var(--call-btn-pressed); }
+
+.c-callin__actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-around;
+  width: min(320px, 100%);
 }
 .c-callin__action {
   display: flex;
@@ -94,40 +126,129 @@
   gap: var(--spacing-8);
 }
 .c-callin__circle {
-  width: 56px;  /* button/56 scale */
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-full);
-  /* ★ #46 r2 C1: a fallback only — every kind below sets its own ink, because none of the
-     three circles is --surface-action-default. Kept so a new kind is never inkless. */
-  color: var(--icon-neutral-on-action);
+  color: var(--call-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform var(--duration-100) var(--easing-decelerate),
-              background-color var(--duration-100) var(--easing-standard);
+              filter var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-callin__circle:hover { transform: scale(1.06); }
+  .c-callin__circle:hover { transform: scale(1.05); filter: brightness(1.06); }
 }
-.c-callin__circle:active { transform: scale(0.96); }
-/* freeze audit: on-scrim focus ring (see media-viewer note) */
-.c-callin__circle:focus-visible { outline-color: var(--icon-on-scrim); }
-/* ★ #46 r2 C1: green and red fills, not the action blue. In dark the inherited on-action
-   white glyph measured 1.87:1 on --success-300 #91c69b and 2.63:1 on --error-400 #f1786e.
-   The role inks give 9.45:1 / 6.72:1 dark and 5.98:1 / 6.36:1 light. Fills unchanged.
-   Reversal: delete the two color declarations and the glyphs fall back to the 1.87/2.63 white. */
-.c-callin__circle[data-kind="accept"] { background: var(--surface-success); color: var(--icon-neutral-on-success); }
-.c-callin__circle[data-kind="decline"] { background: var(--surface-error); color: var(--icon-neutral-on-error); }
-.c-callin__circle[data-kind="ignore"] {
-  background: var(--surface-wash-on-hero-pressed); /* quiet, tertiary */
-  color: var(--icon-on-scrim);
-}
+.c-callin__circle:active { transform: scale(0.95); }
+.c-callin__circle:focus-visible { outline-color: var(--call-ink); }
+.c-callin__circle[data-kind="accept"] { background: var(--call-accept); }
+.c-callin__circle[data-kind="decline"] { background: var(--call-end); }
+.c-callin__circle[data-kind="ignore"] { background: var(--call-btn); }
 .c-callin__label {
   font-size: var(--font-size-label-sm);
   line-height: var(--line-height-label-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-on-scrim);
+  color: var(--call-ink);
+}
+
+/* ═════ DESKTOP (#264 → #1074): a centered card over a dim — the phone halves
+   composition reads stretched in a wide window. The stage is full-window. */
+:root[data-desktop] .c-callin {
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-scrim);
+}
+:root[data-desktop] .c-callin__card {
+  flex: none;
+  width: min(400px, calc(100% - 2 * var(--spacing-24)));
+  padding: var(--spacing-24) var(--spacing-24) var(--spacing-24);
+  border-radius: var(--radius-24);
+  overflow: hidden;
+  background: var(--call-ground);
+  box-shadow: var(--elevation-3);
+}
+:root[data-desktop] .c-callin__identity { flex: none; padding-block: var(--spacing-32) var(--spacing-24); }
+:root[data-desktop] .c-callin__name { font-size: var(--font-size-heading-md); line-height: var(--line-height-heading-md); }
+:root[data-desktop] .c-callin__actions { margin-bottom: var(--spacing-24); }
+:root[data-desktop] .c-callin__circle { width: 60px; height: 60px; }
+/* desktop order: the actions first, the quiet row under them (render E) */
+:root[data-desktop] .c-callin__quick { order: 3; margin-bottom: 0; }
+
+/* ——— decline with a message (a c-sheet above the ring) ———
+   The ring is z-60, above the overlay scrim; the sheet rides above the ring and the
+   ring dims itself while it is open (call-overlay.js sets [data-sheet]). */
+/* one class, loaded after overlay.css — wins the tie by source order; `.c-sheet` itself keeps ONE z-index everywhere (#506②) */
+.c-declinemsg-sheet { z-index: calc(var(--z-60) + 2); }
+.c-callin[data-sheet] .c-callin__card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--surface-scrim-deep);
+}
+.c-declinemsg__sub {
+  margin: 0 0 var(--spacing-16);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+}
+.c-declinemsg__list { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-declinemsg__opt {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-sheet-card);
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-declinemsg__opt svg { flex: none; color: var(--icon-neutral-02); }
+.c-declinemsg__write { color: var(--text-action-default); }
+.c-declinemsg__write svg { color: var(--text-action-default); }
+@media (hover: hover) and (pointer: fine) {
+  .c-declinemsg__opt:hover { background: var(--surface-sheet-card-hover); }
+}
+.c-declinemsg__opt:active { background: var(--surface-sheet-card-pressed); }
+.c-declinemsg__form {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+}
+.c-declinemsg__form[hidden] { display: none; }
+.c-declinemsg__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 var(--spacing-16);
+  border: 1px solid var(--outline-input);
+  border-radius: var(--radius-12);
+  background: var(--surface-input, var(--surface-sheet-card));
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: var(--font-size-body-md);
+}
+.c-declinemsg__send {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+  cursor: pointer;
 }

@@ -75,6 +75,39 @@ namespace Spixi
             }
         }
 
+        /* ★ #1074 (call premium): the call-control CAPS this platform can back. CallPage
+         * pushes them to the call shell (setCallCaps) — a control renders only when its
+         * verb does something here (no dead buttons, #256/#264).
+         *   callRings        — a local ring sound exists, so "Silence" means something.
+         *   callSpeakerRoute — setSpeakerphone below really switches the output. */
+        public const bool callRings = true;
+        /* ⚠ DEVICE-GATED (#215): see the Android twin — Debug/dev carries it for the walk. */
+#if SPIXI_DEV_COEXIST
+        public const bool callSpeakerRoute = true;
+#else
+        public const bool callSpeakerRoute = false;
+#endif
+
+        /** Loudspeaker on/off: an output-port override on the PlayAndRecord session the
+         *  call recorder/player set. Off = no override = the receiver (ear speaker), or a
+         *  headset when one is connected. VoIPManager re-applies it after the session
+         *  (re)sets the category, which drops an override. */
+        public static bool setSpeakerphone(bool on)
+        {
+            try
+            {
+                NSError? err;
+                AVFoundation.AVAudioSession.SharedInstance().OverrideOutputAudioPort(
+                    on ? AVFoundation.AVAudioSessionPortOverride.Speaker : AVFoundation.AVAudioSessionPortOverride.None, out err);
+                return err == null;
+            }
+            catch (Exception e)
+            {
+                IXICore.Meta.Logging.warn("setSpeakerphone: " + e.GetType().Name);
+                return false;
+            }
+        }
+
         public static void stopRinging()
         {
             if (ringtonePlayer == null)

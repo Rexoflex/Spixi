@@ -5,6 +5,7 @@ using Microsoft.Maui;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
+using Microsoft.Maui.Graphics;   // ★ #1074: Color / Colors / Point (ImplicitUsings is off in this project)
 using Spixi;
 using SPIXI.Lang;
 using SPIXI.Meta;
@@ -31,15 +32,17 @@ namespace SPIXI
      * X1) are pushed, so the caller is ALWAYS right regardless of any shell's
      * roster state.
      *
-     * Two visual modes, one WebView:
+     * Three visual modes, one WebView (★ #1074):
      *   ring — full-window cover (incoming call: avatar + nick + Accept/Decline).
      *          Hardware back is swallowed while ringing (HomePage guard + this
-     *          page's own OnBackButtonPressed) — the only exits are Accept /
+     *          page's own OnBackButtonPressed; back is forwarded to the shell to
+     *          close an open decline sheet) — the only exits are Accept /
      *          Decline / the #265 ring timeout / remote hang-up. NOT in
      *          overlayStack → closeTopOverlay can never pop it.
-     *   bar  — the same stage re-margined to a top strip (dialing / in-call):
-     *          the app below stays fully interactive; the strip spans all panes
-     *          so exactly ONE bar exists on any window layout.
+     *   full — full-window expanded call (dialing / in-call); back minimises.
+     *   bar  — the minimised CARD (dialing / in-call): the stage is a rounded
+     *          Border below the app's top bar; the app around it stays fully
+     *          interactive, and exactly ONE card exists on any window layout.
      *
      * LEGACY-PAGE FALLBACK: when a legacy page (money flow / mini-app / scan) is
      * pushed above the overlay host, an in-place stage would be COVERED. The
@@ -75,7 +78,6 @@ namespace SPIXI
     [XamlCompilation(XamlCompilationOptions.Compile)]
     public partial class CallPage : SpixiContentPage
     {
-        private const double barHeightDip = 64;      // matches call.html's --call-bar-h
         public const int Z_CALL_SURFACE = 100;       // above #225 overlays (0), below the lock (200)
 
         private static readonly object callLock = new object();
@@ -98,11 +100,29 @@ namespace SPIXI
                 return current;
             }
         }
-        private static ContentView? callStage = null;   // in-place path only (null when modal fallback)
+        private static Border? callStage = null;   // in-place path only (null when modal fallback). ★ #1074: a Border so the minimised CARD can round its corners
+        /* ★ #1074 (call premium): the minimised in-call surface is a floating CARD below the
+         * top bar (Damir: "below the top bar, so the user can move around the app while in
+         * call — a call card, not a full-bleed strip"). The expanded view ("full") is the
+         * same stage full-window, like the ring. */
+        private const double cardHeightDip = 64;      // matches call.html's --call-card-h
+        private const double cardGapDip = 8;          // air between the app's top bar and the card
+        private const double cardSideDip = 12;        // phone: side inset
+        private const double cardWidthDip = 380;      // desktop: card width (right-aligned)
+        private const double appTopBarDip = 56;       // tokens.css --layout-bar-top
+        private const double cardRadiusDip = 16;
+        public static readonly Color callGround = Color.FromArgb("#14161c");   // = surfaceColorStringFor("call.html")
+        private static bool expanded = false;         // "full" vs "bar" for the live call
+        private static string expandedSession = "";   // the call the expanded flag was chosen for
+#if WINDOWS || MACCATALYST
+        private const bool expandByDefault = false;   // desktop: the card; the app stays in reach
+#else
+        private const bool expandByDefault = true;    // phone: the full call screen first, like the dialers
+#endif
         private static Grid? callHostGrid = null;
         private static bool modalFallback = false;      // presented via PushModalAsync (legacy page on top)
         private static bool presented = false;          // stage revealed (shell ready or timeout)
-        private static string surfaceMode = "";         // "ring" | "bar"
+        private static string surfaceMode = "";         // "ring" | "full" | "bar"
 
         // last pushed state — kept so ixian:onload (and any re-present) can re-push
         private string stateKind = "";                  // "ring" | "dialing" | "incall"
@@ -149,6 +169,10 @@ namespace SPIXI
             {
                 onLoad();
             }
+            else if (current_url.StartsWith("ixian:call", StringComparison.Ordinal))
+            {
+                onCallControl(current_url);
+            }
             else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
                 // allow normal navigation only for local files
@@ -158,8 +182,159 @@ namespace SPIXI
             e.Cancel = true;
         }
 
+        /* ════ ★ #1074 — THE CALL-CONTROL VERBS (CallPage ONLY) ═══════════════════════════
+         * Handled HERE, not in onNavigatingGlobal: only the call shell can send them, so a
+         * mini-app WebView (and every other shell) cannot mute, route, silence or decline a
+         * call — the #221 wall and the acceptsCallPushes gate are unchanged.
+         *   ixian:callExpand / ixian:callMinimise        presentation only (card ⇄ full)
+         *   ixian:callMute:<0|1>:<sid>                    zeroed PCM, frames keep flowing
+         *   ixian:callSpeaker:<0|1>:<sid>                 route; cap-gated per platform
+         *   ixian:callSilence:<sid>                       the LOCAL ring only
+         *   ixian:callDeclineMsg:<sid>:<base64url UTF-8>  reject + one normal chat message
+         * Every argument is validated: <sid> = hex only, the flag = exactly "0"/"1", the text
+         * = base64url (the #1028 decoder, same alphabet guarantee). The message text is never
+         * logged. Security gate row: docs/security-handover-gate.md (#1074). */
+        private void onCallControl(string url)
+        {
+            try
+            {
+                if (url.Equals("ixian:callExpand", StringComparison.Ordinal))
+                {
+                    setExpanded(true);
+                    return;
+                }
+                if (url.Equals("ixian:callMinimise", StringComparison.Ordinal))
+                {
+                    setExpanded(false);
+                    return;
+                }
+                string[] parts = url.Split(':');
+                string verb = parts.Length > 1 ? parts[1] : "";
+                if ((verb == "callMute" || verb == "callSpeaker") && parts.Length == 4)
+                {
+                    byte[]? sid = parseSession(parts[3]);
+                    if (sid == null || (parts[2] != "0" && parts[2] != "1"))
+                    {
+                        return;
+                    }
+                    if (verb == "callMute")
+                    {
+                        VoIPManager.setMuted(sid, parts[2] == "1");
+                    }
+                    else if (SPlatformUtils.callSpeakerRoute)
+                    {
+                        VoIPManager.setSpeaker(sid, parts[2] == "1");
+                    }
+                    return;
+                }
+                if (verb == "callSilence" && parts.Length == 3 && SPlatformUtils.callRings)
+                {
+                    byte[]? sid = parseSession(parts[2]);
+                    if (sid != null)
+                    {
+                        VoIPManager.silenceRinging(sid);
+                    }
+                    return;
+                }
+                if (verb == "callDeclineMsg" && parts.Length == 4)
+                {
+                    byte[]? sid = parseSession(parts[2]);
+                    string? text = decodeCopyPayload(parts[3]);
+                    // length is checked AFTER the trim, in rejectCallWithMessage (r1 NIT)
+                    if (sid == null || string.IsNullOrEmpty(text))
+                    {
+                        return;
+                    }
+                    if (!VoIPManager.rejectCallWithMessage(sid, text))
+                    {
+                        Logging.warn("Call: decline with a message refused (no unanswered incoming ring on that session).");
+                    }
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Call control failed: " + e.GetType().Name);
+            }
+        }
+
+        /** Hex session id → bytes, or null. Anything that is not 2..128 hex chars is refused. */
+        private static byte[]? parseSession(string hex)
+        {
+            if (string.IsNullOrEmpty(hex) || hex.Length > 128 || hex.Length % 2 != 0)
+            {
+                return null;
+            }
+            foreach (char c in hex)
+            {
+                bool ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+                if (!ok)
+                {
+                    return null;
+                }
+            }
+            return Crypto.stringToHash(hex);
+        }
+
+        /** Card ⇄ full call screen. Presentation only; a ring is never affected. */
+        private static void setExpanded(bool on)
+        {
+            bool apply;
+            lock (callLock)
+            {
+                if (current == null || surfaceMode == "ring")
+                {
+                    return;
+                }
+                expanded = on;
+                apply = surfaceMode != (on ? "full" : "bar");
+            }
+            if (apply)
+            {
+                setMode(on ? "full" : "bar");
+            }
+            // #46 r2 MINOR-7: showBar reads the avatar file before it dispatches — never on the UI thread
+            System.Threading.Tasks.Task.Run(() => SpixiContentPage.broadcastCallState());
+        }
+
+        /** ★ #1074: hardware back while the RING is up → the shell's `callBack` (closes the
+         *  decline-with-message sheet if one is open; a ring without a sheet stays). */
+        public static void forwardBackToShell()
+        {
+            CallPage? page;
+            lock (callLock)
+            {
+                page = current;
+            }
+            if (page != null && page.shellReady)
+            {
+                Utils.sendUiCommand(page, "callBack");
+            }
+        }
+
+        /** Hardware back on the expanded call screen = minimise (the Android dialer rule).
+         *  Returns true when it consumed the press. */
+        public static bool minimiseOnBack()
+        {
+            lock (callLock)
+            {
+                if (current == null || surfaceMode != "full")
+                {
+                    return false;
+                }
+            }
+            setExpanded(false);
+            return true;
+        }
+
         private void onLoad()
         {
+#if IOS
+            // ★ #1074 (#46 r1 MINOR-6): the in-place stage never gets OnAppearing, so the iOS
+            // keyboard observer (call.html is in KEYBOARD_INSET_SHELLS) is attached here — the
+            // decline-with-message field must not sit under the keyboard.
+            attachKeyboardInsetObserver();
+#endif
             shellReady = true;
             pushState();           // deliver the pending state before the reveal
             revealSurface(this);   // shell signaled ready → show (beats the timeout)
@@ -183,6 +358,27 @@ namespace SPIXI
             {
                 return;
             }
+            /* ★ #1074: what this platform can do (no dead buttons) + the live control state,
+             * read from VoIPManager every time — the buttons show what C# did. Pushed BEFORE
+             * setCallUi: the shell renders on every push, so the state it renders the new
+             * kind with must already be current (a ring→in-call push must not paint the card
+             * for a frame on its way to the expanded screen). */
+            Utils.sendUiCommand(this, "setCallCaps",
+                "1",                                            // mute: all four platforms (zeroed PCM)
+                SPlatformUtils.callSpeakerRoute ? "1" : "0",    // speaker route
+                SPlatformUtils.callRings ? "1" : "0",           // silence the local ring
+                "1");                                           // decline with a message
+            bool isExpanded;
+            lock (callLock)
+            {
+                isExpanded = surfaceMode == "full";
+            }
+            Utils.sendUiCommand(this, "setCallAudio",
+                VoIPManager.currentCallMuted ? "1" : "0",
+                VoIPManager.currentCallSpeaker ? "1" : "0",
+                VoIPManager.currentCallRingSilenced ? "1" : "0",
+                isExpanded ? "1" : "0",
+                VoIPManager.currentCallRingGen.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Utils.sendUiCommand(this, "setCallUi", stateKind, stateName, stateAvatar, stateText, stateStarted.ToString(), stateSession, stateAddress);
         }
 
@@ -226,7 +422,7 @@ namespace SPIXI
             });
         }
 
-        /** Dialing / in-call → top strip. text is the C#-localized line the old
+        /** Dialing / in-call → the card or the expanded view (#1074). text is the C#-localized line the old
          *  broadcastCallBar carried; started==0 ⇒ dialing (no timer). */
         public static void showBar(byte[] session_id, string text, long call_started_time)
         {
@@ -271,7 +467,18 @@ namespace SPIXI
                     // the call itself is unaffected and re-asserts on return.
                     return;
                 }
-                setMode("bar");
+                bool full;
+                lock (callLock)
+                {
+                    if (expandedSession != session)
+                    {
+                        // A NEW call picks the platform default once; later pushes keep the user's choice.
+                        expandedSession = session;
+                        expanded = expandByDefault;
+                    }
+                    full = expanded;
+                }
+                setMode(full ? "full" : "bar");
                 page.setState(call_started_time > 0 ? "incall" : "dialing", nick, avatar, text ?? "", call_started_time, session, address);
             });
         }
@@ -285,11 +492,14 @@ namespace SPIXI
             // — and a new call admitted from a network thread while the teardown is still
             // queued — can never re-use the dying page. Only the VIEW work is dispatched.
             CallPage? page;
-            ContentView? stage;
+            Border? stage;
             Grid? grid;
             bool wasModal;
             lock (callLock)
             {
+                // ★ #1074 (#46 r1 MINOR-4): `expanded`/`expandedSession` are NOT reset here — every lock
+                // hides the surface, and the user's minimise must survive the unlock. A NEW call
+                // re-picks the default because its session id differs (showBar).
                 page = current;
                 stage = callStage;
                 grid = callHostGrid;
@@ -349,7 +559,7 @@ namespace SPIXI
                         // #229b pattern: hide first (property flip), let the frame
                         // commit, then detach + dispose the WebView.
                         stage.Opacity = 0;
-                        stage.InputTransparent = true;
+                        setStageInput(stage, false);
                     }
                     Task.Delay(100).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
                     {
@@ -358,6 +568,10 @@ namespace SPIXI
                             if (grid != null && stage != null)
                             {
                                 grid.Children.Remove(stage);
+                                if (stage.Content is ContentView innerView)
+                                {
+                                    innerView.Content = null;
+                                }
                                 stage.Content = null;
                             }
                             page.Dispose();
@@ -468,18 +682,33 @@ namespace SPIXI
                     Logging.error("Call surface: REFUSED, the page has no Content — the XAML did not materialise (#894)");
                     return null;
                 }
-                ContentView stage = new ContentView
+                /* ★ #1074 (#46 r1 MAJOR-1): a Border has no CascadeInputTransparent (it is a View,
+                 * not a Layout), so the input gate lives on an INNER ContentView that does — the
+                 * shape the stage had before #1074, now wrapped by the rounding Border. Every
+                 * toggle goes through setStageInput, which sets BOTH, so a hidden or fading stage
+                 * can never take a tap on any platform. */
+                ContentView inner = new ContentView
+                {
+                    InputTransparent = true,
+                    CascadeInputTransparent = true,
+                    Padding = new Thickness(0),
+                };
+                Border stage = new Border
                 {
                     Opacity = 0,                 // revealed on shell-ready (or the timeout)
                     InputTransparent = true,
-                    CascadeInputTransparent = true,
-                    BackgroundColor = page.pageSurfaceColor,   // themed cover — never a white flash
+                    BackgroundColor = callGround,   // ★ #1074: the dark call ground in both themes — never a white flash
+                    StrokeThickness = 0,
+                    Stroke = Colors.Transparent,
+                    Padding = new Thickness(0),
+                    StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(0) },
                     ZIndex = Z_CALL_SURFACE,
                 };
                 try
                 {
                     page.Content = null;
-                    stage.Content = content;
+                    inner.Content = content;
+                    stage.Content = inner;
                     if (grid.ColumnDefinitions.Count > 1)
                     {
                         Grid.SetColumnSpan(stage, grid.ColumnDefinitions.Count);
@@ -576,7 +805,7 @@ namespace SPIXI
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                ContentView? stage;
+                Border? stage;
                 lock (callLock)
                 {
                     if (current == null || presented)
@@ -595,9 +824,20 @@ namespace SPIXI
                     return;
                 }
                 applyStageLayout();
-                stage.InputTransparent = false;
+                setStageInput(stage, true);
                 stage.Opacity = 1;
             });
+        }
+
+        /** ★ #1074 (#46 r1 MAJOR-1): the ONE input toggle for the stage — the Border AND the
+         *  inner cascading ContentView together (see ensureSurface). */
+        private static void setStageInput(Border stage, bool accepts)
+        {
+            stage.InputTransparent = !accepts;
+            if (stage.Content is ContentView innerView)
+            {
+                innerView.InputTransparent = !accepts;
+            }
         }
 
         private static void onHostGridSizeChanged(object? sender, EventArgs e)
@@ -605,9 +845,10 @@ namespace SPIXI
             applyStageLayout();   // re-assert the strip after a window/pane resize
         }
 
-        /* ★ #926 (r-review MINOR-4): the top inset is pushed live (#924) and the in-call strip's
-         * native height carries TopInsetDip — re-assert the stage whenever that value moves so a
-         * rotation cannot leave an 88 dp stage holding 48 + 64 of content under overflow:hidden. */
+        /* ★ #926 (r-review MINOR-4) → #1074: the top and side insets are pushed live (#924) and the
+         * minimised card is PLACED from them (below TopInsetDip, beside the side insets) —
+         * re-assert the stage whenever they move so a rotation cannot leave the card under the
+         * status bar or a side nav bar. */
         public static void relayoutStageForInsets()
         {
             applyStageLayout();
@@ -617,11 +858,13 @@ namespace SPIXI
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                ContentView? stage;
+                Border? stage;
+                Grid? hostGrid;
                 string mode;
                 lock (callLock)
                 {
                     stage = callStage;
+                    hostGrid = callHostGrid;
                     mode = surfaceMode;
                 }
                 if (stage == null)
@@ -635,22 +878,26 @@ namespace SPIXI
                 // stage directly instead: no measurement dependency, nothing to race.
                 if (mode == "bar")
                 {
-                    stage.VerticalOptions = LayoutOptions.Start;
-                    double stripHeight = barHeightDip;
-#if IOS || MACCATALYST
-                    // ★ #1036 (#46 r2 M1): the Mac too — since #1035 its shells take the WINDOW's
-                    // top inset into --safe-top (SpixiContentPage M6 block), so call.html's bar grows
-                    // by it; the native strip must grow by the same number or the hang-up row clips.
-                    // iOS edge-to-edge: the host grid now starts at the SCREEN top (the
-                    // native inset padding is gone) — grow the strip by the status-bar
-                    // inset so the 64dip content row lands below it. call.html mirrors
-                    // this with padding-top: var(--safe-top) on the bar.
+                    /* ★ #1074 (call premium): the minimised call is a floating CARD, not a
+                     * full-bleed strip — it sits BELOW the app's top bar (status-bar inset +
+                     * the 56dip bar + a gap), so the top bar, the bottom nav and every tab stay
+                     * in reach during a call (Damir). Phone: full width minus a side inset.
+                     * Desktop: a fixed-width card at the top right. The native Border rounds
+                     * the corners; call.html paints the same dark ground edge to edge.
+                     * The platform inset lookup below is the one the old strip used (#1036–
+                     * #1038 on the Mac, AND-7 on Android) — the card now sits UNDER it
+                     * instead of growing by it, so call.html pads nothing in card mode. */
+                    double topInset = 0;
+                    #if IOS || MACCATALYST
+                    // The host grid starts at the SCREEN top on iOS (edge-to-edge) and the Mac
+                    // window can carry a title-bar inset (#1035/#1036) — the card is placed BELOW
+                    // that inset and below the app's top bar. call.html pads nothing in card mode.
                     var win = UIKit.UIApplication.SharedApplication.ConnectedScenes
                         .OfType<UIKit.UIWindowScene>()
                         .SelectMany(s => s.Windows)
                         .FirstOrDefault(w => w.IsKeyWindow);
                     /* ★ #1037 (#46 r3 MINOR-2): on the Mac NO window is key while another app is active —
-                     * a call answered while another app is active must still grow the strip by the inset the shell was pushed.
+                     * a call answered while another app is active must still place the card below the pushed inset.
                      * ★ #1038 (r4 MINOR): the fallback is the SAME lookup the M6 push uses
                      * (SpixiContentPage: MAUI's first window's platform view), not the first UIWindow of
                      * ConnectedScenes — that list's order is undefined and can hold helper windows, so
@@ -661,27 +908,47 @@ namespace SPIXI
                     }
                     if (win != null)
                     {
-                        stripHeight += win.SafeAreaInsets.Top;
+                        topInset = win.SafeAreaInsets.Top;
                     }
 #elif ANDROID
-                    /* ★ AND-7 (#401, audit MAJOR-1): the ANDROID twin, and it is not
-                     * optional. MainActivity stopped padding the root view at the top, so
-                     * this stage — like every other page — now starts at the SCREEN top,
-                     * and call.html's bar grew by --safe-top to match. Without the same
-                     * growth here the stage stays 64dip while its content is pushed down
-                     * by the inset inside `body { overflow: hidden }`: the identity row
-                     * and the HANG-UP control get clipped, on the one surface a user must
-                     * be able to hit during a call. */
-                    stripHeight += Spixi.MainActivity.TopInsetDip;
+                    /* AND-7 (#401): MainActivity does not pad the root view at the top, so this
+                     * stage starts at the SCREEN top — the card is placed below the status-bar
+                     * inset (and the app's top bar), never under the clock. */
+                    topInset = Spixi.MainActivity.TopInsetDip;
 #endif
-                    stage.HeightRequest = stripHeight;
+                    double top = topInset + appTopBarDip + cardGapDip;
+                    stage.VerticalOptions = LayoutOptions.Start;
+                    stage.HeightRequest = cardHeightDip;
+                    stage.StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(cardRadiusDip) };
+                    stage.Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.28f, Radius = 20, Offset = new Point(0, 6) };
+#if WINDOWS || MACCATALYST
+                    double avail = hostGrid != null && hostGrid.Width > 0 ? hostGrid.Width - (2 * 16) : cardWidthDip;
+                    stage.HorizontalOptions = LayoutOptions.End;
+                    stage.WidthRequest = Math.Max(240, Math.Min(cardWidthDip, avail));
+                    stage.Margin = new Thickness(0, top, 16, 0);
+#else
+                    double sideL = cardSideDip, sideR = cardSideDip;
+#if ANDROID
+                    // #46 r1 MINOR-9: a landscape phone puts the nav bar / cutout on a SIDE
+                    sideL += Spixi.MainActivity.LeftInsetDip;
+                    sideR += Spixi.MainActivity.RightInsetDip;
+#endif
+                    stage.HorizontalOptions = LayoutOptions.Fill;
+                    stage.WidthRequest = -1;
+                    stage.Margin = new Thickness(sideL, top, sideR, 0);
+#endif
                 }
                 else
                 {
+                    // ring + the expanded call ("full"): full-window, square, no shadow.
                     stage.VerticalOptions = LayoutOptions.Fill;
+                    stage.HorizontalOptions = LayoutOptions.Fill;
                     stage.HeightRequest = -1;
+                    stage.WidthRequest = -1;
+                    stage.StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(0) };
+                    stage.Shadow = null;
+                    stage.Margin = new Thickness(0);
                 }
-                stage.Margin = new Thickness(0);
             });
         }
 
@@ -691,7 +958,12 @@ namespace SPIXI
             // Review NIT-10: swallow back ONLY while a ring is actually presented — a
             // modal that outlived its call (the unreachable not-top branch in
             // hideSurface) must stay dismissable rather than wedge the app.
-            return isRingPresented();
+            if (isRingPresented())
+            {
+                forwardBackToShell();   // ★ #1074 (#46 r2 MINOR-10): the modal ring closes an open decline sheet too
+                return true;
+            }
+            return false;
         }
     }
 }

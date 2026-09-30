@@ -1,0 +1,165 @@
+/* ★ #1074 (call premium) — the shared call backdrop + e2e chip, and c-callscreen, the
+   EXPANDED in-call view (Damir's pick B/F). Dark call ground in both themes (tokens.css
+   §4 --call-*). Phone: full screen. Desktop: a centered card over a dim.            */
+
+/* ——— the caller's colour behind the ring and the call screen ——— */
+.c-callbg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--call-ground);
+  pointer-events: none;
+}
+/* identity hue: --av-c1/--av-c2 come from .c-idhue[data-hue] (avatar.css, #591) */
+.c-callbg::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--av-c1) 55%, transparent), transparent 58%),
+    radial-gradient(circle at 20% 92%, color-mix(in srgb, var(--av-c2) 30%, transparent), transparent 55%);
+  filter: blur(40px);
+}
+/* a real photo: the photo itself, heavily blurred and dimmed (the Telegram/iOS grammar) */
+.c-callbg__img {
+  position: absolute;
+  inset: -10%;
+  width: 120%;
+  height: 120%;
+  object-fit: cover;
+  filter: blur(48px) saturate(1.1) brightness(0.6);
+  opacity: 0.35;    /* #46 r1 MINOR-3: a bright photo must not wash out the white ink */
+}
+/* a scrim at the foot keeps the controls on a steady ground whatever the colour */
+.c-callbg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 45%, color-mix(in srgb, var(--call-ground) 80%, transparent) 100%);
+}
+
+.c-calle2e {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--call-chip);
+  color: var(--call-ink-2);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-sm);
+}
+
+/* ——— c-callscreen ——— */
+.c-callscreen {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-60);
+  display: flex;
+  flex-direction: column;
+  color: var(--call-ink);
+  background: var(--call-ground);
+}
+.c-callscreen__card {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--safe-top, 0px) + var(--spacing-12)) calc(var(--safe-right, 0px) + var(--spacing-20)) calc(var(--safe-bottom, 0px) + var(--spacing-32)) calc(var(--safe-left, 0px) + var(--spacing-20));
+}
+.c-callscreen__card > :not(.c-callbg) { position: relative; }   /* content above the backdrop */
+.c-callscreen__top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+.c-callscreen__min { position: absolute; left: 0; top: 0; }
+[dir="rtl"] .c-callscreen__min { left: auto; right: 0; }
+.c-callscreen__who {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  text-align: center;
+  min-height: 0;
+}
+.c-callscreen__avatar { margin-bottom: var(--spacing-12); }
+.c-callscreen__name {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-display-md);
+  line-height: var(--line-height-display-md);
+  letter-spacing: var(--tracking-heading-md);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+.c-callscreen__state {
+  margin: 0;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--call-ink-2);
+}
+.c-callscreen__controls {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--spacing-24);
+}
+.c-callscreen__ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+.c-callscreen__ctl-label {
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--call-ink-2);
+}
+.c-callscreen__controls .c-callctl { width: 60px; height: 60px; }
+.c-callscreen__end {
+  width: 132px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--call-end);
+  color: var(--call-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter var(--duration-100) var(--easing-standard),
+              transform var(--duration-100) var(--easing-decelerate);
+}
+.c-callscreen__end:focus-visible { outline-color: var(--call-ink); }
+@media (hover: hover) and (pointer: fine) {
+  .c-callscreen__end:hover { filter: brightness(1.08); }
+}
+.c-callscreen__end:active { transform: scale(0.96); }
+
+/* desktop: the same content as a centered card over a dim (the stage is full-window) */
+:root[data-desktop] .c-callscreen {
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-scrim);
+}
+:root[data-desktop] .c-callscreen__card {
+  flex: none;
+  width: min(400px, calc(100% - 2 * var(--spacing-24)));
+  padding: var(--spacing-20) var(--spacing-24) var(--spacing-24);
+  border-radius: var(--radius-24);
+  overflow: hidden;
+  background: var(--call-ground);
+  box-shadow: var(--elevation-3);
+}
+:root[data-desktop] .c-callscreen__who { flex: none; padding-block: var(--spacing-24); }
+:root[data-desktop] .c-callscreen__name { font-size: var(--font-size-heading-md); line-height: var(--line-height-heading-md); }
+:root[data-desktop] .c-callscreen__controls .c-callctl { width: 52px; height: 52px; }
+:root[data-desktop] .c-callscreen__end { width: 120px; height: 52px; }

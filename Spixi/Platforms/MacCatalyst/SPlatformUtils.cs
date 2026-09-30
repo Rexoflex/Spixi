@@ -41,6 +41,19 @@ namespace Spixi
         {
         }
 
+        /* ★ #1074 (call premium): the call-control CAPS this platform can back. CallPage
+         * pushes them to the call shell (setCallCaps) — a control renders only when its
+         * verb does something here (no dead buttons, #256/#264).
+         *   callRings        — a local ring sound exists, so "Silence" means something.
+         *   callSpeakerRoute — setSpeakerphone below really switches the output. */
+        public const bool callRings = false;          // startRinging is a no-op here — no "Silence" button
+        public const bool callSpeakerRoute = false;   // a desktop has no ear speaker — the button is hidden
+
+        public static bool setSpeakerphone(bool on)
+        {
+            return false;
+        }
+
         public static void stopRinging()
         {
         }

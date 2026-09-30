@@ -39,6 +39,12 @@ namespace Spixi
         private AudioFocusRequestClass focusRequest = null;
 
         bool running = false;
+        volatile bool muted = false;   // ★ #1074: zero the PCM, keep the frames flowing
+
+        public void setMuted(bool is_muted)
+        {
+            muted = is_muted;
+        }
 
         int bufferSize = 0;
         short[] shortsBuffer = null;
@@ -367,10 +373,18 @@ namespace Spixi
             {
                 if (use_shorts)
                 {
+                    if (muted)
+                    {
+                        Array.Clear(shortsBuffer, 0, num_bytes);   // ★ #1074: silence, not a gap
+                    }
                     audioEncoder.encode(shortsBuffer, 0, num_bytes);
                 }
                 else
                 {
+                    if (muted)
+                    {
+                        Array.Clear(buffer, 0, num_bytes);   // ★ #1074: silence, not a gap
+                    }
                     audioEncoder.encode(buffer, 0, num_bytes);
                 }
             }

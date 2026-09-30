@@ -1,0 +1,21 @@
+#1074/#1075: the call surface premium (1:1) + #1073 Windows window size
+
+Call surface (Damir's picks: D1 dark ground both themes; A/B/C/E as drawn; the
+minimised call is a CARD below the top bar; "End-to-end encrypted" only; speaker gated):
+- CallPage: three modes ring / full / bar; the stage is a rounded Border (inner
+  ContentView carries the input cascade) placed below the top inset + the app top bar;
+  desktop card 380 top-right; back on the full view minimises; back on the ring closes
+  the decline sheet; caps -> audio -> state pushes (no dead buttons)
+- verbs (CallPage-only, session-checked): callExpand · callMinimise · callMute ·
+  callSpeaker · callSilence · callDeclineMsg (reject + one normal chat message)
+- VoIPManager: mute (zeroed PCM, all four recorders) · speaker (Android API 31+
+  SetCommunicationDevice / older SpeakerphoneOn; iOS OverrideOutputAudioPort) · silence
+  (local ring) · reject-with-message; controlLock + controlsClosed; ring generation
+  lifts the shell's answered-ring latch only when an Accept is refused (no mic)
+- components: call-screen.js (new), callbar.js + call-overlay.js rewritten; tokens --call-*;
+  icons +3; 22 string keys x12 drafts (callUnmute retired)
+- #1073: Windows saves a size only in the Restored state + remembers Maximized
+
+Opus #46: r1 (2 auditors) -> r2 -> r3 -> r4 -> r5; 37 mutants, 36 killed + 1 equivalent.
+Suite 4991 -> 4994 / the 2 KNOWN.
+Smoke pins for the old strip re-based to the card property. Gate rows + BE note filed.

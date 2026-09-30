@@ -94,7 +94,19 @@ public partial class App : MauiWinUIApplication
             {
                 // Preferences unavailable this early on some configs → default size.
             }
-            bool firstRun = width <= 0 || height <= 0;
+            // #1073: a size below the OS minimum can only come from a bad save (an older build
+            // stored the ~160x28 caption rect of a MINIMIZED window) — treat it as no save, so a
+            // store poisoned before this fix heals on the next launch instead of opening tiny.
+            bool firstRun = width < minW || height < minH;
+            bool wasMaximized = false;
+            try
+            {
+                wasMaximized = Microsoft.Maui.Storage.Preferences.Default.Get("windowMaximized", false);
+            }
+            catch
+            {
+                // Preferences unavailable this early → open restored.
+            }
             if (firstRun)
             {
                 width = (int)(DefaultWidthDip * scale);
@@ -117,29 +129,62 @@ public partial class App : MauiWinUIApplication
             {
                 presenter.PreferredMinimumWidth = minW;
                 presenter.PreferredMinimumHeight = minH;
+                if (wasMaximized)
+                {
+                    // #1073: the restored size above stays the un-maximize target.
+                    presenter.Maximize();
+                }
             }
 
             // Persist the size so the next launch restores it (premium-app parity).
+            // #1073: save the size ONLY in the Restored state. A MINIMIZED window reports its
+            // caption rect (~160x28, not 0) and a MAXIMIZED one reports the work area, so the
+            // old "skip <= 0" guard let a close-while-minimized store a tiny size. Maximized is
+            // its own flag; Minimized changes nothing (a maximized window that is minimized and
+            // closed from the taskbar opens maximized again).
             int lastSavedW = width, lastSavedH = height;
+            bool lastSavedMax = wasMaximized;
             appWindow.Changed += (sender, args) =>
             {
-                if (!args.DidSizeChange)
+                if (!args.DidSizeChange && !args.DidPresenterChange)
                 {
                     return;
                 }
-                var size = appWindow.Size;
-                if (size.Width <= 0 || size.Height <= 0)
-                {
-                    return;   // teardown/minimize reports invalid sizes
-                }
-                if (size.Width == lastSavedW && size.Height == lastSavedH)
+                if (appWindow.Presenter is not OverlappedPresenter op)
                 {
                     return;
                 }
-                lastSavedW = size.Width;
-                lastSavedH = size.Height;
                 try
                 {
+                    if (op.State == OverlappedPresenterState.Maximized)
+                    {
+                        if (!lastSavedMax)
+                        {
+                            lastSavedMax = true;
+                            Microsoft.Maui.Storage.Preferences.Default.Set("windowMaximized", true);
+                        }
+                        return;
+                    }
+                    if (op.State != OverlappedPresenterState.Restored)
+                    {
+                        return;   // Minimized: keep the last restored size and the flag
+                    }
+                    if (lastSavedMax)
+                    {
+                        lastSavedMax = false;
+                        Microsoft.Maui.Storage.Preferences.Default.Set("windowMaximized", false);
+                    }
+                    var size = appWindow.Size;
+                    if (size.Width < minW || size.Height < minH)
+                    {
+                        return;   // teardown reports invalid sizes
+                    }
+                    if (size.Width == lastSavedW && size.Height == lastSavedH)
+                    {
+                        return;
+                    }
+                    lastSavedW = size.Width;
+                    lastSavedH = size.Height;
                     Microsoft.Maui.Storage.Preferences.Default.Set("windowWidth", size.Width);
                     Microsoft.Maui.Storage.Preferences.Default.Set("windowHeight", size.Height);
                 }

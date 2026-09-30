@@ -2101,6 +2101,46 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    card's surface there (white in light; dark = the same neutral-800 it had) */
 .c-settings__hero { --surface-input: var(--surface-settings-card); }
 
+/* ★ #1076 (Damir 2026-09-30, "colours a bit off, darker … spacing between rows bigger"; picks:
+   B · rounded square, Account screen ONLY, amber instead of yellow, more saturated lime).
+   Scope = the Account hub root (.c-settings--hub). Every other c-settings surface, chat-info,
+   contact details and the scan card keep the #1017/#1031 discs and today's row heights. */
+.c-settings--hub .c-disc {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--disc-grad, var(--disc-hub-1));   /* NO --disc-shade: the brighter pairs are the point */
+  box-shadow: none;
+}
+.c-settings--hub .c-disc > svg { width: 20px; height: 20px; filter: var(--disc-hub-glyph-lift); }
+.c-settings--hub .c-disc[data-hue='primary'] { --disc-grad: var(--disc-hub-7); }
+.c-settings--hub .c-disc[data-hue='accent']  { --disc-grad: var(--disc-hub-8); }
+.c-settings--hub .c-disc[data-hue='info']    { --disc-grad: var(--disc-hub-6); }
+.c-settings--hub .c-disc[data-hue='success'] { --disc-grad: var(--disc-hub-4); }
+.c-settings--hub .c-disc[data-hue='warning'] { --disc-grad: var(--disc-hub-2); }
+.c-settings--hub .c-disc[data-grad='1']  { --disc-grad: var(--disc-hub-1); }
+.c-settings--hub .c-disc[data-grad='2']  { --disc-grad: var(--disc-hub-2); }
+.c-settings--hub .c-disc[data-grad='3']  { --disc-grad: var(--disc-hub-3); }
+.c-settings--hub .c-disc[data-grad='4']  { --disc-grad: var(--disc-hub-4); }
+.c-settings--hub .c-disc[data-grad='5']  { --disc-grad: var(--disc-hub-5); }
+.c-settings--hub .c-disc[data-grad='6']  { --disc-grad: var(--disc-hub-6); }
+.c-settings--hub .c-disc[data-grad='7']  { --disc-grad: var(--disc-hub-7); }
+.c-settings--hub .c-disc[data-grad='8']  { --disc-grad: var(--disc-hub-8); }
+.c-settings--hub .c-disc[data-grad='9']  { --disc-grad: var(--disc-hub-9); }
+.c-settings--hub .c-disc[data-grad='10'] { --disc-grad: var(--disc-hub-10); }
+.c-settings--hub .c-disc[data-grad='11'] { --disc-grad: var(--disc-hub-11); }
+.c-settings--hub .c-disc[data-hue='error'] { --disc-grad: var(--disc-hub-error); }   /* red stays red, LAST wins */
+/* the roomier rows: +8 on every height, 16 between disc and label (the stacked label keeps gap 0 —
+   a gap there would split title from sub; its disc gutter moves to 30 + 16 instead). */
+.c-settings--hub .c-settings__row { min-height: calc(var(--row-h-nav) + 8px); padding-block: 6px; }
+.c-settings--hub .c-settings__row[data-row="switch"],
+.c-settings--hub .c-settings__row--backup { min-height: calc(var(--row-h-switch) + 8px); }
+.c-settings--hub .c-settings__row[data-row="stacked"] { min-height: calc(var(--row-h-stacked) + 6px); }
+.c-settings--hub .c-settings__row-label:not(.c-settings__row-label--stack),
+.c-settings--hub .c-settings__row-top { gap: var(--spacing-16); }
+.c-settings--hub .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
+.c-settings--hub .c-settings__row-sub { margin-top: 2px; }
+
 </style><!-- language/theme sheets (one picker grammar) -->
 <style data-src="../styles/components/settings-screens.css">
 /* c-settings sub-screens (settings-screens.js, #147): chat appearance ·

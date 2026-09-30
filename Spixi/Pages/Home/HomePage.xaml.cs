@@ -4679,6 +4679,16 @@ namespace SPIXI
             // exits (the in-call BAR strip does NOT swallow back; the app is live).
             if (CallPage.isRingPresented())
             {
+                // ★ #1074 (#46 r1 MINOR-7): back still never navigates under the ring, but it is
+                // handed to the call shell, which closes an open decline-with-message sheet
+                // (the ring itself cannot be dismissed — no local verb exists).
+                CallPage.forwardBackToShell();
+                return true;
+            }
+            // ★ #1074: back on the EXPANDED call screen minimises it to the card (the
+            // Android dialer rule) — it never navigates the app under a full-window call.
+            if (CallPage.minimiseOnBack())
+            {
                 return true;
             }
             // Unit 2 (#240) close-audit: an Account overlay holds uncommitted edits —

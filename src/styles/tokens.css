@@ -1139,6 +1139,24 @@
    4. CODE-ONLY TOKENS — not represented in Figma (see DESIGN_SYSTEM.md §2)
    ========================================================================== */
 :root {
+  /* ★ #1074 (call premium, Damir's pick D1): the CALL surface is dark in BOTH app themes —
+     calls read dark, like the platform dialers, and the ring/in-call views sit on the
+     caller's identity colour. Declared once, never re-declared under the dark theme, so
+     the light and dark renders are identical. --call-ground must equal CallPage.callGround
+     and SpixiContentPage.surfaceColorStringFor("call.html") (the native stage + pre-paint). */
+  --call-ground: #14161c;
+  --call-card: #1e2129;
+  --call-ink: #ffffff;
+  --call-ink-2: rgba(255, 255, 255, 0.70);   /* 9.1:1 on --call-ground (composited #b8b9bb) */
+  --call-btn: rgba(255, 255, 255, 0.12);
+  --call-btn-hover: rgba(255, 255, 255, 0.18);
+  --call-btn-pressed: rgba(255, 255, 255, 0.24);
+  --call-btn-on: #ffffff;                    /* a toggle that is ON (muted, speaker) inverts */
+  --call-btn-on-ink: #14161c;
+  --call-end: var(--red-500);                /* white glyph 3.9:1 — a 24px+ icon (3:1 floor) */
+  --call-accept: var(--green-500);           /* white glyph 3.4:1 — a 24px+ icon (3:1 floor) */
+  --call-chip: rgba(255, 255, 255, 0.08);
+  --call-live: var(--green-400);
   /* z-index */
   --z-0: 0;
   --z-10: 10;  /* sticky (date headers) */
@@ -1605,6 +1623,24 @@
   --disc-shade: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15));   /* ★ #1031 (M4): the icon disc's shade — a white glyph ≥ 3:1 on every pair */
   --tile-shade: linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25));   /* ★ #1031 (M3): the document tile's shade under a family gradient — white 11px bold ≥ 4.5:1 */
   --disc-grad-error: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+  /* ★ #1076 (Damir 2026-09-30: "colours a bit off, darker"; picked B · rounded square, Account
+     screen only, "amber instead of yellow and more saturated lime"): the Account hub's brighter
+     disc pairs. NO --disc-shade under them. The disc is decoration (the row label names the row),
+     so the white glyph is under 3:1 on the light pairs by Damir's ruling. Other screens keep
+     --disc-grad-N. */
+  --disc-hub-1: linear-gradient(180deg, #FF8A4C 0%, #F2622B 100%);   /* orange */
+  --disc-hub-2: linear-gradient(180deg, #FFB23F 0%, #F28A0A 100%);   /* amber (replaces sunflower) */
+  --disc-hub-3: linear-gradient(180deg, #8FDD2A 0%, #4CB81A 100%);   /* saturated lime */
+  --disc-hub-4: linear-gradient(180deg, #5ED67A 0%, #2DB85A 100%);   /* green */
+  --disc-hub-5: linear-gradient(180deg, #3FDDBB 0%, #12C09D 100%);   /* teal */
+  --disc-hub-6: linear-gradient(180deg, #4DD4F2 0%, #19AEE3 100%);   /* cyan */
+  --disc-hub-7: linear-gradient(180deg, #5CB6FF 0%, #2E88F7 100%);   /* blue */
+  --disc-hub-8: linear-gradient(180deg, #A9A5FF 0%, #7D6CF4 100%);   /* violet */
+  --disc-hub-9: linear-gradient(180deg, #CB9DFF 0%, #A266EE 100%);   /* purple */
+  --disc-hub-10: linear-gradient(180deg, #F794D6 0%, #E4549F 100%);   /* pink */
+  --disc-hub-11: linear-gradient(180deg, #FF8FA2 0%, #F2526C 100%);   /* rose */
+  --disc-hub-error: linear-gradient(180deg, #FF7A70 0%, #EC3F3A 100%);   /* red, destructive */
+  --disc-hub-glyph-lift: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));   /* soft lift under the white glyph */
 
   /* state washes over strong surfaces (hero gradient, success call bar) —
      mirrored in Figma as colors/surface/region/wash-* (alpha primitives);

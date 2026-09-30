@@ -136,6 +136,70 @@ namespace Spixi
             }
         }
 
+        /* ★ #1074 (call premium): the call-control CAPS this platform can back. CallPage
+         * pushes them to the call shell (setCallCaps) — a control renders only when its
+         * verb does something here (no dead buttons, #256/#264).
+         *   callRings        — a local ring sound exists, so "Silence" means something.
+         *   callSpeakerRoute — setSpeakerphone below really switches the output. */
+        public const bool callRings = true;
+        /* ⚠ DEVICE-GATED (#215): the route API is real, but nobody has walked it yet —
+         * nor what Android picks today with MODE_NORMAL + VOICE_COMMUNICATION (Damir:
+         * "mixed / not sure"). Debug/dev builds carry it so the walk can happen; a Release
+         * build hides the button until the walk passes and this line is flipped. */
+#if SPIXI_DEV_COEXIST
+        public const bool callSpeakerRoute = true;
+#else
+        public const bool callSpeakerRoute = false;
+#endif
+        static bool speakerModeTouched = false;
+
+        /** Loudspeaker on/off for the live call. API 31+: the communication-device API
+         *  (on = the built-in speaker; off = clear, the system picks earpiece or a
+         *  headset). Older: MODE_IN_COMMUNICATION + SpeakerphoneOn, and the mode goes
+         *  back to NORMAL on off. Returns false when nothing was applied. */
+        public static bool setSpeakerphone(bool on)
+        {
+            try
+            {
+                AudioManager am = (AudioManager)appContext().GetSystemService(Context.AudioService)!;
+                if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.S)
+                {
+                    if (!on)
+                    {
+                        am.ClearCommunicationDevice();
+                        return true;
+                    }
+                    foreach (AudioDeviceInfo d in am.AvailableCommunicationDevices)
+                    {
+                        if (d.Type == AudioDeviceType.BuiltinSpeaker)
+                        {
+                            return am.SetCommunicationDevice(d);
+                        }
+                    }
+                    return false;
+                }
+#pragma warning disable CS0618 // pre-31 route API
+                if (on)
+                {
+                    am.Mode = Mode.InCommunication;
+                    speakerModeTouched = true;
+                }
+                am.SpeakerphoneOn = on;
+                if (!on && speakerModeTouched)
+                {
+                    am.Mode = Mode.Normal;
+                    speakerModeTouched = false;
+                }
+#pragma warning restore CS0618
+                return true;
+            }
+            catch (Exception e)
+            {
+                Logging.warn("setSpeakerphone: " + e.GetType().Name);
+                return false;
+            }
+        }
+
         public static void stopRinging()
         {
             lock (ringtoneLock)

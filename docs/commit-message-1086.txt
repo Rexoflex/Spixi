@@ -1,0 +1,13 @@
+Office fix round: A1 + B1–B15, call avatar, dark call card, unread time (#1086–#1089)
+
+- A1 Mac calls: tap the mic in the hardware format, convert with AVAudioConverter (iOS shape); Mac player = iOS player
+- B1 Mac idiom (UIDeviceFamily 2,6), Finder image pick with HEIC → JPEG; B15 fetch background mode; B14 Mac icon
+- B2 Mac top inset = the WebView's real title-bar overlap
+- B3 short address on the ring; B4/B5 device ground skips call.html (data-device-bg="own")
+- B6 card ⇄ full: shell first, stage 48 ms later; B9 serial speaker chain + iOS DefaultToSpeaker
+- B7 Contacts held until Account is shown (children inert, cover hit-tests); Windows cover settle 120 ms
+- B8 nickname editor keeps the name size; B10 tick crossfade 300 ms; B11 sent amount ≤ 2 dp, fee full
+- B12 peer typing beats a draft in the chats row
+- #1086 avatar data-URI drops Core's ?t= cache-buster; #1087 dark call card edge; #1088 unread time blue
+- #1089 Opus #46 loop, five rounds; smoke pins for all of the above
+

@@ -679,8 +679,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* ⚠ #1012 (Opus r1 M2): NO `to` keyframe and fill `backwards` — a `to { opacity: 1 }` held by fill
    `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered 0.571 /
    A9 sent 0.7 dims. The animation now runs from 0 to the element's OWN computed value and lets go. */
-@keyframes c-tick-in { from { opacity: 0; transform: scale(0.85); } }
-.c-status-icon[data-enter] { animation: c-tick-in calc(var(--duration-200) * 0.8) var(--easing-standard) backwards;   /* 160ms, from the motion token (0 under reduced motion) */ }
+/* ★ B10 (#1084 OV.10, measured: the 160 ms front-loaded fade read as a swap): 300 ms, symmetric curve, grows from 0.7. = TICK_FADE_MS / TICK_REPLAY_MS. */
+@keyframes c-tick-in { from { opacity: 0; transform: scale(0.7); } }
+.c-status-icon[data-enter] { animation: c-tick-in var(--duration-300) var(--easing-crossfade) backwards;   /* 300ms, from the motion token (0 under reduced motion) */ }
 /* ★ #1028 (walk P.13): the OLD glyph stays for the fade and goes OUT while the new one comes in — a
    crossfade, not a swap. It overlaps the new glyph exactly: a negative inline margin of its own 14px
    width plus the meta gap, so nothing in the meta moves. `forwards` holds it at 0 until the JS removes it
@@ -689,7 +690,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-status-icon[data-exit] {
   margin-inline-end: calc(-14px - var(--spacing-2));
   pointer-events: none;
-  animation: c-tick-out calc(var(--duration-200) * 0.8) var(--easing-standard) forwards;
+  animation: c-tick-out var(--duration-300) var(--easing-crossfade) forwards;   /* ★ B10: = c-tick-in */
 }
 @media (prefers-reduced-motion: reduce) { .c-status-icon[data-enter], .c-status-icon[data-exit] { animation: none; } }
 

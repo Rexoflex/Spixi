@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-bleed-top>
+<html lang="en" data-bleed-top data-device-bg="own">
 <head>
 <meta charset="utf-8">
 <!-- Head-top theme: set data-theme SYNCHRONOUSLY before any paint (kills the
@@ -29,6 +29,10 @@
      surfaceColorStringFor), so the ring's scrim dims the app behind it and the card rounds itself. The
      data-desktop flag is set by the script above, before this rule is parsed. */
   html[data-desktop], html[data-desktop][data-theme="dark"] { background: transparent; }
+  /* ★★ B4/B5 (office walk #1084): data-device-bg="own" on <html> opts this shell out of the build's device
+     ground (scripts/lib/inline.mjs DEVICE_CSS), whose `background: var(--surface-screen) !important` beat both
+     rules above — the desktop ring dimmed a solid light page, the call card sat on a square, and the phone's
+     first frame could paint the light surface under a dark call. This document owns its ground. */
 </style>
 
 <link rel="stylesheet" href="spixi.tokens.css">
@@ -1327,13 +1331,25 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     border-radius: var(--radius-16, 16px);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);    /* sanctioned: the card's own shadow, fitted inside the 8px pad (the native Border shadow it replaces: black 0.28) */
   }
+  /* ★ #1087 (Damir, Android dark: the minimised card did not stand off the dark UI): in DARK the card carries the
+     glass edge — a hairline + a top highlight (tokens --call-card-edge / --call-card-highlight). Drawn INSIDE the
+     card (inset), so the phone's native Border clip (16px) and the desktop card both keep it; the card rounds itself
+     to the same 16px so the line follows the corner. The desktop rule keeps its outer shadow beside it. */
+  :root[data-theme="dark"] body[data-mode="bar"] .c-callbar {
+    border-radius: var(--radius-16, 16px);
+    box-shadow: inset 0 0 0 1px var(--call-card-edge), inset 0 1px 0 var(--call-card-highlight);
+  }
+  :root[data-theme="dark"] body[data-mode="bar"] .c-callbar__main { margin-block: 1px; }   /* #46 r1 N2: the hover/press wash stays inside the edge */
+  :root[data-theme="dark"][data-desktop] body[data-mode="bar"] .c-callbar {
+    box-shadow: inset 0 0 0 1px var(--call-card-edge), inset 0 1px 0 var(--call-card-highlight), 0 2px 6px rgba(0, 0, 0, 0.28);   /* sanctioned: = the desktop card shadow above */
+  }
   /* ★ #1080 F9 (Damir ⑦: "a blue focus ring shows on the left"): after a POINTER swap (Minimise / the
      card / Accept) the new view takes focus for keyboard and screen-reader users (r4 MINOR-2) — and
      Chromium paints a programmatic focus with no prior focused element as :focus-visible. A pointer
      swap marks the target data-noring; the ring comes back on the first key press (renderCall). */
   [data-noring]:focus-visible { outline: none; }
 </style>
-<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
+<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
 
@@ -1377,6 +1393,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     showCallScreen, hideCallScreen,
     createNativeBridge, installExecuteUiCommand, utf8ToB64Url, dismissTopOverlay,
     applyPushedTheme,
+    isAddressShaped, truncateAddressMiddle,   // ★ B3 (#1084): the #211 address canon for the caller name
     } = window.Spixi;
   const strings = window.SL || {};
 
@@ -1558,8 +1575,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     setTheme(name) { applyPushedTheme(name); },
     /* the ONE state push — full current state, replayable (see contract above) */
     setCallUi(kind, name, avatar, text, startedSecs, sessionId, address) {
+      /* ★ B3 (office walk #1084, C.2 on the Mac: the ring card showed the FULL address). A contact with
+       * no nickname reaches C# as its address IN the nick field, so the components' own "no name →
+       * truncate the address" fallback never ran. An address-shaped name is shortened here, like the
+       * chat topbar and every list row (#211: never a full base58 in a title). */
+      const shownName = name && isAddressShaped(String(name)) ? truncateAddressMiddle(String(name)) : name;
       last = {
-        kind: String(kind || ''), name, avatar, text, startedSecs,
+        kind: String(kind || ''), name: shownName, avatar, text, startedSecs,
         sid: String(sessionId || ''), addr: String(address || ''),
       };
       render();

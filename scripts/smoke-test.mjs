@@ -8436,7 +8436,11 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
   /* ★ #1085 (office walk OV.23): 698 → 704 — the app-invite picker: chat.html now links apps-icon.css (the icon
      tiles) and carries the picker rules, the search/tall-sheet path and the data:-only icon filter. MEASURED on
      chat.html: 713 883 → 720 041 chars (+6 158); 703 would not fit; headroom under 704 is 855. Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 704, INDEX_KB_CEIL = 535;
+  /* ★ #1086 (the office-walk fix round): INDEX 535 → 537 — home.html carries the B7 hold (state, release, the
+     onSettingsShown handler, the tab-switch/back arms), the B12 typing guards and the #1088 unread-time rule that
+     inlines via chatlist-item.css. MEASURED on index.html: 546 149 → 548 740 chars (+2 591); 536 leaves 124 chars,
+     so 537 (headroom 1 148). chat.html stays under 704 (720 634, headroom 262). Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 704, INDEX_KB_CEIL = 537;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -18599,7 +18603,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const cp = readFileSync(join(root, 'src/bridge/contacts-page.js'), 'utf8');
     /* ★ Session H re-base: the close body gained the slide-out (and its docblock) between the
        latch and onClose — widen the window; the reason contract itself is byte-identical. */
-    ok(/const close = \(reason\) => \{[\s\S]{0,1200}?if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp) && /onBack: \(\) => close\('back'\),/.test(cp),
+    /* ★ #1086 re-base: the close body grew again (the B7 hold arm) — slice the FUNCTION, not a fixed window (#771) */
+    const closeBody = cp.slice(cp.indexOf('const close = (reason) => {'), cp.indexOf('\n  };', cp.indexOf('const close = (reason) => {')));
+    ok(closeBody.length > 0 && /if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(closeBody) && /onBack: \(\) => close\('back'\),/.test(cp),
       'C4 (#547): the contacts takeover reports WHY it closed — the user\'s own Back vs a programmatic close');
     /* ★ L6 rebase: the Back branch gained a comment between its two statements, and
        the hand-off no longer "lands on Chats" on the way in — that was the defect
@@ -23601,7 +23607,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         const winLine = iconLines.filter((l) => /appicon_windows/.test(l));
         const iosLine = iconLines.filter((l) => /appicon_ios/.test(l));
         const droidLine = iconLines.filter((l) => /appicon\.svg/.test(l) && /ForegroundFile/.test(l));
-        ok(iconLines.length === 3 && droidLine.length === 1 && /Color="#0076E1"/.test(droidLine[0]),
+        const macLine = iconLines.filter((l) => /appicon_mac/.test(l));   // ★ B14 (#1084): the fourth line
+        ok(iconLines.length === 4 && droidLine.length === 1 && /Color="#0076E1"/.test(droidLine[0]),
           '★ #683/#689 + E1b: the ANDROID/iOS MauiIcon carries the GROUND colour, so a platform that takes the flat colour instead of the file lands on #689\'s measured blue. Pinned on that line specifically — one regex across the whole csproj matched either line and could not tell which it proved, the identical defect #683 fixed for MauiSplashScreen. E1c: it is now the ANDROID line alone — iOS and Windows both carry their own ground. Got ' + iconLines.length + ' line(s)');
         /* ★ E1c: the iOS line carries NO Color, for E1b's Windows reason exactly. Color is
            painted BEHIND the rasterised SVG, so it can only flood transparency — and an iOS
@@ -23610,6 +23617,10 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
            transparent corner, the square-corner defect E1b spent a round measuring. */
         ok(iosLine.length === 1 && !/Color=/.test(iosLine[0]),
           '★★ E1c: the iOS MauiIcon carries NO Color — appicon_ios.svg carries its own ground, and iOS icons are opaque by requirement. Same argument as the Windows line one row down');
+        /* ★★ B14 (office walk #1084, M3): Mac Catalyst left the Android pair for its own file on the macOS icon grid
+           (a transparent margin around an 824 body). A Color would flood that margin — the E1b square-corner defect. */
+        ok(macLine.length === 1 && !/Color=/.test(macLine[0]),
+          '★★ B14: the MacCatalyst MauiIcon is its own line and carries NO Color — appicon_mac.svg carries its ground and its transparent macOS margin');
         /* ★★ E1b ROUND 2 — THE COLOR ATTRIBUTE IS WHAT SQUARED THE CORNERS.
            Damir on the first build: "the logo is bigger, but the rectangle is sharp."
            MEASURED at the built artifact, not judged from the taskbar: every corner pixel of
@@ -23625,12 +23636,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
            one that matters — every target framework matches EXACTLY ONE of them. Two lines
            could assert that by being literal complements; three cannot, so the conditions are
            pinned individually AND the partition is asserted below by evaluating them.
-           ⚠ MacCatalyst deliberately rides the Android line: it has never run (no RocksDB
-           slice), so moving it would be an unverifiable change. That is a decision, not drift. */
-        ok(/<MauiIcon Condition="!\$\(TargetFramework\.Contains\('-windows'\)\) and !\$\(TargetFramework\.Contains\('-ios'\)\)" Include="Resources\\AppIcon\\appicon\.svg" ForegroundFile="Resources\\AppIcon\\appiconfg\.svg"/.test(csp683)
+           ⚠ (Superseded by B14, #1084: MacCatalyst RAN at the office walk and its Dock icon was the
+           small Android mark, so it now takes its own fourth line — the partition below covers it.) */
+        ok(/<MauiIcon Condition="!\$\(TargetFramework\.Contains\('-windows'\)\) and !\$\(TargetFramework\.Contains\('-ios'\)\) and !\$\(TargetFramework\.Contains\('-maccatalyst'\)\)" Include="Resources\\AppIcon\\appicon\.svg" ForegroundFile="Resources\\AppIcon\\appiconfg\.svg"/.test(csp683)
+          && /<MauiIcon Condition="\$\(TargetFramework\.Contains\('-maccatalyst'\)\)" Include="Resources\\AppIcon\\appicon_mac\.svg"/.test(csp683)
           && /<MauiIcon Condition="\$\(TargetFramework\.Contains\('-ios'\)\)" Include="Resources\\AppIcon\\appicon_ios\.svg"/.test(csp683)
           && /<MauiIcon Condition="\$\(TargetFramework\.Contains\('-windows'\)\)" Include="Resources\\AppIcon\\appicon_windows\.svg"/.test(csp683),
-          '★★ E1b + E1c: the icon is split by TARGET FRAMEWORK three ways — Android keeps the foreground+background pair L17 needs for the adaptive mask, iOS takes a single opaque full-bleed file, Windows takes its own single file');
+          '★★ E1b + E1c + B14: the icon is split by TARGET FRAMEWORK four ways — Android keeps the foreground+background pair L17 needs for the adaptive mask, iOS takes a single opaque full-bleed file, Windows and MacCatalyst each take their own single file');
         /* ★ The partition, EVALUATED rather than eyeballed: for each TFM the app ships, count
            how many of the three conditions are true. Exactly one, always. A pin that only
            matched the three regexes above would stay green if someone dropped the `!ios` term
@@ -23639,7 +23651,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         for (const tfm of ['net10.0-android', 'net10.0-ios', 'net10.0-maccatalyst', 'net10.0-windows10.0.19041.0']) {
           const has = (x) => tfm.includes(x);
           const matches = [
-            !has('-windows') && !has('-ios'),   // the Android/MacCatalyst pair
+            !has('-windows') && !has('-ios') && !has('-maccatalyst'),   // the Android pair
+            has('-maccatalyst'),                // B14 (#1084)
             has('-ios'),                        // E1c
             has('-windows'),                    // E1b
           ].filter(Boolean).length;
@@ -23694,9 +23707,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
            input catalogs contained a matching ... app icon set ... named appicon".
            ⚠ NOTHING connected these two files. The csproj pins above prove which SVG each
            platform takes; not one of them had ever read an Info.plist.
-           ★ MacCatalyst is the control, and it must NOT move: it rides the Android MauiIcon
-           line, whose file really is appicon.svg, so "appicon" in ITS plist is correct. A pin
-           that just required both plists to match iOS would have broken Catalyst silently. */
+           ★ B14 (#1084): MacCatalyst now takes its OWN file (appicon_mac.svg), so its plist names
+           appicon_mac — a pin that required both plists to match iOS would break Catalyst silently. */
         {
           const setOf = (plist) => ((rdC(plist).match(/<key>XSAppIconAssets<\/key>[\s\S]*?<string>([^<]*)<\/string>/) || [null, ''])[1]).trim();
           const fileOf = (line) => ((line.match(/Include="Resources\\AppIcon\\([^."]+)\.svg"/) || [null, ''])[1]);
@@ -23704,8 +23716,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
           const droidFile = fileOf(droidLine[0] || '');
           ok(!!iosFile && setOf('Spixi/Platforms/iOS/Info.plist') === 'Assets.xcassets/' + iosFile + '.appiconset',
             '★★ E1c: the iOS Info.plist XSAppIconAssets names the icon set the resizetizer will actually generate — i.e. the iOS MauiIcon FILE. Rename one without the other and actool fails the whole build. csproj says "' + iosFile + '", plist says "' + setOf('Spixi/Platforms/iOS/Info.plist') + '"');
-          ok(!!droidFile && setOf('Spixi/Platforms/MacCatalyst/Info.plist') === 'Assets.xcassets/' + droidFile + '.appiconset',
-            '★★ E1c: MacCatalyst rides the ANDROID MauiIcon line, so ITS plist must name that file\'s set — not the iOS one. This pin is what stops a well-meaning sweep from "fixing" Catalyst to match iOS. csproj says "' + droidFile + '", plist says "' + setOf('Spixi/Platforms/MacCatalyst/Info.plist') + '"');
+          const macFile = fileOf(macLine[0] || '');
+          ok(!!droidFile && !!macFile && setOf('Spixi/Platforms/MacCatalyst/Info.plist') === 'Assets.xcassets/' + macFile + '.appiconset',
+            '★★ E1c → B14 (#1084): MacCatalyst takes its OWN MauiIcon file now, so ITS plist must name THAT file\'s set — not the iOS one and not the Android pair\'s. Rename one without the other and actool fails the Mac build. csproj says "' + macFile + '", plist says "' + setOf('Spixi/Platforms/MacCatalyst/Info.plist') + '"');
         }
         const win = rdC('Spixi/Resources/AppIcon/appicon_windows.svg');
         ok(/<rect width="1024" height="1024" rx="229" ry="229"\/>/.test(win) && /clip-path="url\(#spixiWinIconClip\)"/.test(win),
@@ -24395,8 +24408,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     let csp = '';
     try { csp = stripX(rdF('Spixi/Spixi.csproj')); } catch (_) { csp = ''; }
     const icons = csp.match(/<MauiIcon [^>]*\/>/g) || [];
-    ok(icons.length === 3,
-      '★★ SESSION F (mutation M1), E1c 2 -> 3: exactly three LIVE MauiIcon entries after XML comments are stripped — the old pin counted them in the RAW file, so commenting the Android/iOS line out left both platforms with no icon at all and the pin still green. This is the L17 failure class and it is an XML file, so stripCode() is the wrong tool. Android/MacCatalyst · iOS · Windows');
+    ok(icons.length === 4,
+      '★★ SESSION F (mutation M1), E1c 2 -> 3, B14 3 -> 4: exactly four LIVE MauiIcon entries after XML comments are stripped — the old pin counted them in the RAW file, so commenting the Android/iOS line out left both platforms with no icon at all and the pin still green. This is the L17 failure class and it is an XML file, so stripCode() is the wrong tool. Android · MacCatalyst · iOS · Windows');
     let androidRefs = 0;
     for (const f of ['Spixi/Platforms/Android/Resources/values/styles.xml',
                      'Spixi/Platforms/Android/Resources/values-v31/styles.xml',
@@ -25002,7 +25015,12 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
      && /if \(walletTakeover && walletTakeoverClose\) walletTakeoverClose\(\);\s*\/\/ nulls both handles/.test(rdF('src/shells/home.html')),
     '★★ Session H [home]: Receive and Send slide in; the user\'s own Back (arrow, hardware back → closeTopHomeTakeover, the all-clear return) slides out; a tab switch removes at once (a programmatic close brings its own transition)');
   const cp = nc(rdF('src/bridge/contacts-page.js'));
-  ok(/if \(reason === 'back'\) slideSubscreenOut\(host, overlay, \(\) => \{ overlay\.remove\(\); if \(onExitSettled\) \{ try \{ onExitSettled\(\); \} catch \(e\) \{\} \} \}, \{ positioned: false \}\);\s*else overlay\.remove\(\);\s*if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp)
+  /* ★ B7 RE-BASE (#1084): the Back branch gained a HOLD arm (holdBackExit — the Account hop keeps the takeover on
+     glass until C# says Account is shown); the slide arm and the programmatic remove are unchanged, and onExitSettled
+     now rides ONE `settled` helper both arms call. */
+  ok(/const settled = \(\) => \{ if \(onExitSettled\) \{ try \{ onExitSettled\(\); \} catch \(e\) \{\} \} \};/.test(cp)
+     && /if \(reason === 'back' && typeof holdBackExit === 'function'\) \{[\s\S]{0,400}?try \{ holdBackExit\(release\); \} catch \(e\) \{ release\(\); \}\s*\} else if \(reason === 'back'\) slideSubscreenOut\(host, overlay, \(\) => \{ overlay\.remove\(\); settled\(\); \}, \{ positioned: false \}\);\s*else overlay\.remove\(\);\s*if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp)
+     && /const release = \(\) => \{ if \(released\) return; released = true; overlay\.remove\(\); settled\(\); \};/.test(cp)
      /* ★ #1080 F1 RE-BASE: the entry slide is skipped for the Account hand-off (enterInstant) — every other opener still slides */
      && /host\.append\(overlay\);\s*if \(!enterInstant\) slideSubscreenIn\(host, overlay, null, \{ positioned: false, append: false \}\);/.test(cp)
      && /if \(closed\) return;\s*closed = true;/.test(cp),
@@ -25301,7 +25319,8 @@ console.log('Session H ⑥: the A-round fixes (back-during-slide · shield · tr
      && /onExitSettled: \(\) => syncHomeOverlay\(\),/.test(home),
     '★ A MAJOR-1 ③: EVERY exit path re-syncs AFTER the cover is removed — ' + ((home.match(/\(\) => \{ over\.remove\(\); syncHomeOverlay\(\); \}/g) || []).length) + ' sliding closes (wallet Receive, wallet Send, Session T add-app) plus the contacts onExitSettled hook. Reporting 0 while the cover is still on glass is what backgrounded the app mid-slide');
   const cp = nc(rdF('src/bridge/contacts-page.js'));
-  ok(/onExitSettled\b/.test(cp) && /overlay\.remove\(\); if \(onExitSettled\)/.test(cp),
+  ok(/onExitSettled\b/.test(cp) && /const settled = \(\) => \{ if \(onExitSettled\)/.test(cp)
+     && (cp.match(/overlay\.remove\(\); settled\(\);/g) || []).length === 2,   /* ★ B7 re-base: both the slide AND the hold release report the exit */
     '★ A MAJOR-1 ④: mountContacts fires onExitSettled when the exit actually finishes');
   /* ★ A MINOR-3: the exit shield */
   const ss = rdF('src/components/subscreen-slide.js');
@@ -37269,10 +37288,11 @@ console.log('Office fix round (#974–#981)');
     /* ★ #1028 (walk R.6): the Mac twin (always 1px) is the one sanctioned second rule — its own pin asserts its body */
     && !/^:root\[data-platform="maccatalyst"\]:not\(\[data-bleed-top\]\) body::before$/.test(x[1].trim())).map((x) => x[1].trim());
   /* the #993 review MINOR: full-bleed screens stand the line down — static on lock / launch (intro.html) / call, toggled with the Wallet tab */
-  const bleedStatic = ['lock.html', 'intro.html', 'call.html'].filter((f) => !/<html lang="en" data-bleed-top>/.test(readFileSync(join(dir, f), 'utf8')));
+  const bleedStatic = ['lock.html', 'intro.html', 'call.html'].filter((f) => !/<html lang="en" data-bleed-top[ >]/.test(readFileSync(join(dir, f), 'utf8')));   /* ★ B4/B5 (#1084): call.html also carries data-device-bg="own" */
   const bleedWallet = /walletView\.hidden = !isWallet;\s*document\.documentElement\.toggleAttribute\('data-bleed-top', isWallet\);/.test(readFileSync(join(dir, 'index.html'), 'utf8'));
   const scp = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
-  const diag = /#if MACCATALYST[\s\S]{0,1400}?double macTop = this\.On<iOS>\(\)\.SafeAreaInsets\(\)\.Top;[\s\S]{0,1600}?if \(macTop != lastMacTitlebarInset\)\s*\{\s*lastMacTitlebarInset = macTop;\s*Logging\.info\("\[M6\] mac safe-area top=" \+ macTop \+ " window=" \+ winTop\);/.test(scp);   /* ★ #1035: the window inset is logged beside the page's */
+  /* ★ B2 (#1084) RE-BASE: the log now names the MEASURED overlap beside the page and window insets, and fires on its change */
+  const diag = /#if MACCATALYST[\s\S]{0,1400}?double macTop = this\.On<iOS>\(\)\.SafeAreaInsets\(\)\.Top;[\s\S]{0,2600}?double overlap = macTitlebarOverlap\(_webView\?\.Handler\?\.PlatformView as UIKit\.UIView\);\s*if \(overlap != lastMacTitlebarInset\)\s*\{\s*lastMacTitlebarInset = overlap;\s*Logging\.info\("\[M6\] mac safe-area top=" \+ macTop \+ " window=" \+ winTop \+ " overlap=" \+ overlap\);/.test(scp);
   ok(shells.length >= 10 && miss.length === 0 && other.length === 0 && diag && bleedStatic.length === 0 && bleedWallet,
     '★★ #993 (M6): EVERY built shell (' + shells.length + ') carries the desktop title-bar hairline (fixed, top = --safe-top, height min(1px, --safe-top) → zero on Windows, outline-neutral-03, z 31, no pointer events), no other body::before rule competes, full-bleed screens (lock, launch, call, the Wallet tab) stand it down via data-bleed-top, and the Mac logs its real inset on every CHANGE — missing: ' + JSON.stringify(miss) + ' · rivals: ' + JSON.stringify(other) + ' · diag: ' + diag + ' · bleed: ' + JSON.stringify(bleedStatic) + '/' + bleedWallet);
 }
@@ -37547,10 +37567,13 @@ console.log('★★ #1001–#1010 — the premium polish round');
     S.setMessageStatus(row, 'read', {}, { animate: true });
     const same = cur().hasAttribute('data-enter');
     const mb = stripCssComments(rdP('src/styles/components/message-bubble.css'));
-    ok(live && !hist && !same && /\.c-status-icon\[data-enter\] \{ animation: c-tick-in calc\(var\(--duration-200\) \* 0\.8\)/.test(mb)
+    /* ★ B10 (office walk #1084, OV.10) RE-BASE: 160 ms front-loaded read as a swap on device — 300 ms on the symmetric curve */
+    ok(live && !hist && !same && /\.c-status-icon\[data-enter\] \{ animation: c-tick-in var\(--duration-300\) var\(--easing-crossfade\) backwards;/.test(mb)
+       && /@keyframes c-tick-in \{ from \{ opacity: 0; transform: scale\(0\.7\); \} \}/.test(mb)
+       && /--easing-crossfade: cubic-bezier\(0\.4, 0, 0\.6, 1\);/.test(rdP('src/styles/tokens.css'))
        && /@media \(prefers-reduced-motion: reduce\) \{ \.c-status-icon\[data-enter\], \.c-status-icon\[data-exit\] \{ animation: none; \} \}/.test(mb)   /* ★ #1028: the ghost stands down too */
        && /setMessageStatus\(row, rec\.status, window\.SL \|\| \{\}, \{ animate: !bursting && !loadPhase \}\)/.test(stripCode(rdP('src/shells/chat.html'))),
-      '★★ #1010: a LIVE tick change fades in (160ms from the motion token); an unchanged or history status never animates; the shell asks only outside the load burst; reduced motion = none');
+      '★★ #1010 → B10: a LIVE tick change fades in (300ms from the motion token, symmetric curve); an unchanged or history status never animates; the shell asks only outside the load burst; reduced motion = none');
     const ch = stripCode(rdP('src/shells/chat.html'));
     const flips = (ch.match(/if \(prevStatus !== 'completed' && rec\.pstatus === 'completed' && !bursting && !loadPhase\) rec\.celebrate = true;/g) || []).length;
     ok(flips === 2 && /function takeCelebrate\(rec\) \{\s*if \(!rec\.celebrate\) return false;\s*rec\.celebrate = false;\s*return true;\s*\}/.test(ch)
@@ -38049,7 +38072,7 @@ console.log('★★ #1028+ — the overnight finalization');
     const live = icons('tk1');
     r.pair = live.length === 2 && live[0].hasAttribute('data-exit') && live[0].dataset.tone === 'neutral' && live[0].getAttribute('aria-hidden') === 'true'
       && live[1].hasAttribute('data-enter') && live[1].dataset.tone === 'delivered' && live[1].getAttribute('role') === 'img';
-    await sleep(600);
+    await sleep(1300);   // ★ B10 (#1084): the ghost timer belt is TICK_FADE_MS × 3 = 900 ms now
     r.settled = icons('tk1').length === 1 && icons('tk1')[0].dataset.tone === 'delivered';
     /* a read tick that lands next to a FULL render (a new incoming row rebuilds every row) still crossfades */
     push('updateMessage', 'tk1', 'hello there', 'True', 'True', 'True', 'False', 'False');
@@ -38061,8 +38084,8 @@ console.log('★★ #1028+ — the overnight finalization');
     /* ★ #1035 (auditor B, M2): the replay CONTINUES the fade (a negative delay = the time already elapsed), it
        does not restart the ghost at full opacity */
     const dl = (el) => parseFloat(el.style.animationDelay || '0');
-    r.replayContinues = rebuilt.length === 2 && dl(rebuilt[0]) < 0 && dl(rebuilt[0]) === dl(rebuilt[1]) && dl(rebuilt[0]) >= -160;
-    await sleep(600);
+    r.replayContinues = rebuilt.length === 2 && dl(rebuilt[0]) < 0 && dl(rebuilt[0]) === dl(rebuilt[1]) && dl(rebuilt[0]) >= -300;
+    await sleep(1300);   // ★ B10: the 900 ms ghost belt
     r.replaySettled = icons('tk1').length === 1 && icons('tk1')[0].dataset.tone === 'read';
     /* a rebuild AFTER the window does not re-animate an old change */
     push('addThem', 'tk3', 'addrPeer', 'Bob', '', 'again', String(T0 + 40));
@@ -38109,15 +38132,16 @@ console.log('★★ #1028+ — the overnight finalization');
     const ghostRule = /\.c-status-icon\[data-exit\] \{([^}]*)\}/.exec(mb);
     const css = !!ghostRule && gapMeta && gapMeta === gapStamp
       && ghostRule[1].includes('margin-inline-end: calc(-14px - ' + gapMeta + ')')
-      && /animation: c-tick-out calc\(var\(--duration-200\) \* 0\.8\) var\(--easing-standard\) forwards;/.test(ghostRule[1])
+      && /animation: c-tick-out var\(--duration-300\) var\(--easing-crossfade\) forwards;/.test(ghostRule[1])   /* ★ B10 re-base */
       && /@keyframes c-tick-out \{ to \{ opacity: 0;/.test(mb)
       && /@media \(prefers-reduced-motion: reduce\) \{ \.c-status-icon\[data-enter\], \.c-status-icon\[data-exit\] \{ animation: none; \} \}/.test(mb);
-    /* the shell's replay window IS the fade (--duration-200 × 0.8) */
-    const dur = (/--duration-200:\s*(\d+)ms/.exec(rdO('src/styles/tokens.css')) || [])[1];
+    /* the shell's replay window AND the ghost timer ARE the fade (--duration-300, ★ B10 re-base) */
+    const dur = (/--duration-300:\s*(\d+)ms/.exec(rdO('src/styles/tokens.css')) || [])[1];
     const win = (/const TICK_REPLAY_MS = (\d+);/.exec(rdO('src/shells/chat.html')) || [])[1];
-    const winOk = !!dur && Number(win) === Math.round(Number(dur) * 0.8);
+    const fadeMs = (/const TICK_FADE_MS = (\d+);/.exec(rdO('src/components/message-bubble.js')) || [])[1];
+    const winOk = !!dur && Number(win) === Number(dur) && Number(fadeMs) === Number(dur);
     ok(oneGhost && plain && reduced && css && winOk && fileTicks && delayCleared,
-      '★ #1028 (P.13): two changes inside one fade leave ONE ghost; animate:false and reduced motion swap plainly (no ghost); the ghost overlaps by 14px + the SAME gap token the meta and the file stamp use, fades out forwards, and the shell\'s replay window equals the fade (--duration-200 × 0.8) — ' + JSON.stringify({ oneGhost, plain, reduced, css, winOk, fileTicks, delayCleared, gapMeta, gapStamp, dur, win }));
+      '★ #1028 (P.13): two changes inside one fade leave ONE ghost; animate:false and reduced motion swap plainly (no ghost); the ghost overlaps by 14px + the SAME gap token the meta and the file stamp use, fades out forwards, and the shell\'s replay window and the ghost timer equal the fade (--duration-300, B10) — ' + JSON.stringify({ oneGhost, plain, reduced, css, winOk, fileTicks, delayCleared, gapMeta, gapStamp, dur, win }));
     W.close();
   }
 
@@ -38157,10 +38181,10 @@ console.log('★★ #1028+ — the overnight finalization');
       r.ariaAfterProgress = lab.endsWith(', delivered') && lab.startsWith(fb.querySelector('.c-fbubble').dataset.ariaBase);
     }
     r.crossfade = live.length === 2 && live[0].hasAttribute('data-exit') && live[1].dataset.tone === 'delivered' && live[1].hasAttribute('data-enter');
-    await sleep(600);
+    await sleep(1300);   // ★ B10: the 900 ms ghost belt
     r.delivered = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'delivered';
     push('updateFileTicks', 'f1', 'True', 'True', 'True');
-    await sleep(600);
+    await sleep(1300);   // ★ B10: the 900 ms ghost belt
     r.read = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'read';
     /* a received file, an unknown id, an unchanged status: nothing */
     push('updateFileTicks', 'f9', 'True', 'True', 'True');
@@ -38250,7 +38274,7 @@ console.log('★★ #1028+ — the overnight finalization');
     const cs = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
     const i = cs.indexOf('#if MACCATALYST', cs.indexOf('this.BackgroundColor = pageSurfaceColor;'));
     const blk = i < 0 ? '' : cs.slice(i, cs.indexOf('#endif', i));
-    const latch = blk.indexOf('if (macTop != lastMacTitlebarInset)');
+    const latch = blk.indexOf('if (overlap != lastMacTitlebarInset)');   /* ★ B2 (#1084) re-base: the latch keys on the measured overlap */
     const latchEnd = latch < 0 ? -1 : blk.indexOf('}', blk.indexOf('Logging.info("[M6] mac safe-area top="', latch));
     const pushAt = blk.indexOf('Utils.sendUiCommand(this, "setInsetTop", Math.Round(macTop, 2).ToString(System.Globalization.CultureInfo.InvariantCulture));');
     /* ★ #1035 (auditor C, m4 + m1): the push sits INSIDE the hasGeneratedContent branch and behind its exact range
@@ -38258,7 +38282,18 @@ console.log('★★ #1028+ — the overnight finalization');
     const hgc = blk.indexOf('if (hasGeneratedContent)');
     r.csPush = hgc > 0 && hgc < latch && pushAt > latchEnd && latchEnd > latch && latch > 0
       && /if \(macTop >= 0 && macTop < 1000\)\s*\{\s*Utils\.sendUiCommand\(this, "setInsetTop"/.test(blk)
-      && /winTop = uiWin\.SafeAreaInsets\.Top;/.test(blk) && blk.indexOf('macTop = Math.Max(macTop, winTop);') > latchEnd && blk.indexOf('macTop = Math.Max(macTop, winTop);') < pushAt
+      /* ★★ B2 (office walk #1084, OV.13/14) INVERTS #1035's clause: the push USED to be max(page, WINDOW) on the premise
+         that every WebView reaches the window top. The Mac log (page 0 / window 41) and the double-inset symptom disproved
+         it — the native title bar sits ABOVE the WebView, so the window's 41 was added a second time. The push is now the
+         WebView's MEASURED overlap (window inset minus the WebView's top in window coordinates, never below 0), taken
+         after the latch and before the push; the old max() must be GONE. */
+      && blk.indexOf('macTop = overlap;') > latchEnd && blk.indexOf('macTop = overlap;') < pushAt
+      && !/Math\.Max\(macTop, winTop\)/.test(blk)
+      /* #46 r1 M-4: between `macTop = overlap;` and the push NOTHING may re-assign macTop or read winTop — a
+         "fall back to the window when 0" line is the double inset again in a different spelling */
+      && !/macTop\s*[-+*/]?=|winTop/.test(blk.slice(blk.indexOf('macTop = overlap;') + 'macTop = overlap;'.length, pushAt))
+      && /double originY = \(double\)view\.ConvertPointToView\(CoreGraphics\.CGPoint\.Empty, null\)\.Y;\s*return Math\.Round\(Math\.Max\(0, \(double\)w\.SafeAreaInsets\.Top - originY\), 2\);/.test(cs)
+      && /if \(view == null \|\| w == null\)\s*\{\s*return -1;/.test(cs)
       /* ★ #1036 (r2 M1): the call strip grows by the window inset on the Mac too, or the pushed --safe-top clips its hang-up row */
       /* ★ #1074 REBASED: the strip is a card placed BELOW the window inset (topInset), not grown by it */
       && /double topInset = 0;\s*#if IOS \|\| MACCATALYST[\s\S]{0,1400}?\.FirstOrDefault\(w => w\.IsKeyWindow\);\s*if \(win == null\)\s*\{\s*win = Application\.Current\?\.Windows\?\.FirstOrDefault\(\)\?\.Handler\?\.PlatformView as UIKit\.UIWindow;\s*\}\s*if \(win != null\)\s*\{\s*topInset = win\.SafeAreaInsets\.Top;/.test(stripCode(rdO('Spixi/Pages/Call/CallPage.xaml.cs')));   /* ★ #1037: no key window (another app active) → the first window */
@@ -39112,7 +39147,11 @@ console.log('#1074 — call surface premium');
     r.homes = verbHomes.length === 1 && verbHomes[0] === 'Spixi/Pages/Call/CallPage.xaml.cs';
     r.hexOnly = /hex\.Length > 128 \|\| hex\.Length % 2 != 0/.test(cp) && /\(c >= '0' && c <= '9'\) \|\| \(c >= 'a' && c <= 'f'\) \|\| \(c >= 'A' && c <= 'F'\)/.test(cp);
     r.boolArg = /\(parts\[2\] != "0" && parts\[2\] != "1"\)/.test(cp);
-    r.speakerGated = /else if \(SPlatformUtils\.callSpeakerRoute\)\s*\{\s*VoIPManager\.setSpeaker/.test(cp);
+    /* ★ B9 (#1084) RE-BASE: still gated on the platform cap, now run OFF the UI thread on ONE serial chain (the route
+       switch blocks; two quick taps must apply in order) */
+    r.speakerGated = /else if \(SPlatformUtils\.callSpeakerRoute\)\s*\{[\s\S]{0,1400}?lock \(speakerChainLock\)\s*\{\s*speakerChain = speakerChain\.ContinueWith\(_ =>\s*\{\s*try \{ VoIPManager\.setSpeaker\(sid, wantSpeaker\); \}/.test(cp)
+      && !/else if \(SPlatformUtils\.callSpeakerRoute\)\s*\{\s*VoIPManager\.setSpeaker/.test(cp)
+      && /catch \(Exception ex\) \{ Logging\.warn\("Call: speaker switch failed: " \+ ex\.GetType\(\)\.Name\); \}\s*\}, TaskScheduler\.Default\);/.test(cp);   /* #46 r1 m-3: the POOL scheduler, never the UI context */
     r.silenceGated = /verb == "callSilence" && parts\.Length == 3 && SPlatformUtils\.callRings/.test(cp);
     const iCaps = cp.indexOf('"setCallCaps"'), iAudio = cp.indexOf('"setCallAudio"'), iUi = cp.indexOf('"setCallUi"');
     r.capsFirst = iCaps > 0 && iCaps < iAudio && iAudio < iUi;
@@ -39757,6 +39796,421 @@ console.log('#1082 — typing dots in the chat row');
     '★★ #1082 (Damir: "the animated typing indicator from the top bar in the chat row too"): a PEER typing row leads with the three-dot wave (aria-hidden, the topbar\'s 4px dots on the action ink, the pill\'s keyframes via typing-indicator.css now linked in home.html) and the dots replace the trailing ellipsis — the handshake line, which shares the typing tone, gets none — ' + JSON.stringify({ shellMarks, typingReturns: typingReturns.length, handshakeClean, linked, rule, ...b }));
 }
 /* ══ #1082-END ══ */
+
+
+/* ══ #1086 — THE BIG FIX ROUND after the office walk (#1084): A1 + B1–B15 ══════════════════════════
+ * One block, one pin per fix. Behaviour is EXECUTED on the built shells where the fix is behaviour
+ * (B3 · B4/B5 · B7 · B11); C# and plist fixes are pinned as the property they must hold, on stripped
+ * code (#771), each with the mechanism it closes. */
+console.log('#1086 — the office-walk fix round (A1, B1–B15)');
+{
+  const rdX = (pth) => readFileSync(join(root, pth), 'utf8');
+  const htmlDir86 = join(root, 'Spixi/Resources/Raw/html');
+  const bootBuilt = async (name, waitMs = 1500) => {
+    const f = join(htmlDir86, name);
+    const errs = [];
+    const navs = [];   // blocked ixian: navigations (jsdom cannot expose the URL — #804 note) — a COUNT of bridge sends
+    const vc = new VirtualConsole();
+    vc.on('jsdomError', (e) => { const m = String(e.message); if (/navigation/i.test(m)) navs.push(m); else errs.push(m); });
+    const dom = new JSDOM(readFileSync(f, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, url: 'file://' + f, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+      },
+    });
+    await sleep(waitMs);
+    const W = dom.window;
+    const b64 = (v) => Buffer.from(String(v), 'utf8').toString('base64');
+    const push = (fn, ...a) => W.executeUiCommand(W[fn], ...a.map(b64));
+    return { dom, W, push, errs, navs };
+  };
+
+  /* —— A1: the Mac recorder taps in the HARDWARE format and converts (the iOS shape) —— */
+  {
+    const mac = stripCode(rdX('Spixi/Platforms/MacCatalyst/SAudioRecorder.cs'));
+    const init = mac.slice(mac.indexOf('private void initRecorder()'), mac.indexOf('private void onDataAvailable('));
+    const tap = /InstallTapOnBus\(0,\s*(\w+),\s*(\w+),\s*onDataAvailable\)/.exec(init);
+    const onData = mac.slice(mac.indexOf('private void onDataAvailable('), mac.indexOf('private void initEncoder('));
+    ok(!!tap && tap[2] === 'recordingFormat'
+       && /recordingFormat = audioRecorder\.InputNode\.GetBusOutputFormat\(0\);/.test(init)
+       && /audioConverter = new AVAudioConverter\(recordingFormat, desiredFormat\);/.test(init)
+       && !/new AVAudioFormat\(AVAudioCommonFormat\.PCMInt16[^;]*;\s*[^;]*InstallTapOnBus/.test(init)
+       && /if \(supplied\)\s*\{\s*outStatus = AVAudioConverterInputStatus\.NoDataNow;\s*return null;\s*\}\s*supplied = true;/.test(onData)
+       && /Math\.Ceiling\(buffer\.FrameLength \* ratio\)/.test(onData)
+       && /if \(recordingFormat == null \|\| recordingFormat\.SampleRate <= 0 \|\| recordingFormat\.ChannelCount == 0\)/.test(init)
+       && (mac.match(/\brecordingFormat\s*=[^=]/g) || []).length === 1,   /* #46 r1 m-4: ONE assignment in the file — any other puts the tap back in a fixed format */
+      '★★ A1 (office walk #1084, log 20:25:22 "Failed to create tap due to format mismatch, <1 ch, 16000 Hz, Int16>"): the Mac recorder taps the mic in the INPUT NODE\'s own format (GetBusOutputFormat(0)) and converts to the codec\'s 16 kHz Int16 with AVAudioConverter — AVAudioEngine refuses any other tap format, so every Mac call ended at 0:00. The converter input is ONE-SHOT per tap (a second pull says NoDataNow — handing the same buffer again would DUPLICATE audio when macOS delivers a buffer smaller than the output), the output is sized from the frames that arrived, and a 0 Hz / 0 ch input (no mic) throws a clear reason. tap format arg: ' + (tap && tap[2]));
+    const strip1 = (t) => t.replace(/^﻿/, '').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    const iosP = strip1(rdX('Spixi/Platforms/iOS/SAudioPlayer.cs')), macP = strip1(rdX('Spixi/Platforms/MacCatalyst/SAudioPlayer.cs'));
+    ok(iosP === macP && !/GC\.Collect/.test(macP),
+      '★ A1: the Mac PLAYER is the iOS player, code-identical (only a comment differs) — the old Mac copy ran GC.Collect() + WaitForPendingFinalizers() in every buffer callback (~50 per second of a call) and had no playback catch-up');
+  }
+
+  /* —— B1 + B15: the Mac idiom and the fetch background mode —— */
+  {
+    const pl = rdX('Spixi/Platforms/MacCatalyst/Info.plist').replace(/<!--[\s\S]*?-->/g, '');
+    const fam = (/<key>UIDeviceFamily<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(pl) || [null, ''])[1];
+    const modes = (/<key>UIBackgroundModes<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(pl) || [null, ''])[1];
+    ok(/<integer>6<\/integer>/.test(fam),
+      '★★ B1 (office walk #1084: "text too small on the MacBook"): the Catalyst Info.plist carries UIDeviceFamily 6 — the Mac idiom, 100 % — not 1+2 alone, which run the app in the iPad idiom scaled to 77 % (every WebView and the native chrome). Desktop detection does not move with it: HomePage keys on DeviceInfo.Platform (MAJOR-10), the shells on the UA sniff');
+    ok(/<string>fetch<\/string>/.test(modes),
+      '★ B15 (office walk #1084): the Catalyst Info.plist declares the fetch background mode — MAUI\'s app delegate implements performFetchWithCompletionHandler and AppDelegate sets a fetch interval, so macOS warned at every launch');
+  }
+
+  /* —— B3: an address-shaped caller name is shortened on the call surface (#211) —— */
+  {
+    const addr = '1Ab9CdEf2GhJkLmN3pQrStUv4WxYz5aBcD6eFgH7iJkLmNoPq';   // 50 base58 chars, digits inside
+    const { dom, W, push } = await bootBuilt('call.html');
+    push('setCallCaps', '1', '0', '1', '1');
+    push('setCallAudio', '0', '0', '0', '0', '1');
+    push('setCallUi', 'ring', addr, '', 'Incoming call', '0', 'ab12', addr);
+    await sleep(80);
+    const nameEl = W.document.querySelector('.c-callin__name');
+    const shown = nameEl ? nameEl.textContent : '';
+    push('setCallUi', 'incall', addr, '', '', String(Math.floor(Date.now() / 1000) - 5), 'ef56', addr);
+    await sleep(60);
+    const fullName = [...W.document.querySelectorAll('.c-callscreen__name, .c-callbar__name')].map((e) => e.textContent).filter(Boolean);
+    const inCallShort = fullName.length > 0 && fullName.every((t) => t !== addr && t.length < 30);   /* #46 r1 m-5: the in-call views too */
+    push('setCallUi', 'ring', 'Bob', '', 'Incoming call', '0', 'cd34', addr);   // a NEW ring session (a live ring is never rebuilt)
+    await sleep(40);
+    const names = [...W.document.querySelectorAll('.c-callin__name')];   // the old ring may still be fading out — read the NEWEST
+    const nick = (names[names.length - 1] || {}).textContent;
+    ok(shown.length > 0 && shown !== addr && shown.length < 30 && nick === 'Bob' && inCallShort,
+      '★★ B3 (office walk #1084, C.2 on the Mac: the ring card showed the FULL address): a contact with no nickname reaches C# as its address IN the nick field, so the components\' own "no name → truncate" fallback never ran; call.html now shortens an address-shaped name (the #211 canon, as the chat topbar), and a real nick passes unchanged — shown: "' + shown + '" · nick: "' + nick + '"');
+    try { W.close(); } catch (e) {}
+  }
+
+  /* —— #46 r2 m1: the Mac media pick re-encodes a non-JPEG/PNG/GIF image to JPEG (the iOS picker's shape) —— */
+  {
+    const mp = stripCode(rdX('Spixi/Platforms/MacCatalyst/SFilePicker.cs'));
+    const fn = mp.slice(mp.indexOf('public static async Task<SpixiImageData?> PickImageAsync()'), mp.indexOf('public static async Task<SpixiImageData?> PickFileAsync()'));
+    /* r5 m: the decode AND the encode run INSIDE the Task.Run lambda (brace-matched), not merely after its keyword */
+    const trAt = fn.indexOf('await Task.Run(');
+    let lambdaBody = '', outside = fn;
+    if (trAt >= 0) {
+      const o = fn.indexOf('{', trAt); let dep = 1, k2 = o + 1;
+      while (k2 < fn.length && dep) { if (fn[k2] === '{') dep++; else if (fn[k2] === '}') dep--; k2++; }
+      lambdaBody = fn.slice(o, k2); outside = fn.slice(0, o) + fn.slice(k2);
+    }
+    const lambdaDoesWork = /UIImage\.FromFile\(fullPath\)/.test(lambdaBody) && /\.AsJPEG\(/.test(lambdaBody)
+      && !/UIImage\.FromFile|\.AsJPEG\(/.test(outside);
+    ok(/FilePicker\.PickAsync\(new PickOptions \{ FileTypes = MacPickableImages \}\)/.test(fn) && !/"public\.svg-image"/.test(mp)
+       && /await Task\.Run\(/.test(fn) && fn.indexOf('await Task.Run(') < fn.indexOf('UIImage.FromFile(')
+       && /if \(ext == "\.jpg" \|\| ext == "\.jpeg" \|\| ext == "\.png" \|\| ext == "\.gif"\)\s*\{\s*return new SpixiImageData\(\)/.test(fn)
+       && /string fullPath = fileData\.FullPath;/.test(fn) && lambdaDoesWork && (fn.match(/OpenReadAsync\(\)/g) || []).length === 1 && /Path\.GetFileNameWithoutExtension\(name\) \+ "\.jpg"/.test(fn)
+       && !/UIImagePickerController|DismissModalViewController/.test(mp),
+      '★ #46 r2 m1 (Mac media pick): a Finder pick of a HEIC (the Mac photo default) is decoded and re-encoded to JPEG before it is sent — an Android or Windows peer would get a file it cannot show; JPEG/PNG/GIF pass as they are (GIF keeps its animation); the unreachable UIImagePickerController code is gone');
+  }
+
+  /* —— B4/B5: the device ground no longer out-ranks call.html's see-through desktop page —— */
+  {
+    const inl = stripCode(rdX('scripts/lib/inline.mjs'));
+    const bts = stripCode(rdX('scripts/build-test-shells.mjs'));
+    const devRule = /'html:not\(\[data-device-bg="own"\]\),html:not\(\[data-device-bg="own"\]\) body\{background:var\(--surface-screen\)!important\}'/;
+    const call = rdX('Spixi/Resources/Raw/html/call.html');
+    const others = readdirSync(htmlDir86).filter((f) => f.endsWith('.html') && f !== 'call.html')
+      .filter((f) => /<html[^>]*data-device-bg=/.test(readFileSync(join(htmlDir86, f), 'utf8')));
+    ok(devRule.test(inl) && devRule.test(bts) && !/html,body\{[^}]*background:[^}]*\}/.test((/<style data-device>[\s\S]*?<\/style>/.exec(call) || [''])[0])
+       && /<html lang="en" data-bleed-top data-device-bg="own">/.test(call) && others.length === 0,
+      '★★ B4/B5 (office walk #1084 = #1083 F8/F9, measured in Chromium on the built shell): the build\'s device ground was `html,body{background:var(--surface-screen)!important}` in EVERY shell — it beat call.html\'s own see-through desktop rule (#1080), so the desktop ring dimmed a SOLID page instead of the app and the call card sat on a square. The ground now skips a document that opts out with <html data-device-bg="own">, in BOTH builders; call.html is the only one (others: ' + JSON.stringify(others) + ')');
+    /* EXECUTED as a CASCADE WALK (#46 r1 M-2: jsdom resolves no `background`, and its CSSOM silently drops any
+       value that uses var() — a getComputedStyle check was green on a SOLID page). Every <style> rule of the built
+       shell that sets background(-color) and MATCHES html / body is ranked by !important, specificity, then source
+       order; the winner is the ground. Run on three variants: desktop (the fix → transparent), phone (the dark call
+       ground) and the old device rule (the light surface wins — proves the walk can fail). */
+    const winningBackground = (W2, el) => {
+      const spec = (sel) => {
+        let a = 0, b = 0, c = 0;
+        const t = sel.replace(/:not\(([^)]*)\)/g, (m, inner) => { const r2 = spec(inner); a += r2[0]; b += r2[1]; c += r2[2]; return ' '; });
+        a += (t.match(/#[\w-]+/g) || []).length;
+        b += (t.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) || []).length;
+        c += (t.replace(/\[[^\]]*\]/g, ' ').match(/(^|[\s>+~])([a-z][\w-]*)/gi) || []).length;
+        return [a, b, c];
+      };
+      /* #46 r2 m2: a conditional block (@media / @supports) cannot be evaluated here, so it is WALKED, not skipped —
+         any rule inside one that sets a background on html/body is reported as UNEVALUATED and fails the pin (the
+         answer would depend on a condition this walk cannot see). A linked stylesheet fails it the same way. */
+      const hits = []; const unevaluated = []; let order = 0;
+      const walk = (css, cond) => {
+        let i2 = 0;
+        while (i2 < css.length) {
+          const open = css.indexOf('{', i2); if (open < 0) break;
+          let head = css.slice(i2, open).trim();
+          /* r4 m: a statement at-rule (`@charset …;` / `@import …;`) has no block — the rule after it starts past its `;`.
+             An @import is a sheet this walk does not read → UNEVALUATED. */
+          if (head.includes(';')) head = head.slice(head.lastIndexOf(';') + 1).trim();
+          let depth = 1, k = open + 1;
+          while (k < css.length && depth) { if (css[k] === '{') depth++; else if (css[k] === '}') depth--; k++; }
+          const body = css.slice(open + 1, k - 1);
+          i2 = k;
+          if (head.startsWith('@')) {
+            if (/^@(media|supports|layer|container)\b/i.test(head)) walk(body, head);
+            continue;   // @keyframes / @font-face / @property: no selector can match html/body
+          }
+          order++;
+          /* r5 m: a `;` inside a quoted string or parentheses (a data: URI) is not a declaration end */
+          const bodyT = body.replace(/"[^"]*"|'[^']*'|\([^()]*\)/g, (q) => q.replace(/;/g, '\u0001'));
+          const decls = [...bodyT.matchAll(/(?:^|;)\s*(background(?:-color)?)\s*:\s*([^;]+?)\s*(!\s*important)?\s*(?=;|$)/gi)]
+            .map((dd) => [dd[0], dd[1], dd[2].replace(/\u0001/g, ';'), dd[3]]);
+          if (!decls.length) continue;
+          for (const sel of head.split(',').map((x) => x.trim()).filter(Boolean)) {
+            let m = false; try { m = el.matches(sel); } catch (e) { m = false; }
+            if (!m) continue;
+            if (cond) unevaluated.push(cond + ' ' + sel);
+            else for (const dd of decls) hits.push({ v: dd[2].trim(), imp: !!dd[3], sp: spec(sel), order, sel });
+          }
+        }
+      };
+      /* r3 M1: call.html LINKS spixi.tokens.css + spixi.base.css (#345) — those are WALKED in document order with the
+         inline <style> blocks (base.css paints body with --surface-screen, so it is a real contender); only a link the
+         walk cannot read is UNEVALUATED. */
+      const walkSheet = (css) => { if (/@import\b/i.test(css)) unevaluated.push('@import'); walk(css, ''); };   /* r5 m: an @import anywhere */
+      for (const node of W2.document.querySelectorAll('style, link[rel~="stylesheet"]')) {
+        if (node.tagName === 'STYLE') { walkSheet(node.textContent.replace(/\/\*[\s\S]*?\*\//g, '')); continue; }
+        const href = node.getAttribute('href') || '';
+        const lf = join(htmlDir86, href);
+        if (/^[\w.-]+\.css$/.test(href) && existsSync(lf)) walkSheet(readFileSync(lf, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''));
+        else unevaluated.push('<link> ' + href);
+      }
+      if (unevaluated.length) return 'UNEVALUATED ' + JSON.stringify(unevaluated);
+      hits.sort((x, y) => (x.imp - y.imp) || (x.sp[0] - y.sp[0]) || (x.sp[1] - y.sp[1]) || (x.sp[2] - y.sp[2]) || (x.order - y.order));
+      return hits.length ? hits[hits.length - 1].v : '(none)';
+    };
+    const f = join(htmlDir86, 'call.html');
+    const callHtml = readFileSync(f, 'utf8');
+    const ground = (html, desktop) => {
+      const dm = new JSDOM(html, { url: 'file://' + f, virtualConsole: new VirtualConsole() });
+      if (desktop) dm.window.document.documentElement.setAttribute('data-desktop', '');
+      const out = [winningBackground(dm.window, dm.window.document.documentElement), winningBackground(dm.window, dm.window.document.body)];
+      dm.window.close();
+      return out;
+    };
+    const dsk = ground(callHtml, true), phone = ground(callHtml, false);
+    const oldDev = ground(callHtml.replace(/html:not\(\[data-device-bg="own"\]\),html:not\(\[data-device-bg="own"\]\) body\{/, 'html,body{'), true);
+    const clear = (v) => v === 'transparent';
+    ok(clear(dsk[0]) && clear(dsk[1]) && !clear(oldDev[0]) && !clear(oldDev[1])
+       && /^(#14161c|var\(--call-ground\))$/.test(phone[0]) && /^(#14161c|var\(--call-ground\))$/.test(phone[1]),
+      '★★ B4/B5 EXECUTED (a cascade walk over the BUILT call.html): on desktop the winning ground of html and body is TRANSPARENT (' + JSON.stringify(dsk) + ') — the scrim and the card are the only paint, so the app shows through the dim; the SAME walk over the old device rule picks the light surface (' + JSON.stringify(oldDev) + '), which proves the walk can fail; and on a phone both keep the dark call ground (' + JSON.stringify(phone) + ') — no light pre-paint under a dark call');
+  }
+
+  /* —— B6: card ⇄ full — the shell swaps FIRST, the stage geometry follows —— */
+  {
+    const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));
+    const fn = cp.slice(cp.indexOf('private static void setExpanded(bool on)'), cp.indexOf('public static void forwardBackToShell()'));
+    const pushAt = fn.indexOf('page?.pushState();');
+    const layAt = fn.indexOf('Task.Delay(expandLayoutDelayMs).ContinueWith(_ => applyStageLayout());');
+    ok(pushAt > 0 && layAt > pushAt && /surfaceMode = mode;/.test(fn) && fn.indexOf('surfaceMode = mode;') < pushAt
+       && !/setMode\(/.test(fn) && /if \(current != page \|\| surfaceMode == "ring"\)\s*\{\s*return;/.test(fn)
+       && (fn.match(/applyStageLayout\s*\(/g) || []).length === 1   /* #46 r1 m-2: the delayed call is the ONLY one — an early resize is the F10 mechanism */
+       && /private const int expandLayoutDelayMs = \d+;/.test(cp),
+      '★★ B6 (office walk #1084 = #1083 F10, "card → full choppy" on three platforms): setExpanded records the mode and pushes the page\'s CACHED state on the UI thread FIRST (no avatar file read), so the new view mounts transparent, and the stage geometry follows one short beat later — the old order snapped the stage while the shell still drew the old view for the frames the pool-thread broadcast took. It never calls setMode (which resized at once), and a call that ended or a ring that replaced it meanwhile is left alone');
+  }
+
+  /* —— B7: Account → Contacts, both halves —— */
+  {
+    const home = stripCode(rdX('src/shells/home.html'));
+    const hp = stripCode(rdX('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const scp = stripCode(rdX('Spixi/Utils/SpixiContentPage.cs'));
+    const ovp = hp.slice(hp.indexOf('public override void onOverlayPresented(SpixiContentPage overlay)'));
+    ok(/if \(overlay is SettingsPage\)\s*\{\s*Utils\.sendUiCommand\(this, "onSettingsShown"\);\s*return;\s*\}/.test(ovp.slice(0, 600))
+       && /holdBackExit: returnTo === 'account' \? \(release\) => holdForAccount\(release\) : null,/.test(home)
+       && /onSettingsShown\(\) \{\s*const r = accountHoldRelease;\s*if \(r\) requestAnimationFrame\(\(\) => \{ if \(accountHoldRelease === r\) releaseAccountHold\(\); \}\);\s*\},/.test(home)   /* r2 NIT: the frame releases THIS hold only */
+       && /accountHoldTimer = setTimeout\(releaseAccountHold, ACCOUNT_HOLD_BACKSTOP_MS\);/.test(home)
+       && /if \(accountHoldRelease\) return 2;/.test(home)
+       && /if \(accountHoldRelease\) return true;/.test(home)
+       && /function closeHomeTakeovers\(\) \{\s*releaseAccountHold\(\);/.test(home)
+       && home.indexOf('let accountHoldRelease = null;') < home.indexOf('function homeOverlayLevel()'),
+      '★★ B7 way BACK (office walk #1084, Mac: "back from Contacts flashes the previous screen"): on desktop Account is never parked, so it boots cold — and the Contacts takeover slid off at once and uncovered the tab under it. The takeover is now HELD on glass until C# reports the Account page visible (onOverlayPresented → onSettingsShown, both present paths), with a backstop; while held it counts as a level-2 cover (the MAJOR-1 class) and a hardware back drops it. The hold state is declared ABOVE homeOverlayLevel (no TDZ on an early sync)');
+    const rel = scp.slice(scp.indexOf('private static void releaseCoverWaiter('), scp.indexOf('public virtual void onOverlayClosed('));
+    ok(/#if WINDOWS\s*if \(why == "cover"\)\s*\{\s*settleMs = CoverSettleWindowsMs;\s*\}\s*#endif/.test(rel)
+       && /if \(settleMs > 0\)\s*\{\s*_ = Task\.Delay\(settleMs\)\.ContinueWith\(_ => pop\(\)\);\s*\}\s*else\s*\{\s*pop\(\);\s*\}/.test(rel)
+       && /private const int CoverSettleWindowsMs = \d+;/.test(scp),
+      '★ B7 way IN (Windows flash, Android passes with the same handshake): the L14 pop waits a short settle after `coverpainted` on WINDOWS only — WebView2 composites a WebView under another native view on its own schedule — and only on the "cover" signal (the backstop has already waited). Logged with the value');
+    /* EXECUTED on the BUILT home shell (#46 r1 M-3: the hold's store line was unpinned — deleting it left the takeover
+       on glass for good with every pin green): the Account hop opens Contacts, a hardware back HOLDS it (children inert), a second
+       back is swallowed, onSettingsShown releases it; a second run proves the backstop releases it alone; a tab switch
+       drops a hold at once. */
+    {
+      const { W: Wh, push: pushH, navs: navH } = await bootBuilt('index.html', 2500);
+      const dh = Wh.document;
+      const tk = () => dh.querySelector('.contacts-takeover');
+      pushH('landOnTab', 'contacts'); await sleep(80);
+      const opened = !!tk();
+      pushH('homeBack'); await sleep(40);
+      /* #46 r2 M1: the COVER stays hit-testable (an inert node is hit-tested as pointer-events:none, so an inert cover
+         let a click fall through to the hidden tab under it) — its CHILDREN go inert and the cover takes the focus */
+      const t0 = tk();
+      const held = !!t0 && t0.inert !== true && !t0.hasAttribute('inert') && t0.children.length > 0 && [...t0.children].every((c) => c.inert === true)
+        && dh.activeElement === t0;   /* r3 n1: the cover holds the focus, so Tab cannot reach the hidden shell */
+      /* r2 NIT: "swallowed" must be observable — a back that is NOT swallowed reaches C# (a bridge send); a swallowed one sends nothing */
+      const navBefore = navH.length;
+      pushH('homeBack'); await sleep(60);
+      const swallowed = !!tk() && navH.length === navBefore;
+      pushH('onSettingsShown'); await sleep(120);
+      const shown = !tk();
+      pushH('landOnTab', 'contacts'); await sleep(80);
+      pushH('homeBack'); await sleep(40);
+      const held2 = !!tk();
+      await sleep(1100);
+      const backstop = !tk();
+      ok(opened && held && swallowed && shown && held2 && backstop,
+        '★★ B7 EXECUTED on the built home shell: Account → Contacts opens the takeover, Back HOLDS it (children inert, the cover still catches the pointer, and a second back sends nothing) until C# says Account is shown, a second back is swallowed, onSettingsShown releases it, and the backstop releases a hold whose signal never comes — ' + JSON.stringify({ opened, held, swallowed, shown, held2, backstop }));
+      try { Wh.close(); } catch (e) {}
+    }
+    /* EXECUTED on the bundle: the hold keeps the takeover on glass until release(), then removes it and reports the exit ONCE */
+    const { dom, W } = await bootBuilt('chat.html', 1500);
+    const host = W.document.createElement('div'); W.document.body.append(host);
+    let rel1 = null, settledN = 0, closeReason = '';
+    const h = W.Spixi.mountContacts({ host, bridge: { send() {}, cap: () => false }, purpose: 'directory', getRoster: () => [],
+      onClose: (r) => { closeReason = r; }, onExitSettled: () => { settledN += 1; }, enterInstant: true, holdBackExit: (r) => { rel1 = r; } });
+    h.close('back');
+    const tkB = host.querySelector('.contacts-takeover');
+    const heldOn = !!tkB && tkB.inert !== true && !tkB.hasAttribute('inert') && [...tkB.children].every((c) => c.inert === true) && typeof rel1 === 'function' && closeReason === 'back' && settledN === 0;
+    rel1(); rel1();
+    const gone = !host.querySelector('.contacts-takeover') && settledN === 1;
+    ok(heldOn && gone,
+      '★★ B7 EXECUTED (bundle): a Back with holdBackExit keeps the takeover on glass (onClose still fires at once — only pixels linger), release() removes it and reports the exit exactly once, a second release is a no-op — held: ' + heldOn + ' · released: ' + gone);
+    try { W.close(); } catch (e) {}
+  }
+
+  /* —— B8: the nickname editor keeps the name's size and the row's height —— */
+  {
+    const pairs = [
+      ['src/styles/components/settings-shell.css', 'c-settings'],
+      ['src/styles/components/chat-info.css', 'c-chat-info'],
+    ];
+    const bad = [];
+    for (const [f, pfx] of pairs) {
+      const css = stripCssComments(rdX(f));
+      const rule = (sel) => (new RegExp('\\.' + sel.replace(/-/g, '\\-') + ' \\{([^}]*)\\}').exec(css) || [null, ''])[1];
+      const nm = rule(pfx + '__name'), inp = rule(pfx + '__nick-input'), row = rule(pfx + '__name-row');
+      const v = (r, k) => ((new RegExp(k + ':\\s*([^;]+);').exec(r)) || [null, ''])[1].trim();
+      if (!v(nm, 'font-size') || v(inp, 'font-size') !== v(nm, 'font-size')) bad.push(f + ' font-size ' + v(inp, 'font-size') + ' vs ' + v(nm, 'font-size'));
+      if (!v(nm, 'line-height') || v(inp, 'line-height') !== v(nm, 'line-height')) bad.push(f + ' line-height');
+      if (v(row, 'min-height') !== '44px') bad.push(f + ' row min-height');
+    }
+    ok(bad.length === 0 && /text-align: center;/.test((/\.c-chat-info__nick-input \{([^}]*)\}/.exec(stripCssComments(rdX('src/styles/components/chat-info.css'))) || [null, ''])[1]),
+      '★★ B8 (office walk #1084 = #1083 F6: "the nickname field jumps, its text is smaller than the name"): in BOTH editors (Account hub + contact details) the input takes the NAME\'s font-size and line-height — DERIVED from the name rule, not spelled — and the row keeps 44px while the pencil hides (it was 44 only because of the pencil); the contact-details input is centred like the name it replaces. Offenders: ' + JSON.stringify(bad));
+  }
+
+  /* —— B9: the Speaker route —— */
+  {
+    const ios = stripCode(rdX('Spixi/Platforms/iOS/SPlatformUtils.cs'));
+    const fn = ios.slice(ios.indexOf('public static bool setSpeakerphone(bool on)'), ios.indexOf('public static void stopRinging()'));
+    ok(/opts \|= AVFoundation\.AVAudioSessionCategoryOptions\.DefaultToSpeaker;/.test(fn)
+       && /session\.SetCategory\(AVFoundation\.AVAudioSessionCategory\.PlayAndRecord, opts\)/.test(fn)
+       && fn.indexOf('SetCategory(') < fn.indexOf('OverrideOutputAudioPort(')
+       && /Logging\.info\("\[SPEAKER\] ios want=/.test(fn)
+       && /return err == null;/.test(fn) && !/return port\./.test(fn),   /* #46 r1 m1: the route LAGS the override — it is logged, never the answer */
+      '★★ B9 (office walk #1084, C.10: "Speaker does not switch on iOS"): the call session is PlayAndRecord + MixWithOthers, and a MIXABLE session does not own the route, so the bare port override came back clean while the sound stayed on the receiver. The speaker is now asked for in the CATEGORY too (DefaultToSpeaker) before the override; the answer is the override\'s own error (the route changes a moment later, so reading it back would report a refusal while the speaker is on), and the route is LOGGED ([SPEAKER]) for the walk');
+  }
+
+  /* —— B10: the tick fade is long enough to see (pinned in the #1010/#1028 blocks); the JS timer matches —— */
+  ok(/const TICK_FADE_MS = 300;/.test(stripCode(rdX('src/components/message-bubble.js'))),
+    '★ B10 (office walk #1084, OV.10): measured in Chromium on the built shell, the 160 ms fade DID run — it was simply too short on a 14 px glyph with a front-loaded curve. The ghost timer follows the 300 ms fade');
+
+  /* —— B11: the desktop tx pane amount obeys the #77 rule; the fee keeps full precision —— */
+  {
+    const { W, push } = await bootBuilt('wallet_sent.html');
+    push('setHideBalance', 'False');
+    push('clearEntries');
+    push('addEntry', 'addrX', 'Alice', 'img/spixiavatar.png', '1.23456789', '', '1700000000', 'receive', 'true');
+    push('setData', '1.23456789', '0.01234567', '1700000000', 'TXB11', 'true');   /* #46 r1 m-6: values the TWO rules tell apart */
+    await sleep(120);
+    const bodyC = W.document.body.cloneNode(true);
+    bodyC.querySelectorAll('script, style').forEach((n) => n.remove());   /* the rendered text only — the shell's own comments mention the old value */
+    const t = bodyC.textContent;
+    ok(t.includes('+1.23 IXI') && !t.includes('1.23456789') && t.includes('0.01234567 IXI'),
+      '★★ B11 (office walk #1084, PR.6 on the Mac: "+0.20000000"): the desktop tx pane (this page) kept the chain\'s 8 decimals VERBATIM — the only money surface that did. The AMOUNT now takes formatIxiAmount (≤ 2 dp truncated, sub-cent keeps its digits), and the FEE keeps full precision as the page header records (fees are sub-0.01) — EXECUTED on the built shell');
+    try { W.close(); } catch (e) {}
+  }
+
+  /* —— B12: a peer typing outranks a draft in the chats row; the draft comes back by itself —— */
+  {
+    const home = stripCode(rdX('src/shells/home.html'));
+    const fn = home.slice(home.indexOf('function excerptFor(address, raw, statusType, name, excerptKind, sender) {'));
+    ok(/const peerTyping = statusType === 'typing' \|\| excerptKind === 'typing';\s*const draft = peerTyping \? '' : getDraft\(address\);\s*if \(draft\) return \{ type: 'draft', text: draft \};/.test(fn.slice(0, 400))
+       && /else if \(chat\.excerpt\.type !== 'draft' && chat\.excerpt\.type !== 'typing'\) chat\.excerpt = rx\.excerpt;/.test(home),
+      '★★ B12 (office walk #1084, N2: "with a draft in the chat, peer typing does not show in the row"): the draft used to win over everything; a typing push now wins over the draft (and over the sticky reaction), and the draft returns without new code — C# re-pushes the row with no typing status when the peer sends or stops (StreamProcessor.handleFriendIsTyping sets shouldRefreshContacts on both edges)');
+  }
+
+  /* —— #1085 EXECUTED (#46 r1 m-1: the picker's pins never ran it — innerHTML on a name or a search that hides nothing
+     stayed green): open the app-invite picker through the real ⊕ → App invite path on the BUILT chat shell —— */
+  {
+    const { W, push, errs } = await bootBuilt('chat.html', 2000);
+    const d = W.document;
+    push('onChatScreenReady', 'addrPeer'); push('setChatMode', '0', '0', '', '0', '', '', '');
+    for (let i = 0; i < 7; i++) push('addApp', 'app' + i, i === 0 ? '<img src=x onerror=window.__pwned=1>' : 'App ' + i, 'data:image/png;base64,AAAA', 'Pub' + i);
+    push('onChatScreenLoaded'); await sleep(300);
+    const att = d.querySelector('.c-composer__attach'); if (att) att.click(); await sleep(500);
+    const tile = [...d.querySelectorAll('.c-attach__tile')].find((t) => /App invite/.test(t.textContent)); if (tile) tile.click(); await sleep(400);
+    const items = [...d.querySelectorAll('.chat-app-picker__item')];
+    const first = items[0] && items[0].querySelector('.chat-app-picker__name');
+    const literal = !!first && first.textContent === '<img src=x onerror=window.__pwned=1>' && !d.querySelector('.chat-app-picker__item img[src="x"]') && !W.__pwned;
+    const input = d.querySelector('.chat-app-picker__list') && [...d.querySelectorAll('input')].find((x) => x.closest('.c-sheet'));
+    let filtered = false, noneShown = false, noneRole = false;
+    if (input) {
+      input.value = 'App 3'; input.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(60);
+      filtered = items.filter((x) => !x.hidden).length === 1;
+      input.value = 'zzzz'; input.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(60);
+      const none = d.querySelector('.chat-app-picker__empty');
+      noneShown = !!none && !none.hidden && /zzzz/.test(none.textContent);
+      noneRole = !!none && none.getAttribute('role') === 'status';
+    }
+    ok(items.length === 7 && literal && filtered && noneShown && noneRole && errs.filter((e) => /TypeError|ReferenceError/.test(e)).length === 0,
+      '★★ #1085 EXECUTED on the built chat shell (⊕ → App invite): a third-party app name renders as LITERAL text (no element, no script), more than 6 apps get a search that really filters (1 of 7 for "App 3"), and a query with no match shows the announced (role=status) no-match line — ' + JSON.stringify({ n: items.length, literal, filtered, noneShown, noneRole }));
+    try { W.close(); } catch (e) {}
+  }
+
+  /* —— #1086 (Damir mid-round: "in the full-screen call it always shows initials"): the avatar helper reads the FILE,
+     not the cache-busted path —— */
+  {
+    const ut = stripCode(rdX('Spixi/Utils/Utils.cs'));
+    const fn = ut.slice(ut.indexOf('public static string imageToDataUri(string path)'), ut.indexOf('public static string amountToHumanFormatString('));
+    const core = existsSync(join(root, '../Ixian-Core/Streaming/Storage/LocalStorage.cs'))
+      ? /string ts = "\?t=" \+ File\.GetLastWriteTimeUtc\(avatar_filename\)\.Second;/.test(readFileSync(join(root, '../Ixian-Core/Streaming/Storage/LocalStorage.cs'), 'utf8')) : true;
+    const fnW = fn.replace(/\s+/g, ' ');   /* r3 n2: whitespace-normalised, so `File.Exists (path)` cannot walk past the negatives */
+    ok(/string file = path;\s*int q = file\.LastIndexOf\("\?t=", StringComparison\.Ordinal\);\s*if \(q > 0\)\s*\{\s*file = file\.Substring\(0, q\);\s*\}/.test(fn)
+       && /if \(!File\.Exists\(file\)\) return path;/.test(fn) && /File\.ReadAllBytes\(file\)/.test(fn)
+       && /File\.GetLastWriteTimeUtc\(file\)/.test(fn) && /imageUriCache\[file\] = \(mtime, uri\);/.test(fn)
+       && !/File\s?\.\s?\w+\s?\(\s?path\s?\)/.test(fnW) && !/imageUriCache\s?\.\s?\w+\s?\(\s?path/.test(fnW) && !/imageUriCache\s?\[\s?path\s?\]/.test(fnW)
+       && /if \(imageUriCache\.Count >= ImageUriCacheMax\)\s*\{\s*imageUriCache\.Clear\(\);\s*\}/.test(fn) && /private const int ImageUriCacheMax = \d+;/.test(ut) && core,
+      '★★ #1086 (Damir: the full-screen call and the call card always showed INITIALS): localStorage.getAvatarPath returns "…/<addr>_128.jpg?t=NN" (Ixian-Core adds a cache-buster by default), and File.Exists on that string is FALSE — so Utils.imageToDataUri handed back the raw path. call.html accepts only data:/http, so it drew initials; shells that accept a path hid the miss on WinUI/Android (iOS resolves no raw path at all — the reason X1 exists). The query is dropped for every file operation and the cache key; nothing reads the query-carrying string as a file; only the "?t=" suffix is cut, so a Windows \\\\?\\ long path survives');
+  }
+
+  /* —— #1087 (Damir, Android dark screenshot): the minimised call card stands off the dark UI —— */
+  {
+    const call = stripCssComments(rdX('src/shells/call.html'));
+    const tok = stripCssComments(rdX('src/styles/tokens.css'));
+    ok(/:root\[data-theme="dark"\] body\[data-mode="bar"\] \.c-callbar \{[^}]*border-radius: var\(--radius-16, 16px\);[^}]*box-shadow: inset 0 0 0 1px var\(--call-card-edge\), inset 0 1px 0 var\(--call-card-highlight\);/.test(call)
+       && /:root\[data-theme="dark"\]\[data-desktop\] body\[data-mode="bar"\] \.c-callbar \{[^}]*inset 0 0 0 1px var\(--call-card-edge\)[^}]*0 2px 6px rgba\(0, 0, 0, 0\.28\)/.test(call)
+       && /--call-card-edge: rgba\(255, 255, 255, 0\.10\);/.test(tok) && /--call-card-highlight: rgba\(255, 255, 255, 0\.06\);/.test(tok),
+      '★ #1087 (Damir: the minimised call card in dark "needs something to distinguish it from the UI"): the card is #14161c on a ~#0f1115 canvas and its native black shadow is invisible on dark, so in DARK it carries the received-bubble glass edge one step stronger (a 10 % hairline + a 6 % top highlight, drawn inset so the phone\'s native clip keeps it); the desktop card keeps its outer shadow beside it. Rendered over Damir\'s screenshot: docs/sheets/1087-callcard-dark.png');
+  }
+
+  /* —— #1088 (Damir: "the timestamp of an unread chat row in blue, like Telegram and WhatsApp") —— */
+  {
+    const css = stripCssComments(rdX('src/styles/components/chatlist-item.css'));
+    const tok = stripCssComments(rdX('src/styles/tokens.css'));
+    const pairs = [...tok.matchAll(/--surface-accent:\s*([^;]+);[\s\S]*?--text-accent:\s*([^;]+);/g)].map((m) => [m[1].trim(), m[2].trim()]);
+    const { W } = await bootBuilt('chat.html', 1500);
+    const un = W.Spixi.createChatItem({ name: 'A', address: 'x', excerpt: { type: 'text', text: 'hi' }, timestamp: Date.now(), unread: 2 });
+    const mu = W.Spixi.createChatItem({ name: 'B', address: 'y', excerpt: { type: 'text', text: 'hi' }, timestamp: Date.now(), unread: 2, muted: true });
+    const rd = W.Spixi.createChatItem({ name: 'C', address: 'z', excerpt: { type: 'text', text: 'hi' }, timestamp: Date.now() });
+    const flags = un.hasAttribute('data-unread') && !un.hasAttribute('data-muted') && mu.hasAttribute('data-muted') && !rd.hasAttribute('data-unread');
+    try { W.close(); } catch (e) {}
+    ok(/\.c-chatlist-item\[data-unread\]:not\(\[data-muted\]\) \.c-chatlist-item__time \{ color: var\(--text-accent\); \}/.test(css)
+       && pairs.length >= 2 && pairs.every(([a, b]) => a === b) && flags,
+      '★ #1088 (Damir: unread time in the badge colour, like Telegram/WhatsApp): an unread row\'s time takes --text-accent, which resolves to the SAME step as the count badge\'s --surface-accent in both themes (' + JSON.stringify(pairs) + '); a MUTED unread row keeps it grey (its badge is grey) — the component itself marks the row muted, so every consumer gets it');
+  }
+
+  /* —— B14: covered by the MauiIcon partition pins (four lines) and the plist coupling pin —— */
+  ok(/<rect x="100" y="100" width="824" height="824" rx="185\.4" ry="185\.4"\/>/.test(rdX('Spixi/Resources/AppIcon/appicon_mac.svg'))
+     && /scale\(1\.288\)/.test(rdX('Spixi/Resources/AppIcon/appicon_mac.svg')),
+    '★ B14 (office walk #1084, M3: "the Dock logo is small"): appicon_mac.svg follows Apple\'s macOS grid — an 824 body with a 185.4 radius inside a transparent margin (a Mac-idiom icon is drawn as supplied) — and the mark scaled so it fills the BODY the way it fills the iPhone tile (1.6 × 824/1024)');
+}
 
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

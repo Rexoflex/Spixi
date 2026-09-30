@@ -11,10 +11,22 @@
 	<string>Camera Usage is needed for scanning QR codes</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone usage is needed for voice calls</string>
+	<!-- ★ B1 (office walk #1084): 1 + 2 alone run Catalyst in the iPad idiom, which scales the
+	     WHOLE window to 77 % (every WebView + native chrome) - "text too small on the MacBook".
+	     6 = the Mac idiom ("Optimize for Mac", 100 %). Desktop detection does not move with it:
+	     HomePage gates on DeviceInfo.Platform (MAJOR-10), the shells on the UA sniff.
+	     Revert = delete the 6. -->
 	<key>UIDeviceFamily</key>
 	<array>
-		<integer>1</integer>
 		<integer>2</integer>
+		<integer>6</integer>
+	</array>
+	<!-- ★ B15 (office walk #1084): MAUI's app delegate implements
+	     application:performFetchWithCompletionHandler:, and AppDelegate.cs sets a fetch interval,
+	     so macOS warned at launch that "fetch" is not declared. Declared here (as on iOS). -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
 	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
@@ -34,6 +46,8 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>XSAppIconAssets</key>
-	<string>Assets.xcassets/appicon.appiconset</string>
+	<!-- ★ B14 (#1084): appicon -> appicon_mac. The resizetizer names the generated set after the
+	     MauiIcon FILE (E1c lesson), and Mac Catalyst now takes appicon_mac.svg. -->
+	<string>Assets.xcassets/appicon_mac.appiconset</string>
 </dict>
 </plist>

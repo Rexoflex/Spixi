@@ -194,6 +194,7 @@
   gap: var(--spacing-4);
   min-width: 0;
   max-width: 100%;
+  min-height: 44px;                 /* ★ B8: = the pencil's 44 — the row does not shrink while the editor hides it */
 }
 /* ★ Session Z (#884 ⑥): the ghost mirrors the pencil — a 44 icon-only button is 44 wide
    (`.c-button[data-icon-only][data-size="44"]`, button.css) — so the NAME is what the
@@ -271,9 +272,11 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   margin-top: var(--spacing-8);
   align-self: center;
 }
+/* ★ B8 (#1084 = #1083 F6): the input = the name's size + line-height; the row keeps 44px while the pencil hides. */
 .c-chat-info__nick-input {
   font: inherit;
-  font-size: var(--font-size-heading-xs);
+  font-size: var(--font-size-heading-sm);       /* ★ B8: = .c-chat-info__name (was heading-xs — one step smaller) */
+  line-height: var(--line-height-heading-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
   background: var(--surface-input);
@@ -282,6 +285,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   padding: var(--spacing-2) var(--spacing-8);
   min-width: 0;
   width: 100%;
+  text-align: center;              /* ★ B8: the name it replaces is centred — the text no longer jumps to the left edge */
 }
 /* ★ #1080 F6 (Damir, walk ⑥: the nickname edit "a heavy blue double ring"): the field only EXISTS while
    editing, and its 1px action border already says "you are typing here" — the app-wide 2px focus ring

@@ -217,7 +217,12 @@
 		     rasterise the file, and #689 settled THAT value by measurement (the icon was
 		     under-saturated, not too dark). It matters on Android/iOS, which have no ground of
 		     their own; the Windows file carries its own. -->
-		<MauiIcon Condition="!$(TargetFramework.Contains('-windows')) and !$(TargetFramework.Contains('-ios'))" Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0076E1" />
+		<MauiIcon Condition="!$(TargetFramework.Contains('-windows')) and !$(TargetFramework.Contains('-ios')) and !$(TargetFramework.Contains('-maccatalyst'))" Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0076E1" />
+		<!-- ★ B14 (office walk #1084, M3: the Dock logo small): Mac Catalyst took the Android adaptive pair
+		     above (mark = 31.8% of the tile). It takes its OWN file on Apple's macOS icon grid - see
+		     appicon_mac.svg for the whole argument. NO Color, for the E1b reason (the file carries its ground
+		     and its transparent margin; a Color would flood that margin). -->
+		<MauiIcon Condition="$(TargetFramework.Contains('-maccatalyst'))" Include="Resources\AppIcon\appicon_mac.svg" />
 		<!-- ★ E1c (2026-09-07): iOS takes its OWN file, for the reason E1b split Windows off —
 		     it neither masks-with-headroom nor zooms the foreground, so the Android adaptive
 		     padding renders the mark about two thirds size. See appicon_ios.svg for the whole

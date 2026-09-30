@@ -1448,7 +1448,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   @keyframes boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
 </style>
-<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
+<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
   <!-- C#-LOCALIZED string carriers (#252 mechanism): generatePage substitutes the
@@ -1527,7 +1527,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     isAddressShaped,                     // ★ #589: the ONE address-shape test (was a local 20-char regex)
     createButton,                        // #285: the per-view reveal button
     formatTxTimestamp,                   // iOS-55 (#325): epoch → localized display (docLocale)
-    groupAmountDisplay,                  // ★ I-6 (#360): locale-aware amount display (money.js),
+    groupAmountDisplay,                  // ★ I-6 (#360): locale-aware grouping, full precision — the FEE (header: fees are sub-0.01)
+    formatIxiAmount,                     // ★ B11 (office walk #1084): the #77 amount rule, as the tx sheet
     fiatLine,                            // ★ #1040: the one fiat display rule (money.js)
     applyPushedTheme,
   } = window.Spixi;
@@ -1562,11 +1563,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   buildTopbar(true);
 
   /* —— helpers ——————————————————————————————————————————————————————————————— */
-  // Display grouping only (legacy wallet_sent.html:175 amountWithCommas) — the
-  // detail is the authoritative record, so decimals stay VERBATIM (no 2dp clamp).
-  // ★ I-6 (#360): separators now follow the APP LANGUAGE (money.js
-  // groupAmountDisplay — group + decimal mark travel together), not hard commas.
-  const amountWithCommas = (n) => groupAmountDisplay(n);
+  // ★ B11 (office walk #1084, PR.6 on the Mac: "+0.20000000"): the AMOUNT takes the one #76/#77 rule
+  // (formatIxiAmount — ≤ 2 dp truncated, a sub-cent value keeps its real digits, grouped per app
+  // language), like the phone's tx sheet. The FEE keeps full precision (see the header), grouped only.
+  const amountWithCommas = (n) => formatIxiAmount(n);
+  const feeWithCommas = (n) => groupAmountDisplay(n);
   // 'true'→confirmed · 'false'→pending · 'unknown'→unknown · anything else→failed
   // (mirrors the legacy enum + home.html walletStatus).
   function statusFrom(confirmed) {
@@ -1683,7 +1684,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       avatar: (masked || unknown) ? null : e.avatar,
       amount: masked ? WALLET_MASK : ((e.amount != null && e.amount !== '') ? sign + amountWithCommas(e.amount) : ''),
       fiat: masked ? '' : ((e.fiat != null && e.fiat !== '') ? fiatLine(e.fiat, sign, e.amount) : ''),   // ★ #1040: the one fiat rule
-      fee: masked ? '' : ((d.fee != null && d.fee !== '') ? amountWithCommas(d.fee) + ' IXI' : ''),
+      fee: masked ? '' : ((d.fee != null && d.fee !== '') ? feeWithCommas(d.fee) + ' IXI' : ''),
       timeText: txTimeDisplay(e.timeText || d.time || ''),
     };
   }

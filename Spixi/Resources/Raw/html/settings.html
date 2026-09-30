@@ -1160,6 +1160,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   gap: var(--spacing-4);
   min-width: 0;
   max-width: 100%;
+  min-height: 44px;                 /* ★ B8: = the pencil's 44 — the row does not shrink while the editor hides it */
 }
 /* ★ Session Z (#884 ⑥): the ghost mirrors the pencil — a 44 icon-only button is 44 wide
    (`.c-button[data-icon-only][data-size="44"]`, button.css) — so the NAME is what the
@@ -1176,9 +1177,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* ★ B8 (#1084 = #1083 F6): the input = the name's size + line-height; the row keeps 44px while the pencil hides. */
 .c-settings__nick-input {
   font: inherit;
   font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);   /* ★ B8: = .c-settings__name */
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
   background: var(--surface-input);
@@ -4384,8 +4387,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* ⚠ #1012 (Opus r1 M2): NO `to` keyframe and fill `backwards` — a `to { opacity: 1 }` held by fill
    `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered 0.571 /
    A9 sent 0.7 dims. The animation now runs from 0 to the element's OWN computed value and lets go. */
-@keyframes c-tick-in { from { opacity: 0; transform: scale(0.85); } }
-.c-status-icon[data-enter] { animation: c-tick-in calc(var(--duration-200) * 0.8) var(--easing-standard) backwards;   /* 160ms, from the motion token (0 under reduced motion) */ }
+/* ★ B10 (#1084 OV.10, measured: the 160 ms front-loaded fade read as a swap): 300 ms, symmetric curve, grows from 0.7. = TICK_FADE_MS / TICK_REPLAY_MS. */
+@keyframes c-tick-in { from { opacity: 0; transform: scale(0.7); } }
+.c-status-icon[data-enter] { animation: c-tick-in var(--duration-300) var(--easing-crossfade) backwards;   /* 300ms, from the motion token (0 under reduced motion) */ }
 /* ★ #1028 (walk P.13): the OLD glyph stays for the fade and goes OUT while the new one comes in — a
    crossfade, not a swap. It overlaps the new glyph exactly: a negative inline margin of its own 14px
    width plus the meta gap, so nothing in the meta moves. `forwards` holds it at 0 until the JS removes it
@@ -4394,7 +4398,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-status-icon[data-exit] {
   margin-inline-end: calc(-14px - var(--spacing-2));
   pointer-events: none;
-  animation: c-tick-out calc(var(--duration-200) * 0.8) var(--easing-standard) forwards;
+  animation: c-tick-out var(--duration-300) var(--easing-crossfade) forwards;   /* ★ B10: = c-tick-in */
 }
 @media (prefers-reduced-motion: reduce) { .c-status-icon[data-enter], .c-status-icon[data-exit] { animation: none; } }
 
@@ -5318,7 +5322,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   .sd-empty h2 { color: var(--text-neutral-01); margin: 0; }
   .sd-empty p { margin: 0; font-size: var(--font-size-body-sm); max-width: 320px; }
 </style>
-<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
+<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body class="c-account"><!-- ★ #1080 F2: this shell IS Account — the Account disc + row dials (settings-shell.css) reach every sublevel and sheet -->
   <!-- Splash boot cover (Batch B) — logo injected right after icons.iife.js below;

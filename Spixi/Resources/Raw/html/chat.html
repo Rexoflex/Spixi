@@ -1413,8 +1413,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* ⚠ #1012 (Opus r1 M2): NO `to` keyframe and fill `backwards` — a `to { opacity: 1 }` held by fill
    `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered 0.571 /
    A9 sent 0.7 dims. The animation now runs from 0 to the element's OWN computed value and lets go. */
-@keyframes c-tick-in { from { opacity: 0; transform: scale(0.85); } }
-.c-status-icon[data-enter] { animation: c-tick-in calc(var(--duration-200) * 0.8) var(--easing-standard) backwards;   /* 160ms, from the motion token (0 under reduced motion) */ }
+/* ★ B10 (#1084 OV.10, measured: the 160 ms front-loaded fade read as a swap): 300 ms, symmetric curve, grows from 0.7. = TICK_FADE_MS / TICK_REPLAY_MS. */
+@keyframes c-tick-in { from { opacity: 0; transform: scale(0.7); } }
+.c-status-icon[data-enter] { animation: c-tick-in var(--duration-300) var(--easing-crossfade) backwards;   /* 300ms, from the motion token (0 under reduced motion) */ }
 /* ★ #1028 (walk P.13): the OLD glyph stays for the fade and goes OUT while the new one comes in — a
    crossfade, not a swap. It overlaps the new glyph exactly: a negative inline margin of its own 14px
    width plus the meta gap, so nothing in the meta moves. `forwards` holds it at 0 until the JS removes it
@@ -1423,7 +1424,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-status-icon[data-exit] {
   margin-inline-end: calc(-14px - var(--spacing-2));
   pointer-events: none;
-  animation: c-tick-out calc(var(--duration-200) * 0.8) var(--easing-standard) forwards;
+  animation: c-tick-out var(--duration-300) var(--easing-crossfade) forwards;   /* ★ B10: = c-tick-in */
 }
 @media (prefers-reduced-motion: reduce) { .c-status-icon[data-enter], .c-status-icon[data-exit] { animation: none; } }
 
@@ -5681,6 +5682,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   .chat-app-picker__name, .chat-app-picker__pub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chat-app-picker__name { font-weight: 600; }
   .chat-app-picker__pub { font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); color: var(--text-neutral-02); }
+  [dir="rtl"] .chat-app-picker__go { transform: scaleX(-1); }   /* #46 r1 NIT: the chevron points inward in RTL (member-sheet precedent) */
   .chat-app-picker__go { flex: none; color: var(--icon-neutral-02); }
   .chat-app-picker__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
   .chat-app-picker[data-many] { flex: 1 1 auto; min-height: 0; }
@@ -5841,7 +5843,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     .c-bubble-row[data-mention-pulse] .c-bubble { animation: none; box-shadow: 0 0 0 3px var(--surface-warning); }
   }
 </style>
-<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
+<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
   <!-- C#-LOCALIZED string carriers (Q4 + M16). generatePage substitutes the star-SL
@@ -9096,11 +9098,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         txt.className = 'chat-app-picker__text';
         const nm = document.createElement('span');
         nm.className = 'chat-app-picker__name';
+        nm.dir = 'auto';   // #46 r1 NIT: a Latin name in an RTL UI truncates at its own end
         nm.textContent = app.name;
         txt.append(nm);
         if (app.publisher) {
           const pub = document.createElement('span');
           pub.className = 'chat-app-picker__pub';
+          pub.dir = 'auto';
           pub.textContent = app.publisher;
           txt.append(pub);
         }
@@ -9118,6 +9122,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         // Many apps: search + a tall sheet whose list scrolls under the fixed search.
         const none = document.createElement('p');
         none.className = 'chat-app-picker__empty';
+        none.setAttribute('role', 'status');   // #46 r1 NIT: the no-match line is announced
         none.hidden = true;
         const search = createSearchField({
           placeholder: s.searchApps || 'Find installed apps',
@@ -9339,7 +9344,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    * grouping + timestamp order stay correct. Rebuilds date separators too.
    * Call the coalesced `renderLog()` from handlers; `renderLogNow()` is the
    * synchronous rebuild (also used for the first paint). */
-  const TICK_REPLAY_MS = 160;   // ★ #1028: the fade window (message-bubble.css c-tick-in/out, --duration-200 × 0.8)
+  const TICK_REPLAY_MS = 300;   // ★ #1028 → B10 (#1084): the fade window (message-bubble.css c-tick-in/out, --duration-300)
   function renderLogNow() {
     invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     const scrollWasAtBottom = nearBottom();

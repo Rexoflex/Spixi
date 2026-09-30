@@ -4579,6 +4579,15 @@ namespace SPIXI
         // load); no room anymore → the pane degrades to the full-span takeover.
         public override void onOverlayPresented(SpixiContentPage overlay)
         {
+            if (overlay is SettingsPage)
+            {
+                /* ★★ B7 (office walk #1084, Mac: Back from Contacts showed the Wallet before Account).
+                 * The home shell holds its Contacts takeover on glass over the Back-to-Account hop
+                 * until the Account page is really visible — this is that moment (fresh present AND
+                 * the parked re-present, representParkedOverlay). A fixed verb, no payload. */
+                Utils.sendUiCommand(this, "onSettingsShown");
+                return;
+            }
             if (overlay is SingleChatPage presentedChat)
             {
                 // N49 (#370): the chats-list row highlight is pushed at PRESENT time —

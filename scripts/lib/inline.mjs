@@ -50,7 +50,12 @@ export function inlineFonts(css, cssDir) {
  * chrome and expand the (first) phone frame to the full viewport. */
 const DEVICE_CSS =
   '<style data-device>' +
-  'html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}' +
+  'html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}' +
+  /* ★★ B4/B5 (office walk #1084 = #1083 F8/F9): the device ground was `html,body{background:…!important}` for
+     EVERY shell — it beat call.html's own see-through desktop rule (#1080), so the desktop ring dimmed a SOLID
+     light page instead of the app, and the minimised call card sat on a square. A shell that owns its ground
+     opts out with <html data-device-bg="own"> (call.html only). Measured in Chromium on the built shell. */
+  'html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}' +
   '.demo-toolbar,.demo-caption,.statusbar{display:none!important}' +
   '.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}' +
   '.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}' +

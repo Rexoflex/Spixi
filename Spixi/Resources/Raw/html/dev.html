@@ -618,6 +618,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   gap: var(--spacing-4);
   min-width: 0;
   max-width: 100%;
+  min-height: 44px;                 /* ★ B8: = the pencil's 44 — the row does not shrink while the editor hides it */
 }
 /* ★ Session Z (#884 ⑥): the ghost mirrors the pencil — a 44 icon-only button is 44 wide
    (`.c-button[data-icon-only][data-size="44"]`, button.css) — so the NAME is what the
@@ -634,9 +635,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* ★ B8 (#1084 = #1083 F6): the input = the name's size + line-height; the row keeps 44px while the pencil hides. */
 .c-settings__nick-input {
   font: inherit;
   font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);   /* ★ B8: = .c-settings__name */
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-01);
   background: var(--surface-input);
@@ -2172,7 +2175,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   @keyframes boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
 </style>
-<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important;background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
+<style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
 <body>
   <div id="dev-root"><div class="boot"><div class="boot__spinner" role="status" aria-label="Loading" data-sl-aria="loading"></div></div></div>

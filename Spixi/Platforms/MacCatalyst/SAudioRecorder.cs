@@ -14,6 +14,7 @@ namespace Spixi
     {
         private Action<byte[]> OnSoundDataReceived;
 
+        private AVAudioConverter audioConverter = null;
         private AVAudioEngine audioRecorder = null;
         private IAudioEncoder audioEncoder = null;
 
@@ -28,6 +29,9 @@ namespace Spixi
         List<byte[]> outputBuffers = new List<byte[]>();
 
         Thread recordThread = null;
+
+        AVAudioFormat desiredFormat;
+        AVAudioFormat recordingFormat;
 
         int sampleRate = SPIXI.Meta.Config.VoIP_sampleRate;
         int bitsPerSample = SPIXI.Meta.Config.VoIP_bitsPerSample;
@@ -66,17 +70,39 @@ namespace Spixi
 
         private void initRecorder()
         {
-            audioRecorder = new AVAudioEngine();
             NSError error = new NSError();
             if (!AVAudioSession.SharedInstance().SetPreferredSampleRate(sampleRate, out error))
             {
-                throw new Exception("Error setting preffered sample rate for recorder: " + error);
+                throw new Exception("Error setting preferred sample rate for recorder: " + error);
             }
             AVAudioSession.SharedInstance().SetCategory(AVAudioSessionCategory.PlayAndRecord, AVAudioSessionCategoryOptions.InterruptSpokenAudioAndMixWithOthers);
             AVAudioSession.SharedInstance().SetActive(true);
-            AVAudioFormat recording_format = new AVAudioFormat(AVAudioCommonFormat.PCMInt16, sampleRate, (uint)channels, false);
-            uint buffer_size = (uint)CodecTools.getPcmFrameByteSize(sampleRate, bitsPerSample, channels) * 1000;
-            audioRecorder.InputNode.InstallTapOnBus(0, buffer_size, recording_format, onDataAvailable);
+
+            audioRecorder = new AVAudioEngine();
+
+            // ★ A1 (office walk #1084, ixian.log 20:25:22): AVAudioEngine REFUSES a tap whose
+            // format differs from the input node's hardware format ("Failed to create tap due to
+            // format mismatch, <1 ch, 16000 Hz, Int16>") — so every Mac call threw at start and
+            // ended at 0:00. Same shape as Platforms/iOS/SAudioRecorder.cs: tap in the hardware
+            // format, convert to the codec's 16 kHz Int16 with AVAudioConverter.
+            desiredFormat = new AVAudioFormat(AVAudioCommonFormat.PCMInt16, sampleRate, (uint)channels, false);
+            recordingFormat = audioRecorder.InputNode.GetBusOutputFormat(0);
+
+            Logging.info($"Recording format: {recordingFormat}");
+            Logging.info($"Desired output format: {desiredFormat}");
+
+            // No microphone (or no permission yet) reports a 0 Hz / 0 ch format; a converter from
+            // it is invalid. Throw a clear reason instead of an ObjC exception inside the tap.
+            if (recordingFormat == null || recordingFormat.SampleRate <= 0 || recordingFormat.ChannelCount == 0)
+            {
+                throw new Exception("No usable microphone input format: " + recordingFormat);
+            }
+
+            audioConverter = new AVAudioConverter(recordingFormat, desiredFormat);
+
+            uint bufferSize = (uint)(recordingFormat.SampleRate * 0.1); // 100 ms (a request; macOS may deliver other sizes)
+            audioRecorder.InputNode.InstallTapOnBus(0, bufferSize, recordingFormat, onDataAvailable);
+
             audioRecorder.Prepare();
             if (!audioRecorder.StartAndReturnError(out error))
             {
@@ -86,7 +112,55 @@ namespace Spixi
 
         private void onDataAvailable(AVAudioPcmBuffer buffer, AVAudioTime when)
         {
-            AudioBuffer audioBuffer = buffer.AudioBufferList[0];
+            var conv = audioConverter;   // #46 r1 m3: one read — stop() may dispose + null the field on another thread
+            if (!running || conv == null || buffer == null || buffer.FrameLength == 0)
+            {
+                return;
+            }
+
+            // macOS does not honour the tap's bufferSize request, so the output is sized from the
+            // frames that ACTUALLY arrived (+ 1 for the resampler's rounding) — never a fixed 100 ms.
+            double ratio = desiredFormat.SampleRate / recordingFormat.SampleRate;
+            uint capacity = (uint)Math.Ceiling(buffer.FrameLength * ratio) + 1;
+            AVAudioPcmBuffer outputBuffer = new AVAudioPcmBuffer(desiredFormat, capacity);
+
+            // ONE-SHOT input: the converter may pull more than once to fill the output. Handing it
+            // the same tap buffer again would DUPLICATE audio, so the second pull says "no data
+            // now" and the converter keeps the rest for the next tap.
+            bool supplied = false;
+            AVAudioConverterInputHandler inputHandler = (uint inNumberOfPackets, out AVAudioConverterInputStatus outStatus) =>
+            {
+                if (supplied)
+                {
+                    outStatus = AVAudioConverterInputStatus.NoDataNow;
+                    return null;
+                }
+                supplied = true;
+                outStatus = AVAudioConverterInputStatus.HaveData;
+                return buffer;
+            };
+            NSError? outError = null;
+            AVAudioConverterOutputStatus status;
+            try
+            {
+                status = conv.ConvertToBuffer(outputBuffer, out outError, inputHandler);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Conversion aborted: " + e.GetType().Name);   // a tap in flight during stop()
+                return;
+            }
+            if (status == AVAudioConverterOutputStatus.Error || status == AVAudioConverterOutputStatus.EndOfStream)
+            {
+                Logging.warn("Conversion failed. Status: {0}, Error: {1}", status, outError?.LocalizedDescription ?? "Unknown error");
+                return;
+            }
+            if (outputBuffer.FrameLength == 0)
+            {
+                return; // InputRanDry with nothing produced yet — the resampler is priming
+            }
+
+            AudioBuffer audioBuffer = outputBuffer.AudioBufferList[0];
             byte[] data = new byte[audioBuffer.DataByteSize];
             Marshal.Copy(audioBuffer.Data, data, 0, audioBuffer.DataByteSize);
 
@@ -136,6 +210,12 @@ namespace Spixi
                 }
                 audioRecorder.Dispose();
                 audioRecorder = null;
+            }
+
+            if (audioConverter != null)
+            {
+                audioConverter.Dispose();
+                audioConverter = null;
             }
 
             if (audioEncoder != null)
@@ -221,7 +301,7 @@ namespace Spixi
                     total_size += buf.Length;
                 }
 
-                if (total_size >= 300)
+                if (total_size >= 150)
                 {
                     data_to_send = new byte[total_size];
                     int data_written = 0;

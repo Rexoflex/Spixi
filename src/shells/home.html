@@ -217,6 +217,7 @@
      topbar directory). Mirrors chat.html .chat-info-takeover: z-30 sits above the
      bars but below any sheet/modal it spawns; the c-contacts panel is height:100%
      → fills this. Closed via its own back button, never an ixian: nav verb. */
+  .contacts-takeover:focus { outline: none; }   /* #46 r3: the held cover takes focus — no ring on a pane */
   .contacts-takeover {
     position: fixed; inset: 0; z-index: var(--z-30, 30);
     background: var(--surface-screen);
@@ -1070,6 +1071,23 @@
    * never tracked. Now the pushed state covers takeovers AND any open overlay
    * (body[data-overlay-open]), and homeBack closes the top SHEET first, then a
    * takeover — so hardware back never falls through to exit while anything is up. */
+  /* ★ B7 (#1084): the one pending release of a takeover held over the Account hop; the backstop releases it anyway. */
+  const ACCOUNT_HOLD_BACKSTOP_MS = 900;
+  let accountHoldRelease = null;
+  let accountHoldTimer = 0;
+  function releaseAccountHold() {
+    clearTimeout(accountHoldTimer);
+    accountHoldTimer = 0;
+    const r = accountHoldRelease;
+    accountHoldRelease = null;
+    if (r) { try { r(); } catch (e) {} }
+  }
+  function holdForAccount(release) {
+    releaseAccountHold();
+    accountHoldRelease = release;
+    accountHoldTimer = setTimeout(releaseAccountHold, ACCOUNT_HOLD_BACKSTOP_MS);
+  }
+
   /* AND-29 back routing needs "is ANYTHING up"; ★ L6 review MAJOR-2 needs a second,
    * narrower answer, so the one signal now carries a LEVEL rather than a boolean:
    *   0 nothing · 1 a sheet or menu · 2 a FULL-SHELL TAKEOVER
@@ -1090,6 +1108,7 @@
        aligned to (the wallet-hero strip). The level now counts the dying cover; the
        slide's remove callback re-syncs, so 0 lands when the cover is actually gone. */
     if (document.querySelector('.contacts-takeover.c-subslide--out, .wallet-takeover.c-subslide--out')) return 2;
+    if (accountHoldRelease) return 2;   // ★ B7: a takeover HELD over the Account hop is still on glass (the MAJOR-1 class)
     return document.body.dataset.overlayOpen !== undefined ? 1 : 0;
   }
   function homeOverlayLive() {
@@ -1133,6 +1152,7 @@
       settleSubscreenSlide(document.body);
       return true;
     }
+    if (accountHoldRelease) return true;   // ★ B7 (#46 r1 N1): a back during the hold is swallowed — dropping the cover early is the flash B7 removes; Account or the backstop releases it
     if (appsAddTakeover && appsAddClose) { appsAddClose('back'); return true; }   // ★ Session T: same C4 grammar as the wallet takeover
     if (walletTakeover && walletTakeoverClose) { walletTakeoverClose('back'); return true; }   // ★ Session H: hardware back IS the user's Back (C4) — it slides
     if (contactsView) { contactsView.close('back'); return true; }   // onClose nulls the handle + syncs · C4: hardware back IS the user's Back
@@ -1156,6 +1176,7 @@
    * Sheets/menus (z-40) are deliberately NOT swept: their scrim covers the rail, so
    * a tab tap cannot happen while one is up. */
   function closeHomeTakeovers() {
+    releaseAccountHold();                                               // #46 r1: a tab switch drops a cover held over the Account hop
     if (appsAddTakeover && appsAddClose) appsAddClose();                 // ★ Session T: symmetric with the two below
     if (walletTakeover && walletTakeoverClose) walletTakeoverClose();   // nulls both handles + syncs
     if (contactsView) contactsView.close();                             // onClose nulls the handle + syncs
@@ -1259,6 +1280,8 @@
         contactsView = mountContacts({
         host: document.body, bridge, strings, purpose, appId: appId || '',
         enterInstant: returnTo === 'account',     // ★ #1080 F1: the Account hand-off is one frame (Account IS the cover) — no slide, so coverpainted fires on an opaque takeover
+        /* ★ B7 (#1084): Back to Account holds this takeover until C# says Account is shown (onSettingsShown). */
+        holdBackExit: returnTo === 'account' ? (release) => holdForAccount(release) : null,
         paneAvailable: () => paneAvailable,       // #836: live read at tap time, not a mount-time snapshot
         onExitSettled: () => syncHomeOverlay(),   // ★ Session H MAJOR-1: the cover is gone NOW — report the real 0
         getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
@@ -2102,10 +2125,12 @@
     if (!addr) return '';
     try { return (localStorage.getItem(DRAFT_PREFIX + addr) || '').trim(); } catch (_) { return ''; }
   }
-  /** Excerpt for a chat row: a pending draft wins, else the pushed kind. */
+  /** Excerpt for a chat row: a peer typing push wins (★ B12, #1084 N2), then a pending draft, else the pushed kind.
+   *  The draft returns by itself: C# re-pushes the row without the typing status when it ends. */
   const EXCERPT_NO_SENDER = new Set(['typing', 'draft', 'request', 'request-done', 'connected']);   // #944
   function excerptFor(address, raw, statusType, name, excerptKind, sender) {
-    const draft = getDraft(address);
+    const peerTyping = statusType === 'typing' || excerptKind === 'typing';
+    const draft = peerTyping ? '' : getDraft(address);
     if (draft) return { type: 'draft', text: draft };
     const ex = excerptFromPush(raw, statusType, name, excerptKind);
     /* ★ #944: who wrote the tail of a GROUP / BOT-room row ("George: hi there").
@@ -3493,6 +3518,11 @@
     // had just set one line above, which is the "rail jumps to CHATS" Damir reported.
     // railTarget() answers the same question for every writer.
     onSettingsClosed() { clearAccountPaneFlag(); syncNav(); },
+    /* ★ B7: C# fires this when the Account page becomes visible (fresh + parked re-present). */
+    onSettingsShown() {
+      const r = accountHoldRelease;   // #46 r2 NIT: release THIS hold on the frame — never a newer one that started meanwhile
+      if (r) requestAnimationFrame(() => { if (accountHoldRelease === r) releaseAccountHold(); });
+    },
     /* ★ S11 (Session AD): the land-on-tab push — see landOnTab above. Arrives from
        HomePage.landOnTab while this document is still covered by the Account page. */
     landOnTab(id) { landOnTabNow(id); },
@@ -3676,7 +3706,7 @@
       const rx = reactionExcerpts.get(wallet);
       if (rx) {
         if (n === 0 || (t && t > rx.ts)) reactionExcerpts.delete(wallet);
-        else if (chat.excerpt.type !== 'draft') chat.excerpt = rx.excerpt;
+        else if (chat.excerpt.type !== 'draft' && chat.excerpt.type !== 'typing') chat.excerpt = rx.excerpt;   // ★ B12: a live typing push also outranks the sticky reaction
       }
       // CH2: while an address is in its ≥3s handshake hold, keep the row in the
       // "Establishing…" handshaking state even though C# now pushes it as a normal
@@ -3759,7 +3789,11 @@
       // A live status tick is normally excerpt="" (pure online/unread refresh — every C#
       // caller passes ""); when it does carry text it has no kind, so it renders as text
       // through the same draft-first path as addChat.
-      { const ex = excerptFor(address, excerpt, undefined, undefined, 'text'); if (excerpt || ex.type === 'draft') c.excerpt = ex; }
+      /* ★ B12 (#46 r1 M3): an EMPTY status tick must not replace a live typing line with the draft — typing is
+         transient and ends with an addChat re-push, which restores the draft by itself. */
+      if (!(!excerpt && c.excerpt && c.excerpt.type === 'typing' && c.excerpt.dots)) {
+        const ex = excerptFor(address, excerpt, undefined, undefined, 'text'); if (excerpt || ex.type === 'draft') c.excerpt = ex;
+      }
       const t = Number(timestamp);
       if (t) c.timestamp = t < 1e12 ? t * 1000 : t;
       scheduleChatsRender();

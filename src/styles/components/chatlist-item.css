@@ -103,6 +103,10 @@
   letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
 }
+/* ★ #1088 (Damir 2026-10-01: "make the timestamp of an unread chat blue, like Telegram and WhatsApp"): the time
+   takes the unread badge's colour (--surface-accent → the same step as --text-accent: light brand-600 on the list
+   ground ≈ 6:1, dark brand-300 ≈ 9:1 — AA for 12px). A MUTED row keeps it grey, as its badge is grey. */
+.c-chatlist-item[data-unread]:not([data-muted]) .c-chatlist-item__time { color: var(--text-accent); }
 .c-chatlist-item__indicators { display: flex; align-items: center; height: var(--line-height-body-sm); gap: var(--spacing-4); }
 
 /* —— status icon tones —— */

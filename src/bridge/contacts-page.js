@@ -88,6 +88,14 @@ export function mountContacts({
      IS the visual cover — the swap is one frame, Account → Contacts. Every other opener
      (FAB, topbar Contacts, app picker) keeps the slide. */
   enterInstant = false,
+  /* ★★ B7 (office walk #1084, Mac: "back from Contacts flashes the previous screen"). A Back that
+     hands off to a NATIVE page (the Account hop: onClose sends `ixian:settings`) must not slide this
+     takeover off before that page is on glass — on desktop Account is never parked (#315 is narrow-
+     only), so it boots cold and the tab under the takeover (Wallet) showed for the whole gap.
+     `holdBackExit(release)`: this takeover STAYS until the host calls release() (the host's C#
+     "Account shown" signal, with its own backstop); release() then removes it at once, because the
+     native page already covers it. Absent → the Session H slide, as before. */
+  holdBackExit = null,
 } = {}) {
   /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
      a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
@@ -121,7 +129,20 @@ export function mountContacts({
        brings its own transition and a second one underneath would only fight it.
        The shell's state changes (onClose: handle nulled, C# told) run NOW, not after
        the slide — only the pixels linger, and the `closed` latch is the second-exit guard. */
-    if (reason === 'back') slideSubscreenOut(host, overlay, () => { overlay.remove(); if (onExitSettled) { try { onExitSettled(); } catch (e) {} } }, { positioned: false });
+    const settled = () => { if (onExitSettled) { try { onExitSettled(); } catch (e) {} } };
+    if (reason === 'back' && typeof holdBackExit === 'function') {
+      let released = false;
+      const release = () => { if (released) return; released = true; overlay.remove(); settled(); };
+      /* #46 r1 + r2 M1: a held cover takes no taps and no focus — but the COVER itself must stay hit-testable: an
+         inert node is hit-tested as if it had pointer-events:none, so an inert cover passed clicks to the hidden page
+         under it. Its CHILDREN go inert (out of the tab order and the a11y tree); the cover's own box absorbs the
+         click, and it takes the focus itself (r3 n1) so the focus does not stay on a control of the hidden shell
+         (Shift+Tab can still leave it — the hold lasts ≤ 900 ms and native Account covers the WebView). */
+      for (const c of overlay.children) c.inert = true;
+      overlay.tabIndex = -1;
+      try { overlay.focus({ preventScroll: true }); } catch (e) {}
+      try { holdBackExit(release); } catch (e) { release(); }
+    } else if (reason === 'back') slideSubscreenOut(host, overlay, () => { overlay.remove(); settled(); }, { positioned: false });
     else overlay.remove();
     if (onClose) onClose(reason === 'back' ? 'back' : 'auto');
   };

@@ -1,8 +1,10 @@
 ﻿using Foundation;
 using IXICore.Meta;
+using Microsoft.Maui.Devices;
 using Microsoft.Maui.Storage;
 using SPIXI.Interfaces;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -13,30 +15,61 @@ namespace Spixi
 {
     public class SFilePicker
     {
-        static TaskCompletionSource<SpixiImageData?> taskCompletionSource;
-        static UIImagePickerController imagePicker;
-
-        public static Task<SpixiImageData?> PickImageAsync()
+        /* ★★ #1086 (#46 r1 MAJOR, with B1): UIImagePickerController is NOT supported in the Catalyst
+         * MAC idiom (UIDeviceFamily 6) — presenting it raises an NSException, and onChangeAvatarAsync has
+         * no try around the call. The Mac picks an image through the same MAUI FilePicker (a Finder panel,
+         * the desktop convention) with the image filter. The old UIImagePickerController handlers are gone.
+         *
+         * #46 r2 m1: the Finder panel hands back the FILE, and a Mac photo is usually HEIC. The media path
+         * sends the picked bytes as they are, so an Android or Windows peer would get a file it cannot show.
+         * The iOS picker always re-encodes to JPEG (image.AsJPEG) — the Mac does the same for any format
+         * other than JPEG, PNG and GIF (GIF is kept: re-encoding would drop the animation). */
+        /* r3 m3: the image types UIImage can decode — FilePickerFileType.Images also admits SVG and others that
+         * would decode to null and be dropped with no feedback. */
+        static readonly FilePickerFileType MacPickableImages = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
         {
-            // Create and define UIImagePickerController
-            imagePicker = new UIImagePickerController
+            { DevicePlatform.MacCatalyst, new[] { "public.jpeg", "public.png", "com.compuserve.gif", "public.heic", "public.heif", "public.tiff", "com.microsoft.bmp", "org.webmproject.webp" } },
+        });
+
+        public static async Task<SpixiImageData?> PickImageAsync()
+        {
+            FileResult? fileData = await FilePicker.PickAsync(new PickOptions { FileTypes = MacPickableImages });
+            if (fileData == null)
+                return null; // user cancelled
+
+            string name = Path.GetFileName(fileData.FullPath);
+            string ext = Path.GetExtension(name).ToLowerInvariant();
+            if (ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif")
             {
-                SourceType = UIImagePickerControllerSourceType.PhotoLibrary,
-                MediaTypes = UIImagePickerController.AvailableMediaTypes(UIImagePickerControllerSourceType.PhotoLibrary)
-            };
+                return new SpixiImageData() { name = name, path = fileData.FullPath, stream = await fileData.OpenReadAsync() };
+            }
 
-            // Set event handlers
-            imagePicker.FinishedPickingMedia += OnImagePickerFinishedPickingMedia;
-            imagePicker.Canceled += OnImagePickerCancelled;
-
-            // Present UIImagePickerController;
-            UIWindow window = UIApplication.SharedApplication.KeyWindow;
-            var viewController = window.RootViewController;
-            viewController.PresentModalViewController(imagePicker, true);
-
-            // Return Task object
-            taskCompletionSource = new TaskCompletionSource<SpixiImageData?>();
-            return taskCompletionSource.Task;
+            string fullPath = fileData.FullPath;
+            // r3 m1: a 12–48 MP decode + encode is off the UI thread
+            NSData? jpeg = await Task.Run(() =>
+            {
+                try
+                {
+                    using (UIImage? image = UIImage.FromFile(fullPath))
+                    {
+                        return image?.AsJPEG(0.9f);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logging.error("Mac image pick: re-encode to JPEG failed: " + e.Message);
+                    return null;
+                }
+            });
+            if (jpeg == null)
+            {
+                Logging.warn("Mac image pick: the picked image could not be decoded, it was not sent");
+                return null;
+            }
+            string jpgName = Path.GetFileNameWithoutExtension(name) + ".jpg";
+            // path "" = the transfer reads the stream, not the original file (the iOS picker's shape; the sender keeps
+            // no local copy for a preview after a restart — same as iOS, recorded)
+            return new SpixiImageData() { name = jpgName, path = "", stream = jpeg.AsStream() };
         }
 
         public static async Task<SpixiImageData?> PickFileAsync()
@@ -49,33 +82,6 @@ namespace Spixi
 
             // Return Task object
             return spixi_img_data;
-        }
-
-        static void OnImagePickerFinishedPickingMedia(object sender, UIImagePickerMediaPickedEventArgs args)
-        {
-            UIImage? image = args.EditedImage ?? args.OriginalImage;
-
-            if (image != null)
-            {
-                // Convert UIImage to .NET Stream object
-                NSData data = image.AsJPEG(1);
-
-                SpixiImageData spixi_img_data = new SpixiImageData() { name = Path.GetFileName(args.ImageUrl.AbsoluteString), path = "", stream = data.AsStream() };
-
-                // Set the Stream as the completion of the Task
-                taskCompletionSource.SetResult(spixi_img_data);
-            }
-            else
-            {
-                taskCompletionSource.SetResult(null);
-            }
-            imagePicker.DismissModalViewController(true);
-        }
-
-        static void OnImagePickerCancelled(object sender, EventArgs args)
-        {
-            taskCompletionSource.SetResult(null);
-            imagePicker.DismissModalViewController(true);
         }
 
         public static byte[] ResizeImage(byte[] image_data, int new_width, int new_height, int quality)

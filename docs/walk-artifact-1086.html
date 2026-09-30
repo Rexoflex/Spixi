@@ -1,0 +1,152 @@
+<title>Walk 1086 fix round</title>
+<style>
+/* Walk sheet #1086 (the office-walk fix round, all four platforms). Layout: one narrow column — a header with the build steps, then one card per walk row with P / F / N/A and a note; a sticky results bar. */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--font)}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:20px 96px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:22px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.sub{color:var(--ink-2);margin:4px 0 0}
+.steps{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.steps h2,.sec{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0 0 8px;font-weight:600}
+.steps ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+code{font:13px var(--mono);background:var(--brand-soft);color:var(--ink);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+.where{font-size:12px;color:var(--ink-2);background:var(--brand-soft);border-radius:999px;padding:2px 9px}
+.new{font-size:11px;font-weight:700;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:1px 7px}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl button{font:600 13px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.ctl button:focus-visible,.bar button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:760px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{display:none;width:100%;min-height:120px;font:13px var(--mono)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Walk #1086 — the office fix round</h1>
+    <p class="sub">The office walk (#1084) fixes A1 + B1–B15, the full-screen call avatar (#1086), the dark call card edge (#1087) and the blue unread time (#1088). Windows F5, Android Debug, iPhone device, Mac build. Two devices for call and typing rows.</p>
+  </header>
+
+  <section class="steps">
+    <h2>Before you start</h2>
+    <ol>
+      <li>Apply the patches, then run the FULL pipeline: <code>node scripts/extract-strings.mjs</code> → <code>build-locales</code> → <code>build-strings-iife</code> → <code>build-demo-bundle</code> → <code>build-shells</code> (bundle BEFORE shells) → <code>node scripts/smoke-test.mjs</code>. The last line must be <code>BASELINE OK</code> with the 2 KNOWN (#136 · B3). On your PC the count must be your last PC run + 2 (the #1085 app-picker checks) + this round's new checks (see the chat). Any other change: look at it first.</li>
+      <li>C# changed: wipe <code>Spixi\obj</code> and <code>Spixi\bin</code>. Windows: <b>F5</b> (never <code>dotnet build</code>, #663). Android: Debug. iPhone: device build. Mac: <code>net10.0-maccatalyst</code> build.</li>
+      <li>This is the first compile of this C#. A build error is this batch's bug — paste it in the chat.</li>
+      <li>Mac log: <code>~/Documents/Spixi/ixian.log</code>. Mark each row, then tap <b>Copy results</b> and paste them in the chat.</li>
+    </ol>
+  </section>
+
+  <div class="sec">Rows</div>
+  <div id="rows"></div>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+  <textarea id="out" readonly aria-label="Results text"></textarea>
+</div></div>
+
+<script>
+const ROWS=[
+ {id:'A1',t:'Mac call connects and talks',w:'Mac + a second device',d:'Call the Mac. Answer. Talk for 30 s. Then call from the Mac.',p:'The timer runs past 0:00 in both directions. Both sides hear each other. The log has no "format mismatch" line.',n:1},
+ {id:'A1b',t:'Mac: no instant busy',w:'Mac',d:'Call a device that is free.',p:'It rings. It does not go dialing → busy in about 50 ms.',n:1},
+ {id:'B1',t:'Mac text at full size',w:'Mac',d:'Open the welcome screen, Chats, a chat, Wallet, Account.',p:'Text has the same size as on Windows (no 77 % scale). The welcome notice is readable. Native chrome (menus, dialogs) looks right.',n:1},
+ {id:'B1b',t:'Mac: pick an image',w:'Mac',d:'Account → change avatar. Then in a chat: attach → media → pick a HEIC photo.',p:'A Finder panel opens (no crash). The avatar changes. The photo arrives on the other device as a picture it can show.',n:1},
+ {id:'B2',t:'Mac top bars not pushed down',w:'Mac',d:'Look at the top bar of Chats, Wallet and a chat. Look at the rail logo.',p:'The hairline sits under the title bar. The top bars start right under it. The rail logo is not cut.',n:1},
+ {id:'B3',t:'Ring card: short address',w:'Mac + iPhone · a caller with no nick',d:'Call from a contact that has no nickname.',p:'The ring and in-call name show a shortened address (start…end), not the full address.',n:1},
+ {id:'B4',t:'Desktop ring over a dimmed app',w:'Windows + Mac · call the desktop',d:'Look behind the ring card.',p:'The app shows through, dimmed. No solid dark ground.',n:1},
+ {id:'B5',t:'Desktop call card floats',w:'Windows + Mac · in call',d:'Minimise the call to the card.',p:'No square behind the card. Only the card and its shadow.',n:1},
+ {id:'B6',t:'Card ⇄ full, smooth',w:'iPhone + Android + Windows · in call',d:'Tap the card to open the full view. Minimise again. Repeat three times.',p:'No flicker and no jump of the view. The new view fades in once.',n:1},
+ {id:'B7',t:'Back from Contacts, no flash',w:'Mac + Windows',d:'Account → Contacts → Back. Repeat three times. Also try Esc / the back arrow twice fast.',p:'Contacts stays until Account is visible, then goes. The previous screen never flashes. A double back does not go past Account.',n:1},
+ {id:'B7b',t:'Account → Contacts, no flash',w:'Windows',d:'Account → Contacts. Repeat three times.',p:'Contacts appears over Account. The chats list never shows in between.',n:1},
+ {id:'B8',t:'Nickname edit keeps its size',w:'All four',d:'Edit your own nickname (Account). Edit a contact nickname (contact details).',p:'The text does not jump or get smaller when you start to edit. The row keeps its height.',n:1},
+ {id:'B9',t:'Speaker switches at once',w:'Android + iPhone · in call',d:'Tap Speaker on and off several times.',p:'The button flips at once and the sound follows. iPhone: the sound really moves to the loudspeaker (log line [SPEAKER]).',n:1},
+ {id:'B10',t:'Tick crossfade visible',w:'iPhone + Android',d:'Send a message. Watch the ticks when it is delivered and read.',p:'The tick changes with a visible fade (about 0.3 s), not a snap.',n:1},
+ {id:'B11',t:'Sent amount ≤ 2 decimals',w:'Mac (and one more)',d:'Send 0.2 IXI. Open the sent transaction.',p:'The amount shows +0.20 or 0.2 (not 0.20000000). The fee keeps its full value.',n:1},
+ {id:'B12',t:'Typing beats a draft in the row',w:'Two devices',d:'On A, type a draft in a chat with B, go back. On B, type in the same chat.',p:'A\'s chats row shows the typing dots while B types. When B stops, the Draft line returns.',n:1},
+ {id:'B13',t:'App invite picker',w:'All four',d:'In a chat: attach → App invite. With more than 6 apps, search.',p:'Rows show the app icon, name and publisher. Search filters. No match shows a message.',n:1},
+ {id:'B14',t:'Mac Dock icon size',w:'Mac',d:'Look at the Dock icon beside other apps.',p:'The Spixi icon is the same size as other Mac apps. The logo fills the tile.',n:1},
+ {id:'B15',t:'No fetch warning at launch',w:'Mac',d:'Launch the app. Read the log.',p:'No warning about "fetch" missing in UIBackgroundModes.',n:1},
+ {id:'1086',t:'Full-screen call shows the photo',w:'All four · a contact with a photo',d:'Call a contact that has a profile photo. Open the full call view.',p:'The avatar shows the photo, not initials. Same on the ring and the card.',n:1},
+ {id:'1087',t:'Dark call card has an edge',w:'Android + one desktop · dark',d:'Minimise a call in the dark theme.',p:'The card has a thin light edge (like the incoming bubbles) and round corners. It stands out from the UI behind it. Light theme looks the same as before.',n:1},
+ {id:'1088',t:'Unread time in blue',w:'All four · light + dark',d:'Get an unread message. Mute another chat that has unread messages.',p:'The unread row\'s time is blue (the badge blue). The muted row keeps a grey time. A read row is grey.',n:1},
+];
+const KEY='walk-1086-v1';
+let state={};
+try{state=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){state={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+const host=document.getElementById('rows');
+ROWS.forEach(r=>{
+  const s=state[r.id]||{};
+  const el=document.createElement('article');el.className='row';el.dataset.v=s.v||'';
+  el.innerHTML=`<div class="top"><span class="id">${r.id}</span><span class="title">${r.t}</span>${r.n?'<span class="new">NEW</span>':''}<span class="where">${r.w}</span></div>
+  <dl><dt>Do</dt><dd>${r.d}</dd><dt>Pass when</dt><dd>${r.p}</dd></dl>
+  <div class="ctl" role="group" aria-label="Result for ${r.id}">
+    <button type="button" data-k="P">Pass</button><button type="button" data-k="F">Fail</button><button type="button" data-k="N">N/A</button>
+  </div>
+  <textarea id="note-${r.id}" placeholder="Note (optional)" aria-label="Note for ${r.id}"></textarea>`;
+  const ta=el.querySelector('textarea');ta.value=s.note||'';
+  ta.addEventListener('input',()=>{state[r.id]={...(state[r.id]||{}),note:ta.value};save();});
+  el.querySelectorAll('.ctl button').forEach(b=>{
+    b.setAttribute('aria-pressed',String(s.v===b.dataset.k));
+    b.addEventListener('click',()=>{
+      const cur=(state[r.id]||{}).v; const v=cur===b.dataset.k?'':b.dataset.k;
+      state[r.id]={...(state[r.id]||{}),v};save();el.dataset.v=v;
+      el.querySelectorAll('.ctl button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===v)));tally();
+    });
+  });
+  host.appendChild(el);
+});
+function tally(){
+  let p=0,f=0,n=0;ROWS.forEach(r=>{const v=(state[r.id]||{}).v;if(v==='P')p++;else if(v==='F')f++;else if(v==='N')n++;});
+  const left=ROWS.length-p-f-n;
+  document.getElementById('tally').innerHTML=`<b class="p">${p} P</b> · <b class="f">${f} F</b> · <b class="n">${n} N/A</b>${left?` · ${left} left`:''}`;
+}
+tally();
+function text(){
+  let p=0,f=0,n=0;const lines=ROWS.map(r=>{const s=state[r.id]||{};const v=s.v==='P'?'P':s.v==='F'?'F':s.v==='N'?'N/A':'—';
+    if(s.v==='P')p++;else if(s.v==='F')f++;else if(s.v==='N')n++;
+    return `${r.id} ${v}${s.note?' — '+s.note.trim():''}`;});
+  return `Walk #1086–#1088 (Windows · Android · iPhone · Mac): ${p} P · ${f} F · ${n} N/A\n`+lines.join('\n');
+}
+document.getElementById('copy').addEventListener('click',async()=>{
+  const t=text();const out=document.getElementById('out');const btn=document.getElementById('copy');
+  try{await navigator.clipboard.writeText(t);btn.textContent='Copied';setTimeout(()=>btn.textContent='Copy results',1500);}
+  catch(e){out.style.display='block';out.value=t;out.focus();out.select();btn.textContent='Select and copy';}
+});
+document.getElementById('reset').addEventListener('click',()=>{
+  const btn=document.getElementById('reset');
+  if(btn.dataset.armed!=='1'){btn.dataset.armed='1';btn.textContent='Tap again to clear';setTimeout(()=>{btn.dataset.armed='';btn.textContent='Clear'},2500);return;}
+  state={};save();location.reload();
+});
+</script>

@@ -96,9 +96,36 @@ namespace Spixi
         {
             try
             {
+                /* ★★ B9 (office walk #1084, C.10: "Speaker does not switch on iOS"). The call session is
+                 * PlayAndRecord with MixWithOthers (the recorder + player set it), and a MIXABLE session
+                 * does not own the route — the port override alone came back without an error and the
+                 * sound stayed on the receiver. The speaker is now asked for in the CATEGORY too
+                 * (DefaultToSpeaker, same PlayAndRecord + the recorder's options), then the override,
+                 * and the answer is the ROUTE the system actually chose — logged, so the walk reads it. */
+                var session = AVFoundation.AVAudioSession.SharedInstance();
+                var opts = AVFoundation.AVAudioSessionCategoryOptions.InterruptSpokenAudioAndMixWithOthers;
+                if (on)
+                {
+                    opts |= AVFoundation.AVAudioSessionCategoryOptions.DefaultToSpeaker;
+                }
+                NSError? catErr = session.SetCategory(AVFoundation.AVAudioSessionCategory.PlayAndRecord, opts);
                 NSError? err;
-                AVFoundation.AVAudioSession.SharedInstance().OverrideOutputAudioPort(
+                session.OverrideOutputAudioPort(
                     on ? AVFoundation.AVAudioSessionPortOverride.Speaker : AVFoundation.AVAudioSessionPortOverride.None, out err);
+                string port = "";
+                try
+                {
+                    var outs = session.CurrentRoute?.Outputs;
+                    if (outs != null && outs.Length > 0)
+                    {
+                        port = outs[0].PortType?.ToString() ?? "";
+                    }
+                }
+                catch (Exception) { }
+                IXICore.Meta.Logging.info("[SPEAKER] ios want=" + (on ? "on" : "off") + " category=" + (catErr == null ? "ok" : "err") + " override=" + (err == null ? "ok" : "err") + " route=" + port);
+                /* #46 r1 m1: the route change can land a moment AFTER the override returns, so the route read
+                 * here is a LOG for the walk, never the answer — a lagging "Receiver" must not report a refusal
+                 * while the category and override are already applied (the UI would say off, the sound on). */
                 return err == null;
             }
             catch (Exception e)

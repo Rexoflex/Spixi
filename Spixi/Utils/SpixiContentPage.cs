@@ -557,10 +557,8 @@ namespace SPIXI
                     double macTop = this.On<iOS>().SafeAreaInsets().Top;
                     /* ★ #1035 (#46 auditor C, m1): an OVERLAY-presented page (chat, contact details,
                      * the Account pane, the tx detail) is never presented itself — its Content is
-                     * moved into HomePage's stage, so ITS safe area reads 0 even when the stage sits
-                     * under the title bar. Every shell's WebView reaches the window top on the Mac
-                     * (#993), so the WINDOW's top inset is the right number for all of them; the page
-                     * value stays in the max() for a page presented on its own. Both are logged. */
+                     * moved into HomePage's stage, so ITS safe area reads 0. The window's inset is
+                     * logged beside it. */
                     double winTop = 0;
                     try
                     {
@@ -571,22 +569,24 @@ namespace SPIXI
                         }
                     }
                     catch (Exception) { }
-                    if (macTop != lastMacTitlebarInset)
+                    /* ★★ B2 (office walk #1084, OV.13/14: "the top bars are pushed down, the rail logo is
+                     * cut by the hairline"): #1035 pushed max(page, WINDOW) on the premise that every
+                     * WebView reaches the window top (#993). The Mac log disproves it — page 0 / window 41
+                     * on screen, and R.6 had env(safe-area-inset-top) = 0 — so the native title bar sits
+                     * ABOVE the WebView and the window's 41 was added a SECOND time (double inset). The
+                     * push is now the WebView's MEASURED overlap with the title-bar region: the window
+                     * inset minus the WebView's own top in window coordinates, never below 0. It is
+                     * right in both worlds — 0 when the bar is above the WebView, the full inset if a
+                     * WebView ever sits under a transparent bar — and it does not depend on which page
+                     * or stage presents the WebView. Unknown (not in a window yet: staged off-screen) =
+                     * NO push; the re-present chrome pass pushes. */
+                    double overlap = macTitlebarOverlap(_webView?.Handler?.PlatformView as UIKit.UIView);
+                    if (overlap != lastMacTitlebarInset)
                     {
-                        lastMacTitlebarInset = macTop;
-                        Logging.info("[M6] mac safe-area top=" + macTop + " window=" + winTop);
+                        lastMacTitlebarInset = overlap;
+                        Logging.info("[M6] mac safe-area top=" + macTop + " window=" + winTop + " overlap=" + overlap);
                     }
-                    macTop = Math.Max(macTop, winTop);
-                    /* ★★ #1028 (walk R.6): carry the measured overlap into THIS page's shell, so the
-                     * title-bar line (base.css) and every bar's top padding do not depend on
-                     * WKWebView populating env(safe-area-inset-top) on Catalyst. It rides the
-                     * existing `setInsetTop` push (every shell head defines it; digits-only filter
-                     * there) and --safe-top takes max(env(), this) — so where env() already reports
-                     * the same value nothing moves. EVERY chrome pass, per page: the log above is
-                     * process-wide (a static "last value"), the push must not be — a second page
-                     * with the same inset would never get it. Rounded to 2 decimals in the
-                     * invariant culture (the shell's filter refuses anything else). A number, no
-                     * page or user data. */
+                    macTop = overlap;
                     if (macTop >= 0 && macTop < 1000)
                     {
                         Utils.sendUiCommand(this, "setInsetTop", Math.Round(macTop, 2).ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -871,7 +871,30 @@ namespace SPIXI
         private static readonly object preloadLock = new object();
         private static PreloadOp? activePreload = null;
 #if MACCATALYST
-        private static double lastMacTitlebarInset = -1;   // ★ #993 (M6): the diagnostic above logs on change
+        private static double lastMacTitlebarInset = -2;   // ★ #993 (M6): the diagnostic above logs on change (-1 = "not in a window" is a real value)
+
+        /* ★★ B2 (office walk #1084): how far `view` reaches UP INTO the window's title-bar inset —
+         * window.SafeAreaInsets.Top minus the view's top edge in window coordinates, never below 0.
+         * -1 when the view is not in a window (staged off-screen): the caller must not guess. One
+         * helper for the shells' --safe-top push and the call card's placement (CallPage), so the
+         * two can never disagree about where the app's content starts. */
+        internal static double macTitlebarOverlap(UIKit.UIView? view)
+        {
+            try
+            {
+                var w = view?.Window;
+                if (view == null || w == null)
+                {
+                    return -1;
+                }
+                double originY = (double)view.ConvertPointToView(CoreGraphics.CGPoint.Empty, null).Y;
+                return Math.Round(Math.Max(0, (double)w.SafeAreaInsets.Top - originY), 2);
+            }
+            catch (Exception)
+            {
+                return -1;
+            }
+        }
 #endif
         private static bool preloadPending = false;   // reserved between the tap and staging
 
@@ -2514,6 +2537,9 @@ namespace SPIXI
         private static long coverPaintedTick = 0;
         private const int CoverWaitBackstopMs = 400;
         private const int CoverPaintedFreshMs = 600;
+#if WINDOWS
+        private const int CoverSettleWindowsMs = 120;   // ★ B7 (#1084): WebView2 composition settle after `coverpainted`
+#endif
 
         /// <summary>The overlay host's hook: push the hand-off consumer to the home shell.</summary>
         protected internal virtual void onCoverHandoff() { }
@@ -2541,8 +2567,18 @@ namespace SPIXI
             }
             if (paintedAlready)
             {
+#if WINDOWS
+                // #46 r1 m4: a cover painted a moment ago has the same WebView2 composition exposure — same settle.
+                IXICore.Meta.Logging.info("[L14] cover already painted — pop after settle " + CoverSettleWindowsMs + " ms");
+                _ = Task.Delay(CoverSettleWindowsMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    try { popPageAsync(); }
+                    catch (Exception ex) { Logging.warn("handoff pop failed: " + ex); }
+                }));
+#else
                 IXICore.Meta.Logging.info("[L14] cover already painted — pop now");
                 popPageAsync();
+#endif
                 return;
             }
             try { host?.onCoverHandoff(); }
@@ -2578,12 +2614,33 @@ namespace SPIXI
                 waiter = coverWaiter;
                 coverWaiter = null;
             }
-            IXICore.Meta.Logging.info("[L14] handoff pop released by " + why);
-            MainThread.BeginInvokeOnMainThread(() =>
+            int settleMs = 0;
+#if WINDOWS
+            /* ★★ B7 (office walk #1084 = #1083 F1: Account → Contacts still flashes on WINDOWS; Android
+             * passes with the same handshake). The shell's second rAF says the cover is committed, but
+             * WebView2 composites a WebView that sits UNDER another native view (the home WebView under
+             * the Account page) on its own schedule — the pop uncovered a home frame the compositor had
+             * not yet replaced. A short settle, Windows only, and only on the "cover" signal (the
+             * backstop has already waited 400 ms). Logged with the value so the walk can confirm it. */
+            if (why == "cover")
+            {
+                settleMs = CoverSettleWindowsMs;
+            }
+#endif
+            IXICore.Meta.Logging.info("[L14] handoff pop released by " + why + (settleMs > 0 ? " (+settle " + settleMs + " ms)" : ""));
+            Action pop = () => MainThread.BeginInvokeOnMainThread(() =>
             {
                 try { waiter.popPageAsync(); }
                 catch (Exception ex) { Logging.warn("handoff pop failed: " + ex); }
             });
+            if (settleMs > 0)
+            {
+                _ = Task.Delay(settleMs).ContinueWith(_ => pop());
+            }
+            else
+            {
+                pop();
+            }
         }
 
         public virtual void onOverlayClosed(SpixiContentPage overlay)

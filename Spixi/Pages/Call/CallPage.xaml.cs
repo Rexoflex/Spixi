@@ -111,6 +111,9 @@ namespace SPIXI
         private const double cardWidthDip = 380;      // desktop: card width (right-aligned)
         private const double appTopBarDip = 56;       // tokens.css --layout-bar-top
         private const double cardRadiusDip = 16;
+        private const int expandLayoutDelayMs = 48;   // ★ B6: ~3 frames — the shell's new view mounts (transparent) before the stage resizes
+        private static readonly object speakerChainLock = new object();
+        private static Task speakerChain = Task.CompletedTask;   // ★ B9: the serial off-UI-thread route switches
         public static readonly Color callGround = Color.FromArgb("#14161c");   // = surfaceColorStringFor("call.html")
         /* ★ #1080 F8/F9 (walk C.2 FAIL + C.11 + Damir ①/⑦): on DESKTOP the call stage is TRANSPARENT and
          * call.html paints everything itself — the ring's dark scrim OVER the app (the app visible and
@@ -259,7 +262,21 @@ namespace SPIXI
                     }
                     else if (SPlatformUtils.callSpeakerRoute)
                     {
-                        VoIPManager.setSpeaker(sid, parts[2] == "1");
+                        /* ★★ B9 (office walk #1084 = #1083 F12: ~0.5 s from the Speaker tap to the button on
+                         * Android). The route switch (AudioManager.setCommunicationDevice / the iOS session
+                         * override) is a BLOCKING platform call, and it ran here, inside the WebView's
+                         * navigation callback on the UI thread — the shell's optimistic flip could not paint
+                         * until it returned. It now runs off the UI thread, on ONE serial chain so two quick
+                         * taps are applied in the order they were made; C#'s echo still overwrites the flip. */
+                        bool wantSpeaker = parts[2] == "1";
+                        lock (speakerChainLock)
+                        {
+                            speakerChain = speakerChain.ContinueWith(_ =>
+                            {
+                                try { VoIPManager.setSpeaker(sid, wantSpeaker); }
+                                catch (Exception ex) { Logging.warn("Call: speaker switch failed: " + ex.GetType().Name); }
+                            }, TaskScheduler.Default);
+                        }
                     }
                     return;
                 }
@@ -316,6 +333,7 @@ namespace SPIXI
         private static void setExpanded(bool on)
         {
             bool apply;
+            CallPage? page;
             lock (callLock)
             {
                 if (current == null || surfaceMode == "ring")
@@ -324,10 +342,41 @@ namespace SPIXI
                 }
                 expanded = on;
                 apply = surfaceMode != (on ? "full" : "bar");
+                page = current;
             }
             if (apply)
             {
-                setMode(on ? "full" : "bar");
+                /* ★★ B6 (office walk #1084 = #1083 F10, "card → full view choppy" on iPhone, Android and
+                 * Windows). The ORDER was the mechanism: setMode snapped the native stage to its new size
+                 * at once, while the shell only learned the new mode from broadcastCallState on a pool
+                 * thread (it reads the avatar file first) — so for those frames the OLD view was stretched
+                 * over the NEW geometry (the 64px card drawn full-window, or the full screen squeezed into
+                 * the card), then the new view faded in on top. Now the shell swaps FIRST: the mode is
+                 * recorded and this page's cached state is pushed on the UI thread (no file read), so the
+                 * new view mounts at opacity 0 (call-screen.css / callbar.css data-open fades) — and the
+                 * stage geometry follows one short beat later, while the new view is still transparent.
+                 * The broadcast below still runs; it re-pushes the same state. */
+                string mode = on ? "full" : "bar";
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    lock (callLock)
+                    {
+                        if (current != page || surfaceMode == "ring")
+                        {
+                            return;   // the call ended or a ring replaced it meanwhile
+                        }
+                        surfaceMode = mode;
+                    }
+                    try
+                    {
+                        page?.pushState();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("CallPage: early state push failed: " + ex.GetType().Name);
+                    }
+                    Task.Delay(expandLayoutDelayMs).ContinueWith(_ => applyStageLayout());
+                });
             }
             // #46 r2 MINOR-7: showBar reads the avatar file before it dispatches — never on the UI thread
             System.Threading.Tasks.Task.Run(() => SpixiContentPage.broadcastCallState());
@@ -946,6 +995,18 @@ namespace SPIXI
                     {
                         topInset = win.SafeAreaInsets.Top;
                     }
+#if MACCATALYST
+                    /* ★★ B2/B5 (office walk #1084): on the Mac the native title bar sits ABOVE the
+                     * app's content (the window inset is NOT part of this grid), so the window's
+                     * inset placed the card a title bar too low. Use the host grid's MEASURED
+                     * overlap with that inset — the same helper the shells' --safe-top push uses.
+                     * Unknown (grid not in a window yet) keeps the window value above. */
+                    double gridOverlap = SpixiContentPage.macTitlebarOverlap(hostGrid?.Handler?.PlatformView as UIKit.UIView);
+                    if (gridOverlap >= 0)
+                    {
+                        topInset = gridOverlap;
+                    }
+#endif
 #elif ANDROID
                     /* AND-7 (#401): MainActivity does not pad the root view at the top, so this
                      * stage starts at the SCREEN top — the card is placed below the status-bar

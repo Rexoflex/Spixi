@@ -627,7 +627,7 @@ function syncFileTickAria(row, tick) {
    margin of its own width + the meta gap, so the layout never shifts), and fades OUT while the new one
    fades IN. The ghost is aria-hidden and removed on animationend, with a timer belt. Reduced motion: no
    ghost, no animation — a plain swap (CSS alone cannot drop a ghost that is already in the DOM). */
-const TICK_FADE_MS = 160;
+const TICK_FADE_MS = 300;   // ★ B10 (#1084): = --duration-300 (message-bubble.css c-tick-in/out)
 /* ★ #1028 (P.22): a tick lives in a text bubble's meta OR a sent file card's stamp — ONE selector, so the
    same setMessageStatus / replay path drives both (a second copy would drift, #251/#288). */
 const TICK_HOST_SEL = '.c-bubble__meta .c-status-icon:not([data-exit]), .c-fbubble__stamp .c-status-icon:not([data-exit])';

@@ -133,6 +133,7 @@ namespace SPIXI
         // WebView-relative sentinels ("img/..."), http(s) URLs, or a missing path — which the
         // redesigned shells already degrade to the deterministic gradient / rocket. Cached by
         // (path, last-write-time) so repeated pushes (chat list, group rosters) don't re-read+encode.
+        private const int ImageUriCacheMax = 128;   // ★ #1086: bound the avatar data-URI cache
         private static readonly ConcurrentDictionary<string, (DateTime mtime, string uri)> imageUriCache = new();
 
         public static string imageToDataUri(string path)
@@ -147,19 +148,39 @@ namespace SPIXI
             // A marker must pass through untouched, never be read as a file.
             if (path.StartsWith("img/", StringComparison.OrdinalIgnoreCase)) return path;   // WebView asset sentinel
 
+            /* ★★ #1086 (Damir, the call screen "always shows initials"): IxianHandler.localStorage.getAvatarPath
+             * returns the file WITH a cache-buster — "…/<addr>_128.jpg?t=12" (Ixian-Core LocalStorage:872,
+             * add_ts defaults to true). File.Exists on that string is FALSE, so this helper handed back the raw
+             * path; shells that accept a path hid the miss on WinUI/Android, but call.html accepts only data:/http
+             * (and iOS resolves no raw path at all — the reason X1 exists). The query is not part of the file:
+             * it is dropped for the read. Only the "?t=" suffix Core appends is cut (#46 r2 NIT: a Windows
+             * long path "\\?\C:\…" carries a '?' of its own, so a first-'?' cut would empty it). */
+            string file = path;
+            int q = file.LastIndexOf("?t=", StringComparison.Ordinal);
+            if (q > 0)
+            {
+                file = file.Substring(0, q);
+            }
             try
             {
-                if (!File.Exists(path)) return path;                       // not a local file → shell degrades to gradient
-                DateTime mtime = File.GetLastWriteTimeUtc(path);
-                if (imageUriCache.TryGetValue(path, out var cached) && cached.mtime == mtime)
+                if (!File.Exists(file)) return path;                       // not a local file → shell degrades to gradient
+                DateTime mtime = File.GetLastWriteTimeUtc(file);
+                if (imageUriCache.TryGetValue(file, out var cached) && cached.mtime == mtime)
                 {
                     return cached.uri;
                 }
-                string mime = path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg"
-                    : path.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ? "image/gif"
+                string mime = file.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg"
+                    : file.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ? "image/gif"
                     : "image/png";
-                string uri = "data:" + mime + ";base64," + Convert.ToBase64String(File.ReadAllBytes(path));
-                imageUriCache[path] = (mtime, uri);
+                string uri = "data:" + mime + ";base64," + Convert.ToBase64String(File.ReadAllBytes(file));
+                /* ★ #1086 (#46 r1 MAJOR-2): with the query fix EVERY avatar becomes a data URI (7–20 KB each) and
+                 * this cache used to be near-empty by accident. Bounded now: past the cap it is simply cleared
+                 * (a re-read costs one file read; the process never keeps an unbounded set of base64 strings). */
+                if (imageUriCache.Count >= ImageUriCacheMax)
+                {
+                    imageUriCache.Clear();
+                }
+                imageUriCache[file] = (mtime, uri);
                 return uri;
             }
             catch

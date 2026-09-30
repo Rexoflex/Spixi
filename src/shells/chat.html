@@ -416,6 +416,7 @@
   .chat-app-picker__name, .chat-app-picker__pub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chat-app-picker__name { font-weight: 600; }
   .chat-app-picker__pub { font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); color: var(--text-neutral-02); }
+  [dir="rtl"] .chat-app-picker__go { transform: scaleX(-1); }   /* #46 r1 NIT: the chevron points inward in RTL (member-sheet precedent) */
   .chat-app-picker__go { flex: none; color: var(--icon-neutral-02); }
   .chat-app-picker__empty { padding: var(--spacing-16); text-align: center; color: var(--text-neutral-02); }
   .chat-app-picker[data-many] { flex: 1 1 auto; min-height: 0; }
@@ -3830,11 +3831,13 @@
         txt.className = 'chat-app-picker__text';
         const nm = document.createElement('span');
         nm.className = 'chat-app-picker__name';
+        nm.dir = 'auto';   // #46 r1 NIT: a Latin name in an RTL UI truncates at its own end
         nm.textContent = app.name;
         txt.append(nm);
         if (app.publisher) {
           const pub = document.createElement('span');
           pub.className = 'chat-app-picker__pub';
+          pub.dir = 'auto';
           pub.textContent = app.publisher;
           txt.append(pub);
         }
@@ -3852,6 +3855,7 @@
         // Many apps: search + a tall sheet whose list scrolls under the fixed search.
         const none = document.createElement('p');
         none.className = 'chat-app-picker__empty';
+        none.setAttribute('role', 'status');   // #46 r1 NIT: the no-match line is announced
         none.hidden = true;
         const search = createSearchField({
           placeholder: s.searchApps || 'Find installed apps',
@@ -4073,7 +4077,7 @@
    * grouping + timestamp order stay correct. Rebuilds date separators too.
    * Call the coalesced `renderLog()` from handlers; `renderLogNow()` is the
    * synchronous rebuild (also used for the first paint). */
-  const TICK_REPLAY_MS = 160;   // ★ #1028: the fade window (message-bubble.css c-tick-in/out, --duration-200 × 0.8)
+  const TICK_REPLAY_MS = 300;   // ★ #1028 → B10 (#1084): the fade window (message-bubble.css c-tick-in/out, --duration-300)
   function renderLogNow() {
     invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     const scrollWasAtBottom = nearBottom();

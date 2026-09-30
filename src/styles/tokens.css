@@ -1178,6 +1178,13 @@
   --call-accept: var(--green-500);           /* white glyph 3.4:1 — a 24px+ icon (3:1 floor) */
   --call-chip: rgba(255, 255, 255, 0.08);
   --call-live: var(--green-400);
+  /* ★ #1087 (Damir 2026-10-01, Android dark screenshot: the minimised call card "needs something to distinguish it
+     from the UI in the background"): the card is #14161c on a ~#0f1115 dark canvas and its native black shadow is
+     invisible there. The received-bubble GLASS grammar (--outline-hairline + --highlight-top, #1043), one step
+     stronger because the card FLOATS over those bubbles. Used in DARK only (call.html) — in light the dark card
+     already stands off the light UI. */
+  --call-card-edge: rgba(255, 255, 255, 0.10);
+  --call-card-highlight: rgba(255, 255, 255, 0.06);
   /* z-index */
   --z-0: 0;
   --z-10: 10;  /* sticky (date headers) */
@@ -1204,6 +1211,7 @@
   --easing-decelerate: cubic-bezier(0, 0, 0, 1);
   --easing-accelerate: cubic-bezier(0.3, 0, 1, 1);
   --easing-standard-mirror: cubic-bezier(1, 0, 0.8, 1); /* ★ #1071: --easing-standard played backwards (exit of a grow-in) */
+  --easing-crossfade: cubic-bezier(0.4, 0, 0.6, 1); /* ★ B10 (#1084): symmetric in-out — the change is SPREAD over the fade, not front-loaded */
 
   /* opacity */
   --opacity-disabled: 0.4;

@@ -178,6 +178,7 @@ export function createChatItem({
      timer is the case that bit us — needs a way to find the REPLACEMENT. */
   if (address) el.dataset.address = String(address);
   if (unread > 0 || mention) el.dataset.unread = '';
+  if (muted) el.dataset.muted = '';   // ★ #1088: the unread time stays grey on a muted row (like its grey badge)
   // N56 (#376 loop C-4): the wash hook rides the COMPONENT, so direct consumers
   // (desktop.html demo — the surface the wash dial is judged on) render it too;
   // renderChatsList's shell marker stays as a harmless duplicate.

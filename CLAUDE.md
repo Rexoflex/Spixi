@@ -84,4 +84,4 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - Decided for session 2 (#1116): hold the chats list until the chat has drawn · saved last sighting + messages · presence probe first · Telegram-style chat info shared items · DoD S2b G-1…G-9 + S2 E-W1…E-W7 (a Mac/iPhone call crash first).
 - Session 3 = P-1: a read-only performance review — chat open < 100 ms, no flicker (Damir).
 - Road: session-2 (fixes) → session-3 (performance) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` tag → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
-- **NEXT SESSION: read `docs/handoff-2026-10-01d.md` FIRST, then paste `docs/prompts/session-2.md`.** Next free DECISIONS number: **#1117**.
+- **NEXT SESSION: read `docs/handoff-2026-10-01d.md` FIRST, then paste `docs/prompts/session-2.md`.** Next free DECISIONS number: **#1118**.

@@ -3,14 +3,14 @@
 Written at the end of session 1, rewritten after walk #1115 (DECISIONS #1115, #1116). Frame: `docs/templates/session-prompt.md`.
 
 ```
-Read CLAUDE.md, then docs/handoff-2026-10-01d.md, then DECISIONS #1112–#1116, docs/release-readiness.md sections S2
+Read CLAUDE.md, then docs/handoff-2026-10-01d.md, then DECISIONS #1112–#1117, docs/release-readiness.md sections S2
 (E-W1…E-W7) and S2b (G-1…G-9, P-1), and docs/pending-1101-1102.md (the office-walk findings + the crash fix script;
-its "#1101"/"#1102" labels are NOT DECISIONS numbers). Next free DECISIONS number: #1117.
+its "#1101"/"#1102" labels are NOT DECISIONS numbers). Next free DECISIONS number: #1118.
 Already decided (do not re-open): #1101–#1111, #1113 (three-word "last seen"), the #1112 residuals, and the answers in
-#1116 (hold the list · save + messages · probe first · both delete options).
+#1116 (hold the list · save + messages · probe first · both delete options) and #1117 (corner left as is).
 
 ## Precondition (check first, stop if it fails)
-`git --no-optional-locks status`: no modified tracked files. The commit "#1115-#1116 Walk session 1 …" is in `git log`
+`git --no-optional-locks status`: no modified tracked files. The commit "#1117 Session 2 inputs …" is in `git log`
 and HEAD = origin/redesign/frontend. If it is not, stop and tell me.
 ★ MAC RE-SYNC: if I say I am on the Mac and pulled, give the CLAUDE.md re-sync steps FIRST.
 
@@ -19,14 +19,17 @@ For: Spixi users and Damir. After this session the session-1 walk fails are fixe
 office-walk findings are fixed or decided. We know it worked when:
   - G-1 Android chat open, recorded (row ×3, FAB ×2): no frame without the list or the chat. First remove the #1101
     0.01 pre-reveal; then hold the list until the chat WebView has drawn (#1116 first read: the stage ground is opaque
-    on the WrapperView). Mechanism first — a [CDPERF] line per open (frames waited, ms).
-  - G-2 "last seen" for contacts not seen since start (saved sighting + newest message) — pin with a deliberate break;
-    a security-gate section for the new local store
+    on the WrapperView; #1117 (4): the chat is already painted — the flicker is the NATIVE present). Mechanism first —
+    a [CDPERF] line per open (frames waited, ms).
+  - G-2 "last seen" for contacts not seen since start — FIRST ask me the #1117 (3) question (a accept · b own
+    sightings only · c BE "last active"); then build; pin with a deliberate break; a security-gate section for a new
+    local store
   - G-3 [PRESENCE] per-contact number + a dot-flip line; walk: swipe-away vs Force stop
   - G-4 the "Show in chat" highlight · G-5 the From chip (render, I pick)
-  - G-6 chat info shared items, Telegram style (render three options, both themes; ask me for Telegram screenshots
-    first); new verbs → 🟡 rows + BE ask + T1; built, pinned, walked
-  - G-7 READ2 instructions written clearly in the walk sheet · G-8 the corner colour (I send the dark screenshot)
+  - G-6 chat info shared items, Telegram style — the reference is described in #1117; the screenshots are on my PC
+    in `Videos and Screenshots not for github/telegram-ref/` (stage them, never commit them). Render three options in
+    our design system, both themes; new verbs → 🟡 rows + BE ask + T1; built, pinned, walked
+  - G-7 READ2 instructions written clearly in the walk sheet (G-8 corner: closed, #1117)
   - G-9 probe the bar-mode paint handshake (≈240 ms)
   - E-W1 the Mac/iPhone call crash: the pending-file script applied + a pin; E-W2 the open-chat avatar; E-W3 [NICK]
     lines; E-W4 Mac ringtone + the "Call ringtone" dial; E-W5 the Mac ring-card square (Playwright WebKit render);
@@ -36,7 +39,7 @@ Out: P-1 (chat open < 100 ms, no flicker) — that is session 3, a read-only per
 docs/prompts/session-3.md for it at Export.
 
 ## Reverse interview (R)
-Ask first: is each item worth doing now? Then the dials (G-5, G-6, E-W4, E-W7). No build before I say "go".
+Ask first: is each item worth doing now? Then the dials (G-2 question, G-5, G-6, E-W4, E-W7). No build before I say "go".
 
 ## Rules
 ★ COMMIT RULE: NO `Co-Authored-By`, NO `Claude-Session`, NO session link, NO "Generated with Claude Code" line in any

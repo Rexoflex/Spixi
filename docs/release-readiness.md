@@ -36,7 +36,7 @@ the other open audit rows are T1 rows (S-01 = B-18, C-06 = B-17), the G-3c seed 
 | S8 | Refactor picks, one at a time | G-4 |
 | S9 | The strip (#933) | G-5 · A-5.O-27 |
 | S10 | Security gate re-run + the BE pack | G-6 · A-5 · A-5.O-08 · A-5.O-09 · A-5.O-11 · A-5.O-34/35 · A-5.O-32 · A-16 · A-3 · G-7 · G-7b · B-2 |
-| S11 | Merge | G-8 |
+| S11 | Merge | G-8 | The Windows call-card corner | — | Damir | CLOSED — left as is (#1117: "the dark corner is ok") | #1117 |
 | S12 | Release builds, store, TestFlight; the per-platform release-candidate walks | C-4 · E-W · E-A · E-I · E-M · E-W2 · E-A2 · E-I2 · E-M3 · E-M4 · E-RV · H-1 · A-15 · G-9a · G-9b · G-9c · G-9d · G-9e · G-9f · G-9g |
 | T1 | Parallel: the BE engineer's rows (each says the stage it blocks) | B-1 · B-3 … B-9 · B-11 … B-22 · B-24 · B-25 · B-26 |
 | T2 | Parallel: Damir's decisions (each says the stage it blocks) | H-2 … H-6 · H-8 · H-9 · H-11 … H-24 |
@@ -95,11 +95,11 @@ pipeline, wiped `obj/bin`, the first iOS + Mac compile of #1086–#1095 C#. Each
 | ID | Criterion — passes when … | Check | Owner | State | Evidence |
 |---|---|---|---|---|---|
 | G-1 | Android chat open (row tap ×3, FAB ×2), recorded: NO frame without the chats list or the chat (no plain-ground or grey frame) | recording, frame by frame | us + Damir | OPEN | #1115 frames `docs/sheets/walk-session1/`; #1116 |
-| G-2 | "last seen" shows for a contact not seen since the app started: the saved last sighting (C#, on this device) or their newest message time; never seen + no message → nothing | pin + walk row | us | OPEN | #1116 |
+| G-2 | "last seen" shows for a contact not seen since the app started: the saved last sighting (C#, on this device) or their newest message time; never seen + no message → nothing | pin + walk row | us | OPEN — first ask Damir the #1117 (3) question (a / b / c) | #1116, #1117 |
 | G-3 | `[PRESENCE]` lines carry an opaque per-contact number and a line when the displayed dot flips; Damir tests swipe-away vs Force stop → the 150 s rule judged on facts | log + walk row | us + Damir | OPEN | #1116 |
 | G-4 | "Show in chat" (Downloads, chat info) briefly highlights the target message | pin + walk row | us | OPEN | #1116 |
 | G-5 | The Downloads "From" chip: rendered options, Damir picks | render + decision row | Damir | OPEN | #1116 |
-| G-6 | Chat info shared items, Telegram style: chips Media · Files · Links switch in place, a well-placed "Show all", media previews, tap = open, long press = menu (Show in chat · Save/Share · Copy link · Delete from this device · Delete message) — rendered, Damir picks, built, walked | render + pins + walk | us + Damir | OPEN | #1116 |
+| G-6 | Chat info shared items, Telegram style: chips Media · Files · Links switch in place, a well-placed "Show all", media previews, tap = open, long press = menu (Show in chat · Save/Share · Copy link · Delete from this device · Delete message) — rendered, Damir picks, built, walked | render + pins + walk | us + Damir | OPEN | #1116, #1117 (Telegram reference, outside the repo) |
 | G-7 | READ2 walked (implied read with a new-app peer) | walk row | Damir | OPEN — N/A at #1115 | #1115 |
 | G-8 | The dark corner screenshot sent; the corner colour set | screenshot + decision row | Damir | OPEN — one (light) sent | #1115 |
 | G-9 | The 0b(a) bar reveal: probe the shell's paint handshake in bar mode (≈240 ms, not the C# fade) | log | us | OPEN | #1115 |

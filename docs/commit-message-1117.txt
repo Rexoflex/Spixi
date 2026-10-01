@@ -1,0 +1,6 @@
+#1117 Session 2 inputs: Telegram reference, corner left as is, last-seen question, flicker read
+
+- DECISIONS #1117: the Telegram shared-media reference for chat info (screenshots kept outside the repo),
+  the call-card corner left as is, the last-seen limit as a question, Damir's flicker observation
+- release-readiness: G-8 closed; G-2 and G-6 point at #1117
+- session-2 prompt and handoff updated; next free DECISIONS number #1118

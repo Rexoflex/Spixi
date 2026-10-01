@@ -96,6 +96,12 @@ export function mountContacts({
      "Account shown" signal, with its own backstop); release() then removes it at once, because the
      native page already covers it. Absent → the Session H slide, as before. */
   holdBackExit = null,
+  /* ★ #1093 (Damir, Android recording: FAB → pick a contact showed the chats list for ~2 frames before
+     the conversation). Opening a chat from the 'start' picker removed this takeover AT ONCE while the
+     conversation was still loading natively, so the list under it was on glass in between.
+     `holdChatExit(release)`: the same hold as holdBackExit, for the chat open — the takeover STAYS until
+     the host's C# "chat shown" signal (onChatShown, with its own backstop). Absent → removed at once. */
+  holdChatExit = null,
 } = {}) {
   /* ★ #589 (Damir F5 2026-08-26): "a mini app that opens the contacts picker leaves
      a pressed-row rectangle over the new screen." A takeover COVERS the list, it does
@@ -130,18 +136,19 @@ export function mountContacts({
        The shell's state changes (onClose: handle nulled, C# told) run NOW, not after
        the slide — only the pixels linger, and the `closed` latch is the second-exit guard. */
     const settled = () => { if (onExitSettled) { try { onExitSettled(); } catch (e) {} } };
-    if (reason === 'back' && typeof holdBackExit === 'function') {
+    const hold = reason === 'back' ? holdBackExit : (reason === 'chat' ? holdChatExit : null);   // ★ #1093
+    if (typeof hold === 'function') {
       let released = false;
       const release = () => { if (released) return; released = true; overlay.remove(); settled(); };
       /* #46 r1 + r2 M1: a held cover takes no taps and no focus — but the COVER itself must stay hit-testable: an
          inert node is hit-tested as if it had pointer-events:none, so an inert cover passed clicks to the hidden page
          under it. Its CHILDREN go inert (out of the tab order and the a11y tree); the cover's own box absorbs the
          click, and it takes the focus itself (r3 n1) so the focus does not stay on a control of the hidden shell
-         (Shift+Tab can still leave it — the hold lasts ≤ 900 ms and native Account covers the WebView). */
+         (Shift+Tab can still leave it — the hold lasts ≤ 900 ms for Account, ≤ 1500 ms for a chat open (#1093), and the native page covers the WebView). */
       for (const c of overlay.children) c.inert = true;
       overlay.tabIndex = -1;
       try { overlay.focus({ preventScroll: true }); } catch (e) {}
-      try { holdBackExit(release); } catch (e) { release(); }
+      try { hold(release); } catch (e) { release(); }
     } else if (reason === 'back') slideSubscreenOut(host, overlay, () => { overlay.remove(); settled(); }, { positioned: false });
     else overlay.remove();
     if (onClose) onClose(reason === 'back' ? 'back' : 'auto');
@@ -296,7 +303,7 @@ export function mountContacts({
       openGroupSetup(selected);
     },
     // start: tap opens the 1:1 conversation.
-    onOpenChat: (c) => { if (c && c.address) { close(); bridge.send('ixian:chat:' + c.address); } },
+    onOpenChat: (c) => { if (c && c.address) { close('chat'); bridge.send('ixian:chat:' + c.address); } },   // ★ #1093: held until the chat is shown (holdChatExit)
     // directory: tap opens contact details (accepted → chat-info; pending → minimal).
     // Do NOT close first — leave the directory overlay mounted UNDER the pushed
     // ContactDetails page so back (C# pop → home) returns to the DIRECTORY, not the

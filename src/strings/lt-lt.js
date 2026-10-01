@@ -29,6 +29,7 @@ export const ltlt = {
   addressInfoSafety: "Dalytis juo saugu: tai niekam nesuteikia prieigos prie jūsų piniginės.",
   addressInfoTitle: "Jūsų Ixian adresas",
   addressOnly: "Kontaktas tik su adresu",
+  addressWhatIsThis: "Kas tai?",
   admin: "Admin",
   advanced: "Išplėstiniai",
   all: "Visi",

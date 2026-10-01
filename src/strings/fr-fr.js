@@ -29,6 +29,7 @@ export const frfr = {
   addressInfoSafety: "La partager est sans risque : cela ne donne jamais accès à votre portefeuille.",
   addressInfoTitle: "Votre adresse Ixian",
   addressOnly: "Contact par adresse uniquement",
+  addressWhatIsThis: "Qu’est-ce que c’est ?",
   admin: "Admin",
   advanced: "Avancé",
   all: "Toutes",

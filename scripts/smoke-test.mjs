@@ -1620,7 +1620,10 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      && hdrText.textContent !== '425HqzWpMkV3dTgJnS85CQen' && hdrText.title === '425HqzWpMkV3dTgJnS85CQen',
     '★ #1007: the profile header shows the address MIDDLE-TRUNCATED (#211 canon) — the full value only in `title`');
   const nameRowEl = d.querySelector('.c-settings__hero .c-settings__name-row');
-  ok(hdrBtns.length === 2 && hdrBtns.every((b) => (b.getAttribute('aria-label') || '').length > 0) && !!qrBtn
+  /* ★ #1091 RE-BASE: the truncated address became a third button (it opens the sheet) — Copy and QR are still the
+     two LABELLED icon buttons; the text button is named by its own visible text. */
+  const iconBtns = hdrBtns.filter((b) => b.dataset.addr === 'copy' || b.dataset.addr === 'qr');
+  ok(hdrBtns.length === 3 && iconBtns.length === 2 && iconBtns.every((b) => (b.getAttribute('aria-label') || '').length > 0) && !!qrBtn
      && !!nameRowEl && !!(nameRowEl.compareDocumentPosition(hdr) & W4.Node.DOCUMENT_POSITION_FOLLOWING),
     '★ #1007: Copy and QR sit UNDER the name, each a labelled button');
   qrBtn.dispatchEvent(new W4.MouseEvent('click', { bubbles: true }));
@@ -1726,6 +1729,55 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   }
   d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   await sleep(500);
+
+  /* —— ★★ #1091 (Damir 2026-10-01, A + B): the address text and a caption both open the address sheet; a
+     header control pressed with a pointer shows no focus ring when focus comes back (Windows screenshot) —— */
+  {
+    const h91 = d.createElement('div');
+    d.body.append(h91);
+    const hub91 = S.createSettingsHub({
+      name: 'Damir', address: '425HqzWpMkV3dTgJnS85CQen', theme: 0,
+      languages: [{ code: 'en-us', label: 'English' }], language: 'en-us', lockEnabled: false,
+      backup: { last: null, dirtyCount: 0 }, version: '2.1.4', capabilities: {},
+      onNickname: () => {}, onTheme: () => {}, onLanguage: () => {}, onLock: () => {}, onBackup: () => {},
+    });
+    h91.append(hub91);
+    const t91 = hub91.querySelector('.c-settings__hero .c-settings__addr .c-settings__addr-text');
+    const c91 = hub91.querySelector('.c-settings__hero .c-settings__addr-cap');
+    ok(!!t91 && t91.tagName === 'BUTTON' && t91.type === 'button' && t91.dataset.addr === 'text'
+       && t91.getAttribute('aria-haspopup') === 'dialog' && t91.textContent === S.truncateAddressMiddle('425HqzWpMkV3dTgJnS85CQen'),
+      '★★ #1091 (A): the truncated address IS a button (type=button, aria-haspopup=dialog) and still shows only the #211 middle-truncated form');
+    const before91 = d.querySelectorAll('.c-addr-sheet').length;
+    t91.click();
+    const afterText = d.querySelectorAll('.c-addr-sheet').length;
+    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(500);
+    ok(afterText === before91 + 1, '★★ #1091 (A): a tap on the address opens the shared address sheet (' + before91 + ' → ' + afterText + ')');
+    ok(!!c91 && c91.tagName === 'BUTTON' && c91.type === 'button' && c91.dataset.addr === 'caption'
+       && c91.textContent === 'Your Ixian address · What is this?'
+       && (c91.querySelector('.c-settings__addr-ask') || {}).textContent === 'What is this?'
+       && !!(t91.closest('.c-settings__addr').compareDocumentPosition(c91) & W4.Node.DOCUMENT_POSITION_FOLLOWING),
+      '★★ #1091 (B): the caption "Your Ixian address · What is this?" sits UNDER the address row, one button, the question in its own span (the action ink)');
+    const before91b = d.querySelectorAll('.c-addr-sheet').length;
+    c91.click();
+    const afterCap = d.querySelectorAll('.c-addr-sheet').length;
+    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(500);
+    ok(afterCap === before91b + 1, '★★ #1091 (B): a tap on the caption opens the SAME address sheet (' + before91b + ' → ' + afterCap + ')');
+    /* the focus ring: a pointer press marks the control, a modifier keeps the mark, a real key clears it */
+    const copy91 = hub91.querySelector('[data-addr="copy"]');
+    copy91.dispatchEvent(new W4.Event('pointerdown', { bubbles: true }));
+    const marked = copy91.hasAttribute('data-noring');
+    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Shift', bubbles: true }));
+    const keptOnShift = copy91.hasAttribute('data-noring');
+    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    const clearedOnKey = !copy91.hasAttribute('data-noring');
+    const css91 = stripCssComments(readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8'));
+    ok(marked && keptOnShift && clearedOnKey && /\.c-settings__hero \[data-noring\]:focus-visible \{ outline: none; \}/.test(css91)
+       && ['text', 'copy', 'qr', 'caption'].every((k) => { const b = hub91.querySelector('[data-addr="' + k + '"]'); b.dispatchEvent(new W4.Event('pointerdown', { bubbles: true })); return b.hasAttribute('data-noring'); }),
+      '★★ #1091 (Damir, Windows: "Copy keeps a blue focus ring after a MOUSE click"): a header control pressed with a pointer carries data-noring (no :focus-visible outline when the copy round-trip hands focus back), a modifier key keeps it, the next real key press gives the ring back — ' + JSON.stringify({ marked, keptOnShift, clearedOnKey }));
+    h91.remove();
+  }
 
   /* —— component-level: controllable ctrls —— */
   let themeCalls = 0, themeCtrl = null, themeVal = null;
@@ -8442,7 +8494,11 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      so 537 (headroom 1 148). chat.html stays under 704 (720 634, headroom 262). Stated, not silent (#345).
      ★ #1090 (chats-row ticks + badges +2 px, five scoped rules in chatlist-item.css, inlined) plus the #1089 r3/r4
      hold/focus lines: index.html 548 740 → 550 007 chars (+1 267); 537 leaves −119, so 538 (headroom 905). */
-  const CHAT_KB_CEIL = 704, INDEX_KB_CEIL = 538;
+  /* ★ #1093 (the FAB-picker chat hold): INDEX 538 → 540 — home.html carries the hold (state, release, backstop, the
+     onChatShown handler, the level/back arms) and the holdChatExit wiring. MEASURED on index.html: 550 007 → 551 478
+     chars (+1 471); 538 leaves −554, 539 only 458, so 540 (headroom 1 482). chat.html unchanged (720 634). Stated,
+     not silent (#345). */
+  const CHAT_KB_CEIL = 704, INDEX_KB_CEIL = 540;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -12744,7 +12800,8 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
 
   /* —— N49: selectChat lifecycle —— */
   const hp370 = nc(read('Spixi/Pages/Home/HomePage.xaml.cs'));
-  ok(/overlay is SingleChatPage presentedChat\)\s*\{\s*if \(rightContent\.IsVisible\)\s*\{\s*Utils\.sendUiCommand\(this, "selectChat", presentedChat\.friend\.walletAddress\.ToString\(\)\);\s*\}\s*return;\s*\}/.test(hp370),
+  /* ★ #1093 RE-BASE: the FAB-picker release (onChatShown) is pushed first, on every present — the highlight rule is unchanged */
+  ok(/overlay is SingleChatPage presentedChat\)\s*\{\s*Utils\.sendUiCommand\(this, "onChatShown"\);\s*if \(rightContent\.IsVisible\)\s*\{\s*Utils\.sendUiCommand\(this, "selectChat", presentedChat\.friend\.walletAddress\.ToString\(\)\);\s*\}\s*return;\s*\}/.test(hp370),
     '★ N49 (#370): the row highlight is pushed at PRESENT time (onOverlayPresented), WIDE only (r2 F-1: a phone takeover\'s close slide reveals the list before the clear — an unconditional stamp tinted the just-left row for the whole slide-out). Pattern var = presentedChat, NOT scp (a method-tail lambda already declares scp — CS0136, loop A-1)');
   ok(!/pushPageLoaded\(new SingleChatPage[\s\S]{0,400}?sendUiCommand\(this, "selectChat"/.test(hp370),
     'N49 (#370): the old call-site push is GONE (present-time is the only setter)');
@@ -25021,12 +25078,35 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
      glass until C# says Account is shown); the slide arm and the programmatic remove are unchanged, and onExitSettled
      now rides ONE `settled` helper both arms call. */
   ok(/const settled = \(\) => \{ if \(onExitSettled\) \{ try \{ onExitSettled\(\); \} catch \(e\) \{\} \} \};/.test(cp)
-     && /if \(reason === 'back' && typeof holdBackExit === 'function'\) \{[\s\S]{0,400}?try \{ holdBackExit\(release\); \} catch \(e\) \{ release\(\); \}\s*\} else if \(reason === 'back'\) slideSubscreenOut\(host, overlay, \(\) => \{ overlay\.remove\(\); settled\(\); \}, \{ positioned: false \}\);\s*else overlay\.remove\(\);\s*if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp)
+     /* ★ #1093 RE-BASE: the hold arm serves TWO holds now — Back to Account (holdBackExit) and the FAB chat open (holdChatExit) */
+     && /const hold = reason === 'back' \? holdBackExit : \(reason === 'chat' \? holdChatExit : null\);\s*if \(typeof hold === 'function'\) \{[\s\S]{0,400}?try \{ hold\(release\); \} catch \(e\) \{ release\(\); \}\s*\} else if \(reason === 'back'\) slideSubscreenOut\(host, overlay, \(\) => \{ overlay\.remove\(\); settled\(\); \}, \{ positioned: false \}\);\s*else overlay\.remove\(\);\s*if \(onClose\) onClose\(reason === 'back' \? 'back' : 'auto'\);/.test(cp)
      && /const release = \(\) => \{ if \(released\) return; released = true; overlay\.remove\(\); settled\(\); \};/.test(cp)
      /* ★ #1080 F1 RE-BASE: the entry slide is skipped for the Account hand-off (enterInstant) — every other opener still slides */
      && /host\.append\(overlay\);\s*if \(!enterInstant\) slideSubscreenIn\(host, overlay, null, \{ positioned: false, append: false \}\);/.test(cp)
      && /if \(closed\) return;\s*closed = true;/.test(cp),
     '★★ Session H [contacts]: the takeover slides in on mount and out on Back only; onClose (handle nulled, C# told) fires at the START of the exit — only pixels linger, the closed latch guards a second exit');
+  {
+    /* ★★ #1093 (Damir, Android recording: FAB → pick a contact → the chats list for ~2 frames, then the chat). The
+       'start' picker is HELD over the chat open until C# says the conversation is on glass; a backstop releases it;
+       a Back during the hold is swallowed; the hold counts as a takeover on glass for the OS-bar / back routing. */
+    const cp93 = nc(rdF('src/bridge/contacts-page.js'));
+    const home93 = nc(rdF('src/shells/home.html'));
+    const hp93 = nc(rdF('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const r93 = {
+      openChat: /onOpenChat: \(c\) => \{ if \(c && c\.address\) \{ close\('chat'\); bridge\.send\('ixian:chat:' \+ c\.address\); \} \},/.test(cp93),
+      opt: /holdChatExit = null,/.test(cp93),
+      wired: /holdChatExit: purpose === 'start' \? \(release\) => holdForChat\(release\) : null,/.test(home93),
+      backstop: /const CHAT_HOLD_BACKSTOP_MS = (\d+);/.test(home93) && /chatHoldTimer = setTimeout\(releaseChatHold, CHAT_HOLD_BACKSTOP_MS\);/.test(home93),
+      level: /if \(chatHoldRelease\) return 2;/.test(home93),
+      back: /if \(chatHoldRelease\) return true;/.test(home93),
+      shown: /onChatShown\(\) \{\s*const r = chatHoldRelease;\s*if \(r\) requestAnimationFrame\(\(\) => \{ if \(chatHoldRelease === r\) releaseChatHold\(\); \}\);\s*\},/.test(home93),
+      csharp: /overlay is SingleChatPage presentedChat\)\s*\{\s*Utils\.sendUiCommand\(this, "onChatShown"\);/.test(hp93),
+      /* (#46 r1 MINOR-1) a pick of a chat that is ALREADY open releases at once — it is shown; no 1.5 s frozen picker */
+      alreadyOpen: /Logging\.warn\("Chat page for \{0\} already open\.", friend\.ToString\(\)\);\s*Utils\.sendUiCommand\(this, "onChatShown"\);\s*return;/.test(hp93),
+    };
+    ok(Object.values(r93).every(Boolean),
+      '★★ #1093 (FAB → contact flashed the chats list): the start picker closes with reason "chat" and is HELD (holdChatExit → holdForChat) until C# pushes onChatShown at the conversation\'s present (released on the next frame, THIS hold only), with a backstop; the held cover still counts as a takeover (level 2) and swallows Back — ' + JSON.stringify(r93));
+  }
   const ls = nc(rdF('src/components/launch-shell.js'));
   ok(/import \{ slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide \} from '\.\/subscreen-slide\.js';/.test(ls)
      && /if \(changed && prevNode && nextNode && st\.root\.isConnected\) \{\s*settleSubscreenSlide\(st\.root\);\s*if \(prev === 'welcome'\) \{\s*nextNode\.hidden = false;\s*slideSubscreenIn\(st\.root, nextNode, reveal, \{ positioned: 'host', append: false \}\);\s*\} else if \(view === 'welcome'\) \{\s*st\.views\.welcome\.hidden = false;\s*slideSubscreenOut\(st\.root, prevNode, reveal, \{ positioned: 'host' \}\);/.test(ls)
@@ -26500,7 +26580,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
     const wv2 = [/private void wv2Stamp\(string what\)/.test(scp), /wv2Stamp\("load"\);/.test(scp), /wv2Stamp\("navigated"\);/.test(scp), /op\.target\.wv2Stamp\("present"\);/.test(scp)];
     ok(wv2.every(Boolean) || wv2.every((x) => !x),
       '★ Session K [WV2] (#754/#755 Windows ghosts): load · navigated · present, Windows-only, ONE clock per page — a set. Got ' + JSON.stringify(wv2));
-    ok(/#if WINDOWS\s*\n\s*\/\* ★ Session K \(#755[\s\S]*?wv2\.DefaultBackgroundColor = pageSurfaceColor\.ToWindowsColor\(\);/.test(scp),
+    ok(/#if WINDOWS\s*\n\s*\/\* ★ Session K \(#755[\s\S]*?wv2\.DefaultBackgroundColor = webViewDefaultGround\(\)\.ToWindowsColor\(\);/.test(scp),   /* ★ #1093 RE-BASE: through the overridable hook (CallPage overrides it on Windows) */
       '★ Session K (#755): WebView2\'s DefaultBackgroundColor is applied inside applyPageSurfaceColor (every surface pass, as soon as the platform view exists) — the same shape as the Android F1 block; webViewNavigating alone was the FIRST NAVIGATION, after a staged overlay could already be composed white');
   }
   /* ★ walk J2 T1 — the group avatar rides the composer's edge, from ONE token */
@@ -39452,7 +39532,8 @@ console.log('#1080 — walk #1074–#1078 fix round');
     const scp = stripCode(rd8('Spixi/Utils/SpixiContentPage.cs'));
     const cp = stripCode(rd8('Spixi/Pages/Call/CallPage.xaml.cs'));
     const callCase = /case "call\.html":\s*#if WINDOWS \|\| MACCATALYST\s*return "#00000000";\s*#else\s*return "#14161c";\s*#endif/.test(scp);
-    const ground = /#if WINDOWS \|\| MACCATALYST\s*public static readonly Color stageGround = Colors\.Transparent;\s*private const double cardShadowPadDip = (\d+);/.exec(cp);
+    /* ★ #1093 RE-BASE: the shadow pad is the MAC's only — a WinUI 3 WebView2 cannot be see-through, so the Windows stage IS the card (pad 0, see the #1093 block) */
+    const ground = /#if WINDOWS \|\| MACCATALYST\s*public static readonly Color stageGround = Colors\.Transparent;\s*#else\s*public static readonly Color stageGround = callGround;\s*#endif\s*#if MACCATALYST\s*private const double cardShadowPadDip = (\d+);/.exec(cp);
     const phoneGround = /#else\s*public static readonly Color stageGround = callGround;/.test(cp);
     const stageUses = /BackgroundColor = stageGround/.test(cp) && !/BackgroundColor = callGround/.test(cp);
     const layout = body8(cp, 'private static void applyStageLayout()');
@@ -39997,17 +40078,91 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
       '★★ B4/B5 EXECUTED (a cascade walk over the BUILT call.html): on desktop the winning ground of html and body is TRANSPARENT (' + JSON.stringify(dsk) + ') — the scrim and the card are the only paint, so the app shows through the dim; the SAME walk over the old device rule picks the light surface (' + JSON.stringify(oldDev) + '), which proves the walk can fail; and on a phone both keep the dark call ground (' + JSON.stringify(phone) + ') — no light pre-paint under a dark call');
   }
 
-  /* —— B6: card ⇄ full — the shell swaps FIRST, the stage geometry follows —— */
+  /* —— ★★ B6 (#1093) SUPERSEDES the #1086 "shell first, stage 48 ms later" pin that stood here (rewritten in
+     place): Damir's recording measured that order frame by frame — 2 frames of full-screen BLACK, then 6 frames of
+     an EMPTY card slot (docs/sheets/1092-b6-frames.png). Every presented mode change is now a HIDDEN swap. —— */
   {
     const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));
     const fn = cp.slice(cp.indexOf('private static void setExpanded(bool on)'), cp.indexOf('public static void forwardBackToShell()'));
-    const pushAt = fn.indexOf('page?.pushState();');
-    const layAt = fn.indexOf('Task.Delay(expandLayoutDelayMs).ContinueWith(_ => applyStageLayout());');
-    ok(pushAt > 0 && layAt > pushAt && /surfaceMode = mode;/.test(fn) && fn.indexOf('surfaceMode = mode;') < pushAt
-       && !/setMode\(/.test(fn) && /if \(current != page \|\| surfaceMode == "ring"\)\s*\{\s*return;/.test(fn)
-       && (fn.match(/applyStageLayout\s*\(/g) || []).length === 1   /* #46 r1 m-2: the delayed call is the ONLY one — an early resize is the F10 mechanism */
-       && /private const int expandLayoutDelayMs = \d+;/.test(cp),
-      '★★ B6 (office walk #1084 = #1083 F10, "card → full choppy" on three platforms): setExpanded records the mode and pushes the page\'s CACHED state on the UI thread FIRST (no avatar file read), so the new view mounts transparent, and the stage geometry follows one short beat later — the old order snapped the stage while the shell still drew the old view for the frames the pool-thread broadcast took. It never calls setMode (which resized at once), and a call that ended or a ring that replaced it meanwhile is left alone');
+    const swap = cp.slice(cp.indexOf('private static void beginStageSwap('), cp.indexOf('private static void requestPaint('));
+    const req = cp.slice(cp.indexOf('private static void requestPaint('), cp.indexOf('private static void showStage('));
+    const show = cp.slice(cp.indexOf('private static void showStage('), cp.indexOf('private static void revealSurface('));
+    const reveal = cp.slice(cp.indexOf('private static void revealSurface('), cp.indexOf('private static void setStageInput('));
+    const setMode = cp.slice(cp.indexOf('private static void setMode(string mode)'), cp.indexOf('private static bool swapResizes('));
+    const ctl = cp.slice(cp.indexOf('private void onCallControl(string url)'), cp.indexOf('private static byte[]? parseSession('));
+    const hideAt = swap.indexOf('stage.Opacity = swapHiddenOpacity;'), pushAt = swap.indexOf('page.pushState();', hideAt), layAt = swap.lastIndexOf('applyStageLayout();'), askAt = swap.lastIndexOf('requestPaint(page, token, mode);');
+    const call = rdX('src/shells/call.html');
+    const callCode = stripCode(call);
+    const hidden = /private const double swapHiddenOpacity = ([\d.]+);/.exec(cp);
+    const cTimeout = /private const int swapRevealTimeoutMs = (\d+);/.exec(cp);
+    const jTimeout = /timer = setTimeout\(fire, (\d+)\);/.exec(callCode);
+    const r = {
+      expand: /surfaceMode = mode;\s*\}\s*beginStageSwap\(page, true, from\);/.test(fn) && !/Task\.Delay\(/.test(fn) && !/applyStageLayout\s*\(/.test(fn)
+        && /if \(current != page \|\| surfaceMode == "ring"\)\s*\{\s*return;/.test(fn) && !/expandLayoutDelayMs/.test(cp),
+      setMode: /from = surfaceMode;\s*changed = surfaceMode != mode;\s*surfaceMode = mode;\s*page = current;/.test(setMode) && /if \(changed\)\s*\{\s*beginStageSwap\(page, false, from\);/.test(setMode),
+      /* (#46 r1 MAJOR-2) only a SIZE change hides: ring ⇄ full is full-window on a phone / the Mac (hiding it showed the app under an answered call); every Windows mode is its own card */
+      sizeOnly: /private static bool swapResizes\(string from, string to\)\s*\{\s*if \(from == to\)\s*\{\s*return false;\s*\}\s*#if WINDOWS\s*return true;\s*#else\s*return from == "bar" \|\| to == "bar";\s*#endif/.test(cp)
+        && /if \(!swapResizes\(fromMode, mode\)\)/.test(swap) && !/stage\.Opacity = 1;/.test(swap),
+      order: hideAt > 0 && pushAt > hideAt && layAt > pushAt && askAt > layAt && /setStageInput\(stage, false\);/.test(swap),
+      notPresented: /if \(stage == null \|\| page == null \|\| !shown\)\s*\{[\s\S]*?applyStageLayout\(\);\s*return;\s*\}/.test(swap),
+      /* (#46 r2 NIT) the previous mode is read under the lock where the new one is written; an in-place swap that supersedes a hidden one reveals on its OWN paint */
+      realFrom: /from = surfaceMode;\s*surfaceMode = mode;\s*\}\s*beginStageSwap\(page, true, from\);/.test(fn)
+        && /if \(!swapResizes\(fromMode, mode\)\)\s*\{[\s\S]*?applyStageLayout\(\);\s*if \(stage\.Opacity < 1\)\s*\{\s*requestPaint\(page, token, mode\);\s*\}\s*return;\s*\}/.test(swap),
+      /* an Android view at alpha 0 is not drawn, so its WebView would make no frame (and no painted signal) */
+      hiddenNotZero: !!hidden && Number(hidden[1]) > 0 && Number(hidden[1]) <= 0.02,
+      ask: /Utils\.sendUiCommand\(page, "callAwaitPaint", token\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\), mode, maxH\);/.test(req)
+        && /string maxH = "0";\s*#if WINDOWS[\s\S]*?double gh = g != null && g\.Height > 0 \? g\.Height : winCardEstimateDip \+ 48;\s*maxH = \(\(int\)Math\.Floor\(gh - 16\)\)/.test(req)
+        && /Task\.Delay\(swapRevealTimeoutMs\)\.ContinueWith\(_ => showStage\(token\)\);/.test(req),
+      show: /if \(token != swapToken \|\| !presented \|\| callStage == null\)\s*\{\s*return;\s*\}\s*swapToken\+\+;/.test(show)
+        && /setStageInput\(stage, true\);/.test(show) && /FadeTo\(stage, 1, swapFadeMs/.test(show),
+      reveal: /if \(page != null && page\.shellReady\)\s*\{[\s\S]*?stage\.Opacity = swapHiddenOpacity;\s*requestPaint\(page, token, mode\);\s*return;\s*\}/.test(reveal),
+      verb: /if \(verb == "callPainted" && parts\.Length == 3\)\s*\{\s*if \(parts\[2\]\.Length <= 18 && long\.TryParse\(parts\[2\], System\.Globalization\.NumberStyles\.None/.test(ctl),
+      shell: /callAwaitPaint\(token, mode, maxH\) \{ awaitPaint\(token, mode, maxH\); \},/.test(callCode)
+        /* (#46 r2 MAJOR-2) Windows waits for EXACTLY min(card, the C# clamp) — never the first resize */
+        && /const want = Math\.max\(120, capN > 0 \? Math\.min\(lastCardH, capN\) : lastCardH\);\s*return Math\.abs\(h - want\) <= 2;/.test(callCode)
+        && /const onResize = \(\) => \{ if \(fits\(\)\) fire\(\); \};/.test(callCode) && /if \(!\/\^\\d\{1,18\}\$\/\.test\(t\)\) return;/.test(callCode)
+        && /requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => bridge\.send\('ixian:callPainted:' \+ t\)\)\);/.test(callCode),
+      timeouts: !!cTimeout && !!jTimeout && Number(jTimeout[1]) < Number(cTimeout[1]),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★★ B6 (#1093): a presented mode change (card ⇄ full, ring → call) HIDES the stage (≈0, never 0 — an Android view at alpha 0 makes no frame), pushes the new view, gives the stage its new geometry, and asks the shell to say when it has PAINTED at that size (callAwaitPaint → ixian:callPainted:<digits>, double rAF); a stale token is a no-op, the shell gives up before C#\'s own timeout, and the first reveal waits for the same signal — ' + JSON.stringify(r));
+  }
+
+  /* —— ★★ B4/B5 (#1093): WINDOWS — a WinUI 3 WebView2 cannot be see-through, so the call WebView is card-sized —— */
+  {
+    const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));
+    const scp = stripCode(rdX('Spixi/Utils/SpixiContentPage.cs'));
+    const call = rdX('src/shells/call.html');
+    const css = stripCssComments(call), code = stripCode(call);
+    const layout = cp.slice(cp.indexOf('private static void applyStageLayout()'), cp.indexOf('protected override bool OnBackButtonPressed()'));
+    const win = (/#if WINDOWS\s*if \(stage\.Content is ContentView winInner\)([\s\S]*?)#endif/.exec(layout) || [])[1] || '';
+    const tok = rdX('src/styles/tokens.css');
+    const scrimTok = /--surface-scrim: rgba\((\d+), (\d+), (\d+), ([\d.]+)\);/.exec(tok);
+    const scrimCs = /private static readonly Color winScrim = Color\.FromRgba\((\d+), (\d+), (\d+), (\d+)\);/.exec(cp);
+    const r = {
+      scrimEq: !!scrimTok && !!scrimCs && scrimTok[1] === scrimCs[1] && scrimTok[2] === scrimCs[2] && scrimTok[3] === scrimCs[3]
+        && Math.round(Number(scrimTok[4]) * 255) === Number(scrimCs[4]),
+      winPad0: /#if MACCATALYST\s*private const double cardShadowPadDip = \d+;\s*#else\s*private const double cardShadowPadDip = 0;/.test(cp)
+        && /:root\[data-platform="windows"\]\[data-desktop\] \{ --call-card-pad: 0px; \}/.test(css),
+      bar: /if \(mode == "bar"\)\s*\{\s*stage\.BackgroundColor = Colors\.Transparent;[\s\S]*?winInner\.WidthRequest = -1;\s*winInner\.HeightRequest = -1;/.test(win),
+      card: /stage\.BackgroundColor = winScrim;\s*winInner\.HorizontalOptions = LayoutOptions\.Center;\s*winInner\.VerticalOptions = LayoutOptions\.Center;\s*winInner\.WidthRequest = Math\.Max\(240, Math\.Min\(winCardWidthDip, gw - 48\)\);\s*winInner\.HeightRequest = Math\.Max\(120, Math\.Min\(ch > 0 \? ch : winCardEstimateDip, gh - 16\)\);/.test(win),
+      /* (#46 r1) the card is measured by LAYOUT size (a transform-free height), a clamped card scrolls, and no in-page scrim darkens its corners */
+      measure: /const layoutH = \(n\) => parseFloat\(getComputedStyle\(n\)\.height\) \|\| n\.offsetHeight;\s*let h = layoutH\(card\);/.test(code) && !/getBoundingClientRect/.test(code.slice(code.indexOf('function measureCardH()'), code.indexOf('function reportCardH()')))
+        && /\.c-callscreen \{\s*background: transparent;\s*justify-content: flex-start;\s*align-items: stretch;\s*overflow-y: auto;/.test(css)
+        && /:root\[data-platform="windows"\]\[data-desktop\] \.c-scrim \{ background: transparent; \}/.test(css),
+      ground: /protected override Color webViewDefaultGround\(\)/.test(cp) && /if \(mode == "bar"\)\s*\{\s*return new Color\(s\.Red, s\.Green, s\.Blue, 1f\);/.test(cp)
+        && /groundPage\?\.applyWinGround\(\);/.test(layout)
+        && (scp.match(/DefaultBackgroundColor = webViewDefaultGround\(\)\.ToWindowsColor\(\);/g) || []).length === 2
+        && !/DefaultBackgroundColor = pageSurfaceColor/.test(scp) && /protected virtual Color webViewDefaultGround\(\)\s*\{\s*return pageSurfaceColor;\s*\}/.test(scp),
+      verbH: /if \(verb == "callCardH" && parts\.Length == 3\)\s*\{\s*#if WINDOWS\s*if \(parts\[2\]\.Length <= 4 && int\.TryParse\(parts\[2\], System\.Globalization\.NumberStyles\.None[\s\S]*?h >= 120 && h <= 1600\)/.test(cp),
+      cssWin: /:root\[data-platform="windows"\]\[data-desktop\] \.c-callin,\s*:root\[data-platform="windows"\]\[data-desktop\] \.c-callscreen \{\s*background: transparent;/.test(css)
+        && /:root\[data-platform="windows"\]\[data-desktop\] \.c-callin__card,\s*:root\[data-platform="windows"\]\[data-desktop\] \.c-callscreen__card \{\s*width: 100%;\s*box-shadow: none;/.test(css),
+      report: /const winCards = document\.documentElement\.getAttribute\('data-platform'\) === 'windows'\s*&& document\.documentElement\.hasAttribute\('data-desktop'\);/.test(code)
+        && /bridge\.send\('ixian:callCardH:' \+ h\);/.test(code) && /if \(!winCards\) return;/.test(code),
+      macKept: /#if MACCATALYST[\s\S]{0,1600}?wk\.Opaque = false;/.test(rdX('Spixi/Pages/Call/CallPage.xaml.cs')),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★★ B4/B5 (#1093, walk #1092 FAIL): the alpha-0 WebView2 ground #1080 relied on is NOT supported by WinUI 3 (drawn as the theme page brush), so on Windows the call WebView is only the CARD — ring/full: a native scrim (= tokens --surface-scrim) over the app with the WebView centred at the card size (height reported by the shell, digits only, bounded); bar: the stage IS the card (pad 0 in C# and CSS); the opaque WebView2 ground under the rounded corners is the colour around the card, through ONE overridable hook; the Mac keeps its see-through WKWebView — ' + JSON.stringify(r));
   }
 
   /* —— B7: Account → Contacts, both halves —— */

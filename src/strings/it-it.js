@@ -29,6 +29,7 @@ export const itit = {
   addressInfoSafety: "Condividerlo è sicuro: non dà mai a nessuno accesso al tuo portafoglio.",
   addressInfoTitle: "Il tuo indirizzo Ixian",
   addressOnly: "Contatto solo indirizzo",
+  addressWhatIsThis: "Che cos’è?",
   admin: "Admin",
   advanced: "Avanzate",
   all: "Tutti",

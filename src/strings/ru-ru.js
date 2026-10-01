@@ -29,6 +29,7 @@ export const ruru = {
   addressInfoSafety: "Делиться им безопасно: доступ к вашему кошельку это никому не даёт.",
   addressInfoTitle: "Ваш адрес Ixian",
   addressOnly: "Контакт только по адресу",
+  addressWhatIsThis: "Что это?",
   admin: "Администратор",
   advanced: "Дополнительно",
   all: "Все",

@@ -29,6 +29,7 @@ export const esco = {
   addressInfoSafety: "Compartirla es seguro: nunca le da a nadie acceso a tu billetera.",
   addressInfoTitle: "Tu dirección de Ixian",
   addressOnly: "Contacto solo con dirección",
+  addressWhatIsThis: "¿Qué es esto?",
   admin: "Administrador",
   advanced: "Avanzado",
   all: "Todas",

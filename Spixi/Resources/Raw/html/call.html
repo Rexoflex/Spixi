@@ -1348,6 +1348,31 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      Chromium paints a programmatic focus with no prior focused element as :focus-visible. A pointer
      swap marks the target data-noring; the ring comes back on the first key press (renderCall). */
   [data-noring]:focus-visible { outline: none; }
+  /* ★★ B4/B5 (#1093) WINDOWS: WinUI 3's WebView2 cannot be see-through (CallPage.winScrim note), so on Windows
+     this WebView is only ever the CARD — CallPage draws the scrim natively and sizes the WebView to the card
+     (width fixed there, height from ixian:callCardH below). Here: no in-page scrim, the card fills the width and
+     sits at the top (its natural height is what gets reported), no outer shadow (it would be cut at the WebView
+     edge), no transparent pad around the minimised card. The rounded corners stay: the WebView2 ground behind
+     them is the colour around the card (CallPage.webViewDefaultGround). The Mac keeps the see-through page. */
+  :root[data-platform="windows"][data-desktop] { --call-card-pad: 0px; }
+  :root[data-platform="windows"][data-desktop] body[data-mode="bar"] .c-callbar { box-shadow: none; }
+  :root[data-platform="windows"][data-theme="dark"][data-desktop] body[data-mode="bar"] .c-callbar {
+    box-shadow: inset 0 0 0 1px var(--call-card-edge), inset 0 1px 0 var(--call-card-highlight);
+  }
+  :root[data-platform="windows"][data-desktop] .c-callin,
+  :root[data-platform="windows"][data-desktop] .c-callscreen {
+    background: transparent;
+    justify-content: flex-start;
+    align-items: stretch;
+    overflow-y: auto;   /* (#46 r1 MAJOR-4) a short window clamps the card (CallPage) — Accept / End stay reachable */
+  }
+  /* (#46 r1 MINOR-2) the in-page overlay scrim under the ring would darken the card's corners over the native scrim */
+  :root[data-platform="windows"][data-desktop] .c-scrim { background: transparent; }
+  :root[data-platform="windows"][data-desktop] .c-callin__card,
+  :root[data-platform="windows"][data-desktop] .c-callscreen__card {
+    width: 100%;
+    box-shadow: none;
+  }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -1569,6 +1594,92 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
   const flag = (v) => String(v) === '1';
 
+  /* ★★ B4/B5 (#1093) — WINDOWS ONLY: report the card's natural height (dip = CSS px) so CallPage can size the
+   * card-only WebView (see the head note). Ring → the ring card, full → the call-screen card; an open
+   * decline-with-message dialog needs its own height + the dialog margin. The bar has a fixed height in C#. */
+  const winCards = document.documentElement.getAttribute('data-platform') === 'windows'
+    && document.documentElement.hasAttribute('data-desktop');
+  let lastCardH = 0;
+  function measureCardH() {
+    const mode = document.body.dataset.mode;
+    const sel = mode === 'ring' ? '.c-callin__card' : (mode === 'full' ? '.c-callscreen__card' : '');
+    const card = sel ? document.querySelector(sel) : null;
+    if (!card) return 0;
+    /* (#46 r1 MAJOR-3) offsetHeight = the LAYOUT height. getBoundingClientRect includes the entry transform
+       (the call-screen card mounts at scale(0.96)), and a transform fires no ResizeObserver — the card was sized
+       4% short for good. */
+    /* (#46 r2 MINOR-1) the COMPUTED height: transform-free like offsetHeight but fractional, so the ceil really
+       rounds up — an integer-rounded 451.4 left 0.4 px to overflow into a scrollbar at 125 / 150 % scaling. */
+    const layoutH = (n) => parseFloat(getComputedStyle(n).height) || n.offsetHeight;
+    let h = layoutH(card);
+    const sheet = document.querySelector('.c-declinemsg-sheet');
+    if (sheet) h = Math.max(h, layoutH(sheet) + 48);
+    return Math.ceil(h);
+  }
+  function reportCardH() {
+    if (!winCards) return;
+    const h = Math.min(measureCardH(), 1600);   // (#46 r3 NIT) the C# bound — a value C# refuses would be waited for forever
+    if (h >= 120 && Math.abs(h - lastCardH) >= 1) {
+      lastCardH = h;
+      bridge.send('ixian:callCardH:' + h);
+    }
+  }
+  if (winCards) {
+    let queued = false;
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => scheduleCardH()) : null;
+    function scheduleCardH() {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        if (ro) {
+          ro.disconnect();
+          for (const n of document.querySelectorAll('.c-callin__card, .c-callscreen__card, .c-declinemsg-sheet')) ro.observe(n);
+        }
+        reportCardH();
+      });
+    }
+    new MutationObserver(scheduleCardH).observe(document.body, { childList: true, attributes: true, attributeFilter: ['data-mode'] });
+  }
+
+  /* ★★ B6 (#1093): CallPage hid the stage for a mode swap, pushed the new view and gave the stage its new
+   * geometry; answer when this document has PAINTED at that geometry so it can fade back in (no black frame,
+   * no empty card slot). "At that geometry" = the viewport has the new mode's shape: the card is short, the
+   * full views are tall; on Windows the card-only WebView has the height reported above. Two frames after
+   * that, a frame at the new size has been produced. Never later than ~450 ms (C# has its own timeout too). */
+  function awaitPaint(token, mode, maxH) {
+    const t = String(token || '');
+    if (!/^\d{1,18}$/.test(t)) return;
+    const m = String(mode || '');
+    if (winCards) reportCardH();
+    /* (#46 r2 MAJOR-2) Windows: C# clamps the card to the window (maxH, digits; 0 = no clamp), so the height to wait
+       for is EXACTLY min(card, maxH) — never "the first resize", which can still be the previous mode's card. */
+    const capN = /^\d{1,5}$/.test(String(maxH || '')) ? Number(maxH) : 0;
+    const fits = () => {
+      const h = window.innerHeight;
+      if (m === 'bar') return h > 0 && h <= 120;
+      if (winCards) {
+        if (lastCardH <= 0) return true;
+        const want = Math.max(120, capN > 0 ? Math.min(lastCardH, capN) : lastCardH);
+        return Math.abs(h - want) <= 2;
+      }
+      return h > 200;
+    };
+    let done = false;
+    let timer = 0;
+    const onResize = () => { if (fits()) fire(); };
+    function fire() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+      requestAnimationFrame(() => requestAnimationFrame(() => bridge.send('ixian:callPainted:' + t)));
+    }
+    timer = setTimeout(fire, 450);
+    if (fits()) fire();
+    else window.addEventListener('resize', onResize);
+  }
+
   const handlers = {
     /* ★ N71 (#421): the live re-theme push (theme-runtime.js). The call views are dark
      * in both themes (#1074); the decline sheet still follows the app theme. */
@@ -1621,6 +1732,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     /* ★ #1074 (#46 r1 MINOR-7): Android back while the ring is up. The ring cannot be
      * dismissed (escDismiss:false consumes it), so this closes only an open sheet above it. */
     callBack() { dismissTopOverlay(); },
+    /* ★★ B6 (#1093): C# asks for the painted signal of a hidden stage swap (token = digits, mode = the new mode). */
+    callAwaitPaint(token, mode, maxH) { awaitPaint(token, mode, maxH); },
     /* ★ #1074 (#46 r1 MINOR-6): the iOS keyboard (CallPage attaches the native observer) —
      * the decline-with-message sheet rides --kb-inset (overlay.css). Validated number only. */
     __setKbInset(h) {

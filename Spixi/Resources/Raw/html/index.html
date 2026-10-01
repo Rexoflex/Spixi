@@ -6770,6 +6770,24 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     accountHoldRelease = release;
     accountHoldTimer = setTimeout(releaseAccountHold, ACCOUNT_HOLD_BACKSTOP_MS);
   }
+  /* ★ #1093 (Damir, Android: FAB → contact → the chats list flashed before the chat): the FAB picker is held
+     over the chat open until C# says the conversation is on glass (onChatShown). The backstop is longer than
+     the Account one: a cold conversation (no warm spare) can take longer to load than the parked Account page. */
+  const CHAT_HOLD_BACKSTOP_MS = 1500;
+  let chatHoldRelease = null;
+  let chatHoldTimer = 0;
+  function releaseChatHold() {
+    clearTimeout(chatHoldTimer);
+    chatHoldTimer = 0;
+    const r = chatHoldRelease;
+    chatHoldRelease = null;
+    if (r) { try { r(); } catch (e) {} }
+  }
+  function holdForChat(release) {
+    releaseChatHold();
+    chatHoldRelease = release;
+    chatHoldTimer = setTimeout(releaseChatHold, CHAT_HOLD_BACKSTOP_MS);
+  }
 
   /* AND-29 back routing needs "is ANYTHING up"; ★ L6 review MAJOR-2 needs a second,
    * narrower answer, so the one signal now carries a LEVEL rather than a boolean:
@@ -6792,6 +6810,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
        slide's remove callback re-syncs, so 0 lands when the cover is actually gone. */
     if (document.querySelector('.contacts-takeover.c-subslide--out, .wallet-takeover.c-subslide--out')) return 2;
     if (accountHoldRelease) return 2;   // ★ B7: a takeover HELD over the Account hop is still on glass (the MAJOR-1 class)
+    if (chatHoldRelease) return 2;      // ★ #1093: the same for the picker held over a chat open
     return document.body.dataset.overlayOpen !== undefined ? 1 : 0;
   }
   function homeOverlayLive() {
@@ -6836,6 +6855,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       return true;
     }
     if (accountHoldRelease) return true;   // ★ B7 (#46 r1 N1): a back during the hold is swallowed — dropping the cover early is the flash B7 removes; Account or the backstop releases it
+    if (chatHoldRelease) return true;      // ★ #1093: same rule for the picker held over a chat open
     if (appsAddTakeover && appsAddClose) { appsAddClose('back'); return true; }   // ★ Session T: same C4 grammar as the wallet takeover
     if (walletTakeover && walletTakeoverClose) { walletTakeoverClose('back'); return true; }   // ★ Session H: hardware back IS the user's Back (C4) — it slides
     if (contactsView) { contactsView.close('back'); return true; }   // onClose nulls the handle + syncs · C4: hardware back IS the user's Back
@@ -6965,6 +6985,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
         enterInstant: returnTo === 'account',     // ★ #1080 F1: the Account hand-off is one frame (Account IS the cover) — no slide, so coverpainted fires on an opaque takeover
         /* ★ B7 (#1084): Back to Account holds this takeover until C# says Account is shown (onSettingsShown). */
         holdBackExit: returnTo === 'account' ? (release) => holdForAccount(release) : null,
+        holdChatExit: purpose === 'start' ? (release) => holdForChat(release) : null,   // ★ #1093: held until onChatShown
         paneAvailable: () => paneAvailable,       // #836: live read at tap time, not a mount-time snapshot
         onExitSettled: () => syncHomeOverlay(),   // ★ Session H MAJOR-1: the cover is gone NOW — report the real 0
         getRoster: () => directoryRoster(),               // iOS-26: groups included in BOTH purposes
@@ -9205,6 +9226,12 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     onSettingsShown() {
       const r = accountHoldRelease;   // #46 r2 NIT: release THIS hold on the frame — never a newer one that started meanwhile
       if (r) requestAnimationFrame(() => { if (accountHoldRelease === r) releaseAccountHold(); });
+    },
+    /* ★ #1093: C# fires this when a conversation becomes visible (HomePage.onOverlayPresented). Releases the
+       FAB picker held over the chat open; a no-op for every other open (a row tap holds nothing). */
+    onChatShown() {
+      const r = chatHoldRelease;
+      if (r) requestAnimationFrame(() => { if (chatHoldRelease === r) releaseChatHold(); });
     },
     /* ★ S11 (Session AD): the land-on-tab push — see landOnTab above. Arrives from
        HomePage.landOnTab while this document is still covered by the Account page. */

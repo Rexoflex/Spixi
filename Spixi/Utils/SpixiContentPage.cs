@@ -332,7 +332,7 @@ namespace SPIXI
                 {
                     if (_webView.Handler?.PlatformView is Microsoft.Maui.Platform.MauiWebView wv2)
                     {
-                        wv2.DefaultBackgroundColor = pageSurfaceColor.ToWindowsColor();
+                        wv2.DefaultBackgroundColor = webViewDefaultGround().ToWindowsColor();   // ★ #1093
                     }
                 }
                 catch (Exception ex)
@@ -383,6 +383,16 @@ namespace SPIXI
             }
         }
 
+        /* ★ #1093 (B4/B5): the colour WebView2 paints under the document (DefaultBackgroundColor, Windows only).
+         * The page surface by default. WinUI 3's WebView2 has NO transparent ground (an alpha-0 value is drawn
+         * as the theme page brush — Microsoft Learn "WebView2 in WinUI 3", microsoft-ui-xaml #2992/#6527), so a
+         * page that needs "see-through" must size its WebView to its content and override this with the colour
+         * behind it (CallPage). Used only in the #if WINDOWS blocks. */
+        protected virtual Color webViewDefaultGround()
+        {
+            return pageSurfaceColor;
+        }
+
         protected void webViewNavigating(object? sender, WebNavigatingEventArgs e)
         {
             // "Load then move" (N1/N3): the shells signal ixian:onload once booted; if this
@@ -408,7 +418,7 @@ namespace SPIXI
             // it to this page's themed surface so the pre-paint frame is invisible.
             // ToWindowsColor, NOT ToPlatform: on WinUI ToPlatform(Color) yields a Brush,
             // but WebView2.DefaultBackgroundColor takes a Windows.UI.Color (CS0029).
-            mauiWebView.DefaultBackgroundColor = pageSurfaceColor.ToWindowsColor();
+            mauiWebView.DefaultBackgroundColor = webViewDefaultGround().ToWindowsColor();   // ★ #1093
             CoreWebView2 coreWebView2 = mauiWebView.CoreWebView2;
             if (coreWebView2 == null) return;
             coreWebView2.Settings.IsStatusBarEnabled = false;

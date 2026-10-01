@@ -1,6 +1,6 @@
-<title>Walk 1086 fix round</title>
+<title>Walk 1093 Windows Android</title>
 <style>
-/* Walk sheet #1086 (the office-walk fix round, all four platforms). Layout: one narrow column — a header with the build steps, then one card per walk row with P / F / N/A and a note; a sticky results bar. */
+/* Walk sheet #1093 (the fix round after walk #1092: B4/B5 Windows, B6, the FAB flash, #1091). Layout: one narrow column — a header with the build steps, then one card per walk row with P / F / N/A and a note; a sticky results bar. */
 :root{
   --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
   --brand:#2160c2; --brand-soft:#e6eefb;
@@ -51,17 +51,18 @@ textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:1
 
 <div class="wrap">
   <header>
-    <h1>Walk #1086 + #1093 — office (Mac + iPhone)</h1>
-    <p class="sub">The Mac and iPhone rows of the office fix round (#1086–#1090) and of the #1093 round (smooth call swap, the FAB flash, the Account address). Windows and Android were walked in #1092 and have their own #1093 sheet. Two devices for call and typing rows.</p>
+    <h1>Walk #1093 — Windows + Android</h1>
+    <p class="sub">The fix round after walk #1092: the Windows call card (B4/B5), the smooth call swap (B6), the FAB flash and the Account address (#1091). The Mac and iPhone rows are on the office sheet. Two devices for the call rows.</p>
   </header>
 
   <section class="steps">
     <h2>Before you start</h2>
     <ol>
-      <li>Apply the patches, then run the FULL pipeline: <code>node scripts/extract-strings.mjs</code> → <code>build-locales</code> → <code>build-strings-iife</code> → <code>build-demo-bundle</code> → <code>build-shells</code> (bundle BEFORE shells) → <code>node scripts/smoke-test.mjs</code>. The last line must be <code>BASELINE OK</code> with the 2 KNOWN (#136 · B3). On your PC the count must be your last PC run + 2 (the #1085 app-picker checks) + this round's new checks (see the chat). Any other change: look at it first.</li>
-      <li>C# changed: wipe <code>Spixi/obj</code> and <code>Spixi/bin</code>. iPhone: device build. Mac: <code>net10.0-maccatalyst</code> build.</li>
+      <li>Pull, then run the FULL pipeline (bundle BEFORE shells) and the smoke: <code>BASELINE OK — 5047</code> / the 2 KNOWN (#136 · B3) in the cloud copy; on your PC: your last count + this round's new checks.</li>
+      <li>Windows: build with <b>F5</b> in Visual Studio (never <code>dotnet build</code>, #663).</li>
+      <li>Android: <code>dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug -t:Run</code></li>
       <li>This is the first compile of this C#. A build error is this batch's bug — paste it in the chat.</li>
-      <li>Mac log: <code>~/Documents/Spixi/ixian.log</code>. Mark each row, then tap <b>Copy results</b> and paste them in the chat.</li>
+      <li>Mark each row, then tap <b>Copy results</b> and paste them in the chat.</li>
     </ol>
   </section>
 
@@ -78,34 +79,19 @@ textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:1
 
 <script>
 const ROWS=[
- {id:'A1',t:'Mac call connects and talks',w:'Mac + a second device',d:'Call the Mac. Answer. Talk for 30 s. Then call from the Mac.',p:'The timer runs past 0:00 in both directions. Both sides hear each other. The log has no "format mismatch" line.',n:1},
- {id:'A1b',t:'Mac: no instant busy',w:'Mac',d:'Call a device that is free.',p:'It rings. It does not go dialing → busy in about 50 ms.',n:1},
- {id:'B1',t:'Mac text at full size',w:'Mac',d:'Open the welcome screen, Chats, a chat, Wallet, Account.',p:'Text has the same size as on Windows (no 77 % scale). The welcome notice is readable. Native chrome (menus, dialogs) looks right.',n:1},
- {id:'B1b',t:'Mac: pick an image',w:'Mac',d:'Account → change avatar. Then in a chat: attach → media → pick a HEIC photo.',p:'A Finder panel opens (no crash). The avatar changes. The photo arrives on the other device as a picture it can show.',n:1},
- {id:'B2',t:'Mac top bars not pushed down',w:'Mac',d:'Look at the top bar of Chats, Wallet and a chat. Look at the rail logo.',p:'The hairline sits under the title bar. The top bars start right under it. The rail logo is not cut.',n:1},
- {id:'B3',t:'Ring card: short address',w:'Mac + iPhone · a caller with no nick',d:'Call from a contact that has no nickname.',p:'The ring and in-call name show a shortened address (start…end), not the full address.',n:1},
- {id:'B4',t:'Mac ring over a dimmed app',w:'Mac · call the Mac',d:'Look around the ring card.',p:'The app shows through, dimmed. No solid dark ground. (Windows has its own card design now, #1093.)',n:1},
- {id:'B5',t:'Mac call card floats',w:'Mac · in call',d:'Minimise the call to the card.',p:'No square behind the card. Only the card and its shadow.',n:1},
- {id:'B6',t:'Card ⇄ full, smooth',w:'iPhone + Mac · in call',d:'Tap the card to open the full view. Minimise again. Repeat three times.',p:'No black frame, no empty card slot, no jump. The new view fades in once (#1093 hidden swap).',n:1},
- {id:'B7',t:'Back from Contacts, no flash',w:'Mac',d:'Account → Contacts → Back. Repeat three times. Also try Esc / the back arrow twice fast.',p:'Contacts stays until Account is visible, then goes. The previous screen never flashes. A double back does not go past Account.',n:1},
- {id:'B8',t:'Nickname edit keeps its size',w:'Mac + iPhone',d:'Edit your own nickname (Account). Edit a contact nickname (contact details).',p:'The text does not jump or get smaller when you start to edit. The row keeps its height.',n:1},
- {id:'B9',t:'Speaker switches at once',w:'iPhone · in call',d:'Tap Speaker on and off several times.',p:'The button flips at once and the sound follows. iPhone: the sound really moves to the loudspeaker (log line [SPEAKER]).',n:1},
- {id:'B10',t:'Tick crossfade visible',w:'iPhone',d:'Send a message. Watch the ticks when it is delivered and read.',p:'The tick changes with a visible fade (about 0.3 s), not a snap.',n:1},
- {id:'B11',t:'Sent amount ≤ 2 decimals',w:'Mac (and one more)',d:'Send 0.2 IXI. Open the sent transaction.',p:'The amount shows +0.20 or 0.2 (not 0.20000000). The fee keeps its full value.',n:1},
- {id:'B12',t:'Typing beats a draft in the row',w:'Two devices',d:'On A, type a draft in a chat with B, go back. On B, type in the same chat.',p:'A\'s chats row shows the typing dots while B types. When B stops, the Draft line returns.',n:1},
- {id:'B13',t:'App invite picker',w:'Mac + iPhone',d:'In a chat: attach → App invite. With more than 6 apps, search.',p:'Rows show the app icon, name and publisher. Search filters. No match shows a message.',n:1},
- {id:'B14',t:'Mac Dock icon size',w:'Mac',d:'Look at the Dock icon beside other apps.',p:'The Spixi icon is the same size as other Mac apps. The logo fills the tile.',n:1},
- {id:'B15',t:'No fetch warning at launch',w:'Mac',d:'Launch the app. Read the log.',p:'No warning about "fetch" missing in UIBackgroundModes.',n:1},
- {id:'1086',t:'Full-screen call shows the photo',w:'Mac + iPhone · a contact with a photo',d:'Call a contact that has a profile photo. Open the full call view.',p:'The avatar shows the photo, not initials. Same on the ring and the card.',n:1},
- {id:'1087',t:'Dark call card has an edge',w:'iPhone + Mac · dark',d:'Minimise a call in the dark theme.',p:'The card has a thin light edge (like the incoming bubbles) and round corners. It stands out from the UI behind it. Light theme looks the same as before.',n:1},
- {id:'1090',t:'Chats row: bigger ticks and badges',w:'Mac + iPhone · light + dark',d:'Look at the chats list: sent / delivered / read ticks, an unread count, a muted chat, an @ mention.',p:'The ticks, the count, the muted bell and the @ are slightly bigger than before. The time has the same size. Rows have the same height.',n:1},
- {id:'1088',t:'Unread time in blue',w:'Mac + iPhone · light + dark',d:'Get an unread message. Mute another chat that has unread messages.',p:'The unread row\'s time is blue (the badge blue). The muted row keeps a grey time. A read row is grey.',n:1},
- {id:'B6b',t:'iPhone answer: no app flash',w:'iPhone · call the phone',d:'Answer a ring on the iPhone.',p:'The ring turns into the full call view in place. The chats list never shows in between.',n:1},
- {id:'FAB',t:'FAB → contact, no list flash',w:'iPhone (and Mac)',d:'Tap the FAB (Mac: New chat), pick a contact. Repeat with three contacts.',p:'The picker stays until the chat is on screen. The chats list never shows in between.',n:1},
- {id:'1091',t:'Account: the address opens the sheet',w:'Mac + iPhone · light + dark',d:'Account. Tap the short address. Close. Tap "What is this?" under it.',p:'Both open the address sheet (QR, full address, explainer). Copy and QR still work.',n:1},
- {id:'1091f',t:'Copy: no focus ring after a click',w:'Mac',d:'Account → click Copy. Then press Tab several times.',p:'After the click there is no blue ring on Copy. With Tab, the ring shows as usual.',n:1},
+ {id:'BUILD',t:'Both builds compile and start',w:'Windows F5 + Android Debug',d:'Wipe Spixi\\obj and Spixi\\bin. Build Windows with F5. Build and deploy Android Debug.',p:'Both build with no error. The app starts on both. Paste any error in the chat.',n:1},
+ {id:'B4',t:'Windows ring over a dimmed app',w:'Windows · call the PC',d:'Call the PC from the phone. Look around the ring card.',p:'The app shows through, dimmed, around the card. No solid dark ground. The card corners are round and have no dark wedges.',n:1},
+ {id:'B4b',t:'Windows ring: message sheet + short window',w:'Windows · call the PC',d:'While it rings, tap Message. Close it with Esc. Then make the window short (about 420 px high) and call again.',p:'The message sheet fits inside the card. In a short window the card scrolls and Accept / Decline stay reachable.',n:1},
+ {id:'B5',t:'Windows call card: no square',w:'Windows · in call',d:'Answer. Minimise to the card. Check light and dark.',p:'No dark square around the card. Only the rounded card (no outer shadow on Windows).',n:1},
+ {id:'B6',t:'Android card ⇄ full, no blank frames',w:'Android · in call',d:'Tap the card to open the full view. Minimise again. Repeat three times. Record the screen if you can.',p:'No black frame and no empty card slot. The new view fades in once.',n:1},
+ {id:'B6b',t:'Android answer: no app flash',w:'Android · call the phone',d:'Answer a ring on the phone.',p:'The ring turns into the full call view in place. The chats list never shows in between.',n:1},
+ {id:'B6w',t:'Windows card ⇄ full',w:'Windows · in call',d:'Open the full view from the card. Minimise again. Repeat three times.',p:'The card and the full card fade in at their final size. No jump of size or position.',n:1},
+ {id:'FAB',t:'FAB → contact, no list flash',w:'Android (and Windows)',d:'Tap the FAB, pick a contact. Repeat with three contacts. Record the screen if you can.',p:'The picker stays until the chat is on screen. The chats list never shows in between.',n:1},
+ {id:'FAB2',t:'FAB → an open chat',w:'Windows (wide window)',d:'Open a chat. Then FAB → pick the SAME contact.',p:'The picker closes at once (no 1.5 s freeze). The chat stays open.',n:1},
+ {id:'1091',t:'Account: the address opens the sheet',w:'Windows + Android · light + dark',d:'Account. Tap the short address. Close. Tap "What is this?" under it.',p:'Both open the address sheet (QR, full address, explainer). Copy and QR still work.',n:1},
+ {id:'1091f',t:'Copy: no focus ring after a click',w:'Windows',d:'Account → click Copy with the mouse. Then press Tab several times.',p:'After the click there is no blue ring on Copy. With Tab, the ring shows as usual.',n:1},
 ];
-const KEY='walk-1086-office-v2';
+const KEY='walk-1093-winand-v1';
 let state={};
 try{state=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){state={}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
@@ -141,7 +127,7 @@ function text(){
   let p=0,f=0,n=0;const lines=ROWS.map(r=>{const s=state[r.id]||{};const v=s.v==='P'?'P':s.v==='F'?'F':s.v==='N'?'N/A':'—';
     if(s.v==='P')p++;else if(s.v==='F')f++;else if(s.v==='N')n++;
     return `${r.id} ${v}${s.note?' — '+s.note.trim():''}`;});
-  return `Walk #1086 + #1093 office (Mac · iPhone): ${p} P · ${f} F · ${n} N/A\n`+lines.join('\n');
+  return `Walk #1093 (Windows F5 + Android Debug): ${p} P · ${f} F · ${n} N/A\n`+lines.join('\n');
 }
 document.getElementById('copy').addEventListener('click',async()=>{
   const t=text();const out=document.getElementById('out');const btn=document.getElementById('copy');

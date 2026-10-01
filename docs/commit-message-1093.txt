@@ -1,0 +1,13 @@
+#1093 fix round after walk #1092: Windows card-sized call WebView (B4/B5), hidden call swap (B6), FAB picker hold, Account address (#1091)
+
+- B4/B5: WinUI 3 WebView2 has no transparent ground (alpha 0 = theme brush), so on Windows the
+  call WebView is only the card: native scrim for ring/full, card height from ixian:callCardH,
+  the bar stage is the card; webViewDefaultGround() hook gives the corner colour. Mac unchanged.
+- B6: size-changing mode swaps hide the stage (0.01), lay out, and fade in on the shell's
+  painted signal (callAwaitPaint -> ixian:callPainted); ring<->full off Windows stays in place.
+- FAB -> contact: the picker is held until onChatShown (HomePage.onOverlayPresented, and on
+  "already open"), backstop 1.5 s.
+- #1091: the truncated address and a "Your Ixian address · What is this?" caption open the
+  address sheet; pointer-pressed header controls show no focus ring until a key press.
+- Opus #46 loop: 3 rounds -> CLEAN. Smoke BASELINE OK 5047 / the 2 KNOWN.
+

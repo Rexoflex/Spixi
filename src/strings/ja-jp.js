@@ -29,6 +29,7 @@ export const jajp = {
   addressInfoSafety: "共有しても安全です。ウォレットへのアクセスを許すことはありません。",
   addressInfoTitle: "あなたの Ixian アドレス",
   addressOnly: "アドレスのみの連絡先",
+  addressWhatIsThis: "これは何？",
   admin: "管理者",
   advanced: "詳細設定",
   all: "すべて",

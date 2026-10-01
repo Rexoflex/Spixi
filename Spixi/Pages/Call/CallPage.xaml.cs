@@ -14,6 +14,9 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Web;
+#if WINDOWS
+using Microsoft.Maui.Platform;   // ★ #1093: ToWindowsColor (the WebView2 ground, webViewDefaultGround)
+#endif
 
 namespace SPIXI
 {
@@ -111,7 +114,19 @@ namespace SPIXI
         private const double cardWidthDip = 380;      // desktop: card width (right-aligned)
         private const double appTopBarDip = 56;       // tokens.css --layout-bar-top
         private const double cardRadiusDip = 16;
-        private const int expandLayoutDelayMs = 48;   // ★ B6: ~3 frames — the shell's new view mounts (transparent) before the stage resizes
+        /* ★★ B6 (#1093, measured on Damir's Android recording, docs/sheets/1092-b6-frames.png): full ⇄ card
+         * showed 2 frames of a full-screen BLACK (the shell had swapped, the opaque stage was still full-size)
+         * and then 6 frames of an EMPTY card slot (the stage had resized, the WebView had not repainted at the
+         * new size). #1086's "shell first, stage 48 ms later" only reordered the two. Now every presented mode
+         * change is a HIDDEN swap (beginStageSwap): the stage goes to ~0 opacity → the shell renders the new
+         * view → the stage takes its new geometry → C# asks the shell to report when it has PAINTED at that
+         * size (callAwaitPaint → ixian:callPainted:<token>) → the stage fades in. A timeout reveals it anyway
+         * (never a stage stuck invisible). 0.01, not 0: an Android view at alpha 0 is not drawn at all, so its
+         * WebView would produce no frame — and no painted signal — until it is visible again. */
+        private const double swapHiddenOpacity = 0.01;
+        private const int swapRevealTimeoutMs = 600;
+        private const uint swapFadeMs = 120;
+        private static long swapToken = 0;            // the swap the next callPainted must match; bumped when consumed
         private static readonly object speakerChainLock = new object();
         private static Task speakerChain = Task.CompletedTask;   // ★ B9: the serial off-UI-thread route switches
         public static readonly Color callGround = Color.FromArgb("#14161c");   // = surfaceColorStringFor("call.html")
@@ -125,10 +140,34 @@ namespace SPIXI
          * only on shell-ready (Opacity 0 until then). */
 #if WINDOWS || MACCATALYST
         public static readonly Color stageGround = Colors.Transparent;
-        private const double cardShadowPadDip = 8;    // = call.html --call-card-pad on desktop: room for the card's own shadow (12 → 8, #46 r1: a smaller dead strip around the card)
 #else
         public static readonly Color stageGround = callGround;
-        private const double cardShadowPadDip = 0;
+#endif
+#if MACCATALYST
+        private const double cardShadowPadDip = 8;    // = call.html --call-card-pad on desktop: room for the card's own shadow (12 → 8, #46 r1: a smaller dead strip around the card)
+#else
+        private const double cardShadowPadDip = 0;    // phone: the native Border clips + shadows · ★ #1093 Windows: the stage IS the card (see below)
+#endif
+#if WINDOWS
+        /* ★★ B4/B5 (#1093, walk #1092 FAIL: the ring on a SOLID ground, the card on a dark square). The #1080
+         * plan — a transparent stage + a see-through WebView2 that paints its own scrim and card — CANNOT work on
+         * Windows: WinUI 3's WebView2 does not support a transparent background (Microsoft Learn, "WebView2 in
+         * WinUI 3": "WinUI 3 doesn't support transparent backgrounds"; microsoft-ui-xaml #2992 / #6527 — an
+         * alpha-0 DefaultBackgroundColor is drawn as the theme page brush). The alpha-0 value was already set
+         * (surfaceColorStringFor), so the walk's ground was that brush. So on Windows the WebView is only ever
+         * as big as the CARD, and everything around the card is native:
+         *   ring / full — the stage fills the window with the native scrim (a real XAML alpha, the app shows
+         *                 through) and the WebView sits centred at the card's size; call.html reports the card's
+         *                 height (ixian:callCardH:<dip>), the width is fixed here.
+         *   bar         — the stage is exactly the card (no transparent shadow pad: nothing could show through it).
+         * The WebView2 ground (webViewDefaultGround) is opaque and only shows in the card's rounded corners, so it
+         * is the colour behind them: the app surface (bar) or the scrim over the app surface (ring / full).
+         * The Mac keeps the see-through page (a WKWebView with Opaque = false IS transparent). */
+        private static readonly Color winScrim = Color.FromRgba(17, 18, 19, 153);   // = tokens.css --surface-scrim rgba(17, 18, 19, 0.6)
+        private const double winScrimAlpha = 0.6;
+        private const double winCardWidthDip = 400;      // = call-overlay.css / call-screen.css desktop card width
+        private const double winCardEstimateDip = 480;   // before the first ixian:callCardH (the stage is hidden then)
+        private static double winCardH = 0;              // the card height call.html reported (dip = CSS px)
 #endif
         private static bool expanded = false;         // "full" vs "bar" for the live call
         private static string expandedSession = "";   // the call the expanded flag was chosen for
@@ -249,6 +288,36 @@ namespace SPIXI
                 }
                 string[] parts = url.Split(':');
                 string verb = parts.Length > 1 ? parts[1] : "";
+                /* ★ #1093: presentation-only signals from the shell (no call state, no side effect beyond the
+                 * stage). Digits only; anything else is dropped. */
+                if (verb == "callPainted" && parts.Length == 3)
+                {
+                    if (parts[2].Length <= 18 && long.TryParse(parts[2], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long token))
+                    {
+                        showStage(token);
+                    }
+                    return;
+                }
+                if (verb == "callCardH" && parts.Length == 3)
+                {
+#if WINDOWS
+                    if (parts[2].Length <= 4 && int.TryParse(parts[2], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int h)
+                        && h >= 120 && h <= 1600)
+                    {
+                        bool changed;
+                        lock (callLock)
+                        {
+                            changed = Math.Abs(winCardH - h) >= 1;
+                            winCardH = h;
+                        }
+                        if (changed)
+                        {
+                            applyStageLayout();
+                        }
+                    }
+#endif
+                    return;
+                }
                 if ((verb == "callMute" || verb == "callSpeaker") && parts.Length == 4)
                 {
                     byte[]? sid = parseSession(parts[3]);
@@ -359,23 +428,17 @@ namespace SPIXI
                 string mode = on ? "full" : "bar";
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
+                    string from;
                     lock (callLock)
                     {
                         if (current != page || surfaceMode == "ring")
                         {
                             return;   // the call ended or a ring replaced it meanwhile
                         }
+                        from = surfaceMode;   // (#46 r2 NIT) the REAL previous mode — a broadcast may already have set it
                         surfaceMode = mode;
                     }
-                    try
-                    {
-                        page?.pushState();
-                    }
-                    catch (Exception ex)
-                    {
-                        Logging.warn("CallPage: early state push failed: " + ex.GetType().Name);
-                    }
-                    Task.Delay(expandLayoutDelayMs).ContinueWith(_ => applyStageLayout());
+                    beginStageSwap(page, true, from);   // ★★ B6 (#1093): hidden → new view → new geometry → painted → fade in
                 });
             }
             // #46 r2 MINOR-7: showBar reads the avatar file before it dispatches — never on the UI thread
@@ -643,6 +706,7 @@ namespace SPIXI
                     {
                         // #229b pattern: hide first (property flip), let the frame
                         // commit, then detach + dispose the WebView.
+                        Microsoft.Maui.Controls.ViewExtensions.CancelAnimations(stage);   // ★ #1093 (#46 r1 NIT): a reveal fade must not bring a dying stage back
                         stage.Opacity = 0;
                         setStageInput(stage, false);
                     }
@@ -875,15 +939,137 @@ namespace SPIXI
         private static void setMode(string mode)
         {
             bool changed;
+            string from;
+            CallPage? page;
             lock (callLock)
             {
+                from = surfaceMode;
                 changed = surfaceMode != mode;
                 surfaceMode = mode;
+                page = current;
             }
             if (changed)
             {
-                applyStageLayout();
+                beginStageSwap(page, false, from);   // ★★ B6 (#1093): the caller pushes the state right after (setState)
             }
+        }
+
+        /* ★★ B6 (#1093, #46 r1 MAJOR-2): only a swap that CHANGES the stage's size is hidden. ring ⇄ full on a phone
+         * or the Mac is full-window both ways — hiding it showed the app under an answered call for ~150 ms. On
+         * Windows every call mode is its own card size (ring card, full card, bar card), so every change hides. */
+        private static bool swapResizes(string from, string to)
+        {
+            if (from == to)
+            {
+                return false;
+            }
+#if WINDOWS
+            return true;
+#else
+            return from == "bar" || to == "bar";
+#endif
+        }
+
+        /* ★★ B6 (#1093) — the HIDDEN swap. Main thread. A stage that is not presented yet only takes its
+         * geometry (revealSurface waits for the paint itself); a presented one goes to ~0 opacity, takes the
+         * new view (pushState, when the caller does not push right after) and the new geometry, and comes back
+         * on the shell's painted signal for this token (or the timeout). */
+        private static void beginStageSwap(CallPage? page, bool pushState, string fromMode)
+        {
+            Border? stage;
+            bool shown;
+            string mode;
+            long token;
+            lock (callLock)
+            {
+                stage = callStage;
+                shown = presented;
+                mode = surfaceMode;
+                token = ++swapToken;   // also retires a swap still waiting for its paint
+            }
+            if (stage == null || page == null || !shown)
+            {
+                if (pushState && page != null)
+                {
+                    try { page.pushState(); } catch (Exception ex) { Logging.warn("CallPage: state push failed: " + ex.GetType().Name); }
+                }
+                applyStageLayout();
+                return;
+            }
+            if (!swapResizes(fromMode, mode))
+            {
+                // a same-size swap (ring ⇄ full off Windows): in place, never hidden
+                if (pushState)
+                {
+                    try { page.pushState(); } catch (Exception ex) { Logging.warn("CallPage: state push failed: " + ex.GetType().Name); }
+                }
+                applyStageLayout();
+                if (stage.Opacity < 1)
+                {
+                    /* (#46 r2 NIT) it superseded a resizing swap that is still hidden (or fading in): that stage has not
+                     * painted its new size yet — reveal on THIS token's paint, never at once. */
+                    requestPaint(page, token, mode);
+                }
+                return;
+            }
+            Microsoft.Maui.Controls.ViewExtensions.CancelAnimations(stage);
+            stage.Opacity = swapHiddenOpacity;
+            setStageInput(stage, false);
+            if (pushState)
+            {
+                try { page.pushState(); } catch (Exception ex) { Logging.warn("CallPage: state push failed: " + ex.GetType().Name); }
+            }
+            applyStageLayout();
+            requestPaint(page, token, mode);
+        }
+
+        /** Ask the shell to say when it has painted `mode` at the stage's new size; reveal on the answer or
+         *  the timeout. Posted, so it runs AFTER the state pushes and the layout queued in this turn. */
+        private static void requestPaint(CallPage page, long token, string mode)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (page.shellReady)
+                {
+                    /* (#46 r2 MAJOR-2) Windows: the most a card can be in this window (applyStageLayout clamps to it) —
+                     * the shell waits for EXACTLY min(its card height, this), never for the first resize, which can
+                     * still be the previous mode's card. 0 = no clamp (every other platform). */
+                    string maxH = "0";
+#if WINDOWS
+                    Grid? g;
+                    lock (callLock)
+                    {
+                        g = callHostGrid;
+                    }
+                    // (#46 r3 NIT) before the first arrange applyStageLayout clamps to its own fallback — send the same one
+                    double gh = g != null && g.Height > 0 ? g.Height : winCardEstimateDip + 48;
+                    maxH = ((int)Math.Floor(gh - 16)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+#endif
+                    Utils.sendUiCommand(page, "callAwaitPaint", token.ToString(System.Globalization.CultureInfo.InvariantCulture), mode, maxH);
+                }
+            });
+            Task.Delay(swapRevealTimeoutMs).ContinueWith(_ => showStage(token));
+        }
+
+        /** The painted signal (or the timeout) for `token`: fade the stage in. A stale token is a no-op. */
+        private static void showStage(long token)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                Border? stage;
+                lock (callLock)
+                {
+                    if (token != swapToken || !presented || callStage == null)
+                    {
+                        return;
+                    }
+                    swapToken++;   // consumed: the late timeout (or a second signal) for this swap does nothing
+                    stage = callStage;
+                }
+                setStageInput(stage, true);
+                Microsoft.Maui.Controls.ViewExtensions.CancelAnimations(stage);
+                _ = Microsoft.Maui.Controls.ViewExtensions.FadeTo(stage, 1, swapFadeMs, Easing.CubicOut);
+            });
         }
 
         private static void revealSurface(CallPage? owner = null)
@@ -909,7 +1095,23 @@ namespace SPIXI
                     return;
                 }
                 applyStageLayout();
-                setStageInput(stage, true);
+                CallPage? page = owner;
+                if (page != null && page.shellReady)
+                {
+                    /* ★★ B6 (#1093): the shell is up — reveal on its painted signal at the stage's size, like a
+                     * swap (on Windows that is also the card height it reports first). */
+                    long token;
+                    string mode;
+                    lock (callLock)
+                    {
+                        token = ++swapToken;
+                        mode = surfaceMode;
+                    }
+                    stage.Opacity = swapHiddenOpacity;
+                    requestPaint(page, token, mode);
+                    return;
+                }
+                setStageInput(stage, true);   // the 1.5 s timeout with no shell: show what there is
                 stage.Opacity = 1;
             });
         }
@@ -1053,8 +1255,86 @@ namespace SPIXI
                     stage.Shadow = null;
                     stage.Margin = new Thickness(0);
                 }
+#if WINDOWS
+                /* ★★ B4/B5 (#1093, see winScrim): the WebView2 cannot be see-through, so it is only ever card-sized.
+                 * bar: the stage above IS the card (pad 0) → the WebView fills it, no ground around it.
+                 * ring / full: the stage paints the native scrim over the app and the WebView sits centred at
+                 * the card's size (width fixed here, height reported by call.html — ixian:callCardH). */
+                if (stage.Content is ContentView winInner)
+                {
+                    if (mode == "bar")
+                    {
+                        stage.BackgroundColor = Colors.Transparent;
+                        winInner.HorizontalOptions = LayoutOptions.Fill;
+                        winInner.VerticalOptions = LayoutOptions.Fill;
+                        winInner.WidthRequest = -1;
+                        winInner.HeightRequest = -1;
+                    }
+                    else
+                    {
+                        double gw = hostGrid != null && hostGrid.Width > 0 ? hostGrid.Width : winCardWidthDip + 48;
+                        double gh = hostGrid != null && hostGrid.Height > 0 ? hostGrid.Height : winCardEstimateDip + 48;
+                        double ch;
+                        lock (callLock)
+                        {
+                            ch = winCardH;
+                        }
+                        stage.BackgroundColor = winScrim;
+                        winInner.HorizontalOptions = LayoutOptions.Center;
+                        winInner.VerticalOptions = LayoutOptions.Center;
+                        winInner.WidthRequest = Math.Max(240, Math.Min(winCardWidthDip, gw - 48));
+                        winInner.HeightRequest = Math.Max(120, Math.Min(ch > 0 ? ch : winCardEstimateDip, gh - 16));   // (#46 r1 M4) a short window clamps the card; call.html scrolls it then
+                    }
+                }
+                CallPage? groundPage;
+                lock (callLock)
+                {
+                    groundPage = current;
+                }
+                groundPage?.applyWinGround();
+#endif
             });
         }
+
+#if WINDOWS
+        /* ★★ B4/B5 (#1093): the WebView2 ground — opaque (WinUI 3 has no transparent one) and visible only in
+         * the card's rounded corners, so it is the colour BEHIND those corners: the app surface around the
+         * minimised card, the scrim over the app surface around the ring / full card. Live theme every time. */
+        protected override Color webViewDefaultGround()
+        {
+            string mode;
+            lock (callLock)
+            {
+                mode = surfaceMode;
+            }
+            Color s = Color.FromArgb(ThemeManager.getSurfaceColorString());
+            if (mode == "bar")
+            {
+                return new Color(s.Red, s.Green, s.Blue, 1f);
+            }
+            float a = (float)winScrimAlpha;
+            return new Color(
+                s.Red * (1 - a) + (17f / 255f) * a,
+                s.Green * (1 - a) + (18f / 255f) * a,
+                s.Blue * (1 - a) + (19f / 255f) * a,
+                1f);
+        }
+
+        private void applyWinGround()
+        {
+            try
+            {
+                if (webView?.Handler?.PlatformView is MauiWebView wv2)
+                {
+                    wv2.DefaultBackgroundColor = webViewDefaultGround().ToWindowsColor();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("CallPage: WebView2 ground not applied: " + ex.GetType().Name);
+            }
+        }
+#endif
 
         protected override bool OnBackButtonPressed()
         {

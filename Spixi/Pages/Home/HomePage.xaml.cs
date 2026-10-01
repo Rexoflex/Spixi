@@ -2623,6 +2623,7 @@ namespace SPIXI
                 {
                     // Already open (overlay, pane or pushed) — also swallows double-clicks.
                     Logging.warn("Chat page for {0} already open.", friend.ToString());
+                    Utils.sendUiCommand(this, "onChatShown");   // ★ #1093 (#46 r1 MINOR-1): it IS shown — release a held FAB picker now, not after the backstop
                     return;
                 }
 
@@ -4590,6 +4591,10 @@ namespace SPIXI
             }
             if (overlay is SingleChatPage presentedChat)
             {
+                /* ★ #1093 (Damir, Android: FAB → contact flashed the chats list): the home shell holds its
+                 * FAB picker over the chat open until the conversation is visible — this is that moment.
+                 * A fixed verb, no payload; a no-op in the shell when nothing is held. */
+                Utils.sendUiCommand(this, "onChatShown");
                 // N49 (#370): the chats-list row highlight is pushed at PRESENT time —
                 // the one moment the conversation provably exists (the N24/A-1 grammar;
                 // the old push at the pushPageLoaded call site could highlight a row

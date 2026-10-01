@@ -29,6 +29,7 @@ export const cncn = {
   addressInfoSafety: "分享它是安全的：它不会让任何人访问你的钱包。",
   addressInfoTitle: "你的 Ixian 地址",
   addressOnly: "仅地址联系人",
+  addressWhatIsThis: "这是什么？",
   admin: "管理员",
   advanced: "高级",
   all: "全部",

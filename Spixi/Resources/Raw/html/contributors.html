@@ -1239,7 +1239,53 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
 }
-.c-settings__addr-text { padding-inline-end: var(--spacing-4); }
+/* ★★ #1091 (A): the truncated address is a BUTTON now (opens the address sheet) — it keeps the text look,
+   no chrome; a 32px row like the icon buttons beside it. Its hit area grows 6px UP only (38px tall): the name
+   row is 4px above and the caption directly below, so it cannot take the full 44 without overlapping them —
+   a stated deviation from #990, the caption and the QR button reach the same sheet with full targets. */
+.c-settings__addr-text {
+  position: relative;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 var(--spacing-4);
+  border: 0;
+  border-radius: var(--radius-8, 8px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings__addr-text::after { content: ''; position: absolute; inset: -6px -4px 0; }
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__addr-text:hover { color: var(--text-neutral-01); }
+}
+.c-settings__addr-text:active { color: var(--text-neutral-01); }
+/* ★★ #1091 (B): "Your Ixian address · What is this?" — the caption under the address; the question in the
+   action ink. Pulled up to sit directly under the 32px row (the hero's 8px gap is the space above the row). */
+.c-settings__addr-cap {
+  position: relative;
+  min-height: 32px;
+  margin: calc(-1 * var(--spacing-8)) 0 0;
+  padding: 0 var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-8, 8px);
+  background: transparent;
+  color: var(--text-neutral-02);
+  font: inherit;
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs, var(--line-height-body-sm));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings__addr-cap::after { content: ''; position: absolute; inset: 0 -4px -12px; }   /* 32 + 12 = the 44px target (#990), grown DOWN only */
+.c-settings__addr-ask { color: var(--text-action-default); }
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__addr-cap:hover .c-settings__addr-ask { text-decoration: underline; }
+}
+/* ★ #1091: a control PRESSED with a pointer shows no focus ring when focus comes back to it (settings-shell.js
+   noRingOnPointer); the next key press removes the flag. */
+.c-settings__hero [data-noring]:focus-visible { outline: none; }
 .c-settings__addr-btn { position: relative; }   /* ink = the text button's own action ink (#1013 r2 n4: a colour here lost to .c-button[data-type] and never applied) */
 /* ⚠ #1012 (Opus r1 m8): a 44px hit area on the 32px buttons (the #990 house rule) */
 .c-settings__addr-btn::after { content: ''; position: absolute; inset: -6px; }

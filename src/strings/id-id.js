@@ -29,6 +29,7 @@ export const idid = {
   addressInfoSafety: "Membagikannya aman: ini tidak pernah memberi siapa pun akses ke dompet Anda.",
   addressInfoTitle: "Alamat Ixian Anda",
   addressOnly: "Kontak alamat saja",
+  addressWhatIsThis: "Apa ini?",
   admin: "Admin",
   advanced: "Lanjutan",
   all: "Semua",

@@ -351,6 +351,19 @@ export function settingsThemeSheet({ current, host, strings = getStrings(), comm
   return sheet;
 }
 
+/* ★ #1091 (#46 r1 MINOR-3): ONE document listener for the whole module (the hub is rebuilt on many pushes; a
+   per-hub listener piled up and kept every detached hub alive). A real key press gives every pressed header
+   control its focus ring back; a modifier or an IME composition does not. */
+let noRingKeyInstalled = false;
+function installNoRingKeyClear() {
+  if (noRingKeyInstalled || typeof document === 'undefined') return;
+  noRingKeyInstalled = true;
+  document.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229 || ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
+    for (const n of document.querySelectorAll('.c-settings__hero [data-noring]')) delete n.dataset.noring;
+  }, true);
+}
+
 export function createSettingsHub({
   name = '',                     // account nickname (legacy setNickname push)
   address = '',                  // own address — identity truth
@@ -646,12 +659,33 @@ export function createSettingsHub({
    * goes. The QR button opens the same `openAddressSheet` (#527) the row opened, so the
    * code, the full address, Share and the explainer stay one tap away. */
   if (address) {
+    /* ★★ #1091 (Damir 2026-10-01, A + B): a user who does not know what the address is had no reason to tap
+     * a QR icon to find the explanation. (A) the truncated address itself opens the address sheet; (B) a
+     * caption under it — "Your Ixian address · What is this?" — opens the same sheet. Copy and QR stay. */
+    const openSheet = () => openAddressSheet({
+      address, strings, host: hostFor(),
+      onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
+    });
+    /* ★ #1091 (Damir, Windows screenshot): the Copy button kept a blue focus ring after a MOUSE click.
+     * The click itself does not match :focus-visible — but the copy hands focus away and back (the native
+     * copy round-trip / the in-page textarea buffer, clipboard.js), and a programmatic re-focus DOES match
+     * it. So a header control that was PRESSED (pointer) carries data-noring until the next key press —
+     * the #1080 F9 grammar from call.html. A keyboard user still gets the ring. */
+    const noRingOnPointer = (b) => {
+      installNoRingKeyClear();
+      b.addEventListener('pointerdown', () => { b.dataset.noring = ''; });
+    };
     const addr = document.createElement('div');
     addr.className = 'c-settings__addr';
-    const txt = document.createElement('span');
+    const txt = document.createElement('button');
+    txt.type = 'button';
     txt.className = 'c-settings__addr-text u-tabular';
     txt.textContent = truncateAddressMiddle(address);
     txt.title = address;
+    txt.setAttribute('aria-haspopup', 'dialog');
+    txt.dataset.addr = 'text';
+    txt.addEventListener('click', openSheet);
+    noRingOnPointer(txt);
     const copyBtn = createButton({
       type: 'text', size: 32, icon: icon('copy', { size: 16 }),
       ariaLabel: strings.copyAddress || 'Copy address',
@@ -681,16 +715,32 @@ export function createSettingsHub({
     const qrBtn = createButton({
       type: 'text', size: 32, icon: icon('qrcode', { size: 16 }),
       ariaLabel: strings.showQr || 'Show QR',
-      onClick: () => openAddressSheet({
-        address, strings, host: hostFor(),
-        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
-      }),
+      onClick: openSheet,
     });
     qrBtn.classList.add('c-settings__addr-btn');
     qrBtn.dataset.addr = 'qr';   // structural hook for tests (r1 NIT: the retired row's aria-current key is not a thing here — nothing opens a sublevel)
     copyBtn.dataset.addr = 'copy';
+    noRingOnPointer(copyBtn);
+    noRingOnPointer(qrBtn);
     addr.append(txt, copyBtn, qrBtn);
-    hero.append(addr);
+    // ★★ #1091 (B): the caption — one button (the whole line is the target), the question in action ink
+    const cap = document.createElement('button');
+    cap.type = 'button';
+    cap.className = 'c-settings__addr-cap';
+    cap.dataset.addr = 'caption';
+    cap.setAttribute('aria-haspopup', 'dialog');
+    const capLabel = document.createElement('span');
+    capLabel.textContent = strings.addressInfoTitle || 'Your Ixian address';
+    const capSep = document.createElement('span');
+    capSep.setAttribute('aria-hidden', 'true');
+    capSep.textContent = ' · ';
+    const capAsk = document.createElement('span');
+    capAsk.className = 'c-settings__addr-ask';
+    capAsk.textContent = strings.addressWhatIsThis || 'What is this?';
+    cap.append(capLabel, capSep, capAsk);
+    cap.addEventListener('click', openSheet);
+    noRingOnPointer(cap);
+    hero.append(addr, cap);
   }
   body.append(hero);
 

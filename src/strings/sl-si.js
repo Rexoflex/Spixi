@@ -29,6 +29,7 @@ export const slsi = {
   addressInfoSafety: "Deljenje je varno: nikomur ne omogoči dostopa do vaše denarnice.",
   addressInfoTitle: "Vaš naslov Ixian",
   addressOnly: "Stik samo z naslovom",
+  addressWhatIsThis: "Kaj je to?",
   admin: "Skrbnik",
   advanced: "Napredno",
   all: "Vse",

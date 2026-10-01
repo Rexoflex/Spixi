@@ -29,6 +29,7 @@ export const srsp = {
   addressInfoSafety: "Deljenje je bezbedno: nikome ne daje pristup vašem novčaniku.",
   addressInfoTitle: "Vaša Ixian adresa",
   addressOnly: "Kontakt samo sa adresom",
+  addressWhatIsThis: "Šta je ovo?",
   admin: "Administrator",
   advanced: "Napredno",
   all: "Sve",

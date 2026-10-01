@@ -29,6 +29,7 @@ export const ptbr = {
   addressInfoSafety: "Compartilhar é seguro: isso nunca dá acesso à sua carteira.",
   addressInfoTitle: "Seu endereço Ixian",
   addressOnly: "Contato somente com endereço",
+  addressWhatIsThis: "O que é isso?",
   admin: "Admin",
   advanced: "Avançado",
   all: "Todas",

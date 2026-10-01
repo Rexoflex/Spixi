@@ -29,6 +29,7 @@ export const dede = {
   addressInfoSafety: "Das Teilen ist sicher: Niemand erhält dadurch Zugriff auf deine Wallet.",
   addressInfoTitle: "Deine Ixian-Adresse",
   addressOnly: "Nur-Adresse-Kontakt",
+  addressWhatIsThis: "Was ist das?",
   admin: "Admin",
   advanced: "Erweitert",
   all: "Alle",

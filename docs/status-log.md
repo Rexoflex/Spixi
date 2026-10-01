@@ -325,3 +325,7 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   From sheet + Show in chat (#1107/#1111) · fiat server-side (#1108). #46 loop CLEAN at r5 (#1112). Smoke BASELINE OK
   5075 / the 2 KNOWN (#136 · B3). ⚠ C# UNCOMPILED (brief §5). NEXT SESSION: read `docs/handoff-2026-10-01c.md`
   FIRST, then paste `docs/prompts/session-2.md`.
+- [x] **OFFICE WALK RECORDED (#1114, 2026-10-01): Mac + iPhone 25 P · 0 F · 1 N/A**; first iOS/Mac compile of #1093–#1095
+  OK. Findings → DoD E-W1…E-W7 (call crash in `-[AVAudioNode dealloc]`, open-chat avatar, lost nick, Mac ringtone + a
+  setting, square behind the big ring card, macOS unread time, Mac title in light theme). Details:
+  `docs/pending-1101-1102.md`. NEXT SESSION: `docs/handoff-2026-10-01c.md`, then `docs/prompts/session-2.md`.

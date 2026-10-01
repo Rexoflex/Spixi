@@ -72,9 +72,9 @@ pipeline, wiped `obj/bin`, the first iOS + Mac compile of #1086–#1095 C#. Each
 
 | ID | Criterion — passes when … | Check | Owner | State | Evidence |
 |---|---|---|---|---|---|
-| E-OW | A BUILD row is added first (walk-sheet template), then all 26 office rows pass (A1 · A1b · B1 · B1b · B2 · B3 · B4 · B5 · B6 · B7 · B8 · B9 · B10 · B11 · B12 · B13 · B14 · B15 · 1086 · 1087 · 1090 · 1088 · B6b · FAB · 1091 · 1091f), or each fail is fixed and re-walked | walk rows | Damir | OPEN | `walk-artifact-1086.html` `ROWS` |
-| D-9 | Mac calls run past 0:00 both ways and the Mac log has no "format mismatch" line (= rows A1/A1b) | walk row | Damir | PARTLY — fix in tree, not walked | `MacCatalyst/SAudioRecorder.cs:87-89`; #1084 |
-| D-3 | iOS-67: FAB → contact ×3 on iPhone opens the chat (= row FAB). If it fails: `document.elementFromPoint(innerWidth/2, innerHeight/2)` in Safari Inspector BEFORE any fix (#215) | walk row | Damir | OPEN | `ios-sim-findings.md:142-166` |
+| E-OW | A BUILD row is added first (walk-sheet template), then all 26 office rows pass (A1 · A1b · B1 · B1b · B2 · B3 · B4 · B5 · B6 · B7 · B8 · B9 · B10 · B11 · B12 · B13 · B14 · B15 · 1086 · 1087 · 1090 · 1088 · B6b · FAB · 1091 · 1091f), or each fail is fixed and re-walked | walk rows | Damir | PASSED (#1114: 25 P · 0 F · 1 N/A — B15 N/A treated as pass; the BUILD row was not added) | `walk-artifact-1086.html` `ROWS`; #1114 |
+| D-9 | Mac calls run past 0:00 both ways and the Mac log has no "format mismatch" line (= rows A1/A1b) | walk row | Damir | PASSED (A1/A1b, #1114) — but see E-W1 (crash after calls) | `MacCatalyst/SAudioRecorder.cs:87-89`; #1084 |
+| D-3 | iOS-67: FAB → contact ×3 on iPhone opens the chat (= row FAB). If it fails: `document.elementFromPoint(innerWidth/2, innerHeight/2)` in Safari Inspector BEFORE any fix (#215) | walk row | Damir | PASSED (row FAB, #1114) | `ios-sim-findings.md:142-166` |
 | E-M2 | The Mac clone is re-synced: `git log --format=%h --grep="Claude-Session" \| wc -l` → 0, no ahead/behind | doc check | Damir | OPEN | CLAUDE.md ★ MAC RE-SYNC |
 | E-I3 | C.17 call while locked (iPhone): rings, no call UI over the lock; after unlock the ring/card appears | walk row | Damir | OPEN | `walk-artifact-office-1083.html:251` (C.17) |
 | E-I4 | C.18 lock during a call (iPhone): the lock covers all; after unlock the card is back and the call runs | walk row | Damir | OPEN | office-1083 `:252` (C.18) |
@@ -82,6 +82,13 @@ pipeline, wiped `obj/bin`, the first iOS + Mac compile of #1086–#1095 C#. Each
 | E-I6 | F17 typing in a GROUP shows the dots — after CORE-12 (B-20), or the row is dropped by H-8 | walk row | Damir | OPEN — blocked on B-20 / H-8 | `walk-verdict-office-2026-09-30.md:34-41` |
 | E-I7 | F17b / C.22 VoiceOver + TalkBack rows: walked, or ruled optional | walk row / decision row | Damir | OPEN | verdict `:32` |
 | E-A3 | AND-28: an existing contact shows its avatar on Android | walk row | Damir | UNKNOWN — no result since it was listed | `walk-artifact-overnight-1028.html` OV.26 (`:340-342`) |
+| E-W1 | Mac + iPhone: 6 calls (answer, talk, hang up) + 2 min idle → no crash. Fix: hold the AVAudio node wrappers (`OutputNode` / `MainMixerNode` / `InputNode`) in fields and dispose them BEFORE the engine in `stop()` (all 4 `Platforms/{MacCatalyst,iOS}/SAudio{Player,Recorder}.cs`); a source pin + a deliberate break | walk row + pin | us | OPEN — fix script ready | `docs/pending-1101-1102.md` "#1101"; SIGSEGV in `-[AVAudioNode dealloc]`; #1114 |
+| E-W2 | The OPEN chat's header avatar (and an open chat-info pane) updates when the contact changes its avatar (today only `onChatScreenReady` pushes it) | pin + walk row | us | OPEN — confirmed gap | pending "#1102 (a)"; `StreamProcessor` `case SpixiMessageCode.avatar`; #1114 |
+| E-W3 | A nickname change is traceable: `[NICK] received … changed=yes/no` (receiver) and `[NICK] broadcast to N` (sender), no nick text; then Damir decides a re-send after reconnect | log lines + decision row | us + Damir | OPEN — a lost one-shot nick, likely sent while the Mac app was down | pending "#1102 (b)"; #1114 |
+| E-W4 | The Mac rings on an incoming call (check `SPlatformUtils.callRings` on MACCATALYST) + Damir's dial: a "Call ringtone" on/off switch in Notifications (default on, all platforms) | walk row + decision row | us + Damir | OPEN | pending walk note 1; #1114 |
+| E-W5 | No square behind the BIG ring card on the Mac (WebKit does not clip the blurred `.c-callbg` backdrop to the card radius); rendered in Playwright WebKit before + after, both themes | render + walk row | us | OPEN | pending walk note 2; #1114 |
+| E-W6 | The unread time on a macOS chats row is blue (as on iOS, #1088) | walk row | us | OPEN | pending walk note 3; #1114 |
+| E-W7 | The Mac title "Spixi IM" is readable in every app theme × macOS appearance (follow the app theme via `OverrideUserInterfaceStyle`, or hide the title — Damir's dial) | walk row + decision row | us + Damir | OPEN | pending walk note 4; #1114 |
 
 ## S3 · Pre-freeze fixes (ours)
 

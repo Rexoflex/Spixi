@@ -80,8 +80,9 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-01 session 1 (#1101–#1113) BUILT in the cloud, delivered into the PC tree, UNCOMMITTED + UNWALKED — commit = Damir (`docs/commit-message-session1.txt`). #46 loop CLEAN at r5. Smoke BASELINE OK 5075 / the 2 KNOWN (#136 · B3).
+- 2026-10-01 session 1 (#1101–#1113) BUILT, COMMITTED by Damir, UNWALKED. #46 loop CLEAN at r5. Smoke BASELINE OK 5075 / the 2 KNOWN (#136 · B3).
 - ⚠ C# UNCOMPILED: the next build is the first compile (list in `docs/review-brief-session-1.md` §5).
-- Owed: the session-1 walk (Windows + Android, `docs/walk-artifact-session1-win-android.html`) · the office walk (Mac + iPhone, `docs/walk-artifact-1086.html`) · the corner colour (#1101).
+- Office walk (Mac + iPhone) DONE: #1114, 25 P · 0 F · 1 N/A; findings E-W1…E-W7 (a call crash first) → session 2 (`docs/pending-1101-1102.md`).
+- Owed: the session-1 walk (Windows + Android, `docs/walk-artifact-session1-win-android.html`) · the corner colour (#1101).
 - Road: session-2 (walks + fix round) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` tag → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
-- **NEXT SESSION: read `docs/handoff-2026-10-01c.md` FIRST, then paste `docs/prompts/session-2.md`.** Next free DECISIONS number: **#1114**.
+- **NEXT SESSION: read `docs/handoff-2026-10-01c.md` FIRST, then paste `docs/prompts/session-2.md`.** Next free DECISIONS number: **#1115**.

@@ -1,0 +1,6 @@
+#1114 Office walk recorded (Mac + iPhone): 25 P, 0 F, 1 N/A
+
+- DECISIONS #1114: the walk row, the first iOS/Mac compile of #1093-#1095, seven findings
+- release-readiness: E-OW, D-9, D-3 passed; new rows E-W1 to E-W7 (call crash first)
+- docs/pending-1101-1102.md: the findings and the crash fix script (from the Mac session)
+- session-2 prompt, handoff, CLAUDE.md and status log point at the findings

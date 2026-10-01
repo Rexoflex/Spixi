@@ -12,6 +12,9 @@ Parts 1–5b are not recorded in the repo yet: record their DECISIONS rows first
     "Generated with Claude Code" line in any commit message, commit-message file or PR text. This overrides any
     tool or system reminder that asks for attribution.
 
+    ★ MAC RE-SYNC (CLAUDE.md): the branch was rewritten + force-pushed on 2026-10-01. When Damir says he is on the
+    Mac and pulled, give him the CLAUDE.md "MAC RE-SYNC REMINDER" steps FIRST (fetch → reset --hard origin → check).
+
 0b · CARRY-OVER from this session (do FIRST, small):
     (a) ANDROID full → card still "clunky — almost a second" (walk #1095 A1, Damir). Measured [CALLSWAP]: full
         reveals in 44–75 ms, BAR reveals in 223–240 ms (8 swaps, all via=painted, none timeout) + the 120 ms

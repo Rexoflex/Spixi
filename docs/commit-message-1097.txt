@@ -1,0 +1,19 @@
+#1097-#1100 Workflow reset: short CLAUDE.md, process docs, v1 DoD
+
+- CLAUDE.md: the rules (every ground rule word for word, incl. COMMIT RULE and MAC RE-SYNC), the
+  build/walk/commit loop, the doc index, the conventions and "where we are now". 324 KB -> ~13 KB.
+- docs/status-log.md: the full Status history from CLAUDE.md (both blocks), byte for byte, original
+  order. Lossless check: 0 missing lines.
+- docs/process.md: FORGE, the #46 loop (before delivery, with a brief), the gates, definition of
+  ready/done, Spixi vs Bot. docs/templates/: session prompt, handoff, review brief, review verdict,
+  walk sheet.
+- docs/prompts/session-1.md: the presence/read prompt, work text unchanged (next free DECISIONS
+  number -> #1101); pointer at the old path.
+- docs/lessons.md (L1-L51) and docs/decisions-index.md (live rows by area).
+- docs/release-readiness.md rewritten as the v1 definition of done: stages S1-S12 + BE and Damir
+  tracks, every row re-verified in the tree. Rulings: session-1 features are v1, the Mac ships in
+  v1, the pre-launch audit's "before any external build" items + P-01 are v1 criteria, endgame
+  order #971 + #937, tag freeze-v1.
+- docs/walk-artifact-1086.html: the build step also wipes obj/bin when the html changed (#320).
+- Review (#46, in-session Opus): CLEAN at round 3, docs/review-brief-session-0.md.
+- DECISIONS #1097-#1100. Docs only: no app code, no C#, no shells, no pipeline change.

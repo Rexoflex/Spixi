@@ -1,3 +1,5 @@
+> **Superseded (2026-10-01, DECISIONS #1097):** session prompts are numbered now — paste the highest `docs/prompts/session-N.md` (next: `docs/prompts/session-1.md`). The stacked prompts below are history.
+
 FIX ROUND after the Windows + Android walk (#1092) — then the office (Mac + iPhone).
 
 0 · Read `docs/handoff-2026-10-01.md` §1b FIRST, then DECISIONS #1091 + #1092. Use `git --no-optional-locks`.

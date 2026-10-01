@@ -59,7 +59,7 @@ textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:1
     <h2>Before you start</h2>
     <ol>
       <li>Apply the patches, then run the FULL pipeline: <code>node scripts/extract-strings.mjs</code> → <code>build-locales</code> → <code>build-strings-iife</code> → <code>build-demo-bundle</code> → <code>build-shells</code> (bundle BEFORE shells) → <code>node scripts/smoke-test.mjs</code>. The last line must be <code>BASELINE OK</code> with the 2 KNOWN (#136 · B3). On your PC the count must be your last PC run + 2 (the #1085 app-picker checks) + this round's new checks (see the chat). Any other change: look at it first.</li>
-      <li>C# changed: wipe <code>Spixi/obj</code> and <code>Spixi/bin</code>. iPhone: device build. Mac: <code>net10.0-maccatalyst</code> build.</li>
+      <li>C# or html changed: wipe <code>Spixi/obj</code> and <code>Spixi/bin</code> (incremental iPhone/Mac builds do not repackage the html, #320). iPhone: device build. Mac: <code>net10.0-maccatalyst</code> build.</li>
       <li>This is the first compile of this C#. A build error is this batch's bug — paste it in the chat.</li>
       <li>Mac log: <code>~/Documents/Spixi/ixian.log</code>. Mark each row, then tap <b>Copy results</b> and paste them in the chat.</li>
     </ol>

@@ -2704,7 +2704,7 @@ namespace SPIXI
                 foreach (Friend friend in friends)
                 {
                     string str_online = "false";
-                    if (friend.online)
+                    if (PresenceDisplay.shownOnline(friend))   // ★ #1103: the displayed state, not Core's routing flag
                         str_online = "true";
 
                     string avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
@@ -2852,7 +2852,7 @@ namespace SPIXI
             }
 
             string str_online = "false";
-            if (friend.online)
+            if (PresenceDisplay.shownOnline(friend))   // ★ #1103: the displayed state, not Core's routing flag
                 str_online = "true";
 
             /* ★★★ ISSUE 2 (Damir on device, twice): "in chat it's a double check, in the
@@ -4667,6 +4667,13 @@ namespace SPIXI
                     mainGrid.ColumnDefinitions[2].Width = new GridLength(0);
                 }
             }
+        }
+
+        /** ★ #1107 (#46 r3 R3-2): Downloads "Show in chat" — the Account pane leaves (its own save-if-dirty exit) so the
+         *  conversation, which may already be open UNDER it on a wide window, is the one the user sees. */
+        public void exitAccountForChat()
+        {
+            MainThread.BeginInvokeOnMainThread(() => requestSettingsOverlayExit());
         }
 
         // Unit 2 (#240): ask an open Account overlay to EXIT ITSELF — the shell runs

@@ -276,6 +276,12 @@ namespace SPIXI
             }
         }
 
+        /// <summary>★ #1106: the same vetted rule for SharedItems (chat info) and the Downloads sender match — one home.</summary>
+        internal static string? receivedMediaPathOfPublic(FriendMessage fm)
+        {
+            return receivedMediaPathOf(fm);
+        }
+
         /// <summary>The Downloads-root path a received file transfer row resolves to, or null.</summary>
         private static string? receivedMediaPathOf(FriendMessage fm)
         {

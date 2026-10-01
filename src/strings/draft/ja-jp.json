@@ -693,5 +693,22 @@
   "aboutSub": "リンクと法的情報",
   "deleteDataSub": "チャット、連絡先、アカウント",
   "groundGreenGradient": "グリーングラデーション",
-  "addressWhatIsThis": "これは何？"
+  "addressWhatIsThis": "これは何？",
+  "lastSeenJustNow": "たった今オンライン",
+  "lastSeenLongAgo": "かなり前にオンライン",
+  "lastSeenRecently": "最近オンライン",
+  "sharedKindMedia": "メディア",
+  "sharedFiles": "ファイル",
+  "sharedLinks": "リンク",
+  "sharedTitle": "共有",
+  "sharedShowInChat": "チャットで表示",
+  "sharedNotOnDevice": "この端末にはありません",
+  "sharedLinkLabel": "リンク",
+  "sharedJumpTooFar": "このメッセージはさらに前にあります。上にスクロールして探してください。",
+  "downloadsFilterSender": "送信者",
+  "downloadsAllSenders": "すべて",
+  "downloadsFrom": "{name} から",
+  "downloadsShowInChat": "{name} をチャットで表示",
+  "downloadsFromChip": "送信者: {name}",
+  "downloadsSearchSenders": "人を検索"
 }

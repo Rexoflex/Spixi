@@ -54,6 +54,7 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-sheet (theme/language) + c-modal (danger confirm) -->
 <link rel="stylesheet" href="../styles/components/settings-shell.css">
 <link rel="stylesheet" href="../styles/components/subscreen-slide.css"><!-- ★ Session H: the in-shell subscreen slide (walk row 31) -->
+<link rel="stylesheet" href="../styles/components/chip.css"><!-- ★★ #1107: the Downloads From chip -->
 <link rel="stylesheet" href="../styles/components/settings-app.css"><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- ★ W-h gate find (loop r1 G-2): createSettingsDownloads mounts a c-search-field in the inline route (downloadsInline; #804: every form factor) — it rendered as a bare UA input here -->
 <link rel="stylesheet" href="../styles/components/launch-shell.css"><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
@@ -292,6 +293,11 @@
   // clearFiles/addFile bursts land on whichever instance is current.
   let downloadsEl = null;
   let dlBuf = null, dlTimer = 0;
+  let dlLast = [];              // ★★ #1107: the list on screen — setDownloadSenders merges into it
+  let dlSenders = new Map();    // ★★ #1107: name → { sender, senderKey } from phase 2 (REPLACED by each setDownloadSenders; kept across clearFiles — #46 r1 B2)
+  function dlWithSenders(list) {
+    return list.map((f) => { const s = dlSenders.get(f.name); return s ? Object.assign({}, f, s) : f; });
+  }
   function dlSettle() {
     clearTimeout(dlTimer);
     dlTimer = setTimeout(() => {
@@ -303,7 +309,8 @@
       if (!downloadsEl || !downloadsEl.isConnected) { downloadsEl = null; dlBuf = null; return; }
       if (dlBuf !== null) {
         const dlN = dlBuf.length;
-        setDownloads(downloadsEl, dlBuf); dlBuf = null;
+        dlLast = dlBuf;
+        setDownloads(downloadsEl, dlWithSenders(dlBuf)); dlBuf = null;
         if (subView === 'downloads') cdperfSub('list', ' n=' + dlN);   // [CDPERF]: the C# round trip as its own term
       }
     }, 80);
@@ -1634,6 +1641,7 @@
            setLocale, setPaneMode. Without this the old screen's settle timer and its
            document.body confirm outlive the node (#804, auditor A). */
         releaseDownloads();
+        dlSenders = new Map();   // (#46 r3 R3-1) a NEW Downloads screen never paints the previous scan's senders — they come with ITS phase 2
         downloadsEl = createSettingsDownloads({
           files: [], host: document.body, strings,
           onBack: showHub,
@@ -1645,6 +1653,8 @@
           // encodeURIComponent → `%25` round-trips exactly (C# unescapes ONCE).
           onOpenFile: (name) => bridge.send('ixian:openDownload:' + encodeURIComponent(name)),   // fire-and-forget
           onDeleteFile: (name, ctrl) => { bridge.send('ixian:deleteDownload:' + encodeURIComponent(name)); ctrl.done(); },  // C# re-pushes the list
+          // ★★ #1107: "Show in chat" — a NAME only, encoded like open/delete; C# runs the same traversal guard, then its own index
+          onShowInChat: (name) => bridge.send('ixian:showDownloadInChat:' + encodeURIComponent(name)),
           // no onClearAll: same #264 audit rationale as downloads.html — the only
           // bulk verb (ixian:deleted) lives on the DANGER screen with its confirm.
         });
@@ -2175,11 +2185,27 @@
     // as downloads.html — one EvaluateJavaScriptAsync frame per file, so buffer
     // between the clear and an 80ms settle so a partial list never paints.
     // ctime is a LOCALE-OPAQUE DateTime.ToString() → displayed verbatim, never parsed.
+    // (#46 r1 B2) the senders survive a re-push (delete, re-render): setDownloadSenders REPLACES them; clearing here made
+    // the From filter, the "from" lines and Show in chat vanish and come back on every delete
     clearFiles() { dlBuf = []; dlSettle(); },
-    addFile(name, ctime) {
+    // ★★ #1107: the 3rd arg is the size in bytes (an older exe sends two args → no size shown)
+    addFile(name, ctime, size) {
       if (dlBuf === null) dlBuf = [];
-      dlBuf.push({ name: name || '', time: ctime || '' });
+      dlBuf.push({ name: name || '', time: ctime || '', size: /^\d{1,15}$/.test(String(size || '')) ? Number(size) : 0 });
       dlSettle();
+    },
+    /* ★★ #1107 — phase 2: [[file name, sender label, sender key], …] for the files whose sender C# found THROUGH the
+       file's own message. Labels are peer-chosen names → textContent only (the component). Keys are opaque. */
+    setDownloadSenders(json) {
+      let rows = null;
+      try { rows = JSON.parse(String(json)); } catch (e) { rows = null; }
+      if (!Array.isArray(rows)) return;
+      dlSenders = new Map();
+      for (const r of rows.slice(0, 5000)) {
+        if (!Array.isArray(r) || r.length < 3 || typeof r[0] !== 'string' || typeof r[2] !== 'string' || !/^s\d{1,6}$/.test(r[2])) continue;
+        dlSenders.set(r[0], { sender: String(r[1] || ''), senderKey: r[2] });
+      }
+      if (downloadsEl && downloadsEl.isConnected && dlBuf === null) setDownloads(downloadsEl, dlWithSenders(dlLast));
     },
 
     // setEncPassResult('1'|'0') — #341. The standalone settings_encryption.html has

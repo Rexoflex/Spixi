@@ -771,5 +771,22 @@
   "aboutSub": "Povezave in pravno",
   "deleteDataSub": "Klepeti, stiki ali celoten račun",
   "groundGreenGradient": "Zeleni preliv",
-  "addressWhatIsThis": "Kaj je to?"
+  "addressWhatIsThis": "Kaj je to?",
+  "lastSeenJustNow": "nazadnje viden pravkar",
+  "lastSeenLongAgo": "nazadnje viden pred dolgim časom",
+  "lastSeenRecently": "nazadnje viden pred kratkim",
+  "sharedKindMedia": "Mediji",
+  "sharedFiles": "Datoteke",
+  "sharedLinks": "Povezave",
+  "sharedTitle": "Deljeno",
+  "sharedShowInChat": "Prikaži v klepetu",
+  "sharedNotOnDevice": "Ni na tej napravi",
+  "sharedLinkLabel": "Povezava",
+  "sharedJumpTooFar": "To sporočilo je starejše. Podrsaj navzgor, da ga najdeš.",
+  "downloadsFilterSender": "Od",
+  "downloadsAllSenders": "Vsi",
+  "downloadsFrom": "od {name}",
+  "downloadsShowInChat": "Prikaži {name} v klepetu",
+  "downloadsFromChip": "Od: {name}",
+  "downloadsSearchSenders": "Išči ljudi"
 }

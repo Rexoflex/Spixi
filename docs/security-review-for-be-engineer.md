@@ -165,6 +165,12 @@ The Android renderer sets `AllowFileAccess = true` + `AllowFileAccessFromFileURL
 
 ### ⚠ TRUST-SIGNAL — presence "online" stays green ~2 min after a peer quits (F4, iPhone F5 2026-08-04; DECISIONS #300/#301; BE/Ixian-Core — logged, deliberately NOT patched in the shell)
 
+> **Update 2026-10-01 (session 1, DECISIONS #1103/#1104):** the app now shows "online" only while the contact's newest
+> sighting (presence keepalive or a message's creation time) is ≤ 150 s old (`Utils/PresenceDisplay.cs` — DISPLAY only;
+> `friend.online`, which routes messages, is untouched), and "last seen recently / today / …" otherwise. Worst case after a
+> peer quits: ~150 s instead of the 300 s expiry + cleanup. The exact fix is still yours: an explicit "going offline"
+> announce on a clean close / background — `be-cutover-brief.md` row PRESENCE-OFFLINE (v1.1, DoD I-16).
+
 A green presence dot is a **trust signal**: users message someone the app asserts is
 online and read silence as intent. Damir's device F5: the most-recently-online contact
 keeps showing **online for ~2 minutes after that person closed Spixi**; an app restart

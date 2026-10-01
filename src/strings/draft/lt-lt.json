@@ -692,5 +692,22 @@
   "aboutSub": "Nuorodos ir sąlygos",
   "deleteDataSub": "Pokalbiai, kontaktai, paskyra",
   "groundGreenGradient": "Žalias gradientas",
-  "addressWhatIsThis": "Kas tai?"
+  "addressWhatIsThis": "Kas tai?",
+  "lastSeenJustNow": "matytas ką tik",
+  "lastSeenLongAgo": "matytas seniai",
+  "lastSeenRecently": "neseniai matytas",
+  "sharedKindMedia": "Medija",
+  "sharedFiles": "Failai",
+  "sharedLinks": "Nuorodos",
+  "sharedTitle": "Bendrinta",
+  "sharedShowInChat": "Rodyti pokalbyje",
+  "sharedNotOnDevice": "Šiame įrenginyje nėra",
+  "sharedLinkLabel": "Nuoroda",
+  "sharedJumpTooFar": "Ši žinutė yra toliau. Slinkite aukštyn, kad ją rastumėte.",
+  "downloadsFilterSender": "Nuo",
+  "downloadsAllSenders": "Visi",
+  "downloadsFrom": "nuo {name}",
+  "downloadsShowInChat": "Rodyti {name} pokalbyje",
+  "downloadsFromChip": "Nuo: {name}",
+  "downloadsSearchSenders": "Ieškoti žmonių"
 }

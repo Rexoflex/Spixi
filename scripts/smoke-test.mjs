@@ -2702,7 +2702,7 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     && bundleScript.includes('settings-app.js'),
     'bundle FILES: settings-app.js registered AFTER settings-shell.js (imports settingsConfirm)');
   const appJs = readFileSync(join(root, 'src/components/settings-app.js'), 'utf8');
-  ok(/import \{ settingsConfirm \} from '\.\/settings-shell\.js'/.test(appJs),
+  ok(/import \{ settingsConfirm(, settingsOptionSheet)? \} from '\.\/settings-shell\.js'/.test(appJs) && !/function settingsConfirm/.test(appJs),   /* ★ #1107 re-base: + the shared option sheet (the From picker) */
     'downloads deletes ride the SHARED locked confirm — no local copy (one #135-C1/#150⑥ truth)');
   ok((appJs.match(/dataset\.hue = 'error'/g) || []).length === 1,
     "error hue appears exactly once in settings-app (the clear-all row) — reservation holds (#147)");
@@ -6495,8 +6495,8 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
   /* —— A4 + W1/W2: presence —— */
   ok(/export function setChatInfoPresence/.test(infoJs),
     'A4: a free-fn presence toggle exists — stateSig()/buildIfChanged no-op on an unchanged signature, so a rebuild could leave the dot green after the contact went offline');
-  ok(/online: state\.online,/.test(cdet) && /if \(next === state\.online\) return;/.test(cdet),
-    'A4: presence is in stateSig (a rebuild re-seeds it) and guarded on CHANGE (it arrives at the poll cadence)');
+  ok(/online: state\.online,/.test(cdet) && /if \(next === state\.online && seen === state\.lastSeen && \(!seen \|\| Date\.now\(\) - lastSeenAppliedAt < 30000\)\) return;/.test(cdet),
+    'A4: presence is in stateSig (a rebuild re-seeds it) and guarded on CHANGE (it arrives at the poll cadence) — ★ #1103 re-base: the change now includes the last-seen value, and the RELATIVE "last seen …" text is re-applied at most every 30 s');
   /* ★ REBASED 2026-08-21 (NOTIF-2). `capabilities` gained a SECOND gate —
    * `notifications: true`, now that ContactDetails routes the 1:1 mute — while the live
    * value rides the top-level `notifications` opt, which is exactly the A4 grammar this
@@ -8498,7 +8498,12 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      onChatShown handler, the level/back arms) and the holdChatExit wiring. MEASURED on index.html: 550 007 → 551 478
      chars (+1 471); 538 leaves −554, 539 only 458, so 540 (headroom 1 482). chat.html unchanged (720 634). Stated,
      not silent (#345). */
-  const CHAT_KB_CEIL = 704, INDEX_KB_CEIL = 540;
+  /* ★ Session 1 (#1101–#1111): CHAT 704 → 710, delta stated. chat.html 720 634 → 725 961 chars (+5 327, MEASURED after the
+     #46 r3 fixes): updateTicks (#1102), the "last seen" sub-line + its minute ticker (#1103), jumpToMessage + the
+     wait-for-onChatScreenLoaded hold + the instant scroll (#1106, r1 B1 / r2 R2-3), and in the inlined bundle formatLastSeen.
+     709 leaves 55 chars of headroom, 710 leaves 1 079. index.html unchanged (551 478). Stated, not silent (#345). ⚠ Re-measured after the LAST
+     fix of the loop, never mid-loop (the AE lesson above). */
+  const CHAT_KB_CEIL = 710, INDEX_KB_CEIL = 540;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -28394,7 +28399,7 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     /* the op's PRESENTATION fields (auditor C: #800 claims them, nothing asserted them) */
     ok(/op\.overlayMode = true;/.test(w.body) && /op\.column = column;/.test(w.body) && /op\.revealDelayMs = 0;/.test(w.body) && /op\.slideIn = false;/.test(w.body)
       && /placeStage\(stage, hostGrid, column\);/.test(w.body) && !/parkOnLoad/.test(w.body) && !/modalMode/.test(w.body) && !/parkOnClose/.test(w.body)
-      && count(w.body, /\bop\.\w+ = /g) === 5 && count(w.body, /PreloadOp op = new PreloadOp\(this, target, stage, targetContent, hostGrid\);/g) === 1,
+      && count(w.body, /\bop\.\w+ = /g) === 6 && /#if ANDROID\s*op\.preRevealFrames = true;/.test(w.body) && count(w.body, /PreloadOp op = new PreloadOp\(this, target, stage, targetContent, hostGrid\);/g) === 1,   /* ★ #1101 0b(b) re-base: + preRevealFrames (Android only) */
       '★★ Session P L1·4 presentation (auditor C + #802 reviewer): the spare op is built for the SAME present a fresh chat takes — overlayMode true (never the PushAsync fallback), the caller\'s column, revealDelayMs 0 (the chat presents on its own painted signal), slideIn false (#735①), it is placed in its column at WARM time so the attach does not resize the WebView, the op is built as `new PreloadOp(this, target, stage, targetContent, hostGrid)` (#802 r10: `host` = THIS page, the value pushSpareChat\'s host clause compares — a swapped argument refused every tap `why=host`) and those are the ONLY five `op.<field> =` writes — never parkOnLoad / modalMode / parkOnClose / replaces / abandoned / stageMargin (a parkOnLoad spare would be PARKED into the Account slot at present, a `replaces` would close an unrelated pane, `abandoned` disposes the page — the tap shows nothing; #802 r3 enumerated the PreloadOp fields)');
     /* the warm-side GUARDS + the timeout (auditor C: the docblock was their only record) */
     const gate = w.body.slice(0, w.body.indexOf('SingleChatPage target;'));
@@ -29387,8 +29392,8 @@ console.log('★★ Session Q (#804) — the Account sublevels render in the set
         const dlCase = shCode.slice(shCode.indexOf("case 'downloads': {"), shCode.indexOf("case 'encpass': {"));
         const sends = Array.from(new Set((dlCase.match(/bridge\.send\('ixian:[a-zA-Z]+/g) || [])
           .map((m) => m.replace("bridge.send('", '')))).sort();
-        ok(dlCase.length > 200 && sends.join(' ') === 'ixian:deleteDownload ixian:loadDownloads ixian:openDownload',
-          '★ #804 PIN 4b(ii): the Downloads sublevel emits exactly three verbs and every one of them is DATA — request the list, open a file, delete a file. None of them constructs a page. This is what makes the single navigation counted in 4b provably the list request and not a DownloadsPage push. Got: ' + (sends.join(', ') || 'none'));
+        ok(dlCase.length > 200 && sends.join(' ') === 'ixian:deleteDownload ixian:loadDownloads ixian:openDownload ixian:showDownloadInChat',   /* ★ #1107 re-base: + Show in chat — a NAME, resolved by C# into HomePage.onChat (the host's own conversation path), never a DownloadsPage */
+          '★ #804 PIN 4b(ii): the Downloads sublevel emits exactly four verbs and every one of them is DATA — request the list, open a file, delete a file, and (★ #1107) show the message of a file in its chat, which C# routes through HomePage.onChat. None of them constructs a DownloadsPage. This is what makes the single navigation counted in 4b provably the list request and not a DownloadsPage push. Got: ' + (sends.join(', ') || 'none'));
       }
       ok(backOk === 3 && backNavs === 0,
         '★ #804 PIN 4c BEHAVIOURAL: hardware back leaves each sublevel with the hub as the ONLY child of #settings-root, and emits NOTHING — so it returned to the hub and did not exit the Account. The three views ride the generic `currentView !== \'hub\' ? showHub() : exitSettings()` router, so this is inherited rather than added, which is precisely why it needs proving once. Returned: ' + backOk + '/3, back-leg navigations: ' + backNavs);
@@ -40144,7 +40149,7 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
       remap: /grid\.Children\.Add\(stage\);\s*#if ANDROID\s*stage\.Handler\?\.UpdateValue\(nameof\(IView\.Opacity\)\);\s*#endif/.test(cp),
       neverNullOnPhone: /stage\.Shadow = cardShadowFor\("bar"\);/.test(phoneArm) && !/stage\.Shadow = null/.test(phoneArm)
         && /stage\.Shadow = cardShadowFor\(mode\);/.test(ringArm) && !/stage\.Shadow = null/.test(ringArm) && !/new Shadow \{/.test(layout),
-      diag: /Logging\.info\("\[CALLSWAP\] reveal mode=\{0\} via=\{1\} t=\{2\}ms", mode, painted \? "painted" : "timeout", waited\);/.test(show)
+      diag: /Logging\.info\("\[CALLSWAP\] reveal mode=\{0\} via=\{1\} t=\{2\}ms fade=\{3\}", mode, painted \? "painted" : "timeout", waited, snap \? 0 : \(int\)swapFadeMs\);/.test(show)   /* ★ #1101 0b(a): + the fade it took */
         && /showStage\(token, true\);/.test(cp) && /swapStartedMs = swapClock\.ElapsedMilliseconds;/.test(cp.slice(cp.indexOf('private static void requestPaint('))),
     };
     ok(Object.values(r).every(Boolean),
@@ -40162,7 +40167,8 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
       threshold: /private const double winCompactBelowDip = (\d+);/.test(cp) && /private string winCompactSent = "";/.test(cp),
       push: /if \(groundPage != null && groundPage\.shellReady && hostGrid != null && hostGrid\.Height > 0\)\s*\{\s*string compact = hostGrid\.Height < winCompactBelowDip \? "1" : "0";\s*if \(groundPage\.winCompactSent != compact\)\s*\{\s*groundPage\.winCompactSent = compact;\s*Utils\.sendUiCommand\(groundPage, "setCallCompact", compact\);/.test(layout),
       shell: /setCallCompact\(v\) \{\s*if \(!winCards\) return;\s*if \(String\(v\) === '1'\) document\.documentElement\.setAttribute\('data-call-compact', ''\);\s*else document\.documentElement\.removeAttribute\('data-call-compact'\);/.test(code),
-      layout: /:root\[data-call-compact\] \.c-callin__card \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-areas: "id act" "quick quick";/.test(css)
+      layout: /:root\[data-call-compact\] \.c-callin__card \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-areas: "top top" "id act" "quick quick";/.test(css)
+        && /:root\[data-call-compact\] \.c-callin__top \{ grid-area: top;/.test(css) && !/:root\[data-call-compact\] \.c-callin__top \{ display: none; \}/.test(css)   // ★ #1101 0b(d): the e2e chip is back in the compact ring
         && /:root\[data-call-compact\] \.c-callin__label \{ display: none; \}/.test(css) && /:root\[data-call-compact\] \.c-callin__avatar \.c-avatar \{ width: 48px !important; height: 48px !important; \}/.test(css),
       /* (#46 r1) the decline sheet: its NATURAL height is reported (no step-wise growth), the card fills the grown WebView, the pills keep 44px */
       sheet: /if \(sheet\) h = Math\.max\(h, Math\.max\(layoutH\(sheet\), sheet\.scrollHeight\) \+ 48\);/.test(code)
@@ -40433,6 +40439,735 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
     '★ B14 (office walk #1084, M3: "the Dock logo is small"): appicon_mac.svg follows Apple\'s macOS grid — an 824 body with a 185.4 radius inside a transparent margin (a Mac-idiom icon is drawn as supplied) — and the mark scaled so it fills the BODY the way it fills the iPhone tile (1.6 × 824/1024)');
 }
 
+
+
+
+
+
+
+
+/* ═══ SESSION 1 (DECISIONS #1101–#1107): the carry-over (0b) · implied read · last seen · shared items · Downloads ═══
+ * Behaviour is EXECUTED on the built shells where it is shell behaviour; C# is pinned as the property it must hold, on
+ * stripped code (#771). The C# implied-read RULE itself is executed by Spixi-UnitTests/ImpliedReadTests.cs (MSTest). */
+console.log('#1101–#1107 — session 1');
+{
+  const rdX = (pth) => readFileSync(join(root, pth), 'utf8');
+  const htmlDirS1 = join(root, 'Spixi/Resources/Raw/html');
+  const bootS1 = async (name, waitMs = 1500) => {
+    const f = join(htmlDirS1, name);
+    const errs = [];
+    const vc = new VirtualConsole();
+    vc.on('jsdomError', (e) => { const m = String(e.message); if (!/navigation/i.test(m)) errs.push(m); });
+    const dom = new JSDOM(readFileSync(f, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, url: 'file://' + f, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+      },
+    });
+    await sleep(waitMs);
+    const W = dom.window;
+    const b64 = (v) => Buffer.from(String(v), 'utf8').toString('base64');
+    const push = (fn, ...a) => W.executeUiCommand(W[fn], ...a.map(b64));
+    return { dom, W, push, errs };
+  };
+  const T1 = Math.floor(Date.now() / 1000) - 120;
+
+  /* —— 0b(a) (#1101): the bar reveal snaps on a phone + the [CALLSWAP] probe stamps —— */
+  {
+    const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));
+    const show = cp.slice(cp.indexOf('private static void showStage('), cp.indexOf('private static bool revealSnaps('));
+    const snaps = cp.slice(cp.indexOf('private static bool revealSnaps('), cp.indexOf('private static void probeSwap('));
+    const probe = cp.slice(cp.indexOf('private static void probeSwap('), cp.indexOf('private static void onStageSizeChanged('));
+    const req = cp.slice(cp.indexOf('private static void requestPaint('), cp.indexOf('private static Microsoft.Maui.Controls.Shadow? cardShadowFor('));
+    const layout = cp.slice(cp.indexOf('private static void applyStageLayout()'), cp.indexOf('protected override bool OnBackButtonPressed()'));
+    const r = {
+      snapsOnlyPhoneBar: /#if ANDROID \|\| IOS\s*return mode == "bar";\s*#else\s*return false;\s*#endif/.test(snaps),
+      snapBranch: /bool snap = revealSnaps\(mode\);/.test(show) && /if \(snap\)\s*\{\s*stage\.Opacity = 1;\s*\}\s*else\s*\{\s*_ = Microsoft\.Maui\.Controls\.ViewExtensions\.FadeTo\(stage, 1, swapFadeMs, Easing\.CubicOut\);\s*\}/.test(show),
+      armed: /swapProbeArmed = true;/.test(req) && /swapProbeArmed = false;/.test(show),
+      gated: /if \(!swapProbeArmed\)\s*\{\s*return;\s*\}/.test(probe) && /Logging\.info\("\[CALLSWAP\] \{0\}=\{1\} t=\{2\}ms", what, \(int\)Math\.Round\(value\), t\);/.test(probe),
+      stamps: /probeSwap\("layout", /.test(layout) && /probeSwap\("stageH", v\.Height\);/.test(cp) && /probeSwap\("webviewH", v\.Height\);/.test(cp)
+        && /stage\.SizeChanged \+= onStageSizeChanged;/.test(cp) && /page\.webView\.SizeChanged \+= onCallWebViewSizeChanged;/.test(cp),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1101 0b(a) (Damir: full → card "clunky — almost a second"; #1096 bar reveal 223–240 ms): on a PHONE the minimised card is shown at once when the shell has painted (the shell fades the card itself — the 120 ms C# fade only stacked on it); ring / full and the desktops keep the fade. While a swap waits, [CALLSWAP] stamps the native layout, the stage height and the WebView height (integers only), so the walk shows where the time goes — ' + JSON.stringify(r));
+  }
+
+  /* —— 0b(b) (#1101): the Android spare chat — a permanent container + two drawn-but-invisible frames at present —— */
+  {
+    const sc = stripCode(rdX('Spixi/Utils/SpixiContentPage.cs'));
+    const warm = sc.slice(sc.indexOf('public bool warmSpareChat('), sc.indexOf('Logging.info("[CDPERF] chat warm start");'));
+    const rev = sc.slice(sc.indexOf('private static void revealStage(PreloadOp op)'), sc.indexOf('private static async Task liftStageInput('));
+    const pre = (/else if \(op\.preRevealFrames\)\s*\{([\s\S]*?)\n\s*\}\s*else\s*\{\s*op\.stage\.Opacity = 1;/.exec(rev) || [])[1] || '';
+    const r = {
+      field: /public bool preRevealFrames = false;/.test(sc),
+      androidOnly: /#if ANDROID\s*op\.preRevealFrames = true;\s*stage\.Shadow = new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*#endif/.test(warm),
+      remap: /hostGrid\.Children\.Add\(stage\);\s*#if ANDROID\s*stage\.Handler\?\.UpdateValue\(nameof\(IView\.Opacity\)\);\s*#endif/.test(warm),
+      /* invisible but DRAWN for two frames, input-dead while invisible, then visible + input-live; a close owns the stage */
+      frames: /op\.stage\.Opacity = 0\.01;/.test(pre) && !/InputTransparent = false/.test(pre.slice(0, pre.indexOf('Task.Delay(PreRevealFramesMs)')))   /* (#46 r1 M25) under ANY alias */
+        && /Task\.Delay\(PreRevealFramesMs\)/.test(pre) && /if \(!shown\.closing\)\s*\{\s*shown\.stage\.Opacity = 1;\s*shown\.stage\.InputTransparent = false;\s*\}/.test(pre)
+        && /private const int PreRevealFramesMs = 34;/.test(sc),
+      slideFirst: rev.indexOf('if (slideFrom > 0)') > -1 && rev.indexOf('if (slideFrom > 0)') < rev.indexOf('else if (op.preRevealFrames)'),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1101 0b(b) (Damir: the cheap test build for the ~2 blank frames on EVERY Android chat open): the pre-warmed spare chat stage gets a PERMANENT MAUI container from birth (a zero shadow — the InputTransparent flip at present can no longer re-parent its WebView, the #1095 mechanism) and its present goes 0 → 0.01 for two frames (an Android view at alpha 0 is not drawn) → 1 + input-live; [CDPERF] says the path ran — ' + JSON.stringify(r));
+  }
+
+  /* —— 0b(d) (#1101): a tap on the Windows NATIVE scrim closes the decline sheet (ring only, outside the card) —— */
+  {
+    const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));
+    const h = cp.slice(cp.indexOf('private static void onWinScrimTapped('), cp.indexOf('private static void onStageSizeChanged('));
+    const r = {
+      wired: /#if WINDOWS\s*TapGestureRecognizer scrimTap = new TapGestureRecognizer\(\);\s*scrimTap\.Tapped \+= onWinScrimTapped;\s*stage\.GestureRecognizers\.Add\(scrimTap\);\s*#endif/.test(cp),
+      ringOnly: /if \(stage == null \|\| mode != "ring" \|\| stage\.Opacity < 1 \|\| stage\.Content is not ContentView inner\)\s*\{\s*return;\s*\}/.test(h),
+      outside: /if \(at == null \|\| inner\.Bounds\.Contains\(at\.Value\)\)\s*\{\s*return;\s*\}\s*forwardBackToShell\(\);/.test(h),
+      /* callBack = dismissTopOverlay (the shell): an open decline sheet closes, a bare ring stays */
+      shell: /callBack\(\) \{ dismissTopOverlay\(\); \},/.test(rdX('src/shells/call.html')),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1101 0b(d) (Damir): on Windows the dim around the ring card is the NATIVE scrim (#1093 card-sized WebView2), so the shell\'s "tap the dim closes the decline sheet" never saw the tap. A scrim tap OUTSIDE the card, ring mode only, sends the same callBack as hardware back — ' + JSON.stringify(r));
+  }
+
+  /* —— Part 1 (#1102): IMPLIED READ — the receiver gate (1:1 only, the loaded list, one write, one batch) —— */
+  {
+    const sp = stripCode(rdX('Spixi/Network/StreamProcessor.cs'));
+    const ir = stripCode(rdX('Spixi/Utils/ImpliedRead.cs'));
+    const rc = sp.slice(sp.indexOf('case SpixiMessageCode.msgRead:'), sp.indexOf('case SpixiMessageCode.msgDelete:'));
+    const r = {
+      gate: /if \(spixi_message\.type == SpixiMessageCode\.msgRead && fm\.localSender && ImpliedRead\.appliesTo\(friend\)\)/.test(rc),
+      loadedList: /ImpliedRead\.markThrough\(friend\.getMessages\(ch\), fm\.id\)/.test(rc) && !/getMessages\(ch, /.test(rc),
+      oneWrite: (rc.match(/requestWriteMessages\(/g) || []).length === 1 && /if \(implied\.Count > 0\)\s*\{\s*IxianHandler\.localStorage\.requestWriteMessages\(friend\.walletAddress, ch\);/.test(rc),
+      oneBatch: /UIHelpers\.updateTicks\(friend, ch, implied\);/.test(rc) && !/foreach[^{]*implied/.test(rc),
+      countLog: /Logging\.info\("\[READ\] implied n=\{0\}", implied\.Count\);/.test(rc),
+      oneToOne: /return friend != null && friend\.type == FriendType\.Normal && !friend\.bot;/.test(ir),
+      rule: /&& m\.localSender\s*&& !m\.read\s*&& !m\.errorSending\s*&& \(m\.sent \|\| m\.confirmed\)\s*&& \(m\.type == FriendMessageType\.standard \|\| m\.type == FriendMessageType\.fileHeader\)\s*&& !string\.IsNullOrEmpty\(m\.message\);/.test(ir)
+        && /if \(idx < 0 \|\| !messages\[idx\]\.localSender\)/.test(ir) && /for \(int i = 0; i <= idx; i\+\+\)/.test(ir),
+      noDisk: !/localStorage|readLastMessages|File\./.test(ir),
+      tests: (rdX('Spixi-UnitTests/ImpliedReadTests.cs').match(/\[TestMethod\]/g) || []).length === 12,
+      /* (#46 r1 C2) the batch REACHES the open chat, the chats row refreshes, and lastMessage follows when it is among them */
+      delivered: /Utils\.getChatPage\(friend\)\?\.updateTicks\(msgs, channel\);/.test(stripCode(rdX('Spixi/Utils/UIHelpers.cs')))
+        && /public static void updateTicks\(Friend friend, int channel, List<FriendMessage> msgs\)/.test(stripCode(rdX('Spixi/Utils/UIHelpers.cs'))),
+      lastMessage: /FriendMessage\? lastNow = implied\.Find\(x => x\.id\.SequenceEqual\(last\.id\)\);\s*if \(lastNow != null\)\s*\{\s*friend\.metaData\.setLastMessage\(lastNow, ch\);\s*friend\.saveMetaData\(\);/.test(rc),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★★ #1102 IMPLIED READ (1:1): a msgRead for OUR message X marks X and every earlier own text/file in the LOADED list read (never a disk read), with one debounced write and ONE tick batch to the open chat; groups and bots never (#658: "seen" is per member); a failed, still-QUEUED (never sent — #46 r1 A1), deleted or received row is never marked; the batch reaches the open chat and lastMessage follows; the rule is executed by 12 MSTest cases (cloud harness: 8/8 rule mutations killed, review-brief-session-1 §5) — ' + JSON.stringify(r));
+  }
+  {
+    const sc = stripCode(rdX('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const ut = sc.slice(sc.indexOf('public void updateTicks(List<FriendMessage> messages, int channel)'), sc.indexOf('public void updateFile('));
+    ok(/if \(channel != selectedChannel \|\| messages == null \|\| messages\.Count == 0\)/.test(ut)
+       && /deliveryTicks\(m, out bool tSent, out bool tConfirmed, out bool tRead\);/.test(ut)
+       && /items\.Add\(new string\[\] \{ Crypto\.hashToString\(m\.id\), tSent \? "1" : "0", tConfirmed \? "1" : "0", tRead \? "1" : "0" \}\);/.test(ut)   /* (#46 r1 C2) the tuple ORDER the shell reads */
+       && /Utils\.sendUiCommand\(this, "updateTicks", JsonConvert\.SerializeObject\(items\)\);/.test(ut)
+       && !/message\.message|m\.message|filePath|transferId/.test(ut),
+      '★ #1102 C#: updateTicks is FLAGS ONLY — [[id, sent, confirmed, read]] through deliveryTicks (the group rule stays one place), the selected channel only, ONE push; no text, name or path ever rides it');
+  }
+  /* —— Part 1 (#1102), the shell: updateTicks EXECUTED on the BUILT chat shell —— */
+  {
+    const { dom, W, push, errs } = await bootS1('chat.html', 2000);
+    const d = W.document;
+    const toneOf = (id, sel) => { const row = d.querySelector('#messages [data-msgid="' + id + '"]'); const ic = row ? [...row.querySelectorAll(sel + ' .c-status-icon')] : null; return ic && ic.length ? ic[ic.length - 1].dataset.tone : (ic ? 'none' : null); };
+    const textTone = (id) => toneOf(id, '.c-bubble__meta');
+    const fileTone = (id) => toneOf(id, '.c-fbubble__stamp');
+    const textOf = (id) => { const row = d.querySelector('#messages [data-msgid="' + id + '"] .c-bubble__text'); return row ? row.textContent : null; };
+    push('onChatScreenReady');
+    push('clearMessages', 'False');
+    push('addMe', 'm1', 'addrMe', 'Me', '', 'first', String(T1), 'True', 'True', 'False', 'False', 'False');
+    push('addMe', 'm2', 'addrMe', 'Me', '', 'second', String(T1 + 1), 'True', 'True', 'False', 'False', 'False');
+    push('addMe', 'mf', 'addrMe', 'Me', '', 'failed', String(T1 + 2), 'True', 'False', 'False', 'False', 'True');
+    push('addThem', 't1', 'addrPeer', 'Bob', '', 'theirs', String(T1 + 3), 'True', 'True', 'False', 'False', 'False');
+    push('addFile', 'f1', 'addrMe', 'Me', '', 'fid1', 'report.pdf', String(T1 + 4), 'True', 'True', 'False', '100', 'True', 'False', 'True');
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    push('onChatScreenLoaded');
+    await sleep(400);
+    const before = { m1: textTone('m1'), m2: textTone('m2'), f1: fileTone('f1') };
+    push('updateTicks', JSON.stringify([['nope', '1', '1', '1'], ['m2'], 'junk', null, ['t1', '1', '1', '1'], ['mf', '1', '1', '1'], ['m1', '1', '1', '1'], ['f1', '1', '1', '1']]));   /* (#46 r1 M34) the rows that must change come LAST */
+    await sleep(1300);   // the 900 ms ghost belt (B10)
+    const r = {
+      before: before.m1 === 'delivered' && before.m2 === 'delivered' && before.f1 === 'delivered',
+      textRead: textTone('m1') === 'read',
+      fileRead: fileTone('f1') === 'read',
+      laterStays: textTone('m2') === 'delivered',
+      failedStays: textTone('mf') !== 'read',
+      /* (mutation survivor, #1102: a received or typed row draws no tick, so the shell's direction/kind guard has no
+         visible effect — it is defence only and this pin does not claim it) */
+      textUntouched: textOf('m1') === 'first',
+      noErrors: errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0,
+    };
+    push('updateTicks', 'not json');
+    r.badJson = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0 && textTone('m1') === 'read';
+    ok(Object.values(r).every((v) => v === true),
+      '★★ #1102 EXECUTED on the BUILT chat shell: ONE updateTicks push turns an own text AND an own file to read; a row not named stays delivered; a failed row, an unknown id and malformed items are skipped (a received row draws no tick — its guard is defence only, not claimed); the bubble text is never touched (flags only); bad JSON is a no-op — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+    try { dom.window.close(); } catch (e) {}
+  }
+
+  /* —— F-1b (#1101/#1102): the RECEIVER side was already right — pin it so it stays right —— */
+  {
+    const sc = stripCode(rdX('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const one = sc.slice(sc.indexOf('private void updateMessageReadStatus(FriendMessage message, int channel)'), sc.indexOf('public void updateMessagesReadStatus()'));
+    const all = sc.slice(sc.indexOf('public void updateMessagesReadStatus()'), sc.indexOf('public void deleteMessage(byte[] msg_id, int channel)'));
+    let coreFriend = '';
+    try { coreFriend = readFileSync(join(root, '..', 'Ixian-Core', 'Streaming', 'Friends', 'Friend.cs'), 'utf8'); } catch (e) { coreFriend = ''; }   /* (#46 r1 C10) a missing sibling fails THIS pin, not the run */
+    const r = {
+      /* the receipt is QUEUED with retry (add_to_pending_messages = true, send_to_server = true) — not fire-and-forget */
+      queued: /StreamProcessor\.sendSpixiMessage\(friend, msg_read, null, null, true, true, false, false\);/.test(one),
+      /* the open loop walks the LIST (newest 50) and sends a receipt per unread row */
+      loop: /for \(int i = messages\.Count - 1; i >= max_msg_count; i--\)\s*\{\s*FriendMessage msg = messages\[i\];\s*updateMessageReadStatus\(msg, selectedChannel\);/.test(all),
+      /* the lastMessage pre-mark changes a COPY (Core setLastMessage), so it cannot swallow the list row's receipt */
+      copy: coreFriend !== '' && /lastMessage = msg == null \? null : new FriendMessage\(msg\.getBytes\(\)\);/.test(coreFriend),   /* (needs ../Ixian-Core @097341a — '' when absent) */
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1101 F-1b (the prompt\'s two claims, checked and WRONG): opening a chat sends a receipt for every loaded unread row — queued with retry, not fire-and-forget — and the metaData.lastMessage pre-mark marks a separate COPY, so it never swallows a receipt. No code change; this pin holds the behaviour — ' + JSON.stringify(r));
+  }
+
+  /* —— Part 2 (#1103/#1109): the DISPLAYED online state + "last seen" — C# —— */
+  {
+    const pd = stripCode(rdX('Spixi/Utils/PresenceDisplay.cs'));
+    const node = stripCode(rdX('Spixi/Meta/Node.cs'));
+    const ui = stripCode(rdX('Spixi/Utils/UIHelpers.cs'));
+    const home = stripCode(rdX('Spixi/Pages/Home/HomePage.xaml.cs'));
+    const sc = stripCode(rdX('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const cd = stripCode(rdX('Spixi/Pages/Contacts/ContactDetails.xaml.cs'));
+    const np = stripCode(rdX('Spixi/Network/NetworkProtocol.cs'));
+    const sp = stripCode(rdX('Spixi/Network/StreamProcessor.cs'));
+    const ufs = node.slice(node.indexOf('static public void updateFriendStatuses()'), node.indexOf('static public void updateFriendStatuses()') + 4000);
+    const setCs = ui.slice(ui.indexOf('public static void setContactStatus('), ui.indexOf('public static void setContactStatus(') + 900);
+    const r = {
+      window150: /public const long OnlineWindowSec = 150;/.test(pd) && /return seen > 0 && now - seen <= OnlineWindowSec;/.test(pd),
+      needsCoreOnline: /if \(friend == null \|\| !friend\.online\)\s*\{\s*return false;\s*\}/.test(pd),
+      heardNotFuture: /long at = Math\.Min\(sentAt, Clock\.getNetworkTimestamp\(\)\);/.test(pd) && /PresenceDisplay\.noteHeard\(friend, message\.timestamp\);/.test(sp),
+      /* display only: Core's routing flag is still set from the presence list alone */
+      routingUntouched: /if \(friend\.online == false\s*&& friend\.relayNode != null\)\s*\{\s*friend\.online = true;/.test(ufs) && !/friend\.online = PresenceDisplay/.test(node + sp + ui),
+      latchPush: /if \(friend\.type == FriendType\.Normal && PresenceDisplay\.shownChanged\(friend, out bool shownNow\)\)\s*\{\s*UIHelpers\.setContactStatus\(friend\.walletAddress, shownNow,/.test(ufs),
+      oneGate: /if \(online\)\s*\{\s*try\s*\{\s*Friend\? pf = FriendList\.getFriend\(address\);\s*if \(pf != null && pf\.type == FriendType\.Normal\)\s*\{\s*online = PresenceDisplay\.shownOnline\(pf\);/.test(setCs),
+      /* (#46 r1 C3) the pure parts are EXECUTED by PresenceDisplayTests (3 cases); the impure wrappers delegate to them */
+      pure: /return localEpochOf\(lastSightingNetwork\(friend\), Clock\.getNetworkTimestamp\(\), DateTimeOffset\.UtcNow\.ToUnixTimeSeconds\(\)\);/.test(pd)
+        && /long age = Math\.Max\(0, networkNow - seen\);\s*return localNow - age;/.test(pd) && /return isFresh\(seen, Clock\.getNetworkTimestamp\(\)\);/.test(pd)
+        && /return latchFlip\(shownLatch, key, shown\);/.test(pd) && (rdX('Spixi-UnitTests/PresenceDisplayTests.cs').match(/\[TestMethod\]/g) || []).length === 3,
+      heardNewest: /if \(!heard\.TryGetValue\(key, out long h\) \|\| at > h\)/.test(pd),
+      probeBeforeWrite: np.indexOf('PresenceDisplay.probeKeepAlive(f.lastSeenTime, pa.lastSeenTime);') > -1
+        && np.indexOf('PresenceDisplay.probeKeepAlive(f.lastSeenTime, pa.lastSeenTime);') < np.indexOf('f.lastSeenTime = pa.lastSeenTime;', np.indexOf('PresenceDisplay.probeKeepAlive(')),
+      homeRows: (home.match(/if \(PresenceDisplay\.shownOnline\(friend\)\)\s*str_online = "true";/g) || []).length === 2 && !/if \(friend\.online\)\s*str_online = "true";/.test(home),
+      header: /Utils\.sendUiCommand\(this, "setOnlineStatus", SpixiLocalization\._SL\(shownNow \? "chat-online" : "chat-offline"\), seenArg\);/.test(sc)
+        && /string presenceKey = shownNow \? "on" : "off:" \+ \(long\.Parse\(seenArg, System\.Globalization\.CultureInfo\.InvariantCulture\) \/ 60\)\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);/.test(sc)   /* (#46 r1 M15) the latch moves per MINUTE — a per-second key would push every tick (#288) */
+        && /if \(presenceKey != lastPresenceKey\)/.test(sc) && (sc.match(/(?<!\? )lastPresenceKey = null;/g) || []).length === 2,
+      info: /Utils\.sendUiCommand\(this, "showIndicator", "true", "0"\);/.test(cd) && /Utils\.sendUiCommand\(this, "showIndicator", "false", PresenceDisplay\.lastSeenArg\(friend\)\);/.test(cd),
+      probe: /Logging\.info\("\[PRESENCE\] keepalive gap=\{0\}s delay=\{1\}s", gap, now - next\);/.test(pd) && /PresenceDisplay\.probeKeepAlive\(f\.lastSeenTime, pa\.lastSeenTime\);/.test(np),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★★ #1103 C#: "online" in the UI = Core\'s online AND a sighting (presence keepalive or a message\'s creation time — never later than now) at most 150 s old (one 100 s keepalive + 50 s slack); Core\'s friend.online — which ROUTES messages — is untouched; ONE gate for every chats-row push + a latch push when time alone flips it; the header and chat info carry the last sighting as a trailing arg (an older shell ignores it); [PRESENCE] logs keepalive gaps (integers) — ' + JSON.stringify(r));
+  }
+
+  /* —— Part 2: formatLastSeen EXECUTED (the coarse ladder, #1109) —— */
+  {
+    const { W, dom } = await bootS1('chat.html', 1500);
+    const f = W.Spixi.formatLastSeen;
+    const now = new Date(2026, 9, 1, 15, 0, 0).getTime();
+    const at = (ms) => Math.floor(ms / 1000);
+    const S = {};
+    const r = {
+      unknown: f(0, S, now) === '' && f('', S, now) === '' && f('abc', S, now) === '' && f(-5, S, now) === '',
+      future: f(at(now + 3600000), S, now) === 'last seen just now',
+      justNow: f(at(now - 59 * 60000), S, now) === 'last seen just now',
+      recentEdge: f(at(now - 60 * 60000), S, now) === 'last seen recently'   /* the 1 h edge, exactly */ && f(at(now - 6 * 86400000), S, now) === 'last seen recently'
+        && f(at(now - 7 * 86400000 + 60000), S, now) === 'last seen recently',   /* the 7-day edge, from below */
+      longAgo: f(at(now - 7 * 86400000), S, now) === 'last seen a long time ago' && f(at(new Date(2020, 0, 5).getTime()), S, now) === 'last seen a long time ago',
+      noDate: !/\d/.test(f(at(now - 400 * 86400000), S, now)),   /* #1113: no date, no number, ever */
+      localized: f(at(now - 5 * 60000), { lastSeenJustNow: 'J' }, now) === 'J' && f(at(now - 2 * 86400000), { lastSeenRecently: 'R' }, now) === 'R'
+        && f(at(now - 30 * 86400000), { lastSeenLongAgo: 'L' }, now) === 'L',
+    };
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★ #1113 EXECUTED: "last seen" is THREE WORDS, no dates (Damir) — just now (< 1 h, and a future time) · recently (< 7 days) · a long time ago; unknown (0 / empty / not a number) is EMPTY, so the line shows nothing; every rung is a localized key — ' + JSON.stringify(r));
+  }
+
+  /* —— Part 2: the chat HEADER executed on the BUILT shell —— */
+  {
+    const { W, push, dom, errs } = await bootS1('chat.html', 2000);
+    const sub = () => { const s = W.document.querySelector('.c-topbar__sub'); return s ? s.textContent : null; };
+    push('onChatScreenReady', 'addrPeer');
+    push('setNickname', 'Ana');
+    const r = {};
+    push('setOnlineStatus', 'Offline', String(Math.floor(Date.now() / 1000) - 3 * 3600)); await sleep(50);
+    r.lastSeen = sub() === 'last seen recently';
+    push('setOnlineStatus', 'Offline', '0'); await sleep(50);
+    r.unknownEmpty = sub() === '';
+    push('setOnlineStatus', 'Online', '0'); await sleep(50);
+    r.online = sub() === 'Online';
+    push('setOnlineStatus', 'Offline'); await sleep(50);
+    r.olderExe = sub() === 'Offline';
+    push('setOnlineStatus', 'Waiting for response', String(Math.floor(Date.now() / 1000) - 60)); await sleep(50);
+    r.waitingUntouched = sub() === 'Waiting for response';
+    /* (#46 r1 M33) the relative text re-renders: the minute ticker is armed by every presence push */
+    r.tickerArmed = /identity\.sub = lastSeenEpoch \? formatLastSeen\(lastSeenEpoch, window\.SL \|\| \{\}\) : '';\s*\}\s*armLastSeenTicker\(\);/.test(stripCode(rdX('src/shells/chat.html')))
+      && /lastSeenTimer = setInterval\(\(\) => \{/.test(stripCode(rdX('src/shells/chat.html')));
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★★ #1103 EXECUTED on the BUILT chat shell: a 1:1 presence push with the 2nd arg → "last seen …" when not online, NOTHING when the sighting is unknown ("0"), "Online" unchanged; an OLDER exe (one arg) still reads "Offline"; the waiting heartbeat is never rewritten — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+
+  /* —— Part 2: chat INFO executed on the BUILT contact_details shell (incl. the crossfade window) —— */
+  {
+    const { W, push, dom, errs } = await bootS1('contact_details.html', 1200);
+    const line = () => { const p = W.document.querySelector('.c-chat-info__presence'); return p ? (p.hidden ? '(hidden)' : p.textContent) : null; };
+    const ago = String(Math.floor(Date.now() / 1000) - 3 * 86400);
+    push('setContext', 'chat');
+    push('setAddress', '1A9xQpT7vKzm3NwR5bYc8LdE2fGh4JkPq');
+    push('setNickname', 'Ana');
+    await sleep(160);   // built, still inside the ≤ 400 ms first-paint crossfade
+    const inFade = !!W.document.querySelector('#contact-root .contact-boot') && W.document.querySelector('#contact-root').childElementCount === 2;   // (#46 r1 C14) prove the window
+    push('showIndicator', 'false', ago);
+    await sleep(60);
+    const r = { inFade, crossfade: line() === 'last seen recently' };
+    await sleep(600);
+    push('showIndicator', 'true', '0'); await sleep(30);
+    r.onlineHides = line() === '(hidden)' && !!W.document.querySelector('.c-chat-info__hero .c-avatar__dot');
+    push('showIndicator', 'false', '0'); await sleep(30);
+    r.unknownHides = line() === '(hidden)';
+    push('showIndicator', 'false'); await sleep(30);
+    r.olderExe = line() === '(hidden)' && !W.document.querySelector('.c-chat-info__hero .c-avatar__dot');
+    /* (#46 r1 C11) the 30 s refresh stamp is written whenever the line is applied — else the change guard never re-applies */
+    r.stamp = /lastSeenAppliedAt = Date\.now\(\);\s*if \(built && !state\.isGroup\) setChatInfoPresence\(root\.lastElementChild, next, seen, strings\);/.test(stripCode(rdX('src/shells/contact_details.html')));
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★★ #1103 EXECUTED on the BUILT contact_details shell: "last seen …" under the name when not online, hidden when online or unknown, and a flip that lands inside the first paint\'s crossfade is NOT lost (the panel is the LAST child, the skeleton the first — found by the render) — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+
+  /* —— Part 5 (#1106): the C# LINK RULE is the shell's rule (derived from BOTH sources, compared) —— */
+  {
+    const js = stripCode(rdX('src/components/message-bubble.js'));   /* (#46 r1 C9) a comment cannot fake a clause */
+    const cs = stripCode(rdX('Spixi/Utils/LinkRule.cs'));
+    const jsTlds = (/const BARE_TLDS = '([^']+)';/.exec(js) || [])[1];
+    const csTlds = (/public const string BareTlds = "([^"]+)";/.exec(cs) || [])[1];
+    const jsRe = (/const URL_RE = new RegExp\(([\s\S]*?),\s*'gi'\);/.exec(js) || [])[1] || '';
+    const jsSrc = (() => { try { return new Function('BARE_TLDS', 'return (' + jsRe + ')')(jsTlds); } catch (e) { return null; } })();
+    const csLits = ((/public const string UrlPattern =([\s\S]*?);/.exec(cs) || [])[1] || '');
+    const csSrc = (() => { try { return (csLits.match(/"(?:[^"\\]|\\.)*"|BareTlds/g) || []).map((t) => (t === 'BareTlds' ? csTlds : JSON.parse(t))).join(''); } catch (e) { return null; } })();
+    const r = {
+      tlds: !!jsTlds && jsTlds === csTlds,
+      pattern: !!jsSrc && jsSrc === csSrc,
+      flagsI: /RegexOptions\.IgnoreCase/.test(cs) && /'gi'\);/.test(js),
+      glued: /\[A-Za-z0-9_@\.\\\\-\\\\\/\]/.test(cs) && /if \(prev && \/\[\\w@\.\\-\\\/\]\/\.test\(prev\)\) continue;/.test(js),
+      trims: /string url = m\.Value\.TrimEnd\('\.', ',', '!', '\?', ';', ':'\);/.test(cs) && /url\.match\(\/\[\.,!\?;:\]\+\$\/\)/.test(js)
+        && /while \(url\.EndsWith\("\)"\) && url\.Split\('\('\)\.Length < url\.Split\('\)'\)\.Length\)/.test(cs),
+      cap: !!/public const int LinkifyMax = (\d+);/.exec(cs) && /public const int LinkifyMax = (\d+);/.exec(cs)[1] === (/const LINKIFY_MAX = (\d+);/.exec(js) || [])[1],   /* (#46 r1 C9) never undefined === undefined */
+      tests: /public void SameLinksAsTheChatBubble\(\)/.test(rdX('Spixi-UnitTests/LinkRuleTests.cs')),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★★ #1106 PARITY: the C# link rule (LinkRule.cs) is the chat bubble\'s rule — the same BARE_TLDS, the same three alternatives (both sources EVALUATED and compared), case-insensitive, the same glued-token guard (ASCII \\w), the same trailing-punctuation and unbalanced-paren trims, the same 4096 cap; LinkRuleTests executes it on the corpus the shell produced (cloud run: 26 texts, 0 differences) — ' + JSON.stringify(r));
+  }
+
+  /* —— Part 5 (#1106): SECURITY of the shared-items feed (CLAUDE.md ★; the gate section) —— */
+  {
+    const si = stripCode(rdX('Spixi/Utils/SharedItems.cs'));
+    const cd = stripCode(rdX('Spixi/Pages/Contacts/ContactDetails.xaml.cs'));
+    const items = cd.slice(cd.indexOf('current_url.Equals("ixian:sharedItems"'), cd.indexOf('current_url.StartsWith("ixian:sharedOpen:"'));
+    const open = cd.slice(cd.indexOf('current_url.StartsWith("ixian:sharedOpen:"'), cd.indexOf('current_url.Equals("ixian:sharedGroups"'));
+    const logs = (si.match(/Logging\.\w+\([^;]*\);/g) || []);
+    const thumbAt = si.indexOf('private static string? thumbOf('), chansAt = si.indexOf('private static List<int> channelsOf(');
+    const resolveFn = si.slice(si.indexOf('public static SharedItem? resolve('));
+    const r = {
+      anchors: thumbAt > -1 && chansAt > thumbAt && items.length > 50 && open.length > 50 && resolveFn.length > 50,   /* (#46 r1 C4) no slice may be empty */
+      thumbRule: /if \(!fi\.Exists \|\| fi\.Length <= 0 \|\| fi\.Length > ThumbMaxBytes\)\s*\{\s*return null;/.test(si)
+        && /if \(thumbs >= ThumbMaxCount \|\| thumbBytes >= ThumbTotalMax\)/.test(si),
+      pathRule: /if \(!fm\.localSender\)\s*\{\s*string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(si),
+      linkIndex: /x\.id\.Equals\(id, StringComparison\.OrdinalIgnoreCase\) && x\.n == n/.test(resolveFn),
+      neverSerialized: /\[JsonIgnore\] public string\? path = null;/.test(si) && /\[JsonIgnore\] public string\? url = null;/.test(si)
+        && /new object\?\[\] \{ x\.id, x\.n, x\.kind, x\.label, x\.size, x\.ts, x\.local \? 1 : 0, x\.thumb \}/.test(si),
+      resolveOwnScan: /if \(id\.Length == 0 \|\| !id\.All\(Uri\.IsHexDigit\)\)/.test(si) && /lastScan\.TryGetValue\(friend\.walletAddress\.ToString\(\), out List<SharedItem>\? items\)/.test(si),
+      vettedPath: /string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(si) && /return Path\.IsPathRooted\(fm\.filePath\) && File\.Exists\(fm\.filePath\) \? fm\.filePath : null;/.test(si),
+      noCoreCacheReplace: /IxianHandler\.localStorage\.readLastMessages\(friend, channel, 0, ScanCap\)/.test(si) && !/getMessages\(channel, /.test(si),
+      thumbsSmallLocal: /public const long ThumbMaxBytes = 300 \* 1024;/.test(si) && !/http|WebClient|HttpClient|Download/i.test(si.slice(thumbAt, chansAt)) && !/HttpClient|WebClient|WebRequest/.test(si),
+      logsCountsOnly: logs.length > 0 && logs.every((l) => !/label|url|path|name|walletAddress|address/i.test(l.replace(/"[^"]*"/g, ''))),
+      offUiThreadNoBots: /if \(!friend\.bot\)\s*\{[\s\S]*?System\.Threading\.Tasks\.Task\.Run\(/.test(items),
+      openRule: /SharedItem\? item = SharedItems\.resolve\(friend, token\);/.test(open) && /Utils\.openExternal\(item\.url\);/.test(open)
+        && /else if \(item\.kind == "file" && item\.path != null && System\.IO\.File\.Exists\(item\.path\)\)\s*\{\s*try\s*\{\s*SFileOperations\.open\(item\.path\);\s*\}\s*catch \(Exception ex\)/.test(open)   /* (#46 r3 R3-5) a missing app association must not throw out of onNavigating */
+        && /SingleChatPage\.requestJump\(friend, item\.id, item\.depth\);/.test(open) && !/token\)\s*;?\s*\n?\s*SFileOperations|open\(token/.test(open),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★★ #1106 SECURITY: the WebView never receives a path or a click target (JsonIgnore) and sends back only "<hex id>:<n>", which C# resolves from ITS OWN last scan; a file opens only from a C#-resolved path (received → the vetted Downloads-root rule, sent → an absolute existing path); thumbnails are small LOCAL images only, nothing remote; the scan reads storage directly (never replaces Core\'s cache) OFF the UI thread and never for a bot room; its log lines carry counts only — ' + JSON.stringify(r));
+  }
+
+  /* —— Part 5 (#1106/#1110): the shared section EXECUTED on the BUILT contact_details shell —— */
+  {
+    const { W, push, dom, errs } = await bootS1('contact_details.html', 1200);
+    const d = W.document;
+    const T = Math.floor(Date.now() / 1000);
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const rows = [
+      ['a1', 0, 'media', 'IMG_1.jpg', 1000, T - 10, 1, png],
+      ['a2', 0, 'media', 'IMG_2.jpg', 1000, T - 20, 0, 'http://evil.example/x.png'],
+      ['b1', 0, 'file', 'report.pdf', 2400000, T - 30, 1, null],
+      ['c1', 0, 'link', 'https://www.ixian.io/blog', 0, T - 40, 0, null],
+      ['c1', 1, 'link', 'github.com/ixian', 0, T - 40, 0, null],
+      ['zz-not-hex', 0, 'file', 'x', 0, 0, 0, null],
+      ['d1', 0, 'script', 'x', 0, 0, 0, null],
+      'junk',
+    ];
+    push('setContext', 'chat'); push('setAddress', '1A9xQpT7vKzm3NwR5bYc8LdE2fGh4JkPq'); push('setNickname', 'Ana');
+    await sleep(500);
+    push('setSharedItems', JSON.stringify(rows));
+    await sleep(400);
+    const groups = [...d.querySelectorAll('.c-shared__group')].map((g) => g.dataset.kind);
+    const tiles = [...d.querySelectorAll('.c-shared__group[data-kind="media"] .c-shared__tile')];
+    const linkTitles = [...d.querySelectorAll('.c-shared__group[data-kind="link"] .c-shared__row-title')].map((t) => t.textContent);
+    const r = {
+      kinds: groups.join() === 'media,file,link',
+      malformedDropped: d.querySelectorAll('.c-shared__row, .c-shared__tile').length === 5,
+      localThumb: !!tiles[0] && !!tiles[0].querySelector('img') && tiles[0].querySelector('img').getAttribute('src') === png,
+      remoteRefused: !!tiles[1] && !tiles[1].querySelector('img') && !d.querySelector('img[src^="http"]'),
+      hostFirst: linkTitles.join() === 'www.ixian.io,github.com',
+      fileMeta: /2\.3 MB/.test((d.querySelector('.c-shared__group[data-kind="file"] .c-shared__row-sub') || {}).textContent || '')
+        && !/Not on this device/.test((d.querySelector('.c-shared__group[data-kind="file"] .c-shared__row-sub') || {}).textContent || ''),
+      notLocal: (() => { const x = W.Spixi.createSharedSection({ items: W.Spixi.parseSharedItems(JSON.stringify([['ab', 0, 'file', 'x.pdf', 10, T, 0, null]])), strings: {} }); return /Not on this device/.test(x.textContent); })(),   /* (#46 r1 M38) */
+      parserRefusesRemote: W.Spixi.parseSharedItems(JSON.stringify([['ab', 0, 'media', 'x.jpg', 1, T, 1, 'https://evil.example/x.png'], ['ac', 0, 'media', 'y.jpg', 1, T, 1, 'data:image/svg+xml;base64,PHN2Zz4=']])).every((x) => x.thumb === null),   /* (#46 r1 M56) the FIRST belt */
+      noSeeAllWhenFew: !d.querySelector('.c-shared__all'),
+    };
+    /* the component's tap contract: the item (id + n) reaches the host, nothing else */
+    const S = W.Spixi;
+    const got = [];
+    const many = Array.from({ length: 9 }, (_, i) => ({ id: 'e' + i, n: 0, kind: 'file', label: 'f' + i, size: 1, ts: T - i, local: true, thumb: null }));
+    const sec = S.createSharedSection({ items: many, strings: {}, onOpen: (it) => got.push(it.id + ':' + it.n), onAll: (k) => got.push('all:' + k) });
+    sec.querySelector('.c-shared__row').click();
+    sec.querySelector('.c-shared__all').click();
+    r.tapContract = got.join() === 'e0:0,all:file' && sec.querySelectorAll('.c-shared__row').length === 3;
+    const list = S.createSharedList({ items: many.concat([{ id: 'f0', n: 0, kind: 'link', label: 'a.com', size: 0, ts: T, local: false, thumb: null }]), tab: 'link', strings: {}, onOpen: () => {}, onBack: () => {} });
+    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    r.seeAll = tabs.length === 2 && tabs[1].getAttribute('aria-selected') === 'true' && list.querySelectorAll('.c-shared__row').length === 1;
+    if (tabs[0]) tabs[0].click();   /* (#46 r4 R4-3) */
+    r.tabSwitch = !!tabs[0] && list.querySelectorAll('.c-shared__row').length === 9 && tabs[0].getAttribute('aria-selected') === 'true';
+    r.emptyHidden = S.createSharedSection({ items: [], strings: {} }) === null;
+    /* the SECOND belt: a remote thumb that reaches the component without the parser (a future caller) is still refused */
+    const direct = S.createSharedSection({ items: [{ id: 'aa', n: 0, kind: 'media', label: 'x.jpg', size: 1, ts: T, local: true, thumb: 'https://evil.example/x.png' }], strings: {} });
+    r.componentRefusesRemote = !!direct && !direct.querySelector('img') && !!direct.querySelector('.c-shared__tile[data-glyph]');
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★★ #1106/#1110 EXECUTED on the BUILT contact_details shell: setSharedItems renders one card per non-empty kind (Damir: "cards"); malformed rows (a non-hex id, an unknown kind, junk) are dropped; a LOCAL data: thumb shows and a remote one is refused (#82); a link shows its HOST first; a tap hands the host the item (id + n) only; "See all" appears only with more than the preview and opens the tabbed list (empty kinds have no tab) — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+  {
+    const cdS = rdX('src/shells/contact_details.html');
+    const code = stripCode(cdS);
+    const fn = code.slice(code.indexOf('function openSharedItem(item)'), code.indexOf('function openSharedTakeover('));
+    ok(/if \(!item \|\| !\/\^\[0-9a-fA-F\]\{1,128\}\$\/\.test\(String\(item\.id \|\| ''\)\)\) return;/.test(fn)
+       && /const token = item\.id \+ ':' \+ \(Number\(item\.n\) \|\| 0\);/.test(fn)
+       && /if \(item\.kind === 'link'\) \{\s*openModal\(createModal\(\{/.test(fn) && /onClick: \(\) => bridge\.send\('ixian:sharedOpen:' \+ token\)/.test(fn)
+       && (fn.match(/bridge\.send\(/g) || []).length === 2 && (fn.match(/bridge\.send\('ixian:sharedOpen:' \+ token\)/g) || []).length === 2   /* (#46 r1 C8) BOTH sends carry only the token */
+       && /bridge\.send\('ixian:sharedItems'\);/.test(code) && /cdSharedOpen\) \{ closeSharedTakeover\(\); return; \}/.test(code),
+      '★★ #1106 shell: a shared item sends ONLY ixian:sharedOpen:<hex id>:<n> (never a label, URL or name); a LINK asks first (the address in full, Cancel focused — chat.html\'s confirm grammar); the list is asked at boot; back closes the "See all" cover first');
+  }
+
+  /* —— Part 5 (#1106): the jump — C# widens the window, the chat shell scrolls or says why not —— */
+  {
+    const sc = stripCode(rdX('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const apply = sc.slice(sc.indexOf('private void applyPendingJumpWindow(bool reload)'), sc.indexOf('private void pushPendingJump()'));
+    const r = {
+      capped: /if \(depth < SharedItems\.JumpCap && depth \+ 2 > messagesToShow\)/.test(apply) && /public const int JumpCap = 1000;/.test(stripCode(rdX('Spixi/Utils/SharedItems.cs'))),
+      not100: /if \(messagesToShow == 100\)\s*\{\s*messagesToShow\+\+;/.test(apply),
+      beforeLoad: /public void loadMessages\(\)\s*\{\s*applyPendingJumpWindow\(false\);/.test(sc),
+      afterDone: (sc.match(/Utils\.sendUiCommand\(this, "messagesDone"\);\s*pushPendingJump\(\);/g) || []).length === 2,
+      /* (#46 r2 R2-9) decided ONCE at the widening (consumed there), pushed at the end of THAT load */
+      stagingWaits: /if \(open != null && open\.pageLoaded\)\s*\{\s*MainThread\.BeginInvokeOnMainThread\(\(\) => open\.applyPendingJumpWindow\(true\)\);/.test(sc),   /* (#46 r3 R3-9) */
+      once: /jumpArmedId = jumpId;\s*jumpAddr = null;/.test(sc) && /string\? id = jumpArmedId;\s*jumpArmedId = null;\s*if \(id != null\)\s*\{\s*Utils\.sendUiCommand\(this, "jumpToMessage", id\);/.test(sc),
+    };
+    const { W, push, dom, errs } = await bootS1('chat.html', 2000);
+    push('onChatScreenReady', 'addrPeer');
+    push('clearMessages', 'False');
+    push('addThem', 'aa11', 'addrPeer', 'Bob', '', 'hello', String(T1), 'True', 'True', 'False', 'False', 'False');
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    push('onChatScreenLoaded');
+    await sleep(300);
+    let scrolled = 0, how = null;
+    W.Element.prototype.scrollIntoView = function (o) { scrolled += 1; how = o && o.behavior; };
+    push('jumpToMessage', 'aa11');
+    await sleep(50);
+    r.scrollsToRow = scrolled === 1 && !W.document.querySelector('.c-toast');
+    r.instantAlreadyOpen = how === 'auto';   /* (#46 r3 R3-3) the C# (already-open) path is instant too */
+    push('jumpToMessage', 'ffff');
+    await sleep(120);
+    r.toastWhenMissing = !!W.document.querySelector('.c-toast');
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★★ #1106 the JUMP: C# widens the chat\'s load window to hold the message (never past 1000, never the stale exact-100 window), pushes jumpToMessage ONCE after the load burst; EXECUTED on the BUILT chat shell — a loaded row is scrolled to, a row the window does not hold shows the toast — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+
+  /* —— Part 5b (#1107/#1111): Downloads —— */
+  {
+    const sp = stripCode(rdX('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    const di = stripCode(rdX('Spixi/Utils/DownloadsIndex.cs'));
+    const load = sp.slice(sp.indexOf('private void loadDownloads(bool rescan = true)'), sp.indexOf('public void onDeleteDownloads()'));
+    const show = sp.slice(sp.indexOf('current_url.StartsWith("ixian:showDownloadInChat:"'), sp.indexOf('current_url.StartsWith("ixian:deleteDownload:"'));
+    const r = {
+      newestFirst: /foreach \(var f in files\.OrderByDescending\(x => x\.ctime\)\)/.test(load),
+      sizeArg: /Utils\.sendUiCommand\(this, "addFile", Path\.GetFileName\(f\.path\), f\.ctime\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\), f\.size\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\)\);/.test(load),
+      phase2Off: /System\.Threading\.Tasks\.Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*if \(DownloadsIndex\.build\(\) == null\)\s*\{\s*return;/.test(load),   /* (#46 r2 R2-10) a superseded build pushes nothing */
+      anchors: load.length > 100 && show.length > 100,
+      neverByName: /string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(di) && !/GetFileName\(fm\.|fm\.message\.Split|parseFileHeader/.test(di)
+        && /if \(fm == null \|\| fm\.id == null \|\| fm\.localSender \|\| fm\.type != FriendMessageType\.fileHeader \|\| string\.IsNullOrEmpty\(fm\.message\)\)\s*\{\s*continue;/.test(di),   /* (#46 r1 C5) RECEIVED file messages only */
+      noAddress: /new string\[\] \{ Path\.GetFileName\(p\), s\.label, s\.key \}/.test(di) && /string key = "s" \+/.test(di)
+        && /string label = string\.IsNullOrEmpty\(f\.nickname\) \? "" : f\.nickname;/.test(di) && !/label = [^;]*walletAddress/.test(di),
+      showGuarded: /string\? path = TransferManager\.resolveDownloadPath\(file_name\);/.test(show) && /DownloadsIndex\.sourceOf\(path\)/.test(show) && /SingleChatPage\.requestJump\(src\.friend, src\.idHex, src\.depth\);\s*HomePage\.Instance\(\)\?\.exitAccountForChat\(\);\s*HomePage\.Instance\(\)\?\.onChat\(src\.friend\.walletAddress, null\);/.test(show)
+        && /public void exitAccountForChat\(\)\s*\{\s*MainThread\.BeginInvokeOnMainThread\(\(\) => requestSettingsOverlayExit\(\)\);/.test(stripCode(rdX('Spixi/Pages/Home/HomePage.xaml.cs'))),   /* (#46 r3 R3-2) the Account pane leaves first */
+      pushName: /Utils\.sendUiCommand\(page, "setDownloadSenders", json\)/.test(load) && /setDownloadSenders\(json\) \{/.test(stripCode(rdX('src/shells/settings.html'))),
+      /* (#46 r1 B2/A6) a delete re-push reuses the index; two overlapping builds publish only the newest */
+      noRescanOnDelete: /if \(!rescan\)\s*\{\s*if \(downloadsSendersReady\)\s*\{[^}]*\}\s*return;\s*\}/.test(load) && /loadDownloads\(false\);/.test(sp),
+      newestMessageWins: /if \(!map\.TryGetValue\(n, out DownloadSource\? had\) \|\| at > had\.receivedAt\)/.test(di) && /long at = fm\.receivedTimestamp > 0 \? fm\.receivedTimestamp : fm\.timestamp;/.test(di),   /* (#46 r1 M3 → r4 R4-1) newest ACROSS conversations */
+      sizeMustMatch: /if \(!SharedItems\.fileMatches\(fm, full\)\)\s*\{\s*continue;/.test(di) && /return fi\.Exists && \(ulong\)fi\.Length == want;/.test(stripCode(rdX('Spixi/Utils/FileMatch.cs')))
+        && /public static bool fileMatches\(FriendMessage fm, string full\) => FileMatch\.matches\(fm, full\);/.test(stripCode(rdX('Spixi/Utils/SharedItems.cs')))
+        /* (#46 r5 R5-2) the rule is EXECUTED by MSTest; the pin holds the test's two size cases in place */
+        && /Assert\.IsFalse\(FileMatch\.matches\(file\("u:a\.jpg", 10\), p\)/.test(rdX('Spixi-UnitTests/FileMatchTests.cs')) && /Assert\.IsFalse\(FileMatch\.matches\(file\("u:a\.jpg:10"\), p\)\);/.test(rdX('Spixi-UnitTests/FileMatchTests.cs'))
+        /* (#46 r5 R5-3) every lookup re-checks the file: a path reused while the screen is open has no sender */
+        && /return hit != null && FileMatch\.matches\(hit\.message, full\) \? hit : null;/.test(di) && /message = fm \};/.test(di)
+        && /return full != null && File\.Exists\(full\) && fileMatches\(fm, full\) \? full : null;/.test(stripCode(rdX('Spixi/Utils/SharedItems.cs'))),   /* (#46 r4 R4-1/R4-4) a reused path is not this message's file */
+      readyGate: /if \(downloadsSendersReady\)\s*\{\s*Utils\.sendUiCommand\(this, "setDownloadSenders", DownloadsIndex\.sendersJson\(paths\)\);/.test(load) && /page\.downloadsSendersReady = true;/.test(load)
+        && /if \(rescan\)\s*\{\s*downloadsSendersReady = false;\s*downloadsScreen\+\+;\s*\}\s*int screen = downloadsScreen;/.test(load)
+        && /if \(screen != page\.downloadsScreen\)\s*\{\s*return;\s*\}\s*page\.downloadsSendersReady = true;/.test(load),   /* (#46 r4 R4-2, r5 R5-4) */
+      noBots: /if \(f == null \|\| f\.bot \|\| \(f\.type != FriendType\.Normal && f\.type != FriendType\.Group\)\)\s*\{\s*continue;/.test(di),   /* (#46 r1 M4) */
+      newestBuildWins: /myGen = \+\+generation;/.test(di) && /if \(myGen != generation\)\s*\{\s*return null;\s*\}\s*byPath = map;/.test(di),
+      countsLog: /Logging\.info\("\[DOWNLOADS\] matched=\{0\} read=\{1\} ms=\{2\}", map\.Count, read, sw\.ElapsedMilliseconds\);/.test(di),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★★ #1107 C#: Downloads are pushed NEWEST FIRST with the size as a trailing arg; the sender is found OFF the UI thread through the file\'s own RECEIVED message (the vetted Downloads-root rule) — never by name — and pushed as name + label + an opaque key (no address); "Show in chat" sends a NAME that runs the same traversal guard, then C#\'s own index — ' + JSON.stringify(r));
+  }
+  {
+    const { W, dom, errs } = await bootS1('settings.html', 1200);
+    const S = W.Spixi;
+    const T = Math.floor(Date.now() / 1000);
+    const shown = [];
+    const el = S.createSettingsDownloads({ files: [], onBack: () => {}, onOpenFile: () => {}, onDeleteFile: () => {}, onShowInChat: (n) => shown.push(n), strings: {} });
+    W.document.body.append(el);
+    S.setDownloads(el, [
+      { name: 'old.txt', time: String(T - 9000), size: 3200 },
+      { name: 'new.pdf', time: String(T - 10), size: 2400000, sender: 'Zara', senderKey: 's1' },
+      { name: 'mid.jpg', time: String(T - 500), size: 0, sender: 'Bob', senderKey: 's2' },
+    ]);
+    const names = () => [...el.querySelectorAll('.c-settings-dl__row')].filter((x) => !x.closest('[hidden]')).map((x) => x.dataset.name);
+    const rowText = (n, sel = '') => { const e = el.querySelector('[data-name="' + n + '"]' + (sel ? ' ' + sel : '')); return e ? e.textContent : '(missing)'; };   /* (#46 r3 R3-4) */
+    const fromChip = el.querySelector('.c-settings-dl__from-chip') || W.document.createElement('button');   /* (#46 r2 R2-5) */
+    const pick = async (label) => {
+      fromChip.click();
+      await sleep(60);
+      const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => o.textContent.trim() === label);
+      if (opt) opt.click();
+      await sleep(400);
+    };
+    const r = {
+      newestFirst: names().join() === 'new.pdf,mid.jpg,old.txt',
+      oneControlNoSort: el.querySelectorAll('.c-chip').length === 1 && !!fromChip && /From: Everyone/.test(fromChip.textContent),
+      size: /2\.3 MB/.test(rowText('new.pdf')) && !/ B\b|0 B|missing/.test(rowText('mid.jpg', '.c-settings-dl__time')),
+      from: /from Zara/.test(rowText('new.pdf')) && !el.querySelector('[data-name="old.txt"] .c-settings-dl__from'),
+      senderKeyOnRow: (el.querySelector('.c-settings-dl__row[data-name="new.pdf"]') || { dataset: {} }).dataset.sender === 's1' && !(el.querySelector('.c-settings-dl__row[data-name="old.txt"]') || { dataset: { sender: 'x' } }).dataset.sender,   /* (#46 r3 R3-7) set in fileRow */
+      goOnlyWithSender: !!el.querySelector('[data-name="new.pdf"] .c-settings-dl__go') && !el.querySelector('[data-name="old.txt"] .c-settings-dl__go'),
+    };
+    const go = el.querySelector('[data-name="new.pdf"] .c-settings-dl__go');
+    if (go) go.click();   /* (#46 r2 R2-5) a missing node fails THIS pin, never the run */
+    r.showSendsName = !!go && shown.join() === 'new.pdf';
+    await pick('Bob');
+    r.filter = names().join() === 'mid.jpg' && /From: Bob/.test(fromChip.textContent);
+    await pick('Everyone');
+    r.filterAll = names().length === 3 && /From: Everyone/.test(fromChip.textContent);
+    /* (#46 r2 R2-1) the chosen sender leaves the list (her last file deleted): the filter clears with her, never a hidden one */
+    await pick('Bob');
+    S.setDownloads(el, [{ name: 'x.pdf', time: String(T - 10), size: 1 }, { name: 'old.txt', time: String(T - 9000), size: 1 }]);   /* no sender is left at all — the R2-1 case */
+    r.filterClearsWithSender = names().length === 2 && /From: Everyone/.test(fromChip.textContent);
+    S.setDownloads(el, [
+      { name: 'old.txt', time: String(T - 9000), size: 3200 },
+      { name: 'new.pdf', time: String(T - 10), size: 2400000, sender: 'Zara', senderKey: 's1' },
+      { name: 'mid.jpg', time: String(T - 500), size: 0, sender: 'Bob', senderKey: 's2' },
+    ]);
+    /* (#46 r1 M32) the sheet lists Everyone first, then the senders SORTED */
+    fromChip.click();
+    await sleep(60);
+    const order = [...W.document.querySelectorAll('.c-settings__opt')].map((o) => o.textContent.trim());
+    r.sortedSheet = order.join() === 'Everyone,Bob,Zara';   /* the list order is Zara, Bob — the sheet sorts */
+    W.Spixi.dismissTopOverlay && W.Spixi.dismissTopOverlay();
+    await sleep(400);
+    /* (#46 r1 M31) no sender known → no From control at all */
+    S.setDownloads(el, [{ name: 'z.txt', time: String(T), size: 1 }]);
+    r.hiddenWithoutSenders = (el.querySelector('.c-settings-dl__controls') || {}).hidden === true;   /* (#46 r4 R4-3) */
+    /* 50+ people (Damir): the sheet lists them and gets a search field past 8 */
+    const many = Array.from({ length: 60 }, (_, i) => ({ name: 'f' + i + '.txt', time: String(T - i), size: 10, sender: 'Person ' + i, senderKey: 's' + (i + 10) }));
+    S.setDownloads(el, many);
+    fromChip.click();
+    await sleep(60);
+    const search = W.document.querySelector('.c-settings-dl__sender-search input');
+    r.bigListSheet = W.document.querySelectorAll('.c-settings__opt').length === 61 && !!search;
+    if (search) { search.value = 'Person 42'; search.dispatchEvent(new W.Event('input', { bubbles: true })); }
+    await sleep(30);
+    r.searchFilters = [...W.document.querySelectorAll('.c-settings__opt')].filter((o) => !o.hidden).length === 1;
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError/.test(e)).length === 0;
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★★ #1107/#1111 EXECUTED on the BUILT settings shell: Downloads list newest first with NO sort control (Damir), the size on the date line, "from <contact>" only for a matched file, the chat icon only on a row with a sender (it hands the host the NAME), and ONE "From" chip opens a sheet (with a search field past 8 people — 50+ is normal, Damir) that filters the list — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+  /* (#46 r1 C5 + B2) the REAL settings sublevel: addFile → setDownloadSenders → a delete re-push keeps the senders and the filter */
+  {
+    const { W, push, dom, errs } = await bootS1('settings.html', 1500);
+    push('setCaps', 'settingsApply,downloadsInline');
+    push('setNickname', 'Damir');
+    await sleep(250);
+    const row = W.document.querySelector('[data-setting-key="downloads"]');
+    if (row) row.click();
+    await sleep(200);
+    const T = Math.floor(Date.now() / 1000);
+    const list = () => { push('clearFiles'); push('addFile', 'a.pdf', String(T - 10), '2048'); push('addFile', 'b.txt', String(T - 99), '10'); };
+    list();
+    await sleep(150);
+    push('setDownloadSenders', JSON.stringify([['a.pdf', 'Ana', 's1'], ['b.txt', 'Mallory', 'not-a-key']]));
+    await sleep(60);
+    const txt = (n) => { const e = W.document.querySelector('.c-settings-dl__row[data-name="' + n + '"]'); return e ? e.textContent : ''; };
+    const r = { mounted: !!W.document.querySelector('.c-settings-dl'), from: /from Ana/.test(txt('a.pdf')), badKeyDropped: !/Mallory/.test(txt('b.txt')), size: /2 KB/.test(txt('a.pdf')) };
+    const chipQ = W.document.querySelector('.c-settings-dl__from-chip');
+    if (chipQ) chipQ.click();   /* (#46 r2 R2-5) */
+    await sleep(60);
+    const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => o.textContent.trim() === 'Ana');
+    if (opt) opt.click();
+    await sleep(400);
+    list();   // the C# re-push after a delete (clearFiles + addFile…), no new setDownloadSenders yet
+    await sleep(150);
+    const rows = () => [...W.document.querySelectorAll('.c-settings-dl__row')].filter((x) => !x.closest('[hidden]')).map((x) => x.dataset.name);
+    r.rePushKeepsSenders = /from Ana/.test(txt('a.pdf'));
+    r.rePushKeepsFilter = rows().join() === 'a.pdf';
+    /* (#46 r3 R3-1) a NEW Downloads screen (back, reopen) shows NO sender until ITS phase 2 answers — never the old scan's, by name */
+    if (W.handlers && W.handlers.onBack) W.handlers.onBack();
+    const backBtn = W.document.querySelector('.c-settings-dl .c-topbar button');
+    if (backBtn) backBtn.click();
+    await sleep(300);
+    const row2 = W.document.querySelector('[data-setting-key="downloads"]');
+    if (row2) row2.click();
+    await sleep(200);
+    list();
+    await sleep(150);
+    r.reopenNoStaleSender = !!row2 && !!W.document.querySelector('.c-settings-dl__row[data-name="a.pdf"]') && !/from Ana/.test(txt('a.pdf')) && !W.document.querySelector('.c-settings-dl__go');
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★★ #1107 EXECUTED through the REAL settings sublevel: setDownloadSenders merges "from <contact>" by name, drops a row with a non-opaque key, and a delete re-push (clearFiles + addFile…) keeps the senders AND the chosen From filter (#46 r1 B2) — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+  {
+    const st = stripCode(rdX('src/shells/settings.html'));
+    ok(/addFile\(name, ctime, size\) \{/.test(st) && /size: \/\^\\d\{1,15\}\$\/\.test\(String\(size \|\| ''\)\) \? Number\(size\) : 0/.test(st)
+       && /setDownloadSenders\(json\) \{/.test(st) && /!\/\^s\\d\{1,6\}\$\/\.test\(r\[2\]\)/.test(st)
+       && /onShowInChat: \(name\) => bridge\.send\('ixian:showDownloadInChat:' \+ encodeURIComponent\(name\)\),/.test(st),
+      '★ #1107 settings shell: addFile takes the size (digits only; an older exe sends two args), setDownloadSenders accepts only opaque s<n> keys, and "Show in chat" sends the ENCODED name (the #267 decoy rule)');
+  }
+
+  /* —— (#46 r1 C6) log hygiene of the lines this batch wrote or touched —— */
+  {
+    const tm = stripCode(rdX('Spixi/Data/TransferManager.cs'));
+    const sp = stripCode(rdX('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    const cd = stripCode(rdX('Spixi/Pages/Contacts/ContactDetails.xaml.cs'));
+    const resolveFn = tm.slice(tm.indexOf('public static string resolveDownloadPath('), tm.indexOf('public static string resolveDownloadPath(') + 2500);
+    const r = {
+      anchor: resolveFn.length > 200,
+      noNameLogged: /Logging\.error\("Rejected download file name from WebView \(len=\{0\}\)", file_name\.Length\);/.test(resolveFn)
+        && /Logging\.error\("Rejected download path escaping the Downloads root \(len=\{0\}\)", file_name\.Length\);/.test(resolveFn)
+        && !/Logging\.\w+\([^;]*,\s*file_name\s*\)/.test(resolveFn),
+      typesOnly: /Exception while opening a download: " \+ ex\.GetType\(\)\.Name\)/.test(sp) && /Exception while deleting a download: " \+ ex\.GetType\(\)\.Name\)/.test(sp)
+        && !/download: " \+ ex\)/.test(sp),
+      sharedCatch: /Logging\.warn\("ixian:sharedItems: " \+ ex\.GetType\(\)\.Name\);/.test(cd) && /Logging\.warn\("ixian:sharedOpen: no such item \(len=" \+ token\.Length \+ "\)"\);/.test(cd),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1107 GATE (ours, fixed): the Downloads name guard logs the name LENGTH, never the peer-chosen name; the open/delete catches log the exception TYPE (its text can carry the path); the shared-items lines log a type or a length — ' + JSON.stringify(r));
+  }
+
+  /* —— (#46 r1 C13) 0b(b): the [CDPERF] line and the input-dead frames —— */
+  ok(/Logging\.info\("\[CDPERF\] chat present prereveal=1"\);/.test(stripCode(rdX('Spixi/Utils/SpixiContentPage.cs'))),
+    '★ #1101 0b(b): the present logs ONE fixed [CDPERF] word when the two drawn-but-invisible frames run, so the recording can be matched to the path');
+
+  /* —— (#46 r1 A2/A7) the jump expires; the shared push is bounded —— */
+  {
+    const sc = stripCode(rdX('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const si = stripCode(rdX('Spixi/Utils/SharedItems.cs'));
+    ok(/private const long JumpTtlMs = 15000;/.test(sc) && (sc.match(/if \(jumpAddr != null && Environment\.TickCount64 - jumpAtMs > JumpTtlMs\)\s*\{\s*jumpAddr = null;/g) || []).length === 1
+       && /jumpAtMs = Environment\.TickCount64;/.test(sc)
+       && /public const long ThumbTotalMax = 1536 \* 1024;/.test(si) && /public const int ItemCap = 200;/.test(si),
+      '★ #1106 (#46 r1 A2/A7): a pending jump expires after 15 s (an open that never happened cannot jump a later one), and the shared push stays bounded — ≤ 200 items, thumbs ≤ 24 and ≤ 1.5 MB in all');
+  }
+
+  /* —— (#46 r1 C12) the picked layouts, executed —— */
+  {
+    const { W, dom } = await bootS1('contact_details.html', 1200);
+    const S = W.Spixi;
+    const T = Math.floor(Date.now() / 1000);
+    const media = Array.from({ length: 9 }, (_, i) => ({ id: 'm' + i, n: 0, kind: 'media', label: 'p' + i + '.jpg', size: 1, ts: T - i, local: false, thumb: null }));
+    const links = Array.from({ length: 4 }, (_, i) => ({ id: 'l' + i, n: 0, kind: 'link', label: 'https://site' + i + '.com', size: 0, ts: T - i, local: false, thumb: null }));
+    const sec = S.createSharedSection({ items: media.concat(links), strings: {}, onOpen: () => {}, onAll: () => {} });
+    const list = S.createSharedList({ items: media.concat(links), tab: 'media', strings: {}, onOpen: () => {}, onBack: () => {} });
+    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    if (tabs[0]) tabs[0].dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));   /* (#46 r4 R4-3) */
+    const r = {
+      sixTiles: sec.querySelectorAll('.c-shared__group[data-kind="media"] .c-shared__tile').length === 6,
+      threeLinks: sec.querySelectorAll('.c-shared__group[data-kind="link"] .c-shared__row').length === 3,
+      orderNewest: (sec.querySelector('.c-shared__group[data-kind="link"] .c-shared__row-sub') || {}).textContent === 'https://site0.com',
+      arrowWraps: !!tabs[1] && tabs[1].getAttribute('aria-selected') === 'true',
+      ariaControls: tabs.length > 1 && tabs.every((t) => t.getAttribute('aria-controls') === (list.querySelector('.c-shared-list__panel') || {}).id),   /* (#46 r4 R4-3) */
+      userinfoHost: S.sharedLinkHost('https://paypal.com@evil.com/login') === 'evil.com' && S.sharedLinkHost('github.com/x') === 'github.com',
+      sizeLocale: S.formatFileSize(0) === '' && S.formatFileSize(1536) === '1.5 KB' && S.formatFileSize(2400000) === '2.3 MB'
+        && (() => { const prev = W.document.documentElement.lang; W.document.documentElement.lang = 'de'; const v = S.formatFileSize(1536); W.document.documentElement.lang = prev; return v === '1,5 KB'; })(),   /* (#46 r2 R2-4) the LOCALE's decimal mark */
+      singleKind: (() => { const one = S.createSharedList({ items: links, tab: 'media', strings: {}, onOpen: () => {}, onBack: () => {} }); const pnl = one.querySelector('.c-shared-list__panel'); const tb = one.querySelector('.c-topbar'); return !!pnl && !!tb && !one.querySelector('[role="tab"]') && !one.querySelector('[role="tabpanel"]') && !pnl.hasAttribute('aria-label') && /Links/.test(tb.textContent); })(),   /* (#46 r4 R4-3) */   /* (#46 r1 B5 / r2 R2-12) */
+    };
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★ #1110 EXECUTED: the cards show the 6 newest media tiles and 3 newest rows per kind; the tabs wrap with the arrow keys and point at their panel; a link\'s host is the REAL host (userinfo never shows as the host — the #235 spoof); sizes use binary steps with one decimal under 10 — ' + JSON.stringify(r));
+  }
+
+  /* —— (#46 r1 B1) a jump on a FRESH open waits for onChatScreenLoaded (which pins the bottom), then wins —— */
+  {
+    const { W, push, dom, errs } = await bootS1('chat.html', 2000);
+    let scrolled = 0;
+    W.Element.prototype.scrollIntoView = function () { scrolled += 1; };
+    push('onChatScreenReady', 'addrPeer');
+    push('clearMessages', 'False');
+    push('addThem', 'bb22', 'addrPeer', 'Bob', '', 'hello', String(T1), 'True', 'True', 'False', 'False', 'False');
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    push('jumpToMessage', 'bb22');   // C# sends it inside the load, BEFORE onChatScreenLoaded
+    await sleep(50);
+    const r = { heldUntilLoaded: scrolled === 0 && !W.document.querySelector('.c-toast') };
+    let lastBehavior = null;
+    W.Element.prototype.scrollIntoView = function (o) { scrolled += 1; lastBehavior = o && o.behavior; };
+    push('onChatScreenLoaded');
+    await sleep(120);
+    r.thenJumps = scrolled === 1 && !W.document.querySelector('.c-toast');
+    r.instant = lastBehavior === 'auto';   /* (#46 r2 R2-3) no smooth window for the bottom re-pins to snap back */
+    r.stopsThePin = /bootRepinEnd = 0;\s*cancelAnimationFrame\(bootRepinRaf\);\s*requestAnimationFrame\(\(\) => handlers\.jumpToMessage\(id, true\)\);/.test(stripCode(rdX('src/shells/chat.html')));
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★★ #1106 (#46 r1 B1) EXECUTED: on a fresh "show in chat" open the jump arrives inside the load; the shell holds it until onChatScreenLoaded, stops that handler\'s bottom pin and scrolls to the row — before, the pin undid the scroll — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+
+  /* —— (#46 r2 R2-4) the "See all" cover: Esc closes it and focus returns to its opener; the A8 hardening holds —— */
+  {
+    const { W, push, dom, errs } = await bootS1('contact_details.html', 1200);
+    const T = Math.floor(Date.now() / 1000);
+    push('setContext', 'chat'); push('setAddress', '1A9xQpT7vKzm3NwR5bYc8LdE2fGh4JkPq'); push('setNickname', 'Ana');
+    await sleep(500);
+    push('setSharedItems', JSON.stringify(Array.from({ length: 5 }, (_, i) => ['f' + i, 0, 'file', 'doc' + i + '.pdf', 100, T - i, 1, null])));
+    await sleep(400);
+    const all = W.document.querySelector('.c-shared__group[data-kind="file"] .c-shared__all');
+    const r = { seeAll: !!all };
+    if (all) { all.focus(); all.click(); }
+    await sleep(60);
+    const cover = W.document.querySelector('.cd-shared-takeover');
+    r.opened = !!cover;
+    if (cover) cover.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(60);
+    r.escCloses = !W.document.querySelector('.cd-shared-takeover');
+    r.focusBack = !!all && W.document.activeElement === all;
+    const ui = stripCode(rdX('Spixi/Utils/UIHelpers.cs'));
+    r.a8 = /online = PresenceDisplay\.shownOnline\(pf\);\s*\}\s*\}\s*catch \(Exception\)\s*\{/.test(ui);
+    r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★ #1106 (#46 r1 B4 / A8, r2 R2-4) EXECUTED: Esc closes the "See all" cover and focus returns to the "See all" that opened it; UIHelpers.setContactStatus keeps its never-throw promise (the friend lookup is caught) — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+
+}
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

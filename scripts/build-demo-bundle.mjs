@@ -104,6 +104,7 @@ const FILES = [
   'src/components/wallet-receive.js',
   'src/components/tip-sheet.js',
   'src/components/chat-select.js',
+  'src/components/shared-items.js',   // ★★ #1106: shared media / files / links — before chat-info, which imports it
   'src/components/chat-info.js',
   'src/components/contacts-shell.js',   // Phase 1 #2: FAB picker · add-contact · group setup
   'src/bridge/contacts-page.js',        // Track D: contacts takeover boundary (mountContacts) — after contacts-shell

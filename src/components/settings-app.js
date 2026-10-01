@@ -31,9 +31,11 @@ import { createTopbar } from './topbar.js';
 import { openLegalDoc } from './launch-shell.js';   // iOS-23: ONE source for the legal copy (#169)
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
-import { settingsConfirm } from './settings-shell.js';
+import { settingsConfirm, settingsOptionSheet } from './settings-shell.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { fillFileName } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
+import { createChip, setChipSelected } from './chip.js';   // ★★ #1107: the one From chip
+import { formatFileSize } from './shared-items.js';         // ★★ #1107: one size format (chat info + Downloads)
 
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
@@ -116,6 +118,7 @@ export const CONTRIBUTORS = [
 ];
 
 const SEARCH_MIN = 8;            // search appears once the list needs scanning
+const SENDER_SEARCH_MIN = 8;     // ★★ #1107: the From sheet gets a search field past this many entries
 
 // view-takeover shell — settings-screens grammar (module-local, house collision rule)
 function appScreenShell(className, title, onBack) {
@@ -145,10 +148,15 @@ export function createSettingsDownloads({
   onOpenFile,                    // (name) — ixian:open:<name>, fire-and-forget
   onDeleteFile,                  // (name, ctrl) — ixian:delete:<name>; C# re-pushes the list
   onClearAll,                    // (ctrl) — ixian:deleted; C# re-pushes (empty)
+  onShowInChat,                  // ★★ #1107 (name) — ixian:showDownloadInChat:<name>; only on a row with a known sender
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dl', strings.downloads || 'Downloads', onBack);
+  /* ★★ #1107 (part 5b): newest first (C# also pushes in that order); a sender filter appears once phase 2 named at
+     least one sender (setDownloadSenders — matched through the file's own message, never by name). */
+  let senderKey = '';                  // '' = all senders
+  let current = [];
   const hostFor = () => host || el.closest('.demo-phone') || undefined;
 
   /* search — frontend name filter (#67 chat-list precedent, no bridge) */
@@ -163,6 +171,59 @@ export function createSettingsDownloads({
   searchWrap.className = 'c-settings-dl__search';
   searchWrap.append(search);
   body.append(searchWrap);
+
+  /* ★★ #1107: the sender filter — ONE "From: <who>" chip (shown only when a sender is known) that opens the option
+     sheet: "Everyone" + every sender, sorted, with a search field once the list is long. Chips per sender did not
+     scale (Damir: "it could be 50 or more people"; #1111). No sort control: newest first only (#1111). */
+  const controls = document.createElement('div');
+  controls.className = 'c-settings-dl__controls';
+  let senders = new Map();             // key → label, from the current list
+  const fromChip = createChip({ label: '', size: 'small', strings, onClick: () => openSenderSheet() });
+  fromChip.classList.add('c-settings-dl__from-chip');
+  fromChip.setAttribute('aria-haspopup', 'dialog');
+  fromChip.append(icon('chevron-down', { size: 16 }));
+  controls.append(fromChip);
+  body.append(controls);
+  const fromLabel = () => (strings.downloadsFromChip || 'From: {name}').split('{name}').join(
+    senderKey ? (senders.get(senderKey) || '') : (strings.downloadsAllSenders || 'Everyone'));
+  function paintFromChip() {
+    const lab = fromChip.querySelector('.c-chip__label');
+    if (lab) lab.textContent = fromLabel();
+    setChipSelected(fromChip, !!senderKey);
+  }
+  function openSenderSheet() {
+    const options = [{ value: '', label: strings.downloadsAllSenders || 'Everyone' }]
+      .concat([...senders.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, l]) => ({ value: k, label: l })));
+    const sheet = settingsOptionSheet({
+      title: strings.downloadsFilterSender || 'From',
+      options, current: senderKey, host: hostFor(), strings,
+      commit: (value, ctrl) => { senderKey = value; paintFromChip(); applyFilter(); ctrl.done(); },
+    });
+    const list = sheet && sheet.querySelector('.c-settings__opts');
+    if (list && options.length > SENDER_SEARCH_MIN) {
+      const f = createSearchField({
+        placeholder: strings.downloadsSearchSenders || 'Search people',
+        ariaLabel: strings.downloadsSearchSenders || 'Search people',
+        strings,
+        onInput: (v) => {
+          const q = v.trim().toLowerCase();
+          for (const o of list.querySelectorAll('.c-settings__opt')) {
+            const t = (o.querySelector('.c-settings__opt-label') || {}).textContent || '';
+            o.hidden = !!q && !t.toLowerCase().includes(q);
+          }
+        },
+      });
+      f.classList.add('c-settings-dl__sender-search');
+      list.parentNode.insertBefore(f, list);
+    }
+  }
+  function renderSenders(list) {
+    senders = new Map();
+    for (const f of list) if (f.senderKey && f.sender && !senders.has(f.senderKey)) senders.set(f.senderKey, f.sender);
+    if (senderKey && !senders.has(senderKey)) senderKey = '';   // (#46 r2 R2-1) a filter on a sender no longer listed is cleared — the chip hides with it, so nothing could clear it
+    controls.hidden = senders.size === 0;
+    paintFromChip();
+  }
 
   /* list card */
   const groupWrap = document.createElement('div');
@@ -227,12 +288,13 @@ export function createSettingsDownloads({
     body.append(clearWrap);
   }
 
-  const fileRow = ({ name, time }) => {
+  const fileRow = ({ name, time, size, sender, senderKey: rowSender }) => {
     const section = document.createElement('div');
     section.className = 'c-settings__section';
     const row = document.createElement('div');
     row.className = 'c-settings-dl__row';
     row.dataset.name = name;
+    if (rowSender) row.dataset.sender = rowSender;   // ★★ #1107: the From filter's key
 
     const open = document.createElement('button');
     open.type = 'button';
@@ -258,12 +320,31 @@ export function createSettingsDownloads({
       tm.textContent = (/^\d{1,12}$/.test(s) && Number(s) > 0)
         ? formatTxTimestamp(Number(s) * 1000)
         : time;                            // opaque locale string — never parsed
+      /* ★★ #1107: · size, then "from <sender>" on its own line (only when C# matched it through the file's message) */
+      const sz = formatFileSize(size);
+      if (sz) tm.textContent += ' · ' + sz;
       meta.append(tm);
+    }
+    if (sender) {
+      const from = document.createElement('span');
+      from.className = 'c-settings-dl__time c-settings-dl__from';
+      from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(sender);   // peer-chosen name — textContent only
+      meta.append(from);
     }
     open.append(disc, meta);
     if (onOpenFile) open.addEventListener('click', () => onOpenFile(name));
     else open.disabled = true;
     row.append(open);
+
+    if (onShowInChat && rowSender) {
+      const go = document.createElement('button');
+      go.type = 'button';
+      go.className = 'c-settings-dl__go';   // (#46 r1 B11) its own class — never matched as the delete button
+      go.setAttribute('aria-label', (strings.downloadsShowInChat || 'Show {name} in chat').split('{name}').join(name));
+      go.append(icon('message', { size: 18 }));
+      go.addEventListener('click', () => onShowInChat(name));
+      row.append(go);
+    }
 
     if (onDeleteFile) {
       const del = document.createElement('button');
@@ -291,18 +372,23 @@ export function createSettingsDownloads({
     for (const s of card.children) {
       const rowEl = s.querySelector('.c-settings-dl__row');
       const name = rowEl ? (rowEl.dataset.name || '') : '';
-      const hit = !query || name.toLowerCase().includes(query);
+      const hit = (!query || name.toLowerCase().includes(query))
+        && (!senderKey || (rowEl && rowEl.dataset.sender === senderKey));   // ★★ #1107
       s.hidden = !hit;
       if (hit) visible++;
     }
     noMatch.hidden = !(card.childElementCount > 0 && visible === 0);
-    live.textContent = query
+    live.textContent = (query || senderKey)
       ? (strings.downloadsMatches || '{n} files match').split('{n}').join(String(visible))
       : '';
   }
 
   function render(list) {
-    card.replaceChildren(...list.map(fileRow));
+    current = list;
+    // newest first (stable: an old exe's opaque time string sorts as 0 and keeps C#'s order)
+    const sorted = list.slice().sort((a, b) => (Number(b.time) || 0) - (Number(a.time) || 0));
+    card.replaceChildren(...sorted.map(fileRow));   // fileRow sets data-sender (#46 r3 R3-7: no per-row search)
+    renderSenders(list);
     const has = list.length > 0;
     groupWrap.hidden = !has;
     empty.hidden = has;
@@ -316,7 +402,7 @@ export function createSettingsDownloads({
   return el;
 }
 
-/** Wholesale list update — mirrors the clearFiles + addFile(name, ctime) push. */
+/** Wholesale list update — mirrors the clearFiles + addFile(name, ctime[, size]) push. */
 export function setDownloads(el, files = []) {
   if (el._dlRender) el._dlRender(files);
 }

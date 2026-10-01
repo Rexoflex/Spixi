@@ -39,7 +39,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 2. **Render** any visual change on the BUILT shell, both themes; Damir picks the dials.
 3. **Pipeline:** FULL = (`generate-icons` if SVGs) → `extract-strings` → `build-locales` → `build-strings-iife` → `build-demo-bundle` → `build-shells` — **bundle BEFORE shells** (#258); shell/CSS/token-only = `build-shells`; C#-only = none. Then the `--check` gates.
 4. **Pins:** behaviour, not source text (#771/#798); **break the code on purpose — the pin must fail for exactly that reason** (mutation, #802) before you believe it.
-5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5049** (with the Ixian-Core sibling, #1095).
+5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5075** (with the Ixian-Core sibling, session 1).
 6. **#46 loop** (Opus, in-session) until CLEAN — after a green smoke run, before the batch leaves the machine; smoke again after the last fix; verdict written into its brief (#660).
 7. **Walk:** Damir builds — **Windows = F5, never `dotnet build`** (#663); Android Debug; **iPhone + Mac (and Android, #449): wipe `obj`/`bin` when the html changed, then a plain build, then Run — incremental builds do not repackage Raw html** (#320); the BUILD row must show something only this build has. Walk sheet → pasted results → a `WALK #N: n P · n F · n N/A` DECISIONS row; each fail = mechanism first.
 8. **Commit:** one logical unit; `docs/commit-message-<batch>.txt` (no attribution lines — ★ COMMIT RULE); Damir reviews the diff, commits and pushes; never `git add -A`. Use `git --no-optional-locks` on the mounted repo; give the PowerShell repo commands with every delivery.
@@ -80,8 +80,8 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-01: office fix round + #1093–#1095 walked on Windows + Android (#1096: 9 P · 0 F). Smoke BASELINE OK 5049 / the 2 KNOWN (#136 · B3).
-- Session 0 (workflow reset, #1097–#1100): docs only, delivered into the working tree — commit = Damir (`docs/commit-message-1097.txt`). v1 definition of done = `docs/release-readiness.md`.
-- Owed: the office walk (Mac + iPhone, `docs/walk-artifact-1086.html`) = the first iOS/Mac compile of #1086–#1095 C#.
-- Road: session-1 → office walk + fix round → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` tag → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
-- **NEXT SESSION: read `docs/handoff-2026-10-01b.md` FIRST, then paste `docs/prompts/session-1.md`.** Next free DECISIONS number: **#1101**.
+- 2026-10-01 session 1 (#1101–#1113) BUILT in the cloud, delivered into the PC tree, UNCOMMITTED + UNWALKED — commit = Damir (`docs/commit-message-session1.txt`). #46 loop CLEAN at r5. Smoke BASELINE OK 5075 / the 2 KNOWN (#136 · B3).
+- ⚠ C# UNCOMPILED: the next build is the first compile (list in `docs/review-brief-session-1.md` §5).
+- Owed: the session-1 walk (Windows + Android, `docs/walk-artifact-session1-win-android.html`) · the office walk (Mac + iPhone, `docs/walk-artifact-1086.html`) · the corner colour (#1101).
+- Road: session-2 (walks + fix round) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` tag → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
+- **NEXT SESSION: read `docs/handoff-2026-10-01c.md` FIRST, then paste `docs/prompts/session-2.md`.** Next free DECISIONS number: **#1114**.

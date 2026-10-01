@@ -1964,6 +1964,162 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 }
 
 </style><!-- ★ Session H: the in-shell subscreen slide (walk row 31) -->
+<style data-src="../styles/components/chip.css">
+/* c-chip — mirrors Figma chip/{small,large} + code-first selected/disabled
+   (docs/chip-search-spec.md, DECISIONS #50). Semantic tokens only. */
+
+.c-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-01);
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-weight: var(--chip-weight);   /* ★ Session I (#735 P.S. "filter chip text weight UP") */
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  position: relative;
+  /* ★★ #841 / AND-44 (Damir's screenshot, group create): a member chip labelled
+     "Androoo 🗻🔥 Androoo Androoo Androoootururururuurru" ran off the screen edge and
+     took its remove × with it — the × was clipped away, so the member could not be
+     removed. A nick is network-supplied (#140 family), so the guard belongs here rather
+     than on any assumption about length.
+     THREE declarations, and all three are load-bearing: a flex item's automatic minimum
+     size is its MIN-CONTENT, and min-width beats max-width — so without `min-width: 0`
+     the cap below is inert against exactly the unbreakable label that causes this. The
+     cap is on the CHIP so the label ellipsizes while the × keeps its `flex: none` seat.
+     ⚠ THE DEFAULT IS DELIBERATE. A wrapping row must cap; a horizontal SCROLLER must
+     not, and the two scrollers opt out at their own definitions (.c-chats-header__filters,
+     .c-apps-discover__cats) rather than every wrapping row opting in — #838's lesson: a
+     new wrapping container then gets the safe behaviour for free, and a new scroller that
+     forgets to opt out shows a clipped label, not an unreachable control. */
+  min-width: 0;
+  max-width: 100%;
+  /* 100ms intentional: micro-interaction, same rationale as chatlist row hover */
+  /* transform = the #343 press release; declared here so base.css never has to
+     out-specify (and therefore replace) this shorthand — see #346. */
+  transition: background-color var(--duration-100) var(--easing-standard),
+              color var(--duration-100) var(--easing-standard),
+              border-color var(--duration-100) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
+}
+
+/* extended tap area (#50): chips are 26/30px visual (line-height + 8 padding
+   + 2 border), target must be 44 (--size-target-min); pseudo widens the hit
+   box vertically without visual change */
+.c-chip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--size-target-min);
+  transform: translateY(-50%);
+}
+
+.c-chip[data-size="large"] {
+  padding: var(--spacing-4) var(--spacing-12);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+}
+.c-chip[data-size="small"] {
+  padding: var(--spacing-4) var(--spacing-8);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  letter-spacing: var(--tracking-body-xs);
+}
+
+.c-chip__icon, .c-chip__dismiss { flex: none; }
+/* #841: the label is the ONLY part that gives. `white-space: nowrap` is inherited from
+   .c-chip, which is what makes the ellipsis render; min-width: 0 lets this inner flex
+   item shrink past its own min-content. Inert until something constrains the chip. */
+.c-chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
+   after the label via the chip's flex gap. Muted so the label stays primary; the
+   selected chip tints it with the chip text colour (inherits currentColor). */
+.c-chip__count { flex: none; font-variant-numeric: tabular-nums; opacity: 0.7; }
+.c-chip[aria-pressed="true"] .c-chip__count { opacity: 1; }
+
+/* readonly (display) variant — non-interactive tags e.g. app permissions/capabilities */
+.c-chip[data-readonly] {
+  cursor: default;
+  background: var(--surface-neutral-02);
+  border-color: transparent;
+  color: var(--text-neutral-01);
+}
+.c-chip[data-readonly] .c-chip__icon { color: var(--icon-neutral-02); }
+.c-chip[data-readonly]::after { content: none; }   /* no expanded hit area — it's not a target */
+
+/* selected (toggle chips) — #50, Damir 2026-07-02: TONAL fill ("not too strong"),
+   action ink; pressed-on-unselected keeps its outline so the two stay distinct.
+   ★ I-2 (#358): the selected chip now carries an OUTLINE — a selected chip and a
+   tonal button both paint --surface-action-tonal-default, so "selected" and
+   "button" rendered identically (same disease as D-16 fix C, one ramp step
+   apart). The outline is a state ladder (default/hover/pressed). The border
+   SLOT already exists on every chip (--outline-width-1, transparent when
+   unused), so no layout shift — the #51 lesson.
+   ★ Loop r1 MAJOR-6: the selected PRESS keeps the DEFAULT fill — the old
+   tonal-pressed fill put the pressed outline at 2.31:1 in dark (200-on-500),
+   under the 1.4.11 bar exactly when the outline is doing its job. Press
+   feedback = outline default→pressed + ink + the #343 scale; the fill holds.
+   (Dial rider on the F5 checklist: say if the press wants its wash back.)
+   ★ Loop r1 MAJOR-7: every hover/active pair carries the SAME :not() chain —
+   the old ladder claimed "source order at equal specificity" while hover
+   out-specified active by one pseudo-class, so the pressed rung never painted
+   on a mouse. :not([data-readonly]) also stops display-tag chips (spans — they
+   match :active) from wearing the selected skin (loop r1 MINOR).
+   Contrast, non-text ≥3:1 (WCAG 1.4.11), executable in smoke (#358 pins):
+   light rest 600-on-100 = 4.73 · hover 700-on-200 = 6.28 · press 800-on-100 = 9.67
+   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62 */
+.c-chip[aria-pressed="true"] {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+
+/* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
+@media (hover: hover) and (pointer: fine) {
+  .c-chip:not(:disabled):not([data-readonly]):hover {
+    background: var(--surface-neutral-02);
+    border-color: var(--outline-action-hover);
+    color: var(--text-action-hover);
+  }
+  .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
+    background: var(--surface-action-tonal-hover);
+    border-color: var(--outline-action-hover);   /* I-2 (#358): ladder, not transparent */
+    color: var(--text-action-hover);
+  }
+}
+
+/* pressed AFTER hover — same specificity as its hover twin, later in source */
+.c-chip:not(:disabled):not([data-readonly]):active {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-pressed);
+  color: var(--text-action-pressed);
+}
+.c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
+  background: var(--surface-action-tonal-default);   /* r1 MAJOR-6: fill holds — see header */
+  border-color: var(--outline-action-pressed);       /* I-2 (#358): ladder, not transparent */
+  color: var(--text-action-pressed);
+}
+
+/* disabled — code-first #50 */
+.c-chip:disabled {
+  background: var(--surface-neutral-disabled);
+  border-color: var(--outline-neutral-disabled);
+  color: var(--text-neutral-on-disabled);
+  cursor: not-allowed;
+}
+
+</style><!-- ★★ #1107: the Downloads From chip -->
 <style data-src="../styles/components/settings-app.css">
 /* c-settings "App" screens (settings-app.js, spec §9b): Downloads · Developer
    (log) · Contributors. Row/section/disc/group grammar comes from
@@ -2054,6 +2210,32 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   }
 }
 .c-settings-dl__del:active { background: var(--surface-interactive-pressed); }
+
+/* ★★ #1107: ONE "From: <who>" chip (a sheet picks the sender — chips per person did not scale, #1111) */
+.c-settings-dl__controls { display: flex; padding: 0 var(--spacing-16) var(--spacing-8); }
+.c-settings-dl__controls[hidden] { display: none; }
+.c-settings-dl__from-chip { max-width: 100%; }
+.c-settings-dl__from-chip .c-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
+/* the Downloads "Show in chat" icon: the delete button's 44px box, its own class (#46 r1 B11 / r2 R2-2) */
+.c-settings-dl__go {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: minimum touch target */
+  height: 44px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard), color var(--duration-100) var(--easing-standard);
+}
+.c-settings-dl__go:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) { .c-settings-dl__go:hover { background: var(--surface-interactive-hover); color: var(--icon-action-default); } }
 
 /* empty state — centered, calm */
 .c-settings-dl__empty {
@@ -5507,6 +5689,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   // clearFiles/addFile bursts land on whichever instance is current.
   let downloadsEl = null;
   let dlBuf = null, dlTimer = 0;
+  let dlLast = [];              // ★★ #1107: the list on screen — setDownloadSenders merges into it
+  let dlSenders = new Map();    // ★★ #1107: name → { sender, senderKey } from phase 2 (REPLACED by each setDownloadSenders; kept across clearFiles — #46 r1 B2)
+  function dlWithSenders(list) {
+    return list.map((f) => { const s = dlSenders.get(f.name); return s ? Object.assign({}, f, s) : f; });
+  }
   function dlSettle() {
     clearTimeout(dlTimer);
     dlTimer = setTimeout(() => {
@@ -5518,7 +5705,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       if (!downloadsEl || !downloadsEl.isConnected) { downloadsEl = null; dlBuf = null; return; }
       if (dlBuf !== null) {
         const dlN = dlBuf.length;
-        setDownloads(downloadsEl, dlBuf); dlBuf = null;
+        dlLast = dlBuf;
+        setDownloads(downloadsEl, dlWithSenders(dlBuf)); dlBuf = null;
         if (subView === 'downloads') cdperfSub('list', ' n=' + dlN);   // [CDPERF]: the C# round trip as its own term
       }
     }, 80);
@@ -6849,6 +7037,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
            setLocale, setPaneMode. Without this the old screen's settle timer and its
            document.body confirm outlive the node (#804, auditor A). */
         releaseDownloads();
+        dlSenders = new Map();   // (#46 r3 R3-1) a NEW Downloads screen never paints the previous scan's senders — they come with ITS phase 2
         downloadsEl = createSettingsDownloads({
           files: [], host: document.body, strings,
           onBack: showHub,
@@ -6860,6 +7049,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
           // encodeURIComponent → `%25` round-trips exactly (C# unescapes ONCE).
           onOpenFile: (name) => bridge.send('ixian:openDownload:' + encodeURIComponent(name)),   // fire-and-forget
           onDeleteFile: (name, ctrl) => { bridge.send('ixian:deleteDownload:' + encodeURIComponent(name)); ctrl.done(); },  // C# re-pushes the list
+          // ★★ #1107: "Show in chat" — a NAME only, encoded like open/delete; C# runs the same traversal guard, then its own index
+          onShowInChat: (name) => bridge.send('ixian:showDownloadInChat:' + encodeURIComponent(name)),
           // no onClearAll: same #264 audit rationale as downloads.html — the only
           // bulk verb (ixian:deleted) lives on the DANGER screen with its confirm.
         });
@@ -7390,11 +7581,27 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // as downloads.html — one EvaluateJavaScriptAsync frame per file, so buffer
     // between the clear and an 80ms settle so a partial list never paints.
     // ctime is a LOCALE-OPAQUE DateTime.ToString() → displayed verbatim, never parsed.
+    // (#46 r1 B2) the senders survive a re-push (delete, re-render): setDownloadSenders REPLACES them; clearing here made
+    // the From filter, the "from" lines and Show in chat vanish and come back on every delete
     clearFiles() { dlBuf = []; dlSettle(); },
-    addFile(name, ctime) {
+    // ★★ #1107: the 3rd arg is the size in bytes (an older exe sends two args → no size shown)
+    addFile(name, ctime, size) {
       if (dlBuf === null) dlBuf = [];
-      dlBuf.push({ name: name || '', time: ctime || '' });
+      dlBuf.push({ name: name || '', time: ctime || '', size: /^\d{1,15}$/.test(String(size || '')) ? Number(size) : 0 });
       dlSettle();
+    },
+    /* ★★ #1107 — phase 2: [[file name, sender label, sender key], …] for the files whose sender C# found THROUGH the
+       file's own message. Labels are peer-chosen names → textContent only (the component). Keys are opaque. */
+    setDownloadSenders(json) {
+      let rows = null;
+      try { rows = JSON.parse(String(json)); } catch (e) { rows = null; }
+      if (!Array.isArray(rows)) return;
+      dlSenders = new Map();
+      for (const r of rows.slice(0, 5000)) {
+        if (!Array.isArray(r) || r.length < 3 || typeof r[0] !== 'string' || typeof r[2] !== 'string' || !/^s\d{1,6}$/.test(r[2])) continue;
+        dlSenders.set(r[0], { sender: String(r[1] || ''), senderKey: r[2] });
+      }
+      if (downloadsEl && downloadsEl.isConnected && dlBuf === null) setDownloads(downloadsEl, dlWithSenders(dlLast));
     },
 
     // setEncPassResult('1'|'0') — #341. The standalone settings_encryption.html has

@@ -692,5 +692,22 @@
   "aboutSub": "链接和法律信息",
   "deleteDataSub": "聊天、联系人或账户",
   "groundGreenGradient": "绿色渐变",
-  "addressWhatIsThis": "这是什么？"
+  "addressWhatIsThis": "这是什么？",
+  "lastSeenJustNow": "刚刚在线",
+  "lastSeenLongAgo": "很久以前在线",
+  "lastSeenRecently": "最近上线",
+  "sharedKindMedia": "媒体",
+  "sharedFiles": "文件",
+  "sharedLinks": "链接",
+  "sharedTitle": "共享内容",
+  "sharedShowInChat": "在聊天中显示",
+  "sharedNotOnDevice": "不在此设备上",
+  "sharedLinkLabel": "链接",
+  "sharedJumpTooFar": "此消息在更早的位置。请向上滚动查找。",
+  "downloadsFilterSender": "来自",
+  "downloadsAllSenders": "所有人",
+  "downloadsFrom": "来自 {name}",
+  "downloadsShowInChat": "在聊天中显示 {name}",
+  "downloadsFromChip": "来自：{name}",
+  "downloadsSearchSenders": "搜索联系人"
 }

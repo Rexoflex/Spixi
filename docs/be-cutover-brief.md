@@ -874,7 +874,7 @@ branch, not by a bare line number (rule #773 — a line number rots).
 | CI3 1:1 mute | ✅ **LANDED (NOTIF-2)** — changed at this verification | |
 | CI4 bot destructive | ✅ BUILT (Batch A: "Leave group" on the bot info pane, `chat-info.js` `kind === 'bot'` = leave notice + local removal) — Damir confirmed 2026-09-23 that is the intended meaning (#931); the row was stale (#660) | |
 | CI5 hero polish | ✅ **LANDED** — changed at this verification | it was always an FE row |
-| CI6 shared media feed | OPEN | no `addSharedMedia` anywhere |
+| CI6 shared media feed | ✅ FE + C# BUILT (session 1, #1106/#1110) — 🟡 the new push/verbs need BE approval (row SESSION1-API below) | `setSharedItems` / `ixian:sharedItems` / `ixian:sharedOpen` on ContactDetails (`Utils/SharedItems.cs`) |
 | CI7 group rename / bot info | ⚙ PARTIAL | the pane landed at #248; rename and re-avatar need a protocol message |
 | CO1 roster flags | ✅ LANDED with C17 (Session AD, #928) | args 6–7 = relation + kind |
 | CO2 group create host | ✅ **LANDED #265** — changed at this verification | `ixian:creategroup:` |
@@ -914,3 +914,12 @@ appeared four times.
 ⚠ **What this ledger does NOT do.** It does not re-derive the ASK in each open row. It answers one
 question per row — *is the code this row describes still what the tree does* — and where the answer
 is no, it says what the tree does instead. An open row's ask is as its author wrote it.
+
+## Session 1 additions (2026-10-01, DECISIONS #1101–#1111)
+
+| Row | Ask | Why | State |
+|---|---|---|---|
+| SESSION1-API | **Approve the new bridge surface** (frozen protocol, CLAUDE.md): pushes `updateTicks(json)` (chat), `jumpToMessage(id)` (chat), `setSharedItems(json)` (contact details), `setDownloadSenders(json)` (settings); verbs `ixian:sharedItems`, `ixian:sharedOpen:<hexId>:<n>`, `ixian:showDownloadInChat:<encoded name>`; trailing args on `setOnlineStatus` / `showIndicator` (last seen) and `addFile` (Downloads size). Every one is additive — an older shell ignores a push it lacks and a trailing arg. Security: `docs/security-handover-gate.md` § Session 1. | release waits for the answer (DoD T1 B-25) | 🟡 ASK |
+| PRESENCE-OFFLINE | **An explicit "going offline" announce** on a clean close and when the app goes to the background, so the network drops the presence at once (today the contact stays in the PresenceList until the 300 s `clientPresenceExpiration` + cleanup). The app now shows "online" only for a sighting ≤ 150 s old (#1103, display only) — the announce would make it exact. A shorter keepalive (`clientKeepAliveInterval` 100 s) is the Core engineer's call (battery + network cost for every user). Cross-ref: `security-review-for-be-engineer.md` TRUST-SIGNAL (F4). | F4 trust signal; DoD I-16 (v1.1) | 🟡 ASK (v1.1) |
+| FIAT-FEED | **Update `https://resources.ixian.io/ixiprice.txt` from NonKYC** on a timer, SAME format `{"ixicash":{"usd":"<n>"}}`, value = the bid/ask MIDPOINT of `GET https://api.nonkyc.io/api/v2/ticker/IXI_USDT` (USDT ≈ USD). Read 2026-10-01: the file 0.00001797 vs NonKYC last 0.0000121299 (bid 0.0000126187 / ask 0.0000126821, ~$37/day volume) — the file is stale since CoinGecko stopped. No app change: every installed app reads this file (`Config.priceServiceUrl`, `Node.updateIxiPrice`; the same URL at `0e85a4b8`), and no new host learns the users' IPs. | the wallet shows a wrong fiat value today (#1108) | 🟡 ASK (server) — DoD T1 B-26 |
+

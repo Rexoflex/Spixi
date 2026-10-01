@@ -1454,6 +1454,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* ★ #1103: "last seen …" under the name (1:1, not online) — the sub-line's type and colour */
+.c-chat-info__presence {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.c-chat-info__presence[hidden] { display: none; }
 /* ★ Session Y (#875 P7): THE ADDRESS UNDER THE NAME — the hero's last line. The #211
    truncated form in the sub register, a 16px code glyph beside it (the sheet it opens IS
    the QR), tabular so the digits sit still. It is a <button> when a host wires the
@@ -4527,6 +4538,121 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 }
 
 </style><!-- its amount chips -->
+<style data-src="../styles/components/shared-items.css">
+/* c-shared — SHARED MEDIA · FILES · LINKS (★★ #1106, session 1 part 5). Lives inside chat info's inset-grouped
+   language (the label outside, one --surface-card per group, 12 radius, rows full-bleed in the card) and in the
+   "See all" view. Every colour is a role token; the card pair carries hover/press (#878). */
+.c-shared { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-shared__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  padding-inline-end: var(--spacing-4);
+}
+.c-shared__all {
+  min-height: 32px;
+  padding: 0 var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--text-accent);
+  font: inherit;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+.c-shared__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
+}
+.c-shared__tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-8);
+  background: var(--surface-neutral-01);
+  color: var(--icon-neutral-02);
+  padding: 0;
+  cursor: pointer;
+}
+.c-shared__tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.c-shared__rows { display: flex; flex-direction: column; }
+.c-shared__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: 56px;
+  width: 100%;
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0;
+  background: transparent;
+  color: var(--text-neutral-01);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-shared__row > svg { flex: none; color: var(--icon-neutral-02); }
+.c-shared__row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.c-shared__row-title,
+.c-shared__row-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-shared__row-title { font-size: var(--font-size-body-md); line-height: var(--line-height-body-md); }
+.c-shared__row-sub { font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); color: var(--text-neutral-02); }
+@media (hover: hover) and (pointer: fine) {
+  .c-shared__row:hover, .c-shared__all:hover { background: var(--surface-card-hover); }
+}
+.c-shared__row:active, .c-shared__all:active { background: var(--surface-card-pressed); }
+
+/* —— "See all" —— one structure: the phone takeover and the desktop pane */
+.c-shared-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--surface-screen);
+}
+.c-shared-list__tabs {
+  display: flex;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-16);
+  overflow-x: auto;
+}
+.c-shared-list__tab {
+  flex: none;
+  min-height: 36px;
+  padding: 0 var(--spacing-16);
+  border: var(--outline-width-1) solid var(--outline-neutral-04);
+  border-radius: var(--radius-16);
+  background: var(--surface-neutral-01);
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+/* selected = the filter chip's selected pair (chip.css), as role=tab needs aria-selected, not aria-pressed */
+.c-shared-list__tab[aria-selected="true"] {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+.c-shared-list__panel { flex: 1; overflow-y: auto; padding: 0 var(--spacing-16) var(--spacing-16); }
+.c-shared-list__panel > .c-shared__rows { background: var(--surface-card); border-radius: var(--radius-12); overflow: hidden; }
+.c-shared-list__panel > .c-shared__grid { padding: 0; }
+/* a glyph tile in "See all" sits on the SCREEN, not on a card — give it the card ground so it reads (render, #1106) */
+.c-shared-list__panel .c-shared__tile[data-glyph] { background: var(--surface-card); }
+
+</style><!-- ★★ #1106: the shared media / files / links section + its "See all" cover -->
 
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#
@@ -4546,6 +4672,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   }
   .cd-send-takeover__body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }   /* ★ Session J: a flex column, so the money CTA can ride the bottom edge (home.html's .wallet-takeover__body, same reason) */
   .cd-send-takeover__body > .c-wallet-send { flex: 1 0 auto; }
+  /* ★★ #1106: the shared items "See all" cover — the same cover grammar as the money compose */
+  .cd-shared-takeover {
+    position: fixed; inset: 0; z-index: var(--z-30, 30);
+    background: var(--surface-screen);
+    display: flex; flex-direction: column;
+  }
+  .cd-shared-takeover > .c-shared-list { flex: 1; min-height: 0; }
   /* Boot state: shown until the FIRST coalesced commit lands, so we never paint an
      empty panel that flashes to filled ~120ms later (the flicker fix). A lightweight
      centered spinner — replaced wholesale by the real panel on first render. */
@@ -4711,6 +4844,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     createWalletSend,                                // Pay  → the lockedRecipient compose (W5 #523)
     openRequestSheet,                                // Request → the amount sheet (#139/#528)
     setSendQuote: applySendQuote,                    // W6 — the component-side quote applier
+    parseSharedItems, createSharedList,              // ★★ #1106: shared media / files / links
+    createModal, openModal,                          // ★★ #1106: the link confirm (chat.html's confirmOpenLink grammar)
   } = window.Spixi;
   const strings = window.SL || {};
 
@@ -4789,6 +4924,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     name: '',            // friend.nickname (display name; incorporates any user-defined nick)
     address: '',
     online: false,       // showIndicator — NOT rendered by the component yet (gap), no rebuild
+    sharedItems: null,   // ★★ #1106: setSharedItems (parseSharedItems) — null until C# answers (a bot room never does)
+    lastSeen: 0,         // ★ #1103: showIndicator's 2nd arg — the "last seen …" line (targeted text, no rebuild)
     avatarPath: null,    // setAvatar — rendered in the c-chat-info hero; onerror → gradient fallback
     txs: [],             // committed tx rows (txlist-item opts)
     txsBuf: null,        // accumulator between clearRecentActivity and the settle
@@ -4882,6 +5019,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 
   /* —— panel build (change-gated, see UPDATE CHURN above) ——————————————————— */
   let built = false;
+  let lastSeenAppliedAt = 0;   // ★ #1103: the relative "last seen" text is refreshed at most every 30 s
   let lastSig = '';
 
   /* ★ #591: the address row opens the ONE address surface (#527) in its PEER variant —
@@ -4939,6 +5077,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       return createChatInfo({
         kind: state.group.kind || 'group',   // #249: 'bot' → members/notifications, no Leave (CI4)
         context: 'chat',
+        // ★★ #1106: a GROUP lists what was shared in it; a bot room never (v1 — C# does not answer there either)
+        shared: (state.group.kind || 'group') === 'group' ? state.sharedItems : null,
+        onSharedOpen: openSharedItem,
+        onSharedAll: openSharedTakeover,
         name: state.name,
         address: state.address,
         avatar: state.avatarPath,
@@ -5013,6 +5155,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       address: state.address,
       avatar: state.avatarPath,        // real contact photo (setAvatar); gradient fallback if unresolved
       avatarSeed: state.address,       // identity-stable gradient hue even before the name lands
+      lastSeen: state.lastSeen,        // ★ #1103: seed the "last seen …" line on (re)build
+      shared: state.sharedItems,       // ★★ #1106
+      onSharedOpen: openSharedItem,
+      onSharedAll: openSharedTakeover,
       online: state.online,            // A4 (#302): seed the hero dot on (re)build; live flips go
                                        // through setChatInfoPresence, see showIndicator
       nickname: '',                    // no separate wire-name vs override signal; name = display name,
@@ -5206,6 +5352,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // ★ #591: the Call reveal MUST be in the signature or scheduleCommit is decorative
       // — the exact defect the NOTIF-2 note above records, one push later.
       callable: state.callable,
+      // ★★ #1106: the shared section rebuilds when C#'s answer changes (count + newest id + local copies)
+      shared: Array.isArray(state.sharedItems)
+        ? state.sharedItems.length + ':' + state.sharedItems.map((x) => x.id + x.n + (x.local ? 'l' : '') + (x.thumb ? 't' : '')).join(',').length + ':' + (state.sharedItems[0] ? state.sharedItems[0].id : '')
+        : null,
       relation: state.relation,      // ★ C17 (#46 loop C-9): a relation pushed AFTER the first build must rebuild
       /* ★★ #46 loop (MAJOR-2): the two money CAPABILITIES decide whether Pay and Request
          are rendered at all, so they must be in the signature. C# pushes setCaps inside
@@ -5306,6 +5456,57 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   }
   function cdLockedRecipient() {
     return { name: cdPeerName(), address: state.address, avatar: state.avatarPath || null };
+  }
+
+  /* ★★ #1106 — a shared item's tap. The WebView sends back ONLY "<message id>:<link index>"; C# resolves the
+     target from its own scan. A LINK asks first (chat.html's confirmOpenLink grammar: the address in full, Cancel
+     focused) — C# then opens it through the shared external-link gate. A file / media goes straight to C#
+     (open the local copy, or open the conversation at the message). */
+  function openSharedItem(item) {
+    if (!item || !/^[0-9a-fA-F]{1,128}$/.test(String(item.id || ''))) return;
+    const token = item.id + ':' + (Number(item.n) || 0);
+    if (item.kind === 'link') {
+      openModal(createModal({
+        title: strings.openLinkTitle || 'Open external link?',
+        body: item.label,
+        host: document.body,
+        actions: [
+          { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+          { label: strings.openLink || 'Open', type: 'fill', onClick: () => bridge.send('ixian:sharedOpen:' + token) },
+        ],
+      }));
+      return;
+    }
+    closeSharedTakeover();
+    bridge.send('ixian:sharedOpen:' + token);
+  }
+
+  /* ★★ #1106 — "See all": Media · Files · Links on one cover (the money compose's cover grammar; back closes it). */
+  let cdSharedOpen = false;
+  let cdSharedOpener = null;   // (#46 r1 B4) focus returns to the "See all" that opened the cover
+  function openSharedTakeover(kind) {
+    if (!Array.isArray(state.sharedItems) || !state.sharedItems.length) return;
+    closeSharedTakeover();
+    cdSharedOpener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+    const over = document.createElement('div');
+    over.className = 'cd-shared-takeover';
+    over.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); closeSharedTakeover(); } });   // (#46 r1 B4)
+    over.append(createSharedList({ items: state.sharedItems, tab: kind, strings, onOpen: openSharedItem, onBack: closeSharedTakeover }));
+    document.body.append(over);
+    cdSharedOpen = true;
+    syncCdOverlay();
+    const first = over.querySelector('[role="tab"][aria-selected="true"]') || over.querySelector('button');
+    if (first) { try { first.focus({ focusVisible: false }); } catch (e) {} }   // focus moves in; no ring for a pointer open
+  }
+  function closeSharedTakeover() {
+    const t = document.querySelector('.cd-shared-takeover');
+    if (!t) return;
+    t.remove();
+    cdSharedOpen = false;
+    syncCdOverlay();
+    const back = cdSharedOpener && cdSharedOpener.isConnected ? cdSharedOpener : document.querySelector('#contact-root button');
+    cdSharedOpener = null;
+    try { if (back && back.focus) back.focus({ focusVisible: false }); } catch (e) {}
   }
 
   function closeSendTakeover() {
@@ -5541,11 +5742,21 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
        reset the 120 ms settle timer on every tick, so the panel could never settle.
        No rebuild: a targeted dot toggle. state.online is also in stateSig now, so a
        rebuild triggered by something else re-seeds the dot correctly. */
-    showIndicator(online) {
+    showIndicator(online, lastSeen) {
       const next = asBool(online);
-      if (next === state.online) return;
+      /* ★★ #1103: the 2nd arg = the last sighting (local Unix seconds, "0" = unknown); an older exe sends none.
+         The text is relative, so it is re-applied on every push (a targeted text set — still no rebuild); the
+         guard is on the RENDERED line, not on the arg. */
+      const sec = Number(lastSeen);
+      const seen = !next && Number.isFinite(sec) && sec > 0 ? sec : 0;
+      if (next === state.online && seen === state.lastSeen && (!seen || Date.now() - lastSeenAppliedAt < 30000)) return;
       state.online = next;
-      if (built && !state.isGroup) setChatInfoPresence(root.firstElementChild, next);
+      state.lastSeen = seen;
+      lastSeenAppliedAt = Date.now();
+      /* ★ #1103 (found by the render): during the first paint's crossfade (≤ 400 ms) root holds [boot skeleton, panel],
+         so firstElementChild was the SKELETON — a flip in that window was lost (the #302 dot too) and the guard above
+         then dropped every later identical push. The panel is always the LAST child. */
+      if (built && !state.isGroup) setChatInfoPresence(root.lastElementChild, next, seen, strings);
     },
 
     // tx list is cleared + fully re-pushed every second. Buffer between clear and
@@ -5591,7 +5802,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       // order chat.html uses (chatBack :4538). Without this line the page would pop
       // out from under an open compose.
       if (cdSendView) { closeSendTakeover(); return; }
+      if (cdSharedOpen) { closeSharedTakeover(); return; }   // ★★ #1106
       syncCdOverlay();
+    },
+
+    /* ★★ #1106 — C#'s answer to ixian:sharedItems: ONE push, newest first (parseSharedItems drops anything malformed). */
+    setSharedItems(json) {
+      state.sharedItems = parseSharedItems(json);
+      scheduleCommit();
     },
 
     /* ★★ L1 (#640) — setCaps('a,b,…'), the #242 grammar. C# declares which OPTIONAL
@@ -5636,6 +5854,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      mirror's own predicate: if it closed something, stop there. */
   attachEdgeBack({ onBack: () => {
     if (typeof dismissTopOverlay === 'function' && dismissTopOverlay()) return;
+    if (cdSharedOpen) { closeSharedTakeover(); return; }   // ★★ #1106: the shared cover (never open together with the money cover)
     if (cdSendView) { closeSendTakeover(); return; }
     bridge.send('ixian:back');
   } });
@@ -5649,7 +5868,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      reported here or Android back would pop the whole page out from under it — the
      same line chat.html carries for its own cover (chatOverlayLive :4569). */
   function cdOverlayLive() {
-    return document.body.dataset.overlayOpen !== undefined || !!cdSendView;
+    return document.body.dataset.overlayOpen !== undefined || !!cdSendView || cdSharedOpen;   // ★★ #1106: the shared cover too
   }
   function syncCdOverlay() {
     if (cdOverlaySyncT) return;
@@ -5673,6 +5892,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     requestAnimationFrame(() => requestAnimationFrame(() => {
       bridge.ready();
       bridge.send('ixian:sharedGroups');   // ★ A4: ask once at boot; the strip shows a skeleton line until the answer
+      bridge.send('ixian:sharedItems');    // ★★ #1106: answered OFF C#'s UI thread by setSharedItems (a bot room: no answer → no section)
     }));
   }
   if (document.readyState === 'complete') signalReady();

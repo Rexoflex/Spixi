@@ -113,3 +113,17 @@ export function startTimestampTicker(cb) {
   activeStop = stop;
   return stop;
 }
+
+/* ★★ #1103 — "last seen …" for the chat header and chat info (session 1 part 2).
+ * `epochSec` = the contact's last sighting as LOCAL Unix seconds (C# PresenceDisplay.lastSeenEpoch; 0 / '' / bad →
+ * '' = unknown, the line shows nothing — Damir). The sighting is a presence keepalive (every 100 s) or a message's
+ * creation time, so it is accurate to ±~2 min. #1113 (Damir, after #1109): NO dates or days, three words only —
+ * "just now" (< 1 h) · "recently" (< 7 days) · "a long time ago". A future time (clock skew) reads as "just now". */
+export function formatLastSeen(epochSec, strings = getStrings(), now = Date.now()) {
+  const sec = Number(epochSec);
+  if (!Number.isFinite(sec) || sec <= 0) return '';
+  const ageMin = Math.max(0, Math.floor((now - sec * 1000) / 60000));
+  if (ageMin < 60) return strings.lastSeenJustNow || 'last seen just now';
+  if (ageMin < 7 * 24 * 60) return strings.lastSeenRecently || 'last seen recently';
+  return strings.lastSeenLongAgo || 'last seen a long time ago';
+}

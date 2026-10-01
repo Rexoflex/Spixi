@@ -1379,17 +1379,18 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   :root[data-platform="windows"][data-desktop] .c-callscreen { scrollbar-width: thin; scrollbar-color: var(--call-btn-pressed) transparent; }
   /* ★ #1094 (walk #1093 B4b, Damir: "small window shows a weird card, should be responsive"): a SHORT window (CallPage
      sets data-call-compact below 520 dip) gets a compact, wide ring — identity left, Decline / Accept right, the quiet
-     row under them. No scroll. The e2e chip and the pulse rings step out. */
+     row under them. No scroll. The pulse rings step out.
+     ★ #1101 0b(d) (Damir): the e2e chip is BACK — a first row, start-aligned over the identity (it was hidden by #1094). */
   :root[data-call-compact] .c-callin__card {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "id act" "quick quick";
+    grid-template-areas: "top top" "id act" "quick quick";
     align-items: center;
     column-gap: var(--spacing-12);
     row-gap: var(--spacing-12);
     padding: var(--spacing-16);
   }
-  :root[data-call-compact] .c-callin__top { display: none; }
+  :root[data-call-compact] .c-callin__top { grid-area: top; justify-content: flex-start; margin: 0; }
   :root[data-call-compact] .c-callin__identity {
     grid-area: id;
     display: grid;

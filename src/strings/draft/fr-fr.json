@@ -770,5 +770,22 @@
   "aboutSub": "Liens et mentions légales",
   "deleteDataSub": "Discussions, contacts, compte",
   "groundGreenGradient": "Dégradé vert",
-  "addressWhatIsThis": "Qu’est-ce que c’est ?"
+  "addressWhatIsThis": "Qu’est-ce que c’est ?",
+  "lastSeenJustNow": "vu(e) à l'instant",
+  "lastSeenLongAgo": "vu(e) il y a longtemps",
+  "lastSeenRecently": "vu(e) récemment",
+  "sharedKindMedia": "Médias",
+  "sharedFiles": "Fichiers",
+  "sharedLinks": "Liens",
+  "sharedTitle": "Partagé",
+  "sharedShowInChat": "Voir dans la discussion",
+  "sharedNotOnDevice": "Pas sur cet appareil",
+  "sharedLinkLabel": "Lien",
+  "sharedJumpTooFar": "Ce message est plus ancien. Faites défiler vers le haut pour le trouver.",
+  "downloadsFilterSender": "De",
+  "downloadsAllSenders": "Tout le monde",
+  "downloadsFrom": "de {name}",
+  "downloadsShowInChat": "Voir {name} dans la discussion",
+  "downloadsFromChip": "De : {name}",
+  "downloadsSearchSenders": "Rechercher des personnes"
 }

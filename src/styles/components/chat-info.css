@@ -224,6 +224,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* ★ #1103: "last seen …" under the name (1:1, not online) — the sub-line's type and colour */
+.c-chat-info__presence {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.c-chat-info__presence[hidden] { display: none; }
 /* ★ Session Y (#875 P7): THE ADDRESS UNDER THE NAME — the hero's last line. The #211
    truncated form in the sub register, a 16px code glyph beside it (the sheet it opens IS
    the QR), tabular so the digits sit still. It is a <button> when a host wires the

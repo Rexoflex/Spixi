@@ -770,5 +770,22 @@
   "aboutSub": "Ссылки и документы",
   "deleteDataSub": "Чаты, контакты, аккаунт",
   "groundGreenGradient": "Зелёный градиент",
-  "addressWhatIsThis": "Что это?"
+  "addressWhatIsThis": "Что это?",
+  "lastSeenJustNow": "был(а) только что",
+  "lastSeenLongAgo": "был(а) давно",
+  "lastSeenRecently": "был(а) недавно",
+  "sharedKindMedia": "Медиа",
+  "sharedFiles": "Файлы",
+  "sharedLinks": "Ссылки",
+  "sharedTitle": "Общее",
+  "sharedShowInChat": "Показать в чате",
+  "sharedNotOnDevice": "Нет на этом устройстве",
+  "sharedLinkLabel": "Ссылка",
+  "sharedJumpTooFar": "Это сообщение выше. Прокрутите вверх, чтобы найти его.",
+  "downloadsFilterSender": "От",
+  "downloadsAllSenders": "Все",
+  "downloadsFrom": "от {name}",
+  "downloadsShowInChat": "Показать {name} в чате",
+  "downloadsFromChip": "От: {name}",
+  "downloadsSearchSenders": "Поиск людей"
 }

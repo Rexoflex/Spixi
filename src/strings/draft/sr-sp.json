@@ -770,5 +770,22 @@
   "aboutSub": "Linkovi i pravne informacije",
   "deleteDataSub": "Četovi, kontakti ili ceo nalog",
   "groundGreenGradient": "Zeleni gradijent",
-  "addressWhatIsThis": "Šta je ovo?"
+  "addressWhatIsThis": "Šta je ovo?",
+  "lastSeenJustNow": "viđen upravo sada",
+  "lastSeenLongAgo": "viđen davno",
+  "lastSeenRecently": "nedavno viđen",
+  "sharedKindMedia": "Mediji",
+  "sharedFiles": "Fajlovi",
+  "sharedLinks": "Linkovi",
+  "sharedTitle": "Deljeno",
+  "sharedShowInChat": "Prikaži u četu",
+  "sharedNotOnDevice": "Nije na ovom uređaju",
+  "sharedLinkLabel": "Link",
+  "sharedJumpTooFar": "Ova poruka je starija. Skroluj nagore da je pronađeš.",
+  "downloadsFilterSender": "Od",
+  "downloadsAllSenders": "Svi",
+  "downloadsFrom": "od {name}",
+  "downloadsShowInChat": "Prikaži {name} u četu",
+  "downloadsFromChip": "Od: {name}",
+  "downloadsSearchSenders": "Pretraži ljude"
 }

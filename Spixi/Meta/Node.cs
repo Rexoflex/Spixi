@@ -715,6 +715,13 @@ namespace SPIXI.Meta
                             UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.metaData.unreadMessageCount, "", 0);
                         }
                     }
+                    /* ★★ #1103: the DISPLAYED state also changes with time alone (a sighting older than
+                     * PresenceDisplay.OnlineWindowSec while Core still holds the presence) — push the row on that edge
+                     * too. 1:1 only; setContactStatus applies the same gate. */
+                    if (friend.type == FriendType.Normal && PresenceDisplay.shownChanged(friend, out bool shownNow))
+                    {
+                        UIHelpers.setContactStatus(friend.walletAddress, shownNow, friend.metaData.unreadMessageCount, "", 0);
+                    }
                 }
             }
         }

@@ -5985,6 +5985,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     applyPushedTheme,
     openRevokeRequestFlow,   // ★ #562: the HIDE-request words — ONE surface with the chats-list flow
     copyText,                // ★ #993: the shared copy with the file:// fallback (menu Copy)
+    formatLastSeen,          // ★ #1103: "last seen …" (the header sub-line when the contact is not online)
   } = window.Spixi;
 
   /* —— W5 chat pattern STYLE (Damir 2026-08-12) ——————————————————————————————
@@ -6199,6 +6200,26 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      users never saw a presence dot at all. Same carrier mechanism the payment
      titles already use in this file — locale-proof by construction. */
   const ONLINE_TEXT = slCarrier('sl-online', 'Online');
+  /* ★ #1103: the header's "last seen …" is RELATIVE — re-render it once a minute while it shows (no timer otherwise). */
+  let lastSeenEpoch = 0;
+  let lastSeenTimer = 0;
+  /* ★ #1106 (#46 r1 B1): a jump that arrives before the first onChatScreenLoaded waits for it (that handler pins the
+     bottom, which would undo an earlier scroll). */
+  let chatScreenLoadedOnce = false;
+  let pendingJumpId = '';
+  function armLastSeenTicker() {
+    if (lastSeenEpoch && !lastSeenTimer) {
+      lastSeenTimer = setInterval(() => {
+        if (!lastSeenEpoch || identity.online) { clearInterval(lastSeenTimer); lastSeenTimer = 0; return; }
+        if (document.hidden) return;
+        const next = formatLastSeen(lastSeenEpoch, window.SL || {});
+        if (next !== identity.sub) { identity.sub = next; renderTopbar(); }
+      }, 60000);
+    } else if (!lastSeenEpoch && lastSeenTimer) {
+      clearInterval(lastSeenTimer);
+      lastSeenTimer = 0;
+    }
+  }
 
   /* #434: TWO templates, because the copy changed. The live one is the
      direction-neutral "you are now connected" sentence C# writes from now on; the
@@ -7101,10 +7122,13 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 
   /* Shared scroll-to-and-pulse. Extracted from the @-mention FAB so the reply
      quote lands on the SAME behaviour (and the same stale-node re-bind). */
-  function jumpToRow(id, onArrive) {
+  function jumpToRow(id, onArrive, instant) {
     const first = rows.get(id); if (!first) return false;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    first.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    /* ★ #1106 (#46 r2 R2-3): `instant` for a fresh "show in chat" open — the log starts at the bottom, and a SMOOTH scroll
+       leaves frames in which every "at the bottom → stay at the bottom" re-pin (media load, re-render, composer height)
+       still sees the bottom and snaps back */
+    first.scrollIntoView({ behavior: reduce || instant ? 'auto' : 'smooth', block: 'center' });
     /* N52: start the pulse when the row is actually VISIBLE, not when the tap
        landed — on a far jump the 1.4s animation is otherwise spent mid-scroll.
        loop B-4: renderLogNow rebuilds rows, so re-bind through the id each frame. */
@@ -10077,10 +10101,20 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     // as the presence sub-line. The avatar dot lights on an EXACT match against
     // the C#-substituted carrier (W1/#302 — the old /online/ substring heuristic
     // was English-shaped and left the dot dead in es/fr/ru/sl/sr).
-    setOnlineStatus(status) {
+    setOnlineStatus(status, lastSeen) {
       identity.sub = status || '';
       const s = String(status || '').trim();
       identity.online = !mode.isMulti && !!s && s.toLowerCase() === ONLINE_TEXT.toLowerCase();
+      /* ★★ #1103: a 1:1 presence push from this exe carries a SECOND arg — the last sighting as local Unix seconds
+       * ("0" = unknown). Not online → the sub-line is "last seen …", or NOTHING when unknown (Damir). An older exe
+       * sends one arg (undefined here) → the text as before. Waiting / member-count pushes carry no second arg. */
+      lastSeenEpoch = 0;
+      if (lastSeen !== undefined && !identity.online && !mode.isMulti && (status || '') !== WAITING_RESPONSE_TEXT) {
+        const sec = Number(lastSeen);
+        lastSeenEpoch = Number.isFinite(sec) && sec > 0 ? sec : 0;
+        identity.sub = lastSeenEpoch ? formatLastSeen(lastSeenEpoch, window.SL || {}) : '';
+      }
+      armLastSeenTicker();
       // ⑪ presence doubles as the pending-state heartbeat: "Waiting for response"
       // (carrier-matched, locale-proof) arrives BEFORE the load burst for both
       // pending states → early generic lock; any OTHER presence text while the
@@ -10526,6 +10560,16 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       const cdPaint = lastPaintMs;
       box.scrollTop = box.scrollHeight;
       bootRepin(2000);                     // #334 iOS-62: hold the bottom through late bubble growth (abortable)
+      chatScreenLoadedOnce = true;         // ★ #1106 (#46 r1 B1)
+      if (pendingJumpId) {
+        /* ★ #1106 (#46 r1 B1): a "show in chat" open — C# sent jumpToMessage INSIDE the load, before this handler, and
+           the bottom pin above would undo the scroll. The jump wins: stop the pin, then scroll to the row. */
+        const id = pendingJumpId;
+        pendingJumpId = '';
+        bootRepinEnd = 0;
+        cancelAnimationFrame(bootRepinRaf);
+        requestAnimationFrame(() => handlers.jumpToMessage(id, true));
+      }
       maybeRestoreDraft();                 // fallback if onChatScreenReady didn't carry the address
       focusComposer();
       requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -10752,6 +10796,53 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
      * non-text row (it would overwrite the card with the raw file header); for a fileHeader it now pushes
      * THIS instead — flags only, no text. Unknown id / a received file / an unchanged status → no-op. The
      * tick crossfades like a text tick (setMessageStatus), and a rebuild inside the fade replays it. */
+    /* ★★ #1102 IMPLIED READ: the tick changes of several OWN rows in ONE push (C# SingleChatPage.updateTicks).
+     * `json` = [[id, sent, confirmed, read], …] — flags only ("1"/"0"), never text. An item changes only an OWN
+     * text or file row this shell has loaded; anything else (unknown id, a received row, a failed row, a malformed
+     * item) is skipped. At most 500 items. One repaint for rows that are not on screen; on-screen rows crossfade
+     * like a live updateFileTicks. */
+    updateTicks(json) {
+      let list = null;
+      try { list = JSON.parse(String(json)); } catch (e) { list = null; }
+      if (!Array.isArray(list)) return;
+      const live = !bursting && !loadPhase;
+      let repaint = false;
+      for (const it of list.slice(0, 500)) {
+        if (!Array.isArray(it) || it.length < 4) continue;
+        const key = String(it[0]);
+        const rec = model.get(key);
+        if (!rec || rec.direction !== 'sent' || (rec.kind !== 'text' && rec.kind !== 'file')) continue;
+        if (rec.status === 'failed') continue;
+        const next = statusFrom({ sent: it[1] === '1', confirmed: it[2] === '1', read: it[3] === '1' });
+        if (next === rec.status) continue;
+        const prev = rec.status;
+        rec.status = next;
+        if (live && prev) rec.tickFx = { from: prev, at: performance.now() };
+        const row = rows.get(key);
+        if (row && prev) setMessageStatus(row, next, window.SL || {}, { animate: live });
+        else repaint = true;
+      }
+      if (repaint) renderLog();
+    },
+
+    /* ★★ #1106 — C# opens the conversation AT a message (a shared item in chat info, Downloads "Show in chat"): scroll
+     * to the row and pulse it (the @-mention FAB's jumpToRow). A row the loaded window does not hold → a short toast.
+     * `id` is C#'s own hex id; an unknown id only ever produces the toast. */
+    jumpToMessage(id, instant) {
+      const key = String(id || '');
+      if (!chatScreenLoadedOnce) { pendingJumpId = key; return; }   // (#46 r1 B1) a fresh open: onChatScreenLoaded runs it
+      /* (#46 r3 R3-3) every "show in chat" jump is INSTANT: the already-open path re-renders the whole log from the bottom
+         too, so a smooth scroll has the same window for the bottom re-pins. `instant` is kept for the internal call. */
+      void instant;
+      const tryJump = () => key && jumpToRow(key, null, true);
+      if (tryJump()) return;
+      requestAnimationFrame(() => {
+        if (tryJump()) return;
+        const sl = window.SL || {};
+        try { showToast({ text: sl.sharedJumpTooFar || 'This message is further back. Scroll up to find it.', host: overlayHost, strings: sl }); } catch (e) {}
+      });
+    },
+
     updateFileTicks(id, sent, confirmed, read) {
       const key = String(id);
       const rec = model.get(key);

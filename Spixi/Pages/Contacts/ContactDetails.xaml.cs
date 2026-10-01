@@ -557,6 +557,64 @@ namespace SPIXI
                     Logging.warn("ixian:openChat: malformed address");   // no ex.Message — carries the token
                 }
             }
+            else if (current_url.Equals("ixian:sharedItems", StringComparison.Ordinal))
+            {
+                /* ★★ #1106 (be-cutover CI6): the shared media / files / links of this conversation. 1:1 + groups; a bot
+                 * room gets no answer (v1, Damir) and the shell keeps the section hidden. The scan reads history from
+                 * disk, so it runs OFF the UI thread; the answer is ONE push (ids, kinds, labels, sizes, times, small
+                 * data: thumbs — never a path). */
+                if (!friend.bot)
+                {
+                    Friend scanned = friend;
+                    ContactDetails page = this;
+                    System.Threading.Tasks.Task.Run(() =>
+                    {
+                        try
+                        {
+                            string json = SharedItems.toJson(SharedItems.scan(scanned));
+                            MainThread.BeginInvokeOnMainThread(() => Utils.sendUiCommand(page, "setSharedItems", json));
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.warn("ixian:sharedItems: " + ex.GetType().Name);   // the type only — no path, name or address
+                        }
+                    });
+                }
+            }
+            else if (current_url.StartsWith("ixian:sharedOpen:", StringComparison.Ordinal))
+            {
+                /* ★★ #1106: the WebView names an item ("<message id hex>:<link index>") — NOTHING else. C# resolves it
+                 * from its OWN last scan: a link opens through the shared external-link gate (the shell showed the
+                 * address and asked first); a FILE with a local copy C# resolved opens; everything else (media, a file
+                 * not on this device) opens the conversation AT the message. */
+                string token = current_url.Substring("ixian:sharedOpen:".Length);
+                SharedItem? item = SharedItems.resolve(friend, token);
+                if (item == null)
+                {
+                    Logging.warn("ixian:sharedOpen: no such item (len=" + token.Length + ")");
+                }
+                else if (item.kind == "link")
+                {
+                    Utils.openExternal(item.url);
+                }
+                else if (item.kind == "file" && item.path != null && System.IO.File.Exists(item.path))
+                {
+                    try
+                    {
+                        SFileOperations.open(item.path);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("ixian:sharedOpen: the file did not open (" + ex.GetType().Name + ")");   // (#46 r3 R3-5) the type only
+                    }
+                }
+                else
+                {
+                    SingleChatPage.requestJump(friend, item.id, item.depth);
+                    popPageAsync();
+                    HomePage.Instance()?.onChat(friend.walletAddress, null);
+                }
+            }
             else if (current_url.Equals("ixian:sharedGroups", StringComparison.Ordinal))
             {
                 // ★ Batch A (#540) A4: the 1:1 info strip "groups you are both in" —
@@ -953,13 +1011,15 @@ namespace SPIXI
                 return;
             }
 
-            if (friend.online)
+            /* ★★ #1103: the DISPLAYED state (a sighting ≤ 150 s old) + the last sighting as LOCAL Unix seconds when not
+             * online ("0" = unknown → nothing). An older shell ignores the trailing arg. */
+            if (PresenceDisplay.shownOnline(friend))
             {
-                Utils.sendUiCommand(this, "showIndicator", "true");
+                Utils.sendUiCommand(this, "showIndicator", "true", "0");
             }
             else
             {
-                Utils.sendUiCommand(this, "showIndicator", "false");
+                Utils.sendUiCommand(this, "showIndicator", "false", PresenceDisplay.lastSeenArg(friend));
             }
 
             loadTransactions();

@@ -51,6 +51,7 @@ namespace SPIXI
         private bool unreadIndicatorDisplayed = false;
         private string setNickname = "";
         private bool setOnlineStatus = false;
+        private string? lastPresenceKey = null;   // ★ #1103: "on" | "off:<last-seen minute>" | "off:0" — the header push latch
         private string lastGroupCountPushed = null;   // N22: group member-count sub, pushed on change only
 
         /* ★ Session I ② [CDPERF] — TEMPORARY, THE CHAT-OPEN STUTTER INSTRUMENT (#735, Damir on
@@ -1407,6 +1408,7 @@ namespace SPIXI
             setNickname = "";
             setOnlineStatus = false;
             lastGroupCountPushed = null;   // N22: a WebView reload resets identity.sub — re-arm the count push
+            lastPresenceKey = null;   // ★ #1103: a WebView reload gets its presence line again
             // #275 re-review R1: reset the pending latch on EVERY load — onLoad re-fires on
             // a WebView reload of a LIVE page (desktop pane re-home #225/#247, WKWebView
             // process reload) and the shell re-arms itself UNLOCKED (onChatScreenReady →
@@ -2754,8 +2756,84 @@ namespace SPIXI
             }
         }
 
+        /* ★★ #1106 — "SHOW IN CHAT" / a shared item's tap (chat info, Downloads): open the conversation AT a message.
+         * C# found the message in its own scan (SharedItems / the Downloads match), with `depth` = how many messages
+         * of its channel are newer. The chat's load window is widened to hold it (at most SharedItems.JumpCap — Damir:
+         * "capped"), then the shell scrolls to the row and pulses it (`jumpToMessage`, the @-mention FAB's jumpToRow).
+         * Past the cap, or a row the window does not hold, the shell says so in a short toast. One pending jump, keyed
+         * by the conversation; the id is C#'s own hex, never a WebView string. */
+        private static readonly object jumpLock = new object();
+        private static string? jumpAddr = null;
+        private static string jumpId = "";
+        private static int jumpDepth = 0;
+        private static long jumpAtMs = 0;
+        private const long JumpTtlMs = 15000;   // (#46 r1 A2) an open that never happened must not jump a LATER, unrelated open
+
+        public static void requestJump(Friend friend, string idHex, int depth)
+        {
+            SingleChatPage? open = Utils.getChatPage(friend);
+            lock (jumpLock)
+            {
+                jumpAddr = friend.walletAddress.ToString();
+                jumpId = idHex;
+                jumpDepth = depth;
+                jumpAtMs = Environment.TickCount64;
+            }
+            if (open != null && open.pageLoaded)
+            {
+                // (#46 r3 R3-9) a page still STAGING (not loaded) takes the jump in its own onLoad → loadMessages
+                MainThread.BeginInvokeOnMainThread(() => open.applyPendingJumpWindow(true));
+            }
+        }
+
+        private string? jumpArmedId = null;   // (#46 r2 R2-9) decided ONCE, at the widening; pushed at the end of THAT load
+
+        /** Widen the window for a pending jump of THIS conversation; reload = an already-open chat. */
+        private void applyPendingJumpWindow(bool reload)
+        {
+            int depth;
+            lock (jumpLock)
+            {
+                if (jumpAddr != null && Environment.TickCount64 - jumpAtMs > JumpTtlMs)
+                {
+                    jumpAddr = null;   // (#46 r1 A2) expired
+                }
+                if (jumpAddr == null || friend == null || jumpAddr != friend.walletAddress.ToString())
+                {
+                    return;
+                }
+                depth = jumpDepth;
+                jumpArmedId = jumpId;
+                jumpAddr = null;   // consumed here: a later, unrelated load of this chat never jumps
+            }
+            if (depth < SharedItems.JumpCap && depth + 2 > messagesToShow)
+            {
+                messagesToShow = (uint)(depth + 2);
+                if (messagesToShow == 100)
+                {
+                    messagesToShow++;   // D-18 (#354): never the stale exact-100 window
+                }
+            }
+            if (reload)
+            {
+                loadMessages();
+            }
+        }
+
+        /** After the load burst: hand the shell the jump armed for THIS load (once). */
+        private void pushPendingJump()
+        {
+            string? id = jumpArmedId;
+            jumpArmedId = null;
+            if (id != null)
+            {
+                Utils.sendUiCommand(this, "jumpToMessage", id);
+            }
+        }
+
         public void loadMessages()
         {
+            applyPendingJumpWindow(false);   // ★ #1106
             int want = (int)messagesToShow;
             /* One row MORE than wanted: finding it is the only honest proof that older history
              * exists. The baseline asked for exactly `want` and offered "show older" whenever it
@@ -2796,6 +2874,7 @@ namespace SPIXI
                 // log paints on the signal, not on the shell's 250 ms safety timer.
                 Utils.sendUiCommand(this, "clearMessages", "false");
                 Utils.sendUiCommand(this, "messagesDone");
+                pushPendingJump();   // ★ #1106: the shell answers "not found" with its toast
                 return;
             }
 
@@ -2924,6 +3003,7 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "addMessages", json, "append");
                 }
                 Utils.sendUiCommand(this, "messagesDone");
+                pushPendingJump();   // ★ #1106
             }
         }
 
@@ -3988,6 +4068,35 @@ namespace SPIXI
             Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), message.message, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString());
         }
 
+        /* ★★ #1102 IMPLIED READ — the tick changes of several own messages in ONE push (`updateTicks`),
+         * not one updateMessage per row. FLAGS ONLY: [[id, sent, confirmed, read], …] as JSON — no text, no
+         * name, no path (the updateFileTicks rule, #1028), so a file and a text ride the same item. Only the
+         * selected channel (the updateMessage rule). The shell applies an item to an OWN text/file row it has
+         * loaded and ignores everything else; an OLDER shell has no `updateTicks` and drops the push (the rows
+         * then catch up on the next open — Core has saved the flags). A NEW push: DECISIONS #1102 🟡 BE ask. */
+        public void updateTicks(List<FriendMessage> messages, int channel)
+        {
+            if (channel != selectedChannel || messages == null || messages.Count == 0)
+            {
+                return;
+            }
+            List<string[]> items = new List<string[]>();
+            foreach (FriendMessage m in messages)
+            {
+                if (m.type != FriendMessageType.standard && m.type != FriendMessageType.fileHeader)
+                {
+                    continue;
+                }
+                deliveryTicks(m, out bool tSent, out bool tConfirmed, out bool tRead);
+                items.Add(new string[] { Crypto.hashToString(m.id), tSent ? "1" : "0", tConfirmed ? "1" : "0", tRead ? "1" : "0" });
+            }
+            if (items.Count == 0)
+            {
+                return;
+            }
+            Utils.sendUiCommand(this, "updateTicks", JsonConvert.SerializeObject(items));
+        }
+
         public void updateFile(string uid, string progress, bool complete)
         {
             Utils.sendUiCommand(this, "updateFile", uid, progress, complete.ToString());
@@ -4187,19 +4296,19 @@ namespace SPIXI
             {
                 if (friend.state == FriendState.Approved)
                 {
-                    if (friend.online)
+                    /* ★★ #1103: "online" = PresenceDisplay.shownOnline (a sighting ≤ 150 s old), and when not online the
+                     * trailing arg carries the last sighting as LOCAL Unix seconds ("0" = unknown → the shell shows
+                     * nothing). An older shell ignores the trailing arg and reads the text as before. Pushed on a CHANGE
+                     * only (the #288 churn rule): online ⇄ not, or the last-seen minute moved. */
+                    bool shownNow = PresenceDisplay.shownOnline(friend);
+                    string seenArg = shownNow ? "0" : PresenceDisplay.lastSeenArg(friend);
+                    string presenceKey = shownNow ? "on" : "off:" + (long.Parse(seenArg, System.Globalization.CultureInfo.InvariantCulture) / 60).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    if (presenceKey != lastPresenceKey)
                     {
-                        if (setOnlineStatus == false)
-                        {
-                            Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-online"));
-                            setOnlineStatus = true;
-                        }
+                        Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL(shownNow ? "chat-online" : "chat-offline"), seenArg);
+                        lastPresenceKey = presenceKey;
                     }
-                    else if (setOnlineStatus == true)
-                    {
-                        Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-offline"));
-                        setOnlineStatus = false;
-                    }
+                    setOnlineStatus = shownNow;
 
                     if (_waitingForContactConfirmation)
                     {
@@ -4209,9 +4318,9 @@ namespace SPIXI
                         // the OFFLINE accept pushes no presence above (setOnlineStatus is
                         // false) — clear it explicitly. The online case already pushed
                         // chat-online this same tick.
-                        if (!friend.online)
+                        if (!shownNow)
                         {
-                            Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-offline"));
+                            Utils.sendUiCommand(this, "setOnlineStatus", SpixiLocalization._SL("chat-offline"), seenArg);
                         }
                     }
                 }
@@ -4244,6 +4353,7 @@ namespace SPIXI
                         // on desktop, and an accept while the freshly-approved peer is OFFLINE.
                         _waitingForContactConfirmation = true;
                         setOnlineStatus = false;   // #275 review A4: re-arm the presence push for the next Approved tick
+                        lastPresenceKey = null;    // ★ #1103: the same re-arm for the presence latch
                     }
                 }
 

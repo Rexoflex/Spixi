@@ -770,5 +770,22 @@
   "aboutSub": "Links und Rechtliches",
   "deleteDataSub": "Chats, Kontakte, Konto",
   "groundGreenGradient": "Grüner Verlauf",
-  "addressWhatIsThis": "Was ist das?"
+  "addressWhatIsThis": "Was ist das?",
+  "lastSeenJustNow": "gerade eben online",
+  "lastSeenLongAgo": "zuletzt vor langer Zeit online",
+  "lastSeenRecently": "zuletzt kürzlich online",
+  "sharedKindMedia": "Medien",
+  "sharedFiles": "Dateien",
+  "sharedLinks": "Links",
+  "sharedTitle": "Geteilt",
+  "sharedShowInChat": "Im Chat zeigen",
+  "sharedNotOnDevice": "Nicht auf diesem Gerät",
+  "sharedLinkLabel": "Link",
+  "sharedJumpTooFar": "Diese Nachricht liegt weiter zurück. Scrolle nach oben, um sie zu finden.",
+  "downloadsFilterSender": "Von",
+  "downloadsAllSenders": "Alle",
+  "downloadsFrom": "von {name}",
+  "downloadsShowInChat": "{name} im Chat zeigen",
+  "downloadsFromChip": "Von: {name}",
+  "downloadsSearchSenders": "Personen suchen"
 }

@@ -317,3 +317,11 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   `docs/decisions-index.md`; `docs/release-readiness.md` rewritten as the v1 definition of done (every row re-verified).
   Smoke unchanged (no code): BASELINE OK 5049 / the 2 KNOWN (#136 · B3). NEXT SESSION: read
   `docs/handoff-2026-10-01b.md` FIRST, then paste `docs/prompts/session-1.md`.
+- [x] **SESSION 1 — CARRY-OVER · IMPLIED READ · LAST SEEN · SHARED ITEMS · DOWNLOADS (#1101–#1113, 2026-10-01, cloud
+  copy; delivered into the PC tree as a patch; UNCOMMITTED and UNWALKED — commit = Damir,
+  `docs/commit-message-session1.txt`).** 0b(a) bar snap + `[CALLSWAP]` · 0b(b) Android spare 0.01 present · 0b(d)
+  Windows scrim tap + compact e2e chip · implied read 1:1 (#1102) · online ≤ 150 s + last seen just now / recently / a long time ago (#1103/#1113) ·
+  BE ask / deferred (#1104/#1105) · shared media/files/links cards (#1106/#1110) · Downloads newest first + size +
+  From sheet + Show in chat (#1107/#1111) · fiat server-side (#1108). #46 loop CLEAN at r5 (#1112). Smoke BASELINE OK
+  5075 / the 2 KNOWN (#136 · B3). ⚠ C# UNCOMPILED (brief §5). NEXT SESSION: read `docs/handoff-2026-10-01c.md`
+  FIRST, then paste `docs/prompts/session-2.md`.

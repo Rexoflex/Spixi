@@ -94,3 +94,13 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L49 | A failure message must prove its setup first. The BUILD walk row must name something only the new build shows; "it starts" proves nothing (a stale shell starts too). | #663, #1100 | Bot L18, Bot L23 |
 | L50 | Keep CLAUDE.md to the rules and "where we are now". 324 KB of history made every session slow and stale. | #1097 | Bot L10 |
 | L51 | Incremental iOS (and Android) builds do not repackage `Resources/Raw` html. When the html changed: wipe `obj`/`bin`, plain build, then Run, and check the new bundle is what runs. | #320, #449 | — |
+
+## Added in session 1 (2026-10-01)
+
+| L# | Lesson | DECISIONS | Also |
+|---|---|---|---|
+| L52 | A quick runner that runs only the new pin block hides the global gates (#345 size ceiling). Run the FULL smoke before you claim green. | #1112 (r1 C1) | — |
+| L53 | Check that a pin's slice is not empty. A `slice(indexOf(a), indexOf(b))` with a missing anchor tests nothing and passes. | #1112 (r1 C4) | — |
+| L54 | A pin that reads `querySelector(…).textContent` without a guard crashes the whole smoke on one rename. Use `(… \|\| {})`. | #1112 (r2 C10, r5 R5-1) | — |
+| L55 | A file path is not an identity: a delete frees it for the next same-named download. Match on path AND recorded size, and re-check at every lookup. | #1112 (r4 R4-1, r5 R5-3) | — |
+| L56 | A rule protected only by source-text pins survives a bypass that keeps the text. Move it into a pure helper and execute it (MSTest + the csh harness). | #1112 (r5 R5-2) | — |

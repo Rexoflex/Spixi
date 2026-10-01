@@ -76,6 +76,8 @@ import { overlayId, setOverlayOpts, dismissOverlay } from './overlay.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { openMemberSheet } from './member-sheet.js';
 import { openMediaViewer } from './media-viewer.js';
+import { formatLastSeen } from './timestamp.js';
+import { createSharedSection } from './shared-items.js';
 
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
@@ -168,6 +170,10 @@ export function createChatInfo({
   avatar = null,                 // hero photo src (path/data: URI); null → gradient (onerror-safe)
   avatarSeed = '',               // hue source when it differs from name
   online = false,                // A4 (#302): presence dot on the hero avatar — 1:1 ONLY
+  shared = null,                 // ★★ #1106: shared media / files / links (parseSharedItems) — null = not asked / not answered
+  onSharedOpen = null,           // ★★ #1106: (item) → the shell's tap rule (a link asks first)
+  onSharedAll = null,            // ★★ #1106: (kind) → the "See all" view at that tab
+  lastSeen = 0,                  // ★ #1103: last sighting, local Unix seconds (0 = unknown) — "last seen …" under the name when not online
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
   members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
@@ -317,6 +323,15 @@ export function createChatInfo({
   // unappended node made the wire name silently vanish); hidden when empty
   sub.hidden = !sub.textContent;
   idCol.append(sub);
+  /* ★★ #1103: "last seen …" (1:1 only) — ALWAYS in the DOM for the live toggle (setChatInfoPresence), hidden when
+     online or unknown. Re-rendered by setChatInfoPresence; the host re-pushes it at its poll cadence. */
+  if (kind === 'contact') {
+    const presence = document.createElement('span');
+    presence.className = 'c-chat-info__presence';
+    presence.textContent = online ? '' : formatLastSeen(lastSeen, strings);
+    presence.hidden = !presence.textContent;
+    idCol.append(presence);
+  }
   /* ——— ★ Session Y (#875 P7): THE ADDRESS UNDER THE NAME ———
      Telegram and Signal put the handle under the name; the address row that used to
      open group 1 (#591) moves INTO the hero as its last line — the #211 TRUNCATED form,
@@ -669,6 +684,12 @@ export function createChatInfo({
     const sdSection = groupCard({ cls: 'c-chat-info__setting-section' });
     sdSection.card.append(sdRow);
     body.append(sdSection.wrap);
+  }
+
+  /* ——— ★★ #1106: shared media · files · links (ContactDetails setSharedItems) — empty kinds never show ——— */
+  if (Array.isArray(shared) && shared.length) {
+    const sharedSec = createSharedSection({ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll });
+    if (sharedSec) body.append(sharedSec);
   }
 
   /* ——— shared media (capabilities.media — NO legacy command, §9; demo-fed) ——— */
@@ -1212,8 +1233,15 @@ export function createChatInfo({
  *  Task.Delay(2000) → HomePage.OnUpdateUI, foreground-only :2211).
  *
  *  Presence is 1:1 only — see the note at the hero. */
-export function setChatInfoPresence(el, online) {
+export function setChatInfoPresence(el, online, lastSeen = 0, strings = getStrings()) {
   if (!el) return;
+  /* ★ #1103: the "last seen …" line follows the same toggle (absent on a group/bot surface) */
+  const line = el.querySelector('.c-chat-info__presence');
+  if (line) {
+    const t = online ? '' : formatLastSeen(lastSeen, strings);
+    if (line.textContent !== t) line.textContent = t;
+    line.hidden = !t;
+  }
   const avatar = el.querySelector('.c-chat-info__hero .c-avatar');
   if (!avatar) return;
   const has = avatar.querySelector('.c-avatar__dot');

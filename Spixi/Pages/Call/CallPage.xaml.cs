@@ -129,6 +129,11 @@ namespace SPIXI
         private static long swapToken = 0;            // the swap the next callPainted must match; bumped when consumed
         private static readonly System.Diagnostics.Stopwatch swapClock = System.Diagnostics.Stopwatch.StartNew();
         private static long swapStartedMs = 0;        // ★ #1095 [CALLSWAP]: hidden → revealed, and by what (painted / timeout)
+        /* ★ #1101 0b(a) PROBE (Damir: "full → card is clunky, almost a second"; #1096 measured the BAR reveal at
+         * 223–240 ms). Between requestPaint and the reveal, [CALLSWAP] also stamps WHEN the native layout ran, when
+         * the stage reached its new height and when the call WebView did — so the walk shows where the time goes
+         * (MAUI layout vs the WebView resize vs the shell's paint). Integers only: no address, no name. */
+        private static bool swapProbeArmed = false;
         private static readonly object speakerChainLock = new object();
         private static Task speakerChain = Task.CompletedTask;   // ★ B9: the serial off-UI-thread route switches
         public static readonly Color callGround = Color.FromArgb("#14161c");   // = surfaceColorStringFor("call.html")
@@ -882,6 +887,18 @@ namespace SPIXI
                     stage.Handler?.UpdateValue(nameof(IView.Opacity));   // ★ #1095 (#46 r2): put the initial 0 on the permanent wrapper too
 #endif
                     grid.SizeChanged += onHostGridSizeChanged;
+                    stage.SizeChanged += onStageSizeChanged;            // ★ #1101 0b(a) probe
+#if WINDOWS
+                    /* ★ #1101 0b(d) (Damir): on Windows the dim around the ring card is the NATIVE scrim (the WebView2 is
+                     * card-sized, #1093), so call-overlay.js's "a tap on the dimmed ring closes the decline sheet" never
+                     * saw that tap. A tap on the scrim OUTSIDE the card → the same `callBack` hardware back sends: it closes
+                     * an open decline sheet and does nothing to a ring without one. Ring only; a tap inside the card's
+                     * bounds is ignored here (the WebView has its own). */
+                    TapGestureRecognizer scrimTap = new TapGestureRecognizer();
+                    scrimTap.Tapped += onWinScrimTapped;
+                    stage.GestureRecognizers.Add(scrimTap);
+#endif
+                    page.webView.SizeChanged += onCallWebViewSizeChanged;   // ★ #1101 0b(a) probe
                 }
                 catch (Exception ex)
                 {
@@ -1044,6 +1061,7 @@ namespace SPIXI
             lock (callLock)
             {
                 swapStartedMs = swapClock.ElapsedMilliseconds;   // ★ #1095 [CALLSWAP]
+                swapProbeArmed = true;                            // ★ #1101 0b(a) probe
             }
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -1126,12 +1144,88 @@ namespace SPIXI
                     stage = callStage;
                     mode = surfaceMode;
                     waited = swapClock.ElapsedMilliseconds - swapStartedMs;
+                    swapProbeArmed = false;
                 }
-                Logging.info("[CALLSWAP] reveal mode={0} via={1} t={2}ms", mode, painted ? "painted" : "timeout", waited);
+                bool snap = revealSnaps(mode);
+                Logging.info("[CALLSWAP] reveal mode={0} via={1} t={2}ms fade={3}", mode, painted ? "painted" : "timeout", waited, snap ? 0 : (int)swapFadeMs);
                 setStageInput(stage, true);
                 Microsoft.Maui.Controls.ViewExtensions.CancelAnimations(stage);
-                _ = Microsoft.Maui.Controls.ViewExtensions.FadeTo(stage, 1, swapFadeMs, Easing.CubicOut);
+                if (snap)
+                {
+                    stage.Opacity = 1;
+                }
+                else
+                {
+                    _ = Microsoft.Maui.Controls.ViewExtensions.FadeTo(stage, 1, swapFadeMs, Easing.CubicOut);
+                }
             });
+        }
+
+        /* ★ #1101 0b(a) (Damir: probe + the safe fix): on a PHONE the minimised card does not fade in natively —
+         * the shell already fades the card itself (callbar.css .c-callbar → [data-open]), so the C# fade only
+         * stacked 120 ms on top of it. Under the card's footprint is only the card; the app around it is already
+         * visible. Ring / full keep the fade; the desktops keep it (Windows was "works great", #1094). */
+        private static bool revealSnaps(string mode)
+        {
+#if ANDROID || IOS
+            return mode == "bar";
+#else
+            return false;
+#endif
+        }
+
+        /** ★ #1101 0b(a) probe: one [CALLSWAP] stamp while a swap waits for its paint. Integers only. */
+        private static void probeSwap(string what, double value)
+        {
+            long t;
+            lock (callLock)
+            {
+                if (!swapProbeArmed)
+                {
+                    return;
+                }
+                t = swapClock.ElapsedMilliseconds - swapStartedMs;
+            }
+            Logging.info("[CALLSWAP] {0}={1} t={2}ms", what, (int)Math.Round(value), t);
+        }
+
+#if WINDOWS
+        private static void onWinScrimTapped(object? sender, TappedEventArgs e)
+        {
+            Border? stage;
+            string mode;
+            lock (callLock)
+            {
+                stage = callStage;
+                mode = surfaceMode;
+            }
+            if (stage == null || mode != "ring" || stage.Opacity < 1 || stage.Content is not ContentView inner)
+            {
+                return;
+            }
+            Microsoft.Maui.Graphics.Point? at = e.GetPosition(stage);
+            if (at == null || inner.Bounds.Contains(at.Value))
+            {
+                return;   // inside the card: the WebView's own tap, never a dim tap
+            }
+            forwardBackToShell();
+        }
+
+#endif
+        private static void onStageSizeChanged(object? sender, EventArgs e)
+        {
+            if (sender is VisualElement v)
+            {
+                probeSwap("stageH", v.Height);
+            }
+        }
+
+        private static void onCallWebViewSizeChanged(object? sender, EventArgs e)
+        {
+            if (sender is VisualElement v)
+            {
+                probeSwap("webviewH", v.Height);
+            }
         }
 
         private static void revealSurface(CallPage? owner = null)
@@ -1220,6 +1314,7 @@ namespace SPIXI
                 {
                     return;
                 }
+                probeSwap("layout", mode == "bar" ? cardHeightDip : -1);   // ★ #1101 0b(a) probe: the native layout ran
                 // Review MINOR-5: the strip used to be derived from grid.Height via a
                 // bottom margin — but VisualElement.Height is -1/NaN before the first
                 // arrange, which collapsed the margin to zero and left the OPAQUE,

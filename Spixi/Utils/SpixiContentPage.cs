@@ -813,6 +813,10 @@ namespace SPIXI
              * present is an opacity flip today; Damir asked for the slide, and it is also
              * the thing most likely to mask the skeleton-to-content change on its own. */
             public bool slideIn = false;
+            /* ★ #1101 0b(b) (Damir: the cheap test build): Android only, the pre-warmed spare chat. Its stage waited at
+             * Opacity 0 — an Android view at alpha 0 is not drawn, so the spare's first on-glass frame at present was
+             * blank (#1095: ~2 frames on EVERY open). The present goes 0 → 0.01 for two frames, then 1. */
+            public bool preRevealFrames = false;
             public volatile bool closing = false;   // ★ L8: set at the top of closeOverlay
             // W7: the inset this stage was staged with (#245 rail strip for the Account
             // peer pane; zero for every other op). Remembered so a page opened FROM this
@@ -1561,6 +1565,14 @@ namespace SPIXI
             op.column = column;             // staged where it will present; re-homed at attach only if the mode changed
             op.revealDelayMs = 0;           // the chat presents on its own painted signal (Session K)
             op.slideIn = false;             // #735①: the conversation never slides
+#if ANDROID
+            op.preRevealFrames = true;      // ★ #1101 0b(b): see PreloadOp.preRevealFrames
+            /* ★ #1101 0b(b), the second candidate cause: the #1095 mechanism (MAUI ViewExtensions.NeedsContainer) — a view
+             * whose InputTransparent flips gets a WrapperView container added / removed, which RE-PARENTS the WebView inside;
+             * revealStage flips it at the very frame of the present. A zero-size, zero-opacity shadow from birth makes the
+             * container permanent (the CallPage stage's recipe), so the flip no longer detaches the WebView. Draws nothing. */
+            stage.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+#endif
             try
             {
                 target.Content = null;
@@ -1584,6 +1596,9 @@ namespace SPIXI
                     spareChatOp = op;
                 }
                 hostGrid.Children.Add(stage);   // WebView gets a handler → starts loading
+#if ANDROID
+                stage.Handler?.UpdateValue(nameof(IView.Opacity));   // ★ #1101 0b(b) (the #1095 rule): the initial 0 onto the permanent wrapper too
+#endif
             }
             catch (Exception ex)
             {
@@ -3875,6 +3890,8 @@ namespace SPIXI
          * host out right after, and back handling, the same-tag sweep and closeTopOverlay
          * all read that stack. Waiting 220 ms before registering would leave the overlay
          * invisible to every one of them while it was on screen. */
+        private const int PreRevealFramesMs = 34;   // ★ #1101 0b(b): two frames at 60 Hz
+
         private static void revealStage(PreloadOp op)
         {
             double slideFrom = 0;
@@ -3888,6 +3905,27 @@ namespace SPIXI
                 op.stage.TranslationX = slideFrom * SlideTravel;   // ★ Session I hybrid: 40% travel
                 op.stage.Opacity = 0;                              // …and a fade from 0 (slideStageIn ramps it)
                 _ = slideStageIn(op);
+            }
+            else if (op.preRevealFrames)
+            {
+                /* ★ #1101 0b(b) (Android spare chat only): drawn but invisible for two frames, so the WebView's first
+                 * on-glass frame is a real one, then shown. It stays input-dead while it is invisible (the A3 rule:
+                 * input-live in the frame it becomes visible). A close inside the two frames owns the stage. */
+                op.stage.Opacity = 0.01;
+                Logging.info("[CDPERF] chat present prereveal=1");   // ★ #1101 0b(b) — TEMPORARY, retire with the set
+                PreloadOp shown = op;
+                _ = Task.Delay(PreRevealFramesMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    try
+                    {
+                        if (!shown.closing)
+                        {
+                            shown.stage.Opacity = 1;
+                            shown.stage.InputTransparent = false;
+                        }
+                    }
+                    catch (Exception) { }
+                }));
             }
             else
             {

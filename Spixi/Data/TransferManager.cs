@@ -230,7 +230,7 @@ namespace SPIXI
                 || !string.Equals(Path.GetFileName(file_name), file_name, StringComparison.Ordinal)
                 || file_name.IndexOfAny(Path.GetInvalidFileNameChars()) != -1)
             {
-                Logging.error("Rejected download file name from WebView: '{0}'", file_name);
+                Logging.error("Rejected download file name from WebView (len={0})", file_name.Length);   // ★ #1107 gate: the shape, never the peer-chosen name
                 return null;
             }
             try
@@ -242,7 +242,7 @@ namespace SPIXI
                 string full = Path.GetFullPath(Path.Combine(root, file_name));
                 if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
                 {
-                    Logging.error("Rejected download path escaping the Downloads root: '{0}'", file_name);
+                    Logging.error("Rejected download path escaping the Downloads root (len={0})", file_name.Length);   // ★ #1107 gate: the shape, never the name
                     return null;
                 }
                 return full;

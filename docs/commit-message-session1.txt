@@ -1,0 +1,15 @@
+#1101-#1113 Session 1: carry-over, implied read, last seen, shared items, Downloads
+
+- 0b(a) phone call bar reveal snaps (no C# fade) + [CALLSWAP] probe stamps
+- 0b(b) Android spare chat: permanent MAUI container + 0.01 present for 34 ms
+- 0b(d) Windows: scrim tap outside the ring closes it; compact ring shows the e2e chip
+- #1102 implied read (1:1): a msgRead marks earlier own messages read; one updateTicks push; MSTest
+- #1103/#1113 display-only online (<= 150 s sighting) + "last seen just now / recently / a long time ago" (no dates) in the header and chat info
+- #1104/#1105 BE ask (going-offline announce) and "hide online status" deferred (records)
+- #1106/#1110 chat info: shared media / files / links (cards + See all cover); open by message id; chat jump <= 1000
+- #1107/#1111 Downloads: newest first, size, sender via the file's own message (size-verified), From chip + sheet, Show in chat
+- #1108 wallet fiat: server-side fix from NonKYC (BE ask, no app change)
+- security gate: names and exception text removed from two Downloads log lines
+- #1112 #46 loop CLEAN at round 5; smoke BASELINE OK 5075 / the 2 KNOWN (#136, B3)
+
+C# is uncompiled until the first build (docs/review-brief-session-1.md section 5).

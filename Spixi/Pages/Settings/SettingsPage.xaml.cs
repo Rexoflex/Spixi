@@ -660,8 +660,26 @@ namespace SPIXI
                     }
                     catch (Exception ex)
                     {
-                        Logging.warn("Exception while opening a download: " + ex);
+                        Logging.warn("Exception while opening a download: " + ex.GetType().Name);   // ★ #1107 gate: the type — the message can carry the path
                     }
+                }
+            }
+            else if (current_url.StartsWith("ixian:showDownloadInChat:", StringComparison.Ordinal))
+            {
+                /* ★★ #1107 (5b e): "Show in chat". The WebView sends a NAME only; the SAME traversal guard as open/delete
+                 * resolves it, and the sender comes from C#'s own index (DownloadsIndex) — no index entry, no jump. */
+                string file_name = downloadNameFromUrl(e.Url, current_url, "ixian:showDownloadInChat:");
+                string? path = TransferManager.resolveDownloadPath(file_name);
+                DownloadSource? src = path != null ? DownloadsIndex.sourceOf(path) : null;
+                if (src == null)
+                {
+                    Logging.warn("showDownloadInChat: no sender is known for this file");
+                }
+                else
+                {
+                    SingleChatPage.requestJump(src.friend, src.idHex, src.depth);
+                    HomePage.Instance()?.exitAccountForChat();   // (#46 r3 R3-2) the conversation may already be open UNDER this pane (wide window)
+                    HomePage.Instance()?.onChat(src.friend.walletAddress, null);
                 }
             }
             else if (current_url.StartsWith("ixian:deleteDownload:", StringComparison.Ordinal))
@@ -678,12 +696,12 @@ namespace SPIXI
                     }
                     catch (Exception ex)
                     {
-                        Logging.warn("Exception while deleting a download: " + ex);
+                        Logging.warn("Exception while deleting a download: " + ex.GetType().Name);   // ★ #1107 gate: the type — the message can carry the path
                     }
                 }
                 // Q1 review (#266/#267 loop): refresh UNCONDITIONALLY — a rejected name or a
                 // failed delete previously left the shell list stale and silent.
-                loadDownloads();
+                loadDownloads(false);   // (#46 r1 B2) the sender index is reused — no history rescan per delete (a delete only removes; a NEW file arrives only with a new download, and the screen is rebuilt — and rescanned — on its next open, #46 r3 R3-1)
             }
             else if (current_url.StartsWith("ixian:save:", StringComparison.Ordinal))
             {
@@ -1587,8 +1605,19 @@ namespace SPIXI
         // DownloadsPage.loadFiles parity (name + locale-opaque creation time).
         // Directory.Exists guard: a fresh install has no Downloads folder yet
         // (EnumerateFiles would throw) — the shell just shows the empty state.
-        private void loadDownloads()
+        /* (#46 r1 B2/A6) `rescan` = rebuild the sender index (the list was asked for). A re-push after a delete reuses the
+         * index: a delete only removes a file, it never changes who sent the others. */
+        private volatile bool downloadsSendersReady = false;   // (#46 r4 R4-2) THIS screen's sender scan has answered
+        private int downloadsScreen = 0;   // (#46 r5 R5-4) a late answer from an earlier screen's scan does not count (UI thread only)
+
+        private void loadDownloads(bool rescan = true)
         {
+            if (rescan)
+            {
+                downloadsSendersReady = false;
+                downloadsScreen++;
+            }
+            int screen = downloadsScreen;
             Utils.sendUiCommand(this, "clearFiles");
 
             if (!Directory.Exists(TransferManager.downloadsPath))
@@ -1596,12 +1625,59 @@ namespace SPIXI
                 return;
             }
 
+            /* ★★ #1107 (part 5b): NEWEST FIRST (Directory.EnumerateFiles is filesystem order = unsorted), and the SIZE
+             * as a new trailing arg (an older shell ignores it). Then phase 2, OFF the UI thread: the sender of each file
+             * (DownloadsIndex — through its received file message only, never by name) as ONE push. */
+            List<(string path, long ctime, long size)> files = new List<(string, long, long)>();
             foreach (var path in Directory.EnumerateFiles(TransferManager.downloadsPath))
             {
+                long size = 0;
+                try { size = new FileInfo(path).Length; } catch (Exception) { }
                 // iOS-55/#328 (W1 class): raw epoch seconds — the downloads component
                 // numeric-detects and formats via formatTxTimestamp/docLocale; the old
                 // DateTime.ToString() was the .NET culture, never the app language.
-                Utils.sendUiCommand(this, "addFile", Path.GetFileName(path), new DateTimeOffset(File.GetCreationTime(path)).ToUnixTimeSeconds().ToString());
+                files.Add((path, new DateTimeOffset(File.GetCreationTime(path)).ToUnixTimeSeconds(), size));
+            }
+            foreach (var f in files.OrderByDescending(x => x.ctime))
+            {
+                Utils.sendUiCommand(this, "addFile", Path.GetFileName(f.path), f.ctime.ToString(System.Globalization.CultureInfo.InvariantCulture), f.size.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            if (files.Count > 0)
+            {
+                SettingsPage page = this;
+                List<string> paths = files.Select(x => x.path).ToList();
+                if (!rescan)
+                {
+                    if (downloadsSendersReady)   // (#46 r4 R4-2) before the scan answers, the index is the PREVIOUS screen's — push nothing
+                    {
+                        Utils.sendUiCommand(this, "setDownloadSenders", DownloadsIndex.sendersJson(paths));
+                    }
+                    return;
+                }
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        if (DownloadsIndex.build() == null)
+                        {
+                            return;   // (#46 r2 R2-10) superseded — the newer build pushes
+                        }
+                        string json = DownloadsIndex.sendersJson(paths);
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            if (screen != page.downloadsScreen)
+                            {
+                                return;   // (#46 r5 R5-4) an earlier screen's scan — this screen's own scan answers
+                            }
+                            page.downloadsSendersReady = true;
+                            Utils.sendUiCommand(page, "setDownloadSenders", json);
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("loadDownloads: the sender scan failed (" + ex.GetType().Name + ")");   // the type only
+                    }
+                });
             }
         }
 

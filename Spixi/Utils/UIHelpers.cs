@@ -215,6 +215,24 @@ namespace SPIXI
          * as the throw this fix removes. */
         public static void setContactStatus(Address address, bool online, int unread, string excerpt, long timestamp)
         {
+            /* ★★ #1103: the DISPLAYED online state — friend.online alone stays true for the whole 300 s presence expiry.
+             * One gate for every chats-row / contacts push (PresenceDisplay is display-only; Core's routing is untouched). */
+            if (online)
+            {
+                try
+                {
+                    Friend? pf = FriendList.getFriend(address);
+                    if (pf != null && pf.type == FriendType.Normal)
+                    {
+                        online = PresenceDisplay.shownOnline(pf);
+                    }
+                }
+                catch (Exception)
+                {
+                    // (#46 r1 A8) this hook runs on network threads and was hardened never to throw; a list changing under
+                    // the lookup keeps Core's answer for this one push
+                }
+            }
             Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {
@@ -572,6 +590,22 @@ namespace SPIXI
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)
         {
             Utils.getChatPage(friend)?.updateMessage(msg, channel);
+            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
+            if (page != null && page is HomePage)
+            {
+                ((HomePage)page).updateChat(friend);
+            }
+        }
+
+        /** ★★ #1102 implied read: the tick changes of SEVERAL own messages in one push to the open chat
+         *  (SingleChatPage.updateTicks), then the chats row once. Empty list → nothing. */
+        public static void updateTicks(Friend friend, int channel, List<FriendMessage> msgs)
+        {
+            if (msgs == null || msgs.Count == 0)
+            {
+                return;
+            }
+            Utils.getChatPage(friend)?.updateTicks(msgs, channel);
             Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
             if (page != null && page is HomePage)
             {

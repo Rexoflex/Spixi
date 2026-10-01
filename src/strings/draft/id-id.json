@@ -693,5 +693,22 @@
   "aboutSub": "Tautan dan info hukum",
   "deleteDataSub": "Obrolan, kontak, akun",
   "groundGreenGradient": "Gradien hijau",
-  "addressWhatIsThis": "Apa ini?"
+  "addressWhatIsThis": "Apa ini?",
+  "lastSeenJustNow": "terakhir dilihat baru saja",
+  "lastSeenLongAgo": "terakhir dilihat lama sekali",
+  "lastSeenRecently": "terakhir dilihat baru-baru ini",
+  "sharedKindMedia": "Media",
+  "sharedFiles": "File",
+  "sharedLinks": "Tautan",
+  "sharedTitle": "Dibagikan",
+  "sharedShowInChat": "Tampilkan di obrolan",
+  "sharedNotOnDevice": "Tidak ada di perangkat ini",
+  "sharedLinkLabel": "Tautan",
+  "sharedJumpTooFar": "Pesan ini lebih jauh ke atas. Gulir ke atas untuk menemukannya.",
+  "downloadsFilterSender": "Dari",
+  "downloadsAllSenders": "Semua",
+  "downloadsFrom": "dari {name}",
+  "downloadsShowInChat": "Tampilkan {name} di obrolan",
+  "downloadsFromChip": "Dari: {name}",
+  "downloadsSearchSenders": "Cari orang"
 }

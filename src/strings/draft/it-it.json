@@ -700,5 +700,22 @@
   "aboutSub": "Link e note legali",
   "deleteDataSub": "Chat, contatti o account",
   "groundGreenGradient": "Sfumatura verde",
-  "addressWhatIsThis": "Che cos’è?"
+  "addressWhatIsThis": "Che cos’è?",
+  "lastSeenJustNow": "ultimo accesso poco fa",
+  "lastSeenLongAgo": "ultimo accesso molto tempo fa",
+  "lastSeenRecently": "ultimo accesso di recente",
+  "sharedKindMedia": "Media",
+  "sharedFiles": "File",
+  "sharedLinks": "Link",
+  "sharedTitle": "Condivisi",
+  "sharedShowInChat": "Mostra nella chat",
+  "sharedNotOnDevice": "Non su questo dispositivo",
+  "sharedLinkLabel": "Link",
+  "sharedJumpTooFar": "Questo messaggio è più indietro. Scorri in alto per trovarlo.",
+  "downloadsFilterSender": "Da",
+  "downloadsAllSenders": "Tutti",
+  "downloadsFrom": "da {name}",
+  "downloadsShowInChat": "Mostra {name} nella chat",
+  "downloadsFromChip": "Da: {name}",
+  "downloadsSearchSenders": "Cerca persone"
 }

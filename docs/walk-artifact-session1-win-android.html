@@ -1,0 +1,148 @@
+<title>Walk session 1 Windows Android</title>
+<style>
+/* Walk sheet session 1 (#1101–#1111: the 0b carry-over, implied read, last seen, shared items, Downloads). Layout: one narrow column — a header with the build steps, then one card per walk row with P / F / N/A and a note; a sticky results bar. */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--font)}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:20px 96px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:22px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.sub{color:var(--ink-2);margin:4px 0 0}
+.steps{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.steps h2,.sec{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0 0 8px;font-weight:600}
+.steps ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+code{font:13px var(--mono);background:var(--brand-soft);color:var(--ink);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+.where{font-size:12px;color:var(--ink-2);background:var(--brand-soft);border-radius:999px;padding:2px 9px}
+.new{font-size:11px;font-weight:700;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:1px 7px}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl button{font:600 13px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.ctl button:focus-visible,.bar button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:760px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{display:none;width:100%;min-height:120px;font:13px var(--mono)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Walk session 1 (#1101–#1111) — Windows + Android</h1>
+    <p class="sub">Session 1: the Android card speed probe, the chat-open frames test, two Windows ring fixes, implied read (needs a LEGACY peer), "online" + "last seen", shared media / files / links in chat info, and Downloads. Two devices + one legacy peer; a chat with links, files and images.</p>
+  </header>
+
+  <section class="steps">
+    <h2>Before you start</h2>
+    <ol>
+      <li>Apply this round (the PowerShell commands in the chat), then run the FULL pipeline (bundle BEFORE shells) and the smoke: <code>BASELINE OK — 5075</code> / the 2 KNOWN (#136 · B3) in the cloud copy; on your PC: your last count + this round's new checks.</li>
+      <li>Wipe <code>Spixi\obj</code> and <code>Spixi\bin</code> — C# changed AND the html changed (incremental builds do not repackage Raw html, #320/#449).</li>
+      <li>Windows: build with <b>F5</b> in Visual Studio (never <code>dotnet build</code>, #663).</li>
+      <li>Android: <code>dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug -t:Run</code></li>
+      <li>This is the first compile of this C#. A build error is this batch's bug — paste it in the chat.</li>
+      <li>Mark each row (a note on every row, PASS too), then tap <b>Copy results</b> and paste them in the chat.</li>
+    </ol>
+  </section>
+
+  <div class="sec">Rows</div>
+  <div id="rows"></div>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+  <textarea id="out" readonly aria-label="Results text"></textarea>
+</div></div>
+
+<script>
+const ROWS=[
+ {id:'BUILD',t:'This build: the new chat info',w:'Windows F5 + Android Debug',d:'Wipe Spixi\\obj and Spixi\\bin (C# AND html changed). Build Windows with F5, Android Debug. Open a 1:1 chat that has a link or a file → (i) Chat info.',p:'Both build. Chat info shows a "Links (N)" or "Files (N)" card (NEW in this build). Paste any build error in the chat — it is this batch\'s bug.',n:1},
+ {id:'MSTEST',t:'The C# rules run green',w:'Windows · PowerShell',d:'Run: dotnet test Spixi-UnitTests\\Spixi-UnitTests.csproj --filter "FullyQualifiedName~ImpliedRead|FullyQualifiedName~LinkRule|FullyQualifiedName~PresenceDisplay|FullyQualifiedName~FileMatch"',p:'23 passed, 0 failed (ImpliedRead 12 · LinkRule 3 · PresenceDisplay 3 · FileMatch 5). Paste the summary line.',n:1},
+ {id:'A1',t:'Android full ⇄ card ×3: not clunky',w:'Android · in a call',d:'Open the full call view from the card, minimise again. Three times. Then send the [CALLSWAP] lines from the log.',p:'The card appears without the old ~1 s lag. Each bar reveal line ends fade=0; the layout / stageH / webviewH stamps show where the time goes (paste them).',n:1},
+ {id:'B6s',t:'Android chat open: no blank frames',w:'Android',d:'Record the screen. Open 3 chats with a row tap and 2 with the FAB.',p:'No white or grey frame before the chat. The log shows "[CDPERF] chat present prereveal=1" for each open.',n:1},
+ {id:'E2E',t:'Windows compact ring shows the e2e chip',w:'Windows · window under ~520 px high · call the PC',d:'Make the window short. Call the PC from the phone.',p:'The compact ring shows the "end-to-end encrypted" chip on its first line. Decline / Accept still fit.',n:1},
+ {id:'DIM',t:'Windows: a tap on the dim closes the message sheet',w:'Windows · call the PC',d:'While it rings, tap Message. Tap the dimmed area OUTSIDE the card. Open it again and tap INSIDE the card.',p:'Outside: the sheet closes, the ring stays. Inside: nothing closes.',n:1},
+ {id:'CORNER',t:'Windows card corner colour (screenshot)',w:'Windows · in a call · light + dark',d:'Zoom into one corner of the minimised call card, light and dark. Send both screenshots.',p:'Mark P when you sent them (the colour is set in the next round).',n:1},
+ {id:'READ',t:'Implied read with a LEGACY peer',w:'Windows + legacy peer',d:'Send 5 messages to the legacy peer. On the peer, open the chat only after all 5 arrived. Then send 1 more and do NOT open it on the peer.',p:'All 5 show read — no "delivered" between read ones. The 6th stays delivered. A group chat behaves as before.',n:1},
+ {id:'READ2',t:'Implied read with a new-app peer',w:'Windows + Android',d:'Same as READ with the Android phone as the peer.',p:'Same result. The log has "[READ] implied n=…" lines (counts only).',n:1},
+ {id:'ONLINE',t:'"Online" goes off in ~2.5 min',w:'Windows + Android',d:'Open the chat with the phone on the PC. Close Spixi on the phone (swipe it away). Watch the header with a clock.',p:'Within ~2.5 min the header leaves "Online" and shows "last seen recently". The chats-row dot goes off too. The log has "[PRESENCE] keepalive gap=…s" lines (paste two).',n:1},
+ {id:'LAST',t:'"last seen" wording + chat info',w:'Windows + Android · light + dark',d:'Look at a contact who was online in the last hour, one from earlier (hours or days), and one from over a week ago. Open chat info for each.',p:'Header and chat info read "last seen just now" / "last seen recently" / "last seen a long time ago" (#1113) — never a date, day or time. Right after an app restart, before the contact is seen, the header line is EMPTY (not "Offline").',n:1},
+ {id:'SHARED',t:'Chat info: Media · Files · Links',w:'Windows + Android · light + dark',d:'A chat with images, files and links. Open chat info, then each "See all".',p:'One card per kind (6 tiles, 3 rows each), newest first. "See all" opens a list with Media / Files / Links tabs; Back / Esc closes it. Small downloaded images show a thumbnail.',n:1},
+ {id:'TAP',t:'Shared items: taps',w:'Windows + Android',d:'Tap a link, a downloaded file, an image, and a file that is not on this device.',p:'Link: "Open external link?" with the full address → the browser opens it. Downloaded file: it opens. Image / not downloaded: the chat opens AT that message (it pulses). Far back: a short toast.',n:1},
+ {id:'GROUP',t:'Shared items in a group; none in a bot room',w:'Windows',d:'Open a group\'s info, then a bot room\'s info.',p:'The group lists what was shared in it. The bot room shows no shared section.',n:1},
+ {id:'DL',t:'Downloads: newest first, size, from',w:'Windows + Android · light + dark',d:'Account → Downloads.',p:'Newest file on top. Each row: date · size; "from <contact>" when the file came from a chat. No sort buttons.',n:1},
+ {id:'DLF',t:'Downloads: From filter + Show in chat',w:'Windows + Android',d:'Tap "From: Everyone", pick a contact (with many people: use the search). Then tap the chat icon on a row. Back, delete a file.',p:'Only that contact\'s files show. The chat icon opens the chat at that file. After a delete the filter and the "from" lines stay.',n:1},
+];
+const KEY='walk-session1-winand-v1';
+let state={};
+try{state=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){state={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+const host=document.getElementById('rows');
+ROWS.forEach(r=>{
+  const s=state[r.id]||{};
+  const el=document.createElement('article');el.className='row';el.dataset.v=s.v||'';
+  el.innerHTML=`<div class="top"><span class="id">${r.id}</span><span class="title">${r.t}</span>${r.n?'<span class="new">NEW</span>':''}<span class="where">${r.w}</span></div>
+  <dl><dt>Do</dt><dd>${r.d}</dd><dt>Pass when</dt><dd>${r.p}</dd></dl>
+  <div class="ctl" role="group" aria-label="Result for ${r.id}">
+    <button type="button" data-k="P">Pass</button><button type="button" data-k="F">Fail</button><button type="button" data-k="N">N/A</button>
+  </div>
+  <textarea id="note-${r.id}" placeholder="Note (optional)" aria-label="Note for ${r.id}"></textarea>`;
+  const ta=el.querySelector('textarea');ta.value=s.note||'';
+  ta.addEventListener('input',()=>{state[r.id]={...(state[r.id]||{}),note:ta.value};save();});
+  el.querySelectorAll('.ctl button').forEach(b=>{
+    b.setAttribute('aria-pressed',String(s.v===b.dataset.k));
+    b.addEventListener('click',()=>{
+      const cur=(state[r.id]||{}).v; const v=cur===b.dataset.k?'':b.dataset.k;
+      state[r.id]={...(state[r.id]||{}),v};save();el.dataset.v=v;
+      el.querySelectorAll('.ctl button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===v)));tally();
+    });
+  });
+  host.appendChild(el);
+});
+function tally(){
+  let p=0,f=0,n=0;ROWS.forEach(r=>{const v=(state[r.id]||{}).v;if(v==='P')p++;else if(v==='F')f++;else if(v==='N')n++;});
+  const left=ROWS.length-p-f-n;
+  document.getElementById('tally').innerHTML=`<b class="p">${p} P</b> · <b class="f">${f} F</b> · <b class="n">${n} N/A</b>${left?` · ${left} left`:''}`;
+}
+tally();
+function text(){
+  let p=0,f=0,n=0;const lines=ROWS.map(r=>{const s=state[r.id]||{};const v=s.v==='P'?'P':s.v==='F'?'F':s.v==='N'?'N/A':'—';
+    if(s.v==='P')p++;else if(s.v==='F')f++;else if(s.v==='N')n++;
+    return `${r.id} ${v}${s.note?' — '+s.note.trim():''}`;});
+  return `Walk session 1 (Windows F5 + Android Debug): ${p} P · ${f} F · ${n} N/A\n`+lines.join('\n');
+}
+document.getElementById('copy').addEventListener('click',async()=>{
+  const t=text();const out=document.getElementById('out');const btn=document.getElementById('copy');
+  try{await navigator.clipboard.writeText(t);btn.textContent='Copied';setTimeout(()=>btn.textContent='Copy results',1500);}
+  catch(e){out.style.display='block';out.value=t;out.focus();out.select();btn.textContent='Select and copy';}
+});
+document.getElementById('reset').addEventListener('click',()=>{
+  const btn=document.getElementById('reset');
+  if(btn.dataset.armed!=='1'){btn.dataset.armed='1';btn.textContent='Tap again to clear';setTimeout(()=>{btn.dataset.armed='';btn.textContent='Clear'},2500);return;}
+  state={};save();location.reload();
+});
+</script>

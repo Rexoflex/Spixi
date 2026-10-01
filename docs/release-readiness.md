@@ -38,7 +38,7 @@ the other open audit rows are T1 rows (S-01 = B-18, C-06 = B-17), the G-3c seed 
 | S10 | Security gate re-run + the BE pack | G-6 · A-5 · A-5.O-08 · A-5.O-09 · A-5.O-11 · A-5.O-34/35 · A-5.O-32 · A-16 · A-3 · G-7 · G-7b · B-2 |
 | S11 | Merge | G-8 |
 | S12 | Release builds, store, TestFlight; the per-platform release-candidate walks | C-4 · E-W · E-A · E-I · E-M · E-W2 · E-A2 · E-I2 · E-M3 · E-M4 · E-RV · H-1 · A-15 · G-9a · G-9b · G-9c · G-9d · G-9e · G-9f · G-9g |
-| T1 | Parallel: the BE engineer's rows (each says the stage it blocks) | B-1 · B-3 … B-9 · B-11 … B-22 · B-24 |
+| T1 | Parallel: the BE engineer's rows (each says the stage it blocks) | B-1 · B-3 … B-9 · B-11 … B-22 · B-24 · B-25 · B-26 |
 | T2 | Parallel: Damir's decisions (each says the stage it blocks) | H-2 … H-6 · H-8 · H-9 · H-11 … H-24 |
 
 ---
@@ -49,20 +49,20 @@ Prompt part 0b(c) = the office walk = S2 (E-OW); it is not an S1 row.
 
 | ID | Criterion — passes when … | Check | Owner | State | Evidence |
 |---|---|---|---|---|---|
-| F-0b-a | Android full ⇄ card ×3 is not "clunky": `[CALLSWAP]` bar reveal below today's 223–240 ms (target set in its DECISIONS row) and Damir's walk row passes | measurement + walk row | us → Damir | OPEN | #1096; `CallPage.xaml.cs:1130` |
-| F-0b-b | Chat-open blank frames: Damir's decision recorded (GPU/memory cost of a drawn spare checked first); if built, a recording shows no blank frame on a row tap and a FAB open | decision row → walk row | Damir → us | OPEN | #1095 open dial |
-| F-0b-d | The three recorded Windows dials are ruled: compact ring hides the e2e chip · dim tap does not close the decline sheet · 4 px corner ground | decision row | Damir | OPEN | #1094; `prompts/session-1.md:101-102` (part 0b(d)) |
-| F-1 | Implied read (1:1): a `msgRead` for own message X marks every earlier own message in that chat + channel read, persists, pushes ONE batch; groups untouched (#658); a message with no later receipt stays "delivered"; executed pins pass the deliberate-break test; walk row with a legacy peer passes | pin + walk row | us → Damir | OPEN — not built | `StreamProcessor.cs:660-690` marks one message; `SingleChatPage.xaml.cs:3583`, `:3614` |
-| F-1b | Opening a chat sends a receipt for every unread message; the `lastMessage` pre-mark does not swallow its receipt | pin + walk row | us | OPEN | `SingleChatPage.xaml.cs:3614-3655` |
-| F-2 | "Online" only within ~2 min of `lastSeenTime` (value + ±2 min accuracy in DECISIONS); C# pushes last-seen (an older shell ignores it); header + chat info show a localized relative "last seen …"; both themes rendered; strings in all locales | pin + render + walk row | us | OPEN — no last-seen push | `NetworkProtocol.cs:474` |
-| F-3 | The "going offline" BE ask is a be-cutover row with a security-review F4 cross-reference (the build is v1.1, I-16) | doc check | us | OPEN | prompt item 3 |
-| F-4 | "Hide online status" is a deferred DECISIONS row with its reason | decision row | us | OPEN | prompt item 4 |
-| F-5a | C# enumerates history off the UI thread, newest first, capped ~200: links / files / media; deleted/empty rows skipped | pin | us | OPEN — no feed | `chat-info.js:674-680` (gated strip only); be-cutover CI6 |
-| F-5b | One push contract (`clearSharedItems` + `addSharedItem` + done); thumbs as data URIs only; recorded in ARCHITECTURE §4 | pin + doc check | us | OPEN | not built — prompt item 5(b) |
-| F-5c | Chat info preview per kind + "See all" with Media · Files · Links (desktop pane + mobile takeover); empty kinds hidden; both themes rendered | render + walk row | us → Damir | OPEN | `chat-info.js:674-680` (strip only); prompt item 5(c) |
-| F-5d | Tap: link → link-confirm; downloaded file → open verb; else jump to the message | walk row | Damir | OPEN | not built — prompt item 5(d) |
-| F-5-SEC | The WebView sends back only a message id; links show address + domain, no preview fetch; no URL/name/address logged; a security-gate section exists | pin + gate section | us | OPEN | CLAUDE.md ★; #82 / C14 |
-| F-5b-a…e | Downloads: newest first · size per row · sort date/name/size · "from <contact>" + filter (never guessed) · "Show in chat"; `resolveDownloadPath` kept, the WebView sends a name/id only | pin + walk row | us → Damir | OPEN | `SettingsPage.xaml.cs:1599-1604` (`EnumerateFiles` order) |
+| F-0b-a | Android full ⇄ card ×3 is not "clunky": `[CALLSWAP]` bar reveal below today's 223–240 ms (target set in its DECISIONS row) and Damir's walk row passes | measurement + walk row | us → Damir | BUILT — probe + bar fade dropped on phones; 🟡 Android walk (paste [CALLSWAP]) | #1101; `CallPage.xaml.cs` showStage/revealSnaps/probeSwap |
+| F-0b-b | Chat-open blank frames: Damir's decision recorded (GPU/memory cost of a drawn spare checked first); if built, a recording shows no blank frame on a row tap and a FAB open | decision row → walk row | Damir → us | BUILT (Damir: the cheap test build) — 🟡 Android recording of a row tap + a FAB open | #1101; `SpixiContentPage.cs` warmSpareChat/revealStage |
+| F-0b-d | The three recorded Windows dials are ruled: compact ring hides the e2e chip · dim tap does not close the decline sheet · 4 px corner ground | decision row | Damir | DECIDED (#1101): e2e chip back + dim tap closes the sheet BUILT; corner colour = Damir's screenshot at the walk | #1101 |
+| F-1 | Implied read (1:1): a `msgRead` for own message X marks every earlier own message in that chat + channel read, persists, pushes ONE batch; groups untouched (#658); a message with no later receipt stays "delivered"; executed pins pass the deliberate-break test; walk row with a legacy peer passes | pin + walk row | us → Damir | BUILT — MSTest 9 cases (cloud harness 9/9, 8/8 mutations killed); 🟡 MSTest on the PC + walk with a legacy peer | #1102; `Utils/ImpliedRead.cs`, `StreamProcessor.cs` msgRead |
+| F-1b | Opening a chat sends a receipt for every unread message; the `lastMessage` pre-mark does not swallow its receipt | pin + walk row | us | DONE — the claim was wrong (#1101); pinned, no code change | #1101 pin F-1b |
+| F-2 | "Online" only within ~2 min of `lastSeenTime` (value + ±2 min accuracy in DECISIONS); C# pushes last-seen (an older shell ignores it); header + chat info show a localized relative "last seen …"; both themes rendered; strings in all locales | pin + render + walk row | us | BUILT — 150 s window, coarse "last seen" (#1109), 12 locale drafts; 🟡 walk | #1103, #1109; `Utils/PresenceDisplay.cs` |
+| F-3 | The "going offline" BE ask is a be-cutover row with a security-review F4 cross-reference (the build is v1.1, I-16) | doc check | us | DONE — be-cutover row PRESENCE-OFFLINE + security-review F4 update | #1104 |
+| F-4 | "Hide online status" is a deferred DECISIONS row with its reason | decision row | us | DONE — deferred row | #1105 |
+| F-5a | C# enumerates history off the UI thread, newest first, capped ~200: links / files / media; deleted/empty rows skipped | pin | us | BUILT — disk scan ≤ 200 items, off the UI thread, bots excluded | #1106; `Utils/SharedItems.cs` |
+| F-5b | One push contract (`clearSharedItems` + `addSharedItem` + done); thumbs as data URIs only; recorded in ARCHITECTURE §4 | pin + doc check | us | BUILT — ONE push `setSharedItems(json)` (not clear+add+done: one eval); ARCHITECTURE §4; 🟡 BE approval (B-25) | #1106 |
+| F-5c | Chat info preview per kind + "See all" with Media · Files · Links (desktop pane + mobile takeover); empty kinds hidden; both themes rendered | render + walk row | us → Damir | BUILT — "cards" picked from three renders (#1110); 🟡 walk | #1110 |
+| F-5d | Tap: link → link-confirm; downloaded file → open verb; else jump to the message | walk row | Damir | BUILT — 🟡 walk | #1106; `ContactDetails` ixian:sharedOpen |
+| F-5-SEC | The WebView sends back only a message id; links show address + domain, no preview fetch; no URL/name/address logged; a security-gate section exists | pin + gate section | us | BUILT — gate section "Session 1"; pins | `security-handover-gate.md` § Session 1 |
+| F-5b-a…e | Downloads: newest first · size per row · sort date/name/size · "from <contact>" + filter (never guessed) · "Show in chat"; `resolveDownloadPath` kept, the WebView sends a name/id only | pin + walk row | us → Damir | BUILT — (a)(b)(d)(e); (c) sort DROPPED by Damir (#1111); sender filter = one From chip + sheet; 🟡 walk | #1107, #1111 |
 | F-6 | Opus #46 loop CLEAN before delivery → FULL pipeline → smoke BASELINE OK → Windows + Android walk rows (legacy peer for F-1; links + files + images for F-5) | review + pin + walk row | us → Damir | OPEN | prompt item 6 |
 
 ## S2 · The office walk (Mac + iPhone) and its fix round
@@ -235,6 +235,8 @@ row says so); the Check column names the sign-off or measurement.
 | B-21 | Server-side mute (iOS/macOS): the IPN server skips a muted pair | BE sign-off | H-24 (S12 if made a blocker; else I-12) | OPEN | #972 iO.7(b) |
 | B-22 | F11b busy/reject reason flag on the wire (wording = Damir) | BE sign-off | H-24 (S12 if made a blocker; else I-12) | OPEN | #1081 |
 | B-24 | Core "missing encryption keys" retry noise every 2.5 s | BE sign-off | S12 | OPEN | #991 finding (3) |
+| B-25 | Session 1's new bridge surface (pushes `updateTicks` · `jumpToMessage` · `setSharedItems` · `setDownloadSenders`; verbs `ixian:sharedItems` · `ixian:sharedOpen` · `ixian:showDownloadInChat`; trailing args on `setOnlineStatus` / `showIndicator` / `addFile`) is approved | BE sign-off | S12 | OPEN — 🟡 ASK | `be-cutover-brief.md` SESSION1-API; #1102, #1103, #1106, #1107 |
+| B-26 | The wallet fiat value is right again: `ixiprice.txt` is fed from the NonKYC IXI_USDT bid/ask midpoint (server side, no app change) | BE sign-off + measurement (the file vs NonKYC) | S12 | OPEN — 🟡 ASK | `be-cutover-brief.md` FIAT-FEED; #1108 |
 
 ## T2 · Damir's decisions (each passes when a DECISIONS row records the answer)
 
@@ -250,8 +252,8 @@ its own criterion row in the stage it blocks).
 | H-6 | Gate dials O-01 (wallet balance in the chat document) · O-04/O-06 (restore inherits `spixi.*`; mute prefs never removed) · O-05 (follows A-4) · O-15 group roster · O-19 log share without a dialog on Windows · O-20 `[CRASHDIAG]` keep · O-22 console mirror · O-28…O-31 lock/APNs posture · O-33/O-41 DOM storage + scanner key · O-36 `-diff` on built shells · O-38/O-40 second hosts | S10 | OPEN | gate `:1159-1185`, `:1374`, `:1378` |
 | H-8 | Group typing: wait for CORE-12 (B-20, then E-I6 is walked) or drop typing in groups for v1 (E-I6 and B-20 leave v1). The ONE decision for group typing | S2 | OPEN | verdict `:40` |
 | H-9 | L8/A1 (B-5): v1 blocker or v1.1? (#927 amended said OUT this round; be-cutover § Blockers says YES) | S12 | OPEN | #927; `be-cutover-brief.md:729` |
-| H-11 | (= F-0b-b) chat-open blank frames | S1 | OPEN | #1095 |
-| H-12 | (= F-0b-d) the three Windows call dials | S1 | OPEN | #1094 |
+| H-11 | (= F-0b-b) chat-open blank frames | S1 | DECIDED — the cheap test build (#1101) | #1095, #1101 |
+| H-12 | (= F-0b-d) the three Windows call dials | S1 | DECIDED — all three change (#1101) | #1094, #1101 |
 | H-13 | #930: the backup stamp counts a cancelled share sheet | S6 | OPEN | gate `:1521` |
 | H-14 | #984: device backups carry declined addresses / the trace salt | S6 | OPEN | gate `:1581` |
 | H-15 | Pre-launch U-01, U-03, U-05, U-06, D-04 haptics, D-06 dark canvas layers: fix or v1.1, each | S5 | OPEN | audit `:202-210`, `:220-224` |

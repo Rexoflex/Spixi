@@ -88,6 +88,32 @@
 }
 .c-settings-dl__del:active { background: var(--surface-interactive-pressed); }
 
+/* ★★ #1107: ONE "From: <who>" chip (a sheet picks the sender — chips per person did not scale, #1111) */
+.c-settings-dl__controls { display: flex; padding: 0 var(--spacing-16) var(--spacing-8); }
+.c-settings-dl__controls[hidden] { display: none; }
+.c-settings-dl__from-chip { max-width: 100%; }
+.c-settings-dl__from-chip .c-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
+/* the Downloads "Show in chat" icon: the delete button's 44px box, its own class (#46 r1 B11 / r2 R2-2) */
+.c-settings-dl__go {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: minimum touch target */
+  height: 44px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-12);
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard), color var(--duration-100) var(--easing-standard);
+}
+.c-settings-dl__go:active { background: var(--surface-interactive-pressed); }
+@media (hover: hover) and (pointer: fine) { .c-settings-dl__go:hover { background: var(--surface-interactive-hover); color: var(--icon-action-default); } }
+
 /* empty state — centered, calm */
 .c-settings-dl__empty {
   display: flex;

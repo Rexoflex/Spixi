@@ -294,6 +294,10 @@ namespace SPIXI
 
             if (friend != null)
             {
+                if (friend.type == FriendType.Normal)
+                {
+                    PresenceDisplay.noteHeard(friend, message.timestamp);   // ★ #1103: a message is a sighting (at ITS creation time)
+                }
                 if (endpoint != null)
                 {
                     // Update friend's last seen and relay if offline
@@ -688,6 +692,31 @@ namespace SPIXI
                             }
                             if (fm != null)
                             {
+                                /* ★★ #1102 IMPLIED READ (1:1): a read receipt for our message X also marks every
+                                 * EARLIER own text/file in the LOADED list read — rule + reasons in ImpliedRead.cs.
+                                 * One debounced write of the channel, ONE tick batch to the open chat (X itself
+                                 * still rides updateMessage below). Groups / bots: never (#658). */
+                                if (spixi_message.type == SpixiMessageCode.msgRead && fm.localSender && ImpliedRead.appliesTo(friend))
+                                {
+                                    List<FriendMessage> implied = ImpliedRead.markThrough(friend.getMessages(ch), fm.id);
+                                    if (implied.Count > 0)
+                                    {
+                                        IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, ch);
+                                        FriendMessage? last = friend.metaData.lastMessage;
+                                        if (last != null && friend.metaData.lastMessageChannel == ch)
+                                        {
+                                            FriendMessage? lastNow = implied.Find(x => x.id.SequenceEqual(last.id));
+                                            if (lastNow != null)
+                                            {
+                                                friend.metaData.setLastMessage(lastNow, ch);
+                                                friend.saveMetaData();
+                                            }
+                                        }
+                                        implied.RemoveAll(x => x.id.SequenceEqual(fm.id));
+                                        UIHelpers.updateTicks(friend, ch, implied);
+                                        Logging.info("[READ] implied n={0}", implied.Count);   // ★ #1102: a count only — no id, no address
+                                    }
+                                }
                                 UIHelpers.updateMessage(friend, ch, fm);
                                 // ② the counts behind the long-press detail
                                 UIHelpers.updateReactions(friend, ch, fm.id);

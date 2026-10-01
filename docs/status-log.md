@@ -329,3 +329,7 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   OK. Findings → DoD E-W1…E-W7 (call crash in `-[AVAudioNode dealloc]`, open-chat avatar, lost nick, Mac ringtone + a
   setting, square behind the big ring card, macOS unread time, Mac title in light theme). Details:
   `docs/pending-1101-1102.md`. NEXT SESSION: `docs/handoff-2026-10-01c.md`, then `docs/prompts/session-2.md`.
+- [x] **WALK SESSION 1 (#1115, 2026-10-01): Windows + Android 12 P · 3 F · 1 N/A** — B6s chat-open blank WORSE (my #1101
+  0.01 step; frames in `docs/sheets/walk-session1/`), ONLINE, LAST. Decisions + plan #1116 (DoD S2b G-1…G-9, P-1).
+  Docs only. NEXT SESSION: `docs/handoff-2026-10-01d.md`, then `docs/prompts/session-2.md`; session 3 = the
+  chat-open performance review (< 100 ms, no flicker).

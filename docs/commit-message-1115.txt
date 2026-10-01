@@ -1,0 +1,7 @@
+#1115-#1116 Walk session 1 recorded (Windows + Android): 12 P, 3 F, 1 N/A
+
+- DECISIONS #1115: the walk row with measured first reads (chat-open frames, presence gaps, last seen)
+- DECISIONS #1116: Damir's answers and the plan for session 2; P-1 chat open under 100 ms for session 3
+- release-readiness: F-0b-b and F-2 failed; new section S2b (G-1 to G-9, P-1)
+- docs/sheets/walk-session1: the chat-open frame sheets (light, dark)
+- handoff 2026-10-01d, session-2 prompt rewritten, CLAUDE.md, status log

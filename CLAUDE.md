@@ -80,9 +80,8 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-01 session 1 (#1101–#1113) BUILT, COMMITTED by Damir, UNWALKED. #46 loop CLEAN at r5. Smoke BASELINE OK 5075 / the 2 KNOWN (#136 · B3).
-- ⚠ C# UNCOMPILED: the next build is the first compile (list in `docs/review-brief-session-1.md` §5).
-- Office walk (Mac + iPhone) DONE: #1114, 25 P · 0 F · 1 N/A; findings E-W1…E-W7 (a call crash first) → session 2 (`docs/pending-1101-1102.md`).
-- Owed: the session-1 walk (Windows + Android, `docs/walk-artifact-session1-win-android.html`) · the corner colour (#1101).
-- Road: session-2 (walks + fix round) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` tag → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
-- **NEXT SESSION: read `docs/handoff-2026-10-01c.md` FIRST, then paste `docs/prompts/session-2.md`.** Next free DECISIONS number: **#1115**.
+- 2026-10-01: session 1 (#1101–#1113) committed + walked — Windows + Android #1115: 12 P · 3 F · 1 N/A (B6s chat-open blank WORSE, ONLINE, LAST). Office walk Mac + iPhone #1114: 25 P · 0 F · 1 N/A. Smoke BASELINE OK 5075 / the 2 KNOWN (#136 · B3).
+- Decided for session 2 (#1116): hold the chats list until the chat has drawn · saved last sighting + messages · presence probe first · Telegram-style chat info shared items · DoD S2b G-1…G-9 + S2 E-W1…E-W7 (a Mac/iPhone call crash first).
+- Session 3 = P-1: a read-only performance review — chat open < 100 ms, no flicker (Damir).
+- Road: session-2 (fixes) → session-3 (performance) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` tag → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
+- **NEXT SESSION: read `docs/handoff-2026-10-01d.md` FIRST, then paste `docs/prompts/session-2.md`.** Next free DECISIONS number: **#1117**.

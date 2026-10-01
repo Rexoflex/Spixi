@@ -50,11 +50,11 @@ Prompt part 0b(c) = the office walk = S2 (E-OW); it is not an S1 row.
 | ID | Criterion — passes when … | Check | Owner | State | Evidence |
 |---|---|---|---|---|---|
 | F-0b-a | Android full ⇄ card ×3 is not "clunky": `[CALLSWAP]` bar reveal below today's 223–240 ms (target set in its DECISIONS row) and Damir's walk row passes | measurement + walk row | us → Damir | BUILT — probe + bar fade dropped on phones; 🟡 Android walk (paste [CALLSWAP]) | #1101; `CallPage.xaml.cs` showStage/revealSnaps/probeSwap |
-| F-0b-b | Chat-open blank frames: Damir's decision recorded (GPU/memory cost of a drawn spare checked first); if built, a recording shows no blank frame on a row tap and a FAB open | decision row → walk row | Damir → us | BUILT (Damir: the cheap test build) — 🟡 Android recording of a row tap + a FAB open | #1101; `SpixiContentPage.cs` warmSpareChat/revealStage |
+| F-0b-b | Chat-open blank frames: Damir's decision recorded (GPU/memory cost of a drawn spare checked first); if built, a recording shows no blank frame on a row tap and a FAB open | decision row → walk row | Damir → us | FAILED at walk #1115 (worse: ≈35–40 ms blank) → fix in session 2 (hold the list, #1116) | #1101; `SpixiContentPage.cs` warmSpareChat/revealStage |
 | F-0b-d | The three recorded Windows dials are ruled: compact ring hides the e2e chip · dim tap does not close the decline sheet · 4 px corner ground | decision row | Damir | DECIDED (#1101): e2e chip back + dim tap closes the sheet BUILT; corner colour = Damir's screenshot at the walk | #1101 |
 | F-1 | Implied read (1:1): a `msgRead` for own message X marks every earlier own message in that chat + channel read, persists, pushes ONE batch; groups untouched (#658); a message with no later receipt stays "delivered"; executed pins pass the deliberate-break test; walk row with a legacy peer passes | pin + walk row | us → Damir | BUILT — MSTest 9 cases (cloud harness 9/9, 8/8 mutations killed); 🟡 MSTest on the PC + walk with a legacy peer | #1102; `Utils/ImpliedRead.cs`, `StreamProcessor.cs` msgRead |
 | F-1b | Opening a chat sends a receipt for every unread message; the `lastMessage` pre-mark does not swallow its receipt | pin + walk row | us | DONE — the claim was wrong (#1101); pinned, no code change | #1101 pin F-1b |
-| F-2 | "Online" only within ~2 min of `lastSeenTime` (value + ±2 min accuracy in DECISIONS); C# pushes last-seen (an older shell ignores it); header + chat info show a localized relative "last seen …"; both themes rendered; strings in all locales | pin + render + walk row | us | BUILT — 150 s window, coarse "last seen" (#1109), 12 locale drafts; 🟡 walk | #1103, #1109; `Utils/PresenceDisplay.cs` |
+| F-2 | "Online" only within ~2 min of `lastSeenTime` (value + ±2 min accuracy in DECISIONS); C# pushes last-seen (an older shell ignores it); header + chat info show a localized relative "last seen …"; both themes rendered; strings in all locales | pin + render + walk row | us | FAILED at walk #1115 (ONLINE + LAST) → session 2: per-contact probe + saved sighting (#1116) | #1103, #1109; `Utils/PresenceDisplay.cs` |
 | F-3 | The "going offline" BE ask is a be-cutover row with a security-review F4 cross-reference (the build is v1.1, I-16) | doc check | us | DONE — be-cutover row PRESENCE-OFFLINE + security-review F4 update | #1104 |
 | F-4 | "Hide online status" is a deferred DECISIONS row with its reason | decision row | us | DONE — deferred row | #1105 |
 | F-5a | C# enumerates history off the UI thread, newest first, capped ~200: links / files / media; deleted/empty rows skipped | pin | us | BUILT — disk scan ≤ 200 items, off the UI thread, bots excluded | #1106; `Utils/SharedItems.cs` |
@@ -89,6 +89,21 @@ pipeline, wiped `obj/bin`, the first iOS + Mac compile of #1086–#1095 C#. Each
 | E-W5 | No square behind the BIG ring card on the Mac (WebKit does not clip the blurred `.c-callbg` backdrop to the card radius); rendered in Playwright WebKit before + after, both themes | render + walk row | us | OPEN | pending walk note 2; #1114 |
 | E-W6 | The unread time on a macOS chats row is blue (as on iOS, #1088) | walk row | us | OPEN | pending walk note 3; #1114 |
 | E-W7 | The Mac title "Spixi IM" is readable in every app theme × macOS appearance (follow the app theme via `OverrideUserInterfaceStyle`, or hide the title — Damir's dial) | walk row + decision row | us + Damir | OPEN | pending walk note 4; #1114 |
+
+## S2b · Session-1 walk fails + Damir's requests (walk #1115, decisions #1116) — session 2
+
+| ID | Criterion — passes when … | Check | Owner | State | Evidence |
+|---|---|---|---|---|---|
+| G-1 | Android chat open (row tap ×3, FAB ×2), recorded: NO frame without the chats list or the chat (no plain-ground or grey frame) | recording, frame by frame | us + Damir | OPEN | #1115 frames `docs/sheets/walk-session1/`; #1116 |
+| G-2 | "last seen" shows for a contact not seen since the app started: the saved last sighting (C#, on this device) or their newest message time; never seen + no message → nothing | pin + walk row | us | OPEN | #1116 |
+| G-3 | `[PRESENCE]` lines carry an opaque per-contact number and a line when the displayed dot flips; Damir tests swipe-away vs Force stop → the 150 s rule judged on facts | log + walk row | us + Damir | OPEN | #1116 |
+| G-4 | "Show in chat" (Downloads, chat info) briefly highlights the target message | pin + walk row | us | OPEN | #1116 |
+| G-5 | The Downloads "From" chip: rendered options, Damir picks | render + decision row | Damir | OPEN | #1116 |
+| G-6 | Chat info shared items, Telegram style: chips Media · Files · Links switch in place, a well-placed "Show all", media previews, tap = open, long press = menu (Show in chat · Save/Share · Copy link · Delete from this device · Delete message) — rendered, Damir picks, built, walked | render + pins + walk | us + Damir | OPEN | #1116 |
+| G-7 | READ2 walked (implied read with a new-app peer) | walk row | Damir | OPEN — N/A at #1115 | #1115 |
+| G-8 | The dark corner screenshot sent; the corner colour set | screenshot + decision row | Damir | OPEN — one (light) sent | #1115 |
+| G-9 | The 0b(a) bar reveal: probe the shell's paint handshake in bar mode (≈240 ms, not the C# fade) | log | us | OPEN | #1115 |
+| P-1 | **Chat open under 100 ms, no flicker, on every platform** (tap → first chat frame), measured; a read-only performance review of the whole open path first (session 3) | measurement + recordings | us | OPEN | #1116 |
 
 ## S3 · Pre-freeze fixes (ours)
 

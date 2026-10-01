@@ -6,7 +6,9 @@ committed (push = Damir). Use `git --no-optional-locks` on the mounted repo. Cha
 1 · Take the walk results (`docs/walk-artifact-1086.html`, 23 rows, four platforms). For each fail, find the
 mechanism before a fix (#294). A build error in the first compile is this round's bug.
 
-2 · Then the freeze steps in the handoff §2.
+2 · Build #1091 (Account header: tappable address + "Your Ixian address · What is this?" caption; render both themes first; fix the Copy focus ring after a mouse click).
+
+3 · Then the freeze steps in the handoff §2.
 
 ---
 (previous prompt below)

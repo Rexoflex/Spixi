@@ -1,0 +1,7 @@
+Walk #1095 recorded (#1096), commit rule, next-session prompt
+
+- DECISIONS #1096: walk #1095 9 P / 0 F; Android full -> card still slow (bar reveal 223-240 ms).
+- CLAUDE.md: no attribution lines or session links in commit messages.
+- docs/session-prompt-presence-read.md: carry-over 0b (card speed, chat-open blank frames, office walk)
+  + presence, read receipts, shared media/files/links, Downloads.
+- Handoff 2026-10-01 updated.

@@ -1,3 +1,17 @@
+FIX ROUND after the Windows + Android walk (#1092) — then the office (Mac + iPhone).
+
+0 · Read `docs/handoff-2026-10-01.md` §1b FIRST, then DECISIONS #1091 + #1092. Use `git --no-optional-locks`.
+Chat replies in ASD-STE100 (#931). Give the PowerShell repo commands with every delivery (Damir).
+
+1 · B4 + B5 (desktop call ground): WebView2 DefaultBackgroundColor for call.html → alpha 0 on desktop; prove it.
+2 · B6 (Android card ⇄ full): mechanism from the recording first.
+3 · Legacy → new call drops after ~10 s: logs from both ends first (#294).
+4 · #1091 Account header address A + B (render first).
+5 · Opus #46 loop → pipeline → smoke → walk sheet (Windows + Android rows) → then the office sheet.
+
+---
+(previous prompt below)
+
 THE OFFICE FIX ROUND WALK — #1086–#1089 are built (cloud) and delivered as patches.
 
 0 · Read `docs/handoff-2026-10-01.md` FIRST, then DECISIONS #1086–#1089. Check the patches are applied and

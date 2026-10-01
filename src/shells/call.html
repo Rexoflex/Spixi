@@ -124,6 +124,64 @@
   }
   /* (#46 r1 MINOR-2) the in-page overlay scrim under the ring would darken the card's corners over the native scrim */
   :root[data-platform="windows"][data-desktop] .c-scrim { background: transparent; }
+  /* ★ #1094 (walk #1093 B6w, Damir: "the background behind both cards on Windows, squared"): the WebView2 box is square
+     and opaque, so the ground in the round corners can only be a guess of what is behind it — and the guess showed
+     (the dimmed app, the chat canvas). Damir's pick: a SMALL radius on Windows, 4px, so the guessed wedge is tiny. */
+  :root[data-platform="windows"][data-desktop] .c-callin__card,
+  :root[data-platform="windows"][data-desktop] .c-callscreen__card,
+  :root[data-platform="windows"][data-desktop] body[data-mode="bar"] .c-callbar { border-radius: 4px; }
+  /* a clamped full card still scrolls: a quiet themed bar, not the white classic one (walk B4b) */
+  :root[data-platform="windows"][data-desktop] .c-callin,
+  :root[data-platform="windows"][data-desktop] .c-callscreen { scrollbar-width: thin; scrollbar-color: var(--call-btn-pressed) transparent; }
+  /* ★ #1094 (walk #1093 B4b, Damir: "small window shows a weird card, should be responsive"): a SHORT window (CallPage
+     sets data-call-compact below 520 dip) gets a compact, wide ring — identity left, Decline / Accept right, the quiet
+     row under them. No scroll. The e2e chip and the pulse rings step out. */
+  :root[data-call-compact] .c-callin__card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "id act" "quick quick";
+    align-items: center;
+    column-gap: var(--spacing-12);
+    row-gap: var(--spacing-12);
+    padding: var(--spacing-16);
+  }
+  :root[data-call-compact] .c-callin__top { display: none; }
+  :root[data-call-compact] .c-callin__identity {
+    grid-area: id;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "av name" "av sub";
+    align-items: center;
+    column-gap: var(--spacing-12);
+    row-gap: 0;
+    padding-block: 0;
+    text-align: start;
+  }
+  :root[data-call-compact] .c-callin__avatar { grid-area: av; margin: 0; }
+  :root[data-call-compact] .c-callin__avatar::before,
+  :root[data-call-compact] .c-callin__avatar::after { display: none; }
+  :root[data-call-compact] .c-callin__avatar .c-avatar { width: 48px !important; height: 48px !important; }   /* sanctioned: createAvatar sizes itself inline (112) */
+  :root[data-call-compact] .c-callin__avatar .c-avatar__initials { font-size: 18px; }
+  :root[data-call-compact] .c-callin__name {
+    grid-area: name;
+    font-size: var(--font-size-body-lg, 16px);
+    line-height: var(--line-height-body-lg, 24px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+  }
+  :root[data-call-compact] .c-callin__sub { grid-area: sub; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); }
+  :root[data-call-compact] .c-callin__actions { grid-area: act; width: auto; margin: 0; gap: var(--spacing-12); }
+  :root[data-call-compact] .c-callin__circle { width: 48px; height: 48px; }
+  :root[data-call-compact] .c-callin__circle svg { width: 22px; height: 22px; }
+  :root[data-call-compact] .c-callin__label { display: none; }
+  :root[data-call-compact] .c-callin__quick { grid-area: quick; order: 0; margin: 0; }
+  /* (#46 r1) the pills keep the 44px target (#990). While the decline sheet is open the card fills the (grown) WebView,
+     so no ground strip shows under a compact card — its height report is then the viewport itself, a fixed point. */
+  :root[data-platform="windows"][data-desktop] .c-callin[data-sheet] .c-callin__card { min-height: 100%; }
+  /* (#46 r2 NIT) the sheet's 76% cap made it scroll inside a card-sized WebView that already has room for it */
+  :root[data-platform="windows"][data-desktop] .c-declinemsg-sheet { max-height: calc(100% - 48px); }
   :root[data-platform="windows"][data-desktop] .c-callin__card,
   :root[data-platform="windows"][data-desktop] .c-callscreen__card {
     width: 100%;
@@ -368,7 +426,9 @@
     const layoutH = (n) => parseFloat(getComputedStyle(n).height) || n.offsetHeight;
     let h = layoutH(card);
     const sheet = document.querySelector('.c-declinemsg-sheet');
-    if (sheet) h = Math.max(h, layoutH(sheet) + 48);
+    /* ★ #1094 (#46 r1 MINOR-1): the sheet's NATURAL height (scrollHeight), not its capped box — the desktop sheet caps
+       itself at 76% of the viewport, so the capped height grew the card-sized WebView in ~8 visible steps. */
+    if (sheet) h = Math.max(h, Math.max(layoutH(sheet), sheet.scrollHeight) + 48);
     return Math.ceil(h);
   }
   function reportCardH() {
@@ -487,6 +547,12 @@
     /* ★ #1074 (#46 r1 MINOR-7): Android back while the ring is up. The ring cannot be
      * dismissed (escDismiss:false consumes it), so this closes only an open sheet above it. */
     callBack() { dismissTopOverlay(); },
+    /* ★ #1094 (walk B4b): a short Windows window → the compact ring. "1"/"0" only; Windows card mode only. */
+    setCallCompact(v) {
+      if (!winCards) return;
+      if (String(v) === '1') document.documentElement.setAttribute('data-call-compact', '');
+      else document.documentElement.removeAttribute('data-call-compact');
+    },
     /* ★★ B6 (#1093): C# asks for the painted signal of a hidden stage swap (token = digits, mode = the new mode). */
     callAwaitPaint(token, mode, maxH) { awaitPaint(token, mode, maxH); },
     /* ★ #1074 (#46 r1 MINOR-6): the iOS keyboard (CallPage attaches the native observer) —

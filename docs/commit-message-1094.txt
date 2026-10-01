@@ -1,0 +1,8 @@
+#1094 walk #1093 follow-up: Windows call cards 4px radius, compact ring in a short window
+
+- B6w: the square WebView2 ground showed in the round corners -> Windows call cards round 4px.
+- B4b: below 520 dip window height CallPage pushes setCallCompact and call.html shows a compact
+  wide ring (identity left, Decline/Accept right, quick row below); the decline sheet reports its
+  natural height; a clamped full card scrolls with a thin themed bar.
+- Opus #46: 2 rounds -> CLEAN. Smoke BASELINE OK 5048 / the 2 KNOWN.
+

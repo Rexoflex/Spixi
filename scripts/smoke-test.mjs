@@ -40128,6 +40128,28 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
       '★★ B6 (#1093): a presented mode change (card ⇄ full, ring → call) HIDES the stage (≈0, never 0 — an Android view at alpha 0 makes no frame), pushes the new view, gives the stage its new geometry, and asks the shell to say when it has PAINTED at that size (callAwaitPaint → ixian:callPainted:<digits>, double rAF); a stale token is a no-op, the shell gives up before C#\'s own timeout, and the first reveal waits for the same signal — ' + JSON.stringify(r));
   }
 
+  /* —— ★ #1094 (walk #1093 B6w + B4b): Windows call cards — a 4px radius, and a COMPACT ring in a short window —— */
+  {
+    const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));
+    const call = rdX('src/shells/call.html');
+    const css = stripCssComments(call), code = stripCode(call);
+    const layout = cp.slice(cp.indexOf('private static void applyStageLayout()'), cp.indexOf('protected override bool OnBackButtonPressed()'));
+    const r = {
+      radius: /:root\[data-platform="windows"\]\[data-desktop\] \.c-callin__card,\s*:root\[data-platform="windows"\]\[data-desktop\] \.c-callscreen__card,\s*:root\[data-platform="windows"\]\[data-desktop\] body\[data-mode="bar"\] \.c-callbar \{ border-radius: 4px; \}/.test(css),
+      threshold: /private const double winCompactBelowDip = (\d+);/.test(cp) && /private string winCompactSent = "";/.test(cp),
+      push: /if \(groundPage != null && groundPage\.shellReady && hostGrid != null && hostGrid\.Height > 0\)\s*\{\s*string compact = hostGrid\.Height < winCompactBelowDip \? "1" : "0";\s*if \(groundPage\.winCompactSent != compact\)\s*\{\s*groundPage\.winCompactSent = compact;\s*Utils\.sendUiCommand\(groundPage, "setCallCompact", compact\);/.test(layout),
+      shell: /setCallCompact\(v\) \{\s*if \(!winCards\) return;\s*if \(String\(v\) === '1'\) document\.documentElement\.setAttribute\('data-call-compact', ''\);\s*else document\.documentElement\.removeAttribute\('data-call-compact'\);/.test(code),
+      layout: /:root\[data-call-compact\] \.c-callin__card \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-areas: "id act" "quick quick";/.test(css)
+        && /:root\[data-call-compact\] \.c-callin__label \{ display: none; \}/.test(css) && /:root\[data-call-compact\] \.c-callin__avatar \.c-avatar \{ width: 48px !important; height: 48px !important; \}/.test(css),
+      /* (#46 r1) the decline sheet: its NATURAL height is reported (no step-wise growth), the card fills the grown WebView, the pills keep 44px */
+      sheet: /if \(sheet\) h = Math\.max\(h, Math\.max\(layoutH\(sheet\), sheet\.scrollHeight\) \+ 48\);/.test(code)
+        && /\.c-callin\[data-sheet\] \.c-callin__card \{ min-height: 100%; \}/.test(css) && !/data-call-compact\] \.c-callin__pill/.test(css)
+        && /shellReady = true;\s*#if WINDOWS\s*winCompactSent = "";/.test(cp),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1094 (walk #1093: B6w "squared background behind both cards", B4b "small window shows a weird card"): on Windows the three call cards round only 4px (the square WebView2 ground in the corners is a guess — Damir\'s pick keeps it tiny), and below the C# threshold CallPage tells THIS shell (once per change) to show the compact wide ring: identity left, Decline / Accept right, no labels, a 48px avatar — ' + JSON.stringify(r));
+  }
+
   /* —— ★★ B4/B5 (#1093): WINDOWS — a WinUI 3 WebView2 cannot be see-through, so the call WebView is card-sized —— */
   {
     const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));

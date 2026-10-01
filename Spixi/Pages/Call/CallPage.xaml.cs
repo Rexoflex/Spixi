@@ -168,6 +168,10 @@ namespace SPIXI
         private const double winCardWidthDip = 400;      // = call-overlay.css / call-screen.css desktop card width
         private const double winCardEstimateDip = 480;   // before the first ixian:callCardH (the stage is hidden then)
         private static double winCardH = 0;              // the card height call.html reported (dip = CSS px)
+        /* ★ #1094 (walk #1093 B4b): below this window height the ring card is the COMPACT one (call.html
+         * data-call-compact: identity left, actions right, ~130 px) — a tall card in a short window scrolled. */
+        private const double winCompactBelowDip = 520;
+        private string winCompactSent = "";              // per page: the last setCallCompact pushed to THIS shell
 #endif
         private static bool expanded = false;         // "full" vs "bar" for the live call
         private static string expandedSession = "";   // the call the expanded flag was chosen for
@@ -484,6 +488,9 @@ namespace SPIXI
             attachKeyboardInsetObserver();
 #endif
             shellReady = true;
+#if WINDOWS
+            winCompactSent = "";   // ★ #1094 (#46 r1 NIT): a (re)booted document has no compact flag — the next layout resends it
+#endif
             pushState();           // deliver the pending state before the reveal
             revealSurface(this);   // shell signaled ready → show (beats the timeout)
         }
@@ -1292,6 +1299,15 @@ namespace SPIXI
                     groundPage = current;
                 }
                 groundPage?.applyWinGround();
+                if (groundPage != null && groundPage.shellReady && hostGrid != null && hostGrid.Height > 0)
+                {
+                    string compact = hostGrid.Height < winCompactBelowDip ? "1" : "0";
+                    if (groundPage.winCompactSent != compact)
+                    {
+                        groundPage.winCompactSent = compact;
+                        Utils.sendUiCommand(groundPage, "setCallCompact", compact);   // ★ #1094: the card re-reports its height
+                    }
+                }
 #endif
             });
         }

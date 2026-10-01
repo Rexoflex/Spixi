@@ -40128,6 +40128,29 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
       '★★ B6 (#1093): a presented mode change (card ⇄ full, ring → call) HIDES the stage (≈0, never 0 — an Android view at alpha 0 makes no frame), pushes the new view, gives the stage its new geometry, and asks the shell to say when it has PAINTED at that size (callAwaitPaint → ixian:callPainted:<digits>, double rAF); a stale token is a no-op, the shell gives up before C#\'s own timeout, and the first reveal waits for the same signal — ' + JSON.stringify(r));
   }
 
+  /* —— ★ #1095 (Damir, Android: "full → card shows the SHADOW for half a second, then the card") —— */
+  {
+    const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));
+    const layout = cp.slice(cp.indexOf('private static void applyStageLayout()'), cp.indexOf('protected override bool OnBackButtonPressed()'));
+    const show = cp.slice(cp.indexOf('private static void showStage('), cp.indexOf('private static void revealSurface('));
+    const phoneArm = (/#else\s*stage\.HeightRequest = cardHeightDip;([\s\S]*?)#endif/.exec(layout) || [])[1] || '';
+    const ringArm = layout.slice(layout.lastIndexOf('stage.VerticalOptions = LayoutOptions.Fill;'));   /* (#46 r2) code anchor — stripCode removes comments */
+    const r = {
+      /* a phone stage and its inner input gate carry a NON-NULL shadow from birth → the MAUI container exists before any opacity and is never added/removed */
+      birth: /Shadow = permanentContainerShadow\(\),/.test(cp) && /ZIndex = Z_CALL_SURFACE,\s*Shadow = cardShadowFor\("ring"\),/.test(cp),
+      helpers: /private static Microsoft\.Maui\.Controls\.Shadow\? cardShadowFor\(string mode\)\s*\{\s*#if ANDROID\s*return mode == "bar"\s*\? new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0\.28f, Radius = 20, Offset = new Point\(0, 6\) \}\s*: new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*#elif IOS\s*return mode == "bar" \? new Microsoft\.Maui\.Controls\.Shadow[\s\S]*?: null;\s*#else\s*return null;/.test(cp)
+        && /private static Microsoft\.Maui\.Controls\.Shadow\? permanentContainerShadow\(\)\s*\{\s*#if ANDROID\s*return new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f,[\s\S]*?#else\s*return null;/.test(cp),
+      /* (#46 r2) MAUI applies the initial Opacity 0 to the inner view only at connect — re-map it onto the permanent wrapper */
+      remap: /grid\.Children\.Add\(stage\);\s*#if ANDROID\s*stage\.Handler\?\.UpdateValue\(nameof\(IView\.Opacity\)\);\s*#endif/.test(cp),
+      neverNullOnPhone: /stage\.Shadow = cardShadowFor\("bar"\);/.test(phoneArm) && !/stage\.Shadow = null/.test(phoneArm)
+        && /stage\.Shadow = cardShadowFor\(mode\);/.test(ringArm) && !/stage\.Shadow = null/.test(ringArm) && !/new Shadow \{/.test(layout),
+      diag: /Logging\.info\("\[CALLSWAP\] reveal mode=\{0\} via=\{1\} t=\{2\}ms", mode, painted \? "painted" : "timeout", waited\);/.test(show)
+        && /showStage\(token, true\);/.test(cp) && /swapStartedMs = swapClock\.ElapsedMilliseconds;/.test(cp.slice(cp.indexOf('private static void requestPaint('))),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1095: on Android a Shadow / Clip / InputTransparent=true gives a view a MAUI wrapper container, and adding or removing it re-parents the view — a container created mid-swap never got the 0.01 alpha, so a bare full-strength shadow showed for the whole wait. A phone stage and its inner input gate now carry a NON-NULL shadow from birth (zero opacity except on the minimised card), so the container is permanent and the opacity always lands on it; [CALLSWAP] logs painted vs timeout — ' + JSON.stringify(r));
+  }
+
   /* —— ★ #1094 (walk #1093 B6w + B4b): Windows call cards — a 4px radius, and a COMPACT ring in a short window —— */
   {
     const cp = stripCode(rdX('Spixi/Pages/Call/CallPage.xaml.cs'));

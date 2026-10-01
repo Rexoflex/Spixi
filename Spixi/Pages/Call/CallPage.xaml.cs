@@ -127,6 +127,8 @@ namespace SPIXI
         private const int swapRevealTimeoutMs = 600;
         private const uint swapFadeMs = 120;
         private static long swapToken = 0;            // the swap the next callPainted must match; bumped when consumed
+        private static readonly System.Diagnostics.Stopwatch swapClock = System.Diagnostics.Stopwatch.StartNew();
+        private static long swapStartedMs = 0;        // ★ #1095 [CALLSWAP]: hidden → revealed, and by what (painted / timeout)
         private static readonly object speakerChainLock = new object();
         private static Task speakerChain = Task.CompletedTask;   // ★ B9: the serial off-UI-thread route switches
         public static readonly Color callGround = Color.FromArgb("#14161c");   // = surfaceColorStringFor("call.html")
@@ -298,7 +300,7 @@ namespace SPIXI
                 {
                     if (parts[2].Length <= 18 && long.TryParse(parts[2], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long token))
                     {
-                        showStage(token);
+                        showStage(token, true);
                     }
                     return;
                 }
@@ -848,6 +850,7 @@ namespace SPIXI
                     InputTransparent = true,
                     CascadeInputTransparent = true,
                     Padding = new Thickness(0),
+                    Shadow = permanentContainerShadow(),   // ★ #1095: see cardShadowFor
                 };
                 Border stage = new Border
                 {
@@ -859,6 +862,7 @@ namespace SPIXI
                     Padding = new Thickness(0),
                     StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(0) },
                     ZIndex = Z_CALL_SURFACE,
+                    Shadow = cardShadowFor("ring"),   // ★ #1095: phones — a NON-NULL shadow from birth (see cardShadowFor)
                 };
                 try
                 {
@@ -874,6 +878,9 @@ namespace SPIXI
                         Grid.SetRowSpan(stage, grid.RowDefinitions.Count);
                     }
                     grid.Children.Add(stage);    // WebView gets a handler → boots
+#if ANDROID
+                    stage.Handler?.UpdateValue(nameof(IView.Opacity));   // ★ #1095 (#46 r2): put the initial 0 on the permanent wrapper too
+#endif
                     grid.SizeChanged += onHostGridSizeChanged;
                 }
                 catch (Exception ex)
@@ -1034,6 +1041,10 @@ namespace SPIXI
          *  the timeout. Posted, so it runs AFTER the state pushes and the layout queued in this turn. */
         private static void requestPaint(CallPage page, long token, string mode)
         {
+            lock (callLock)
+            {
+                swapStartedMs = swapClock.ElapsedMilliseconds;   // ★ #1095 [CALLSWAP]
+            }
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (page.shellReady)
@@ -1058,12 +1069,53 @@ namespace SPIXI
             Task.Delay(swapRevealTimeoutMs).ContinueWith(_ => showStage(token));
         }
 
+        /* ★ #1095 (Damir, Android: "full → card is worse — the SHADOW shows for half a second, then the card").
+         * MECHANISM (MAUI Android, ViewExtensions.NeedsContainer): a view with a Shadow, a Clip or InputTransparent=true
+         * gets a WrapperView CONTAINER, and adding/removing it RE-PARENTS the native view — and a container created
+         * mid-swap is not given the view's alpha. The hidden swap set alpha 0.01, then InputTransparent created a
+         * container at alpha 1, then the card branch set the Shadow on it: a full-strength bare shadow over a 0.01 card,
+         * for the whole wait (and every toggle detached / re-attached the WebView inside).
+         * FIX (Android): the stage and its inner view carry a NON-NULL shadow from birth, so the container is permanent —
+         * never added or removed again — and every later Opacity (0.01, the fade, 1) lands on the wrapper, so the shadow
+         * hides WITH the card; the input toggles no longer re-parent the WebView. At connect MAUI applies the initial
+         * Opacity = 0 to the INNER view only (MapOpacity is skipped while connecting), so ensureSurface re-maps Opacity
+         * once the stage is in the grid (#46 r2). The shadow has zero opacity outside the minimised card. iPhone: the
+         * pre-#1095 shape. Desktop: no shadow at all (the card draws its own). */
+        private static Microsoft.Maui.Controls.Shadow? cardShadowFor(string mode)
+        {
+#if ANDROID
+            // (#46 r3 NIT) outside the card the shadow is the zero-size shape: nothing to recompute on every layout
+            return mode == "bar"
+                ? new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0.28f, Radius = 20, Offset = new Point(0, 6) }
+                : new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+#elif IOS
+            // (#46 r2) the iPhone keeps its pre-#1095 shape: the card shadow on the bar, none on ring/full
+            return mode == "bar" ? new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0.28f, Radius = 20, Offset = new Point(0, 6) } : null;
+#else
+            return null;
+#endif
+        }
+
+        /** ★ #1095 (Android only): a shadow that draws NOTHING — it exists only so the inner input gate has a permanent
+         *  MAUI container, so toggling its InputTransparent never re-parents (detaches / re-attaches) the WebView inside.
+         *  Do not remove it as dead weight. */
+        private static Microsoft.Maui.Controls.Shadow? permanentContainerShadow()
+        {
+#if ANDROID
+            return new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+#else
+            return null;
+#endif
+        }
+
         /** The painted signal (or the timeout) for `token`: fade the stage in. A stale token is a no-op. */
-        private static void showStage(long token)
+        private static void showStage(long token, bool painted = false)
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 Border? stage;
+                string mode;
+                long waited;
                 lock (callLock)
                 {
                     if (token != swapToken || !presented || callStage == null)
@@ -1072,7 +1124,10 @@ namespace SPIXI
                     }
                     swapToken++;   // consumed: the late timeout (or a second signal) for this swap does nothing
                     stage = callStage;
+                    mode = surfaceMode;
+                    waited = swapClock.ElapsedMilliseconds - swapStartedMs;
                 }
+                Logging.info("[CALLSWAP] reveal mode={0} via={1} t={2}ms", mode, painted ? "painted" : "timeout", waited);
                 setStageInput(stage, true);
                 Microsoft.Maui.Controls.ViewExtensions.CancelAnimations(stage);
                 _ = Microsoft.Maui.Controls.ViewExtensions.FadeTo(stage, 1, swapFadeMs, Easing.CubicOut);
@@ -1239,7 +1294,7 @@ namespace SPIXI
 #else
                     stage.HeightRequest = cardHeightDip;
                     stage.StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(cardRadiusDip) };
-                    stage.Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.28f, Radius = 20, Offset = new Point(0, 6) };
+                    stage.Shadow = cardShadowFor("bar");   // ★ #1095: never null on a phone — no container add/remove
                     double sideL = cardSideDip, sideR = cardSideDip;
 #if ANDROID
                     // #46 r1 MINOR-9: a landscape phone puts the nav bar / cutout on a SIDE
@@ -1259,7 +1314,7 @@ namespace SPIXI
                     stage.HeightRequest = -1;
                     stage.WidthRequest = -1;
                     stage.StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(0) };
-                    stage.Shadow = null;
+                    stage.Shadow = cardShadowFor(mode);   // ★ #1095: phones keep a zero-opacity shadow (the container stays); desktop null
                     stage.Margin = new Thickness(0);
                 }
 #if WINDOWS

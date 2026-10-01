@@ -1,0 +1,12 @@
+#1095 Android call card: no bare shadow during the hidden swap (permanent MAUI container)
+
+- MAUI Android re-parents a view when its wrapper container is added/removed (Shadow, Clip,
+  InputTransparent) and a container created mid-swap gets no alpha -> a bare shadow showed over
+  the 0.01 card. The stage and its inner input gate now carry a non-null shadow from birth on
+  Android (zero-size outside the card), so the container is permanent and Opacity always lands
+  on it; the initial Opacity is re-mapped after the stage joins the grid. iPhone unchanged.
+- [CALLSWAP] log: painted vs timeout and the wait.
+- DECISIONS #1095 also records the chat-open blank frames measured from the FAB video (all opens,
+  not FAB-specific) as an open dial.
+- Opus #46: 3 rounds -> CLEAN. Smoke BASELINE OK 5049 / the 2 KNOWN.
+

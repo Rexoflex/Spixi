@@ -8439,8 +8439,10 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
   /* ★ #1086 (the office-walk fix round): INDEX 535 → 537 — home.html carries the B7 hold (state, release, the
      onSettingsShown handler, the tab-switch/back arms), the B12 typing guards and the #1088 unread-time rule that
      inlines via chatlist-item.css. MEASURED on index.html: 546 149 → 548 740 chars (+2 591); 536 leaves 124 chars,
-     so 537 (headroom 1 148). chat.html stays under 704 (720 634, headroom 262). Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 704, INDEX_KB_CEIL = 537;
+     so 537 (headroom 1 148). chat.html stays under 704 (720 634, headroom 262). Stated, not silent (#345).
+     ★ #1090 (chats-row ticks + badges +2 px, five scoped rules in chatlist-item.css, inlined) plus the #1089 r3/r4
+     hold/focus lines: index.html 548 740 → 550 007 chars (+1 267); 537 leaves −119, so 538 (headroom 905). */
+  const CHAT_KB_CEIL = 704, INDEX_KB_CEIL = 538;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -40204,6 +40206,25 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
     ok(/\.c-chatlist-item\[data-unread\]:not\(\[data-muted\]\) \.c-chatlist-item__time \{ color: var\(--text-accent\); \}/.test(css)
        && pairs.length >= 2 && pairs.every(([a, b]) => a === b) && flags,
       '★ #1088 (Damir: unread time in the badge colour, like Telegram/WhatsApp): an unread row\'s time takes --text-accent, which resolves to the SAME step as the count badge\'s --surface-accent in both themes (' + JSON.stringify(pairs) + '); a MUTED unread row keeps it grey (its badge is grey) — the component itself marks the row muted, so every consumer gets it');
+  }
+
+  /* —— #1090 (Damir: chats-row status icons + indicators +2 px, the time unchanged) —— */
+  {
+    const css = rdX('src/styles/components/chatlist-item.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const rule = (sel) => { const m = new RegExp('(?:^|[}\\n])\\s*' + sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}').exec(css); return m ? m[1] : ''; };
+    const st = rule('.c-chatlist-item__meta .c-status-icon');
+    const ind = rule('.c-chatlist-item__indicators .c-indicator');
+    const at = rule('.c-chatlist-item__indicators .c-indicator[data-variant="mention"] svg');
+    const gl = rule('.c-chatlist-item__indicators .c-indicator svg');
+    const base = rule('.c-indicator');
+    const time = rule('.c-chatlist-item__time');
+    ok(/width:\s*18px/.test(st) && /height:\s*18px/.test(st)
+       && /min-width:\s*20px/.test(ind) && /height:\s*20px/.test(ind) && /font-size:\s*13px/.test(ind)
+       && /width:\s*16px/.test(at) && /width:\s*14px/.test(gl)
+       && /min-width:\s*18px/.test(base) && /height:\s*18px/.test(base)             /* the shared component keeps its size (channel sheet) */
+       && !/(^|\})\s*\.c-status-icon\s*\{[^}]*width/.test(css)                      /* no un-scoped tick size (the bubbles share it) */
+       && /font-size:\s*var\(--row-time-size/.test(time),
+      '★ #1090 (Damir: "status icons, unread count, muted and @ in the chats row slightly bigger; the timestamp stays"): tick 16 → 18, count/muted badge 18 → 20 (13 px digits), @ 14 → 16, bell-off 12 → 14 — scoped to the chats row only (bubbles and the channel sheet keep theirs); the row time still reads --row-time-size');
   }
 
   /* —— B14: covered by the MauiIcon partition pins (four lines) and the plist coupling pin —— */

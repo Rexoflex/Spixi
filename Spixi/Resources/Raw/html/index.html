@@ -1056,6 +1056,16 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    ground ≈ 6:1, dark brand-300 ≈ 9:1 — AA for 12px). A MUTED row keeps it grey, as its badge is grey. */
 .c-chatlist-item[data-unread]:not([data-muted]) .c-chatlist-item__time { color: var(--text-accent); }
 .c-chatlist-item__indicators { display: flex; align-items: center; height: var(--line-height-body-sm); gap: var(--spacing-4); }
+/* ★ #1090 (Damir 2026-10-01: "the status icons, the unread count, the muted and @ indicators in the chats row
+   slightly bigger; the timestamp stays"): +2 px on each, scoped to the CHATS ROW — the bubbles share
+   createStatusIcon and the channel sheet shares createIndicator, and they keep their size. The svg width/height
+   ATTRIBUTES stay at the shared default; these rules out-rank them. The line boxes do not move (the badge is
+   centred in the indicator line; on desktop's 18 px line it overflows 1 px each way, into the row padding). */
+.c-chatlist-item__meta .c-status-icon { width: 18px; height: 18px; }
+.c-chatlist-item__indicators .c-indicator { min-width: 20px; height: 20px; font-size: 13px; line-height: 18px; }
+.c-chatlist-item__indicators .c-indicator[data-variant="mention"] { min-width: auto; }
+.c-chatlist-item__indicators .c-indicator[data-variant="mention"] svg { width: 16px; height: 16px; }
+.c-chatlist-item__indicators .c-indicator svg { width: 14px; height: 14px; }
 
 /* —— status icon tones —— */
 .c-status-icon { flex: none; }

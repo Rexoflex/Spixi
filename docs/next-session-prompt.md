@@ -3,7 +3,7 @@ THE OFFICE FIX ROUND WALK — #1086–#1089 are built (cloud) and delivered as p
 0 · Read `docs/handoff-2026-10-01.md` FIRST, then DECISIONS #1086–#1089. Check the patches are applied and
 committed (push = Damir). Use `git --no-optional-locks` on the mounted repo. Chat replies in ASD-STE100 (#931).
 
-1 · Take the walk results (`docs/walk-artifact-1086.html`, 22 rows, four platforms). For each fail, find the
+1 · Take the walk results (`docs/walk-artifact-1086.html`, 23 rows, four platforms). For each fail, find the
 mechanism before a fix (#294). A build error in the first compile is this round's bug.
 
 2 · Then the freeze steps in the handoff §2.

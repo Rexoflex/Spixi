@@ -78,14 +78,21 @@ Categories:
 - **Convention drift** — the same thing done three ways.
 
 Each row: **ID · category · what · where (file:line) · why it matters · impact
-(HIGH/MED/LOW) · effort (S/M/L) · risk of fixing · behavior-preserving? (Y/N)**.
+(HIGH/MED/LOW) · effort (S/M/L) · risk of fixing · behavior-preserving? (Y/N) · FELT? (FELT / INTERNAL)**.
 
-★ **Two rules for this phase:**
+★ **Three rules for this phase:**
 1. **Distinguish ACCIDENTAL from ARCHITECTURAL duplication.** Per-shell repetition is
    often *required* by the isolation wall — DRY-ing across shells would breach it. Any
    finding that proposes sharing code across the chat wall is **rejected by definition**;
    say so explicitly rather than listing it.
 2. **A "KEEP" verdict is a valid finding.** Deliberate mess, documented, stays.
+3. **Tag every finding FELT or INTERNAL (Damir, 2026-10-01).** FELT = a user can see or
+   feel it: a flicker, a blank frame, a stutter, a wait, a needless reload, a wrong screen
+   for a moment. INTERNAL = only a developer sees it. **FELT findings rank first in phase 4**
+   at equal risk. Look actively for the FELT pattern classes P-1 found: a forced refresh on
+   every visit (`loadTransactions(true)` on the wallet tab), a pop or swap that does not
+   wait for the next surface to paint, a layout jump in one frame, a cold WebView on push.
+   Source: `docs/p1-scope.md`.
 
 **C# is in scope.** The heaviest machinery (SpixiContentPage overlay/preload/nav, VoIP,
 HomePage) is C#-side; an FE-only audit would miss the real risk.

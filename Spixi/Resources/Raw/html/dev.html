@@ -1470,10 +1470,19 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-settings-dl__del:active { background: var(--surface-interactive-pressed); }
 
 /* ★★ #1107: ONE "From: <who>" chip (a sheet picks the sender — chips per person did not scale, #1111) */
-.c-settings-dl__controls { display: flex; padding: 0 var(--spacing-16) var(--spacing-8); }
+/* ★ G-5 (#1119, render C): a section header on the card's edge — the count left, an accent "From: … ▾" text button right */
+.c-settings-dl__controls { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-8); padding: 0 var(--spacing-4) var(--spacing-4); }
 .c-settings-dl__controls[hidden] { display: none; }
-.c-settings-dl__from-chip { max-width: 100%; }
-.c-settings-dl__from-chip .c-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__count { flex: none; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); letter-spacing: var(--tracking-body-sm); color: var(--text-neutral-02); }
+.c-settings-dl__from-btn {
+  display: inline-flex; align-items: center; gap: var(--spacing-4); min-width: 0; max-width: 70%; min-height: 44px;
+  padding: 0 var(--spacing-4); border: 0; background: none; color: var(--text-accent); cursor: pointer;
+  font: inherit; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); font-weight: var(--font-weight-semibold);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-dl__from-btn svg { flex: none; }
+.c-settings-dl__from-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from-btn:focus-visible { border-radius: var(--radius-8); }   /* (#46 r1 B10) the global ring (--outline-focus); only its corners here */
 .c-settings-dl__from { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
 /* the Downloads "Show in chat" icon: the delete button's 44px box, its own class (#46 r1 B11 / r2 R2-2) */

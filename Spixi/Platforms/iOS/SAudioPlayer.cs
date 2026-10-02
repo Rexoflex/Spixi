@@ -13,6 +13,12 @@ namespace Spixi
         private AVAudioEngine audioEngine = null;
         private AVAudioPlayerNode audioPlayer = null;
         private AVAudioFormat inputAudioFormat = null;
+        // ★ E-W1 (Mac walk crash 2026-10-01: SIGSEGV in -[AVAudioNode dealloc] → AVAudioClock → RemoveRenderObserver):
+        // every AVAudioEngine.OutputNode / MainMixerNode read makes a managed wrapper that holds a retain; if the GC
+        // releases it AFTER the engine is gone, the IO node's destructor touches the freed engine. Hold them once and
+        // dispose them in stop() BEFORE the engine.
+        private AVAudioOutputNode outputNode = null;
+        private AVAudioMixerNode mainMixer = null;
 
         private IAudioDecoder audioDecoder = null;
 
@@ -72,7 +78,9 @@ namespace Spixi
             audioEngine.AttachNode(timePitchNode);
 
             audioEngine.Connect(audioPlayer, timePitchNode, inputAudioFormat);
-            audioEngine.Connect(timePitchNode, audioEngine.MainMixerNode, inputAudioFormat);
+            mainMixer = audioEngine.MainMixerNode;
+            outputNode = audioEngine.OutputNode;
+            audioEngine.Connect(timePitchNode, mainMixer, inputAudioFormat);
 
             audioEngine.Prepare();
             if (!audioEngine.StartAndReturnError(out error))
@@ -162,6 +170,11 @@ namespace Spixi
 
                 }
 
+                // ★ E-W1: release our node wrappers while the engine is still alive
+                outputNode?.Dispose();
+                outputNode = null;
+                mainMixer?.Dispose();
+                mainMixer = null;
                 audioEngine.Dispose();
                 audioEngine = null;
             }
@@ -229,12 +242,17 @@ namespace Spixi
             Marshal.Copy(data, 0, channelPtr, data.Length);
 
             long playedFrames = 0;
-            var lastRenderTime = audioEngine.OutputNode.LastRenderTime;
-            if (lastRenderTime != null)
+            var outNode = outputNode;
+            using (var lastRenderTime = outNode?.LastRenderTime)
             {
-                var playerTime = audioPlayer.GetPlayerTimeFromNodeTime(lastRenderTime);
-                if (playerTime != null)
-                    playedFrames = playerTime.SampleTime;
+                if (lastRenderTime != null)
+                {
+                    using (var playerTime = audioPlayer.GetPlayerTimeFromNodeTime(lastRenderTime))
+                    {
+                        if (playerTime != null)
+                            playedFrames = playerTime.SampleTime;
+                    }
+                }
             }
 
             long queuedFrames = Math.Max(totalFramesWritten - playedFrames, 0);

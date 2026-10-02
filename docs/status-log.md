@@ -333,3 +333,13 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   0.01 step; frames in `docs/sheets/walk-session1/`), ONLINE, LAST. Decisions + plan #1116 (DoD S2b G-1…G-9, P-1).
   Docs only. NEXT SESSION: `docs/handoff-2026-10-01d.md`, then `docs/prompts/session-2.md`; session 3 = the
   chat-open performance review (< 100 ms, no flicker).
+- [x] **SESSION 2 — FIXES + REQUESTS + OFFICE FINDINGS (#1118–#1122, 2026-10-02, cloud twin; delivered into the PC tree as
+  a patch; UNCOMMITTED and UNWALKED — commit = Damir, `docs/commit-message-session2.txt`).** G-1 Android chat-open hold
+  (transparent grounds + `PresentHold`, the #1101 0.01 step removed) · G-2 "last seen" kept across restarts
+  (`SSightingStore`, Damir (a)) · G-3 / E-W3 / G-9 probes · G-4 the pulse for file/photo bubbles · G-5 Downloads header
+  (render C) · G-6 Telegram-style shared items + long-press menu (render 1, #1119/#1120) · G-6b real thumbnails (bounded
+  decode + `ImageSniff`, #1121) · E-W1 Apple audio-node crash · E-W2 open-chat avatar · E-W4 Mac ring + "Call ringtone"
+  (🟡 verb) · E-W5 call backdrop clip · E-W6 no code (renders blue; clean Mac build decides) · E-W7 Mac title follows the
+  app theme. #46 CLEAN at r4 (#1122). Smoke BASELINE OK 5089 / the 2 KNOWN; C# harness `scripts/csh` 26/26 (a new gate).
+  P-1 widened (`docs/p1-scope.md` folded). ⚠ C# UNCOMPILED. NEXT SESSION: walk the two sheets; then read
+  `docs/handoff-2026-10-02.md` FIRST and paste `docs/prompts/session-3.md`.

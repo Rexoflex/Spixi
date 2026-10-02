@@ -888,6 +888,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root[data-desktop] .c-callscreen__controls .c-callctl { width: 52px; height: 52px; }
 :root[data-desktop] .c-callscreen__end { width: 120px; height: 52px; }
 
+/* ★ E-W5 (#1114 (5), the Mac walk: a SQUARE behind the BIG ring card, not behind the mini card). The desktop cards
+   clip with `overflow: hidden` + `border-radius: 24px`, and macOS WebKit does not apply that rounded clip to a
+   COMPOSITED descendant — the backdrop's `filter: blur()` layers (.c-callbg::before, .c-callbg__img, inset −20 % /
+   −10 %) are composited, so their square corners paint past the card's round ones. The mini card has no backdrop,
+   which matches. The backdrop now clips ITSELF with a clip-path (WebKit applies a clip-path to composited content as
+   a mask on that layer) and takes the card's radius. On the backdrop, not the card: a clip-path on the card would
+   also cut the card's own box-shadow. Desktop only (the phone ring is full-screen, no corners). */
+:root[data-desktop] .c-callin__card > .c-callbg,
+:root[data-desktop] .c-callscreen__card > .c-callbg {
+  border-radius: inherit;
+  clip-path: inset(0 round var(--radius-24));
+}
+
 </style>
 <style data-src="../styles/components/call-overlay.css">
 /* c-callin — incoming call (★ #1074 premium, Damir's pick A/E). The caller's colour
@@ -1728,16 +1741,32 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     };
     let done = false;
     let timer = 0;
-    const onResize = () => { if (fits()) fire(); };
-    function fire() {
+    /* ★ G-9 [CALLPAINT] probe — TEMPORARY (#1115 A1: the bar reveal waits ≈240 ms although the native stage and
+       WebView heights settle in 9–16 ms). Where the wait sits inside this handshake: the viewport height when the ask
+       arrives, when `fits()` turned true (and after how many resize events, or the 450 ms timer), and when each of the
+       two frames ran. One console line (Android routes it to ixian.log as [WEBVIEW]); integers + fixed words only. */
+    const p0 = performance.now();
+    const pr = { h0: Math.round(window.innerHeight), resizes: 0, fit: -1, via: 'now', r1: -1, r2: -1 };
+    const ms = () => Math.round(performance.now() - p0);
+    const onResize = () => { pr.resizes++; if (fits()) fire('resize'); };
+    function fire(via) {
       if (done) return;
       done = true;
+      pr.fit = ms(); pr.via = via;
       clearTimeout(timer);
       window.removeEventListener('resize', onResize);
-      requestAnimationFrame(() => requestAnimationFrame(() => bridge.send('ixian:callPainted:' + t)));
+      requestAnimationFrame(() => {
+        pr.r1 = ms();
+        requestAnimationFrame(() => {
+          pr.r2 = ms();
+          bridge.send('ixian:callPainted:' + t);
+          try { console.log('[CALLPAINT] mode=' + (m === 'bar' ? 'bar' : m === 'ring' ? 'ring' : 'full') + ' h0=' + pr.h0 + ' h=' + Math.round(window.innerHeight)
+            + ' resizes=' + pr.resizes + ' fit=' + pr.fit + 'ms via=' + pr.via + ' raf1=' + pr.r1 + 'ms raf2=' + pr.r2 + 'ms'); } catch (e) {}
+        });
+      });
     }
-    timer = setTimeout(fire, 450);
-    if (fits()) fire();
+    timer = setTimeout(() => fire('timer'), 450);
+    if (fits()) fire('now');
     else window.addEventListener('resize', onResize);
   }
 

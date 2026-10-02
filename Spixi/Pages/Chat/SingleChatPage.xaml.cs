@@ -879,6 +879,7 @@ namespace SPIXI
                 if (requestRemoved)
                 {
                     SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
+                    SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
                 }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
@@ -1197,6 +1198,19 @@ namespace SPIXI
             // Deprecated due to WPF, use onLoad
         }
 
+        /** ★ E-W2 (#1114 (2), the Mac walk: the open chat kept the OLD avatar): the header avatar push, shared by the
+         *  load (onLoad) and a contact's avatar change while this chat is open (StreamProcessor `case avatar`). The same
+         *  fixed verb and the same data-URI conversion as before — no new verb. MAIN THREAD. */
+        public void pushHeaderAvatar()
+        {
+            string? chat_avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
+            if (chat_avatar == null)
+            {
+                chat_avatar = friend.type == FriendType.Group ? "img/spixi-group-avatar.png" : "img/spixiavatar.png";
+            }
+            Utils.sendUiCommand(this, "setAvatar", Utils.imageToDataUri(chat_avatar));
+        }
+
         private void onLoad()
         {
             // N51 (N50 loop A-3/B-4 lesson): a shell reload (reloadAllPages on a theme
@@ -1210,12 +1224,7 @@ namespace SPIXI
             // even before any message arrives (a newly-accepted contact) and for groups — the
             // shell otherwise scavenges the header avatar from the first 1:1 message only.
             // Converted to a data-URI like every other avatar push; a sentinel → gradient FE-side.
-            string? chat_avatar = IxianHandler.localStorage.getAvatarPath(friend.walletAddress.ToString());
-            if (chat_avatar == null)
-            {
-                chat_avatar = friend.type == FriendType.Group ? "img/spixi-group-avatar.png" : "img/spixiavatar.png";
-            }
-            Utils.sendUiCommand(this, "setAvatar", Utils.imageToDataUri(chat_avatar));
+            pushHeaderAvatar();
 
             // C13: push the LOCAL user's nick so the shell can identify "me" (self-mention
             // emphasis + the @ jump-to-mention FAB). The redesigned shells build window.SL from

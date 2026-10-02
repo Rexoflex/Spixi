@@ -248,9 +248,11 @@
     openRequestSheet,                                // Request → the amount sheet (#139/#528)
     setSendQuote: applySendQuote,                    // W6 — the component-side quote applier
     parseSharedItems, createSharedList,              // ★★ #1106: shared media / files / links
+    openSharedItemMenu, copyText,                    // ★ G-6 (#1119/#1120): the long-press menu · Copy link
     createModal, openModal,                          // ★★ #1106: the link confirm (chat.html's confirmOpenLink grammar)
   } = window.Spixi;
   const strings = window.SL || {};
+  let cdSharedTab = '';   // ★ G-6 (#46 r1 B2): the chosen kind chip — display state only, never persisted
 
   /* ★★ security sweep C-3 — FORGET A PEER, from the page that removed them.
    * C# pushes removeContactResult to the page that asked for the removal and to no
@@ -484,6 +486,8 @@
         shared: (state.group.kind || 'group') === 'group' ? state.sharedItems : null,
         onSharedOpen: openSharedItem,
         onSharedAll: openSharedTakeover,
+        onSharedMenu: openSharedMenu,                // ★ G-6
+        sharedTab: cdSharedTab, onSharedTab: (k) => { cdSharedTab = k; },   // ★ G-6 (#46 r1 B2): the pick survives a rebuild
         name: state.name,
         address: state.address,
         avatar: state.avatarPath,
@@ -562,6 +566,8 @@
       shared: state.sharedItems,       // ★★ #1106
       onSharedOpen: openSharedItem,
       onSharedAll: openSharedTakeover,
+      onSharedMenu: openSharedMenu,                  // ★ G-6
+      sharedTab: cdSharedTab, onSharedTab: (k) => { cdSharedTab = k; },     // ★ G-6 (#46 r1 B2)
       online: state.online,            // A4 (#302): seed the hero dot on (re)build; live flips go
                                        // through setChatInfoPresence, see showIndicator
       nickname: '',                    // no separate wire-name vs override signal; name = display name,
@@ -884,6 +890,28 @@
     bridge.send('ixian:sharedOpen:' + token);
   }
 
+  /* ★ G-6 (#1119/#1120) — a shared item's LONG PRESS: Open (= the tap rule above) · Show in chat · Copy link (links).
+     "Show in chat" sends ONLY the item token on a NEW presentation verb (🟡 #1120, BE ask, T1): C# resolves the message
+     from its own scan and opens the conversation at it — the jump a media tap already does, now for every kind. An
+     older exe drops the unknown verb (nothing happens). Copy link copies the address AS TYPED (the label the row
+     shows) — nothing is fetched, no verb. */
+  function openSharedMenu(item) {
+    if (!item || !/^[0-9a-fA-F]{1,128}$/.test(String(item.id || ''))) return;
+    const token = item.id + ':' + (Number(item.n) || 0);
+    openSharedItemMenu({
+      item, host: document.body, strings,
+      onAction: (action) => {
+        if (action === 'open') { openSharedItem(item); return; }
+        if (action === 'show') { closeSharedTakeover(); bridge.send('ixian:sharedShow:' + token); return; }
+        if (action === 'copy' && item.kind === 'link') {
+          Promise.resolve(copyText(item.label)).then((ok) => {
+            try { showToast({ text: ok === false ? (strings.sharedCopyFailed || 'Couldn’t copy') : (strings.linkCopied || 'Link copied'), tone: ok === false ? 'error' : 'success', host: document.body, strings }); } catch (e) {}
+          });
+        }
+      },
+    });
+  }
+
   /* ★★ #1106 — "See all": Media · Files · Links on one cover (the money compose's cover grammar; back closes it). */
   let cdSharedOpen = false;
   let cdSharedOpener = null;   // (#46 r1 B4) focus returns to the "See all" that opened the cover
@@ -894,7 +922,7 @@
     const over = document.createElement('div');
     over.className = 'cd-shared-takeover';
     over.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); closeSharedTakeover(); } });   // (#46 r1 B4)
-    over.append(createSharedList({ items: state.sharedItems, tab: kind, strings, onOpen: openSharedItem, onBack: closeSharedTakeover }));
+    over.append(createSharedList({ items: state.sharedItems, tab: kind, strings, onOpen: openSharedItem, onBack: closeSharedTakeover, onMenu: openSharedMenu }));
     document.body.append(over);
     cdSharedOpen = true;
     syncCdOverlay();

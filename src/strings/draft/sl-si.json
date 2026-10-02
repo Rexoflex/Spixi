@@ -402,6 +402,7 @@
   "notifSender": "Prikaži ime pošiljatelja",
   "notifSenderSub": "Besedilo sporočila ni nikoli prikazano v obvestilih",
   "notifSounds": "Zvoki v aplikaciji",
+  "notifCallRingtone": "Zvonjenje ob klicu",
   "notifPushProvider": "Takojšnja dostava prek OneSignal",
   "notifPushProviderOn": "Vklopljeno: OneSignal zbudi to napravo takoj, ko prispe sporočilo. OneSignal prejme potisni žeton za to napravo in vidi njen naslov IP. Vaših sporočil in stikov nikoli ne vidi.",
   "notifPushProviderOffAndroid": "Izklopljeno: OneSignalu se ne pošlje nič več in ta naprava je tam odjavljena. Spixi sam preverja nova sporočila in vas obvesti, ko jih najde, zato lahko prispejo nekoliko pozneje. Zapisa, ki ga OneSignal že ima, to stikalo ne izbriše.",
@@ -788,5 +789,12 @@
   "downloadsFrom": "od {name}",
   "downloadsShowInChat": "Prikaži {name} v klepetu",
   "downloadsFromChip": "Od: {name}",
-  "downloadsSearchSenders": "Išči ljudi"
+  "downloadsSearchSenders": "Išči ljudi",
+  "downloadsCount": "Datoteke: {n}",
+  "downloadsCountOne": "1 datoteka",
+  "linkCopied": "Povezava kopirana",
+  "sharedOpen": "Odpri",
+  "sharedShowAll": "Pokaži vse ({n})",
+  "sharedCopyFailed": "Kopiranje ni uspelo",
+  "copyLink": "Kopiraj povezavo"
 }

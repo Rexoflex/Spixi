@@ -5890,6 +5890,7 @@ namespace SPIXI
                     {
                         status = "ok";
                         SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
+                        SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
                     }
                 }
             }

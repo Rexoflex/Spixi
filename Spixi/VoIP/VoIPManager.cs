@@ -242,6 +242,11 @@ namespace SPIXI.VoIP
                 Logging.warn("SND call-tone: the ring gate threw, ringing anyway: " + rex.Message);
                 ringAllowed = true;
             }
+            if (ringAllowed && !SNotificationPrefs.callRingtone)
+            {
+                ringAllowed = false;   // ★ E-W4: Account → Notifications → "Call ringtone" is off; the call UI still shows
+                Logging.info("SND call-tone: SUPPRESSED, the call ringtone is off (E-W4)");
+            }
             if (ringAllowed)
             {
                 Logging.info("SND call-tone: ringing");   // sound belt (#518)

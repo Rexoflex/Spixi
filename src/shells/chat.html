@@ -566,7 +566,11 @@
      tone (orange-100 light / orange-900 dark), near-zero contrast against the
      canvas in BOTH themes, which is why the shipped pulse never read on device.
      --surface-warning is the SOLID role (orange-600 light / orange-400 dark). */
-  .c-bubble-row[data-mention-pulse] .c-bubble { animation: chat-mention-pulse 1.4s var(--easing-standard) 1; }
+  /* ★ G-4 (#1115/#1116: "Show in chat" from Downloads / chat info should HIGHLIGHT the file): the pulse ran on every
+     jump, but its selector named `.c-bubble` only — a FILE row is a .c-fbubble, a photo/video row a .c-mbubble, a payment
+     or request card a .c-tcard — so exactly the rows "Show in chat" lands on never lit. Every bubble kind, spelled out (no :is() — the conservative-CSS baseline). */
+  .c-bubble-row[data-mention-pulse] .c-bubble, .c-bubble-row[data-mention-pulse] .c-fbubble,
+  .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: chat-mention-pulse 1.4s var(--easing-standard) 1; }
   @keyframes chat-mention-pulse {
     0%, 20% { box-shadow: 0 0 0 3px var(--surface-warning); }
     100% { box-shadow: 0 0 0 0 transparent; }
@@ -574,7 +578,8 @@
   /* loop B-3: under reduced motion the ring must still READ — a static held ring
      (no animation) for the attribute's ~1.6s lifetime; the JS timeout removes it. */
   @media (prefers-reduced-motion: reduce) {
-    .c-bubble-row[data-mention-pulse] .c-bubble { animation: none; box-shadow: 0 0 0 3px var(--surface-warning); }
+    .c-bubble-row[data-mention-pulse] .c-bubble, .c-bubble-row[data-mention-pulse] .c-fbubble,
+  .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: none; box-shadow: 0 0 0 3px var(--surface-warning); }
   }
 </style>
 </head>

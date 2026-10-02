@@ -204,7 +204,7 @@ namespace SPIXI
             // toggle changes nothing on that platform. A no-op switch is a lie; the cap
             // is withheld and the shell never renders the row. Android/iOS keep it.
             // ★ #978 (#970): + ignoredRequests — the Declined-requests sublevel (the un-block path).
-            string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications,ignoredRequests";
+            string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications,ignoredRequests,callRingtone";   // ★ E-W4: + callRingtone (this exe handles ixian:callRingtone)
             if (SPayments.paymentAuthSupported())
             {
                 caps += ",paymentAuth";
@@ -234,6 +234,7 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setNotifEnabled", SNotificationPrefs.notificationsEnabled.ToString());
             Utils.sendUiCommand(this, "setNotifSenderName", SNotificationPrefs.showSenderName.ToString());
             Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
+            Utils.sendUiCommand(this, "setCallRingtone", SNotificationPrefs.callRingtone.ToString());   // ★ E-W4 (🟡 new push; an older shell ignores it)
             if (SPushService.pushProviderSupported())
             {
                 Utils.sendUiCommand(this, "setNotifPushProvider", SNotificationPrefs.pushProviderEnabled.ToString());   // P2 (#708): seed the switch
@@ -897,6 +898,13 @@ namespace SPIXI
                 SPushService.applyPushProviderPreference();
                 Utils.sendUiCommand(this, "setNotifPushProvider", SNotificationPrefs.pushProviderEnabled.ToString());
             }
+            else if (current_url.StartsWith("ixian:callRingtone:", StringComparison.Ordinal))
+            {
+                // ★ E-W4 (🟡 new verb, #1118): store, then echo the STORED value (the NOTIF-2 grammar). "on" or not-"on".
+                string status = current_url.Substring("ixian:callRingtone:".Length);
+                SNotificationPrefs.callRingtone = status.Equals("on", StringComparison.Ordinal);
+                Utils.sendUiCommand(this, "setCallRingtone", SNotificationPrefs.callRingtone.ToString());
+            }
             else if (current_url.StartsWith("ixian:notifSounds:", StringComparison.Ordinal))
             {
                 string status = current_url.Substring("ixian:notifSounds:".Length);
@@ -1097,6 +1105,20 @@ namespace SPIXI
             {
                 IxianHandler.localStorage.nickname = nick;
                 FriendList.broadcastNicknameChange();
+                /* ★ E-W3 [NICK] probe — TEMPORARY: the sender's side — how many contacts the change goes to (Core sends it
+                 * once, only to APPROVED friends, no retry). A count only. */
+                int approved = 0;
+                lock (FriendList.friends)
+                {
+                    foreach (Friend f in FriendList.friends)
+                    {
+                        if (f.approved)
+                        {
+                            approved++;
+                        }
+                    }
+                }
+                Logging.info("[NICK] broadcast to {0}", approved);
             }
             IxianHandler.localStorage.writeAccountFile();
             Node.changedSettings = true;
@@ -1501,6 +1523,7 @@ namespace SPIXI
             // 5. every native preference — a fresh-install state
             try { Preferences.Default.Clear(); } catch (Exception ex) { Logging.error("wipe: preferences threw: " + ex); }
             try { SRequestIgnore.clear(); } catch (Exception ex) { Logging.error("wipe: ignore list threw: " + ex.GetType().Name); }   // ★ #978: the in-process copy too
+            try { SSightingStore.clear(); } catch (Exception ex) { Logging.error("wipe: sightings threw: " + ex.GetType().Name); }   // ★ G-2: the in-process copy too
 
             // (6. the WebView spixi.* wipe ran as step 0 — see above)
         }
@@ -1531,6 +1554,7 @@ namespace SPIXI
             FriendList.deleteAccounts();
             FriendList.clear();
             SRequestIgnore.clear();   // ★ #978: a declined requester belongs to the account that declined
+            SSightingStore.clear();   // ★ G-2: a sighting belongs to the account that made it
         }
 
         public void onDeleteHistory()

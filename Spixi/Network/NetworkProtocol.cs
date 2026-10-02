@@ -514,7 +514,8 @@ namespace SPIXI.Network
                     // TODO use actual wallet address once Presence hostname contains such address
                     f.relayNode = new Peer(pa.address, null, pa.lastSeenTime, 0, 0, 0);
                     f.updatedStreamingNodes = pa.lastSeenTime;
-                    PresenceDisplay.probeKeepAlive(f.lastSeenTime, pa.lastSeenTime);   // ★ #1103 [PRESENCE] probe (integers only)
+                    PresenceDisplay.probeKeepAlive(f, f.lastSeenTime, pa.lastSeenTime);   // ★ #1103 / G-3 [PRESENCE] probe (integers only)
+                    PresenceDisplay.noteKeepAlive(f, pa.lastSeenTime);   // ★ G-2: kept on this device
                     f.lastSeenTime = pa.lastSeenTime;
                     if (UIHelpers.isChatScreenDisplayed(f))
                     {

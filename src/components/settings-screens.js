@@ -844,12 +844,14 @@ export function createNotificationsScreen({
   enabled = true,
   previews = false,              // matches the SHIPPED C# default (KEY_SENDER_NAME = false)
   sounds = true,
+  callRingtone = true,           // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   pushProvider = true,           // ★ P2 (#708): the third-party push opt-out; C# default TRUE
   platform = '',                 // 'android' | 'ios' | '' — the opt-out COSTS something different on each, and the row says which
   capabilities = {},             // { globalNotifications, pushProvider }
   onBack,
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
+  onCallRingtone,                // (next, ctrl) — ★ E-W4: ixian:callRingtone:on|off
   onPushProvider,                // (next, ctrl) — ★ P2 (#708): ixian:notifPushProvider:on|off
   strings = getStrings(),
 } = {}) {
@@ -899,6 +901,14 @@ export function createNotificationsScreen({
       glyph: 'volume', hue: 'accent',   // ★ Session H: Damir's export; the FAILED status glyph is alert-square-rounded since #1044 (chatlist-item) — one glyph, one meaning (#602)
       label: strings.notifSounds || 'In-app sounds',
       checked: sounds, live, failText, onToggle: onSounds,
+    }));
+    /* ★ E-W4 (#1114 (4), Damir: a "Call ringtone" on/off, default on, every platform). Off = an incoming call
+       shows its card but makes no sound here. Its own glyph: phone-incoming is the call ring (bell = Allow
+       notifications, volume = In-app sounds — one glyph, one meaning, #602). */
+    if (onCallRingtone && capabilities.callRingtone) body.append(switchRow({
+      glyph: 'phone-incoming', hue: 'success',
+      label: strings.notifCallRingtone || 'Call ringtone',
+      checked: callRingtone, live, failText, onToggle: onCallRingtone,
     }));
     /* ★★ P2 (#708, privacy work order §P2 — Damir raised it again in Session G): A REAL
        OPT-OUT FOR THIRD-PARTY PUSH. Before this row, "Allow notifications" gated DISPLAY

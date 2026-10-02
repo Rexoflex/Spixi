@@ -528,7 +528,7 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setCallCaps",
                 "1",                                            // mute: all four platforms (zeroed PCM)
                 SPlatformUtils.callSpeakerRoute ? "1" : "0",    // speaker route
-                SPlatformUtils.callRings ? "1" : "0",           // silence the local ring
+                SPlatformUtils.callRings && SNotificationPrefs.callRingtone ? "1" : "0",   // silence the local ring — ★ E-W4: no "Silence" when the ringtone is off (nothing rings)
                 "1");                                           // decline with a message
             bool isExpanded;
             lock (callLock)

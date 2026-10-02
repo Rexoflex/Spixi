@@ -353,6 +353,7 @@
   "notifSender": "显示发送者名称",
   "notifSenderSub": "通知中从不显示消息内容",
   "notifSounds": "应用内提示音",
+  "notifCallRingtone": "来电铃声",
   "notifPushProvider": "通过 OneSignal 即时送达",
   "notifPushProviderOn": "开启：消息一到，OneSignal 就会唤醒此设备。OneSignal 会收到此设备的推送令牌并看到其 IP 地址，但绝不会看到您的消息或联系人。",
   "notifPushProviderOffAndroid": "关闭：不再向 OneSignal 发送任何内容，此设备已在其平台取消订阅。Spixi 会自行检查新消息并在发现时通知您，因此消息可能稍晚到达。OneSignal 已保存的记录不会因此开关而删除。",
@@ -709,5 +710,12 @@
   "downloadsFrom": "来自 {name}",
   "downloadsShowInChat": "在聊天中显示 {name}",
   "downloadsFromChip": "来自：{name}",
-  "downloadsSearchSenders": "搜索联系人"
+  "downloadsSearchSenders": "搜索联系人",
+  "downloadsCount": "{n} 个文件",
+  "downloadsCountOne": "1 个文件",
+  "linkCopied": "链接已复制",
+  "sharedOpen": "打开",
+  "sharedShowAll": "显示全部 {n} 项",
+  "sharedCopyFailed": "无法复制",
+  "copyLink": "复制链接"
 }

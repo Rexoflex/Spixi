@@ -1,0 +1,23 @@
+Session 2: chat-open hold, kept last seen, shared items, Mac fixes
+
+#1118-#1122. #46 loop CLEAN at r4. Smoke BASELINE OK 5089 / 2 KNOWN.
+C# harness (new gate): node scripts/run-csh.mjs -> 26/26. C# uncompiled.
+
+- G-1 Android chat open: remove the #1101 0.01 pre-reveal; hold the chats
+  list on glass (transparent grounds) until the chat WebView drew
+  (PresentHold: visual-state callback + 1 frame, cap 250 ms); [CDPERF] held
+- G-2 "last seen" across restarts: SSightingStore (one app preference,
+  accepted 1:1 only, 5-min grain, 512 cap, wiped + forgotten)
+- G-3 / E-W3 / G-9 probes: [PRESENCE] cN + dot flips, [NICK], [CALLPAINT]
+- G-4 Show in chat pulses file / photo / card bubbles too
+- G-5 Downloads: count + "From: ... v" section header (render C)
+- G-6 chat info shared items, Telegram style (render 1): chips in place,
+  edge-to-edge grid, long-press menu (Open, Show in chat, Copy link);
+  new verb ixian:sharedShow (BE ask)
+- G-6b real thumbnails: bounded platform decode (SThumbnail), ImageSniff
+- E-W1 Mac/iPhone call crash: IO-node wrappers disposed before the engine
+- E-W2 open chat header follows an avatar change
+- E-W4 Mac rings; "Call ringtone" switch (new verb ixian:callRingtone)
+- E-W5 desktop call backdrop clips itself; E-W7 Mac title follows the app
+- scripts/csh: the C# harness in the repo; walk sheets for both walks;
+  session-3 prompt (P-1 widened, p1-scope folded)

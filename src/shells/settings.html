@@ -425,6 +425,7 @@
     notifEnabled: true,
     notifSenderName: false,
     notifSounds: true,
+    callRingtone: true,        // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
     notifPushProvider: true,   // ★ P2 (#708): matches the C# default (KEY_PUSH_PROVIDER = true)
     /* PA1 (#525): "Confirm payments" — display state only. The C# verb persists
        IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
@@ -1392,7 +1393,7 @@
    * and re-entered the sublevel.
    * Same shape as #274's langBuilt: a state-keyed signature, rebuilt only on a real change,
    * so a rebuild cannot churn the screen under a user's finger. */
-  const notifSig = () => [state.notifEnabled, state.notifSenderName, state.notifSounds, state.notifPushProvider].join('|');
+  const notifSig = () => [state.notifEnabled, state.notifSenderName, state.notifSounds, state.notifPushProvider, state.callRingtone].join('|');   // ★ E-W4: + callRingtone
 
   /* ★ P2 (#708): which platform's COST the push-provider row describes. The UA stamp is the
      same signal the desktop flag reads (settings.html:11); a WKWebView reports iPhone/iPad,
@@ -1435,6 +1436,7 @@
     const verb = (key === 'notifEnabled') ? 'ixian:notifEnabled:'
       : (key === 'notifSenderName') ? 'ixian:notifSenderName:'
       : (key === 'notifPushProvider') ? 'ixian:notifPushProvider:'   // ★ P2 (#708)
+      : (key === 'callRingtone') ? 'ixian:callRingtone:'             // ★ E-W4 (🟡 #1118)
       : 'ixian:notifSounds:';
     bridge.send(verb + (next ? 'on' : 'off'));
   }
@@ -1522,14 +1524,16 @@
         enabled: state.notifEnabled,
         previews: state.notifSenderName,
         sounds: state.notifSounds,
+        callRingtone: state.callRingtone,                         // ★ E-W4
         pushProvider: state.notifPushProvider,                    // ★ P2 (#708)
         platform: pushPlatform(),                                 // ★ P2: the sub-label names the platform's cost
-        capabilities: { globalNotifications: bridge.cap('globalNotifications'), pushProvider: bridge.cap('pushProvider') },
+        capabilities: { globalNotifications: bridge.cap('globalNotifications'), pushProvider: bridge.cap('pushProvider'), callRingtone: bridge.cap('callRingtone') },   // ★ E-W4: the row shows only when the exe handles the verb
         strings,
         onBack: showHub,
         onEnabled: (next, ctrl) => { latchNotif('notifEnabled', next, ctrl); },
         onPreviews: (next, ctrl) => { latchNotif('notifSenderName', next, ctrl); },
         onSounds: (next, ctrl) => { latchNotif('notifSounds', next, ctrl); },
+        onCallRingtone: (next, ctrl) => { latchNotif('callRingtone', next, ctrl); },   // ★ E-W4
         onPushProvider: (next, ctrl) => { latchNotif('notifPushProvider', next, ctrl); },   // ★ P2 (#708)
       });
       /* ★★ security sweep E-1b — THE OPT-OUT THAT DID NOT EXIST.
@@ -2018,6 +2022,7 @@
     setNotifEnabled(s) { applyNotifPush('notifEnabled', s); },
     setNotifSenderName(s) { applyNotifPush('notifSenderName', s); },
     setNotifSounds(s) { applyNotifPush('notifSounds', s); },
+    setCallRingtone(s) { applyNotifPush('callRingtone', s); },   // ★ E-W4 (🟡 #1118): the echo half of ixian:callRingtone
     setNotifPushProvider(s) { applyNotifPush('notifPushProvider', s); },   // ★ P2 (#708): the echo half of ixian:notifPushProvider
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411

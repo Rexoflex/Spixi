@@ -173,6 +173,9 @@ export function createChatInfo({
   shared = null,                 // ★★ #1106: shared media / files / links (parseSharedItems) — null = not asked / not answered
   onSharedOpen = null,           // ★★ #1106: (item) → the shell's tap rule (a link asks first)
   onSharedAll = null,            // ★★ #1106: (kind) → the "See all" view at that tab
+  onSharedMenu = null,           // ★ G-6 (#1119): (item) → the long-press menu (the shell owns the verbs)
+  sharedTab = '',                // ★ G-6 (#46 r1 B2): the kind chip to start on (the host keeps the pick across rebuilds)
+  onSharedTab = null,            // ★ G-6 (#46 r1 B2): (kind) → the host remembers it
   lastSeen = 0,                  // ★ #1103: last sighting, local Unix seconds (0 = unknown) — "last seen …" under the name when not online
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
@@ -686,11 +689,13 @@ export function createChatInfo({
     body.append(sdSection.wrap);
   }
 
-  /* ——— ★★ #1106: shared media · files · links (ContactDetails setSharedItems) — empty kinds never show ——— */
-  if (Array.isArray(shared) && shared.length) {
-    const sharedSec = createSharedSection({ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll });
-    if (sharedSec) body.append(sharedSec);
-  }
+  /* ——— ★★ #1106 → ★ G-6 (#1119): shared media · files · links — built here, placed LAST (after the danger group, below) ——— */
+  const sharedSec = Array.isArray(shared) && shared.length
+    ? createSharedSection({ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll, onMenu: onSharedMenu, tab: sharedTab, onTab: onSharedTab })
+    : null;
+  /* (#46 r1 B3) a GROUP / bot room keeps the section where it was (#1106): ABOVE the roster, which is unbounded — the
+     grid must not sit under hundreds of member rows. A 1:1 places it LAST (below). */
+  if (sharedSec && roomKind) body.append(sharedSec);
 
   /* ——— shared media (capabilities.media — NO legacy command, §9; demo-fed) ——— */
   if (capabilities.media && media.length) {
@@ -1161,6 +1166,10 @@ export function createChatInfo({
       body.append(danger);
     }
   }
+  /* ★ G-6 (#1119, Damir picked render 1 "Telegram"): the shared items are the LAST block, so the screen scrolls into the
+     grid (#1117 (1)). They are unbounded (≤ 200), so the #873 rule for unbounded content applies to 1:1 too: the
+     destructive rows sit ABOVE them (as they sit above a group's roster), never at the foot of a long grid. */
+  if (sharedSec && !roomKind) body.append(sharedSec);
 
   /* shared destructive-confirm machinery: alertdialog, Cancel autofocused
      (APG safe action, #136⑤ precedent), confirm latched + loading, dismissal

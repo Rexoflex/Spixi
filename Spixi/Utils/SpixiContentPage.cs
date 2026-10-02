@@ -813,10 +813,11 @@ namespace SPIXI
              * present is an opacity flip today; Damir asked for the slide, and it is also
              * the thing most likely to mask the skeleton-to-content change on its own. */
             public bool slideIn = false;
-            /* ★ #1101 0b(b) (Damir: the cheap test build): Android only, the pre-warmed spare chat. Its stage waited at
-             * Opacity 0 — an Android view at alpha 0 is not drawn, so the spare's first on-glass frame at present was
-             * blank (#1095: ~2 frames on EVERY open). The present goes 0 → 0.01 for two frames, then 1. */
-            public bool preRevealFrames = false;
+            /* ★ G-1 (session 2, #1116 (1)): Android only, the pre-warmed spare chat. At present the stage is shown at
+             * once but with TRANSPARENT grounds, so the chats list under it stays on glass until the chat WebView has
+             * drawn (PresentHold: the visual-state callback + one frame, capped); then the grounds come back and the
+             * stage goes input-live. Replaces the #1101 0b(b) 0.01 pre-reveal, which ADDED blank frames (#1115). */
+            public bool holdUntilDrawn = false;
             public volatile bool closing = false;   // ★ L8: set at the top of closeOverlay
             // W7: the inset this stage was staged with (#245 rail strip for the Account
             // peer pane; zero for every other op). Remembered so a page opened FROM this
@@ -1566,7 +1567,7 @@ namespace SPIXI
             op.revealDelayMs = 0;           // the chat presents on its own painted signal (Session K)
             op.slideIn = false;             // #735①: the conversation never slides
 #if ANDROID
-            op.preRevealFrames = true;      // ★ #1101 0b(b): see PreloadOp.preRevealFrames
+            op.holdUntilDrawn = true;       // ★ G-1: see PreloadOp.holdUntilDrawn
             /* ★ #1101 0b(b), the second candidate cause: the #1095 mechanism (MAUI ViewExtensions.NeedsContainer) — a view
              * whose InputTransparent flips gets a WrapperView container added / removed, which RE-PARENTS the WebView inside;
              * revealStage flips it at the very frame of the present. A zero-size, zero-opacity shadow from birth makes the
@@ -3890,7 +3891,79 @@ namespace SPIXI
          * host out right after, and back handling, the same-tag sweep and closeTopOverlay
          * all read that stack. Waiting 220 ms before registering would leave the overlay
          * invisible to every one of them while it was on screen. */
-        private const int PreRevealFramesMs = 34;   // ★ #1101 0b(b): two frames at 60 Hz
+#if ANDROID
+        /* ★ G-1: the longest the list is held over a chat open. Above it the grounds come back anyway (today's
+         * behaviour, never worse) and the line says why=cap. 250 ms = the P-1 budget (100 ms) with room for a slow
+         * phone; the [CDPERF] frames/ms line decides whether it is right (#294). */
+        private const int HoldCapMs = 250;
+
+        /* ★ G-1 (session 2): SHOW the stage now with every ground under the chat WebView TRANSPARENT — the stage, the
+         * page content it carries, the MAUI WebView and the native WebView — so what is on glass until the chat draws
+         * is the chats list beneath, not a plain page ground (#1115: 2 plain + 1 grey frame per open). The chat
+         * document paints its own opaque ground (chat.html `html, body { background: var(--surface-screen) }`), so the
+         * first chat frame covers the list completely. When PresentHold ends (drawn, cap, or no view) the grounds come
+         * back — they are the resize backing (#248) — ALWAYS, even on a close, so a parked chat never keeps a hole; the
+         * stage goes input-live only if no close started (the A3 rule: input-live when fully visible). */
+        private static void holdStageUntilDrawn(PreloadOp op)
+        {
+            Android.Webkit.WebView? native = null;
+            try { native = op.target._webView?.Handler?.PlatformView as Android.Webkit.WebView; } catch (Exception) { }
+            setHoldGrounds(op, native, true);
+            op.stage.Opacity = 1;
+            PreloadOp held = op;
+            Android.Webkit.WebView? heldView = native;
+            Spixi.PresentHold.start(native, HoldCapMs, (frames, ms, why) =>
+            {
+                try
+                {
+                    setHoldGrounds(held, heldView, false);
+                }
+                catch (Exception) { }
+                try
+                {
+                    if (!held.closing)
+                    {
+                        held.stage.InputTransparent = false;   // (#46 r2 R2-n1) its own try: a failed restore never leaves the chat input-dead
+                    }
+                }
+                catch (Exception) { }
+                Logging.info("[CDPERF] chat held frames={0} ms={1} why={2}", frames, ms, why);   // ★ G-1 — TEMPORARY, retire with the set
+            });
+        }
+
+        /** ★ G-1: the four grounds under the chat WebView — transparent while held, the page surface after. */
+        private static void setHoldGrounds(PreloadOp op, Android.Webkit.WebView? native, bool held)
+        {
+            Color ground = held ? Colors.Transparent : op.target.pageSurfaceColor;
+            op.stage.BackgroundColor = ground;
+            op.targetContent.BackgroundColor = ground;
+            if (op.target._webView != null)
+            {
+                op.target._webView.BackgroundColor = ground;
+            }
+            if (native != null)
+            {
+                native.SetBackgroundColor(held ? Android.Graphics.Color.Transparent
+                    : Android.Graphics.Color.ParseColor(op.target.pageSurfaceColorString));
+            }
+        }
+#endif
+
+        /** ★ G-1: true when the present was taken over by the hold (Android, holdUntilDrawn); false = reveal as before.
+         *  A method, not an `#if` inside the else-if chain, so every platform parses the same chain. */
+        private static bool tryHoldUntilDrawn(PreloadOp op)
+        {
+#if ANDROID
+            if (!op.holdUntilDrawn)
+            {
+                return false;
+            }
+            holdStageUntilDrawn(op);
+            return true;
+#else
+            return false;
+#endif
+        }
 
         private static void revealStage(PreloadOp op)
         {
@@ -3906,26 +3979,9 @@ namespace SPIXI
                 op.stage.Opacity = 0;                              // …and a fade from 0 (slideStageIn ramps it)
                 _ = slideStageIn(op);
             }
-            else if (op.preRevealFrames)
+            else if (tryHoldUntilDrawn(op))
             {
-                /* ★ #1101 0b(b) (Android spare chat only): drawn but invisible for two frames, so the WebView's first
-                 * on-glass frame is a real one, then shown. It stays input-dead while it is invisible (the A3 rule:
-                 * input-live in the frame it becomes visible). A close inside the two frames owns the stage. */
-                op.stage.Opacity = 0.01;
-                Logging.info("[CDPERF] chat present prereveal=1");   // ★ #1101 0b(b) — TEMPORARY, retire with the set
-                PreloadOp shown = op;
-                _ = Task.Delay(PreRevealFramesMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    try
-                    {
-                        if (!shown.closing)
-                        {
-                            shown.stage.Opacity = 1;
-                            shown.stage.InputTransparent = false;
-                        }
-                    }
-                    catch (Exception) { }
-                }));
+                // ★ G-1 (Android spare chat): shown with transparent grounds; input-live when the hold ends, never before
             }
             else
             {

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ★ #46 r1 M2 (session 2): the C# harness. The MSTest project targets net10.0-windows + the MAUI app and never runs on
+       this branch's CI, so the pure C# rules were "executed" nowhere a gate could see. This console project compiles
+       the REAL files below (no copies) against Stubs.cs and runs the MSTest classes through a tiny attribute runner
+       (Run.cs). Run: node scripts/run-csh.mjs  (needs the .NET 8+ SDK; no NuGet access — nuget.config clears the sources). -->
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS8618;CS8600;CS8602;CS8604;CS0168;CS0649;CS8625</NoWarn></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Spixi/Utils/PresenceDisplay.cs" />
+    <Compile Include="../../Spixi/Meta/SSightingStore.cs" />
+    <Compile Include="../../Spixi/Utils/ImageSniff.cs" />
+    <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
+    <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
+    <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />
+  </ItemGroup>
+</Project>

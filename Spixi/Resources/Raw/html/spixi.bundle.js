@@ -19216,9 +19216,13 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
  *   · thumb is a data: URI of a small local image, else null (a glyph shows) — never a path, never remote (#82);
  *   · a link shows its HOST first and the address as typed, nothing fetched (no preview — the IP leak, C14).
  *
- * createSharedSection({ items, strings, onOpen, onAll })  → the chat-info section (null when there is nothing)
- * createSharedList({ items, tab, strings, onOpen, onBack }) → the "See all" view: Media · Files · Links tabs,
- *   one structure for the desktop pane and the phone takeover. Empty kinds have no tab.
+ * createSharedSection({ items, strings, onOpen, onAll, onMenu }) → the chat-info section (null when there is nothing)
+ *   ★ G-6 (#1119, Damir picked render 1 "Telegram" of three): chips Media · Files · Links that switch IN PLACE, at the
+ *   END of chat info; media is an edge-to-edge 3-column grid (2 px gaps, rounded top corners) the screen scrolls into;
+ *   up to SHARED_INLINE_MAX of a kind in place, then "Show all N". A long press (or a right click) = onMenu(item).
+ * createSharedList({ items, tab, strings, onOpen, onBack, onMenu }) → the "Show all" view: Media · Files · Links
+ *   tabs, one structure for the desktop pane and the phone takeover. Empty kinds have no tab.
+ * openSharedItemMenu({ item, host, strings, onAction }) → the long-press sheet: Open · Show in chat · Copy link.
  */
 
 
@@ -19226,8 +19230,45 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
 
 
 
+
+
 const SHARED_KINDS = ['media', 'file', 'link'];
-const SHARED_PREVIEW = { media: 6, file: 3, link: 3 };
+const SHARED_PREVIEW = { media: 6, file: 3, link: 3 };   // (the #1110 cards; kept for the demo and older callers)
+const SHARED_INLINE_MAX = 60;   // ★ G-6: per kind, shown in place; more → "Show all N" (60 tiles = 20 grid rows)
+const SHARED_LONG_PRESS_MS = 500;
+
+/* ★ G-6: long press = the item menu. A TOUCH (or pen) held still for SHARED_LONG_PRESS_MS (a move of 10 px or a lift
+   cancels it — a scroll is never a press), or the context-menu event (a right click, Shift+F10, a pen's barrel button,
+   and the platform's own long press). The click that follows a menu is swallowed, so the menu never also opens the
+   item. (#46 r1 B1) Whichever path runs first wins — Android and Windows touch send contextmenu for the SAME hold
+   (the message-menu.js audit-r3 guard). (#46 r1 B5) A held MOUSE button opens nothing (#265: right click is the desktop
+   path). (#46 r1 B8 → r2 R2-M1) The swallow is reset by the NEXT gesture start — a pointerdown or a keydown — never by
+   a timer: a platform contextmenu can arrive seconds after the timer (Android "Touch & hold delay: Long", Windows touch
+   sends it on release), and a timed lapse re-opened the double menu (the chats-row-menu.js grammar). */
+function attachSharedLongPress(el, item, onMenu) {
+  if (!onMenu) return;
+  let timer = 0; let x = 0; let y = 0; let fired = false;
+  const cancel = () => { clearTimeout(timer); timer = 0; };
+  const fire = () => { fired = true; onMenu(item, el); };
+  el.addEventListener('keydown', () => { fired = false; });   // a keyboard activation is never swallowed
+  el.addEventListener('pointerdown', (e) => {
+    fired = false;   // (#46 r3 R3-M1) FIRST: a right click / pen barrel press is a new gesture too (message-menu.js:210)
+    if (e.button !== 0) return;
+    cancel();
+    if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;   // B5: a mouse never long-presses
+    x = e.clientX; y = e.clientY;
+    timer = setTimeout(() => { timer = 0; if (!fired) fire(); }, SHARED_LONG_PRESS_MS);
+  });
+  el.addEventListener('pointermove', (e) => { if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) cancel(); });
+  for (const t of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(t, cancel);
+  el.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    cancel();
+    if (fired) return;   // B1: the timer already opened the menu for this hold
+    fire();
+  });
+  el.addEventListener('click', (e) => { if (fired) { fired = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+}
 
 /** The C# wire form ([id, n, kind, label, size, ts, local, thumb] rows) → items; anything malformed is dropped. */
 function parseSharedItems(json) {
@@ -19285,7 +19326,7 @@ function sharedKindTitle(kind, strings) {
   return strings.sharedLinks || 'Links';
 }
 
-function sharedMediaTile(item, strings, onOpen) {
+function sharedMediaTile(item, strings, onOpen, onMenu) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'c-shared__tile';
@@ -19302,10 +19343,11 @@ function sharedMediaTile(item, strings, onOpen) {
   }
   b.setAttribute('aria-label', (strings.sharedShowInChat || 'Show in chat') + ': ' + item.label);
   b.addEventListener('click', () => onOpen && onOpen(item));
+  attachSharedLongPress(b, item, onMenu);
   return b;
 }
 
-function sharedFileRow(item, strings, onOpen) {
+function sharedFileRow(item, strings, onOpen, onMenu) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'c-shared__row';
@@ -19323,10 +19365,11 @@ function sharedFileRow(item, strings, onOpen) {
   b.append(txt);
   b.setAttribute('aria-label', item.label + (sub.textContent ? ', ' + sub.textContent : ''));
   b.addEventListener('click', () => onOpen && onOpen(item));
+  attachSharedLongPress(b, item, onMenu);
   return b;
 }
 
-function sharedLinkRow(item, strings, onOpen) {
+function sharedLinkRow(item, strings, onOpen, onMenu) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'c-shared__row';
@@ -19343,14 +19386,15 @@ function sharedLinkRow(item, strings, onOpen) {
   b.append(txt);
   b.setAttribute('aria-label', (strings.sharedLinkLabel || 'Link') + ': ' + item.label);
   b.addEventListener('click', () => onOpen && onOpen(item));
+  attachSharedLongPress(b, item, onMenu);
   return b;
 }
 
-function sharedItemsBody(kind, list, strings, onOpen) {
+function sharedItemsBody(kind, list, strings, onOpen, onMenu) {
   const box = document.createElement('div');
   box.className = kind === 'media' ? 'c-shared__grid' : 'c-shared__rows';
   for (const it of list) {
-    box.append(kind === 'media' ? sharedMediaTile(it, strings, onOpen) : kind === 'file' ? sharedFileRow(it, strings, onOpen) : sharedLinkRow(it, strings, onOpen));
+    box.append(kind === 'media' ? sharedMediaTile(it, strings, onOpen, onMenu) : kind === 'file' ? sharedFileRow(it, strings, onOpen, onMenu) : sharedLinkRow(it, strings, onOpen, onMenu));
   }
   return box;
 }
@@ -19361,46 +19405,116 @@ function sharedByKind(items) {
   return by;
 }
 
-/** The chat-info section (null when nothing was shared): one inset-grouped card per NON-EMPTY kind with the
- *  newest few (SHARED_PREVIEW), "See all" beside the label when there are more. Damir picked this layout from three
- *  renders (#1110: cards · summary rows · media strip + rows). */
-function createSharedSection({ items = [], strings = getStrings(), onOpen, onAll } = {}) {
+/** The chat-info section (null when nothing was shared). ★ G-6 (#1119, render 1 of three — Telegram's shared media in
+ *  our tokens): a chip row of the NON-EMPTY kinds ("Media 9 · Files 4 · Links 2") that switches the panel in place;
+ *  media = an edge-to-edge 3-column grid, files / links = the rows in one card. Up to SHARED_INLINE_MAX of a kind in
+ *  place; more → "Show all N" (onAll(kind), the list cover). chat-info.js places it LAST, so the screen scrolls into it
+ *  (#1117 (1)). The #1110 cards (one per kind, "See all" beside the label) are retired. */
+function createSharedSection({ items = [], strings = getStrings(), onOpen, onAll, onMenu, tab = '', onTab } = {}) {
   const by = sharedByKind(items);
-  if (!SHARED_KINDS.some((k) => by[k].length)) return null;
+  const kinds = SHARED_KINDS.filter((k) => by[k].length);
+  if (!kinds.length) return null;
+  let current = kinds.includes(tab) ? tab : kinds[0];
   const sec = document.createElement('div');
   sec.className = 'c-shared';
-  for (const kind of SHARED_KINDS) {
+  const chips = document.createElement('div');
+  chips.className = 'c-shared__chips';
+  chips.setAttribute('role', 'tablist');
+  chips.setAttribute('aria-label', strings.sharedTitle || 'Shared');
+  const panel = document.createElement('div');
+  panel.className = 'c-shared__panel';
+  panel.id = 'c-shared-sec-' + Math.random().toString(36).slice(2, 8);
+  panel.setAttribute('role', 'tabpanel');
+  const chipFor = {};
+  const show = (kind, userPick = false) => {
+    current = kind;
+    sec.dataset.kind = kind;
+    for (const k of kinds) {
+      setChipSelected(chipFor[k], k === kind);
+      chipFor[k].removeAttribute('aria-pressed');   // (#46 r1 B7) a tab is aria-selected, never a pressed toggle
+      chipFor[k].setAttribute('aria-selected', k === kind ? 'true' : 'false');
+      chipFor[k].tabIndex = k === kind ? 0 : -1;
+    }
+    if (onTab && userPick) onTab(kind);   // (#46 r1 B2) the host keeps the USER's pick across a rebuild (r2 R2-n3: never a fallback)
     const list = by[kind];
-    if (!list.length) continue;
-    const group = document.createElement('div');
-    group.className = 'c-chat-info__group c-shared__group';
-    group.dataset.kind = kind;
-    const head = document.createElement('div');
-    head.className = 'c-shared__head';
-    const label = document.createElement('h3');
-    label.className = 'c-chat-info__label';
-    label.textContent = sharedKindTitle(kind, strings) + ' (' + list.length + ')';
-    head.append(label);
-    if (onAll && list.length > SHARED_PREVIEW[kind]) {
+    const parts = [];
+    const bodyEl = sharedItemsBody(kind, list.slice(0, SHARED_INLINE_MAX), strings, onOpen, onMenu);
+    if (kind === 'media') parts.push(bodyEl);
+    else {
+      const card = document.createElement('div');
+      card.className = 'c-chat-info__card';
+      card.append(bodyEl);
+      parts.push(card);
+    }
+    if (onAll && list.length > SHARED_INLINE_MAX) {
       const all = document.createElement('button');
       all.type = 'button';
       all.className = 'c-shared__all';
-      all.textContent = strings.seeAll || 'See all';
+      all.textContent = (strings.sharedShowAll || 'Show all {n}').split('{n}').join(String(list.length));
       all.addEventListener('click', () => onAll(kind));
-      head.append(all);
+      parts.push(all);
     }
-    group.append(head);
-    const card = document.createElement('div');
-    card.className = 'c-chat-info__card';
-    card.append(sharedItemsBody(kind, list.slice(0, SHARED_PREVIEW[kind]), strings, onOpen));
-    group.append(card);
-    sec.append(group);
+    panel.replaceChildren(...parts);
+    panel.setAttribute('aria-label', sharedKindTitle(kind, strings));
+  };
+  for (const k of kinds) {
+    const c = createChip({ label: sharedKindTitle(k, strings) + ' ' + by[k].length, size: 'large', strings, onClick: () => show(k, true) });
+    c.classList.add('c-shared__chip');
+    c.dataset.kind = k;
+    c.setAttribute('role', 'tab');
+    c.setAttribute('aria-controls', panel.id);
+    c.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault();
+      const i = kinds.indexOf(current) + (e.key === 'ArrowRight' ? 1 : -1);
+      const next = kinds[(i + kinds.length) % kinds.length];
+      show(next, true);
+      chipFor[next].focus();
+    });
+    chipFor[k] = c;
+    chips.append(c);
   }
+  sec.append(chips, panel);
+  show(current);
   return sec;
 }
 
+/** ★ G-6 (#1119/#1120): the long-press menu of one shared item — a sheet titled with the item. Open (what a tap does) ·
+ *  Show in chat · Copy link (links only); "Open" only for a link or a local file (#46 r1 B4). onAction('open' | 'show' | 'copy', item). Share / Save, Delete from this
+ *  device and Delete message are NOT here: each needs a new verb, built after the BE answer (#1118, #1120) — no dead
+ *  rows (#256). */
+function openSharedItemMenu({ item, host, strings = getStrings(), onAction } = {}) {
+  if (!item) return null;
+  const content = document.createElement('div');
+  content.className = 'c-msgmenu';
+  const list = document.createElement('div');
+  list.className = 'c-msgmenu__list';
+  let sheet = null;
+  const add = (glyph, label, action) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-msgmenu__item';
+    b.dataset.action = action;
+    b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
+    b.addEventListener('click', () => { closeSheet(sheet); if (onAction) onAction(action, item); });
+    list.append(b);
+  };
+  /* (#46 r1 B4) "Open" only where it is NOT the jump: a link (asks first, then the browser) and a file with a local copy
+     (the system opens it). For media and a file not on this device the tap already IS "Show in chat" — one row, one action. */
+  if (item.kind === 'link' || (item.kind === 'file' && item.local)) {
+    add(item.kind === 'link' ? 'external-link' : 'file-isr', item.kind === 'link' ? (strings.openLink || 'Open') : (strings.sharedOpen || 'Open'), 'open');
+  }
+  add('message', strings.sharedShowInChat || 'Show in chat', 'show');
+  if (item.kind === 'link') add('copy', strings.copyLink || 'Copy link', 'copy');
+  content.append(list);
+  const title = item.kind === 'link' ? (sharedLinkHost(item.label) || item.label) : item.label;
+  sheet = createSheet({ title, content, host, strings });
+  openSheet(sheet);
+  return sheet;
+}
+
 /** "See all": a topbar (Back + title), the kind tabs (only the non-empty ones), the full list of the chosen kind. */
-function createSharedList({ items = [], tab = 'media', strings = getStrings(), onOpen, onBack } = {}) {
+function createSharedList({ items = [], tab = 'media', strings = getStrings(), onOpen, onBack, onMenu } = {}) {
   const by = sharedByKind(items);
   const kinds = SHARED_KINDS.filter((k) => by[k].length);
   let current = kinds.includes(tab) ? tab : (kinds[0] || 'media');
@@ -19421,7 +19535,7 @@ function createSharedList({ items = [], tab = 'media', strings = getStrings(), o
       buttons[k].setAttribute('aria-selected', k === kind ? 'true' : 'false');
       buttons[k].tabIndex = k === kind ? 0 : -1;
     }
-    panel.replaceChildren(sharedItemsBody(kind, by[kind], strings, onOpen));
+    panel.replaceChildren(sharedItemsBody(kind, by[kind], strings, onOpen, onMenu));
     if (kinds.length > 1) panel.setAttribute('aria-label', sharedKindTitle(kind, strings));   // (#46 r2 R2-12) a name only on the tabpanel role
     el.dataset.tab = kind;
   };
@@ -19625,6 +19739,9 @@ function createChatInfo({
   shared = null,                 // ★★ #1106: shared media / files / links (parseSharedItems) — null = not asked / not answered
   onSharedOpen = null,           // ★★ #1106: (item) → the shell's tap rule (a link asks first)
   onSharedAll = null,            // ★★ #1106: (kind) → the "See all" view at that tab
+  onSharedMenu = null,           // ★ G-6 (#1119): (item) → the long-press menu (the shell owns the verbs)
+  sharedTab = '',                // ★ G-6 (#46 r1 B2): the kind chip to start on (the host keeps the pick across rebuilds)
+  onSharedTab = null,            // ★ G-6 (#46 r1 B2): (kind) → the host remembers it
   lastSeen = 0,                  // ★ #1103: last sighting, local Unix seconds (0 = unknown) — "last seen …" under the name when not online
   nickname = '',                 // 1:1 local override (spoofable — address is truth)
   memberCount = 0,
@@ -20138,11 +20255,13 @@ function createChatInfo({
     body.append(sdSection.wrap);
   }
 
-  /* ——— ★★ #1106: shared media · files · links (ContactDetails setSharedItems) — empty kinds never show ——— */
-  if (Array.isArray(shared) && shared.length) {
-    const sharedSec = createSharedSection({ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll });
-    if (sharedSec) body.append(sharedSec);
-  }
+  /* ——— ★★ #1106 → ★ G-6 (#1119): shared media · files · links — built here, placed LAST (after the danger group, below) ——— */
+  const sharedSec = Array.isArray(shared) && shared.length
+    ? createSharedSection({ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll, onMenu: onSharedMenu, tab: sharedTab, onTab: onSharedTab })
+    : null;
+  /* (#46 r1 B3) a GROUP / bot room keeps the section where it was (#1106): ABOVE the roster, which is unbounded — the
+     grid must not sit under hundreds of member rows. A 1:1 places it LAST (below). */
+  if (sharedSec && roomKind) body.append(sharedSec);
 
   /* ——— shared media (capabilities.media — NO legacy command, §9; demo-fed) ——— */
   if (capabilities.media && media.length) {
@@ -20613,6 +20732,10 @@ function createChatInfo({
       body.append(danger);
     }
   }
+  /* ★ G-6 (#1119, Damir picked render 1 "Telegram"): the shared items are the LAST block, so the screen scrolls into the
+     grid (#1117 (1)). They are unbounded (≤ 200), so the #873 rule for unbounded content applies to 1:1 too: the
+     destructive rows sit ABOVE them (as they sit above a group's roster), never at the foot of a long grid. */
+  if (sharedSec && !roomKind) body.append(sharedSec);
 
   /* shared destructive-confirm machinery: alertdialog, Cancel autofocused
      (APG safe action, #136⑤ precedent), confirm latched + loading, dismissal
@@ -25554,12 +25677,14 @@ function createNotificationsScreen({
   enabled = true,
   previews = false,              // matches the SHIPPED C# default (KEY_SENDER_NAME = false)
   sounds = true,
+  callRingtone = true,           // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   pushProvider = true,           // ★ P2 (#708): the third-party push opt-out; C# default TRUE
   platform = '',                 // 'android' | 'ios' | '' — the opt-out COSTS something different on each, and the row says which
   capabilities = {},             // { globalNotifications, pushProvider }
   onBack,
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
+  onCallRingtone,                // (next, ctrl) — ★ E-W4: ixian:callRingtone:on|off
   onPushProvider,                // (next, ctrl) — ★ P2 (#708): ixian:notifPushProvider:on|off
   strings = getStrings(),
 } = {}) {
@@ -25609,6 +25734,14 @@ function createNotificationsScreen({
       glyph: 'volume', hue: 'accent',   // ★ Session H: Damir's export; the FAILED status glyph is alert-square-rounded since #1044 (chatlist-item) — one glyph, one meaning (#602)
       label: strings.notifSounds || 'In-app sounds',
       checked: sounds, live, failText, onToggle: onSounds,
+    }));
+    /* ★ E-W4 (#1114 (4), Damir: a "Call ringtone" on/off, default on, every platform). Off = an incoming call
+       shows its card but makes no sound here. Its own glyph: phone-incoming is the call ring (bell = Allow
+       notifications, volume = In-app sounds — one glyph, one meaning, #602). */
+    if (onCallRingtone && capabilities.callRingtone) body.append(switchRow({
+      glyph: 'phone-incoming', hue: 'success',
+      label: strings.notifCallRingtone || 'Call ringtone',
+      checked: callRingtone, live, failText, onToggle: onCallRingtone,
     }));
     /* ★★ P2 (#708, privacy work order §P2 — Damir raised it again in Session G): A REAL
        OPT-OUT FOR THIRD-PARTY PUSH. Before this row, "Allow notifications" gated DISPLAY
@@ -25806,7 +25939,6 @@ function createSecurityLevel({
 
 
 
-
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -25945,21 +26077,33 @@ function createSettingsDownloads({
   /* ★★ #1107: the sender filter — ONE "From: <who>" chip (shown only when a sender is known) that opens the option
      sheet: "Everyone" + every sender, sorted, with a search field once the list is long. Chips per sender did not
      scale (Damir: "it could be 50 or more people"; #1111). No sort control: newest first only (#1111). */
+  /* ★ G-5 (#1119, Damir picked C of three renders: "the From chip looks small / out of place"): a SECTION HEADER over
+     the list — the shown-file count on the left, an accent text button "From: <who> ▾" on the right, both on the card's
+     edge. Same sheet, same filter, same strings; no chip. The row hides when no sender is known (as the chip did). */
   const controls = document.createElement('div');
   controls.className = 'c-settings-dl__controls';
   let senders = new Map();             // key → label, from the current list
-  const fromChip = createChip({ label: '', size: 'small', strings, onClick: () => openSenderSheet() });
-  fromChip.classList.add('c-settings-dl__from-chip');
+  const countEl = document.createElement('span');
+  countEl.className = 'c-settings-dl__count';
+  const fromChip = document.createElement('button');
+  fromChip.type = 'button';
+  fromChip.className = 'c-settings-dl__from-btn';
   fromChip.setAttribute('aria-haspopup', 'dialog');
-  fromChip.append(icon('chevron-down', { size: 16 }));
-  controls.append(fromChip);
+  const fromLab = document.createElement('span');
+  fromLab.className = 'c-settings-dl__from-label';
+  fromChip.append(fromLab, icon('chevron-down', { size: 16 }));
+  fromChip.addEventListener('click', () => openSenderSheet());
+  controls.append(countEl, fromChip);
   body.append(controls);
   const fromLabel = () => (strings.downloadsFromChip || 'From: {name}').split('{name}').join(
     senderKey ? (senders.get(senderKey) || '') : (strings.downloadsAllSenders || 'Everyone'));
   function paintFromChip() {
-    const lab = fromChip.querySelector('.c-chip__label');
-    if (lab) lab.textContent = fromLabel();
-    setChipSelected(fromChip, !!senderKey);
+    fromLab.textContent = fromLabel();
+    if (senderKey) fromChip.dataset.active = ''; else delete fromChip.dataset.active;
+  }
+  function paintCount(n) {
+    countEl.textContent = n === 1 ? (strings.downloadsCountOne || '1 file')
+      : (strings.downloadsCount || '{n} files').split('{n}').join(String(n));
   }
   function openSenderSheet() {
     const options = [{ value: '', label: strings.downloadsAllSenders || 'Everyone' }]
@@ -26148,6 +26292,7 @@ function createSettingsDownloads({
       if (hit) visible++;
     }
     noMatch.hidden = !(card.childElementCount > 0 && visible === 0);
+    paintCount(visible);   // ★ G-5: the header counts what is SHOWN
     live.textContent = (query || senderKey)
       ? (strings.downloadsMatches || '{n} files match').split('{n}').join(String(visible))
       : '';
@@ -28938,5 +29083,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

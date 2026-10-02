@@ -39,7 +39,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 2. **Render** any visual change on the BUILT shell, both themes; Damir picks the dials.
 3. **Pipeline:** FULL = (`generate-icons` if SVGs) → `extract-strings` → `build-locales` → `build-strings-iife` → `build-demo-bundle` → `build-shells` — **bundle BEFORE shells** (#258); shell/CSS/token-only = `build-shells`; C#-only = none. Then the `--check` gates.
 4. **Pins:** behaviour, not source text (#771/#798); **break the code on purpose — the pin must fail for exactly that reason** (mutation, #802) before you believe it.
-5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5075** (with the Ixian-Core sibling, session 1).
+5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5089** (with the Ixian-Core sibling, session 2). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=26 fail=0` (#1122).
 6. **#46 loop** (Opus, in-session) until CLEAN — after a green smoke run, before the batch leaves the machine; smoke again after the last fix; verdict written into its brief (#660).
 7. **Walk:** Damir builds — **Windows = F5, never `dotnet build`** (#663); Android Debug; **iPhone + Mac (and Android, #449): wipe `obj`/`bin` when the html changed, then a plain build, then Run — incremental builds do not repackage Raw html** (#320); the BUILD row must show something only this build has. Walk sheet → pasted results → a `WALK #N: n P · n F · n N/A` DECISIONS row; each fail = mechanism first.
 8. **Commit:** one logical unit; `docs/commit-message-<batch>.txt` (no attribution lines — ★ COMMIT RULE); Damir reviews the diff, commits and pushes; never `git add -A`. Use `git --no-optional-locks` on the mounted repo; give the PowerShell repo commands with every delivery.
@@ -80,8 +80,9 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-01: session 1 (#1101–#1113) committed + walked — Windows + Android #1115: 12 P · 3 F · 1 N/A (B6s chat-open blank WORSE, ONLINE, LAST). Office walk Mac + iPhone #1114: 25 P · 0 F · 1 N/A. Smoke BASELINE OK 5075 / the 2 KNOWN (#136 · B3).
-- Decided for session 2 (#1116): hold the chats list until the chat has drawn · saved last sighting + messages · presence probe first · Telegram-style chat info shared items · DoD S2b G-1…G-9 + S2 E-W1…E-W7 (a Mac/iPhone call crash first).
-- Session 3 = P-1: a read-only performance review — chat open < 100 ms, no flicker (Damir).
-- Road: session-2 (fixes) → session-3 (performance) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` tag → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
-- **NEXT SESSION: read `docs/handoff-2026-10-01d.md` FIRST, then paste `docs/prompts/session-2.md`.** Next free DECISIONS number: **#1118**.
+- 2026-10-02: session 2 (#1118–#1122) BUILT in a cloud twin, #46 CLEAN at r4, NOT walked, NOT committed (Damir applies + commits). Smoke BASELINE OK 5089 / the 2 KNOWN · C# harness 26/26 · ⚠ C# UNCOMPILED (7 new app files).
+- Built: G-1 chat-open hold (list stays until the chat drew) · G-2 "last seen" kept across restarts · G-3/E-W3/G-9 probes · G-4 the Show-in-chat pulse for files/photos · G-5 Downloads header (C) · G-6 Telegram-style shared items + G-6b real thumbnails · E-W1 Apple call crash · E-W2 avatar · E-W4 Mac ring + "Call ringtone" · E-W5 · E-W7.
+- Owed: the two walks (`docs/walk-artifact-session2-win-android.html`, `…-session2-office.html`); E-W6 = a clean Mac build decides; BE asks T1 B-27 (2 verbs + the in-process thumbnail decode).
+- Session 3 = P-1 WIDENED to the whole app's felt speed (read-only review first; `docs/prompts/session-3.md`, 12 leads).
+- Road: walks → session-3 (performance) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
+- **NEXT SESSION: read `docs/handoff-2026-10-02.md` FIRST, then paste `docs/prompts/session-3.md`.** Next free DECISIONS number: **#1123**.

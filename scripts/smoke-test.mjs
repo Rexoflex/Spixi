@@ -13060,7 +13060,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     && /requestAnimationFrame\(pulseWhenVisible\);/.test(chatNc),
     '★ N52: the pulse starts when the target row is VISIBLE (rAF poll, 1.5s cap) and RE-BINDS through the id each frame (loop B-4: renderLogNow rebuilds every row — a delivery tick mid-scroll silently killed a closed-over node\'s pulse)');
   for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
-    const rm = txt.slice(txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]'), txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]') + 220);
+    const rm = txt.slice(txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]'), txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]') + 460);   /* G-4 re-base: the selector now names every bubble kind */
     ok(/animation: none; box-shadow: 0 0 0 3px var\(--surface-warning\);/.test(rm),
       'N52 (' + label + ', loop B-3): reduced motion gets a STATIC held ring — "animation: none" alone meant the jump highlighted NOTHING for exactly the users who asked for less motion');
   }
@@ -14501,7 +14501,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   const setShell = readFileSync(join(root, 'src/shells/settings.html'), 'utf8');
   const screens = readFileSync(join(root, 'src/components/settings-screens.js'), 'utf8');
 
-  ok(/string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications(?:,ignoredRequests)?"/.test(setPage),   // ★ #978 appended ,ignoredRequests — the guarantee (globalNotifications is in the unconditional set) is unchanged   // PA1 (#525) appended ,paymentAuth — W-g (2026-08-24) made it a gated append; prefix pin, guarantee unchanged
+  ok(/string caps = "settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications(?:,ignoredRequests)?(?:,callRingtone)?"/.test(setPage),   // ★ #978 appended ,ignoredRequests — the guarantee (globalNotifications is in the unconditional set) is unchanged   // PA1 (#525) appended ,paymentAuth — W-g (2026-08-24) made it a gated append; prefix pin, guarantee unchanged
     '★ NOTIF-2: SettingsPage pushes the globalNotifications capability. createNotificationsScreen has been BUILT since #147 and gated on it, and the production shell never set it — a screen that shipped dark for months');
   for (const verb of ['ixian:notifEnabled:', 'ixian:notifSenderName:', 'ixian:notifSounds:']) {
     ok(new RegExp('StartsWith\\("' + verb.replace(/:/g, ':') + '"').test(setPage),
@@ -24738,7 +24738,7 @@ console.log('P2 (#708): the push-provider opt-out — row, latch, verb, apply');
      && /pushProvider: state\.notifPushProvider,/.test(st) && /platform: pushPlatform\(\),/.test(st)
      && /pushProvider: bridge\.cap\('pushProvider'\)/.test(st)
      && /notifPushProvider: true,/.test(st)
-     && /\[state\.notifEnabled, state\.notifSenderName, state\.notifSounds, state\.notifPushProvider\]\.join/.test(st),
+     && /\[state\.notifEnabled, state\.notifSenderName, state\.notifSounds, state\.notifPushProvider(?:, state\.callRingtone)?\]\.join/.test(st)   /* E-W4 re-base: + callRingtone */,
     '★ #708 [settings]: the row rides the SAME latch/echo grammar as the other three switches (verb → C# stores → echoes → the switch settles on the STORED value), is seeded from the echo, defaults to the C# default, gates on the pushed cap, and is in the rebuild signature');
   ok(/function pushPlatform\(\)/.test(st) && /\/Android\/i\.test\(ua\)/.test(st) && /iPhone\|iPad\|iPod/.test(st),
     '#708 [settings]: the platform for the sub-label is read from the UA stamp (the same signal as data-desktop), never from the screen size');
@@ -28399,7 +28399,7 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     /* the op's PRESENTATION fields (auditor C: #800 claims them, nothing asserted them) */
     ok(/op\.overlayMode = true;/.test(w.body) && /op\.column = column;/.test(w.body) && /op\.revealDelayMs = 0;/.test(w.body) && /op\.slideIn = false;/.test(w.body)
       && /placeStage\(stage, hostGrid, column\);/.test(w.body) && !/parkOnLoad/.test(w.body) && !/modalMode/.test(w.body) && !/parkOnClose/.test(w.body)
-      && count(w.body, /\bop\.\w+ = /g) === 6 && /#if ANDROID\s*op\.preRevealFrames = true;/.test(w.body) && count(w.body, /PreloadOp op = new PreloadOp\(this, target, stage, targetContent, hostGrid\);/g) === 1,   /* ★ #1101 0b(b) re-base: + preRevealFrames (Android only) */
+      && count(w.body, /\bop\.\w+ = /g) === 6 && /#if ANDROID\s*op\.holdUntilDrawn = true;/.test(w.body) && count(w.body, /PreloadOp op = new PreloadOp\(this, target, stage, targetContent, hostGrid\);/g) === 1,   /* ★ #1101 0b(b) re-base: + an Android-only present flag — since G-1 (session 2) holdUntilDrawn */
       '★★ Session P L1·4 presentation (auditor C + #802 reviewer): the spare op is built for the SAME present a fresh chat takes — overlayMode true (never the PushAsync fallback), the caller\'s column, revealDelayMs 0 (the chat presents on its own painted signal), slideIn false (#735①), it is placed in its column at WARM time so the attach does not resize the WebView, the op is built as `new PreloadOp(this, target, stage, targetContent, hostGrid)` (#802 r10: `host` = THIS page, the value pushSpareChat\'s host clause compares — a swapped argument refused every tap `why=host`) and those are the ONLY five `op.<field> =` writes — never parkOnLoad / modalMode / parkOnClose / replaces / abandoned / stageMargin (a parkOnLoad spare would be PARKED into the Account slot at present, a `replaces` would close an unrelated pane, `abandoned` disposes the page — the tap shows nothing; #802 r3 enumerated the PreloadOp fields)');
     /* the warm-side GUARDS + the timeout (auditor C: the docblock was their only record) */
     const gate = w.body.slice(0, w.body.indexOf('SingleChatPage target;'));
@@ -37189,7 +37189,7 @@ console.log('Office fix round (#974–#981)');
   const wipe = bodyO(st, 'private void wipeEverything()');
   /* ★ #983 (review r1, MINOR-8): the push is asserted WHERE it must run — beside the caps in onLoad, and on the
      parked page's re-present (#315) — not merely somewhere in the file (the unignore branch's own call satisfied that) */
-  ok(/"[^"]*,ignoredRequests"/.test(st) && /Utils\.sendUiCommand\(this, "setCaps", caps\);\s*BackupPage\.pushBackupStatus\(this\);\s*pushIgnoredRequests\(\);/.test(st)
+  ok(/"[^"]*,ignoredRequests[,"]/.test(st)   /* E-W4 re-base: ,callRingtone follows */ && /Utils\.sendUiCommand\(this, "setCaps", caps\);\s*BackupPage\.pushBackupStatus\(this\);\s*pushIgnoredRequests\(\);/.test(st)
      && /pushIgnoredRequests\(\);/.test(bodyO(st, 'protected internal override void onRepresentedNative()'))
      && un.replace(/\s+/g, ' ').trim() === 'SRequestIgnore.remove(current_url.Substring("ixian:unignore:".Length)); pushIgnoredRequests();'
      && wipe.indexOf('SRequestIgnore.clear()') > wipe.indexOf('Preferences.Default.Clear()') && wipe.indexOf('Preferences.Default.Clear()') > 0
@@ -39922,7 +39922,7 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
     const tap = /InstallTapOnBus\(0,\s*(\w+),\s*(\w+),\s*onDataAvailable\)/.exec(init);
     const onData = mac.slice(mac.indexOf('private void onDataAvailable('), mac.indexOf('private void initEncoder('));
     ok(!!tap && tap[2] === 'recordingFormat'
-       && /recordingFormat = audioRecorder\.InputNode\.GetBusOutputFormat\(0\);/.test(init)
+       && /inputNode = audioRecorder\.InputNode;\s*recordingFormat = inputNode\.GetBusOutputFormat\(0\);/.test(init)   /* E-W1 re-base: the node is held in a field (disposed before the engine) */
        && /audioConverter = new AVAudioConverter\(recordingFormat, desiredFormat\);/.test(init)
        && !/new AVAudioFormat\(AVAudioCommonFormat\.PCMInt16[^;]*;\s*[^;]*InstallTapOnBus/.test(init)
        && /if \(supplied\)\s*\{\s*outStatus = AVAudioConverterInputStatus\.NoDataNow;\s*return null;\s*\}\s*supplied = true;/.test(onData)
@@ -40100,7 +40100,7 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
     const callCode = stripCode(call);
     const hidden = /private const double swapHiddenOpacity = ([\d.]+);/.exec(cp);
     const cTimeout = /private const int swapRevealTimeoutMs = (\d+);/.exec(cp);
-    const jTimeout = /timer = setTimeout\(fire, (\d+)\);/.exec(callCode);
+    const jTimeout = /timer = setTimeout\(\(\) => fire\('timer'\), (\d+)\);/.exec(callCode);   /* G-9 re-base */
     const r = {
       expand: /surfaceMode = mode;\s*\}\s*beginStageSwap\(page, true, from\);/.test(fn) && !/Task\.Delay\(/.test(fn) && !/applyStageLayout\s*\(/.test(fn)
         && /if \(current != page \|\| surfaceMode == "ring"\)\s*\{\s*return;/.test(fn) && !/expandLayoutDelayMs/.test(cp),
@@ -40125,8 +40125,8 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
       shell: /callAwaitPaint\(token, mode, maxH\) \{ awaitPaint\(token, mode, maxH\); \},/.test(callCode)
         /* (#46 r2 MAJOR-2) Windows waits for EXACTLY min(card, the C# clamp) — never the first resize */
         && /const want = Math\.max\(120, capN > 0 \? Math\.min\(lastCardH, capN\) : lastCardH\);\s*return Math\.abs\(h - want\) <= 2;/.test(callCode)
-        && /const onResize = \(\) => \{ if \(fits\(\)\) fire\(\); \};/.test(callCode) && /if \(!\/\^\\d\{1,18\}\$\/\.test\(t\)\) return;/.test(callCode)
-        && /requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => bridge\.send\('ixian:callPainted:' \+ t\)\)\);/.test(callCode),
+        && /const onResize = \(\) => \{ pr\.resizes\+\+; if \(fits\(\)\) fire\('resize'\); \};/.test(callCode)   /* G-9 re-base: + the [CALLPAINT] probe counters */ && /if \(!\/\^\\d\{1,18\}\$\/\.test\(t\)\) return;/.test(callCode)
+        && /requestAnimationFrame\(\(\) => \{\s*pr\.r1 = ms\(\);\s*requestAnimationFrame\(\(\) => \{\s*pr\.r2 = ms\(\);\s*bridge\.send\('ixian:callPainted:' \+ t\);/.test(callCode),   /* G-9 re-base: still a double rAF before the signal */
       timeouts: !!cTimeout && !!jTimeout && Number(jTimeout[1]) < Number(cTimeout[1]),
     };
     ok(Object.values(r).every(Boolean),
@@ -40494,24 +40494,47 @@ console.log('#1101–#1107 — session 1');
       '★ #1101 0b(a) (Damir: full → card "clunky — almost a second"; #1096 bar reveal 223–240 ms): on a PHONE the minimised card is shown at once when the shell has painted (the shell fades the card itself — the 120 ms C# fade only stacked on it); ring / full and the desktops keep the fade. While a swap waits, [CALLSWAP] stamps the native layout, the stage height and the WebView height (integers only), so the walk shows where the time goes — ' + JSON.stringify(r));
   }
 
-  /* —— 0b(b) (#1101): the Android spare chat — a permanent container + two drawn-but-invisible frames at present —— */
+  /* —— 0b(b) (#1101) → G-1 (session 2, #1116 (1)): the Android spare chat — a permanent container from birth, and the
+   *   present HOLDS the chats list on glass (transparent grounds) until the chat WebView has drawn —— */
   {
     const sc = stripCode(rdX('Spixi/Utils/SpixiContentPage.cs'));
     const warm = sc.slice(sc.indexOf('public bool warmSpareChat('), sc.indexOf('Logging.info("[CDPERF] chat warm start");'));
     const rev = sc.slice(sc.indexOf('private static void revealStage(PreloadOp op)'), sc.indexOf('private static async Task liftStageInput('));
-    const pre = (/else if \(op\.preRevealFrames\)\s*\{([\s\S]*?)\n\s*\}\s*else\s*\{\s*op\.stage\.Opacity = 1;/.exec(rev) || [])[1] || '';
+    const hold = sc.slice(sc.indexOf('private static void holdStageUntilDrawn(PreloadOp op)'), sc.indexOf('private static void setHoldGrounds('));
+    const grounds = sc.slice(sc.indexOf('private static void setHoldGrounds('), sc.indexOf('private static void revealStage(PreloadOp op)'));
+    const cb = hold.slice(hold.indexOf('PresentHold.start('));
     const r = {
-      field: /public bool preRevealFrames = false;/.test(sc),
-      androidOnly: /#if ANDROID\s*op\.preRevealFrames = true;\s*stage\.Shadow = new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*#endif/.test(warm),
+      field: /public bool holdUntilDrawn = false;/.test(sc),
+      androidOnly: /#if ANDROID\s*op\.holdUntilDrawn = true;\s*stage\.Shadow = new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*#endif/.test(warm),
       remap: /hostGrid\.Children\.Add\(stage\);\s*#if ANDROID\s*stage\.Handler\?\.UpdateValue\(nameof\(IView\.Opacity\)\);\s*#endif/.test(warm),
-      /* invisible but DRAWN for two frames, input-dead while invisible, then visible + input-live; a close owns the stage */
-      frames: /op\.stage\.Opacity = 0\.01;/.test(pre) && !/InputTransparent = false/.test(pre.slice(0, pre.indexOf('Task.Delay(PreRevealFramesMs)')))   /* (#46 r1 M25) under ANY alias */
-        && /Task\.Delay\(PreRevealFramesMs\)/.test(pre) && /if \(!shown\.closing\)\s*\{\s*shown\.stage\.Opacity = 1;\s*shown\.stage\.InputTransparent = false;\s*\}/.test(pre)
-        && /private const int PreRevealFramesMs = 34;/.test(sc),
-      slideFirst: rev.indexOf('if (slideFrom > 0)') > -1 && rev.indexOf('if (slideFrom > 0)') < rev.indexOf('else if (op.preRevealFrames)'),
+      /* the #1101 0.01 pre-reveal is GONE (#1115: it ADDED blank frames) */
+      no001: !/Opacity = 0\.01/.test(sc) && !/PreRevealFramesMs/.test(sc) && !/preRevealFrames/.test(sc),
+      /* the branch: Android only, after the slide branch, before the plain reveal */
+      branch: /else if \(tryHoldUntilDrawn\(op\)\)\s*\{\s*\}\s*else\s*\{\s*op\.stage\.Opacity = 1;/.test(rev)
+        && rev.indexOf('if (slideFrom > 0)') > -1 && rev.indexOf('if (slideFrom > 0)') < rev.indexOf('else if (tryHoldUntilDrawn(op))')
+        && /private static bool tryHoldUntilDrawn\(PreloadOp op\)\s*\{\s*#if ANDROID\s*if \(!op\.holdUntilDrawn\)\s*\{\s*return false;\s*\}\s*holdStageUntilDrawn\(op\);\s*return true;\s*#else\s*return false;\s*#endif\s*\}/.test(sc),
+      /* grounds transparent BEFORE the stage shows; input stays dead until the hold ends */
+      order: hold.indexOf('setHoldGrounds(op, native, true);') > -1 && hold.indexOf('setHoldGrounds(op, native, true);') < hold.indexOf('op.stage.Opacity = 1;')
+        && hold.indexOf('op.stage.Opacity = 1;') < hold.indexOf('PresentHold.start(') && !/InputTransparent = false/.test(hold.slice(0, hold.indexOf('PresentHold.start('))),
+      /* the end: grounds back ALWAYS, input-live only without a close, then the line */
+      end: /setHoldGrounds\(held, heldView, false\);\s*\}\s*catch \(Exception\) \{ \}\s*try\s*\{\s*if \(!held\.closing\)\s*\{\s*held\.stage\.InputTransparent = false;\s*\}/.test(cb)   /* (#46 r2 R2-n1) two tries */
+        && cb.indexOf('setHoldGrounds(held, heldView, false);') < cb.indexOf('[CDPERF] chat held'),
+      /* all four grounds, both ways */
+      four: /Color ground = held \? Colors\.Transparent : op\.target\.pageSurfaceColor;/.test(grounds) && /op\.stage\.BackgroundColor = ground;/.test(grounds)
+        && /op\.targetContent\.BackgroundColor = ground;/.test(grounds) && /op\.target\._webView\.BackgroundColor = ground;/.test(grounds)
+        && /native\.SetBackgroundColor\(held \? Android\.Graphics\.Color\.Transparent\s*: Android\.Graphics\.Color\.ParseColor\(op\.target\.pageSurfaceColorString\)\);/.test(grounds),
+      cap: /private const int HoldCapMs = 250;/.test(sc) && /PresentHold\.start\(native, HoldCapMs, /.test(hold),
+      /* (#46 r1 M1) the hold reaches the REAL native WebView, makes ITS ground transparent, and nothing repaints a ground
+         between "transparent" and the hold's start */
+      lookup: /try \{ native = op\.target\._webView\?\.Handler\?\.PlatformView as Android\.Webkit\.WebView; \} catch \(Exception\) \{ \}/.test(hold)
+        && /Android\.Webkit\.WebView\? heldView = native;/.test(hold),
+      noRepaint: !/BackgroundColor|SetBackgroundColor|applyPageSurfaceColor/.test(hold.slice(hold.indexOf('setHoldGrounds(op, native, true);') + 1, hold.indexOf('PresentHold.start(')))
+        && (hold.match(/setHoldGrounds\(/g) || []).length === 2,
+      /* the chat document paints its own opaque ground — the premise of the hold */
+      opaqueDoc: /html, body \{[^}]*background: var\(--surface-screen\);/.test(rdX('src/shells/chat.html')),
     };
     ok(Object.values(r).every(Boolean),
-      '★ #1101 0b(b) (Damir: the cheap test build for the ~2 blank frames on EVERY Android chat open): the pre-warmed spare chat stage gets a PERMANENT MAUI container from birth (a zero shadow — the InputTransparent flip at present can no longer re-parent its WebView, the #1095 mechanism) and its present goes 0 → 0.01 for two frames (an Android view at alpha 0 is not drawn) → 1 + input-live; [CDPERF] says the path ran — ' + JSON.stringify(r));
+      '★ G-1 (session 2, #1116 (1); replaces the #1101 0b(b) 0.01 pre-reveal, which ADDED blank frames — #1115): the pre-warmed Android spare chat keeps its PERMANENT container from birth (zero shadow, #1095), and at present it is shown at once with ALL FOUR grounds under the chat WebView transparent (stage · page content · MAUI WebView · native WebView), so the chats list stays on glass until the chat draws; PresentHold ends the hold (visual-state callback + one frame, cap 250 ms); the grounds ALWAYS come back, input-live only without a close — ' + JSON.stringify(r));
   }
 
   /* —— 0b(d) (#1101): a tap on the Windows NATIVE scrim closes the decline sheet (ring only, outside the card) —— */
@@ -40644,16 +40667,16 @@ console.log('#1101–#1107 — session 1');
       /* (#46 r1 C3) the pure parts are EXECUTED by PresenceDisplayTests (3 cases); the impure wrappers delegate to them */
       pure: /return localEpochOf\(lastSightingNetwork\(friend\), Clock\.getNetworkTimestamp\(\), DateTimeOffset\.UtcNow\.ToUnixTimeSeconds\(\)\);/.test(pd)
         && /long age = Math\.Max\(0, networkNow - seen\);\s*return localNow - age;/.test(pd) && /return isFresh\(seen, Clock\.getNetworkTimestamp\(\)\);/.test(pd)
-        && /return latchFlip\(shownLatch, key, shown\);/.test(pd) && (rdX('Spixi-UnitTests/PresenceDisplayTests.cs').match(/\[TestMethod\]/g) || []).length === 3,
+        && /flipped = latchFlip\(shownLatch, key, shown\);/.test(pd) && /return flipped;/.test(pd)   /* G-3 re-base: the flip is logged before it is returned */ && (rdX('Spixi-UnitTests/PresenceDisplayTests.cs').match(/\[TestMethod\]/g) || []).length === 3,
       heardNewest: /if \(!heard\.TryGetValue\(key, out long h\) \|\| at > h\)/.test(pd),
-      probeBeforeWrite: np.indexOf('PresenceDisplay.probeKeepAlive(f.lastSeenTime, pa.lastSeenTime);') > -1
-        && np.indexOf('PresenceDisplay.probeKeepAlive(f.lastSeenTime, pa.lastSeenTime);') < np.indexOf('f.lastSeenTime = pa.lastSeenTime;', np.indexOf('PresenceDisplay.probeKeepAlive(')),
+      probeBeforeWrite: np.indexOf('PresenceDisplay.probeKeepAlive(f, f.lastSeenTime, pa.lastSeenTime);') > -1
+        && np.indexOf('PresenceDisplay.probeKeepAlive(f, f.lastSeenTime, pa.lastSeenTime);') < np.indexOf('f.lastSeenTime = pa.lastSeenTime;', np.indexOf('PresenceDisplay.probeKeepAlive(')),
       homeRows: (home.match(/if \(PresenceDisplay\.shownOnline\(friend\)\)\s*str_online = "true";/g) || []).length === 2 && !/if \(friend\.online\)\s*str_online = "true";/.test(home),
       header: /Utils\.sendUiCommand\(this, "setOnlineStatus", SpixiLocalization\._SL\(shownNow \? "chat-online" : "chat-offline"\), seenArg\);/.test(sc)
         && /string presenceKey = shownNow \? "on" : "off:" \+ \(long\.Parse\(seenArg, System\.Globalization\.CultureInfo\.InvariantCulture\) \/ 60\)\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);/.test(sc)   /* (#46 r1 M15) the latch moves per MINUTE — a per-second key would push every tick (#288) */
         && /if \(presenceKey != lastPresenceKey\)/.test(sc) && (sc.match(/(?<!\? )lastPresenceKey = null;/g) || []).length === 2,
       info: /Utils\.sendUiCommand\(this, "showIndicator", "true", "0"\);/.test(cd) && /Utils\.sendUiCommand\(this, "showIndicator", "false", PresenceDisplay\.lastSeenArg\(friend\)\);/.test(cd),
-      probe: /Logging\.info\("\[PRESENCE\] keepalive gap=\{0\}s delay=\{1\}s", gap, now - next\);/.test(pd) && /PresenceDisplay\.probeKeepAlive\(f\.lastSeenTime, pa\.lastSeenTime\);/.test(np),
+      probe: /Logging\.info\("\[PRESENCE\] c\{0\} keepalive gap=\{1\}s delay=\{2\}s", probeId\(friend\.walletAddress\.ToString\(\)\), gap, now - next\);/.test(pd) && /PresenceDisplay\.probeKeepAlive\(f, f\.lastSeenTime, pa\.lastSeenTime\);/.test(np)   /* G-3 re-base: + the opaque per-contact number */,
     };
     ok(Object.values(r).every(Boolean),
       '★★ #1103 C#: "online" in the UI = Core\'s online AND a sighting (presence keepalive or a message\'s creation time — never later than now) at most 150 s old (one 100 s keepalive + 50 s slack); Core\'s friend.online — which ROUTES messages — is untouched; ONE gate for every chats-row push + a latch push when time alone flips it; the header and chat info carry the last sighting as a trailing arg (an older shell ignores it); [PRESENCE] logs keepalive gaps (integers) — ' + JSON.stringify(r));
@@ -40771,8 +40794,11 @@ console.log('#1101–#1107 — session 1');
     const resolveFn = si.slice(si.indexOf('public static SharedItem? resolve('));
     const r = {
       anchors: thumbAt > -1 && chansAt > thumbAt && items.length > 50 && open.length > 50 && resolveFn.length > 50,   /* (#46 r1 C4) no slice may be empty */
-      thumbRule: /if \(!fi\.Exists \|\| fi\.Length <= 0 \|\| fi\.Length > ThumbMaxBytes\)\s*\{\s*return null;/.test(si)
-        && /if \(thumbs >= ThumbMaxCount \|\| thumbBytes >= ThumbTotalMax\)/.test(si),
+      thumbRule: /if \(!fi\.Exists \|\| fi\.Length <= 0\)\s*\{\s*return null;/.test(si) && /if \(mime != null && fi\.Length <= ThumbMaxBytes\)/.test(si)
+        && /if \(fi\.Length > ThumbSourceMax \|\| Array\.IndexOf\(imageExts, ext\) < 0 \|\| !ImageSniff\.looksLikeImage\(readHead\(fi\.FullName\)\)\)\s*\{\s*return null;/.test(si)
+        && /jpeg\.Length <= ThumbMaxBytes/.test(si)
+        && (si.match(/File\.ReadAllBytes\(/g) || []).length === 1 && /if \(mime != null && fi\.Length <= ThumbMaxBytes\)\s*\{\s*return "data:" \+ mime \+ ";base64," \+ Convert\.ToBase64String\(File\.ReadAllBytes\(path\)\);/.test(si)   /* (#46 r1 M8) the whole-file read only ≤ 64 KB */   /* G-6b re-base: as-is ≤ 64 KB, else a bounded thumbnail ≤ 64 KB, a 40 MB source cap */
+        && /if \(thumbs >= ThumbMaxCount \|\| tries >= ThumbMaxCount \|\| thumbBytes >= ThumbTotalMax\)/.test(si),   /* G-6b re-base (#46 r1 A5): + the try count */
       pathRule: /if \(!fm\.localSender\)\s*\{\s*string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(si),
       linkIndex: /x\.id\.Equals\(id, StringComparison\.OrdinalIgnoreCase\) && x\.n == n/.test(resolveFn),
       neverSerialized: /\[JsonIgnore\] public string\? path = null;/.test(si) && /\[JsonIgnore\] public string\? url = null;/.test(si)
@@ -40780,7 +40806,7 @@ console.log('#1101–#1107 — session 1');
       resolveOwnScan: /if \(id\.Length == 0 \|\| !id\.All\(Uri\.IsHexDigit\)\)/.test(si) && /lastScan\.TryGetValue\(friend\.walletAddress\.ToString\(\), out List<SharedItem>\? items\)/.test(si),
       vettedPath: /string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(si) && /return Path\.IsPathRooted\(fm\.filePath\) && File\.Exists\(fm\.filePath\) \? fm\.filePath : null;/.test(si),
       noCoreCacheReplace: /IxianHandler\.localStorage\.readLastMessages\(friend, channel, 0, ScanCap\)/.test(si) && !/getMessages\(channel, /.test(si),
-      thumbsSmallLocal: /public const long ThumbMaxBytes = 300 \* 1024;/.test(si) && !/http|WebClient|HttpClient|Download/i.test(si.slice(thumbAt, chansAt)) && !/HttpClient|WebClient|WebRequest/.test(si),
+      thumbsSmallLocal: /public const long ThumbMaxBytes = 64 \* 1024;/.test(si) && /byte\[\]\? jpeg = Spixi\.SThumbnail\.makeJpeg\(fi\.FullName, ThumbPx\);/.test(si)   /* G-6b re-base: small files as is, bigger ones a bounded-decode thumbnail */ && !/http|WebClient|HttpClient|Download/i.test(si.slice(thumbAt, chansAt)) && !/HttpClient|WebClient|WebRequest/.test(si),
       logsCountsOnly: logs.length > 0 && logs.every((l) => !/label|url|path|name|walletAddress|address/i.test(l.replace(/"[^"]*"/g, ''))),
       offUiThreadNoBots: /if \(!friend\.bot\)\s*\{[\s\S]*?System\.Threading\.Tasks\.Task\.Run\(/.test(items),
       openRule: /SharedItem\? item = SharedItems\.resolve\(friend, token\);/.test(open) && /Utils\.openExternal\(item\.url\);/.test(open)
@@ -40811,17 +40837,26 @@ console.log('#1101–#1107 — session 1');
     await sleep(500);
     push('setSharedItems', JSON.stringify(rows));
     await sleep(400);
-    const groups = [...d.querySelectorAll('.c-shared__group')].map((g) => g.dataset.kind);
-    const tiles = [...d.querySelectorAll('.c-shared__group[data-kind="media"] .c-shared__tile')];
-    const linkTitles = [...d.querySelectorAll('.c-shared__group[data-kind="link"] .c-shared__row-title')].map((t) => t.textContent);
+    /* G-6 re-base (#1119): ONE section, kind chips switching the panel in place (the #1110 cards are retired) */
+    const secEl = d.querySelector('.c-shared');
+    const chipOf = (k) => d.querySelector('.c-shared__chip[data-kind="' + k + '"]');
+    const groups = [...d.querySelectorAll('.c-shared__chip')].map((g) => g.dataset.kind);
+    const tiles = [...d.querySelectorAll('.c-shared[data-kind="media"] .c-shared__tile')];
+    let shownCount = tiles.length;
+    if (chipOf('file')) chipOf('file').click();
+    const fileSub = (d.querySelector('.c-shared[data-kind="file"] .c-shared__row-sub') || {}).textContent || '';
+    shownCount += d.querySelectorAll('.c-shared[data-kind="file"] .c-shared__row').length;
+    if (chipOf('link')) chipOf('link').click();
+    const linkTitles = [...d.querySelectorAll('.c-shared[data-kind="link"] .c-shared__row-title')].map((t) => t.textContent);
+    shownCount += linkTitles.length;
+    void secEl;
     const r = {
       kinds: groups.join() === 'media,file,link',
-      malformedDropped: d.querySelectorAll('.c-shared__row, .c-shared__tile').length === 5,
+      malformedDropped: shownCount === 5,
       localThumb: !!tiles[0] && !!tiles[0].querySelector('img') && tiles[0].querySelector('img').getAttribute('src') === png,
       remoteRefused: !!tiles[1] && !tiles[1].querySelector('img') && !d.querySelector('img[src^="http"]'),
       hostFirst: linkTitles.join() === 'www.ixian.io,github.com',
-      fileMeta: /2\.3 MB/.test((d.querySelector('.c-shared__group[data-kind="file"] .c-shared__row-sub') || {}).textContent || '')
-        && !/Not on this device/.test((d.querySelector('.c-shared__group[data-kind="file"] .c-shared__row-sub') || {}).textContent || ''),
+      fileMeta: /2\.3 MB/.test(fileSub) && !/Not on this device/.test(fileSub),
       notLocal: (() => { const x = W.Spixi.createSharedSection({ items: W.Spixi.parseSharedItems(JSON.stringify([['ab', 0, 'file', 'x.pdf', 10, T, 0, null]])), strings: {} }); return /Not on this device/.test(x.textContent); })(),   /* (#46 r1 M38) */
       parserRefusesRemote: W.Spixi.parseSharedItems(JSON.stringify([['ab', 0, 'media', 'x.jpg', 1, T, 1, 'https://evil.example/x.png'], ['ac', 0, 'media', 'y.jpg', 1, T, 1, 'data:image/svg+xml;base64,PHN2Zz4=']])).every((x) => x.thumb === null),   /* (#46 r1 M56) the FIRST belt */
       noSeeAllWhenFew: !d.querySelector('.c-shared__all'),
@@ -40830,10 +40865,12 @@ console.log('#1101–#1107 — session 1');
     const S = W.Spixi;
     const got = [];
     const many = Array.from({ length: 9 }, (_, i) => ({ id: 'e' + i, n: 0, kind: 'file', label: 'f' + i, size: 1, ts: T - i, local: true, thumb: null }));
-    const sec = S.createSharedSection({ items: many, strings: {}, onOpen: (it) => got.push(it.id + ':' + it.n), onAll: (k) => got.push('all:' + k) });
+    /* G-6 re-base: ≤ 60 of a kind show IN PLACE; "Show all N" only past that (the #1110 preview of 3 is retired) */
+    const lots = Array.from({ length: 61 }, (_, i) => ({ id: 'e' + i.toString(16), n: 0, kind: 'file', label: 'f' + i, size: 1, ts: T - i, local: true, thumb: null }));
+    const sec = S.createSharedSection({ items: lots, strings: {}, onOpen: (it) => got.push(it.id + ':' + it.n), onAll: (k) => got.push('all:' + k) });
     sec.querySelector('.c-shared__row').click();
     sec.querySelector('.c-shared__all').click();
-    r.tapContract = got.join() === 'e0:0,all:file' && sec.querySelectorAll('.c-shared__row').length === 3;
+    r.tapContract = got.join() === 'e0:0,all:file' && sec.querySelectorAll('.c-shared__row').length === 60;
     const list = S.createSharedList({ items: many.concat([{ id: 'f0', n: 0, kind: 'link', label: 'a.com', size: 0, ts: T, local: false, thumb: null }]), tab: 'link', strings: {}, onOpen: () => {}, onBack: () => {} });
     const tabs = [...list.querySelectorAll('[role="tab"]')];
     r.seeAll = tabs.length === 2 && tabs[1].getAttribute('aria-selected') === 'true' && list.querySelectorAll('.c-shared__row').length === 1;
@@ -40846,12 +40883,12 @@ console.log('#1101–#1107 — session 1');
     r.noErrors = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0;
     try { dom.window.close(); } catch (e) {}
     ok(Object.values(r).every(Boolean),
-      '★★ #1106/#1110 EXECUTED on the BUILT contact_details shell: setSharedItems renders one card per non-empty kind (Damir: "cards"); malformed rows (a non-hex id, an unknown kind, junk) are dropped; a LOCAL data: thumb shows and a remote one is refused (#82); a link shows its HOST first; a tap hands the host the item (id + n) only; "See all" appears only with more than the preview and opens the tabbed list (empty kinds have no tab) — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+      '★★ #1106/#1110 → G-6 EXECUTED on the BUILT contact_details shell: setSharedItems renders one chip per non-empty kind (#1119; the #1110 cards retired); malformed rows (a non-hex id, an unknown kind, junk) are dropped; a LOCAL data: thumb shows and a remote one is refused (#82); a link shows its HOST first; a tap hands the host the item (id + n) only; "See all" appears only with more than the preview and opens the tabbed list (empty kinds have no tab) — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
   }
   {
     const cdS = rdX('src/shells/contact_details.html');
     const code = stripCode(cdS);
-    const fn = code.slice(code.indexOf('function openSharedItem(item)'), code.indexOf('function openSharedTakeover('));
+    const fn = code.slice(code.indexOf('function openSharedItem(item)'), code.indexOf('function openSharedMenu('));   /* G-6 re-base: the menu (own pin) follows the tap rule */
     ok(/if \(!item \|\| !\/\^\[0-9a-fA-F\]\{1,128\}\$\/\.test\(String\(item\.id \|\| ''\)\)\) return;/.test(fn)
        && /const token = item\.id \+ ':' \+ \(Number\(item\.n\) \|\| 0\);/.test(fn)
        && /if \(item\.kind === 'link'\) \{\s*openModal\(createModal\(\{/.test(fn) && /onClick: \(\) => bridge\.send\('ixian:sharedOpen:' \+ token\)/.test(fn)
@@ -40947,7 +40984,7 @@ console.log('#1101–#1107 — session 1');
     ]);
     const names = () => [...el.querySelectorAll('.c-settings-dl__row')].filter((x) => !x.closest('[hidden]')).map((x) => x.dataset.name);
     const rowText = (n, sel = '') => { const e = el.querySelector('[data-name="' + n + '"]' + (sel ? ' ' + sel : '')); return e ? e.textContent : '(missing)'; };   /* (#46 r3 R3-4) */
-    const fromChip = el.querySelector('.c-settings-dl__from-chip') || W.document.createElement('button');   /* (#46 r2 R2-5) */
+    const fromChip = el.querySelector('.c-settings-dl__from-btn') || W.document.createElement('button');   /* (#46 r2 R2-5) · G-5 re-base: the header button, not a chip */
     const pick = async (label) => {
       fromChip.click();
       await sleep(60);
@@ -40957,7 +40994,7 @@ console.log('#1101–#1107 — session 1');
     };
     const r = {
       newestFirst: names().join() === 'new.pdf,mid.jpg,old.txt',
-      oneControlNoSort: el.querySelectorAll('.c-chip').length === 1 && !!fromChip && /From: Everyone/.test(fromChip.textContent),
+      oneControlNoSort: el.querySelectorAll('.c-chip').length === 0 && el.querySelectorAll('.c-settings-dl__from-btn').length === 1 && /From: Everyone/.test(fromChip.textContent) && !/sort/i.test(el.querySelector('.c-settings-dl__controls').textContent),   /* G-5 re-base: ONE control, no chip, no sort */
       size: /2\.3 MB/.test(rowText('new.pdf')) && !/ B\b|0 B|missing/.test(rowText('mid.jpg', '.c-settings-dl__time')),
       from: /from Zara/.test(rowText('new.pdf')) && !el.querySelector('[data-name="old.txt"] .c-settings-dl__from'),
       senderKeyOnRow: (el.querySelector('.c-settings-dl__row[data-name="new.pdf"]') || { dataset: {} }).dataset.sender === 's1' && !(el.querySelector('.c-settings-dl__row[data-name="old.txt"]') || { dataset: { sender: 'x' } }).dataset.sender,   /* (#46 r3 R3-7) set in fileRow */
@@ -41021,7 +41058,7 @@ console.log('#1101–#1107 — session 1');
     await sleep(60);
     const txt = (n) => { const e = W.document.querySelector('.c-settings-dl__row[data-name="' + n + '"]'); return e ? e.textContent : ''; };
     const r = { mounted: !!W.document.querySelector('.c-settings-dl'), from: /from Ana/.test(txt('a.pdf')), badKeyDropped: !/Mallory/.test(txt('b.txt')), size: /2 KB/.test(txt('a.pdf')) };
-    const chipQ = W.document.querySelector('.c-settings-dl__from-chip');
+    const chipQ = W.document.querySelector('.c-settings-dl__from-btn');   /* G-5 re-base */
     if (chipQ) chipQ.click();   /* (#46 r2 R2-5) */
     await sleep(60);
     const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => o.textContent.trim() === 'Ana');
@@ -41075,9 +41112,10 @@ console.log('#1101–#1107 — session 1');
       '★ #1107 GATE (ours, fixed): the Downloads name guard logs the name LENGTH, never the peer-chosen name; the open/delete catches log the exception TYPE (its text can carry the path); the shared-items lines log a type or a length — ' + JSON.stringify(r));
   }
 
-  /* —— (#46 r1 C13) 0b(b): the [CDPERF] line and the input-dead frames —— */
-  ok(/Logging\.info\("\[CDPERF\] chat present prereveal=1"\);/.test(stripCode(rdX('Spixi/Utils/SpixiContentPage.cs'))),
-    '★ #1101 0b(b): the present logs ONE fixed [CDPERF] word when the two drawn-but-invisible frames run, so the recording can be matched to the path');
+  /* —— (#46 r1 C13) 0b(b) → G-1: the [CDPERF] line per held open (fixed words + integers) —— */
+  ok(/Logging\.info\("\[CDPERF\] chat held frames=\{0\} ms=\{1\} why=\{2\}", frames, ms, why\);/.test(stripCode(rdX('Spixi/Utils/SpixiContentPage.cs')))
+    && !/chat present prereveal/.test(stripCode(rdX('Spixi/Utils/SpixiContentPage.cs'))),
+    '★ G-1 (was #1101 0b(b)): every held open logs ONE [CDPERF] line — frames waited, ms, and why it ended (vsc · cap · noview · novsc) — so the recording can be matched to the mechanism (#294)');
 
   /* —— (#46 r1 A2/A7) the jump expires; the shared push is bounded —— */
   {
@@ -41086,7 +41124,7 @@ console.log('#1101–#1107 — session 1');
     ok(/private const long JumpTtlMs = 15000;/.test(sc) && (sc.match(/if \(jumpAddr != null && Environment\.TickCount64 - jumpAtMs > JumpTtlMs\)\s*\{\s*jumpAddr = null;/g) || []).length === 1
        && /jumpAtMs = Environment\.TickCount64;/.test(sc)
        && /public const long ThumbTotalMax = 1536 \* 1024;/.test(si) && /public const int ItemCap = 200;/.test(si),
-      '★ #1106 (#46 r1 A2/A7): a pending jump expires after 15 s (an open that never happened cannot jump a later one), and the shared push stays bounded — ≤ 200 items, thumbs ≤ 24 and ≤ 1.5 MB in all');
+      '★ #1106 (#46 r1 A2/A7): a pending jump expires after 15 s (an open that never happened cannot jump a later one), and the shared push stays bounded — ≤ 200 items, thumbs ≤ 1.5 MB in all (G-6b: ≤ 60 thumbnails, each ≤ 64 KB)');
   }
 
   /* —— (#46 r1 C12) the picked layouts, executed —— */
@@ -41101,9 +41139,10 @@ console.log('#1101–#1107 — session 1');
     const tabs = [...list.querySelectorAll('[role="tab"]')];
     if (tabs[0]) tabs[0].dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));   /* (#46 r4 R4-3) */
     const r = {
-      sixTiles: sec.querySelectorAll('.c-shared__group[data-kind="media"] .c-shared__tile').length === 6,
-      threeLinks: sec.querySelectorAll('.c-shared__group[data-kind="link"] .c-shared__row').length === 3,
-      orderNewest: (sec.querySelector('.c-shared__group[data-kind="link"] .c-shared__row-sub') || {}).textContent === 'https://site0.com',
+      /* G-6 re-base (#1119): all ≤ 60 in place — 9 tiles; the link chip shows all 4 links, newest first */
+      sixTiles: sec.querySelectorAll('.c-shared[data-kind="media"] .c-shared__tile').length === 9 && !sec.querySelector('.c-shared__all'),
+      threeLinks: (() => { const c = sec.querySelector('.c-shared__chip[data-kind="link"]'); if (c) c.click(); return sec.querySelectorAll('.c-shared[data-kind="link"] .c-shared__row').length === 4; })(),
+      orderNewest: (sec.querySelector('.c-shared[data-kind="link"] .c-shared__row-sub') || {}).textContent === 'https://site0.com',
       arrowWraps: !!tabs[1] && tabs[1].getAttribute('aria-selected') === 'true',
       ariaControls: tabs.length > 1 && tabs.every((t) => t.getAttribute('aria-controls') === (list.querySelector('.c-shared-list__panel') || {}).id),   /* (#46 r4 R4-3) */
       userinfoHost: S.sharedLinkHost('https://paypal.com@evil.com/login') === 'evil.com' && S.sharedLinkHost('github.com/x') === 'github.com',
@@ -41113,7 +41152,7 @@ console.log('#1101–#1107 — session 1');
     };
     try { dom.window.close(); } catch (e) {}
     ok(Object.values(r).every(Boolean),
-      '★ #1110 EXECUTED: the cards show the 6 newest media tiles and 3 newest rows per kind; the tabs wrap with the arrow keys and point at their panel; a link\'s host is the REAL host (userinfo never shows as the host — the #235 spoof); sizes use binary steps with one decimal under 10 — ' + JSON.stringify(r));
+      '★ #1110 → G-6 EXECUTED: the section shows every item of the chosen kind in place (≤ 60), newest first; the tabs wrap with the arrow keys and point at their panel; a link\'s host is the REAL host (userinfo never shows as the host — the #235 spoof); sizes use binary steps with one decimal under 10 — ' + JSON.stringify(r));
   }
 
   /* —— (#46 r1 B1) a jump on a FRESH open waits for onChatScreenLoaded (which pins the bottom), then wins —— */
@@ -41147,9 +41186,9 @@ console.log('#1101–#1107 — session 1');
     const T = Math.floor(Date.now() / 1000);
     push('setContext', 'chat'); push('setAddress', '1A9xQpT7vKzm3NwR5bYc8LdE2fGh4JkPq'); push('setNickname', 'Ana');
     await sleep(500);
-    push('setSharedItems', JSON.stringify(Array.from({ length: 5 }, (_, i) => ['f' + i, 0, 'file', 'doc' + i + '.pdf', 100, T - i, 1, null])));
+    push('setSharedItems', JSON.stringify(Array.from({ length: 61 }, (_, i) => ['f' + i.toString(16), 0, 'file', 'doc' + i + '.pdf', 100, T - i, 1, null])));   /* G-6 re-base: "Show all" appears past 60 */
     await sleep(400);
-    const all = W.document.querySelector('.c-shared__group[data-kind="file"] .c-shared__all');
+    const all = W.document.querySelector('.c-shared[data-kind="file"] .c-shared__all');
     const r = { seeAll: !!all };
     if (all) { all.focus(); all.click(); }
     await sleep(60);
@@ -41167,6 +41206,536 @@ console.log('#1101–#1107 — session 1');
       '★ #1106 (#46 r1 B4 / A8, r2 R2-4) EXECUTED: Esc closes the "See all" cover and focus returns to the "See all" that opened it; UIHelpers.setContactStatus keeps its never-throw promise (the friend lookup is caught) — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
   }
 
+}
+
+/* ==== SESSION 2 PINS START (DECISIONS #1118+) ==== */
+{
+  const rdS2 = (pth) => readFileSync(join(root, pth), 'utf8');
+  /* the balanced body of the first block opened after `head` ('' when absent — every clause using it then fails) */
+  const bodyS2 = (t, head) => { const i = t.indexOf(head); if (i < 0) return ''; let d = 0; for (let k = t.indexOf('{', i); k >= 0 && k < t.length; k++) { if (t[k] === '{') d++; else if (t[k] === '}' && --d === 0) return t.slice(i, k + 1); } return ''; };
+
+  /* —— E-W1 (#1114 (1), Mac walk crash: SIGSEGV in -[AVAudioNode dealloc] → AVAudioClock → RemoveRenderObserver) ——
+   * Every AVAudioEngine IO-node read hands back a managed wrapper holding a retain. If the GC releases that wrapper
+   * AFTER the engine is disposed, the IO node's destructor touches the freed engine. The rule, all 4 Apple files:
+   * the node is read ONCE into a field, and stop() disposes that field BEFORE the engine's Dispose(). */
+  {
+    const spec = [
+      ['Spixi/Platforms/MacCatalyst/SAudioPlayer.cs', 'audioEngine', ['outputNode', 'mainMixer'], ['OutputNode', 'MainMixerNode']],
+      ['Spixi/Platforms/iOS/SAudioPlayer.cs', 'audioEngine', ['outputNode', 'mainMixer'], ['OutputNode', 'MainMixerNode']],
+      ['Spixi/Platforms/MacCatalyst/SAudioRecorder.cs', 'audioRecorder', ['inputNode'], ['InputNode']],
+      ['Spixi/Platforms/iOS/SAudioRecorder.cs', 'audioRecorder', ['inputNode'], ['InputNode']],
+    ];
+    const r = {};
+    for (const [pth, eng, fields, props] of spec) {
+      const s = stripCode(rdS2(pth));
+      const stopAt = s.indexOf('public void stop()');
+      const stop = s.slice(stopAt, s.indexOf('public void Dispose()', stopAt));
+      const engDispose = stop.indexOf(eng + '.Dispose();');
+      const tag = pth.split('/').slice(-2).join('/');
+      r[tag] = stopAt > -1 && engDispose > -1
+        && fields.every((f) => {
+          const d = stop.indexOf(f + '?.Dispose();');
+          return d > -1 && d < engDispose && stop.indexOf(f + ' = null;', d) > d && stop.indexOf(f + ' = null;', d) < engDispose;
+        })
+        /* each IO-node property is read exactly ONCE in the file, into its field */
+        && props.every((p, i) => (s.match(new RegExp(eng + '\\.' + p + '\\b', 'g')) || []).length === 1
+          && new RegExp(fields[i] + ' = ' + eng + '\\.' + p + ';').test(s));
+    }
+    /* the per-buffer render-time read goes through the held field, never back through the engine */
+    for (const pth of ['Spixi/Platforms/MacCatalyst/SAudioPlayer.cs', 'Spixi/Platforms/iOS/SAudioPlayer.cs']) {
+      const s = stripCode(rdS2(pth));
+      r['held:' + pth.split('/')[2]] = /var outNode = outputNode;\s*using \(var lastRenderTime = outNode\?\.LastRenderTime\)/.test(s);
+    }
+    /* (#46 r1 m7) the Mac recorder's "no usable microphone" throw releases the node wrapper first */
+    r.failedStart = /inputNode\?\.Dispose\(\);\s*inputNode = null;\s*throw new Exception\("No usable microphone input format: " \+ recordingFormat\);/.test(stripCode(rdS2('Spixi/Platforms/MacCatalyst/SAudioRecorder.cs')));
+    ok(Object.values(r).every(Boolean),
+      '★ E-W1 (#1114 (1), Mac + iPhone crash after calls — SIGSEGV in -[AVAudioNode dealloc]): in all 4 Apple audio files the IO-node wrappers (OutputNode · MainMixerNode · InputNode) are read ONCE into a field and stop() disposes them BEFORE the engine — a GC-released wrapper after the engine is gone was the crash — ' + JSON.stringify(r));
+  }
+
+  /* —— G-1 (session 2): PresentHold — the platform's own "drawn" signal, one frame after it, a cap, fixed words —— */
+  {
+    const ph = stripCode(rdS2('Spixi/Platforms/Android/PresentHold.cs'));
+    const onFrame = ph.slice(ph.indexOf('private void onFrame('), ph.indexOf('private void onVisualState('));
+    const start = bodyS2(ph, 'public static void start(');
+    const r = {
+      /* (#46 r1 M1) the frame loop STARTS in start(), before the callback is posted; the cap is armed unconditionally */
+      loopStarts: /h\.end\("noview"\);\s*return;\s*\}\s*Choreographer\.Instance\?\.PostFrameCallback\(new FrameCb\(h\.onFrame\)\);\s*try\s*\{\s*webView\.PostVisualStateCallback/.test(start),
+      capArmed: /catch \(Exception\)\s*\{\s*h\.end\("novsc"\);\s*return;\s*\}\s*webView\.PostDelayed\(\(\) => h\.end\("cap"\), capMs\);\s*\}$/.test(start),
+      endedGuard: /^private void onFrame\(long frameTimeNanos\)\s*\{\s*if \(ended\)\s*\{\s*return;\s*\}\s*frames\+\+;/.test(onFrame.trim()),
+      frameCap: /if \(\(Stopwatch\.GetTimestamp\(\) - t0\) \* 1000 \/ Stopwatch\.Frequency >= capMs\)\s*\{\s*end\("cap"\);\s*return;\s*\}\s*Choreographer\.Instance\?\.PostFrameCallback\(new FrameCb\(onFrame\)\);/.test(onFrame),
+      vsc: /webView\.PostVisualStateCallback\(1, new Vsc\(h\.onVisualState\)\);/.test(ph) && /private void onVisualState\(\)\s*\{\s*vscSeen = true;\s*\}/.test(ph),
+      /* the hold ends on the FIRST frame after the callback, never on the callback itself */
+      frameAfter: /frames\+\+;\s*if \(vscSeen\)\s*\{\s*end\("vsc"\);\s*return;\s*\}/.test(onFrame) && /Choreographer\.Instance\?\.PostFrameCallback\(new FrameCb\(onFrame\)\);\s*\}$/.test(onFrame.trim()),
+      cap: /webView\.PostDelayed\(\(\) => h\.end\("cap"\), capMs\);/.test(ph),
+      noview: /if \(webView == null\)\s*\{\s*h\.end\("noview"\);\s*return;\s*\}/.test(ph) && /catch \(Exception\)\s*\{\s*h\.end\("novsc"\);\s*return;\s*\}/.test(ph),
+      once: /if \(ended\)\s*\{\s*return;\s*\}\s*ended = true;/.test(ph),
+      /* fixed words only: every end() reason is a literal */
+      fixedWords: (ph.match(/end\(("[a-z]+"|why)\)/g) || []).length === (ph.match(/end\(/g) || []).length - 1,
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ G-1 PresentHold (Android): the hold ends one Choreographer frame AFTER WebView.PostVisualStateCallback (the content is on glass), or at the cap, or at once with no native WebView / no callback — exactly once, with a fixed-word reason — ' + JSON.stringify(r));
+  }
+
+  /* —— G-2 (#1116 (2), #1118 (a)): "last seen" survives a restart — the sighting KEPT on this device + their newest message —— */
+  {
+    const pd = stripCode(rdS2('Spixi/Utils/PresenceDisplay.cs'));
+    const st = stripCode(rdS2('Spixi/Meta/SSightingStore.cs'));
+    const np = stripCode(rdS2('Spixi/Network/NetworkProtocol.cs'));
+    const sett = stripCode(rdS2('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    const lsn = pd.slice(pd.indexOf('public static long lastSightingNetwork('), pd.indexOf('public static bool shownOnline('));
+    const tests = rdS2('Spixi-UnitTests/SightingStoreTests.cs');
+    const removal = ['Spixi/Utils/SContacts.cs', 'Spixi/Pages/Chat/SingleChatPage.xaml.cs', 'Spixi/Pages/Home/HomePage.xaml.cs'];
+    const r = {
+      /* the four sources, one pure rule */
+      sources: /long kept = keeps\(friend\) \? SSightingStore\.get\(key\) : 0;/.test(lsn)
+        && /return newestSighting\(friend\.lastSeenTime, h, kept, Clock\.getNetworkTimestamp\(\)\);/.test(lsn)
+        && !/lastMessage/.test(lsn),   /* (#46 r1 A1) the chat's lastMessage is NOT a source (local receive-time stamps) */
+      /* (#46 r1 A7) accepted 1:1 contacts only — never a group, a bot or a pending request */
+      keeps: /public static bool keeps\(Friend friend\)\s*\{\s*return friend != null && friend\.type == FriendType\.Normal && friend\.approved;\s*\}/.test(pd)
+        && /if \(keeps\(friend\)\)\s*\{\s*SSightingStore\.note\(key, at\);/.test(pd),
+      /* the write rule is the PURE noteInto (EXECUTED by SightingStoreTests + scripts/csh); the disk write is outside `gate` */
+      forwardOnly: /if \(d\.TryGetValue\(address, out long have\) && have >= s\)\s*\{\s*return false;\s*\}/.test(bodyS2(st, 'public static bool noteInto('))
+        && /lock \(gate\)\s*\{\s*changed = noteInto\(load\(\), address, networkSeconds, CAP\);\s*\}\s*if \(changed\)\s*\{\s*flush\(\);/.test(st)
+        && !/Preferences\.Default\.Set/.test(bodyS2(st, 'public static void note(')),
+      /* written from both sighting sources, 1:1 only */
+      writes: /SSightingStore\.note\(key, at\);/.test(pd) && /PresenceDisplay\.noteKeepAlive\(f, pa\.lastSeenTime\);/.test(np)
+        && /if \(!keeps\(friend\) \|\| next <= 0\)/.test(pd)
+        && /SSightingStore\.note\(friend\.walletAddress\.ToString\(\), Math\.Min\(next, Clock\.getNetworkTimestamp\(\)\)\);/.test(pd),   /* (#46 r1 m3) a future keepalive is clamped */
+      /* one APP preference (never a spixi.* WebView key), coarse, capped */
+      appPref: /private const string KEY = "last_sightings";/.test(st) && /snapshot = serialize\(load\(\), CAP\);/.test(st) && /Preferences\.Default\.Set\(KEY, snapshot\);/.test(st)
+        && /public const long GRAIN_SEC = 300;/.test(st) && /public const int CAP = 512;/.test(st) && !/spixi\./.test(st),
+      /* wiped with the account (both paths), forgotten with the contact (every removal site that drops the favourite) */
+      /* (#46 r1 m1) in BOTH wipe paths, after the preference wipe / beside the ignore list */
+      wipe: (sett.match(/SSightingStore\.clear\(\);/g) || []).length === 2
+        && bodyS2(sett, 'private void wipeEverything()').indexOf('SSightingStore.clear()') > bodyS2(sett, 'private void wipeEverything()').indexOf('Preferences.Default.Clear()')
+        && bodyS2(sett, 'private void wipeEverything()').indexOf('Preferences.Default.Clear()') > 0
+        && /SRequestIgnore\.clear\(\);\s*SSightingStore\.clear\(\);/.test(bodyS2(sett, 'private void wipeAccountData()')),
+      /* (#46 r1 m1) AT the site that drops the favourite (the removal), right after it */
+      forget: removal.every((f) => { const t = stripCode(rdS2(f)); return (t.match(/SSightingStore\.forget\(/g) || []).length === 1
+        && /SChatPrefs\.setFavorite\(friend\.walletAddress(\??)\.ToString\(\), false\);\s*SSightingStore\.forget\(friend\.walletAddress\1\.ToString\(\)\);/.test(t); }),
+      /* the kept value never crosses the bridge and never reaches a log (O-26: counts only) */
+      /* (#46 r1 m2) the kept value is READ in one place only (PresenceDisplay) — every other C# file is swept */
+      noBridge: (() => { const hits = []; const walk = (d) => { for (const n of readdirSync(join(root, d))) { const pth = d + '/' + n; let st2; try { st2 = statSync(join(root, pth)); } catch (e) { continue; }
+          if (st2.isDirectory()) { if (!/^(bin|obj)$/.test(n)) walk(pth); } else if (/\.cs$/.test(n) && !/SSightingStore\.cs$|PresenceDisplay\.cs$/.test(n) && /SSightingStore\.get\(/.test(stripCode(rdS2(pth)))) hits.push(pth); } };
+        walk('Spixi'); return hits.length === 0; })()
+        && (st.match(/Logging\.(info|warn|error)\(/g) || []).length === (st.match(/Logging\.(info|warn|error)\("SSightingStore[^"]*"( \+ (e\.GetType\(\)\.Name|d\.Count|left) \+ "[^"]*"| \+ e\.GetType\(\)\.Name)?\);/g) || []).length,
+      /* (#46 r1 M2) the MSTest classes run through scripts/csh (node scripts/run-csh.mjs — a gate beside the smoke): the
+         harness compiles the REAL files, never copies */
+      executed: (tests.match(/\[TestMethod\]/g) || []).length === 7
+        && ['../../Spixi/Utils/PresenceDisplay.cs', '../../Spixi/Meta/SSightingStore.cs', '../../Spixi-UnitTests/SightingStoreTests.cs', '../../Spixi/Utils/ImageSniff.cs', '../../Spixi-UnitTests/ImageSniffTests.cs']
+          .every((f) => rdS2('scripts/csh/csh.csproj').includes('<Compile Include="' + f + '" />'))
+        /* (#46 r2 R2-n2) the write ordering: the snapshot is taken INSIDE writeGate, and clear holds writeGate too */
+        && /private static void flush\(\)\s*\{\s*lock \(writeGate\)\s*\{\s*string snapshot;\s*lock \(gate\)\s*\{\s*snapshot = serialize\(load\(\), CAP\);/.test(st)
+        && /public static void clear\(\)\s*\{\s*lock \(writeGate\)\s*\{\s*lock \(gate\)/.test(st),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ G-2 (#1116 (2), Damir #1118 (a)): "last seen" = the newest of the live keepalive, a message heard this run and the sighting KEPT on this device (one app preference, 5-min grain, 512 cap) — accepted 1:1 contacts only; written from both sighting sources; wiped with the account, forgotten with the contact; never on the bridge, never in a log; the pure parts (noteInto forward-only + cap, parse, grain, newest-of) are SightingStoreTests (7), executed by scripts/csh — ' + JSON.stringify(r));
+  }
+
+  /* —— G-3 (#1116 (3)): the [PRESENCE] probe ties lines to a contact without naming it, and logs every DISPLAYED dot flip —— */
+  {
+    const pd = stripCode(rdS2('Spixi/Utils/PresenceDisplay.cs'));
+    const sc = pd.slice(pd.indexOf('public static bool shownChanged('), pd.indexOf('public static void probeKeepAlive('));
+    const pid = pd.slice(pd.indexOf('private static int probeId('));
+    const r = {
+      flipLine: /if \(flipped\)\s*\{[\s\S]*Logging\.info\("\[PRESENCE\] c\{0\} dot=\{1\} age=\{2\}s core=\{3\}", probeId\(key\), shown \? "on" : "off", age, friend\.online \? 1 : 0\);/.test(sc),
+      keepaliveLine: /Logging\.info\("\[PRESENCE\] c\{0\} keepalive gap=\{1\}s delay=\{2\}s", probeId\(friend\.walletAddress\.ToString\(\)\), gap, now - next\);/.test(pd),
+      /* opaque: a counter in first-seen order, this run only — not stored, not derived from the address */
+      opaque: /id = probeIds\.Count \+ 1;/.test(pid) && !/Preferences|GetHashCode|Substring/.test(pid),
+      /* no address and no nick text in any [PRESENCE] line */
+      /* (#46 r1 M4) every Logging call in the file: with probeId(...) taken out, no address / key / nick / name remains
+         in its text OR its format args */
+      noAddress: (pd.match(/Logging\.(info|warn|error)\([^;]*\);/g) || []).every((c) => !/walletAddress|\bkey\b|address|nick|name/i.test(c.replace(/probeId\((key|friend\.walletAddress\.ToString\(\))\)/g, '')))
+        && (pd.match(/Logging\.(info|warn|error)\(/g) || []).length >= 2,
+      stored: /id = probeIds\.Count \+ 1;\s*probeIds\[key\] = id;/.test(pid),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ G-3 (#1116 (3)): every [PRESENCE] line carries an opaque per-contact number (c1, c2 … in first-seen order, this run only) and a line is logged when the DISPLAYED dot flips (on/off, the sighting age, Core\'s own flag) — integers and fixed words only, so swipe-away vs Force stop can be judged on facts — ' + JSON.stringify(r));
+  }
+
+  const htmlDirS2 = join(root, 'Spixi/Resources/Raw/html');
+  const bootS2 = async (name, waitMs = 1200) => {
+    const f = join(htmlDirS2, name);
+    const errs = [];
+    const vc = new VirtualConsole();
+    vc.on('jsdomError', (e) => { const m = String(e.message); if (!/navigation/i.test(m)) errs.push(m); });
+    const dom = new JSDOM(readFileSync(f, 'utf8'), {
+      runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, url: 'file://' + f, virtualConsole: vc,
+      beforeParse(w) {
+        w.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+        try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+        w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+      },
+    });
+    await sleep(waitMs);
+    const W = dom.window;
+    const b64 = (v) => Buffer.from(String(v), 'utf8').toString('base64');
+    const push = (fn, ...a) => W.executeUiCommand(W[fn], ...a.map(b64));
+    return { dom, W, push, errs };
+  };
+
+  /* —— G-4 (#1115/#1116): "Show in chat" lights the row it lands on — for EVERY bubble kind (files never lit before) —— */
+  {
+    const built = rdS2('Spixi/Resources/Raw/html/chat.html');
+    const kinds = ['.c-bubble', '.c-fbubble', '.c-mbubble', '.c-tcard'];
+    const anim = (built.match(/([^{}]*)\{ animation: chat-mention-pulse 1\.4s var\(--easing-standard\) 1; \}/) || [])[1] || '';
+    const rm = (built.match(/@media \(prefers-reduced-motion: reduce\) \{\s*([^{}]*)\{ animation: none; box-shadow: 0 0 0 3px var\(--surface-warning\); \}/) || [])[1] || '';
+    const r = {
+      animated: kinds.every((k) => anim.includes('.c-bubble-row[data-mention-pulse] ' + k)),
+      reduced: kinds.every((k) => rm.includes('.c-bubble-row[data-mention-pulse] ' + k)),
+      noIs: !/data-mention-pulse\] :is\(/.test(built),   /* the conservative-CSS baseline */
+      /* the jump still pulses through the shared jumpToRow (the attribute the selector keys on) */
+      jump: /live\.setAttribute\('data-mention-pulse', ''\);/.test(built) && /const tryJump = \(\) => key && jumpToRow\(key, null, true\);/.test(built),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ G-4 (#1116 (5)): "Show in chat" (Downloads, chat info) lands on the message and PULSES it — the ring selector names every bubble kind (text · file · media · typed card), in motion and under reduced motion; before, a FILE or PHOTO row (exactly what "Show in chat" opens) never lit — ' + JSON.stringify(r));
+  }
+
+  /* —— G-5 (#1119, render C): the Downloads "From" control is a section header — the count left, "From: … ▾" right —— */
+  {
+    const { W, dom, errs } = await bootS2('settings.html', 1200);
+    const S = W.Spixi;
+    const T = Math.floor(Date.now() / 1000);
+    const el = S.createSettingsDownloads({ files: [], onBack: () => {}, onOpenFile: () => {}, onDeleteFile: () => {}, onShowInChat: () => {}, strings: {} });
+    W.document.body.append(el);
+    S.setDownloads(el, [
+      { name: 'a.pdf', time: String(T - 10), size: 2400, sender: 'Zara', senderKey: 's1' },
+      { name: 'b.jpg', time: String(T - 20), size: 1200, sender: 'Bob', senderKey: 's2' },
+      { name: 'c.txt', time: String(T - 30), size: 300 },
+    ]);
+    await sleep(50);
+    const ctl = el.querySelector('.c-settings-dl__controls');
+    const btn = el.querySelector('.c-settings-dl__from-btn');
+    const count = () => (el.querySelector('.c-settings-dl__count') || {}).textContent;
+    const r = {
+      header: !!ctl && !ctl.hidden && !!btn && btn.getAttribute('aria-haspopup') === 'dialog' && !el.querySelector('.c-chip'),
+      count: count() === '3 files',
+      label: /From: Everyone/.test(btn ? btn.textContent : ''),
+    };
+    if (btn) btn.click();
+    await sleep(60);
+    const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => o.textContent.trim() === 'Bob');
+    if (opt) opt.click();
+    await sleep(400);
+    r.filtered = count() === '1 file' && /From: Bob/.test(btn ? btn.textContent : '') && btn.hasAttribute('data-active');
+    S.setDownloads(el, [{ name: 'c.txt', time: String(T - 30), size: 300 }]);
+    await sleep(50);
+    r.hidesWithoutSenders = ctl.hidden === true;
+    const css = rdS2('src/styles/components/settings-app.css');
+    r.css = /\.c-settings-dl__from-btn \{[^}]*color: var\(--text-accent\);/.test(css) && /min-height: 44px;/.test(css.slice(css.indexOf('.c-settings-dl__from-btn {')));
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★ G-5 (#1119, Damir picked render C): the Downloads sender filter is a SECTION HEADER on the card edge — the SHOWN-file count left ("3 files" → "1 file" after a pick), an accent "From: <who> ▾" text button right (a 44 px target, the same sheet and filter as the #1107 chip), no chip; the row hides when no sender is known — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+
+  /* —— G-6 (#1119/#1120): chat info shared items, Telegram style — chips in place, an edge-to-edge grid, long press = menu —— */
+  {
+    const { W, dom, errs } = await bootS2('contact_details.html', 1200);
+    const S = W.Spixi;
+    const T = Math.floor(Date.now() / 1000);
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const items = [];
+    for (let i = 0; i < 64; i++) items.push({ id: (i + 16).toString(16), n: 0, kind: 'media', label: 'IMG_' + i + '.jpg', size: 10, ts: T - i, local: true, thumb: png });
+    items.push({ id: 'f1', n: 0, kind: 'file', label: 'a.pdf', size: 2400, ts: T, local: true, thumb: null });
+    items.push({ id: 'c1', n: 0, kind: 'link', label: 'https://www.ixian.io/x', size: 0, ts: T, local: false, thumb: null });
+    const opened = []; const menus = []; const alls = [];
+    const sec = S.createSharedSection({ items, strings: {}, onOpen: (it) => opened.push(it.id), onAll: (k) => alls.push(k), onMenu: (it) => menus.push(it.id) });
+    W.document.body.append(sec);
+    const chips = [...sec.querySelectorAll('.c-shared__chip')];
+    const r = {
+      chips: chips.map((c) => c.textContent.trim()).join('|') === 'Media 64|Files 1|Links 1' && sec.querySelector('[role="tablist"]') && chips.every((c) => c.getAttribute('role') === 'tab'),
+      mediaFirst: sec.dataset.kind === 'media' && chips[0].getAttribute('aria-selected') === 'true',
+      inlineCap: sec.querySelectorAll('.c-shared__tile').length === 60 && /Show all 64/.test((sec.querySelector('.c-shared__all') || {}).textContent || ''),
+    };
+    (sec.querySelector('.c-shared__all') || { click() {} }).click();   /* (#46 r1 m8) a missing node fails THIS pin, never the run */
+    r.showAll = alls.join() === 'media';
+    r.noPressed = chips.every((c) => !c.hasAttribute('aria-pressed'));   /* (#46 r1 B7) a tab is aria-selected, never pressed */
+    /* (#46 r2 R2-M2) …and it still LOOKS selected: the chip's selected pair keyed on aria-selected */
+    r.selectedLook = /\.c-shared__chip\[aria-selected="true"\] \{\s*background: var\(--surface-action-tonal-default\);\s*border-color: var\(--outline-action-default\);\s*color: var\(--text-action-default\);\s*\}/.test(rdS2('Spixi/Resources/Raw/html/contact_details.html'));   /* the BUILT shell */
+    chips[1].click();
+    r.switches = sec.dataset.kind === 'file' && !!sec.querySelector('.c-chat-info__card .c-shared__row') && !sec.querySelector('.c-shared__tile') && !sec.querySelector('.c-shared__all');
+    /* long press: a TOUCH held 500 ms still → the menu, and the click that follows is swallowed */
+    const row = sec.querySelector('.c-shared__row');
+    const pe = (el, t, x = 5, y = 5, kind = 'touch') => { const e = new W.MouseEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 }); Object.defineProperty(e, 'pointerType', { value: kind }); el.dispatchEvent(e); return e; };
+    pe(row, 'pointerdown'); await sleep(560); pe(row, 'pointerup'); row.click();
+    r.longPress = menus.join() === 'f1' && opened.length === 0;
+    row.click();
+    r.tapStillOpens = opened.join() === 'f1';
+    pe(row, 'pointerdown'); await sleep(100); pe(row, 'pointermove', 17, 5); await sleep(500); pe(row, 'pointerup');
+    r.moveCancels = menus.length === 1;   /* a 12 px move */
+    pe(row, 'pointerdown'); await sleep(450); pe(row, 'pointerup'); await sleep(200);
+    r.shortPressIsATap = menus.length === 1;   /* (#46 r1 M5/n2) 450 ms then a LIFT: no menu, ever */
+    pe(row, 'pointerdown', 5, 5, 'mouse'); await sleep(600); pe(row, 'pointerup', 5, 5, 'mouse');
+    r.mouseNoLongPress = menus.length === 1;   /* (#46 r1 B5) #265: a held mouse button opens nothing */
+    const rclick = () => { pe(row, 'pointerdown', 5, 5, 'mouse'); const c = new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true }); row.dispatchEvent(c); return c; };
+    const cm = rclick();
+    r.rightClick = menus.length === 2 && cm.defaultPrevented;
+    /* (#46 r3 R3-M1) a SECOND right click on the same item opens the menu again (the right button's pointerdown resets) */
+    const pdR = new W.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 2 }); Object.defineProperty(pdR, 'pointerType', { value: 'mouse' }); row.dispatchEvent(pdR);
+    row.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    r.secondRightClick = menus.length === 3;
+    /* (#46 r4 R4-m1) a PEN barrel press twice: the same reset */
+    for (let i = 0; i < 2; i++) { const pp = new W.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 2 }); Object.defineProperty(pp, 'pointerType', { value: 'pen' }); row.dispatchEvent(pp); row.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true })); }
+    r.penBarrelTwice = menus.length === 5;
+    menus.splice(2);   /* keep the later counts as they were */
+    pe(row, 'pointerdown'); await sleep(560);
+    await sleep(1100);   /* (#46 r2 R2-M1) the platform's contextmenu for the SAME hold can come seconds later */
+    row.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    pe(row, 'pointerup');
+    r.oneMenuPerHold = menus.length === 3;   /* (#46 r1 B1 / r2 R2-M1) timer first, then a LATE contextmenu: still ONE menu */
+    /* (#46 r2 R2-m3) the next gesture is never swallowed: a tap right after the menu opens the item; so does a key */
+    pe(row, 'pointerdown'); pe(row, 'pointerup'); row.click();
+    const opensBefore = opened.length;
+    r.nextTapOpens = opensBefore === 2;
+    pe(row, 'pointerdown'); await sleep(560); pe(row, 'pointerup');   /* menu 4 (fired) … */
+    row.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); row.click();
+    r.keyNotSwallowed = opened.length === 3;
+    pe(row, 'pointerdown'); await sleep(560); pe(row, 'pointerup');   /* menu (fired) … */
+    row.dispatchEvent(new W.KeyboardEvent('keydown', { key: ' ', bubbles: true })); row.click();
+    r.spaceNotSwallowed = opened.length === 4;   /* (#46 r4 R4-m2) */
+    menus.pop();
+    /* (#46 r1 M5) the media TILES (the primary grid) long-press too */
+    chips[0].click();
+    const tile = sec.querySelector('.c-shared__tile');
+    await sleep(900);
+    pe(tile, 'pointerdown'); await sleep(560); pe(tile, 'pointerup');
+    r.tileLongPress = menus.length === 5 && menus[4] === items[0].id;
+    /* chips: arrows switch in place, and the host hears the pick (#46 r1 B2) */
+    const picks = [];
+    const sec2 = S.createSharedSection({ items, strings: {}, onOpen: () => {}, onTab: (k) => picks.push(k), tab: 'link' });
+    const c2 = [...sec2.querySelectorAll('.c-shared__chip')];
+    c2[2].dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    r.arrowsAndTab = sec2.dataset.kind === 'media' && picks.join() === 'media';   /* (#46 r2 R2-n3) only a USER pick is reported — not the build's own start */
+    c2[1].click();
+    r.clickIsAPick = sec2.dataset.kind === 'file' && picks.join() === 'media,file';   /* (#46 r3 R3-m1) a chip CLICK is a pick too */
+    [...sec2.querySelectorAll('.c-shared__chip')][1].dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    r.arrowLeftIsAPick = sec2.dataset.kind === 'media' && picks.join() === 'media,file,media';   /* (#46 r4 R4-m3) */
+    /* exactly 60 → no "Show all" (n2) */
+    r.sixtyInPlace = (() => { const x = S.createSharedSection({ items: items.slice(0, 60), strings: {}, onOpen: () => {}, onAll: () => {} }); return x.querySelectorAll('.c-shared__tile').length === 60 && !x.querySelector('.c-shared__all'); })();
+    /* the menu: Open · Show in chat (+ Copy link for a link) — never a delete or share row (no verb yet, #1120) */
+    const acts = [];
+    const m1 = S.openSharedItemMenu({ item: items[64], host: W.document.body, strings: {}, onAction: (a) => acts.push(a) });
+    const fileRows = [...m1.querySelectorAll('.c-msgmenu__item')].map((b) => b.dataset.action).join();
+    const m2 = S.openSharedItemMenu({ item: items[65], host: W.document.body, strings: {}, onAction: (a) => acts.push(a) });
+    const linkRows = [...m2.querySelectorAll('.c-msgmenu__item')].map((b) => b.dataset.action).join();
+    const m3 = S.openSharedItemMenu({ item: items[0], host: W.document.body, strings: {}, onAction: () => {} });
+    const mediaRows = [...m3.querySelectorAll('.c-msgmenu__item')].map((b) => b.dataset.action).join();
+    const m4 = S.openSharedItemMenu({ item: { ...items[64], local: false }, host: W.document.body, strings: {}, onAction: () => {} });
+    const farRows = [...m4.querySelectorAll('.c-msgmenu__item')].map((b) => b.dataset.action).join();
+    /* (#46 r1 B4) "Open" only where it is not the jump: a link and a LOCAL file */
+    r.menu = fileRows === 'open,show' && linkRows === 'open,show,copy' && mediaRows === 'show' && farRows === 'show'
+      && !/delete|share|save/i.test(m1.textContent + m2.textContent);
+    m2.querySelector('[data-action="show"]').click();
+    r.menuAction = acts.join() === 'show';
+    try { dom.window.close(); } catch (e) {}
+    /* placement + the shell + C# */
+    const ci = stripCode(rdS2('src/components/chat-info.js'));
+    const cdh = stripCode(rdS2('src/shells/contact_details.html'));
+    const cd = stripCode(rdS2('Spixi/Pages/Contacts/ContactDetails.xaml.cs'));
+    const show = cd.slice(cd.indexOf('current_url.StartsWith("ixian:sharedShow:"'), cd.indexOf('current_url.StartsWith("ixian:sharedOpen:"'));
+    const css = rdS2('src/styles/components/shared-items.css');
+    /* 1:1: LAST, after the danger group; (#46 r1 B3) a room: where it was, ABOVE the unbounded roster */
+    r.last = ci.indexOf('if (sharedSec && !roomKind) body.append(sharedSec);') > ci.indexOf('body.append(danger);')
+      && ci.indexOf('if (sharedSec && roomKind) body.append(sharedSec);') > -1
+      && ci.indexOf('if (sharedSec && roomKind) body.append(sharedSec);') < ci.indexOf('body.append(danger);')
+      && (ci.match(/body\.append\(sharedSec\)/g) || []).length === 2;
+    r.edge = /\.c-chat-info__body \.c-shared\[data-kind="media"\] \.c-shared__panel > \.c-shared__grid \{\s*margin-inline: calc\(-1 \* var\(--spacing-16\)\);[^}]*gap: 2px;[^}]*border-radius: var\(--radius-16\) var\(--radius-16\) 0 0;/.test(css)
+      && /padding: var\(--screen-pad\) var\(--spacing-16\) var\(--spacing-32\);/.test(rdS2('src/styles/components/chat-info.css'));
+    const menuFn = bodyS2(cdh, 'function openSharedMenu(item)');
+    r.shell = /if \(action === 'show'\) \{ closeSharedTakeover\(\); bridge\.send\('ixian:sharedShow:' \+ token\); return; \}/.test(menuFn)
+      && /^function openSharedMenu\(item\) \{\s*if \(!item \|\| !\/\^\[0-9a-fA-F\]\{1,128\}\$\/\.test\(String\(item\.id \|\| ''\)\)\) return;\s*const token = item\.id \+ ':' \+ \(Number\(item\.n\) \|\| 0\);/.test(menuFn)   /* (#46 r1 m6) the hex guard first */
+      && /if \(action === 'copy' && item\.kind === 'link'\)/.test(menuFn) && (cdh.match(/onSharedMenu: openSharedMenu,/g) || []).length === 2
+      && /createSharedList\(\{ items: state\.sharedItems, tab: kind, strings, onOpen: openSharedItem, onBack: closeSharedTakeover, onMenu: openSharedMenu \}\)/.test(cdh)   /* (#46 r1 m5) the "Show all" list too */
+      && (cdh.match(/sharedTab: cdSharedTab, onSharedTab: \(k\) => \{ cdSharedTab = k; \},/g) || []).length === 2   /* (#46 r1 B2) */
+      && /createSharedSection\(\{ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll, onMenu: onSharedMenu, tab: sharedTab, onTab: onSharedTab \}\)/.test(ci);   /* (#46 r2 R2-m2) …and chat-info hands it on */
+    /* C#: a token only, resolved from C#'s own scan, the existing jump — nothing opened, fetched or deleted */
+    r.cs = /SharedItem\? item = SharedItems\.resolve\(friend, token\);/.test(show) && /SingleChatPage\.requestJump\(friend, item\.id, item\.depth\);\s*popPageAsync\(\);\s*HomePage\.Instance\(\)\?\.onChat\(friend\.walletAddress, null\);/.test(show)   /* (#46 r2 R2-m4) contact details closes */
+      && !/openExternal|SFileOperations|deleteMessage|File\.Delete/.test(show);
+    ok(Object.values(r).every(Boolean),
+      '★ G-6 (#1119 Damir picked render 1 "Telegram" + the menu sheet; #1120 the menu verbs): chat info ends with the shared items — kind chips (tabs) that switch IN PLACE, media an edge-to-edge 3-col grid (2 px, top corners rounded), ≤ 60 per kind then "Show all N", files/links in a card; a 500 ms still press (or a right click) opens the item menu and swallows the click after it, a move cancels it, a tap still opens; the menu = Open · Show in chat (+ Copy link) with NO delete/share row until its verb exists; "Show in chat" sends a token only and C# makes the existing jump — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+
+  /* —— E-W2 (#1114 (2)): the OPEN chat's header avatar follows a contact's avatar change —— */
+  {
+    const sc = stripCode(rdS2('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const sp = stripCode(rdS2('Spixi/Network/StreamProcessor.cs'));
+    const av = sp.slice(sp.indexOf('case SpixiMessageCode.avatar:'), sp.indexOf('case SpixiMessageCode.requestFunds:'));
+    const onLoad = sc.slice(sc.indexOf('private void onLoad()'), sc.indexOf('private void onLoad()') + 2500);
+    const r = {
+      helper: /public void pushHeaderAvatar\(\)\s*\{[\s\S]*?Utils\.sendUiCommand\(this, "setAvatar", Utils\.imageToDataUri\(chat_avatar\)\);\s*\}/.test(sc),
+      load: /Utils\.sendUiCommand\(this, "onChatScreenReady", friend\.walletAddress\.ToString\(\)\);\s*pushHeaderAvatar\(\);/.test(onLoad) && (sc.match(/"setAvatar"/g) || []).length === 1,
+      repush: /if \(group_sender_address == null && friend != null\)\s*\{\s*Friend changed = friend;\s*MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*try\s*\{\s*Utils\.getChatPage\(changed\)\?\.pushHeaderAvatar\(\);/.test(av)
+        && av.indexOf('FriendList.setAvatar(') < av.indexOf('pushHeaderAvatar'),
+      noPathLog: !/Logging\.\w+\([^;]*avatar_path|Logging\.\w+\([^;]*e\.Message/.test(av),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ E-W2 (#1114 (2), the Mac walk: the open chat kept the OLD avatar): a contact\'s avatar message (1:1 or the group\'s own, never a member\'s) re-pushes the header avatar of an OPEN chat on the UI thread, AFTER Core stored it — the same setAvatar push the load makes (one helper, no new verb) — ' + JSON.stringify(r));
+  }
+
+  /* —— E-W3 (#1114 (3)): [NICK] lines tell "never arrived" from "arrived" — no nick text, no address —— */
+  {
+    const sp = stripCode(rdS2('Spixi/Network/StreamProcessor.cs'));
+    const st = stripCode(rdS2('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    const r = {
+      recv: /if \(friend\.type == FriendType\.Normal\)\s*\{\s*Logging\.info\("\[NICK\] received c\{0\} len=\{1\}", PresenceDisplay\.probeIdOf\(friend\), spixi_message\.data\?\.Length \?\? -1\);\s*\}/.test(sp),
+      send: /FriendList\.broadcastNicknameChange\(\);[\s\S]{0,700}?Logging\.info\("\[NICK\] broadcast to \{0\}", approved\);/.test(st)
+        && /foreach \(Friend f in FriendList\.friends\)\s*\{\s*if \(f\.approved\)\s*\{\s*approved\+\+;/.test(st),   /* (#46 r1 m9) APPROVED contacts (Core sends only to them) */
+      noText: !/\[NICK\][^;]*(nickname|GetString|walletAddress)/.test(sp + st),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ E-W3 (#1114 (3)): one [NICK] line per nick message that passed Core (an opaque contact number + the payload length) and one on the sender (how many approved contacts it went to) — never the nick text, never an address — ' + JSON.stringify(r));
+  }
+
+  /* —— E-W4 (#1114 (4), #1118): the Mac rings; a "Call ringtone" switch (default on, every platform) silences the ring only —— */
+  {
+    const mac = stripCode(rdS2('Spixi/Platforms/MacCatalyst/SPlatformUtils.cs'));
+    const np = stripCode(rdS2('Spixi/Meta/SNotificationPrefs.cs'));
+    const vm = stripCode(rdS2('Spixi/VoIP/VoIPManager.cs'));
+    const sp = stripCode(rdS2('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
+    const cp = stripCode(rdS2('Spixi/Pages/Call/CallPage.xaml.cs'));
+    const sh = stripCode(rdS2('src/shells/settings.html'));
+    const scr = stripCode(rdS2('src/components/settings-screens.js'));
+    const verb = sp.slice(sp.indexOf('current_url.StartsWith("ixian:callRingtone:"'), sp.indexOf('current_url.StartsWith("ixian:notifSounds:"'));
+    const r = {
+      /* (#46 r1 M6) the lines that make it RING, make it STOP, and let the NEXT call ring again */
+      macLife: /p\.NumberOfLoops = -1;\s*p\.PrepareToPlay\(\);\s*p\.Play\(\);\s*ringtonePlayer = p;/.test(mac)
+        && /if \(ringtonePlayer != null\)\s*\{\s*return;\s*\}/.test(bodyS2(mac, 'public static void startRinging()'))
+        && /ringtonePlayer\.Stop\(\);\s*ringtonePlayer\.Dispose\(\);\s*\}\s*catch \(Exception\) \{ \}\s*ringtonePlayer = null;/.test(bodyS2(mac, 'public static void stopRinging()')),
+      macRing: /string ringtonePath = Path\.Combine\(getAssetsPath\(\), "sounds\/default_ringtone\.mp3"\);/.test(mac) && /p\.NumberOfLoops = -1;/.test(mac)
+        && /public const bool callRings = true;/.test(mac) && /ringtonePlayer\.Stop\(\);/.test(mac) && !/http|NSUrl\.FromString/.test(mac.slice(mac.indexOf('public static void startRinging()'), mac.indexOf('public const bool callRings')))
+        && rdS2('Spixi/Resources/Raw/sounds/default_ringtone.mp3').length > 1000,
+      pref: /private const string KEY_CALL_RINGTONE = "call_ringtone";/.test(np) && /public static bool callRingtone\s*\{\s*get \{ return getBool\(KEY_CALL_RINGTONE, true\); \}\s*set \{ setBool\(KEY_CALL_RINGTONE, value\); \}\s*\}/.test(np),   /* (#46 r1 M7) the setter writes ITS key */
+      gate: /if \(ringAllowed && !SNotificationPrefs\.callRingtone\)\s*\{\s*ringAllowed = false;/.test(vm) && vm.indexOf('!SNotificationPrefs.callRingtone') < vm.indexOf('SPlatformUtils.startRinging();'),
+      noSilence: /SPlatformUtils\.callRings && SNotificationPrefs\.callRingtone \? "1" : "0",/.test(cp),
+      verbEcho: /SNotificationPrefs\.callRingtone = status\.Equals\("on", StringComparison\.Ordinal\);\s*Utils\.sendUiCommand\(this, "setCallRingtone", SNotificationPrefs\.callRingtone\.ToString\(\)\);/.test(verb)
+        && (sp.match(/Utils\.sendUiCommand\(this, "setCallRingtone", SNotificationPrefs\.callRingtone\.ToString\(\)\);/g) || []).length === 2   /* the onLoad seed + the echo */
+        && /Utils\.sendUiCommand\(this, "setNotifSounds", SNotificationPrefs\.inAppSounds\.ToString\(\)\);\s*Utils\.sendUiCommand\(this, "setCallRingtone"/.test(sp) && /,callRingtone";/.test(sp),
+      shell: /\(key === 'callRingtone'\) \? 'ixian:callRingtone:'/.test(sh) && /setCallRingtone\(s\) \{ applyNotifPush\('callRingtone', s\); \}/.test(sh) && /callRingtone: true,/.test(sh)
+        && /callRingtone: state\.callRingtone,/.test(sh) && /onCallRingtone: \(next, ctrl\) => \{ latchNotif\('callRingtone', next, ctrl\); \},/.test(sh)   /* (#46 r1 M7) the shell's own wiring */
+        && /callRingtone: bridge\.cap\('callRingtone'\)/.test(sh) && /state\.callRingtone\]\.join/.test(sh),
+      row: /if \(onCallRingtone && capabilities\.callRingtone\) body\.append\(switchRow\(\{\s*glyph: 'phone-incoming'[\s\S]{0,200}?checked: callRingtone, live, failText, onToggle: onCallRingtone,/.test(scr),
+    };
+    /* EXECUTED: the row renders only with the cap + handler; a tap asks for the opposite through onCallRingtone */
+    {
+      const { W, dom } = await bootS2('settings.html', 1000);
+      const S = W.Spixi; let got = null;
+      const mk = (caps, h) => S.createNotificationsScreen({ capabilities: caps, strings: {}, onBack() {}, onEnabled() {}, onSounds() {}, onCallRingtone: h });
+      const withCap = mk({ globalNotifications: true, callRingtone: true }, (next, ctrl) => { got = next; ctrl.done(); });
+      const noCap = mk({ globalNotifications: true }, () => {});
+      const sw = [...withCap.querySelectorAll('.c-settings__switch[role="switch"]')].find((n) => /Call ringtone/.test(n.getAttribute('aria-label') || ''));
+      if (sw) sw.click();
+      r.executed = !!sw && got === false && !/Call ringtone/.test(noCap.textContent);
+      try { dom.window.close(); } catch (e) {}
+    }
+    /* (#46 r1 M7) EXECUTED through the BUILT settings shell: the cap shows the row, the C# seed sets it OFF, a tap moves it
+       ON and the echo holds it; a refusal echo puts it back */
+    {
+      const { W, push, dom } = await bootS2('settings.html', 1200);
+      push('setCaps', 'settingsApply,backupInline,downloadsInline,encpass,encpassInline,globalNotifications,ignoredRequests,callRingtone');
+      push('setCallRingtone', 'False');
+      await sleep(80);
+      const nav = W.document.querySelector('[data-setting-key="notifications"]');
+      if (nav) nav.click();
+      await sleep(400);
+      const sw = () => [...W.document.querySelectorAll('.c-settings__switch[role="switch"]')].find((n) => /Call ringtone/.test(n.getAttribute('aria-label') || ''));
+      const s0 = sw();
+      r.shellSeeded = !!s0 && s0.getAttribute('aria-checked') === 'false';
+      if (s0) s0.click();
+      await sleep(60);
+      r.shellTap = !!sw() && sw().getAttribute('aria-checked') === 'true';
+      push('setCallRingtone', 'True');
+      await sleep(400);
+      r.shellEcho = !!sw() && sw().getAttribute('aria-checked') === 'true';
+      push('setCallRingtone', 'False');
+      await sleep(400);
+      r.shellRefusal = !!sw() && sw().getAttribute('aria-checked') === 'false';
+      try { dom.window.close(); } catch (e) {}
+    }
+    ok(Object.values(r).every(Boolean),
+      '★ E-W4 (#1114 (4), #1118): the Mac rings — the bundled default_ringtone.mp3 on a looped AVAudioPlayer (a local file, nothing fetched), so "Silence" shows there too; Account → Notifications → "Call ringtone" (🟡 ixian:callRingtone + setCallRingtone + the callRingtone cap; default ON = today) gates ONLY the local ring in VoIPManager (the call card still shows) and hides "Silence" when nothing rings; the switch rides the NOTIF-2 latch/echo grammar — ' + JSON.stringify(r));
+  }
+
+  /* —— E-W5 (#1114 (5)): no square behind the BIG desktop ring card — the backdrop clips itself —— */
+  {
+    const css = rdS2('src/styles/components/call-screen.css');
+    const ov = rdS2('src/components/call-overlay.js') + rdS2('src/components/call-screen.js');
+    const r = {
+      rule: /:root\[data-desktop\] \.c-callin__card > \.c-callbg,\s*:root\[data-desktop\] \.c-callscreen__card > \.c-callbg \{\s*border-radius: inherit;\s*clip-path: inset\(0 round var\(--radius-24\)\);\s*\}/.test(css),
+      cardsRadius: /:root\[data-desktop\] \.c-callin__card \{[^}]*border-radius: var\(--radius-24\);/.test(rdS2('src/styles/components/call-overlay.css'))
+        && /:root\[data-desktop\] \.c-callscreen__card \{[^}]*border-radius: var\(--radius-24\);/.test(css),
+      /* the backdrop is the card's DIRECT child in both components (the `>` holds) */
+      child: /card\.append\(createCallBackdrop\(/.test(ov) && (ov.match(/card\.append\(createCallBackdrop\(/g) || []).length === 2,
+      notOnCard: !/\.c-callin__card \{[^}]*clip-path/.test(rdS2('src/styles/components/call-overlay.css')),   /* a clip-path on the card would cut its shadow */
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ E-W5 (#1114 (5), the Mac: a square behind the BIG ring card): macOS WebKit does not apply a rounded overflow clip to COMPOSITED children, and the backdrop\'s blur layers are composited — so on desktop the backdrop clips ITSELF (clip-path inset round 24, radius inherited), never the card (its shadow stays) — ' + JSON.stringify(r));
+  }
+
+  /* —— E-W7 (#1114 (7), #1118): the Mac window takes the APP's theme, so the title is readable in every combination —— */
+  {
+    const tm = stripCode(rdS2('Spixi/Utils/ThemeManager.cs'));
+    const app = stripCode(rdS2('Spixi/App.xaml.cs'));
+    const fn = tm.slice(tm.indexOf('public static void applyMacWindowAppearance()'), tm.indexOf('public static bool changeAppearance('));
+    const r = {
+      map: /ThemeAppearance\.light => UIKit\.UIUserInterfaceStyle\.Light,\s*ThemeAppearance\.dark => UIKit\.UIUserInterfaceStyle\.Dark,\s*_ => UIKit\.UIUserInterfaceStyle\.Unspecified/.test(fn)
+        && /w\.OverrideUserInterfaceStyle = style;/.test(fn) && /#if MACCATALYST/.test(fn),
+      mainThread: /if \(MainThread\.IsMainThread\)\s*\{\s*apply\(\);\s*\}\s*else\s*\{\s*MainThread\.BeginInvokeOnMainThread\(apply\);\s*\}/.test(fn),
+      /* BEFORE the OS theme is read — an override would otherwise read back as the platform theme */
+      order: /activeAppearance = appearance;\s*applyMacWindowAppearance\(\);\s*string appearance_name = appearance switch/.test(tm),
+      created: /#if MACCATALYST\s*window\.Created \+= \(s, e\) => ThemeManager\.applyMacWindowAppearance\(\);\s*#endif/.test(app),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ E-W7 (#1114 (7), Damir #1118: follow the app theme): on the Mac every window\'s OverrideUserInterfaceStyle follows the app\'s pick (Light · Dark · System = Unspecified), set BEFORE loadTheme reads the OS theme and again when the window is created, on the main thread — the title bar text then has the app\'s contrast — ' + JSON.stringify(r));
+  }
+
+  /* —— G-9 (#1115 A1): the [CALLPAINT] probe — where the ≈240 ms bar reveal waits inside the shell's handshake —— */
+  {
+    const src = rdS2('src/shells/call.html');
+    const r = {
+      line: /console\.log\('\[CALLPAINT\] mode=' \+ \(m === 'bar' \? 'bar' : m === 'ring' \? 'ring' : 'full'\) \+ ' h0=' \+ pr\.h0 \+ ' h=' \+ Math\.round\(window\.innerHeight\)\s*\+ ' resizes=' \+ pr\.resizes \+ ' fit=' \+ pr\.fit \+ 'ms via=' \+ pr\.via \+ ' raf1=' \+ pr\.r1 \+ 'ms raf2=' \+ pr\.r2 \+ 'ms'\);/.test(src),
+      afterSignal: src.indexOf("bridge.send('ixian:callPainted:' + t);") < src.indexOf("console.log('[CALLPAINT]") && src.indexOf("bridge.send('ixian:callPainted:' + t);") > 0,
+      fixedVia: /fire\('resize'\)/.test(src) && /fire\('timer'\)/.test(src) && /fire\('now'\)/.test(src),
+      noNewVerb: (src.match(/ixian:callPainted:/g) || []).length === 1,
+      routed: /IXICore\.Meta\.Logging\.info\("\[WEBVIEW\] "/.test(rdS2('Spixi/Platforms/Android/WebViewRenderer.cs')),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ G-9 (#1115 A1: bar reveal ≈240 ms with no C# fade): the call shell logs ONE [CALLPAINT] line per paint handshake — the viewport height on arrival and at the signal, the resize count, when fits() turned true and why (now · resize · timer), when each of the two frames ran — integers and fixed words, AFTER the signal (the probe never delays it), through the existing [WEBVIEW] console route; no verb — ' + JSON.stringify(r));
+  }
+
+  /* —— G-6b (#1121, Damir: "media tiles but empty tiles"): a REAL small thumbnail per photo, decoded at a small size —— */
+  {
+    const si = stripCode(rdS2('Spixi/Utils/SharedItems.cs'));
+    const and = stripCode(rdS2('Spixi/Platforms/Android/SThumbnail.cs'));
+    const ios = stripCode(rdS2('Spixi/Platforms/iOS/SThumbnail.cs'));
+    const mac = stripCode(rdS2('Spixi/Platforms/MacCatalyst/SThumbnail.cs'));
+    const win = stripCode(rdS2('Spixi/Platforms/Windows/SThumbnail.cs'));
+    const sig = /public static byte\[\]\? makeJpeg\(string path, int maxPx\)/;
+    const r = {
+      everyPlatform: [and, ios, mac, win].every((t) => sig.test(t) && /catch \(Exception\)\s*\{\s*return null;\s*\}/.test(t)),
+      /* bounded: the full-size bitmap is never built */
+      androidBounds: /new BitmapFactory\.Options \{ InJustDecodeBounds = true \}/.test(and) && /InSampleSize = sample/.test(and)
+        && /while \(\(bounds\.OutWidth \/ \(sample \* 2\) >= maxPx && bounds\.OutHeight \/ \(sample \* 2\) >= maxPx\)\s*\|\| Math\.Max\(bounds\.OutWidth, bounds\.OutHeight\) \/ sample > MaxLongSide\)\s*\{\s*sample \*= 2;\s*\}/.test(and)
+        && /private const int MaxLongSide = 2048;/.test(and)   /* (#46 r1 A4 / M8) both sides bounded */
+        && and.indexOf('InJustDecodeBounds = true') < and.indexOf('InSampleSize = sample') && !/DecodeByteArray|ReadAllBytes/.test(and),
+      appleBounds: [ios, mac].every((t) => /CGImageSource\.FromUrl\(url\)/.test(t) && /MaxPixelSize = maxPx \* 2,/.test(t) && /src\.CreateThumbnail\(0, opts\)/.test(t) && !/ReadAllBytes|UIImage\.FromFile/.test(t)),
+      windowsScaled: /ScaledWidth = sw,/.test(win) && /ScaledHeight = sh,/.test(win) && /decoder\.GetPixelDataAsync\(/.test(win) && /Math\.Min\(1\.0, \(double\)maxPx \/ Math\.Min\(w, h\)\)/.test(win),
+      local: ![and, ios, mac, win].some((t) => /http|NSUrl\.FromString|HttpClient|WebClient/i.test(t)),
+      wired: /byte\[\]\? jpeg = Spixi\.SThumbnail\.makeJpeg\(fi\.FullName, ThumbPx\);/.test(si) && /public const int ThumbPx = 160;/.test(si)
+        && /public const int ThumbMaxCount = 60;/.test(si) && /public const long ThumbSourceMax = 20L \* 1024 \* 1024;/.test(si)
+        && /if \(fi\.Length > ThumbSourceMax \|\| Array\.IndexOf\(imageExts, ext\) < 0 \|\| !ImageSniff\.looksLikeImage\(readHead\(fi\.FullName\)\)\)/.test(si),
+      /* (#46 r1 M8) the WHOLE file is read in ONE place only: inside the ≤ 64 KB branch */
+      wholeFileOnlySmall: (si.match(/File\.ReadAllBytes\(/g) || []).length === 1
+        && /if \(mime != null && fi\.Length <= ThumbMaxBytes\)\s*\{\s*return "data:" \+ mime \+ ";base64," \+ Convert\.ToBase64String\(File\.ReadAllBytes\(path\)\);/.test(si),
+      /* (#46 r1 A5) a failed decode counts — never 200 decodes before the push */
+      tries: /if \(thumbs >= ThumbMaxCount \|\| tries >= ThumbMaxCount \|\| thumbBytes >= ThumbTotalMax\)/.test(si) && /tries\+\+;\s*it\.thumb = thumbOf\(it\.path\);/.test(si),
+      cached: /string key = fi\.FullName \+ "\|" \+ fi\.Length\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\)\s*\+ "\|" \+ fi\.LastWriteTimeUtc\.Ticks/.test(si)
+        && /if \(thumbCache\.Count >= ThumbCacheMax\)\s*\{\s*thumbCache\.Clear\(\);/.test(si),
+      matchesInline: /export const SHARED_INLINE_MAX = 60;/.test(rdS2('src/components/shared-items.js')),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ G-6b (#1121): a photo bigger than 64 KB (every phone photo) gets a REAL thumbnail — a ~160 px square JPEG decoded at a SMALL size by the platform (Android bounds + inSampleSize · Apple CGImageSource thumbnail · Windows a scaled decoder; never the full bitmap, never the whole file in the push), a 20 MB source cap, made once per file version (memory cache), up to the 60 tiles shown in place; local files only; (#46 r1 A2) a contact\'s file reaches a decoder only when its first bytes are an expected image format (ImageSniff, executed by scripts/csh), ≤ 20 MB — ' + JSON.stringify(r));
+  }
+/* ==== SESSION 2 PINS END ==== */
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

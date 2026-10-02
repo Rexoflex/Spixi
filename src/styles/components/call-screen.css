@@ -179,3 +179,16 @@
 :root[data-desktop] .c-callscreen__name { font-size: var(--font-size-heading-md); line-height: var(--line-height-heading-md); }
 :root[data-desktop] .c-callscreen__controls .c-callctl { width: 52px; height: 52px; }
 :root[data-desktop] .c-callscreen__end { width: 120px; height: 52px; }
+
+/* ★ E-W5 (#1114 (5), the Mac walk: a SQUARE behind the BIG ring card, not behind the mini card). The desktop cards
+   clip with `overflow: hidden` + `border-radius: 24px`, and macOS WebKit does not apply that rounded clip to a
+   COMPOSITED descendant — the backdrop's `filter: blur()` layers (.c-callbg::before, .c-callbg__img, inset −20 % /
+   −10 %) are composited, so their square corners paint past the card's round ones. The mini card has no backdrop,
+   which matches. The backdrop now clips ITSELF with a clip-path (WebKit applies a clip-path to composited content as
+   a mask on that layer) and takes the card's radius. On the backdrop, not the card: a clip-path on the card would
+   also cut the card's own box-shadow. Desktop only (the phone ring is full-screen, no corners). */
+:root[data-desktop] .c-callin__card > .c-callbg,
+:root[data-desktop] .c-callscreen__card > .c-callbg {
+  border-radius: inherit;
+  clip-path: inset(0 round var(--radius-24));
+}

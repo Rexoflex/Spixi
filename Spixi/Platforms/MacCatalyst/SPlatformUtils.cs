@@ -37,8 +37,45 @@ namespace Spixi
             return Config.spixiUserFolder + "/html";
         }
 
+        /* ★ E-W4 (#1114 (4), the Mac walk: "no ringtone on the Mac"): the Mac never rang — this was a no-op since the
+         * Mac bring-up. The bundled ring (Resources/Raw/sounds/default_ringtone.mp3, a MauiAsset — the same file iOS and
+         * Windows play) on an AVAudioPlayer, looped until stopRinging. A local file only, nothing fetched. Fail-soft: a
+         * missing file or a player error leaves the call silent, never broken. */
+        private static AVFoundation.AVAudioPlayer? ringtonePlayer = null;
+        private static readonly object ringLock = new object();
+
         public static void startRinging()
         {
+            lock (ringLock)
+            {
+                if (ringtonePlayer != null)
+                {
+                    return;
+                }
+                try
+                {
+                    string ringtonePath = Path.Combine(getAssetsPath(), "sounds/default_ringtone.mp3");
+                    if (!File.Exists(ringtonePath))
+                    {
+                        IXICore.Meta.Logging.warn("startRinging: the ring file is not in the bundle");
+                        return;
+                    }
+                    AVFoundation.AVAudioPlayer? p = AVFoundation.AVAudioPlayer.FromUrl(NSUrl.FromFilename(ringtonePath));
+                    if (p == null)
+                    {
+                        return;
+                    }
+                    p.NumberOfLoops = -1;
+                    p.PrepareToPlay();
+                    p.Play();
+                    ringtonePlayer = p;
+                }
+                catch (Exception e)
+                {
+                    IXICore.Meta.Logging.warn("startRinging: " + e.GetType().Name);
+                    ringtonePlayer = null;
+                }
+            }
         }
 
         /* ★ #1074 (call premium): the call-control CAPS this platform can back. CallPage
@@ -46,7 +83,7 @@ namespace Spixi
          * verb does something here (no dead buttons, #256/#264).
          *   callRings        — a local ring sound exists, so "Silence" means something.
          *   callSpeakerRoute — setSpeakerphone below really switches the output. */
-        public const bool callRings = false;          // startRinging is a no-op here — no "Silence" button
+        public const bool callRings = true;           // ★ E-W4: the Mac rings now (startRinging above) — "Silence" means something
         public const bool callSpeakerRoute = false;   // a desktop has no ear speaker — the button is hidden
 
         public static bool setSpeakerphone(bool on)
@@ -56,6 +93,20 @@ namespace Spixi
 
         public static void stopRinging()
         {
+            lock (ringLock)
+            {
+                if (ringtonePlayer == null)
+                {
+                    return;
+                }
+                try
+                {
+                    ringtonePlayer.Stop();
+                    ringtonePlayer.Dispose();
+                }
+                catch (Exception) { }
+                ringtonePlayer = null;
+            }
         }
 
         public static void startDialtone(DialtoneType type)

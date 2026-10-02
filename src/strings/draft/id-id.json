@@ -353,6 +353,7 @@
   "notifSender": "Tampilkan nama pengirim",
   "notifSenderSub": "Teks pesan tidak pernah ditampilkan di notifikasi",
   "notifSounds": "Suara dalam aplikasi",
+  "notifCallRingtone": "Nada dering panggilan",
   "notifPushProvider": "Pengiriman instan melalui OneSignal",
   "notifPushProviderOn": "Aktif: OneSignal membangunkan perangkat ini begitu pesan tiba. OneSignal menerima token push untuk perangkat ini dan melihat alamat IP-nya. Pesan dan kontak Anda tidak pernah dilihatnya.",
   "notifPushProviderOffAndroid": "Nonaktif: tidak ada lagi yang dikirim ke OneSignal dan perangkat ini dibatalkan langganannya di sana. Spixi memeriksa pesan baru sendiri dan memberi tahu Anda saat menemukannya, jadi pesan bisa tiba sedikit lebih lambat. Data yang sudah dimiliki OneSignal tidak dihapus oleh sakelar ini.",
@@ -710,5 +711,12 @@
   "downloadsFrom": "dari {name}",
   "downloadsShowInChat": "Tampilkan {name} di obrolan",
   "downloadsFromChip": "Dari: {name}",
-  "downloadsSearchSenders": "Cari orang"
+  "downloadsSearchSenders": "Cari orang",
+  "downloadsCount": "{n} file",
+  "downloadsCountOne": "1 file",
+  "linkCopied": "Tautan disalin",
+  "sharedOpen": "Buka",
+  "sharedShowAll": "Tampilkan semua {n}",
+  "sharedCopyFailed": "Tidak dapat menyalin",
+  "copyLink": "Salin tautan"
 }

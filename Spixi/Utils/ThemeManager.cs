@@ -34,6 +34,8 @@ namespace SPIXI
 
         public static bool loadTheme(string name, ThemeAppearance appearance)
         {
+            activeAppearance = appearance;
+            applyMacWindowAppearance();   // ★ E-W7: BEFORE isPlatformDark() — an override would otherwise be read back as the OS theme
             string appearance_name = appearance switch
             {
                 ThemeAppearance.dark => "dark",
@@ -52,6 +54,49 @@ namespace SPIXI
             // css/. SpixiThemeName stays — ten redesigned shells read it.
 
             return true;
+        }
+
+        /* ★ E-W7 (#1114 (7), #1118: Damir picked "follow the app theme"). On the Mac the title bar ("Spixi IM") is drawn
+         * in the WINDOW's appearance, which follows macOS — with the app in Light and macOS in Dark the title was white on
+         * the app's light ground (invisible). The window now takes the APP's pick: Light → Light, Dark → Dark, System →
+         * Unspecified (follow macOS, which is what the app does too). Called by loadTheme (boot, every pick, every OS flip
+         * under System) and when the window is created (App.CreateWindow) — at boot loadTheme runs before any window
+         * exists. Mac only; a no-op elsewhere. Never throws. */
+        public static void applyMacWindowAppearance()
+        {
+#if MACCATALYST
+            void apply()
+            {
+                try
+                {
+                    UIKit.UIUserInterfaceStyle style = activeAppearance switch
+                    {
+                        ThemeAppearance.light => UIKit.UIUserInterfaceStyle.Light,
+                        ThemeAppearance.dark => UIKit.UIUserInterfaceStyle.Dark,
+                        _ => UIKit.UIUserInterfaceStyle.Unspecified
+                    };
+                    foreach (UIKit.UIScene scene in UIKit.UIApplication.SharedApplication.ConnectedScenes)
+                    {
+                        if (scene is UIKit.UIWindowScene ws)
+                        {
+                            foreach (UIKit.UIWindow w in ws.Windows)
+                            {
+                                w.OverrideUserInterfaceStyle = style;
+                            }
+                        }
+                    }
+                }
+                catch (System.Exception) { }
+            }
+            if (MainThread.IsMainThread)
+            {
+                apply();
+            }
+            else
+            {
+                MainThread.BeginInvokeOnMainThread(apply);
+            }
+#endif
         }
 
         public static bool changeAppearance(ThemeAppearance newAppearance)

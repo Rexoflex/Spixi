@@ -62,6 +62,9 @@ namespace SPIXI.Meta
         // In-app sound effects. Default TRUE, but note that with no assets shipped yet
         // every effect is a fail-soft no-op, so the default cannot change behaviour.
         private const string KEY_SOUNDS = "notif_sounds";
+        // ★ E-W4 (#1114 (4), #1118: Damir asked for a "Call ringtone" on/off): the local ring of an incoming call.
+        // Default TRUE — today's behaviour. Display-side only: the call itself, its notification and its UI are untouched.
+        private const string KEY_CALL_RINGTONE = "call_ringtone";
         // Per-1:1 mute: KEY_MUTE_PREFIX + the address string.
         private const string KEY_MUTE_PREFIX = "notif_mute_";
 
@@ -136,6 +139,13 @@ namespace SPIXI.Meta
         {
             get { return getBool(KEY_SOUNDS, true); }
             set { setBool(KEY_SOUNDS, value); }
+        }
+
+        /** ★ E-W4: ring locally on an incoming call (VoIPManager → SPlatformUtils.startRinging). */
+        public static bool callRingtone
+        {
+            get { return getBool(KEY_CALL_RINGTONE, true); }
+            set { setBool(KEY_CALL_RINGTONE, value); }
         }
 
         /* ★★ P2 (#708, privacy work order 2026-08-29 §P2) — THE THIRD-PARTY PUSH OPT-OUT.

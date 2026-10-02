@@ -1,7 +1,38 @@
 /* c-shared — SHARED MEDIA · FILES · LINKS (★★ #1106, session 1 part 5). Lives inside chat info's inset-grouped
    language (the label outside, one --surface-card per group, 12 radius, rows full-bleed in the card) and in the
    "See all" view. Every colour is a role token; the card pair carries hover/press (#878). */
-.c-shared { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-shared { display: flex; flex-direction: column; gap: var(--spacing-12); }
+/* ★ G-6 (#1119, Damir picked render 1 — Telegram's shared media in our tokens): the kind chips switch the panel in
+   place; the MEDIA panel is an edge-to-edge 3-column grid (it breaks out of the chat-info body's inline padding),
+   2 px gaps, the grid's TOP corners rounded, no card around it; files and links keep the card + rows. */
+.c-shared__chips { display: flex; gap: var(--spacing-8); overflow-x: auto; scrollbar-width: none; }
+.c-shared__chips::-webkit-scrollbar { display: none; }
+.c-shared__chip { flex: none; }
+/* (#46 r2 R2-M2) a role=tab chip is SELECTED by aria-selected (no aria-pressed, r1 B7) — the chip's selected pair, here */
+.c-shared__chip[aria-selected="true"] {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-shared__chip[aria-selected="true"]:not(:disabled):hover {
+    background: var(--surface-action-tonal-hover);
+    border-color: var(--outline-action-hover);
+  }
+}
+.c-shared__chips > .c-chip { max-width: none; }   /* GATE 58: a SCROLLING chip row opts out of the chip cap (#841) */
+.c-shared__panel { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-chat-info__body .c-shared[data-kind="media"] .c-shared__panel > .c-shared__grid {
+  margin-inline: calc(-1 * var(--spacing-16));   /* = .c-chat-info__body's inline padding (chat-info.css) */
+  gap: 2px;
+  padding: 0;
+  border-radius: var(--radius-16) var(--radius-16) 0 0;
+  overflow: hidden;
+}
+.c-chat-info__body .c-shared[data-kind="media"] .c-shared__panel > .c-shared__grid .c-shared__tile { border-radius: 0; }
+/* (#46 r1 B6) the focus ring INSIDE the tile, above its neighbours — the 2 px gaps and the clipped grid hid the global ring */
+.c-shared__tile:focus-visible { outline: var(--outline-width-2, 2px) solid var(--outline-focus, var(--surface-accent)); outline-offset: -3px; z-index: 1; }
+.c-shared__panel > .c-shared__all { align-self: center; min-height: 44px; padding: 0 var(--spacing-16); font-weight: var(--font-weight-semibold); }
 .c-shared__head {
   display: flex;
   align-items: center;

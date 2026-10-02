@@ -16,6 +16,9 @@ namespace Spixi
 
         private AVAudioConverter audioConverter = null;
         private AVAudioEngine audioRecorder = null;
+        // ★ E-W1 (Mac walk crash 2026-10-01: SIGSEGV in -[AVAudioNode dealloc] → AVAudioClock → RemoveRenderObserver):
+        // the InputNode wrapper must be released BEFORE the engine (see SAudioPlayer). Held once, disposed in stop().
+        private AVAudioInputNode inputNode = null;
         private IAudioEncoder audioEncoder = null;
 
         bool running = false;
@@ -86,7 +89,8 @@ namespace Spixi
             // ended at 0:00. Same shape as Platforms/iOS/SAudioRecorder.cs: tap in the hardware
             // format, convert to the codec's 16 kHz Int16 with AVAudioConverter.
             desiredFormat = new AVAudioFormat(AVAudioCommonFormat.PCMInt16, sampleRate, (uint)channels, false);
-            recordingFormat = audioRecorder.InputNode.GetBusOutputFormat(0);
+            inputNode = audioRecorder.InputNode;
+            recordingFormat = inputNode.GetBusOutputFormat(0);
 
             Logging.info($"Recording format: {recordingFormat}");
             Logging.info($"Desired output format: {desiredFormat}");
@@ -95,13 +99,15 @@ namespace Spixi
             // it is invalid. Throw a clear reason instead of an ObjC exception inside the tap.
             if (recordingFormat == null || recordingFormat.SampleRate <= 0 || recordingFormat.ChannelCount == 0)
             {
+                inputNode?.Dispose();   // ★ E-W1: never leave the node wrapper to the GC after a failed start
+                inputNode = null;
                 throw new Exception("No usable microphone input format: " + recordingFormat);
             }
 
             audioConverter = new AVAudioConverter(recordingFormat, desiredFormat);
 
             uint bufferSize = (uint)(recordingFormat.SampleRate * 0.1); // 100 ms (a request; macOS may deliver other sizes)
-            audioRecorder.InputNode.InstallTapOnBus(0, bufferSize, recordingFormat, onDataAvailable);
+            inputNode.InstallTapOnBus(0, bufferSize, recordingFormat, onDataAvailable);
 
             audioRecorder.Prepare();
             if (!audioRecorder.StartAndReturnError(out error))
@@ -200,7 +206,7 @@ namespace Spixi
             {
                 try
                 {
-                    audioRecorder.InputNode.RemoveTapOnBus(0);
+                    inputNode?.RemoveTapOnBus(0);
                     audioRecorder.Stop();
                     audioRecorder.Reset();
                 }
@@ -208,6 +214,8 @@ namespace Spixi
                 {
 
                 }
+                inputNode?.Dispose();   // ★ E-W1: before the engine
+                inputNode = null;
                 audioRecorder.Dispose();
                 audioRecorder = null;
             }

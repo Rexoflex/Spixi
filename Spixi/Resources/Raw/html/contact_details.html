@@ -4542,7 +4542,38 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
 /* c-shared — SHARED MEDIA · FILES · LINKS (★★ #1106, session 1 part 5). Lives inside chat info's inset-grouped
    language (the label outside, one --surface-card per group, 12 radius, rows full-bleed in the card) and in the
    "See all" view. Every colour is a role token; the card pair carries hover/press (#878). */
-.c-shared { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-shared { display: flex; flex-direction: column; gap: var(--spacing-12); }
+/* ★ G-6 (#1119, Damir picked render 1 — Telegram's shared media in our tokens): the kind chips switch the panel in
+   place; the MEDIA panel is an edge-to-edge 3-column grid (it breaks out of the chat-info body's inline padding),
+   2 px gaps, the grid's TOP corners rounded, no card around it; files and links keep the card + rows. */
+.c-shared__chips { display: flex; gap: var(--spacing-8); overflow-x: auto; scrollbar-width: none; }
+.c-shared__chips::-webkit-scrollbar { display: none; }
+.c-shared__chip { flex: none; }
+/* (#46 r2 R2-M2) a role=tab chip is SELECTED by aria-selected (no aria-pressed, r1 B7) — the chip's selected pair, here */
+.c-shared__chip[aria-selected="true"] {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-default);
+  color: var(--text-action-default);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-shared__chip[aria-selected="true"]:not(:disabled):hover {
+    background: var(--surface-action-tonal-hover);
+    border-color: var(--outline-action-hover);
+  }
+}
+.c-shared__chips > .c-chip { max-width: none; }   /* GATE 58: a SCROLLING chip row opts out of the chip cap (#841) */
+.c-shared__panel { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-chat-info__body .c-shared[data-kind="media"] .c-shared__panel > .c-shared__grid {
+  margin-inline: calc(-1 * var(--spacing-16));   /* = .c-chat-info__body's inline padding (chat-info.css) */
+  gap: 2px;
+  padding: 0;
+  border-radius: var(--radius-16) var(--radius-16) 0 0;
+  overflow: hidden;
+}
+.c-chat-info__body .c-shared[data-kind="media"] .c-shared__panel > .c-shared__grid .c-shared__tile { border-radius: 0; }
+/* (#46 r1 B6) the focus ring INSIDE the tile, above its neighbours — the 2 px gaps and the clipped grid hid the global ring */
+.c-shared__tile:focus-visible { outline: var(--outline-width-2, 2px) solid var(--outline-focus, var(--surface-accent)); outline-offset: -3px; z-index: 1; }
+.c-shared__panel > .c-shared__all { align-self: center; min-height: 44px; padding: 0 var(--spacing-16); font-weight: var(--font-weight-semibold); }
 .c-shared__head {
   display: flex;
   align-items: center;
@@ -4845,9 +4876,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     openRequestSheet,                                // Request → the amount sheet (#139/#528)
     setSendQuote: applySendQuote,                    // W6 — the component-side quote applier
     parseSharedItems, createSharedList,              // ★★ #1106: shared media / files / links
+    openSharedItemMenu, copyText,                    // ★ G-6 (#1119/#1120): the long-press menu · Copy link
     createModal, openModal,                          // ★★ #1106: the link confirm (chat.html's confirmOpenLink grammar)
   } = window.Spixi;
   const strings = window.SL || {};
+  let cdSharedTab = '';   // ★ G-6 (#46 r1 B2): the chosen kind chip — display state only, never persisted
 
   /* ★★ security sweep C-3 — FORGET A PEER, from the page that removed them.
    * C# pushes removeContactResult to the page that asked for the removal and to no
@@ -5081,6 +5114,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         shared: (state.group.kind || 'group') === 'group' ? state.sharedItems : null,
         onSharedOpen: openSharedItem,
         onSharedAll: openSharedTakeover,
+        onSharedMenu: openSharedMenu,                // ★ G-6
+        sharedTab: cdSharedTab, onSharedTab: (k) => { cdSharedTab = k; },   // ★ G-6 (#46 r1 B2): the pick survives a rebuild
         name: state.name,
         address: state.address,
         avatar: state.avatarPath,
@@ -5159,6 +5194,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       shared: state.sharedItems,       // ★★ #1106
       onSharedOpen: openSharedItem,
       onSharedAll: openSharedTakeover,
+      onSharedMenu: openSharedMenu,                  // ★ G-6
+      sharedTab: cdSharedTab, onSharedTab: (k) => { cdSharedTab = k; },     // ★ G-6 (#46 r1 B2)
       online: state.online,            // A4 (#302): seed the hero dot on (re)build; live flips go
                                        // through setChatInfoPresence, see showIndicator
       nickname: '',                    // no separate wire-name vs override signal; name = display name,
@@ -5481,6 +5518,28 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     bridge.send('ixian:sharedOpen:' + token);
   }
 
+  /* ★ G-6 (#1119/#1120) — a shared item's LONG PRESS: Open (= the tap rule above) · Show in chat · Copy link (links).
+     "Show in chat" sends ONLY the item token on a NEW presentation verb (🟡 #1120, BE ask, T1): C# resolves the message
+     from its own scan and opens the conversation at it — the jump a media tap already does, now for every kind. An
+     older exe drops the unknown verb (nothing happens). Copy link copies the address AS TYPED (the label the row
+     shows) — nothing is fetched, no verb. */
+  function openSharedMenu(item) {
+    if (!item || !/^[0-9a-fA-F]{1,128}$/.test(String(item.id || ''))) return;
+    const token = item.id + ':' + (Number(item.n) || 0);
+    openSharedItemMenu({
+      item, host: document.body, strings,
+      onAction: (action) => {
+        if (action === 'open') { openSharedItem(item); return; }
+        if (action === 'show') { closeSharedTakeover(); bridge.send('ixian:sharedShow:' + token); return; }
+        if (action === 'copy' && item.kind === 'link') {
+          Promise.resolve(copyText(item.label)).then((ok) => {
+            try { showToast({ text: ok === false ? (strings.sharedCopyFailed || 'Couldn’t copy') : (strings.linkCopied || 'Link copied'), tone: ok === false ? 'error' : 'success', host: document.body, strings }); } catch (e) {}
+          });
+        }
+      },
+    });
+  }
+
   /* ★★ #1106 — "See all": Media · Files · Links on one cover (the money compose's cover grammar; back closes it). */
   let cdSharedOpen = false;
   let cdSharedOpener = null;   // (#46 r1 B4) focus returns to the "See all" that opened the cover
@@ -5491,7 +5550,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     const over = document.createElement('div');
     over.className = 'cd-shared-takeover';
     over.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); closeSharedTakeover(); } });   // (#46 r1 B4)
-    over.append(createSharedList({ items: state.sharedItems, tab: kind, strings, onOpen: openSharedItem, onBack: closeSharedTakeover }));
+    over.append(createSharedList({ items: state.sharedItems, tab: kind, strings, onOpen: openSharedItem, onBack: closeSharedTakeover, onMenu: openSharedMenu }));
     document.body.append(over);
     cdSharedOpen = true;
     syncCdOverlay();

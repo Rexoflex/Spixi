@@ -353,6 +353,7 @@
   "notifSender": "Rodyti siuntėjo vardą",
   "notifSenderSub": "Žinutės tekstas niekada nerodomas pranešimuose",
   "notifSounds": "Garsai programoje",
+  "notifCallRingtone": "Skambučio melodija",
   "notifPushProvider": "Momentinis pristatymas per „OneSignal“",
   "notifPushProviderOn": "Įjungta: „OneSignal“ pažadina šį įrenginį vos atėjus žinutei. „OneSignal“ gauna šio įrenginio pranešimų raktą ir mato jo IP adresą. Jūsų žinučių ir kontaktų jis niekada nemato.",
   "notifPushProviderOffAndroid": "Išjungta: „OneSignal“ daugiau nieko nesiunčiama ir šis įrenginys ten atsisakytas. „Spixi“ pati tikrina naujas žinutes ir praneša jas radusi, todėl jos gali atkeliauti kiek vėliau. Įrašo, kurį „OneSignal“ jau turi, šis jungiklis neištrina.",
@@ -709,5 +710,12 @@
   "downloadsFrom": "nuo {name}",
   "downloadsShowInChat": "Rodyti {name} pokalbyje",
   "downloadsFromChip": "Nuo: {name}",
-  "downloadsSearchSenders": "Ieškoti žmonių"
+  "downloadsSearchSenders": "Ieškoti žmonių",
+  "downloadsCount": "Failų: {n}",
+  "downloadsCountOne": "1 failas",
+  "linkCopied": "Nuoroda nukopijuota",
+  "sharedOpen": "Atidaryti",
+  "sharedShowAll": "Rodyti visus ({n})",
+  "sharedCopyFailed": "Nepavyko nukopijuoti",
+  "copyLink": "Kopijuoti nuorodą"
 }

@@ -597,6 +597,24 @@ namespace SPIXI
                             byte[] resized_avatar = SFilePicker.ResizeImage(spixi_message.data, 128, 128, 100);
                             FriendList.setAvatar(sender_address, spixi_message.data, resized_avatar, group_sender_address);
                             UIHelpers.shouldRefreshContacts = true;
+                            /* ★ E-W2 (#1114 (2)): the list re-flushes on the flag above, but an OPEN chat heard the avatar only
+                             * at load — re-push its header (the chat-info pane already re-reads it every second). 1:1 and the
+                             * group's own avatar only; a group MEMBER's avatar (group_sender_address) is not the header. */
+                            if (group_sender_address == null && friend != null)
+                            {
+                                Friend changed = friend;
+                                MainThread.BeginInvokeOnMainThread(() =>
+                                {
+                                    try
+                                    {
+                                        Utils.getChatPage(changed)?.pushHeaderAvatar();
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        Logging.warn("avatar re-push failed: " + e.GetType().Name);
+                                    }
+                                });
+                            }
                         }
                         else
                         {
@@ -765,6 +783,14 @@ namespace SPIXI
                         break;
 
                     case SpixiMessageCode.nick:
+                        /* ★ E-W3 [NICK] probe — TEMPORARY (#1114 (3): a first nick change from the iPhone never reached the
+                         * Mac). One line per nick message that passed Core's checks, so the walk can tell "never arrived" from
+                         * "arrived". No nick text, no address: an opaque contact number + the payload length. ("changed=yes/no"
+                         * is not knowable here: Core's CoreStreamProcessor has already called FriendList.setNickname.) */
+                        if (friend.type == FriendType.Normal)
+                        {
+                            Logging.info("[NICK] received c{0} len={1}", PresenceDisplay.probeIdOf(friend), spixi_message.data?.Length ?? -1);
+                        }
                         if (friend.bot && group_sender_address != null)
                         {
                             // update UI with the new nick

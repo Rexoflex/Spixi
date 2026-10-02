@@ -34,7 +34,6 @@ import { createSearchField } from './search-field.js';
 import { settingsConfirm, settingsOptionSheet } from './settings-shell.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { fillFileName } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
-import { createChip, setChipSelected } from './chip.js';   // ★★ #1107: the one From chip
 import { formatFileSize } from './shared-items.js';         // ★★ #1107: one size format (chat info + Downloads)
 
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
@@ -175,21 +174,33 @@ export function createSettingsDownloads({
   /* ★★ #1107: the sender filter — ONE "From: <who>" chip (shown only when a sender is known) that opens the option
      sheet: "Everyone" + every sender, sorted, with a search field once the list is long. Chips per sender did not
      scale (Damir: "it could be 50 or more people"; #1111). No sort control: newest first only (#1111). */
+  /* ★ G-5 (#1119, Damir picked C of three renders: "the From chip looks small / out of place"): a SECTION HEADER over
+     the list — the shown-file count on the left, an accent text button "From: <who> ▾" on the right, both on the card's
+     edge. Same sheet, same filter, same strings; no chip. The row hides when no sender is known (as the chip did). */
   const controls = document.createElement('div');
   controls.className = 'c-settings-dl__controls';
   let senders = new Map();             // key → label, from the current list
-  const fromChip = createChip({ label: '', size: 'small', strings, onClick: () => openSenderSheet() });
-  fromChip.classList.add('c-settings-dl__from-chip');
+  const countEl = document.createElement('span');
+  countEl.className = 'c-settings-dl__count';
+  const fromChip = document.createElement('button');
+  fromChip.type = 'button';
+  fromChip.className = 'c-settings-dl__from-btn';
   fromChip.setAttribute('aria-haspopup', 'dialog');
-  fromChip.append(icon('chevron-down', { size: 16 }));
-  controls.append(fromChip);
+  const fromLab = document.createElement('span');
+  fromLab.className = 'c-settings-dl__from-label';
+  fromChip.append(fromLab, icon('chevron-down', { size: 16 }));
+  fromChip.addEventListener('click', () => openSenderSheet());
+  controls.append(countEl, fromChip);
   body.append(controls);
   const fromLabel = () => (strings.downloadsFromChip || 'From: {name}').split('{name}').join(
     senderKey ? (senders.get(senderKey) || '') : (strings.downloadsAllSenders || 'Everyone'));
   function paintFromChip() {
-    const lab = fromChip.querySelector('.c-chip__label');
-    if (lab) lab.textContent = fromLabel();
-    setChipSelected(fromChip, !!senderKey);
+    fromLab.textContent = fromLabel();
+    if (senderKey) fromChip.dataset.active = ''; else delete fromChip.dataset.active;
+  }
+  function paintCount(n) {
+    countEl.textContent = n === 1 ? (strings.downloadsCountOne || '1 file')
+      : (strings.downloadsCount || '{n} files').split('{n}').join(String(n));
   }
   function openSenderSheet() {
     const options = [{ value: '', label: strings.downloadsAllSenders || 'Everyone' }]
@@ -378,6 +389,7 @@ export function createSettingsDownloads({
       if (hit) visible++;
     }
     noMatch.hidden = !(card.childElementCount > 0 && visible === 0);
+    paintCount(visible);   // ★ G-5: the header counts what is SHOWN
     live.textContent = (query || senderKey)
       ? (strings.downloadsMatches || '{n} files match').split('{n}').join(String(visible))
       : '';

@@ -48,8 +48,10 @@ namespace SPIXI
     {
         public const int ItemCap = 200;           // Damir (#1106): ~200, newest first
         public const int ScanCap = 4000;          // messages read per channel at most (the disk bound)
-        public const long ThumbMaxBytes = 300 * 1024;
-        public const int ThumbMaxCount = 24;      // the "See all" grid's first screens; the rest show the glyph
+        public const long ThumbMaxBytes = 64 * 1024;      // ★ G-6b: a file this small rides AS IS (no decode); a bigger one gets a real thumbnail
+        public const long ThumbSourceMax = 20L * 1024 * 1024;   // ★ G-6b (#46 r1 A2): never decode a file above this (the tile keeps its glyph)
+        public const int ThumbPx = 160;                   // ★ G-6b: the thumbnail's side (a 3-col tile is ~130 dp; ~10–15 KB at q60)
+        public const int ThumbMaxCount = 60;      // ★ G-6b: = SHARED_INLINE_MAX (the tiles shown in place); the rest show the glyph
         public const long ThumbTotalMax = 1536 * 1024;   // (#46 r1 A7) the whole push stays a few MB at most after escaping
         public const int JumpCap = 1000;          // Damir (#1106): the chat jump widens the window at most this far
 
@@ -95,12 +97,32 @@ namespace SPIXI
             }
         }
 
+        /* ★ G-6b (#1121): thumbnails made once per file version (path + size + write time), kept in memory for the
+         * process (bounded) — reopening chat info does not decode again. */
+        private static readonly object thumbLock = new object();
+        private static readonly Dictionary<string, string?> thumbCache = new Dictionary<string, string?>(StringComparer.Ordinal);
+        private const int ThumbCacheMax = 200;   // (#46 r1 A5) ≤ 200 × ≤ 64 KB
+
+        private static byte[] readHead(string path)
+        {
+            byte[] head = new byte[16];
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                int n = fs.Read(head, 0, head.Length);
+                if (n < head.Length)
+                {
+                    Array.Resize(ref head, Math.Max(n, 0));
+                }
+            }
+            return head;
+        }
+
         private static string? thumbOf(string path)
         {
             try
             {
                 FileInfo fi = new FileInfo(path);
-                if (!fi.Exists || fi.Length <= 0 || fi.Length > ThumbMaxBytes)
+                if (!fi.Exists || fi.Length <= 0)
                 {
                     return null;
                 }
@@ -110,11 +132,41 @@ namespace SPIXI
                     : ext == ".gif" ? "image/gif"
                     : ext == ".webp" ? "image/webp"
                     : null;
-                if (mime == null)
+                if (mime != null && fi.Length <= ThumbMaxBytes)
+                {
+                    return "data:" + mime + ";base64," + Convert.ToBase64String(File.ReadAllBytes(path));   // small: as is
+                }
+                /* ★ G-6b: a bigger photo (or HEIC / BMP / AVIF, which the WebView may not draw) → a real thumbnail, decoded
+                 * at a small size by the platform (Platforms/<os>/SThumbnail.cs) — never the whole file into the push.
+                 * (#46 r1 A2) The file is a CONTACT's and the decode runs in the app process, unasked: only a file whose
+                 * FIRST BYTES are one of the expected image formats reaches a platform decoder (the extension alone does
+                 * not), and never above ThumbSourceMax. */
+                if (fi.Length > ThumbSourceMax || Array.IndexOf(imageExts, ext) < 0 || !ImageSniff.looksLikeImage(readHead(fi.FullName)))
                 {
                     return null;
                 }
-                return "data:" + mime + ";base64," + Convert.ToBase64String(File.ReadAllBytes(path));
+                string key = fi.FullName + "|" + fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + "|" + fi.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                lock (thumbLock)
+                {
+                    if (thumbCache.TryGetValue(key, out string? hit))
+                    {
+                        return hit;
+                    }
+                }
+                byte[]? jpeg = Spixi.SThumbnail.makeJpeg(fi.FullName, ThumbPx);
+                string? uri = jpeg != null && jpeg.Length > 0 && jpeg.Length <= ThumbMaxBytes
+                    ? "data:image/jpeg;base64," + Convert.ToBase64String(jpeg)
+                    : null;
+                lock (thumbLock)
+                {
+                    if (thumbCache.Count >= ThumbCacheMax)
+                    {
+                        thumbCache.Clear();   // bounded: a rare full reset beats an LRU here
+                    }
+                    thumbCache[key] = uri;
+                }
+                return uri;
             }
             catch (Exception)
             {
@@ -261,15 +313,17 @@ namespace SPIXI
             }
             List<SharedItem> items = all.OrderByDescending(x => x.ts).ThenBy(x => x.n).Take(ItemCap).ToList();
             int thumbs = 0;
+            int tries = 0;   // (#46 r1 A5) a failed decode counts too — never 200 decodes before the push
             long thumbBytes = 0;
             foreach (SharedItem it in items)
             {
-                if (thumbs >= ThumbMaxCount || thumbBytes >= ThumbTotalMax)
+                if (thumbs >= ThumbMaxCount || tries >= ThumbMaxCount || thumbBytes >= ThumbTotalMax)
                 {
                     break;
                 }
                 if (it.kind == "media" && it.path != null)
                 {
+                    tries++;
                     it.thumb = thumbOf(it.path);
                     if (it.thumb != null)
                     {

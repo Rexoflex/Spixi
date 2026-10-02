@@ -581,6 +581,25 @@ namespace SPIXI
                     });
                 }
             }
+            else if (current_url.StartsWith("ixian:sharedShow:", StringComparison.Ordinal))
+            {
+                /* ★ G-6 (#1120, 🟡 a NEW presentation verb — BE ask + T1): the long-press menu's "Show in chat". The WebView
+                 * names an item ("<message id hex>:<link index>") — NOTHING else; C# resolves it from its OWN last scan and
+                 * opens the conversation AT the message — the exact jump sharedOpen already makes for media and for a file
+                 * with no local copy, now for any kind. Nothing is opened, fetched or deleted. */
+                string token = current_url.Substring("ixian:sharedShow:".Length);
+                SharedItem? item = SharedItems.resolve(friend, token);
+                if (item == null)
+                {
+                    Logging.warn("ixian:sharedShow: no such item (len=" + token.Length + ")");
+                }
+                else
+                {
+                    SingleChatPage.requestJump(friend, item.id, item.depth);
+                    popPageAsync();
+                    HomePage.Instance()?.onChat(friend.walletAddress, null);
+                }
+            }
             else if (current_url.StartsWith("ixian:sharedOpen:", StringComparison.Ordinal))
             {
                 /* ★★ #1106: the WebView names an item ("<message id hex>:<link index>") — NOTHING else. C# resolves it

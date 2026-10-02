@@ -2212,10 +2212,19 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-settings-dl__del:active { background: var(--surface-interactive-pressed); }
 
 /* ★★ #1107: ONE "From: <who>" chip (a sheet picks the sender — chips per person did not scale, #1111) */
-.c-settings-dl__controls { display: flex; padding: 0 var(--spacing-16) var(--spacing-8); }
+/* ★ G-5 (#1119, render C): a section header on the card's edge — the count left, an accent "From: … ▾" text button right */
+.c-settings-dl__controls { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-8); padding: 0 var(--spacing-4) var(--spacing-4); }
 .c-settings-dl__controls[hidden] { display: none; }
-.c-settings-dl__from-chip { max-width: 100%; }
-.c-settings-dl__from-chip .c-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__count { flex: none; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); letter-spacing: var(--tracking-body-sm); color: var(--text-neutral-02); }
+.c-settings-dl__from-btn {
+  display: inline-flex; align-items: center; gap: var(--spacing-4); min-width: 0; max-width: 70%; min-height: 44px;
+  padding: 0 var(--spacing-4); border: 0; background: none; color: var(--text-accent); cursor: pointer;
+  font: inherit; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); font-weight: var(--font-weight-semibold);
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-dl__from-btn svg { flex: none; }
+.c-settings-dl__from-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from-btn:focus-visible { border-radius: var(--radius-8); }   /* (#46 r1 B10) the global ring (--outline-focus); only its corners here */
 .c-settings-dl__from { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
 /* the Downloads "Show in chat" icon: the delete button's 44px box, its own class (#46 r1 B11 / r2 R2-2) */
@@ -5821,6 +5830,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     notifEnabled: true,
     notifSenderName: false,
     notifSounds: true,
+    callRingtone: true,        // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
     notifPushProvider: true,   // ★ P2 (#708): matches the C# default (KEY_PUSH_PROVIDER = true)
     /* PA1 (#525): "Confirm payments" — display state only. The C# verb persists
        IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
@@ -6788,7 +6798,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * and re-entered the sublevel.
    * Same shape as #274's langBuilt: a state-keyed signature, rebuilt only on a real change,
    * so a rebuild cannot churn the screen under a user's finger. */
-  const notifSig = () => [state.notifEnabled, state.notifSenderName, state.notifSounds, state.notifPushProvider].join('|');
+  const notifSig = () => [state.notifEnabled, state.notifSenderName, state.notifSounds, state.notifPushProvider, state.callRingtone].join('|');   // ★ E-W4: + callRingtone
 
   /* ★ P2 (#708): which platform's COST the push-provider row describes. The UA stamp is the
      same signal the desktop flag reads (settings.html:11); a WKWebView reports iPhone/iPad,
@@ -6831,6 +6841,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     const verb = (key === 'notifEnabled') ? 'ixian:notifEnabled:'
       : (key === 'notifSenderName') ? 'ixian:notifSenderName:'
       : (key === 'notifPushProvider') ? 'ixian:notifPushProvider:'   // ★ P2 (#708)
+      : (key === 'callRingtone') ? 'ixian:callRingtone:'             // ★ E-W4 (🟡 #1118)
       : 'ixian:notifSounds:';
     bridge.send(verb + (next ? 'on' : 'off'));
   }
@@ -6918,14 +6929,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         enabled: state.notifEnabled,
         previews: state.notifSenderName,
         sounds: state.notifSounds,
+        callRingtone: state.callRingtone,                         // ★ E-W4
         pushProvider: state.notifPushProvider,                    // ★ P2 (#708)
         platform: pushPlatform(),                                 // ★ P2: the sub-label names the platform's cost
-        capabilities: { globalNotifications: bridge.cap('globalNotifications'), pushProvider: bridge.cap('pushProvider') },
+        capabilities: { globalNotifications: bridge.cap('globalNotifications'), pushProvider: bridge.cap('pushProvider'), callRingtone: bridge.cap('callRingtone') },   // ★ E-W4: the row shows only when the exe handles the verb
         strings,
         onBack: showHub,
         onEnabled: (next, ctrl) => { latchNotif('notifEnabled', next, ctrl); },
         onPreviews: (next, ctrl) => { latchNotif('notifSenderName', next, ctrl); },
         onSounds: (next, ctrl) => { latchNotif('notifSounds', next, ctrl); },
+        onCallRingtone: (next, ctrl) => { latchNotif('callRingtone', next, ctrl); },   // ★ E-W4
         onPushProvider: (next, ctrl) => { latchNotif('notifPushProvider', next, ctrl); },   // ★ P2 (#708)
       });
       /* ★★ security sweep E-1b — THE OPT-OUT THAT DID NOT EXIST.
@@ -7414,6 +7427,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     setNotifEnabled(s) { applyNotifPush('notifEnabled', s); },
     setNotifSenderName(s) { applyNotifPush('notifSenderName', s); },
     setNotifSounds(s) { applyNotifPush('notifSounds', s); },
+    setCallRingtone(s) { applyNotifPush('callRingtone', s); },   // ★ E-W4 (🟡 #1118): the echo half of ixian:callRingtone
     setNotifPushProvider(s) { applyNotifPush('notifPushProvider', s); },   // ★ P2 (#708): the echo half of ixian:notifPushProvider
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411

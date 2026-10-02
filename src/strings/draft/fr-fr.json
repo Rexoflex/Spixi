@@ -402,6 +402,7 @@
   "notifSender": "Afficher le nom de l’expéditeur",
   "notifSenderSub": "Le texte du message n’apparaît jamais dans les notifications",
   "notifSounds": "Sons dans l'app",
+  "notifCallRingtone": "Sonnerie d'appel",
   "notifPushProvider": "Livraison instantanée via OneSignal",
   "notifPushProviderOn": "Activé : OneSignal réveille cet appareil dès qu’un message arrive. OneSignal reçoit un jeton de notification pour cet appareil et voit son adresse IP. Il ne voit jamais vos messages ni vos contacts.",
   "notifPushProviderOffAndroid": "Désactivé : plus rien n’est envoyé à OneSignal et cet appareil y est désabonné. Spixi vérifie lui-même les nouveaux messages et vous prévient quand il en trouve ; ils peuvent donc arriver un peu plus tard. L’enregistrement que OneSignal détient déjà n’est pas supprimé par ce réglage.",
@@ -787,5 +788,12 @@
   "downloadsFrom": "de {name}",
   "downloadsShowInChat": "Voir {name} dans la discussion",
   "downloadsFromChip": "De : {name}",
-  "downloadsSearchSenders": "Rechercher des personnes"
+  "downloadsSearchSenders": "Rechercher des personnes",
+  "downloadsCount": "{n} fichiers",
+  "downloadsCountOne": "1 fichier",
+  "linkCopied": "Lien copié",
+  "sharedOpen": "Ouvrir",
+  "sharedShowAll": "Tout afficher ({n})",
+  "sharedCopyFailed": "Copie impossible",
+  "copyLink": "Copier le lien"
 }

@@ -15,6 +15,9 @@ namespace Spixi
         private Action<byte[]> OnSoundDataReceived;
 
         private AVAudioEngine audioRecorder = null;
+        // ★ E-W1 (Mac walk crash 2026-10-01: SIGSEGV in -[AVAudioNode dealloc] → AVAudioClock → RemoveRenderObserver):
+        // the InputNode wrapper must be released BEFORE the engine (see SAudioPlayer). Held once, disposed in stop().
+        private AVAudioInputNode inputNode = null;
         private AVAudioConverter audioConverter = null;
         private IAudioEncoder audioEncoder = null;
 
@@ -82,7 +85,8 @@ namespace Spixi
             audioRecorder = new AVAudioEngine();
 
             desiredFormat = new AVAudioFormat(AVAudioCommonFormat.PCMInt16, sampleRate, (uint)channels, false);
-            recordingFormat = audioRecorder.InputNode.GetBusOutputFormat(0);
+            inputNode = audioRecorder.InputNode;
+            recordingFormat = inputNode.GetBusOutputFormat(0);
 
             Logging.info($"Recording format: {recordingFormat}");
             Logging.info($"Desired output format: {desiredFormat}");
@@ -91,7 +95,7 @@ namespace Spixi
 
 
             uint bufferSize = (uint)(recordingFormat.SampleRate * 0.1); // 100ms
-            audioRecorder.InputNode.InstallTapOnBus(0, bufferSize, recordingFormat, onDataAvailable);
+            inputNode.InstallTapOnBus(0, bufferSize, recordingFormat, onDataAvailable);
 
             audioRecorder.Prepare();
             if (!audioRecorder.StartAndReturnError(out error))
@@ -156,7 +160,7 @@ namespace Spixi
             {
                 try
                 {
-                    audioRecorder.InputNode.RemoveTapOnBus(0);
+                    inputNode?.RemoveTapOnBus(0);
                     audioRecorder.Stop();
                     audioRecorder.Reset();
                 }
@@ -164,6 +168,8 @@ namespace Spixi
                 {
 
                 }
+                inputNode?.Dispose();   // ★ E-W1: before the engine
+                inputNode = null;
                 audioRecorder.Dispose();
                 audioRecorder = null;
             }

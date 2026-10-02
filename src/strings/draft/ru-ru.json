@@ -402,6 +402,7 @@
   "notifSender": "Показывать имя отправителя",
   "notifSenderSub": "Текст сообщения никогда не показывается в уведомлениях",
   "notifSounds": "Звуки в приложении",
+  "notifCallRingtone": "Мелодия звонка",
   "notifPushProvider": "Мгновенная доставка через OneSignal",
   "notifPushProviderOn": "Вкл.: OneSignal будит это устройство, как только приходит сообщение. OneSignal получает push-токен этого устройства и видит его IP-адрес. Ваши сообщения и контакты он не видит никогда.",
   "notifPushProviderOffAndroid": "Выкл.: в OneSignal больше ничего не отправляется, и это устройство там отписано. Spixi сам проверяет новые сообщения и уведомляет вас, когда находит их, поэтому они могут приходить чуть позже. Запись, которая уже есть у OneSignal, этот переключатель не удаляет.",
@@ -787,5 +788,12 @@
   "downloadsFrom": "от {name}",
   "downloadsShowInChat": "Показать {name} в чате",
   "downloadsFromChip": "От: {name}",
-  "downloadsSearchSenders": "Поиск людей"
+  "downloadsSearchSenders": "Поиск людей",
+  "downloadsCount": "Файлов: {n}",
+  "downloadsCountOne": "1 файл",
+  "linkCopied": "Ссылка скопирована",
+  "sharedOpen": "Открыть",
+  "sharedShowAll": "Показать все ({n})",
+  "sharedCopyFailed": "Не удалось скопировать",
+  "copyLink": "Копировать ссылку"
 }

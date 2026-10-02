@@ -807,3 +807,29 @@ message through the composer's own path (`Node.addMessageWithType` + `sendChatMe
 thing for you to judge: a user-typed string leaves without the composer screen in front of it (the
 sheet names the recipient; three presets or a typed line). Nothing signs, moves keys, touches a
 file or fetches.
+
+## Session 2 addenda (2026-10-02, #1118–#1121) — two new verbs, a local store, contact images decoded in-process
+
+### ⚠ G-6b THUMBNAILS (INTRODUCED #1121, accepted with mitigations) — a contact's images decoded in the APP process
+
+Chat info's shared-media tiles now show a real preview. `SharedItems.thumbOf` hands a received media file (C#'s own
+received-media path, never a WebView value) to `Platforms/<os>/SThumbnail.makeJpeg`, which decodes it at a small size
+(Android `inJustDecodeBounds` + `inSampleSize` with BOTH sides capped · Apple `CGImageSource` thumbnail · Windows a scaled
+`BitmapDecoder`) — unasked, when chat info opens. The process holds the wallet keys, and malformed images are a classic
+native-decoder attack surface. Guards: only a file whose FIRST BYTES are JPEG · PNG · GIF · WebP · BMP · HEIC/HEIF · AVIF
+(`Utils/ImageSniff.cs`, unit-tested) reaches a decoder; ≤ 20 MB; ≤ 60 decodes per open (failed ones counted); off the UI
+thread; cached per file version. The precedent is legacy: a peer's AVATAR has always been decoded in-process
+(`StreamProcessor` → `SFilePicker.ResizeImage`). **For you to judge:** keep, or decode in a WebView / an isolated process.
+
+### 🟡 NEW verbs (frozen protocol — your approval asked)
+
+| Verb / push | Where | What it can do |
+|---|---|---|
+| `ixian:sharedShow:<hex id>:<n>` | ContactDetails (chat info) | the token is looked up in C#'s OWN last scan (`SharedItems.resolve`); the action is the existing jump into the chat (`requestJump`); nothing opened, fetched or deleted |
+| `ixian:callRingtone:on\|off` + push `setCallRingtone` + cap `callRingtone` | Settings | stores one bool preference (`call_ringtone`); VoIPManager skips the LOCAL ring when off (the call, its notification and UI unchanged) |
+
+### LOCAL STORE (INTRODUCED #1116/#1118, accepted) — the last sighting of each accepted contact
+
+`Meta/SSightingStore.cs`: one app preference `last_sightings` (`address:seconds`, 5-min grain, ≤ 512, accepted 1:1
+contacts only), so "last seen" survives a restart. Never on the bridge, never logged; wiped with the account, removed with
+the contact.

@@ -1210,6 +1210,13 @@ namespace SPIXI
             else if (current_url.Contains("ixian:tab:"))
             {
                 currentTab = current_url.Split(new string[] { "ixian:tab:" }, StringSplitOptions.None)[1];
+                if (P1Perf.enabled)
+                {
+                    // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the id only when it is tab0–tab9.
+                    string p1Tab = System.Text.RegularExpressions.Regex.IsMatch(currentTab, "^tab[0-9]\\z") ? currentTab : "other";
+                    P1Perf.line("tab " + p1Tab + " recv");
+                    P1Perf.framesAfter("tab-" + p1Tab);
+                }
                 if (suppressNextTabOverlayExit && currentTab == "tab1")
                 {
                     // #285: this is the reloaded shell's own boot-time tab1 echo
@@ -3745,6 +3752,8 @@ namespace SPIXI
                     detailContent.updateScreen();
                 }
                 UIHelpers.shouldRefreshTransactions = false;
+                long p1T0 = P1Perf.now();   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the push burst
+                int p1Rows = 0;
                 Utils.sendUiCommand(this, "clearPaymentActivity", filterToString(transactionFilter));
 
                 void addPaymentActivity(ActivityObject activity)
@@ -3807,6 +3816,7 @@ namespace SPIXI
                     // mismatched-build scenario (bundle always ships both together).
                     string time = activity.timestamp.ToString();
                     Utils.sendUiCommand(this, "addPaymentActivity", tx.getTxIdString(), received, tx_text, time, amount_string, fiat_amount_string, confirmed);
+                    p1Rows++;   // ★ P-1 (#1127) — TEMPORARY
                 }
 
                 foreach (var activity in Node.activityStorage.getActivitiesByStatus(IXICore.Activity.ActivityStatus.Rejected, true))
@@ -3851,6 +3861,11 @@ namespace SPIXI
                  * ⚠ The shell keeps its quiet-window timer as a BELT, so an older exe that
                  * never sends this still opens the gate on the old schedule. */
                 Utils.sendUiCommand(this, "clearPaymentActivityDone");
+                if (P1Perf.enabled)
+                {
+                    // ★ P-1 (#1127) — TEMPORARY: the burst is queued here (sendUiCommand marshals; the WebView runs it after).
+                    P1Perf.line("wallet txpush rows=" + p1Rows + " force=" + (forceRefresh ? "1" : "0") + " ms=" + P1Perf.msSince(p1T0));
+                }
             }
         }
 
@@ -4458,6 +4473,11 @@ namespace SPIXI
 
         public void landOnTab(string id)
         {
+            if (P1Perf.enabled)
+            {
+                // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the id only when it is [a-z0-9]{1,12}.
+                P1Perf.line("landtab " + (id != null && System.Text.RegularExpressions.Regex.IsMatch(id, "^[a-z0-9]{1,12}\\z") ? id : "other") + " recv");
+            }
             if (id == null || Array.IndexOf(LAND_TAB_IDS, id) < 0)
             {
                 Logging.warn("landOnTab: unknown tab id (other) — ignored");
@@ -4653,6 +4673,11 @@ namespace SPIXI
                 SpixiContentPage.rehomeOverlay(overlay, 2);
                 mainGrid.ColumnDefinitions[2].Width = new GridLength(Math.Min(infoPaneWidth, avail));
                 infoPaneCol2Open = true;
+                if (P1Perf.enabled)
+                {
+                    P1Perf.line("infopane col w=" + (long)Math.Round(Math.Min(infoPaneWidth, avail)));   // ★ P-1 (#1127) — TEMPORARY
+                    P1Perf.framesAfter("infopane");
+                }
             }
             else
             {

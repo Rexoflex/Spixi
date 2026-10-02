@@ -22,6 +22,7 @@ import { createTopbar } from './topbar.js';
 import { docLocale } from './timestamp.js';
 import { createChip, setChipSelected } from './chip.js';   // ★ G-6: the kind chips
 import { createSheet, openSheet, closeSheet } from './sheet.js';   // ★ G-6: the long-press menu
+import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
 
 export const SHARED_KINDS = ['media', 'file', 'link'];
 export const SHARED_PREVIEW = { media: 6, file: 3, link: 3 };   // (the #1110 cards; kept for the demo and older callers)
@@ -247,6 +248,7 @@ export function createSharedSection({ items = [], strings = getStrings(), onOpen
     }
     panel.replaceChildren(...parts);
     panel.setAttribute('aria-label', sharedKindTitle(kind, strings));
+    if (userPick) { try { p1Shown('chatinfo-tab'); } catch (e) {} }   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
   };
   for (const k of kinds) {
     const c = createChip({ label: sharedKindTitle(k, strings) + ' ' + by[k].length, size: 'large', strings, onClick: () => show(k, true) });
@@ -320,7 +322,7 @@ export function createSharedList({ items = [], tab = 'media', strings = getStrin
   panel.id = 'c-shared-panel-' + Math.random().toString(36).slice(2, 8);   // (#46 r1 B5) the tabs point at it
   if (kinds.length > 1) panel.setAttribute('role', 'tabpanel');
   const buttons = {};
-  const show = (kind) => {
+  const show = (kind, user = false) => {   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: `user` marks a pick (the build-time show is not one)
     current = kind;
     for (const k of kinds) {
       buttons[k].setAttribute('aria-selected', k === kind ? 'true' : 'false');
@@ -329,6 +331,7 @@ export function createSharedList({ items = [], tab = 'media', strings = getStrin
     panel.replaceChildren(sharedItemsBody(kind, by[kind], strings, onOpen, onMenu));
     if (kinds.length > 1) panel.setAttribute('aria-label', sharedKindTitle(kind, strings));   // (#46 r2 R2-12) a name only on the tabpanel role
     el.dataset.tab = kind;
+    if (user) { try { p1Shown('shared-tab'); } catch (e) {} }   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
   };
   for (const k of kinds) {
     const b = document.createElement('button');
@@ -337,12 +340,12 @@ export function createSharedList({ items = [], tab = 'media', strings = getStrin
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-controls', panel.id);
     b.textContent = sharedKindTitle(k, strings) + ' ' + by[k].length;
-    b.addEventListener('click', () => show(k));
+    b.addEventListener('click', () => show(k, true));
     b.addEventListener('keydown', (e) => {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
       const i = kinds.indexOf(current) + (e.key === 'ArrowRight' ? 1 : -1);
       const next = kinds[(i + kinds.length) % kinds.length];
-      show(next);
+      show(next, true);
       buttons[next].focus();
     });
     buttons[k] = b;

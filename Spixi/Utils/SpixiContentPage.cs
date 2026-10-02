@@ -423,9 +423,99 @@ namespace SPIXI
             if (coreWebView2 == null) return;
             coreWebView2.Settings.IsStatusBarEnabled = false;
             coreWebView2.Settings.AreDevToolsEnabled = true;
+#if SPIXI_DEV_COEXIST
+            p1HookConsole(coreWebView2, (sender as WebView)?.ClassId == "miniapp" || _webView.ClassId == "miniapp");   // ★ P-1 (#1127) — TEMPORARY
+#endif
 
 #endif
         }
+
+#if WINDOWS && SPIXI_DEV_COEXIST
+        /* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set. WebView2 has no console → log path, so the shells'
+         * `[P1] ` lines reach ixian.log through the DevTools protocol (Runtime.consoleAPICalled). Dev builds only, our
+         * WebViews only (never ClassId="miniapp"), once per CoreWebView2; only a string first argument that passes
+         * P1Perf.isValidLine is logged — nothing else from the console ever is. */
+        private CoreWebView2? p1ConsoleCore = null;
+        private CoreWebView2DevToolsProtocolEventReceiver? p1ConsoleReceiver = null;   // held so the subscription lives with the page
+        private static int p1ConsoleWarned = 0;
+
+        private async void p1HookConsole(CoreWebView2 core, bool miniApp)
+        {
+            if (miniApp || ReferenceEquals(p1ConsoleCore, core))
+            {
+                return;
+            }
+            p1ConsoleCore = core;
+            try
+            {
+                p1ConsoleReceiver = core.GetDevToolsProtocolEventReceiver("Runtime.consoleAPICalled");
+                p1ConsoleReceiver.DevToolsProtocolEventReceived += p1OnConsoleApiCalled;
+                await core.CallDevToolsProtocolMethodAsync("Runtime.enable", "{}");
+                try
+                {
+                    /* (#46 r3 MINOR-2) no stack trace on console events: V8 attaches up to 200 frames (~160 bytes each), so a
+                     * deep call chain pushed a shell line past the pre-filter cap and it was dropped silently */
+                    await core.CallDevToolsProtocolMethodAsync("Runtime.setMaxCallStackSizeToCapture", "{\"size\":0}");
+                }
+                catch (Exception ex)
+                {
+                    p1ConsoleWarn(ex);
+                }
+            }
+            catch (Exception ex)
+            {
+                p1ConsoleWarn(ex);
+            }
+        }
+
+        private static void p1OnConsoleApiCalled(object? sender, CoreWebView2DevToolsProtocolEventReceivedEventArgs e)
+        {
+            try
+            {
+                string json = e.ParameterObjectAsJson;
+                if (json == null || json.Length > 16384 || json.IndexOf("[P1] shell ", StringComparison.Ordinal) < 0)
+                {
+                    return;   // cheap pre-filter: only a shell [P1] line is ever parsed (16 KiB: the event JSON, not the line — the line itself is ≤ ~700 chars by the grammar)
+                }
+                using (System.Text.Json.JsonDocument doc = System.Text.Json.JsonDocument.Parse(json))
+                {
+                    System.Text.Json.JsonElement root = doc.RootElement;
+                    if (root.ValueKind == System.Text.Json.JsonValueKind.Object
+                        && root.TryGetProperty("args", out System.Text.Json.JsonElement args)
+                        && args.ValueKind == System.Text.Json.JsonValueKind.Array
+                        && args.GetArrayLength() > 0)
+                    {
+                        System.Text.Json.JsonElement first = args[0];
+                        if (first.ValueKind == System.Text.Json.JsonValueKind.Object
+                            && first.TryGetProperty("value", out System.Text.Json.JsonElement value)
+                            && value.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            string? s = value.GetString();
+                            // Shell lines only, through logSafe (the Android console path's rule, no clamp), grammar on its output.
+                            s = P1Perf.acceptShellConsole(s, x => Utils.logSafe(x, 0));
+                            if (s != null && P1Perf.isValidLine(s))
+                            {
+                                Logging.info(s);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                p1ConsoleWarn(ex);
+            }
+        }
+
+        // One warn per process, a fixed sentence + the exception's type name (never its message).
+        private static void p1ConsoleWarn(Exception ex)
+        {
+            if (Interlocked.Exchange(ref p1ConsoleWarned, 1) == 0)
+            {
+                Logging.warn("P1Perf: console hook failed (" + ex.GetType().Name + ")");
+            }
+        }
+#endif
 
         protected async void webViewNavigated(object? sender, WebNavigatedEventArgs e)
         {
@@ -825,6 +915,8 @@ namespace SPIXI
             // getOverlayStageMargin(). Read under preloadLock, never off the stage's
             // Margin property (that would be a UI read from a background thread).
             public Thickness stageMargin = default;
+            public long p1Start = P1Perf.now();   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the open clock (reset at a spare attach)
+            public void p1Mark() { p1Start = P1Perf.now(); }   // ★ P-1 (#1127) — TEMPORARY
             private int done = 0;
 
             public PreloadOp(SpixiContentPage host, SpixiContentPage target, ContentView stage, View targetContent, Grid hostGrid)
@@ -1315,6 +1407,7 @@ namespace SPIXI
                  * slide gets the mirror for free — it must get the reset for free too. */
                 op.closing = false;
                 overlayStack.Add(op);
+                op.p1Mark();   // ★ P-1 (#1127) — TEMPORARY: a re-present's open clock starts here
             }
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -1360,6 +1453,7 @@ namespace SPIXI
                      * drift. L8 already cleared `op.closing` above so the `finally` reset
                      * inside slideStageIn works on the resurrected op. */
                     revealStage(op);
+                    p1Present(op, true);   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the parked re-present
                     /* ★ #1040 (Damir 2026-09-29, Android screenshots): the RE-PRESENT path never
                      * ran a chrome pass. A fresh overlay present gets one while it LOADS
                      * (checkIfPageLoaded → applyPlatformPageChrome, the page is about to be shown);
@@ -1774,6 +1868,7 @@ namespace SPIXI
             {
                 cancelPreload(yieldingWarm);
             }
+            op.p1Mark();   // ★ P-1 (#1127) — TEMPORARY: a spare open starts at the tap, not at the warm
             try
             {
                 attach((SingleChatPage)op.target);
@@ -2194,6 +2289,7 @@ namespace SPIXI
 
         private static void closeOverlay(PreloadOp op, bool slideOut = false)
         {
+            long p1T0 = P1Perf.now();   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
             SpixiContentPage? host;
             PreloadOp? evicted = null;
             bool parked = false;
@@ -2236,6 +2332,7 @@ namespace SPIXI
             }
             MainThread.BeginInvokeOnMainThread(async () =>
             {
+                string p1Kind = p1CloseStart(op, parked, slideOut);   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
                 if (evicted != null)
                 {
                     try
@@ -2277,6 +2374,10 @@ namespace SPIXI
                              * back mid-exit), which moved the guarantee onto the exit paths.
                              * The dispose branch below already resets. This is the other one. */
                             op.stage.TranslationX = 0;
+                        }
+                        if (stillParked)
+                        {
+                            p1CloseDone(p1Kind, p1T0);   // ★ P-1 (#1127) — TEMPORARY: the parked stage is hidden
                         }
                     }
                     else
@@ -2382,6 +2483,7 @@ namespace SPIXI
                         op.stage.InputTransparent = true;
                         await Task.Delay(100);
                         op.hostGrid.Children.Remove(op.stage);
+                        p1CloseDone(p1Kind, p1T0);   // ★ P-1 (#1127) — TEMPORARY: the stage is removed
                         op.stage.TranslationX = 0;   // #326 belt: never hand a translated stage to any reuse path
                         op.stage.Content = null;
                         op.target.Content = op.targetContent;   // reattach for a clean Dispose
@@ -2405,6 +2507,31 @@ namespace SPIXI
                     Logging.error("onOverlayClosed failed: " + ex);
                 }
             });
+        }
+
+        /* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: `close <kind> start slide=`, on the close's main-thread
+         * turn (only a claimed close gets here). slide = the slide-out branch will run (same test; a parked close never slides). */
+        private static string p1CloseStart(PreloadOp op, bool parked, bool slideOut)
+        {
+            string kind = P1Perf.kind(op.target);
+            if (P1Perf.enabled)
+            {
+                bool ios = Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS;
+                bool slide = !parked && slideOut && (op.slideIn || (ios && op.column < 0));
+                P1Perf.line("close " + kind + " start slide=" + (slide ? "1" : "0"));
+            }
+            return kind;
+        }
+
+        /* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: `close <kind> done ms=` + the frame window. */
+        private static void p1CloseDone(string kind, long t0)
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            P1Perf.line("close " + kind + " done ms=" + P1Perf.msSince(t0));
+            P1Perf.framesAfter("close-" + kind);
         }
 
         /* ★ N73 review MAJOR-4: repaint the Android system-bar strip for a page that is
@@ -2619,6 +2746,7 @@ namespace SPIXI
         /// <summary>The home shell's `ixian:coverpainted` — release the waiter, if any.</summary>
         public static void coverPainted()
         {
+            P1Perf.line("landtab cover");   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set (HomePage's ixian:coverpainted)
             int seq;
             lock (preloadLock)
             {
@@ -2925,6 +3053,7 @@ namespace SPIXI
                 if (activePreload != null && activePreload.parkOnLoad && activePreload.target is T)
                 {
                     activePreload.parkOnLoad = false;
+                    activePreload.p1Mark();   // ★ P-1 (#1127) — TEMPORARY: a claimed warm op's open counts from the tap
                     return true;
                 }
                 // loop r1 MINOR-4: warmParkedOverlay sets preloadPending one dispatcher turn
@@ -3367,6 +3496,20 @@ namespace SPIXI
             lock (preloadLock) { return op.parkOnLoad; }
         }
 
+        /* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: `[P1] open <kind> present ms= overlay= slide=` +
+         * the 600 ms frame window. ms counts from the op's construction (or the spare attach). */
+        private static void p1Present(PreloadOp op, bool overlay)
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            string kind = P1Perf.kind(op.target);
+            P1Perf.line("open " + kind + " present ms=" + P1Perf.msSince(op.p1Start)
+                + " overlay=" + (overlay ? "1" : "0") + " slide=" + (overlay && op.slideIn ? "1" : "0"));
+            P1Perf.framesAfter("open-" + kind);
+        }
+
         private static void presentPreload(PreloadOp op, string reason)
         {
             if (!op.tryFinish())
@@ -3625,6 +3768,7 @@ namespace SPIXI
                         {
                             Logging.warn("onPreloadPresented failed: " + ex);
                         }
+                        p1Present(op, true);   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
                         try
                         {
                             op.host.onOverlayPresented(op.target);
@@ -3709,6 +3853,7 @@ namespace SPIXI
                         {
                             op.target.presentedFromPreload = true;
                             await op.host.Navigation.PushAsync(op.target, Config.defaultXamarinAnimations);
+                            p1Present(op, false);   // ★ P-1 (#1127) — TEMPORARY: the push fallback's present (overlay=0)
 
                             // Chained navigation (legacy parity: push new, then remove the
                             // caller from beneath it).
@@ -3912,6 +4057,7 @@ namespace SPIXI
             op.stage.Opacity = 1;
             PreloadOp held = op;
             Android.Webkit.WebView? heldView = native;
+            p1HoldProbe(op);   // ★ P-1 (#1127) — TEMPORARY: the A1 probe (#1123 (1): why=noview), always before the hold
             Spixi.PresentHold.start(native, HoldCapMs, (frames, ms, why) =>
             {
                 try
@@ -3929,6 +4075,41 @@ namespace SPIXI
                 catch (Exception) { }
                 Logging.info("[CDPERF] chat held frames={0} ms={1} why={2}", frames, ms, why);   // ★ G-1 — TEMPORARY, retire with the set
             });
+        }
+
+        /* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set. A1 (#1123 (1)): what the hold sees when it starts.
+         * pv = the platform view's framework class name, [a-z0-9] only, capped at 37 (so `pv=<name>` fits 40), or `none`. */
+        private static void p1HoldProbe(PreloadOp op)
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            try
+            {
+                WebView? wv = op.target._webView;
+                object? pv = wv?.Handler?.PlatformView;
+                string pvName = "none";
+                if (pv != null)
+                {
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    foreach (char c in pv.GetType().Name.ToLowerInvariant())
+                    {
+                        if (sb.Length >= 37) break;   // `pv=` + 37 = the 40-char token cap
+                        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) sb.Append(c);
+                    }
+                    if (sb.Length > 0) pvName = sb.ToString();
+                }
+                P1Perf.line("a1 hold webview=" + (wv != null ? "1" : "0")
+                    + " handler=" + (wv?.Handler != null ? "1" : "0")
+                    + " pv=" + pvName
+                    + " incontent=" + (op.stage.Content == op.targetContent ? "1" : "0")
+                    + " stageh=" + (op.stage.Handler != null ? "1" : "0")
+                    + " page=" + P1Perf.kind(op.target));
+            }
+            catch (Exception)
+            {
+            }
         }
 
         /** ★ G-1: the four grounds under the chat WebView — transparent while held, the page surface after. */
@@ -5068,7 +5249,9 @@ namespace SPIXI
                     Logging.warn("popPageAsync: page disposed while the pop was queued — ignored (V-5)");
                     return;
                 }
+                long p1T0 = P1Perf.now();   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
                 Page page = await Navigation.PopAsync(Config.defaultXamarinAnimations);
+                p1Pop(page, p1T0);   // ★ P-1 (#1127) — TEMPORARY (null → `pop none`)
                 if (page != null
                     && page is SpixiContentPage)
                 {
@@ -5076,6 +5259,18 @@ namespace SPIXI
                     ((SpixiContentPage)page).Dispose();
                 }
             });
+        }
+
+        /* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: `pop <kind> ms=<PopAsync duration>` + the frame window. */
+        private static void p1Pop(object? page, long t0)
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            string kind = page != null ? P1Perf.kind(page) : "none";
+            P1Perf.line("pop " + kind + " ms=" + P1Perf.msSince(t0));
+            P1Perf.framesAfter("pop-" + kind);
         }
 
         public void popToRootAsync()
@@ -5119,7 +5314,9 @@ namespace SPIXI
                 }
                 if (mainPage.Navigation.NavigationStack.Count > 1)
                 {
+                    long p1T0 = P1Perf.now();   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
                     Page page = await Navigation.PopAsync(Config.defaultXamarinAnimations);
+                    p1Pop(page, p1T0);   // ★ P-1 (#1127) — TEMPORARY (null → `pop none`)
                     if (page != null
                         && page is SpixiContentPage)
                     {

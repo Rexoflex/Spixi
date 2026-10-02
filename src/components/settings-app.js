@@ -33,7 +33,7 @@ import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { settingsConfirm, settingsOptionSheet } from './settings-shell.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
-import { fillFileName } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
+import { fillFileName, createFileTile } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
 import { formatFileSize } from './shared-items.js';         // ★★ #1107: one size format (chat info + Downloads)
 
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
@@ -310,11 +310,7 @@ export function createSettingsDownloads({
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'c-settings-dl__open';
-    const disc = document.createElement('span');
-    disc.className = 'c-disc';
-    disc.dataset.hue = 'info';
-    disc.dataset.grad = String(discGrad('file-isr'));
-    disc.append(icon('file-isr', { size: 16 }));
+    const disc = createFileTile(name);     // ★ A3 (#1126): the chat's file-type tile (PNG · PDF …), the same builder
     const meta = document.createElement('span');
     meta.className = 'c-settings-dl__meta';
     const nm = document.createElement('span');

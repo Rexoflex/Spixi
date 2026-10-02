@@ -727,6 +727,13 @@ function fileTile(name, state) {
   if (badge) ic.append(badge);
   return ic;
 }
+/** ★ A3 (#1126 / #1123 G-5): the chat's document tile, for other lists of files (Downloads). The SAME
+ *  builder as the file bubble's tile, never a copy; no state badge (a listed file is on this device). */
+export function createFileTile(name) {
+  const tile = fileTile(name, 'complete');
+  tile.setAttribute('aria-hidden', 'true');   // (#46 r1 B-1) decoration: the row's name is the file name, never "PDF report.pdf"
+  return tile;
+}
 /* Explicit "Open file" affordance for a completed download (A8b, Damir F5): the
    whole bubble is already a tappable button, but a labelled control makes it
    obvious the transfer finished and the file is openable. Complete state only. */

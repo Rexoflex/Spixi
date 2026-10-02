@@ -22,6 +22,7 @@
      Read for conventions only — Material's rail-in-landscape vs the HIG's tab bar — never for a
      capability, which stays a probe (L15). Unknown/unsubstituted → no attribute. -->
 <script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
+<script>(function(){if('*SL{SpixiP1}'==='1')document.documentElement.setAttribute('data-p1','');})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi — Account</title>
 <style>
@@ -56,6 +57,7 @@
 <link rel="stylesheet" href="../styles/components/subscreen-slide.css"><!-- ★ Session H: the in-shell subscreen slide (walk row 31) -->
 <link rel="stylesheet" href="../styles/components/chip.css"><!-- ★★ #1107: the Downloads From chip -->
 <link rel="stylesheet" href="../styles/components/settings-app.css"><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
+<link rel="stylesheet" href="../styles/components/typed-bubbles.css"><!-- ★ A3 (#1126): the Downloads rows reuse the chat's file-type tile (.c-fbubble__icon / __ext) -->
 <link rel="stylesheet" href="../styles/components/search-field.css"><!-- ★ W-h gate find (loop r1 G-2): createSettingsDownloads mounts a c-search-field in the inline route (downloadsInline; #804: every form factor) — it rendered as a bare UA input here -->
 <link rel="stylesheet" href="../styles/components/launch-shell.css"><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->

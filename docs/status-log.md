@@ -347,3 +347,7 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
 - 2026-10-02 (b): session 2 committed + pushed. Walk Windows + Android 16 P · 0 F (#1123); the log analysis found the G-1 hold
   never ran (`why=noview`) and the bar delay = the WebView resize (G-9). Damir's follow-ups + the in-chat media-tile idea (#1124)
   folded into `docs/prompts/session-3.md` Part A. Office walk owed. Next free #1126.
+- 2026-10-02 (c): session 3 interview (#1126–#1128) + build (#1129): the `[P1]` stamp set (dev-only) + the A1 probe, A3 · A8 ·
+  A10 · A11 · A12 built; A2 / A4 / A5 rendered (`docs/sheets/session3/`); A9 not built (Core queues the nick — walk decides);
+  A7 BE only. #46 CLEAN at r3. Smoke BASELINE OK 5095 · CSH 44. ⚠ C# UNCOMPILED. Next: walk + measure
+  (`docs/walk-artifact-session3-win-android.html`), then `docs/handoff-2026-10-02b.md` + `docs/prompts/session-4.md`.

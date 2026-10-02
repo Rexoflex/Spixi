@@ -30,6 +30,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   console.log(describeLegalDocs(docs));
 }
 const FILES = [
+  'src/components/p1.js',            // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: first, so every hook's p1* is initialised
   'src/components/strings-runtime.js', // Phase 3 #3: getStrings/setStrings — window.SL default source, before every consumer
   'src/components/theme-runtime.js', // ★ N71 (#421): applyPushedTheme — the one live setTheme body, no deps (L5 retired ignorePushedTheme with its last two callers)
   'src/components/money.js',        // #143: shared money helpers — before every consumer

@@ -30,6 +30,8 @@
  * lock-page.js) compose shells with a bridge instance.
  */
 
+import { p1Sent } from '../components/p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
+
 /** Legacy base64ToBytes mirror (spixi.js:97): Base64 → UTF-8 string.
  *
  * PERF (Damir F5 2026-08-13, apps tab): `Uint8Array.from(bin, cb)` runs the callback
@@ -96,6 +98,7 @@ export function createNativeBridge({ emit, win } = {}) {
         throw new TypeError('bridge.send expects a full "ixian:…" command, got: ' + command);
       }
       sink(command);
+      try { p1Sent(command); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
     },
     /** Define a C#-callable page global. fn receives DECODED (raw) strings. */
     expose(name, fn) {

@@ -19,6 +19,7 @@
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
 <!-- ★ #1028 (walk R.6): the platform CONVENTION flag (#922 carrier) in every shell — base.css draws the Mac title-bar hairline from it -->
 <script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
+<script>(function(){if('*SL{SpixiP1}'==='1')document.documentElement.setAttribute('data-p1','');})();</script>
 <!-- ★ AND-7 (#396/#401) FULL BLEED: the Android top system-bar inset, in CSS px, set
      BEFORE first paint. MainActivity no longer pads the root view down by the status
      bar, so this page reaches y=0 and its own chrome pads itself from --safe-top
@@ -454,6 +455,10 @@
      under the topbar (its `top` is set inline = the topbar height) that slides
      down (translateY -100% → 0). */
   .chat-channel-overlay { position: fixed; inset: 0; z-index: 15; } /* below topbar (--z-20): panel slides out from UNDER the bar; scrim dims messages/composer but NOT the topbar (Damir 2026-07-08) */
+  /* ★ A12 (#1129, Damir screenshot: "the composer is above the dim when selecting channels"): the overlay sits at 15 so
+     the TOPBAR (--z-20) stays above it — but the composer is --z-20 too, so it painted over the scrim. While the selector
+     is open the composer drops under the overlay (10 < 15); the topbar keeps its 20. */
+  html[data-channel-open] .c-composer { z-index: var(--z-10); }
   .chat-channel-overlay__scrim {
     position: absolute; inset: 0; background: var(--surface-scrim, rgba(0,0,0,0.4));
     opacity: 0; transition: opacity var(--duration-200, 200ms) var(--easing-standard, ease);
@@ -1395,10 +1400,15 @@
     }
     el.classList.remove('is-open');
     el.style.pointerEvents = 'none';   // exiting overlay: stale scrim must not catch clicks (review NIT)
-    // let the slide-up finish before detaching (reduced-motion → transition:none,
-    // transitionend still fires); safety timer covers the no-transition case
+    // let the slide-up finish before detaching; under reduced motion (transition:none) no transitionend fires
+    // and the safety timer is what detaches (#46 r3 NIT-1)
     let removed = false;
-    const done = () => { if (removed) return; removed = true; el.remove(); };
+    const done = () => {
+      if (removed) return; removed = true; el.remove();
+      /* ★ A12 (#1129, #46 r2 NIT-1): the composer goes back above the log when the scrim has FADED, not at the close's
+         first frame — and only when no selector re-opened meanwhile (a title double-tap re-opens before this runs) */
+      if (!channelDropdown) document.documentElement.removeAttribute('data-channel-open');
+    };
     el.querySelector('.chat-channel-panel').addEventListener('transitionend', done, { once: true });
     setTimeout(done, 260);
   }
@@ -1460,6 +1470,7 @@
     document.body.append(overlay);
     channelDropdown = overlay;
     syncChatOverlay();   // N51: the selector is NOT on the shared stack — mirror its open to C#
+    document.documentElement.setAttribute('data-channel-open', '');   // ★ A12 (#1129): the scrim covers the composer too
     // Esc closes; Tab is trapped within the panel (mirrors overlay.js house style).
     channelKeydown = (e) => {
       if (e.key === 'Escape') { closeChannelSelector(); return; }

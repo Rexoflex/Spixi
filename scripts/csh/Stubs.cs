@@ -4,7 +4,9 @@ using System.Collections.Generic;
 namespace IXICore { public static class Clock { public static long now = 10000; public static long getNetworkTimestamp() => now; }
   public class Address { string s; public Address(string s){this.s=s;} public override string ToString()=>s; } }
 namespace IXICore.Meta { public static class Logging { public static List<string> lines = new List<string>();
-  public static void info(string f, params object[] a){ lines.Add(a.Length>0?string.Format(f,a):f);} public static void warn(string f, params object[] a){} public static void error(string f, params object[] a){} } }
+  public static void info(string f, params object[] a){ lines.Add(a.Length>0?string.Format(f,a):f);} public static void warn(string f, params object[] a){ warns.Add(a.Length>0?string.Format(f,a):f);} public static void error(string f, params object[] a){}
+  public static List<string> warns = new List<string>(); } }
+namespace Microsoft.Maui.ApplicationModel { public static class MainThread { public static bool IsMainThread => true; public static void BeginInvokeOnMainThread(Action a){ a(); } } }   // ★ P-1: P1Perf.framesAfter
 namespace IXICore.Streaming {
   public enum FriendType { Normal, Group, Bot }
   public class FriendMessage { public long timestamp; public bool localSender; }

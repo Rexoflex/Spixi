@@ -79,8 +79,16 @@ namespace SPIXI.Lang
             // ★ #922: the platform, as a compile-time constant (no DeviceInfo at static-init time). The
             // shells read it into `data-platform` and use it ONLY for platform CONVENTIONS (Material's
             // rail-in-landscape vs the HIG's tab bar) — never for a capability, which stays a probe (L15).
-            { "SpixiPlatform", PLATFORM_NAME }
+            { "SpixiPlatform", PLATFORM_NAME },
+            // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the shells' `data-p1` carrier.
+            // Seeded in every build (an unknown *SL key logs an error); "1" only in a dev build.
+            { "SpixiP1", P1_FLAG }
         };
+#if SPIXI_DEV_COEXIST
+        private const string P1_FLAG = "1";   // ★ P-1 (#1127) — TEMPORARY
+#else
+        private const string P1_FLAG = "0";   // ★ P-1 (#1127) — TEMPORARY
+#endif
 #if ANDROID
         private const string PLATFORM_NAME = "android";
 #elif IOS

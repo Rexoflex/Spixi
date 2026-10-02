@@ -1659,3 +1659,13 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | E-W7 | Mac windows' `OverrideUserInterfaceStyle` follows the app theme | presentation only | nothing introduced |
 
 **Legacy, not changed (his):** none found in this batch's scope.
+
+## P-1 stamp set (session 3, TEMPORARY)
+
+| Row | Change | Exposure | Verdict |
+|---|---|---|---|
+| P-1 | new `[P1] …` log lines (C# `Utils/P1Perf.cs` + the shells' `console.warn`): `[P1] ` + ≤ 16 tokens, each `^[a-z0-9_.=-]{1,40}$`; a line that fails is dropped whole (one `[P1] dropped` warn) | fixed words, page class names and integers only — the GRAMMAR bounds the shape (no space-separated text, no address-length token), the EMITTERS keep it to fixed words: every emitter passes a literal or a whitelisted id (a lowercase word would pass the grammar — so a new emitter must never pass user data) | nothing introduced |
+| P-1 | Windows: a DevTools receiver (`Runtime.consoleAPICalled` + `Runtime.enable`) on each of OUR WebView2s — dev builds only (`SPIXI_DEV_COEXIST`), never `ClassId="miniapp"`; logs only a string first argument that starts `[P1] shell ` and passes `P1Perf.isValidLine` — the payload is pre-filtered (≤ 16 KiB of event JSON, stack capture set to 0, must contain `[P1] shell `) before any JSON parse, and the line goes through `Utils.logSafe` (the Android console path's rule) and is re-validated before it is logged | the console of our own shells, filtered to the grammar above; nothing else from the console is logged; no new verb, no bridge | nothing introduced |
+| P-1 | `*SL{SpixiP1}` carrier (`"1"` only in a dev build, `"0"` in a store build) → `<html data-p1>` | a build flag, no data | nothing introduced |
+
+**Verdict:** introduced, dev-only, removed with the set — `grep -rn "\[P1\]\|P1Perf\|SpixiP1"`.

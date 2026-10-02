@@ -2492,7 +2492,7 @@ namespace SPIXI
                         FriendMessage inv_msg = friend.getMessages(selectedChannel)?.Find(x => x.id != null && x.id.SequenceEqual(msg_id));
                         if (inv_msg != null && inv_msg.type == FriendMessageType.appSession && inv_msg.localSender && !friend.bot)
                         {
-                            StreamProcessor.sendMsgDelete(friend, msg_id, selectedChannel);
+                            sendSilentMsgDelete(friend, msg_id, selectedChannel);   // ★ A10 (#1128)
                             Utils.sendUiCommand(this, "cancelInviteResult", Crypto.hashToString(msg_id), "ok");
                         }
                         else
@@ -2516,7 +2516,7 @@ namespace SPIXI
                             TransferManager.removeOutgoingTransfer(del_msg.transferId);
                         }
                     }
-                    StreamProcessor.sendMsgDelete(friend, msg_id, selectedChannel);
+                    sendSilentMsgDelete(friend, msg_id, selectedChannel);   // ★ A10 (#1128)
                     if (!friend.bot)
                     {
                         if (friend.deleteMessage(msg_id, selectedChannel))
@@ -2551,6 +2551,18 @@ namespace SPIXI
                     }
                     break;
             }
+        }
+
+        /* ★ A10 (#1128, Damir: "B gets one notification per deleted message, opens the chat, nothing new").
+         * Core's sendMsgDelete sends with send_push_notification TRUE (CoreStreamProcessor.cs:2852–2857, the push-TRUE call at :2856), so the push
+         * server shows a visible notification per delete, and the receiver cannot filter it (the push carries only
+         * the sender address). The SAME message, queued and stored on the server exactly like sendMsgDelete
+         * (pending + server, remove_after_sending false), with the push flag OFF — an offline peer still gets the
+         * delete, silently. The msgRead precedent below (sendSpixiMessage(…, true, true, false, false)). */
+        private static void sendSilentMsgDelete(Friend friend, byte[] msg_id, int channel)
+        {
+            SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.msgDelete, msg_id, channel);
+            StreamProcessor.sendSpixiMessage(friend, spixi_message, null, null, true, true, false, false);
         }
 
         private void onEntryCompleted(object sender, EventArgs e)

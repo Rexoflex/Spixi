@@ -8503,7 +8503,12 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      wait-for-onChatScreenLoaded hold + the instant scroll (#1106, r1 B1 / r2 R2-3), and in the inlined bundle formatLastSeen.
      709 leaves 55 chars of headroom, 710 leaves 1 079. index.html unchanged (551 478). Stated, not silent (#345). ⚠ Re-measured after the LAST
      fix of the loop, never mid-loop (the AE lesson above). */
-  const CHAT_KB_CEIL = 710, INDEX_KB_CEIL = 540;
+  /* ★ Session 3 (#1126–#1129): CHAT 710 → 712, delta stated. chat.html 726 645 → 728 475 chars (+1 830): the dev-only
+     [P1] head switch (*SL{SpixiP1}, ~105 chars, #1127 — TEMPORARY, it leaves with the set), the A8 stamp rules + their
+     comment in the inlined typed-bubbles.css, and the A12 composer rule + comment (#1129). (A11 is chatlist-item.css —
+     index.html, not chat.html.) 710 leaves −1 435, 711 −411, 712 leaves 613. index.html 551 478 → 552 131 (+653), still
+     under 540 (headroom 829). Stated, not silent (#345). Re-measured after the LAST fix of the #46 loop. */
+  const CHAT_KB_CEIL = 712, INDEX_KB_CEIL = 540;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -15511,9 +15516,12 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     /* ★ #1028 (walk R.6) added SpixiPlatform to every head (the Mac title-bar line keys on it) — caught here as
      * designed, admitted on the same rule: it is a compile-time constant SEEDED in SpixiLocalization.customStrings,
      * so it resolves on every page of every platform. */
-    ok(carriers.length === 8
-      && carriers.join(',') === '*SL{AndroidInsetBottom},*SL{AndroidInsetLeft},*SL{AndroidInsetRight},*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiPlatform},*SL{SpixiThemeName},*SL{language-code}',
-      '★ N83 (+AND-45, +#922): the BUILT lock shell carries exactly the EIGHT keys (#1028: + SpixiPlatform) the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
+    /* ★ P-1 (#1127, session 3) added SpixiP1 to every head (the dev-only [P1] stamp switch) — caught here as designed,
+     * admitted on the same rule: SEEDED in SpixiLocalization.customStrings ("1" under SPIXI_DEV_COEXIST, else "0"),
+     * so it resolves on every page of every build. Retire with the [P1] set → back to the eight. */
+    ok(carriers.length === 9
+      && carriers.join(',') === '*SL{AndroidInsetBottom},*SL{AndroidInsetLeft},*SL{AndroidInsetRight},*SL{AndroidInsetTop},*SL{LockAuthPending},*SL{SpixiP1},*SL{SpixiPlatform},*SL{SpixiThemeName},*SL{language-code}',
+      '★ N83 (+AND-45, +#922): the BUILT lock shell carries exactly the NINE keys (#1028: + SpixiPlatform · #1127: + SpixiP1, temporary) the lock page resolves. Pinned on the built artifact, not the source, because that is the file C# actually substitutes — and pinned as a SET so the next stray carrier is caught rather than the one we happened to find');
   }
 }
 
@@ -18579,9 +18587,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     dom.window.close();
   }
   /* B2 — the locked shape (#533 ①) */
-  ok(/case "cancelInvite":[\s\S]{0,1200}?inv_msg\.type == FriendMessageType\.appSession && inv_msg\.localSender && !friend\.bot[\s\S]{0,200}?StreamProcessor\.sendMsgDelete\(friend, msg_id, selectedChannel\);\s*Utils\.sendUiCommand\(this, "cancelInviteResult", Crypto\.hashToString\(msg_id\), "ok"\);/.test(scpB)
+  ok(/case "cancelInvite":[\s\S]{0,1200}?inv_msg\.type == FriendMessageType\.appSession && inv_msg\.localSender && !friend\.bot[\s\S]{0,200}?sendSilentMsgDelete\(friend, msg_id, selectedChannel\);\s*Utils\.sendUiCommand\(this, "cancelInviteResult", Crypto\.hashToString\(msg_id\), "ok"\);/.test(stripCode(scpB))   /* (#46 r1 C-2) comments stripped: nothing may sit between the delete and the "ok" */
     && !/case "cancelInvite":[\s\S]{0,1200}?friend\.deleteMessage\(msg_id/.test(scpB),
-    '★★ B2 C#: cancelInvite = sendMsgDelete to the PEER only (the recipient\'s invite is removed through the existing delete path), NO local delete (the sender keeps the bubble) — guarded to an OWN appSession message');
+    '★★ B2 C# (A10 #1128 re-base: the SILENT msgDelete, push off): cancelInvite = sendMsgDelete to the PEER only (the recipient\'s invite is removed through the existing delete path), NO local delete (the sender keeps the bubble) — guarded to an OWN appSession message');
   ok(/if \(string\.IsNullOrEmpty\(message\.message\)\)\s*\{\s*return;\s*\}/.test(scpB.slice(scpB.indexOf('if (message.type == FriendMessageType.appSession)'))),
     '★★ B2 (loop r1 MAJOR-2): the BLANKED-INVITE GHOST GUARD — Friend.deleteMessage BLANKS a row (message = ""), it does not remove it; without this guard the recipient\'s reload pushed a nameless "Missing" invite with live Join/Decline (the #529 ghost class, same answer: a blanked row renders NOTHING)');
   ok(/onCancel: \(!incoming && !canceled && rec\.astate === 'invited'\) \? \(\) => confirmCancelInvite\(rec\) : undefined,/.test(chatB)
@@ -41736,6 +41744,218 @@ console.log('#1101–#1107 — session 1');
       '★ G-6b (#1121): a photo bigger than 64 KB (every phone photo) gets a REAL thumbnail — a ~160 px square JPEG decoded at a SMALL size by the platform (Android bounds + inSampleSize · Apple CGImageSource thumbnail · Windows a scaled decoder; never the full bitmap, never the whole file in the push), a 20 MB source cap, made once per file version (memory cache), up to the 60 tiles shown in place; local files only; (#46 r1 A2) a contact\'s file reaches a decoder only when its first bytes are an expected image format (ImageSniff, executed by scripts/csh), ≤ 20 MB — ' + JSON.stringify(r));
   }
 /* ==== SESSION 2 PINS END ==== */
+/* ==== SESSION 3 PINS START (DECISIONS #1126+) ==== */
+  /* —— A10 (#1128, Damir: "B gets one notification per deleted message"): every delete our app sends is SILENT —— */
+  {
+    const scp = stripCode(rdS2('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const helper = bodyS2(scp, 'private static void sendSilentMsgDelete(');
+    const csFiles = [];
+    const walk = (d) => { for (const n of readdirSync(join(root, d), { withFileTypes: true })) { const p = d + '/' + n.name; if (n.isDirectory()) { if (!/\/(bin|obj)$/.test(p)) walk(p); } else if (p.endsWith('.cs')) csFiles.push(p); } };
+    walk('Spixi');
+    const allCs = csFiles.map((p) => stripCode(rdS2(p))).join('\n');
+    /* (#46 r1 C-9) Core's own sendMsgDelete, read from the sibling: the helper must equal it except the push argument */
+    const corePath = join(root, '../Ixian-Core/Streaming/CoreStreamProcessor.cs');
+    const core = existsSync(corePath) ? stripCode(readFileSync(corePath, 'utf8')) : '';
+    const coreDel = bodyS2(core, 'public static void sendMsgDelete(');
+    const r = {
+      /* the same message Core's sendMsgDelete builds, the same queue + server flags, the push flag OFF */
+      helper: /SpixiMessage spixi_message = new SpixiMessage\(SpixiMessageCode\.msgDelete, msg_id, channel\);\s*StreamProcessor\.sendSpixiMessage\(friend, spixi_message, null, null, true, true, false, false\);\s*\}$/.test(helper),
+      coreTwin: /new SpixiMessage\(SpixiMessageCode\.msgDelete, msg_id, channel\);\s*sendSpixiMessage\(friend, spixi_message, null, null, true, true, true, false\);/.test(coreDel)
+        && /bool add_to_pending_messages = true,\s*bool send_to_server = true,\s*bool send_push_notification = true,\s*bool remove_after_sending = false\)/.test(bodyS2(core, 'public static void sendSpixiMessage(Friend friend,') || core),
+      deleteSite: /case "deleteMessage":[\s\S]{0,1400}?sendSilentMsgDelete\(friend, msg_id, selectedChannel\);\s*if \(!friend\.bot\)/.test(scp),
+      inviteSite: /case "cancelInvite":[\s\S]{0,1200}?sendSilentMsgDelete\(friend, msg_id, selectedChannel\);\s*Utils\.sendUiCommand\(this, "cancelInviteResult"/.test(scp),
+      /* no sender in the app still takes the push-on path, qualified or not, and no hand-built msgDelete elsewhere (#46 r1 C-10) */
+      noLoudDelete: !/\bsendMsgDelete\(/.test(allCs) && (allCs.match(/new SpixiMessage\(SpixiMessageCode\.msgDelete\b/g) || []).length === 1,
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ A10 (#1128): a delete (and an app-invite cancel) goes out as the SAME msgDelete Core\'s sendMsgDelete sends (checked against ../Ixian-Core) — queued, stored on the server for an offline peer — with send_push_notification FALSE, so the peer gets no notification per deleted message; no C# file calls the push-on sendMsgDelete or builds a second msgDelete — ' + JSON.stringify(r) + ' files=' + csFiles.length);
+  }
+
+  /* —— A8 (#1126): the file stamp + the card times at 0.7 like the text bubble, READ / FAILED at 1 —— */
+  {
+    const tb = stripCssComments(rdS2('src/styles/components/typed-bubbles.css'));
+    /* tokens resolved from tokens.css in BOTH themes + WCAG 2.1 contrast (the #1041 block's method, local here) */
+    const tvS3 = (() => { const t = stripCssComments(rdS2('src/styles/tokens.css')); const light = {}, darkOnly = {};
+      for (const m of t.matchAll(/^(:root|\[data-theme="dark"\]) \{([\s\S]*?)^\}/gm)) { const into = m[1] === ':root' ? light : darkOnly; for (const d of m[2].matchAll(/(--[\w-]+):\s*([^;]+);/g)) into[d[1]] = d[2].trim(); }
+      return { light, dark: { ...light, ...darkOnly } }; })();
+    const resolveTok = (th, n, k = 0) => { const v = tvS3[th][n]; if (!v || k > 10) return null; const m = /^var\((--[\w-]+)\)$/.exec(v); return m ? resolveTok(th, m[1], k + 1) : v; };
+    const lumS3 = (h) => { h = h.replace('#', ''); const c = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((u) => (u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4))); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+    const crO = (a, b) => { if (!/^#[0-9a-fA-F]{6}$/.test(a || '') || !/^#[0-9a-fA-F]{6}$/.test(b || '')) return 0; const x = lumS3(a), y = lumS3(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const mixS3 = (fg, bg, a) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(fg.slice(i, i + 2), 16) * a + parseInt(bg.slice(i, i + 2), 16) * (1 - a)).toString(16).padStart(2, '0')).join('');
+    /* (#46 r1 C-4) the ink and the alpha are READ from the stylesheet, never assumed */
+    const ink = (/\.c-fbubble__stamp \.c-status-icon \{ flex: none; color: var\((--[\w-]+)\); \}/.exec(tb) || [])[1];
+    const alpha = Number((/\.c-fbubble__stamp \.c-status-icon\[data-tone\] \{ opacity: ([\d.]+); \}/.exec(tb) || [])[1]);
+    const tickCr = ['light', 'dark'].map((th) => (ink && alpha > 0 ? crO(mixS3(resolveTok(th, ink), resolveTok(th, '--surface-card-sent'), alpha), resolveTok(th, '--surface-card-sent')) : 0));
+    const r = {
+      children: /\.c-fbubble__stamp > \*,\s*\.c-fbubble > \.c-fbubble__time,\s*\.c-tcard__time \{ opacity: 0\.7; \}/.test(tb),
+      /* (0,3,0): beats the global delivered fade (0,2,0) whatever the stylesheet order */
+      tickWeight: alpha === 0.7,
+      readFull: /\.c-fbubble__stamp \.c-status-icon\[data-tone="read"\],\s*\.c-fbubble__stamp \.c-status-icon\[data-tone="failed"\] \{ opacity: 1; \}/.test(tb)
+        && tb.indexOf('.c-fbubble__stamp .c-status-icon[data-tone] { opacity: 0.7; }') < tb.indexOf('.c-fbubble__stamp .c-status-icon[data-tone="failed"] { opacity: 1; }'),
+      /* no LATER rule re-sets the stamp / card-time opacity */
+      noOverride: !/\.c-fbubble__stamp[^{}]*\{[^}]*opacity: (?!0\.7|1;)/.test(tb) && (tb.match(/\.c-tcard__time[^{}]*\{[^}]*opacity/g) || []).length === 1,
+      /* the faded tick stays on the 3:1 non-text floor on the sent file card, both themes */
+      tickFloor: tickCr.every((c) => c >= 3),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ A8 (#1126, Damir: "reduced opacity in file bubbles and app as well, so READ is noticeable"): the sent file stamp (time + tick), a received file\'s time and every typed / app card time sit at 0.7 like the text bubble (A9 / #1041); READ and FAILED stay 1.0; the faded tick (ink + alpha read from the CSS) ≥ 3:1 on the sent card — ' + JSON.stringify(r) + ' ink=' + ink + ' cr=' + tickCr.map((c) => c.toFixed(2)).join('/'));
+  }
+
+  /* —— A11 (#1129): on the chats list SENT shares DELIVERED's faded weight; READ alone pops —— */
+  {
+    const cl = stripCssComments(rdS2('src/styles/components/chatlist-item.css'));
+    const r = {
+      scoped: /\.c-chatlist-item \.c-status-icon\[data-tone="neutral"\] \{ opacity: var\(--tick-delivered-opacity, 1\); \}/.test(cl),
+      /* the global neutral rule stays full weight (the bubbles and the file stamp own their own fades) */
+      globalFull: /\.c-status-icon\[data-tone="neutral"\] \{ color: var\(--icon-neutral-03\); \}/.test(cl),
+      /* same ink as delivered → the #1041 / #1042 3:1 floor computed there covers it */
+      sameInk: /\.c-status-icon\[data-tone="delivered"\] \{ color: var\(--icon-neutral-03\);/.test(cl),
+      selected: /\.c-chatlist-item\[aria-current\] \.c-status-icon\[data-tone="neutral"\] \{ opacity: 1; \}/.test(cl),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ A11 (#1129, Damir dark screenshot: "sent and delivered are not the same"): on the chats list the SENT single tick takes the delivered fade (the same token, the same ink, the same selected-row exception) — a full-weight sent tick read stronger than delivered — ' + JSON.stringify(r));
+  }
+
+  /* —— A12 (#1129, Damir screenshot): the channel selector's scrim covers the composer too —— */
+  {
+    const ch = rdS2('src/shells/chat.html');
+    const chs = stripCode(ch);
+    const open = chs.slice(chs.indexOf('function openChannelSelector()'), chs.indexOf('channelKeydown = (e) =>', chs.indexOf('function openChannelSelector()')));
+    const close = bodyS2(chs, 'function closeChannelSelector()');
+    const css = stripCssComments((ch.match(/<style>[\s\S]*?<\/style>/g) || []).join('\n'));
+    const r = {
+      setOnOpen: /channelDropdown = overlay;\s*syncChatOverlay\(\);\s*document\.documentElement\.setAttribute\('data-channel-open', ''\);/.test(open),
+      clearOnClose: /const done = \(\) => \{\s*if \(removed\) return; removed = true; el\.remove\(\);\s*if \(!channelDropdown\) document\.documentElement\.removeAttribute\('data-channel-open'\);\s*\};/.test(close)
+        && /setTimeout\(done, 260\);/.test(close) && (chs.match(/removeAttribute\('data-channel-open'\)/g) || []).length === 1,
+      /* the composer drops BELOW the overlay (10 < 15) while it is open; the topbar keeps --z-20 above it */
+      rule: /html\[data-channel-open\] \.c-composer \{ z-index: var\(--z-10\); \}/.test(css) && /\.chat-channel-overlay \{ position: fixed; inset: 0; z-index: 15; \}/.test(css),
+      built: /html\[data-channel-open\] \.c-composer \{ z-index: var\(--z-10\); \}/.test(rdS2('Spixi/Resources/Raw/html/chat.html')),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ A12 (#1129, Damir: "the composer is above the dim when selecting channels"): the selector overlay sits at 15 so the topbar (--z-20) stays above it — the composer was --z-20 too and painted over the scrim; while the selector is open <html data-channel-open> drops it to --z-10, and every close clears it — ' + JSON.stringify(r));
+  }
+
+  /* —— A3 (#1126 / #1123 G-5): Downloads rows show the chat's file-type tile, the SAME builder —— */
+  {
+    const { W, dom, errs } = await bootS2('settings.html', 1200);
+    const S = W.Spixi;
+    const el = S.createSettingsDownloads({ files: [], onBack: () => {}, onOpenFile: () => {}, onDeleteFile: () => {}, onShowInChat: () => {}, strings: {} });
+    W.document.body.append(el);
+    S.setDownloads(el, [
+      { name: 'report.pdf', time: '1700000000', size: 2400 },
+      { name: 'photo.JPG', time: '1700000001', size: 1200 },
+      { name: 'noext', time: '1700000002', size: 10 },
+    ]);
+    await sleep(50);
+    const tileOf = (n) => el.querySelector('.c-settings-dl__row[data-name="' + n + '"] .c-settings-dl__open .c-fbubble__icon');
+    const tiles = ['report.pdf', 'photo.JPG', 'noext'].map(tileOf).filter(Boolean);   /* by name — the list sorts newest first */
+    const built = rdS2('Spixi/Resources/Raw/html/settings.html');
+    const builtDl = rdS2('Spixi/Resources/Raw/html/downloads.html');
+    const sa = stripCode(rdS2('src/components/settings-app.js'));
+    const r = {
+      tiles: tiles.length === 3,
+      kinds: tiles.map((t) => t.dataset.kind).join() === 'pdf,image,other',
+      labels: tiles.map((t) => (t.querySelector('.c-fbubble__ext') || {}).textContent || '-').join() === 'PDF,JPG,-',
+      glyph: !!tiles[2] && !!tiles[2].querySelector('svg'),
+      noBadge: !el.querySelector('.c-settings-dl__open .c-fbubble__badge'),
+      noOldDisc: !el.querySelector('.c-settings-dl__open .c-disc'),
+      /* (#46 r1 B-1) decoration only: the row's accessible name is the file name, never "PDF report.pdf" */
+      hidden: tiles.length === 3 && tiles.every((t) => t.getAttribute('aria-hidden') === 'true'),
+      sameBuilder: /export function createFileTile\(name\) \{\s*const tile = fileTile\(name, 'complete'\);/.test(stripCode(rdS2('src/components/typed-bubbles.js')))
+        && /const disc = createFileTile\(name\);/.test(sa),
+      /* the tile's look ships in both shells that render Downloads, and in the demo (#46 r1 B-2) */
+      css: [built, builtDl].every((h) => /\.c-fbubble__icon\[data-kind="pdf"\]/.test(h) && /\.c-fbubble__ext \{/.test(h))
+        && /href="\.\.\/styles\/components\/typed-bubbles\.css"/.test(rdS2('src/demo/settings.html')),
+      noErrs: errs.length === 0,
+    };
+    try { dom.window.close(); } catch (e) {}
+    ok(Object.values(r).every(Boolean),
+      '★ A3 (#1126, Damir G-5 follow-up: "one glyph for every file"): each Downloads row leads with the chat\'s document tile — the family colour + the extension (PDF · JPG …), the glyph when there is none, no state badge, aria-hidden — built by the SAME fileTile the file bubble uses; typed-bubbles.css ships in settings + downloads + the demo — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
+  }
+
+  const stripHtmlCommentsS3 = (h) => h.replace(/<!--[\s\S]*?-->/g, '');   /* (#46 r1 C-13) */
+  /* —— P-1 stamp set (#1127, TEMPORARY — retire with the set): one grammar, dev-only, nothing installed when off —— */
+  {
+    const p1src = rdS2('src/components/p1.js');
+    const pp = stripCode(rdS2('Spixi/Utils/P1Perf.cs'));
+    const scpg = stripCode(rdS2('Spixi/Utils/SpixiContentPage.cs'));
+    const loc = stripCode(rdS2('Spixi/Lang/SpixiLocalization.cs'));
+    /* executed: the real module against a fake document, once OFF and once ON; rAF + observers COUNTED (#46 r1 C-5) */
+    const runP1 = async (on) => {
+      const out = [], listeners = {};
+      let raf = 0, po = 0;
+      const g = globalThis, saved = {};
+      for (const k of ['document', 'window', 'location', 'requestAnimationFrame', 'PerformanceObserver']) saved[k] = g[k];
+      const warn = console.warn;
+      const add = (pre) => (t, fn) => { listeners[pre + t] = fn; };
+      g.document = { readyState: 'loading', documentElement: { hasAttribute: (a) => on && a === 'data-p1' }, addEventListener: add('') };
+      g.window = { addEventListener: add('w:') };
+      g.location = { pathname: '/x/ll_chat.html' };
+      g.requestAnimationFrame = (f) => { raf++; return setTimeout(() => f(), 16); };
+      g.PerformanceObserver = class { constructor() { po++; } observe() {} };
+      g.PerformanceObserver.supportedEntryTypes = ['longtask'];
+      console.warn = (s) => out.push(String(s));
+      try {
+        const src = p1src.replace(/^p1Install\(\);\s*$/m, '') + '\nexport { p1Enabled };\n';
+        const m = await import('data:text/javascript;base64,' + Buffer.from(src + '\n//' + on + Math.random()).toString('base64'));
+        m.p1Install();
+        m.p1Log('shell boot chat load=12');
+        m.p1Log('shell Bad');
+        m.p1Log(Array(17).fill('a').join(' '));
+        m.p1Log('a'.repeat(41));
+        m.p1Sent('ixian:chat:SECRETADDR123');
+        m.p1Sent('ixian:123');
+        if (listeners.pointerdown) listeners.pointerdown();   /* (#46 r1 C-6) a real tap → a real dt */
+        m.p1Sent('ixian:sharedGroups:SECRET');
+        m.p1Shown('tab-wallet');
+        /* (#46 r1 C-14) wait for the frame chain to END before the globals are restored */
+        for (let i = 0; i < 60 && !out.some((l) => /frames-tab-wallet/.test(l)); i++) await sleep(50);
+        if (!on) await sleep(800);
+      } finally {
+        console.warn = warn;
+        for (const k of Object.keys(saved)) g[k] = saved[k];
+      }
+      return { out, listeners: Object.keys(listeners), raf, po };
+    };
+    const off = await runP1(false), on = await runP1(true);
+    const hooks = {
+      'src/bridge/native.js': /try \{ p1Sent\(command\); \} catch \(e\) \{\}|p1Sent\(command\)/,
+      'src/components/bottomnav.js': /p1Shown\(/, 'src/components/subscreen-slide.js': /p1Shown\('subscreen-open'\)[\s\S]*p1Shown\('subscreen-close'\)/,
+      'src/components/overlay.js': /p1Shown\(p1Kind\(/, 'src/components/chat-info.js': /p1Shown\(/, 'src/components/shared-items.js': /p1Shown\(/,
+    };
+    const custom = (/customStrings = new Dictionary<string, string>\(\)\s*\{([\s\S]*?)\};/.exec(loc) || [])[1] || '';
+    const r = {
+      offSilent: off.out.length === 0 && off.listeners.length === 0 && off.raf === 0 && off.po === 0,
+      onLines: on.out[0] === '[P1] shell boot chat load=12' && on.out.includes('[P1] shell send chat dt=-1')
+        && on.out.some((l) => /^\[P1\] shell send sharedgroups dt=\d+$/.test(l))
+        && on.out.some((l) => /^\[P1\] shell tab-wallet first=\d+$/.test(l)) && on.out.some((l) => /^\[P1\] shell frames-tab-wallet n=\d+ drop=\d+ max=\d+$/.test(l)),
+      onDrops: !on.out.some((l) => /Bad|SECRET|123|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|(\ba){17}/.test(l)) && on.out.length === 5,
+      onInstalls: ['pointerdown', 'scroll', 'w:load'].every((t) => on.listeners.includes(t)) && on.po === 1,
+      /* (#46 r1 C-7) the shipped module installs itself */
+      selfInstalls: /^p1Install\(\);\s*$/m.test(p1src),
+      /* ONE grammar on both sides (the C# side is EXECUTED in scripts/csh, #46 r1 C-1) */
+      grammarJs: /const P1_TOKEN = \/\^\[a-z0-9_\.=-\]\{1,40\}\$\/;/.test(p1src) && /toks\.length > 16/.test(p1src),
+      grammarCs: /private const int MaxTokens = 16;/.test(pp) && /private const int MaxTokenLength = 40;/.test(pp)
+        && /<Compile Include="[^"]*Spixi[\\/]Utils[\\/]P1Perf\.cs"/.test(rdS2('scripts/csh/csh.csproj')),
+      /* dev-only: a store build compiles the no-ops and seeds the switch OFF — and the seed itself is UNCONDITIONAL (#46 r1 C-3) */
+      devOnly: /#if SPIXI_DEV_COEXIST\s*internal static bool enabled \{ get \{ return true; \} \}\s*#else\s*internal static bool enabled \{ get \{ return false; \} \}/.test(pp)
+        && /#if SPIXI_DEV_COEXIST\s*private const string P1_FLAG = "1";\s*#else\s*private const string P1_FLAG = "0";/.test(loc)
+        && /\{ "SpixiP1", P1_FLAG \}/.test(custom) && !/^\s*#/m.test(custom),
+      /* every built shell carries the switch */
+      carrier: readdirSync(htmlDirS2).filter((f) => f.endsWith('.html')).every((f) => stripHtmlCommentsS3(rdS2('Spixi/Resources/Raw/html/' + f)).includes("if('*SL{SpixiP1}'==='1')document.documentElement.setAttribute('data-p1','');")),
+      /* Windows: only a shell line that passes logSafe + the grammar reaches ixian.log; never a mini-app WebView */
+      winHook: /#if WINDOWS && SPIXI_DEV_COEXIST/.test(scpg) && /if \(s != null && P1Perf\.isValidLine\(s\)\)\s*\{\s*Logging\.info\(s\);\s*\}/.test(scpg)
+        && /s = P1Perf\.acceptShellConsole\(s, x => Utils\.logSafe\(x, 0\)\);\s*if \(s != null && P1Perf\.isValidLine\(s\)\)/.test(scpg)   /* the helper's rule is EXECUTED in scripts/csh (#46 r2 MINOR-1) */
+        && /if \(miniApp \|\| ReferenceEquals\(p1ConsoleCore, core\)\)\s*\{\s*return;\s*\}/.test(scpg) && /ClassId == "miniapp"/.test(scpg),
+      /* A1 (#1123 (1)): the probe runs BEFORE the hold, and is LIVE in a dev build (#46 r1 C-8) */
+      a1: /p1HoldProbe\(op\);[^;]*\s*Spixi\.PresentHold\.start\(native,/.test(scpg) && /private static void p1HoldProbe\(PreloadOp op\)\s*\{\s*if \(!P1Perf\.enabled\)\s*\{\s*return;\s*\}/.test(scpg),
+      /* the shell hook sites exist (#46 r1 C-8) */
+      hooks: Object.entries(hooks).every(([f, re]) => re.test(stripCode(rdS2(f)))),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ P-1 stamp set (#1127, TEMPORARY): shells and C# share ONE grammar (tokens [a-z0-9_.=-]{1,40}, ≤ 16; a bad line is dropped whole — a verb\'s payload never reaches a line; the C# side executed in scripts/csh), everything is DEV-ONLY (SPIXI_DEV_COEXIST; *SL{SpixiP1} seeded "0" in a store build, unconditionally → nothing installed: no listener, no rAF, no observer), the Windows console hook logs only logSafe\'d grammar "shell" lines and skips mini-apps, and the A1 hold probe runs before every hold — ' + JSON.stringify(r) + ' off=' + JSON.stringify({ n: off.out.length, l: off.listeners.length, raf: off.raf, po: off.po }) + ' on=' + JSON.stringify(on.out));
+  }
+/* ==== SESSION 3 PINS END ==== */
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

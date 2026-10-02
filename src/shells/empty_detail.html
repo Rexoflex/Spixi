@@ -9,6 +9,7 @@
 <script>(function(){var u=navigator.userAgent;if(!/Android|iPhone|iPad|IEMobile|Mobile/.test(u)&&!(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))document.documentElement.setAttribute('data-desktop','');})();</script>
 <!-- ★ #1028 (walk R.6): the platform CONVENTION flag (#922 carrier) in every shell — base.css draws the Mac title-bar hairline from it -->
 <script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
+<script>(function(){if('*SL{SpixiP1}'==='1')document.documentElement.setAttribute('data-p1','');})();</script>
 <!-- ★ AND-7 (#396/#401) FULL BLEED: the Android top system-bar inset, in CSS px, set
      BEFORE first paint. MainActivity no longer pads the root view down by the status
      bar, so this page reaches y=0 and its own chrome pads itself from --safe-top

@@ -78,6 +78,7 @@ import { openMemberSheet } from './member-sheet.js';
 import { openMediaViewer } from './media-viewer.js';
 import { formatLastSeen } from './timestamp.js';
 import { createSharedSection } from './shared-items.js';
+import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
 
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
@@ -1057,6 +1058,7 @@ export function createChatInfo({
       }
       list.hidden = !open;
       toggle.setAttribute('aria-expanded', String(open));
+      try { p1Shown(open ? 'chatinfo-txs-open' : 'chatinfo-txs-close'); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
     });
     txsCard.append(toggle, list);
     body.append(sec);

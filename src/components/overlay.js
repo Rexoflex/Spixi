@@ -15,6 +15,8 @@
  * CONSUME the back press without closing (back must not dismiss what Esc can't).
  */
 
+import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
+
 const stack = []; // { el, scrim, opts, opener }
 const overlayOpts = new WeakMap();    // el → opts, set by createSheet/createModal
 const pendingRemoval = new WeakMap(); // el → finish-removal fn while its exit transition runs
@@ -191,6 +193,7 @@ export function openOverlay(el, opts) {
     scrim.dataset.open = '';
     el.dataset.open = '';
   }));
+  try { p1Shown(p1Kind(el) + '-open'); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
 
   el.dataset.overlayRoot = '';                                    // #993: the root's own focus paints no ring (overlay.css)
   if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');   // focusable by script, never by Tab
@@ -269,7 +272,14 @@ export function dismissOverlay(el) {
   entry.el.addEventListener('transitionend', onEnd);
   fallback = setTimeout(remove, 400); // > --duration-200; covers reduced-motion 0ms
   pendingRemoval.set(entry.el, remove);
+  try { p1Shown(p1Kind(entry.el) + '-close'); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
   return true;
+}
+
+/* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: one hook for every sheet / modal / other overlay
+ * (openSheet/openModal and the direct openOverlay callers all land here). */
+function p1Kind(el) {
+  return el.classList.contains('c-sheet') ? 'sheet' : el.classList.contains('c-modal') ? 'modal' : 'overlay';
 }
 
 /** Shell onBack hook: dismiss the top overlay if any. True = consumed.

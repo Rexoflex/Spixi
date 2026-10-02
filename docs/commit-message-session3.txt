@@ -1,0 +1,26 @@
+Session 3: P-1 stamps, Downloads tiles, silent deletes, tick + dim fixes
+
+Interview #1126-#1128 and build #1129.
+
+- P-1 (#1127, dev-only, temporary): [P1] log lines on every native open,
+  close and pop, tab switch, wallet tx push, info pane and Account hand-off,
+  with Android/Windows frame windows; shell lines for tap-to-verb, tab,
+  subscreen, sheet and modal changes, scroll and long tasks. One grammar
+  on both sides (fixed words and integers). Compiled only under
+  SPIXI_DEV_COEXIST; *SL{SpixiP1} is seeded "0" in a store build.
+- A1: a probe line before every G-1 chat-open hold (why the hold got no
+  native WebView).
+- A3: Downloads rows show the chat's file-type tile.
+- A8: file and app card time + status at 0.7; READ and FAILED stay full.
+- A10 (#1128): a deleted message (and a cancelled app invite) is sent
+  without a push notification.
+- A11: on the chats list the sent tick has the delivered weight.
+- A12: the channel selector's dim covers the composer.
+- Renders for G-4 / G-6 / #1124 in docs/sheets/session3/.
+- C# harness: P1Perf compiled and executed (CSH 44). Smoke BASELINE OK 5095.
+- #46 loop CLEAN at r3 (docs/review-brief-session-3.md).
+- Walk + measure recorded (#1130): 6 P, 0 F; the first P-1 table in
+  docs/p1-measurement.md; the A1 hold mechanism found.
+- Process (#1131): adopt the finalization skills (spixi-finalization-checklists,
+  adversarial-review-loop lenses, spixi-build-and-walk diagnosis order);
+  process.md and the session-4 prompt point to them.

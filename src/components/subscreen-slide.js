@@ -41,6 +41,8 @@
  * swap starts from a settled DOM. Every entry point calls it first.
  */
 
+import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
+
 const inflight = new WeakMap();   // host → { finish }
 
 const ENTER_MS = 300;             // = SpixiContentPage.ScreenSlideInMs
@@ -121,6 +123,7 @@ export function slideSubscreenIn(host, entering, swap, opts = {}) {
   const positioned = opts.positioned === undefined ? 'viewport' : opts.positioned;
   if (opts.append !== false && entering.parentNode !== host) host.append(entering);
   run(host, entering, 'c-subslide--in', positioned, ENTER_MS, () => { if (swap) swap(); });
+  try { p1Shown('subscreen-open'); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
 }
 
 /**
@@ -135,6 +138,7 @@ export function slideSubscreenOut(host, leaving, remove, opts = {}) {
   if (leaving.classList.contains('c-subslide--out')) { settleSubscreenSlide(host); return; }
   const fin = remove || (() => leaving.remove());
   run(host, leaving, 'c-subslide--out', positioned, EXIT_MS, fin);
+  try { p1Shown('subscreen-close'); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
 }
 
 /** True while a slide is in flight on `host`. ★ review NIT-1: no host gates on this —

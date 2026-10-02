@@ -40,4 +40,34 @@ public static class Run { public static int Main() { int pass=0, fail=0;
   var L = string.Join("|", IXICore.Meta.Logging.lines);
   chk(L.Contains("[PRESENCE] c1 dot=on age=10s core=1") && L.Contains("[PRESENCE] c2 keepalive gap=990s delay=10s") && L.Contains("[PRESENCE] c1 keepalive")
       && !L.Contains("Abc") && !L.Contains("Xyz"), "int: G-3 lines carry c1 / c2 (stored per contact), never the address — "+L);
+  // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the [P1] grammar, executed (dev bodies, SPIXI_DEV_COEXIST)
+  chk(P1Perf.enabled, "p1: the harness compiles the DEV bodies (enabled)");
+  chk(P1Perf.isValidLine("[P1] shell boot chat load=12") && P1Perf.isValidLine("[P1] open singlechatpage present ms=5 overlay=1 slide=0"), "p1: isValidLine accepts a shell line and a C# open line");
+  chk(!P1Perf.isValidLine("[P1] shell Boot chat"), "p1: rejects an uppercase token");
+  chk(P1Perf.isValidLine("[P1] " + string.Join(" ", Enumerable.Repeat("x", 16))) && !P1Perf.isValidLine("[P1] " + string.Join(" ", Enumerable.Repeat("x", 17))), "p1: 16 tokens pass, 17 are rejected");
+  chk(P1Perf.isValidLine("[P1] " + new string('a', 40)) && !P1Perf.isValidLine("[P1] " + new string('a', 41)), "p1: a 40-char token passes, 41 is rejected");
+  chk(!P1Perf.isValidLine("shell boot chat load=12") && !P1Perf.isValidLine("[P1]shell boot"), "p1: rejects a missing \"[P1] \" prefix");
+  chk(!P1Perf.isValidLine("[P1]  double-space") && !P1Perf.isValidLine("[P1] a  b") && !P1Perf.isValidLine("[P1] a "), "p1: rejects an empty token (double / trailing space)");
+  chk(!P1Perf.isValidLine("[P1] a\nb") && !P1Perf.isValidLine("[P1] a\rb") && !P1Perf.isValidLine("[P1] é"), "p1: rejects a newline and a non-ASCII letter");
+  IXICore.Meta.Logging.lines.Clear(); IXICore.Meta.Logging.warns.Clear();
+  P1Perf.line("bad Name"); P1Perf.line("x\ny"); P1Perf.line("");
+  chk(IXICore.Meta.Logging.lines.Count == 0 && IXICore.Meta.Logging.warns.Count(w => w == "[P1] dropped") == 1, "p1: line() drops an invalid body whole (nothing logged) with ONE [P1] dropped warn per process — "+string.Join("|", IXICore.Meta.Logging.warns));
+  P1Perf.line("pop none ms=3");
+  chk(IXICore.Meta.Logging.lines.Count == 1 && IXICore.Meta.Logging.lines[0] == "[P1] pop none ms=3", "p1: line() logs a valid body with the prefix");
+  chk(P1Perf.kind(new System.Collections.Generic.List<int>()) == "page" && P1Perf.kind(null) == "page" && P1Perf.kind(new System.Text.StringBuilder()) == "stringbuilder", "p1: kind() — a generic type or null → page; a plain class → its lowercased name");
+  chk(P1Perf.kind(new P1Kind_x()) == "page" && P1Perf.kind(new P1Kindabcdefghijklmnopqrstuvwxy()) == "page" && P1Perf.kind(new P1Kindabcdefghijklmnopqrstuvwx()) == "p1kindabcdefghijklmnopqrstuvwx", "p1: kind() — a name with '_' or over 30 chars → page; 30 is kept (so close-<kind> fits a 40-char token)");
+  long p1t = P1Perf.now(); System.Threading.Thread.Sleep(20); long p1ms = P1Perf.msSince(p1t);
+  chk(p1ms >= 15 && p1ms < 2000, "p1: msSince counts milliseconds ("+p1ms+")");
+  IXICore.Meta.Logging.lines.Clear(); P1Perf.framesAfter("open-x"); P1Perf.framesAfter("bad what");
+  chk(IXICore.Meta.Logging.lines.Count == 0, "p1: framesAfter on a non-Android/Windows TFM logs nothing (Apple no-op) and never throws");
+  int safeCalls = 0; Func<string, string> recSafe = x => { safeCalls++; return x; };
+  string? acc = P1Perf.acceptShellConsole("[P1] shell boot chat load=12", recSafe);
+  chk(acc == "[P1] shell boot chat load=12" && safeCalls == 1, "p1: acceptShellConsole passes a shell line THROUGH safe (called once, its output returned)");
+  chk(P1Perf.acceptShellConsole("[P1] shell boot chat load=12", x => x.Replace("chat", "<redacted:32>")) == null, "p1: acceptShellConsole rejects a line whose safe() output fails the grammar (a redacted token)");
+  chk(P1Perf.acceptShellConsole("[P1] shell boot chat load=12", x => x.Replace("chat", "chatx")) == "[P1] shell boot chatx load=12", "p1: acceptShellConsole returns safe()'s OUTPUT, not its input");
+  safeCalls = 0;
+  chk(P1Perf.acceptShellConsole("[P1] open x", recSafe) == null && P1Perf.acceptShellConsole(null, recSafe) == null && safeCalls == 0, "p1: a non-shell [P1] line (or null) is rejected without calling safe");
   Console.WriteLine("CSH pass="+pass+" fail="+fail); return fail; } }
+public class P1Kind_x {}
+public class P1Kindabcdefghijklmnopqrstuvwx {}
+public class P1Kindabcdefghijklmnopqrstuvwxy {}

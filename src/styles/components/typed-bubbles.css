@@ -409,6 +409,18 @@
 .c-fbubble__stamp .c-status-icon { flex: none; color: var(--text-neutral-02); }
 .c-fbubble__stamp .c-status-icon[data-tone="read"] { color: var(--icon-success); }
 .c-fbubble__stamp .c-status-icon[data-tone="failed"] { color: var(--icon-error); }   /* ★ #1045 (#46 r3): a failed file reads red like every failed status (was the stamp's grey) */
+/* ★ A8 (#1126, Damir: "time and status reduced opacity in file bubbles and app as well, so READ is noticeable —
+   same as the outgoing bubbles"): the text bubble's A9 / #1041 rule on the file stamp, the received file's lone
+   time and the typed / app card time — 0.7 on the CHILDREN (a box opacity would cap the read tick), READ and
+   FAILED stay 1.0. Reversal = delete these three rules. */
+.c-fbubble__stamp > *,
+.c-fbubble > .c-fbubble__time,
+.c-tcard__time { opacity: 0.7; }
+/* the tick needs the [data-tone] weight: where chatlist-item.css is ALSO loaded (the desktop demo; the chats list shells),
+   its global delivered fade (0,2,0) would otherwise win */
+.c-fbubble__stamp .c-status-icon[data-tone] { opacity: 0.7; }
+.c-fbubble__stamp .c-status-icon[data-tone="read"],
+.c-fbubble__stamp .c-status-icon[data-tone="failed"] { opacity: 1; }
 
 /* —— unread divider (full width) —— */
 .c-unread-divider {

@@ -22,6 +22,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon, ICONS } from './icons.js';
 import { formatCount } from './chatlist-item.js';
 import { attachPhoneLandscape } from './landscape-runtime.js';
+import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
 
 export function createBottomNav({ items = [], active, strings = getStrings(), ariaLabel = strings.mainNav || 'Main', variant, logo, onChange } = {}) {
   const el = document.createElement('nav');
@@ -86,6 +87,7 @@ export function createBottomNav({ items = [], active, strings = getStrings(), ar
       if (btn.hasAttribute('aria-current')) return; // already active — no re-fire
       setNavActive(el, item.id);
       if (onChange) onChange(item.id);
+      try { p1Shown(/^[a-z]{1,12}$/.test(item.id) ? 'tab-' + item.id : 'tab'); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
     });
     el.append(btn);
     if (item.badge) setNavBadge(el, item.id, item.badge);

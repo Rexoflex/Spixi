@@ -1,0 +1,10 @@
+#1123-#1124 Walk session 2 recorded (Windows + Android): 16 P, 0 F
+
+- #1123 the walk + the log analysis: the G-1 hold did not run (why=noview,
+  probe first in session 3); G-3 keepalive 100 s vs the 150 s window;
+  G-9 bar delay = the WebView resize; Damir's G-4/G-5/G-6 follow-ups
+- #1124 in-chat media tiles + progress ring + Privacy switch (open:
+  decide in session 3, build in session 4)
+- release-readiness states, handoff section 2, CLAUDE.md, status log
+- #1125 post-v1 idea: wake the offline sender when the receiver taps Download
+- session-3 prompt: Part A (A1-A6), next free #1126

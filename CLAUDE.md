@@ -80,9 +80,10 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-02: session 2 (#1118–#1122) BUILT in a cloud twin, #46 CLEAN at r4, NOT walked, NOT committed (Damir applies + commits). Smoke BASELINE OK 5089 / the 2 KNOWN · C# harness 26/26 · ⚠ C# UNCOMPILED (7 new app files).
-- Built: G-1 chat-open hold (list stays until the chat drew) · G-2 "last seen" kept across restarts · G-3/E-W3/G-9 probes · G-4 the Show-in-chat pulse for files/photos · G-5 Downloads header (C) · G-6 Telegram-style shared items + G-6b real thumbnails · E-W1 Apple call crash · E-W2 avatar · E-W4 Mac ring + "Call ringtone" · E-W5 · E-W7.
-- Owed: the two walks (`docs/walk-artifact-session2-win-android.html`, `…-session2-office.html`); E-W6 = a clean Mac build decides; BE asks T1 B-27 (2 verbs + the in-process thumbnail decode).
-- Session 3 = P-1 WIDENED to the whole app's felt speed (read-only review first; `docs/prompts/session-3.md`, 12 leads).
-- Road: walks → session-3 (performance) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
-- **NEXT SESSION: read `docs/handoff-2026-10-02.md` FIRST, then paste `docs/prompts/session-3.md`.** Next free DECISIONS number: **#1123**.
+- 2026-10-02: session 2 (#1118–#1122) committed + pushed ("Session 2: chat-open hold, kept last seen, shared items, Mac fixes"). #46 CLEAN at r4. Smoke BASELINE OK 5089 / the 2 KNOWN · C# harness `node scripts/run-csh.mjs` 26/26 (a gate).
+- Walk Windows + Android: 16 P · 0 F (#1123) — the first compile passed. ⚠ The G-1 hold did NOT run (`chat held … why=noview`): the P is the removed pre-reveal; session 3 probes first (#294).
+- Damir's follow-ups → session 3 Part A: G-4 pulse renders · G-5 file-type badges · G-6 gutter / chip gap / tap-to-open · #1124 in-chat media tiles (decide in 3, build in 4).
+- Owed: the office walk (`docs/walk-artifact-session2-office.html`, Mac + iPhone, a clean build first) — record it as #1126+; BE ask T1 B-27.
+- Session 3 = Part A + P-1 WIDENED (the whole app's felt speed, read-only first, 12 leads; `docs/prompts/session-3.md`).
+- Road: session 3 (follow-ups + performance) → session 4 (picked fixes + #1124) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight (#971, #937, #1099).
+- **NEXT SESSION: read `docs/handoff-2026-10-02.md` FIRST, then paste `docs/prompts/session-3.md`.** Next free DECISIONS number: **#1126**.

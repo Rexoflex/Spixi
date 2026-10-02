@@ -343,3 +343,7 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   app theme. #46 CLEAN at r4 (#1122). Smoke BASELINE OK 5089 / the 2 KNOWN; C# harness `scripts/csh` 26/26 (a new gate).
   P-1 widened (`docs/p1-scope.md` folded). ⚠ C# UNCOMPILED. NEXT SESSION: walk the two sheets; then read
   `docs/handoff-2026-10-02.md` FIRST and paste `docs/prompts/session-3.md`.
+
+- 2026-10-02 (b): session 2 committed + pushed. Walk Windows + Android 16 P · 0 F (#1123); the log analysis found the G-1 hold
+  never ran (`why=noview`) and the bar delay = the WebView resize (G-9). Damir's follow-ups + the in-chat media-tile idea (#1124)
+  folded into `docs/prompts/session-3.md` Part A. Office walk owed. Next free #1126.

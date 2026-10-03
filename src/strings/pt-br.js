@@ -559,6 +559,8 @@ export const ptbr = {
   people: "Pessoas",
   permissions: "Permissões",
   photo: "Foto",
+  photoPreviewsHint: "Fotos que você enviou ou baixou aparecem como imagem na conversa. Desligado: toda foto fica como cartão de arquivo.",
+  photoPreviewsTitle: "Mostrar prévias de fotos nas conversas",
   pickFile: "De um arquivo",
   pin: "Fixar",
   preferences: "Preferências",

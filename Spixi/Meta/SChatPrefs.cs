@@ -27,6 +27,41 @@ namespace SPIXI.Meta
             return KEY_FAV_PREFIX + address;
         }
 
+        /* ★★ A5 #1124 (Damir #1133 (3)): "Show photo previews in chats" (Account → Privacy, `ixian:photoPreviews:on|off`).
+         * ONE app preference, a plain bool, default TRUE. ON: SingleChatPage makes a small preview of a LOCAL image file
+         * (sent, or downloaded by the user's tap) and pushes it to the chat (`setFileThumb`); OFF: no decode at chat
+         * render, and every image stays a file card. A FIXED key — no address, no content (the standing gate rule).
+         * The shape of SNotificationPrefs.getBool/setBool: a Preferences failure is logged by TYPE and falls back to
+         * the default, it never throws into the chat load. */
+        private const string KEY_PHOTO_PREVIEWS = "chatPhotoPreviews";
+
+        public static bool photoPreviews
+        {
+            get
+            {
+                try
+                {
+                    return Preferences.Default.Get(KEY_PHOTO_PREVIEWS, true);
+                }
+                catch (Exception e)
+                {
+                    Logging.error("SChatPrefs.photoPreviews get failed: " + e.GetType().Name);
+                    return true;
+                }
+            }
+            set
+            {
+                try
+                {
+                    Preferences.Default.Set(KEY_PHOTO_PREVIEWS, value);
+                }
+                catch (Exception e)
+                {
+                    Logging.error("SChatPrefs.photoPreviews set failed: " + e.GetType().Name);
+                }
+            }
+        }
+
         public static bool isFavorite(string? address)
         {
             if (string.IsNullOrEmpty(address))

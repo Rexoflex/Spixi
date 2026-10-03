@@ -20,6 +20,9 @@
    absorbed ALL the shrink and rendered as a clipped sliver (Damir). The #148③
    settings guard, applied here too: never shrink. */
 .c-chat-info__body > * { flex: none; }
+/* ★★ A4 (Damir #1132, G-6 option 3): the shared-items chips +12 px from the danger card (the 1:1 order: danger, then
+   shared — chat-info.js). A room places the section above the roster, so the rule does not reach it. */
+.c-chat-info__body > .c-chat-info__danger + .c-shared { margin-block-start: var(--spacing-12); }
 
 /* ★ Session Y (#875 P2/P3/P5/P8) — INSET-GROUPED SECTIONS.
    #142 dividers → #148 one card PER ROW → now one card PER GROUP: a transparent

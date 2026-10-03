@@ -795,5 +795,7 @@
   "sharedOpen": "Öffnen",
   "sharedShowAll": "Alle {n} anzeigen",
   "sharedCopyFailed": "Kopieren fehlgeschlagen",
-  "copyLink": "Link kopieren"
+  "copyLink": "Link kopieren",
+  "photoPreviewsTitle": "Fotovorschau in Chats anzeigen",
+  "photoPreviewsHint": "Fotos, die du gesendet oder heruntergeladen hast, erscheinen im Chat als Bild. Aus: Jedes Foto bleibt eine Dateikarte."
 }

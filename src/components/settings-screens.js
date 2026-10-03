@@ -787,11 +787,13 @@ export function createPrivacy({
   readReceipts = true,
   typingIndicators = true,
   mediaAutoload = true,          // FE-only: spixi.media.autoload (the shell reads it per render)
+  photoPreviews = true,          // ★ #1133 (A5 #1124): C#-held (SChatPrefs.photoPreviews), default ON
   capabilities = {},             // { readReceipts, typing }
   onBack,
   onReadReceipts,                // (next, ctrl) — §9
   onTyping,                      // (next, ctrl) — §9
   onMediaAutoload,               // (next, ctrl) — FE-only, writes localStorage
+  onPhotoPreviews,               // (next, ctrl) — ★ #1133: ixian:photoPreviews:on|off, resolved by the echo
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
@@ -805,6 +807,20 @@ export function createPrivacy({
     failText: strings.privacyFailed || 'Couldn’t update. Try again.',
     onToggle: onMediaAutoload,
   }));
+
+  // ★ #1133: photo previews in chats (handler only with the exe's cap; data-pref = in-place echo)
+  if (onPhotoPreviews) {
+    const pv = switchRow({
+      glyph: 'eye', hue: 'accent',
+      label: strings.photoPreviewsTitle || 'Show photo previews in chats',
+      sub: strings.photoPreviewsHint || 'Photos you sent or downloaded show as a picture in the chat. Off: every photo stays a file card.',
+      checked: photoPreviews, live,
+      failText: strings.privacyFailed || 'Couldn’t update. Try again.',
+      onToggle: onPhotoPreviews,
+    });
+    pv.dataset.pref = 'photoPreviews';
+    body.append(pv);
+  }
 
   /* The note describes the §9 pair only — it says "turning one off also hides theirs
      from you", which is true of a receipt and false of the local media switch. It

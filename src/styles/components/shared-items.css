@@ -3,8 +3,10 @@
    "See all" view. Every colour is a role token; the card pair carries hover/press (#878). */
 .c-shared { display: flex; flex-direction: column; gap: var(--spacing-12); }
 /* ★ G-6 (#1119, Damir picked render 1 — Telegram's shared media in our tokens): the kind chips switch the panel in
-   place; the MEDIA panel is an edge-to-edge 3-column grid (it breaks out of the chat-info body's inline padding),
-   2 px gaps, the grid's TOP corners rounded, no card around it; files and links keep the card + rows. */
+   place; files and links keep the card + rows.
+   ★★ A4 (Damir #1132, G-6 option 3 "inset gallery"): the MEDIA panel no longer breaks out of the body's inline
+   padding — it is inset to the CARD column, 4 px gaps, every tile its own r8 (the .c-shared__tile default), no card
+   around it. The chips sit +12 px further from the danger card (chat-info.css). Reversal = the G-6 edge rule. */
 .c-shared__chips { display: flex; gap: var(--spacing-8); overflow-x: auto; scrollbar-width: none; }
 .c-shared__chips::-webkit-scrollbar { display: none; }
 .c-shared__chip { flex: none; }
@@ -23,14 +25,10 @@
 .c-shared__chips > .c-chip { max-width: none; }   /* GATE 58: a SCROLLING chip row opts out of the chip cap (#841) */
 .c-shared__panel { display: flex; flex-direction: column; gap: var(--spacing-8); }
 .c-chat-info__body .c-shared[data-kind="media"] .c-shared__panel > .c-shared__grid {
-  margin-inline: calc(-1 * var(--spacing-16));   /* = .c-chat-info__body's inline padding (chat-info.css) */
-  gap: 2px;
+  gap: var(--spacing-4);
   padding: 0;
-  border-radius: var(--radius-16) var(--radius-16) 0 0;
-  overflow: hidden;
 }
-.c-chat-info__body .c-shared[data-kind="media"] .c-shared__panel > .c-shared__grid .c-shared__tile { border-radius: 0; }
-/* (#46 r1 B6) the focus ring INSIDE the tile, above its neighbours — the 2 px gaps and the clipped grid hid the global ring */
+/* (#46 r1 B6) the focus ring INSIDE the tile, above its neighbours — the tight gaps would hide the global ring */
 .c-shared__tile:focus-visible { outline: var(--outline-width-2, 2px) solid var(--outline-focus, var(--surface-accent)); outline-offset: -3px; z-index: 1; }
 .c-shared__panel > .c-shared__all { align-self: center; min-height: 44px; padding: 0 var(--spacing-16); font-weight: var(--font-weight-semibold); }
 .c-shared__head {

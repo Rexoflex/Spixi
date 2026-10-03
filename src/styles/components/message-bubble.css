@@ -35,9 +35,9 @@
    (neutral-490 light / neutral-400 dark) clears 3:1 on both canvases */
 @media (hover: hover) and (pointer: fine) {
   .c-chat-canvas .u-scroll:hover,
-  .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--text-neutral-02) transparent; }
+  .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--chat-scroll-thumb) transparent; }
   .c-chat-canvas .u-scroll:hover::-webkit-scrollbar-thumb,
-  .c-chat-canvas .u-scroll:focus-within::-webkit-scrollbar-thumb { background: var(--text-neutral-02); }
+  .c-chat-canvas .u-scroll:focus-within::-webkit-scrollbar-thumb { background: var(--chat-scroll-thumb); }
 }
 
 .c-bubble-row {

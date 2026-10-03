@@ -11,8 +11,13 @@
  *   shell calls setMediaSrc(row, localUrl). Decoder choice = BE eval (§9).
  *
  * createMediaBubble({ direction, kind: 'gif'|'image', src, preview,
- *   width, height, alt, autoload = false, timestamp, gutter, onOpen, strings })
- * setMediaSrc(row, src) — late-arriving media (file transfer completed)
+ *   width, height, alt, autoload = false, timestamp, gutter, onOpen, strings,
+ *   ariaFor, sizeHint, onSrcError })   — ariaFor(state, el) (A5 #1124, #1133): the tile's accessible name
+ *   when the tile is a FILE (typed-bubbles.js createImageFileBubble); default = mediaAria.
+ *   sizeHint {w,h} (#46 r1 B-6): the picture's size known BEFORE it loads (a JPEG header) — the tile is sized
+ *   from it at once instead of jumping from the 4:3 placeholder on load. onSrcError (#46 r1 B-1): given → a
+ *   src that fails to decode is DROPPED (the tile returns to idle with no src — no retry loop) and the callback told.
+ * setMediaSrc(row, src, sizeHint) — late-arriving media (file transfer completed)
  *
  * States (data-state): idle (tap to load) → loading → loaded | failed (tap
  * retries). Tap on loaded → onOpen (shell viewer). Inline aspect-ratio from
@@ -24,6 +29,17 @@ import { safeImageSrc } from './avatar.js';
 import { docLocale, timeOpts } from './timestamp.js';
 
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
+/* #46 r3 R3-m1: the pictures this DOCUMENT has already shown (a fingerprint, not the URI — no second copy of a 60 K
+   preview): a tile RE-BUILT with one (a re-render) shows it at once, no fade from 0; the first show keeps its fade.
+   Bounded (oldest out). Only tiles that ask (instantIfShown — the image-file tile's local data: preview). */
+const shownSrcs = new Set();
+const SHOWN_KEEP = 256;
+const shownKey = (s) => { s = String(s || ''); return s.length + ':' + s.slice(-64); };
+function noteShown(s) {
+  const k = shownKey(s);
+  shownSrcs.delete(k); shownSrcs.add(k);
+  while (shownSrcs.size > SHOWN_KEEP) shownSrcs.delete(shownSrcs.values().next().value);
+}
 
 function mediaAria(state, kind, alt, strings) {
   const what = alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image'));
@@ -49,6 +65,10 @@ export function createMediaBubble({
                            // → the shell can scroll the log to the freshly-grown
                            //   tile if it was near the bottom (Damir F5 2026-07-08)
   strings = getStrings(),
+  ariaFor = null,          // ★ A5 #1124 (#1133): (state, el) → label — an image FILE names its file state, not "Tap to load"
+  sizeHint = null,         // #46 r1 B-6: { w, h } of a src not loaded yet (the shell read it from the JPEG header)
+  onSrcError = null,       // #46 r1 B-1: a src that fails to decode is dropped (idle, no retry) and this is told
+  instantIfShown = false,  // #46 r3 R3-m1: a src this document already showed appears at once on a re-built tile
 } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -84,6 +104,7 @@ export function createMediaBubble({
     el.style.width = 'min(100%, ' + wPx + 'px)';
   };
   if (width > 0 && height > 0) fitTile(width, height); // sanctioned: runtime geometry from sender dims
+  else if (sizeHint) fitTile(sizeHint.w, sizeHint.h);  // #46 r1 B-6: the picture's own size, known before it loads
 
   /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the sender-embedded preview is the ONE sink in
    * this file that paints on RENDER. The tile's own `src` below waits for `load()`, which
@@ -127,7 +148,7 @@ export function createMediaBubble({
 
   const setState = (s) => {
     el.dataset.state = s;
-    el.setAttribute('aria-label', mediaAria(s, kind, alt, strings));
+    el.setAttribute('aria-label', typeof ariaFor === 'function' ? ariaFor(s, el) : mediaAria(s, kind, alt, strings));
     overlay.textContent = '';
     if (s === 'idle') overlay.append(icon(kind === 'gif' ? 'player-play' : 'download', { size: 22 }));
     else if (s === 'loading') {
@@ -155,13 +176,24 @@ export function createMediaBubble({
     if (!(width > 0 && height > 0)) {
       fitTile(img.naturalWidth, img.naturalHeight);   // iOS-17 (#283): natural aspect + width cap in one place
     }
+    if (instantIfShown && currentSrc) noteShown(currentSrc);   // #46 r3 R3-m1
     setState('loaded');
     // the tile just grew to full size — let the shell pull the log to the latest
     // so the whole GIF comes into view (only if it was already near the bottom).
     if (onLoad) { try { onLoad(); } catch (_) {} }
   });
-  img.addEventListener('error', () => setState('failed'));
-  mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });
+  img.addEventListener('error', () => {
+    if (typeof onSrcError !== 'function') { setState('failed'); return; }
+    currentSrc = '';                 // #46 r1 B-1: drop it — idle with no src, so a tap is the owner's (load() is a no-op)
+    img.removeAttribute('src');
+    setState('idle');
+    try { onSrcError(); } catch (_) {}
+  });
+  mediaCtl.set(el, { setSrc: (s, hint) => {
+    if (!(width > 0 && height > 0) && hint) fitTile(hint.w, hint.h);   // #46 r1 B-6
+    if (!shownSrcs.has(shownKey(s))) delete el.dataset.seen;            // #46 r3 R3-m1: a NEW picture keeps its first-show fade
+    currentSrc = s; load();
+  } });
 
   el.addEventListener('click', () => {
     const s = el.dataset.state;
@@ -181,7 +213,12 @@ export function createMediaBubble({
   }
 
   setState('idle');
-  if (autoload && src) load();
+  if (autoload && src) {
+    load();
+    /* #46 r3 R3-m1: already shown here → decoded in this document's memory: loaded NOW, no fade (data-seen drops the
+       transition). The img's own load event still lands (onLoad, sizing); a decode error still drops it (B-1). */
+    if (instantIfShown && shownSrcs.has(shownKey(src))) { el.dataset.seen = ''; setState('loaded'); }
+  }
 
   // reactions overlap-anchor (audit r3): pills can't live INSIDE the tile —
   // overflow:hidden clips the -12px overhang — so the anchor wraps the tile
@@ -195,9 +232,9 @@ export function createMediaBubble({
 /** Late-arriving media (file-transfer path completed): swap in the local
  *  source and load it through the tile's OWN state machine (audit r3 —
  *  aria-label/spinner/retry all stay correct). #44 free fn. */
-export function setMediaSrc(row, src) {
+export function setMediaSrc(row, src, sizeHint = null) {
   const el = row.querySelector('.c-mbubble');
   if (!el || !src) return;
   const ctl = mediaCtl.get(el);
-  if (ctl) ctl.setSrc(src);
+  if (ctl) ctl.setSrc(src, sizeHint);
 }

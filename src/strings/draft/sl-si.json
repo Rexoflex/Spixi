@@ -796,5 +796,7 @@
   "sharedOpen": "Odpri",
   "sharedShowAll": "Pokaži vse ({n})",
   "sharedCopyFailed": "Kopiranje ni uspelo",
-  "copyLink": "Kopiraj povezavo"
+  "copyLink": "Kopiraj povezavo",
+  "photoPreviewsTitle": "Prikaži predogled fotografij v klepetih",
+  "photoPreviewsHint": "Fotografije, ki ste jih poslali ali prenesli, so v klepetu prikazane kot slika. Izklopljeno: vsaka fotografija ostane kartica datoteke."
 }

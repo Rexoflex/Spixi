@@ -558,6 +558,8 @@
   "people": "個人",
   "permissions": "権限",
   "photo": "写真",
+  "photoPreviewsHint": "送信またはダウンロードした写真は、チャット内に画像として表示されます。オフ：すべての写真がファイルカードのまま表示されます。",
+  "photoPreviewsTitle": "チャットで写真のプレビューを表示",
   "pickFile": "ファイルから",
   "pin": "固定",
   "preferences": "環境設定",

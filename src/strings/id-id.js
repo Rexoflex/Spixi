@@ -559,6 +559,8 @@ export const idid = {
   people: "Orang",
   permissions: "Izin",
   photo: "Foto",
+  photoPreviewsHint: "Foto yang Anda kirim atau unduh tampil sebagai gambar di obrolan. Mati: setiap foto tetap berupa kartu file.",
+  photoPreviewsTitle: "Tampilkan pratinjau foto di obrolan",
   pickFile: "Dari file",
   pin: "Sematkan",
   preferences: "Preferensi",

@@ -558,6 +558,8 @@
   "people": "Persone",
   "permissions": "Autorizzazioni",
   "photo": "Foto",
+  "photoPreviewsHint": "Le foto che hai inviato o scaricato appaiono come immagine nella chat. Disattivato: ogni foto resta una scheda file.",
+  "photoPreviewsTitle": "Mostra anteprime delle foto nelle chat",
   "pickFile": "Da file",
   "pin": "Fissa",
   "preferences": "Preferenze",

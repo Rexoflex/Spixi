@@ -559,6 +559,8 @@ export const ltlt = {
   people: "Žmonės",
   permissions: "Leidimai",
   photo: "Nuotrauka",
+  photoPreviewsHint: "Jūsų išsiųstos ar atsisiųstos nuotraukos pokalbyje rodomos kaip paveikslėlis. Išjungta: kiekviena nuotrauka lieka failo kortele.",
+  photoPreviewsTitle: "Rodyti nuotraukų peržiūras pokalbiuose",
   pickFile: "Iš failo",
   pin: "Prisegti",
   preferences: "Nuostatos",

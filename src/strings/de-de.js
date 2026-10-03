@@ -559,6 +559,8 @@ export const dede = {
   people: "Personen",
   permissions: "Berechtigungen",
   photo: "Foto",
+  photoPreviewsHint: "Fotos, die du gesendet oder heruntergeladen hast, erscheinen im Chat als Bild. Aus: Jedes Foto bleibt eine Dateikarte.",
+  photoPreviewsTitle: "Fotovorschau in Chats anzeigen",
   pickFile: "Aus Datei",
   pin: "Anheften",
   preferences: "Einstellungen",

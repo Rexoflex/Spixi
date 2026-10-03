@@ -574,17 +574,30 @@
   /* ★ G-4 (#1115/#1116: "Show in chat" from Downloads / chat info should HIGHLIGHT the file): the pulse ran on every
      jump, but its selector named `.c-bubble` only — a FILE row is a .c-fbubble, a photo/video row a .c-mbubble, a payment
      or request card a .c-tcard — so exactly the rows "Show in chat" lands on never lit. Every bubble kind, spelled out (no :is() — the conservative-CSS baseline). */
+  /* ★★ A2 (Damir #1132 (4): G-4 option 3 with a 1 px ring) — the jump lights the ROW and rings the BUBBLE: a full-width
+     band behind the message row (the option-2 band, the warning WASH — it fills a row, so the wash reads where it
+     failed as a 3 px ring, N52) + a 1 px ring in the SOLID warning role on the bubble, held, then fading, 3 s in all.
+     Every bubble kind, spelled out (no :is() — the conservative-CSS baseline). jumpToRow keeps the attribute 3 s.
+     #46 r1 L-1: the length is ONE token, --duration-highlight (tokens.css), which the JS reads too. #46 r1 B-3: a
+     re-render re-applies the highlight with --jump-delay = minus the time already shown, so it CONTINUES (never
+     restarts, never ends early). #46 r1 L-2: held to 90 % — the exit fade is the last 10 % = 300 ms of 3 s
+     (= --duration-300), not the 900 ms a 70 % hold gave (longer than any open). */
+  .c-bubble-row[data-mention-pulse] { animation: chat-jump-band var(--duration-highlight) var(--easing-standard) var(--jump-delay, 0ms) 1; }
   .c-bubble-row[data-mention-pulse] .c-bubble, .c-bubble-row[data-mention-pulse] .c-fbubble,
-  .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: chat-mention-pulse 1.4s var(--easing-standard) 1; }
-  @keyframes chat-mention-pulse {
-    0%, 20% { box-shadow: 0 0 0 3px var(--surface-warning); }
-    100% { box-shadow: 0 0 0 0 transparent; }
+  .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: chat-jump-ring var(--duration-highlight) var(--easing-standard) var(--jump-delay, 0ms) 1; }
+  @keyframes chat-jump-band {
+    0%, 90% { background-color: var(--surface-warning-inverse); }
+    100% { background-color: transparent; }
   }
-  /* loop B-3: under reduced motion the ring must still READ — a static held ring
-     (no animation) for the attribute's ~1.6s lifetime; the JS timeout removes it. */
+  @keyframes chat-jump-ring {
+    0%, 90% { box-shadow: 0 0 0 1px var(--surface-warning); }
+    100% { box-shadow: 0 0 0 1px transparent; }
+  }
+  /* reduced motion: NO animation — the band (and the ring) held static for the attribute's 3 s; the JS timeout removes it */
   @media (prefers-reduced-motion: reduce) {
+    .c-bubble-row[data-mention-pulse] { animation: none; background-color: var(--surface-warning-inverse); }
     .c-bubble-row[data-mention-pulse] .c-bubble, .c-bubble-row[data-mention-pulse] .c-fbubble,
-  .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: none; box-shadow: 0 0 0 3px var(--surface-warning); }
+    .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: none; box-shadow: 0 0 0 1px var(--surface-warning); }
   }
 </style>
 </head>
@@ -685,6 +698,7 @@
     attachPressFeedback,
     setMessageStatus, replayStatusChange, removeMessage,
     createFileBubble, setFileProgress,
+    createImageFileBubble, isPhotoFileName, setImageFileThumb,   // ★ A5 #1124 (#1133): an image file on the media tile
     createMediaBubble, setMediaSrc, openMediaViewer,
     createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice, createUnreadDivider,
@@ -1574,6 +1588,27 @@
   const rows = new Map();    // id → row element
   let order = [];            // ids, kept timestamp-ascending
   const fileIndex = new Map(); // fileid → message id
+  /* ★★ A5 #1124 (Damir #1133 (3)) — PHOTO PREVIEWS. `photoPreviews` = C#'s setPhotoPreviews (the Privacy switch,
+   * SChatPrefs.photoPreviews), OFF until told (#46 r1 B-2: an older exe never sends it, and on it a tile would never
+   * get a picture — it keeps the file card it always showed). ON: an image FILE row renders on the media tile
+   * (buildFileRow); OFF: every image stays the file card. `fileThumbs` = message id → the preview C# pushed with
+   * setFileThumb (a LOCAL file's JPEG, decoded by C#). It outlives clearMessages (C# sends a preview at most ONCE per
+   * message and file version per DOCUMENT, so a re-flush must keep it), is reset per peer in onChatScreenReady and is
+   * bounded TWICE (#46 r1 B-N3): at most FILE_THUMB_KEEP entries AND FILE_THUMB_BUDGET characters in all (oldest
+   * dropped first) — 200 full-size previews would be 18 M characters. Never written to storage. */
+  let photoPreviews = false;
+  const fileThumbs = new Map();
+  const FILE_THUMB_KEEP = 200;
+  const FILE_THUMB_BUDGET = 4000000;                              // ~8 MB of UTF-16; a 320 px preview is ~15–35 K chars
+  let fileThumbChars = 0;
+  const FILE_THUMB_MAX = 90000;                                   // ≥ the base64 of C#'s 64 KB cap + the prefix
+  function dropFileThumb(key) {
+    const old = fileThumbs.get(key);
+    if (old === undefined) return;
+    fileThumbs.delete(key);
+    fileThumbChars -= old.length;
+  }
+  const FILE_THUMB_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
   const txIndex = new Map();   // txid → message id (updateTransactionStatus keys by txid)
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
   const groupRoster = new Map(); // roster key → { address, name, avatar } from ixian:loadContacts (full participant list)
@@ -1871,6 +1906,51 @@
 
   /* Shared scroll-to-and-pulse. Extracted from the @-mention FAB so the reply
      quote lands on the SAME behaviour (and the same stale-node re-bind). */
+  /* ★ A2 (#1132 (4)) · #46 r1 L-1: the highlight's length is the --duration-highlight token (tokens.css), READ here —
+     the CSS animation and this timer cannot drift. The fallback is the token's own value (an unresolved read). */
+  const JUMP_PULSE_FALLBACK_MS = 3000;
+  const JUMP_BELT_MS = 100;       // the timer ends the highlight this long after the band's own end (reduced motion: the only end)
+  const JUMP_ARRIVE_MS = 1600;    // the arrival hook's moment (the mention FAB advance) — unchanged since N52
+  function jumpPulseMs() {
+    let v = '';
+    try { v = getComputedStyle(document.documentElement).getPropertyValue('--duration-highlight').trim(); } catch (e) {}
+    const m = /^(\d+(?:\.\d+)?)(ms|s)$/.exec(v);
+    const ms = m ? Number(m[1]) * (m[2] === 's' ? 1000 : 1) : NaN;
+    return ms > 0 ? ms : JUMP_PULSE_FALLBACK_MS;
+  }
+  /* #46 r1 B-3: the highlight is SHELL STATE, not a row attribute — renderLogNow rebuilds rows, and the old attribute
+     died with the old node (a tick, a reaction, a late row all re-render inside the 3 s). ONE highlight at a time:
+     { id, at, ms, timer }. A rebuilt row gets it back mid-way (--jump-delay < 0); a second jump RESTARTS it. */
+  let jumpPulse = null;
+  let jumpToken = 0;   // #46 r2 R2-2: the newest jump; an older jump's visibility loop sees a newer token and stops
+  function applyJumpPulse(live, elapsedMs) {
+    const e = Math.max(0, Math.round(elapsedMs || 0));
+    live.style.setProperty('--jump-delay', e > 0 ? -e + 'ms' : '0ms');   // sanctioned runtime timing (the #1035 tick replay rule)
+    live.setAttribute('data-mention-pulse', '');
+  }
+  function endJumpPulse() {
+    if (!jumpPulse) return;
+    clearTimeout(jumpPulse.timer);
+    const row = rows.get(jumpPulse.id);
+    jumpPulse = null;
+    if (row) { row.removeAttribute('data-mention-pulse'); row.style.removeProperty('--jump-delay'); }
+  }
+  function startJumpPulse(id) {
+    endJumpPulse();                      // a highlight still running elsewhere — or on THIS row — ends first
+    const live = rows.get(id);
+    if (!live) return;
+    void live.offsetWidth;               // the attribute came off this frame: a reflow lets the same row's animation restart
+    const ms = jumpPulseMs();
+    jumpPulse = { id, at: performance.now(), ms, timer: setTimeout(endJumpPulse, ms + JUMP_BELT_MS) };
+    applyJumpPulse(live, 0);
+  }
+  /* ★ A2 (#1132 (4)): the BAND's own end clears it — a tick crossfade or a spinner inside the row also fires
+     animationend (it bubbles), and a 3 s highlight must not die with a 300 ms tick fade. Delegated: the row node
+     may be a rebuilt one. */
+  box.addEventListener('animationend', (e) => {
+    if (!jumpPulse || e.animationName !== 'chat-jump-band' || e.target !== rows.get(jumpPulse.id)) return;
+    endJumpPulse();
+  });
   function jumpToRow(id, onArrive, instant) {
     const first = rows.get(id); if (!first) return false;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1879,16 +1959,17 @@
        still sees the bottom and snaps back */
     first.scrollIntoView({ behavior: reduce || instant ? 'auto' : 'smooth', block: 'center' });
     /* N52: start the pulse when the row is actually VISIBLE, not when the tap
-       landed — on a far jump the 1.4s animation is otherwise spent mid-scroll.
+       landed — on a far jump the animation is otherwise spent mid-scroll.
        loop B-4: renderLogNow rebuilds rows, so re-bind through the id each frame. */
     const pulseFrom = performance.now();
+    const tok = ++jumpToken;
     (function pulseWhenVisible() {
+      if (tok !== jumpToken) return;   // #46 r2 R2-2: a newer jump owns the highlight (its fallback must not steal it)
       const live = rows.get(id);
       if (!live || !live.isConnected) { if (performance.now() - pulseFrom <= 1500) requestAnimationFrame(pulseWhenVisible); return; }
       if (mentionRowVisible(live) || performance.now() - pulseFrom > 1500) {
-        live.setAttribute('data-mention-pulse', '');
-        live.addEventListener('animationend', () => live.removeAttribute('data-mention-pulse'), { once: true });
-        setTimeout(() => { live.removeAttribute('data-mention-pulse'); if (onArrive) onArrive(); }, 1600);
+        startJumpPulse(id);
+        if (onArrive) setTimeout(onArrive, JUMP_ARRIVE_MS);   // the arrival hook keeps its old moment
         return;
       }
       requestAnimationFrame(pulseWhenVisible);
@@ -2181,7 +2262,12 @@
    * flips to complete (open button + success toast) when done — instead of the
    * legacy "own file = instantly complete". meta is empty (bridge sends no size). */
   function buildFileRow(rec) {
-    return createFileBubble({
+    /* ★ A5 #1124: an image file → the media tile (same options + the preview); OFF or another file → the card */
+    const photoTile = photoPreviews && isPhotoFileName(rec.name);
+    return (photoTile ? createImageFileBubble : createFileBubble)({
+      thumb: photoTile ? (fileThumbs.get(String(rec.id)) || null) : null,
+      onLoad: photoTile ? () => { if (nearBottom()) box.scrollTop = box.scrollHeight; } : undefined,   // the tile grew to the picture
+      onThumbError: photoTile ? () => dropFileThumb(String(rec.id)) : undefined,   // #46 r1 B-1: a picture that will not decode is forgotten
       direction: rec.direction,
       name: rec.name || '',
       meta: rec.meta || '',
@@ -4167,6 +4253,7 @@
       const row = buildRow(rec, pos[id]);
       row.dataset.msgid = id;
       rows.set(id, row);
+      if (jumpPulse && jumpPulse.id === id) applyJumpPulse(row, performance.now() - jumpPulse.at);   // #46 r1 B-3: continue, do not restart
       frag.append(row);
       applyRowReactions(rec, row, false);  // re-attach pills after a rebuild
       wireMenu(rec, row);                  // long-press / right-click context menu
@@ -5158,6 +5245,7 @@
       maybeRestoreDraft();                 // address known → bring back any saved draft (CH7)
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       resetLoadedMedia();                  // per-peer reset, and drop any set an older build persisted
+      fileThumbs.clear(); fileThumbChars = 0;   // ★ A5 #1124: per-peer reset (C# starts its once-per-document set again at this push)
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
       loadCanceledApps();                  // ★ B2: …and which own invites they canceled
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
@@ -5629,7 +5717,11 @@
       // setFileProgress mutates a row that is ALREADY in 'progress' (bar tick +
       // the progress→complete flip). A structural change (offer→progress etc.)
       // has no track to grow, so rebuild the row from the model instead.
-      if (row && prev === 'progress') setFileProgress(row, rec.progress, { state: rec.fstate });
+      if (row && prev === 'progress') {
+        setFileProgress(row, rec.progress, { state: rec.fstate });
+        // ★ A5 #1124: a tile that just completed takes a preview C# already sent (the usual order is the reverse)
+        if (rec.fstate === 'complete' && fileThumbs.has(id)) setImageFileThumb(row, fileThumbs.get(id));
+      }
       else renderLog();
       // slick completion cue for OUTGOING transfers (Damir F5): a one-shot success
       // toast the moment a sent file finishes (the bar + open button carry the rest).
@@ -5637,6 +5729,38 @@
         rec.sentToastShown = true;
         showToast({ text: (window.SL && window.SL.fileSent) || 'File sent', tone: 'success', host: overlayHost, strings: window.SL || {} });
       }
+    },
+
+    /* ★★ A5 #1124 (#1133): setPhotoPreviews("True"|"False") — C# sends it once before the first history push of a
+     * document, and again when the chat re-appears with a changed value. Anything else is ignored. A change
+     * re-renders, so every image file flips between the tile and the card. */
+    setPhotoPreviews(v) {
+      const t = String(v);
+      if (t !== 'True' && t !== 'False') return;
+      const on = t === 'True';
+      if (on === photoPreviews) return;
+      photoPreviews = on;
+      renderLog();
+    },
+
+    /* ★★ A5 #1124 (#1133, 🟡 NEW push, BE ask): setFileThumb(<message id hex>, <data uri>) — the preview of a LOCAL
+     * image file (sent, or downloaded by the user's tap), made by C# (SThumbnail, ≤ 64 KB JPEG). Accepted ONLY when
+     * previews are on, the value is a base64 JPEG data: URI (FILE_THUMB_RE) of at most FILE_THUMB_MAX characters,
+     * and the id is a file row of this conversation that renders as an image tile; anything else is ignored
+     * silently. The value only ever becomes an <img src> on that tile (no other sink). */
+    setFileThumb(id, uri) {
+      const key = String(id == null ? '' : id);
+      const u = typeof uri === 'string' ? uri : '';
+      if (!photoPreviews || !u || u.length > FILE_THUMB_MAX || !FILE_THUMB_RE.test(u)) return;
+      const rec = model.get(key);
+      if (!rec || rec.kind !== 'file' || !isPhotoFileName(rec.name)) return;
+      if (fileThumbs.get(key) === u) return;                 // the same preview again: nothing to redo
+      dropFileThumb(key);
+      fileThumbs.set(key, u);
+      fileThumbChars += u.length;
+      while (fileThumbs.size > FILE_THUMB_KEEP || fileThumbChars > FILE_THUMB_BUDGET) dropFileThumb(fileThumbs.keys().next().value);
+      const row = rows.get(key);
+      if (row) setImageFileThumb(row, u);   // a tile that shows a picture only (complete, or MY photo still sending — #46 r2 R2-1); a card ignores it
     },
 
     // CALL event (chat.js addCall:1496): (id, text, declined, time) + C4 trailing

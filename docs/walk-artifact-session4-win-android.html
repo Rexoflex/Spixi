@@ -1,0 +1,220 @@
+<title>Spixi Session 4 Walk</title>
+<style>
+/* Layout: one narrow column — commit steps, then a Windows part and an Android part (each: build steps, then walk rows), a sticky tally bar.
+   Tokens follow the Spixi redesign palette (ink neutrals, the Spixi blue). */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:780px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:8px 0 0;text-wrap:balance;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .tag{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 8px}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:8px;flex-wrap:wrap}
+nav.jump a{font:600 13px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:5px 12px;text-decoration:none}
+nav.jump a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps li{min-width:0}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.cmd button,.ctl button{font:600 12px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;flex:none}
+.exp{font-size:13px;color:var(--ink-2)}
+.exp b{color:var(--ink)}
+code{font:13px var(--mono);background:var(--brand-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:780px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{width:100%;min-height:120px;font:13px var(--mono)}
+.note{font-size:13px;color:var(--ink-2);border-inline-start:3px solid var(--brand);padding-inline-start:10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Spixi Session 4 Walk</h1>
+    <p class="sub">Commit and push session 4, build Windows and Android, then walk 13 checks per platform. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both log files in the chat.</p>
+  </header>
+  <nav class="jump" aria-label="Parts">
+    <a href="#commit">1 · Commit + push</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
+  </nav>
+
+  <h2 id="commit">Commit + push <span class="tag">fresh PowerShell</span></h2>
+  <section class="box">
+    <h3>Steps (one command each)</h3>
+    <ol class="steps" id="steps-commit"></ol>
+  </section>
+
+  <h2 id="windows">Windows <span class="tag">F5</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-win"></ol>
+  </section>
+  <div id="rows-win"></div>
+
+  <h2 id="android">Android <span class="tag">Release + dev switch</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-and"></ol>
+  </section>
+  <div id="rows-and"></div>
+  <p class="note">The A5 rows need a second device or a contact who can send you a photo. If a build fails, stop and paste the error — it is the first compile of the session-4 C#.</p>
+  <textarea id="out" readonly aria-label="Results text" hidden></textarea>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+</div></div>
+
+<script>
+const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
+const STEPS = {
+  commit: [
+    ['Open a new PowerShell window. Go to the repo.', `cd "${REPO}"`, ''],
+    ['Look at the changes.', 'git --no-optional-locks status --short', 'About 87 lines. <b>docs/handoff-2026-09-30e.md</b> is another session\'s file — do not add it.'],
+    ['Add the changed tracked files.', 'git add -u', 'No output.'],
+    ['Add the new code and test files.', 'git add Spixi/Utils/OpenPerfRules.cs scripts/csh/OpenPerfRulesTests.cs scripts/pins-s4 docs/reviews docs/sheets/session4', 'No output.'],
+    ['Add the new docs.', 'git add docs/handoff-2026-10-03.md docs/review-brief-session-4.md docs/commit-message-session4.txt docs/walk-artifact-session4-win-android.html docs/prompts/session-5.md docs/quality-plan.md', 'No output.'],
+    ['Check the count.', 'git diff --cached --stat', 'The last line says <b>102 files changed</b>. Another number: stop and paste it.'],
+    ['Commit.', 'git commit -F docs/commit-message-session4.txt', 'One line with the subject "Session 4: P-1 levers, photo tiles, jump highlight, dark chat thumb".'],
+    ['Push.', 'git push', 'Ends with <b>redesign/frontend -> redesign/frontend</b>.'],
+    ['Run the smoke test (about 5–9 min).', 'node scripts/smoke-test.mjs', 'The last line: <b>BASELINE OK — 5150 pass / the 2 KNOWN</b>.'],
+    ['Run the C# harness.', 'node scripts/run-csh.mjs', '<b>CSH pass=59 fail=0</b>.'],
+    ['Delete the old build output (C# and html changed).', 'Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue', 'No output.'],
+  ],
+  win: [
+    ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
+    ['Set the target.', '', 'Configuration <b>Debug</b>, target <b>Windows Machine</b>. Debug turns the [P1] lines on.'],
+    ['Press F5. Never use dotnet build for Windows (#663).', '', 'The app starts. A build error: paste it in the chat.'],
+    ['Walk the Windows rows below. Use a wide window.', '', ''],
+    ['Save the log.', '', 'Open the Developer page → <b>Send log</b>. It saves <b>Downloads\\spixi-log-&lt;date&gt;.txt</b>.'],
+    ['Copy the log next to the other outputs.', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
+  ],
+  and: [
+    ['Connect the phone with USB. Check it.', 'adb devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large, then clear it.', 'adb logcat -G 16M', 'No output.'],
+    ['Clear the log.', 'adb logcat -c', 'No output.'],
+    ['Build and deploy Release with the dev switch (a store build logs no [P1] line).', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Release -p:SpixiDevCoexist=true -t:Run', 'The app opens on the phone. A build error: paste it.'],
+    ['Walk the Android rows below.', '', ''],
+    ['Save the log as UTF-8.', 'adb logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s4.txt"', 'A file of a few MB. Tell me if you also screen-recorded (A1, M-CLOSE, M-ACCT).'],
+  ],
+};
+const W = 'w', A = 'a';
+const ROWS = [
+  {p:W,id:'W-BUILD',t:'This build: dark chat scroll thumb + Privacy switch',d:'Dark theme. Open a chat with a long history; hover and scroll it. Open Account → Privacy.',e:'The chat scroll thumb is dark grey like chat info (was light grey, #1134). Privacy has "Show photo previews in chats", ON.'},
+  {p:W,id:'W-DESK',t:'Chat switch × 10 (lever 3)',d:'Click 10 different chats in the list, ~2 s each. While each one settles: type, scroll with the wheel, select text.',e:'"[P1] open singlechatpage present ms=" about 90 after the first switch (session 3: 221). Typing, scroll, select and focus never fail while the hidden spare warms.'},
+  {p:W,id:'W-WALLET',t:'Wallet re-visit × 10 (levers 2 + 2b)',d:'10× Chats → Wallet → Chats. Then tap the Sent filter, then All.',e:'"[P1] wallet txpush … force=0" on re-visits; no row flicker. A filter tap: the chip changes at once, the rows follow, no blank list.'},
+  {p:W,id:'W-ACCT',t:'Account → tab × 10 (lever 10)',d:'10×: Account, then Wallet (5×) or Chats (5×). Once: change a setting first, then tap a tab.',e:'No old screen or open chat shows through. The log says "handoff pop released by cover", not "backstop". The setting is saved. Say if a tab tap feels slower.'},
+  {p:W,id:'W-A2',t:'Show in chat: band + 1 px ring',d:'Chat info → Media → right-click a photo → Show in chat. Also Downloads → Show in chat. Light and dark.',e:'The row gets a soft full-width band and a thin ring for about 3 s, then fades. A new message meanwhile does not cut it short.'},
+  {p:W,id:'W-A4',t:'Chat info media grid',d:'Open chat info of a chat with photos.',e:'The grid is inset (aligned with the cards above), 4 px gaps, rounded tiles; the chips sit a bit lower.'},
+  {p:W,id:'W-A5-RECV',t:'Receive a photo',d:'Another device sends you a photo. Do not click first; then click to download.',e:'Before: a tile with the JPG glyph + name + "Tap to download", no picture (WHITE tile in light). During: the ring. After: the photo. A click opens the file.'},
+  {p:W,id:'W-A5-OFF',t:'Privacy switch with a chat open',d:'Keep a chat with photo tiles open (wide window). Account → Privacy → switch "Show photo previews in chats" OFF; go back. Then ON. Restart the app.',e:'OFF: the photos in the open chat become file cards without a reopen. ON: tiles come back. The value stays after the restart.'},
+  {p:A,id:'A-BUILD',t:'This build: Privacy switch + [P1] lines',d:'Open Account → Privacy. Open one chat.',e:'"Show photo previews in chats" is there, ON. The log has "[P1]" lines.'},
+  {p:A,id:'A-A1',t:'Chat open hold (the flicker fix)',d:'Open 10 chats from the list. Screen-record 3 of them.',e:'Log: "a1 hold … nat=1" and "chat held frames>=1 … why=vsc" (was why=noview). Recording: no plain or grey frame between the list and the chat.'},
+  {p:A,id:'A-CHAT',t:'Quick re-opens × 10 (lever 5)',d:'Open a chat, back, and at once (within ~0.5 s) open another — 10 times. Then 10 normal opens.',e:'Quick re-opens log "[P1] spare claim warm=1" and present ms near 90 (not 240–320). Never the wrong contact, never a stuck tap.'},
+  {p:A,id:'A-CLOSE',t:'Chat close × 10 (lever 11)',d:'Open and close (back) a chat 10 times. Record 2 closes.',e:'"[P1] close singlechatpage done ms=" lower than session 3 (161). No flash of the chat after it hides.'},
+  {p:A,id:'A-WALLET',t:'Wallet re-visit × 10 (levers 2 + 2b)',d:'10× Chats → Wallet → Chats. Then tap Sent, then All.',e:'"force=0" on re-visits; no flicker; the chip changes at once, no blank list.'},
+  {p:A,id:'A-ACCT',t:'Account → tab × 10 (lever 10)',d:'10×: Account, then Wallet (5×) or Chats (5×). Record 2. Once: change a setting first.',e:'No old screen shows through; "released by cover" in the log; the setting is saved.'},
+  {p:A,id:'A-A2',t:'Show in chat: band + 1 px ring',d:'Chat info → Media → long-press a photo → Show in chat. Light and dark.',e:'Soft band + thin ring for about 3 s, then a fade.'},
+  {p:A,id:'A-A4',t:'Chat info media grid',d:'Open chat info of a chat with photos.',e:'Inset gallery, 4 px gaps, rounded tiles.'},
+  {p:A,id:'A-A5-SEND',t:'Send a photo',d:'Send a photo to a contact who is ONLINE; then once to a contact who is OFFLINE.',e:'Your tile shows the photo at once with the ring, the % and "Keep Spixi open until the transfer completes" on a dark scrim; the scrim goes when done. Offline peer: your tile still shows your photo. The text is readable on a bright photo.'},
+  {p:A,id:'A-A5-RECV',t:'Receive a photo',d:'Receive a photo. Do not tap first; then tap to download.',e:'Before: glyph + name + "Tap to download", no picture (WHITE tile in light). During: the ring. After: the photo. Tap opens it.'},
+  {p:A,id:'A-A5-OFF',t:'Privacy switch OFF / ON',d:'Account → Privacy → photo previews OFF; open a chat with photos. Then ON.',e:'OFF: file cards. ON: tiles. The value stays after an app restart.'},
+  {p:A,id:'A-A5-OLD',t:'Old app peer (optional)',d:'Send a photo to someone on the store app; receive one from them.',e:'Their side: a file card as before. Your side: tiles. Nothing breaks.'},
+];
+const KEY = 'spixi-walk-session4-v2';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function el(tag, attrs, kids){ const n = document.createElement(tag); for (const k in (attrs||{})) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'html') n.innerHTML = attrs[k]; else n.setAttribute(k, attrs[k]); } (kids||[]).forEach(c => c && n.append(c)); return n; }
+async function copyText(text, btn){
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { const out = document.getElementById('out'); out.hidden = false; out.value = text; out.focus(); out.select(); btn.textContent = 'Select + Ctrl+C'; }
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+}
+function renderSteps(id, list){
+  const ol = document.getElementById(id);
+  list.forEach(([say, cmd, expect]) => {
+    const li = el('li', {}, [el('span', {text: say})]);
+    if (cmd) {
+      const b = el('button', {type:'button', 'aria-label':'Copy command'}); b.textContent = 'Copy'; b.dataset.label = 'Copy';
+      b.addEventListener('click', () => copyText(cmd, b));
+      li.append(el('div', {class:'cmd'}, [el('pre', {text: cmd}), b]));
+    }
+    if (expect) li.append(el('div', {class:'exp', html: 'Expect: ' + expect}));
+    ol.append(li);
+  });
+}
+renderSteps('steps-commit', STEPS.commit);
+renderSteps('steps-win', STEPS.win);
+renderSteps('steps-and', STEPS.and);
+function renderRows(){
+  for (const [host, plat] of [['rows-win', W], ['rows-and', A]]) {
+    const box = document.getElementById(host); box.innerHTML = ''; box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '12px';
+    ROWS.filter(r => r.p === plat).forEach(r => {
+      const s = state[r.id] || {};
+      const card = el('article', {class:'row', 'data-v': s.v || ''});
+      card.append(el('div', {class:'top'}, [el('span', {class:'id', text:r.id}), el('span', {class:'title', text:r.t})]));
+      card.append(el('dl', {}, [el('dt', {text:'Do'}), el('dd', {text:r.d}), el('dt', {text:'Pass if'}), el('dd', {text:r.e})]));
+      const ctl = el('div', {class:'ctl'});
+      [['P','Pass'],['F','Fail'],['N','N/A']].forEach(([k, lab]) => {
+        const b = el('button', {type:'button', 'data-k':k, 'aria-pressed': s.v === k ? 'true' : 'false'}); b.textContent = lab;
+        b.addEventListener('click', () => { state[r.id] = Object.assign({}, state[r.id], {v: s.v === k ? '' : k}); save(); renderRows(); tally(); });
+        ctl.append(b);
+      });
+      card.append(ctl);
+      const ta = el('textarea', {id:'note-' + r.id, 'aria-label':'Note for ' + r.id, placeholder:'Note (what you saw, numbers, paste lines)'});
+      ta.value = s.n || '';
+      ta.addEventListener('input', () => { state[r.id] = Object.assign({}, state[r.id], {n: ta.value}); save(); });
+      card.append(ta);
+      box.append(card);
+    });
+  }
+}
+function counts(){ let p=0,f=0,n=0; ROWS.forEach(r => { const v = (state[r.id]||{}).v; if (v==='P') p++; else if (v==='F') f++; else if (v==='N') n++; }); return {p,f,n}; }
+function tally(){ const c = counts(); const left = ROWS.length - c.p - c.f - c.n;
+  document.getElementById('tally').innerHTML = `<b class="p">${c.p} P</b> · <b class="f">${c.f} F</b> · <b class="n">${c.n} N/A</b> · ${left} open`; }
+document.getElementById('copy').addEventListener('click', (ev) => {
+  const c = counts();
+  const lines = ROWS.map(r => { const s = state[r.id] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id}: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
+  const text = `Walk session 4 (Windows F5 + Android Release dev): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
+});
+document.getElementById('reset').addEventListener('click', (ev) => {
+  const b = ev.currentTarget;
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Clear'; }, 2500); return; }
+  state = {}; save(); b.dataset.armed = ''; b.textContent = 'Clear'; renderRows(); tally();
+});
+renderRows(); tally();
+</script>

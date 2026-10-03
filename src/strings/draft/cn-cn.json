@@ -717,5 +717,7 @@
   "sharedOpen": "打开",
   "sharedShowAll": "显示全部 {n} 项",
   "sharedCopyFailed": "无法复制",
-  "copyLink": "复制链接"
+  "copyLink": "复制链接",
+  "photoPreviewsTitle": "在聊天中显示照片预览",
+  "photoPreviewsHint": "你发送或下载的照片会在聊天中显示为图片。关闭：所有照片都显示为文件卡片。"
 }

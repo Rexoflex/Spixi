@@ -558,6 +558,8 @@
   "people": "People",
   "permissions": "Permissions",
   "photo": "Photo",
+  "photoPreviewsHint": "Photos you sent or downloaded show as a picture in the chat. Off: every photo stays a file card.",
+  "photoPreviewsTitle": "Show photo previews in chats",
   "pickFile": "From file",
   "pin": "Pin",
   "preferences": "Preferences",

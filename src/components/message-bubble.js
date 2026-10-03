@@ -615,9 +615,13 @@ export function setMessageStatus(row, status, strings = getStrings(), opts = {})
    base label in data-aria-base (typed-bubbles.js) and the tick's state is appended here, so a screen reader
    hears "…, Delivered" like a text bubble. No-op for a text bubble. */
 function syncFileTickAria(row, tick) {
-  const fb = row.querySelector('.c-fbubble[data-aria-base]');
+  const fb = row.querySelector('.c-fbubble[data-aria-base], .c-mbubble[data-aria-base]');   // ★ A5 #1124: …or an image file's tile
   if (!fb) return;
-  const label = tick && tick.getAttribute('aria-label');
+  /* #46 r2 R2-N2 · r3 R3-m2: a photo tile OR a file card still SENDING is named "Sending IMG.jpg" alone (typed-bubbles fileTileAria — one rule
+     for the build and this live path); the tick joins the name once the transfer is final — r4 MINOR-1 (#1035): a delivered / read tick
+     (anything but the neutral sent / sending glyph) joins it at once */
+  const sending = fb.matches('.c-mbubble[data-file="progress"], .c-fbubble[data-state="progress"]');   // #46 r3 R3-m2: the card too
+  const label = sending && tick && tick.dataset.tone === 'neutral' ? null : tick && tick.getAttribute('aria-label');
   fb.setAttribute('aria-label', fb.dataset.ariaBase + (label ? ', ' + label : ''));
 }
 
@@ -630,7 +634,8 @@ function syncFileTickAria(row, tick) {
 const TICK_FADE_MS = 300;   // ★ B10 (#1084): = --duration-300 (message-bubble.css c-tick-in/out)
 /* ★ #1028 (P.22): a tick lives in a text bubble's meta OR a sent file card's stamp — ONE selector, so the
    same setMessageStatus / replay path drives both (a second copy would drift, #251/#288). */
-const TICK_HOST_SEL = '.c-bubble__meta .c-status-icon:not([data-exit]), .c-fbubble__stamp .c-status-icon:not([data-exit])';
+/* ★ A5 #1124 (#1133): …or an image file's media tile (typed-bubbles.js createImageFileBubble) — the same tick. */
+const TICK_HOST_SEL = '.c-bubble__meta .c-status-icon:not([data-exit]), .c-fbubble__stamp .c-status-icon:not([data-exit]), .c-mbubble__stamp .c-status-icon:not([data-exit])';
 function reducedMotion() {
   try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
 }

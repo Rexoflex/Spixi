@@ -559,6 +559,8 @@ export const cncn = {
   people: "联系人",
   permissions: "权限",
   photo: "照片",
+  photoPreviewsHint: "你发送或下载的照片会在聊天中显示为图片。关闭：所有照片都显示为文件卡片。",
+  photoPreviewsTitle: "在聊天中显示照片预览",
   pickFile: "从文件",
   pin: "置顶",
   preferences: "偏好设置",

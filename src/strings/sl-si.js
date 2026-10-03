@@ -559,6 +559,8 @@ export const slsi = {
   people: "Osebe",
   permissions: "Dovoljenja",
   photo: "Fotografija",
+  photoPreviewsHint: "Fotografije, ki ste jih poslali ali prenesli, so v klepetu prikazane kot slika. Izklopljeno: vsaka fotografija ostane kartica datoteke.",
+  photoPreviewsTitle: "Prikaži predogled fotografij v klepetih",
   pickFile: "Iz datoteke",
   pin: "Pripni",
   preferences: "Nastavitve",

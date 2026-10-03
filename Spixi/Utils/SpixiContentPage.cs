@@ -261,6 +261,26 @@ namespace SPIXI
             _webView.Navigating += webViewNavigating;
         }
 
+#if ANDROID
+        /* ★ #1132 lever 1 (A1, #1130): THE native android.webkit.WebView behind a MAUI WebView, or null. Every WebView in
+         * this app rides the compat renderer (MauiProgram AddCompatibilityRenderer), so Handler.PlatformView is the
+         * SpixiWebviewRenderer2 ViewGroup and the WebView is its `.Control` — all 42 walk opens logged
+         * `pv=spixiwebviewrenderer2`, so a direct cast was null on every one. A mini-app WebView (ClassId "miniapp") answers
+         * null: it keeps the engine's white base (AND-19 / #334, WebViewRenderer CreateNativeControl). ONE home for the lookup. */
+        internal static Android.Webkit.WebView? nativeWebViewOf(WebView? wv)
+        {
+            if (wv == null || wv.ClassId == "miniapp")
+            {
+                return null;
+            }
+            if (wv.Handler?.PlatformView is Android.Webkit.WebView direct)
+            {
+                return direct;
+            }
+            return (wv.Handler?.PlatformView as global::Spixi.Platforms.Android.Renderers.SpixiWebviewRenderer2)?.Control;
+        }
+#endif
+
         /* ★ N71 (#421, break-my-verdict MAJOR-1): INTERNAL, so the theme sweep can
          * refresh a page's native backing WITHOUT the rest of the chrome pass.
          * applyPlatformPageChrome() looks page-local and is not: on Android it calls
@@ -308,7 +328,8 @@ namespace SPIXI
                  * re-apply it, so the value lands as soon as there is something to land on. */
                 try
                 {
-                    if (_webView.Handler?.PlatformView is Android.Webkit.WebView nativeWebView)
+                    Android.Webkit.WebView? nativeWebView = nativeWebViewOf(_webView);   // ★ #1132 lever 1 (A1): the cast used to be null here too
+                    if (nativeWebView != null)
                     {
                         nativeWebView.SetBackgroundColor(Android.Graphics.Color.ParseColor(pageSurfaceColorString));
                     }
@@ -408,6 +429,16 @@ namespace SPIXI
                 && e.Url.StartsWith("ixian:onload", StringComparison.Ordinal))
             {
                 signalPreloadReady();
+            }
+            /* ★ #1132 lever 5: a chat spare TAKEN while warming attaches HERE — its shell just booted (this handler runs
+             * after SingleChatPage.onNavigating marked it READY). Posted, so it runs after this event; once (Exchange). */
+            if (e.Url != null && e.Url.StartsWith("ixian:onload", StringComparison.Ordinal))
+            {
+                Action? claimed = Interlocked.Exchange(ref spareAttachOnBoot, null);
+                if (claimed != null)
+                {
+                    MainThread.BeginInvokeOnMainThread(claimed);
+                }
             }
 #if WINDOWS
             if (_webView == null) return;
@@ -977,6 +1008,11 @@ namespace SPIXI
 
         private static readonly object preloadLock = new object();
         private static PreloadOp? activePreload = null;
+        /* ★ #1132 lever 5 · #46 r2 R2-N5: bumped (under preloadLock) by every navigation that takes the staging slot — a
+           pushPageLoaded that is not the background warm park, a pushModalLoaded, a spare take — and by a
+           cancel that does not re-run (the user / the app left). A posted cold re-run (cancelTakenWarmingSpare) stands only
+           while it is unchanged (OpenPerfRules.coldRerunStands). */
+        private static long navSeq = 0;
 #if MACCATALYST
         private static double lastMacTitlebarInset = -2;   // ★ #993 (M6): the diagnostic above logs on change (-1 = "not in a window" is a real value)
 
@@ -1610,6 +1646,7 @@ namespace SPIXI
         public bool warmSpareChat(Func<SingleChatPage> make, int column)
         {
             string? refused = null;
+            bool besideChatPlacement = spareMayWarmBesideOpenChat(column);   // ★ #1132 lever 3 (main thread: reads the host's layout)
             lock (preloadLock)
             {
                 if (spareChatOp != null) refused = "exists";
@@ -1617,6 +1654,11 @@ namespace SPIXI
                 else if (!(overlayHost == this
                     && (Application.Current?.MainPage as NavigationPage)?.Navigation.NavigationStack.LastOrDefault() == this)) refused = "host";
                 else if (preloadPending) refused = "staging";   // a reservation (chat, lock, pane) in its one-turn window
+                else if (OpenPerfRules.warmBesideOpenChat(besideChatPlacement, activePreload != null && activePreload.target is SingleChatPage))
+                {
+                    // ★ #1132 lever 3: desktop, wide — warm BESIDE the open conversation (it never closes on a switch, so the
+                    // after-close warm never fires there). One spare (`exists` above), its own WebView, used once (§1).
+                }
                 else if (overlayStack.Exists(o => o.target is SingleChatPage)
                     || (activePreload != null && activePreload.target is SingleChatPage)) refused = "chat";
             }
@@ -1720,6 +1762,13 @@ namespace SPIXI
             return true;
         }
 
+        /** ★ #1132 lever 3: may a spare warm in `column` while a conversation is OPEN (never while one is staging)? The
+         *  host answers from its own layout (HomePage: desktop + wide); every other page keeps the `chat` refusal. */
+        protected virtual bool spareMayWarmBesideOpenChat(int column)
+        {
+            return false;
+        }
+
         /** The column rule pushPageLoaded applies at stage time, as ONE home for the spare's
          *  two placements (warm, and the re-home at attach when the window mode changed). */
         private static void placeStage(ContentView stage, Grid hostGrid, int column)
@@ -1749,6 +1798,7 @@ namespace SPIXI
                 op = spareChatOp;
                 spareChatOp = null;
             }
+            cancelTakenWarmingSpare(why);   // ★ #1132 lever 5: a spare TAKEN while warming left the slot — same reasons (theme · language · sleep · host …), same drop; `why` decides the cold re-run (OpenPerfRules.takenClaimRetries)
             if (op == null)
             {
                 return;
@@ -1777,7 +1827,8 @@ namespace SPIXI
          *  refusal that HAD a spare drops it (an empty slot answers `none` and returns), so
          *  there are never two chat WebViews for one tap.
          *
-         *  Order of checks, all under the preload lock: a spare exists · it is READY · no
+         *  Order of checks, all under the preload lock: a spare exists · it is READY (★ #1132 lever 5: or WARMING —
+         *  taken the same way, attached at its own onload by attachSpareOnBoot) · no
          *  lock is shown in place · nothing else is staging — EXCEPT the Account's background
          *  warm-park (`parkOnLoad`), which always yields to a user navigation (pushPageLoaded's
          *  own rule) and is cancelled here the same way; a user navigation in flight keeps its
@@ -1803,7 +1854,11 @@ namespace SPIXI
                 {
                     return SPARE_WHY_NONE;
                 }
-                if (!(op.target is SingleChatPage scp) || !scp.spareShellBooted)
+                /* ★ #1132 lever 5: a WARMING spare is no longer refused — it is TAKEN (same checks below, same take) and
+                 * its attach waits for its own ixian:onload (attachSpareOnBoot). Measured: 9 `why=warming` opens at
+                 * 239 / 323 ms vs 86 / 122 on a ready spare. SPARE_CLAIM_WARMING = false restores the refusal. */
+                bool spareBooted = op.target is SingleChatPage rscp && rscp.spareShellBooted;
+                if (!OpenPerfRules.spareMayAttach(op.target is SingleChatPage, spareBooted, SPARE_CLAIM_WARMING))
                 {
                     why = SPARE_WHY_WARMING;
                 }
@@ -1857,6 +1912,7 @@ namespace SPIXI
                     op.column = column;
                     op.navKey = navKey;
                     activePreload = op;   // from here: getStagingPage routes live pushes to it; a user tap elsewhere supersedes it
+                    navSeq++;             // #46 r2 R2-N5: a newer navigation than any posted cold re-run
                 }
             }
             if (why != null)
@@ -1869,6 +1925,13 @@ namespace SPIXI
                 cancelPreload(yieldingWarm);
             }
             op.p1Mark();   // ★ P-1 (#1127) — TEMPORARY: a spare open starts at the tap, not at the warm
+            if (!(op.target is SingleChatPage scp) || !scp.spareShellBooted)
+            {
+                // ★ #1132 lever 5: taken WARMING — attach can never run onLoad into a document that has not booted, so it
+                // runs at the spare's own ixian:onload; the present arms from there exactly as on a READY spare.
+                attachSpareOnBoot(op, attach, timeoutMs);
+                return null;
+            }
             try
             {
                 attach((SingleChatPage)op.target);
@@ -1892,6 +1955,167 @@ namespace SPIXI
                 presentPreload(op, "timeout");
             });
             return null;
+        }
+
+        /* ═══ ★ #1132 lever 5 — A TAP TAKES THE WARMING SPARE ═══
+         *
+         * pushSpareChat took the op (spareChatOp cleared → used once, a second tap reads `none` and pushPageLoaded
+         * dedupes it on the same navKey; activePreload = op → a tap on another row supersedes it as for any staging
+         * chat). Its document has NOT booted, so attach must not run yet (onLoad pushes into an unbooted document and
+         * the shell's onload would run onLoad a second time). The attach is parked on the page and runs ONCE, on the
+         * main thread, from the spare's own `ixian:onload` (webViewNavigating, after SingleChatPage.onNavigating marked it
+         * booted). The re-check below is a BELT that does not fire today: pushSpareChat read spareShellBooted false on
+         * this same main-thread turn and onNavigating (the only writer) runs on the main thread too, so no onload can land
+         * in between; it keeps a future off-thread Navigating from parking an attach nobody runs (#46 r1 A-N6). After it, the path is the READY spare's: attach → onLoad → armPresentOnPainted (400 ms backstop)
+         * → the outer timeoutMs present. NOTHING presents before attach — an unbooted, friend-less document is never
+         * shown. A spare that does not boot within SPARE_CLAIM_BOOT_MS is cancelled and the host re-runs the tap on the
+         * cold path (onSpareClaimAbandoned). The bot-room path is attach/onLoad's own and is unchanged. */
+        private const bool SPARE_CLAIM_WARMING = true;      // the lever-5 dial: false = today's `why=warming` refusal
+        private const int SPARE_CLAIM_BOOT_MS = 1000;       // ~4× the spare's remaining boot (WebView 72–79 + parse 102–109 ms, #796)
+        private Action? spareAttachOnBoot = null;           // set on the TAKEN spare's page only; consumed by Interlocked.Exchange
+
+        private void attachSpareOnBoot(PreloadOp op, Action<SingleChatPage> attach, int timeoutMs)
+        {
+            SingleChatPage spare = (SingleChatPage)op.target;   // pushSpareChat's spareMayAttach required a SingleChatPage
+            long t0 = P1Perf.now();
+            Action run = () =>
+            {
+                bool mine;
+                lock (preloadLock) { mine = activePreload == op && !op.abandoned; }
+                if (!mine)
+                {
+                    return;   // superseded, swept or cancelled meanwhile — cancelPreload owns the teardown
+                }
+                P1Perf.line(OpenPerfRules.p1ClaimWait(P1Perf.msSince(t0)));   // ★ P-1 (#1127) — TEMPORARY: the wait this claim paid (fixed words + an int, #46 r1 C-cs2)
+                try
+                {
+                    attach(spare);
+                }
+                catch (Exception ex)
+                {
+                    Logging.error("attachSpareOnBoot: attach failed: " + ex.GetType().Name);
+                    abandonSpareClaim(op, SPARE_WHY_ATTACH);
+                    return;
+                }
+                Task.Delay(timeoutMs).ContinueWith(_ =>
+                {
+                    presentPreload(op, "timeout");
+                });
+            };
+            SpixiContentPage page = op.target;
+            Interlocked.Exchange(ref page.spareAttachOnBoot, run);
+            if (spare.spareShellBooted)
+            {
+                Interlocked.Exchange(ref page.spareAttachOnBoot, null)?.Invoke();   // belt (unreachable while Navigating is main-thread, see above)
+                return;
+            }
+            Task.Delay(SPARE_CLAIM_BOOT_MS).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (Interlocked.Exchange(ref page.spareAttachOnBoot, null) != null)
+                {
+                    abandonSpareClaim(op, "boot");   // never booted: no attach ran, nothing was shown
+                }
+            }));
+        }
+
+        /** ★ #1132 lever 5: drop a taken-warming spare that could not attach, and give the tap back to the host. The
+         *  synchronous activePreload clear is pushSpareChat's attach-throws rule (the cold push must not dedupe against a
+         *  dead op carrying the same navKey). `why` is a fixed word. Main thread. */
+        private void abandonSpareClaim(PreloadOp op, string why)
+        {
+            bool mine;
+            lock (preloadLock)
+            {
+                mine = activePreload == op;
+                if (mine)
+                {
+                    activePreload = null;
+                }
+            }
+            cancelPreload(op);
+            if (!mine || op.navKey == null)
+            {
+                return;   // the user went elsewhere: nothing to give back
+            }
+            P1Perf.line(OpenPerfRules.p1ClaimAbandon(why));   // ★ P-1 (#1127) — TEMPORARY (a fixed word, #46 r1 C-cs2)
+            if (!OpenPerfRules.takenClaimRetries(why))
+            {
+                return;
+            }
+            try
+            {
+                onSpareClaimAbandoned(op.navKey);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("onSpareClaimAbandoned: " + ex.GetType().Name);
+            }
+        }
+
+        /** ★ #1132 lever 5: the host's chat sweep (HomePage.closeChatOverlays — a tab switch, the L6 cleardetail, a tx detail
+         *  opened over another conversation) drops a STAGING chat only when it has a friend; a spare taken WARMING has none
+         *  until its onload. This drops that one: abandoned first (a posted attach then returns) AND activePreload cleared
+         *  SYNCHRONOUSLY under the same lock (abandonSpareClaim's rule, #46 r1 A-N2: a tap in the turn before cancelPreload's
+         *  posted clear must not be refused `staging` or deduped against this dead op), the parked attach cleared, the op
+         *  cancelled. No-op for anything else. Also run by dropSpareChat (a theme / language flip, sleep, low memory, host
+         *  change: a pre-attach document is as stale as a slot spare). `why` is the caller's fixed word;
+         *  OpenPerfRules.takenClaimRetries decides whether the tap still stands (#46 r1 A-N3): a stale document re-runs it
+         *  on the cold path, a `close` / `host` / `stop` / `sleep` does not (the user or the app left). Any thread (the
+         *  lock, the Exchange, cancelPreload's marshal; the re-run is posted to the main thread after the cancel's post). */
+        public static void cancelTakenWarmingSpare(string why)
+        {
+            PreloadOp? op;
+            long seq;
+            lock (preloadLock)
+            {
+                if (!OpenPerfRules.takenClaimRetries(why))
+                {
+                    navSeq++;   // #46 r2 R2-N5: a LEAVE (close · host · stop · sleep) is newer than any posted cold re-run too — even with no op here
+                }
+                op = activePreload;
+                if (op == null || !(op.target is SingleChatPage s) || s.friend != null)
+                {
+                    return;
+                }
+                op.abandoned = true;
+                activePreload = null;   // synchronously — the cold re-run (or the user's next tap) must not meet this op
+                seq = navSeq;
+            }
+            Interlocked.Exchange(ref op.target.spareAttachOnBoot, null);
+            cancelPreload(op);
+            P1Perf.line(OpenPerfRules.p1ClaimAbandon(why));   // ★ P-1 (#1127) — TEMPORARY (a fixed word, #46 r1 C-cs2)
+            string? navKey = op.navKey;
+            SpixiContentPage host = op.host;
+            if (navKey == null || !OpenPerfRules.takenClaimRetries(why))
+            {
+                return;
+            }
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                bool stands;
+                lock (preloadLock)
+                {
+                    stands = OpenPerfRules.coldRerunStands(seq, navSeq);
+                }
+                if (!stands)
+                {
+                    return;   // #46 r2 R2-N5: the user tapped (or something navigated) after the cancel — that newer one wins
+                }
+                try
+                {
+                    host.onSpareClaimAbandoned(navKey);
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("onSpareClaimAbandoned: " + ex.GetType().Name);
+                }
+            });
+        }
+
+        /** ★ #1132 lever 5: the host re-runs a tap whose warming spare was abandoned (HomePage: the cold chat open). `navKey`
+         *  is the C#-composed key pushSpareChat was given, never shell input. Default: nothing. */
+        protected virtual void onSpareClaimAbandoned(string navKey)
+        {
         }
 
         /** In-place present hook (#230): fired instead of OnAppearing when a modal-mode
@@ -2481,7 +2705,11 @@ namespace SPIXI
                         // still visible briefly flashes the reveal on WinUI.
                         op.stage.Opacity = 0;
                         op.stage.InputTransparent = true;
-                        await Task.Delay(100);
+                        /* ★ #1132 lever 11: the 100 ms is the WinUI half of #229b and stays there; Android only needs the
+                         * hide on glass before the teardown — one frame (OpenPerfRules.closeHideWaitMs). iOS / Mac: 100, unchanged. */
+                        await Task.Delay(OpenPerfRules.closeHideWaitMs(
+                            Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.WinUI,
+                            Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.Android));
                         op.hostGrid.Children.Remove(op.stage);
                         p1CloseDone(p1Kind, p1T0);   // ★ P-1 (#1127) — TEMPORARY: the stage is removed
                         op.stage.TranslationX = 0;   // #326 belt: never hand a translated stage to any reuse path
@@ -3163,6 +3391,10 @@ namespace SPIXI
                     }
                 }
                 preloadPending = true;
+                if (!parkOnLoad)
+                {
+                    navSeq++;   // #46 r2 R2-N5: a navigation (not the background warm park) — newer than any posted cold re-run
+                }
             }
             if (superseded != null)
             {
@@ -3355,10 +3587,12 @@ namespace SPIXI
             {
                 if (preloadPending || activePreload != null)
                 {
+                    navSeq++;   // #46 r3 R3-N1: the busy fallback is a navigation too (a lock over a posted cold re-run)
                     presentPlainModal(target);
                     return;
                 }
                 preloadPending = true;
+                navSeq++;   // #46 r2 R2-N5
                 /* ★★ #46 loop MAJOR-3 on #507: the lock is RESERVED from here, one whole
                  * dispatcher turn before `activePreload` exists. Every exit below clears it. */
                 lockPreloadPending = target is LockPage;
@@ -4052,7 +4286,7 @@ namespace SPIXI
         private static void holdStageUntilDrawn(PreloadOp op)
         {
             Android.Webkit.WebView? native = null;
-            try { native = op.target._webView?.Handler?.PlatformView as Android.Webkit.WebView; } catch (Exception) { }
+            try { native = nativeWebViewOf(op.target._webView); } catch (Exception) { }   // ★ #1132 lever 1 (A1): the renderer's .Control — the direct cast was null on every open (why=noview)
             setHoldGrounds(op, native, true);
             op.stage.Opacity = 1;
             PreloadOp held = op;
@@ -4078,7 +4312,8 @@ namespace SPIXI
         }
 
         /* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set. A1 (#1123 (1)): what the hold sees when it starts.
-         * pv = the platform view's framework class name, [a-z0-9] only, capped at 37 (so `pv=<name>` fits 40), or `none`. */
+         * pv = the platform view's framework class name, [a-z0-9] only, capped at 37 (so `pv=<name>` fits 40), or `none`.
+         * ★ #1132 lever 1: nat = 1 when nativeWebViewOf found the android.webkit.WebView the hold drives (9 tokens). */
         private static void p1HoldProbe(PreloadOp op)
         {
             if (!P1Perf.enabled)
@@ -4105,7 +4340,8 @@ namespace SPIXI
                     + " pv=" + pvName
                     + " incontent=" + (op.stage.Content == op.targetContent ? "1" : "0")
                     + " stageh=" + (op.stage.Handler != null ? "1" : "0")
-                    + " page=" + P1Perf.kind(op.target));
+                    + " page=" + P1Perf.kind(op.target)
+                    + " nat=" + (nativeWebViewOf(wv) != null ? "1" : "0"));
             }
             catch (Exception)
             {

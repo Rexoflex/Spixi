@@ -11,6 +11,8 @@
     <Compile Include="../../Spixi/Meta/SSightingStore.cs" />
     <Compile Include="../../Spixi/Utils/ImageSniff.cs" />
     <Compile Include="../../Spixi/Utils/P1Perf.cs" />
+    <!-- ★ #1132 (session 4): the pure rules behind P-1 levers 2 / 3 / 5 / 11 (tests: OpenPerfRulesTests.cs, beside this file). -->
+    <Compile Include="../../Spixi/Utils/OpenPerfRules.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

@@ -7210,7 +7210,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   /* ⚠ #601 widened the window: onRepresented gained the peer-tab scroll reset and its
      rationale. The window is a proximity heuristic, not the property — keep it generous
      enough that a comment cannot fail the pin, and let the ORDER clauses do the work. */
-  ok(/exitSettings\(\);[\s\S]{0,700}?setNavActive\(nav, 'account'\);/.test(settingsSh)
+  ok(/exitSettings\((?:'handoff')?\);[\s\S]{0,700}?setNavActive\(nav, 'account'\);/.test(settingsSh)   /* ★ #1133 lever 10: the tab exit is exitSettings('handoff') */
     && /onRepresented\(\) \{[\s\S]{0,4200}?setNavActive\(nav, 'account'\);/.test(settingsSh),
     '#320: the peer nav highlight snaps back to Account after an exit tap AND on re-present — bottomnav auto-selects the tapped item before onChange, so the page PARKED with the wrong tab lit (Damir: Denarnica highlighted on the Account screen)');
 
@@ -8508,7 +8508,17 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      comment in the inlined typed-bubbles.css, and the A12 composer rule + comment (#1129). (A11 is chatlist-item.css —
      index.html, not chat.html.) 710 leaves −1 435, 711 −411, 712 leaves 613. index.html 551 478 → 552 131 (+653), still
      under 540 (headroom 829). Stated, not silent (#345). Re-measured after the LAST fix of the #46 loop. */
-  const CHAT_KB_CEIL = 712, INDEX_KB_CEIL = 540;
+  /* ★ Session 4 (#1132 / #1133, measured after the merge): CHAT 712 → 722 · INDEX 540 → 541. chat.html 728 475 → 737 828
+     chars (+9 353): A2 band + 1 px ring CSS and the 3 s jump, the A5 shell state + setPhotoPreviews / setFileThumb, and in the
+     inlined bundle createImageFileBubble + the tile CSS (721 leaves 476, 722 leaves 1 500). index.html 552 131 → 553 586
+     (+1 455): the tab coverpainted answer + the wallet incoming-set commit (540 leaves −626, 541 leaves 398). Stated, not silent (#345). */
+  /* ★ Session 4 #46 r1 (B-4, NAV): INDEX 541 → 542. index.html 553 586 → 554 285 chars (+699): the wallet chips now sync
+     at the commit with a fresh-tap guard (walletChipPick) + its comment. 541 leaves −301, 542 leaves 723. Stated, not silent (#345). */
+  /* ★ #46 r1 fixes (session 4): CHAT 722 → 726 (+3.6 KB: B-1 drop path, B-3 pulse state, B-6 jpegSize, L-1 token) · INDEX 541 → 542 (+699: B-4 chip sync at commit). Stated, not silent (#345). */
+  /* ★ #46 r3 fixes (session 4): CHAT 726 → 727. chat.html 742 634 → 743 457 chars (+823): R3-m1 the shown-picture set +
+     the data-seen rule, R3-M1 the on-scrim ring rules, R3-m2 the one Sending rule (inlined bundle + tile CSS). 726 leaves −33,
+     727 leaves 991. index.html unchanged. Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 727, INDEX_KB_CEIL = 542;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -13056,8 +13066,9 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
 
   /* —— N52: the @-jump pulse actually READS —— */
   for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
-    const kf = txt.slice(txt.indexOf('@keyframes chat-mention-pulse'), txt.indexOf('@keyframes chat-mention-pulse') + 300);
-    ok(/box-shadow: 0 0 0 3px var\(--surface-warning\);/.test(kf) && !/surface-warning-inverse/.test(kf),
+    /* ★ A2 re-base (#1132 (4)): the ring is 1 px in its own keyframes (chat-jump-ring); the WASH now paints the row BAND only */
+    const kf = txt.slice(txt.indexOf('@keyframes chat-jump-ring'), txt.indexOf('@keyframes chat-jump-ring') + 300);
+    ok(/box-shadow: 0 0 0 1px var\(--surface-warning\);/.test(kf) && !/surface-warning-inverse/.test(kf),
       '★ N52 (' + label + '): the pulse ring is the SOLID warning role — the shipped ring was the WASH tone (orange-100/orange-900), near-zero contrast on the canvas in both themes, which is why the pulse never read on device');
   }
   ok(/const live = rows\.get\(id\);/.test(chatNc)
@@ -13065,8 +13076,8 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     && /requestAnimationFrame\(pulseWhenVisible\);/.test(chatNc),
     '★ N52: the pulse starts when the target row is VISIBLE (rAF poll, 1.5s cap) and RE-BINDS through the id each frame (loop B-4: renderLogNow rebuilds every row — a delivery tick mid-scroll silently killed a closed-over node\'s pulse)');
   for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
-    const rm = txt.slice(txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]'), txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]') + 460);   /* G-4 re-base: the selector now names every bubble kind */
-    ok(/animation: none; box-shadow: 0 0 0 3px var\(--surface-warning\);/.test(rm),
+    const rm = txt.slice(txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]'), txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]') + 560);   /* G-4 re-base: the selector now names every bubble kind · A2 re-base: + the band rule */
+    ok(/animation: none; box-shadow: 0 0 0 1px var\(--surface-warning\);/.test(rm),
       'N52 (' + label + ', loop B-3): reduced motion gets a STATIC held ring — "animation: none" alone meant the jump highlighted NOTHING for exactly the users who asked for less motion');
   }
 
@@ -25232,7 +25243,7 @@ console.log('Session I ②: [PAINTDIAG] retired · the L14 cover handshake');
   /* THE HANDSHAKE — every leg present, in source and in the built shells */
   ok(/exitSettings\('handoff'\)/.test(stripCode(settings)) && /exitSettings\('handoff'\)/.test(stripCode(builtSettings))
      && /reason === 'handoff' \? 'ixian:handoff' : 'ixian:back'/.test(settings) && /function exitSettings\(reason\)/.test(settings),
-    '★ L14 handshake ①: settings.html onContacts leaves with ixian:handoff (the ONE route that writes the contacts hand-off); every other exit still sends ixian:back; a dirty exit still saves (ixian:save: unchanged)');
+    '★ L14 handshake ①: settings.html onContacts leaves with ixian:handoff (the ONE route that writes the contacts hand-off); a TAB exit takes the same handshake since #1133 lever 10 (pinned in pins-s4/nav.mjs); every other exit still sends ixian:back; a dirty exit still saves');
   ok(/\|\| current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\)/.test(stripCode(sp))
      && /if \(current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\)\s*\{\s*popOnCoverPainted\(\);/.test(stripCode(sp)),
     '★ L14 handshake ②: SettingsPage dispatches ixian:handoff with Equals into the SAME cleanup branch as ixian:back (avatar-tmp · resetLanguage · closeSublevelOverlays) and defers the pop through popOnCoverPainted()');
@@ -28606,7 +28617,7 @@ console.log('★★ Session P — the pre-warm + the batch transport');
       && hostClauseOk && noneOk && takeWritesOk && timeoutArmed && count(b, /activePreload = op;/g) === 1 && /if \(why != null\)\s*\{\s*dropSpareChat\(why\);\s*return why;\s*\}/.test(b),
       '★★ Session P L1·8: pushSpareChat answers `none` for an empty slot (inside the lock; #802 r10: the word the capture reads as "the trigger never fired"), then checks READY → lock → staging → host → z-order under the lock, takes the slot, carries the tap\'s navKey (V-19 dedupe) and its column (`op.column = column` — the ONLY two `op.<field> =` writes in the method are column and navKey, got [' + takeWrites.join(' ') + '] — #802 r11: a `parkOnLoad`/`abandoned` write in the take turned the tap into a black hole with `spare=1` stamped; #802 r8: without the memory a narrow-warmed spare taken wide is invisible to relayoutPinnedOverlays and strands in the zero-width column when the window narrows again) and becomes activePreload ONLY when nothing refused — the three writes are CONTAINED in the `if (why == null)` body and every check, the ONE z-order WALK (`foreach … overlayStack`, before the take) and the take are CONTAINED in the one lock body (brace-matched, not ordered), the host clause is the literal three-way test (`overlayHost != this || op.host != this || top-of-stack != this`, #802 r4: a flipped `==` refused every tap AND disposed the loaded spare on the tap\'s critical path) — drops the spare on EVERY refusal (never two chat WebViews for one tap), attaches OUTSIDE the lock, cancels the op if attach throws, and arms the same outer timeout pushPageLoaded arms — `Task.Delay(timeoutMs)` (the 4000 default in the signature) with presentPreload(op, "timeout") INSIDE the continuation, the ONE Task.Delay in the method (#802 r6: a `Task.Delay(0)` presented every spare-borne conversation UNPAINTED)');
     ok(/if \(!\(op\.target is SingleChatPage scp\) \|\| !scp\.spareShellBooted\)/.test(b),
-      '★ Session P L1·8 pair (spec §5.3 "only after shellBooted"): a spare whose shell has not reported `ixian:onload` is refused as WARMING — attach can never run onLoad into a document that has not booted');
+      '★ Session P L1·8 pair (spec §5.3 "only after shellBooted"): a spare whose shell has not reported `ixian:onload` is never ATTACHED as warming — the tap may claim it (#1133 lever 5) but attach waits for its own onload, so onLoad can never run into a document that has not booted');
     const loop = csSliceP(b, 'foreach (PreloadOp open in overlayStack)');
     ok(loop.body.length > 0 && /op\.hostGrid\.Children\.IndexOf\(open\.stage\) > mine/.test(loop.body) && !/< mine/.test(loop.body) && /why = SPARE_WHY_ORDER;/.test(loop.body),
       '★★ Session P L1·8 z-order (auditor C MAJOR): the refusal fires when an OPEN stage\'s index is GREATER than the spare\'s (`> mine` — a stage added LATER paints ABOVE); the inverse comparison refuses on older stages and presents UNDER newer ones, the exact invisible-conversation hazard #800 deviation (2) exists to prevent');
@@ -38251,7 +38262,7 @@ console.log('★★ #1028+ — the overnight finalization');
     /* this exe: 14 args (arg 14 = relay) · an OLDER exe: 13 · a RECEIVED file */
     push('addFile', 'f1', 'addrMe', 'Me', '', 'fid1', 'report.pdf', String(T0), 'True', 'False', 'False', '0', 'False', 'False', 'True');
     push('addFile', 'f0', 'addrMe', 'Me', '', 'fid0', 'old.zip', String(T0 - 30), 'True', 'False', 'False', '100', 'True', 'False');
-    push('addFile', 'f9', 'addrPeer', 'Bob', '', 'fid9', 'theirs.png', String(T0 - 20), 'False', 'True', 'True', '100', 'True', 'False', 'True');
+    push('addFile', 'f9', 'addrPeer', 'Bob', '', 'fid9', 'theirs.txt', String(T0 - 20), 'False', 'True', 'True', '100', 'True', 'False', 'True');   /* A5 re-base (#1133): .png is a media tile now — this pin is about the CARD */
     push('addFile', 'f8', 'addrMe', 'Me', '', 'fid8', 'queued.txt', String(T0 - 10), 'True', 'False', 'False', '0', 'False', 'False', 'False');
     if (typeof W.messagesDone === 'function') push('messagesDone');
     push('onChatScreenLoaded');
@@ -38263,14 +38274,28 @@ console.log('★★ #1028+ — the overnight finalization');
     r.received = Array.isArray(t9) && t9.length === 0;
     const btnOf = (id) => d.querySelector('#messages [data-msgid="' + id + '"] .c-fbubble');
     /* ★ #1035 (auditor B, M3): the card's accessible name carries the tick state (a <button>'s aria-label hides its content) */
-    r.aria = /, /.test(btnOf('f1').getAttribute('aria-label')) && btnOf('f1').getAttribute('aria-label').endsWith(t1[0].getAttribute('aria-label'))
+    /* #46 r3 R3-m2 re-base: a FINISHED sent card (f0) carries it; a card still SENDING (f1) is "Sending report.pdf" alone
+       (the tile's R2-N2 rule — the tick is the message's, not the file's) */
+    r.aria = /, /.test(btnOf('f0').getAttribute('aria-label')) && btnOf('f0').getAttribute('aria-label').endsWith(t0[0].getAttribute('aria-label'))
+      && btnOf('f1').getAttribute('aria-label') === btnOf('f1').dataset.ariaBase && btnOf('f1').dataset.ariaBase === ((W.SL && W.SL['status-sending']) || 'Sending') + ' report.pdf'
       && btnOf('f9').getAttribute('aria-label') === btnOf('f9').dataset.ariaBase;
     push('updateFileTicks', 'f1', 'True', 'True', 'False');
-    const live = tickOf('f1');
-    r.ariaLive = btnOf('f1').getAttribute('aria-label').endsWith(live[1] ? live[1].getAttribute('aria-label') : '#');
+    push('updateFileTicks', 'f0', 'True', 'True', 'False');
+    const live = tickOf('f1'), live0 = tickOf('f0');
+    /* #46 r4 MINOR-1 re-base (#1035): a card still SENDING drops only the plain "sent" tick — once it is delivered / read the name carries it */
+    r.ariaLive = btnOf('f0').getAttribute('aria-label').endsWith(live0[1] ? live0[1].getAttribute('aria-label') : '#')
+      && !!live[1] && btnOf('f1').getAttribute('aria-label') === btnOf('f1').dataset.ariaBase + ', ' + live[1].getAttribute('aria-label')
+      && live[1].getAttribute('aria-label') === ((W.SL && W.SL['status-delivered']) || 'delivered');
     /* ★ #1036 (r2 m4): a transfer that FINISHES (setFileProgress recomposes the name) keeps the tick state in it */
     {
       const fb = W.Spixi.createFileBubble({ name: 'a.pdf', direction: 'sent', state: 'progress', progress: 40, status: 'delivered', timestamp: Date.now(), strings: {} });
+      /* #46 r4 MINOR-1 (#1035): BUILT while sending — a delivered / read tick is in the name (card AND tile); a plain sent one is not */
+      const mkT = (status) => W.Spixi.createImageFileBubble({ name: 'b.jpg', direction: 'sent', state: 'progress', progress: 40, status, timestamp: Date.now(), strings: {} }).querySelector('.c-mbubble');
+      const mkC = (status) => W.Spixi.createFileBubble({ name: 'c.pdf', direction: 'sent', state: 'progress', progress: 40, status, timestamp: Date.now(), strings: {} }).querySelector('.c-fbubble');
+      const nm = (el) => el.getAttribute('aria-label'), base = (el) => el.dataset.ariaBase;
+      r.ariaBuiltSending = nm(fb.querySelector('.c-fbubble')) === base(fb.querySelector('.c-fbubble')) + ', delivered'
+        && nm(mkC('read')) === base(mkC('read')) + ', read' && nm(mkC('sent')) === base(mkC('sent'))
+        && nm(mkT('delivered')) === base(mkT('delivered')) + ', delivered' && nm(mkT('read')) === base(mkT('read')) + ', read' && nm(mkT('sent')) === base(mkT('sent'));
       W.Spixi.setFileProgress(fb, 100, { state: 'complete', strings: {} });
       const lab = fb.querySelector('.c-fbubble').getAttribute('aria-label');
       r.ariaAfterProgress = lab.endsWith(', delivered') && lab.startsWith(fb.querySelector('.c-fbubble').dataset.ariaBase);
@@ -38280,7 +38305,27 @@ console.log('★★ #1028+ — the overnight finalization');
     r.delivered = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'delivered';
     push('updateFileTicks', 'f1', 'True', 'True', 'True');
     await sleep(1300);   // ★ B10: the 900 ms ghost belt
-    r.read = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'read';
+    r.read = tickOf('f1').length === 1 && tickOf('f1')[0].dataset.tone === 'read'
+      && btnOf('f1').getAttribute('aria-label') === btnOf('f1').dataset.ariaBase + ', ' + ((W.SL && W.SL['status-read']) || 'read');   // r4 MINOR-1
+    /* r4 MINOR-1: …but a LIVE change to a PLAIN sent tick (f8: queued → relayed) on a card still sending keeps the name bare */
+    push('updateFileTicks', 'f8', 'True', 'False', 'False');
+    const t8b = (tickOf('f8') || []).filter((t) => !t.hasAttribute('data-exit'));
+    r.plainSentLive = t8b.length === 1 && t8b[0].getAttribute('aria-label') === ((W.SL && W.SL['status-sent']) || 'sent')
+      && btnOf('f8').getAttribute('aria-label') === btnOf('f8').dataset.ariaBase;
+    /* #46 r5 MINOR-1: the same rule on a photo TILE still sending — a LIVE relay (sending → plain sent) keeps the name bare
+       (never "Sending pic.jpg, Sent", the R2-N2 contradiction); then delivered joins the name */
+    push('setPhotoPreviews', 'True');
+    push('addFile', 'f7', 'addrMe', 'Me', '', 'fid7', 'pic.jpg', String(T0 - 5), 'True', 'False', 'False', '0', 'False', 'False', 'False');
+    await sleep(200);
+    const tileOf = (id) => d.querySelector('#messages [data-msgid="' + id + '"] .c-mbubble[data-file]');
+    const tl0 = tileOf('f7');
+    push('updateFileTicks', 'f7', 'True', 'False', 'False');
+    const tl1 = tileOf('f7');
+    const bareSent = !!tl1 && tl1.getAttribute('aria-label') === tl1.dataset.ariaBase && !/, /.test(tl1.getAttribute('aria-label'));
+    push('updateFileTicks', 'f7', 'True', 'True', 'False');
+    const tl2 = tileOf('f7');
+    r.tilePlainSentLive = !!tl0 && tl0.dataset.file === 'progress' && bareSent
+      && !!tl2 && tl2.getAttribute('aria-label') === tl2.dataset.ariaBase + ', ' + ((W.SL && W.SL['status-delivered']) || 'delivered');
     /* a received file, an unknown id, an unchanged status: nothing */
     push('updateFileTicks', 'f9', 'True', 'True', 'True');
     push('updateFileTicks', 'nope', 'True', 'True', 'True');
@@ -38288,7 +38333,7 @@ console.log('★★ #1028+ — the overnight finalization');
     /* ★ #1035: a PREPEND burst keeps the rows live — a file tick that changes inside it must NOT animate */
     await sleep(600);
     push('addMessages', JSON.stringify({ items: [{ f: 'addThem', a: ['old1', 'addrPeer', 'Bob', '', 'older', String(T0 - 900)] }], strs: [] }), 'prepend');
-    push('updateFileTicks', 'f0', 'True', 'True', 'False');
+    push('updateFileTicks', 'f0', 'True', 'True', 'True');   /* (r3 re-base: f0 is delivered already — read is the change) */
     const t0b = tickOf('f0');
     r.prependStill = !!t0b && t0b.length === 1 && !t0b[0].hasAttribute('data-enter');
     if (typeof W.messagesDone === 'function') push('messagesDone');
@@ -40534,7 +40579,7 @@ console.log('#1101–#1107 — session 1');
       cap: /private const int HoldCapMs = 250;/.test(sc) && /PresentHold\.start\(native, HoldCapMs, /.test(hold),
       /* (#46 r1 M1) the hold reaches the REAL native WebView, makes ITS ground transparent, and nothing repaints a ground
          between "transparent" and the hold's start */
-      lookup: /try \{ native = op\.target\._webView\?\.Handler\?\.PlatformView as Android\.Webkit\.WebView; \} catch \(Exception\) \{ \}/.test(hold)
+      lookup: /try \{ native = nativeWebViewOf\(op\.target\._webView\); \} catch \(Exception\) \{ \}/.test(hold)
         && /Android\.Webkit\.WebView\? heldView = native;/.test(hold),
       noRepaint: !/BackgroundColor|SetBackgroundColor|applyPageSurfaceColor/.test(hold.slice(hold.indexOf('setHoldGrounds(op, native, true);') + 1, hold.indexOf('PresentHold.start(')))
         && (hold.match(/setHoldGrounds\(/g) || []).length === 2,
@@ -41386,8 +41431,9 @@ console.log('#1101–#1107 — session 1');
   {
     const built = rdS2('Spixi/Resources/Raw/html/chat.html');
     const kinds = ['.c-bubble', '.c-fbubble', '.c-mbubble', '.c-tcard'];
-    const anim = (built.match(/([^{}]*)\{ animation: chat-mention-pulse 1\.4s var\(--easing-standard\) 1; \}/) || [])[1] || '';
-    const rm = (built.match(/@media \(prefers-reduced-motion: reduce\) \{\s*([^{}]*)\{ animation: none; box-shadow: 0 0 0 3px var\(--surface-warning\); \}/) || [])[1] || '';
+    /* ★ A2 re-base (#1132 (4)): 3 s, the 1 px ring keyframes; reduced motion = the band rule, then the static ring rule */
+    const anim = (built.match(/([^{}]*)\{ animation: chat-jump-ring var\(--duration-highlight\) var\(--easing-standard\) var\(--jump-delay, 0ms\) 1; \}/) || [])[1] || '';
+    const rm = (built.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.c-bubble-row\[data-mention-pulse\] \{[^{}]*\}\s*([^{}]*)\{ animation: none; box-shadow: 0 0 0 1px var\(--surface-warning\); \}/) || [])[1] || '';
     const r = {
       animated: kinds.every((k) => anim.includes('.c-bubble-row[data-mention-pulse] ' + k)),
       reduced: kinds.every((k) => rm.includes('.c-bubble-row[data-mention-pulse] ' + k)),
@@ -41547,7 +41593,8 @@ console.log('#1101–#1107 — session 1');
       && ci.indexOf('if (sharedSec && roomKind) body.append(sharedSec);') > -1
       && ci.indexOf('if (sharedSec && roomKind) body.append(sharedSec);') < ci.indexOf('body.append(danger);')
       && (ci.match(/body\.append\(sharedSec\)/g) || []).length === 2;
-    r.edge = /\.c-chat-info__body \.c-shared\[data-kind="media"\] \.c-shared__panel > \.c-shared__grid \{\s*margin-inline: calc\(-1 \* var\(--spacing-16\)\);[^}]*gap: 2px;[^}]*border-radius: var\(--radius-16\) var\(--radius-16\) 0 0;/.test(css)
+    /* ★ A4 re-base (#1132, G-6 option 3 "inset gallery"): no break-out, 4 px gaps, the tiles keep their r8 */
+    r.edge = /\.c-chat-info__body \.c-shared\[data-kind="media"\] \.c-shared__panel > \.c-shared__grid \{\s*gap: var\(--spacing-4\);\s*padding: 0;\s*\}/.test(css) && !/margin-inline: calc\(-1 \* var\(--spacing-16\)\)/.test(css)
       && /padding: var\(--screen-pad\) var\(--spacing-16\) var\(--spacing-32\);/.test(rdS2('src/styles/components/chat-info.css'));
     const menuFn = bodyS2(cdh, 'function openSharedMenu(item)');
     r.shell = /if \(action === 'show'\) \{ closeSharedTakeover\(\); bridge\.send\('ixian:sharedShow:' \+ token\); return; \}/.test(menuFn)
@@ -41956,6 +42003,10 @@ console.log('#1101–#1107 — session 1');
       '★ P-1 stamp set (#1127, TEMPORARY): shells and C# share ONE grammar (tokens [a-z0-9_.=-]{1,40}, ≤ 16; a bad line is dropped whole — a verb\'s payload never reaches a line; the C# side executed in scripts/csh), everything is DEV-ONLY (SPIXI_DEV_COEXIST; *SL{SpixiP1} seeded "0" in a store build, unconditionally → nothing installed: no listener, no rAF, no observer), the Windows console hook logs only logSafe\'d grammar "shell" lines and skips mini-apps, and the A1 hold probe runs before every hold — ' + JSON.stringify(r) + ' off=' + JSON.stringify({ n: off.out.length, l: off.listeners.length, raf: off.raf, po: off.po }) + ' on=' + JSON.stringify(on.out));
   }
 /* ==== SESSION 3 PINS END ==== */
+/* ==== SESSION 4 PINS (#1132 / #1133) — one module per build agent, fixed order ==== */
+for (const mod of ['cs', 'nav', 'chat', 'main']) {
+  await (await import(new URL('./pins-s4/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
+}
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

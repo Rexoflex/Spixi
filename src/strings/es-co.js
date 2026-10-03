@@ -559,6 +559,8 @@ export const esco = {
   people: "Personas",
   permissions: "Permisos",
   photo: "Foto",
+  photoPreviewsHint: "Las fotos que enviaste o descargaste se ven como imagen en el chat. Desactivado: cada foto queda como tarjeta de archivo.",
+  photoPreviewsTitle: "Mostrar vistas previas de fotos en los chats",
   pickFile: "Desde archivo",
   pin: "Fijar",
   preferences: "Preferencias",

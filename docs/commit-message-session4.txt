@@ -1,0 +1,34 @@
+Session 4: P-1 levers, photo tiles, jump highlight, dark chat thumb
+
+Interview #1132-#1133, build #1134-#1135, input #1136, v1 plan #1137-#1145.
+
+- P-1 levers picked from the measured table and the Android log:
+  - A1: the G-1 hold reaches the native WebView behind the compat
+    renderer (nativeWebViewOf; mini-apps skipped).
+  - Wallet: the 50 tx rows are pushed only on the first feed of a
+    document or when a row is stale (names, fiat); the shell keeps the
+    old rows until the refill is done, chips move with the rows.
+  - Account -> tab uses the cover hand-off (no old screen shows through).
+  - Android close wait 100 -> 16 ms (the wait is a WinUI fix).
+  - A tap claims a spare chat that is still warming (the slow open
+    mode, 12 of 54 opens), with a cold re-run that never overrides a
+    newer navigation.
+  - Desktop re-warms a spare chat after each open (wide windows).
+  - New Spixi/Utils/OpenPerfRules.cs: the pure rules, run in scripts/csh.
+- A2: "Show in chat" highlight = a row band + 1 px ring, 3 s.
+- A4: chat info media grid = inset gallery.
+- A5 (#1124): image files show as media tiles (local preview, transfer
+  ring + "keep Spixi open", offered glyph); Privacy switch "Show photo
+  previews in chats". New push setFileThumb and verb
+  ixian:photoPreviews (provisional, BE ask); gate rows added.
+- #1134: the dark chat scroll thumb matches chat info.
+- Renders: docs/sheets/session4/ (A2, A4, A5, levers 7 and 12).
+- Voice messages (#1136): recorded with tree facts.
+- v1 scope and plan (#1137-#1145): build list, competitor additions
+  (scope closed), onboarding copy, quality plan, group cap, lazy
+  history, release trains and languages, media viewer; the session
+  order; docs/release-readiness.md section V.
+- Quality plan (#1140, parallel session): docs/quality-plan.md, its
+  process.md row and the CLAUDE.md doc-index row.
+- Pins: scripts/pins-s4/; smoke BASELINE OK 5150; C# harness 59.
+- #46 loop CLEAN at r5 (docs/review-brief-session-4.md, docs/reviews/).

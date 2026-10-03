@@ -217,6 +217,8 @@ namespace SPIXI
             {
                 caps += ",pushProvider";
             }
+            // ★ #1133 (A5 #1124): the Privacy "Show photo previews in chats" row — this exe handles ixian:photoPreviews.
+            caps += ",photoPreviews";
             /* ★ S9 (Session AD): the Developer row. The cap is granted ONLY while dev mode
              * is on (HomePage's 10-tap toggle persists `devMode`) — the row renders where
              * the affordance already exists, and never for a user who has not opted in. */
@@ -235,6 +237,7 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setNotifSenderName", SNotificationPrefs.showSenderName.ToString());
             Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
             Utils.sendUiCommand(this, "setCallRingtone", SNotificationPrefs.callRingtone.ToString());   // ★ E-W4 (🟡 new push; an older shell ignores it)
+            Utils.sendUiCommand(this, "setPhotoPreviews", SChatPrefs.photoPreviews.ToString());   // ★ #1133 (🟡 new push): seed the Privacy switch
             if (SPushService.pushProviderSupported())
             {
                 Utils.sendUiCommand(this, "setNotifPushProvider", SNotificationPrefs.pushProviderEnabled.ToString());   // P2 (#708): seed the switch
@@ -910,6 +913,14 @@ namespace SPIXI
                 string status = current_url.Substring("ixian:notifSounds:".Length);
                 SNotificationPrefs.inAppSounds = status.Equals("on", StringComparison.Ordinal);
                 Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
+            }
+            else if (current_url.StartsWith("ixian:photoPreviews:", StringComparison.Ordinal))
+            {
+                // ★ #1133 (A5 #1124, 🟡 new verb): store, then echo the STORED value (the NOTIF-2 grammar). "on" or not-"on".
+                string status = current_url.Substring("ixian:photoPreviews:".Length);
+                SChatPrefs.photoPreviews = status.Equals("on", StringComparison.Ordinal);
+                Utils.sendUiCommand(this, "setPhotoPreviews", SChatPrefs.photoPreviews.ToString());
+                foreach (var chat_page in Utils.getChatPages()) chat_page.onPhotoPreviewsChanged();   // ★ #46 r1 A-M1: a chat alive under Account gets no OnAppearing — tell it now (each page catches its own failure)
             }
             else if (current_url.StartsWith("ixian:lock:", StringComparison.Ordinal))
             {

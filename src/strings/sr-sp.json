@@ -558,6 +558,8 @@
   "people": "Osobe",
   "permissions": "Dozvole",
   "photo": "Fotografija",
+  "photoPreviewsHint": "Fotografije koje ste poslali ili preuzeli prikazuju se kao slika u ćaskanju. Isključeno: svaka fotografija ostaje kartica datoteke.",
+  "photoPreviewsTitle": "Prikaži preglede fotografija u ćaskanjima",
   "pickFile": "Iz datoteke",
   "pin": "Zakači",
   "preferences": "Podešavanja",

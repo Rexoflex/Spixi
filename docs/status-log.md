@@ -351,3 +351,14 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   A10 · A11 · A12 built; A2 / A4 / A5 rendered (`docs/sheets/session3/`); A9 not built (Core queues the nick — walk decides);
   A7 BE only. #46 CLEAN at r3. Smoke BASELINE OK 5095 · CSH 44. ⚠ C# UNCOMPILED. Next: walk + measure
   (`docs/walk-artifact-session3-win-android.html`), then `docs/handoff-2026-10-02b.md` + `docs/prompts/session-4.md`.
+- 2026-10-03: session 4 — preconditions re-run in the cloud twin (5095 · CSH 44); the levers ranked from the table and the
+  Android log (#1132/#1133: the chat-open bimodality = the warming-spare miss, 12/54; the scroll long tasks = load-more re-sending
+  the whole window). Built (#1135): levers 1 (A1 hold) · 2 + 2b (wallet) · 3 (desktop re-warm) · 5 (warming claim) · 10 (Account
+  hand-off) · 11 (Android close wait) · A2 · A4 · A5 #1124 (photo tiles, 🟡 `setFileThumb` + `ixian:photoPreviews`) · #1134 dark
+  chat thumb; renders levers 7 + 12. #46 CLEAN at r5. Smoke BASELINE OK 5150 · CSH 59. ⚠ C# UNCOMPILED. Input (11) voice messages
+  recorded with tree facts (#1136). Next: `docs/walk-artifact-session4-win-android.html`, then `docs/handoff-2026-10-03.md` +
+  `docs/prompts/session-5.md`.
+- 2026-10-03 (b): v1 scope recorded (#1137–#1144: the build list, the competitor additions with SCOPE CLOSED, onboarding copy,
+  the quality plan = #1140, the group cap, lazy history, trains / cadence / languages, the media-preview gap) and the session plan
+  picked (#1145: S5 speed rest + media viewer + group cap → S6 reply + edit → S7 voice → S8 groups + more → S9 picker + audit →
+  walk → FREEZE; quality items in parallel). `docs/release-readiness.md` § V. Next free #1146.

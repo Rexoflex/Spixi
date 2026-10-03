@@ -4588,9 +4588,9 @@ button.c-settings-howto__join:disabled {
    (neutral-490 light / neutral-400 dark) clears 3:1 on both canvases */
 @media (hover: hover) and (pointer: fine) {
   .c-chat-canvas .u-scroll:hover,
-  .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--text-neutral-02) transparent; }
+  .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--chat-scroll-thumb) transparent; }
   .c-chat-canvas .u-scroll:hover::-webkit-scrollbar-thumb,
-  .c-chat-canvas .u-scroll:focus-within::-webkit-scrollbar-thumb { background: var(--text-neutral-02); }
+  .c-chat-canvas .u-scroll:focus-within::-webkit-scrollbar-thumb { background: var(--chat-scroll-thumb); }
 }
 
 .c-bubble-row {
@@ -6440,6 +6440,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     notifSounds: true,
     callRingtone: true,        // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
     notifPushProvider: true,   // ★ P2 (#708): matches the C# default (KEY_PUSH_PROVIDER = true)
+    photoPreviews: true,       // ★ #1133 (A5 #1124): matches the C# default (SChatPrefs "chatPhotoPreviews" = true)
     /* PA1 (#525): "Confirm payments" — display state only. The C# verb persists
        IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
        so this never rides the dirty/save path (no #288 clobber class). */
@@ -6670,7 +6671,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      but DEFERS the pop until HomePage hears `ixian:coverpainted` from home.html (the
      cover's second rAF — on glass), with a 400 ms backstop (#326's completes-never
      grammar). A DIRTY exit still saves-and-pops at once (`ixian:save:` is unchanged):
-     the save is the binding action and the rarer path. */
+     the save is the binding action and the rarer path — except a dirty HAND-OFF, which
+     since #1133 lever 10 saves with `ixian:apply:` and keeps the handshake (below).
+     ★ #1133 lever 10: the peer-nav TAB taps are hand-offs now too, not only Contacts. */
   function exitSettings(reason) {
     if (exitSent) return;          // the verb gate — never healed
     exitSent = true;
@@ -6704,6 +6707,17 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // would still be there on the next visit. Safe when nothing is open.
     try { closeAddressSheet(); } catch (e) {}
     const dirty = state.dirtyNick || state.dirtyAvatar || state.dirtyLock;
+    /* ★ #1133 lever 10: a DIRTY hand-off keeps the handshake. `ixian:save:` pops at once
+       (onSaveSettings), so it is split: `ixian:apply:` persists the same things WITHOUT the
+       pop (onApplySettings → saveSettingsCore, the S14 verb), then `ixian:handoff` runs the
+       back cleanup (avatar-tmp is already promoted) and holds the pop for the cover. The
+       outbox serialises the two. An exe without the settingsApply cap keeps save-and-pop. */
+    if (dirty && reason === 'handoff' && bridge.cap('settingsApply')) {
+      bridge.send('ixian:apply:' + state.name);
+      state.dirtyNick = false; state.dirtyAvatar = false; state.dirtyLock = false;
+      bridge.send('ixian:handoff');
+      return;
+    }
     bridge.send(dirty ? 'ixian:save:' + state.name : (reason === 'handoff' ? 'ixian:handoff' : 'ixian:back'));
   }
   // Explicit Save (topbar check): persist + pop, exactly ONCE, with NO success morph —
@@ -7291,6 +7305,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       root.dataset.langBuilt = state.language;
       mounted = true;
     }
+    /* ★ #1133: the Privacy screen also keeps its live node, so a setPhotoPreviews push with
+       no tap in flight moves the switch IN PLACE (a pending tap is resolved by the latch). */
+    if (!notifPending.photoPreviews) {
+      const pv = (paneMode ? detailWrap : root).querySelector('[data-pref="photoPreviews"] .c-settings__switch');
+      if (pv && pv.getAttribute('aria-checked') !== String(state.photoPreviews)) pv.setAttribute('aria-checked', String(state.photoPreviews));
+    }
     /* ★ Session J (#753, Damir: "when I loaded seed heavy the note in About didn't change"):
        the About sublevel KEEPS its live node across rebuilds (the rule above), so the
        setDevSeed push that lands after a seed finishes rebuilt the hub and left the mounted
@@ -7450,6 +7470,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       : (key === 'notifSenderName') ? 'ixian:notifSenderName:'
       : (key === 'notifPushProvider') ? 'ixian:notifPushProvider:'   // ★ P2 (#708)
       : (key === 'callRingtone') ? 'ixian:callRingtone:'             // ★ E-W4 (🟡 #1118)
+      : (key === 'photoPreviews') ? 'ixian:photoPreviews:'           // ★ #1133 (🟡 new verb): the Privacy switch
       : 'ixian:notifSounds:';
     bridge.send(verb + (next ? 'on' : 'off'));
   }
@@ -7561,6 +7582,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          The §9 rows (read receipts / typing) stay dark — they still have no verb. */
       case 'privacy': return createPrivacy({
         mediaAutoload: mediaAutoloadPref(),
+        photoPreviews: state.photoPreviews,   // ★ #1133: the setPhotoPreviews seed / echo
         capabilities: { readReceipts: bridge.cap('readReceipts'), typing: bridge.cap('typing') },
         strings,
         onBack: showHub,
@@ -7572,6 +7594,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
             ctrl.done();
           } catch (e) { ctrl.fail(); }
         },
+        /* ★ #1133 (A5 #1124): C# holds this one (SChatPrefs.photoPreviews), so it rides the
+           NOTIF-2 latch: optimistic, resolved by the setPhotoPreviews echo, failed back after
+           NOTIF_ACK_MS. No row on an exe without the verb (the W-g rule). */
+        onPhotoPreviews: bridge.cap('photoPreviews') ? (next, ctrl) => { latchNotif('photoPreviews', next, ctrl); } : undefined,
       });
       /* ★ #978 (#970, Damir 2026-09-24): Declined requests — the un-block path for the app-side
          ignore list. The addresses come from THIS page's own push (C# SRequestIgnore), the tap
@@ -8037,6 +8063,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     setNotifSounds(s) { applyNotifPush('notifSounds', s); },
     setCallRingtone(s) { applyNotifPush('callRingtone', s); },   // ★ E-W4 (🟡 #1118): the echo half of ixian:callRingtone
     setNotifPushProvider(s) { applyNotifPush('notifPushProvider', s); },   // ★ P2 (#708): the echo half of ixian:notifPushProvider
+    setPhotoPreviews(s) { applyNotifPush('photoPreviews', s); },   // ★ #1133 (🟡 new push): the onLoad seed + the echo of ixian:photoPreviews
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411
     showRemoveAvatar(show) { state.hasCustomAvatar = (show === '1' || show === 'true' || show === true); scheduleRebuild(); },
@@ -8387,10 +8414,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // forwarded by SettingsPage to HomePage.landOnTab and pushed into the home
       // shell BEFORE the exit verb below reaches C# (bridge.send serialises them),
       // so home switches while still covered. The localStorage hand-off is gone.
+      /* ★ #1133 lever 10: the TAB route takes the L14 cover handshake too. The plain
+         `ixian:back` popped Account at once, before home had switched — the old tab showed
+         through for a frame. `handoff` holds the pop until home answers
+         `ixian:coverpainted` (landOnTabNow, 2nd rAF after showView), 400 ms backstop. */
       onChange: (id) => {
         if (id === 'account') return;
         bridge.send('ixian:landtab:' + id);
-        exitSettings();
+        exitSettings('handoff');
         // #320 (Damir F5 of #315): bottomnav moves the highlight on tap BEFORE
         // onChange runs — the exit-tap left e.g. Wallet selected, the page PARKED
         // in that state, and the warm re-present showed Account with the wrong tab

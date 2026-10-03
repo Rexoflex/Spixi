@@ -40,3 +40,23 @@ Frames = the 600 ms after the event: dropped (> 24 ms) and the longest gap.
 ## Ranked levers (session 4: ms gained × certainty ÷ risk; each with its mechanism verified in the tree)
 | Rank | Lever | Path(s) | Gain (ms) | Certainty | Risk | Mechanism (file:line) | A/B vs parent? |
 |---|---|---|---|---|---|---|---|
+| 1 | A1 hold: resolve the native view as `(pv as SpixiWebviewRenderer2)?.Control` in ONE helper (skip `ClassId=="miniapp"`, AND-19 / #334) | 1 (flicker) | 0 ms; removes the plain/grey frames (G-1) | high (all 42 opens `pv=spixiwebviewrenderer2`) | low; chat input waits ≤ 250 ms (`HoldCapMs`) | `SpixiContentPage.cs:311`, `:4055`; `WebViewRenderer.cs:287`, `:441`, `:492` | recording, `why=vsc` |
+| 2 | Wallet: `txPushedToShell` latch → `loadTransactions(!txPushedToShell)`, reset with `appsPushedToShell`; dirty flag on a fiat-price update | 4 | 67 ms C# + 2 drops per re-visit | high | low (fiat / nick stale without the dirty flag; filter keeps forcing `:3688`) | `HomePage.xaml.cs:1266`, `:1274`, `:2339`, `:5054`, `:5075`; `Node.cs:1009` | no (`force=0` in the line) |
+| 2b | Wallet shell keeps old rows until `clearPaymentActivityDone` | 4 (flicker) | visual | high | low (`walletZero` timer = net) | `home.html:3945`, `:4015` | no |
+| 3 | Desktop re-warm: a new spare after a chat presents on a wide window (relax the `chat` refusal for wide) | 2 | 221 → ~90 (#803 (7): 87) | med-high | +1 resident WebView2 (memory); §1 kept (own WebView, used once) | `SpixiContentPage.cs:1619`; `HomePage.xaml.cs:3491`, `:4566` | yes (memory + frames) |
+| 4 | Defer the chat's `loadApps()` until the hold ends / the drawer opens | 1 (gap after present) | ≤ 88 (the gap) | HYPOTHESIS — the gap is on the SPARE path only (spare: 2 drops, gap 89 / 122; cold: 0 drops, gap 22) → one-tag probe of what runs after a spare present | low (timing only) | `SingleChatPage.xaml.cs:1555` → `:2573` | yes |
+| 5 | A tap claims a WARMING spare (today refused `why=warming`; the spare warms 350 ms after a close) | 1 (slow mode) | slow mode 239 / 323 → ~130 | **CONFIRMED** (log: 42 spare opens 86 / 122 · 9 `why=warming` 239 / 323 · 3 `why=none` 282 = the bimodality) | medium (2nd claim path, mirror `claimWarmingOverlay`) | `SpixiContentPage.cs:1806`, `:3049`; `HomePage.xaml.cs:3557` | yes |
+| 6 | Chat log load-more: send only the OLDER page (50), not the whole window again (150 → 200 → 250, 29–51 KB) | 9 (chat scroll) | long tasks 53–100 ms (grow with n) → ~25 | **CONFIRMED** (all 8 `longtask` lines follow a `loadmore` batch n=150–250) — the chats-list rebuild hypothesis is NOT supported | medium (the shell prepend contract; the #354 / D-18 guard) | `SingleChatPage.xaml.cs:983`, `:2855`; `lazy-history.js` | yes |
+| 7 | Info pane: slide over, widen the column once at slide end (no 1-frame snap mid-motion) | 6 (Win) | moves the ~105 ms frame out of the motion | med | not the "gentle push" — render options | `HomePage.xaml.cs:4674` | render |
+| 8 | Spares for ContactDetails / AppDetails (own WebView each, used once) | 6, 7 | info 87 → ~30 · app details 124 → ~45 | med | ~+15 MB each; ~150 lines | `HomePage.xaml.cs:1773`, `:5349`; `SingleChatPage.xaml.cs:1032`, `:2012` | yes |
+| 9 | Call bar: lay out from the top, `fits()` passes at once in bar mode | 10 | 212 → ~45 | med-low | one frame before the resize | `call.html:~475`, `:513` | yes |
+| 10 | Account → tab: `exitSettings('handoff')` for tabs; home answers `coverpainted` for tabs too | 5 (visual) | visual | high | low (dirty-save path same gap `:696`) | `settings.html:2381`; `home.html:1531` | no |
+| 11 | Android: shorten the 100 ms post-hide wait on close (it exists for a WinUI flash, #229b) | 2 | INTERNAL 161 → ~100 | high | low on Android | `SpixiContentPage.cs:2484` | no |
+| 12 | Motion durations dial: 300/220 → 220/160 (subscreen, C# slide) | 6, 8 | felt −80 / −60 | high | taste — render | `subscreen-slide.css:30–31`; `SpixiContentPage.cs:3955`, `:2463` | render |
+
+Log read (session 4, `android-full.txt`, 54 opens): see levers 4 · 5 · 6. Notes: lead 6 is out of date — `backdrop-filter` is in 2 rules (chat log only: `message-bubble.css:601`, `typed-bubbles.css:437`), none in the chats list. Chat close felt ≈ the opacity flip; `done=` includes the 100 ms wait. Chat info close 330 = 220 slide + 100 wait + ~10.
+
+## Experiment log (§8 — one lever per try; Damir runs every device run)
+| try | lever | patch | median | p90 | keep/discard/crash | note |
+|---|---|---|---|---|---|---|
+| 1 | levers 1 · 2 · 2b · 3 · 5 · 10 · 11 (one batch, #1135 — Damir picked them together; each has its own walk row so the effect is read per path) | session 4 | owed | owed | — | the session-4 walk fills this row per path; a regression on one path = discard that lever only |

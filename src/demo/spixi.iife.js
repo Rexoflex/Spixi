@@ -5351,9 +5351,13 @@ function setMessageStatus(row, status, strings = getStrings(), opts = {}) {
    base label in data-aria-base (typed-bubbles.js) and the tick's state is appended here, so a screen reader
    hears "…, Delivered" like a text bubble. No-op for a text bubble. */
 function syncFileTickAria(row, tick) {
-  const fb = row.querySelector('.c-fbubble[data-aria-base]');
+  const fb = row.querySelector('.c-fbubble[data-aria-base], .c-mbubble[data-aria-base]');   // ★ A5 #1124: …or an image file's tile
   if (!fb) return;
-  const label = tick && tick.getAttribute('aria-label');
+  /* #46 r2 R2-N2 · r3 R3-m2: a photo tile OR a file card still SENDING is named "Sending IMG.jpg" alone (typed-bubbles fileTileAria — one rule
+     for the build and this live path); the tick joins the name once the transfer is final — r4 MINOR-1 (#1035): a delivered / read tick
+     (anything but the neutral sent / sending glyph) joins it at once */
+  const sending = fb.matches('.c-mbubble[data-file="progress"], .c-fbubble[data-state="progress"]');   // #46 r3 R3-m2: the card too
+  const label = sending && tick && tick.dataset.tone === 'neutral' ? null : tick && tick.getAttribute('aria-label');
   fb.setAttribute('aria-label', fb.dataset.ariaBase + (label ? ', ' + label : ''));
 }
 
@@ -5366,7 +5370,8 @@ function syncFileTickAria(row, tick) {
 const TICK_FADE_MS = 300;   // ★ B10 (#1084): = --duration-300 (message-bubble.css c-tick-in/out)
 /* ★ #1028 (P.22): a tick lives in a text bubble's meta OR a sent file card's stamp — ONE selector, so the
    same setMessageStatus / replay path drives both (a second copy would drift, #251/#288). */
-const TICK_HOST_SEL = '.c-bubble__meta .c-status-icon:not([data-exit]), .c-fbubble__stamp .c-status-icon:not([data-exit])';
+/* ★ A5 #1124 (#1133): …or an image file's media tile (typed-bubbles.js createImageFileBubble) — the same tick. */
+const TICK_HOST_SEL = '.c-bubble__meta .c-status-icon:not([data-exit]), .c-fbubble__stamp .c-status-icon:not([data-exit]), .c-mbubble__stamp .c-status-icon:not([data-exit])';
 function reducedMotion() {
   try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
 }
@@ -5906,6 +5911,7 @@ function setComposerCost(el, costText, strings = getStrings()) {
  * Group-chat sender identity on payment cards (nick/avatar args) is a flagged
  * gap (#66) — cards render identity-less pending a design.
  */
+
 
 
 
@@ -6564,10 +6570,11 @@ function fillFileName(el, name) {
 /* file-bubble state → accessible name / leading glyph. Single source shared by
    createFileBubble AND setFileProgress (audit r2: the progress→complete flip
    left "Downloading …" aria + the old glyph on the button). */
-function fileAria(state, name, strings) {
+/* #46 r3 R3-m2: ONE rule for MY transfer, card AND tile — "Sending <name>" (a download stays "Downloading") */
+function fileAria(state, name, strings, direction = 'received') {
   return (state === 'offer' ? (strings.download || 'Download')
     : state === 'failed' ? (strings.retry || 'Retry')
-    : state === 'progress' ? (strings.downloading || 'Downloading')
+    : state === 'progress' ? tileProgressWord(direction, strings)
     : (strings.open || 'Open'))
     + ' ' + name;
 }
@@ -6682,7 +6689,7 @@ function createFileBubble({
   /* ★ #1035 (#46 auditor B, M3): the BASE label is kept on the card so the sent file's tick state can be
      appended (here and on every live change — message-bubble.js syncFileTickAria); an explicit aria-label
      on a <button> replaces its content, so the tick's own label is never heard otherwise. */
-  el.dataset.ariaBase = fileAria(state, name, strings);
+  el.dataset.ariaBase = fileAria(state, name, strings, direction);
   el.setAttribute('aria-label', el.dataset.ariaBase);
 
   el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
@@ -6712,7 +6719,7 @@ function createFileBubble({
     track.setAttribute('role', 'progressbar'); // audit: transfers were silent to AT
     track.setAttribute('aria-valuemin', '0');
     track.setAttribute('aria-valuemax', '100');
-    track.setAttribute('aria-label', strings.downloading || 'Downloading'); // audit r2: nameless progressbar
+    track.setAttribute('aria-label', tileProgressWord(direction, strings)); // audit r2: nameless progressbar · #46 r3 R3-m2: mine = Sending
     const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
     track.setAttribute('aria-valuenow', String(p));
     const fill = document.createElement('span');
@@ -6751,7 +6758,9 @@ function createFileBubble({
     tick.removeAttribute('aria-hidden');
     tick.setAttribute('role', 'img');
     tick.setAttribute('aria-label', strings['status-' + status] || status);
-    el.setAttribute('aria-label', el.dataset.ariaBase + ', ' + tick.getAttribute('aria-label'));
+    /* #46 r3 R3-m2 (the tile's R2-N2 rule): while MY file is still sending a plain sent/sending tick is the message's, not the file's —
+       r4 MINOR-1 (#1035): a delivered / read tick stays in the name while it sends */
+    if (state !== 'progress' || tick.dataset.tone !== 'neutral') el.setAttribute('aria-label', el.dataset.ariaBase + ', ' + tick.getAttribute('aria-label'));
     const stamp = document.createElement('span');
     stamp.className = 'c-fbubble__stamp';
     if (stampTime) stamp.append(stampTime);
@@ -6778,6 +6787,246 @@ function createFileBubble({
   return row;
 }
 
+/* ★★ A5 #1124 — PHOTO PREVIEWS IN THE CHAT (Damir #1133 (3); concept docs/sheets/session3/A5-1124-tiles-*.png).
+ * An IMAGE file message renders on the media tile (c-mbubble, media-bubble.js — its idle → loading → loaded
+ * machine) instead of the file card, when the shell's setPhotoPreviews is on:
+ *   A complete + a C#-made preview (setFileThumb) → the picture fills the tile, the time pill over it; tap = open;
+ *   B progress → the document tile inside a circular ring driven by updateFile (setFileProgress, below), the
+ *     percentage and the keepOpen line; the tile is disabled as the card is; the pre-accept Cancel stays a SIBLING;
+ *   C offer → the document tile + the name + "Tap to download"; no picture (nothing is decoded for a file that
+ *     is not on this device).
+ * A tile with no picture stands on the incoming bubble ground (white in light — Damir's note). Every action, the
+ * sent tick and the a11y name ("<state> <name>", + the tick) are the file card's. The names this tile is for are
+ * EXACTLY the extensions C# can preview (SharedItems.imageExts) — an .svg / .tiff stays a card. */
+const PHOTO_EXT = /\.(jpe?g|png|gif|webp|bmp|heic|avif)$/i;
+function isPhotoFileName(name) {
+  return PHOTO_EXT.test(String(name == null ? '' : name));
+}
+const FILE_RING_R = 32;                              // the ring AROUND the 40 × 44 document tile (clear of its corners)
+const FILE_RING_LEN = 2 * Math.PI * FILE_RING_R;
+const fileTileCtl = new WeakMap();                   // tile el → { name, strings, direction } (the in-place final flip rebuilds its face)
+const pctText = (p) => Math.max(0, Math.min(100, Math.round(Number(p) || 0))) + '%';
+/* #46 r1 B-N1: MY transfer is SENDING, not "Downloading" (the tick's own word, status-sending) */
+const tileProgressWord = (direction, strings) => (direction === 'sent'
+  ? (strings['status-sending'] || 'Sending') : (strings.downloading || 'Downloading'));
+/* #46 r2 R2-1: which tile shows its picture. A RECEIVED file is on this device only once complete; MY OWN photo is local
+   from the first moment (C# sends its preview at once, SingleChatPage noteThumbCandidate `localSender`), so it shows
+   while it is still SENDING too — picture + the ring on a scrim (A5). A failed tile keeps its face (the retry word). */
+function tileShowsPicture(state, direction) {
+  return state === 'complete' || (direction === 'sent' && state === 'progress');
+}
+const tileAria = fileAria;   // #46 r3 R3-m2: the card's rule, one source
+
+/** #46 r1 B-6: the pixel size of a base64 JPEG data: URI from its SOFn header (no decode), or null. C#'s preview is
+ *  ≤ 64 KB; only its head is decoded (#46 r2 R2-N3). The tile is sized from it BEFORE the picture lands, so a
+ *  re-render does not jump from the 4:3 placeholder to the picture's aspect. */
+function jpegSize(uri) {
+  try {
+    const u = String(uri || '');
+    const body = u.slice(u.indexOf(',') + 1);
+    /* #46 r2 R2-N3: decode the HEAD only — the frame header sits in the first few hundred bytes of C#'s preview; a
+       header run longer than the head doubles it (never past the whole URI) */
+    for (let n = JPEG_HEAD_CHARS; ; n *= 2) {
+      const all = n >= body.length;
+      const r = jpegSizeOf(atob(all ? body : body.slice(0, n)));
+      if (r !== undefined || all) return r || null;
+    }
+  } catch (e) { /* not base64: no size */ }
+  return null;
+}
+const JPEG_HEAD_CHARS = 4096;   // a multiple of 4 (whole base64 quads) → 3 KB of JPEG
+/* the SOFn size of a JPEG byte string: {w,h} · null (not a JPEG / no frame) · undefined (ran out — need more bytes) */
+function jpegSizeOf(b) {
+  if (b.length < 2) return undefined;
+  if (b.charCodeAt(0) !== 0xFF || b.charCodeAt(1) !== 0xD8) return null;
+  let i = 2;
+  while (i + 8 < b.length) {
+    if (b.charCodeAt(i) !== 0xFF) return null;
+    const m = b.charCodeAt(i + 1);
+    if (m === 0xFF) { i += 1; continue; }                                  // fill byte
+    if (m === 0x01 || (m >= 0xD0 && m <= 0xD8)) { i += 2; continue; }       // a marker without a length
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {   // SOF0…SOF15 (not DHT · JPG · DAC)
+      const h = (b.charCodeAt(i + 5) << 8) | b.charCodeAt(i + 6);
+      const w = (b.charCodeAt(i + 7) << 8) | b.charCodeAt(i + 8);
+      return w > 0 && h > 0 ? { w, h } : null;
+    }
+    if (m === 0xDA || m === 0xD9) return null;                              // scan data / end before any frame header
+    const len = (b.charCodeAt(i + 2) << 8) | b.charCodeAt(i + 3);
+    if (len < 2) return null;
+    i += 2 + len;
+  }
+  return undefined;
+}
+
+function fileFace(state, name, progress, strings, direction) {
+  const face = document.createElement('span');
+  face.className = 'c-mbubble__file';
+  const glyph = fileTile(name, 'complete');          // the card's document tile; the state is said in words below
+  glyph.setAttribute('aria-hidden', 'true');
+  if (state === 'progress') {
+    const wrap = document.createElement('span');
+    wrap.className = 'c-mbubble__ring';
+    wrap.setAttribute('role', 'progressbar');
+    wrap.setAttribute('aria-valuemin', '0');
+    wrap.setAttribute('aria-valuemax', '100');
+    wrap.setAttribute('aria-label', tileProgressWord(direction, strings));
+    const p = Math.max(0, Math.min(100, Number(progress) || 0));
+    wrap.setAttribute('aria-valuenow', String(p));
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 72 72');
+    svg.setAttribute('aria-hidden', 'true');
+    const track = document.createElementNS(NS, 'circle');
+    track.setAttribute('class', 'c-mbubble__ring-track');
+    const fill = document.createElementNS(NS, 'circle');
+    fill.setAttribute('class', 'c-mbubble__ring-fill');
+    for (const c of [track, fill]) { c.setAttribute('cx', '36'); c.setAttribute('cy', '36'); c.setAttribute('r', String(FILE_RING_R)); }
+    fill.setAttribute('stroke-dasharray', FILE_RING_LEN.toFixed(2));
+    fill.setAttribute('stroke-dashoffset', (FILE_RING_LEN * (1 - p / 100)).toFixed(2));
+    svg.append(track, fill);
+    wrap.append(svg, glyph);
+    face.append(wrap);
+  } else {
+    face.append(glyph);
+  }
+  const cap = document.createElement('span');
+  cap.className = 'c-mbubble__cap';
+  if (state === 'progress') { cap.textContent = pctText(progress); cap.dataset.pct = ''; }
+  else fillFileName(cap, name);                      // #1005: the extension survives the ellipsis
+  face.append(cap);
+  const line = document.createElement('span');
+  if (state === 'progress') {
+    line.className = 'c-mbubble__hint';
+    line.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';   // Damir's note: ON the tile
+  } else {
+    line.className = 'c-mbubble__cta';
+    line.textContent = state === 'offer' ? (strings.tapToDownload || 'Tap to download')
+      : state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
+      : (strings.openFile || 'Open file');
+  }
+  face.append(line);
+  return face;
+}
+
+function fileTileAria(tile) {
+  /* #46 r2 R2-N2: while MY file is still sending the tick is the MESSAGE's ("Sent"), not the file's — the name says
+     "Sending IMG.jpg" alone; the tick joins it once the transfer is final — r4 MINOR-1 (#1035): a delivered / read tick joins it at once */
+  const tk = tile.querySelector('.c-mbubble__stamp .c-status-icon:not([data-exit])');
+  if (tk && tile.dataset.file === 'progress' && tk.dataset.tone === 'neutral') return tile.dataset.ariaBase || '';
+  const t = tk && tk.getAttribute('aria-label');
+  return (tile.dataset.ariaBase || '') + (t ? ', ' + t : '');
+}
+
+/** ★ A5 #1124: an image FILE message as a media tile (the shell decides when — setPhotoPreviews + isPhotoFileName).
+ *  Same options as createFileBubble, plus `thumb` (a data:image/jpeg the shell vetted) and `onLoad` (the tile grew). */
+function createImageFileBubble({
+  direction = 'received',
+  name = '',
+  state = 'complete',
+  progress = 0,
+  thumb = null,
+  timestamp = null,
+  gutter = false,
+  status = null,
+  onAccept, onOpen, onRetry, onCancel,
+  onLoad,
+  onThumbError,        // #46 r1 B-1: the preview failed to decode → the tile dropped it; the shell forgets it too
+  strings = getStrings(),
+} = {}) {
+  const pic = tileShowsPicture(state, direction) && thumb ? String(thumb) : '';   // #46 r2 R2-1
+  const row = createMediaBubble({
+    direction, kind: 'image', src: pic, alt: name, autoload: !!pic, timestamp, gutter, onLoad, strings,
+    sizeHint: pic ? jpegSize(pic) : null,   // #46 r1 B-6: sized from the JPEG before it lands (no jump on a re-render)
+    /* #46 r1 B-1: a preview that will not decode is DROPPED — the tile goes back to its file face and a tap opens the
+       FILE (the CTA says "Open file"); no media retry loop on a bad picture */
+    onSrcError: () => { if (onThumbError) { try { onThumbError(); } catch (_) {} } },
+    instantIfShown: true,   // #46 r3 R3-m1: a re-render does not re-fade a picture this document already showed
+    ariaFor: (s, tile) => fileTileAria(tile),
+  });
+  const el = row.querySelector('.c-mbubble');
+  el.dataset.file = state;
+  el.dataset.ariaBase = tileAria(state, name, strings, direction);
+  fileTileCtl.set(el, { name, strings, direction });
+  // ONE dispatcher keyed on the LIVE file state (the card's rule). While the picture LOADS a tap does nothing (it is
+  // a frame or two for a local data: URI) — never two actions for one tap; a failed picture is dropped (above).
+  const handlers = {
+    offer: oneShot(onAccept),
+    failed: reentryGuard(onRetry),
+    complete: reentryGuard(onOpen),
+  };
+  el.addEventListener('click', (e) => {
+    if (el.dataset.state === 'loading') return;
+    const h = handlers[el.dataset.file];
+    if (h) h(e);
+  });
+  if (state === 'progress') el.disabled = true;
+  el.append(fileFace(state, name, progress, strings, direction));
+  const tick = direction === 'sent' && status ? createStatusIcon(status) : null;
+  if (tick) {
+    tick.setAttribute('width', 14);
+    tick.setAttribute('height', 14);
+    tick.removeAttribute('aria-hidden');
+    tick.setAttribute('role', 'img');
+    tick.setAttribute('aria-label', strings['status-' + status] || status);
+    const stamp = document.createElement('span');
+    stamp.className = 'c-mbubble__stamp';
+    const time = el.querySelector('.c-mbubble__time');
+    if (time) stamp.append(time);
+    stamp.append(tick);
+    el.append(stamp);
+  }
+  el.setAttribute('aria-label', fileTileAria(el));
+  if (onCancel) {   // #334: the pre-accept Cancel, a SIBLING of the tile (the tile is a <button>)
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'c-fbubble__cancel';
+    cancelBtn.textContent = strings.cancel || 'Cancel';
+    cancelBtn.setAttribute('aria-label', (strings.cancelTransfer || 'Cancel sending') + ' ' + name);
+    cancelBtn.addEventListener('click', oneShot(onCancel));
+    row.insertBefore(cancelBtn, row.querySelector('.c-mbubble-anchor'));
+  }
+  return row;
+}
+
+/* the tile half of setFileProgress (same contract): the ring + the percentage tick in place; a final state rebuilds
+   the face, re-arms the tile and names the new state. The shell then hands it a preview, if it has one. */
+function setImageFileProgress(rowEl, tile, p, opts) {
+  const fill = tile.querySelector('.c-mbubble__ring-fill');
+  if (fill) fill.setAttribute('stroke-dashoffset', (FILE_RING_LEN * (1 - p / 100)).toFixed(2));
+  const ring = tile.querySelector('.c-mbubble__ring');
+  if (ring) ring.setAttribute('aria-valuenow', String(p));
+  const cap = tile.querySelector('.c-mbubble__cap[data-pct]');
+  if (cap) cap.textContent = pctText(p);
+  const finalState = opts.state || (p >= 100 ? 'complete' : null);
+  if (p > 0 || finalState) {
+    const cancelBtn = rowEl.querySelector('.c-fbubble__cancel');
+    if (cancelBtn) cancelBtn.remove();
+  }
+  if (!finalState || tile.dataset.file === finalState) return;
+  const ctl = fileTileCtl.get(tile) || { name: '', strings: getStrings(), direction: 'received' };
+  const strings = opts.strings || ctl.strings;
+  tile.dataset.file = finalState;
+  tile.disabled = false;
+  delete tile.dataset.acted;   // re-arm after an accept latch
+  const face = tile.querySelector('.c-mbubble__file');
+  const next = fileFace(finalState, ctl.name, p, strings, ctl.direction);
+  if (face) face.replaceWith(next); else tile.append(next);
+  tile.dataset.ariaBase = tileAria(finalState, ctl.name, strings, ctl.direction);
+  tile.setAttribute('aria-label', fileTileAria(tile));
+}
+
+/** The shell's late preview (setFileThumb, or a tile that just completed): load it through the tile's own machine,
+ *  sized from the JPEG first (#46 r1 B-6). Only a tile that SHOWS a picture takes one (tileShowsPicture: complete, or
+ *  my own still sending — #46 r2 R2-1); the picture it already shows is not reloaded (no flash at the final flip). */
+function setImageFileThumb(rowEl, uri) {
+  const tile = rowEl && rowEl.querySelector('.c-mbubble[data-file]');
+  const ctl = tile && fileTileCtl.get(tile);
+  if (!tile || !uri || !tileShowsPicture(tile.dataset.file, ctl ? ctl.direction : 'received')) return;
+  const img = tile.querySelector('.c-mbubble__img');
+  if (img && tile.dataset.state === 'loaded' && img.getAttribute('src') === String(uri)) return;
+  setMediaSrc(rowEl, String(uri), jpegSize(uri));
+}
+
 /** Update a progress-state file bubble in place (bridge updateFile).
  *  opts.meta refreshes the caption; progress ≥ 100 (or opts.state) flips the
  *  bubble to its final state (audit: 100% bar stayed "Downloading").
@@ -6786,6 +7035,8 @@ function createFileBubble({
  *  completed download opens via the onOpen passed to createFileBubble. */
 function setFileProgress(rowEl, progress, opts = {}) {
   const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
+  const imgTile = rowEl.querySelector('.c-mbubble[data-file]');   // ★ A5 #1124: an image file on the media tile
+  if (imgTile) { setImageFileProgress(rowEl, imgTile, p, opts); return; }
   const fill = rowEl.querySelector('.c-fbubble__fill');
   if (fill) fill.style.width = p + '%';
   const track = rowEl.querySelector('.c-fbubble__track');
@@ -7508,8 +7759,13 @@ function attachMessageMenu(row, opts = {}) {
  *   shell calls setMediaSrc(row, localUrl). Decoder choice = BE eval (§9).
  *
  * createMediaBubble({ direction, kind: 'gif'|'image', src, preview,
- *   width, height, alt, autoload = false, timestamp, gutter, onOpen, strings })
- * setMediaSrc(row, src) — late-arriving media (file transfer completed)
+ *   width, height, alt, autoload = false, timestamp, gutter, onOpen, strings,
+ *   ariaFor, sizeHint, onSrcError })   — ariaFor(state, el) (A5 #1124, #1133): the tile's accessible name
+ *   when the tile is a FILE (typed-bubbles.js createImageFileBubble); default = mediaAria.
+ *   sizeHint {w,h} (#46 r1 B-6): the picture's size known BEFORE it loads (a JPEG header) — the tile is sized
+ *   from it at once instead of jumping from the 4:3 placeholder on load. onSrcError (#46 r1 B-1): given → a
+ *   src that fails to decode is DROPPED (the tile returns to idle with no src — no retry loop) and the callback told.
+ * setMediaSrc(row, src, sizeHint) — late-arriving media (file transfer completed)
  *
  * States (data-state): idle (tap to load) → loading → loaded | failed (tap
  * retries). Tap on loaded → onOpen (shell viewer). Inline aspect-ratio from
@@ -7521,6 +7777,17 @@ function attachMessageMenu(row, opts = {}) {
 
 
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
+/* #46 r3 R3-m1: the pictures this DOCUMENT has already shown (a fingerprint, not the URI — no second copy of a 60 K
+   preview): a tile RE-BUILT with one (a re-render) shows it at once, no fade from 0; the first show keeps its fade.
+   Bounded (oldest out). Only tiles that ask (instantIfShown — the image-file tile's local data: preview). */
+const shownSrcs = new Set();
+const SHOWN_KEEP = 256;
+const shownKey = (s) => { s = String(s || ''); return s.length + ':' + s.slice(-64); };
+function noteShown(s) {
+  const k = shownKey(s);
+  shownSrcs.delete(k); shownSrcs.add(k);
+  while (shownSrcs.size > SHOWN_KEEP) shownSrcs.delete(shownSrcs.values().next().value);
+}
 
 function mediaAria(state, kind, alt, strings) {
   const what = alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image'));
@@ -7546,6 +7813,10 @@ function createMediaBubble({
                            // → the shell can scroll the log to the freshly-grown
                            //   tile if it was near the bottom (Damir F5 2026-07-08)
   strings = getStrings(),
+  ariaFor = null,          // ★ A5 #1124 (#1133): (state, el) → label — an image FILE names its file state, not "Tap to load"
+  sizeHint = null,         // #46 r1 B-6: { w, h } of a src not loaded yet (the shell read it from the JPEG header)
+  onSrcError = null,       // #46 r1 B-1: a src that fails to decode is dropped (idle, no retry) and this is told
+  instantIfShown = false,  // #46 r3 R3-m1: a src this document already showed appears at once on a re-built tile
 } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -7581,6 +7852,7 @@ function createMediaBubble({
     el.style.width = 'min(100%, ' + wPx + 'px)';
   };
   if (width > 0 && height > 0) fitTile(width, height); // sanctioned: runtime geometry from sender dims
+  else if (sizeHint) fitTile(sizeHint.w, sizeHint.h);  // #46 r1 B-6: the picture's own size, known before it loads
 
   /* ★ Gate row O-13 (#46 loop B, MINOR-5) — the sender-embedded preview is the ONE sink in
    * this file that paints on RENDER. The tile's own `src` below waits for `load()`, which
@@ -7624,7 +7896,7 @@ function createMediaBubble({
 
   const setState = (s) => {
     el.dataset.state = s;
-    el.setAttribute('aria-label', mediaAria(s, kind, alt, strings));
+    el.setAttribute('aria-label', typeof ariaFor === 'function' ? ariaFor(s, el) : mediaAria(s, kind, alt, strings));
     overlay.textContent = '';
     if (s === 'idle') overlay.append(icon(kind === 'gif' ? 'player-play' : 'download', { size: 22 }));
     else if (s === 'loading') {
@@ -7652,13 +7924,24 @@ function createMediaBubble({
     if (!(width > 0 && height > 0)) {
       fitTile(img.naturalWidth, img.naturalHeight);   // iOS-17 (#283): natural aspect + width cap in one place
     }
+    if (instantIfShown && currentSrc) noteShown(currentSrc);   // #46 r3 R3-m1
     setState('loaded');
     // the tile just grew to full size — let the shell pull the log to the latest
     // so the whole GIF comes into view (only if it was already near the bottom).
     if (onLoad) { try { onLoad(); } catch (_) {} }
   });
-  img.addEventListener('error', () => setState('failed'));
-  mediaCtl.set(el, { setSrc: (s) => { currentSrc = s; load(); } });
+  img.addEventListener('error', () => {
+    if (typeof onSrcError !== 'function') { setState('failed'); return; }
+    currentSrc = '';                 // #46 r1 B-1: drop it — idle with no src, so a tap is the owner's (load() is a no-op)
+    img.removeAttribute('src');
+    setState('idle');
+    try { onSrcError(); } catch (_) {}
+  });
+  mediaCtl.set(el, { setSrc: (s, hint) => {
+    if (!(width > 0 && height > 0) && hint) fitTile(hint.w, hint.h);   // #46 r1 B-6
+    if (!shownSrcs.has(shownKey(s))) delete el.dataset.seen;            // #46 r3 R3-m1: a NEW picture keeps its first-show fade
+    currentSrc = s; load();
+  } });
 
   el.addEventListener('click', () => {
     const s = el.dataset.state;
@@ -7678,7 +7961,12 @@ function createMediaBubble({
   }
 
   setState('idle');
-  if (autoload && src) load();
+  if (autoload && src) {
+    load();
+    /* #46 r3 R3-m1: already shown here → decoded in this document's memory: loaded NOW, no fade (data-seen drops the
+       transition). The img's own load event still lands (onLoad, sizing); a decode error still drops it (B-1). */
+    if (instantIfShown && shownSrcs.has(shownKey(src))) { el.dataset.seen = ''; setState('loaded'); }
+  }
 
   // reactions overlap-anchor (audit r3): pills can't live INSIDE the tile —
   // overflow:hidden clips the -12px overhang — so the anchor wraps the tile
@@ -7692,11 +7980,11 @@ function createMediaBubble({
 /** Late-arriving media (file-transfer path completed): swap in the local
  *  source and load it through the tile's OWN state machine (audit r3 —
  *  aria-label/spinner/retry all stay correct). #44 free fn. */
-function setMediaSrc(row, src) {
+function setMediaSrc(row, src, sizeHint = null) {
   const el = row.querySelector('.c-mbubble');
   if (!el || !src) return;
   const ctl = mediaCtl.get(el);
-  if (ctl) ctl.setSrc(src);
+  if (ctl) ctl.setSrc(src, sizeHint);
 }
 
 /* ---- src/components/system-notice.js ---- */
@@ -25766,11 +26054,13 @@ function createPrivacy({
   readReceipts = true,
   typingIndicators = true,
   mediaAutoload = true,          // FE-only: spixi.media.autoload (the shell reads it per render)
+  photoPreviews = true,          // ★ #1133 (A5 #1124): C#-held (SChatPrefs.photoPreviews), default ON
   capabilities = {},             // { readReceipts, typing }
   onBack,
   onReadReceipts,                // (next, ctrl) — §9
   onTyping,                      // (next, ctrl) — §9
   onMediaAutoload,               // (next, ctrl) — FE-only, writes localStorage
+  onPhotoPreviews,               // (next, ctrl) — ★ #1133: ixian:photoPreviews:on|off, resolved by the echo
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
@@ -25784,6 +26074,20 @@ function createPrivacy({
     failText: strings.privacyFailed || 'Couldn’t update. Try again.',
     onToggle: onMediaAutoload,
   }));
+
+  // ★ #1133: photo previews in chats (handler only with the exe's cap; data-pref = in-place echo)
+  if (onPhotoPreviews) {
+    const pv = switchRow({
+      glyph: 'eye', hue: 'accent',
+      label: strings.photoPreviewsTitle || 'Show photo previews in chats',
+      sub: strings.photoPreviewsHint || 'Photos you sent or downloaded show as a picture in the chat. Off: every photo stays a file card.',
+      checked: photoPreviews, live,
+      failText: strings.privacyFailed || 'Couldn’t update. Try again.',
+      onToggle: onPhotoPreviews,
+    });
+    pv.dataset.pref = 'photoPreviews';
+    body.append(pv);
+  }
 
   /* The note describes the §9 pair only — it says "turning one off also hides theirs
      from you", which is true of a receipt and false of the local media switch. It
@@ -29228,5 +29532,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, isPhotoFileName: isPhotoFileName, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

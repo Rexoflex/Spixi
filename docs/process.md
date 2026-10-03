@@ -81,6 +81,7 @@ is graded by G2. Example: `docs/workflow-reset-grading.md`.
 | Walk | A walk sheet with a BUILD row first (it must name something only THIS build shows — "it starts" is not proof, #663); Damir's pasted results → `WALK #N: n P · n F · n N/A` DECISIONS row; each fail = mechanism first | #1092, #1096 |
 | Docs | DECISIONS rows at decision time, the handoff, a status-log entry, the next prompt | CLAUDE.md hard rule |
 | Skills | Diagnosis order + probe retire grep: skill `spixi-build-and-walk` (steps 5, 15) · review lenses: `adversarial-review-loop` (step 5) · finalization reports (UI/a11y, polish, motion, copy, delete audit, DECISIONS keep-test, docs pruning, perf experiment log, characterization): `spixi-finalization-checklists` | #1131 |
+| Quality plan | The check list and its timing (before / after the freeze) + the controls against bloat (C1 overlap → delete covered pins · C2 keep items light · C3 required export only · C4 each check names its bug type · C5 periodic prune): `docs/quality-plan.md` | #1140 |
 
 ### The adversarial review loop (#46)
 

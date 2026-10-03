@@ -39,7 +39,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 2. **Render** any visual change on the BUILT shell, both themes; Damir picks the dials.
 3. **Pipeline:** FULL = (`generate-icons` if SVGs) → `extract-strings` → `build-locales` → `build-strings-iife` → `build-demo-bundle` → `build-shells` — **bundle BEFORE shells** (#258); shell/CSS/token-only = `build-shells`; C#-only = none. Then the `--check` gates.
 4. **Pins:** behaviour, not source text (#771/#798); **break the code on purpose — the pin must fail for exactly that reason** (mutation, #802) before you believe it.
-5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5095** (with the Ixian-Core sibling, session 3). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=44 fail=0` (#1122, #1129).
+5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5150** (with the Ixian-Core sibling, session 4). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=59 fail=0` (#1122, #1129, #1135).
 6. **#46 loop** (Opus, in-session) until CLEAN — after a green smoke run, before the batch leaves the machine; smoke again after the last fix; verdict written into its brief (#660).
 7. **Walk:** Damir builds — **Windows = F5, never `dotnet build`** (#663); Android Debug; **iPhone + Mac (and Android, #449): wipe `obj`/`bin` when the html changed, then a plain build, then Run — incremental builds do not repackage Raw html** (#320); the BUILD row must show something only this build has. Walk sheet → pasted results → a `WALK #N: n P · n F · n N/A` DECISIONS row; each fail = mechanism first.
 8. **Commit:** one logical unit; `docs/commit-message-<batch>.txt` (no attribution lines — ★ COMMIT RULE); Damir reviews the diff, commits and pushes; never `git add -A`. Use `git --no-optional-locks` on the mounted repo; give the PowerShell repo commands with every delivery.
@@ -63,6 +63,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 | `docs/audit/assets-audit.md` | HTML/JS/CSS inventory, localization mechanism, duplication analysis |
 | `DESIGN_SYSTEM.md` | *(pending)* Tokens + component inventory with variants/states |
 | `docs/process.md` | **How we work:** FORGE steps, the #46 loop, the gates, definition of ready / done, Spixi vs Bot |
+| `docs/quality-plan.md` | The quality checks, when each lands (before / after the freeze), and the controls against bloat |
 | `docs/release-readiness.md` | **★ The v1 definition of done** — every remaining item as a testable criterion, by endgame stage |
 | `docs/decisions-index.md` | Find the live DECISIONS rule by area without reading 2 MB |
 | `docs/lessons.md` | Rules learned, one line each, with the DECISIONS number |
@@ -80,11 +81,12 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-02: session 3 built (#1126–#1129, cloud twin → patch into the PC tree; UNCOMMITTED, commit = Damir, `docs/commit-message-session3.txt`). #46 CLEAN at r3. Smoke BASELINE OK 5095 / the 2 KNOWN · C# harness 44/44.
-- Built: the `[P1]` stamp set (dev-only, TEMPORARY, #1127) + the A1 hold probe · A3 Downloads file tiles · A8 file/app stamps 0.7 · A10 silent deletes (#1128) · A11 list sent tick = delivered weight · A12 channel dim covers the composer. ⚠ C# UNCOMPILED.
-- Renders for Damir: `docs/sheets/session3/` — A2 G-4 pulse (4 options), A4 G-6 grid (4), A5 #1124 concept (+ his notes: white no-preview tile in light, the "keep Spixi open" line on the tile).
-- WALK + MEASURE recorded (#1130): checks 6 P · 0 F (A9 P → E-W3 closed, no build). Table in `docs/p1-measurement.md`: Android chat open 92 / 245 ms + drops, Windows 221 / 261 — the < 100 ms target is missed. A1 mechanism: the PlatformView is the compat renderer `SpixiWebviewRenderer2` (the WebView is its `.Control`), so the hold's cast is null.
-- Owed: the office walk (session 2; iPhone + Mac columns) · BE T1 B-27 + A7 + lead 13 (iOS UseInterpreter).
-- Session 4 = the ranked levers from the table → Damir picks (+ A2 / A4 / A5 picks) → build (the A1 fix first) → measure again; the [P1] set stays until then.
-- Road: session 4 (P-1 picks + #1124) → L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933, retires [P1]) → gate re-run → merge → TestFlight (#971, #937, #1099).
-- **NEXT SESSION: read `docs/handoff-2026-10-02b.md` FIRST, then paste `docs/prompts/session-4.md`.** Next free DECISIONS number: **#1132**.
+- 2026-10-03: session 4 built (#1132–#1135, cloud twin → patch into the PC tree; UNCOMMITTED, commit = Damir, `docs/commit-message-session4.txt`). #46 CLEAN at r5. Smoke BASELINE OK 5150 / the 2 KNOWN · CSH 59/59.
+- Built: P-1 levers 1 (A1 hold `nativeWebViewOf`) · 2 + 2b (wallet no re-push, rows kept) · 3 (desktop re-warm) · 5 (warming-spare claim) · 10 (Account → tab cover hand-off) · 11 (Android close wait 16 ms) · A2 jump band + 1 px ring · A4 inset gallery · A5 #1124 photo tiles + Privacy switch (🟡 `setFileThumb`, `ixian:photoPreviews`, BE ask) · #1134 dark chat thumb. ⚠ C# UNCOMPILED.
+- Log read (#1133): the Android chat-open bimodality = the warming-spare miss (12/54); scroll long tasks = load-more re-sends the window (= lazy history B2, #1142, session 5).
+- Renders for Damir: `docs/sheets/session4/` — lever 7 (desktop info pane, 4 options) · lever 12 (durations, 3).
+- Input (11) voice messages recorded with tree facts (#1136) — session 7 (#1145).
+- Owed: the session-4 walk (`docs/walk-artifact-session4-win-android.html`) · the office walk (iPhone + Mac) · BE: T1 B-27 + A7 + lead 13 + the A5 push/verb + voice questions.
+- v1 plan (#1137–#1145, Core stays clean, SCOPE CLOSED): S5 speed rest + media viewer + group cap → S6 capability check + reply + edit → S7 voice → S8 groups + reactions + mini-app accept + disappearing + privacy → S9 media picker + audit fixes + copy + language note → walk + fix → FREEZE; quality items in a parallel session (`docs/release-readiness.md` § V).
+- Road after the v1 build: L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933, retires [P1]) → gate re-run → merge → TestFlight (#971, #937, #1099).
+- **NEXT SESSION: read `docs/handoff-2026-10-03.md` FIRST, then paste `docs/prompts/session-5.md`.** Next free DECISIONS number: **#1146**.

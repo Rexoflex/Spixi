@@ -1541,6 +1541,12 @@
     setNavActive(nav, id);
     showView(id);
     bridge.send('ixian:tab:' + NAV_TO_TAB[id]);             // C# loads tab2/tab3 data
+    /* ★ #1133 lever 10: a tab land is a hand-off too — answer at the 2nd rAF. No onHandoff
+       belt: the waiter registers in the C# run that forwarded this, and an earlier answer
+       counts for 600 ms (popOnCoverPainted). */
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { bridge.send('ixian:coverpainted'); } catch (e) {}
+    }));
   }
 
   /* —— chats model + list ——————————————————————————————————————————————————
@@ -2377,12 +2383,42 @@
   let walletHidden = false;
   const WALLET_MASK = '••••••';
   function applyWalletVisibility() {
-    for (const tx of walletState.txs) {
+    // ★ #1133 lever 2b: + the incoming set (a hide flip mid-burst)
+    for (const tx of walletState.txs.concat(walletIncoming ? walletIncoming.txs : [])) {
       if (!tx._raw) continue;
       tx.amount = walletHidden ? WALLET_MASK : tx._raw.amount;
       tx.fiat = walletHidden ? '' : tx._raw.fiat;
       tx.name = walletHidden ? WALLET_MASK : tx._raw.name;
       tx.address = walletHidden ? '' : (tx._raw.address || '');   // #276 review: mask the WHO too
+    }
+    scheduleWalletRender();
+  }
+
+  /* ★ #1133 lever 2b: a burst fills walletIncoming; walletState (on screen, read by search /
+     the tx sheet / scanIsMoot) keeps the old rows until the commit swaps the set in with ONE
+     render — at clearPaymentActivityDone, or ZERO_SETTLE_MS after the last push (the net). */
+  let walletIncoming = null;        // { txs, filter } while a burst runs
+  let walletCommitNet = 0;
+  function armWalletCommitNet() {
+    clearTimeout(walletCommitNet);
+    walletCommitNet = setTimeout(commitWalletIncoming, ZERO_SETTLE_MS);
+  }
+  /* ★ #1133 lever 2b (#46 r1 B-4): the chips follow the ROWS — synced here, at the commit,
+     never at the clear. A chip TAP selects itself at once (createWalletFilters) and is
+     remembered: a commit of a DIFFERENT filter that lands while the tap is fresh (an older
+     burst still in flight) leaves the chips on the tap, whose own burst follows. */
+  let walletChipPick = null;        // { id, at } from the last chip tap
+  const WALLET_PICK_FRESH_MS = 2000;
+  function commitWalletIncoming() {
+    clearTimeout(walletCommitNet);
+    if (!walletIncoming) return;
+    walletState.txs = walletIncoming.txs;
+    walletState.filter = walletIncoming.filter;
+    walletIncoming = null;
+    const pick = walletChipPick;
+    if (!pick || pick.id === walletState.filter || Date.now() - pick.at > WALLET_PICK_FRESH_MS) {
+      walletChipPick = null;
+      syncWalletFilterChips(walletState.filter);
     }
     scheduleWalletRender();
   }
@@ -2869,7 +2905,7 @@
   const walletFilters = createWalletFilters(walletState, {
     strings: walletStrings, host: document.body, onExplorer: walletOpts.onExplorer,
     scan: walletOpts.scan,   // #440/#443: live scan state for the "Missing a transaction?" sheet
-    onFilter: (id) => bridge.send('ixian:filter:' + id),   // home.js:54 → C# filterTransactions
+    onFilter: (id) => { walletChipPick = { id, at: Date.now() }; bridge.send('ixian:filter:' + id); },   // home.js:54 → C# filterTransactions; B-4 pick
   });
   walletTools.append(walletSearch, walletFilters);
 
@@ -3935,15 +3971,13 @@
       applyWalletVisibility();
     },
 
-    // Batch start: reset tx model + sync the active filter chip. Render (empty) next frame.
+    // Batch start: a fresh incoming set. ★ #1133 lever 2b: the old rows AND chips stay until the commit (B-4).
     clearPaymentActivity(filter) {
       probeMark('wflush');
       walletZero.push((walletState.txs || []).length > 0);   // refill → no "No activity yet" mid-burst
-      walletState.txs = [];
       const f = (filter === 'sent' || filter === 'received') ? filter : 'all';
-      walletState.filter = f;
-      syncWalletFilterChips(f);
-      scheduleWalletRender();
+      walletIncoming = { txs: [], filter: f };
+      armWalletCommitNet();
     },
 
     /* ★ #506③ — the real end of the payment-activity burst (HomePage.loadTransactions).
@@ -3960,6 +3994,7 @@
      * this push never arrives the old schedule still opens the gate. */
     clearPaymentActivityDone() {
       probeMark('wdone');
+      commitWalletIncoming();      // ★ #1133 lever 2b
       walletZero.open();
       scheduleWalletRender();
     },
@@ -3987,7 +4022,7 @@
       const cp = counterparty || '';
       const cpIsAddr = isAddressShaped(cp);
       const cpDisplay = cpIsAddr ? truncateAddressMiddle(cp) : cp;
-      walletState.txs.push({
+      (walletIncoming ? walletIncoming.txs : walletState.txs).push({
         txid: txid || '',
         direction: dirIn ? 'in' : 'out',
         status,
@@ -4012,6 +4047,7 @@
         // no fee in this payload → the detail sheet omits that row (data-honest, BE gap W2)
       });
       walletZero.push(false);      // re-arm the quiet window: the burst is still running
+      if (walletIncoming) { armWalletCommitNet(); return; }   // ★ #1133 lever 2b
       scheduleWalletRender();
     },
 

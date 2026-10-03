@@ -717,5 +717,7 @@
   "sharedOpen": "Atidaryti",
   "sharedShowAll": "Rodyti visus ({n})",
   "sharedCopyFailed": "Nepavyko nukopijuoti",
-  "copyLink": "Kopijuoti nuorodą"
+  "copyLink": "Kopijuoti nuorodą",
+  "photoPreviewsTitle": "Rodyti nuotraukų peržiūras pokalbiuose",
+  "photoPreviewsHint": "Jūsų išsiųstos ar atsisiųstos nuotraukos pokalbyje rodomos kaip paveikslėlis. Išjungta: kiekviena nuotrauka lieka failo kortele."
 }

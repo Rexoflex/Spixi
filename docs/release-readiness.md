@@ -29,6 +29,7 @@ the other open audit rows are T1 rows (S-01 = B-18, C-06 = B-17), the G-3c seed 
 | S1 | Session 1: carry-over + presence/read + shared items + Downloads, walked on Windows + Android | F-0b-a · F-0b-b · F-0b-d · F-1 · F-1b · F-2 · F-3 · F-4 · F-5a · F-5b · F-5c · F-5d · F-5-SEC · F-5b-a…e · F-6 |
 | S2 | The office walk (Mac + iPhone) + its fix round; first iOS/Mac compile of #1086–#1095 | E-OW · D-9 · D-3 · E-M2 · E-I3 · E-I4 · E-I5 · E-I6 · E-I7 · E-A3 |
 | S3 | Pre-freeze fixes: L6, the audit's "before any external build" items + P-01, the Mac WebView handler, the owed security device tests, the memory runs | A-13 · A-6 · A-7 · A-8 · A-9 · A-10 · A-11 · A-19 · A-14 · A-4 · D-4 · D-5 · A-18 · A-17 · A-1 · A-2 |
+| V | The v1 build list (#1137 / #1138), sessions 5–9 in the #1145 order; then one walk + fix round → the FREEZE LINE | V-1 … V-19 |
 | S4 | Read-only sweep phases 1–2 (`docs/audit-refactor-plan.md`) | G-3a · G-3b |
 | S5 | Damir picks: inventory + stop rule; the open decisions that block the freeze | G-3c · G-3e |
 | S6 | Freeze + `freeze-v1` tag | C-1 · C-2a · C-2b · C-2e · C-2f · C-2g · C-2h · C-2j · C-2k · H-10 · G-1 · G-1t |
@@ -94,17 +95,19 @@ pipeline, wiped `obj/bin`, the first iOS + Mac compile of #1086–#1095 C#. Each
 
 | ID | Criterion — passes when … | Check | Owner | State | Evidence |
 |---|---|---|---|---|---|
-| G-1 | Android chat open (row tap ×3, FAB ×2), recorded: NO frame without the chats list or the chat (no plain-ground or grey frame) | recording, frame by frame | us + Damir | PARTLY — walk P by eye, but the log says the hold did NOT run (`why=noview`, #1123); session 3 probes first | #1115 frames `docs/sheets/walk-session1/`; #1116 · #1101 0.01 removed; transparent grounds + `PresentHold` (VSC + 1 frame, cap 250 ms); `[CDPERF] chat held frames= ms= why=`; pins G-1 + PresentHold; walk rows G-1, G-1b |
+| G-1 | Android chat open (row tap ×3, FAB ×2), recorded: NO frame without the chats list or the chat (no plain-ground or grey frame) | recording, frame by frame | us + Damir | PARTLY — the hold now gets its native WebView (A1 fix `nativeWebViewOf`, #1135); the recording + `why=vsc` owed (walk session 4) | #1115 frames `docs/sheets/walk-session1/`; #1116 · #1101 0.01 removed; transparent grounds + `PresentHold` (VSC + 1 frame, cap 250 ms); `[CDPERF] chat held frames= ms= why=`; pins G-1 + PresentHold; walk rows G-1, G-1b |
 | G-2 | "last seen" shows for a contact not seen since the app started: the saved last sighting (C#, on this device) or their newest message time; never seen + no message → nothing | pin + walk row | us | PARTLY — Windows + Android P (#1123); office row owed | #1116, #1117 · `SSightingStore` (accepted 1:1 only, 5-min grain) + `noteInto` (MSTest + scripts/csh 26/26); gate row; walk rows G-2 |
 | G-3 | `[PRESENCE]` lines carry an opaque per-contact number and a line when the displayed dot flips; Damir tests swipe-away vs Force stop → the 150 s rule judged on facts | log + walk row | us + Damir | PARTLY — probe P (#1123): keepalive ≈100 s, dot off at age 151 s; the 150 s decision in session 3 | #1116 · `[PRESENCE] cN keepalive` + `dot=on/off age= core=`; pin G-3; walk row G-3 |
-| G-4 | "Show in chat" (Downloads, chat info) briefly highlights the target message | pin + walk row | us | PARTLY — renders `docs/sheets/session3/A2-*` (today · ring+halo 3 s · row band 2.5 s · band+ring), Damir picks → session 4 (#1129) | #1116 · mechanism: the pulse selector named `.c-bubble` only (files/media never lit, #1121); fixed in chat.html; pin G-4; walk rows G-4 |
+| G-4 | "Show in chat" (Downloads, chat info) briefly highlights the target message | pin + walk row | us | PARTLY — picked option 3 with a 1 px ring (#1132) and built: row band + 1 px ring, 3 s, a per-jump token, survives re-renders (#1135); walk row owed | #1116 · mechanism: the pulse selector named `.c-bubble` only (files/media never lit, #1121); fixed in chat.html; pin G-4; walk rows G-4 |
 | G-5 | The Downloads "From" chip: rendered options, Damir picks | render + decision row | Damir | PARTLY — A3 built (the chat file tile on every Downloads row, #1129); walk row BUILD | #1116 · section header; pin G-5; walk row G-5; renders `docs/sheets/session2/` |
-| G-6 | Chat info shared items, Telegram style: chips Media · Files · Links switch in place, a well-placed "Show all", media previews, tap = open, long press = menu (Show in chat · Save/Share · Copy link · Delete from this device · Delete message) — rendered, Damir picks, built, walked | render + pins + walk | us + Damir | PARTLY — renders `docs/sheets/session3/A4-*` (inset card grid · true full-bleed · inset gallery; chips +12 px), Damir picks → session 4 with tap-to-open; in-chat tiles = #1124 (A5 renders) | #1116, #1117 (Telegram reference, outside the repo) · chips in place, edge-to-edge grid, ≤ 60 + Show all, long press menu (Open · Show in chat · Copy link); 🟡 `ixian:sharedShow` (T1 B-27); real thumbnails G-6b (#1121); pins G-6, G-6b; walk rows G-6, G-6m, G-6b |
+| G-6 | Chat info shared items, Telegram style: chips Media · Files · Links switch in place, a well-placed "Show all", media previews, tap = open, long press = menu (Show in chat · Save/Share · Copy link · Delete from this device · Delete message) — rendered, Damir picks, built, walked | render + pins + walk | us + Damir | PARTLY — inset gallery picked + built (#1132, #1135); in-chat tiles #1124 built (#1135); walk rows owed | #1116, #1117 (Telegram reference, outside the repo) · chips in place, edge-to-edge grid, ≤ 60 + Show all, long press menu (Open · Show in chat · Copy link); 🟡 `ixian:sharedShow` (T1 B-27); real thumbnails G-6b (#1121); pins G-6, G-6b; walk rows G-6, G-6m, G-6b |
 | G-7 | READ2 walked (implied read with a new-app peer) | walk row | Damir | DONE — walked P (#1123) | #1115 · walk row G-7 in `walk-artifact-session2-win-android.html` (4 numbered steps) |
 | G-8 | The dark corner screenshot sent; the corner colour set | screenshot + decision row | Damir | DONE | #1115 · #1117 (2): closed, left as is |
 | G-9 | The 0b(a) bar reveal: probe the shell's paint handshake in bar mode (≈240 ms, not the C# fade) | log | us | DONE — log (#1123): bar fit 212–223 ms via resize vs full 42 ms → the bar delay is the WebView resize (P-1 lead 3) | #1115 · `[CALLPAINT]` console line in call.html awaitPaint (no verb); pin G-9; walk row G-9 |
-| P-1 | **Chat open under 100 ms, no flicker, on every platform** (tap → first chat frame), measured; the whole app's felt speed (every transition × platform), read-only first, then Damir picks | measurement + recordings | us | PARTLY — the `[P1]` stamp set built (#1129, dev-only, TEMPORARY); measure walk `docs/walk-artifact-session3-win-android.html` (Android Release dev + Windows F5, 10 runs/path) → the table `docs/p1-measurement.md` + the ranked levers in session 4 | #1116 · #1122 · #1127 · #1129 |
-| P-1a | A1: the G-1 hold gets its native WebView (`chat held … why=vsc frames≥1`) and a recording shows no plain/grey frame | probe log → fix → recording | us | OPEN — probe `[P1] a1 hold …` built (#1129); the fix after the log | #1123 (1) |
+| P-1 | **Chat open under 100 ms, no flicker, on every platform** (tap → first chat frame), measured; the whole app's felt speed (every transition × platform), read-only first, then Damir picks | measurement + recordings | us | PARTLY — table filled (#1130) + ranked levers (`docs/p1-measurement.md`); picks built (#1132/#1133/#1135: levers 1 · 2 · 2b · 3 · 5 · 10 · 11); the re-measure walk (session 4 sheet) fills the §8 experiment log; iPhone / Mac owed | #1116 · #1122 · #1127 · #1129 |
+| P-1a | A1: the G-1 hold gets its native WebView (`chat held … why=vsc frames≥1`) and a recording shows no plain/grey frame | probe log → fix → recording | us | PARTLY — mechanism found (#1130: the compat renderer `SpixiWebviewRenderer2`), fix built (#1135); `why=vsc frames≥1` + a recording owed | #1123 (1) |
+| A5-1124 | Image files show as media tiles in the chat (local preview · transfer ring + "keep Spixi open" · offered glyph), Privacy switch "Show photo previews in chats" (OFF = file cards); a failed decode never blocks opening | pins + walk rows + BE ask (🟡 `setFileThumb` push, `ixian:photoPreviews` verb) | us + Damir + BE | PARTLY — built #1135, #46 CLEAN r5; walk + BE OK owed | #1124 · #1133 (3) · gate A5 (a)–(e) |
+| VOICE-1 | Voice messages (#1136): capability check + dual path (inline Opus 1:1 / audio file otherwise), excerpt + notification text, the #64 mic slot | interview → design → build | Damir + us + BE | OPEN — input recorded with tree facts (#1136); session 5 interview | #64 · #1136 |
 | P-1b | Lead 13: iOS `<UseInterpreter>true</UseInterpreter>` (`Spixi.csproj:135`, upstream 6e63a31f) — why it is set; the A/B on the iPhone | BE question + office walk row | BE + us | OPEN | #1127 (2) |
 | A8 | File + app card stamps at 0.7 (READ/FAILED 1.0) | pin + walk row A8 | us | PARTLY — built (#1129), walk owed | #1126 |
 | A10 | A delete makes no notification on the peer | pin + walk row A10 | us | PARTLY — built (#1128/#1129), walk owed; limit: an owner-relayed group delete still pushes (Core) | #1128 |
@@ -235,6 +238,33 @@ L6 opens this stage (#933, #937). The audit rows here are the ruled set in the h
 
 ---
 
+## V · The v1 build list (#1137 / #1138 / #1145 — sessions 5–9; Core stays clean)
+
+Every row is Spixi-side only. A new verb / push = a 🟡 DECISIONS row + a gate row + a BE-list entry. After this list the FREEZE LINE (#1137).
+
+| ID | Criterion — passes when … | Check | Owner | Session | State | Evidence |
+|---|---|---|---|---|---|---|
+| V-1 | Speed: every built lever kept or discarded on measured numbers (§8 log) + P-03 (no full list rebuild) + P-04 (no base64 avatar per row) + lever 7 / 12 picks | measurement + pins + walk | us + Damir | S5 | PARTLY — levers 1 · 2 · 2b · 3 · 5 · 10 · 11 built (#1135) | `docs/p1-measurement.md` |
+| V-2 | Lazy history B2: load-more prepends only the older slice (no clearMessages, no unread reset); `attachLazyHistory` is the scroll trigger; B4 tried as one lever | pins + walk (iPhone momentum scroll) | us | S5 | OPEN | #1142 |
+| V-3 | Media viewer: a tap on a media tile (chat + chat info) opens the in-app viewer with a viewer-size image from the local file | pins + walk + 🟡 verb/push | us + BE | S5 | OPEN | #1144, #1145 (1) |
+| V-4 | Group cap: the picker stops at 10 with "n / 10"; C# refuses > 10 with an alert | pin (break) + walk | us | S5 | OPEN | #1141 |
+| V-5 | Capability check: Spixi answers `getAppProtocols` with its feature ids and asks each contact (chat open + presence); the answer has an age | csh + walk (two new apps, one old) | us + BE | S6 | OPEN | #1136 |
+| V-6 | Reply-to: the "> <name>: <excerpt>" quote, quote UI only on a real match, tap jumps; stripped from the list excerpt + the notification | pins + walk | us | S6 | OPEN | #1137 (3) |
+| V-7 | Edit: chatStream replace (same id, higher sequence, IsStream=false) via `sendSpixiMessage`, push OFF, "edited" marker, order checked; text only | pins + csh + walk | us | S6 | OPEN | #1137 (4), #441 |
+| V-8 | Voice messages: dual path (inline 1:1 to a confirmed app, a file otherwise), excerpt + notification "🎤 Voice message (0:12)", the mic slot ON | pins + csh + walk ×4 platforms | us + BE | S7 | OPEN | #1136, #1138 (11) |
+| V-9 | Groups: "you were added" notice · owner-only avatar change · rename (createGroup with the full member list) | pins + walk | us | S8 | OPEN | #1137 (5) |
+| V-10 | Reactions with any emoji (`like:<emoji>`, one per person) | pins + walk | us | S8 | OPEN | #1137 (6) |
+| V-11 | Mini-app session accept / decline UI | pins + walk | us | S8 | OPEN | #1137 (7); supersedes §I I-5 |
+| V-12 | Disappearing messages: per-chat timer (off / 1 h / 1 day / 1 week), a readable system line, local delete, honest text | csh + pins + walk | us | S8 | OPEN | #1138 (12) |
+| V-13 | Privacy switches: read receipts off · typing off · "Hide my online status" courtesy flag (reciprocal, honest text) | pins + walk | us | S8 | OPEN | #1138 (14) |
+| V-14 | Media picker: Photo tile ON, picker + camera, EXIF stripped, resize ≤ 2048 px JPEG ~80 %, videos as files under A-9 + warning | pins + walk ×4 | us | S9 | OPEN | #1138 (16) |
+| V-15 | Audit fixes (ours) #1137 (9): C-01 · C-02 · C-03 · C-04 · C-05 · H-3 + H-13 · H-14 · A-13 · A-6 · A-7 · A-8 · A-9 · A-10 · A-11 · A-14 · A-19 | per-row checks (S3 rows) | us | S9 | OPEN | #1137 (9) |
+| V-16 | Onboarding copy on the Create screen (#1139), §4 copy check passed | pin + render | us | S9 | OPEN | #1139 |
+| V-17 | Language picker note + "Report a translation problem" link for every non-English language | pin + walk | us | S9 | OPEN | #1143 |
+| V-18 | Polish picks H-15 / H-16, item by item (build or v1.1) | decision rows | Damir | S9 | OPEN | #1137 (10) |
+| V-19 | Pre-freeze quality items: CodeQL · CI (smoke + csh) · isolation check · bridge contract file · property tests | CI runs | us (parallel session) | parallel | OPEN | #1140, `docs/quality-plan.md` |
+| V-20 | The first release trains named: forward · search in chat · send contact; monthly cadence; the language queue | decision row | Damir | after v1 | DONE — #1143 | #1143 |
+
 ## T1 · The BE engineer's rows (inherited — his to fix, still unsafe until he does)
 
 "Inherited" answers *whose*, not *whether it is safe*. Each row says which stage it blocks; a row he does not close
@@ -304,10 +334,10 @@ its own criterion row in the stage it blocks).
 | ID | Item | Row / source |
 |---|---|---|
 | I-1 | The whole BE cutover | #295 |
-| I-2 | Reply-to (needs the Core carrier patch; the on-device check is prepared, not run) | #295, #982, `docs/reply-to-device-check.md` |
-| I-3 | Voice messages (VN-1/VN-2) | `be-cutover-brief.md:688`; audit §7 |
+| I-2 | ~~Reply-to (needs the Core carrier patch)~~ — SUPERSEDED by #1137 (3): the text-quote reply is v1 (V-6); only ReplyToId (#448) stays v1.1 | #295, #982, #1137 |
+| I-3 | ~~Voice messages (VN-1/VN-2)~~ — SUPERSEDED by #1138 (11): the dual-path voice is v1 (V-8) | `be-cutover-brief.md:688`; #1136, #1138 |
 | I-4 | C14 link previews | #931 ③ |
-| I-5 | C20 mini-app session requests | #931 ④ |
+| I-5 | ~~C20 mini-app session requests~~ — SUPERSEDED by #1137 (7): accept / decline UI is v1 (V-11) | #931 ④, #1137 |
 | I-6 | Hide online status (row to record = F-4) | session-1 item 4 |
 | I-7 | #864 contact details in the home shell | #931 |
 | I-8 | PV1 privacy toggles beyond media auto-load; C22 · A8 · FC1 · C12 · NT1(b) · C10 | #928 ("batch 4 … NOT REACHED") — confirm in H-23 |
@@ -320,6 +350,9 @@ its own criterion row in the stage it blocks).
 | I-15 | PRE-2 — unless picked in S8 (H-20) | `audit-refactor-plan.md` §6b |
 | I-16 | The "going offline" announce, the build (was B-23; BE's; F-3 records the ask) | session-1 item 3 |
 | I-17 | A contact-request decline the peer hears (a Core/protocol reject message, BE); v1 has the app-side ignore list (J-22) | #970, #978 |
+| I-V1 | v1.1 (Core): remove / change a reaction · ReplyToId (#448) · group typing (B-20, H-8) · A7 lastMessage after a delete · the owner-relayed delete push (Core :857) · S-01 · S-05 · C-06 · B-21 / B-22 (H-24) · the group limit + channel cap in Core | #1137, #1141 |
+| I-V2 | v1.1: GIF picker · archive chat · pinned messages · link previews (sender-made, off) · note to self · polls · video re-encoding / metadata stripping · real presence hiding · video calls · multi-device · offline files via relay storage · password-less start via the device key store · group add / remove members · RTL layout · reproducible Android build | #1138, #1139, #1140, #1143 |
+| I-V3 | Release trains (v1.0.x, monthly): forward · search in chat · send contact · one new language per release (queue in #1143) · later: in-app payment notice · premium update notice · two-step send payment · L-4 (ask) | #1143 |
 
 ## §J · Closed since the 2026-09-07 version (left this page with evidence)
 

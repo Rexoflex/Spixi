@@ -347,6 +347,12 @@ namespace SPIXI
         protected override void OnAppearing()
         {
             base.OnAppearing();
+            // ★ A5 #1124: the chat re-appears (back from Account → Privacy) — a CHANGED value is told before reloadScreen
+            // re-flushes the history, so the rows render the new way and, when ON, the reload queues the previews
+            if (friend != null && photoPreviewsPushed != null)
+            {
+                pushPhotoPreviews();
+            }
             if (presentedFromPreload)
             {
                 // First appearance after a load-then-move present: the staged load
@@ -1225,6 +1231,17 @@ namespace SPIXI
             // shell otherwise scavenges the header avatar from the first 1:1 message only.
             // Converted to a data-URI like every other avatar push; a sentinel → gradient FE-side.
             pushHeaderAvatar();
+
+            /* ★★ A5 #1124 (#1133): a NEW document (or a reload of this one) — the shell reset its preview map at onChatScreenReady
+             * above, so C#'s once-per-document set starts again, a decode still running for the old document is dropped
+             * (thumbDoc), and the pref is told BEFORE the first history push (loadMessages runs below, on the Task). */
+            thumbDoc++;
+            lock (thumbsSent)
+            {
+                thumbsSent.Clear();
+            }
+            photoPreviewsPushed = null;
+            pushPhotoPreviews();
 
             // C13: push the LOCAL user's nick so the shell can identify "me" (self-mention
             // emphasis + the @ jump-to-mention FAB). The redesigned shells build window.SL from
@@ -2649,6 +2666,8 @@ namespace SPIXI
         {
             public readonly List<Dictionary<string, object?>> items = new();
             public readonly List<string> strs = new();
+            /** ★ A5 #1124: image-file rows of this burst whose preview is queued only AFTER messagesDone (id → message). */
+            public readonly List<KeyValuePair<string, FriendMessage>> thumbs = new();
             private readonly Dictionary<string, int> strIndex = new();
             /** Only a long data: URI is interned — everything else stays inline. */
             private const int INTERN_MIN_LENGTH = 256;
@@ -3025,6 +3044,11 @@ namespace SPIXI
                 }
                 Utils.sendUiCommand(this, "messagesDone");
                 pushPendingJump();   // ★ #1106
+                // ★ A5 #1124: the burst's preview candidates, now that the shell holds their rows (decoded off this thread)
+                foreach (KeyValuePair<string, FriendMessage> t in batch.thumbs)
+                {
+                    enqueueThumb(t.Key, t.Value);
+                }
             }
         }
 
@@ -3491,6 +3515,7 @@ namespace SPIXI
                      * show no delivery state — their own rows. */
                     deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
                     push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString());
+                    noteThumbCandidate(message, name, batch);   // ★ A5 #1124: AFTER the row's push — the shell must know the id first
                 }
             }
 
@@ -4121,6 +4146,298 @@ namespace SPIXI
         public void updateFile(string uid, string progress, bool complete)
         {
             Utils.sendUiCommand(this, "updateFile", uid, progress, complete.ToString());
+            if (complete)
+            {
+                thumbAfterTransfer(uid);   // ★ A5 #1124: a finished transfer may now be a LOCAL image
+            }
+        }
+
+        /* ═══ ★★ A5 #1124 — PHOTO PREVIEWS IN THE CHAT (Damir #1133 (3); 🟡 NEW push `setFileThumb`, BE ask) ═══
+         *
+         * WHAT: an image FILE message whose file is LOCAL on this device — sent by me, or downloaded by the user's tap and
+         * COMPLETED — gets a small JPEG preview, pushed as `setFileThumb(<message id hex>, <data:image/jpeg;base64,…>)`.
+         * The shell draws it on the media tile (chat.html setFileThumb; typed-bubbles.js createImageFileBubble).
+         * The pref (SChatPrefs.photoPreviews, Account → Privacy) reaches the shell as `setPhotoPreviews("True"|"False")`,
+         * once before the first history push of a document and again on a re-appear with a changed value.
+         *
+         * SECURITY (CLAUDE.md ★; docs/security-handover-gate.md "Session 4 — A5"):
+         *   · only when SChatPrefs.photoPreviews; only a fileHeader whose name C# can preview (SharedItems.isImageName);
+         *     only a file on THIS device — `message.completed` (a download the user tapped) or MY OWN file
+         *     (`localSender`: the picker's file is local from the first moment; `completed` waits for the peer's
+         *     fileFullyReceived, TransferManager.cs:707 — #46 r1 A-M2) — and a path from SharedItems.localPathOf — C#'s OWN
+         *     vetted rule (received → the Downloads-root rule; sent → an absolute path that exists). No WebView value
+         *     reaches a file op;
+         *   · the decode is a contact's file in the app process (the G-6b exposure, widened to the chat render): only a
+         *     file whose FIRST BYTES pass ImageSniff.looksLikeImage reaches SThumbnail.makeJpeg, never above
+         *     ChatThumbSourceMax (= the G-6b cap, SharedItems.ThumbSourceMax, 20 MB — #46 r1 A-M3), the platform decode is
+         *     bounded (SThumbnail), the result ≤ ChatThumbMaxBytes;
+         *   · OFF the UI thread (one drainer per page, one file at a time), the push ON the main thread; a page that is
+         *     torn down (isDisposed) decodes nothing more and pushes nothing (#46 r1 A-M3);
+         *   · at most ONCE per (message, file version) per document (`thumbsSent`, keyed by the document number too);
+         *   · the push carries the message id and the JPEG — never a path, a name or an address; no log line.
+         * Not SharedItems.thumbOf: it is private, 160 px, and passes a small file through AS IS (any of four MIME types —
+         * the chat accepts a JPEG only). The same sniff, caps and cache shape, at 320 px. */
+        public const long ChatThumbSourceMax = SharedItems.ThumbSourceMax;
+        public const int ChatThumbPx = 320;
+        public const long ChatThumbMaxBytes = 64 * 1024;
+        /* ≤ 64 entries × ≤ 87 384 base64 chars (64 KB of JPEG) ≈ 11 MB of UTF-16 at the very worst for the process; a 320 px
+         * preview is ~10–25 KB, so ~2–4 MB in practice. FULL → the OLDEST entry goes (FIFO, #46 r1 A-M3): a chat with fewer
+         * previews than this is decoded once per process, a bigger history decodes its oldest previews again. */
+        private const int ChatThumbCacheMax = 64;
+
+        private static readonly object chatThumbLock = new object();
+        private static readonly Dictionary<string, string?> chatThumbCache = new Dictionary<string, string?>(StringComparer.Ordinal);
+        private static readonly Queue<string> chatThumbOrder = new Queue<string>();   // insertion order of chatThumbCache (under chatThumbLock)
+
+        private volatile int thumbDoc = 0;   // bumped per document (onLoad, main thread); a job of an older document is dropped
+        private readonly HashSet<string> thumbsSent = new HashSet<string>(StringComparer.Ordinal);   // "<doc>|<id>|<len>|<mtime>" — lock itself
+        private readonly ConcurrentQueue<ThumbJob> thumbQueue = new ConcurrentQueue<ThumbJob>();
+        private int thumbWorker = 0;   // 1 while a drainer runs (Interlocked)
+        private bool? photoPreviewsPushed = null;   // the value this document was told; null = not yet (main thread)
+
+        private sealed class ThumbJob
+        {
+            public readonly int doc;
+            public readonly string id;
+            public readonly FriendMessage fm;
+            public ThumbJob(int d, string i, FriendMessage m) { doc = d; id = i; fm = m; }
+        }
+
+        /** Tell the shell the pref when this document has not heard it, or it changed. Main thread. */
+        private void pushPhotoPreviews()
+        {
+            bool on = SChatPrefs.photoPreviews;
+            if (photoPreviewsPushed == on)
+            {
+                return;
+            }
+            photoPreviewsPushed = on;
+            Utils.sendUiCommand(this, "setPhotoPreviews", on ? "True" : "False");
+        }
+
+        /** ★ #46 r1 A-M1: the Privacy switch changed (SettingsPage, `ixian:photoPreviews:`) while this chat is ALIVE — an
+         *  overlay under Account never gets OnAppearing, so SettingsPage tells every live chat page. A changed value is told
+         *  (the shell flips every image between the tile and the card); ON re-flushes the history so insertMessage queues
+         *  the previews the OFF time never made. A document not told yet (photoPreviewsPushed null) hears it in onLoad.
+         *  Main thread (the settings verb runs in a WebView Navigating handler); a failure logs its TYPE only. */
+        public void onPhotoPreviewsChanged()
+        {
+            try
+            {
+                if (friend == null || photoPreviewsPushed == null || photoPreviewsPushed == SChatPrefs.photoPreviews)
+                {
+                    return;
+                }
+                pushPhotoPreviews();
+                if (photoPreviewsPushed == true)
+                {
+                    loadMessages();
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("onPhotoPreviewsChanged failed: " + e.GetType().Name);   // a type only
+            }
+        }
+
+        /** insertMessage's file branch: an image file ON THIS DEVICE (a completed download, or my own) is a candidate;
+         *  a load burst defers it to messagesDone. */
+        private void noteThumbCandidate(FriendMessage message, string name, UiBatch? batch)
+        {
+            if (message == null || message.id == null || !(message.completed || message.localSender) || !SharedItems.isImageName(name) || !SChatPrefs.photoPreviews)
+            {
+                return;
+            }
+            string id = Crypto.hashToString(message.id);
+            if (batch != null)
+            {
+                batch.thumbs.Add(new KeyValuePair<string, FriendMessage>(id, message));
+                return;
+            }
+            enqueueThumb(id, message);
+        }
+
+        /** updateFile(complete): the message whose transfer finished, if it is an image file of this channel on this device.
+         *  selectedChannel BY DESIGN (#46 r1 A-N4): the shell holds only that channel's rows (loadMessages), so a preview
+         *  for another channel would be refused there AND burn its once-per-document slot; that channel's own re-flush
+         *  (insertMessage → noteThumbCandidate) queues it when the user switches to it. */
+        private void thumbAfterTransfer(string uid)
+        {
+            try
+            {
+                if (friend == null || string.IsNullOrEmpty(uid) || !SChatPrefs.photoPreviews)
+                {
+                    return;
+                }
+                List<FriendMessage>? list = friend.getMessages(selectedChannel);
+                if (list == null)
+                {
+                    return;
+                }
+                FriendMessage? fm;
+                lock (list)
+                {
+                    fm = list.Find(x => x.transferId == uid);
+                }
+                if (fm == null || fm.id == null || fm.type != FriendMessageType.fileHeader || !(fm.completed || fm.localSender))
+                {
+                    return;
+                }
+                if (!SharedItems.parseFileHeader(fm.message, out string name, out _) || !SharedItems.isImageName(name))
+                {
+                    return;
+                }
+                enqueueThumb(Crypto.hashToString(fm.id), fm);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("thumbAfterTransfer failed: " + e.GetType().Name);   // a type only — never the id or a path
+            }
+        }
+
+        private void enqueueThumb(string id, FriendMessage fm)
+        {
+            thumbQueue.Enqueue(new ThumbJob(thumbDoc, id, fm));
+            if (Interlocked.CompareExchange(ref thumbWorker, 1, 0) == 0)
+            {
+                Task.Run(drainThumbs);
+            }
+        }
+
+        /** ONE drainer per page, OFF the UI thread: the jobs run one after the other (a 50-row burst never decodes 50 at once). */
+        private void drainThumbs()
+        {
+            try
+            {
+                while (thumbQueue.TryDequeue(out ThumbJob? job))
+                {
+                    try
+                    {
+                        processThumb(job);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("chat preview failed: " + e.GetType().Name);   // a type only
+                    }
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref thumbWorker, 0);
+                // a job enqueued between the last TryDequeue and the reset above must not wait for the next enqueue
+                if (!thumbQueue.IsEmpty && Interlocked.CompareExchange(ref thumbWorker, 1, 0) == 0)
+                {
+                    Task.Run(drainThumbs);
+                }
+            }
+        }
+
+        private void processThumb(ThumbJob job)
+        {
+            if (isDisposed || job.doc != thumbDoc || friend == null || !SChatPrefs.photoPreviews)
+            {
+                return;   // a closed page (torn down) or an older document: the rest of the queue drains as no-ops
+            }
+            string? path = SharedItems.localPathOf(job.fm);   // C#'s own rule — never a WebView value
+            if (path == null)
+            {
+                return;
+            }
+            FileInfo fi = new FileInfo(path);
+            if (!fi.Exists || fi.Length <= 0 || fi.Length > ChatThumbSourceMax)
+            {
+                return;
+            }
+            string version = fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + "|" + fi.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            /* the DOCUMENT number is in the key (#46 r1 A-N1): a job of the old document that passed the check above just
+               before onLoad cleared the set must not take the new document's slot for the same message */
+            string sentKey = job.doc.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + job.id + "|" + version;
+            lock (thumbsSent)
+            {
+                if (!thumbsSent.Add(sentKey))
+                {
+                    return;   // this message's file, this version, already went to this document
+                }
+            }
+            string? uri = chatThumbOf(fi);
+            if (uri == null)
+            {
+                return;
+            }
+            int doc = job.doc;
+            string id = job.id;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (isDisposed || doc != thumbDoc || friend == null || !SChatPrefs.photoPreviews)
+                {
+                    /* #46 r2 R2-N1: NOT sent — give the slot back. The key is taken before the decode (one job per file per
+                       document), so a fast OFF → ON (its re-flush queues the file again) must find it free */
+                    lock (thumbsSent)
+                    {
+                        thumbsSent.Remove(sentKey);
+                    }
+                    return;
+                }
+                Utils.sendUiCommand(this, "setFileThumb", id, uri);
+            });
+        }
+
+        private static byte[] readHead16(string path)
+        {
+            byte[] head = new byte[16];
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                int n = fs.Read(head, 0, head.Length);
+                if (n < head.Length)
+                {
+                    Array.Resize(ref head, Math.Max(n, 0));
+                }
+            }
+            return head;
+        }
+
+        /** The preview of a local file: sniffed, capped, decoded by the platform at ChatThumbPx; cached per file version
+         *  (path + size + write time) for the process, a failed decode too. Null = no preview (the tile keeps its glyph). */
+        private static string? chatThumbOf(FileInfo fi)
+        {
+            try
+            {
+                if (fi.Length <= 0 || fi.Length > ChatThumbSourceMax || !ImageSniff.looksLikeImage(readHead16(fi.FullName)))
+                {
+                    return null;
+                }
+                string key = fi.FullName + "|" + fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + "|" + fi.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                lock (chatThumbLock)
+                {
+                    if (chatThumbCache.TryGetValue(key, out string? hit))
+                    {
+                        return hit;
+                    }
+                }
+                byte[]? jpeg = Spixi.SThumbnail.makeJpeg(fi.FullName, ChatThumbPx);
+                string? uri = jpeg != null && jpeg.Length > 0 && jpeg.Length <= ChatThumbMaxBytes
+                    ? "data:image/jpeg;base64," + Convert.ToBase64String(jpeg)
+                    : null;
+                lock (chatThumbLock)
+                {
+                    if (!chatThumbCache.ContainsKey(key))
+                    {
+                        while (chatThumbCache.Count >= ChatThumbCacheMax && chatThumbOrder.Count > 0)
+                        {
+                            chatThumbCache.Remove(chatThumbOrder.Dequeue());   // bounded: the OLDEST goes (#46 r1 A-M3 — was a full reset)
+                        }
+                        chatThumbOrder.Enqueue(key);
+                    }
+                    chatThumbCache[key] = uri;
+                }
+                return uri;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         public void updateGroupChatNicks(Address address, string nick)

@@ -725,5 +725,7 @@
   "sharedOpen": "Apri",
   "sharedShowAll": "Mostra tutti ({n})",
   "sharedCopyFailed": "Impossibile copiare",
-  "copyLink": "Copia link"
+  "copyLink": "Copia link",
+  "photoPreviewsTitle": "Mostra anteprime delle foto nelle chat",
+  "photoPreviewsHint": "Le foto che hai inviato o scaricato appaiono come immagine nella chat. Disattivato: ogni foto resta una scheda file."
 }

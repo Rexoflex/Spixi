@@ -101,6 +101,19 @@ namespace SPIXI
         // marshalling — two interleaved runs let one run's clearApps drop rows the other had
         // already delivered, and the latch then made that short list stick.
         private volatile bool appsPushedToShell = false;
+        /* ★ #1132 lever 2: the wallet twin of appsPushedToShell — every Wallet tab entry used to FORCE a full re-push
+         * (`[P1] wallet txpush rows=50 force=1`, 67 ms C# + 2 dropped frames per visit). Same lifecycle: reset where the
+         * apps latch resets (onLoaded · reload · reloadShell), set AFTER the row loop to `pageLoaded`. The two inputs a
+         * row renders that no dirty flag carried — contact names and the fiat price — are remembered per push
+         * (txPushedNameSig / txPushedFiat) and re-raise the gate when they move (raiseTxDirtyIfRowsStale). */
+        /* ★ #46 r1 A-N5: the latch is a document GENERATION (OpenPerfRules.walletLatchAfterBurst / walletDocumentFed) —
+         * txDocGen is bumped wherever the rows die, a burst latches the generation it read BEFORE its rows, so a burst that
+         * straddles a reload latches the old one and can never mark the fresh document fed. */
+        private int txDocGen = 0;
+        private int txPushedGen = OpenPerfRules.WalletNotFed;
+        private bool txPushedToShell => OpenPerfRules.walletDocumentFed(System.Threading.Volatile.Read(ref txPushedGen), System.Threading.Volatile.Read(ref txDocGen));
+        private long txPushedNameSig = 0;                 // Interlocked: written on the pool flush, read on the UI thread and the tick
+        private volatile IxiNumber? txPushedFiat = null;
         private readonly object appsPushLock = new object();
         // ★ #46 loop m14: the wallet flush needs the SAME serialization loadApps got after
         // #340, for the same reason. loadTransactions runs on the UI thread (a filter tap,
@@ -1263,7 +1276,9 @@ namespace SPIXI
                 repaintOwnSystemBars();
                 if (currentTab == "tab2")
                 {
-                    loadTransactions(true);
+                    // ★ #1132 lever 2: force ONLY when this document has never been fed; otherwise the dirty gate decides
+                    raiseTxDirtyIfRowsStale();
+                    loadTransactions(!txPushedToShell);
                 }
                 else if (currentTab == "tab3")
                 {
@@ -1921,6 +1936,7 @@ namespace SPIXI
             {
                 staging.popPageAsync();
             }
+            SpixiContentPage.cancelTakenWarmingSpare("close");   // ★ #1132 lever 5: a spare taken WARMING stages friendless until its onload — it goes too (the user left: no cold re-run)
         }
 
         // #263: same close-audit for the tx-detail overlay ("txdetail", pinned col 1
@@ -2337,6 +2353,7 @@ namespace SPIXI
             // …and a FRESH document holds no app rows either — the next tab3 entry must
             // force one push (PERF latch, see appsPushedToShell).
             appsPushedToShell = false;
+            System.Threading.Interlocked.Increment(ref txDocGen);   // ★ #1132 lever 2: …nor wallet rows (the tab2 entry forces one push; A-N5 generation)
 
             setAsRoot();
 
@@ -2672,7 +2689,9 @@ namespace SPIXI
                  * refusal falls through to today's construct-and-stage path UNCHANGED — the
                  * spare can never be the only way to open a conversation (spec §5 pin 6).
                  * The refusal word rides the `[CDPERF] chat attach spare=0 why=` stamp so a
-                 * capture says which path each open took. */
+                 * capture says which path each open took.
+                 * ★ #1132 lever 5: a WARMING spare takes the tap too (attach at its own onload);
+                 * one that never boots gives the tap back through onSpareClaimAbandoned. */
                 string navKey = "chat:" + friend.walletAddress;
                 string? spareRefusal = pushSpareChat(spare => spare.attach(friend, wide ? this : null), wide ? 1 : -1, navKey);
                 if (spareRefusal == null)
@@ -3649,6 +3668,40 @@ namespace SPIXI
             }
         }
 
+        /* ★ #1132 lever 3 — DESKTOP RE-WARM (trigger C). A wide desktop window switches conversations by tag-replace and
+         * never closes one, so trigger A (after a close, none remaining) never fires there and every open after the first
+         * was cold (Windows 221 / 261 ms vs ~90 on a spare, #803 (7)). After a conversation PRESENTS on a wide desktop
+         * window, warm the next spare BESIDE it. 600 ms: past the present's own 600 ms frame window, so the warm does not
+         * land in (or skew) the open it follows. Same funnel (scheduleChatSpareWarm → warmChatSpareNow → warmSpareChat),
+         * same dial (CHAT_SPARE_ENABLED); warmSpareChat keeps every refusal but `chat`, which it relaxes only through
+         * spareMayWarmBesideOpenChat below — never beside a STAGING chat. Cost: ONE more resident chat WebView2 while a
+         * conversation is open on desktop (the Android spare measured ~15 MB PSS, #802; WebView2 unmeasured). Phones and
+         * narrow windows: unchanged. */
+        private const int CHAT_SPARE_WARM_AFTER_PRESENT_MS = 600;
+
+        private static bool isDesktopPlatform()
+        {
+            return DeviceInfo.Platform == DevicePlatform.WinUI || DeviceInfo.Platform == DevicePlatform.MacCatalyst;
+        }
+
+        protected override bool spareMayWarmBesideOpenChat(int column)
+        {
+            return OpenPerfRules.besideOpenChatPlacement(isDesktopPlatform(), rightContent.IsVisible, column);
+        }
+
+        /* ★ #1132 lever 5: a WARMING spare the tap took did not boot in time (or its attach threw) — SpixiContentPage
+         * cancelled it. Re-run the tap: the slot is empty now, so onChat stamps `spare=0 why=none` and takes today's cold
+         * path. `navKey` is the "chat:<address>" key onChat itself composed (never shell input). */
+        protected override void onSpareClaimAbandoned(string navKey)
+        {
+            const string prefix = "chat:";
+            if (!navKey.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return;
+            }
+            onChat(new Address(navKey.Substring(prefix.Length)), null);
+        }
+
         public static IxiNumber calculateReceivedAmount(Transaction tx)
         {
             IxiNumber amount = 0;
@@ -3699,6 +3752,41 @@ namespace SPIXI
                 default:
                     return "all";
             }
+        }
+
+        /* ★ #1132 lever 2 — the row inputs no dirty flag carries. Read in the tree (loadTransactions' addPaymentActivity):
+         * a row renders the tx id, direction, the counterparty's NICKNAME (else its address), the raw epoch, the amount, the
+         * amount × Node.fiatPrice, and the activity status. Status and new rows already raise shouldRefreshTransactions
+         * (Node.addIncomingTransaction / addTransaction, SpixiTransactionInclusionCallbacks.refreshTransactionPages,
+         * StreamProcessor transactionSend). The language re-bake and an OS theme flip reload the document (the latch
+         * resets); an in-app theme pick is CSS only; the clock format is baked per document; hide-balance has its own push.
+         * That leaves NAMES (a contact renamed, added, removed — Core's FriendList, many writers) and the FIAT PRICE
+         * (Node.updateIxiPrice) — compared here against what the last push rendered. Cheap: one pass over the contacts. */
+        private void raiseTxDirtyIfRowsStale()
+        {
+            try
+            {
+                IxiNumber? fiatAtPush = txPushedFiat;
+                if (OpenPerfRules.walletRowsStale(txPushedToShell, walletNameSignatureNow(),
+                    System.Threading.Interlocked.Read(ref txPushedNameSig), fiatAtPush != null && Node.fiatPrice != fiatAtPush))
+                {
+                    UIHelpers.shouldRefreshTransactions = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("wallet rows check failed: " + ex.GetType().Name);
+            }
+        }
+
+        private static long walletNameSignatureNow()
+        {
+            List<KeyValuePair<byte[]?, string?>> names;
+            lock (FriendList.friends)
+            {
+                names = FriendList.friends.Select(f => new KeyValuePair<byte[]?, string?>(f.walletAddress?.addressNoChecksum, f.nickname)).ToList();
+            }
+            return OpenPerfRules.walletNameSignature(names);
         }
 
         public void loadTransactions(bool forceRefresh)
@@ -3752,6 +3840,11 @@ namespace SPIXI
                     detailContent.updateScreen();
                 }
                 UIHelpers.shouldRefreshTransactions = false;
+                // ★ #1132 lever 2: what these rows will render of the names and the price, read BEFORE the rows are built —
+                // a rename or a price tick DURING the burst then differs from it and re-raises the gate (raiseTxDirtyIfRowsStale)
+                long nameSigAtPush = walletNameSignatureNow();
+                IxiNumber fiatAtPush = Node.fiatPrice;
+                int txGenAtPush = System.Threading.Volatile.Read(ref txDocGen);   // ★ #46 r1 A-N5: the document these rows are for
                 long p1T0 = P1Perf.now();   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the push burst
                 int p1Rows = 0;
                 Utils.sendUiCommand(this, "clearPaymentActivity", filterToString(transactionFilter));
@@ -3845,6 +3938,12 @@ namespace SPIXI
                     var activityWithTx = Node.activityStorage.getActivityById(activity.id, null, true);
                     addPaymentActivity(activityWithTx);
                 }
+
+                // ★ #1132 lever 2: AFTER the loop and only if this document could receive it — the #340 rule appsPushedToShell
+                // follows (a burst queued into an unloaded page is dropped by Dispose; latching on it would strand the wallet empty)
+                System.Threading.Interlocked.Exchange(ref txPushedNameSig, nameSigAtPush);
+                txPushedFiat = fiatAtPush;
+                System.Threading.Interlocked.Exchange(ref txPushedGen, OpenPerfRules.walletLatchAfterBurst(pageLoaded, txGenAtPush));
 
                 /* ★ #506③ — the END of the burst, which this flush never announced.
                  *
@@ -4179,6 +4278,7 @@ namespace SPIXI
                 }
 
                 updateContactStatus();
+                raiseTxDirtyIfRowsStale();   // ★ #1132 lever 2: a rename / price tick reaches rows the tab entry no longer re-pushes
                 loadTransactions(false);
 
                 try
@@ -4600,6 +4700,10 @@ namespace SPIXI
         // load); no room anymore → the pane degrades to the full-span takeover.
         public override void onOverlayPresented(SpixiContentPage overlay)
         {
+            if (overlay is SingleChatPage && isDesktopPlatform() && rightContent.IsVisible)
+            {
+                scheduleChatSpareWarm(CHAT_SPARE_WARM_AFTER_PRESENT_MS);   // ★ #1132 lever 3: trigger C (see the constant)
+            }
             if (overlay is SettingsPage)
             {
                 /* ★★ B7 (office walk #1084, Mac: Back from Contacts showed the Wallet before Account).
@@ -5052,6 +5156,7 @@ namespace SPIXI
             // #340 (C-MAJOR-1): the rows die with the document. Don't wait for the fresh
             // one to say ixian:onload — if that handshake is lost the apps tab never heals.
             appsPushedToShell = false;
+            System.Threading.Interlocked.Increment(ref txDocGen);   // ★ #1132 lever 2: the wallet rows die with it too (A-N5 generation)
             // ★ D-20 (#357): the connectivity warning dies with the document too — reset its
             // latch so the next updateScreen tick re-pushes "Connecting…" while offline.
             warningDisplayed = false;
@@ -5073,6 +5178,7 @@ namespace SPIXI
             // down mid-pick: exactly the #285 round-2 bug this flag exists to prevent.
             int gen = ++reloadShellGen;
             appsPushedToShell = false;   // #340 (C-MAJOR-1): same as reload(), which this bypasses
+            System.Threading.Interlocked.Increment(ref txDocGen);   // ★ #1132 lever 2: same (A-N5 generation)
             warningDisplayed = false;    // ★ D-20 (#357): language re-bake ate "Connecting…" while offline (Damir 2026-08-16)
             base.reload();
             // Belt (F5 2026-07-29): the reload's re-populate burst rides ONE

@@ -559,6 +559,8 @@ export const frfr = {
   people: "Personnes",
   permissions: "Autorisations",
   photo: "Photo",
+  photoPreviewsHint: "Les photos que vous avez envoyées ou téléchargées s'affichent comme une image dans la conversation. Désactivé : chaque photo reste une carte de fichier.",
+  photoPreviewsTitle: "Afficher l'aperçu des photos dans les conversations",
   pickFile: "Depuis un fichier",
   pin: "Épingler",
   preferences: "Préférences",

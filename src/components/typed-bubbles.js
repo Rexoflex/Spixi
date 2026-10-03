@@ -21,6 +21,7 @@ import { createBadge } from './badge.js';
 import { docLocale, timeOpts } from './timestamp.js';
 import { createStatusIcon } from './chatlist-item.js';   // ★ #1028 (P.22): the SENT file's tick — the text bubble's glyph set
 import { formatIxiAmount } from './money.js';   // #143: shared money module (was defined here)
+import { createMediaBubble, setMediaSrc } from './media-bubble.js';   // ★ A5 #1124 (#1133): an image FILE renders on the c-mbubble tile
 
 function cardTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: the device's 12/24-hour setting
@@ -671,10 +672,11 @@ export function fillFileName(el, name) {
 /* file-bubble state → accessible name / leading glyph. Single source shared by
    createFileBubble AND setFileProgress (audit r2: the progress→complete flip
    left "Downloading …" aria + the old glyph on the button). */
-function fileAria(state, name, strings) {
+/* #46 r3 R3-m2: ONE rule for MY transfer, card AND tile — "Sending <name>" (a download stays "Downloading") */
+function fileAria(state, name, strings, direction = 'received') {
   return (state === 'offer' ? (strings.download || 'Download')
     : state === 'failed' ? (strings.retry || 'Retry')
-    : state === 'progress' ? (strings.downloading || 'Downloading')
+    : state === 'progress' ? tileProgressWord(direction, strings)
     : (strings.open || 'Open'))
     + ' ' + name;
 }
@@ -789,7 +791,7 @@ export function createFileBubble({
   /* ★ #1035 (#46 auditor B, M3): the BASE label is kept on the card so the sent file's tick state can be
      appended (here and on every live change — message-bubble.js syncFileTickAria); an explicit aria-label
      on a <button> replaces its content, so the tick's own label is never heard otherwise. */
-  el.dataset.ariaBase = fileAria(state, name, strings);
+  el.dataset.ariaBase = fileAria(state, name, strings, direction);
   el.setAttribute('aria-label', el.dataset.ariaBase);
 
   el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
@@ -819,7 +821,7 @@ export function createFileBubble({
     track.setAttribute('role', 'progressbar'); // audit: transfers were silent to AT
     track.setAttribute('aria-valuemin', '0');
     track.setAttribute('aria-valuemax', '100');
-    track.setAttribute('aria-label', strings.downloading || 'Downloading'); // audit r2: nameless progressbar
+    track.setAttribute('aria-label', tileProgressWord(direction, strings)); // audit r2: nameless progressbar · #46 r3 R3-m2: mine = Sending
     const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
     track.setAttribute('aria-valuenow', String(p));
     const fill = document.createElement('span');
@@ -858,7 +860,9 @@ export function createFileBubble({
     tick.removeAttribute('aria-hidden');
     tick.setAttribute('role', 'img');
     tick.setAttribute('aria-label', strings['status-' + status] || status);
-    el.setAttribute('aria-label', el.dataset.ariaBase + ', ' + tick.getAttribute('aria-label'));
+    /* #46 r3 R3-m2 (the tile's R2-N2 rule): while MY file is still sending a plain sent/sending tick is the message's, not the file's —
+       r4 MINOR-1 (#1035): a delivered / read tick stays in the name while it sends */
+    if (state !== 'progress' || tick.dataset.tone !== 'neutral') el.setAttribute('aria-label', el.dataset.ariaBase + ', ' + tick.getAttribute('aria-label'));
     const stamp = document.createElement('span');
     stamp.className = 'c-fbubble__stamp';
     if (stampTime) stamp.append(stampTime);
@@ -885,6 +889,246 @@ export function createFileBubble({
   return row;
 }
 
+/* ★★ A5 #1124 — PHOTO PREVIEWS IN THE CHAT (Damir #1133 (3); concept docs/sheets/session3/A5-1124-tiles-*.png).
+ * An IMAGE file message renders on the media tile (c-mbubble, media-bubble.js — its idle → loading → loaded
+ * machine) instead of the file card, when the shell's setPhotoPreviews is on:
+ *   A complete + a C#-made preview (setFileThumb) → the picture fills the tile, the time pill over it; tap = open;
+ *   B progress → the document tile inside a circular ring driven by updateFile (setFileProgress, below), the
+ *     percentage and the keepOpen line; the tile is disabled as the card is; the pre-accept Cancel stays a SIBLING;
+ *   C offer → the document tile + the name + "Tap to download"; no picture (nothing is decoded for a file that
+ *     is not on this device).
+ * A tile with no picture stands on the incoming bubble ground (white in light — Damir's note). Every action, the
+ * sent tick and the a11y name ("<state> <name>", + the tick) are the file card's. The names this tile is for are
+ * EXACTLY the extensions C# can preview (SharedItems.imageExts) — an .svg / .tiff stays a card. */
+const PHOTO_EXT = /\.(jpe?g|png|gif|webp|bmp|heic|avif)$/i;
+export function isPhotoFileName(name) {
+  return PHOTO_EXT.test(String(name == null ? '' : name));
+}
+const FILE_RING_R = 32;                              // the ring AROUND the 40 × 44 document tile (clear of its corners)
+const FILE_RING_LEN = 2 * Math.PI * FILE_RING_R;
+const fileTileCtl = new WeakMap();                   // tile el → { name, strings, direction } (the in-place final flip rebuilds its face)
+const pctText = (p) => Math.max(0, Math.min(100, Math.round(Number(p) || 0))) + '%';
+/* #46 r1 B-N1: MY transfer is SENDING, not "Downloading" (the tick's own word, status-sending) */
+const tileProgressWord = (direction, strings) => (direction === 'sent'
+  ? (strings['status-sending'] || 'Sending') : (strings.downloading || 'Downloading'));
+/* #46 r2 R2-1: which tile shows its picture. A RECEIVED file is on this device only once complete; MY OWN photo is local
+   from the first moment (C# sends its preview at once, SingleChatPage noteThumbCandidate `localSender`), so it shows
+   while it is still SENDING too — picture + the ring on a scrim (A5). A failed tile keeps its face (the retry word). */
+export function tileShowsPicture(state, direction) {
+  return state === 'complete' || (direction === 'sent' && state === 'progress');
+}
+const tileAria = fileAria;   // #46 r3 R3-m2: the card's rule, one source
+
+/** #46 r1 B-6: the pixel size of a base64 JPEG data: URI from its SOFn header (no decode), or null. C#'s preview is
+ *  ≤ 64 KB; only its head is decoded (#46 r2 R2-N3). The tile is sized from it BEFORE the picture lands, so a
+ *  re-render does not jump from the 4:3 placeholder to the picture's aspect. */
+export function jpegSize(uri) {
+  try {
+    const u = String(uri || '');
+    const body = u.slice(u.indexOf(',') + 1);
+    /* #46 r2 R2-N3: decode the HEAD only — the frame header sits in the first few hundred bytes of C#'s preview; a
+       header run longer than the head doubles it (never past the whole URI) */
+    for (let n = JPEG_HEAD_CHARS; ; n *= 2) {
+      const all = n >= body.length;
+      const r = jpegSizeOf(atob(all ? body : body.slice(0, n)));
+      if (r !== undefined || all) return r || null;
+    }
+  } catch (e) { /* not base64: no size */ }
+  return null;
+}
+const JPEG_HEAD_CHARS = 4096;   // a multiple of 4 (whole base64 quads) → 3 KB of JPEG
+/* the SOFn size of a JPEG byte string: {w,h} · null (not a JPEG / no frame) · undefined (ran out — need more bytes) */
+function jpegSizeOf(b) {
+  if (b.length < 2) return undefined;
+  if (b.charCodeAt(0) !== 0xFF || b.charCodeAt(1) !== 0xD8) return null;
+  let i = 2;
+  while (i + 8 < b.length) {
+    if (b.charCodeAt(i) !== 0xFF) return null;
+    const m = b.charCodeAt(i + 1);
+    if (m === 0xFF) { i += 1; continue; }                                  // fill byte
+    if (m === 0x01 || (m >= 0xD0 && m <= 0xD8)) { i += 2; continue; }       // a marker without a length
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {   // SOF0…SOF15 (not DHT · JPG · DAC)
+      const h = (b.charCodeAt(i + 5) << 8) | b.charCodeAt(i + 6);
+      const w = (b.charCodeAt(i + 7) << 8) | b.charCodeAt(i + 8);
+      return w > 0 && h > 0 ? { w, h } : null;
+    }
+    if (m === 0xDA || m === 0xD9) return null;                              // scan data / end before any frame header
+    const len = (b.charCodeAt(i + 2) << 8) | b.charCodeAt(i + 3);
+    if (len < 2) return null;
+    i += 2 + len;
+  }
+  return undefined;
+}
+
+function fileFace(state, name, progress, strings, direction) {
+  const face = document.createElement('span');
+  face.className = 'c-mbubble__file';
+  const glyph = fileTile(name, 'complete');          // the card's document tile; the state is said in words below
+  glyph.setAttribute('aria-hidden', 'true');
+  if (state === 'progress') {
+    const wrap = document.createElement('span');
+    wrap.className = 'c-mbubble__ring';
+    wrap.setAttribute('role', 'progressbar');
+    wrap.setAttribute('aria-valuemin', '0');
+    wrap.setAttribute('aria-valuemax', '100');
+    wrap.setAttribute('aria-label', tileProgressWord(direction, strings));
+    const p = Math.max(0, Math.min(100, Number(progress) || 0));
+    wrap.setAttribute('aria-valuenow', String(p));
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 72 72');
+    svg.setAttribute('aria-hidden', 'true');
+    const track = document.createElementNS(NS, 'circle');
+    track.setAttribute('class', 'c-mbubble__ring-track');
+    const fill = document.createElementNS(NS, 'circle');
+    fill.setAttribute('class', 'c-mbubble__ring-fill');
+    for (const c of [track, fill]) { c.setAttribute('cx', '36'); c.setAttribute('cy', '36'); c.setAttribute('r', String(FILE_RING_R)); }
+    fill.setAttribute('stroke-dasharray', FILE_RING_LEN.toFixed(2));
+    fill.setAttribute('stroke-dashoffset', (FILE_RING_LEN * (1 - p / 100)).toFixed(2));
+    svg.append(track, fill);
+    wrap.append(svg, glyph);
+    face.append(wrap);
+  } else {
+    face.append(glyph);
+  }
+  const cap = document.createElement('span');
+  cap.className = 'c-mbubble__cap';
+  if (state === 'progress') { cap.textContent = pctText(progress); cap.dataset.pct = ''; }
+  else fillFileName(cap, name);                      // #1005: the extension survives the ellipsis
+  face.append(cap);
+  const line = document.createElement('span');
+  if (state === 'progress') {
+    line.className = 'c-mbubble__hint';
+    line.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';   // Damir's note: ON the tile
+  } else {
+    line.className = 'c-mbubble__cta';
+    line.textContent = state === 'offer' ? (strings.tapToDownload || 'Tap to download')
+      : state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
+      : (strings.openFile || 'Open file');
+  }
+  face.append(line);
+  return face;
+}
+
+function fileTileAria(tile) {
+  /* #46 r2 R2-N2: while MY file is still sending the tick is the MESSAGE's ("Sent"), not the file's — the name says
+     "Sending IMG.jpg" alone; the tick joins it once the transfer is final — r4 MINOR-1 (#1035): a delivered / read tick joins it at once */
+  const tk = tile.querySelector('.c-mbubble__stamp .c-status-icon:not([data-exit])');
+  if (tk && tile.dataset.file === 'progress' && tk.dataset.tone === 'neutral') return tile.dataset.ariaBase || '';
+  const t = tk && tk.getAttribute('aria-label');
+  return (tile.dataset.ariaBase || '') + (t ? ', ' + t : '');
+}
+
+/** ★ A5 #1124: an image FILE message as a media tile (the shell decides when — setPhotoPreviews + isPhotoFileName).
+ *  Same options as createFileBubble, plus `thumb` (a data:image/jpeg the shell vetted) and `onLoad` (the tile grew). */
+export function createImageFileBubble({
+  direction = 'received',
+  name = '',
+  state = 'complete',
+  progress = 0,
+  thumb = null,
+  timestamp = null,
+  gutter = false,
+  status = null,
+  onAccept, onOpen, onRetry, onCancel,
+  onLoad,
+  onThumbError,        // #46 r1 B-1: the preview failed to decode → the tile dropped it; the shell forgets it too
+  strings = getStrings(),
+} = {}) {
+  const pic = tileShowsPicture(state, direction) && thumb ? String(thumb) : '';   // #46 r2 R2-1
+  const row = createMediaBubble({
+    direction, kind: 'image', src: pic, alt: name, autoload: !!pic, timestamp, gutter, onLoad, strings,
+    sizeHint: pic ? jpegSize(pic) : null,   // #46 r1 B-6: sized from the JPEG before it lands (no jump on a re-render)
+    /* #46 r1 B-1: a preview that will not decode is DROPPED — the tile goes back to its file face and a tap opens the
+       FILE (the CTA says "Open file"); no media retry loop on a bad picture */
+    onSrcError: () => { if (onThumbError) { try { onThumbError(); } catch (_) {} } },
+    instantIfShown: true,   // #46 r3 R3-m1: a re-render does not re-fade a picture this document already showed
+    ariaFor: (s, tile) => fileTileAria(tile),
+  });
+  const el = row.querySelector('.c-mbubble');
+  el.dataset.file = state;
+  el.dataset.ariaBase = tileAria(state, name, strings, direction);
+  fileTileCtl.set(el, { name, strings, direction });
+  // ONE dispatcher keyed on the LIVE file state (the card's rule). While the picture LOADS a tap does nothing (it is
+  // a frame or two for a local data: URI) — never two actions for one tap; a failed picture is dropped (above).
+  const handlers = {
+    offer: oneShot(onAccept),
+    failed: reentryGuard(onRetry),
+    complete: reentryGuard(onOpen),
+  };
+  el.addEventListener('click', (e) => {
+    if (el.dataset.state === 'loading') return;
+    const h = handlers[el.dataset.file];
+    if (h) h(e);
+  });
+  if (state === 'progress') el.disabled = true;
+  el.append(fileFace(state, name, progress, strings, direction));
+  const tick = direction === 'sent' && status ? createStatusIcon(status) : null;
+  if (tick) {
+    tick.setAttribute('width', 14);
+    tick.setAttribute('height', 14);
+    tick.removeAttribute('aria-hidden');
+    tick.setAttribute('role', 'img');
+    tick.setAttribute('aria-label', strings['status-' + status] || status);
+    const stamp = document.createElement('span');
+    stamp.className = 'c-mbubble__stamp';
+    const time = el.querySelector('.c-mbubble__time');
+    if (time) stamp.append(time);
+    stamp.append(tick);
+    el.append(stamp);
+  }
+  el.setAttribute('aria-label', fileTileAria(el));
+  if (onCancel) {   // #334: the pre-accept Cancel, a SIBLING of the tile (the tile is a <button>)
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'c-fbubble__cancel';
+    cancelBtn.textContent = strings.cancel || 'Cancel';
+    cancelBtn.setAttribute('aria-label', (strings.cancelTransfer || 'Cancel sending') + ' ' + name);
+    cancelBtn.addEventListener('click', oneShot(onCancel));
+    row.insertBefore(cancelBtn, row.querySelector('.c-mbubble-anchor'));
+  }
+  return row;
+}
+
+/* the tile half of setFileProgress (same contract): the ring + the percentage tick in place; a final state rebuilds
+   the face, re-arms the tile and names the new state. The shell then hands it a preview, if it has one. */
+function setImageFileProgress(rowEl, tile, p, opts) {
+  const fill = tile.querySelector('.c-mbubble__ring-fill');
+  if (fill) fill.setAttribute('stroke-dashoffset', (FILE_RING_LEN * (1 - p / 100)).toFixed(2));
+  const ring = tile.querySelector('.c-mbubble__ring');
+  if (ring) ring.setAttribute('aria-valuenow', String(p));
+  const cap = tile.querySelector('.c-mbubble__cap[data-pct]');
+  if (cap) cap.textContent = pctText(p);
+  const finalState = opts.state || (p >= 100 ? 'complete' : null);
+  if (p > 0 || finalState) {
+    const cancelBtn = rowEl.querySelector('.c-fbubble__cancel');
+    if (cancelBtn) cancelBtn.remove();
+  }
+  if (!finalState || tile.dataset.file === finalState) return;
+  const ctl = fileTileCtl.get(tile) || { name: '', strings: getStrings(), direction: 'received' };
+  const strings = opts.strings || ctl.strings;
+  tile.dataset.file = finalState;
+  tile.disabled = false;
+  delete tile.dataset.acted;   // re-arm after an accept latch
+  const face = tile.querySelector('.c-mbubble__file');
+  const next = fileFace(finalState, ctl.name, p, strings, ctl.direction);
+  if (face) face.replaceWith(next); else tile.append(next);
+  tile.dataset.ariaBase = tileAria(finalState, ctl.name, strings, ctl.direction);
+  tile.setAttribute('aria-label', fileTileAria(tile));
+}
+
+/** The shell's late preview (setFileThumb, or a tile that just completed): load it through the tile's own machine,
+ *  sized from the JPEG first (#46 r1 B-6). Only a tile that SHOWS a picture takes one (tileShowsPicture: complete, or
+ *  my own still sending — #46 r2 R2-1); the picture it already shows is not reloaded (no flash at the final flip). */
+export function setImageFileThumb(rowEl, uri) {
+  const tile = rowEl && rowEl.querySelector('.c-mbubble[data-file]');
+  const ctl = tile && fileTileCtl.get(tile);
+  if (!tile || !uri || !tileShowsPicture(tile.dataset.file, ctl ? ctl.direction : 'received')) return;
+  const img = tile.querySelector('.c-mbubble__img');
+  if (img && tile.dataset.state === 'loaded' && img.getAttribute('src') === String(uri)) return;
+  setMediaSrc(rowEl, String(uri), jpegSize(uri));
+}
+
 /** Update a progress-state file bubble in place (bridge updateFile).
  *  opts.meta refreshes the caption; progress ≥ 100 (or opts.state) flips the
  *  bubble to its final state (audit: 100% bar stayed "Downloading").
@@ -893,6 +1137,8 @@ export function createFileBubble({
  *  completed download opens via the onOpen passed to createFileBubble. */
 export function setFileProgress(rowEl, progress, opts = {}) {
   const p = Math.max(0, Math.min(100, Number(progress) || 0)); // NaN-safe (audit r2)
+  const imgTile = rowEl.querySelector('.c-mbubble[data-file]');   // ★ A5 #1124: an image file on the media tile
+  if (imgTile) { setImageFileProgress(rowEl, imgTile, p, opts); return; }
   const fill = rowEl.querySelector('.c-fbubble__fill');
   if (fill) fill.style.width = p + '%';
   const track = rowEl.querySelector('.c-fbubble__track');

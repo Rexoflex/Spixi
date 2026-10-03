@@ -149,3 +149,134 @@
    reaction pills already pin to the same edges (reactions.css inset-inline),
    so they keep landing ON the tile. */
 .c-bubble-row[data-direction="sent"] .c-mbubble { margin-inline-start: auto; }
+
+/* ★★ A5 #1124 (Damir #1133 (3)) — an IMAGE FILE on the tile (typed-bubbles.js createImageFileBubble).
+   With no picture (offer · transferring · complete before its preview · failed) the tile stands on the
+   INCOMING BUBBLE GROUND — white in light (Damir's note: "white, not grey"), the bubble ground in dark — with the
+   received bubble's lift; a sent tile keeps the sent 2px border above. The picture, once loaded, covers it. */
+.c-mbubble[data-file] {
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  box-shadow: inset 0 0 0 1px var(--outline-hairline), var(--bubble-elevation);   /* the received card's edge + lift (the transparent N82(b) hook stays on the base rule above) */
+}
+.c-bubble-row[data-direction="sent"] .c-mbubble[data-file] { box-shadow: var(--bubble-elevation); }
+.c-mbubble[data-file]:disabled { cursor: default; }     /* transferring: no tap (the card's rule) */
+.c-mbubble[data-file] .c-mbubble__overlay { display: none; }   /* no "tap to load" disc: the face says what a tap does */
+.c-mbubble__file {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12) var(--spacing-16) calc(var(--spacing-24) + var(--spacing-4));   /* the bottom room is the time pill's */
+  text-align: center;
+  pointer-events: none;
+}
+/* the picture is the face now — #46 r1 B-6: the face stays UNDER the picture while it fades in (the img sits above it),
+   then hides at the fade's end (a discrete visibility step after --duration-200), so no blank ground shows between */
+.c-mbubble[data-file] .c-mbubble__img { z-index: 1; }
+.c-mbubble[data-state="loaded"] .c-mbubble__file {
+  visibility: hidden;
+  transition: visibility 0s linear var(--duration-200);
+}
+/* #46 r2 R2-1: MY photo while it is still SENDING shows its picture (tileShowsPicture) — the face stays ON it, on a
+   scrim: the ring + the percentage + the keep-open line read on the picture (mode-less on-scrim inks); the document
+   glyph goes (the picture says what it is). The final flip hides the face as for any loaded tile. */
+.c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__file {
+  visibility: visible;
+  transition: none;
+  z-index: 1;   /* above the picture (same layer, later in the tile); the stamp follows it, so it stays on top */
+  background: var(--surface-scrim);   /* #46 r3 R3-M1: the INK-carrying scrim (mode-less 0.6; --text-on-scrim on it over a white photo = 4.69:1, computed — r4 NIT-1) — -deep is a halved overlay wash in light (≈ 2.2:1) */
+  color: var(--text-on-scrim);
+}
+.c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__ring > .c-fbubble__icon { visibility: hidden; }
+/* #46 r3 R3-m1: a RE-BUILT tile whose picture this document already showed (media-bubble.js data-seen) shows it at
+   once — no fade from 0, no face lingering under it; the first show keeps both */
+.c-mbubble[data-seen] .c-mbubble__img,
+.c-mbubble[data-seen][data-state="loaded"] .c-mbubble__file { transition: none; }
+/* #46 r3 R3-M1: the ring on the scrim takes the on-scrim pair (the spinner's: wash track · on-scrim fill) — the
+   card's primary fill reads < 3:1 on a dark scrim */
+.c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__ring-track { stroke: var(--surface-wash-on-hero); }
+.c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__ring-fill { stroke: var(--icon-on-scrim); }
+.c-mbubble__cap {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-mbubble__cap[data-pct] { font-variant-numeric: tabular-nums; }
+.c-mbubble__cta {
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-action-default);
+}
+.c-mbubble__hint {
+  max-width: 100%;
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02);
+}
+.c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__hint { color: var(--text-on-scrim); }   /* #46 r2 R2-1: on the picture */
+/* B: the progress ring around the document tile (the card's track/fill tokens) */
+.c-mbubble__ring {
+  position: relative;
+  width: 72px;    /* 72 sanctioned: the ring clears the 40 × 44 document tile's corners (r 32 + the stroke) */
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.c-mbubble__ring > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);   /* the fill starts at 12 o'clock */
+}
+.c-mbubble__ring-track,
+.c-mbubble__ring-fill { fill: none; stroke-width: 4; }
+.c-mbubble__ring-track { stroke: var(--surface-progress-track); }
+[data-theme="dark"] .c-mbubble__ring-track { stroke: var(--surface-neutral-04); }   /* the card's dark-track rule (neutral-700 is the ground's neighbour) */
+.c-mbubble__ring-fill {
+  stroke: var(--surface-progress-fill);
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--duration-200) var(--easing-standard);
+}
+.c-mbubble__ring > .c-fbubble__icon { position: relative; }
+@media (prefers-reduced-motion: reduce) {
+  .c-mbubble__ring-fill { transition: none; }
+}
+/* with no picture the time reads on the ground, not on a scrim */
+.c-mbubble[data-file]:not([data-state="loaded"]) .c-mbubble__time,
+.c-mbubble[data-file]:not([data-state="loaded"]) .c-mbubble__stamp {
+  background: transparent;
+  color: var(--text-neutral-02);
+}
+/* the SENT tile's stamp: time + the delivery tick on one pill (#1028's grammar on the card) */
+.c-mbubble__stamp {
+  position: absolute;
+  bottom: var(--spacing-4);
+  inset-inline-end: var(--spacing-8);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-on-scrim);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+}
+.c-mbubble__stamp > .c-mbubble__time {
+  position: static;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+.c-mbubble__time, .c-mbubble__stamp { z-index: 1; }   /* above the face */

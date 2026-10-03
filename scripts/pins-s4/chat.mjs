@@ -89,8 +89,8 @@ export default async function (h) {
       const bub = rowOf(id).querySelector(kinds[id]);
       r.ring = r.ring && !!bub && matching(rules, bub, 'animation').some((v) => /^chat-jump-ring var\(--duration-highlight\) var\(--easing-standard\) var\(--jump-delay, 0ms\) 1$/.test(v));
       /* reduced motion: NO animation, the static band (and ring) */
-      r.rmBand = r.rmBand && matching(rules, rowOf(id), 'animation', RM).includes('none') && matching(rules, rowOf(id), 'background-color', RM).includes('var(--surface-warning-inverse)');
-      r.rmRing = r.rmRing && !!bub && matching(rules, bub, 'animation', RM).includes('none') && matching(rules, bub, 'box-shadow', RM).includes('0 0 0 1px var(--surface-warning)');
+      r.rmBand = r.rmBand && matching(rules, rowOf(id), 'animation', RM).includes('none') && matching(rules, rowOf(id), 'background-color', RM).includes('var(--surface-select-row)');
+      r.rmRing = r.rmRing && !!bub && matching(rules, bub, 'animation', RM).includes('none') && matching(rules, bub, 'box-shadow', RM).includes('0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default), var(--jump-keep, 0 0 0 0 transparent)');   /* #46 r1 B-m1: gap + ring (the WINNING value is pinned in fixr1.mjs) */
       if (prev) r.oneAtATime = r.oneAtATime && !lit(prev);
       prev = id;
     }
@@ -105,8 +105,8 @@ export default async function (h) {
     const holdOf = (t) => { const m = /^0%, ?(\d+)%\{/.exec(t); return m ? Number(m[1]) : -1; };
     const bandT = kfText(kb).replace(/\s+/g, ' ').replace(/\{ /g, '{').replace(/ \}/g, '}');
     const ringT = kfText(kr).replace(/\{ /g, '{').replace(/ \}/g, '}');
-    r.bandWash = /^0%, ?90%\{background-color: var\(--surface-warning-inverse\);?\}/.test(bandT);
-    r.ring1px = /^0%, ?90%\{box-shadow: 0 0 0 1px var\(--surface-warning\);?\}/.test(ringT);
+    r.bandWash = /^0%, ?90%\{background-color: var\(--surface-select-row\);?\}/.test(bandT);   /* #1147 (1): the selected-row look */
+    r.ring1px = /^0%, ?90%\{box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\), var\(--jump-keep, 0 0 0 0 transparent\);?\}/.test(ringT);   /* #1147 (1): blue — #46 r1 B-m1: behind a 1 px band-coloured gap */
     const d300 = rules.filter((x) => x.sel === ':root' && !x.media).map((x) => x.style.getPropertyValue('--duration-300').trim()).filter(Boolean).pop();
     r.exitFade300 = d300 === '300ms' && holdOf(bandT) >= 0 && Math.round((100 - holdOf(bandT)) / 100 * 3000) === 300 && holdOf(ringT) === holdOf(bandT);
     /* timing (a4 is lit): still lit past the OLD 1.6 s lifetime; a bubbling tick-fade animationend does not end it; the band's own end does */
@@ -154,8 +154,18 @@ export default async function (h) {
     r.tokenTimerEnds = !lit('a4');
     void tA;
     r.noErr = errs.length === 0;
+    /* #1147 (1): the band is ROUNDED like the selected row (--radius-12, chat-select.css) — on a lit row only, not on a quiet one */
+    {
+      const row = rowOf('a1');
+      const quiet = matching(rules, row, 'border-radius');
+      row.setAttribute('data-mention-pulse', '');
+      const litR = matching(rules, row, 'border-radius');
+      row.removeAttribute('data-mention-pulse');
+      ok(litR.includes('var(--radius-12)') && !quiet.includes('var(--radius-12)'),
+        '★ #1147 (1) A2 restyle: the jump band is rounded like the multi-select selected row (border-radius --radius-12 on the lit row; a quiet row stays square) — Damir W-A2: "rounded like selected" — ' + JSON.stringify({ quiet, litR }));
+    }
     ok(Object.values(r).every(Boolean),
-      '★ A2 (#1132 (4), G-4 option 3 + 1 px; #46 r1 B-3 · L-1 · L-2): a jump lights the ROW (a full-width band, the warning wash) and rings the BUBBLE (1 px, the solid warning role) on every kind — text · file card · media tile · typed card — ONE highlight at a time; its length is the --duration-highlight token (3000 ms, not zeroed under reduced motion) that the JS timer reads too; held to 90 % so the exit fade = --duration-300; reduced motion = the static band + ring; a child\'s animationend does not end it, the band\'s own end does; a re-render mid-way CONTINUES it on the rebuilt row (negative --jump-delay) and it ends on its original schedule; a second jump restarts it — ' + JSON.stringify(r) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
+      '★ A2 (#1132 (4), G-4 option 3 + 1 px; #46 r1 B-3 · L-1 · L-2; #1147 (1) restyle): a jump lights the ROW (a full-width band, the selected-row tint --surface-select-row) and rings the BUBBLE (1 px, the blue --outline-action-default) on every kind — text · file card · media tile · typed card — ONE highlight at a time; its length is the --duration-highlight token (3000 ms, not zeroed under reduced motion) that the JS timer reads too; held to 90 % so the exit fade = --duration-300; reduced motion = the static band + ring; a child\'s animationend does not end it, the band\'s own end does; a re-render mid-way CONTINUES it on the rebuilt row (negative --jump-delay) and it ends on its original schedule; a second jump restarts it — ' + JSON.stringify(r) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
     dom.window.close();
   }
 
@@ -225,7 +235,8 @@ export default async function (h) {
     /* C (offer): glyph + name + "Tap to download"; no picture; label names the state + the file */
     const tB = tl('iB');
     r.offerFace = !!tB.querySelector('.c-mbubble__file .c-fbubble__icon[data-kind="image"]') && /IMG_B\.png/.test(tB.querySelector('.c-mbubble__cap').textContent)
-      && tB.querySelector('.c-mbubble__cta').textContent === ((W.SL && W.SL.tapToDownload) || 'Tap to download') && !tB.querySelector('.c-mbubble__img').getAttribute('src')
+      /* #1147 (3) re-base: jsdom's UA is not a phone → :root[data-desktop] → the desktop wording (the touch case: its own pin below) */
+      && tB.querySelector('.c-mbubble__cta').textContent === (d.documentElement.hasAttribute('data-desktop') ? ((W.SL && W.SL.clickToDownload) || 'Click to download') : ((W.SL && W.SL.tapToDownload) || 'Tap to download')) && !tB.querySelector('.c-mbubble__img').getAttribute('src')
       && tB.getAttribute('aria-label') === ((W.SL && W.SL.download) || 'Download') + ' IMG_B.png';
     /* B (transferring): the ring (a progressbar), the percentage, the keepOpen line ON the tile, disabled, the pre-accept Cancel beside it */
     const tS = tl('iS');
@@ -300,7 +311,8 @@ export default async function (h) {
     load();
     await sleep(300);
     r.keptAcrossReflush = (tl('iA').querySelector('.c-mbubble__img').getAttribute('src') || '') === JPEG_300x200;
-    r.sizedFromJpeg = /aspect-ratio: 1\.5( \/ 1)?;/.test(tl('iA').getAttribute('style') || '') && tl('iA').dataset.state === 'loading';
+    /* #46 r1 B-M2 supersedes the B-6 sizing for a LOCAL tile: it is the square C#'s crop is, whatever the JPEG header says */
+    r.sizedFromJpeg = /aspect-ratio: 1( \/ 1)?;/.test(tl('iA').getAttribute('style') || '') && tl('iA').dataset.state === 'loading';
     /* C-j12: an OFFER never shows a picture, not even from a stored push across a re-flush */
     r.offerNoPictureAfterReflush = tl('iB').dataset.file === 'offer' && !(tl('iB').querySelector('.c-mbubble__img').getAttribute('src') || '');
     raw('iA', JPEG);
@@ -411,7 +423,7 @@ export default async function (h) {
     const sized = mk('complete', JPEG_300x200); W.document.body.append(sized);
     const tSized = sized.querySelector('.c-mbubble');
     const size = S.jpegSize(JPEG_300x200);
-    const sizeHint = !!size && size.w === 300 && size.h === 200 && /aspect-ratio: 1\.5( \/ 1)?;/.test(tSized.getAttribute('style') || '') && tSized.dataset.state === 'loading'
+    const sizeHint = !!size && size.w === 300 && size.h === 200 && /aspect-ratio: 1( \/ 1)?;/.test(tSized.getAttribute('style') || '')   /* #46 r1 B-M2: square, not 1.5 */ && tSized.dataset.state === 'loading'
       && JSON.stringify(S.jpegSize(JPEG)) === '{"w":1,"h":1}' && S.jpegSize('data:image/jpeg;base64,AAAA') === null && S.jpegSize('nope') === null;
     /* B-N1: MY transfer says Sending; a download says Downloading (ring + name) */
     const sendP = mk('progress', null, 'sent'); W.document.body.append(sendP);
@@ -475,7 +487,7 @@ export default async function (h) {
     const imgS = tS.querySelector('.c-mbubble__img') || d.createElement('img');
     r.sendingTakesPicture = imgS.getAttribute('src') === big && tS.dataset.state === 'loading';
     r.headOnly = big.length > 60000 && seen.length >= 1 && Math.max(...seen) <= 4096;
-    r.sizedFromHead = /aspect-ratio: 1\.5( \/ 1)?;/.test(tS.getAttribute('style') || '');
+    r.sizedFromHead = /aspect-ratio: 1( \/ 1)?;/.test(tS.getAttribute('style') || '');   /* #46 r1 B-M2: the square holds */
     raw('pR', JPEG);
     r.downloadNoPicture = !((tR.querySelector('.c-mbubble__img') || d.createElement('img')).getAttribute('src') || '') && tR.dataset.state !== 'loading';
     /* N3: a header run LONGER than the head (a 6 KB APP1 before the frame header) still sizes — the head doubles */
@@ -483,7 +495,7 @@ export default async function (h) {
     const sof = Buffer.from([0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x64, 0x00, 0xC8, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, 0xFF, 0xD9]);   // 200 × 100 (2:1 — not the 3:2 the tile already has)
     const longHead = 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xFF, 0xD8]), app1, sof]).toString('base64');
     raw('pS', longHead);
-    r.longHeaderSized = /aspect-ratio: 2( \/ 1)?;/.test(tS.getAttribute('style') || '') && (tS.querySelector('.c-mbubble__img') || d.createElement('img')).getAttribute('src') === longHead;
+    r.longHeaderSized = /aspect-ratio: 1( \/ 1)?;/.test(tS.getAttribute('style') || '')   /* #46 r1 B-M2: a 2:1 header does not resize it */ && (tS.querySelector('.c-mbubble__img') || d.createElement('img')).getAttribute('src') === longHead;
     raw('pS', JPEG);
     (tS.querySelector('.c-mbubble__img') || d.createElement('img')).dispatchEvent(new W.Event('load'));
     /* what the user SEES on the loaded sending tile: the face (ring + % + keep-open) stays VISIBLE above the picture on a
@@ -726,6 +738,27 @@ export default async function (h) {
       '★★ A5 C# (#1124, 🟡 new push setFileThumb; #46 r1 A-M1 · A-M2 · A-M3 · A-N1 · C-c3 · c4 · c7 · c9): a preview is made only for an image file ON THIS DEVICE (a completed download, or my own) whose path is C#\'s own (SharedItems.localPathOf), ≤ the G-6b 20 MB, first bytes sniffed before the platform decode (SThumbnail 320 px), ≤ 64 KB JPEG, off the UI thread (the enqueue starts the drainer), pushed on the main thread with the message id + the JPEG only, once per document + message + file version (a dropped push frees its slot — #46 r2 R2-N1), after the row\'s own push, a live row at once and a burst at messagesDone, a finished transfer from updateFile\'s complete tick; a torn-down page decodes and pushes nothing; the process cache drops its oldest; setPhotoPreviews (fixed key chatPhotoPreviews read AND written, default true) is told before the first history push, again on a re-appear with a changed value, and to every LIVE chat when the Privacy switch changes; the block logs exception TYPES only (SOURCE pins: MAUI-only C#) — ' + JSON.stringify(r));
   }
 
+  /* ———— #1147 (2) A5-SEND: onSendFile re-queues the preview ONCE the real path is set (SOURCE pin — onSendFile is MAUI-only:
+     the picker, TransferManager, StreamProcessor). Walk #1146: insertMessage queued it with the bare name, localPathOf refused it,
+     nothing re-queued it until the transfer completed → my sent photo stayed a white glyph tile while sending. ———— */
+  {
+    const sc = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const bodyIn = (t, sig) => { const i = t.indexOf(sig); if (i < 0) return ''; let k = t.indexOf('{', i), depth = 0; for (let j = k; j < t.length; j++) { if (t[j] === '{') depth++; else if (t[j] === '}' && --depth === 0) return t.slice(i, j + 1); } return ''; };
+    const send = bodyIn(sc, 'public async Task onSendFile(bool media = true)');
+    const after = bodyIn(sc, 'private void thumbAfterTransfer(string uid)');
+    const r = {
+      /* the call sits RIGHT AFTER the path assignment (before the write), with the transfer's own uid */
+      order: /friend_message\.transferId = transfer\.uid;\s*friend_message\.filePath = transfer\.filePath;\s*thumbAfterTransfer\(transfer\.uid\);\s*IxianHandler\.localStorage\.requestWriteMessages/.test(send),
+      once: (send.match(/thumbAfterTransfer\(/g) || []).length === 1,
+      /* what it relies on: the row is found by its transferId, my own (localSender) image file qualifies before completion */
+      finds: /fm = list\.Find\(x => x\.transferId == uid\);/.test(after) && /!\(fm\.completed \|\| fm\.localSender\)/.test(after),
+      /* the race with insertMessage's own job is deduped per (document, message, file version) */
+      dedupe: /if \(!thumbsSent\.Add\(sentKey\)\)\s*\{\s*return;/.test(bodyIn(sc, 'private void processThumb(ThumbJob job)')),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1147 (2) A5-SEND: onSendFile queues the preview again right after it sets the real file path (thumbAfterTransfer(transfer.uid) → finds the row by transferId, my own image qualifies before it completes; thumbsSent dedupes the race) — my sent photo shows under the scrim WHILE it sends — ' + JSON.stringify(r));
+  }
+
   /* ———— #46 r4 MINOR-2 · MINOR-3 (R3-m1, media-bubble.js shownSrcs): the shown-picture set is BOUNDED (256, oldest out) and its
      fingerprint carries the CONTENT tail — executed: a tile shows a picture (its load event), a re-built tile with it is instant ———— */
   {
@@ -760,5 +793,126 @@ export default async function (h) {
     ok(Object.values(r).every(Boolean),
       '★ #46 r4 MINOR-2 · MINOR-3 (R3-m1): the shown-picture set keeps 256 pictures (the 257th shown pushes the FIRST out — a re-built tile with it fades again) and its fingerprint tells two previews of the same length apart by their tail — ' + JSON.stringify(r));
     W.close();
+  }
+
+  /* ———— #1147 (3): "Click to download" on :root[data-desktop] (card + tile); touch keeps "Tap" — the BUILT shell, executed ———— */
+  {
+    /* jsdom's UA is not a phone → the shell's boot script sets data-desktop; ?mobile=1 is the shell's own override */
+    const bootQ = async (q) => {
+      const f = join(root, 'Spixi/Resources/Raw/html/chat.html');
+      const errs = [];
+      const vc = new VirtualConsole();
+      vc.on('jsdomError', (e) => { const m = String(e.message); if (!/navigation|Not implemented|Could not parse CSS/i.test(m)) errs.push(m); });
+      const dom = new JSDOM(readFileSync(f, 'utf8'), {
+        runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, url: 'file://' + f + q, virtualConsole: vc,
+        beforeParse(w) {
+          w.matchMedia = (mq) => ({ matches: false, media: mq, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+          try { w.HTMLCanvasElement.prototype.getContext = () => null; } catch (e) {}
+          w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+          w.Element.prototype.scrollIntoView = function () {};
+        },
+      });
+      await sleep(1800);
+      const W = dom.window;
+      const push = (fn, ...a) => W.executeUiCommand(W[fn], ...a.map(b64));
+      return { W, push, errs };
+    };
+    const lines = async (q) => {
+      const { W, push, errs } = await bootQ(q);
+      push('onChatScreenReady', 'addrPeer');
+      push('setChatMode', '0', '0', '', 'False');
+      push('setPhotoPreviews', 'True');
+      push('clearMessages', 'false');
+      push('addFile', 'd1', 'addrPeer', 'Bob', '', 'fd1', 'report.pdf', String(T0), 'False', 'False', 'False', '0', 'False', 'False', 'True');
+      push('addFile', 'd2', 'addrPeer', 'Bob', '', 'fd2', 'IMG_9.jpg', String(T0 + 5), 'False', 'False', 'False', '0', 'False', 'False', 'True');
+      if (typeof W.messagesDone === 'function') push('messagesDone');
+      push('onChatScreenLoaded');
+      await sleep(300);
+      const d = W.document;
+      const card = d.querySelector('#messages [data-msgid="d1"] .c-fbubble__meta');
+      const tile = d.querySelector('#messages [data-msgid="d2"] .c-mbubble__cta');
+      const out = { desktop: d.documentElement.hasAttribute('data-desktop'), card: card ? card.textContent : null, tile: tile ? tile.textContent : null, errs: errs.length };
+      W.close();
+      return out;
+    };
+    const dk = await lines('?desktop=1');
+    const mb = await lines('?mobile=1');
+    const en = JSON.parse(rd('src/strings/en-us.json'));
+    const locs = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br', 'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];
+    const tr = locs.map((c) => JSON.parse(rd('src/strings/' + c + '.json')).clickToDownload);
+    ok(dk.desktop && dk.card === 'Click to download' && dk.tile === 'Click to download' && dk.errs === 0
+      && !mb.desktop && mb.card === 'Tap to download' && mb.tile === 'Tap to download' && mb.errs === 0
+      && en.clickToDownload === 'Click to download' && tr.every((v) => typeof v === 'string' && v && v !== 'Click to download'),
+      '★ #1147 (3): an offered file says "Click to download" on desktop (:root[data-desktop], a mouse) on the file CARD and the photo TILE; a phone keeps "Tap to download"; the key clickToDownload is translated in all 12 locales — ' + JSON.stringify({ dk, mb, tr }));
+  }
+
+  /* ———— #1147 (5): photo fade on chat open — the BUILT shell, executed: a LOCAL photo tile waits QUIET (no face), the
+     picture fades in when setFileThumb lands, the face fades in after PHOTO_QUIET_MS with no preview; an OFFERED /
+     downloading received tile shows its face at once; the r3 "seen" re-show stays instant ———— */
+  {
+    const { dom, W, push, errs } = await boot('chat.html');
+    const d = W.document;
+    push('onChatScreenReady', 'addrPeer');
+    push('setChatMode', '0', '0', '', 'False');
+    push('setPhotoPreviews', 'True');
+    push('clearMessages', 'false');
+    const t0 = Date.now();
+    push('addFile', 'q1', 'addrPeer', 'Me', '', 'fq1', 'IMG_q1.jpg', String(T0), 'True', 'True', 'True', '100', 'True', 'False', 'True');      // mine, complete
+    push('addFile', 'q2', 'addrPeer', 'Bob', '', 'fq2', 'IMG_q2.jpg', String(T0 + 1), 'False', 'False', 'False', '100', 'True', 'False', 'True'); // downloaded
+    push('addFile', 'q3', 'addrPeer', 'Bob', '', 'fq3', 'IMG_q3.jpg', String(T0 + 2), 'False', 'False', 'False', '0', 'False', 'False', 'True');  // offered
+    push('addFile', 'q4', 'addrPeer', 'Bob', '', 'fq4', 'IMG_q4.jpg', String(T0 + 3), 'False', 'False', 'False', '40', 'False', 'False', 'True'); // downloading
+    push('addFile', 'q5', 'addrPeer', 'Me', '', 'fq5', 'IMG_q5.jpg', String(T0 + 4), 'True', 'False', 'False', '30', 'False', 'False', 'True');   // mine, sending
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    push('onChatScreenLoaded');
+    await sleep(150);
+    const rules = rulesOf(W);
+    const tileOf = (id) => d.querySelector('#messages [data-msgid="' + id + '"] .c-mbubble');
+    const faceOf = (id) => { const t = tileOf(id); return t && t.querySelector('.c-mbubble__file'); };
+    const quiet = (id) => { const f = faceOf(id); return !!f && tileOf(id).hasAttribute('data-quiet') && matching(rules, f, 'opacity').pop() === '0'; };
+    const faceShown = (id) => { const f = faceOf(id); return !!f && !tileOf(id).hasAttribute('data-quiet') && matching(rules, f, 'opacity').pop() !== '0'; };
+    const fades = (el, prop) => matching(rules, el, 'transition').pop() === prop + ' var(--duration-200) var(--easing-standard)';
+    const r = {};
+    /* before: the local tiles are quiet (the ground, no glyph); the offered / downloading ones show the face at once */
+    r.quietBefore = quiet('q1') && quiet('q2') && quiet('q5') && !!tileOf('q1') && tileOf('q1').dataset.state === 'idle';
+    r.offerAtOnce = faceShown('q3') && faceShown('q4');
+    r.faceFadesIn = fades(faceOf('q2'), 'opacity');
+    const until = async (ms) => { while (Date.now() - t0 < ms) await sleep(10); };
+    /* the preview lands (C# sends it within the wait): the picture fades in (the first-show fade) over the quiet ground;
+       no face ever showed */
+    await until(200);
+    push('setFileThumb', 'q1', JPEG);
+    await sleep(20);
+    const img1 = tileOf('q1') && tileOf('q1').querySelector('.c-mbubble__img');
+    r.loading = !!img1 && tileOf('q1').dataset.state === 'loading' && quiet('q1');
+    if (img1) img1.dispatchEvent(new W.Event('load'));
+    r.pictureFades = tileOf('q1').dataset.state === 'loaded' && !tileOf('q1').hasAttribute('data-seen') && fades(img1, 'opacity')
+      && matching(rules, img1, 'opacity').pop() === '1' && matching(rules, faceOf('q1'), 'opacity').pop() === '0';
+    /* MY sending photo: its picture lands → its scrim face (ring, %) fades in WITH it */
+    push('setFileThumb', 'q5', JPEG);
+    await sleep(20);
+    const img5 = tileOf('q5').querySelector('.c-mbubble__img');
+    img5.dispatchEvent(new W.Event('load'));
+    r.sendingFaceWithPicture = tileOf('q5').dataset.state === 'loaded' && faceShown('q5') && fades(faceOf('q5'), 'opacity');
+    /* a re-render inside the wait (a live row rebuilds every row) does NOT restart it */
+    await until(350);
+    push('addThem', 'q6', 'addrPeer', 'Bob', '', 'a live line', String(T0 + 9));
+    await sleep(60);
+    r.rebuiltStillQuiet = quiet('q2');
+    /* no preview within the wait: the face fades in (no instant pop) — at ~600 ms from the FIRST build, not the rebuild */
+    const tQuiet = Date.now() - t0;
+    r.stillQuietLate = tQuiet < 560 && quiet('q2');
+    await until(760);
+    r.glyphAfter = faceShown('q2') && fades(faceOf('q2'), 'opacity');
+    /* reduced motion: the fade token is 0 ms there (tokens.css) → no fades, instant */
+    const rootRM = rules.filter((x) => x.sel === ':root' && RM.test(x.media || '')).map((x) => x.style.getPropertyValue('--duration-200').trim()).filter(Boolean);
+    r.reducedInstant = rootRM.includes('0ms');
+    /* the r3 "seen" re-show: a re-built q1 shows its picture at once (loaded + data-seen), never quiet */
+    push('addThem', 'q7', 'addrPeer', 'Bob', '', 'another line', String(T0 + 10));
+    await sleep(80);
+    r.seenInstant = tileOf('q1').dataset.state === 'loaded' && tileOf('q1').hasAttribute('data-seen') && !tileOf('q1').hasAttribute('data-quiet');
+    r.noErr = errs.length === 0;
+    ok(Object.values(r).every(Boolean),
+      '★ #1147 (5) photo fade on chat open (Damir): a LOCAL photo tile (mine, or downloaded) waits QUIET — the tile ground, no glyph — and the preview fades in over it (--duration-200, the first-show fade); with no preview in ~600 ms (from the first build — a re-render does not restart it) the face fades in; MY sending photo\'s scrim face fades in with its picture; an offered / downloading tile shows its face at once; reduced motion = 0 ms; the r3 re-show stays instant — ' + JSON.stringify(r) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
+    dom.window.close();
   }
 }

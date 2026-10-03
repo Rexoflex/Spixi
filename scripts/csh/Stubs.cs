@@ -9,6 +9,8 @@ namespace IXICore.Meta { public static class Logging { public static List<string
 namespace Microsoft.Maui.ApplicationModel { public static class MainThread { public static bool IsMainThread => true; public static void BeginInvokeOnMainThread(Action a){ a(); } } }   // ★ P-1: P1Perf.framesAfter
 namespace IXICore.Streaming {
   public enum FriendType { Normal, Group, Bot }
+  // ★ #1148 (3): Core's FriendMessageType, VALUE FOR VALUE (Ixian-Core Streaming/Friends/FriendMessage.cs:20-35) — UnreadRule takes it
+  public enum FriendMessageType { standard, requestAdd, requestFunds, sentFunds, fileHeader, voiceCall, voiceCallEnd, appSession, appSessionEnd, kicked, banned, requestAddSent, reaction }
   public class FriendMessage { public long timestamp; public bool localSender; }
   public class FriendMetaData { public FriendMessage? lastMessage { get; set; } }
   public class Friend { public IXICore.Address walletAddress = new IXICore.Address("A"); public long lastSeenTime; public bool online; public bool approved = true; public FriendType type = FriendType.Normal; public FriendMetaData metaData = new FriendMetaData(); }

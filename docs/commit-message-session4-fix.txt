@@ -1,0 +1,28 @@
+Session 4 fixes: jump highlight, photo tiles, phantom unreads, chips
+
+Walk #1146 (Windows 7 P 1 F, Android 11 P 1 F), fixes #1147-#1149.
+
+- A2: the "Show in chat" band uses the selected-row colour with rounded
+  corners; the ring is a 1 px blue line behind a 1 px gap; reduced
+  motion shows the static band and ring on every message kind.
+- Photo tiles: my sent photo shows its preview while it sends; every
+  photo tile is square from its first frame; photos loaded with a chat
+  wait quietly and fade in (no glyph flash, no resize), also after a
+  desktop chat switch; received tiles get the incoming bubble's edge,
+  mine the outgoing edge; "Click to download" on desktop.
+- Unread count: only incoming messages, missed incoming calls, files,
+  payments and payment requests and app invites count (contact
+  requests keep their own badge, #1150) (new Spixi/Utils/UnreadRule.cs, run in scripts/csh). My own
+  messages, call cards, the connected line, reactions and message
+  updates no longer count.
+- Reactions: a heart on the chat row instead of a number (new
+  Spixi/Meta/SReactionFlags.cs; a new optional addChat field,
+  provisional, BE ask); cleared when the chat opens.
+- Chips: text weight 600 -> 500.
+- Speed: the spare chat is warmed right after a close (quick re-opens
+  no longer open cold); a dev-only close probe.
+- Contact requests (#1150): no chat-row unread; the app icon badge
+  counts a pending request until Accept / Decline, like the Chats tab.
+- Pins: scripts/pins-s4/fix2.mjs, fixr1.mjs, fixr2.mjs; smoke BASELINE
+  OK 5171; C# harness 72.
+- #46 loop CLEAN at r3 (docs/reviews/session-4-fix-*.md).

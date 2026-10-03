@@ -886,6 +886,7 @@ namespace SPIXI
                 {
                     SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
                     SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
+                    SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
                 }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
@@ -1779,6 +1780,10 @@ namespace SPIXI
 
                 friend_message.transferId = transfer.uid;
                 friend_message.filePath = transfer.filePath;
+                /* ★ #1147 (2) A5-SEND (walk #1146 A-A5-SEND FAIL): insertMessage queued the preview while filePath was still the
+                   bare name (localPathOf refuses it, SharedItems.cs:92) — queue it again now that the real path is set, so my
+                   sent photo shows under the scrim WHILE it sends. thumbsSent dedupes the race with any earlier job. */
+                thumbAfterTransfer(transfer.uid);
 
                 IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, selectedChannel);
             }
@@ -2963,6 +2968,7 @@ namespace SPIXI
                     // "zeroing" push re-asserted the very badge it was meant to clear.
                     UIHelpers.setContactStatus(friend.walletAddress, friend.online, 0, "", 0);
                 }
+                clearReactionFlag();   // ★ #1148 (4): the chats-list heart clears where the count clears
                 lastLoadPushed = 0;   // ★ Session I [CDPERF]
                 foreach (FriendMessage message in messages)
                 {
@@ -3706,6 +3712,24 @@ namespace SPIXI
             updateMessageReadStatus(message, channel);
         }
 
+        /* ★★ #1148 (4): the chats-list REACTION HEART (SReactionFlags) clears at the same three sites as the unread count —
+         * the chat loads (loadMessages), a message lands in the open chat (updateMessageReadStatus), the chat comes back to
+         * the foreground (updateMessagesReadStatus). A no-op is a lookup, no write; a real clear re-pushes the chats rows. */
+        private void clearReactionFlag()
+        {
+            try
+            {
+                if (friend != null && SReactionFlags.clear(friend.walletAddress.ToString()))
+                {
+                    UIHelpers.shouldRefreshContacts = true;
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("clearReactionFlag failed: " + e.GetType().Name);
+            }
+        }
+
         private void updateMessageReadStatus(FriendMessage message, int channel)
         {
             if (App.isInForeground && friend.metaData.unreadMessageCount > 0)
@@ -3714,6 +3738,10 @@ namespace SPIXI
                 // TODO make sure to handle edge cases like deleted message
                 friend.metaData.unreadMessageCount = 0;
                 friend.saveMetaData();
+            }
+            if (App.isInForeground)
+            {
+                clearReactionFlag();   // ★ #1148 (4)
             }
             if (!message.read && !message.localSender && App.isInForeground && message.type != FriendMessageType.requestAdd)
             {
@@ -3767,6 +3795,7 @@ namespace SPIXI
                 friend.metaData.unreadMessageCount = 0;
                 friend.saveMetaData();
             }
+            clearReactionFlag();   // ★ #1148 (4)
             lock (messages)
             {
                 int max_msg_count = 0;

@@ -170,6 +170,15 @@
   background: var(--surface-neutral-04);
   color: var(--text-neutral-02);
 }
+/* ★★ #1148 (4) the reaction heart (Damir: "a heart in a neutral or very light blue circle"): the selected-row tint
+   (--surface-select-row, mode-aware) + the action ink — never the count's saturated fill */
+.c-indicator[data-variant="reaction"] {
+  background: var(--surface-select-row);
+  color: var(--icon-action-default);
+  padding-inline: 0;
+}
+.c-chatlist-item__indicators .c-indicator[data-variant="reaction"] { width: 20px; }
+.c-chatlist-item__indicators .c-indicator[data-variant="reaction"] svg { width: 12px; height: 12px; }
 
 /* —— excerpt —— */
 .c-excerpt {

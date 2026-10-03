@@ -8518,7 +8518,18 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
   /* ★ #46 r3 fixes (session 4): CHAT 726 → 727. chat.html 742 634 → 743 457 chars (+823): R3-m1 the shown-picture set +
      the data-seen rule, R3-M1 the on-scrim ring rules, R3-m2 the one Sending rule (inlined bundle + tile CSS). 726 leaves −33,
      727 leaves 991. index.html unchanged. Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 727, INDEX_KB_CEIL = 542;
+  /* ★ #1147 fix batch (session 4): CHAT 727 → 728. chat.html 743 529 → 744 794 chars (+1 265): (1) the A2 radius + the
+     restyle comment, (3) the desktop "Click to download" branch (card + tile), (5) the quiet-tile wait (quietSince + the
+     data-quiet CSS) + the shell's quietKey. 727 leaves −346, 728 leaves 678. index.html unchanged. Stated, not silent (#345). */
+  /* ★ #1148 fix batch part 2 (session 4): INDEX 542 → 543. index.html 554 285 → 555 589 chars (+1 304): the reaction heart
+     (addChat's 13th arg + the sticky-excerpt rule, the chatlist-item indicator + its CSS, the heart-filled icon in the
+     inlined bundle) and the chip weight comment. 542 leaves −581, 543 leaves 443. chat.html 744 794 → 745 145 (+351, the
+     #1148 (2) tile edge + the same bundle), still under 728 (headroom 327). Stated, not silent (#345). */
+  /* ★ #46 r1 fixes of the session-4 fix batch: CHAT 728 → 730. chat.html 745 145 → 746 824 chars (+1 679): B-m1/B-m3 the gap
+     ring + --jump-keep and the lifted reduced-motion selectors + their comment, B-M2 the square tile (PHOTO_TILE_PX,
+     setMediaSize) and B-m4 the history-only quiet key (inlined bundle + shell). 728 leaves −1 352, 729 −328, 730 leaves 696.
+     index.html unchanged (555 589). Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 730, INDEX_KB_CEIL = 543;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -11290,8 +11301,9 @@ console.log('#944 — the group / bot-room excerpt names its sender ("George: hi
   // C# half, by property (comments stripped — #771).
   const hp = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
   const pushes = hp.split('"addChat"').slice(1).map((t) => t.slice(0, t.indexOf(';')));
-  ok(pushes.length === 2 && pushes.every((t) => /,\s*excerpt_?[sS]enders?(\[[^\]]+\])?\s*\)\s*$/.test(t)),
-    '★ #944: EVERY addChat push (both — derived by walking the file) ends with the excerpt sender, appended LAST (older shells ignore it)');
+  /* ★ #1148 (4) re-base: the reaction heart is appended AFTER the sender (13th, LAST) — the sender stays 12th */
+  ok(pushes.length === 2 && pushes.every((t) => /,\s*excerpt_?[sS]enders?(\[[^\]]+\])?\s*,\s*SReactionFlags\.has\([^)]*\)\.ToString\(\)\s*\)\s*$/.test(t)),
+    '★ #944: EVERY addChat push (both — derived by walking the file) carries the excerpt sender 12th, followed only by #1148\'s reaction heart (LAST; older shells ignore the tail)');
   /* ★ #969 (Damir, dial (d)) RE-BASED — the gate now names an OWN room tail too ("You: hi").
      Shape (proven by text below): an OUTER `if (isRoomRow && <kind exclusions>)` whose block is
      exactly `if (!lastmsg.localSender) { excerptSender = resolveExcerptSender(friend, lastmsg); }
@@ -13068,16 +13080,17 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
   for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
     /* ★ A2 re-base (#1132 (4)): the ring is 1 px in its own keyframes (chat-jump-ring); the WASH now paints the row BAND only */
     const kf = txt.slice(txt.indexOf('@keyframes chat-jump-ring'), txt.indexOf('@keyframes chat-jump-ring') + 300);
-    ok(/box-shadow: 0 0 0 1px var\(--surface-warning\);/.test(kf) && !/surface-warning-inverse/.test(kf),
-      '★ N52 (' + label + '): the pulse ring is the SOLID warning role — the shipped ring was the WASH tone (orange-100/orange-900), near-zero contrast on the canvas in both themes, which is why the pulse never read on device');
+    /* ★ #1147 (1) re-base: Damir's walk (#1146 W-A2) — the ring is 1 px of the BLUE action outline (the solid role still: never the wash) */
+    ok(/box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\),/.test(kf) && !/surface-warning/.test(kf),   /* #46 r1 B-m1 (session 4 fix): behind a 1 px band-coloured gap */
+      '★ N52 (' + label + '): the pulse ring is a SOLID role (#1147: --outline-action-default, blue) — the shipped ring was the WASH tone (orange-100/orange-900), near-zero contrast on the canvas in both themes, which is why the pulse never read on device');
   }
   ok(/const live = rows\.get\(id\);/.test(chatNc)
     && /if \(mentionRowVisible\(live\) \|\| performance\.now\(\) - pulseFrom > 1500\)/.test(chatNc)
     && /requestAnimationFrame\(pulseWhenVisible\);/.test(chatNc),
     '★ N52: the pulse starts when the target row is VISIBLE (rAF poll, 1.5s cap) and RE-BINDS through the id each frame (loop B-4: renderLogNow rebuilds every row — a delivery tick mid-scroll silently killed a closed-over node\'s pulse)');
   for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
-    const rm = txt.slice(txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]'), txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]') + 560);   /* G-4 re-base: the selector now names every bubble kind · A2 re-base: + the band rule */
-    ok(/animation: none; box-shadow: 0 0 0 1px var\(--surface-warning\);/.test(rm),
+    const rm = txt.slice(txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]'), txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]') + 900);   /* G-4 re-base: the selector now names every bubble kind · A2 re-base: + the band rule */
+    ok(/animation: none; box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\),/.test(rm),   /* #1147 (1) re-base · #46 r1 B-m1 gap + ring (the WINNING value: pins-s4/fixr1.mjs) */
       'N52 (' + label + ', loop B-3): reduced motion gets a STATIC held ring — "animation: none" alone meant the jump highlighted NOTHING for exactly the users who asked for less motion');
   }
 
@@ -25805,9 +25818,9 @@ console.log('Session I ③: the premium pass token batch');
   /* ★ Session J re-base (Damir on his Seed-50 screenshot: "semibold is too strong for read … could be used for unread"): names MEDIUM at rest, SEMIBOLD unread — one notch down each; the Session I pair (semibold / bold) is the reversal in the token comment. */
   ok(val('row-name-size') === '17px' && val('row-name-weight') === 'var(--font-weight-medium, 500)' && val('row-name-weight-unread') === 'var(--font-weight-semibold)' && val('row-pad-y') === '14px'   /* ★ #1063 (Damir, beside WhatsApp): 11 → 14 */
      && /:root:not\(\[data-desktop\]\) \.c-chats-header__search \{ padding-block-end: var\(--spacing-16\); \}/.test(rdF('src/styles/components/chats-header.css')) && /:root:not\(\[data-desktop\]\) \.c-chats-header__filters \{ padding-block-end: var\(--spacing-16\); \}/.test(rdF('src/styles/components/chats-header.css'))
-     && val('tx-name-size') === '15px' && val('tx-name-weight') === 'var(--font-weight-semibold)' && val('chip-weight') === 'var(--font-weight-semibold)'
+     && val('tx-name-size') === '15px' && val('tx-name-weight') === 'var(--font-weight-semibold)' && val('chip-weight') === 'var(--font-weight-medium)' /* ★ #1148 (1) re-base: chips 600 → 500 */
      && /--size-avatar-48: 48px;/.test(light) && /createAvatar\(\{ src: avatar, name: hasNick \? name : '', address, size: 48/.test(rdF('src/components/chatlist-item.js')),
-    '★★ 2 = "current avatar and everything else from A" → Session J: avatar stays 48 · names 17 MEDIUM / SEMIBOLD unread (Damir 2026-09-02; was semibold / bold) · row pad 11 (pitch 76 = TG\'s 191 px) · tx names 15 semibold · chips semibold');
+    '★★ 2 = "current avatar and everything else from A" → Session J: avatar stays 48 · names 17 MEDIUM / SEMIBOLD unread (Damir 2026-09-02; was semibold / bold) · row pad 11 (pitch 76 = TG\'s 191 px) · tx names 15 semibold · chips MEDIUM (#1148 (1), was semibold #735 P.S.)');
   ok(/--row-name-size: var\(--font-size-body-lg\);/.test(tok.slice(tok.indexOf(':root[data-desktop] {'))) && /--row-pad-y: var\(--spacing-12\);/.test(tok.slice(tok.indexOf(':root[data-desktop] {'))),
     '★ 2: desktop keeps the #227 sizes (names 14, pad 12) and takes only the weights — the desktop block re-points the size tokens');
   ok(/font-size: var\(--row-name-size\);/.test(rdF('src/styles/components/chatlist-item.css')) && /font-weight: var\(--row-name-weight\);/.test(rdF('src/styles/components/chatlist-item.css'))
@@ -28672,9 +28685,13 @@ console.log('★★ Session P — the pre-warm + the batch transport');
        test and that the post is still a delayed main-thread post, so neither number can drift
        silently while the experiment runs. It collapses back to a single literal on the verdict. */
     const closeDelay = parseInt((hpP.match(/private const int CHAT_SPARE_WARM_AFTER_CLOSE_MS = (\d+);/) || [])[1] || '0', 10);
-    ok((closeDelay === 350 || closeDelay === 1200)
-      && /Task\.Delay\(delayMs\)\.ContinueWith\(_ => MainThread\.BeginInvokeOnMainThread\(warmChatSpareNow\)\);/.test(hpP),
-      '★ Session P L1·10: the warm is POSTED to the main thread after a delay of ' + closeDelay + ' ms (350 shipped, 1200 = the 2026-09-06 experiment) — "idle after the close settles", never synchronously on the close (#780\'s one warning is jank moved onto the chats list)');
+    /* ★ #1147 (4) re-base: 0 ms (Damir "warm at once"; walk #1146: 12 / 37 Android opens found NO spare inside the 350 ms) —
+       the warm stays POSTED (pool continuation → BeginInvokeOnMainThread), so it runs after the close turn, never inside it */
+    ok(closeDelay === 0
+      && /private const int CHAT_SPARE_WARM_AFTER_CLOSE_MS = 0;/.test(hpP)
+      && /Task\.Delay\(delayMs\)\.ContinueWith\(_ => MainThread\.BeginInvokeOnMainThread\(warmChatSpareNow\)\);/.test(hpP)
+      && !/TaskContinuationOptions\.ExecuteSynchronously/.test(csSliceP(hpP, 'private void scheduleChatSpareWarm(int delayMs)').body || ''),
+      '★ Session P L1·10 → #1147 (4): the warm after a close is POSTED to the main thread with a delay of ' + closeDelay + ' ms (0 = "warm at once", a quick re-open claims the warming spare) — a pool continuation then a main-thread post, never synchronously on the close (#780\'s one warning is jank moved onto the chats list; chats-after-close watches it)');
     /* ★ reads BOTH forms on purpose (#771): the CODE claims are asserted against the
        stripCode'd `hpP`, so a comment can never satisfy them, and the PRICE claims against
        the RAW file, because the price lives in a comment and stripCode deletes it. */
@@ -36629,11 +36646,13 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
   /* ★ #946 re-based (reader E-2): #944 appended the sender, so the kind is no longer LAST.
      Positions, not a comma count: the kind is argument 11 and the sender argument 12 (LAST). */
   const ch6Parts = addChatSites.map((a) => a.split(',').map((x) => x.trim()));
-  ok(addChatSites.length === 2 && ch6Parts.every((p) => p.length === 12
+  /* ★ #1148 (4) re-base: + the reaction heart as the 13th, LAST */
+  ok(addChatSites.length === 2 && ch6Parts.every((p) => p.length === 13
        && /^(excerpt_kinds\[helper_msg\.walletAddress\]|excerptKind)$/.test(p[10])
-       && /^(excerpt_senders\[helper_msg\.walletAddress\]|excerptSender)$/.test(p[11])),
-    '★ CH6 ②: BOTH addChat pushes (the flush and the lone updateChat) carry the kind as the 11th argument after the command and #944\'s sender as the 12th, LAST (' + addChatSites.length + ' sites — an older shell ignores the tail)');
-  ok(/addChat\(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender\)/.test(homeAD)
+       && /^(excerpt_senders\[helper_msg\.walletAddress\]|excerptSender)$/.test(p[11])
+       && /^SReactionFlags\.has\((helper_msg|fmh)\.walletAddress\)\.ToString\(\)$/.test(p[12])),
+    '★ CH6 ②: BOTH addChat pushes (the flush and the lone updateChat) carry the kind as the 11th argument after the command, #944\'s sender as the 12th and #1148\'s reaction heart 13th, LAST (' + addChatSites.length + ' sites — an older shell ignores the tail)');
+  ok(/addChat\(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender, reactionDot\)/.test(homeAD)
      && /function excerptFromPush\(raw, statusType, name, excerptKind\)/.test(homeAD)
      && !/function excerptFromRaw|canonEntry\(|#sl-carriers|sl-ex-/.test(homeAD)
      && !/id="sl-ex-/.test(rdAD('src/shells/home.html')),
@@ -38463,7 +38482,7 @@ console.log('★★ #1028+ — the overnight finalization');
     /* —— #1061 · #1064 (Damir 2026-09-29) —— */
     {
       const tk66 = stripCssComments(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8'));
-      ok(/:root\[data-theme='dark'\]\[data-chat-ground='gradient'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='gradient'\] \{\s*--gradient-chat: linear-gradient\(180deg, #151B36 0%, #11142A 45%, var\(--chat-canvas-base\) 100%\), var\(--chat-canvas-base\);\s*\}/.test(tk66)
+      ok(/:root\[data-theme='dark'\]\[data-chat-ground='gradient'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='gradient'\] \{\s*--gradient-chat: linear-gradient\(180deg, #151B36 0%, #11142A 45%, var\(--chat-canvas-base\) 100%\), var\(--chat-canvas-base\);\s*--surface-select-row-gap: #273259;\s*\}/.test(tk66)   /* #46 r2 R2-m2: + its own ring gap (computed: pins-s4/fixr2.mjs) */
          && /:root\[data-theme='dark'\] \.c-settings-appearance__dot-face\[data-chat-ground='gradient'\] \{\s*background: linear-gradient\(180deg, #1C2448 0%, #151B36 100%\);/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8')))
          && /:root\[data-theme='dark'\] \[data-chat-ground='flat'\] \{\s*--gradient-chat: var\(--chat-canvas-base\);\s*\}/.test(tk66)
          && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\]/.test(tk66)
@@ -41433,10 +41452,10 @@ console.log('#1101–#1107 — session 1');
     const kinds = ['.c-bubble', '.c-fbubble', '.c-mbubble', '.c-tcard'];
     /* ★ A2 re-base (#1132 (4)): 3 s, the 1 px ring keyframes; reduced motion = the band rule, then the static ring rule */
     const anim = (built.match(/([^{}]*)\{ animation: chat-jump-ring var\(--duration-highlight\) var\(--easing-standard\) var\(--jump-delay, 0ms\) 1; \}/) || [])[1] || '';
-    const rm = (built.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.c-bubble-row\[data-mention-pulse\] \{[^{}]*\}\s*([^{}]*)\{ animation: none; box-shadow: 0 0 0 1px var\(--surface-warning\); \}/) || [])[1] || '';
+    const rm = (built.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.c-bubble-row\[data-mention-pulse\] \{[^{}]*\}\s*([^{}]*)\{ animation: none; box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\), var\(--jump-keep, 0 0 0 0 transparent\); \}/) || [])[1] || '';   /* #1147 (1) re-base · #46 r1 B-m1/B-M1 re-base: gap + ring, each kind lifted by [data-direction] */
     const r = {
       animated: kinds.every((k) => anim.includes('.c-bubble-row[data-mention-pulse] ' + k)),
-      reduced: kinds.every((k) => rm.includes('.c-bubble-row[data-mention-pulse] ' + k)),
+      reduced: kinds.every((k) => rm.includes('.c-bubble-row[data-mention-pulse][data-direction] ' + k)),
       noIs: !/data-mention-pulse\] :is\(/.test(built),   /* the conservative-CSS baseline */
       /* the jump still pulses through the shared jumpToRow (the attribute the selector keys on) */
       jump: /live\.setAttribute\('data-mention-pulse', ''\);/.test(built) && /const tryJump = \(\) => key && jumpToRow\(key, null, true\);/.test(built),
@@ -42004,7 +42023,7 @@ console.log('#1101–#1107 — session 1');
   }
 /* ==== SESSION 3 PINS END ==== */
 /* ==== SESSION 4 PINS (#1132 / #1133) — one module per build agent, fixed order ==== */
-for (const mod of ['cs', 'nav', 'chat', 'main']) {
+for (const mod of ['cs', 'nav', 'chat', 'main', 'fix2', 'fixr1', 'fixr2']) {   // fix2 = #1148 (session 4 fix batch part 2) · fixr1 / fixr2 = its #46 r1 / r2 fixes
   await (await import(new URL('./pins-s4/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 }

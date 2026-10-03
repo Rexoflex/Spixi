@@ -38,9 +38,18 @@ export function createStatusIcon(status) {
 /* —— indicator (§4, #108): count · count-muted · muted (bell-off) · mention
    (plain `at` GLYPH, action ink, NO circle — a distinct shape from numeric
    count circles, Damir 2026-07-03; can coexist with a count) —— */
-export function createIndicator({ count = 0, mention = false, muted = false, strings = getStrings() } = {}) {
+export function createIndicator({ count = 0, mention = false, muted = false, reaction = false, strings = getStrings() } = {}) {
   const el = document.createElement('span');
   el.className = 'c-indicator';
+  /* ★★ #1148 (4) (Damir: "not a number but a heart"): someone reacted to MY message since I opened the chat (C#
+     SReactionFlags, addChat's 13th arg) — never a number, never in the Unread chip or the nav badge */
+  if (reaction) {
+    el.dataset.variant = 'reaction';
+    el.append(icon('heart-filled', { size: 12 }));
+    el.setAttribute('aria-label', strings.newReaction || 'New reaction');
+    el.setAttribute('role', 'img');
+    return el;
+  }
   if (mention) {
     el.dataset.variant = 'mention';
     el.append(icon('at', { size: 14 }));
@@ -60,10 +69,12 @@ export function createIndicator({ count = 0, mention = false, muted = false, str
 /** Indicator set for row2: muted chats show BOTH the (muted) count/@ AND the
  *  bell-off glyph (Damir review 2026-07-02). #108: mention and count COEXIST
  *  (distinct shapes — @ glyph + count circle). [] when nothing to show. */
-export function createIndicators({ count = 0, mention = false, muted = false, strings = getStrings() } = {}) {
+/* ★ #1148 (4): the heart sits where the COUNT sits, only when there is NO count (with a count the count wins) */
+export function createIndicators({ count = 0, mention = false, muted = false, reaction = false, strings = getStrings() } = {}) {
   const out = [];
   if (mention) out.push(createIndicator({ mention: true, strings }));
   if (count > 0) out.push(createIndicator({ count, muted, strings }));
+  else if (reaction) out.push(createIndicator({ reaction: true, strings }));
   if (muted) out.push(createIndicator({ muted: true, strings }));
   return out;
 }
@@ -164,6 +175,7 @@ export function createChatItem({
   name, address = '', avatar = null, online = false,
   timestamp, status = null, pinned = false,
   unread = 0, mention = false, muted = false,
+  reaction = false,   // ★ #1148 (4): the reaction heart (home.html addChat 13th arg)
   excerpt = { type: 'text', text: '' },
   // N1 (#364): rows carry `type` ('group' | '1to1'; home.html CH1 kind) — it was
   // silently dropped before. Groups/bots now wear the group-glyph avatar.
@@ -217,7 +229,7 @@ export function createChatItem({
     row1.append(time);
   }
   right.append(row1);
-  const inds = createIndicators({ count: unread, mention, muted, strings });
+  const inds = createIndicators({ count: unread, mention, muted, reaction, strings });
   if (inds.length) {
     const row2 = document.createElement('span');
     row2.className = 'c-chatlist-item__indicators';

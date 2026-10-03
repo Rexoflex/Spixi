@@ -666,6 +666,7 @@
   "groundBrandGradient": "Sfumatura del brand",
   "patternStyleContours": "Curve di livello",
   "tapToDownload": "Tocca per scaricare",
+  "clickToDownload": "Fai clic per scaricare",
   "viewOnIxiScope": "Visualizza su ixiscope",
   "missingTxCheckingHead": "Controllo della blockchain",
   "missingTxOlder": "Le transazioni precedenti al blocco iniziale di Spixi non sono elencate qui. ixiscope mostra tutta la cronologia.",
@@ -727,5 +728,6 @@
   "sharedCopyFailed": "Impossibile copiare",
   "copyLink": "Copia link",
   "photoPreviewsTitle": "Mostra anteprime delle foto nelle chat",
-  "photoPreviewsHint": "Le foto che hai inviato o scaricato appaiono come immagine nella chat. Disattivato: ogni foto resta una scheda file."
+  "photoPreviewsHint": "Le foto che hai inviato o scaricato appaiono come immagine nella chat. Disattivato: ogni foto resta una scheda file.",
+  "newReaction": "Nuova reazione"
 }

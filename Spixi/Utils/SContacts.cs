@@ -113,6 +113,7 @@ namespace SPIXI
             else
             {
                 SChatPrefs.setFavorite(group.walletAddress?.ToString(), false);   // CH4: the preference leaves with the record
+                SReactionFlags.clear(group.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the reaction heart leaves with the group
             }
             UIHelpers.shouldRefreshContacts = true;
             return removed;
@@ -163,6 +164,7 @@ namespace SPIXI
                 UIHelpers.shouldRefreshContacts = true;
                 SChatPrefs.setFavorite(friend.walletAddress?.ToString(), false);   // CH4: the preference leaves with the record
                 SSightingStore.forget(friend.walletAddress?.ToString());   // ★ G-2: the kept sighting leaves with the contact
+                SReactionFlags.clear(friend.walletAddress?.ToString());    // ★ #1148 (4): the reaction heart too
                 return "ok";
             }
             blockers = sharedGroups(friend);
@@ -431,6 +433,7 @@ namespace SPIXI
             {
                 return false;
             }
+            SReactionFlags.clear(friend.walletAddress?.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
             UIHelpers.shouldRefreshContacts = true;
             // iOS-24 (#283): an OPEN conversation must repaint the emptied history now
             var chat_page = Utils.getChatPage(friend);

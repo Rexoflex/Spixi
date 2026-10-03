@@ -284,4 +284,30 @@ export default async function (h) {
       && !/using Microsoft\.Maui|using IXICore/.test(rules),
       '★ S4 (#1132): scripts/csh compiles the REAL Spixi/Utils/OpenPerfRules.cs (no MAUI, no Core) and OpenPerfRulesTests.cs calls every one of its ' + fns.length + ' rules (' + fns.join(' · ') + '; untested: ' + (untested.join(', ') || 'none') + ') — run `node scripts/run-csh.mjs`');
   }
+
+  /* ══ #1147 (6) close probe (dev-only [P1], SOURCE pin — closeOverlay is MAUI-bound; the grammar is executed in scripts/csh:
+     close_probe_lines_pass_the_grammar). Walk #1146: Android chat close 159 / 435 ms with a 16 ms wait — where is the time? ══ */
+  {
+    const step = body(scp, 'private static void p1CloseStep(string kind, string step, long t0)');
+    const co = body(scp, 'private static void closeOverlay(PreloadOp op, bool slideOut = false)');
+    const iWait = co.indexOf('await Task.Delay(OpenPerfRules.closeHideWaitMs(');
+    const iPosted = co.indexOf('p1CloseStep(p1Kind, "posted", p1T0);');
+    const iRemove = co.indexOf('op.hostGrid.Children.Remove(op.stage);');
+    const iRemoved = co.indexOf('p1CloseStep(p1Kind, "removed", p1T0);');
+    const iDone = co.indexOf('p1CloseDone(p1Kind, p1T0);', iRemove);
+    const tests = stripCode(rd('scripts/csh/OpenPerfRulesTests.cs'));
+    const r = {
+      /* fixed words + an integer only, nothing when the dev set is off */
+      line: /^private static void p1CloseStep\(string kind, string step, long t0\)\s*\{\s*if \(!P1Perf\.enabled\)\s*\{\s*return;\s*\}\s*P1Perf\.line\("close " \+ kind \+ " " \+ step \+ " ms=" \+ P1Perf\.msSince\(t0\)\);\s*\}$/.test(step),
+      /* every call passes a lower-case literal step and the closeOverlay t0 */
+      literals: count(scp, /p1CloseStep\(/g) === 3 && count(scp, /p1CloseStep\(p1Kind, "(posted|removed)", p1T0\);/g) === 2,
+      /* posted = right after the posted hide wait; removed = right after the Remove; both before done, from the SAME t0 */
+      order: iWait > 0 && iWait < iPosted && iPosted < iRemove && iRemove < iRemoved && iRemoved < iDone,
+      adjacent: /DevicePlatform\.Android\)\);\s*p1CloseStep\(p1Kind, "posted", p1T0\);\s*op\.hostGrid\.Children\.Remove\(op\.stage\);\s*p1CloseStep\(p1Kind, "removed", p1T0\);\s*p1CloseDone\(p1Kind, p1T0\);/.test(co),
+      t0: /^private static void closeOverlay\(PreloadOp op, bool slideOut = false\)\s*\{\s*long p1T0 = P1Perf\.now\(\);/.test(co),
+      grammar: /public void close_probe_lines_pass_the_grammar\(\)/.test(tests),
+    };
+    ok(Object.values(r).every(Boolean),
+      '★ #1147 (6) close probe (dev-only [P1], retired with the set by the P1 grep): closeOverlay stamps `[P1] close <page> posted ms=` right after the posted hide wait and `[P1] close <page> removed ms=` right after the Remove, from the SAME t0 as `done` — fixed words + an integer (grammar executed in scripts/csh) — ' + JSON.stringify(r));
+  }
 }

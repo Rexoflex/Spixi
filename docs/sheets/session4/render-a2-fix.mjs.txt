@@ -1,0 +1,51 @@
+import { createRequire } from 'node:module';
+const require = createRequire('/opt/node22/lib/node_modules/');
+const { chromium } = require('playwright');
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const UA = 'Mozilla/5.0 (Linux; Android 14; moto g84) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36';
+const f = '/home/claude/Spixi/Spixi/Resources/Raw/html/chat.html';
+const facts = {};
+for (const theme of ['light', 'dark']) {
+  const ctx = await browser.newContext({ viewport: { width: 412, height: 760 }, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: 'reduce', userAgent: UA });
+  const page = await ctx.newPage();
+  await page.goto('file://' + f + '?mobile=1');
+  await page.waitForFunction(() => typeof window.executeUiCommand === 'function');
+  await page.waitForTimeout(600);
+  await page.evaluate((theme) => {
+    const p = (fn, ...a) => window.executeUiCommand(window[fn], ...a.map((v) => btoa(unescape(encodeURIComponent(String(v))))));
+    const T = Math.floor(Date.now() / 1000) - 3600;
+    p('setTheme', theme);
+    p('onChatScreenReady', 'addrPeer');
+    p('setChatMode', '0', '0', '', 'False');
+    p('setPhotoPreviews', 'True');
+    p('clearMessages', 'false');
+    p('addThem', 'r1', 'addrPeer', 'Bob', '', 'Did you get the report I sent this morning?', String(T));
+    p('addMe', 's1', '', 'Me', '', 'Yes — reading it now, thanks!', String(T + 60), 'True', 'True', 'True', 'False', 'False');
+    p('addFile', 'f1', 'addrPeer', 'Bob', '', 'ff1', 'Quarterly-report.pdf', String(T + 120), 'False', 'False', 'False', '100', 'True', 'False', 'True');
+    p('addFile', 'f2', 'addrPeer', 'Bob', '', 'ff2', 'IMG_2041.jpg', String(T + 150), 'False', 'False', 'False', '0', 'False', 'False', 'True');
+    p('addThem', 'r2', 'addrPeer', 'Bob', '', 'Not lit (for contrast)', String(T + 180));
+    if (typeof window.messagesDone === 'function') p('messagesDone');
+    p('onChatScreenLoaded');
+  }, theme);
+  await page.waitForTimeout(500);
+  const lit = await page.evaluate(() => {
+    const ids = ['r1', 's1', 'f1', 'f2'];
+    const out = {};
+    for (const id of ids) {
+      const row = document.querySelector('#messages [data-msgid="' + id + '"]');
+      if (!row) { out[id] = null; continue; }
+      row.setAttribute('data-mention-pulse', '');
+      const cs = getComputedStyle(row);
+      const bub = row.querySelector('.c-bubble, .c-fbubble, .c-mbubble, .c-tcard');
+      out[id] = { bg: cs.backgroundColor, radius: cs.borderRadius, pad: cs.paddingTop + ' ' + cs.paddingRight + ' ' + cs.paddingBottom + ' ' + cs.paddingLeft, ring: bub ? getComputedStyle(bub).boxShadow : null };
+    }
+    out.theme = document.documentElement.getAttribute('data-theme');
+    return out;
+  });
+  facts[theme] = lit;
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: `/home/claude/Spixi/docs/sheets/session4/A2-fix-${theme}.png` });
+  await ctx.close();
+}
+console.log(JSON.stringify(facts, null, 1));
+await browser.close();

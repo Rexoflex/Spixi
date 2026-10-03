@@ -3652,7 +3652,7 @@
     // render here; (2) a LONE call from updateChat on a message event — upsert
     // patches the existing row (no duplicate) + schedules a coalesced render so
     // the new excerpt/timestamp/unread surface immediately.
-    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender) {
+    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender, reactionDot) {
       // Q5: remember group/bot addresses (CH1 kind, 9th arg) for the contacts-
       // directory filter — BEFORE the tombstone gate, so a session-deleted group
       // chat still filters out of the directory takeover.
@@ -3721,6 +3721,10 @@
         // the pushed excerpt kind (CH6, 11th arg) + draft override (CH7); a pending draft wins.
         excerpt: excerptFor(wallet, excerpt_msg, type, from, excerptKind, excerptSender),   // #720: the name reaches the canon · #944: the tail's sender (12th arg)
         unread: n,
+        /* ★★ #1148 (4): the REACTION HEART (13th arg, C#'s SReactionFlags — someone reacted to MY message since I last
+           opened the chat). Always set, so a re-flush after the chat opened CLEARS it; an older exe sends nothing → false.
+           Display only: chatMatchesFilter('unread') / chatsUnreadTotal / the chip counts read `unread` + `mention`, never this. */
+        reaction: reactionDot === 'True' || reactionDot === 'true',
         // clear any leftover outgoing tick; re-set below when unread === 0
         status: undefined,
       };
@@ -3769,7 +3773,8 @@
       // read chats / newer real messages clear it, drafts keep priority.
       const rx = reactionExcerpts.get(wallet);
       if (rx) {
-        if (n === 0 || (t && t > rx.ts)) reactionExcerpts.delete(wallet);
+        /* #1148 (4): a reaction no longer raises the count (C-05), so "read" = no count AND no heart — the line stays while the heart does */
+        if ((n === 0 && !chat.reaction) || (t && t > rx.ts)) reactionExcerpts.delete(wallet);
         else if (chat.excerpt.type !== 'draft' && chat.excerpt.type !== 'typing') chat.excerpt = rx.excerpt;   // ★ B12: a live typing push also outranks the sticky reaction
       }
       // CH2: while an address is in its ≥3s handshake hold, keep the row in the
@@ -3849,7 +3854,8 @@
       // reports the chat read (a full re-flush would clear it too, later).
       // CH8: likewise drop any sticky reaction excerpt on read, so the live-tick
       // read path clears it now instead of lingering until the next structural flush.
-      if (c.unread === 0) { c.mention = false; reactionExcerpts.delete(address); }
+      // #1148 (4): …unless the reaction HEART is up — a reaction no longer raises the count, so a presence tick's 0 is not "read"
+      if (c.unread === 0) { c.mention = false; if (!c.reaction) reactionExcerpts.delete(address); }
       // A live status tick is normally excerpt="" (pure online/unread refresh — every C#
       // caller passes ""); when it does carry text it has no kind, so it renders as text
       // through the same draft-first path as addChat.

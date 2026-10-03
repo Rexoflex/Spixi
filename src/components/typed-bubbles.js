@@ -809,7 +809,8 @@ export function createFileBubble({
   const pctOf = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0))) + '%';
   mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
     : meta ? meta
-    : state === 'offer' ? (strings.tapToDownload || 'Tap to download')
+    /* ★ #1147 (3): a mouse clicks — :root[data-desktop] says "Click to download"; touch keeps "Tap" */
+    : state === 'offer' ? (document.documentElement.hasAttribute('data-desktop') ? (strings.clickToDownload || 'Click to download') : (strings.tapToDownload || 'Tap to download'))
     : state === 'progress' ? pctOf(progress)
     : '';
   if (!meta && state === 'offer') mt.dataset.cta = '';
@@ -907,6 +908,31 @@ export function isPhotoFileName(name) {
 const FILE_RING_R = 32;                              // the ring AROUND the 40 × 44 document tile (clear of its corners)
 const FILE_RING_LEN = 2 * Math.PI * FILE_RING_R;
 const fileTileCtl = new WeakMap();                   // tile el → { name, strings, direction } (the in-place final flip rebuilds its face)
+/* ★ #1147 (5) photo fade on chat open (Damir, walk #1146: "photos FLICKER in" — the glyph face first, then the swap when
+   setFileThumb lands): a LOCAL photo tile (tileShowsPicture) still waiting for its preview stands QUIET — the tile ground,
+   no face (data-quiet) — and the picture fades in over it (the first-show fade); no preview within PHOTO_QUIET_MS → the
+   face fades in instead (no instant pop). An offered / downloading received tile never waits. The wait is per MESSAGE
+   (quietKey = the shell's message id), so a re-render inside the window does not restart it; bounded, oldest out.
+   #46 r1 B-m4: ONLY a tile the shell built from a history load waits (it passes quietKey); a live insert (my just-sent
+   photo, its ring) has no key and never waits. */
+const PHOTO_QUIET_MS = 600;
+const quietSince = new Map();   // quietKey → the first time a quiet tile was built for it (performance.now())
+const QUIET_KEEP = 256;
+function quietLeft(key) {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (key == null || key === '') return 0;   // #46 r1 B-m4: no key = a live insert → no quiet wait
+  const k = String(key);
+  if (!quietSince.has(k)) {
+    quietSince.set(k, now);
+    while (quietSince.size > QUIET_KEEP) quietSince.delete(quietSince.keys().next().value);
+  }
+  return PHOTO_QUIET_MS - (now - quietSince.get(k));
+}
+/** #46 r2 R2-MAJ1: the quiet windows are per PEER — the shell calls this in onChatScreenReady. Desktop reuses one chat
+ *  document across peers: A → B → A kept A's spent windows, so the reopened A showed the glyph, then swapped (#1147 (5)). */
+export function resetPhotoQuiet() {
+  quietSince.clear();
+}
 const pctText = (p) => Math.max(0, Math.min(100, Math.round(Number(p) || 0))) + '%';
 /* #46 r1 B-N1: MY transfer is SENDING, not "Downloading" (the tick's own word, status-sending) */
 const tileProgressWord = (direction, strings) => (direction === 'sent'
@@ -918,6 +944,11 @@ export function tileShowsPicture(state, direction) {
   return state === 'complete' || (direction === 'sent' && state === 'progress');
 }
 const tileAria = fileAria;   // #46 r3 R3-m2: the card's rule, one source
+/* #46 r1 B-M2: C#'s chat preview is a SQUARE centre crop (SThumbnail.makeJpeg on Android / iOS / Mac / Windows, called
+   with SingleChatPage.ChatThumbPx = 320), so a photo-file tile reserves that square from its FIRST frame (the quiet
+   ground, an offer and a download included — #46 r2 R2-m1) and keeps it: the preview landing never resizes it (it was 4:3 → 1:1). The picture covers it
+   (media-bubble.css object-fit: cover — a non-square fallback JPEG is centre-cropped, never letterboxed). */
+const PHOTO_TILE_PX = 320;
 
 /** #46 r1 B-6: the pixel size of a base64 JPEG data: URI from its SOFn header (no decode), or null. C#'s preview is
  *  ≤ 64 KB; only its head is decoded (#46 r2 R2-N3). The tile is sized from it BEFORE the picture lands, so a
@@ -1002,7 +1033,8 @@ function fileFace(state, name, progress, strings, direction) {
     line.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';   // Damir's note: ON the tile
   } else {
     line.className = 'c-mbubble__cta';
-    line.textContent = state === 'offer' ? (strings.tapToDownload || 'Tap to download')
+    /* ★ #1147 (3): desktop (a mouse) says "Click to download"; touch keeps "Tap" */
+    line.textContent = state === 'offer' ? (document.documentElement.hasAttribute('data-desktop') ? (strings.clickToDownload || 'Click to download') : (strings.tapToDownload || 'Tap to download'))
       : state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
       : (strings.openFile || 'Open file');
   }
@@ -1033,21 +1065,41 @@ export function createImageFileBubble({
   onAccept, onOpen, onRetry, onCancel,
   onLoad,
   onThumbError,        // #46 r1 B-1: the preview failed to decode → the tile dropped it; the shell forgets it too
+  quietKey = null,     // ★ #1147 (5): the message id — the quiet wait is per message, not per re-built tile
   strings = getStrings(),
 } = {}) {
   const pic = tileShowsPicture(state, direction) && thumb ? String(thumb) : '';   // #46 r2 R2-1
+  let tileEl = null;
+  /* #1147 (5): the face comes back (it fades in — the --duration-200 opacity transition) */
+  const unquiet = () => { if (tileEl) delete tileEl.dataset.quiet; };
   const row = createMediaBubble({
-    direction, kind: 'image', src: pic, alt: name, autoload: !!pic, timestamp, gutter, onLoad, strings,
+    direction, kind: 'image', src: pic, alt: name, autoload: !!pic, timestamp, gutter, strings,
+    /* #46 r1 B-M2 · #46 r2 R2-m1: EVERY photo-file tile (offered, downloading, failed, complete, mine sending) is square
+       from its first frame — a download that completes in place no longer resizes (294 × 220 → 294 × 294) */
+    width: PHOTO_TILE_PX, height: PHOTO_TILE_PX,   // fixed: no refit on the JPEG / on load / at the final flip
+    /* #1147 (5): a picture on MY sending tile carries its face (ring, %) on a scrim — that face fades in with it */
+    onLoad: () => { if (tileEl && tileEl.dataset.file === 'progress') unquiet(); if (onLoad) onLoad(); },
     sizeHint: pic ? jpegSize(pic) : null,   // #46 r1 B-6: sized from the JPEG before it lands (no jump on a re-render)
     /* #46 r1 B-1: a preview that will not decode is DROPPED — the tile goes back to its file face and a tap opens the
-       FILE (the CTA says "Open file"); no media retry loop on a bad picture */
-    onSrcError: () => { if (onThumbError) { try { onThumbError(); } catch (_) {} } },
+       FILE (the CTA says "Open file"); no media retry loop on a bad picture. #1147 (5): its face comes back. */
+    onSrcError: () => { unquiet(); if (onThumbError) { try { onThumbError(); } catch (_) {} } },
     instantIfShown: true,   // #46 r3 R3-m1: a re-render does not re-fade a picture this document already showed
     ariaFor: (s, tile) => fileTileAria(tile),
   });
   const el = row.querySelector('.c-mbubble');
+  tileEl = el;
   el.dataset.file = state;
   el.dataset.ariaBase = tileAria(state, name, strings, direction);
+  /* #1147 (5): a LOCAL photo tile not showing its picture yet waits QUIET; a tile the r3 "seen" path showed at once
+     (loaded now) never does. After the wait with no picture (still idle), the face fades in; a picture DECODING then
+     keeps the quiet until it lands (loaded) or fails (onSrcError above). */
+  if (tileShowsPicture(state, direction) && el.dataset.state !== 'loaded') {
+    const left = quietLeft(quietKey);
+    if (left > 0) {
+      el.dataset.quiet = '';
+      setTimeout(() => { if (el.dataset.state === 'idle') unquiet(); }, left);
+    }
+  }
   fileTileCtl.set(el, { name, strings, direction });
   // ONE dispatcher keyed on the LIVE file state (the card's rule). While the picture LOADS a tap does nothing (it is
   // a frame or two for a local data: URI) — never two actions for one tap; a failed picture is dropped (above).

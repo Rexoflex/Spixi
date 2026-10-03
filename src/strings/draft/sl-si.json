@@ -737,6 +737,7 @@
   "groundBrandGradient": "Blagovni preliv",
   "patternStyleContours": "Plastnice",
   "tapToDownload": "Tapnite za prenos",
+  "clickToDownload": "Kliknite za prenos",
   "viewOnIxiScope": "Ogled v ixiscope",
   "missingTxCheckingHead": "Preverjanje verige blokov",
   "missingTxOlder": "Transakcije pred začetnim blokom Spixija tukaj niso prikazane. ixiscope prikaže celotno zgodovino.",
@@ -798,5 +799,6 @@
   "sharedCopyFailed": "Kopiranje ni uspelo",
   "copyLink": "Kopiraj povezavo",
   "photoPreviewsTitle": "Prikaži predogled fotografij v klepetih",
-  "photoPreviewsHint": "Fotografije, ki ste jih poslali ali prenesli, so v klepetu prikazane kot slika. Izklopljeno: vsaka fotografija ostane kartica datoteke."
+  "photoPreviewsHint": "Fotografije, ki ste jih poslali ali prenesli, so v klepetu prikazane kot slika. Izklopljeno: vsaka fotografija ostane kartica datoteke.",
+  "newReaction": "Nova reakcija"
 }

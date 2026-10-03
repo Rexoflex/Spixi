@@ -13,6 +13,9 @@
     <Compile Include="../../Spixi/Utils/P1Perf.cs" />
     <!-- ★ #1132 (session 4): the pure rules behind P-1 levers 2 / 3 / 5 / 11 (tests: OpenPerfRulesTests.cs, beside this file). -->
     <Compile Include="../../Spixi/Utils/OpenPerfRules.cs" />
+    <!-- ★ #1148 (3)/(4): the unread rule + the reaction-heart store (tests: UnreadRuleTests.cs, beside this file). -->
+    <Compile Include="../../Spixi/Utils/UnreadRule.cs" />
+    <Compile Include="../../Spixi/Meta/SReactionFlags.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

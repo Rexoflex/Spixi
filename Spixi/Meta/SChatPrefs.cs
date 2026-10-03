@@ -125,6 +125,12 @@ namespace SPIXI.Meta
                 {
                     continue;
                 }
+                var lm = friend.metaData.lastMessage;
+                if (UnreadRule.isPendingIncomingRequest(friend.approved, lm != null, lm != null ? lm.type : FriendMessageType.standard, lm != null && lm.localSender))
+                {
+                    total += 1;   // ★ #1150: a pending request = 1 until Accept / Decline (the Chats tab rule); its row count is not added
+                    continue;
+                }
                 if (SNotificationPrefs.isChatMuted(friend))
                 {
                     continue;

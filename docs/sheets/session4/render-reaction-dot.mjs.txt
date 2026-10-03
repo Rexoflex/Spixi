@@ -1,0 +1,39 @@
+import { createRequire } from 'node:module';
+const require = createRequire('/opt/node22/lib/node_modules/');
+const { chromium } = require('playwright');
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const UA = 'Mozilla/5.0 (Linux; Android 14; moto g84) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36';
+const facts = {};
+for (const theme of ['light', 'dark']) {
+  const ctx = await browser.newContext({ viewport: { width: 412, height: 720 }, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: 'reduce', userAgent: UA });
+  const page = await ctx.newPage();
+  await page.goto('file:///home/claude/Spixi/Spixi/Resources/Raw/html/index.html?mobile=1');
+  await page.waitForFunction(() => typeof window.executeUiCommand === 'function');
+  await page.waitForTimeout(800);
+  await page.evaluate((theme) => {
+    const p = (fn, ...a) => window.executeUiCommand(window[fn], ...a.map((v) => btoa(unescape(encodeURIComponent(String(v))))));
+    if (window.setTheme) p('setTheme', theme);
+    const N = Math.floor(Date.now() / 1000);
+    const row = (a, n, ex, unread, heart, dt, st) => [a, n, String(N - dt), '', 'True', ex, st || 'default', String(unread), '', 'False', 'text', '', heart];
+    p('clearChats');
+    for (const r of [
+      row('Aaaa1111111111111111111111111111111111', 'Ana (heart, no count)', 'Lunch tomorrow?', 0, 'True', 60, 'read'),
+      row('Bbbb2222222222222222222222222222222222', 'Bor (count wins)', 'Did you see this?', 3, 'True', 300),
+      row('Cccc3333333333333333333333333333333333', 'Cene (nothing new)', 'See you then', 0, 'False', 3600, 'read'),
+      row('Dddd4444444444444444444444444444444444', 'Dora (heart)', 'Photo', 0, 'True', 7200, 'confirmed'),
+    ]) p('addChat', ...r);
+    p('clearChatsDone');
+    p('addChatReaction', 'Aaaa1111111111111111111111111111111111', 'Ana', 'like:', String(N - 30), '');
+  }, theme);
+  await page.waitForTimeout(500);
+  facts[theme] = await page.evaluate(() => {
+    const h = document.querySelector('.c-indicator[data-variant="reaction"]');
+    const cs = h && getComputedStyle(h);
+    const chip = document.querySelector('.c-chip[data-filter="unread"] .c-chip__count');
+    return { theme: document.documentElement.getAttribute('data-theme'), disc: cs && cs.backgroundColor, ink: cs && cs.color, size: cs && (cs.width + 'x' + cs.height), label: h && h.getAttribute('aria-label'), hearts: document.querySelectorAll('.c-indicator[data-variant="reaction"]').length, unreadChip: chip ? chip.textContent : '0' };
+  });
+  await page.screenshot({ path: `/home/claude/Spixi/docs/sheets/session4/reaction-dot-${theme}.png` });
+  await ctx.close();
+}
+console.log(JSON.stringify(facts));
+await browser.close();

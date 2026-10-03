@@ -582,22 +582,34 @@
      re-render re-applies the highlight with --jump-delay = minus the time already shown, so it CONTINUES (never
      restarts, never ends early). #46 r1 L-2: held to 90 % — the exit fade is the last 10 % = 300 ms of 3 s
      (= --duration-300), not the 900 ms a 70 % hold gave (longer than any open). */
-  .c-bubble-row[data-mention-pulse] { animation: chat-jump-band var(--duration-highlight) var(--easing-standard) var(--jump-delay, 0ms) 1; }
+  /* ★★ #1147 (1) A2 restyle (Damir walk #1146 W-A2 FAIL: "a colour similar to selected for the band, blueish for the
+     outline, rounded like selected"): the band = the multi-select selected-row look (--surface-select-row + --radius-12,
+     chat-select.css:47), the ring = 1 px --outline-action-default (blue). Same 3 s, same reduced-motion rule. */
+  /* #46 r1 (session 4 fix): B-m1 the ring is a 1 px GAP in the band's colour (--surface-select-row-gap, the band composited
+     over the chat ground — opaque, because a translucent gap would let the ring's own blue show through it) and then the
+     1 px blue ring, so the blue never touches my blue bubble (1.17:1 in light). B-m3 the lit row raises the sent card's
+     edge (#993, the selected row's --outline-card-sent) and the ring KEEPS that edge (--jump-keep) instead of replacing it.
+     B-M1 the static (reduced-motion) ring outranks every per-kind box-shadow, the photo tile's (0,4,0) included. */
+  .c-bubble-row[data-mention-pulse] { border-radius: var(--radius-12); --outline-card-sent: var(--outline-card-sent-selected); animation: chat-jump-band var(--duration-highlight) var(--easing-standard) var(--jump-delay, 0ms) 1; }
   .c-bubble-row[data-mention-pulse] .c-bubble, .c-bubble-row[data-mention-pulse] .c-fbubble,
   .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: chat-jump-ring var(--duration-highlight) var(--easing-standard) var(--jump-delay, 0ms) 1; }
+  .c-bubble-row[data-mention-pulse][data-direction="sent"] .c-tcard,
+  .c-bubble-row[data-mention-pulse][data-direction="sent"] .c-fbubble { --jump-keep: inset 0 0 0 1px var(--outline-card-sent), inset 0 1px 0 var(--highlight-top); }
   @keyframes chat-jump-band {
-    0%, 90% { background-color: var(--surface-warning-inverse); }
+    0%, 90% { background-color: var(--surface-select-row); }
     100% { background-color: transparent; }
   }
   @keyframes chat-jump-ring {
-    0%, 90% { box-shadow: 0 0 0 1px var(--surface-warning); }
-    100% { box-shadow: 0 0 0 1px transparent; }
+    0%, 90% { box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default), var(--jump-keep, 0 0 0 0 transparent); }
+    100% { box-shadow: 0 0 0 1px transparent, 0 0 0 2px transparent, var(--jump-keep, 0 0 0 0 transparent); }
   }
-  /* reduced motion: NO animation — the band (and the ring) held static for the attribute's 3 s; the JS timeout removes it */
+  /* reduced motion: NO animation — the band (and the ring) held static for the attribute's 3 s; the JS timeout removes it.
+     [data-direction] lifts each kind one step over its direction rule; the tile pair over .c-mbubble[data-file]'s. */
   @media (prefers-reduced-motion: reduce) {
-    .c-bubble-row[data-mention-pulse] { animation: none; background-color: var(--surface-warning-inverse); }
-    .c-bubble-row[data-mention-pulse] .c-bubble, .c-bubble-row[data-mention-pulse] .c-fbubble,
-    .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: none; box-shadow: 0 0 0 1px var(--surface-warning); }
+    .c-bubble-row[data-mention-pulse] { animation: none; background-color: var(--surface-select-row); }
+    .c-bubble-row[data-mention-pulse][data-direction] .c-bubble, .c-bubble-row[data-mention-pulse][data-direction] .c-fbubble,
+    .c-bubble-row[data-mention-pulse][data-direction] .c-mbubble, .c-bubble-row[data-mention-pulse][data-direction] .c-mbubble[data-file],
+    .c-bubble-row[data-mention-pulse][data-direction] .c-tcard { animation: none; box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default), var(--jump-keep, 0 0 0 0 transparent); }
   }
 </style>
 </head>
@@ -698,7 +710,7 @@
     attachPressFeedback,
     setMessageStatus, replayStatusChange, removeMessage,
     createFileBubble, setFileProgress,
-    createImageFileBubble, isPhotoFileName, setImageFileThumb,   // ★ A5 #1124 (#1133): an image file on the media tile
+    createImageFileBubble, isPhotoFileName, setImageFileThumb, resetPhotoQuiet,   // ★ A5 #1124 (#1133): an image file on the media tile
     createMediaBubble, setMediaSrc, openMediaViewer,
     createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice, createUnreadDivider,
@@ -2268,6 +2280,7 @@
       thumb: photoTile ? (fileThumbs.get(String(rec.id)) || null) : null,
       onLoad: photoTile ? () => { if (nearBottom()) box.scrollTop = box.scrollHeight; } : undefined,   // the tile grew to the picture
       onThumbError: photoTile ? () => dropFileThumb(String(rec.id)) : undefined,   // #46 r1 B-1: a picture that will not decode is forgotten
+      quietKey: photoTile && rec.fromLoad ? String(rec.id) : null,   // ★ #1147 (5): the quiet wait is per message — #46 r1 B-m4: a history-load row only, never a live insert
       direction: rec.direction,
       name: rec.name || '',
       meta: rec.meta || '',
@@ -4677,7 +4690,7 @@
   function upsertFile(id, ts, dir, fileid, name, fstate, progress, extra) {
     id = String(id);
     const existing = model.get(id);
-    const rec = existing || { id, kind: 'file', direction: dir, senderNick: '', senderAddress: '' };
+    const rec = existing || { id, kind: 'file', direction: dir, senderNick: '', senderAddress: '', fromLoad: bursting };   // #46 r1 B-m4: built by a history load (the burst), or a live insert
     rec.kind = 'file';
     if (dir) rec.direction = dir;
     if (ts) rec.ts = ts;
@@ -5246,6 +5259,7 @@
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       resetLoadedMedia();                  // per-peer reset, and drop any set an older build persisted
       fileThumbs.clear(); fileThumbChars = 0;   // ★ A5 #1124: per-peer reset (C# starts its once-per-document set again at this push)
+      resetPhotoQuiet();                   // #46 r2 R2-MAJ1: the photo quiet waits too — desktop A → B → A re-waits, no glyph-then-swap
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
       loadCanceledApps();                  // ★ B2: …and which own invites they canceled
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)

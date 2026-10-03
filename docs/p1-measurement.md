@@ -59,4 +59,10 @@ Log read (session 4, `android-full.txt`, 54 opens): see levers 4 · 5 · 6. Note
 ## Experiment log (§8 — one lever per try; Damir runs every device run)
 | try | lever | patch | median | p90 | keep/discard/crash | note |
 |---|---|---|---|---|---|---|
-| 1 | levers 1 · 2 · 2b · 3 · 5 · 10 · 11 (one batch, #1135 — Damir picked them together; each has its own walk row so the effect is read per path) | session 4 | owed | owed | — | the session-4 walk fills this row per path; a regression on one path = discard that lever only |
+| 1 | lever 3 desktop re-warm | #1135 | Win open 71 | 151 | keep | session 3: 221 / 261; 0 drops (#1146) |
+| 2 | lever 2 + 2b wallet | #1135 | — | — | keep | 3 forced pushes in the whole Windows walk; Android 1; no flicker |
+| 3 | lever 10 Account hand-off | #1135 | — | — | keep | released by cover 16×, backstop 0 |
+| 4 | lever 1 A1 hold | #1135 | held 117 | 135 | keep | why=vsc 25/25, 3 / 4 frames; recordings P |
+| 5 | lever 5 warming claim | #1135 | spare 104 | 196 | keep | claims seen; 12/37 opens `why=none` 225 / 247 → try 7 |
+| 6 | lever 11 Android close wait 16 ms | #1135 | close 159 | 435 | keep (no gain) | the time is elsewhere → close probe (#1147 (6)) |
+| 7 | spare warm after close 350 → 0 ms | #1147 (4) | owed | owed | — | re-walk M-CHAT quick re-opens |

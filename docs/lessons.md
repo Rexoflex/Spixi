@@ -117,3 +117,5 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L67 | A source pin that reads the CALLEE is blind to a deleted CALL SITE (the drainer start, updateFile → thumb, the live enqueue): pin the caller's body, or execute the path. | #1135 (r1 C) | — |
 | L68 | A contrast claim over a scrim must be COMPUTED by the pin (tokens composited over a white and a black photo, both themes); a token called "scrim" was 0.35 alpha in light → 2.2:1. Never pin the token name. | #1135 (r3 M1) | — |
 | L69 | When a pin is re-based to a new rule, re-run the old mutant: the re-base can drop the half the old pin covered (the tile's live path while the new pin used a card). | #1135 (r5) | — |
+| L70 | A CSS pin that asks "does some rule say X" (`includes`, matching rules) is not "what the browser applies": specificity let a tile rule beat the reduced-motion ring. Pin the COMPUTED style on every kind. | #1149 (fix r1 B-M1) | — |
+| L71 | A document-wide UI state (a quiet / seen map) must be reset where the document switches peers, or the "fixed" flicker comes back on the second open. Test A → B → A, not one open. | #1149 (fix r2 MAJ1) | — |

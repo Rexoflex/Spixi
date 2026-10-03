@@ -659,6 +659,7 @@
   "groundBrandGradient": "ブランドグラデーション",
   "patternStyleContours": "等高線",
   "tapToDownload": "タップしてダウンロード",
+  "clickToDownload": "クリックしてダウンロード",
   "viewOnIxiScope": "ixiscope で表示",
   "missingTxCheckingHead": "ブロックチェーンを確認中",
   "missingTxOlder": "Spixiの開始ブロックより前の取引はここに表示されません。ixiscopeで全履歴を確認できます。",
@@ -720,5 +721,6 @@
   "sharedCopyFailed": "コピーできませんでした",
   "copyLink": "リンクをコピー",
   "photoPreviewsTitle": "チャットで写真のプレビューを表示",
-  "photoPreviewsHint": "送信またはダウンロードした写真は、チャット内に画像として表示されます。オフ：すべての写真がファイルカードのまま表示されます。"
+  "photoPreviewsHint": "送信またはダウンロードした写真は、チャット内に画像として表示されます。オフ：すべての写真がファイルカードのまま表示されます。",
+  "newReaction": "新しいリアクション"
 }

@@ -1140,11 +1140,17 @@ namespace SPIXI.Meta
                     oldMessage = true;
                 }
                 
+                /* ★★ #1148 (3) — THE UNREAD RULE (Spixi/Utils/UnreadRule.cs, executed in scripts/csh). Before, this raised the
+                 * count for EVERY new message whose `read` was false — my own included (Core sets read=false for them), my call
+                 * card, an update of a message already shown. Now only what UnreadRule.countsAsUnread admits: an incoming
+                 * message / file / payment / payment request / app invite / contact request; never local_sender, an update,
+                 * the "connected" line or a call card at insert (a MISSED incoming call counts at its end, VoIPManager). */
                 if (!UIHelpers.isChatScreenDisplayed(friend)
                     &&!friend_message.read)
                 {
-                    // Increase the unread counter if this is a new message
-                    if (!oldMessage)
+                    // Increase the unread counter if this is a new message that the rule counts
+                    if (!oldMessage
+                        && UnreadRule.countsAsUnread(type, local_sender, friend_message_with_status.updated, UnreadRule.isSystemLineId(friend_message.id)))
                         friend.metaData.unreadMessageCount++;
 
                     friend.saveMetaData();

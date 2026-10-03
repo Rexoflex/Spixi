@@ -362,3 +362,8 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   the quality plan = #1140, the group cap, lazy history, trains / cadence / languages, the media-preview gap) and the session plan
   picked (#1145: S5 speed rest + media viewer + group cap → S6 reply + edit → S7 voice → S8 groups + more → S9 picker + audit →
   walk → FREEZE; quality items in parallel). `docs/release-readiness.md` § V. Next free #1146.
+- 2026-10-03 (c): session 4 committed (483a2a83) and walked (#1146: Win 7 P 1 F, Android 11 P 1 F; Windows open 71 / 151 ms,
+  A1 hold runs). Fix batch #1147 + #1148 (A2 colours, square fading photo tiles, sent-photo preview, Click to download, tile edge,
+  UnreadRule + reaction heart, chips 500, spare warm 0 ms, close probe) — #46 CLEAN at r3 (#1149). Smoke 5170 · CSH 71.
+  UNCOMMITTED. Next: re-walk → #1150; then session 5. Next free #1150.
+- 2026-10-03 (d): #1150 contact requests do not count as unread (Damir). Next free #1151.

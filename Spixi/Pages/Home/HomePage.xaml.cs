@@ -3266,7 +3266,7 @@ namespace SPIXI
 
                 // CH1: trailing chat kind (group/bot/1:1) · CH5: unread @-mention flag ·
                 // CH6: the excerpt kind · #944: the excerpt sender. New args go LAST — never reorder.
-                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString(), excerptKind, excerptSender);
+                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString(), excerptKind, excerptSender, SReactionFlags.has(fmh.walletAddress).ToString());   // ★ #1148 (4): 13th arg, the reaction heart (🟡; an older shell ignores it)
             }
         }
 
@@ -3474,8 +3474,8 @@ namespace SPIXI
                 // Add the messages visually
                 foreach (FriendMessageHelper helper_msg in sorted_msgs)
                 {
-                    // CH1: trailing chat kind · CH5: mention flag · CH6: excerpt kind · #944: excerpt sender. New args go LAST — never reorder.
-                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString(), excerpt_kinds[helper_msg.walletAddress], excerpt_senders[helper_msg.walletAddress]);
+                    // CH1: trailing chat kind · CH5: mention flag · CH6: excerpt kind · #944: excerpt sender · #1148 (4): reaction heart. New args go LAST — never reorder.
+                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString(), excerpt_kinds[helper_msg.walletAddress], excerpt_senders[helper_msg.walletAddress], SReactionFlags.has(helper_msg.walletAddress).ToString());   // ★ #1148 (4): 13th arg, the reaction heart
                 }
 
                 // CH2: incoming contact requests (newest first) — the FE renders these as
@@ -3572,7 +3572,11 @@ namespace SPIXI
         /* ⚠ 2026-09-06: this is the SHIPPED value. The 1200 ms probe experiment is superseded —
          * moving the warm does not remove the resident hidden WebView, and that is what the app
          * now feels (Account -> Backup, chat info, list scrolling). See CHAT_SPARE_ENABLED. */
-        private const int CHAT_SPARE_WARM_AFTER_CLOSE_MS = 350;
+        /* ★ #1147 (4) (walk #1146: 12 of 37 Android opens `attach spare=0 why=none` — a quick re-open inside the 350 ms found
+         * no spare at all): 0 = "warm at once" (Damir). Still POSTED — Task.Delay(0).ContinueWith runs on the pool and
+         * BeginInvokeOnMainThread queues the warm behind the close turn (the old WebView is already disposed; never inside
+         * the close). A re-open in the warm window claims the WARMING spare (lever 5); chats-after-close watches the cost. */
+        private const int CHAT_SPARE_WARM_AFTER_CLOSE_MS = 0;
         private const int CHAT_SPARE_WARM_AFTER_FIRST_PAINT_MS = 1800;
         private bool chatSpareFirstWarmScheduled = false;
 
@@ -6022,6 +6026,7 @@ namespace SPIXI
                         status = "ok";
                         SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
                         SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
+                        SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
                     }
                 }
             }

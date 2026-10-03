@@ -1535,6 +1535,7 @@ namespace SPIXI
             try { Preferences.Default.Clear(); } catch (Exception ex) { Logging.error("wipe: preferences threw: " + ex); }
             try { SRequestIgnore.clear(); } catch (Exception ex) { Logging.error("wipe: ignore list threw: " + ex.GetType().Name); }   // ★ #978: the in-process copy too
             try { SSightingStore.clear(); } catch (Exception ex) { Logging.error("wipe: sightings threw: " + ex.GetType().Name); }   // ★ G-2: the in-process copy too
+            try { SReactionFlags.clearAll(); } catch (Exception ex) { Logging.error("wipe: reaction flags threw: " + ex.GetType().Name); }   // ★ #1148 (4)
 
             // (6. the WebView spixi.* wipe ran as step 0 — see above)
         }
@@ -1566,11 +1567,13 @@ namespace SPIXI
             FriendList.clear();
             SRequestIgnore.clear();   // ★ #978: a declined requester belongs to the account that declined
             SSightingStore.clear();   // ★ G-2: a sighting belongs to the account that made it
+            SReactionFlags.clearAll();   // ★ #1148 (4): so does a reaction heart
         }
 
         public void onDeleteHistory()
         {
             FriendList.deleteEntireHistory();
+            SReactionFlags.clearAll();   // #46 r1 A-M2 (#1148 (4)): every conversation is gone, so is every reaction heart
             /* ★ #46 loop B, MAJOR-1 (the SIXTH removal path) — EVERY conversation on the
              * device is gone, so every conversation's local keys must go, and the user's own
              * unsent DRAFT is first among them. This method pushed nothing, so the shell kept

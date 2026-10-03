@@ -761,11 +761,25 @@ namespace SPIXI
 
                     case SpixiMessageCode.msgReaction:
                         var reaction = new ReactionMessage(spixi_message.data);
-                        // If a chat page is not visible set unread indicator
-                        if (!UIHelpers.isChatScreenDisplayed(friend))
+                        /* ★★ #1148 (3)+(4), = C-05: a reaction NEVER raises the unread count (it added 1 per reaction here —
+                         * in a room per received:/seen: receipt too). A like / tip on MY message, from someone else, with the
+                         * chat not open sets the chats-list HEART instead (SReactionFlags; UnreadRule.reactionRaisesDot,
+                         * executed in scripts/csh); the flag rides the next chats flush (addChat's 13th arg). */
+                        try
                         {
-                            friend.metaData.unreadMessageCount++;
-                            friend.saveMetaData();
+                            Address reactorAddr = group_sender_address != null ? group_sender_address : sender_address;
+                            FriendMessage? target = friend.getMessage(resolveMessageChannel(friend, reaction.msgId, channel), reaction.msgId);
+                            if (UnreadRule.reactionRaisesDot(reaction.reaction, target != null && target.localSender,
+                                    reactorAddr != null && IxianHandler.getWalletStorage().isMyAddress(reactorAddr),
+                                    UIHelpers.isChatScreenDisplayed(friend))
+                                && SReactionFlags.set(friend.walletAddress.ToString()))
+                            {
+                                UIHelpers.shouldRefreshContacts = true;
+                            }
+                        }
+                        catch (Exception rex)
+                        {
+                            Logging.warn("reaction flag failed: " + rex.GetType().Name);
                         }
                         /* ★ THE REACTION PUSH — every emoji, like and tip. SingleChatPage.updateReactions
                          * gates on the same `channel == selectedChannel` test, so a literal 0
@@ -1058,6 +1072,15 @@ namespace SPIXI
                                         friend.saveMetaData();
                                     }
                                     IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, 0);
+                                    /* ★★ #1148 (3): the voiceCall insert above no longer counts (UnreadRule.countsAsUnread) — this
+                                     * call is MISSED by construction (never rang, never answered, never declined here), so it
+                                     * counts now, through the same rule as VoIPManager.endVoIPSession. */
+                                    if (UnreadRule.missedCallCounts(false, false, false, UIHelpers.isChatScreenDisplayed(friend)))
+                                    {
+                                        friend.metaData.unreadMessageCount++;
+                                        friend.saveMetaData();
+                                        UIHelpers.shouldRefreshContacts = true;
+                                    }
                                 }
                                 /* ★ review MINOR-6: TELL THE USER. The missed-call row this
                                  * would normally rely on is posted by endVoIPSession — which

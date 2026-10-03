@@ -62,7 +62,7 @@ textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:1
 <div class="wrap">
   <header>
     <h1>Spixi Session 4 Walk</h1>
-    <p class="sub">Commit and push session 4, build Windows and Android, then walk 13 checks per platform. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both log files in the chat.</p>
+    <p class="sub"><b>Re-walk of the fix batch (#1147 + #1148).</b> Commit the fixes, build Windows and Android, then walk the rows below. The first walk is recorded (#1146). Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both log files in the chat.</p>
   </header>
   <nav class="jump" aria-label="Parts">
     <a href="#commit">1 · Commit + push</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
@@ -101,17 +101,16 @@ textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:1
 const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
 const STEPS = {
   commit: [
-    ['Open a new PowerShell window. Go to the repo.', `cd "${REPO}"`, ''],
-    ['Look at the changes.', 'git --no-optional-locks status --short', 'About 87 lines. <b>docs/handoff-2026-09-30e.md</b> is another session\'s file — do not add it.'],
-    ['Add the changed tracked files.', 'git add -u', 'No output.'],
-    ['Add the new code and test files.', 'git add Spixi/Utils/OpenPerfRules.cs scripts/csh/OpenPerfRulesTests.cs scripts/pins-s4 docs/reviews docs/sheets/session4', 'No output.'],
-    ['Add the new docs.', 'git add docs/handoff-2026-10-03.md docs/review-brief-session-4.md docs/commit-message-session4.txt docs/walk-artifact-session4-win-android.html docs/prompts/session-5.md docs/quality-plan.md', 'No output.'],
-    ['Check the count.', 'git diff --cached --stat', 'The last line says <b>102 files changed</b>. Another number: stop and paste it.'],
-    ['Commit.', 'git commit -F docs/commit-message-session4.txt', 'One line with the subject "Session 4: P-1 levers, photo tiles, jump highlight, dark chat thumb".'],
-    ['Push.', 'git push', 'Ends with <b>redesign/frontend -> redesign/frontend</b>.'],
-    ['Run the smoke test (about 5–9 min).', 'node scripts/smoke-test.mjs', 'The last line: <b>BASELINE OK — 5150 pass / the 2 KNOWN</b>.'],
-    ['Run the C# harness.', 'node scripts/run-csh.mjs', '<b>CSH pass=59 fail=0</b>.'],
-    ['Delete the old build output (C# and html changed).', 'Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue', 'No output.'],
+    ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
+    ["Look at the changes.", "git --no-optional-locks status --short", "<b>docs/handoff-2026-09-30e.md</b> is another session's file — do not add it."],
+    ["Add the changed tracked files.", "git add -u", "No output."],
+    ["Add the new files.", "git add Spixi/Utils/UnreadRule.cs Spixi/Meta/SReactionFlags.cs scripts/csh/UnreadRuleTests.cs src/assets/icons/tabler-icon-heart-filled.svg scripts/pins-s4 docs/reviews docs/sheets/session4 docs/commit-message-session4-fix.txt", "No output."],
+    ["Check the count.", "git diff --cached --stat", "The last line says <b>112 files changed</b>. Another number: stop and paste it."],
+    ["Commit.", "git commit -F docs/commit-message-session4-fix.txt", "Subject \"Session 4 fixes: jump highlight, photo tiles, phantom unreads, chips\"."],
+    ["Push.", "git push", "Ends with <b>redesign/frontend -> redesign/frontend</b>."],
+    ["Run the smoke test (about 5–9 min).", "node scripts/smoke-test.mjs", "The last line: <b>BASELINE OK — 5171 pass / the 2 KNOWN</b>."],
+    ["Run the C# harness.", "node scripts/run-csh.mjs", "<b>CSH pass=72 fail=0</b>."],
+    ["Delete the old build output.", "Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue", "No output."],
   ],
   win: [
     ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
@@ -132,28 +131,23 @@ const STEPS = {
 };
 const W = 'w', A = 'a';
 const ROWS = [
-  {p:W,id:'W-BUILD',t:'This build: dark chat scroll thumb + Privacy switch',d:'Dark theme. Open a chat with a long history; hover and scroll it. Open Account → Privacy.',e:'The chat scroll thumb is dark grey like chat info (was light grey, #1134). Privacy has "Show photo previews in chats", ON.'},
-  {p:W,id:'W-DESK',t:'Chat switch × 10 (lever 3)',d:'Click 10 different chats in the list, ~2 s each. While each one settles: type, scroll with the wheel, select text.',e:'"[P1] open singlechatpage present ms=" about 90 after the first switch (session 3: 221). Typing, scroll, select and focus never fail while the hidden spare warms.'},
-  {p:W,id:'W-WALLET',t:'Wallet re-visit × 10 (levers 2 + 2b)',d:'10× Chats → Wallet → Chats. Then tap the Sent filter, then All.',e:'"[P1] wallet txpush … force=0" on re-visits; no row flicker. A filter tap: the chip changes at once, the rows follow, no blank list.'},
-  {p:W,id:'W-ACCT',t:'Account → tab × 10 (lever 10)',d:'10×: Account, then Wallet (5×) or Chats (5×). Once: change a setting first, then tap a tab.',e:'No old screen or open chat shows through. The log says "handoff pop released by cover", not "backstop". The setting is saved. Say if a tab tap feels slower.'},
-  {p:W,id:'W-A2',t:'Show in chat: band + 1 px ring',d:'Chat info → Media → right-click a photo → Show in chat. Also Downloads → Show in chat. Light and dark.',e:'The row gets a soft full-width band and a thin ring for about 3 s, then fades. A new message meanwhile does not cut it short.'},
-  {p:W,id:'W-A4',t:'Chat info media grid',d:'Open chat info of a chat with photos.',e:'The grid is inset (aligned with the cards above), 4 px gaps, rounded tiles; the chips sit a bit lower.'},
-  {p:W,id:'W-A5-RECV',t:'Receive a photo',d:'Another device sends you a photo. Do not click first; then click to download.',e:'Before: a tile with the JPG glyph + name + "Tap to download", no picture (WHITE tile in light). During: the ring. After: the photo. A click opens the file.'},
-  {p:W,id:'W-A5-OFF',t:'Privacy switch with a chat open',d:'Keep a chat with photo tiles open (wide window). Account → Privacy → switch "Show photo previews in chats" OFF; go back. Then ON. Restart the app.',e:'OFF: the photos in the open chat become file cards without a reopen. ON: tiles come back. The value stays after the restart.'},
-  {p:A,id:'A-BUILD',t:'This build: Privacy switch + [P1] lines',d:'Open Account → Privacy. Open one chat.',e:'"Show photo previews in chats" is there, ON. The log has "[P1]" lines.'},
-  {p:A,id:'A-A1',t:'Chat open hold (the flicker fix)',d:'Open 10 chats from the list. Screen-record 3 of them.',e:'Log: "a1 hold … nat=1" and "chat held frames>=1 … why=vsc" (was why=noview). Recording: no plain or grey frame between the list and the chat.'},
-  {p:A,id:'A-CHAT',t:'Quick re-opens × 10 (lever 5)',d:'Open a chat, back, and at once (within ~0.5 s) open another — 10 times. Then 10 normal opens.',e:'Quick re-opens log "[P1] spare claim warm=1" and present ms near 90 (not 240–320). Never the wrong contact, never a stuck tap.'},
-  {p:A,id:'A-CLOSE',t:'Chat close × 10 (lever 11)',d:'Open and close (back) a chat 10 times. Record 2 closes.',e:'"[P1] close singlechatpage done ms=" lower than session 3 (161). No flash of the chat after it hides.'},
-  {p:A,id:'A-WALLET',t:'Wallet re-visit × 10 (levers 2 + 2b)',d:'10× Chats → Wallet → Chats. Then tap Sent, then All.',e:'"force=0" on re-visits; no flicker; the chip changes at once, no blank list.'},
-  {p:A,id:'A-ACCT',t:'Account → tab × 10 (lever 10)',d:'10×: Account, then Wallet (5×) or Chats (5×). Record 2. Once: change a setting first.',e:'No old screen shows through; "released by cover" in the log; the setting is saved.'},
-  {p:A,id:'A-A2',t:'Show in chat: band + 1 px ring',d:'Chat info → Media → long-press a photo → Show in chat. Light and dark.',e:'Soft band + thin ring for about 3 s, then a fade.'},
-  {p:A,id:'A-A4',t:'Chat info media grid',d:'Open chat info of a chat with photos.',e:'Inset gallery, 4 px gaps, rounded tiles.'},
-  {p:A,id:'A-A5-SEND',t:'Send a photo',d:'Send a photo to a contact who is ONLINE; then once to a contact who is OFFLINE.',e:'Your tile shows the photo at once with the ring, the % and "Keep Spixi open until the transfer completes" on a dark scrim; the scrim goes when done. Offline peer: your tile still shows your photo. The text is readable on a bright photo.'},
-  {p:A,id:'A-A5-RECV',t:'Receive a photo',d:'Receive a photo. Do not tap first; then tap to download.',e:'Before: glyph + name + "Tap to download", no picture (WHITE tile in light). During: the ring. After: the photo. Tap opens it.'},
-  {p:A,id:'A-A5-OFF',t:'Privacy switch OFF / ON',d:'Account → Privacy → photo previews OFF; open a chat with photos. Then ON.',e:'OFF: file cards. ON: tiles. The value stays after an app restart.'},
-  {p:A,id:'A-A5-OLD',t:'Old app peer (optional)',d:'Send a photo to someone on the store app; receive one from them.',e:'Their side: a file card as before. Your side: tiles. Nothing breaks.'},
+  {p:W,id:"W-A2",t:"Show in chat: selected-row band + blue ring",d:"Chat info → Media → right-click a photo → Show in chat. Also on a sent text and a file. Light and dark.",e:"The row gets the selected-row tint with rounded corners and a thin blue ring (a small gap, then blue) for about 3 s, then fades. Readable on my blue bubbles."},
+  {p:W,id:"W-CLICK",t:"Desktop download wording",d:"Receive a photo and a file; do not click.",e:"The tiles say \"Click to download\" (not \"Tap\")."},
+  {p:W,id:"W-FADE",t:"Photos fade in on chat open",d:"Open a chat whose last messages are photos. Then open another chat, then the first again (A → B → A).",e:"Photo tiles keep their square size and fade in. No glyph flash, no jump — also on the second open."},
+  {p:W,id:"W-EDGE",t:"Photo tile edge",d:"A chat with a photo close to the canvas colour, both directions, light and dark.",e:"A received photo has a white frame like an incoming bubble; my photo a blue frame like an outgoing bubble."},
+  {p:W,id:"W-CHIPS",t:"Chip text weight",d:"Chats chips (All / Unread / Favorites / Groups) and Wallet chips (All / Sent / Received).",e:"The text is lighter than before (Medium). Selected chip still clear by its fill."},
+  {p:W,id:"W-UNREAD",t:"No phantom unreads",d:"From the Chats list, call a contact and let it ring out (no answer). Back on the list.",e:"No unread badge and no Unread chip count for that contact."},
+  {p:W,id:"W-HEART",t:"Reaction heart",d:"Another device reacts to one of MY messages while I am not in that chat.",e:"The chat row shows a small heart in a light circle (no number); the Unread chip does not count it. Opening the chat clears it."},
+  {p:A,id:"A-SEND",t:"My sent photo shows while sending",d:"Send a photo with the FILE button (+ → File) to an online contact. Then once with the PHOTO button.",e:"FILE button: my tile shows the photo at once, under the ring + % + keep-open line; the scrim goes when done. PHOTO button: note what you see (a known gap: no preview)."},
+  {p:A,id:"A-FADE",t:"Photos fade in on chat open",d:"Open a chat whose last messages are photos (3 times, different chats).",e:"Square tiles, the photos fade in; no glyph flash, no size jump."},
+  {p:A,id:"A-REOPEN",t:"Quick re-opens × 10 (spare warm 0 ms)",d:"Open a chat, back, and at once open another — 10 times.",e:"Log: no or few \"attach spare=0 why=none\"; \"spare claim warm=1\" instead; no wrong contact, no stuck tap. The chats list stays smooth right after each close."},
+  {p:A,id:"A-CLOSE",t:"Chat close × 10 (probe)",d:"Open and close a chat 10 times.",e:"Log has \"[P1] close singlechatpage posted ms=\" and \"removed ms=\" lines (they tell me where the close time goes)."},
+  {p:A,id:"A-UNREAD",t:"No phantom unreads + missed call",d:"Call a contact, no answer. Then let the other device call you and do NOT answer.",e:"My unanswered call: no unread. Their missed call to me: unread 1 and a missed-call card. A contact request: a notification, its card with Accept / Decline, the Chats tab badge +1 and the app icon badge +1 until you answer; no unread number on a chat row."},
+  {p:A,id:"A-HEART",t:"Reaction heart",d:"The other device reacts to one of my messages while I am on the chats list.",e:"A heart on the row, no number; the Unread chip unchanged; open the chat → the heart goes."},
+  {p:A,id:"A-EDGE",t:"Photo tile edge + chips",d:"A photo close to the canvas colour, both directions; the chats + wallet chips.",e:"Received = white frame, mine = blue frame; chip text lighter."},
+  {p:A,id:"A-LAND",t:"Landscape (optional)",d:"Turn the phone to landscape while a photo downloads.",e:"Note if the ring / % on the tile looks cut (a known small issue)."}
 ];
-const KEY = 'spixi-walk-session4-v2';
+const KEY = 'spixi-walk-session4-fix-v1';
 let state = {};
 try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
@@ -208,7 +202,7 @@ function tally(){ const c = counts(); const left = ROWS.length - c.p - c.f - c.n
 document.getElementById('copy').addEventListener('click', (ev) => {
   const c = counts();
   const lines = ROWS.map(r => { const s = state[r.id] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id}: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
-  const text = `Walk session 4 (Windows F5 + Android Release dev): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const text = `Re-walk session 4 fix batch (Windows F5 + Android Release dev): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
   const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
 });
 document.getElementById('reset').addEventListener('click', (ev) => {

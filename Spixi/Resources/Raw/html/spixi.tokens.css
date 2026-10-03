@@ -544,6 +544,7 @@
      picked S16 of a rendered 3-way): the select-mode row wash is TRANSLUCENT action blue, so the chat
      ground (flat, brand or green gradient) shows through instead of an opaque tonal band. */
   --surface-select-row: rgba(48, 80, 189, 0.16);
+  --surface-select-row-gap: #CED5E9;   /* #46 r1 B-m1 (session 4): the band OPAQUE (16 % over the #ECEEF1 ground) — the A2 ring's 1 px gap; the blue ring is 4.76:1 on it */
   --surface-account-row-selected: #eceef2;
   --surface-account-row-pressed: #e3e6eb;    /* ★ #1080 F4 (#46 r1): a SELECTED Account row presses one neutral step deeper (1.08:1 on the selected tone) — base.css would press it action-tonal */
   --surface-card-pressed: var(--neutral-300);
@@ -975,6 +976,7 @@
   --surface-card-hover: var(--neutral-600);          /* ★ Session Y: 1.187:1 on the neutral-800 card after #884 ② (was 1.223 on grey-600; 700 would be 1.048 — invisible) */
   --surface-account-row-hover: #212327;      /* ★ #1080 F4: 1.09:1 on the #1A1C1F card (the card pair is 1.187) */
   --surface-select-row: rgba(118, 157, 255, 0.22);   /* ★ #1080 F14: brand-400 at 22% over the dark ground */
+  --surface-select-row-gap: #232D45;   /* #46 r1 B-m1: the band opaque (22 % over #0C0E10) — the ring is 5.24:1 on it */
   --surface-account-row-selected: #27292e;   /* ★ #1080 F4: 1.17:1 */
   --surface-account-row-pressed: #2e3136;    /* ★ #1080 F4 (#46 r1): 1.12:1 on the selected tone */
   --surface-card-pressed: var(--neutral-500);        /* 1.309:1 (was 1.357) */
@@ -1291,7 +1293,7 @@
   --row-time-line-height: 16px;                       /* reversal = var(--line-height-body-sm) (20) */
   --tx-name-size: 15px;                               /* was var(--font-size-body-lg) = 18 mobile */
   --tx-name-weight: var(--font-weight-semibold);      /* was regular (#277) */
-  --chip-weight: var(--font-weight-semibold);         /* was inherited regular */
+  --chip-weight: var(--font-weight-medium);           /* ★ #1148 (1) (Damir walk, session 4): 600 → 500 — supersedes #735 P.S. "weight UP" for every c-chip (chats / wallet filters); the selected chip keeps 500, its fill shows the state. Reversal = var(--font-weight-semibold); before #735 = inherited regular */
 
   /* ★ SESSION I — THE GAP CANON (sheets 3a/3b/3c, "canon everywhere"). Four row heights
      coexisted on the info/settings family (44/48/52/56, brief §2-4); TWO remain: a NAV
@@ -1994,6 +1996,7 @@
      (#94D2E3 0%, #94CAE9 23.16%, #99C2ED 46.31%, #A2B8EC 69.47%, #ADAEE8 92.62%). */
   --gradient-chat: linear-gradient(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%), var(--chat-canvas-base);
   --chat-pattern-ink: #3A2F66;
+  --surface-select-row-gap: #B6B6E4;   /* #46 r1 B-m1: the band over the gradient's middle stop (ring 3.59:1) */
 }
 /* ★★ #1080 F15 (Damir 2026-09-30, picked G2 of a rendered 3-way, from his green title-bar colours):
    the GREEN gradient — light only, never the default, same two selectors as the brand rule (the chat
@@ -2004,6 +2007,7 @@
 :root:not([data-theme='dark']) [data-chat-ground='green'] {
   --gradient-chat: linear-gradient(160deg, #D6EBC6 0%, #D2EDA8 45%, #CFE9BD 100%), var(--chat-canvas-base);
   --chat-pattern-ink: #2F5A1E;
+  --surface-select-row-gap: #B8D4AB;   /* #46 r1 B-m1: the band over the green's middle stop (ring 4.34:1) */
 }
 /* ⚠★ AND THE FLAT TILE HAS TO SAY SO EXPLICITLY. Custom properties INHERIT: once <html>
    carries data-chat-ground='gradient', the wash above cascades into every descendant —
@@ -2025,6 +2029,7 @@
 :root[data-theme='dark'][data-chat-ground='gradient'],
 :root[data-theme='dark'] [data-chat-ground='gradient'] {
   --gradient-chat: linear-gradient(180deg, #151B36 0%, #11142A 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);   /* r2 NIT: the last stop IS the canvas — no seam if the base is re-picked */
+  --surface-select-row-gap: #273259;   /* #46 r2 R2-m2: the band over the gradient's middle stop (22 % over #11142A) — the flat #232D45 left a seam */
 }
 :root[data-theme='dark'] [data-chat-ground='flat'] {
   --gradient-chat: var(--chat-canvas-base);

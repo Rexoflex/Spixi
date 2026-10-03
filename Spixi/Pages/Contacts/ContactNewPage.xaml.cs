@@ -224,6 +224,7 @@ namespace SPIXI
                 if (old_friend.pendingDeletion)
                 {
                     FriendList.removeFriend(old_friend);
+                    SReactionFlags.clear(old_friend.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the re-added contact starts without the old heart
                     UIHelpers.shouldRefreshContacts = true;
                 }
                 else

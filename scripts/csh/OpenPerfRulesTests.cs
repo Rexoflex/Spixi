@@ -176,6 +176,16 @@ public class OpenPerfRulesTests
     }
 
     [TestMethod]
+    public void close_probe_lines_pass_the_grammar()
+    {
+        // ★ #1147 (6): SpixiContentPage.p1CloseStep composes "close " + P1Perf.kind(page) + " " + step + " ms=" + ms
+        string widest = new string('p', 30);   // MaxKindLength
+        Assert.IsTrue(P1Perf.isValidLine("[P1] close " + widest + " posted ms=" + long.MaxValue), "close posted (4 tokens, the widest kind + ms)");
+        Assert.IsTrue(P1Perf.isValidLine("[P1] close singlechatpage removed ms=0"), "close removed");
+        Assert.IsFalse(P1Perf.isValidLine("[P1] close singlechatpage Removed ms=0"), "the grammar is lower-case only (a step must be a fixed lower-case word)");
+    }
+
+    [TestMethod]
     public void lever2_rows_stale_only_when_the_document_holds_rows()
     {
         Assert.IsFalse(OpenPerfRules.walletRowsStale(false, 1, 2, true), "no rows in the document → never (the tab entry forces; no boot push)");

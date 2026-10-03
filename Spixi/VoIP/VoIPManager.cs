@@ -344,6 +344,120 @@ namespace SPIXI.VoIP
         {
             SPlatformUtils.stopRinging();
 
+            try
+            {
+                if (audioPlayer != null)
+                {
+                    audioPlayer.Dispose();
+                    audioPlayer = null;
+                }
+            }
+            catch (Exception e)
+            {
+                audioPlayer = null;
+                Logging.error("Exception occured in endVoIPSession 1: " + e);
+            }
+
+            // #46 r5 MINOR-1: take the recorder AND close the controls in one step, so a
+            // startVoIPSession racing this teardown either hands its recorder over before this
+            // (and it is disposed here) or sees controlsClosed and never starts it.
+            IAudioRecorder? endingRecorder;
+            lock (controlLock)
+            {
+                endingRecorder = audioRecorder;
+                audioRecorder = null;
+                controlsClosed = true;
+            }
+            try
+            {
+                endingRecorder?.Dispose();
+            }
+            catch (Exception e)
+            {
+                Logging.error("Exception occured in endVoIPSession 2: " + e);
+            }
+
+            /* #46 r2 NIT (A-M1): the call card can throw (Core endCall / the stores); a throw must not skip the missed-call
+             * notification (A-M1 moved it after this block) or the call-field resets below. */
+            try
+            {
+                if (currentCallContact != null)
+                {
+                    bool callAccepted = currentCallAccepted && currentCallCalleeAccepted;
+                    long callDuration = currentCallStartedTime > 0 ? Clock.getTimestamp() - currentCallStartedTime : 0;
+                    var fm = currentCallContact.endCall(currentCallSessionId, currentCallAccepted && currentCallCalleeAccepted, callDuration, currentCallInitiator);
+                    if (fm == null)
+                    {
+                        Logging.warn("Cannot end call, no message with session ID exists.");
+                    } else
+                    {
+                        /* ★ C4 (Session AD): ONE branch. The "answered, and messages were sent during
+                         * the call" arm used to call Node.addMessageWithType with the SAME id as the
+                         * call's own message — and Ixian-Core refuses a duplicate id at an equal
+                         * sequence (FriendList.addMessageWithType, "already in message list"), so
+                         * that arm wrote NOTHING: the card kept its in-call label and its "Call back"
+                         * link, the duration never reached the store, and only a chat re-open showed
+                         * a stale voiceCall row with no duration. The in-place mutation below is what
+                         * the other arm always did, and it is correct for both. */
+                        {
+                            fm.type = FriendMessageType.voiceCallEnd;
+                            if (callAccepted)
+                            {
+                                fm.message = callDuration.ToString();
+                            }
+                            else if (currentCallDeclinedLocally)
+                            {
+                                // #572 ④: the ONE writer of the durable decline marker. The
+                                // latch is true only when this device rejected the call, so
+                                // a call that simply rang out keeps its empty body and stays
+                                // a genuine "Missed call".
+                                fm.message = declinedLocallyMarker;
+                            }
+                            else if (currentCallDeclinedRemotely)
+                            {
+                                // ★ #1080 F11: the peer declined — the caller's card says so ("Call declined"),
+                                // not "No answer".
+                                fm.message = declinedRemotelyMarker;
+                            }
+                            /* ★★ #572 ④, review MAJOR-1: THE CHATS ROW READS A DEEP COPY.
+                             * `metaData.setLastMessage` stores `new FriendMessage(msg.getBytes())`
+                             * (Ixian-Core Friend.cs:126-129), so mutating `fm` here reaches the
+                             * message list and NOT the row. Without this refresh the bubble said
+                             * "Call declined" and the chats row said "Missed call" — the exact
+                             * two-surface disagreement this row exists to remove — and the stale
+                             * copy is what gets persisted, so a restart kept the wrong label
+                             * forever. The same refresh carries an ANSWERED call's duration and
+                             * its voiceCallEnd type across, which never reached the row either. */
+                            var callMeta = currentCallContact.metaData;
+                            if (callMeta.lastMessage != null && fm.id != null
+                                && callMeta.lastMessage.id != null && callMeta.lastMessage.id.SequenceEqual(fm.id))
+                            {
+                                callMeta.setLastMessage(fm, 0);
+                                currentCallContact.saveMetaData();
+                            }
+                            /* ★★ #1148 (3): a MISSED INCOMING call raises the unread count HERE, at its end — its voiceCall row no
+                             * longer counts at insert (UnreadRule.countsAsUnread), so a call I placed, answered or declined on this
+                             * device never counts. Rule executed in scripts/csh (UnreadRule.missedCallCounts). */
+                            if (UnreadRule.missedCallCounts(currentCallInitiator, callAccepted, currentCallDeclinedLocally, UIHelpers.isChatScreenDisplayed(currentCallContact)))
+                            {
+                                currentCallContact.metaData.unreadMessageCount++;
+                                currentCallContact.saveMetaData();
+                                UIHelpers.shouldRefreshContacts = true;
+                            }
+                            IxianHandler.localStorage.requestWriteMessages(currentCallContact.walletAddress, 0);
+                            UIHelpers.insertMessage(currentCallContact, 0, fm);
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.error("Exception occured in endVoIPSession (call card): " + e);
+            }
+
+            /* #46 r1 A-M1 (session 4 fix): the missed-call notification is posted AFTER the call card above has COUNTED the
+             * missed call (#1148 (3), UnreadRule.missedCallCounts) — its badge (unreadTotalForBadge) was one short when it
+             * ran first. Nothing else moved: the call fields it reads are reset only below. */
             /* ★ 3.14 (Damir on device 2026-08-21): "despite being a missed call the
              * notification says 'Incoming call'."
              *
@@ -430,100 +544,6 @@ namespace SPIXI.VoIP
             catch (Exception e)
             {
                 Logging.warn("endVoIPSession: could not update the call notification: " + e.Message);
-            }
-
-            try
-            {
-                if (audioPlayer != null)
-                {
-                    audioPlayer.Dispose();
-                    audioPlayer = null;
-                }
-            }
-            catch (Exception e)
-            {
-                audioPlayer = null;
-                Logging.error("Exception occured in endVoIPSession 1: " + e);
-            }
-
-            // #46 r5 MINOR-1: take the recorder AND close the controls in one step, so a
-            // startVoIPSession racing this teardown either hands its recorder over before this
-            // (and it is disposed here) or sees controlsClosed and never starts it.
-            IAudioRecorder? endingRecorder;
-            lock (controlLock)
-            {
-                endingRecorder = audioRecorder;
-                audioRecorder = null;
-                controlsClosed = true;
-            }
-            try
-            {
-                endingRecorder?.Dispose();
-            }
-            catch (Exception e)
-            {
-                Logging.error("Exception occured in endVoIPSession 2: " + e);
-            }
-
-            if (currentCallContact != null)
-            {
-                bool callAccepted = currentCallAccepted && currentCallCalleeAccepted;
-                long callDuration = currentCallStartedTime > 0 ? Clock.getTimestamp() - currentCallStartedTime : 0;
-                var fm = currentCallContact.endCall(currentCallSessionId, currentCallAccepted && currentCallCalleeAccepted, callDuration, currentCallInitiator);
-                if (fm == null)
-                {
-                    Logging.warn("Cannot end call, no message with session ID exists.");
-                } else
-                {
-                    /* ★ C4 (Session AD): ONE branch. The "answered, and messages were sent during
-                     * the call" arm used to call Node.addMessageWithType with the SAME id as the
-                     * call's own message — and Ixian-Core refuses a duplicate id at an equal
-                     * sequence (FriendList.addMessageWithType, "already in message list"), so
-                     * that arm wrote NOTHING: the card kept its in-call label and its "Call back"
-                     * link, the duration never reached the store, and only a chat re-open showed
-                     * a stale voiceCall row with no duration. The in-place mutation below is what
-                     * the other arm always did, and it is correct for both. */
-                    {
-                        fm.type = FriendMessageType.voiceCallEnd;
-                        if (callAccepted)
-                        {
-                            fm.message = callDuration.ToString();
-                        }
-                        else if (currentCallDeclinedLocally)
-                        {
-                            // #572 ④: the ONE writer of the durable decline marker. The
-                            // latch is true only when this device rejected the call, so
-                            // a call that simply rang out keeps its empty body and stays
-                            // a genuine "Missed call".
-                            fm.message = declinedLocallyMarker;
-                        }
-                        else if (currentCallDeclinedRemotely)
-                        {
-                            // ★ #1080 F11: the peer declined — the caller's card says so ("Call declined"),
-                            // not "No answer".
-                            fm.message = declinedRemotelyMarker;
-                        }
-                        /* ★★ #572 ④, review MAJOR-1: THE CHATS ROW READS A DEEP COPY.
-                         * `metaData.setLastMessage` stores `new FriendMessage(msg.getBytes())`
-                         * (Ixian-Core Friend.cs:126-129), so mutating `fm` here reaches the
-                         * message list and NOT the row. Without this refresh the bubble said
-                         * "Call declined" and the chats row said "Missed call" — the exact
-                         * two-surface disagreement this row exists to remove — and the stale
-                         * copy is what gets persisted, so a restart kept the wrong label
-                         * forever. The same refresh carries an ANSWERED call's duration and
-                         * its voiceCallEnd type across, which never reached the row either. */
-                        var callMeta = currentCallContact.metaData;
-                        if (callMeta.lastMessage != null && fm.id != null
-                            && callMeta.lastMessage.id != null && callMeta.lastMessage.id.SequenceEqual(fm.id))
-                        {
-                            callMeta.setLastMessage(fm, 0);
-                            currentCallContact.saveMetaData();
-                        }
-                        IxianHandler.localStorage.requestWriteMessages(currentCallContact.walletAddress, 0);
-                        UIHelpers.insertMessage(currentCallContact, 0, fm);
-                    }
-                }
-
             }
 
             // ★ #1074: the local controls never outlive their call. The route is reset

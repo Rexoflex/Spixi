@@ -658,6 +658,7 @@
   "groundBrandGradient": "Prekės ženklo gradientas",
   "patternStyleContours": "Kontūrai",
   "tapToDownload": "Palieskite, kad atsisiųstumėte",
+  "clickToDownload": "Spustelėkite, kad atsisiųstumėte",
   "viewOnIxiScope": "Peržiūrėti per ixiscope",
   "missingTxCheckingHead": "Tikrinama blokų grandinė",
   "missingTxOlder": "Operacijos iki Spixi pradinio bloko čia nerodomos. ixiscope rodo visą istoriją.",
@@ -719,5 +720,6 @@
   "sharedCopyFailed": "Nepavyko nukopijuoti",
   "copyLink": "Kopijuoti nuorodą",
   "photoPreviewsTitle": "Rodyti nuotraukų peržiūras pokalbiuose",
-  "photoPreviewsHint": "Jūsų išsiųstos ar atsisiųstos nuotraukos pokalbyje rodomos kaip paveikslėlis. Išjungta: kiekviena nuotrauka lieka failo kortele."
+  "photoPreviewsHint": "Jūsų išsiųstos ar atsisiųstos nuotraukos pokalbyje rodomos kaip paveikslėlis. Išjungta: kiekviena nuotrauka lieka failo kortele.",
+  "newReaction": "Nauja reakcija"
 }

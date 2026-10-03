@@ -659,6 +659,7 @@
   "groundBrandGradient": "Gradien merek",
   "patternStyleContours": "Kontur",
   "tapToDownload": "Ketuk untuk mengunduh",
+  "clickToDownload": "Klik untuk mengunduh",
   "viewOnIxiScope": "Lihat di ixiscope",
   "missingTxCheckingHead": "Memeriksa blockchain",
   "missingTxOlder": "Transaksi sebelum blok awal Spixi tidak ditampilkan di sini. ixiscope menampilkan seluruh riwayat Anda.",
@@ -720,5 +721,6 @@
   "sharedCopyFailed": "Tidak dapat menyalin",
   "copyLink": "Salin tautan",
   "photoPreviewsTitle": "Tampilkan pratinjau foto di obrolan",
-  "photoPreviewsHint": "Foto yang Anda kirim atau unduh tampil sebagai gambar di obrolan. Mati: setiap foto tetap berupa kartu file."
+  "photoPreviewsHint": "Foto yang Anda kirim atau unduh tampil sebagai gambar di obrolan. Mati: setiap foto tetap berupa kartu file.",
+  "newReaction": "Reaksi baru"
 }

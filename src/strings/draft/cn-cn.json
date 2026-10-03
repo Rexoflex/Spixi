@@ -658,6 +658,7 @@
   "groundBrandGradient": "品牌渐变",
   "patternStyleContours": "等高线",
   "tapToDownload": "点按下载",
+  "clickToDownload": "点击下载",
   "viewOnIxiScope": "在 ixiscope 中查看",
   "missingTxCheckingHead": "正在检查区块链",
   "missingTxOlder": "Spixi 起始区块之前的交易不会在此列出。ixiscope 显示您的完整历史。",
@@ -719,5 +720,6 @@
   "sharedCopyFailed": "无法复制",
   "copyLink": "复制链接",
   "photoPreviewsTitle": "在聊天中显示照片预览",
-  "photoPreviewsHint": "你发送或下载的照片会在聊天中显示为图片。关闭：所有照片都显示为文件卡片。"
+  "photoPreviewsHint": "你发送或下载的照片会在聊天中显示为图片。关闭：所有照片都显示为文件卡片。",
+  "newReaction": "新回应"
 }

@@ -736,6 +736,7 @@
   "groundBrandGradient": "Brend gradijent",
   "patternStyleContours": "Konture",
   "tapToDownload": "Dodirnite za preuzimanje",
+  "clickToDownload": "Kliknite za preuzimanje",
   "viewOnIxiScope": "Prikaži u ixiscope",
   "missingTxCheckingHead": "Provera blokčejna",
   "missingTxOlder": "Transakcije pre početnog bloka Spixija nisu prikazane ovde. ixiscope prikazuje celu istoriju.",
@@ -797,5 +798,6 @@
   "sharedCopyFailed": "Kopiranje nije uspelo",
   "copyLink": "Kopiraj link",
   "photoPreviewsTitle": "Prikaži preglede fotografija u ćaskanjima",
-  "photoPreviewsHint": "Fotografije koje ste poslali ili preuzeli prikazuju se kao slika u ćaskanju. Isključeno: svaka fotografija ostaje kartica datoteke."
+  "photoPreviewsHint": "Fotografije koje ste poslali ili preuzeli prikazuju se kao slika u ćaskanju. Isključeno: svaka fotografija ostaje kartica datoteke.",
+  "newReaction": "Nova reakcija"
 }

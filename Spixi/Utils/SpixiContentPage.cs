@@ -2710,7 +2710,9 @@ namespace SPIXI
                         await Task.Delay(OpenPerfRules.closeHideWaitMs(
                             Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.WinUI,
                             Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.Android));
+                        p1CloseStep(p1Kind, "posted", p1T0);   // ★ #1147 (6) close probe — TEMPORARY: the posted hide wait is over
                         op.hostGrid.Children.Remove(op.stage);
+                        p1CloseStep(p1Kind, "removed", p1T0);   // ★ #1147 (6) close probe — TEMPORARY: right after the Remove
                         p1CloseDone(p1Kind, p1T0);   // ★ P-1 (#1127) — TEMPORARY: the stage is removed
                         op.stage.TranslationX = 0;   // #326 belt: never hand a translated stage to any reuse path
                         op.stage.Content = null;
@@ -2749,6 +2751,18 @@ namespace SPIXI
                 P1Perf.line("close " + kind + " start slide=" + (slide ? "1" : "0"));
             }
             return kind;
+        }
+
+        /* ★ #1147 (6) close probe — TEMPORARY, retire with the [P1] set: `close <kind> posted|removed ms=` from the SAME t0 as
+         * `done` (the closeOverlay call), so the walk splits the Android close (159 / 435 ms, wait 16 ms) into the main-thread
+         * waits + the slide (→ posted) and the Remove (→ removed). Fixed words + an integer: `step` is a literal at each call. */
+        private static void p1CloseStep(string kind, string step, long t0)
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            P1Perf.line("close " + kind + " " + step + " ms=" + P1Perf.msSince(t0));
         }
 
         /* ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: `close <kind> done ms=` + the frame window. */
@@ -5666,6 +5680,7 @@ namespace SPIXI
             if (existing != null && existing.pendingDeletion)
             {
                 FriendList.removeFriend(existing);
+                SReactionFlags.clear(existing.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the re-added contact starts without the old heart
                 UIHelpers.shouldRefreshContacts = true;
                 existing = null;
             }

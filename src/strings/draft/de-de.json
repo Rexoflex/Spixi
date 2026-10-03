@@ -736,6 +736,7 @@
   "groundBrandGradient": "Markenverlauf",
   "patternStyleContours": "Konturen",
   "tapToDownload": "Zum Herunterladen tippen",
+  "clickToDownload": "Zum Herunterladen klicken",
   "viewOnIxiScope": "In ixiscope ansehen",
   "missingTxCheckingHead": "Blockchain wird geprüft",
   "missingTxOlder": "Transaktionen vor dem Startblock von Spixi werden hier nicht angezeigt. ixiscope zeigt deinen vollständigen Verlauf.",
@@ -797,5 +798,6 @@
   "sharedCopyFailed": "Kopieren fehlgeschlagen",
   "copyLink": "Link kopieren",
   "photoPreviewsTitle": "Fotovorschau in Chats anzeigen",
-  "photoPreviewsHint": "Fotos, die du gesendet oder heruntergeladen hast, erscheinen im Chat als Bild. Aus: Jedes Foto bleibt eine Dateikarte."
+  "photoPreviewsHint": "Fotos, die du gesendet oder heruntergeladen hast, erscheinen im Chat als Bild. Aus: Jedes Foto bleibt eine Dateikarte.",
+  "newReaction": "Neue Reaktion"
 }

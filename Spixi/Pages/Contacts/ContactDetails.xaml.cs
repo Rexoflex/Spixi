@@ -936,6 +936,7 @@ namespace SPIXI
             // Remove history file
             if(friend.deleteHistory())
             {
+                SReactionFlags.clear(friend.walletAddress.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
                 UIHelpers.shouldRefreshContacts = true;
                 /* ★ #46 loop B, MAJOR-1 — THE CONVERSATION IS GONE ON DISK, SO SAY SO.
                  * This method pushed nothing, so the shell kept the user's own unsent DRAFT

@@ -1,0 +1,17 @@
+Session 4 re-walk fixes: photo fade, 3 px frame, 2 s highlight, dark bubble
+
+Re-walk #1151 (Windows 7 P, Android 7 P 1 F), fixes #1152, open #1153-#1154.
+
+- The first photo in a chat always fades in, also when the preview
+  arrives before the row is drawn (Android); a picture counts as shown
+  only after its fade ends, so a re-render never pops it.
+- Photo tile frame 3 px on both sides.
+- "Show in chat" highlight: 2 s, then an even 600 ms fade.
+- Dark incoming bubble half a step lighter (#1E2023, new --ink-750);
+  the reply quote and sender names re-tuned to keep their contrast.
+- A tapped GIF stays open across a re-render.
+- Recorded: the Windows background crash (#1153, mechanism owed) and
+  the chat-info "Delete from this device" / "Show in Downloads" items
+  for session 5 (#1154).
+- Pins: scripts/pins-s4/fix3.mjs, fix4.mjs, fixr4.mjs; smoke BASELINE
+  OK 5182; C# harness 72.

@@ -7693,8 +7693,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '★ N81/N82(b): the surfaces that FLOATED on the old blue canvas still READ the hairline token (transparent since #427) rather than baking their own edge — including the Chat-appearance PREVIEW bubble, the one screen whose whole job is showing what the chat looks like. If it ever baked an edge the preview would stop matching the chat');
   ok(/--text-bubble-sent-meta/.test(darkN81) && !/--text-bubble-sent-meta: var\(--neutral-300\)/.test(darkN81),
     '★ N81 (#422): the superseded dark sent-meta ink is GONE, not merely shadowed — a leftover declaration in the dark block would win on source order');
-  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: var\(--neutral-800\);/.test(darkN81),
-    '★★ #989 (Damir 2026-09-27): dark = the ramp\'s --neutral-800 (ink-800 #1A1C1F), no literal. Superseded: ★★ AUG (Damir 2026-08-30, ON DEVICE): the incoming bubble surface — WHITE in light, #1e222b in dark. Dark was raised because #1a1d24 measured only +2.86 ΔL* against the canvas CENTRE (where the #701 radial lift is strongest) and blended at the top of the screen; #1e222b is +5.31. Damir picked the NEUTRAL step off a four-candidate render — the bluer options were offered and declined, so this is a lightness change and the bubble keeps its hue. ⚠ The #701 lift drop IMPROVED this rather than causing it: at .20 the canvas centre was L* 15.66 against the bubble\'s 10.75, i.e. the bubble was DARKER than its own background. Superseded: #1a1d24 (N81, Damir 2026-08-19)');
+  ok(/--surface-bubble-received: #ffffff;/.test(lightN81) && /--surface-bubble-received: var\(--ink-750\);/.test(darkN81),
+    '★★ Damir pick (2026-10-03): dark = the ramp\'s half step --ink-750 #1E2023, no literal (contrast computed in pins-s4/fix4.mjs). Superseded: ★★ #989 (Damir 2026-09-27): --neutral-800 (ink-800 #1A1C1F). Superseded: ★★ AUG (Damir 2026-08-30, ON DEVICE): the incoming bubble surface — WHITE in light, #1e222b in dark. Dark was raised because #1a1d24 measured only +2.86 ΔL* against the canvas CENTRE (where the #701 radial lift is strongest) and blended at the top of the screen; #1e222b is +5.31. Damir picked the NEUTRAL step off a four-candidate render — the bluer options were offered and declined, so this is a lightness change and the bubble keeps its hue. ⚠ The #701 lift drop IMPROVED this rather than causing it: at .20 the canvas centre was L* 15.66 against the bubble\'s 10.75, i.e. the bubble was DARKER than its own background. Superseded: #1a1d24 (N81, Damir 2026-08-19)');
   ok(/--border-bubble-received: transparent;/.test(lightN81)
     && !/--border-bubble-received:/.test(darkN81),
     '★ N82(b) (#427): the bubble hairline is OFF in BOTH themes — one `transparent` in :root and NO dark override. Damir chose symmetric removal against the rendered comparison; the asymmetric build (transparent in light, rgba(255,255,255,.05) in dark) is what he was shown, not what ships');
@@ -8529,7 +8529,10 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      ring + --jump-keep and the lifted reduced-motion selectors + their comment, B-M2 the square tile (PHOTO_TILE_PX,
      setMediaSize) and B-m4 the history-only quiet key (inlined bundle + shell). 728 leaves −1 352, 729 −328, 730 leaves 696.
      index.html unchanged (555 589). Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 730, INDEX_KB_CEIL = 543;
+  /* ★ #46 r4 fixes (the #1151 / Damir-pick batch): CHAT 730 → 731. chat.html 747 385 → 748 150 chars (+765): M1 the
+     "shown"-at-fade-end record (transitionend / next-frame path, inlined bundle), m5 the GIF remembered at its load, m2 the
+     dark quote fill + five quote-label steps. 730 leaves −630, 731 leaves 394. index.html unchanged. Stated, not silent (#345). */
+  const CHAT_KB_CEIL = 731, INDEX_KB_CEIL = 543;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -37274,8 +37277,8 @@ console.log('Office fix round (#974–#981)');
   ok(bad.length === 0,
     '★★ #989 (+ #993 review): nine semantic tokens, each declared exactly TWICE — light in a plain :root block, dark in the [data-theme="dark"] block — the LIGHT value first (= today\'s look: transparent edges, the white sent card with #265\'s 2px outgoing border, the action-tonal medallion) and the DARK value LATER in source order, so it actually wins on [data-theme="dark"]. Failing: ' + JSON.stringify(bad.map((b) => b[0])));
   const darkLit = ['chat-canvas-base', 'surface-bubble-received', 'surface-composer-pill'].filter((n) => { const d = decls(n); return !d.length || /#[0-9a-fA-F]{3,6}\b/.test(d[d.length - 1].v); });
-  ok(darkLit.length === 0 && decls('chat-canvas-base').pop().v === 'var(--ink-950)' && decls('surface-bubble-received').pop().v === 'var(--neutral-800)' && decls('surface-composer-pill').pop().v === 'var(--neutral-800)',
-    '★ #989 + #1058: the dark canvas / received bubble / composer pill read the RAMP (ink-950 / neutral-800 / -800), no literal hex — two blacks from two families was defect D-01. Literal: ' + JSON.stringify(darkLit));
+  ok(darkLit.length === 0 && decls('chat-canvas-base').pop().v === 'var(--ink-950)' && decls('surface-bubble-received').pop().v === 'var(--ink-750)' && decls('surface-composer-pill').pop().v === 'var(--neutral-800)',
+    '★ #989 + #1058: the dark canvas / received bubble / composer pill read the RAMP (ink-950 / ink-750 (Damir pick 2026-10-03) / neutral-800), no literal hex — two blacks from two families was defect D-01. Literal: ' + JSON.stringify(darkLit));
   const sent = typedC.slice(typedC.indexOf('.c-bubble-row[data-direction="sent"] .c-tcard,'), typedC.indexOf('.c-tcard[data-kind="call"]'));
   ok(/border: var\(--border-card-sent\);/.test(sent) && /background: var\(--surface-card-sent\);/.test(sent) && !/border: 2px solid/.test(sent),
     '★ #989 → #1003: the SENT card stroke is the TOKEN (none in BOTH themes since #1003 — the tint + 1px edge carry "yours") — no literal 2px border left in the rule');
@@ -37556,7 +37559,7 @@ console.log('★★ #1001–#1010 — the premium polish round');
       const dm = new RegExp('^\\[data-theme="dark"\\] \\.c-bubble__sender\\[data-idhue="' + i + '"\\], \\[data-theme="dark"\\] \\.c-bubble__reply\\[data-idhue="' + i + '"\\] \\{ --sender-label-l: (\\d+)%; --reply-label-l: (\\d+)%; \\}', 'm').exec(mb);
       if (!lm || !dm) { rows.push({ i, missing: true }); continue; }
       const h = S.IDENTITY_HUES[i];
-      rows.push({ i, name: cr(hsl2hex(h, 62, +lm[1]), '#ffffff'), quote: cr(hsl2hex(h, 62, +lm[2]), '#edf0f2'), dname: cr(hsl2hex(h, 70, +dm[1]), '#1a1c1f'), dquote: cr(hsl2hex(h, 70, +dm[2]), '#232528') });
+      rows.push({ i, name: cr(hsl2hex(h, 62, +lm[1]), '#ffffff'), quote: cr(hsl2hex(h, 62, +lm[2]), '#edf0f2'), dname: cr(hsl2hex(h, 70, +dm[1]), '#1e2023'), dquote: cr(hsl2hex(h, 70, +dm[2]), '#2c2e31') });
     }
     const low = rows.filter((r) => r.missing || [r.name, r.quote, r.dname, r.dquote].some((c) => !(c >= 4.5)));
     ok(rows.length === 12 && low.length === 0
@@ -41450,7 +41453,7 @@ console.log('#1101–#1107 — session 1');
   {
     const built = rdS2('Spixi/Resources/Raw/html/chat.html');
     const kinds = ['.c-bubble', '.c-fbubble', '.c-mbubble', '.c-tcard'];
-    /* ★ A2 re-base (#1132 (4)): 3 s, the 1 px ring keyframes; reduced motion = the band rule, then the static ring rule */
+    /* ★ A2 re-base (#1132 (4)): the 1 px ring keyframes (2 s since the Damir walk fix — timing pinned in pins-s4/chat.mjs A2 TIMING); reduced motion = the band rule, then the static ring rule */
     const anim = (built.match(/([^{}]*)\{ animation: chat-jump-ring var\(--duration-highlight\) var\(--easing-standard\) var\(--jump-delay, 0ms\) 1; \}/) || [])[1] || '';
     const rm = (built.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.c-bubble-row\[data-mention-pulse\] \{[^{}]*\}\s*([^{}]*)\{ animation: none; box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\), var\(--jump-keep, 0 0 0 0 transparent\); \}/) || [])[1] || '';   /* #1147 (1) re-base · #46 r1 B-m1/B-M1 re-base: gap + ring, each kind lifted by [data-direction] */
     const r = {
@@ -42023,7 +42026,7 @@ console.log('#1101–#1107 — session 1');
   }
 /* ==== SESSION 3 PINS END ==== */
 /* ==== SESSION 4 PINS (#1132 / #1133) — one module per build agent, fixed order ==== */
-for (const mod of ['cs', 'nav', 'chat', 'main', 'fix2', 'fixr1', 'fixr2']) {   // fix2 = #1148 (session 4 fix batch part 2) · fixr1 / fixr2 = its #46 r1 / r2 fixes
+for (const mod of ['cs', 'nav', 'chat', 'main', 'fix2', 'fixr1', 'fixr2', 'fix3', 'fix4', 'fixr4']) {   // fix2 = #1148 (session 4 fix batch part 2) · fixr1 / fixr2 = its #46 r1 / r2 fixes · fix3 = the #1151 re-walk fixes · fix4 = the Damir picks 2026-10-03 (dark received ground) · fixr4 = their #46 r4 fixes
   await (await import(new URL('./pins-s4/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 }

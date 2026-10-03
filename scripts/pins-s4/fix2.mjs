@@ -33,18 +33,18 @@ export default async function (h) {
     const sent = rule(mb, '.c-bubble-row[data-direction="sent"] .c-mbubble[data-file]');
     const textRecv = rule(bub, '.c-bubble-row[data-direction="received"] .c-bubble');
     const r = {
-      recvFrame: /border:\s*2px solid var\(--surface-bubble-received\);/.test(recv),
+      recvFrame: /border:\s*3px solid var\(--surface-bubble-received\);/.test(recv),
       recvEdge: /box-shadow:\s*0 0 0 1px var\(--outline-hairline\), var\(--bubble-elevation\);/.test(recv),
       /* the SAME tokens the incoming text bubble's edge uses (#989 hairline + the Session I lift) */
       sameTokensAsText: /var\(--outline-hairline\)/.test(textRecv) && /var\(--bubble-elevation\)/.test(textRecv) && /var\(--surface-bubble-received\)/.test(textRecv),
-      sentFrame: /border:\s*2px solid var\(--surface-bubble-sent\);/.test(sent) && /box-shadow:\s*var\(--bubble-elevation\);/.test(sent) && !/outline-hairline/.test(sent),
+      sentFrame: /border:\s*3px solid var\(--surface-bubble-sent\);/.test(sent) && /box-shadow:\s*var\(--bubble-elevation\);/.test(sent) && !/outline-hairline/.test(sent),
       /* the A2 jump ring and the sending scrim still work on the tile */
       a2Ring: /\.c-bubble-row\[data-mention-pulse\] \.c-mbubble, \.c-bubble-row\[data-mention-pulse\] \.c-tcard \{ animation: chat-jump-ring/.test(built),
       scrim: /\.c-mbubble\[data-file="progress"\]\[data-state="loaded"\] \.c-mbubble__file \{[^}]*background: var\(--surface-scrim\);/.test(mb),
-      shipped: built.includes('border: 2px solid var(--surface-bubble-received);') && built.includes('border: 2px solid var(--surface-bubble-sent); box-shadow: var(--bubble-elevation);'),
+      shipped: built.includes('border: 3px solid var(--surface-bubble-received);') && built.includes('border: 3px solid var(--surface-bubble-sent); box-shadow: var(--bubble-elevation);'),
     };
     ok(Object.values(r).every(Boolean),
-      '★ #1148 (2) (Damir: "white outline like incoming, blue like outgoing"): a RECEIVED photo tile is framed 2px in the incoming bubble ground with the incoming edge (hairline + lift) outside it, MY tile keeps the sent 2px frame + the lift and no hairline; the A2 ring and the sending scrim are intact; shipped in the built chat shell — ' + JSON.stringify(r));
+      '★ #1148 (2) (Damir: "white outline like incoming, blue like outgoing"): a RECEIVED photo tile is framed 3px (#1151, was 2) in the incoming bubble ground with the incoming edge (hairline + lift) outside it, MY tile keeps the sent 3px frame + the lift and no hairline; the A2 ring and the sending scrim are intact; shipped in the built chat shell — ' + JSON.stringify(r));
   }
 
   /* —— (3) the unread rule: every raise of the count goes through UnreadRule (MAUI-only sites → source pins) —— */

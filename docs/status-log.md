@@ -367,3 +367,6 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   UnreadRule + reaction heart, chips 500, spare warm 0 ms, close probe) — #46 CLEAN at r3 (#1149). Smoke 5170 · CSH 71.
   UNCOMMITTED. Next: re-walk → #1150; then session 5. Next free #1150.
 - 2026-10-03 (d): #1150 contact requests do not count as unread (Damir). Next free #1151.
+- 2026-10-04: re-walk #1151 (Win 7 P, Android 7 P 1 F: photo fade); fixes #1152 (fade on a held frame, 3 px, highlight 2 s linear,
+  dark bubble #1E2023) — #46 fresh reader MAJOR fixed. Open: Windows background crash #1153; S5 adds chat-info Delete from device +
+  Show in Downloads (#1154). Smoke 5182 · CSH 72. Next free #1155.

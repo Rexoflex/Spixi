@@ -78,6 +78,7 @@
   --ink-500:  #37393C;   /* was #253246 (#884 ②) */
   --ink-600:  #2C2E31;   /* was #202b3c (#884 ②) */
   --ink-700:  #232528;   /* was #19212f */
+  --ink-750:  #1E2023;   /* ★ Damir pick (2026-10-03): the dark received bubble, a half step between ink-800 #1A1C1F and ink-700 #232528 (the ink-950 pattern). Ramp-only — no --neutral-750 alias. */
   --ink-800:  #1A1C1F;   /* was #161d28 */
   --ink-900:  #0F1113;   /* was #10151e — the dark screen/chrome ground */
   --ink-950:  #0C0E10;   /* ★ #1058 (Damir 2026-09-29: "dark chat background too black, tone it down a bit"; picked from a rendered 4-way: #090A0D · #0C0E10 · #0F1113 · #131518): the dark chat canvas, a half step above ink-1000 and still below the ink-900 bars. Ramp-only — NO --neutral-950 alias in dark (that name is the #131415 on-colour ink there). */
@@ -994,7 +995,7 @@
      the "bubble" was DARKER than the canvas behind it. Dropping to .06 put it the right way
      up, and this change widens the margin rather than fixing a new regression.
      ⚠ Superseded: #1a1d24. */
-  --surface-bubble-received: var(--neutral-800);  /* ★ #989 (Damir 2026-09-27): the ramp's own step (ink-800 #1A1C1F), not a literal — one black family. Was #1e222b (N81/AUG) */
+  --surface-bubble-received: var(--ink-750);  /* ★ Damir pick (2026-10-03): one HALF step lighter — ink-750 #1E2023 (text 13.74:1, meta 8.77, 1.18 off the canvas). Was var(--neutral-800) ink-800 #1A1C1F (#989); before it #1e222b (N81/AUG) */
   --surface-input: var(--neutral-800);
   /* ★ Session H: the pill on the dark canvas — #1e222b (1.15:1 vs #10151e, the received
      bubble's own number) + neutral-500 (ink-500 #253246 since #884 ②: 1.41:1 vs #10151e, 1.46 vs the #0D1117 chat canvas, 1.23:1 vs the pill; the grey #31343a read 1.47 / 1.28 vs #10151e / the pill).
@@ -1209,7 +1210,7 @@
   --duration-100: 100ms; /* micro: hover, toggle */
   --duration-200: 200ms; /* standard: sheets, dropdowns */
   --duration-300: 300ms; /* view transitions */
-  --duration-highlight: 3000ms; /* ★ A2 (#1132 (4), #46 r1 L-1): the chat jump highlight — CSS AND chat.html's JS read it; NOT zeroed under reduced motion (the static band holds for it) */
+  --duration-highlight: 2000ms; /* ★ A2 (#1132 (4), #46 r1 L-1; Damir walk: 3 s → 2 s, 600 ms fade): the chat jump highlight — CSS AND chat.html's JS read it; NOT zeroed under reduced motion (the static band holds for it) */
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --easing-decelerate: cubic-bezier(0, 0, 0, 1);
   --easing-accelerate: cubic-bezier(0.3, 0, 1, 1);

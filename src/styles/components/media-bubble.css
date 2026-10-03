@@ -157,13 +157,14 @@
 .c-mbubble[data-file] {
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  /* ★ #1148 (2) edge per side (Damir: "white outline like incoming, blue like outgoing"): a received tile is framed 2px in
-     the incoming ground + the incoming edge outside it (#989 hairline, an OUTER ring: inset paints under the picture) + lift */
-  border: 2px solid var(--surface-bubble-received);
+  /* ★ #1148 (2) edge per side (Damir: "white outline like incoming, blue like outgoing"): a received tile is framed in
+     the incoming ground + the incoming edge outside it (#989 hairline, an OUTER ring: inset paints under the picture) + lift.
+     ★ #1151 A-EDGE: 3px (was 2 — it read as 1 px on the phone; Damir), both sides, desktop + mobile */
+  border: 3px solid var(--surface-bubble-received);
   box-shadow: 0 0 0 1px var(--outline-hairline), var(--bubble-elevation);
 }
-/* my tile: the outgoing edge — the sent 2px frame (restated beside its pair) + the lift, no hairline */
-.c-bubble-row[data-direction="sent"] .c-mbubble[data-file] { border: 2px solid var(--surface-bubble-sent); box-shadow: var(--bubble-elevation); }
+/* my tile: the outgoing edge — the sent 3px frame (#1151; restated beside its pair) + the lift, no hairline */
+.c-bubble-row[data-direction="sent"] .c-mbubble[data-file] { border: 3px solid var(--surface-bubble-sent); box-shadow: var(--bubble-elevation); }
 .c-mbubble[data-file]:disabled { cursor: default; }     /* transferring: no tap (the card's rule) */
 .c-mbubble[data-file] .c-mbubble__overlay { display: none; }   /* no "tap to load" disc: the face says what a tap does */
 .c-mbubble__file {
@@ -186,7 +187,7 @@
 .c-mbubble[data-quiet] .c-mbubble__file { opacity: 0; }
 /* the picture is the face now — #46 r1 B-6: the face stays UNDER the picture while it fades in (the img sits above it),
    then hides at the fade's end (a discrete visibility step after --duration-200), so no blank ground shows between */
-.c-mbubble[data-file] .c-mbubble__img { z-index: 1; object-fit: cover; }   /* #46 r1 B-m2: cover — contain left a 1 px sliver of ground inside the 2 px frame (the preview is a square crop on a square tile, B-M2) */
+.c-mbubble[data-file] .c-mbubble__img { z-index: 1; object-fit: cover; }   /* #46 r1 B-m2: cover — contain left a 1 px sliver of ground inside the frame (the preview is a square crop on a square tile, B-M2) */
 .c-mbubble[data-state="loaded"] .c-mbubble__file {
   visibility: hidden;
   transition: visibility 0s linear var(--duration-200);

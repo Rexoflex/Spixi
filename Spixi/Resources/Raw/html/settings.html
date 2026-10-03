@@ -4840,7 +4840,9 @@ button.c-bubble__sender {
    as a surface at all, leaving only its 2px hue bar to say "this is a quote". One
    step up the same neutral family restores it (1.19:1). Light is untouched: #edf0f2
    on #ffffff was 1.14:1 before this batch and still is. */
-[data-theme="dark"] .c-bubble__reply { background: var(--surface-neutral-03); }
+/* #46 r4 m2: the ink-750 bubble (#1E2023, Damir pick 2026-10-03) left ink-700 at 1.063:1 — one more step
+   (--surface-neutral-04 = ink-600 #2C2E31) is 1.20:1 again; the dark quote label lightness below follows it. */
+[data-theme="dark"] .c-bubble__reply { background: var(--surface-neutral-04); }
 .c-bubble__reply {
   display: flex;
   align-items: center;
@@ -5214,18 +5216,18 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble__sender[data-idhue="9"], .c-bubble__reply[data-idhue="9"] { --sender-label-l: 55%; --reply-label-l: 53%; } /* 5.02 · 4.72 */
 .c-bubble__sender[data-idhue="10"], .c-bubble__reply[data-idhue="10"] { --sender-label-l: 50%; --reply-label-l: 46%; } /* 4.66 · 4.68 */
 .c-bubble__sender[data-idhue="11"], .c-bubble__reply[data-idhue="11"] { --sender-label-l: 53%; --reply-label-l: 48%; } /* 4.62 · 4.68 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="0"], [data-theme="dark"] .c-bubble__reply[data-idhue="0"] { --sender-label-l: 60%; --reply-label-l: 62%; } /* 4.86 · 4.65 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="1"], [data-theme="dark"] .c-bubble__reply[data-idhue="1"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 6.6 · 5.94 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="2"], [data-theme="dark"] .c-bubble__reply[data-idhue="2"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.75 · 7.88 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="3"], [data-theme="dark"] .c-bubble__reply[data-idhue="3"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.83 · 9.75 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="4"], [data-theme="dark"] .c-bubble__reply[data-idhue="4"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.0 · 9.0 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="5"], [data-theme="dark"] .c-bubble__reply[data-idhue="5"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.51 · 9.46 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="6"], [data-theme="dark"] .c-bubble__reply[data-idhue="6"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.39 · 7.55 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="7"], [data-theme="dark"] .c-bubble__reply[data-idhue="7"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 5.81 · 5.23 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="8"], [data-theme="dark"] .c-bubble__reply[data-idhue="8"] { --sender-label-l: 69%; --reply-label-l: 71%; } /* 4.73 · 4.69 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="9"], [data-theme="dark"] .c-bubble__reply[data-idhue="9"] { --sender-label-l: 64%; --reply-label-l: 67%; } /* 4.67 · 4.73 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="10"], [data-theme="dark"] .c-bubble__reply[data-idhue="10"] { --sender-label-l: 60%; --reply-label-l: 62%; } /* 4.86 · 4.63 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="11"], [data-theme="dark"] .c-bubble__reply[data-idhue="11"] { --sender-label-l: 61%; --reply-label-l: 64%; } /* 4.71 · 4.66 */
+[data-theme="dark"] .c-bubble__sender[data-idhue="0"], [data-theme="dark"] .c-bubble__reply[data-idhue="0"] { --sender-label-l: 60%; --reply-label-l: 65%; } /* 4.64 · 4.53 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="1"], [data-theme="dark"] .c-bubble__reply[data-idhue="1"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 6.30 · 5.25 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="2"], [data-theme="dark"] .c-bubble__reply[data-idhue="2"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.35 · 6.96 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="3"], [data-theme="dark"] .c-bubble__reply[data-idhue="3"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.33 · 8.61 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="4"], [data-theme="dark"] .c-bubble__reply[data-idhue="4"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 9.53 · 7.95 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="5"], [data-theme="dark"] .c-bubble__reply[data-idhue="5"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.02 · 8.35 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="6"], [data-theme="dark"] .c-bubble__reply[data-idhue="6"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.03 · 6.70 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="7"], [data-theme="dark"] .c-bubble__reply[data-idhue="7"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 5.54 · 4.62 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="8"], [data-theme="dark"] .c-bubble__reply[data-idhue="8"] { --sender-label-l: 70%; --reply-label-l: 73%; } /* 4.75 · 4.57 (r4: quote ink-600) (69 → 70: ink-750 ground) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="9"], [data-theme="dark"] .c-bubble__reply[data-idhue="9"] { --sender-label-l: 65%; --reply-label-l: 69%; } /* 4.63 · 4.54 (r4: quote ink-600) (64 → 65: ink-750) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="10"], [data-theme="dark"] .c-bubble__reply[data-idhue="10"] { --sender-label-l: 60%; --reply-label-l: 66%; } /* 4.64 · 4.65 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="11"], [data-theme="dark"] .c-bubble__reply[data-idhue="11"] { --sender-label-l: 62%; --reply-label-l: 67%; } /* 4.64 · 4.57 (r4: quote ink-600) (61 → 62: ink-750) */
 
 /* ★ #1010 (10b): a LIVE tick change fades in (160ms) instead of snapping — setMessageStatus
    adds the class only outside the load burst. Reduced motion: no animation. */

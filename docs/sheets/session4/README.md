@@ -39,7 +39,7 @@ The real built `chat.html` on a phone (412×760, Android UA, `?mobile=1`, reduce
 
 ## #1148 (2) photo tile edge per side (`A5-edge-{light,dark}.png`, script `render-a5-edge.mjs.txt`)
 
-The real built `chat.html` on a phone (412×1400, Android UA, `?mobile=1`). Two received and two sent photo tiles, each with a `setFileThumb` JPEG made for the test: one photo in the chat ground's own colour (light #ECEEF1 · dark #0C0E10, sampled from the canvas) and one light / dark green. Received tile = 2px frame in the incoming bubble ground (light #FFFFFF · dark #1A1C1F) + the incoming edge outside it (hairline transparent in light, rgba(255,255,255,0.043) in dark, + the lift). My tile = the sent 2px frame (light #2160C2 · dark #1A4A96) + the lift. Computed values match the received text bubble's tokens.
+The real built `chat.html` on a phone (412×1400, Android UA, `?mobile=1`). Two received and two sent photo tiles, each with a `setFileThumb` JPEG made for the test: one photo in the chat ground's own colour (light #ECEEF1 · dark #0C0E10, sampled from the canvas) and one light / dark green. Received tile = 3px frame (re-rendered for #1151; was 2px) in the incoming bubble ground (light #FFFFFF · dark #1A1C1F) + the incoming edge outside it (hairline transparent in light, rgba(255,255,255,0.043) in dark, + the lift). My tile = the sent 3px frame (light #2160C2 · dark #1A4A96) + the lift. Computed values match the received text bubble's tokens.
 
 **What is mocked:** the photos (generated flat JPEGs). ⚠ In dark the received frame is the bubble ground (#1A1C1F) on a #0C0E10 canvas — it reads, but softly, as the dark text bubble does.
 

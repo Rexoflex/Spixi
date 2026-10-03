@@ -56,7 +56,7 @@ export default async function (h) {
 
   console.log('★ Session 4 — agent CHAT (A2 pulse · A4 grid · A5 #1124 photo tiles)');
 
-  /* ———————————————————— A2 (#1132 (4)): the jump = a row BAND + a 1 px RING, 3 s, every bubble kind ———————————————————— */
+  /* ———————————————————— A2 (#1132 (4)): the jump = a row BAND + a 1 px RING, 2 s (Damir walk: was 3 s), every bubble kind ———————————————————— */
   {
     const { dom, W, push, errs } = await boot('chat.html');
     const d = W.document;
@@ -94,26 +94,26 @@ export default async function (h) {
       if (prev) r.oneAtATime = r.oneAtATime && !lit(prev);
       prev = id;
     }
-    /* L-1: the length is ONE token in the document's :root (3000 ms), and it is NOT zeroed under reduced motion */
+    /* L-1: the length is ONE token in the document's :root (2000 ms — Damir walk, was 3000), and it is NOT zeroed under reduced motion */
     const rootVal = (mediaRe) => rules.filter((x) => x.sel === ':root' && (mediaRe ? mediaRe.test(x.media || '') : !x.media)).map((x) => x.style.getPropertyValue('--duration-highlight').trim()).filter(Boolean);
-    r.token = rootVal().pop() === '3000ms' && rootVal(RM).length === 0;
-    /* the keyframes: the band is the warning WASH, the ring 1 px of the SOLID warning role, held to 90 % —
-       L-2: the exit fade (the last 10 % of 3000 ms) is exactly --duration-300 */
+    r.token = rootVal().pop() === '2000ms' && rootVal(RM).length === 0;
+    /* the keyframes: the band is the warning WASH, the ring 1 px of the SOLID warning role, held to 70 % —
+       L-2 re-base (Damir walk: "the fade out is almost instant"): the exit fade = the last 30 % of 2000 ms = 600 ms,
+       LINEAR since the Damir pick (2026-10-03; the 70 % stop's own timing function), the same hold on both */
     const kf = (name) => { for (const sh of Array.from(d.styleSheets)) for (const x of Array.from(sh.cssRules || [])) if (x.name === name) return x; return null; };
     const kb = kf('chat-jump-band'), kr = kf('chat-jump-ring');
     const kfText = (k) => (k ? Array.from(k.cssRules).map((x) => x.keyText + '{' + x.style.cssText + '}').join(' ') : '');
     const holdOf = (t) => { const m = /^0%, ?(\d+)%\{/.exec(t); return m ? Number(m[1]) : -1; };
     const bandT = kfText(kb).replace(/\s+/g, ' ').replace(/\{ /g, '{').replace(/ \}/g, '}');
     const ringT = kfText(kr).replace(/\{ /g, '{').replace(/ \}/g, '}');
-    r.bandWash = /^0%, ?90%\{background-color: var\(--surface-select-row\);?\}/.test(bandT);   /* #1147 (1): the selected-row look */
-    r.ring1px = /^0%, ?90%\{box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\), var\(--jump-keep, 0 0 0 0 transparent\);?\}/.test(ringT);   /* #1147 (1): blue — #46 r1 B-m1: behind a 1 px band-coloured gap */
-    const d300 = rules.filter((x) => x.sel === ':root' && !x.media).map((x) => x.style.getPropertyValue('--duration-300').trim()).filter(Boolean).pop();
-    r.exitFade300 = d300 === '300ms' && holdOf(bandT) >= 0 && Math.round((100 - holdOf(bandT)) / 100 * 3000) === 300 && holdOf(ringT) === holdOf(bandT);
+    r.bandWash = /^0%, ?70%\{background-color: var\(--surface-select-row\); animation-timing-function: linear;?\}/.test(bandT);   /* #1147 (1): the selected-row look */
+    r.ring1px = /^0%, ?70%\{box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\), var\(--jump-keep, 0 0 0 0 transparent\); animation-timing-function: linear;?\}/.test(ringT);   /* #1147 (1): blue — #46 r1 B-m1: behind a 1 px band-coloured gap */
+    r.exitFade600 = holdOf(bandT) >= 0 && Math.round((100 - holdOf(bandT)) / 100 * 2000) === 600 && holdOf(ringT) === holdOf(bandT);
     /* timing (a4 is lit): still lit past the OLD 1.6 s lifetime; a bubbling tick-fade animationend does not end it; the band's own end does */
     const fire = (el, name) => { const e = new W.Event('animationend', { bubbles: true }); Object.defineProperty(e, 'animationName', { value: name }); el.dispatchEvent(e); };
     push('jumpToMessage', 'a1'); await waitLit('a1');
     const tA = Date.now();
-    await sleep(1900);
+    await sleep(1700);
     r.heldPast16 = lit('a1');
     fire(rowOf('a1').querySelector('.c-bubble'), 'c-tick-in');
     r.childEndIgnored = lit('a1');
@@ -129,20 +129,20 @@ export default async function (h) {
     await sleep(120);
     const delayB = Number(String(rowOf('a2').style.getPropertyValue('--jump-delay')).replace('ms', ''));
     r.rerenderKeeps = rowOf('a2') !== nodeB && lit('a2') && delayB <= -(Date.now() - tB) + 300 && delayB >= -(Date.now() - tB) - 50;
-    while (Date.now() - tB < 2900) await sleep(20);
+    while (Date.now() - tB < 1900) await sleep(20);
     r.rerenderStillLit = lit('a2');
-    while (Date.now() - tB < 3400) await sleep(20);
+    while (Date.now() - tB < 2400) await sleep(20);
     r.rerenderEndsOnTime = !lit('a2');
-    /* N-4: a SECOND jump to the same row restarts its 3 s (delay back to 0) — the first jump's timer does not end it */
+    /* N-4: a SECOND jump to the same row restarts its 2 s (delay back to 0) — the first jump's timer does not end it */
     push('jumpToMessage', 'a3'); await waitLit('a3');
     const tC = Date.now();
-    await sleep(1500);
+    await sleep(1000);
     push('jumpToMessage', 'a3');
     await sleep(80);
     r.secondRestarts = lit('a3') && rowOf('a3').style.getPropertyValue('--jump-delay') === '0ms';
-    while (Date.now() - tC < 3600) await sleep(20);
-    r.secondHolds = lit('a3');                       // past the FIRST jump's 3.1 s end
-    while (Date.now() - tC < 4900) await sleep(20);
+    while (Date.now() - tC < 2400) await sleep(20);
+    r.secondHolds = lit('a3');                       // past the FIRST jump's 2.1 s end
+    while (Date.now() - tC < 3400) await sleep(20);
     r.secondEnds = !lit('a3');
     /* L-1: the JS timer reads the token — a 600 ms token ends the highlight (reduced-motion path: the timer is the only end) by ~0.7 s */
     d.documentElement.style.setProperty('--duration-highlight', '600ms');
@@ -165,7 +165,88 @@ export default async function (h) {
         '★ #1147 (1) A2 restyle: the jump band is rounded like the multi-select selected row (border-radius --radius-12 on the lit row; a quiet row stays square) — Damir W-A2: "rounded like selected" — ' + JSON.stringify({ quiet, litR }));
     }
     ok(Object.values(r).every(Boolean),
-      '★ A2 (#1132 (4), G-4 option 3 + 1 px; #46 r1 B-3 · L-1 · L-2; #1147 (1) restyle): a jump lights the ROW (a full-width band, the selected-row tint --surface-select-row) and rings the BUBBLE (1 px, the blue --outline-action-default) on every kind — text · file card · media tile · typed card — ONE highlight at a time; its length is the --duration-highlight token (3000 ms, not zeroed under reduced motion) that the JS timer reads too; held to 90 % so the exit fade = --duration-300; reduced motion = the static band + ring; a child\'s animationend does not end it, the band\'s own end does; a re-render mid-way CONTINUES it on the rebuilt row (negative --jump-delay) and it ends on its original schedule; a second jump restarts it — ' + JSON.stringify(r) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
+      '★ A2 (#1132 (4), G-4 option 3 + 1 px; #46 r1 B-3 · L-1 · L-2; #1147 (1) restyle): a jump lights the ROW (a full-width band, the selected-row tint --surface-select-row) and rings the BUBBLE (1 px, the blue --outline-action-default) on every kind — text · file card · media tile · typed card — ONE highlight at a time; its length is the --duration-highlight token (2000 ms, not zeroed under reduced motion) that the JS timer reads too; held to 70 % so the exit fade = 600 ms, linear (Damir walk; Damir pick 2026-10-03); reduced motion = the static band + ring; a child\'s animationend does not end it, the band\'s own end does; a re-render mid-way CONTINUES it on the rebuilt row (negative --jump-delay) and it ends on its original schedule; a second jump restarts it — ' + JSON.stringify(r) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
+    dom.window.close();
+  }
+
+  /* ———— A2 TIMING (Damir walk: "reduce the highlight to 2 seconds, then fade out smoothly — the fade is almost instant") ————
+     BEHAVIOUR on the built chat shell: the lit row's OWN matched animation (name · duration · easing, every var() resolved
+     against the shipped :root tokens) is played through its CSSOM keyframes (each stop's own timing function, a cubic-bezier
+     solved here) — jsdom has no animation engine, so the model plays what Chromium plays (verified once in Chromium: same
+     curve) — and the REAL JS end-timer runs. Band fully on at 1.3 s, already fading at 1.5 s, still visible at 1.7 s
+     (gradual, not a snap), gone at 2 s; the attribute is off by 2.15 s. */
+  {
+    const { dom, W, push, errs } = await boot('chat.html');
+    const d = W.document;
+    push('onChatScreenReady', 'addrPeer');
+    push('setChatMode', '0', '0', '', 'False');
+    push('clearMessages', 'false');
+    push('addThem', 't1', 'addrPeer', 'Bob', '', 'Here is the report', String(T0));
+    if (typeof W.messagesDone === 'function') push('messagesDone');
+    push('onChatScreenLoaded');
+    await sleep(300);
+    W.Element.prototype.getBoundingClientRect = function () { const b = this.id === 'messages' ? 1000 : 10; return { top: 0, bottom: b, left: 0, right: 0, width: 0, height: b, x: 0, y: 0 }; };
+    const row = () => d.querySelector('#messages [data-msgid="t1"]');
+    const lit = () => !!row() && row().hasAttribute('data-mention-pulse');
+    const rules = rulesOf(W);
+    const tok = {};
+    for (const x of rules) if (x.sel === ':root' && !x.media) for (let i = 0; i < x.style.length; i++) { const n = x.style[i]; if (n.startsWith('--')) tok[n] = x.style.getPropertyValue(n).trim(); }
+    const res = (v) => { let s = String(v || '').trim(); for (let k = 0; k < 6 && /var\(/.test(s); k++) s = s.replace(/var\((--[\w-]+)(?:,\s*([^()]*))?\)/g, (_, n, fb) => (tok[n] != null ? tok[n] : (fb || ''))); return s.trim(); };
+    const ms = (v) => { const m = /^(-?\d+(?:\.\d+)?)(ms|s)$/.exec(res(v)); return m ? Number(m[1]) * (m[2] === 's' ? 1000 : 1) : NaN; };
+    const bez = (tf) => {
+      if (res(tf) === 'linear') return (x) => x;
+      tf = ({ ease: 'cubic-bezier(0.25, 0.1, 0.25, 1)', 'ease-in': 'cubic-bezier(0.42, 0, 1, 1)', 'ease-out': 'cubic-bezier(0, 0, 0.58, 1)', 'ease-in-out': 'cubic-bezier(0.42, 0, 0.58, 1)' })[res(tf)] || tf;
+      const m = /^cubic-bezier\(\s*([\d.]+),\s*(-?[\d.]+),\s*([\d.]+),\s*(-?[\d.]+)\s*\)$/.exec(res(tf));
+      if (!m) return null;
+      const [x1, y1, x2, y2] = m.slice(1).map(Number);
+      const f = (a, b, t) => 3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t;
+      return (x) => { let lo = 0, hi = 1; for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (f(x1, x2, mid) < x) lo = mid; else hi = mid; } return f(y1, y2, (lo + hi) / 2); };
+    };
+    push('jumpToMessage', 't1');
+    { const t = Date.now(); while (Date.now() - t < 2500 && !lit()) await sleep(10); }
+    const tJ = Date.now();
+    const r = { lit: lit() };
+    /* the band animation the lit row actually matches: chat-jump-band <duration> <easing> <delay> 1 */
+    const anim = (matching(rules, row(), 'animation').filter((v) => /^chat-jump-band /.test(v)).pop() || '').split(/ (?![^(]*\))/);
+    const dur = ms(anim[1]);
+    const kfr = (() => { for (const sh of Array.from(d.styleSheets)) for (const x of Array.from(sh.cssRules || [])) if (x.name === 'chat-jump-band') return x; return null; })();
+    const stops = [];
+    for (const k of Array.from((kfr && kfr.cssRules) || [])) for (const off of k.keyText.split(',')) stops.push({ o: parseFloat(off) / 100, on: res(k.style.getPropertyValue('background-color')) === res('var(--surface-select-row)'), tf: k.style.getPropertyValue('animation-timing-function') || anim[2] });
+    stops.sort((a, b) => a.o - b.o);
+    /* band strength at t ms: 1 = the full selected-row tint, 0 = none (after the end: fill none → none) */
+    const strength = (t) => {
+      const p = t / dur;
+      if (!(p >= 0) || p >= 1) return 0;
+      for (let i = 0; i < stops.length - 1; i++) {
+        const a = stops[i], b = stops[i + 1];
+        if (p < a.o || p > b.o) continue;
+        if (a.on === b.on) return a.on ? 1 : 0;
+        const e = bez(a.tf); if (!e) return NaN;
+        const y = e((p - a.o) / (b.o - a.o));
+        return a.on ? 1 - y : y;
+      }
+      return NaN;
+    };
+    const s = { 1300: strength(1300), 1500: strength(1500), 1700: strength(1700), 1900: strength(1900), 2000: strength(2000) };
+    r.dur2000 = dur === 2000;
+    r.fullAt13 = s[1300] === 1;
+    r.fadingAt15 = s[1500] > 0 && s[1500] < 1;
+    r.gradualAt17 = s[1700] > 0.05;
+    /* Damir pick (2026-10-03): an EVEN fade — the tint left tracks the clock (linear: 0.833 / 0.500 / 0.167 at 1.5 / 1.7 / 1.9 s);
+       decelerate (0.425 / 0.110 / 0.010) and ease-out (0.740 / 0.315 / 0.044) spend it in the first half */
+    r.evenFade = [[1500, 5 / 6], [1700, 0.5], [1900, 1 / 6]].every(([t, v]) => Math.abs(s[t] - v) < 0.02);
+    r.goneAt20 = s[2000] === 0;
+    /* the ring keyframes share the band's hold and fade curve (one look, one clock) */
+    const kText = (name) => { for (const sh of Array.from(d.styleSheets)) for (const x of Array.from(sh.cssRules || [])) if (x.name === name) return Array.from(x.cssRules).map((k) => k.keyText + '|' + k.style.getPropertyValue('animation-timing-function')).join(' '); return ''; };
+    r.ringSameClock = kText('chat-jump-ring') === kText('chat-jump-band') && kText('chat-jump-band') !== '';
+    /* the REAL end-timer: still lit at 1.3 s, off by 2.15 s (token + the 100 ms belt) */
+    while (Date.now() - tJ < 1300) await sleep(10);
+    r.jsLitAt13 = lit();
+    while (Date.now() - tJ < 2150) await sleep(10);
+    r.jsOffBy215 = !lit();
+    r.noErr = errs.length === 0;
+    ok(Object.values(r).every(Boolean),
+      '★★ A2 TIMING (Damir walk: "reduce the highlight to 2 seconds, and then fade out smoothly — currently the fade out is almost instant"; the built chat shell, the lit row\'s own matched animation played through its CSSOM keyframes): 2 s in all — the band is FULLY on at 1.3 s, already fading at 1.5 s (the hold ends at 70 % = 1.4 s), an EVEN 600 ms linear fade (Damir pick 2026-10-03: 83 / 50 / 17 % of the tint left at 1.5 / 1.7 / 1.9 s, not a snap and not front-loaded), gone at 2 s; the ring keeps the band\'s clock; the JS end-timer (the token + 100 ms) clears the row by 2.15 s — ' + JSON.stringify(r) + ' ' + JSON.stringify(s) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
     dom.window.close();
   }
 
@@ -284,6 +365,7 @@ export default async function (h) {
     const imgA = tl('iA').querySelector('.c-mbubble__img');
     r.acceptA = imgA.getAttribute('src') === JPEG && tl('iA').dataset.state === 'loading';
     imgA.dispatchEvent(new W.Event('load'));
+    await sleep(40);   /* ★ #1151 re-base: the reveal is one frame after load + decode */
     r.loadedA = tl('iA').dataset.state === 'loaded' && !!tl('iA').querySelector('.c-mbubble__time')
       && tl('iA').getAttribute('aria-label') === ((W.SL && W.SL.open) || 'Open') + ' IMG_A.jpg';
     /* #46 r2 R2-1 (was C-j9): MY photo is local from the first moment — its preview shows WHILE it is still sending
@@ -498,6 +580,7 @@ export default async function (h) {
     r.longHeaderSized = /aspect-ratio: 1( \/ 1)?;/.test(tS.getAttribute('style') || '')   /* #46 r1 B-M2: a 2:1 header does not resize it */ && (tS.querySelector('.c-mbubble__img') || d.createElement('img')).getAttribute('src') === longHead;
     raw('pS', JPEG);
     (tS.querySelector('.c-mbubble__img') || d.createElement('img')).dispatchEvent(new W.Event('load'));
+    await sleep(40);   /* ★ #1151 re-base: the reveal is one frame after load + decode */
     /* what the user SEES on the loaded sending tile: the face (ring + % + keep-open) stays VISIBLE above the picture on a
        scrim, in the on-scrim ink; the document glyph inside the ring hides; the ring still ticks */
     const rules = rulesOf(W);
@@ -584,6 +667,7 @@ export default async function (h) {
     const img0 = tS0.querySelector('.c-mbubble__img') || d.createElement('img');
     r.firstFades = tS0.dataset.state === 'loading' && !tS0.hasAttribute('data-seen') && /opacity/.test(win(img0, 'transition') || '');
     img0.dispatchEvent(new W.Event('load'));
+    await sleep(40);   /* ★ #1151 re-base: the reveal is one frame after load + decode */
     r.firstLoaded = tS0.dataset.state === 'loaded';
     raw('qN', JPEG_300x200);   // handed over, never decoded (no load event): not "shown"
     /* R3-M1: what the user reads on the loaded sending tile, COMPUTED in both themes over a white and a black photo */
@@ -772,13 +856,13 @@ export default async function (h) {
     const pic = (tag) => 'data:image/jpeg;base64,' + Buffer.concat([head, Buffer.from(('#' + tag).padStart(48, 'x'))]).toString('base64');
     const build = (thumb) => { const row = S.createImageFileBubble({ direction: 'sent', name: 'IMG_1.jpg', state: 'complete', thumb, timestamp: Date.now(), strings: {} });
       W.document.body.append(row); return row.querySelector('.c-mbubble'); };
-    const show = (thumb) => { const t = build(thumb); const img = t.querySelector('.c-mbubble__img'); if (img) img.dispatchEvent(new W.Event('load')); return t.dataset.state === 'loaded'; };
+    const show = async (thumb) => { const t = build(thumb); const img = t.querySelector('.c-mbubble__img'); if (img) img.dispatchEvent(new W.Event('load')); await sleep(50); return t.dataset.state === 'loaded'; };   /* ★ #1151 re-base: the reveal is one frame after load + decode · #46 r4 M1 re-base: "shown" one frame after that (no fade in jsdom) */
     const instant = (thumb) => { const t = build(thumb); return t.dataset.state === 'loaded' && t.hasAttribute('data-seen'); };
     const r = {};
     /* MINOR-3: two previews of the SAME length, different tails — showing one does not make the other instant */
     const pA = pic('tailA'), pB = pic('tailB');
     r.sameLength = pA.length === pB.length && pA !== pB && pA.slice(0, -64) === pB.slice(0, -64);
-    r.shownA = show(pA);
+    r.shownA = await show(pA);
     r.aInstant = instant(pA);
     r.bNotInstant = !instant(pB);
     /* MINOR-2: 257 distinct pictures shown → the FIRST is out (no longer instant); the last ones are still in */
@@ -786,7 +870,7 @@ export default async function (h) {
     const many = Array.from({ length: 257 }, (_, i) => pic('n' + String(i).padStart(4, '0')));
     r.allLengths = many.every((p) => p.length === many[0].length);
     let shownAll = true;
-    for (const p of many) { if (!show(p)) shownAll = false; W.document.body.textContent = ''; }
+    for (const p of many) { if (!(await show(p))) shownAll = false; W.document.body.textContent = ''; }
     r.shownAll = shownAll;
     r.lastInstant = instant(many[256]) && instant(many[1]);   // (the 2nd is the oldest left: exactly 256 kept)
     r.firstEvicted = !instant(many[0]);
@@ -885,6 +969,7 @@ export default async function (h) {
     const img1 = tileOf('q1') && tileOf('q1').querySelector('.c-mbubble__img');
     r.loading = !!img1 && tileOf('q1').dataset.state === 'loading' && quiet('q1');
     if (img1) img1.dispatchEvent(new W.Event('load'));
+    await sleep(40);   /* ★ #1151 re-base: the reveal is one frame after load + decode */
     r.pictureFades = tileOf('q1').dataset.state === 'loaded' && !tileOf('q1').hasAttribute('data-seen') && fades(img1, 'opacity')
       && matching(rules, img1, 'opacity').pop() === '1' && matching(rules, faceOf('q1'), 'opacity').pop() === '0';
     /* MY sending photo: its picture lands → its scrim face (ring, %) fades in WITH it */
@@ -892,6 +977,7 @@ export default async function (h) {
     await sleep(20);
     const img5 = tileOf('q5').querySelector('.c-mbubble__img');
     img5.dispatchEvent(new W.Event('load'));
+    await sleep(40);   /* ★ #1151 re-base: the reveal is one frame after load + decode */
     r.sendingFaceWithPicture = tileOf('q5').dataset.state === 'loaded' && faceShown('q5') && fades(faceOf('q5'), 'opacity');
     /* a re-render inside the wait (a live row rebuilds every row) does NOT restart it */
     await until(350);

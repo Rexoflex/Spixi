@@ -65,4 +65,5 @@ Log read (session 4, `android-full.txt`, 54 opens): see levers 4 · 5 · 6. Note
 | 4 | lever 1 A1 hold | #1135 | held 117 | 135 | keep | why=vsc 25/25, 3 / 4 frames; recordings P |
 | 5 | lever 5 warming claim | #1135 | spare 104 | 196 | keep | claims seen; 12/37 opens `why=none` 225 / 247 → try 7 |
 | 6 | lever 11 Android close wait 16 ms | #1135 | close 159 | 435 | keep (no gain) | the time is elsewhere → close probe (#1147 (6)) |
-| 7 | spare warm after close 350 → 0 ms | #1147 (4) | owed | owed | — | re-walk M-CHAT quick re-opens |
+| 7 | spare warm after close 350 → 0 ms | #1147 (4) | open 87.5 | 145 | keep | 34/34 opens from a spare, why=none 0 (was 12/37); chats-after-close 2 drops / 44 ms gap (#1151) |
+| 8 | close probe (posted / removed) | #1147 (6) | close 121 | 296 | — | posted ≈ done → the time is the posted wait + the hide, not the removal → session 5 lever |

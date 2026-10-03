@@ -7853,6 +7853,35 @@ function noteShown(s) {
   while (shownSrcs.size > SHOWN_KEEP) shownSrcs.delete(shownSrcs.values().next().value);
 }
 
+/* ★ #1151 A-FADE (Android walk: "the photo flips from the solid ground to the photo, no fade"): a CSS transition runs
+   only from a style the element already HAD. Android's spare chat WebView makes no frame while C# holds the stage, so
+   the preview's load event landed BEFORE the tile's first style (and a rAF-queued re-render then re-built the tile
+   with the r3 "seen" mark, shown at once) → the first painted style was already opacity 1: no fade. The reveal is
+   now deferred: load → img.decode() (no fade over an undecoded picture) → the next animation frame, where the
+   loading style (opacity 0) is put on record first and the tile then flips to loaded — the transition runs from 0
+   whether the preview came before or after the row. ONE frame batch for every tile (read all, then write all: one
+   style recalc). A picture counts as SHOWN only at the END of its fade (or one frame after the flip when there is no
+   fade), on a tile still in the document (noteShown, #46 r4 M1) — a tile re-built before its picture was really on
+   screen fades in, never pops. Reduced motion: --duration-200 = 0 ms → instant. */
+const rafOf = () => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f) => setTimeout(f, 16));
+const revealQ = new Map();   // tile el → the reveal to run in the next frame
+let revealArmed = false;
+function queueReveal(el, run) {
+  revealQ.set(el, run);
+  if (revealArmed) return;
+  revealArmed = true;
+  rafOf()(() => {
+    revealArmed = false;
+    const due = Array.from(revealQ.entries());
+    revealQ.clear();
+    for (const [el] of due) {   // read: each tile's loading style (opacity 0) is computed BEFORE any flips
+      const im = el.querySelector('.c-mbubble__img');
+      if (im && el.isConnected) { try { void getComputedStyle(im).opacity; } catch (_) {} }
+    }
+    for (const [, run] of due) { try { run(); } catch (_) {} }   // write
+  });
+}
+
 function mediaAria(state, kind, alt, strings) {
   const what = alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image'));
   if (state === 'idle') return (strings.tapToLoad || 'Tap to load') + ', ' + what;
@@ -7971,6 +8000,7 @@ function createMediaBubble({
   };
 
   let currentSrc = src; // may be swapped by setMediaSrc (file-transfer path)
+  let revealGen = 0;     // ★ #1151: a newer load (or a drop) cancels a pending reveal
   const load = () => {
     if (!currentSrc) return;
     setState('loading');
@@ -7988,13 +8018,38 @@ function createMediaBubble({
     if (!(width > 0 && height > 0)) {
       fitTile(img.naturalWidth, img.naturalHeight);   // iOS-17 (#283): natural aspect + width cap in one place
     }
-    if (instantIfShown && currentSrc) noteShown(currentSrc);   // #46 r3 R3-m1
-    setState('loaded');
     // the tile just grew to full size — let the shell pull the log to the latest
     // so the whole GIF comes into view (only if it was already near the bottom).
-    if (onLoad) { try { onLoad(); } catch (_) {} }
+    const landed = () => { if (onLoad) { try { onLoad(); } catch (_) {} } };
+    /* #46 r3 R3-m1: the r3 "seen" re-show is loaded already (no fade by design) — it stays as it is */
+    if (el.dataset.state === 'loaded') { landed(); return; }
+    /* ★ #1151 A-FADE: decode, then flip in the next frame from a recorded opacity-0 style (queueReveal above) */
+    const mine = ++revealGen;
+    const shown = currentSrc;
+    const decoded = typeof img.decode === 'function' ? img.decode().catch(() => {}) : Promise.resolve();
+    decoded.then(() => queueReveal(el, () => {
+      if (mine !== revealGen || shown !== currentSrc || el.dataset.state !== 'loading') return;   // superseded / dropped
+      setState('loaded');
+      landed();
+      /* #46 r4 M1: "shown" at the fade's END (or the next frame with no fade) — recorded in this frame, a re-render
+         queued after it re-built the tile as seen → a pop. A tile re-built away / re-sourced first records nothing. */
+      if (instantIfShown && shown) {
+        const rec = () => { if (el.isConnected && el.dataset.state === 'loaded' && shown === currentSrc) noteShown(shown); };
+        const off = () => { img.removeEventListener('transitionend', end); img.removeEventListener('transitioncancel', cancel); };
+        const end = (e) => { if (e.target === img && e.propertyName === 'opacity') { off(); rec(); } };
+        const cancel = (e) => { if (e.target === img && e.propertyName === 'opacity') off(); };
+        img.addEventListener('transitionend', end);
+        img.addEventListener('transitioncancel', cancel);
+        rafOf()(() => {   // the loaded style painted: no fade at all → shown now
+          let dur = 0;
+          try { dur = Math.max(0, ...String(getComputedStyle(img).transitionDuration || '').split(',').map((v) => parseFloat(v) * (/ms\s*$/.test(v) ? 0.001 : 1)).filter((v) => v > 0)); } catch (_) {}
+          if (!(dur > 0)) { off(); rec(); }
+        });
+      }
+    }));
   });
   img.addEventListener('error', () => {
+    revealGen++;                     // ★ #1151: no pending reveal survives an error
     if (typeof onSrcError !== 'function') { setState('failed'); return; }
     currentSrc = '';                 // #46 r1 B-1: drop it — idle with no src, so a tap is the owner's (load() is a no-op)
     img.removeAttribute('src');

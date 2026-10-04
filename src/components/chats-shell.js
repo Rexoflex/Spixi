@@ -219,8 +219,82 @@ function avatarCacheFor(listEl) {
   return c;
 }
 
-/** (Re)render the whole list from the model. Full re-render for the scaffold
- *  (row-level diffing is a logged enhancement — spec §9). Returns listEl. */
+/* ★ #1166 P-03 — ONE row builder for the full render and the one-row patch: a patched row is the row a full
+ * render builds from the same model. */
+function buildChatRequestNode(r, opts, strings) {
+  const node = createContactRequest({
+    ...r, strings, host: opts.host,
+    onAccept: opts.onRequestAccept ? (row) => opts.onRequestAccept(r, row) : undefined,
+    onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
+  });
+  if (r && r.address) node.dataset.requestAddress = String(r.address);   // ★ #1166 P-03: the patch's order key
+  return node;
+}
+
+/** Build one chat row (the swipe wrapper when the row has one). `ctx` = { strings, caps, avCache, avatarSeen, liftedRow }. */
+function buildChatRowNode(listEl, state, c, opts, ctx) {
+  const { strings, caps, avCache, avatarSeen, liftedRow } = ctx;
+  // handshaking chats (#109) are not yet openable — tapping routes to
+  // onHandshakeBlocked, and they carry no pin/mute affordances until secured.
+  const onClick = c.handshaking
+    ? (opts.onHandshakeBlocked ? () => opts.onHandshakeBlocked(c) : undefined)
+    : (opts.onOpen ? () => opts.onOpen(c) : undefined);
+  const el = createChatItem({ ...c, strings, onClick });
+  // N58: swap in the cached (already-decoded) avatar node when the photo inputs
+  // match. `name` is in the freshness set only for the onerror-placeholder path
+  // (initials) — a nick change costs one honest re-decode.
+  if (c.address && c.avatar && !avatarSeen.has(c.address)) {
+    avatarSeen.add(c.address);
+    const nm = (c.name && c.name !== c.address) ? c.name : '';
+    const fresh = el.querySelector('.c-avatar');
+    const hit = avCache.get(c.address);
+    if (fresh && hit && hit.src === c.avatar && hit.group === (c.type === 'group') && hit.name === nm) {
+      const dot = hit.el.querySelector('.c-avatar__dot');       // presence patched in place, never a re-decode
+      if (c.online && !dot) {
+        const d = document.createElement('span');
+        d.className = 'c-avatar__dot';
+        hit.el.append(d);
+      } else if (!c.online && dot) dot.remove();
+      fresh.replaceWith(hit.el);
+    } else if (fresh) {
+      avCache.set(c.address, { el: fresh, src: c.avatar, group: c.type === 'group', name: nm });
+    }
+  }
+  if (c.pinned) el.dataset.pinned = '';                // shell markers for pin/mute
+  if (c.muted) el.dataset.muted = '';
+  if (c.handshaking) {                                 // #109: no open/swipe/pin — but a cancel menu so a stalled handshake is recoverable
+    el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
+    if (opts.rowMenu !== false) {
+      attachChatRowMenu(el, {
+        chat: c, host: opts.host, strings, handshaking: true,
+        onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
+      });
+    }
+    return el;
+  }
+  if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
+    attachChatRowMenu(el, {
+      chat: c, host: opts.host, strings, capabilities: caps,
+      onNeedGroups: opts.onNeedGroups,                 // A4/A5: the remove-contact sheet asks C# for the shared groups
+      onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
+    });
+  }
+  // swipe accelerator (step 5) — capability-gated; returns el unwrapped if parked
+  const node = wrapChatRowSwipe(el, {
+    chat: c, capabilities: caps, strings,
+    onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
+  });
+  /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
+     ANY chat is enough. Without this the row under an open anchored menu drops back
+     beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
+  if (c.address && c.address === liftedRow) {
+    node.dataset.menuLift = 'row';
+  }
+  return node;
+}
+
+/** (Re)render the whole list from the model. Full re-render; the row-level path is
+ *  patchChatRows below (★ #1166 P-03). Returns listEl. */
 export function renderChatsList(listEl, state, opts = {}) {
   const strings = opts.strings || getStrings();
   const caps = opts.capabilities || {};
@@ -231,74 +305,18 @@ export function renderChatsList(listEl, state, opts = {}) {
      opens a menu into a shell the user has already left. See chats-row-menu.js. */
   clearChatRowMenuTimers();
   listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
-  const avCache = avatarCacheFor(listEl);                // N58
-  const avatarSeen = new Set();                          // N58: dup-address guard (a node must never be moved twice per render)
-
-  const renderRequest = (r) => {
-    listEl.append(createContactRequest({
-      ...r, strings, host: opts.host,
-      onAccept: opts.onRequestAccept ? (row) => opts.onRequestAccept(r, row) : undefined,
-      onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
-    }));
+  const ctx = {
+    strings, caps,
+    avCache: avatarCacheFor(listEl),                     // N58
+    avatarSeen: new Set(),                               // N58: dup-address guard (a node must never be moved twice per render)
+    liftedRow: liftedRowAddress(),                       // review MINOR-3: read ONCE per render
   };
-  const liftedRow = liftedRowAddress();   // review MINOR-3: read ONCE per render
-  const renderChat = (c) => {
-    // handshaking chats (#109) are not yet openable — tapping routes to
-    // onHandshakeBlocked, and they carry no pin/mute affordances until secured.
-    const onClick = c.handshaking
-      ? (opts.onHandshakeBlocked ? () => opts.onHandshakeBlocked(c) : undefined)
-      : (opts.onOpen ? () => opts.onOpen(c) : undefined);
-    const el = createChatItem({ ...c, strings, onClick });
-    // N58: swap in the cached (already-decoded) avatar node when the photo inputs
-    // match. `name` is in the freshness set only for the onerror-placeholder path
-    // (initials) — a nick change costs one honest re-decode.
-    if (c.address && c.avatar && !avatarSeen.has(c.address)) {
-      avatarSeen.add(c.address);
-      const nm = (c.name && c.name !== c.address) ? c.name : '';
-      const fresh = el.querySelector('.c-avatar');
-      const hit = avCache.get(c.address);
-      if (fresh && hit && hit.src === c.avatar && hit.group === (c.type === 'group') && hit.name === nm) {
-        const dot = hit.el.querySelector('.c-avatar__dot');       // presence patched in place, never a re-decode
-        if (c.online && !dot) {
-          const d = document.createElement('span');
-          d.className = 'c-avatar__dot';
-          hit.el.append(d);
-        } else if (!c.online && dot) dot.remove();
-        fresh.replaceWith(hit.el);
-      } else if (fresh) {
-        avCache.set(c.address, { el: fresh, src: c.avatar, group: c.type === 'group', name: nm });
-      }
-    }
-    if (c.pinned) el.dataset.pinned = '';                // shell markers for pin/mute
-    if (c.muted) el.dataset.muted = '';
-    if (c.handshaking) {                                 // #109: no open/swipe/pin — but a cancel menu so a stalled handshake is recoverable
-      el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
-      if (opts.rowMenu !== false) {
-        attachChatRowMenu(el, {
-          chat: c, host: opts.host, strings, handshaking: true,
-          onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
-        });
-      }
-      listEl.append(el); return;
-    }
-    if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
-      attachChatRowMenu(el, {
-        chat: c, host: opts.host, strings, capabilities: caps,
-        onNeedGroups: opts.onNeedGroups,                 // A4/A5: the remove-contact sheet asks C# for the shared groups
-        onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
-      });
-    }
-    // swipe accelerator (step 5) — capability-gated; returns el unwrapped if parked
-    const node = wrapChatRowSwipe(el, {
-      chat: c, capabilities: caps, strings,
-      onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
-    });
-    /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
-       ANY chat is enough. Without this the row under an open anchored menu drops back
-       beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
-    if (c.address && c.address === liftedRow) {
-      node.dataset.menuLift = 'row';
-    }
+
+  // pinned chats on top, then requests + unpinned chats interleaved by recency
+  const timeline = orderedTimeline(state);
+  for (const { kind, item } of timeline) {
+    if (kind === 'request') { listEl.append(buildChatRequestNode(item, opts, strings)); continue; }
+    const node = buildChatRowNode(listEl, state, item, opts, ctx);
     listEl.append(node);
     /* ★ #606 r2 (adversarial review): the GHOST follows the re-render too. It is a
        snapshot pinned to a viewport rectangle, and the flush that replaced this row
@@ -309,16 +327,13 @@ export function renderChatsList(listEl, state, opts = {}) {
        all zeros on a DETACHED node — so `paintRowGhost`'s own measurement guard declined
        and the ghost was deleted and never rebuilt. Every flush killed it. The hazard is
        named in paintRowGhost's own comment and this call site reproduced it. */
-    if (c.address && c.address === liftedRow) {
+    if (!item.handshaking && item.address && item.address === ctx.liftedRow) {
       try { repaintRowGhost(node); } catch (e) { /* ghost is an enhancement */ }
     }
-  };
-
-  // pinned chats on top, then requests + unpinned chats interleaved by recency
-  const timeline = orderedTimeline(state);
-  for (const { kind, item } of timeline) (kind === 'request' ? renderRequest : renderChat)(item);
+  }
   // N58: bound the decode cache — prune only when over the cap, and only keys the
   // CURRENT render did not use (a search render must not evict the full list).
+  const { avCache, avatarSeen } = ctx;
   if (avCache.size > AVATAR_CACHE_MAX) {
     for (const k of avCache.keys()) {
       if (avCache.size <= AVATAR_CACHE_MAX) break;
@@ -331,6 +346,53 @@ export function renderChatsList(listEl, state, opts = {}) {
     if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
   }
   return listEl;
+}
+
+/* ★ #1166 P-03 — PATCH ROWS IN PLACE (a status tick, a typing edge, a reaction, a new avatar). Replaces ONLY the
+ * named rows, and only when the list on screen shows exactly the model's timeline in order (chat rows keyed by
+ * data-address, request cards by data-request-address). A reorder, a filter/search change, a row not shown yet,
+ * the empty state, a request card or a row under an open anchored menu → false: the caller renders in full.
+ * Other rows keep their nodes (an open swipe drawer, an armed long press). Returns true when patched. */
+function chatRowNodeKey(node) {
+  if (!node || node.nodeType !== 1) return null;
+  if (node.classList.contains('c-contact-request')) return 'r:' + (node.dataset.requestAddress || '');
+  const btn = node.classList.contains('c-chatlist-item') ? node : node.querySelector('.c-chatlist-item');
+  return btn && btn.dataset.address ? 'c:' + btn.dataset.address : null;
+}
+
+export function patchChatRows(listEl, state, addresses, opts = {}) {
+  const want = new Set((addresses || []).filter(Boolean).map(String));
+  const timeline = orderedTimeline(state);
+  const kids = Array.from(listEl.children);
+  if (!timeline.length || kids.length !== timeline.length) return false;
+  const targets = [];
+  const keys = new Set();
+  for (let i = 0; i < timeline.length; i++) {
+    const { kind, item } = timeline[i];
+    if (!item || !item.address) return false;              // no stable key → full render
+    const key = (kind === 'request' ? 'r:' : 'c:') + item.address;
+    if (keys.has(key) || chatRowNodeKey(kids[i]) !== key) return false;
+    keys.add(key);
+    if (want.has(String(item.address))) {
+      if (kind === 'request') return false;                // request cards stay on the full path
+      targets.push(i);
+    }
+  }
+  if (!targets.length) return true;                        // nothing named is on screen, and the screen is current
+  const liftedRow = liftedRowAddress();
+  if (targets.some((i) => timeline[i].item.address === liftedRow)) return false;
+  const ctx = {
+    strings: opts.strings || getStrings(),
+    caps: opts.capabilities || {},
+    avCache: avatarCacheFor(listEl),
+    avatarSeen: new Set(),
+    liftedRow,
+  };
+  for (const i of targets) {
+    const node = buildChatRowNode(listEl, state, timeline[i].item, opts, ctx);
+    kids[i].replaceWith(node);
+  }
+  return true;
 }
 
 /** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin and

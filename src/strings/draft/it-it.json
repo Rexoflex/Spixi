@@ -729,5 +729,12 @@
   "copyLink": "Copia link",
   "photoPreviewsTitle": "Mostra anteprime delle foto nelle chat",
   "photoPreviewsHint": "Le foto che hai inviato o scaricato appaiono come immagine nella chat. Disattivato: ogni foto resta una scheda file.",
-  "newReaction": "Nuova reazione"
+  "newReaction": "Nuova reazione",
+  "sharedShowInDownloads": "Mostra in Download",
+  "sharedDeleteLocal": "Elimina da questo dispositivo",
+  "sharedDeleteLocalTitle": "Eliminare da questo dispositivo?",
+  "sharedDeleteLocalBody": "“{name}” viene rimosso da questo dispositivo. Il messaggio resta nella chat.",
+  "viewerFailed": "Impossibile aprire questa immagine.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Un gruppo può avere fino a 10 membri oltre a te."
 }

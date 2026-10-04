@@ -32,6 +32,9 @@ namespace SPIXI
         // N50 (#370): the shell's overlay-stack state (ixian:cdoverlay mirror) —
         // volatile like homeShellOverlayOpen (nav thread writes, back path reads).
         public volatile bool shellOverlayOpen = false;
+        // ★ #1166 V-3 (#46 r1 A-M2): the token of the LATEST sharedView tap — an older tap still queued at the decode gate
+        // decodes and pushes nothing. Written on the UI thread, read on the pool thread.
+        private volatile string? viewerLatest = null;
 
 		public ContactDetails (Friend lfriend, bool customChatButton = false, string paneColumn = null, bool chat_context = false)
 		{
@@ -649,6 +652,115 @@ namespace SPIXI
                 catch (Exception ex)
                 {
                     Logging.warn("ixian:sharedGroups: " + ex.GetType().Name);   // sweep G-3: no ex.Message — the enumeration handles contact addresses
+                }
+            }
+            else if (current_url.StartsWith("ixian:sharedView:", StringComparison.Ordinal))
+            {
+                /* ★ #1166 V-3 (#1144 / #1145 (1), 🟡 a NEW verb + push pair — BE ask): a tap on a MEDIA tile with a local
+                 * copy opens the in-app viewer. The WebView names an item ("<message id hex>:<link index>") — NOTHING else;
+                 * C# resolves it from its OWN last scan, takes ITS path (SharedItems.localPathOf), and makes the viewer
+                 * image OFF the UI thread (ViewerImage.dataUriOf: sniff + 20 MB cap + a bounded decode, one at a time).
+                 * The answer is ONE push viewerImage(<the token>, <data:image/jpeg;base64,…> | "") — the token is echoed
+                 * only when it has the item grammar (ViewerRules.isItemToken), never a path or a name. A torn-down page
+                 * pushes nothing. Any failure → "" (the shell keeps the thumbnail and says so). */
+                string token = current_url.Substring("ixian:sharedView:".Length);
+                if (!ViewerRules.isItemToken(token))
+                {
+                    Logging.warn("ixian:sharedView: malformed token (len=" + token.Length + ")");
+                }
+                else
+                {
+                    SharedItem? item = SharedItems.resolve(friend, token);
+                    if (item == null)
+                    {
+                        Logging.warn("ixian:sharedView: no such item (len=" + token.Length + ")");
+                    }
+                    ContactDetails page = this;
+                    viewerLatest = token;   // (#46 r1 A-M2) latest tap wins: an older queued tap decodes and pushes nothing
+                    System.Threading.Tasks.Task.Run(async () =>
+                    {
+                        Func<bool> stillWanted = () => token == page.viewerLatest && !page.isDisposed;
+                        /* (#46 r1 A-M1) the path is resolved FRESH at tap time from the message (localPathOf: received →
+                         * the Downloads-root rule + fileMatches, sent → an absolute existing path) — never the last scan's
+                         * path, which a delete + a same-named download from another sender can have reused. */
+                        string? path = item != null && item.message != null && ViewerRules.mayView(item.kind, item.path != null)
+                            ? SharedItems.localPathOf(item.message) : null;
+                        string uri = path != null ? (await ViewerImage.dataUriOfAsync(path, stillWanted) ?? "") : "";
+                        if (!stillWanted())
+                        {
+                            return;
+                        }
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            if (page.isDisposed)
+                            {
+                                return;
+                            }
+                            Utils.sendUiCommand(page, "viewerImage", token, uri);
+                        });
+                    });
+                }
+            }
+            else if (current_url.StartsWith("ixian:sharedDeleteLocal:", StringComparison.Ordinal))
+            {
+                /* ★ #1166 V-3 (#1154, 🟡 a NEW verb — BE ask): "Delete from this device" on a shared item's long-press sheet
+                 * (the shell asked first, a destructive confirm). The WebView names an item — NOTHING else; C# resolves it
+                 * from its OWN last scan and deletes ONLY a RECEIVED file's local copy inside the Downloads root that is
+                 * still this message's file (SharedItems.deleteLocal → ViewerRules.mayDeleteLocal). A SENT file (the
+                 * picker's original) is never deleted. Then a rescan + ONE setSharedItems re-push (off the UI thread). The
+                 * message itself stays (the chat keeps its file row). Logs the exception TYPE only, on failure. */
+                string token = current_url.Substring("ixian:sharedDeleteLocal:".Length);
+                SharedItem? item = SharedItems.resolve(friend, token);
+                if (item == null)
+                {
+                    Logging.warn("ixian:sharedDeleteLocal: no such item (len=" + token.Length + ")");
+                }
+                else
+                {
+                    Friend scanned = friend;
+                    ContactDetails page = this;
+                    System.Threading.Tasks.Task.Run(() =>
+                    {
+                        try
+                        {
+                            if (!SharedItems.deleteLocal(item))
+                            {
+                                Logging.warn("ixian:sharedDeleteLocal: refused");   // a fixed word — no path, name or id
+                            }
+                            string json = SharedItems.toJson(SharedItems.scan(scanned));
+                            MainThread.BeginInvokeOnMainThread(() =>
+                            {
+                                if (page.isDisposed)
+                                {
+                                    return;
+                                }
+                                Utils.sendUiCommand(page, "setSharedItems", json);
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.warn("ixian:sharedDeleteLocal: " + ex.GetType().Name);   // the type only
+                        }
+                    });
+                }
+            }
+            else if (current_url.StartsWith("ixian:sharedShowInDownloads:", StringComparison.Ordinal))
+            {
+                /* ★ #1166 V-3 (#1154, 🟡 a NEW verb — BE ask): "Show in Downloads". The WebView names an item — NOTHING else;
+                 * C# resolves it from its OWN last scan and, for a RECEIVED file with a local copy in the Downloads root,
+                 * opens the Downloads screen (DownloadsPage, its own WebView — the presentation SettingsPage's fallback
+                 * branch already uses) with that row highlighted. The highlight key is the list's own row key (the stored
+                 * file NAME, which the list already carries — never a path). */
+                string token = current_url.Substring("ixian:sharedShowInDownloads:".Length);
+                SharedItem? item = SharedItems.resolve(friend, token);
+                string? name = SharedItems.downloadsNameOf(item);
+                if (name == null)
+                {
+                    Logging.warn("ixian:sharedShowInDownloads: not in Downloads (len=" + token.Length + ")");
+                }
+                else
+                {
+                    pushPageLoaded(new DownloadsPage(name));
                 }
             }
             /* ★★ L1 (#640) — THE LEGACY MONEY BRANCHES ARE GONE.

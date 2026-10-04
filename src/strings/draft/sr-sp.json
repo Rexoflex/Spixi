@@ -799,5 +799,12 @@
   "copyLink": "Kopiraj link",
   "photoPreviewsTitle": "Prikaži preglede fotografija u ćaskanjima",
   "photoPreviewsHint": "Fotografije koje ste poslali ili preuzeli prikazuju se kao slika u ćaskanju. Isključeno: svaka fotografija ostaje kartica datoteke.",
-  "newReaction": "Nova reakcija"
+  "newReaction": "Nova reakcija",
+  "sharedShowInDownloads": "Prikaži u preuzimanjima",
+  "sharedDeleteLocal": "Izbriši sa ovog uređaja",
+  "sharedDeleteLocalTitle": "Izbrisati sa ovog uređaja?",
+  "sharedDeleteLocalBody": "„{name}“ se uklanja sa ovog uređaja. Poruka ostaje u četu.",
+  "viewerFailed": "Ova slika nije mogla da se otvori.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Grupa može imati najviše 10 članova pored tebe."
 }

@@ -380,3 +380,6 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
 - 2026-10-04 (e, session 5 part 2, half 1; cloud twin — the device shell kills the smoke): walk not done (Damir: go on).
   #1163 BUILT (#1164: the whole #1102 surface removed, 3 pins → 1 inverted pin, 4 deliberate breaks, #46 CLEAN). Interview
   §3 rows 2–13 answered (#1165). Smoke 5187 · CSH 93. Next: walk + "go" → V-1 … V-4. Next free #1166.
+- 2026-10-04 (f, session 5 part 2 build; cloud twin): Damir committed #1163 (c0b833ef) and said go. V-1 … V-4 + small picks built by
+  5 contract-first agents, merged (#1166); #46 r1 0 MAJOR / 7 MINOR fixed → r2 CLEAN (#1167); Damir log #1168 (transfer-card
+  legibility). Smoke 5224 · CSH 107. UNCOMMITTED (patch). Next free #1169.

@@ -721,5 +721,12 @@
   "copyLink": "Kopijuoti nuorodą",
   "photoPreviewsTitle": "Rodyti nuotraukų peržiūras pokalbiuose",
   "photoPreviewsHint": "Jūsų išsiųstos ar atsisiųstos nuotraukos pokalbyje rodomos kaip paveikslėlis. Išjungta: kiekviena nuotrauka lieka failo kortele.",
-  "newReaction": "Nauja reakcija"
+  "newReaction": "Nauja reakcija",
+  "sharedShowInDownloads": "Rodyti atsisiuntimuose",
+  "sharedDeleteLocal": "Ištrinti iš šio įrenginio",
+  "sharedDeleteLocalTitle": "Ištrinti iš šio įrenginio?",
+  "sharedDeleteLocalBody": "„{name}“ pašalinamas iš šio įrenginio. Žinutė lieka pokalbyje.",
+  "viewerFailed": "Šio vaizdo nepavyko atidaryti.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Grupėje, be jūsų, gali būti iki 10 narių."
 }

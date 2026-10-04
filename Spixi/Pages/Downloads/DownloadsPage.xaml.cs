@@ -22,9 +22,16 @@ namespace SPIXI
          * stale mirror can never wedge back. */
         private bool shellOverlayOpen = false;
 
-        public DownloadsPage()
+        /* ★ #1166 V-3 (#1154) "Show in Downloads" (chat info): the list row to highlight once — the list's OWN row key
+         * (the stored file NAME, which addFile already carries), set by C# (ContactDetails → SharedItems.downloadsNameOf),
+         * never a WebView string, never a path. Sent ONE time, after the list (highlightDownload); null = no highlight. */
+        private string? highlightName = null;
+
+        public DownloadsPage(string? highlight = null)
         {
             InitializeComponent();
+
+            highlightName = string.IsNullOrEmpty(highlight) ? null : highlight;
 
             NavigationPage.SetHasNavigationBar(this, false);
 
@@ -190,6 +197,14 @@ namespace SPIXI
             // is not what every call site means.
             shellOverlayOpen = false;
             loadFiles();
+
+            // ★ #1166 V-3 (#1154): one-shot — after the list it names (the shell waits for its own settle)
+            if (highlightName != null)
+            {
+                string name = highlightName;
+                highlightName = null;
+                Utils.sendUiCommand(this, "highlightDownload", name);
+            }
 
             // Execute timer-related functionality immediately
             updateScreen();

@@ -799,5 +799,12 @@
   "copyLink": "Link kopieren",
   "photoPreviewsTitle": "Fotovorschau in Chats anzeigen",
   "photoPreviewsHint": "Fotos, die du gesendet oder heruntergeladen hast, erscheinen im Chat als Bild. Aus: Jedes Foto bleibt eine Dateikarte.",
-  "newReaction": "Neue Reaktion"
+  "newReaction": "Neue Reaktion",
+  "sharedShowInDownloads": "In Downloads zeigen",
+  "sharedDeleteLocal": "Von diesem Gerät löschen",
+  "sharedDeleteLocalTitle": "Von diesem Gerät löschen?",
+  "sharedDeleteLocalBody": "„{name}“ wird von diesem Gerät entfernt. Die Nachricht bleibt im Chat.",
+  "viewerFailed": "Dieses Bild konnte nicht geöffnet werden.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Eine Gruppe kann außer dir bis zu 10 Mitglieder haben."
 }

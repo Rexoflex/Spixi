@@ -241,6 +241,7 @@
      the pill REPLACES the secure notice, whose auto margins seat a short log at the bottom;
      without it a short window with older history hung from the top (DECISIONS #907). */
   .chat-older { flex: none; display: flex; justify-content: center; padding: var(--spacing-8) 0 var(--spacing-4); margin-top: auto; }
+  .chat-older--idle { padding: 0; }   /* ★ #1166 B2: the lazy mode at rest — the wrapper keeps margin-top: auto, no space */
   .chat-older__btn {
     display: inline-flex; align-items: center; gap: var(--spacing-8);
     min-height: 32px; padding: 0 var(--spacing-16);
@@ -713,8 +714,10 @@
     createFileBubble, setFileProgress,
     createImageFileBubble, isPhotoFileName, setImageFileThumb, resetPhotoQuiet,   // ★ A5 #1124 (#1133): an image file on the media tile
     createMediaBubble, setMediaSrc, openMediaViewer,
+    findOpenViewer,                 // ★ #1166 V-3: the viewer a viewerImage push answers (media-viewer.js)
     createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice, createUnreadDivider,
+    attachLazyHistory,              // ★ #1166 B2 (#1142): the scroll trigger for older history (#86)
     attachMessageMenu, openMessageMenu,   // openMessageMenu = the KEYBOARD path (Shift+F10 / Menu key)
     enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
     openAttachTray, closeAttachTray, isAttachTrayOpen, revealAttachTray,   // ★ #705: the mobile tray under the composer · ★ Session K: the K1 hold
@@ -1622,9 +1625,53 @@
     fileThumbChars -= old.length;
   }
   const FILE_THUMB_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
+  /** setFileThumb's store (the bounded map above). */
+  function storeFileThumb(key, u) {
+    dropFileThumb(key);
+    fileThumbs.set(key, u);
+    fileThumbChars += u.length;
+    while (fileThumbs.size > FILE_THUMB_KEEP || fileThumbChars > FILE_THUMB_BUDGET) dropFileThumb(fileThumbs.keys().next().value);
+  }
+  /* ★ #1166 R3-N2 (#46 r3): a re-flush is clearMessages → (C# reads) → the rows. A preview C# pushed in THAT gap found no
+   * row and was dropped — but C# counts it as sent (once per document), so the photo never got its picture until a
+   * reopen. Now a VALID preview for an id this document does not hold, landing INSIDE a load burst — after its
+   * clearMessages and before its messagesDone / onChatScreenLoaded (closeThumbHold), THUMB_HOLD_MS at most — is HELD
+   * (≤ THUMB_HOLD_KEEP, oldest out) and claimed by upsertFile when that id's row arrives — only for an image file row,
+   * only with previews on, through the same store. Outside that gap an unknown id is refused, never parked (A5); the
+   * burst's end drops whatever was not claimed. */
+  const heldThumbs = new Map();
+  const THUMB_HOLD_KEEP = 16;
+  const THUMB_HOLD_MS = 5000;
+  let thumbHoldUntil = 0;
+  function closeThumbHold() { thumbHoldUntil = 0; heldThumbs.clear(); }
+  function claimHeldThumb(rec) {
+    const key = String(rec.id);
+    const u = heldThumbs.get(key);
+    if (u === undefined) return;
+    heldThumbs.delete(key);
+    if (photoPreviews && rec.kind === 'file' && isPhotoFileName(rec.name)) storeFileThumb(key, u);
+  }
+  /* ★ #1166 R3-N3 (#46 r3, inherited): a re-flush rebuilt a file row from C#'s addFile, which knows only "0" or "100" —
+   * a transfer in flight fell back to 0 %, a received one to "Tap to download", and my own re-showed Cancel. The live
+   * progress (updateFile) is kept here per TRANSFER (fileid → { progress }), outlives clearMessages, and is forgotten at
+   * the final updateFile, at a final addFile and per peer; upsertFile never LOWERS a live ring with it. */
+  const liveTransfers = new Map();
+  const LIVE_TRANSFERS_KEEP = 64;
   const txIndex = new Map();   // txid → message id (updateTransactionStatus keys by txid)
   const groupNicks = new Map(); // group sender address → resolved nick (updateGroupChatNicks)
   const groupRoster = new Map(); // roster key → { address, name, avatar } from ixian:loadContacts (full participant list)
+  /* ★★ #1166 P-04 (#1165 (7)): a sender's avatar ONCE per document — C# pushes setAvatarFor(address, dataUri) once per
+   * address (again only when it changed) and the rows carry "" in their avatar argument; every row of that address
+   * reads the picture HERE (recAvatar). Only a base64 data: image (png · jpeg · webp · gif) is kept — anything else
+   * clears the entry (initials). Survives clearMessages (C# sends each address once per DOCUMENT, a re-flush must keep
+   * it); reset per peer in onChatScreenReady. Memory only, never storage. */
+  const avatarByAddr = new Map();
+  const AVATAR_URI_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/;
+  /** The ONE avatar read for a row: the per-address picture, else the row's own argument (an older exe), else null. */
+  function recAvatar(rec) {
+    const a = rec && rec.senderAddress ? avatarByAddr.get(String(rec.senderAddress)) : null;
+    return a || (rec && rec.avatar) || null;
+  }
   let groupOwner = '';           // #248: owner address (setGroupOwner; '' for blind groups) → "Owner" chip
   /* N34 (#365): ONE owner predicate for the bubble chip + the member sheet.
    * '[Unknown]' guards the ROSTER-push path only (loadContacts masks there);
@@ -1693,7 +1740,7 @@
     for (const [addr, n] of groupNicks) { if (n && !by.has(n)) by.set(n, { name: n, address: addr || '', avatar: null }); }
     for (const rec of model.values()) {                       // seen senders (addThem) — before any roster load
       const nm = rec && senderHasNick(rec) ? rec.senderNick : '';   // the ONE nick predicate (r2 F-2)
-      if (nm && !by.has(nm)) by.set(nm, { name: nm, address: rec.senderAddress || '', avatar: rec.avatar || null });
+      if (nm && !by.has(nm)) by.set(nm, { name: nm, address: rec.senderAddress || '', avatar: recAvatar(rec) });   // ★ #1166 P-04: by address
     }
     return out();
   }
@@ -1775,7 +1822,10 @@
     if (typingRow && typingRow.parentNode) typingRow.remove();
   }
 
-  const nearBottom = () => box.scrollTop + box.clientHeight * 1.5 >= box.scrollHeight;
+  /* ★ #1166 #1151: during a SMOOTH "show in chat" scroll nobody is "at the bottom" — every re-pin asks nearBottom()
+     first, and the first frames of a scroll from the bottom would snap back (#46 r3 R3-3). One gate, not one per site. */
+  let smoothJumpUntil = 0;
+  const nearBottom = () => performance.now() >= smoothJumpUntil && box.scrollTop + box.clientHeight * 1.5 >= box.scrollHeight;
 
   /* status derivation from the legacy bool flags (chat.js updateMessage / addMe):
    *   errorSending → failed   (highest priority)
@@ -1924,6 +1974,20 @@
   const JUMP_PULSE_FALLBACK_MS = 2000;
   const JUMP_BELT_MS = 100;       // the timer ends the highlight this long after the band's own end (reduced motion: the only end)
   const JUMP_ARRIVE_MS = 1600;    // the arrival hook's moment (the mention FAB advance) — unchanged since N52
+  /* ★ #1166 #1151 (W-A2): a "show in chat" jump is SMOOTH only for a LOADED row within SMOOTH_JUMP_SCREENS log heights;
+     far, unmeasurable, reduced motion or a fresh open → instant (R3-3). Re-pins stand down for SMOOTH_JUMP_HOLD_MS. */
+  const SMOOTH_JUMP = true;           // false = every jump instant again (the R3-3 behaviour): one token
+  const SMOOTH_JUMP_SCREENS = 3;
+  const SMOOTH_JUMP_HOLD_MS = 900;    // > a browser smooth scroll of ≤ 3 screens; nearBottom() reads false until then
+  function smoothJumpFits(row) {
+    if (!SMOOTH_JUMP || !row) return false;
+    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+    const h = box.clientHeight;
+    if (!(h > 0)) return false;       // no layout to measure → instant (the safe direction)
+    const b = box.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    return Math.abs((r.top + r.height / 2) - (b.top + h / 2)) <= SMOOTH_JUMP_SCREENS * h;
+  }
   function jumpPulseMs() {
     let v = '';
     try { v = getComputedStyle(document.documentElement).getPropertyValue('--duration-highlight').trim(); } catch (e) {}
@@ -2041,7 +2105,7 @@
       showAvatar: (!isSent && mode.isMulti),
       name: senderHasNick(rec) ? rec.senderNick : '',
       address: rec.senderAddress || '',
-      avatar: rec.avatar || null,   // real per-sender photo (C# addThem avatar); gradient fallback
+      avatar: recAvatar(rec),   // real per-sender photo (★ #1166 P-04: setAvatarFor by address, else the row's own arg); gradient fallback
 
       // #99: in a NON-blind group (type 1) OR a bot chat (type 3), the sender
       // label + avatar open the member sheet — the ONLY way to reach a NAMED
@@ -2295,7 +2359,7 @@
       status: rec.direction === 'sent' ? (rec.status || null) : null,   // ★ #1028 (P.22): the sent file's tick
       gutter: mode.isMulti && rec.direction === 'received',
       onAccept: () => bridge.send('ixian:acceptfile:' + rec.fileid),
-      onOpen: () => bridge.send('ixian:openfile:' + rec.fileid),
+      onOpen: () => openFileOrViewer(rec),   // ★ #1166 V-3: a photo tile showing its preview → the viewer; else the file
       /* #334 (Damir ask): CANCEL an own offer the peer hasn't accepted yet —
        * routes through the DELETE grammar (the only durable local retraction:
        * the message goes, so the history-load resurrect has nothing to
@@ -2316,6 +2380,24 @@
        * lock leaves an already-rendered Cancel inert until the next re-render
        * (accepted residual, rare path). */
     });
+  }
+
+  /* ★★ #1166 V-3 (#1165 (9)) — THE VIEWER, CHAT HALF. A tap on a photo-file tile that SHOWS its preview (previews on, the
+   * file complete = on this device, a preview C# made — the same local / sniffed / ≤ 20 MB gates the viewer needs) opens
+   * the viewer on that preview at once (a loading state) and asks C# for the bigger picture: `ixian:viewImage:<id>`
+   * (🟡 NEW verb — the message id only; C# resolves its own file). C# answers viewerImage(<id>, <uri | "">). Every other
+   * file — a card, an offer, a tile with no preview (too big, not decodable) — keeps `ixian:openfile` (decided at the
+   * TAP, so a tile that completed in place takes the viewer). The caption is the file name — media-viewer sets it with
+   * textContent only. */
+  const VIEWER_URI_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
+  const VIEWER_URI_MAX = 1700000;   // ≥ the base64 of C#'s ViewerImage.MaxJpegBytes (1 200 000 → 1 600 000) + the prefix
+  function openFileOrViewer(rec) {
+    const id = String(rec.id);
+    const thumb = photoPreviews && rec.kind === 'file' && rec.fstate === 'complete' && isPhotoFileName(rec.name)
+      ? fileThumbs.get(id) : undefined;
+    if (!thumb) { bridge.send('ixian:openfile:' + rec.fileid); return; }
+    openMediaViewer({ host: overlayHost, src: thumb, token: id, kind: 'image', alt: rec.name || '', strings: window.SL || {} });
+    bridge.send('ixian:viewImage:' + id);
   }
 
   /* derive the file bubble state from the legacy addFile flags. */
@@ -3284,7 +3366,7 @@
     openMemberSheet({
       host: overlayHost,
       member: {
-        name: rec.senderNick || '', address: rec.senderAddress || '', avatar: rec.avatar || null,
+        name: rec.senderNick || '', address: rec.senderAddress || '', avatar: recAvatar(rec),   // ★ #1166 P-04
         // N34 (#365): Owner badge in the sheet's name row (matches the bubble chip)
         owner: isOwnerAddr(rec.senderAddress),
       },
@@ -3404,7 +3486,7 @@
         //     the group's face beside an individual member's name — on the one
         //     surface where the user checks WHO is about to be paid. A gradient
         //     is neutral; the wrong face is not. Never widen step 3 to groups.
-        avatar: rec.avatar
+        avatar: recAvatar(rec)   // ★ #1166 P-04: setAvatarFor by address, else the row's own arg
           || (mode.isMulti ? (groupRoster.get(rec.senderAddress) || {}).avatar : identity.avatar)
           || null,
       },
@@ -4281,7 +4363,8 @@
     box.replaceChildren(frag);             // atomic swap — no empty intermediate state
     logDirty = false;                      // ★ Session P: on glass
     keepTypingLast();
-    if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
+    if (prependAnchor && restorePrependAnchor()) olderAnchorId = null;   // ★ #1166 B2: a prepend keeps the first visible row in place (before the 1.5-screen bottom pin)
+    else if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
     else applyOlderAnchor();               // A1: hold the reading position across a load-more re-flush
     firstRenderDone = true;                 // boot spinner is now gone
     if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
@@ -4516,11 +4599,9 @@
    * show_more="false" whenever the returned count is below the window (:1536-1537)
    * and on the empty-history path (:1531).
    *
-   * The transport is a full teardown + re-add of the whole grown window, which is
-   * why this is a BUTTON and not a scroll trigger: infinite scroll on top of a
-   * re-flush yanks the page out from under a scrolling user. The proper fix is a
-   * prepend + batched push — see docs/chat-transport-spec.md. When that lands the
-   * pill is swapped for a scroll sentinel and attachLazyHistory finally gets wired.
+   * ★ #1166 B2: the transport WAS a full teardown + re-add of the grown window (why
+   * this was a BUTTON); C# now prepends the older slice, so the trigger is a scroll
+   * (attachLazyHistory below) and the button is the retry / reduced-motion form.
    * ———————————————————————————————————————————————————————————————————————— */
   let showOlder = false;         // C# says more history exists
   let loadingOlder = false;      // a loadmore is in flight
@@ -4529,10 +4610,61 @@
   let olderAnchorOffset = 0;     // its offsetTop minus scrollTop, i.e. its screen y
   let olderAnchorRows = 0;       // row count when the anchor was taken
   let olderAnchorUntil = 0;      // hard deadline — the anchor is for THIS re-flush only
+  /* ★ #1166 B2 (#1142): C# answers a loadmore with ONLY the older slice — addMessages(json, "prepend") +
+     messagesDone(show_more), no clearMessages: nothing is wiped, the unread state (A3 divider, chevron count) is untouched.
+     Trigger = a scroll near the top (attachLazyHistory, below); the pill = the RETRY after no answer + the reduced-motion
+     affordance. End of history = the secure notice. Position: the FIRST VISIBLE row, taken when the rows land (iOS
+     momentum may have moved it since the request). */
+  let olderFailed = false;       // the last loadmore got no answer in time → the pill offers a retry
+  let olderResolve = null;       // the lazy trigger's pending promise (resolved with the number of rows that landed)
+  let olderRowsAtRequest = 0;    // order.length when the loadmore went out
+  let prependAnchor = null;      // { id, off } — the first visible row and its offset from the log's top, before a prepend paints
+  const LAZY_HISTORY_MIN_PX = 160;   // the trigger band: one screen from the top, never less than this
+  function olderPillMode() {
+    return olderFailed || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function settleOlder(n) {      // the lazy trigger's promise ends here (n = rows that landed; 0 = no auto re-check)
+    const r = olderResolve;
+    olderResolve = null;
+    if (r) r(n);
+  }
+  /* the first row whose bottom is below the log's top edge (rects: no offsetParent dependence; near the top it stops early) */
+  function firstVisibleAnchor() {
+    const top = box.getBoundingClientRect().top;
+    for (const oid of order) {
+      const row = rows.get(oid);
+      if (!row || !row.isConnected) continue;
+      const rc = row.getBoundingClientRect();
+      if (rc.bottom > top) return { id: oid, off: rc.top - top };
+    }
+    return null;
+  }
+  function restorePrependAnchor() {
+    const a = prependAnchor;
+    prependAnchor = null;
+    const row = a && rows.get(a.id);
+    if (!row) return false;
+    box.scrollTop += (row.getBoundingClientRect().top - box.getBoundingClientRect().top) - a.off;
+    return true;
+  }
 
   function buildOlderPill() {
     const wrap = document.createElement('div');
     wrap.className = 'chat-older';
+    /* ★ #1166 B2: lazy mode — the wrapper stays (margin-top: auto), holding the loading row in flight, nothing at rest */
+    if (!olderPillMode()) {
+      if (!loadingOlder) { wrap.classList.add('chat-older--idle'); return wrap; }
+      const row = document.createElement('div');
+      row.className = 'c-history-loading';
+      row.setAttribute('role', 'status');
+      row.setAttribute('aria-label', (window.SL && window.SL.loadingHistory) || 'Loading earlier messages');
+      const sp = document.createElement('span');
+      sp.className = 'c-history-loading__spinner';
+      sp.setAttribute('aria-hidden', 'true');
+      row.append(sp);
+      wrap.append(row);
+      return wrap;
+    }
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'chat-older__btn';
@@ -4556,6 +4688,8 @@
   function requestOlder() {
     if (loadingOlder) return;   // each tap grows the C# window by Config.messagesToLoad, permanently
     loadingOlder = true;
+    olderFailed = false;        // ★ #1166 B2: a retry tap leaves the retry state (a second miss puts it back)
+    olderRowsAtRequest = order.length;
 
     /* Take the anchor BEFORE the re-flush. Element+offset, not a scrollHeight
        delta: the delta is a one-shot and on an old exe the re-flush can paint
@@ -4576,12 +4710,19 @@
        renderLog(): clearMessages sets bursting=true and renderLog() then returns
        early for the whole round trip, so a re-render here would never paint. */
     const live = box.querySelector('.chat-older');
-    if (live) live.replaceWith(buildOlderPill());
+    if (live) {
+      const h0 = box.scrollHeight;
+      live.replaceWith(buildOlderPill());
+      box.scrollTop += box.scrollHeight - h0;   // ★ #1166 r1 M2: the loading row grows ABOVE the reader — WKWebView has no scroll anchoring
+    }
 
     clearTimeout(olderTimeout);
     olderTimeout = setTimeout(() => {     // a lost navigation must not strand the spinner
       loadingOlder = false;
       olderAnchorId = null;
+      olderFailed = true;                 // ★ #1166 B2: no answer → the pill offers a retry (the lazy trigger stands down)
+      if (!prependAnchor) prependAnchor = firstVisibleAnchor();   // ★ #1166 r1 M2: the loading row → pill swap keeps the reader in place
+      settleOlder(0);
       renderLog();
     }, 8000);
 
@@ -4613,7 +4754,21 @@
     olderAnchorId = null;
     olderAnchorRows = 0;
     olderAnchorUntil = 0;
+    olderFailed = false;                  // ★ #1166 B2
+    prependAnchor = null;
+    settleOlder(0);
   }
+
+  /* ★ #1166 B2 — the scroll trigger (#86): within ~one screen of the top, C# said more exists, nothing in flight, no burst,
+     not the pill mode. The shell paints the loading row and keeps the position itself. The promise ends at messagesDone
+     with the rows that landed (0 = no automatic re-check, so an empty answer cannot loop the verb) or at the timeout. */
+  attachLazyHistory(box, {
+    onLoadMore: () => new Promise((resolve) => { settleOlder(0); olderResolve = resolve; requestOlder(); }),
+    threshold: () => Math.max(LAZY_HISTORY_MIN_PX, box.clientHeight || 0),
+    canLoad: () => showOlder && !loadingOlder && !bursting && firstRenderDone && !olderPillMode() && performance.now() >= smoothJumpUntil,   // ★ #1166 r1 M1: never mid smooth jump
+    spinner: false,
+    keepPosition: false,
+  });
 
   /* insert (or move) an id into `order` keeping timestamp-ascending; stable for
    * equal timestamps (append after equals → matches arrival order). */
@@ -4670,7 +4825,7 @@
     if (flags && flags.paid !== undefined) rec.paid = asBool(flags.paid);
     model.set(id, rec);
     orderInsert(id);
-    hideTyping();  // any new/updated message clears the typing pill (legacy addText → hideUserTyping)
+    if (!prependBatch) hideTyping();  // any new/updated message clears the typing pill (legacy addText → hideUserTyping) — ★ #1166 r1 N5: an OLDER row does not
     noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
 
     if (!existing) {
@@ -4703,14 +4858,25 @@
     if (name != null) rec.name = String(name);
     rec.fstate = fstate;
     rec.progress = Number(progress) || 0;
+    /* ★ #1166 R3-N3: a re-flush of a transfer still in flight keeps what updateFile told this document — the ring never
+       goes back, a received file stays "downloading" (not an offer again) and my own never re-shows Cancel. A final
+       state (complete) from C# wins and forgets the transfer. */
+    const live = rec.fileid ? liveTransfers.get(rec.fileid) : undefined;
+    if (live && fstate === 'complete') liveTransfers.delete(rec.fileid);
+    else if (live && (fstate === 'progress' || fstate === 'offer')) {
+      rec.fstate = 'progress';
+      rec.progress = Math.max(rec.progress, live.progress);
+      rec.transferStarted = true;
+    }
     if (extra) {
       if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
       if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
       if (extra.status !== undefined) rec.status = extra.status;   // ★ #1028 (P.22): sent files only (addFile sets null otherwise)
     }
+    if (!existing) claimHeldThumb(rec);   // ★ #1166 R3-N2: a preview that landed before this row
     model.set(id, rec);
     orderInsert(id);
-    hideTyping();
+    if (!prependBatch) hideTyping();   // ★ #1166 r1 N5
     noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
     renderLog();
   }
@@ -4735,7 +4901,7 @@
     }
     model.set(id, rec);
     orderInsert(id);
-    hideTyping();
+    if (!prependBatch) hideTyping();   // ★ #1166 r1 N5
     noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
     renderLog();
   }
@@ -4775,7 +4941,7 @@
     }
     model.set(id, rec);
     orderInsert(id);
-    hideTyping();
+    if (!prependBatch) hideTyping();   // ★ #1166 r1 N5
     noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
     renderLog();
   }
@@ -4801,7 +4967,7 @@
     rec.declinedRemote = !!declinedRemote;   // ★ #1080 F11: the peer declined (the caller's card)
     model.set(id, rec);
     orderInsert(id);
-    hideTyping();
+    if (!prependBatch) hideTyping();   // ★ #1166 r1 N5
     noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
     renderLog();
   }
@@ -4950,6 +5116,21 @@
       renderTopbar();
     },
 
+    /* ★★ #1166 P-04 (🟡 NEW push, BE ask): setAvatarFor(address, dataUri) — a group / bot sender's avatar, once per
+     * address per document (C# avatarForRow), BEFORE the rows that use it. Kept only when the value is a base64
+     * data: image (AVATAR_URI_RE); anything else drops the entry (initials). The value only ever becomes an avatar
+     * <img src> (createAvatar). A CHANGED picture repaints the rows of that address that are already drawn. */
+    setAvatarFor(address, uri) {
+      const a = String(address == null ? '' : address);
+      if (!a) return;
+      const u = typeof uri === 'string' && AVATAR_URI_RE.test(uri) ? uri : null;
+      if ((avatarByAddr.get(a) || null) === u) return;
+      if (u) avatarByAddr.set(a, u); else avatarByAddr.delete(a);
+      for (const rec of model.values()) {
+        if (rec && rec.direction === 'received' && String(rec.senderAddress || '') === a) { renderLog(); break; }
+      }
+    },
+
     // setOnlineStatus receives a fully-localised string from C# (chat-online /
     // chat-offline / member count / waiting-for-response) — render it verbatim
     // as the presence sub-line. The avatar dot lights on an EXACT match against
@@ -4996,6 +5177,7 @@
     // Batch reset. showMore ("true"/"false") = whether a "load older" affordance
     // belongs at the top; v1 just resets the model (loadmore is a stub verb).
     clearMessages(showMore) {
+      thumbHoldUntil = Date.now() + THUMB_HOLD_MS;   // ★ #1166 R3-N2: a preview landing before its row is held, not dropped
       model.clear();
       rows.clear();
       fileIndex.clear();
@@ -5066,13 +5248,18 @@
       const strs = Array.isArray(payload.strs) ? payload.strs : [];
       const pos = String(position) === 'prepend' ? 'prepend' : 'append';
       batchSeen = true;
+      /* ★ #1166 B2: the position is taken NOW — the log on glass is still the pre-prepend one (the burst holds renders) */
+      if (pos === 'prepend' && !prependAnchor) prependAnchor = firstVisibleAnchor();
       if (!bursting) beginBurst();          // a prepend has no clearMessages before it — still ONE paint
       prependBatch = pos === 'prepend';
       let n = 0;
+      let dup = 0;
       try {
         for (const item of payload.items) {
           try {
             if (!item || typeof item.f !== 'string' || !BATCH_ALLOW.has(item.f) || !Array.isArray(item.a) || item.a.length === 0) { dropped += 1; continue; }
+            /* ★ #1166 B2: a prepend never touches a row already shown (its live state is newer; spec §4 idempotence) */
+            if (pos === 'prepend' && item.f !== 'showContactRequest' && model.has(String(item.a[0]))) { dup += 1; continue; }
             const args = item.a.map((x) => (x == null ? '' : (typeof x === 'number' ? String(strs[x] == null ? '' : strs[x]) : String(x))));
             handlers[item.f].apply(null, args);
             if (Array.isArray(item.r)) {
@@ -5086,25 +5273,45 @@
       }
       // a refusal leaves a trace where the capture is read (WARN reaches logcat; debug does not — Session J): fixed words + one integer
       if (dropped > 0) console.warn('[chat-shell] addMessages dropped=' + dropped);
-      dbg('addMessages', { n, pos });
+      dbg('addMessages', { n, pos, dup });
     },
 
     /* ★★ Session P — messagesDone: the end-of-batch SIGNAL (#298 B3). Ends the burst, paints
      * ONCE here, clears the 250 ms safety timer (kept armed for an old exe), and spends the A3
      * load phase: from here on an arrival is LIVE traffic — the loadPhase-alone hazard on the
      * load-more / OnAppearing paths is closed by construction. `lastPaintMs` feeds the stamp. */
-    messagesDone() {
+    messagesDone(showMore) {
+      closeThumbHold();                     // ★ #1166 R3-N2: the rows are in — an unclaimed held preview is dropped
       clearTimeout(burstSafety);
       batchSeen = true;                     // the NEW transport ran (an empty history sends the signal with no batch)
       const wasBursting = bursting;
       bursting = false;
       loadProbeBurstEnd();
       endLoadPhase();
+      /* ★ #1166 B2: a PREPEND answer (load-more, a widening jump) has no clearMessages — its end-of-history flag rides
+         here (same strict test); the full load sends no argument and keeps what clearMessages set. */
+      const prependAnswer = showMore !== undefined && showMore !== null && String(showMore) !== '';
+      if (prependAnswer) {
+        showOlder = (String(showMore) === 'true');
+        olderAnchorId = null;               // the re-flush anchor is for the OLD transport's answer only
+        logDirty = true;                    // the top affordance changes even when the slice was empty
+        olderFailed = false;                // ★ #1166 r1 N4: a late answer (after the 8 s guard) re-arms the trigger
+        if (!prependAnchor) prependAnchor = firstVisibleAnchor();   // ★ #1166 r1 M2: an EMPTY answer still removes the loading row above the reader
+      }
+      const answered = loadingOlder && prependAnswer;
+      const landed = answered ? Math.max(0, order.length - olderRowsAtRequest) : 0;
+      if (answered) {
+        clearTimeout(olderTimeout);
+        olderTimeout = 0;
+        loadingOlder = false;
+        if (landed === 0 && showOlder) olderFailed = true;   // ★ #1166 r1 M3: an empty slice with more to come — the retry pill, never a dead top
+      }
       if (wasBursting || logDirty) {
         const t0 = performance.now();
         renderLogNow();
         lastPaintMs = Math.round(performance.now() - t0);
       }
+      settleOlder(landed);   // after the paint: the trigger re-checks on the new geometry
       dbg('messagesDone');
     },
 
@@ -5264,6 +5471,8 @@
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       resetLoadedMedia();                  // per-peer reset, and drop any set an older build persisted
       fileThumbs.clear(); fileThumbChars = 0;   // ★ A5 #1124: per-peer reset (C# starts its once-per-document set again at this push)
+      avatarByAddr.clear();                // ★ #1166 P-04: per-peer reset (C# starts its once-per-document avatar set again at this push)
+      heldThumbs.clear(); thumbHoldUntil = 0; liveTransfers.clear();   // ★ #1166 R3-N2 / R3-N3: per-peer reset
       resetPhotoQuiet();                   // #46 r2 R2-MAJ1: the photo quiet waits too — desktop A → B → A re-waits, no glyph-then-swap
       loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
       loadCanceledApps();                  // ★ B2: …and which own invites they canceled
@@ -5392,6 +5601,7 @@
       // model is DIRTY (the old transport, incl. an empty chat: the secure notice);
       // on the batch transport messagesDone painted already and this only scrolls,
       // focuses, stamps and signals the present.
+      closeThumbHold();                    // ★ #1166 R3-N2: the old transport's end of the rows — an unclaimed held preview is dropped
       bursting = false;
       clearTimeout(burstSafety);
       endLoadPhase();                      // A3: the open stream is over — spend the one-shot boundary chance
@@ -5648,20 +5858,22 @@
         { senderNick: resolveNick(address, nick), senderAddress: address || '', status });
     },
 
-    /* ★★ #1028 (P.22): a LIVE delivery change on a sent file. C#'s updateMessage returns for every
-     * non-text row (it would overwrite the card with the raw file header); for a fileHeader it now pushes
-     * THIS instead — flags only, no text. Unknown id / a received file / an unchanged status → no-op. The
-     * tick crossfades like a text tick (setMessageStatus), and a rebuild inside the fade replays it. */
     /* ★★ #1106 — C# opens the conversation AT a message (a shared item in chat info, Downloads "Show in chat"): scroll
      * to the row and pulse it (the @-mention FAB's jumpToRow). A row the loaded window does not hold → a short toast.
      * `id` is C#'s own hex id; an unknown id only ever produces the toast. */
     jumpToMessage(id, instant) {
       const key = String(id || '');
       if (!chatScreenLoadedOnce) { pendingJumpId = key; return; }   // (#46 r1 B1) a fresh open: onChatScreenLoaded runs it
-      /* (#46 r3 R3-3) every "show in chat" jump is INSTANT: the already-open path re-renders the whole log from the bottom
-         too, so a smooth scroll has the same window for the bottom re-pins. `instant` is kept for the internal call. */
-      void instant;
-      const tryJump = () => key && jumpToRow(key, null, true);
+      /* (#46 r3 R3-3) every jump was INSTANT: the already-open path re-rendered the log from the bottom. ★ #1166 #1151: C#
+         now pushes this alone for a loaded row, and a widened window lands as a position-keeping PREPEND — so a close row
+         scrolls smoothly (smoothJumpFits, re-pins held); `instant` (the fresh open, onChatScreenLoaded) stays instant. */
+      const tryJump = () => {
+        const row = key && rows.get(key);
+        if (!row) return false;
+        const smooth = !instant && smoothJumpFits(row);
+        if (smooth) smoothJumpUntil = performance.now() + SMOOTH_JUMP_HOLD_MS;
+        return jumpToRow(key, null, !smooth);
+      };
       if (tryJump()) return;
       requestAnimationFrame(() => {
         if (tryJump()) return;
@@ -5670,6 +5882,11 @@
       });
     },
 
+    /* ★★ #1028 (P.22): a LIVE delivery change on a sent file. C#'s updateMessage returns for every
+     * non-text row (it would overwrite the card with the raw file header); for a fileHeader it now pushes
+     * THIS instead — flags only, no text. Unknown id / a received file / an unchanged status → no-op. The
+     * tick crossfades like a text tick (setMessageStatus), and a rebuild inside the fade replays it.
+     * (★ #1166 NIT-2: this block sat above jumpToMessage; moved to the handler it describes.) */
     updateFileTicks(id, sent, confirmed, read) {
       const key = String(id);
       const rec = model.get(key);
@@ -5689,11 +5906,21 @@
      * Update the record + the live row in place (setFileProgress handles the
      * bar AND the progress→complete flip, re-arming the open action). */
     updateFile(fileid, progress, complete) {
-      const id = fileIndex.get(String(fileid));
+      const done = asBool(complete) || (Number(progress) || 0) >= 100;
+      /* ★ #1166 R3-N3: remember the live progress per transfer for a re-flush (upsertFile) — also for a tick that lands
+         in the re-flush gap (no row yet); a final tick forgets it */
+      const fkey = String(fileid == null ? '' : fileid);
+      if (fkey) {
+        liveTransfers.delete(fkey);
+        if (!done) {
+          liveTransfers.set(fkey, { progress: Math.max(0, Math.min(100, Number(progress) || 0)) });
+          while (liveTransfers.size > LIVE_TRANSFERS_KEEP) liveTransfers.delete(liveTransfers.keys().next().value);
+        }
+      }
+      const id = fileIndex.get(fkey);
       const rec = id && model.get(id);
       if (!rec) { dbg('updateFile: unknown fileid', fileid); return; }
       const prev = rec.fstate;
-      const done = asBool(complete) || (Number(progress) || 0) >= 100;
       rec.progress = Number(progress) || 0;
       // #334 loop MINOR-1: the FIRST updateFile tick = the peer accepted — latch
       // it on the MODEL so a full re-render can never resurrect the Cancel
@@ -5733,6 +5960,21 @@
       renderLog();
     },
 
+    /* ★★ #1166 V-3 (🟡 NEW push, BE ask): viewerImage(<token>, <data uri | "">) — C#'s answer to ixian:viewImage. Applied
+     * only to a viewer opened for THAT token that is still open (findOpenViewer); the value must be a base64 JPEG data:
+     * URI ≤ VIEWER_URI_MAX — it only ever becomes the viewer's <img src>. "" (or anything else) → the viewer keeps the
+     * preview it shows and a short toast says the picture could not be opened. */
+    viewerImage(token, uri) {
+      const t = String(token == null ? '' : token);
+      const v = t ? findOpenViewer(t) : null;
+      if (!v) return;
+      const u = typeof uri === 'string' ? uri : '';
+      if (u && u.length <= VIEWER_URI_MAX && VIEWER_URI_RE.test(u)) { v.setSrc(u); return; }
+      v.setFailed();
+      const sl = window.SL || {};
+      try { showToast({ text: sl.viewerFailed || 'This image could not be opened.', host: overlayHost, strings: sl }); } catch (e) {}
+    },
+
     /* ★★ A5 #1124 (#1133, 🟡 NEW push, BE ask): setFileThumb(<message id hex>, <data uri>) — the preview of a LOCAL
      * image file (sent, or downloaded by the user's tap), made by C# (SThumbnail, ≤ 64 KB JPEG). Accepted ONLY when
      * previews are on, the value is a base64 JPEG data: URI (FILE_THUMB_RE) of at most FILE_THUMB_MAX characters,
@@ -5743,12 +5985,15 @@
       const u = typeof uri === 'string' ? uri : '';
       if (!photoPreviews || !u || u.length > FILE_THUMB_MAX || !FILE_THUMB_RE.test(u)) return;
       const rec = model.get(key);
+      if (!rec && key && Date.now() < thumbHoldUntil) {      // ★ #1166 R3-N2: the re-flush gap — hold it for the row (claimHeldThumb)
+        heldThumbs.delete(key);
+        heldThumbs.set(key, u);
+        while (heldThumbs.size > THUMB_HOLD_KEEP) heldThumbs.delete(heldThumbs.keys().next().value);
+        return;
+      }
       if (!rec || rec.kind !== 'file' || !isPhotoFileName(rec.name)) return;
       if (fileThumbs.get(key) === u) return;                 // the same preview again: nothing to redo
-      dropFileThumb(key);
-      fileThumbs.set(key, u);
-      fileThumbChars += u.length;
-      while (fileThumbs.size > FILE_THUMB_KEEP || fileThumbChars > FILE_THUMB_BUDGET) dropFileThumb(fileThumbs.keys().next().value);
+      storeFileThumb(key, u);
       const row = rows.get(key);
       if (row) setImageFileThumb(row, u);   // a tile that shows a picture only (complete, or MY photo still sending — #46 r2 R2-1); a card ignores it
     },

@@ -559,7 +559,7 @@
      ground (the one surface Damir already judged on this canvas) and a hairline one step
      stronger than the card outline. Light: white on the #f4f6f9 canvas + neutral-200
      (1.20:1 against the canvas). */
-  --surface-composer-pill: #ffffff;
+  --surface-composer-pill: var(--surface-bubble-received);   /* ★ #1166 (#1159 / #1165 (11)): the pill FOLLOWS the received bubble — one token, white here (value unchanged) */
   --outline-composer-pill: var(--neutral-200);
   /* ★ Session Z (#884 ③): THE SECURE-CHAT NOTICE CARD gets its own role. system-notice.css
      carried two sanctioned literals (light #ffffff · dark #0c1a4a, the Session J midnight)
@@ -1000,7 +1000,7 @@
   /* ★ Session H: the pill on the dark canvas — #1e222b (1.15:1 vs #10151e, the received
      bubble's own number) + neutral-500 (ink-500 #253246 since #884 ②: 1.41:1 vs #10151e, 1.46 vs the #0D1117 chat canvas, 1.23:1 vs the pill; the grey #31343a read 1.47 / 1.28 vs #10151e / the pill).
      neutral-800/-700 were measured at 1.06/1.02 against the pill: not an edge. */
-  --surface-composer-pill: var(--neutral-800);   /* ★ #989: the received-bubble ground, via the ramp. Was #1e222b */
+  --surface-composer-pill: var(--surface-bubble-received);   /* ★ #1166 (#1159 / #1165 (11), Damir: "follows the bubble"): the received-bubble ground BY REFERENCE — ink-750 #1E2023 today. Was var(--neutral-800) ink-800 (#989), before it #1e222b */
   --outline-composer-pill: var(--neutral-500);
   --surface-notice-card: #0c1a4a;   /* ★ Session Z (#884 ③): the Session J midnight (N82(c): 84% sat, 1.140 vs the ground), unchanged */
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */

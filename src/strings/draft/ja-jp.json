@@ -722,5 +722,12 @@
   "copyLink": "リンクをコピー",
   "photoPreviewsTitle": "チャットで写真のプレビューを表示",
   "photoPreviewsHint": "送信またはダウンロードした写真は、チャット内に画像として表示されます。オフ：すべての写真がファイルカードのまま表示されます。",
-  "newReaction": "新しいリアクション"
+  "newReaction": "新しいリアクション",
+  "sharedShowInDownloads": "ダウンロードで表示",
+  "sharedDeleteLocal": "このデバイスから削除",
+  "sharedDeleteLocalTitle": "このデバイスから削除しますか？",
+  "sharedDeleteLocalBody": "「{name}」がこのデバイスから削除されます。メッセージはチャットに残ります。",
+  "viewerFailed": "この画像を開けませんでした。",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "グループには、あなたのほかに最大 10 人のメンバーを追加できます。"
 }

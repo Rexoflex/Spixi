@@ -668,6 +668,9 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-contacts__row:disabled { cursor: default; }
 .c-contacts__row:disabled > .c-avatar,
 .c-contacts__row:disabled .c-contacts__name { opacity: var(--opacity-disabled); }
+/* ★ #1166 V-4: at the group cap (10) an unpicked row is disabled — its empty check circle dims with it, so the
+   circle does not read as tappable; the reason is the rule line above the list (aria-describedby). */
+.c-contacts__row[data-capped] .c-contacts__check { opacity: var(--opacity-disabled); }
 .c-contacts__col {
   flex: 1;
   min-width: 0;                     /* nowrap children ellipsize (#140③ class) */

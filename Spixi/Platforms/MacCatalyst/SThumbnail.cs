@@ -16,6 +16,8 @@ namespace Spixi
  * known limit — a portrait photo can show sideways on those tiles, #46 r1 A9). */
     public static class SThumbnail
     {
+        private const int MaxLongSide = 2048;   // ★ #1166 V-3: the viewer image's ceiling (Android's makeJpeg guard)
+
         public static byte[]? makeJpeg(string path, int maxPx)
         {
             try
@@ -43,6 +45,48 @@ namespace Spixi
                 using CGImage? square = thumb.WithImageInRect(new CGRect((thumb.Width - side) / 2, (thumb.Height - side) / 2, side, side));
                 using UIImage image = new UIImage(square ?? thumb);
                 using NSData? data = image.AsJPEG(0.6f);
+                return data?.ToArray();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /* ★ #1166 V-3 (#1144 / #1145 (1)): the VIEWER image — the in-app full-screen viewer shows a picture of a LOCAL file
+         * (ViewerImage.dataUriOf is the only caller; it sniffs the first bytes and caps the source at 20 MB first). Mirrors
+         * makeJpeg: ImageIO's thumbnail path is the BOUNDED decode (CGImageSource subsamples while decoding; the full bitmap
+         * is never built) and it is asked for the long edge ≤ maxEdge (≤ MaxLongSide) directly; the aspect ratio is KEPT (no
+         * crop); CreateThumbnailWithTransform applies the EXIF orientation; JPEG q82; every CG/UI object is disposed. Called
+         * OFF the UI thread. The path is C#'s own. Fail-soft: anything unexpected → null (the viewer keeps the thumbnail). */
+        public static byte[]? makeViewerJpeg(string path, int maxEdge)
+        {
+            try
+            {
+                if (maxEdge <= 0)
+                {
+                    return null;
+                }
+                using NSUrl url = NSUrl.FromFilename(path);
+                using CGImageSource? src = CGImageSource.FromUrl(url);
+                if (src == null)
+                {
+                    return null;
+                }
+                CGImageThumbnailOptions opts = new CGImageThumbnailOptions
+                {
+                    MaxPixelSize = Math.Min(maxEdge, MaxLongSide),
+                    CreateThumbnailFromImageAlways = true,
+                    CreateThumbnailWithTransform = true,
+                    ShouldCacheImmediately = true,
+                };
+                using CGImage? picture = src.CreateThumbnail(0, opts);
+                if (picture == null)
+                {
+                    return null;
+                }
+                using UIImage image = new UIImage(picture);
+                using NSData? data = image.AsJPEG(0.82f);
                 return data?.ToArray();
             }
             catch (Exception)

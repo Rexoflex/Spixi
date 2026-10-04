@@ -2,7 +2,8 @@
  * c-shared — SHARED MEDIA · FILES · LINKS of one conversation (★★ #1106, be-cutover CI6; session 1 part 5).
  *
  * Fed by ContactDetails (`setSharedItems(json)`, ONE push, newest first, ≤ 200 items). An item:
- *   { id, n, kind: 'media'|'file'|'link', label, size, ts, local, thumb }
+ *   { id, n, kind: 'media'|'file'|'link', label, size, ts, local, thumb, received }
+ *   (★ #1166 V-3: `received` is the 9th wire field, appended — an older exe sends 8 → false → no received-only rows)
  *   · id + n is the ONLY thing a tap sends back (`ixian:sharedOpen:<id>:<n>`) — C# resolves the target itself;
  *   · thumb is a data: URI of a small local image, else null (a glyph shows) — never a path, never remote (#82);
  *   · a link shows its HOST first and the address as typed, nothing fetched (no preview — the IP leak, C14).
@@ -13,7 +14,8 @@
  *   up to SHARED_INLINE_MAX of a kind in place, then "Show all N". A long press (or a right click) = onMenu(item).
  * createSharedList({ items, tab, strings, onOpen, onBack, onMenu }) → the "Show all" view: Media · Files · Links
  *   tabs, one structure for the desktop pane and the phone takeover. Empty kinds have no tab.
- * openSharedItemMenu({ item, host, strings, onAction }) → the long-press sheet: Open · Show in chat · Copy link.
+ * openSharedItemMenu({ item, host, strings, onAction }) → the long-press sheet: Open · Show in chat · Show in Downloads ·
+ *   Copy link · Delete from this device (★ #1166 V-3 / #1154: the last two rows only for a RECEIVED item with a local copy).
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
@@ -70,12 +72,13 @@ export function parseSharedItems(json) {
   const out = [];
   for (const r of rows.slice(0, 200)) {
     if (!Array.isArray(r) || r.length < 8) continue;
-    const [id, n, kind, label, size, ts, local, thumb] = r;
+    const [id, n, kind, label, size, ts, local, thumb, received] = r;
     if (typeof id !== 'string' || !/^[0-9a-fA-F]{1,128}$/.test(id) || !SHARED_KINDS.includes(kind)) continue;
     out.push({
       id, n: Number(n) || 0, kind, label: String(label || ''), size: Number(size) || 0, ts: Number(ts) || 0,
       local: local === 1 || local === true,
       thumb: typeof thumb === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,/.test(thumb) ? thumb : null,
+      received: received === 1 || received === true,   // ★ #1166 V-3 (#1154): field 9, absent on an older exe → false
     });
   }
   return out;
@@ -133,7 +136,9 @@ function sharedMediaTile(item, strings, onOpen, onMenu) {
     b.append(icon('photo', { size: 24 }));
     b.dataset.glyph = '';
   }
-  b.setAttribute('aria-label', (strings.sharedShowInChat || 'Show in chat') + ': ' + item.label);
+  /* ★ #1166 V-3 (#1144): a LOCAL image opens the in-app viewer (the shell's tap rule), so its name says Open; one not on
+     this device still jumps to the chat. */
+  b.setAttribute('aria-label', (item.local ? (strings.sharedOpen || 'Open') : (strings.sharedShowInChat || 'Show in chat')) + ': ' + item.label);
   b.addEventListener('click', () => onOpen && onOpen(item));
   attachSharedLongPress(b, item, onMenu);
   return b;
@@ -273,9 +278,12 @@ export function createSharedSection({ items = [], strings = getStrings(), onOpen
 }
 
 /** ★ G-6 (#1119/#1120): the long-press menu of one shared item — a sheet titled with the item. Open (what a tap does) ·
- *  Show in chat · Copy link (links only); "Open" only for a link or a local file (#46 r1 B4). onAction('open' | 'show' | 'copy', item). Share / Save, Delete from this
- *  device and Delete message are NOT here: each needs a new verb, built after the BE answer (#1118, #1120) — no dead
- *  rows (#256). */
+ *  Show in chat · Copy link (links only); "Open" only for a link or a local file (#46 r1 B4) — ★ #1166 V-3: and a local
+ *  image (its tap is the viewer now, not the jump). ★ #1166 V-3 (#1154, Damir): "Show in Downloads" and "Delete from this
+ *  device" (destructive, last) for a RECEIVED media / file item with a local copy only — a sent file is the user's own
+ *  original and is never offered (C# refuses it too). onAction('open' | 'show' | 'downloads' | 'copy' | 'delete', item).
+ *  Share / Save and Delete message are NOT here: each needs a new verb, built after the BE answer (#1118, #1120) — no
+ *  dead rows (#256). */
 export function openSharedItemMenu({ item, host, strings = getStrings(), onAction } = {}) {
   if (!item) return null;
   const content = document.createElement('div');
@@ -283,22 +291,27 @@ export function openSharedItemMenu({ item, host, strings = getStrings(), onActio
   const list = document.createElement('div');
   list.className = 'c-msgmenu__list';
   let sheet = null;
-  const add = (glyph, label, action) => {
+  const add = (glyph, label, action, destructive = false) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-msgmenu__item';
     b.dataset.action = action;
+    if (destructive) b.dataset.destructive = '';   // ★ #1166 V-3: the message-menu error ink (§5b)
     b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
     b.addEventListener('click', () => { closeSheet(sheet); if (onAction) onAction(action, item); });
     list.append(b);
   };
   /* (#46 r1 B4) "Open" only where it is NOT the jump: a link (asks first, then the browser) and a file with a local copy
      (the system opens it). For media and a file not on this device the tap already IS "Show in chat" — one row, one action. */
-  if (item.kind === 'link' || (item.kind === 'file' && item.local)) {
-    add(item.kind === 'link' ? 'external-link' : 'file-isr', item.kind === 'link' ? (strings.openLink || 'Open') : (strings.sharedOpen || 'Open'), 'open');
+  if (item.kind === 'link' || ((item.kind === 'file' || item.kind === 'media') && item.local)) {
+    add(item.kind === 'link' ? 'external-link' : item.kind === 'media' ? 'photo' : 'file-isr',
+      item.kind === 'link' ? (strings.openLink || 'Open') : (strings.sharedOpen || 'Open'), 'open');
   }
   add('message', strings.sharedShowInChat || 'Show in chat', 'show');
+  const receivedLocal = (item.kind === 'media' || item.kind === 'file') && item.local && item.received;   // ★ #1166 V-3 (#1154)
+  if (receivedLocal) add('download', strings.sharedShowInDownloads || 'Show in Downloads', 'downloads');
   if (item.kind === 'link') add('copy', strings.copyLink || 'Copy link', 'copy');
+  if (receivedLocal) add('trash', strings.sharedDeleteLocal || 'Delete from this device', 'delete', true);
   content.append(list);
   const title = item.kind === 'link' ? (sharedLinkHost(item.label) || item.label) : item.label;
   sheet = createSheet({ title, content, host, strings });

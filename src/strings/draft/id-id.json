@@ -722,5 +722,12 @@
   "copyLink": "Salin tautan",
   "photoPreviewsTitle": "Tampilkan pratinjau foto di obrolan",
   "photoPreviewsHint": "Foto yang Anda kirim atau unduh tampil sebagai gambar di obrolan. Mati: setiap foto tetap berupa kartu file.",
-  "newReaction": "Reaksi baru"
+  "newReaction": "Reaksi baru",
+  "sharedShowInDownloads": "Tampilkan di Unduhan",
+  "sharedDeleteLocal": "Hapus dari perangkat ini",
+  "sharedDeleteLocalTitle": "Hapus dari perangkat ini?",
+  "sharedDeleteLocalBody": "“{name}” dihapus dari perangkat ini. Pesannya tetap ada di chat.",
+  "viewerFailed": "Gambar ini tidak dapat dibuka.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Grup dapat memiliki hingga 10 anggota selain Anda."
 }

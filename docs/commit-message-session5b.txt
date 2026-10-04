@@ -1,0 +1,24 @@
+Session 5b: chats batch, lazy history, media viewer, group cap, motion
+
+Speed (V-1): the chats list patches one row for presence, typing,
+receipts and reactions, and a full flush is one batched push; avatars
+are sent once per contact per document; subscreen slides 220/160 ms;
+the call bar lays out from the top; the desktop chat-info pane animates
+its width (push fallback built); a dev-only probe after a spare present.
+
+Lazy history (V-2): load-more sends only the older slice as a prepend,
+triggered by scrolling near the top; the reading row keeps its place.
+Show in chat scrolls smoothly when the row is near.
+
+Media viewer (V-3): a local photo opens Spixi's in-app viewer from the
+chat and from chat info, with a viewer-size image decoded on the
+device. Chat info adds Show in Downloads and Delete from this device
+for received downloads.
+
+Group cap (V-4): the picker stops at 10 members with a counter, and
+C# refuses more.
+
+Also: composer pill follows the received bubble, held previews and
+live transfer progress survive a re-flush, the transfer's own channel
+for thumbnails, one naming rule for file cards and tiles. Records
+decisions #1166-#1168, the #46 review, renders, pins and the walk sheet.

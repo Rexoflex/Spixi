@@ -799,5 +799,12 @@
   "copyLink": "Copiar enlace",
   "photoPreviewsTitle": "Mostrar vistas previas de fotos en los chats",
   "photoPreviewsHint": "Las fotos que enviaste o descargaste se ven como imagen en el chat. Desactivado: cada foto queda como tarjeta de archivo.",
-  "newReaction": "Nueva reacción"
+  "newReaction": "Nueva reacción",
+  "sharedShowInDownloads": "Mostrar en Descargas",
+  "sharedDeleteLocal": "Eliminar de este dispositivo",
+  "sharedDeleteLocalTitle": "¿Eliminar de este dispositivo?",
+  "sharedDeleteLocalBody": "“{name}” se eliminará de este dispositivo. El mensaje se queda en el chat.",
+  "viewerFailed": "No se pudo abrir esta imagen.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Un grupo puede tener hasta 10 miembros además de ti."
 }

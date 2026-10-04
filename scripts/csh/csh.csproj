@@ -18,6 +18,10 @@
     <Compile Include="../../Spixi/Meta/SReactionFlags.cs" />
     <!-- ★★ P0 #1155 (session 5): the arrival guard (tests: ArrivalGuardTests.cs — a model of Core's cache + delayed writer). -->
     <Compile Include="../../Spixi/Utils/ArrivalGuard.cs" />
+    <!-- ★ #1166 V-3 (#1144 / #1154): the chat-info viewer / delete / Show-in-Downloads rules (tests: ViewerRulesTests.cs, beside this file). -->
+    <Compile Include="../../Spixi/Utils/ViewerRules.cs" />
+    <!-- ★ #1166 P-03 / P-04 / V-4 (session 5b): the chats batch wire, the avatar ledger, the group cap (tests: ChatsListRulesTests.cs). -->
+    <Compile Include="../../Spixi/Utils/ChatsListRules.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

@@ -799,5 +799,12 @@
   "copyLink": "Copier le lien",
   "photoPreviewsTitle": "Afficher l'aperçu des photos dans les conversations",
   "photoPreviewsHint": "Les photos que vous avez envoyées ou téléchargées s'affichent comme une image dans la conversation. Désactivé : chaque photo reste une carte de fichier.",
-  "newReaction": "Nouvelle réaction"
+  "newReaction": "Nouvelle réaction",
+  "sharedShowInDownloads": "Afficher dans Téléchargements",
+  "sharedDeleteLocal": "Supprimer de cet appareil",
+  "sharedDeleteLocalTitle": "Supprimer de cet appareil ?",
+  "sharedDeleteLocalBody": "« {name} » est supprimé de cet appareil. Le message reste dans la discussion.",
+  "viewerFailed": "Impossible d’ouvrir cette image.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Un groupe peut compter jusqu’à 10 membres en plus de vous."
 }

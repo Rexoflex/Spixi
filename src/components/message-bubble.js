@@ -51,6 +51,7 @@ import { createStatusIcon } from './chatlist-item.js';
 import { createBadge } from './badge.js';
 import { dayBucketLabel, docLocale, timeOpts } from './timestamp.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
+import { fileNameAria } from './typed-bubbles.js';   // ★ #1166 r5 NIT-1: the ONE file-name rule (build + live)
 
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
@@ -617,12 +618,11 @@ export function setMessageStatus(row, status, strings = getStrings(), opts = {})
 function syncFileTickAria(row, tick) {
   const fb = row.querySelector('.c-fbubble[data-aria-base], .c-mbubble[data-aria-base]');   // ★ A5 #1124: …or an image file's tile
   if (!fb) return;
-  /* #46 r2 R2-N2 · r3 R3-m2: a photo tile OR a file card still SENDING is named "Sending IMG.jpg" alone (typed-bubbles fileTileAria — one rule
-     for the build and this live path); the tick joins the name once the transfer is final — r4 MINOR-1 (#1035): a delivered / read tick
-     (anything but the neutral sent / sending glyph) joins it at once */
-  const sending = fb.matches('.c-mbubble[data-file="progress"], .c-fbubble[data-state="progress"]');   // #46 r3 R3-m2: the card too
-  const label = sending && tick && tick.dataset.tone === 'neutral' ? null : tick && tick.getAttribute('aria-label');
-  fb.setAttribute('aria-label', fb.dataset.ariaBase + (label ? ', ' + label : ''));
+  /* ★ #1166 r5 NIT-1: the build and this live path name the file by ONE rule — typed-bubbles.js fileNameAria (a SENDING
+     file of mine is "Sending IMG.jpg" alone; a delivered / read tick joins at once; a final file takes its tick). The new
+     tick is already in place here (the crossfade put it after the ghost; the plain swap replaced the old one). */
+  void tick;
+  fb.setAttribute('aria-label', fileNameAria(fb));
 }
 
 /* ★★ #1028 (walk P.13, "the icon swaps, no fade"): a TRUE crossfade. #1010 only faded the NEW glyph in

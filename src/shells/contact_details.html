@@ -251,6 +251,7 @@
     parseSharedItems, createSharedList,              // ★★ #1106: shared media / files / links
     openSharedItemMenu, copyText,                    // ★ G-6 (#1119/#1120): the long-press menu · Copy link
     createModal, openModal,                          // ★★ #1106: the link confirm (chat.html's confirmOpenLink grammar)
+    openMediaViewer, findOpenViewer, VIEWER_URI_RE,  // ★ #1166 V-3 (#1144): the in-app viewer for a local image tile
   } = window.Spixi;
   const strings = window.SL || {};
   let cdSharedTab = '';   // ★ G-6 (#46 r1 B2): the chosen kind chip — display state only, never persisted
@@ -871,10 +872,18 @@
   /* ★★ #1106 — a shared item's tap. The WebView sends back ONLY "<message id>:<link index>"; C# resolves the
      target from its own scan. A LINK asks first (chat.html's confirmOpenLink grammar: the address in full, Cancel
      focused) — C# then opens it through the shared external-link gate. A file / media goes straight to C#
-     (open the local copy, or open the conversation at the message). */
+     (open the local copy, or open the conversation at the message).
+     ★ #1166 V-3 (#1144 / #1145 (1)): a MEDIA item with a local copy opens the in-app VIEWER instead of the jump: the
+     viewer shows the tile's thumbnail with a loading state, and `ixian:sharedView:<id>:<n>` asks C# for the viewer-size
+     picture (C# resolves the item from its own scan — the WebView sends only the token) → the viewerImage push. */
   function openSharedItem(item) {
     if (!item || !/^[0-9a-fA-F]{1,128}$/.test(String(item.id || ''))) return;
     const token = item.id + ':' + (Number(item.n) || 0);
+    if (item.kind === 'media' && item.local) {
+      openMediaViewer({ host: document.body, src: item.thumb || '', token, alt: item.label, kind: 'image', strings });
+      bridge.send('ixian:sharedView:' + token);
+      return;
+    }
     if (item.kind === 'link') {
       openModal(createModal({
         title: strings.openLinkTitle || 'Open external link?',
@@ -904,6 +913,10 @@
       onAction: (action) => {
         if (action === 'open') { openSharedItem(item); return; }
         if (action === 'show') { closeSharedTakeover(); bridge.send('ixian:sharedShow:' + token); return; }
+        /* ★ #1166 V-3 (#1154, 🟡 new verbs): a RECEIVED item with a local copy only (the menu shows the rows only then;
+           C# re-checks: received + inside the Downloads root — a sent original is never deleted). Only the token goes. */
+        if (action === 'downloads' && item.received && item.local) { bridge.send('ixian:sharedShowInDownloads:' + token); return; }
+        if (action === 'delete' && item.received && item.local) { confirmSharedDeleteLocal(item, token); return; }
         if (action === 'copy' && item.kind === 'link') {
           Promise.resolve(copyText(item.label)).then((ok) => {
             try { showToast({ text: ok === false ? (strings.sharedCopyFailed || 'Couldn’t copy') : (strings.linkCopied || 'Link copied'), tone: ok === false ? 'error' : 'success', host: document.body, strings }); } catch (e) {}
@@ -911,6 +924,23 @@
         }
       },
     });
+  }
+
+  /* ★ #1166 V-3 (#1154): "Delete from this device" asks first — an alertdialog, the item named (textContent only),
+     Cancel focused, Delete in the destructive fill. C# deletes, rescans and re-pushes setSharedItems (the tile turns
+     into its glyph; the message stays in the chat). */
+  function confirmSharedDeleteLocal(item, token) {
+    openModal(createModal({
+      title: strings.sharedDeleteLocalTitle || 'Delete from this device?',
+      body: (strings.sharedDeleteLocalBody || '“{name}” is removed from this device. The message stays in the chat.').split('{name}').join(item.label),
+      role: 'alertdialog',
+      host: document.body,
+      strings,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: strings.deleteConfirm || 'Delete', type: 'fill', intent: 'destructive', onClick: () => bridge.send('ixian:sharedDeleteLocal:' + token) },
+      ],
+    }));
   }
 
   /* ★★ #1106 — "See all": Media · Files · Links on one cover (the money compose's cover grammar; back closes it). */
@@ -929,6 +959,20 @@
     syncCdOverlay();
     const first = over.querySelector('[role="tab"][aria-selected="true"]') || over.querySelector('button');
     if (first) { try { first.focus({ focusVisible: false }); } catch (e) {} }   // focus moves in; no ring for a pointer open
+  }
+  /* ★ #1166 V-3 (#1154): an open "See all" cover is rebuilt in place from a re-push (after "Delete from this device"),
+     on the same tab and scroll; the cover closes when nothing is left. */
+  function refreshSharedTakeover() {
+    const over = cdSharedOpen ? document.querySelector('.cd-shared-takeover') : null;
+    const old = over ? over.querySelector('.c-shared-list') : null;
+    if (!old) return;
+    if (!Array.isArray(state.sharedItems) || !state.sharedItems.length) { closeSharedTakeover(); return; }
+    const panel = old.querySelector('.c-shared-list__panel');
+    const top = panel ? panel.scrollTop : 0;
+    const next = createSharedList({ items: state.sharedItems, tab: old.dataset.tab || 'media', strings, onOpen: openSharedItem, onBack: closeSharedTakeover, onMenu: openSharedMenu });
+    old.replaceWith(next);
+    const np = next.querySelector('.c-shared-list__panel');
+    if (np) np.scrollTop = top;
   }
   function closeSharedTakeover() {
     const t = document.querySelector('.cd-shared-takeover');
@@ -1238,9 +1282,22 @@
       syncCdOverlay();
     },
 
+    /* ★ #1166 V-3 (#1144): C#'s answer to ixian:sharedView — applied ONLY to a viewer still open for THAT token
+       (findOpenViewer; a closed one is gone), and only a data:image/jpeg;base64 URI; "" (or anything else) = the picture
+       could not be made → the viewer keeps the thumbnail and a short toast says so. */
+    viewerImage(token, uri) {
+      const v = findOpenViewer(String(token == null ? '' : token));
+      if (!v) return;
+      const u = String(uri == null ? '' : uri);
+      if (u && VIEWER_URI_RE.test(u) && v.setSrc(u)) return;
+      v.setFailed();
+      try { showToast({ text: strings.viewerFailed || 'This image could not be opened.', tone: 'error', host: document.body, strings }); } catch (e) {}
+    },
+
     /* ★★ #1106 — C#'s answer to ixian:sharedItems: ONE push, newest first (parseSharedItems drops anything malformed). */
     setSharedItems(json) {
       state.sharedItems = parseSharedItems(json);
+      refreshSharedTakeover();   // ★ #1166 V-3: a delete from the "See all" cover re-pushes — the open cover follows
       scheduleCommit();
     },
 

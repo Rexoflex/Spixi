@@ -108,7 +108,10 @@ namespace SPIXI
          * top bar (Damir: "below the top bar, so the user can move around the app while in
          * call — a call card, not a full-bleed strip"). The expanded view ("full") is the
          * same stage full-window, like the ring. */
-        private const double cardHeightDip = 64;      // matches call.html's --call-card-h
+        /* matches call.html's --call-card-h. ★ #1166 lever 9: now LOAD-BEARING — the shell lays the card out from the top at
+         * --call-card-h and reports painted at once (no wait for the viewport to shrink), so a change here without the
+         * CSS token leaves a strip or cuts the card. A pin reads both. */
+        private const double cardHeightDip = 64;
         private const double cardGapDip = 8;          // air between the app's top bar and the card
         private const double cardSideDip = 12;        // phone: side inset
         private const double cardWidthDip = 380;      // desktop: card width (right-aligned)

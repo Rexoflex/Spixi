@@ -692,3 +692,5 @@ notification-app-invite = App invite
 notification-file = File received
 notification-contact-request = Contact request
 chat-new-norecipient-text = Please select a recipient to start the chat.
+group-limit-title = Too many members
+group-limit-text = A group can have up to 10 members besides you.

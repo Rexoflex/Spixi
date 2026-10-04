@@ -800,5 +800,12 @@
   "copyLink": "Kopiraj povezavo",
   "photoPreviewsTitle": "Prikaži predogled fotografij v klepetih",
   "photoPreviewsHint": "Fotografije, ki ste jih poslali ali prenesli, so v klepetu prikazane kot slika. Izklopljeno: vsaka fotografija ostane kartica datoteke.",
-  "newReaction": "Nova reakcija"
+  "newReaction": "Nova reakcija",
+  "sharedShowInDownloads": "Pokaži v prenosih",
+  "sharedDeleteLocal": "Izbriši s te naprave",
+  "sharedDeleteLocalTitle": "Izbrišem s te naprave?",
+  "sharedDeleteLocalBody": "»{name}« bo odstranjen s te naprave. Sporočilo ostane v klepetu.",
+  "viewerFailed": "Te slike ni bilo mogoče odpreti.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Skupina ima lahko poleg tebe največ 10 članov."
 }

@@ -3,18 +3,34 @@
  * nearing the top auto-fires `ixian:loadmore`, a spinner row shows, and the
  * scroll anchor is preserved when older rows prepend).
  *
- * attachLazyHistory(box, { onLoadMore, threshold = 160, strings })
+ * attachLazyHistory(box, { onLoadMore, threshold = 160, strings, canLoad, spinner = true, keepPosition = true })
  *   box        — the scrolling message container (role=log)
  *   onLoadMore — shell hook: fire ixian:loadmore, PREPEND the older rows,
  *                then resolve. Resolve `false` when history is exhausted
- *                (detaches — no further loads).
+ *                (detaches — no further loads). Resolve `0` when the load
+ *                added nothing: no automatic re-check (a scroll re-arms it),
+ *                so an empty answer can never loop the verb.
+ *   threshold  — px from the top that fires a load; a number, or a function
+ *                read at each check (★ #1166 B2: the chat shell passes ~one
+ *                screen, so the next page is asked for before the top is hit).
+ *   canLoad    — optional predicate read FIRST at each check (★ #1166 B2: the
+ *                chat shell's "C# says more exists, nothing in flight, not the
+ *                pill mode") — false = this scroll does nothing.
+ *   spinner    — false: the host paints its own loading row (★ #1166 B2: the
+ *                chat shell rebuilds its log from a model, so a row poked in
+ *                from here would be destroyed by the next render).
+ *   keepPosition — false: the host restores the reading position itself
+ *                (★ #1166 B2: the chat shell anchors by the first VISIBLE row
+ *                at the moment the rows land — a height delta measured at the
+ *                request would double-apply on top of it).
  *   Re-entrancy guarded; scroll restored so the previously-visible message
- *   stays put (scrollTop += height delta).
- * Returns { setDone() } — shell can end pagination early (e.g. chat cleared).
+ *   stays put (scrollTop += height delta) unless keepPosition is false.
+ * Returns { setDone(), check() } — shell can end pagination early (e.g. chat
+ * cleared) or ask for a check without a scroll event.
  */
 import { getStrings } from './strings-runtime.js';
 
-export function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStrings() } = {}) {
+export function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStrings(), canLoad = null, spinner: useSpinner = true, keepPosition = true } = {}) {
   let loading = false;
   let done = false;
 
@@ -30,26 +46,33 @@ export function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = 
     return row;
   };
 
+  const limit = () => {
+    const t = typeof threshold === 'function' ? threshold() : threshold;
+    return Number.isFinite(t) ? t : 160;
+  };
+
   const check = () => {
     if (loading || done || !onLoadMore) return;
-    if (box.scrollTop > threshold) return;
+    if (canLoad && !canLoad()) return;
+    if (box.scrollTop > limit()) return;
     loading = true;
     const h0 = box.scrollHeight; // anchor BEFORE spinner + new rows
-    const sp = spinner();
-    box.prepend(sp);
+    const sp = useSpinner ? spinner() : null;
+    if (sp) box.prepend(sp);
     Promise.resolve(onLoadMore()).then((result) => {
-      sp.remove();
+      if (sp) sp.remove();
       // keep the previously-visible message in place after the prepend
-      box.scrollTop += box.scrollHeight - h0;
+      if (keepPosition) box.scrollTop += box.scrollHeight - h0;
       if (result === false) {
         done = true;
         box.removeEventListener('scroll', check);
       }
       loading = false;
-      // content may still sit above the threshold (short pages) — re-check
-      if (!done) check();
+      // content may still sit above the threshold (short pages) — re-check;
+      // a load that added nothing waits for the next scroll instead (#1166 B2)
+      if (!done && result !== 0) check();
     }).catch(() => {
-      sp.remove();
+      if (sp) sp.remove();
       loading = false; // failed page loads stay retryable on the next scroll
     });
   };
@@ -60,5 +83,6 @@ export function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = 
       done = true;
       box.removeEventListener('scroll', check);
     },
+    check,
   };
 }

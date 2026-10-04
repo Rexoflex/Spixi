@@ -1325,11 +1325,16 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* #46 r2 MINOR-6: the card exists only in bar mode — a card still fading out after a
      bar → full or bar → ring swap must not float over the new view (or take its taps). */
   body:not([data-mode="bar"]) .c-callbar { display: none; }
+  /* ★ #1166 lever 9 (#1165 (6), the #1123 (4) mechanism): the card is laid out FROM THE TOP at its own height
+     (--call-card-h = CallPage.cardHeightDip), not as 100% of the viewport. The native stage is already 64 dip when the
+     shell is asked to paint, but the WebView's viewport reaches 64 px ~200 ms later (the resize, [CALLPAINT] via=resize
+     212–223 ms). Laid out from the top, the card is right at ANY viewport height — the top 64 px the stage shows are
+     the card — so awaitPaint's bar test passes at once (fits(), below). At the settled size the box is identical. */
   body[data-mode="bar"] .c-callbar,
   :root[data-desktop] body[data-mode="bar"] .c-callbar {
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0; left: 0; right: 0; bottom: auto;
     width: auto;
-    height: 100%;
+    height: var(--call-card-h);
     border-radius: 0;
     box-shadow: none;
     transform: none;
@@ -1340,8 +1345,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      visual a MAUI Border cannot clip, which is why the native rounding never reached it. */
   :root[data-desktop] { --call-card-pad: 8px; }   /* (#46 r1) 12 → 8: the pad is click-through-dead window area around the card */
   :root[data-desktop] body[data-mode="bar"] .c-callbar {
-    top: var(--call-card-pad); left: var(--call-card-pad); right: var(--call-card-pad); bottom: var(--call-card-pad);
-    height: auto;
+    top: var(--call-card-pad); left: var(--call-card-pad); right: var(--call-card-pad); bottom: auto;
+    height: var(--call-card-h);   /* ★ #1166 lever 9: from the top (stage = card + 2 × pad, CallPage.applyStageLayout) */
     border-radius: var(--radius-16, 16px);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);    /* sanctioned: the card's own shadow, fitted inside the 8px pad (the native Border shadow it replaces: black 0.28) */
   }
@@ -1732,7 +1737,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     const capN = /^\d{1,5}$/.test(String(maxH || '')) ? Number(maxH) : 0;
     const fits = () => {
       const h = window.innerHeight;
-      if (m === 'bar') return h > 0 && h <= 120;
+      /* ★ #1166 lever 9: the card is laid out from the top at --call-card-h (the bar CSS above), so it paints right
+         before the viewport shrinks — no wait for the resize (was `h <= 120`: 212–223 ms, #1123 (4)). */
+      if (m === 'bar') return h > 0;
       if (winCards) {
         if (lastCardH <= 0) return true;
         const want = Math.max(120, capN > 0 ? Math.min(lastCardH, capN) : lastCardH);

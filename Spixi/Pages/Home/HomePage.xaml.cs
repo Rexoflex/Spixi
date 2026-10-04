@@ -143,6 +143,11 @@ namespace SPIXI
         // calls back into loadApps and loadTransactions inverts the two lock orders and
         // deadlocks the tick against a tap. Do not build for it now. Do read this first.
         private readonly object txPushLock = new object();
+        /* ★ #1166 P-04: the avatar of each chats / requests / contacts row is pushed ONCE per address per document
+         * (`setAvatarFor`, again only when it changed) and the rows carry "" in their avatar argument. The ledger keeps
+         * address → length:hash (ChatsListRules.cs, executed in scripts/csh); it is reset wherever the document dies —
+         * the same three places as appsPushedToShell (onLoaded · reload · reloadShell). */
+        private readonly AvatarLedger avatarLedger = new AvatarLedger();
         private bool hideBalance = false;
 
         private bool running = false;
@@ -186,6 +191,20 @@ namespace SPIXI
         private const double detailMinWidth = 320;     // conversation keeps at least this
         private bool infoPaneCol2Pending = false;      // set at push, consumed at present
         private bool infoPaneCol2Open = false;         // col 2 currently expanded
+        /* ★ #1166 lever 7 (#1165 (3)) — HOW THE DESKTOP INFO PANE ARRIVES. ONE TOKEN, TWO PATHS:
+         *   "width" — col 2 runs 0 → pane width on the slide clock (SpixiContentPage.slideInMs / slideInEasing, 220 ms);
+         *             the pane is laid out at its full width and CLIPPED by the column (the info shell never reflows);
+         *             it fades on the same clock. Close = the reverse on the exit clock (slideOutMs, CubicIn, 160 ms).
+         *             Damir's pick, with its stated cost: one WebView2 resize + a chat reflow PER FRAME.
+         *   "push"  — the fallback (docs/sheets/session4/README.md option 3): the opaque pane travels its full width
+         *             over the chat with col 2 at 0, and the column widens ONCE at the end; close collapses the column
+         *             at once and the pane travels out.
+         * The walk decides (the `[P1] frames infopane` / `infopane-close` lines + the eye): dropped frames or a blank
+         * edge → change "width" to "push" here. Nothing else changes. Any other value = "width". */
+        private const string InfoPaneMotion = "width";
+        private const string InfoPaneAnim = "infopane-col";   // the MAUI animation handle on this page
+        private ContactDetails? infoPaneCol2Page = null;      // the pane that owns col 2 (set at present, cleared at collapse)
+        private int infoPaneMotionRun = 0;                    // the run a finish callback belongs to (a newer run wins)
         private bool paneDividerPanning = false;
 
         public bool devMode = false;
@@ -563,7 +582,7 @@ namespace SPIXI
                 mainGrid.ColumnDefinitions[0].Width = GridLength.Star;
                 //mainGrid.ColumnDefinitions[1].Width = new GridLength(0);
                 mainGrid.ColumnDefinitions[1].Width = new GridLength(0);
-                mainGrid.ColumnDefinitions[2].Width = new GridLength(0);   // #247 info pane
+                setInfoColumnNow(0);   // #247 info pane · ★ #1166 lever 7: stops a running column motion first
                 rightContent.IsVisible = false;
                 paneDivider.IsVisible = false;   // D1: no divider in single-pane
                 removeDetailContent(false);
@@ -624,11 +643,163 @@ namespace SPIXI
             double avail = Width - mainGrid.ColumnDefinitions[0].Width.Value - detailMinWidth;
             if (avail >= infoPaneMinWidth)
             {
-                mainGrid.ColumnDefinitions[2].Width = new GridLength(Math.Min(infoPaneWidth, avail));
+                setInfoColumnNow(Math.Min(infoPaneWidth, avail));   // ★ #1166 lever 7: stops a running column motion first
             }
             else
             {
                 closeContactDetailsOverlays();   // collapses col 2 via onOverlayClosed
+            }
+        }
+
+        /* ★ #1166 lever 7: the ONE way to set col 2 outside the motion — stops a running column animation first, so
+         * the animation's next tick can never overwrite a collapse / a resize. MAUI's AbortAnimation runs the finish
+         * callback with cancelled = true; that callback only releases the stage (it never writes the column). */
+        private void setInfoColumnNow(double width)
+        {
+            try { this.AbortAnimation(InfoPaneAnim); } catch (Exception) { }
+            mainGrid.ColumnDefinitions[2].Width = new GridLength(width);
+        }
+
+        private ColumnMotion infoPaneMotionMode()
+        {
+            return InfoPaneMotion == "push" ? ColumnMotion.Push : ColumnMotion.Width;
+        }
+
+        /* ★ #1166 lever 7: the col-2 pin decision, ONE copy — onOverlayPresented and the entry query
+         * (overlayColumnMotion, asked by revealStage in the same main-thread turn, just before) read the same inputs,
+         * so they cannot disagree. Loop fix A-3/B-3: col 0's Width.Value only under the wide guard. */
+        private bool infoPaneFitsCol2(ContactDetails cd, out double paneW)
+        {
+            paneW = 0;
+            bool wide = rightContent.IsVisible;
+            double avail = wide ? (Width - mainGrid.ColumnDefinitions[0].Width.Value - detailMinWidth) : 0;
+            // Re-check: the conversation may have closed or SWITCHED during the load —
+            // col 2 is only for the open conversation's OWN info (#249).
+            bool chatOpenIsTarget = SpixiContentPage.getOverlayPages()
+                .Exists(p => p is SingleChatPage scp && scp.friend.walletAddress.ToString() == cd.friendAddressString());
+            if (wide && chatOpenIsTarget && avail >= infoPaneMinWidth)
+            {
+                paneW = Math.Min(infoPaneWidth, avail);
+                return true;
+            }
+            return false;
+        }
+
+        /* ★ #1166 lever 7: SpixiContentPage asks how the col-2 pane moves. Entering: only the pane that is about to be
+         * pinned to col 2 (infoPaneCol2Pending + the same fit test onOverlayPresented runs). Leaving: only the pane that
+         * owns the open column. Everything else = None (today's slide). */
+        public override ColumnMotion overlayColumnMotion(SpixiContentPage overlay, bool entering, out double paneWidth)
+        {
+            paneWidth = 0;
+#if WINDOWS || MACCATALYST
+            if (!(overlay is ContactDetails cd) || !rightContent.IsVisible)
+            {
+                return ColumnMotion.None;
+            }
+            if (entering)
+            {
+                if (!infoPaneCol2Pending || !infoPaneFitsCol2(cd, out paneWidth))
+                {
+                    return ColumnMotion.None;
+                }
+                return infoPaneMotionMode();
+            }
+            if (!infoPaneCol2Open || !ReferenceEquals(cd, infoPaneCol2Page))
+            {
+                return ColumnMotion.None;
+            }
+            paneWidth = mainGrid.ColumnDefinitions[2].Width.Value;
+            return paneWidth > 0 ? infoPaneMotionMode() : ColumnMotion.None;
+#else
+            /* ★ #1166 r1 (C-M2): lever 7 is DESKTOP only (WinUI · Mac Catalyst) — a wide Android / iOS tablet also shows
+             * rightContent, and keeps today's slide (no col-2 width animation there). */
+            return ColumnMotion.None;
+#endif
+        }
+
+        /* ★ #1166 lever 7: the column half of the motion. `to` is the target width; Width animates from the column's
+         * CURRENT width (a re-pin over an open column is then a fade only), Push holds the column and sets `to` once at
+         * the end. The stage is released (fills its column again) at the end of an OPEN, cancelled or not. [P1]: one
+         * `infopane <open|close> motion= ms=` at the start + the frame probe, one `infopane done …` at the end with the
+         * real elapsed ms and the number of column writes (= WebView2 resizes) — dev-only, fixed words + integers. */
+        private void animateInfoColumn(bool open, double to, ContactDetails pane)
+        {
+            ColumnMotion mode = infoPaneMotionMode();
+            uint ms = open ? SpixiContentPage.slideInMs : SpixiContentPage.slideOutMs;
+            Easing easing = open ? SpixiContentPage.slideInEasing : Easing.CubicIn;
+            try { this.AbortAnimation(InfoPaneAnim); } catch (Exception) { }
+            int run = ++infoPaneMotionRun;
+            double from = mainGrid.ColumnDefinitions[2].Width.IsAbsolute ? mainGrid.ColumnDefinitions[2].Width.Value : 0;
+            if (!open && mode == ColumnMotion.Push)
+            {
+                mainGrid.ColumnDefinitions[2].Width = new GridLength(0);   // push close: the column goes first, the pane travels out
+            }
+            long p1T0 = P1Perf.now();
+            int writes = 0;
+            bool settled = false;
+            if (P1Perf.enabled)
+            {
+                P1Perf.line("infopane " + (open ? "open" : "close") + " motion=" + (mode == ColumnMotion.Push ? "push" : "width")
+                    + " ms=" + ms + " col=" + (long)Math.Round(to));
+                P1Perf.framesAfter(open ? "infopane" : "infopane-close");
+            }
+            Action<double> tick = mode == ColumnMotion.Width
+                ? (Action<double>)(v => { writes++; mainGrid.ColumnDefinitions[2].Width = new GridLength(Math.Max(0, v)); })
+                : (Action<double>)(v => { });
+            this.Animate(InfoPaneAnim, tick, mode == ColumnMotion.Width ? from : 0, mode == ColumnMotion.Width ? to : 1, 16, ms,
+                mode == ColumnMotion.Width ? easing : null,
+                (v, cancelled) =>
+                {
+                    if (settled)
+                    {
+                        return;
+                    }
+                    settled = true;
+                    try
+                    {
+                        if (!cancelled && run == infoPaneMotionRun)
+                        {
+                            if (open && mode == ColumnMotion.Push)
+                            {
+                                writes++;
+                                mainGrid.ColumnDefinitions[2].Width = new GridLength(to);   // push open: the ONE widen, at the end
+                            }
+                            else if (mode == ColumnMotion.Width)
+                            {
+                                mainGrid.ColumnDefinitions[2].Width = new GridLength(to);   // land exactly on the target
+                            }
+                        }
+                        if (open)
+                        {
+                            SpixiContentPage.releaseStageWidth(pane);
+                        }
+                        if (P1Perf.enabled)
+                        {
+                            P1Perf.line("infopane done " + (open ? "open" : "close") + " ms=" + P1Perf.msSince(p1T0)
+                                + " writes=" + writes + " cancelled=" + (cancelled ? "1" : "0"));
+                        }
+                        if (open && !cancelled && run == infoPaneMotionRun)
+                        {
+                            updateInfoPaneWidth();   // a resize during the motion: re-fit against the window now
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("[INFOPANE] motion end failed: " + ex.GetType().Name);
+                    }
+                });
+        }
+
+        /* ★ #1166 lever 7: SpixiContentPage's exit hook — the column collapse on the exit clock beside the stage's own
+         * fade (Width) or travel (Push). Only for the pane that owns col 2 (overlayColumnMotion answered for it). */
+        public override void startOverlayColumnExit(SpixiContentPage overlay, ColumnMotion motion)
+        {
+            if (overlay is ContactDetails cd && ReferenceEquals(cd, infoPaneCol2Page) && motion != ColumnMotion.None)
+            {
+                // the pane is leaving: a window resize inside the 160 ms must not re-widen its column (updateInfoPaneWidth)
+                infoPaneCol2Open = false;
+                infoPaneCol2Page = null;
+                animateInfoColumn(false, 0, cd);
             }
         }
 
@@ -2201,6 +2372,18 @@ namespace SPIXI
                     return;
                 }
 
+                /* ★ #1166 V-4 (#1141): Core rejects a createGroup with more than 10 participants on EVERY receiver
+                 * (CreateGroupMessage.cs:58 throws in the parse, caught at CoreStreamProcessor.cs:1598) while the creator
+                 * still gets the group — nobody joins and nobody is told. The picker caps at 10 (contacts-shell.js
+                 * GROUP_MAX_MEMBERS); this is the belt for any other way in: an alert, and no CreateGroup. */
+                if (GroupLimit.exceeds(addresses.Count))
+                {
+                    await displaySpixiAlert(SpixiLocalization._SL("group-limit-title") ?? "Too many members",
+                        SpixiLocalization._SL("group-limit-text") ?? "A group can have up to 10 members besides you.",
+                        SpixiLocalization._SL("global-dialog-ok") ?? "OK");
+                    return;
+                }
+
                 var contacts = addresses.ToOrderedDictionary(x => x.RoutingAddress, x => FriendList.getFriend(x.RoutingAddress)?.nickname, new AddressComparer());
                 var g = GroupChat.CreateGroup(new Address(IxianHandler.getWalletStorage().getPrimaryPublicKey()), contacts, groupName, hideParticipantAddresses);
                 if (g != null)
@@ -2354,6 +2537,7 @@ namespace SPIXI
             // force one push (PERF latch, see appsPushedToShell).
             appsPushedToShell = false;
             System.Threading.Interlocked.Increment(ref txDocGen);   // ★ #1132 lever 2: …nor wallet rows (the tab2 entry forces one push; A-N5 generation)
+            avatarLedger.reset();   // ★ #1166 P-04: …nor any avatar (setAvatarFor goes again, once per address)
 
             setAsRoot();
 
@@ -2723,8 +2907,10 @@ namespace SPIXI
 
             lock (refreshLock)
             {
-                // Clear everything
-                Utils.sendUiCommand(this, "clearContacts");
+                /* ★ #1166 P-03: the directory flush is ONE push too — `addContacts(json)`: the shell runs clearContacts
+                 * itself, then the items (setAvatarFor · addContact · setChatMuted · setChatFavorite, an allowlist) in
+                 * this order. It was 1 + 3N EvaluateJavaScript calls on every refresh tick. */
+                ChatsBatch contactsBatch = new ChatsBatch();
 
                 // Add contacts one-by-one
                 foreach (Friend friend in friends)
@@ -2759,14 +2945,17 @@ namespace SPIXI
                      * badge and a group with a custom avatar and no messages was not a group. */
                     string relation = contactRelationFor(friend.walletAddress);
                     string contactKind = friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : "");
-                    Utils.sendUiCommand(this, "addContact", friend.walletAddress.ToString(), friend.nickname, avatar, str_online, friend.getUnreadMessageCount().ToString(), relation, contactKind);
+                    string contactAddr = friend.walletAddress.ToString();
+                    // ★ #1166 P-04: the 3rd argument is "" for a photo (setAvatarFor went once, just before) — position kept.
+                    contactsBatch.add("addContact", contactAddr, friend.nickname, avatarArg(contactAddr, avatar, contactsBatch), str_online, friend.getUnreadMessageCount().ToString(), relation, contactKind);
                     // ★ MUTE-UX: the row's muted state, additive — an older shell ignores it.
-                    Utils.sendUiCommand(this, "setChatMuted", friend.walletAddress.ToString(),
+                    contactsBatch.add("setChatMuted", contactAddr,
                         SNotificationPrefs.isChatMuted(friend) ? "1" : "0");
                     // ★ CH4 (Session AD): the row's favorite state, same grammar, same site.
-                    Utils.sendUiCommand(this, "setChatFavorite", friend.walletAddress.ToString(),
-                        SChatPrefs.isFavorite(friend.walletAddress.ToString()) ? "1" : "0");
+                    contactsBatch.add("setChatFavorite", contactAddr,
+                        SChatPrefs.isFavorite(contactAddr) ? "1" : "0");
                 }
+                sendBatchOrRows("addContacts", contactsBatch, new[] { "clearContacts" }, Array.Empty<string>());   // ★ #1166 P-03: ONE push
             }
         }
 
@@ -3242,10 +3431,78 @@ namespace SPIXI
             }
         }
 
-        public void updateChat(Friend friend)
+        /* ★ #1166 P-04 — the avatar of a row, ONCE per address per document. `avatar` is what Utils.imageToDataUri
+         * returned for the row (a data URI, an "img/…" sentinel, or a raw-path fallback). A photo goes to the shell as
+         * `setAvatarFor(address, dataUri)` — into the flush's batch when there is one, else as its own push (the raw
+         * data: fast path) — the first time, and again only when it changed; a photo that went away sends
+         * `setAvatarFor(address, "")`. The returned value is the row's avatar ARGUMENT: "" for a photo (the shell keys
+         * the photo by address), the short non-data value otherwise (unchanged — the group sentinel still marks a group
+         * for an old-exe fallback). An older shell has no setAvatarFor (unknown push → no-op) and shows the initials /
+         * gradient until it is replaced; the shell and the exe ship together. */
+        private string avatarArg(string address, string avatar, ChatsBatch? batch)
+        {
+            string arg = avatarLedger.rowArg(address, avatar, out string? push);
+            if (push != null)
+            {
+                if (batch != null)
+                {
+                    batch.add("setAvatarFor", address, push);
+                }
+                else
+                {
+                    Utils.sendUiCommand(this, "setAvatarFor", address, push);
+                }
+            }
+            return arg;
+        }
+
+        /* ★ #1166 P-03 — a full flush in ONE push (the #801 batch transport, `addMessages` grammar): `cmd(json)` where
+         * json = { "strs": [], "items": [ { "f", "a" } ] } (ChatsBatch). The shell runs `before` itself, dispatches each
+         * item to the SAME handler the per-row transport called (an allowlist), then `after` — so one EvaluateJavaScript
+         * call replaces 2 + N (chats) / 1 + 3N (contacts). If the JSON cannot be built, the rows go the old way, one push
+         * each, wrapped in the same `before` / `after` pushes (the flush is never lost). Log: the exception TYPE only. */
+        private void sendBatchOrRows(string cmd, ChatsBatch batch, string[] before, string[] after)
+        {
+            string? json = null;
+            try
+            {
+                json = batch.toJson();
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[CHATS] batch fallback: " + ex.GetType().Name);
+            }
+            if (json != null)
+            {
+                Utils.sendUiCommand(this, cmd, json);
+                return;
+            }
+            foreach (string b in before)
+            {
+                Utils.sendUiCommand(this, b);
+            }
+            foreach (var item in batch.Items)
+            {
+                Utils.sendUiCommand(this, item.Key, item.Value!);
+            }
+            foreach (string a in after)
+            {
+                Utils.sendUiCommand(this, a);
+            }
+        }
+
+        /* ★ #1166 r1 (C-M1): `typingEdge` = this push is a typing START or END edge (UIHelpers.refreshChatRowLive), not a
+         * message event. It rides as addChat's 14th argument ("1" / ""), LAST, so no position moves; the shell never lets a
+         * typing edge resurrect a deleted / hidden row (the END edge carries the normal tail, so the kind alone cannot say). */
+        public void updateChat(Friend friend, bool typingEdge = false)
         {
             lock (refreshLock)
             {
+                // ★ #1166 r1 (C-N1): a leaving group / bot is not a chat row — the same skip loadChats makes
+                if (friend.pendingDeletion)
+                {
+                    return;
+                }
                 var fmh = getFriendMessageHelper(friend, out string excerptKind, out string excerptSender);
                 if (fmh == null)
                 {
@@ -3260,13 +3517,14 @@ namespace SPIXI
                 var lm = friend.metaData.lastMessage;
                 if (!friend.approved && lm != null && lm.type == FriendMessageType.requestAdd && !lm.localSender)
                 {
-                    Utils.sendUiCommand(this, "addRequest", fmh.walletAddress, fmh.nickname, fmh.avatar, fmh.timestamp.ToString());
+                    Utils.sendUiCommand(this, "addRequest", fmh.walletAddress, fmh.nickname, avatarArg(fmh.walletAddress, fmh.avatar, null), fmh.timestamp.ToString());   // ★ #1166 P-04
                     return;
                 }
 
                 // CH1: trailing chat kind (group/bot/1:1) · CH5: unread @-mention flag ·
                 // CH6: the excerpt kind · #944: the excerpt sender. New args go LAST — never reorder.
-                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), fmh.avatar, fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString(), excerptKind, excerptSender, SReactionFlags.has(fmh.walletAddress).ToString());   // ★ #1148 (4): 13th arg, the reaction heart (🟡; an older shell ignores it)
+                // ★ #1166 P-04: the 4th argument is "" for a photo (setAvatarFor went once, before it) — the position is kept.
+                Utils.sendUiCommand(this, "addChat", fmh.walletAddress, fmh.nickname, fmh.timestamp.ToString(), avatarArg(fmh.walletAddress, fmh.avatar, null), fmh.onlineString, fmh.excerpt, fmh.type, fmh.unreadCount.ToString(), friend.bot ? "bot" : (friend.type == FriendType.Group ? "group" : ""), hasUnreadMention(friend).ToString(), excerptKind, excerptSender, SReactionFlags.has(fmh.walletAddress).ToString(), typingEdge ? "1" : "");   // ★ #1148 (4): 13th arg, the reaction heart (🟡; an older shell ignores it) · ★ #1166 r1: 14th, the typing-edge marker
             }
         }
 
@@ -3414,10 +3672,12 @@ namespace SPIXI
                 }
 
                 long cdFlushTicks = System.Diagnostics.Stopwatch.GetTimestamp();   // ★ Session M [CDPERF] (temporary)
-                Utils.sendUiCommand(this, "clearChats");
-                // CH2: incoming contact requests are their OWN feed (not chat rows) — clear it
-                // within the same flush so clearChatsDone renders chats + requests together.
-                Utils.sendUiCommand(this, "clearRequests");
+                /* ★ #1166 P-03: the whole flush is ONE push now — `addChats(json)`. The shell runs clearChats ·
+                 * clearRequests itself, then every item below through the SAME handlers (addChat · addRequest ·
+                 * setAvatarFor, an allowlist), then clearChatsDone — the old order, in one EvaluateJavaScript call
+                 * instead of 2 + N + M + 1 (#801, the chat history's B1 + B3). CH2: the requests feed is still cleared
+                 * within the same flush, so the done render paints chats + requests together. */
+                ChatsBatch chatsBatch = new ChatsBatch();
 
                 // Prepare a list of message helpers, to facilitate sorting and communication with the UI
                 List<FriendMessageHelper> helper_msgs = new List<FriendMessageHelper>();
@@ -3475,14 +3735,15 @@ namespace SPIXI
                 foreach (FriendMessageHelper helper_msg in sorted_msgs)
                 {
                     // CH1: trailing chat kind · CH5: mention flag · CH6: excerpt kind · #944: excerpt sender · #1148 (4): reaction heart. New args go LAST — never reorder.
-                    Utils.sendUiCommand(this, "addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), helper_msg.avatar, helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString(), excerpt_kinds[helper_msg.walletAddress], excerpt_senders[helper_msg.walletAddress], SReactionFlags.has(helper_msg.walletAddress).ToString());   // ★ #1148 (4): 13th arg, the reaction heart
+                    // ★ #1166 P-03 / P-04: into the batch; the 4th argument is "" for a photo (its setAvatarFor item goes just before, once per document).
+                    chatsBatch.add("addChat", helper_msg.walletAddress, helper_msg.nickname, helper_msg.timestamp.ToString(), avatarArg(helper_msg.walletAddress, helper_msg.avatar, chatsBatch), helper_msg.onlineString, helper_msg.excerpt, helper_msg.type, helper_msg.unreadCount.ToString(), chat_kinds[helper_msg.walletAddress], mention_flags[helper_msg.walletAddress].ToString(), excerpt_kinds[helper_msg.walletAddress], excerpt_senders[helper_msg.walletAddress], SReactionFlags.has(helper_msg.walletAddress).ToString());   // ★ #1148 (4): 13th arg, the reaction heart
                 }
 
                 // CH2: incoming contact requests (newest first) — the FE renders these as
                 // Accept/Decline request cards + drives the Requests filter chip.
                 foreach (FriendMessageHelper rm in request_msgs.OrderByDescending(x => x.timestamp))
                 {
-                    Utils.sendUiCommand(this, "addRequest", rm.walletAddress, rm.nickname, rm.avatar, rm.timestamp.ToString());
+                    chatsBatch.add("addRequest", rm.walletAddress, rm.nickname, avatarArg(rm.walletAddress, rm.avatar, chatsBatch), rm.timestamp.ToString());   // ★ #1166 P-03 / P-04
                 }
 
                 // Clear the lists so they will be collected by the GC
@@ -3496,7 +3757,7 @@ namespace SPIXI
                 {
                     Logging.info("[RESTOREDIAG] loadChats flushed: chats={0} requests={1} unread={2}", chatRowsPushed, requestRowsPushed, unread);
                 }
-                Utils.sendUiCommand(this, "clearChatsDone");
+                sendBatchOrRows("addChats", chatsBatch, new[] { "clearChats", "clearRequests" }, new[] { "clearChatsDone" });   // ★ #1166 P-03: ONE push
                 if (cdChatsRuns < 4)
                 {
                     cdChatsRuns++;
@@ -4691,7 +4952,8 @@ namespace SPIXI
                 if (!SpixiContentPage.getOverlayPages().Exists(p => p is ContactDetails))
                 {
                     infoPaneCol2Open = false;
-                    mainGrid.ColumnDefinitions[2].Width = new GridLength(0);
+                    infoPaneCol2Page = null;   // ★ #1166 lever 7
+                    setInfoColumnNow(0);       // ★ #1166 lever 7: stops a running column motion first
                 }
             }
         }
@@ -4762,29 +5024,37 @@ namespace SPIXI
                 if (infoPaneCol2Open)
                 {
                     infoPaneCol2Open = false;
-                    mainGrid.ColumnDefinitions[2].Width = new GridLength(0);
+                    infoPaneCol2Page = null;   // ★ #1166 lever 7
+                    setInfoColumnNow(0);       // ★ #1166 lever 7: stops a running column motion first
                 }
                 return;
             }
-            infoPaneCol2Pending = false;
-            // Loop fix A-3/B-3: read col 0's Width.Value only under the wide guard —
-            // when narrow it is GridLength.Star and .Value is the star MULTIPLIER.
+            // ★ #1166 lever 7: the fit test (wide · the open chat is the target · room) moved into infoPaneFitsCol2 —
+            // the same copy revealStage's entry query read a moment ago, BEFORE the flag is consumed here.
             bool wide = rightContent.IsVisible;
-            double avail = wide ? (Width - mainGrid.ColumnDefinitions[0].Width.Value - detailMinWidth) : 0;
-            // Re-check: the conversation may have closed or SWITCHED during the load —
-            // col 2 is only for the open conversation's OWN info (#249).
             ContactDetails cd = (ContactDetails)overlay;
-            bool chatOpenIsTarget = SpixiContentPage.getOverlayPages()
-                .Exists(p => p is SingleChatPage scp && scp.friend.walletAddress.ToString() == cd.friendAddressString());
-            if (wide && chatOpenIsTarget && avail >= infoPaneMinWidth)
+            bool willSlide = overlayColumnMotion(overlay, true, out _) != ColumnMotion.None;   // what revealStage was told
+            infoPaneCol2Pending = false;
+            if (infoPaneFitsCol2(cd, out double paneW))
             {
                 SpixiContentPage.rehomeOverlay(overlay, 2);
-                mainGrid.ColumnDefinitions[2].Width = new GridLength(Math.Min(infoPaneWidth, avail));
                 infoPaneCol2Open = true;
-                if (P1Perf.enabled)
+                infoPaneCol2Page = cd;
+                if (willSlide)
                 {
-                    P1Perf.line("infopane col w=" + (long)Math.Round(Math.Min(infoPaneWidth, avail)));   // ★ P-1 (#1127) — TEMPORARY
-                    P1Perf.framesAfter("infopane");
+                    /* ★ #1166 lever 7: the column moves on the slide clock (InfoPaneMotion) — it no longer snaps to the
+                     * pane width in this frame. The [P1] `infopane open` line + `frames infopane` come from here. */
+                    animateInfoColumn(true, paneW, cd);
+                }
+                else
+                {
+                    setInfoColumnNow(paneW);   // a stage that did not slide (no motion asked) gets today's snap
+                    SpixiContentPage.releaseStageWidth(cd);
+                    if (P1Perf.enabled)
+                    {
+                        P1Perf.line("infopane col w=" + (long)Math.Round(paneW));   // ★ P-1 (#1127) — TEMPORARY
+                        P1Perf.framesAfter("infopane");
+                    }
                 }
             }
             else
@@ -4792,12 +5062,14 @@ namespace SPIXI
                 // #248 degrade grammar: on a WIDE window the info covers only the
                 // conversation region (col 1, the detail slot); narrow = full span.
                 SpixiContentPage.rehomeOverlay(overlay, wide ? 1 : -1);
+                SpixiContentPage.releaseStageWidth(overlay);   // ★ #1166 lever 7 belt: never leave a pinned width outside col 2
                 // A-1 family: this pane no longer owns col 2 — if a replaced col-2
                 // pane left the column expanded, collapse it.
                 if (infoPaneCol2Open)
                 {
                     infoPaneCol2Open = false;
-                    mainGrid.ColumnDefinitions[2].Width = new GridLength(0);
+                    infoPaneCol2Page = null;   // ★ #1166 lever 7
+                    setInfoColumnNow(0);       // ★ #1166 lever 7: stops a running column motion first
                 }
             }
         }
@@ -5161,6 +5433,7 @@ namespace SPIXI
             // one to say ixian:onload — if that handshake is lost the apps tab never heals.
             appsPushedToShell = false;
             System.Threading.Interlocked.Increment(ref txDocGen);   // ★ #1132 lever 2: the wallet rows die with it too (A-N5 generation)
+            avatarLedger.reset();   // ★ #1166 P-04: and the avatars it was sent
             // ★ D-20 (#357): the connectivity warning dies with the document too — reset its
             // latch so the next updateScreen tick re-pushes "Connecting…" while offline.
             warningDisplayed = false;
@@ -5183,6 +5456,7 @@ namespace SPIXI
             int gen = ++reloadShellGen;
             appsPushedToShell = false;   // #340 (C-MAJOR-1): same as reload(), which this bypasses
             System.Threading.Interlocked.Increment(ref txDocGen);   // ★ #1132 lever 2: same (A-N5 generation)
+            avatarLedger.reset();        // ★ #1166 P-04: same
             warningDisplayed = false;    // ★ D-20 (#357): language re-bake ate "Connecting…" while offline (Damir 2026-08-16)
             base.reload();
             // Belt (F5 2026-07-29): the reload's re-populate burst rides ONE

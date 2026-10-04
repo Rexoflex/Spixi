@@ -799,5 +799,12 @@
   "copyLink": "Copiar link",
   "photoPreviewsTitle": "Mostrar prévias de fotos nas conversas",
   "photoPreviewsHint": "Fotos que você enviou ou baixou aparecem como imagem na conversa. Desligado: toda foto fica como cartão de arquivo.",
-  "newReaction": "Nova reação"
+  "newReaction": "Nova reação",
+  "sharedShowInDownloads": "Mostrar em Downloads",
+  "sharedDeleteLocal": "Apagar deste dispositivo",
+  "sharedDeleteLocalTitle": "Apagar deste dispositivo?",
+  "sharedDeleteLocalBody": "“{name}” será removido deste dispositivo. A mensagem continua no chat.",
+  "viewerFailed": "Não foi possível abrir esta imagem.",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "Um grupo pode ter até 10 membros além de você."
 }

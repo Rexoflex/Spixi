@@ -849,7 +849,7 @@
     // [CDPERF] settings-sub — ONE hook for every view (#798: not a list of the three
     // rows this session is about). Stamps only when the view actually changes.
     if (currentView !== subRendered) { subRendered = currentView; cdperfSubStart(currentView); }
-    // ★ Session H: a render landing inside a slide (a C# push in the 300 ms) starts
+    // ★ Session H: a render landing inside a slide (a C# push in the 220 ms) starts
     // from a SETTLED DOM — the in-flight slide's end state is applied first.
     settleSubscreenSlide(root);
     // #334 iOS-59: nav visibility keys off the view — hub shows the peer-tab

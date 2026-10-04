@@ -533,7 +533,9 @@ export default async function (h) {
     const src = stripCode(rd('src/shells/chat.html'));
     r.offUntilTold = /\blet photoPreviews = false;/.test(src);
     r.oneCallSite = /const photoTile = photoPreviews && isPhotoFileName\(rec\.name\);\s*return \(photoTile \? createImageFileBubble : createFileBubble\)\(\{/.test(src)
-      && /onAccept: \(\) => bridge\.send\('ixian:acceptfile:' \+ rec\.fileid\),\s*onOpen: \(\) => bridge\.send\('ixian:openfile:' \+ rec\.fileid\),/.test(src);
+      /* ★ #1166 V-3 re-base: onOpen goes through openFileOrViewer (a photo tile showing its preview → the viewer; everything else → the same ixian:openfile) — executed in pins-s5/media.mjs */
+      && /onAccept: \(\) => bridge\.send\('ixian:acceptfile:' \+ rec\.fileid\),\s*onOpen: \(\) => openFileOrViewer\(rec\),/.test(src)
+      && /if \(!thumb\) \{ bridge\.send\('ixian:openfile:' \+ rec\.fileid\); return; \}/.test(src);
     /* the shell's accept rule, as source (the regex and the cap the behaviour pin above exercises) */
     r.shellRule = /const FILE_THUMB_MAX = 90000;/.test(src) && /const FILE_THUMB_RE = \/\^data:image\\\/jpeg;base64,\[A-Za-z0-9\+\/\]\+=\*\$\/;/.test(src);
     ok(Object.values(r).every(Boolean),
@@ -754,9 +756,9 @@ export default async function (h) {
     const proc = body('private void processThumb(ThumbJob job)');
     const thumbOf = body('private static string? chatThumbOf(FileInfo fi)');
     const cand = body('private void noteThumbCandidate(FriendMessage message, string name, UiBatch? batch)');
-    const after = body('private void thumbAfterTransfer(string uid)');
+    const after = body('private void thumbAfterTransfer(string uid, int channel)');   /* ★ #1166 A-N4 re-base: + the transfer's channel */
     const enq = body('private void enqueueThumb(string id, FriendMessage fm)');
-    const upd = body('public void updateFile(string uid, string progress, bool complete)');
+    const upd = body('public void updateFile(string uid, string progress, bool complete, int channel)');   /* ★ #1166 A-N4 re-base */
     const changed = body('public void onPhotoPreviewsChanged()');
     const onLoad = body('private void onLoad()');
     const appear = body('protected override void OnAppearing()');
@@ -779,9 +781,10 @@ export default async function (h) {
       candidate: /if \(message == null \|\| message\.id == null \|\| !\(message\.completed \|\| message\.localSender\) \|\| !SharedItems\.isImageName\(name\) \|\| !SChatPrefs\.photoPreviews\)\s*\{\s*return;\s*\}/.test(cand)
         && /if \(batch != null\)\s*\{\s*batch\.thumbs\.Add\(new KeyValuePair<string, FriendMessage>\(id, message\)\);\s*return;\s*\}\s*enqueueThumb\(id, message\);\s*\}$/.test(cand),
       afterPush: /push\(batch, "addFile", [^;]*\);\s*noteThumbCandidate\(message, name, batch\);/.test(sc),
-      afterDone: /Utils\.sendUiCommand\(this, "messagesDone"\);\s*pushPendingJump\(\);\s*foreach \(KeyValuePair<string, FriendMessage> t in batch\.thumbs\)\s*\{\s*enqueueThumb\(t\.Key, t\.Value\);/.test(loadM),
+      /* ★ #1166 B2 re-base: the full triple and the prepend branch both end before the thumb queue (a prepended photo gets its preview too) */
+      afterDone: /Utils\.sendUiCommand\(this, "messagesDone"\);\s*pushPendingJump\(\);\s*\}\s*else\s*\{[^{}]*\{[^{}]*\}\s*Utils\.sendUiCommand\(this, "messagesDone", show_more\);\s*pushPendingJump\(\);\s*\}\s*foreach \(KeyValuePair<string, FriendMessage> t in batch\.thumbs\)\s*\{\s*enqueueThumb\(t\.Key, t\.Value\);/.test(loadM),
       /* C-c3: updateFile's COMPLETE tick is what asks for the preview of a finished transfer */
-      updateFile: /^public void updateFile\(string uid, string progress, bool complete\)\s*\{\s*Utils\.sendUiCommand\(this, "updateFile", uid, progress, complete\.ToString\(\)\);\s*if \(complete\)\s*\{\s*thumbAfterTransfer\(uid\);\s*\}\s*\}$/.test(upd),
+      updateFile: /^public void updateFile\(string uid, string progress, bool complete, int channel\)\s*\{\s*Utils\.sendUiCommand\(this, "updateFile", uid, progress, complete\.ToString\(\)\);\s*if \(complete\)\s*\{\s*thumbAfterTransfer\(uid, channel\);\s*\}\s*\}$/.test(upd),   /* ★ #1166 A-N4 re-base */
       transfer: /if \(fm == null \|\| fm\.id == null \|\| fm\.type != FriendMessageType\.fileHeader \|\| !\(fm\.completed \|\| fm\.localSender\)\)/.test(after) && /!SharedItems\.isImageName\(name\)/.test(after)
         && /enqueueThumb\(Crypto\.hashToString\(fm\.id\), fm\);/.test(after),
       /* C-c4: the ENQUEUE starts the drainer (the copy in drainThumbs' finally only re-arms a running one) */
@@ -829,10 +832,10 @@ export default async function (h) {
     const sc = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
     const bodyIn = (t, sig) => { const i = t.indexOf(sig); if (i < 0) return ''; let k = t.indexOf('{', i), depth = 0; for (let j = k; j < t.length; j++) { if (t[j] === '{') depth++; else if (t[j] === '}' && --depth === 0) return t.slice(i, j + 1); } return ''; };
     const send = bodyIn(sc, 'public async Task onSendFile(bool media = true)');
-    const after = bodyIn(sc, 'private void thumbAfterTransfer(string uid)');
+    const after = bodyIn(sc, 'private void thumbAfterTransfer(string uid, int channel)');   /* ★ #1166 A-N4 re-base */
     const r = {
       /* the call sits RIGHT AFTER the path assignment (before the write), with the transfer's own uid */
-      order: /friend_message\.transferId = transfer\.uid;\s*friend_message\.filePath = transfer\.filePath;\s*thumbAfterTransfer\(transfer\.uid\);\s*IxianHandler\.localStorage\.requestWriteMessages/.test(send),
+      order: /friend_message\.transferId = transfer\.uid;\s*friend_message\.filePath = transfer\.filePath;\s*thumbAfterTransfer\(transfer\.uid, transfer\.channel\);\s*IxianHandler\.localStorage\.requestWriteMessages/.test(send),   /* ★ #1166 A-N4 re-base */
       once: (send.match(/thumbAfterTransfer\(/g) || []).length === 1,
       /* what it relies on: the row is found by its transferId, my own (localSender) image file qualifies before completion */
       finds: /fm = list\.Find\(x => x\.transferId == uid\);/.test(after) && /!\(fm\.completed \|\| fm\.localSender\)/.test(after),

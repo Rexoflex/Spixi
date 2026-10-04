@@ -1699,3 +1699,17 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | #1148 (1) · (2) | CSS: `--chip-weight` 600 → 500; the received photo tile's 2px frame in the incoming ground + the incoming edge outside it | presentation only | nothing introduced |
 
 **Legacy, not changed (his):** none found in this scope.
+
+## Session 5b (#1166) — V-1 … V-4: chats batch + avatars once, lazy history, the media viewer + chat-info delete / Downloads, group cap, motion
+
+| Row | Change | Exposure | Verdict |
+|---|---|---|---|
+| #1166 V-3 | verb `ixian:viewImage:<hex>` (chat) → C# `friend.getMessage(shown channel, id)`; fileHeader + image name + `SharedItems.localPathOf` | the only input is a hex id ≤ 128 chars; no WebView path / name reaches a file op | nothing introduced |
+| #1166 V-3 | verbs `ixian:sharedView` / `ixian:sharedShowInDownloads` / `ixian:sharedDeleteLocal` `:<hex>:<n>` (chat info) | C# resolves its OWN last scan (`SharedItems.resolve`), re-resolves the path at tap time (`localPathOf`, #46 r1 A-M1); delete = `File.Delete` ONLY for a RECEIVED file inside the Downloads root that still matches the message (`fileMatches`), a sent original never; the shell asks first | introduced: a user-confirmed local delete of an app download — bounded to the app's Downloads root (BE ask B-28) |
+| #1166 V-3 | push `viewerImage(token, uri)` to chat + chat info | the token echoed only if it matches the grammar; `data:image/jpeg;base64` only (shell regex, ≤ 1.7 M chars); never a path | nothing introduced |
+| #1166 V-3 | in-process decode of a contact's image at 1600 px (`ViewerImage` → `SThumbnail.makeViewerJpeg`, 4 platforms) | the G-6b exposure widened: sniff first, 20 MB source cap, bounded platform decode (bounds first, sample down), ≤ 1.2 MB out, one decode at a time, off the UI thread, latest tap wins | introduced (same class as G-6b / A5) — BE ask B-28 |
+| #1166 V-3 | push `highlightDownload(name)` (DownloadsPage) | the list's own row key (a file name the list already shows), one-shot | nothing introduced |
+| #1166 P-04 | push `setAvatarFor(address, uri)` (home + chat) | the address the row already carries + the avatar the row used to carry; shell accepts only `data:image/(png|jpeg|webp|gif);base64` | nothing introduced (less data per row) |
+| #1166 P-03 | pushes `addChats(json)` / `addContacts(json)` | the same per-row calls, batched; the shell runs only an allowlist (`addChat` · `addRequest` · `setAvatarFor` / `addContact` · `setChatMuted` · `setChatFavorite` · `setAvatarFor`) | nothing introduced |
+| #1166 | appended args: `setSharedItems` 9th `received` (1/0) · `addChat` 14th typing marker ("1"/"") · `messagesDone(show_more)` | flags only | nothing introduced |
+| #1166 | log lines: `[P1] spare-after …` / `[P1] infopane …` (dev-only, the stamp grammar); warns with an exception TYPE or a fixed word + a length (`viewImage failed`, `[CHATS] batch fallback`, `[INFOPANE]`, ContactDetails refusals, `[home-shell] … dropped=N`) | no path, name, id, address or text | nothing introduced |

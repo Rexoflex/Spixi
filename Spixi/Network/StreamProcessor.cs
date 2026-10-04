@@ -148,7 +148,7 @@ namespace SPIXI
                          * UI nothing. Same push, same reason: the long-press detail is built from
                          * `addReactions` and only a full history load emitted it. */
                         UIHelpers.updateReactions(friend, ft.channel, chat_message.id);
-                        UIHelpers.shouldRefreshContacts = true;
+                        UIHelpers.flagChatsUnlessHomeLive();   // ★ #1166 P-03: updateReactions re-pushed the row (HomePage.updateChat) — no full flush
                         if (chat_message.completed)
                         {
                             TransferManager.completeFileTransfer(sender, uid);
@@ -713,8 +713,12 @@ namespace SPIXI
                                 UIHelpers.updateMessage(friend, ch, fm);
                                 // ② the counts behind the long-press detail
                                 UIHelpers.updateReactions(friend, ch, fm.id);
+                                UIHelpers.flagChatsUnlessHomeLive();   // ★ #1166 P-03: the tick moved on ONE row, and that row was just re-pushed (updateMessage → HomePage.updateChat)
                             }
-                            UIHelpers.shouldRefreshContacts = true;
+                            else
+                            {
+                                UIHelpers.shouldRefreshContacts = true;   // nothing was pushed for a receipt we could not place — the flush stays the recovery
+                            }
                         }
                         break;
 
@@ -749,7 +753,9 @@ namespace SPIXI
                                     UIHelpers.isChatScreenDisplayed(friend))
                                 && SReactionFlags.set(friend.walletAddress.ToString()))
                             {
-                                UIHelpers.shouldRefreshContacts = true;
+                                /* ★ #1166 P-03: the heart rides the row push below (updateReactions → HomePage.updateChat
+                                 * carries SReactionFlags.has as addChat's 13th arg, and the flag is set ABOVE it) — the
+                                 * full flush is only the recovery when HomePage is not the live root (the line after the push). */
                             }
                         }
                         catch (Exception rex)
@@ -764,7 +770,7 @@ namespace SPIXI
                         UIHelpers.updateReactions(friend, resolveMessageChannel(friend, reaction.msgId, channel), reaction.msgId);
                         // CH8: reaction excerpt for the chats list (a reaction never becomes lastMessage)
                         UIHelpers.updateChatReaction(friend, group_sender_address != null ? group_sender_address : sender_address, reaction.reaction);
-                        UIHelpers.shouldRefreshContacts = true;
+                        UIHelpers.flagChatsUnlessHomeLive();   // ★ #1166 P-03: the row (updateChat) and its reaction line (addChatReaction) were pushed — one row, no full flush
                         break;
 
                     case SpixiMessageCode.leaveConfirmed:
@@ -845,14 +851,17 @@ namespace SPIXI
 
         protected void handleFriendIsTyping(Friend friend, Address? typist = null)
         {
+            /* ★ #1166 P-03: "typing…" is ONE row — both edges re-push that row (a lone addChat, getFriendMessageHelper reads
+             * friend.isTyping) instead of raising the full-flush flag twice per typing burst. The flag is still the
+             * recovery when HomePage is not the live root (UIHelpers.refreshChatRowLive). */
             friend.isTyping = true;
-            UIHelpers.shouldRefreshContacts = true;
+            UIHelpers.refreshChatRowLive(friend);
 
             Timer? timer = null;
             timer = new(_ =>
             {
                 friend.isTyping = false;
-                UIHelpers.shouldRefreshContacts = true;
+                UIHelpers.refreshChatRowLive(friend);
                 _typingTimers.Remove(_typingTimers.FirstOrDefault());
             }, timer, 5000, Timeout.Infinite);
 

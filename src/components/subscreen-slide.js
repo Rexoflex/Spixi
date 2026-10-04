@@ -8,13 +8,15 @@
  * component, attached where each shell swaps its view.
  *
  * THE MOTION IS THE NATIVE ONE, NOT A SECOND ONE. `SpixiContentPage.revealStage` enters
- * in 300 ms on `--easing-standard` (cubic-bezier(0.2, 0, 0, 1)) and exits in 220 ms on
+ * in 220 ms on `--easing-standard` (cubic-bezier(0.2, 0, 0, 1)) and exits in 160 ms on
  * `Easing.CubicIn`; the CSS here reads the same token for the entry and
  * `--easing-accelerate` (the CSS cubic-in) for the exit, and a smoke pin holds the two
  * durations equal to the C# constants. The work order said 220/220; the C# it mirrors
  * says 300/220 (#326's asymmetry — "an exit that matches the entry feels slow"), and a
  * shell view that moves at a different speed from the page beside it would read as a
  * different kind of screen, which is the very thing this row removes.
+ * ★ #1166 lever 12 (#1165 (4)): the pair is now 220 / 160 on both sides (was 300 / 220);
+ * close stays faster than open.
  *
  * WHERE IT NEVER RUNS: under `:root[data-desktop]` (#704 — desktop only chat info slides)
  * and under `prefers-reduced-motion: reduce`. Both are decided by the STYLESHEET
@@ -45,8 +47,8 @@ import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire wi
 
 const inflight = new WeakMap();   // host → { finish }
 
-const ENTER_MS = 300;             // = SpixiContentPage.ScreenSlideInMs
-const EXIT_MS = 220;              // = the C# exit (Easing.CubicIn, 220)
+const ENTER_MS = 220;             // = SpixiContentPage.ScreenSlideInMs (★ #1166 lever 12: was 300)
+const EXIT_MS = 160;              // = SpixiContentPage.ScreenSlideOutMs (Easing.CubicIn; ★ #1166 lever 12: was 220)
 
 /** Does the stylesheet grant this element a slide at all? Reads the computed animation
  *  so desktop / reduced-motion / a missing stylesheet all answer "no" the same way. */
@@ -79,7 +81,7 @@ function run(host, el, cls, positioned, ms, done) {
      still opaque and barely moved (cubic-in starts slow) — a tap in the first frames
      passed THROUGH the dying screen onto the view being revealed (contacts row → the
      chats list under it opened an unrelated conversation). A transparent shield eats
-     taps for the exit's 220 ms, exactly as the native stage does while it slides out;
+     taps for the exit's 160 ms, exactly as the native stage does while it slides out;
      it dies with the animation, and the synchronous no-motion path removes it in the
      same call. Exit only — an entering layer catches its own taps. */
   let shield = null;

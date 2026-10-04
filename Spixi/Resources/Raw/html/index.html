@@ -3164,6 +3164,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-contacts__row:disabled { cursor: default; }
 .c-contacts__row:disabled > .c-avatar,
 .c-contacts__row:disabled .c-contacts__name { opacity: var(--opacity-disabled); }
+/* ★ #1166 V-4: at the group cap (10) an unpicked row is disabled — its empty check circle dims with it, so the
+   circle does not read as tappable; the reason is the rule line above the list (aria-describedby). */
+.c-contacts__row[data-capped] .c-contacts__check { opacity: var(--opacity-disabled); }
 .c-contacts__col {
   flex: 1;
   min-width: 0;                     /* nowrap children ellipsize (#140③ class) */
@@ -3622,8 +3625,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 <style data-src="../styles/components/subscreen-slide.css">
 /* ★ Session H — the in-shell subscreen slide (subscreen-slide.js; DECISIONS #707/#718)
    ONE grammar for the views a shell mounts itself, matching the native overlay slide:
-   enter 300 ms on --easing-standard, exit 220 ms on --easing-accelerate (the CSS
-   cubic-in, = SpixiContentPage's Easing.CubicIn). Keyframes drive the motion so the JS
+   enter 220 ms on --easing-standard, exit 160 ms on --easing-accelerate (the CSS
+   cubic-in, = SpixiContentPage's Easing.CubicIn). ★ #1166 lever 12 (#1165 (4)): was
+   300 / 220; the C# ScreenSlideInMs / ScreenSlideOutMs carry the same pair. Keyframes drive the motion so the JS
    can read `animation-name` back — desktop and reduced-motion answer "none" HERE and the
    JS swaps synchronously; nothing is decided twice. */
 
@@ -3649,8 +3653,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    layer, gone at animationend/backstop. z-30 = the same plane as the layer it guards. */
 .c-subslide-shield { position: fixed; inset: 0; z-index: var(--z-30); background: transparent; }
 
-.c-subslide--in  { animation: c-subslide-in  var(--duration-300) var(--easing-standard) both; }
-.c-subslide--out { animation: c-subslide-out 220ms var(--easing-accelerate) both; pointer-events: none; }
+.c-subslide--in  { animation: c-subslide-in  220ms var(--easing-standard) both; }   /* ★ #1166 lever 12: = ScreenSlideInMs (was --duration-300) */
+.c-subslide--out { animation: c-subslide-out 160ms var(--easing-accelerate) both; pointer-events: none; }   /* ★ #1166 lever 12: = ScreenSlideOutMs (was 220ms) */
 
 @keyframes c-subslide-in  { from { transform: translateX(var(--subslide-from)); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes c-subslide-out { from { transform: none; opacity: 1; } to { transform: translateX(var(--subslide-from)); opacity: 0; } }
@@ -6158,6 +6162,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   const {
     createTopbar, createBottomNav, setNavBadge, setNavActive, attachLandscapeRail, attachPhoneLandscape,
     createChatsList, renderChatsList, setChatsFilter, setChatsQuery, chatsUnreadTotal,
+    patchChatRows,                       // ★ #1166 P-03: one row patched in place (status · typing · reaction · avatar)
     setRemoveSheetGroups, setRemoveSheetResult,   // ★ Batch A (A4/A5/A6): the remove-contact sheet's C# answers
     truncateAddressMiddle,               // B4 (#231): excerpt canon — addresses never shown in full
     isAddressShaped,                     // ★ #589: the ONE address-shape test (was a local 20-char regex)
@@ -7629,6 +7634,26 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       renderChatsNow();
     });
   }
+  /* ★ #1166 P-03 — one row, not the list: the frame patches the named rows in place (patchChatRows, the same row
+   * builder as the full render) + badge/chip counts; anything a patch cannot draw renders in full. A queued full
+   * render, or a flush in progress, owns the paint. */
+  const chatsPatchQueue = new Set();
+  let chatsPatchQueued = false;
+  function scheduleChatRowPatch(addr) {
+    if (!addr) { scheduleChatsRender(); return; }
+    chatsPatchQueue.add(String(addr));
+    if (chatsPatchQueued) return;
+    chatsPatchQueued = true;
+    requestAnimationFrame(() => {
+      chatsPatchQueued = false;
+      const addrs = Array.from(chatsPatchQueue);
+      chatsPatchQueue.clear();
+      if (chatsRenderQueued) return;                          // the queued full render paints these rows too
+      if (chatsFlushing && !chatsFlushStalled) return;        // the flush's clearChatsDone renders once
+      if (!patchChatRows(list, state, addrs, opts)) { renderChatsNow(); return; }
+      if (opts.onModelChange) opts.onModelChange(state);      // nav badge + chip counts (the full render's tail)
+    });
+  }
   // Chip counts (Damir 2026-07-09): the Unread chip shows the number of unread
   // conversations, Groups shows unread GROUP conversations (badge only when > 0),
   // Requests shows the pending-request count AND the chip hides entirely at 0.
@@ -7698,6 +7723,16 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     const p = String(path).replace(/\\/g, '/');
     if (p === 'img/spixiavatar.png' || p === 'img/spixi-group-avatar.png') return null;
     return p;
+  }
+
+  /* ★ #1166 P-04 — one photo per address per document: C# pushes setAvatarFor(address, dataUri) once (again on a
+   * change, "" = gone) and the rows (addChat · addRequest · addContact) carry "" instead of the base64. A row arg
+   * that still carries a value (old exe, "img/…" sentinels) resolves as before. Only base64 JPEG/PNG/WebP/GIF. */
+  const AVATAR_URI_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/]+=*$/;
+  const avatarByAddr = new Map();
+  function avatarFor(address, pushed) {
+    const own = address ? avatarByAddr.get(String(address)) : undefined;
+    return own || resolveAvatar(pushed);
   }
 
   /** Resolve a C# app-icon arg to a usable <img> src, or null for the gradient
@@ -9215,12 +9250,13 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    * aria-current from a `selected` field). So we drive selection through the
    * MODEL: flag the matching chat `selected:true` (clear the rest) and re-render. */
   function highlightSelected(addr) {
-    let changed = false;
+    const changed = [];
     for (const c of state.chats) {
       const want = !!addr && c.address === addr;
-      if (!!c.selected !== want) { c.selected = want; changed = true; }
+      if (!!c.selected !== want) { c.selected = want; changed.push(c.address); }
     }
-    if (changed) renderChatsList(list, state, opts);
+    // ★ #1166 P-03: the two rows whose highlight moved, in place; the full render when they cannot be patched
+    if (changed.length && !patchChatRows(list, state, changed, opts)) renderChatsList(list, state, opts);
   }
   let selectedAddress = '';   // remembered so a re-render (clearChatsDone) can re-apply
 
@@ -9238,6 +9274,28 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    * on the ONE native CallPage surface spanning every pane (identity pushed by
    * C# from the Friend). No call push reaches this WebView anymore; the C#
    * broadcasts route to the surface, not to pages. */
+
+  /* ★ #1166 P-03: the one dispatcher behind addChats / addContacts (the chat.html addMessages grammar). */
+  function runRowBatch(name, json, allow, before, after) {
+    let payload = null;
+    try { payload = JSON.parse(String(json)); } catch (e) { payload = null; }
+    if (!payload || !Array.isArray(payload.items)) { console.warn('[home-shell] ' + name + ' dropped=all'); return; }
+    const strs = Array.isArray(payload.strs) ? payload.strs : [];
+    let dropped = 0;
+    before();
+    try {
+      for (const item of payload.items) {
+        try {
+          if (!item || typeof item.f !== 'string' || !allow.has(item.f) || !Array.isArray(item.a) || item.a.length === 0) { dropped += 1; continue; }
+          const args = item.a.map((x) => (x == null ? '' : (typeof x === 'number' ? String(strs[x] == null ? '' : strs[x]) : String(x))));
+          handlers[item.f].apply(null, args);
+        } catch (e) { dropped += 1; }
+      }
+    } finally {
+      if (after) after();
+    }
+    if (dropped > 0) console.warn('[home-shell] ' + name + ' dropped=' + dropped);
+  }
 
   const handlers = {
 
@@ -9346,7 +9404,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     // render here; (2) a LONE call from updateChat on a message event — upsert
     // patches the existing row (no duplicate) + schedules a coalesced render so
     // the new excerpt/timestamp/unread surface immediately.
-    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender, reactionDot) {
+    addChat(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender, reactionDot, typingEdge) {
       // Q5: remember group/bot addresses (CH1 kind, 9th arg) for the contacts-
       // directory filter — BEFORE the tombstone gate, so a session-deleted group
       // chat still filters out of the directory takeover.
@@ -9388,9 +9446,13 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       // is it can still land mid-flush (see deletedChats). Messages you cannot see are a
       // worse failure than a row that comes back.
       const tomb = deletedChats.get(wallet);
+      /* ★ #1166 P-03: a typing edge now arrives as a LONE row push (it used to raise the full-flush flag). Typing is
+         not a message — it must not resurrect a deleted or hidden row the way a lone message-event push does.
+         ★ r1 (C-M1): the END edge carries the normal tail, so C# marks BOTH edges (14th arg "1"). */
+      const typingPush = type === 'typing' || excerptKind === 'typing' || typingEdge === '1';
       if (tomb) {
         const revived = (t && t > tomb.ts) || n > tomb.unread;
-        if (revived || !chatsFlushing) {
+        if (revived || (!chatsFlushing && !typingPush)) {
           deletedChats.delete(wallet);   // lone push keeps its legacy resurrect
           hideReqClear(wallet);          // ★ #562: a resurrected chat sheds its DURABLE hide key too — or the next visibility tick re-hides it
         }
@@ -9402,7 +9464,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
         // Real avatar path → <img src> (legacy parity, same origin); the C#
         // default placeholders map to null → deterministic gradient. A path that
         // fails to load falls back to the gradient (avatar.js onerror).
-        avatar: resolveAvatar(avatar),
+        avatar: avatarFor(wallet, avatar),   // ★ #1166 P-04: the photo by address (setAvatarFor); the arg is "" for a photo
         online: online === 'true' || online === 'True',
         // CH1: trailing chat kind (9th arg) — 'group' | 'bot' | '' (1:1). Bot channels
         // count as groups for the Groups chip (Damir, CH1 review) → chat.type 'group'
@@ -9479,7 +9541,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
         chat.excerpt = { type: 'typing', text: (strings && strings.handshakeEstablishing) || 'Setting up a secure connection…' };
       }
       upsertChat(chat);
-      if (!chatsFlushing) scheduleChatsRender();   // lone updateChat → render now-ish
+      if (!chatsFlushing) scheduleChatRowPatch(wallet);   // lone updateChat → this row now-ish (★ #1166 P-03: patched in place; a reorder renders in full)
     },
 
     // Batch complete: leave flushing mode, render once, re-apply any selection.
@@ -9507,10 +9569,53 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       if (!address) return;
       let t = Number(timestamp);
       if (t && t < 1e12) t *= 1000;                 // legacy Unix seconds → ms (mirrors addChat)
-      const req = { address, nick: nick || '', name: nick || '', avatar: resolveAvatar(avatar), timestamp: t || 0 };
+      const req = { address, nick: nick || '', name: nick || '', avatar: avatarFor(address, avatar), timestamp: t || 0 };   // ★ #1166 P-04
       const i = state.requests.findIndex((r) => r && r.address === address);
       if (i >= 0) state.requests[i] = req; else state.requests.push(req);
       if (!chatsFlushing) scheduleChatsRender();    // lone push (rare) → coalesced render
+    },
+
+    /* ★ #1166 P-03 — the full chats flush in ONE push (#801 grammar, chat.html addMessages): { strs, items:[{ f, a }] },
+     * `a` = the OLD args in the OLD order. Runs clearChats · clearRequests · each item · clearChatsDone — the old
+     * burst in one task. ALLOWLIST below; an unreadable payload changes nothing; a refusal = one warn line. */
+    addChats(json) {
+      const BATCH_ALLOW = new Set(['addChat', 'addRequest', 'setAvatarFor']);
+      runRowBatch('addChats', json, BATCH_ALLOW,
+        () => { handlers.clearChats(); handlers.clearRequests(); },
+        () => handlers.clearChatsDone());
+    },
+    /* ★ #1166 P-03 — the contacts directory flush in ONE push: clearContacts, then the items in C#'s order. */
+    addContacts(json) {
+      const BATCH_ALLOW = new Set(['addContact', 'setChatMuted', 'setChatFavorite', 'setAvatarFor']);
+      runRowBatch('addContacts', json, BATCH_ALLOW, () => handlers.clearContacts(), null);
+    },
+    /* ★ #1166 P-04 — see avatarByAddr. "" forgets; any other non-matching value is ignored. Rows with the address
+     * follow at once (chat row patched · request card → full render · contacts roster re-rendered). */
+    setAvatarFor(address, uri) {
+      const addr = String(address || '');
+      if (!addr) return;
+      const v = String(uri || '');
+      if (v && !AVATAR_URI_RE.test(v)) return;
+      const had = avatarByAddr.get(addr) || null;
+      if (v) avatarByAddr.set(addr, v); else avatarByAddr.delete(addr);
+      const now = v || null;
+      if (had === now) return;
+      let chatHit = false;
+      for (const c of (state.chats || [])) {
+        if (c && c.address === addr) { c.avatar = now; chatHit = true; }
+      }
+      let reqHit = false;
+      for (const r of (state.requests || [])) {
+        if (r && r.address === addr) { r.avatar = now; reqHit = true; }
+      }
+      let rosterHit = false;
+      for (const c of contactsRoster) {
+        if (c && c.address === addr) { c.avatar = now; rosterHit = true; }
+      }
+      if (rosterHit) scheduleContactsRender();
+      if (chatsFlushing) return;                   // the flush's clearChatsDone renders the rows
+      if (reqHit) scheduleChatsRender();
+      else if (chatHit) scheduleChatRowPatch(addr);
     },
 
     // Two-pane (tablet/desktop) selection sync from C#.
@@ -9560,7 +9665,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       }
       const t = Number(timestamp);
       if (t) c.timestamp = t < 1e12 ? t * 1000 : t;
-      scheduleChatsRender();
+      scheduleChatRowPatch(address);   // ★ #1166 P-03: this row only (a timestamp move or a filter change renders in full)
     },
 
     // CH8: a counterpart reacted (StreamProcessor msgReaction → HomePage.
@@ -9585,7 +9690,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       const ex = { type: 'reaction', text, sender: who || null };
       reactionExcerpts.set(wallet, { excerpt: ex, ts: t });
       if (!c.excerpt || c.excerpt.type !== 'draft') c.excerpt = ex;
-      scheduleChatsRender();
+      scheduleChatRowPatch(wallet);   // ★ #1166 P-03: this row only
     },
 
     // Chats nav badge — C#'s total (#42 semantics). Only pushed inside loadChats
@@ -10055,7 +10160,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
         // resolveAvatar, which maps sentinels to null) and groupAddrs (CH1 kind via
         // the chats flush) stay as the old-exe fallbacks.
         isGroup: k === 'group' || k === 'bot' || avatar === 'img/spixi-group-avatar.png',
-        avatar: resolveAvatar(avatar),
+        avatar: avatarFor(address, avatar),   // ★ #1166 P-04
         online: online === 'true' || online === 'True',
         // ★ C17: pushed pending state — an outgoing request with NO chat row (never
         // reachable through requestAddrs) gets its badge too

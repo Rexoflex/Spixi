@@ -124,6 +124,7 @@ function pickerRow(c, st) {
   const row = document.createElement('button');
   row.type = 'button';
   row.className = 'c-contacts__row';
+  if (c.address) row.dataset.address = String(c.address);   // ★ #1166 V-4: the cap sync finds the row
   if (c.pending) row.dataset.pending = '';
   if (blocked) {
     row.disabled = true;
@@ -206,6 +207,7 @@ function pickerRow(c, st) {
         syncNext(st);
         return;
       }
+      if (on && st.selected.size >= selectMax(st)) return;   // ★ #1166 V-4: the cap (the row is disabled too — belt)
       if (on) st.selected.add(c.address); else st.selected.delete(c.address);
       row.setAttribute('aria-checked', String(on));
       syncNext(st);
@@ -282,6 +284,7 @@ function renderPickerList(st) {
   empty.hidden = true;
   list.hidden = false;
   for (const c of matches) list.append(pickerRow(c, st));
+  syncGroupCap(st);                               // ★ #1166 V-4: a rebuilt list starts in the cap state
   list.scrollTop = prevScroll;                    // restore after the rebuild
 }
 
@@ -290,6 +293,7 @@ function pickerNext(st) {
   // F2 belt-and-braces: drop any falsy address that reached the Set anyway
   const sel = st.contacts.filter((c) => c.address && st.selected.has(c.address));
   if (sel.length < selectMin(st)) return;   // MAJOR-6: the action is disabled below the minimum
+  if (!isAppPick(st) && sel.length > GROUP_MAX_MEMBERS) return;   // ★ #1166 V-4: never past the cap (C# guards it too)
   // belt-and-braces: the app pick is single-target (the rows are radios, and
   // setPickerSelection is the only other way into the Set).
   st.opts.onNext(isAppPick(st) ? sel.slice(0, APP_MAX_TARGETS) : sel);
@@ -306,7 +310,31 @@ const GROUP_MIN_MEMBERS = 2;
 // relays to that single peer), so a second pick would be silently dropped.
 const APP_MIN_TARGETS = 1;
 const APP_MAX_TARGETS = 1;
+/* ★ #1166 V-4 (#1141): at most TEN picked members besides the creator — Core throws on a createGroup with more
+ * than 10 participants on every receiver (CreateGroupMessage.cs:58): nobody joins, nobody is told. C# belt:
+ * ChatsListRules.cs GroupLimit.MaxPicked in HomePage.HandlePickSucceeded. */
+const GROUP_MAX_MEMBERS = 10;
 function selectMin(st) { return isAppPick(st) ? APP_MIN_TARGETS : GROUP_MIN_MEMBERS; }
+function selectMax(st) { return isAppPick(st) ? APP_MAX_TARGETS : GROUP_MAX_MEMBERS; }
+
+/* ★ #1166 V-4: at the cap every unpicked checkbox row is disabled IN PLACE (focus kept) and described by the rule
+ * line, which says why (C9). Rows blocked for their own reason are not checkboxes and are left alone. */
+function syncGroupCap(st) {
+  if (!st.els.list) return;
+  const atCap = st.mode === 'multi' && !isAppPick(st) && st.selected.size >= GROUP_MAX_MEMBERS;
+  const hintId = st.els.minHint ? st.els.minHint.id : '';
+  for (const row of st.els.list.querySelectorAll('.c-contacts__row[role="checkbox"]')) {
+    const capped = atCap && row.getAttribute('aria-checked') !== 'true';
+    row.disabled = capped;
+    if (capped) {
+      row.dataset.capped = '';
+      if (hintId) row.setAttribute('aria-describedby', hintId);
+    } else if (row.hasAttribute('data-capped')) {
+      delete row.dataset.capped;
+      row.removeAttribute('aria-describedby');
+    }
+  }
+}
 // The multi-select confirm's label: "Next" (→ group setup) vs "Start" (→ launch).
 function confirmLabel(st) {
   const { strings } = st.opts;
@@ -342,14 +370,23 @@ function syncNext(st) {
   // the row under someone's finger. The line now STAYS and just changes what it says:
   // the rule while it's unmet, the live count once it is. Same element, same height,
   // no reflow. (role="status" makes the swap an SR announcement too.)
+  /* ★ #1166 V-4: group mode counts against the cap — "n / 10" once the minimum is met, and AT the cap the line
+     becomes the limit line (the rows it disables point at it). Same element, one line, no reflow. */
   if (st.els.minHint) {
     st.els.minHint.hidden = false;
-    st.els.minHint.textContent = n >= min
-      ? (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n))
+    const group = !isAppPick(st);
+    st.els.minHint.dataset.cap = group && n >= GROUP_MAX_MEMBERS ? 'full' : '';
+    st.els.minHint.textContent = (group && n >= GROUP_MAX_MEMBERS)
+      ? (strings.groupLimitNote || 'A group can have up to 10 members besides you.')
+      : n >= min
+      ? (group
+        ? (strings.groupCounter || '{n} / {max}').split('{n}').join(String(n)).split('{max}').join(String(GROUP_MAX_MEMBERS))
+        : (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n)))
       : (isAppPick(st)
         ? (strings.appNeedsOne || 'Select at least one contact or group to invite.')
         : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.'));
   }
+  syncGroupCap(st);
 }
 
 /* A7 (#348, Damir F5): the single-select title depends on WHY the picker is open.
@@ -445,6 +482,7 @@ export function createContactsPicker({
   // multi-select rule line (review MINOR-2): says WHY the confirm is inert at <2.
   const minHint = document.createElement('p');
   minHint.className = 'c-contacts__minhint';
+  minHint.id = overlayId('contacts-minhint');   // ★ #1166 V-4: the capped rows' aria-describedby (unique per picker, the F17 rule)
   minHint.setAttribute('role', 'status');
   minHint.hidden = true;
   st.els.minHint = minHint;

@@ -585,6 +585,10 @@ namespace SPIXI
                     }
                 }
             }
+            else if (current_url.StartsWith("ixian:viewImage:", StringComparison.Ordinal))
+            {
+                onViewImage(current_url.Substring("ixian:viewImage:".Length));   // ★ #1166 V-3: the in-app viewer (chat half)
+            }
             else if (current_url.StartsWith("ixian:chatreply:", StringComparison.Ordinal))
             {
                 // M1 reply-to. Grammar: ixian:chatreply:<reply-id-hex>:<url-encoded text>.
@@ -1005,7 +1009,43 @@ namespace SPIXI
             {
                 messagesToShow += Config.messagesToLoad;
             }
+            requestPrepend();   // ★ #1166 B2: Core's window still grows above (the reply / react / delete cache); the shell gets ONLY the older slice
             loadMessages();
+        }
+
+        /* ★ #1166 B2 (#1142, docs/chat-transport-spec.md §B2) — LOAD-MORE SENDS ONLY THE OLDER SLICE.
+         * onLoadMore (and a "show in chat" jump that must widen an OPEN chat's window) still runs the WHOLE loadMessages:
+         * the window grows through the #354 step and the #907 visible-row loop, and the #1160 P0 guard runs around the
+         * replacing read exactly as on an open (beforeReread · growth · trim · afterReread) — nothing of that path is
+         * skipped. Only the PUSH differs: the rows strictly OLDER than `historyAnchor` (the oldest row the shell was handed
+         * by the previous load) go out as `addMessages(json, "prepend")` + `messagesDone(show_more)` — no clearMessages
+         * (nothing on screen is wiped), no unread zeroing and no reaction-flag clear (those belong to ENTERING the chat,
+         * spec §4). The pushes stay inside `lock (messages)`, as the full path's (#802 r5): a live arrival is serialized
+         * after them. Anchor not in the window (another channel, a wiped history) → the full re-flush, the old path.
+         * The request is bound to the CALLING thread: only the loadMessages call that onLoadMore makes itself takes it —
+         * a concurrent load on another thread clears it and re-flushes, which is always correct. */
+        private sealed class HistoryAnchor
+        {
+            public readonly byte[] id;
+            public readonly int channel;
+            public HistoryAnchor(byte[] id, int channel)
+            {
+                this.id = id;
+                this.channel = channel;
+            }
+        }
+        private volatile HistoryAnchor? historyAnchor = null;
+        private int prependOnThread = 0;   // the managed thread id whose NEXT loadMessages answers with a prepend (0 = none)
+
+        private void requestPrepend()
+        {
+            Interlocked.Exchange(ref prependOnThread, Environment.CurrentManagedThreadId);
+        }
+
+        private bool takePrepend()
+        {
+            int t = Interlocked.Exchange(ref prependOnThread, 0);
+            return t != 0 && t == Environment.CurrentManagedThreadId;
         }
 
         /* #839: open a GROUP MEMBER's contact page. Deliberately NOT onContactDetails() —
@@ -1244,6 +1284,10 @@ namespace SPIXI
             }
             photoPreviewsPushed = null;
             pushPhotoPreviews();
+            lock (avatarSent)
+            {
+                avatarSent.Clear();   // ★ #1166 P-04: the shell reset its address → avatar map at onChatScreenReady above (before loadMessages)
+            }
 
             // C13: push the LOCAL user's nick so the shell can identify "me" (self-mention
             // emphasis + the @ jump-to-mention FAB). The redesigned shells build window.SL from
@@ -1784,7 +1828,7 @@ namespace SPIXI
                 /* ★ #1147 (2) A5-SEND (walk #1146 A-A5-SEND FAIL): insertMessage queued the preview while filePath was still the
                    bare name (localPathOf refuses it, SharedItems.cs:92) — queue it again now that the real path is set, so my
                    sent photo shows under the scrim WHILE it sends. thumbsSent dedupes the race with any earlier job. */
-                thumbAfterTransfer(transfer.uid);
+                thumbAfterTransfer(transfer.uid, transfer.channel);   // ★ #1166 A-N4: the transfer's own channel
 
                 IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, selectedChannel);
             }
@@ -1842,7 +1886,7 @@ namespace SPIXI
             if (ft != null)
             {
                 TransferManager.acceptFile(senderFriend, ft.uid);
-                updateFile(ft.uid, "0", false);
+                updateFile(ft.uid, "0", false, ft.channel);
             }
         }
 
@@ -2601,6 +2645,7 @@ namespace SPIXI
 
         public void loadApps()
         {
+            p1SpareAfterWork("loadapps");   // ★ #1166 lever 4 probe — TEMPORARY: stamped only inside the 600 ms after a SPARE present (SpixiContentPage)
             Utils.sendUiCommand(this, "clearApps");
             var apps = Node.MiniAppManager.getInstalledApps();
             lock (apps)
@@ -2858,6 +2903,7 @@ namespace SPIXI
                 jumpArmedId = jumpId;
                 jumpAddr = null;   // consumed here: a later, unrelated load of this chat never jumps
             }
+            bool widened = false;   // ★ #1166
             if (depth < SharedItems.JumpCap && depth + 2 > messagesToShow)
             {
                 messagesToShow = (uint)(depth + 2);
@@ -2865,10 +2911,19 @@ namespace SPIXI
                 {
                     messagesToShow++;   // D-18 (#354): never the stale exact-100 window
                 }
+                widened = true;
             }
             if (reload)
             {
-                loadMessages();
+                if (widened)
+                {
+                    requestPrepend();   // ★ #1166 B2: an OPEN chat gets only the older slice that now holds the row — the position is kept
+                    loadMessages();
+                }
+                else
+                {
+                    pushPendingJump();  // ★ #1166 #1151: the row is already in the shell's window — no re-render, nothing to fight a smooth scroll
+                }
             }
         }
 
@@ -2886,6 +2941,7 @@ namespace SPIXI
         public void loadMessages()
         {
             applyPendingJumpWindow(false);   // ★ #1106
+            bool prepend = takePrepend();    // ★ #1166 B2: answered as a prepend (onLoadMore / a widening jump on an open chat) — see HistoryAnchor
             int want = (int)messagesToShow;
             /* One row MORE than wanted: finding it is the only honest proof that older history
              * exists. The baseline asked for exactly `want` and offered "show older" whenever it
@@ -2952,6 +3008,7 @@ namespace SPIXI
                 // deleted messages until re-entered. Tell the WebView to clear first (no
                 // load-more). ★ Session P: `messagesDone` ends the burst at once — the emptied
                 // log paints on the signal, not on the shell's 250 ms safety timer.
+                historyAnchor = null;   // ★ #1166 B2: the shell holds nothing — the next load-more re-flushes
                 Utils.sendUiCommand(this, "clearMessages", "false");
                 Utils.sendUiCommand(this, "messagesDone");
                 pushPendingJump();   // ★ #1106: the shell answers "not found" with its toast
@@ -2985,7 +3042,24 @@ namespace SPIXI
                 {
                     show_more = "false";   // storage ran out and everything visible is on screen
                 }
-                if (friend.metaData.unreadMessageCount > 0)
+                /* ★ #1166 B2: a prepend stops AT the shell's oldest row — that row and every newer one are on screen already
+                 * (rows that arrived live were pushed live). The window is the same window an open would read, so the rows
+                 * before the anchor that survive the skip are exactly the ones a full re-flush would have ADDED. */
+                byte[]? prependUntil = null;
+                if (prepend)
+                {
+                    HistoryAnchor? anchor = historyAnchor;
+                    byte[]? anchorId = anchor != null && anchor.channel == readChannel ? anchor.id : null;
+                    if (anchorId != null && messages.Exists(m => m.id != null && m.id.SequenceEqual(anchorId)))
+                    {
+                        prependUntil = anchorId;
+                    }
+                    else
+                    {
+                        prepend = false;   // the shell's oldest row is not in this window: the full re-flush (the old path)
+                    }
+                }
+                if (!prepend && friend.metaData.unreadMessageCount > 0)   // ★ #1166 B2: entering the chat zeroes the count, a prepend never does
                 {
                     friend.metaData.unreadMessageCount = 0;
                     friend.saveMetaData();
@@ -3003,10 +3077,18 @@ namespace SPIXI
                     // "zeroing" push re-asserted the very badge it was meant to clear.
                     UIHelpers.setContactStatus(friend.walletAddress, friend.online, 0, "", 0);
                 }
-                clearReactionFlag();   // ★ #1148 (4): the chats-list heart clears where the count clears
+                if (!prepend)
+                {
+                    clearReactionFlag();   // ★ #1148 (4): the chats-list heart clears where the count clears (★ #1166 B2: on entering only)
+                }
                 lastLoadPushed = 0;   // ★ Session I [CDPERF]
+                byte[]? firstPushedId = null;   // ★ #1166 B2: the oldest row this load hands the shell = the next prepend's anchor
                 foreach (FriendMessage message in messages)
                 {
+                    if (prependUntil != null && message.id != null && message.id.SequenceEqual(prependUntil))
+                    {
+                        break;   // ★ #1166 B2: the shell holds this row and everything newer
+                    }
                     if (rendersNothing(message))
                     {
                         // Passed BEFORE a skip is spent (the skip counts what this counts), and
@@ -3019,6 +3101,10 @@ namespace SPIXI
                     {
                         skip_messages--;
                         continue;
+                    }
+                    if (firstPushedId == null)
+                    {
+                        firstPushedId = message.id;   // ★ #1166 B2
                     }
                     /* ★ Session P (#802 r11/r12): TWO per-row trys, not one and not none. A throw in
                      * either half must cost only ITSELF — outside any try it escaped loadMessages
@@ -3077,14 +3163,36 @@ namespace SPIXI
                     Logging.error("loadMessages: the batch could not be serialized (" + batchEx.GetType().Name + ")");
                     json = null;
                 }
-                Utils.sendUiCommand(this, "clearMessages", show_more);
-                if (json != null)
+                if (firstPushedId != null)
                 {
-                    cdperf("batch", "n=" + batch.items.Count + " json=" + json.Length + " t=" + buildClock.ElapsedMilliseconds);   // ★ Session P [CDPERF] — TEMPORARY
-                    Utils.sendUiCommand(this, "addMessages", json, "append");
+                    historyAnchor = new HistoryAnchor(firstPushedId, readChannel);   // ★ #1166 B2
                 }
-                Utils.sendUiCommand(this, "messagesDone");
-                pushPendingJump();   // ★ #1106
+                else if (!prepend)
+                {
+                    historyAnchor = null;   // ★ #1166 B2: a full load that showed nothing — the next load-more re-flushes
+                }
+                if (!prepend)
+                {
+                    Utils.sendUiCommand(this, "clearMessages", show_more);
+                    if (json != null)
+                    {
+                        cdperf("batch", "n=" + batch.items.Count + " json=" + json.Length + " t=" + buildClock.ElapsedMilliseconds);   // ★ Session P [CDPERF] — TEMPORARY
+                        Utils.sendUiCommand(this, "addMessages", json, "append");
+                    }
+                    Utils.sendUiCommand(this, "messagesDone");
+                    pushPendingJump();   // ★ #1106
+                }
+                else
+                {
+                    /* ★ #1166 B2: the older slice only — no clearMessages; the end-of-history flag rides on messagesDone
+                     * (an older shell ignores the extra argument; spec §4 "pick one"). An empty slice still sends the signal. */
+                    if (json != null)
+                    {
+                        Utils.sendUiCommand(this, "addMessages", json, "prepend");
+                    }
+                    Utils.sendUiCommand(this, "messagesDone", show_more);
+                    pushPendingJump();   // ★ #1106: a widening jump lands after the rows that hold it
+                }
                 // ★ A5 #1124: the burst's preview candidates, now that the shell holds their rows (decoded off this thread)
                 foreach (KeyValuePair<string, FriendMessage> t in batch.thumbs)
                 {
@@ -3235,6 +3343,45 @@ namespace SPIXI
             insertMessage(message, channel, null);   // ★ Session P: the LIVE path — one push per row, unchanged
         }
 
+        /* ★★ #1166 P-04 (#1165 (7)) — A SENDER'S AVATAR ONCE PER DOCUMENT (🟡 NEW push `setAvatarFor(address, dataUri)`).
+         * Every received row used to carry its sender's avatar as a 5–50 KB data: URI (X1), on every row of every load.
+         * Now a GROUP / BOT row's picture goes ONCE per sender address per document — and again only when it changed
+         * (`avatarSent`: address → length + hash of the URI, reset per document in onLoad) — as `setAvatarFor`, sent on the
+         * wire BEFORE the row (a load burst sends it ahead of the addMessages batch, which goes out after the loop). The row
+         * keeps its argument POSITION and carries "" in it; the shell looks the picture up by the row's address and a later
+         * setAvatarFor repaints every row of that address. A 1:1 row carries "" too: its sender IS the peer, whose picture
+         * the header push (setAvatar, onLoad) already carried — the shell uses that one. An older shell shows the initials
+         * on these rows (it has no setAvatarFor; shell and exe ship together). Not a data: URI ("" for my own rows, the
+         * "img/…" sentinel, a path C# could not read) → unchanged on the row, as before.
+         * SECURITY: the address is the one the row itself carries (the senderAddress push, unchanged — a blind chat's rule
+         * is the row's rule); the URI is the same imageToDataUri value the row carried. No log line. */
+        private readonly Dictionary<string, string> avatarSent = new Dictionary<string, string>(StringComparer.Ordinal);   // lock itself
+
+        private string avatarForRow(string avatar, Address? sender)
+        {
+            if (string.IsNullOrEmpty(avatar) || !avatar.StartsWith("data:", StringComparison.Ordinal))
+            {
+                return avatar;
+            }
+            if (!(friend.bot || friend.type == FriendType.Group) || sender == null)
+            {
+                return "";   // 1:1: the header avatar is this picture (a sender-less multi row got the sentinel above, never a URI)
+            }
+            string address = sender.ToString();
+            string mark = avatar.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":"
+                + StringComparer.Ordinal.GetHashCode(avatar).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            lock (avatarSent)
+            {
+                if (avatarSent.TryGetValue(address, out string? sent) && sent == mark)
+                {
+                    return "";   // this document has this picture for this address already
+                }
+                avatarSent[address] = mark;
+            }
+            Utils.sendUiCommand(this, "setAvatarFor", address, avatar);
+            return "";
+        }
+
         /** ★ Session P: `batch` != null → every row push lands in the batch instead of the
          *  wire (the load burst). The read-status side effect and the setContactStatus push
          *  to HOME are untouched either way. */
@@ -3347,6 +3494,7 @@ namespace SPIXI
             // every avatar push below (message/payment/file/app rows). "" (own messages) and
             // "img/..." sentinels pass through unchanged.
             avatar = Utils.imageToDataUri(avatar);
+            avatar = avatarForRow(avatar, resolvedSender);   // ★ #1166 P-04: the picture goes ONCE per sender (setAvatarFor), the row carries ""
 
             // D-5/N26 (#366): per-sender RELATION for the member sheet — received
             // multi-chat rows only ("" elsewhere; the shell treats "" as none).
@@ -4178,12 +4326,14 @@ namespace SPIXI
             Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), message.message, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString());
         }
 
-        public void updateFile(string uid, string progress, bool complete)
+        /** ★ #1166 A-N4: `channel` = the TRANSFER's own channel (FileTransfer.channel — TransferManager passes it; an
+         *  incoming transfer has already left TransferManager's lists when it completes, so the page cannot look it up). */
+        public void updateFile(string uid, string progress, bool complete, int channel)
         {
             Utils.sendUiCommand(this, "updateFile", uid, progress, complete.ToString());
             if (complete)
             {
-                thumbAfterTransfer(uid);   // ★ A5 #1124: a finished transfer may now be a LOCAL image
+                thumbAfterTransfer(uid, channel);   // ★ A5 #1124: a finished transfer may now be a LOCAL image
             }
         }
 
@@ -4292,19 +4442,20 @@ namespace SPIXI
             enqueueThumb(id, message);
         }
 
-        /** updateFile(complete): the message whose transfer finished, if it is an image file of this channel on this device.
-         *  selectedChannel BY DESIGN (#46 r1 A-N4): the shell holds only that channel's rows (loadMessages), so a preview
-         *  for another channel would be refused there AND burn its once-per-document slot; that channel's own re-flush
-         *  (insertMessage → noteThumbCandidate) queues it when the user switches to it. */
-        private void thumbAfterTransfer(string uid)
+        /** updateFile(complete): the message whose transfer finished, if it is an image file on this device.
+         *  ★ #1166 A-N4 (#46 r1): the message is looked up in the TRANSFER's own channel (`channel`), never in whatever
+         *  channel the page shows now. A transfer of ANOTHER channel than the shown one queues nothing: the shell holds only
+         *  the shown channel's rows (loadMessages), so its preview would be refused there AND burn its once-per-document
+         *  slot; that channel's own re-flush (insertMessage → noteThumbCandidate) queues it when the user switches to it. */
+        private void thumbAfterTransfer(string uid, int channel)
         {
             try
             {
-                if (friend == null || string.IsNullOrEmpty(uid) || !SChatPrefs.photoPreviews)
+                if (friend == null || string.IsNullOrEmpty(uid) || !SChatPrefs.photoPreviews || channel != selectedChannel)
                 {
                     return;
                 }
-                List<FriendMessage>? list = friend.getMessages(selectedChannel);
+                List<FriendMessage>? list = friend.getMessages(channel);
                 if (list == null)
                 {
                     return;
@@ -4473,6 +4624,112 @@ namespace SPIXI
             {
                 return null;
             }
+        }
+
+        /* ═══ ★★ #1166 V-3 — THE MEDIA VIEWER, CHAT HALF (#1165 (9); 🟡 NEW verb `ixian:viewImage:<hexMsgId>` + NEW push
+         * `viewerImage(<hexMsgId>, <data uri | "">)`, BE ask) ═══
+         * A tap on a photo tile that shows its preview opens the shell's viewer on the preview at once and asks C# for a
+         * bigger picture (ViewerImage.dataUriOf: long edge ≤ ViewerImage.MaxEdge, JPEG ≤ ViewerImage.MaxJpegBytes).
+         * SECURITY (CLAUDE.md ★; docs/security-handover-gate.md "Session 4 — A5" widened to the viewer):
+         *   · the WebView sends a MESSAGE ID only — hex, bounded; C# finds the message in the SHOWN channel's loaded list
+         *     (friend.getMessage(selectedChannel, id)) and requires: a fileHeader · an image name (SharedItems.isImageName) ·
+         *     a file ON THIS DEVICE by the chat preview's own rule (completed or my own, then SharedItems.localPathOf —
+         *     received → the vetted Downloads-root rule; sent → an absolute existing path). No WebView value reaches a file op;
+         *   · ViewerImage.dataUriOfAsync (sniffed, ≤ the G-6b 20 MB cap, a bounded platform decode behind ViewerImage's ONE
+         *     process-wide gate, awaited — no pool thread parks) runs OFF the UI thread. ★ #46 r1 A-M2: LATEST TAP WINS —
+         *     viewerLatest holds the newest token; an older tap is dropped before and after the gate (stillWanted) and
+         *     pushes NOTHING (its viewer is closed in the shell); the push goes back on the main thread, re-checked, and
+         *     nothing is pushed to a page that is torn down (isDisposed) or a document that is not the one that asked;
+         *   · the push carries the shell's own token (validated as hex here, so only a hex string is ever echoed) and the
+         *     JPEG — never a path, a name or an address. Any failure after the grammar check → "" (the shell says so);
+         *   · log: the exception TYPE only. */
+        private const int ViewImageIdMaxHex = 128;   // 64 bytes of id — a Core message id is far shorter
+        private volatile string? viewerLatest = null;   // ★ #46 r1 A-M2: the newest ixian:viewImage token (latest tap wins)
+
+        /** The verb's id grammar: an even-length, non-empty run of hex digits, ≤ ViewImageIdMaxHex. */
+        private static bool isHexMsgId(string? s)
+        {
+            if (string.IsNullOrEmpty(s) || s.Length > ViewImageIdMaxHex || (s.Length & 1) != 0)
+            {
+                return false;
+            }
+            foreach (char c in s)
+            {
+                bool hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+                if (!hex)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** ixian:viewImage:<hexMsgId> — MAIN THREAD (the Navigating handler). */
+        private void onViewImage(string hexId)
+        {
+            if (!isHexMsgId(hexId))
+            {
+                return;   // not a token this shell could have built — nothing is echoed back
+            }
+            viewerLatest = hexId;   // ★ #46 r1 A-M2: every earlier tap is no longer wanted
+            int doc = thumbDoc;
+            string? path = null;
+            try
+            {
+                FriendMessage? fm = friend == null ? null : friend.getMessage(selectedChannel, Crypto.stringToHash(hexId));
+                if (fm != null && fm.type == FriendMessageType.fileHeader && (fm.completed || fm.localSender)
+                    && SharedItems.parseFileHeader(fm.message, out string name, out _) && SharedItems.isImageName(name))
+                {
+                    path = SharedItems.localPathOf(fm);   // C#'s own rule — never a WebView value
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("viewImage lookup failed: " + e.GetType().Name);   // a type only — never the id or a path
+                path = null;
+            }
+            if (path == null)
+            {
+                pushViewerImage(doc, hexId, "");
+                return;
+            }
+            string file = path;
+            Func<bool> stillWanted = () => hexId == viewerLatest && !isDisposed && doc == thumbDoc;   // volatile reads only (a pool thread)
+            Task.Run(async () =>
+            {
+                string? uri = null;
+                try
+                {
+                    uri = await ViewerImage.dataUriOfAsync(file, stillWanted);   // awaits ViewerImage's gate — OFF the UI thread
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("viewImage failed: " + e.GetType().Name);   // a type only
+                    uri = null;
+                }
+                if (!stillWanted())
+                {
+                    return;   // a newer tap (or a closed page): this viewer is gone — push nothing
+                }
+                string answer = uri ?? "";
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (stillWanted())
+                    {
+                        pushViewerImage(doc, hexId, answer);
+                    }
+                });
+            });
+        }
+
+        /** Main thread: the answer for one viewer token; nothing for a torn-down page or an older document. */
+        private void pushViewerImage(int doc, string hexId, string uri)
+        {
+            if (isDisposed || doc != thumbDoc)
+            {
+                return;
+            }
+            Utils.sendUiCommand(this, "viewerImage", hexId, uri);
         }
 
         public void updateGroupChatNicks(Address address, string nick)

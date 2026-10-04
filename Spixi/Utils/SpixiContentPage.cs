@@ -591,6 +591,10 @@ namespace SPIXI
 
         public void sendMessage(string msg)
         {
+            if (P1Perf.enabled)
+            {
+                try { p1SpareAfterPush(msg, !(pageLoaded && _webView != null)); } catch (Exception) { }   // ★ #1166 lever 4 probe — TEMPORARY
+            }
             if (pageLoaded && _webView != null)
             {
                 evaluateJavascript(msg);
@@ -948,6 +952,8 @@ namespace SPIXI
             public Thickness stageMargin = default;
             public long p1Start = P1Perf.now();   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set: the open clock (reset at a spare attach)
             public void p1Mark() { p1Start = P1Perf.now(); }   // ★ P-1 (#1127) — TEMPORARY
+            public bool p1FromSpare = false;   // ★ #1166 lever 4 probe — TEMPORARY: this op is a SPARE chat open (pushSpareChat took it)
+            public void p1MarkSpare() { p1Start = P1Perf.now(); p1FromSpare = true; }   // ★ #1166 lever 4 probe — TEMPORARY: p1Mark + the spare flag
             private int done = 0;
 
             public PreloadOp(SpixiContentPage host, SpixiContentPage target, ContentView stage, View targetContent, Grid hostGrid)
@@ -1924,7 +1930,7 @@ namespace SPIXI
             {
                 cancelPreload(yieldingWarm);
             }
-            op.p1Mark();   // ★ P-1 (#1127) — TEMPORARY: a spare open starts at the tap, not at the warm
+            op.p1MarkSpare();   // ★ P-1 (#1127) — TEMPORARY: a spare open starts at the tap, not at the warm · ★ #1166 lever 4: + marks it a SPARE open (a method, not an `op.<field> =` write in this method — Session P L1·8)
             if (!(op.target is SingleChatPage scp) || !scp.spareShellBooted)
             {
                 // ★ #1132 lever 5: taken WARMING — attach can never run onLoad into a document that has not booted, so it
@@ -2680,12 +2686,38 @@ namespace SPIXI
                                  * #326 BYTE-FOR-BYTE (250 ms CubicOut) — that was Damir's own
                                  * pick for the native pop look, it ships today, and this row
                                  * has no mandate to re-time it. */
+                                /* ★ #1166 lever 7: the host that animated this overlay's column in animates it out — the
+                                 * reverse on the exit clock (ScreenSlideOutMs, CubicIn). Width: the stage keeps its width
+                                 * (pinned, anchored at the column's leading edge) and fades while the host collapses the
+                                 * column. Push: the host collapses the column at once, the opaque stage (pinned to the
+                                 * window's trailing edge) travels its full width out. Any failure = the mirror below. */
+                                ColumnMotion exitMotion = ColumnMotion.None;
                                 if (op.slideIn)
                                 {
-                                    /* ★ Session I hybrid: the mirror — 40% travel + fade to 0, 220 ms CubicIn */
+                                    try { exitMotion = op.host.overlayColumnMotion(op.target, false, out _); }
+                                    catch (Exception) { exitMotion = ColumnMotion.None; }
+                                }
+                                if (exitMotion != ColumnMotion.None)
+                                {
+                                    pinStageWidth(op, w, exitMotion == ColumnMotion.Push);
+                                    try { op.host.startOverlayColumnExit(op.target, exitMotion); }
+                                    catch (Exception ex) { Logging.warn("startOverlayColumnExit: " + ex.GetType().Name); }
+                                    if (exitMotion == ColumnMotion.Push)
+                                    {
+                                        await op.stage.TranslateTo(w, 0, ScreenSlideOutMs, Easing.CubicIn);
+                                    }
+                                    else
+                                    {
+                                        await op.stage.FadeTo(0, ScreenSlideOutMs, Easing.CubicIn);
+                                    }
+                                }
+                                else if (op.slideIn)
+                                {
+                                    /* ★ Session I hybrid: the mirror — 40% travel + fade to 0, CubicIn.
+                                     * ★ #1166 lever 12: the duration is the named ScreenSlideOutMs (160; was a literal 220). */
                                     await Task.WhenAll(
-                                        op.stage.TranslateTo(w * SlideTravel, 0, 220, Easing.CubicIn),
-                                        op.stage.FadeTo(0, 220, Easing.CubicIn));
+                                        op.stage.TranslateTo(w * SlideTravel, 0, ScreenSlideOutMs, Easing.CubicIn),
+                                        op.stage.FadeTo(0, ScreenSlideOutMs, Easing.CubicIn));
                                 }
                                 else
                                 {
@@ -3049,6 +3081,68 @@ namespace SPIXI
         // pane appears fully painted in one frame (no empty strip while it loads).
         public virtual void onOverlayPresented(SpixiContentPage overlay)
         {
+        }
+
+        /* ★ #1166 lever 7 (#1165 (3)) — A HOST THAT OWNS AN OVERLAY'S COLUMN MAY OWN ITS MOTION.
+         * The desktop chat-info pane lives in HomePage's col 2. Today the column snaps 0 → 360 in the present frame
+         * and only the stage slides (one ~105 ms frame at the snap, p1-measurement row 6). With a ColumnMotion the
+         * host animates its column on the slide clock and the STAGE does only its half:
+         *   Width — the stage is laid out at the pane width (WidthRequest, Start: anchored at the column's leading
+         *           edge, clipped by the window as the column grows), no travel, fades on the same clock.
+         *   Push  — the stage is laid out at the pane width (End: its trailing edge on the window edge), opaque,
+         *           travels the full pane width; the host widens the column ONCE at the end.
+         * Presentation only: nothing re-attaches, no WebView is shared (#221), no bridge traffic. `None` (the
+         * default, every other host and overlay) = today's 40% slide + fade, byte for byte.
+         * Pure query — no side effects: revealStage (entering) and closeOverlay's slide branch (leaving) ask it. */
+        public enum ColumnMotion { None, Width, Push }
+
+        public virtual ColumnMotion overlayColumnMotion(SpixiContentPage overlay, bool entering, out double paneWidth)
+        {
+            paneWidth = 0;
+            return ColumnMotion.None;
+        }
+
+        /* ★ #1166 lever 7: the LEAVING half's host side — called by closeOverlay right after the stage was pinned to
+         * its width and before the stage animation starts (the column collapse rides the same 160 ms clock). */
+        public virtual void startOverlayColumnExit(SpixiContentPage overlay, ColumnMotion motion)
+        {
+        }
+
+        /* ★ #1166 lever 7: the slide clock, for a host that animates its column beside the stage. */
+        public static uint slideInMs => ScreenSlideInMs;
+        public static uint slideOutMs => ScreenSlideOutMs;
+        public static Easing slideInEasing => ScreenSlideEasing;
+
+        /* ★ #1166 lever 7: lay a stage out at a fixed width, anchored at the column's leading (Start) or trailing
+         * (End) edge, so a column narrower than the pane CLIPS it instead of reflowing the shell inside. */
+        private static void pinStageWidth(PreloadOp op, double width, bool alignEnd)
+        {
+            op.stage.WidthRequest = width;
+            op.stage.HorizontalOptions = alignEnd ? LayoutOptions.End : LayoutOptions.Start;
+        }
+
+        /* ★ #1166 lever 7: the column motion is over — the stage fills its column again (a later window resize
+         * re-sizes the pane as before). Main thread. No-op for a target that is not an open overlay. */
+        public static void releaseStageWidth(SpixiContentPage target)
+        {
+            PreloadOp? op;
+            lock (preloadLock)
+            {
+                op = overlayStack.Find(o => o.target == target);
+            }
+            if (op == null)
+            {
+                return;
+            }
+            try
+            {
+                op.stage.WidthRequest = -1;
+                op.stage.HorizontalOptions = LayoutOptions.Fill;
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("releaseStageWidth: " + ex.GetType().Name);
+            }
         }
 
         // Unit 6 (#247): re-home a PRESENTED overlay stage. Presentation-only property
@@ -3756,6 +3850,104 @@ namespace SPIXI
             P1Perf.line("open " + kind + " present ms=" + P1Perf.msSince(op.p1Start)
                 + " overlay=" + (overlay ? "1" : "0") + " slide=" + (overlay && op.slideIn ? "1" : "0"));
             P1Perf.framesAfter("open-" + kind);
+            if (op.p1FromSpare)
+            {
+                op.target.p1SpareAfterArm();   // ★ #1166 lever 4 probe — TEMPORARY
+            }
+        }
+
+        /* ★ #1166 lever 4 PROBE — TEMPORARY, retire with the [P1] set; NO FIX (#1165 (2)). p1-measurement lever 4: the
+         * gap after a chat present is on the SPARE path only (spare: 2–3 drops, gap 66–122 ms; cold: 0 drops, gap 22).
+         * The hypothesis is the chat's loadApps() — this says what really runs. For 600 ms after a SPARE present, every
+         * C#→shell push of THIS page is stamped `[P1] spare-after push=<verb> t=<ms> q=<0|1>` (q=1 = queued, the shell
+         * was not loaded) and a named work item `[P1] spare-after work=<word> t=<ms>` (SingleChatPage.loadApps: one tag);
+         * the window closes with `[P1] spare-after end n=<pushes>`. Read beside `frames open-singlechatpage` (same
+         * clock: the present). Grammar = the P-1 stamp set: <verb> is the code-defined executeUiCommand function name,
+         * lowercased and cut to [a-z0-9_]{1,30} ("js" for a raw script) — never an argument, a name or an address.
+         * Dev-only: armed only when P1Perf.enabled (a store build compiles every body to a no-op and never arms). */
+        private const long P1SpareAfterWindowMs = 600;
+        private long p1SpareAfterT0 = 0;    // Stopwatch timestamp of the arm; 0 = not armed (Interlocked: pushes come from any thread)
+        private int p1SpareAfterPushes = 0;
+
+        internal void p1SpareAfterArm()
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            long t0 = P1Perf.now();
+            System.Threading.Interlocked.Exchange(ref p1SpareAfterPushes, 0);
+            System.Threading.Interlocked.Exchange(ref p1SpareAfterT0, t0);
+            P1Perf.line("spare-after armed window=" + P1SpareAfterWindowMs);
+            Task.Delay((int)P1SpareAfterWindowMs).ContinueWith(_ =>
+            {
+                // only the arm that started this timer closes the window (a re-arm owns its own)
+                if (System.Threading.Interlocked.CompareExchange(ref p1SpareAfterT0, 0, t0) == t0)
+                {
+                    P1Perf.line("spare-after end n=" + System.Threading.Volatile.Read(ref p1SpareAfterPushes));
+                }
+            });
+        }
+
+        /** ★ #1166 lever 4 probe — TEMPORARY: a named work item inside the window. `what` is a code literal word. */
+        internal void p1SpareAfterWork(string what)
+        {
+            long ms = p1SpareAfterMs();
+            if (ms >= 0)
+            {
+                P1Perf.line("spare-after work=" + what + " t=" + ms);
+            }
+        }
+
+        /** ms since the arm while the window is open, else -1. */
+        private long p1SpareAfterMs()
+        {
+            if (!P1Perf.enabled)
+            {
+                return -1;
+            }
+            long t0 = System.Threading.Interlocked.Read(ref p1SpareAfterT0);
+            if (t0 == 0)
+            {
+                return -1;
+            }
+            long ms = P1Perf.msSince(t0);
+            return ms <= P1SpareAfterWindowMs ? ms : -1;
+        }
+
+        /** The push's verb: the executeUiCommand function name, lowercased, [a-z0-9_] only, ≤ 30; "js" otherwise. */
+        internal static string p1VerbOf(string msg)
+        {
+            const string head = "executeUiCommand(";
+            if (msg == null || !msg.StartsWith(head, StringComparison.Ordinal))
+            {
+                return "js";
+            }
+            var sb = new System.Text.StringBuilder();
+            for (int i = head.Length; i < msg.Length && sb.Length < 30; i++)
+            {
+                char c = char.ToLowerInvariant(msg[i]);
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')
+                {
+                    sb.Append(c);
+                }
+                else
+                {
+                    break;
+                }
+            }
+            return sb.Length > 0 ? sb.ToString() : "js";
+        }
+
+        private void p1SpareAfterPush(string msg, bool queued)
+        {
+            long ms = p1SpareAfterMs();
+            if (ms < 0)
+            {
+                return;
+            }
+            System.Threading.Interlocked.Increment(ref p1SpareAfterPushes);
+            P1Perf.line("spare-after push=" + p1VerbOf(msg) + " t=" + ms + " q=" + (queued ? "1" : "0"));
         }
 
         private static void presentPreload(PreloadOp op, string reason)
@@ -4200,7 +4392,11 @@ namespace SPIXI
          * `:726` today — and it is the only one that slides on DESKTOP); and every screen
          * that slides — by flag or
          * by platform rule — rides this curve and this duration, so they cannot drift. */
-        private const uint ScreenSlideInMs = 300;          // was 220
+        private const uint ScreenSlideInMs = 220;          // ★ #1166 lever 12 (#1165 (4)): was 300 (and 220 before #685)
+        /* ★ #1166 lever 12: the mirror exit, named so the pair has ONE home (it was a literal 220 twice in closeOverlay).
+         * Close stays faster than open (#326 asymmetry): 220 / 160. subscreen-slide.css / .js carry the same pair, and
+         * a pin holds the four equal. */
+        private const uint ScreenSlideOutMs = 160;
         /* ★ Session I — THE HYBRID (Damir's A1 note, ruled "hybrid" 2026-09-02): every slide-in
          * is now SLIDE + FADE — a shorter travel (40% of the stage width instead of 100%) with
          * opacity 0 → 1 over the same 300 ms and the same curve, and the mirror exit fades
@@ -4227,6 +4423,8 @@ namespace SPIXI
          *      8 ms → opacity  0.7 %      33 ms → 19.5 %      150 ms → 87.8 %
          *     16 ms →          3.3 %      50 ms → 40.6 %      250 ms → 99.0 %
          *     25 ms →         10.0 %      60 ms → 50.0 %      300 ms → 100 %
+         * ★ #1166 lever 12: the entry is 220 ms now — the same curve compressed ×0.73: opacity crosses 3 % at ~11 ms
+         * and is ~33 % when the 32 ms block lifts (the 300 ms table above is kept as measured).
          * Opacity crosses 0.03 at 15.3 ms — ONE frame at 60 Hz. At 250 ms the stage is at
          * 99.0 % opacity with 0.41 % of the stage width left to travel: plainly there, plainly
          * readable, and under round 1 it ate the tap. (The round-2 review estimated ~83 %
@@ -4404,7 +4602,24 @@ namespace SPIXI
                 slideFrom = op.stage.Width > 0 ? op.stage.Width
                     : (op.host.Width > 0 ? op.host.Width : 0);
             }
-            if (slideFrom > 0)
+            /* ★ #1166 lever 7: a host that animates this overlay's COLUMN (the desktop info pane) takes the travel;
+             * the stage keeps the clock, the curve and the input rules of slideStageIn (Width: fade only · Push:
+             * opaque, full pane-width travel). Asked only for a sliding op; any failure = today's slide. */
+            ColumnMotion colMotion = ColumnMotion.None;
+            double colPaneW = 0;
+            if (op.slideIn)
+            {
+                try { colMotion = op.host.overlayColumnMotion(op.target, true, out colPaneW); }
+                catch (Exception) { colMotion = ColumnMotion.None; }
+            }
+            if (colMotion != ColumnMotion.None && colPaneW > 0)
+            {
+                pinStageWidth(op, colPaneW, colMotion == ColumnMotion.Push);
+                op.stage.TranslationX = colMotion == ColumnMotion.Push ? colPaneW : 0;
+                op.stage.Opacity = colMotion == ColumnMotion.Push ? 1 : 0;
+                _ = slideStageIn(op);
+            }
+            else if (slideFrom > 0)
             {
                 op.stage.TranslationX = slideFrom * SlideTravel;   // ★ Session I hybrid: 40% travel
                 op.stage.Opacity = 0;                              // …and a fade from 0 (slideStageIn ramps it)

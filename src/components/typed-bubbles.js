@@ -861,14 +861,12 @@ export function createFileBubble({
     tick.removeAttribute('aria-hidden');
     tick.setAttribute('role', 'img');
     tick.setAttribute('aria-label', strings['status-' + status] || status);
-    /* #46 r3 R3-m2 (the tile's R2-N2 rule): while MY file is still sending a plain sent/sending tick is the message's, not the file's —
-       r4 MINOR-1 (#1035): a delivered / read tick stays in the name while it sends */
-    if (state !== 'progress' || tick.dataset.tone !== 'neutral') el.setAttribute('aria-label', el.dataset.ariaBase + ', ' + tick.getAttribute('aria-label'));
     const stamp = document.createElement('span');
     stamp.className = 'c-fbubble__stamp';
     if (stampTime) stamp.append(stampTime);
     stamp.append(tick);
     el.append(stamp);
+    el.setAttribute('aria-label', fileNameAria(el));   // ★ #1166 r5 NIT-1: the ONE rule (card · tile · live)
   } else if (stampTime) {
     el.append(stampTime);
   }
@@ -1042,13 +1040,19 @@ function fileFace(state, name, progress, strings, direction) {
   return face;
 }
 
-function fileTileAria(tile) {
-  /* #46 r2 R2-N2: while MY file is still sending the tick is the MESSAGE's ("Sent"), not the file's — the name says
-     "Sending IMG.jpg" alone; the tick joins it once the transfer is final — r4 MINOR-1 (#1035): a delivered / read tick joins it at once */
-  const tk = tile.querySelector('.c-mbubble__stamp .c-status-icon:not([data-exit])');
-  if (tk && tile.dataset.file === 'progress' && tk.dataset.tone === 'neutral') return tile.dataset.ariaBase || '';
+/** ★ #1166 r5 NIT-1: THE accessible name of a file card OR a photo-file tile, from ONE input — the element itself (its
+ *  live state attribute, its base label, its current tick). It replaces two copies of one rule (the card read its
+ *  `state` option, the tile its data-file) and the live path in message-bubble.js syncFileTickAria calls it too.
+ *  #46 r2 R2-N2 · r3 R3-m2: while MY file is still SENDING the plain sent / sending tick is the MESSAGE's, not the
+ *  file's — the name says "Sending IMG.jpg" alone; r4 MINOR-1 (#1035): a delivered / read tick joins it at once. */
+export function fileNameAria(fileEl) {
+  const base = (fileEl && fileEl.dataset.ariaBase) || '';
+  if (!fileEl) return base;
+  const tk = fileEl.querySelector('.c-fbubble__stamp .c-status-icon:not([data-exit]), .c-mbubble__stamp .c-status-icon:not([data-exit])');
   const t = tk && tk.getAttribute('aria-label');
-  return (tile.dataset.ariaBase || '') + (t ? ', ' + t : '');
+  if (!t) return base;
+  const sending = fileEl.matches('.c-mbubble[data-file="progress"], .c-fbubble[data-state="progress"]');
+  return sending && tk.dataset.tone === 'neutral' ? base : base + ', ' + t;
 }
 
 /** ★ A5 #1124: an image FILE message as a media tile (the shell decides when — setPhotoPreviews + isPhotoFileName).
@@ -1084,7 +1088,7 @@ export function createImageFileBubble({
        FILE (the CTA says "Open file"); no media retry loop on a bad picture. #1147 (5): its face comes back. */
     onSrcError: () => { unquiet(); if (onThumbError) { try { onThumbError(); } catch (_) {} } },
     instantIfShown: true,   // #46 r3 R3-m1: a re-render does not re-fade a picture this document already showed
-    ariaFor: (s, tile) => fileTileAria(tile),
+    ariaFor: (s, tile) => fileNameAria(tile),
   });
   const el = row.querySelector('.c-mbubble');
   tileEl = el;
@@ -1129,7 +1133,7 @@ export function createImageFileBubble({
     stamp.append(tick);
     el.append(stamp);
   }
-  el.setAttribute('aria-label', fileTileAria(el));
+  el.setAttribute('aria-label', fileNameAria(el));
   if (onCancel) {   // #334: the pre-accept Cancel, a SIBLING of the tile (the tile is a <button>)
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
@@ -1166,7 +1170,7 @@ function setImageFileProgress(rowEl, tile, p, opts) {
   const next = fileFace(finalState, ctl.name, p, strings, ctl.direction);
   if (face) face.replaceWith(next); else tile.append(next);
   tile.dataset.ariaBase = tileAria(finalState, ctl.name, strings, ctl.direction);
-  tile.setAttribute('aria-label', fileTileAria(tile));
+  tile.setAttribute('aria-label', fileNameAria(tile));
 }
 
 /** The shell's late preview (setFileThumb, or a tile that just completed): load it through the tile's own machine,
@@ -1217,8 +1221,7 @@ export function setFileProgress(rowEl, progress, opts = {}) {
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
     bubble.dataset.ariaBase = fileAria(finalState, nm ? nm.textContent : '', strings);
-    const tk = bubble.querySelector('.c-fbubble__stamp .c-status-icon:not([data-exit])');   // ★ #1035: keep the tick's state in the name
-    bubble.setAttribute('aria-label', bubble.dataset.ariaBase + (tk && tk.getAttribute('aria-label') ? ', ' + tk.getAttribute('aria-label') : ''));
+    bubble.setAttribute('aria-label', fileNameAria(bubble));   // ★ #1035: keep the tick's state in the name — ★ #1166 r5 NIT-1: the one rule
     // ★ #1021: the tile keeps its extension; only the corner badge follows the state
     const ic = bubble.querySelector('.c-fbubble__icon');
     if (ic) {

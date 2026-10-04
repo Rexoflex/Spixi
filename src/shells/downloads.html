@@ -61,6 +61,9 @@
   }
   @keyframes boot-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .boot__spinner { animation: none; } }
+  /* ★ #1166 V-3 (#1154) "Show in Downloads": the row C# named carries a tonal wash (the #136 just-sent wash token),
+     static — no motion, so nothing to reduce. */
+  .c-settings-dl__row[data-highlight] { background-color: var(--surface-action-tonal-default); }
 </style>
 </head>
 <body class="c-account"><!-- ★ #1080 F2: this shell IS Account — the Account disc + row dials (settings-shell.css) reach every sublevel and sheet -->
@@ -154,6 +157,23 @@
    * file). Buffer between the clear and a short settle so a partial list never
    * paints — then one wholesale setDownloads (contact_details churn precedent). */
   let buf = null, timer = 0;
+  /* ★ #1166 V-3 (#1154) "Show in Downloads" (chat info): highlightDownload(<the list's own row key = the stored file
+     name>) — set by C# (never a path). Kept for HL_KEEP_MS so the re-push of a second onLoad (OnAppearing + ixian:onload
+     both list the files) is marked too; scrolled into view ONCE. Matched by string equality on the row's dataset (never
+     a selector built from the name). */
+  const HL_KEEP_MS = 4000;
+  let hlName = null, hlUntil = 0, hlScrolled = false;
+  function applyHighlight() {
+    if (hlName === null || Date.now() > hlUntil) { hlName = null; return; }
+    let hit = null;
+    for (const r of dlEl.querySelectorAll('.c-settings-dl__row')) {
+      if (r.dataset.name === hlName) { r.dataset.highlight = ''; hit = r; } else delete r.dataset.highlight;
+    }
+    if (hit && !hlScrolled) {
+      hlScrolled = true;
+      try { hit.scrollIntoView({ block: 'center' }); } catch (e) {}
+    }
+  }
   function settle() {
     clearTimeout(timer);
     timer = setTimeout(() => {
@@ -167,6 +187,7 @@
          settle), and an account whose burst never arrives falls back to the same 120 ms
          it waits today. Latched. */
       bridge.painted();
+      applyHighlight();   // ★ #1166 V-3 (#1154): the row C# named, on the settled list
     }, 80);
   }
 
@@ -192,6 +213,12 @@
       syncDownloadsOverlay();
     },
     clearFiles() { buf = []; settle(); },
+    highlightDownload(name) {   // ★ #1166 V-3 (#1154)
+      const n = String(name == null ? '' : name);
+      if (!n) return;
+      hlName = n; hlUntil = Date.now() + HL_KEEP_MS; hlScrolled = false;
+      settle();   // after the list it follows (the same settle the rows wait on)
+    },
     addFile(name, ctime) {
       if (buf === null) buf = [];
       buf.push({ name: name || '', time: ctime || '' });   // ctime opaque — verbatim

@@ -587,6 +587,61 @@ namespace SPIXI
             SpixiContentPage.dropSpareChat("reload");   // ★ Session P: same class as the parked overlay
         }
 
+        /* ★ #1166 P-03 — THE CHATS LIST NO LONGER REBUILDS IN FULL ON A SMALL CHANGE.
+         *
+         * A delivery receipt, a reaction and both edges of "typing…" used to raise `shouldRefreshContacts`, so the next
+         * 1 Hz tick re-ran loadChats + loadContacts for the WHOLE roster (2 + N + 1 + 3N pushes before #1166) — on top of
+         * the lone `addChat` the same event already pushed for its own row through HomePage.updateChat. When HomePage is
+         * the live root, that lone row push IS the whole change: getFriendMessageHelper recomputes the row from Core's
+         * state (tick, typing excerpt, reaction heart, unread, excerpt), and the shell patches that one row in place
+         * (chats-shell.js patchChatRows; a reorder or a filter change falls back to a full render). When HomePage is NOT
+         * the live root (a pushed page is on top), nothing was pushed, so the flag stays the recovery — the next tick
+         * with HomePage on top flushes once. */
+        private static HomePage? liveHome()
+        {
+            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
+            return page as HomePage;
+        }
+
+        /** The row push already happened through updateMessage / updateReactions → HomePage.updateChat: flag only when
+         *  it could not (HomePage not the live root). */
+        public static void flagChatsUnlessHomeLive()
+        {
+            try
+            {
+                if (liveHome() != null)
+                {
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                // a navigation stack changing under the read → the old answer (the flag)
+            }
+            shouldRefreshContacts = true;
+        }
+
+        /** Re-push ONE chats row (typing start / end): a lone addChat when HomePage is the live root, else the flag. */
+        /** ⚠ NEVER THROWS: the typing END edge runs on a System.Threading.Timer callback, where an exception is unhandled
+         *  and ends the process. Any failure degrades to the flag (the old behaviour); the log line carries the TYPE only. */
+        public static void refreshChatRowLive(Friend friend)
+        {
+            try
+            {
+                HomePage? home = liveHome();
+                if (home != null)
+                {
+                    home.updateChat(friend, true);   // ★ #1166 r1 (C-M1): marked as a typing edge
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("refreshChatRowLive: " + ex.GetType().Name);
+            }
+            shouldRefreshContacts = true;
+        }
+
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)
         {
             Utils.getChatPage(friend)?.updateMessage(msg, channel);

@@ -532,7 +532,7 @@ namespace SPIXI
                     fp = packet_number * 100 / totalPackets;
                 }
 
-                chat_page.updateFile(uid, fp.ToString(), complete);
+                chat_page.updateFile(uid, fp.ToString(), complete, transfer.channel);   // ★ #1166 A-N4: the transfer's own channel
             }
 
             return true;
@@ -712,7 +712,7 @@ namespace SPIXI
             var chat_page = Utils.getChatPage(chat_friend);
             if (chat_page != null)
             {
-                chat_page.updateFile(uid, "100", true);
+                chat_page.updateFile(uid, "100", true, transfer.channel);   // ★ #1166 A-N4: the transfer's own channel (it has left the lists by now)
             }
         }
 
@@ -785,7 +785,7 @@ namespace SPIXI
                     {
                         fp = (packet_number - 1) * 100 / totalPackets;
                     }
-                    chat_page.updateFile(uid, fp.ToString(), false);
+                    chat_page.updateFile(uid, fp.ToString(), false, transfer.channel);   // ★ #1166 A-N4
                 }
             }
         }

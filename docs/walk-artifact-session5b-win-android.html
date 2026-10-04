@@ -1,0 +1,233 @@
+<title>Spixi Session 5b Walk</title>
+<style>
+/* Layout: one narrow column — commit steps, then a Windows part and an Android part (each: build steps, then walk rows), a sticky tally bar.
+   Tokens follow the Spixi redesign palette (ink neutrals, the Spixi blue). */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:780px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:8px 0 0;text-wrap:balance;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .tag{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 8px}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:8px;flex-wrap:wrap}
+nav.jump a{font:600 13px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:5px 12px;text-decoration:none}
+nav.jump a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps li{min-width:0}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.cmd button,.ctl button{font:600 12px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;flex:none}
+.exp{font-size:13px;color:var(--ink-2)}
+.exp b{color:var(--ink)}
+code{font:13px var(--mono);background:var(--brand-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:780px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{width:100%;min-height:120px;font:13px var(--mono)}
+.note{font-size:13px;color:var(--ink-2);border-inline-start:3px solid var(--brand);padding-inline-start:10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Spixi Session 5b Walk</h1>
+    <p class="sub"><b>Session 5b build (#1166) + the owed rows (P0 #1160, #1161, #1152, #1163).</b> Apply the patch and commit, build Windows (F5) and Android, then walk the rows. ⚠ This is the FIRST compile of the session-5b C#: a build error is this batch's bug — paste it. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both log files in the chat.</p>
+  </header>
+  <nav class="jump" aria-label="Parts">
+    <a href="#commit">1 · Commit + push</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
+  </nav>
+
+  <h2 id="commit">Commit + push <span class="tag">fresh PowerShell</span></h2>
+  <section class="box">
+    <h3>Steps (one command each)</h3>
+    <ol class="steps" id="steps-commit"></ol>
+  </section>
+
+  <h2 id="windows">Windows <span class="tag">F5</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-win"></ol>
+  </section>
+  <div id="rows-win"></div>
+
+  <h2 id="android">Android <span class="tag">Release + dev switch</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-and"></ol>
+  </section>
+  <div id="rows-and"></div>
+  <p class="note">Many rows need a second device (or a contact) that sends messages, photos and typing. Lever 7 fails (dropped frames or a blank edge) → open <b>Spixi\Pages\Home\HomePage.xaml.cs</b>, set <b>InfoPaneMotion = "push"</b>, press F5 and walk W-PANE + W-PANE-CLOSE again.</p>
+  <textarea id="out" readonly aria-label="Results text" hidden></textarea>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+</div></div>
+
+<script>
+const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
+const STEPS = {
+  commit: [
+    ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
+    ["Check the tree.", "git --no-optional-locks status --short", "Only <b>docs/handoff-2026-09-30e.md</b> and <b>Claude outputs</b> files are untracked. Other changes: stop and paste them."],
+    ["Check that the patch applies.", "git apply --check \"..\\Claude outputs\\session5b-build.patch\"", "No output."],
+    ["Apply the patch (it also stages the new files).", "git apply --index \"..\\Claude outputs\\session5b-build.patch\"", "No output."],
+    ["Check the count.", "git diff --cached --stat", "The last line says <b>118 files changed</b>. Another number: stop and paste it."],
+    ["Commit.", "git commit -F docs/commit-message-session5b.txt", "Subject \"Session 5b: chats batch, lazy history, media viewer, group cap, motion\"."],
+    ["Push.", "git push", "Ends with <b>redesign/frontend -> redesign/frontend</b>."],
+    ["Run the C# harness (needs .NET 8).", "node scripts/run-csh.mjs", "<b>CSH pass=107 fail=0</b>."],
+    ["Delete the old build output (C# and html changed).", "Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue", "No output."],
+  ],
+  win: [
+    ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
+    ['Set the target.', '', 'Configuration <b>Debug</b>, target <b>Windows Machine</b>. Debug turns the [P1] lines on.'],
+    ['Press F5. Never use dotnet build for Windows (#663).', '', 'The app starts. A build error: paste it in the chat (the first compile of #1166).'],
+    ['Walk the Windows rows below. Use a wide window.', '', ''],
+    ['Save the log.', '', 'Developer page → <b>Send log</b>. It saves <b>Downloads\\spixi-log-&lt;date&gt;.txt</b>.'],
+    ['Copy the log next to the other outputs.', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
+  ],
+  and: [
+    ['Connect the phone with USB. Check it.', 'adb devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large.', 'adb logcat -G 16M', 'No output.'],
+    ['Clear the log.', 'adb logcat -c', 'No output.'],
+    ['Build and deploy Release with the dev switch.', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Release -p:SpixiDevCoexist=true -t:Run', 'The app opens on the phone. A build error: paste it.'],
+    ['Walk the Android rows below.', '', ''],
+    ['Save the log as UTF-8.', 'adb logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s5b.txt"', 'A file of a few MB.'],
+  ],
+};
+const W = 'w', A = 'a';
+const ROWS = [
+  {p:W,id:"W-BUILD",t:"BUILD: this build is the session-5b build",d:"Open a chat with more than 60 messages and scroll slowly to the top.",e:"Older messages load by themselves near the top (small spinner, no \"Show older\" button). Only this build does this."},
+  {p:W,id:"V-0b",t:"#1161 white window after a ring-out",d:"Developer page → minimise → call from the 2nd device, let it ring out (45 s) → bring the window back.",e:"DevPage shows its log, not white; no debugger break. Paste any [CRASH] winui line."},
+  {p:W,id:"W-PANE",t:"Lever 7: chat info opens with the column growing",d:"Wide window. Open a chat → info button. 5 times.",e:"The info column grows smoothly with the pane fading in; no blank strip at the right edge; the chat text does not jump. Log: [P1] frames infopane drop= 0–1."},
+  {p:W,id:"W-PANE-CLOSE",t:"Lever 7: chat info closes",d:"Close chat info with Back / the arrow, 5 times.",e:"The column shrinks fast (about 160 ms); no flash; the chat takes the full width again."},
+  {p:W,id:"W-SLIDE",t:"Lever 12: sub-screens are faster",d:"Account → Chat appearance → Back; Add contact → Back.",e:"Slides feel quicker; closing is faster than opening; no snap."},
+  {p:W,id:"W-VIEW",t:"Viewer from the chat",d:"Tap a received, downloaded photo tile. Then a portrait phone photo.",e:"The viewer opens at once on the small preview with a spinner, then a sharp, upright picture in its real shape (not square). Close with ✕ or Esc."},
+  {p:W,id:"W-VIEW-NO",t:"Non-photo files keep the old open",d:"Tap a PDF card and a very large image (> 20 MB) or a renamed non-image .jpg.",e:"PDF opens in the system app as before. The bad image: the toast \"This image could not be opened.\" and the preview stays; no crash."},
+  {p:W,id:"W-INFO-VIEW",t:"Viewer from chat info",d:"Chat info → Media → click a downloaded photo. Then one that is not downloaded.",e:"Downloaded: the viewer opens (as above). Not downloaded: the chat opens at the message (as before)."},
+  {p:W,id:"W-INFO-MENU",t:"Chat info menu rows (#1154)",d:"Right-click a RECEIVED downloaded photo; then one of MY sent photos.",e:"Received: Open · Show in chat · Show in Downloads · Delete from this device (red, last). Mine: Open · Show in chat only."},
+  {p:W,id:"W-DEL",t:"Delete from this device",d:"On a received downloaded photo → Delete from this device → Cancel; then again → Delete.",e:"The dialog names the file; Cancel does nothing. Delete: the tile turns into a glyph, the message stays in the chat, the file is gone from Downloads. My sent originals are untouched."},
+  {p:W,id:"W-DLS",t:"Show in Downloads",d:"On a received downloaded file → Show in Downloads.",e:"The Downloads screen opens with that row tinted and scrolled into view. Back returns to chat info."},
+  {p:W,id:"W-CHATS",t:"P-03: chats list updates one row",d:"With the chats list open: the other device types, stops, sends a message, reacts to your message, goes offline.",e:"Only that row changes each time (dots, excerpt, heart, online dot); other rows do not flicker; order changes only on a new message; the Unread chip and nav badge are right."},
+  {p:W,id:"W-AVATAR",t:"P-04: avatars",d:"A contact with a photo; a group chat with 3 senders. Change a contact's photo on the other device.",e:"Photos show in the chats rows, the picker and the group bubbles; a changed photo updates within about 1 s."},
+  {p:W,id:"W-HIDE",t:"P-03: a deleted chat stays gone",d:"Delete a chat. The other device types and stops. Then it sends a message.",e:"Typing does not bring the row back; the new message does."},
+  {p:W,id:"W-GROUP",t:"V-4 group cap",d:"New group → pick 10 contacts; try an 11th; untick one.",e:"\"n / 10\" while picking; at 10 the line \"A group can have up to 10 members besides you.\" and the other rows are dimmed; untick → \"9 / 10\". A 10-member group is created and every member sees it."},
+  {p:W,id:"W-JUMP",t:"#1151 smooth Show in chat",d:"Chat info → a recent media item → Show in chat. Then an old one.",e:"Recent: the chat scrolls smoothly to it and is not pulled back to the bottom; the row pulses. Old: an instant jump, the row pulses, no flash. Record a short video if unsure."},
+  {p:W,id:"W-PILL",t:"Composer pill colour",d:"Dark theme, a chat with received messages.",e:"The composer pill and the received bubble have the same colour."},
+  {p:W,id:"W-1163",t:"#1163 no implied read",d:"1:1 with the 2nd device: send A, then B; the 2nd device reads only B (or a legacy peer).",e:"A keeps \"delivered\", B shows \"read\"."},
+  {p:W,id:"W-FRAME",t:"#1152 photo frame (re-walk)",d:"A photo-file tile, both sides.",e:"3 px frame, received white / mine blue."},
+  {p:W,id:"W-HL",t:"#1152 highlight (re-walk)",d:"Show in chat on any item.",e:"The highlight lasts about 2 s and fades smoothly."},
+  {p:W,id:"W-DARK",t:"#1152 dark bubble (re-walk)",d:"Dark theme, received bubble.",e:"#1E2023 — half a step lighter than before."},
+  {p:A,id:"V-0",t:"P0 #1160: no message lost (× 5)",d:"Phone in the background → the legacy-iOS peer sends 2 messages quickly → tap the 2nd notification → look → back → reopen. 5 times.",e:"Both messages shown, also after the reopen. Paste any [P0] lines."},
+  {p:A,id:"V-0-NEW",t:"P0 with a new-app sender (× 1)",d:"The same, the sender is the new app.",e:"Both messages shown."},
+  {p:A,id:"A-OPEN",t:"Chat open speed + lever 4 probe (× 10)",d:"Open 10 chats from the list (back between).",e:"Smooth opens. Log has [P1] open … present and [P1] spare-after lines (they tell me what runs after the open)."},
+  {p:A,id:"A-LAZY",t:"V-2 lazy history",d:"A chat with > 200 messages: scroll up slowly to the top; then flick fast through 2 pages.",e:"Older rows load before you reach the top, a small spinner, no jump; the row under your finger stays in place."},
+  {p:A,id:"A-LAZY-UNREAD",t:"V-2 keeps unread",d:"Have unread messages in a chat, open it, scroll up and load older pages.",e:"The unread divider and the chevron count stay; the chats-list badge does not reset."},
+  {p:A,id:"A-LAZY-END",t:"V-2 end + retry",d:"Scroll to the first message. Then airplane mode, a long chat, scroll to the top, wait 8 s.",e:"The \"Encrypted…\" notice shows and loading stops. Offline: a retry button shows after 8 s; it works after airplane mode off."},
+  {p:A,id:"A-CALLBAR",t:"Lever 9: call bar",d:"In a call: full screen → minimise to the card. 3 times.",e:"The card shows at once (about 45 ms), not cut or blank. Log: [CALLPAINT] mode=bar via=now."},
+  {p:A,id:"A-VIEW",t:"Viewer (phone)",d:"Chat → tap a downloaded photo; chat info → tap a downloaded photo; a portrait photo.",e:"Viewer opens on the preview, then sharp and upright in its real shape; swipe down closes it."},
+  {p:A,id:"A-MENU",t:"Chat info menu (phone)",d:"Long-press a received downloaded photo; then my sent one.",e:"Received: Open · Show in chat · Show in Downloads · Delete from this device. Mine: Open · Show in chat."},
+  {p:A,id:"A-TRANSFER",t:"R3-N3 transfer progress kept",d:"Start a big download, put the app in the background, return during the transfer. Also send a big file of mine and do the same.",e:"The ring keeps its %; no \"Tap to download\" again; my send shows no Cancel again."},
+  {p:A,id:"A-PREVIEW",t:"R3-N2 previews after a privacy flip",d:"Account → Privacy → photo previews OFF, back to a chat with photos, then ON.",e:"Every photo gets its picture back without a reopen."},
+  {p:A,id:"A-CHATS",t:"P-03 on the phone",d:"Chats list open: the other device types, sends, reacts.",e:"Only that row changes; no flicker; no [home-shell] … dropped lines in the log."},
+  {p:A,id:"A-FADE",t:"#1152 photo fade (re-walk)",d:"Open a chat with a photo first in view (3 chats).",e:"The photo fades in; no glyph flash, no size jump."},
+  {p:A,id:"A-1163",t:"#1163 no implied read (phone)",d:"As W-1163, on the phone.",e:"A keeps \"delivered\", B shows \"read\"."}
+];
+const KEY = 'spixi-walk-session5b-v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function el(tag, attrs, kids){ const n = document.createElement(tag); for (const k in (attrs||{})) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'html') n.innerHTML = attrs[k]; else n.setAttribute(k, attrs[k]); } (kids||[]).forEach(c => c && n.append(c)); return n; }
+async function copyText(text, btn){
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { const out = document.getElementById('out'); out.hidden = false; out.value = text; out.focus(); out.select(); btn.textContent = 'Select + Ctrl+C'; }
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+}
+function renderSteps(id, list){
+  const ol = document.getElementById(id);
+  list.forEach(([say, cmd, expect]) => {
+    const li = el('li', {}, [el('span', {text: say})]);
+    if (cmd) {
+      const b = el('button', {type:'button', 'aria-label':'Copy command'}); b.textContent = 'Copy'; b.dataset.label = 'Copy';
+      b.addEventListener('click', () => copyText(cmd, b));
+      li.append(el('div', {class:'cmd'}, [el('pre', {text: cmd}), b]));
+    }
+    if (expect) li.append(el('div', {class:'exp', html: 'Expect: ' + expect}));
+    ol.append(li);
+  });
+}
+renderSteps('steps-commit', STEPS.commit);
+renderSteps('steps-win', STEPS.win);
+renderSteps('steps-and', STEPS.and);
+function renderRows(){
+  for (const [host, plat] of [['rows-win', W], ['rows-and', A]]) {
+    const box = document.getElementById(host); box.innerHTML = ''; box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '12px';
+    ROWS.filter(r => r.p === plat).forEach(r => {
+      const s = state[r.id] || {};
+      const card = el('article', {class:'row', 'data-v': s.v || ''});
+      card.append(el('div', {class:'top'}, [el('span', {class:'id', text:r.id}), el('span', {class:'title', text:r.t})]));
+      card.append(el('dl', {}, [el('dt', {text:'Do'}), el('dd', {text:r.d}), el('dt', {text:'Pass if'}), el('dd', {text:r.e})]));
+      const ctl = el('div', {class:'ctl'});
+      [['P','Pass'],['F','Fail'],['N','N/A']].forEach(([k, lab]) => {
+        const b = el('button', {type:'button', 'data-k':k, 'aria-pressed': s.v === k ? 'true' : 'false'}); b.textContent = lab;
+        b.addEventListener('click', () => { state[r.id] = Object.assign({}, state[r.id], {v: s.v === k ? '' : k}); save(); renderRows(); tally(); });
+        ctl.append(b);
+      });
+      card.append(ctl);
+      const ta = el('textarea', {id:'note-' + r.id, 'aria-label':'Note for ' + r.id, placeholder:'Note (what you saw, numbers, paste lines)'});
+      ta.value = s.n || '';
+      ta.addEventListener('input', () => { state[r.id] = Object.assign({}, state[r.id], {n: ta.value}); save(); });
+      card.append(ta);
+      box.append(card);
+    });
+  }
+}
+function counts(){ let p=0,f=0,n=0; ROWS.forEach(r => { const v = (state[r.id]||{}).v; if (v==='P') p++; else if (v==='F') f++; else if (v==='N') n++; }); return {p,f,n}; }
+function tally(){ const c = counts(); const left = ROWS.length - c.p - c.f - c.n;
+  document.getElementById('tally').innerHTML = `<b class="p">${c.p} P</b> · <b class="f">${c.f} F</b> · <b class="n">${c.n} N/A</b> · ${left} open`; }
+document.getElementById('copy').addEventListener('click', (ev) => {
+  const c = counts();
+  const lines = ROWS.map(r => { const s = state[r.id] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id}: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
+  const text = `Re-walk session 4 fix batch (Windows F5 + Android Release dev): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
+});
+document.getElementById('reset').addEventListener('click', (ev) => {
+  const b = ev.currentTarget;
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Clear'; }, 2500); return; }
+  state = {}; save(); b.dataset.armed = ''; b.textContent = 'Clear'; renderRows(); tally();
+});
+renderRows(); tally();
+</script>

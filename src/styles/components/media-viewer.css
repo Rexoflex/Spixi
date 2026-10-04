@@ -102,3 +102,41 @@
   -webkit-user-select: none;
   -webkit-user-drag: none;
 }
+
+/* ★ #1166 V-3 (#1144 / #1145 (1)): the LOADING state — the thumbnail shows while C# makes the viewer-size picture;
+   a subtle spinner on a scrim disc sits over it (media-bubble's spinner grammar, the on-scrim mode-less inks).
+   The stage is the positioning box; the disc never takes a pointer (swipe-to-dismiss keeps working while loading). */
+.c-mviewer__stage { position: relative; }
+/* the small tile thumbnail fills the stage while it waits (contain — the photo-viewer convention: soft, then sharp),
+   so the swap to the viewer-size picture does not jump from a postage stamp to full size */
+.c-mviewer[data-loading] .c-mviewer__img[src] { width: 100%; height: 100%; }
+.c-mviewer__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.c-mviewer__loading::before {
+  content: '';
+  position: absolute;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+}
+.c-mviewer__spinner {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--surface-wash-on-hero); /* translucent ring */
+  border-top-color: var(--icon-on-scrim);
+  animation: c-mviewer-spin 800ms linear infinite; /* sanctioned: continuous progress indicator (the c-mbubble spinner) */
+}
+@keyframes c-mviewer-spin { to { transform: rotate(360deg); } }
+/* reduced motion = a STATIC ring (no rotation at all) */
+@media (prefers-reduced-motion: reduce) {
+  .c-mviewer__spinner { animation: none; }
+}

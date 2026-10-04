@@ -721,5 +721,12 @@
   "copyLink": "复制链接",
   "photoPreviewsTitle": "在聊天中显示照片预览",
   "photoPreviewsHint": "你发送或下载的照片会在聊天中显示为图片。关闭：所有照片都显示为文件卡片。",
-  "newReaction": "新回应"
+  "newReaction": "新回应",
+  "sharedShowInDownloads": "在下载中显示",
+  "sharedDeleteLocal": "从此设备删除",
+  "sharedDeleteLocalTitle": "从此设备删除？",
+  "sharedDeleteLocalBody": "“{name}”将从此设备中删除。消息仍保留在聊天中。",
+  "viewerFailed": "无法打开此图片。",
+  "groupCounter": "{n} / {max}",
+  "groupLimitNote": "群组除你之外最多可有 10 名成员。"
 }

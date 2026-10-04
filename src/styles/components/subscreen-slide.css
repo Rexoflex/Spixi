@@ -1,7 +1,8 @@
 /* ★ Session H — the in-shell subscreen slide (subscreen-slide.js; DECISIONS #707/#718)
    ONE grammar for the views a shell mounts itself, matching the native overlay slide:
-   enter 300 ms on --easing-standard, exit 220 ms on --easing-accelerate (the CSS
-   cubic-in, = SpixiContentPage's Easing.CubicIn). Keyframes drive the motion so the JS
+   enter 220 ms on --easing-standard, exit 160 ms on --easing-accelerate (the CSS
+   cubic-in, = SpixiContentPage's Easing.CubicIn). ★ #1166 lever 12 (#1165 (4)): was
+   300 / 220; the C# ScreenSlideInMs / ScreenSlideOutMs carry the same pair. Keyframes drive the motion so the JS
    can read `animation-name` back — desktop and reduced-motion answer "none" HERE and the
    JS swaps synchronously; nothing is decided twice. */
 
@@ -27,8 +28,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    layer, gone at animationend/backstop. z-30 = the same plane as the layer it guards. */
 .c-subslide-shield { position: fixed; inset: 0; z-index: var(--z-30); background: transparent; }
 
-.c-subslide--in  { animation: c-subslide-in  var(--duration-300) var(--easing-standard) both; }
-.c-subslide--out { animation: c-subslide-out 220ms var(--easing-accelerate) both; pointer-events: none; }
+.c-subslide--in  { animation: c-subslide-in  220ms var(--easing-standard) both; }   /* ★ #1166 lever 12: = ScreenSlideInMs (was --duration-300) */
+.c-subslide--out { animation: c-subslide-out 160ms var(--easing-accelerate) both; pointer-events: none; }   /* ★ #1166 lever 12: = ScreenSlideOutMs (was 220ms) */
 
 @keyframes c-subslide-in  { from { transform: translateX(var(--subslide-from)); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes c-subslide-out { from { transform: none; opacity: 1; } to { transform: translateX(var(--subslide-from)); opacity: 0; } }

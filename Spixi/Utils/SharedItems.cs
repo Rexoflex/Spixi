@@ -42,6 +42,10 @@ namespace SPIXI
         [JsonIgnore] public string? path = null;   // C# ONLY — never serialized
         [JsonIgnore] public string? url = null;    // C# ONLY — the click target (https:// added to a scheme-less link)
         public string? thumb = null;  // data: URI (small local images only) or null
+        /* ★ #1166 V-3 (#1154): a RECEIVED file (not sent by me) — the 9th tuple field (append-only; an older shell reads 8
+         * and ignores it). The shell offers "Delete from this device" / "Show in Downloads" only for received + local. */
+        public bool received = false;
+        [JsonIgnore] public FriendMessage? message = null;   // C# ONLY — re-checked at delete time (the path can be reused, #46 r5 R5-3)
     }
 
     public static class SharedItems
@@ -103,7 +107,7 @@ namespace SPIXI
         private static readonly Dictionary<string, string?> thumbCache = new Dictionary<string, string?>(StringComparer.Ordinal);
         private const int ThumbCacheMax = 200;   // (#46 r1 A5) ≤ 200 × ≤ 64 KB
 
-        private static byte[] readHead(string path)
+        internal static byte[] readHead(string path)   // ★ #1166 V-3: ViewerImage reads the same 16 bytes
         {
             byte[] head = new byte[16];
             using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -294,6 +298,7 @@ namespace SPIXI
                         {
                             id = id, channel = ch, kind = isImageName(name) ? "media" : "file", label = name,
                             size = size != 0 ? size : fm.fileSize, ts = fm.timestamp, local = local != null, path = local, depth = depth,
+                            received = !fm.localSender, message = fm,   // ★ #1166 V-3 (#1154)
                         });
                     }
                     else if (fm.type == FriendMessageType.standard)
@@ -342,7 +347,60 @@ namespace SPIXI
 
         public static string toJson(List<SharedItem> items)
         {
-            return JsonConvert.SerializeObject(items.Select(x => new object?[] { x.id, x.n, x.kind, x.label, x.size, x.ts, x.local ? 1 : 0, x.thumb }));
+            // ★ #1166 V-3 (#1154): field 9 = received (1/0), APPENDED — an older shell reads the first 8
+            return JsonConvert.SerializeObject(items.Select(x => new object?[] { x.id, x.n, x.kind, x.label, x.size, x.ts, x.local ? 1 : 0, x.thumb, x.received ? 1 : 0 }));
+        }
+
+        /* ★ #1166 V-3 (#1154) "Delete from this device": the local copy of a RECEIVED file, resolved by C# from its OWN
+         * last scan (the item), re-checked NOW: the ViewerRules rule (received + a local path inside the Downloads root —
+         * TransferManager.isInsideDownloadsRoot, the purge rule) AND the file at that path is STILL this message's
+         * (fileMatches — a delete + a same-named download reuses the path). A SENT file — the picker's original — is never
+         * deleted. No WebView string reaches this method. Off the UI thread (the caller). true = deleted, false = refused;
+         * an IO failure THROWS (the caller logs the exception TYPE — this file logs counts only, the #1106 rule). */
+        public static bool deleteLocal(SharedItem? item)
+        {
+            if (item == null || item.message == null || item.message.localSender)
+            {
+                return false;
+            }
+            string? p = item.path;
+            bool inside = p != null && TransferManager.isInsideDownloadsRoot(p);
+            if (!ViewerRules.mayDeleteLocal(item.kind, item.received, p != null, inside) || p == null)
+            {
+                return false;
+            }
+            if (!File.Exists(p) || !fileMatches(item.message, p))
+            {
+                return false;
+            }
+            File.Delete(p);
+            return true;
+        }
+
+        /* ★ #1166 V-3 (#1154) "Show in Downloads": the Downloads list's own row key (the stored file NAME — the list is
+         * built from Directory.EnumerateFiles(downloadsPath) and keyed by Path.GetFileName) of a RECEIVED file whose local
+         * copy sits in the Downloads root; null = not shown there. Never a path. */
+        public static string? downloadsNameOf(SharedItem? item)
+        {
+            try
+            {
+                if (item == null || item.message == null || item.message.localSender)
+                {
+                    return null;
+                }
+                string? p = item.path;
+                bool inside = p != null && TransferManager.isInsideDownloadsRoot(p);
+                if (!ViewerRules.mayShowInDownloads(item.kind, item.received, p != null, inside) || p == null || !File.Exists(p))
+                {
+                    return null;
+                }
+                string name = Path.GetFileName(p);
+                return string.IsNullOrEmpty(name) ? null : name;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         /** The item the WebView named ("<hex id>:<n>"), from C#'s OWN last scan of this conversation; null = unknown. */

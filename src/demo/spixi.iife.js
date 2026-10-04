@@ -4800,6 +4800,7 @@ function bubbleAvatarSize() {
 
 
 
+
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
 }
@@ -5365,12 +5366,11 @@ function setMessageStatus(row, status, strings = getStrings(), opts = {}) {
 function syncFileTickAria(row, tick) {
   const fb = row.querySelector('.c-fbubble[data-aria-base], .c-mbubble[data-aria-base]');   // ★ A5 #1124: …or an image file's tile
   if (!fb) return;
-  /* #46 r2 R2-N2 · r3 R3-m2: a photo tile OR a file card still SENDING is named "Sending IMG.jpg" alone (typed-bubbles fileTileAria — one rule
-     for the build and this live path); the tick joins the name once the transfer is final — r4 MINOR-1 (#1035): a delivered / read tick
-     (anything but the neutral sent / sending glyph) joins it at once */
-  const sending = fb.matches('.c-mbubble[data-file="progress"], .c-fbubble[data-state="progress"]');   // #46 r3 R3-m2: the card too
-  const label = sending && tick && tick.dataset.tone === 'neutral' ? null : tick && tick.getAttribute('aria-label');
-  fb.setAttribute('aria-label', fb.dataset.ariaBase + (label ? ', ' + label : ''));
+  /* ★ #1166 r5 NIT-1: the build and this live path name the file by ONE rule — typed-bubbles.js fileNameAria (a SENDING
+     file of mine is "Sending IMG.jpg" alone; a delivered / read tick joins at once; a final file takes its tick). The new
+     tick is already in place here (the crossfade put it after the ghost; the plain swap replaced the old one). */
+  void tick;
+  fb.setAttribute('aria-label', fileNameAria(fb));
 }
 
 /* ★★ #1028 (walk P.13, "the icon swaps, no fade"): a TRUE crossfade. #1010 only faded the NEW glyph in
@@ -6771,14 +6771,12 @@ function createFileBubble({
     tick.removeAttribute('aria-hidden');
     tick.setAttribute('role', 'img');
     tick.setAttribute('aria-label', strings['status-' + status] || status);
-    /* #46 r3 R3-m2 (the tile's R2-N2 rule): while MY file is still sending a plain sent/sending tick is the message's, not the file's —
-       r4 MINOR-1 (#1035): a delivered / read tick stays in the name while it sends */
-    if (state !== 'progress' || tick.dataset.tone !== 'neutral') el.setAttribute('aria-label', el.dataset.ariaBase + ', ' + tick.getAttribute('aria-label'));
     const stamp = document.createElement('span');
     stamp.className = 'c-fbubble__stamp';
     if (stampTime) stamp.append(stampTime);
     stamp.append(tick);
     el.append(stamp);
+    el.setAttribute('aria-label', fileNameAria(el));   // ★ #1166 r5 NIT-1: the ONE rule (card · tile · live)
   } else if (stampTime) {
     el.append(stampTime);
   }
@@ -6952,13 +6950,19 @@ function fileFace(state, name, progress, strings, direction) {
   return face;
 }
 
-function fileTileAria(tile) {
-  /* #46 r2 R2-N2: while MY file is still sending the tick is the MESSAGE's ("Sent"), not the file's — the name says
-     "Sending IMG.jpg" alone; the tick joins it once the transfer is final — r4 MINOR-1 (#1035): a delivered / read tick joins it at once */
-  const tk = tile.querySelector('.c-mbubble__stamp .c-status-icon:not([data-exit])');
-  if (tk && tile.dataset.file === 'progress' && tk.dataset.tone === 'neutral') return tile.dataset.ariaBase || '';
+/** ★ #1166 r5 NIT-1: THE accessible name of a file card OR a photo-file tile, from ONE input — the element itself (its
+ *  live state attribute, its base label, its current tick). It replaces two copies of one rule (the card read its
+ *  `state` option, the tile its data-file) and the live path in message-bubble.js syncFileTickAria calls it too.
+ *  #46 r2 R2-N2 · r3 R3-m2: while MY file is still SENDING the plain sent / sending tick is the MESSAGE's, not the
+ *  file's — the name says "Sending IMG.jpg" alone; r4 MINOR-1 (#1035): a delivered / read tick joins it at once. */
+function fileNameAria(fileEl) {
+  const base = (fileEl && fileEl.dataset.ariaBase) || '';
+  if (!fileEl) return base;
+  const tk = fileEl.querySelector('.c-fbubble__stamp .c-status-icon:not([data-exit]), .c-mbubble__stamp .c-status-icon:not([data-exit])');
   const t = tk && tk.getAttribute('aria-label');
-  return (tile.dataset.ariaBase || '') + (t ? ', ' + t : '');
+  if (!t) return base;
+  const sending = fileEl.matches('.c-mbubble[data-file="progress"], .c-fbubble[data-state="progress"]');
+  return sending && tk.dataset.tone === 'neutral' ? base : base + ', ' + t;
 }
 
 /** ★ A5 #1124: an image FILE message as a media tile (the shell decides when — setPhotoPreviews + isPhotoFileName).
@@ -6994,7 +6998,7 @@ function createImageFileBubble({
        FILE (the CTA says "Open file"); no media retry loop on a bad picture. #1147 (5): its face comes back. */
     onSrcError: () => { unquiet(); if (onThumbError) { try { onThumbError(); } catch (_) {} } },
     instantIfShown: true,   // #46 r3 R3-m1: a re-render does not re-fade a picture this document already showed
-    ariaFor: (s, tile) => fileTileAria(tile),
+    ariaFor: (s, tile) => fileNameAria(tile),
   });
   const el = row.querySelector('.c-mbubble');
   tileEl = el;
@@ -7039,7 +7043,7 @@ function createImageFileBubble({
     stamp.append(tick);
     el.append(stamp);
   }
-  el.setAttribute('aria-label', fileTileAria(el));
+  el.setAttribute('aria-label', fileNameAria(el));
   if (onCancel) {   // #334: the pre-accept Cancel, a SIBLING of the tile (the tile is a <button>)
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
@@ -7076,7 +7080,7 @@ function setImageFileProgress(rowEl, tile, p, opts) {
   const next = fileFace(finalState, ctl.name, p, strings, ctl.direction);
   if (face) face.replaceWith(next); else tile.append(next);
   tile.dataset.ariaBase = tileAria(finalState, ctl.name, strings, ctl.direction);
-  tile.setAttribute('aria-label', fileTileAria(tile));
+  tile.setAttribute('aria-label', fileNameAria(tile));
 }
 
 /** The shell's late preview (setFileThumb, or a tile that just completed): load it through the tile's own machine,
@@ -7127,8 +7131,7 @@ function setFileProgress(rowEl, progress, opts = {}) {
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
     bubble.dataset.ariaBase = fileAria(finalState, nm ? nm.textContent : '', strings);
-    const tk = bubble.querySelector('.c-fbubble__stamp .c-status-icon:not([data-exit])');   // ★ #1035: keep the tick's state in the name
-    bubble.setAttribute('aria-label', bubble.dataset.ariaBase + (tk && tk.getAttribute('aria-label') ? ', ' + tk.getAttribute('aria-label') : ''));
+    bubble.setAttribute('aria-label', fileNameAria(bubble));   // ★ #1035: keep the tick's state in the name — ★ #1166 r5 NIT-1: the one rule
     // ★ #1021: the tile keeps its extension; only the corner badge follows the state
     const ic = bubble.querySelector('.c-fbubble__icon');
     if (ic) {
@@ -8182,18 +8185,34 @@ function createSystemNotice({
  * nearing the top auto-fires `ixian:loadmore`, a spinner row shows, and the
  * scroll anchor is preserved when older rows prepend).
  *
- * attachLazyHistory(box, { onLoadMore, threshold = 160, strings })
+ * attachLazyHistory(box, { onLoadMore, threshold = 160, strings, canLoad, spinner = true, keepPosition = true })
  *   box        — the scrolling message container (role=log)
  *   onLoadMore — shell hook: fire ixian:loadmore, PREPEND the older rows,
  *                then resolve. Resolve `false` when history is exhausted
- *                (detaches — no further loads).
+ *                (detaches — no further loads). Resolve `0` when the load
+ *                added nothing: no automatic re-check (a scroll re-arms it),
+ *                so an empty answer can never loop the verb.
+ *   threshold  — px from the top that fires a load; a number, or a function
+ *                read at each check (★ #1166 B2: the chat shell passes ~one
+ *                screen, so the next page is asked for before the top is hit).
+ *   canLoad    — optional predicate read FIRST at each check (★ #1166 B2: the
+ *                chat shell's "C# says more exists, nothing in flight, not the
+ *                pill mode") — false = this scroll does nothing.
+ *   spinner    — false: the host paints its own loading row (★ #1166 B2: the
+ *                chat shell rebuilds its log from a model, so a row poked in
+ *                from here would be destroyed by the next render).
+ *   keepPosition — false: the host restores the reading position itself
+ *                (★ #1166 B2: the chat shell anchors by the first VISIBLE row
+ *                at the moment the rows land — a height delta measured at the
+ *                request would double-apply on top of it).
  *   Re-entrancy guarded; scroll restored so the previously-visible message
- *   stays put (scrollTop += height delta).
- * Returns { setDone() } — shell can end pagination early (e.g. chat cleared).
+ *   stays put (scrollTop += height delta) unless keepPosition is false.
+ * Returns { setDone(), check() } — shell can end pagination early (e.g. chat
+ * cleared) or ask for a check without a scroll event.
  */
 
 
-function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStrings() } = {}) {
+function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStrings(), canLoad = null, spinner: useSpinner = true, keepPosition = true } = {}) {
   let loading = false;
   let done = false;
 
@@ -8209,26 +8228,33 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
     return row;
   };
 
+  const limit = () => {
+    const t = typeof threshold === 'function' ? threshold() : threshold;
+    return Number.isFinite(t) ? t : 160;
+  };
+
   const check = () => {
     if (loading || done || !onLoadMore) return;
-    if (box.scrollTop > threshold) return;
+    if (canLoad && !canLoad()) return;
+    if (box.scrollTop > limit()) return;
     loading = true;
     const h0 = box.scrollHeight; // anchor BEFORE spinner + new rows
-    const sp = spinner();
-    box.prepend(sp);
+    const sp = useSpinner ? spinner() : null;
+    if (sp) box.prepend(sp);
     Promise.resolve(onLoadMore()).then((result) => {
-      sp.remove();
+      if (sp) sp.remove();
       // keep the previously-visible message in place after the prepend
-      box.scrollTop += box.scrollHeight - h0;
+      if (keepPosition) box.scrollTop += box.scrollHeight - h0;
       if (result === false) {
         done = true;
         box.removeEventListener('scroll', check);
       }
       loading = false;
-      // content may still sit above the threshold (short pages) — re-check
-      if (!done) check();
+      // content may still sit above the threshold (short pages) — re-check;
+      // a load that added nothing waits for the next scroll instead (#1166 B2)
+      if (!done && result !== 0) check();
     }).catch(() => {
-      sp.remove();
+      if (sp) sp.remove();
       loading = false; // failed page loads stay retryable on the next scroll
     });
   };
@@ -8239,6 +8265,7 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
       done = true;
       box.removeEventListener('scroll', check);
     },
+    check,
   };
 }
 
@@ -8684,13 +8711,15 @@ function attachEdgeBack({ onBack, target = document } = {}) {
  * component, attached where each shell swaps its view.
  *
  * THE MOTION IS THE NATIVE ONE, NOT A SECOND ONE. `SpixiContentPage.revealStage` enters
- * in 300 ms on `--easing-standard` (cubic-bezier(0.2, 0, 0, 1)) and exits in 220 ms on
+ * in 220 ms on `--easing-standard` (cubic-bezier(0.2, 0, 0, 1)) and exits in 160 ms on
  * `Easing.CubicIn`; the CSS here reads the same token for the entry and
  * `--easing-accelerate` (the CSS cubic-in) for the exit, and a smoke pin holds the two
  * durations equal to the C# constants. The work order said 220/220; the C# it mirrors
  * says 300/220 (#326's asymmetry — "an exit that matches the entry feels slow"), and a
  * shell view that moves at a different speed from the page beside it would read as a
  * different kind of screen, which is the very thing this row removes.
+ * ★ #1166 lever 12 (#1165 (4)): the pair is now 220 / 160 on both sides (was 300 / 220);
+ * close stays faster than open.
  *
  * WHERE IT NEVER RUNS: under `:root[data-desktop]` (#704 — desktop only chat info slides)
  * and under `prefers-reduced-motion: reduce`. Both are decided by the STYLESHEET
@@ -8721,8 +8750,8 @@ function attachEdgeBack({ onBack, target = document } = {}) {
 
 const inflight = new WeakMap();   // host → { finish }
 
-const ENTER_MS = 300;             // = SpixiContentPage.ScreenSlideInMs
-const EXIT_MS = 220;              // = the C# exit (Easing.CubicIn, 220)
+const ENTER_MS = 220;             // = SpixiContentPage.ScreenSlideInMs (★ #1166 lever 12: was 300)
+const EXIT_MS = 160;              // = SpixiContentPage.ScreenSlideOutMs (Easing.CubicIn; ★ #1166 lever 12: was 220)
 
 /** Does the stylesheet grant this element a slide at all? Reads the computed animation
  *  so desktop / reduced-motion / a missing stylesheet all answer "no" the same way. */
@@ -8755,7 +8784,7 @@ function run(host, el, cls, positioned, ms, done) {
      still opaque and barely moved (cubic-in starts slow) — a tap in the first frames
      passed THROUGH the dying screen onto the view being revealed (contacts row → the
      chats list under it opened an unrelated conversation). A transparent shield eats
-     taps for the exit's 220 ms, exactly as the native stage does while it slides out;
+     taps for the exit's 160 ms, exactly as the native stage does while it slides out;
      it dies with the animation, and the synchronous no-motion path removes it in the
      same call. Exit only — an entering layer catches its own taps. */
   let shield = null;
@@ -9166,13 +9195,40 @@ function openMemberSheet({
  * unreachable — freeze audit); focus contained, back-hook via
  * dismissTopOverlay.
  *
- * openMediaViewer({ host, src, alt, kind, onSave, strings }) → el
+ * openMediaViewer({ host, src, alt, kind, onSave, token, strings }) → el
  *   onSave — shell hook (P2P: saving = local file op via bridge); omitted =
  *   no Save button.
+ *   ★ #1166 V-3 (#1144 / #1145 (1)) token — a string naming the picture C# is making (the chat: the message id hex;
+ *   chat info: "<id hex>:<n>"). With a token the viewer opens in a LOADING state: it shows `src` (the tile's thumbnail,
+ *   may be '') under a subtle spinner, aria-busy="true", until the shell calls
+ *     el.setSrc(uri)  — the viewer-size picture arrived: only a `data:image/jpeg;base64,…` URI is taken (anything else
+ *                       = setFailed); the busy state ends;
+ *     el.setFailed()  — the picture could not be made: the busy state ends, the thumbnail stays. The SHELL shows the
+ *                       `viewerFailed` toast (one place per shell — this component never toasts).
+ *   A viewer still busy after VIEWER_WAIT_MS stops the spinner by itself (an older exe never answers) and keeps the thumbnail.
+ *   findOpenViewer(token) → the OPEN viewer opened for exactly that token, or null (a closed one is never returned,
+ *   so a late push lands nowhere). Without a token the viewer is today's: no loading state, src as given.
  */
 
 
 
+
+/** ★ #1166 V-3: the one data URI shape the viewer takes from C# (the contract regex). */
+const VIEWER_URI_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+=*$/;
+const VIEWER_WAIT_MS = 20000;
+const openViewers = new Set();   // ★ #1166 V-3: viewers opened WITH a token (pruned when closed)
+
+/** ★ #1166 V-3: the open viewer opened for `token`, or null. */
+function findOpenViewer(token) {
+  const t = String(token == null ? '' : token);
+  if (!t) return null;
+  let hit = null;
+  for (const v of [...openViewers]) {
+    if (!isOverlayOpen(v)) { openViewers.delete(v); continue; }   // closed (the stack entry goes at dismissal)
+    if (v._viewerToken === t) hit = v;   // the NEWEST open one wins (a re-tap opens a second viewer on top)
+  }
+  return hit;
+}
 
 function openMediaViewer({
   host,
@@ -9180,6 +9236,7 @@ function openMediaViewer({
   alt = '',
   kind = 'image',
   onSave,
+  token = '',
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
@@ -9225,11 +9282,49 @@ function openMediaViewer({
   stage.className = 'c-mviewer__stage';
   const img = document.createElement('img');
   img.className = 'c-mviewer__img';
-  img.src = src;
+  if (src || !token) img.src = src;   // ★ #1166 V-3: a loading viewer with no thumbnail sets no src ('' would load the page URL)
   img.alt = ''; // the dialog carries the accessible name
   img.draggable = false; // mouse-drag fix: native image drag hijacked the pointer stream
   stage.append(img);
   el.append(stage);
+
+  /* ★ #1166 V-3: the loading state — a subtle spinner on a scrim disc over the thumbnail (media-bubble's spinner
+     grammar); prefers-reduced-motion = a static ring (css). setSrc / setFailed / the wait end it. */
+  const tok = token == null ? '' : String(token);
+  let waitT = 0;
+  const endBusy = () => {
+    if (waitT) { clearTimeout(waitT); waitT = 0; }
+    el.removeAttribute('aria-busy');
+    delete el.dataset.loading;
+    const sp = stage.querySelector('.c-mviewer__loading');
+    if (sp) sp.remove();
+  };
+  el.setSrc = (uri) => {
+    const u = String(uri == null ? '' : uri);
+    if (!VIEWER_URI_RE.test(u)) { el.setFailed(); return false; }
+    img.src = u;
+    delete el.dataset.failed;
+    endBusy();
+    return true;
+  };
+  el.setFailed = () => {
+    endBusy();
+    el.dataset.failed = '';
+  };
+  if (tok) {
+    el._viewerToken = tok;
+    el.setAttribute('aria-busy', 'true');
+    el.dataset.loading = '';
+    const ld = document.createElement('div');
+    ld.className = 'c-mviewer__loading';
+    ld.setAttribute('aria-hidden', 'true');
+    const sp = document.createElement('span');
+    sp.className = 'c-mviewer__spinner';
+    ld.append(sp);
+    stage.append(ld);
+    waitT = setTimeout(() => { waitT = 0; if (el.dataset.loading !== undefined) endBusy(); }, VIEWER_WAIT_MS);
+    openViewers.add(el);
+  }
   stage.addEventListener('dragstart', (e) => e.preventDefault());
 
   // #336 (Damir F5 iOS #1): prominent bottom-centered CLOSE — easy to spot + reach,
@@ -9279,7 +9374,13 @@ function openMediaViewer({
   stage.addEventListener('pointerup', endDrag);
   stage.addEventListener('pointercancel', endDrag);
 
-  setOverlayOpts(el, { host, lightDismiss: true, escDismiss: true });
+  /* ★ #1166 V-3 (#46 r1 C-N4): every close path (✕, swipe, Esc, back) clears the wait timer and drops the viewer from
+     openViewers — a closed viewer is never found and holds nothing. */
+  const onClosed = () => {
+    if (waitT) { clearTimeout(waitT); waitT = 0; }
+    openViewers.delete(el);
+  };
+  setOverlayOpts(el, { host, lightDismiss: true, escDismiss: true, onDismiss: onClosed });
   openOverlay(el);
   return el;
 }
@@ -11192,8 +11293,82 @@ function avatarCacheFor(listEl) {
   return c;
 }
 
-/** (Re)render the whole list from the model. Full re-render for the scaffold
- *  (row-level diffing is a logged enhancement — spec §9). Returns listEl. */
+/* ★ #1166 P-03 — ONE row builder for the full render and the one-row patch: a patched row is the row a full
+ * render builds from the same model. */
+function buildChatRequestNode(r, opts, strings) {
+  const node = createContactRequest({
+    ...r, strings, host: opts.host,
+    onAccept: opts.onRequestAccept ? (row) => opts.onRequestAccept(r, row) : undefined,
+    onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
+  });
+  if (r && r.address) node.dataset.requestAddress = String(r.address);   // ★ #1166 P-03: the patch's order key
+  return node;
+}
+
+/** Build one chat row (the swipe wrapper when the row has one). `ctx` = { strings, caps, avCache, avatarSeen, liftedRow }. */
+function buildChatRowNode(listEl, state, c, opts, ctx) {
+  const { strings, caps, avCache, avatarSeen, liftedRow } = ctx;
+  // handshaking chats (#109) are not yet openable — tapping routes to
+  // onHandshakeBlocked, and they carry no pin/mute affordances until secured.
+  const onClick = c.handshaking
+    ? (opts.onHandshakeBlocked ? () => opts.onHandshakeBlocked(c) : undefined)
+    : (opts.onOpen ? () => opts.onOpen(c) : undefined);
+  const el = createChatItem({ ...c, strings, onClick });
+  // N58: swap in the cached (already-decoded) avatar node when the photo inputs
+  // match. `name` is in the freshness set only for the onerror-placeholder path
+  // (initials) — a nick change costs one honest re-decode.
+  if (c.address && c.avatar && !avatarSeen.has(c.address)) {
+    avatarSeen.add(c.address);
+    const nm = (c.name && c.name !== c.address) ? c.name : '';
+    const fresh = el.querySelector('.c-avatar');
+    const hit = avCache.get(c.address);
+    if (fresh && hit && hit.src === c.avatar && hit.group === (c.type === 'group') && hit.name === nm) {
+      const dot = hit.el.querySelector('.c-avatar__dot');       // presence patched in place, never a re-decode
+      if (c.online && !dot) {
+        const d = document.createElement('span');
+        d.className = 'c-avatar__dot';
+        hit.el.append(d);
+      } else if (!c.online && dot) dot.remove();
+      fresh.replaceWith(hit.el);
+    } else if (fresh) {
+      avCache.set(c.address, { el: fresh, src: c.avatar, group: c.type === 'group', name: nm });
+    }
+  }
+  if (c.pinned) el.dataset.pinned = '';                // shell markers for pin/mute
+  if (c.muted) el.dataset.muted = '';
+  if (c.handshaking) {                                 // #109: no open/swipe/pin — but a cancel menu so a stalled handshake is recoverable
+    el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
+    if (opts.rowMenu !== false) {
+      attachChatRowMenu(el, {
+        chat: c, host: opts.host, strings, handshaking: true,
+        onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
+      });
+    }
+    return el;
+  }
+  if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
+    attachChatRowMenu(el, {
+      chat: c, host: opts.host, strings, capabilities: caps,
+      onNeedGroups: opts.onNeedGroups,                 // A4/A5: the remove-contact sheet asks C# for the shared groups
+      onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
+    });
+  }
+  // swipe accelerator (step 5) — capability-gated; returns el unwrapped if parked
+  const node = wrapChatRowSwipe(el, {
+    chat: c, capabilities: caps, strings,
+    onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
+  });
+  /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
+     ANY chat is enough. Without this the row under an open anchored menu drops back
+     beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
+  if (c.address && c.address === liftedRow) {
+    node.dataset.menuLift = 'row';
+  }
+  return node;
+}
+
+/** (Re)render the whole list from the model. Full re-render; the row-level path is
+ *  patchChatRows below (★ #1166 P-03). Returns listEl. */
 function renderChatsList(listEl, state, opts = {}) {
   const strings = opts.strings || getStrings();
   const caps = opts.capabilities || {};
@@ -11204,74 +11379,18 @@ function renderChatsList(listEl, state, opts = {}) {
      opens a menu into a shell the user has already left. See chats-row-menu.js. */
   clearChatRowMenuTimers();
   listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
-  const avCache = avatarCacheFor(listEl);                // N58
-  const avatarSeen = new Set();                          // N58: dup-address guard (a node must never be moved twice per render)
-
-  const renderRequest = (r) => {
-    listEl.append(createContactRequest({
-      ...r, strings, host: opts.host,
-      onAccept: opts.onRequestAccept ? (row) => opts.onRequestAccept(r, row) : undefined,
-      onDecline: opts.onRequestDecline ? () => opts.onRequestDecline(r) : undefined,
-    }));
+  const ctx = {
+    strings, caps,
+    avCache: avatarCacheFor(listEl),                     // N58
+    avatarSeen: new Set(),                               // N58: dup-address guard (a node must never be moved twice per render)
+    liftedRow: liftedRowAddress(),                       // review MINOR-3: read ONCE per render
   };
-  const liftedRow = liftedRowAddress();   // review MINOR-3: read ONCE per render
-  const renderChat = (c) => {
-    // handshaking chats (#109) are not yet openable — tapping routes to
-    // onHandshakeBlocked, and they carry no pin/mute affordances until secured.
-    const onClick = c.handshaking
-      ? (opts.onHandshakeBlocked ? () => opts.onHandshakeBlocked(c) : undefined)
-      : (opts.onOpen ? () => opts.onOpen(c) : undefined);
-    const el = createChatItem({ ...c, strings, onClick });
-    // N58: swap in the cached (already-decoded) avatar node when the photo inputs
-    // match. `name` is in the freshness set only for the onerror-placeholder path
-    // (initials) — a nick change costs one honest re-decode.
-    if (c.address && c.avatar && !avatarSeen.has(c.address)) {
-      avatarSeen.add(c.address);
-      const nm = (c.name && c.name !== c.address) ? c.name : '';
-      const fresh = el.querySelector('.c-avatar');
-      const hit = avCache.get(c.address);
-      if (fresh && hit && hit.src === c.avatar && hit.group === (c.type === 'group') && hit.name === nm) {
-        const dot = hit.el.querySelector('.c-avatar__dot');       // presence patched in place, never a re-decode
-        if (c.online && !dot) {
-          const d = document.createElement('span');
-          d.className = 'c-avatar__dot';
-          hit.el.append(d);
-        } else if (!c.online && dot) dot.remove();
-        fresh.replaceWith(hit.el);
-      } else if (fresh) {
-        avCache.set(c.address, { el: fresh, src: c.avatar, group: c.type === 'group', name: nm });
-      }
-    }
-    if (c.pinned) el.dataset.pinned = '';                // shell markers for pin/mute
-    if (c.muted) el.dataset.muted = '';
-    if (c.handshaking) {                                 // #109: no open/swipe/pin — but a cancel menu so a stalled handshake is recoverable
-      el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
-      if (opts.rowMenu !== false) {
-        attachChatRowMenu(el, {
-          chat: c, host: opts.host, strings, handshaking: true,
-          onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
-        });
-      }
-      listEl.append(el); return;
-    }
-    if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
-      attachChatRowMenu(el, {
-        chat: c, host: opts.host, strings, capabilities: caps,
-        onNeedGroups: opts.onNeedGroups,                 // A4/A5: the remove-contact sheet asks C# for the shared groups
-        onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
-      });
-    }
-    // swipe accelerator (step 5) — capability-gated; returns el unwrapped if parked
-    const node = wrapChatRowSwipe(el, {
-      chat: c, capabilities: caps, strings,
-      onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
-    });
-    /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
-       ANY chat is enough. Without this the row under an open anchored menu drops back
-       beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
-    if (c.address && c.address === liftedRow) {
-      node.dataset.menuLift = 'row';
-    }
+
+  // pinned chats on top, then requests + unpinned chats interleaved by recency
+  const timeline = orderedTimeline(state);
+  for (const { kind, item } of timeline) {
+    if (kind === 'request') { listEl.append(buildChatRequestNode(item, opts, strings)); continue; }
+    const node = buildChatRowNode(listEl, state, item, opts, ctx);
     listEl.append(node);
     /* ★ #606 r2 (adversarial review): the GHOST follows the re-render too. It is a
        snapshot pinned to a viewport rectangle, and the flush that replaced this row
@@ -11282,16 +11401,13 @@ function renderChatsList(listEl, state, opts = {}) {
        all zeros on a DETACHED node — so `paintRowGhost`'s own measurement guard declined
        and the ghost was deleted and never rebuilt. Every flush killed it. The hazard is
        named in paintRowGhost's own comment and this call site reproduced it. */
-    if (c.address && c.address === liftedRow) {
+    if (!item.handshaking && item.address && item.address === ctx.liftedRow) {
       try { repaintRowGhost(node); } catch (e) { /* ghost is an enhancement */ }
     }
-  };
-
-  // pinned chats on top, then requests + unpinned chats interleaved by recency
-  const timeline = orderedTimeline(state);
-  for (const { kind, item } of timeline) (kind === 'request' ? renderRequest : renderChat)(item);
+  }
   // N58: bound the decode cache — prune only when over the cap, and only keys the
   // CURRENT render did not use (a search render must not evict the full list).
+  const { avCache, avatarSeen } = ctx;
   if (avCache.size > AVATAR_CACHE_MAX) {
     for (const k of avCache.keys()) {
       if (avCache.size <= AVATAR_CACHE_MAX) break;
@@ -11304,6 +11420,53 @@ function renderChatsList(listEl, state, opts = {}) {
     if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
   }
   return listEl;
+}
+
+/* ★ #1166 P-03 — PATCH ROWS IN PLACE (a status tick, a typing edge, a reaction, a new avatar). Replaces ONLY the
+ * named rows, and only when the list on screen shows exactly the model's timeline in order (chat rows keyed by
+ * data-address, request cards by data-request-address). A reorder, a filter/search change, a row not shown yet,
+ * the empty state, a request card or a row under an open anchored menu → false: the caller renders in full.
+ * Other rows keep their nodes (an open swipe drawer, an armed long press). Returns true when patched. */
+function chatRowNodeKey(node) {
+  if (!node || node.nodeType !== 1) return null;
+  if (node.classList.contains('c-contact-request')) return 'r:' + (node.dataset.requestAddress || '');
+  const btn = node.classList.contains('c-chatlist-item') ? node : node.querySelector('.c-chatlist-item');
+  return btn && btn.dataset.address ? 'c:' + btn.dataset.address : null;
+}
+
+function patchChatRows(listEl, state, addresses, opts = {}) {
+  const want = new Set((addresses || []).filter(Boolean).map(String));
+  const timeline = orderedTimeline(state);
+  const kids = Array.from(listEl.children);
+  if (!timeline.length || kids.length !== timeline.length) return false;
+  const targets = [];
+  const keys = new Set();
+  for (let i = 0; i < timeline.length; i++) {
+    const { kind, item } = timeline[i];
+    if (!item || !item.address) return false;              // no stable key → full render
+    const key = (kind === 'request' ? 'r:' : 'c:') + item.address;
+    if (keys.has(key) || chatRowNodeKey(kids[i]) !== key) return false;
+    keys.add(key);
+    if (want.has(String(item.address))) {
+      if (kind === 'request') return false;                // request cards stay on the full path
+      targets.push(i);
+    }
+  }
+  if (!targets.length) return true;                        // nothing named is on screen, and the screen is current
+  const liftedRow = liftedRowAddress();
+  if (targets.some((i) => timeline[i].item.address === liftedRow)) return false;
+  const ctx = {
+    strings: opts.strings || getStrings(),
+    caps: opts.capabilities || {},
+    avCache: avatarCacheFor(listEl),
+    avatarSeen: new Set(),
+    liftedRow,
+  };
+  for (const i of targets) {
+    const node = buildChatRowNode(listEl, state, timeline[i].item, opts, ctx);
+    kids[i].replaceWith(node);
+  }
+  return true;
 }
 
 /** Apply a row action (menu or swipe) to the model, then re-render (#44). Pin and
@@ -19759,7 +19922,8 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
  * c-shared — SHARED MEDIA · FILES · LINKS of one conversation (★★ #1106, be-cutover CI6; session 1 part 5).
  *
  * Fed by ContactDetails (`setSharedItems(json)`, ONE push, newest first, ≤ 200 items). An item:
- *   { id, n, kind: 'media'|'file'|'link', label, size, ts, local, thumb }
+ *   { id, n, kind: 'media'|'file'|'link', label, size, ts, local, thumb, received }
+ *   (★ #1166 V-3: `received` is the 9th wire field, appended — an older exe sends 8 → false → no received-only rows)
  *   · id + n is the ONLY thing a tap sends back (`ixian:sharedOpen:<id>:<n>`) — C# resolves the target itself;
  *   · thumb is a data: URI of a small local image, else null (a glyph shows) — never a path, never remote (#82);
  *   · a link shows its HOST first and the address as typed, nothing fetched (no preview — the IP leak, C14).
@@ -19770,7 +19934,8 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
  *   up to SHARED_INLINE_MAX of a kind in place, then "Show all N". A long press (or a right click) = onMenu(item).
  * createSharedList({ items, tab, strings, onOpen, onBack, onMenu }) → the "Show all" view: Media · Files · Links
  *   tabs, one structure for the desktop pane and the phone takeover. Empty kinds have no tab.
- * openSharedItemMenu({ item, host, strings, onAction }) → the long-press sheet: Open · Show in chat · Copy link.
+ * openSharedItemMenu({ item, host, strings, onAction }) → the long-press sheet: Open · Show in chat · Show in Downloads ·
+ *   Copy link · Delete from this device (★ #1166 V-3 / #1154: the last two rows only for a RECEIVED item with a local copy).
  */
 
 
@@ -19827,12 +19992,13 @@ function parseSharedItems(json) {
   const out = [];
   for (const r of rows.slice(0, 200)) {
     if (!Array.isArray(r) || r.length < 8) continue;
-    const [id, n, kind, label, size, ts, local, thumb] = r;
+    const [id, n, kind, label, size, ts, local, thumb, received] = r;
     if (typeof id !== 'string' || !/^[0-9a-fA-F]{1,128}$/.test(id) || !SHARED_KINDS.includes(kind)) continue;
     out.push({
       id, n: Number(n) || 0, kind, label: String(label || ''), size: Number(size) || 0, ts: Number(ts) || 0,
       local: local === 1 || local === true,
       thumb: typeof thumb === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,/.test(thumb) ? thumb : null,
+      received: received === 1 || received === true,   // ★ #1166 V-3 (#1154): field 9, absent on an older exe → false
     });
   }
   return out;
@@ -19890,7 +20056,9 @@ function sharedMediaTile(item, strings, onOpen, onMenu) {
     b.append(icon('photo', { size: 24 }));
     b.dataset.glyph = '';
   }
-  b.setAttribute('aria-label', (strings.sharedShowInChat || 'Show in chat') + ': ' + item.label);
+  /* ★ #1166 V-3 (#1144): a LOCAL image opens the in-app viewer (the shell's tap rule), so its name says Open; one not on
+     this device still jumps to the chat. */
+  b.setAttribute('aria-label', (item.local ? (strings.sharedOpen || 'Open') : (strings.sharedShowInChat || 'Show in chat')) + ': ' + item.label);
   b.addEventListener('click', () => onOpen && onOpen(item));
   attachSharedLongPress(b, item, onMenu);
   return b;
@@ -20030,9 +20198,12 @@ function createSharedSection({ items = [], strings = getStrings(), onOpen, onAll
 }
 
 /** ★ G-6 (#1119/#1120): the long-press menu of one shared item — a sheet titled with the item. Open (what a tap does) ·
- *  Show in chat · Copy link (links only); "Open" only for a link or a local file (#46 r1 B4). onAction('open' | 'show' | 'copy', item). Share / Save, Delete from this
- *  device and Delete message are NOT here: each needs a new verb, built after the BE answer (#1118, #1120) — no dead
- *  rows (#256). */
+ *  Show in chat · Copy link (links only); "Open" only for a link or a local file (#46 r1 B4) — ★ #1166 V-3: and a local
+ *  image (its tap is the viewer now, not the jump). ★ #1166 V-3 (#1154, Damir): "Show in Downloads" and "Delete from this
+ *  device" (destructive, last) for a RECEIVED media / file item with a local copy only — a sent file is the user's own
+ *  original and is never offered (C# refuses it too). onAction('open' | 'show' | 'downloads' | 'copy' | 'delete', item).
+ *  Share / Save and Delete message are NOT here: each needs a new verb, built after the BE answer (#1118, #1120) — no
+ *  dead rows (#256). */
 function openSharedItemMenu({ item, host, strings = getStrings(), onAction } = {}) {
   if (!item) return null;
   const content = document.createElement('div');
@@ -20040,22 +20211,27 @@ function openSharedItemMenu({ item, host, strings = getStrings(), onAction } = {
   const list = document.createElement('div');
   list.className = 'c-msgmenu__list';
   let sheet = null;
-  const add = (glyph, label, action) => {
+  const add = (glyph, label, action, destructive = false) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-msgmenu__item';
     b.dataset.action = action;
+    if (destructive) b.dataset.destructive = '';   // ★ #1166 V-3: the message-menu error ink (§5b)
     b.append(icon(glyph, { size: 20 }), document.createTextNode(label));
     b.addEventListener('click', () => { closeSheet(sheet); if (onAction) onAction(action, item); });
     list.append(b);
   };
   /* (#46 r1 B4) "Open" only where it is NOT the jump: a link (asks first, then the browser) and a file with a local copy
      (the system opens it). For media and a file not on this device the tap already IS "Show in chat" — one row, one action. */
-  if (item.kind === 'link' || (item.kind === 'file' && item.local)) {
-    add(item.kind === 'link' ? 'external-link' : 'file-isr', item.kind === 'link' ? (strings.openLink || 'Open') : (strings.sharedOpen || 'Open'), 'open');
+  if (item.kind === 'link' || ((item.kind === 'file' || item.kind === 'media') && item.local)) {
+    add(item.kind === 'link' ? 'external-link' : item.kind === 'media' ? 'photo' : 'file-isr',
+      item.kind === 'link' ? (strings.openLink || 'Open') : (strings.sharedOpen || 'Open'), 'open');
   }
   add('message', strings.sharedShowInChat || 'Show in chat', 'show');
+  const receivedLocal = (item.kind === 'media' || item.kind === 'file') && item.local && item.received;   // ★ #1166 V-3 (#1154)
+  if (receivedLocal) add('download', strings.sharedShowInDownloads || 'Show in Downloads', 'downloads');
   if (item.kind === 'link') add('copy', strings.copyLink || 'Copy link', 'copy');
+  if (receivedLocal) add('trash', strings.sharedDeleteLocal || 'Delete from this device', 'delete', true);
   content.append(list);
   const title = item.kind === 'link' ? (sharedLinkHost(item.label) || item.label) : item.label;
   sheet = createSheet({ title, content, host, strings });
@@ -21509,6 +21685,7 @@ function pickerRow(c, st) {
   const row = document.createElement('button');
   row.type = 'button';
   row.className = 'c-contacts__row';
+  if (c.address) row.dataset.address = String(c.address);   // ★ #1166 V-4: the cap sync finds the row
   if (c.pending) row.dataset.pending = '';
   if (blocked) {
     row.disabled = true;
@@ -21591,6 +21768,7 @@ function pickerRow(c, st) {
         syncNext(st);
         return;
       }
+      if (on && st.selected.size >= selectMax(st)) return;   // ★ #1166 V-4: the cap (the row is disabled too — belt)
       if (on) st.selected.add(c.address); else st.selected.delete(c.address);
       row.setAttribute('aria-checked', String(on));
       syncNext(st);
@@ -21667,6 +21845,7 @@ function renderPickerList(st) {
   empty.hidden = true;
   list.hidden = false;
   for (const c of matches) list.append(pickerRow(c, st));
+  syncGroupCap(st);                               // ★ #1166 V-4: a rebuilt list starts in the cap state
   list.scrollTop = prevScroll;                    // restore after the rebuild
 }
 
@@ -21675,6 +21854,7 @@ function pickerNext(st) {
   // F2 belt-and-braces: drop any falsy address that reached the Set anyway
   const sel = st.contacts.filter((c) => c.address && st.selected.has(c.address));
   if (sel.length < selectMin(st)) return;   // MAJOR-6: the action is disabled below the minimum
+  if (!isAppPick(st) && sel.length > GROUP_MAX_MEMBERS) return;   // ★ #1166 V-4: never past the cap (C# guards it too)
   // belt-and-braces: the app pick is single-target (the rows are radios, and
   // setPickerSelection is the only other way into the Set).
   st.opts.onNext(isAppPick(st) ? sel.slice(0, APP_MAX_TARGETS) : sel);
@@ -21691,7 +21871,31 @@ const GROUP_MIN_MEMBERS = 2;
 // relays to that single peer), so a second pick would be silently dropped.
 const APP_MIN_TARGETS = 1;
 const APP_MAX_TARGETS = 1;
+/* ★ #1166 V-4 (#1141): at most TEN picked members besides the creator — Core throws on a createGroup with more
+ * than 10 participants on every receiver (CreateGroupMessage.cs:58): nobody joins, nobody is told. C# belt:
+ * ChatsListRules.cs GroupLimit.MaxPicked in HomePage.HandlePickSucceeded. */
+const GROUP_MAX_MEMBERS = 10;
 function selectMin(st) { return isAppPick(st) ? APP_MIN_TARGETS : GROUP_MIN_MEMBERS; }
+function selectMax(st) { return isAppPick(st) ? APP_MAX_TARGETS : GROUP_MAX_MEMBERS; }
+
+/* ★ #1166 V-4: at the cap every unpicked checkbox row is disabled IN PLACE (focus kept) and described by the rule
+ * line, which says why (C9). Rows blocked for their own reason are not checkboxes and are left alone. */
+function syncGroupCap(st) {
+  if (!st.els.list) return;
+  const atCap = st.mode === 'multi' && !isAppPick(st) && st.selected.size >= GROUP_MAX_MEMBERS;
+  const hintId = st.els.minHint ? st.els.minHint.id : '';
+  for (const row of st.els.list.querySelectorAll('.c-contacts__row[role="checkbox"]')) {
+    const capped = atCap && row.getAttribute('aria-checked') !== 'true';
+    row.disabled = capped;
+    if (capped) {
+      row.dataset.capped = '';
+      if (hintId) row.setAttribute('aria-describedby', hintId);
+    } else if (row.hasAttribute('data-capped')) {
+      delete row.dataset.capped;
+      row.removeAttribute('aria-describedby');
+    }
+  }
+}
 // The multi-select confirm's label: "Next" (→ group setup) vs "Start" (→ launch).
 function confirmLabel(st) {
   const { strings } = st.opts;
@@ -21727,14 +21931,23 @@ function syncNext(st) {
   // the row under someone's finger. The line now STAYS and just changes what it says:
   // the rule while it's unmet, the live count once it is. Same element, same height,
   // no reflow. (role="status" makes the swap an SR announcement too.)
+  /* ★ #1166 V-4: group mode counts against the cap — "n / 10" once the minimum is met, and AT the cap the line
+     becomes the limit line (the rows it disables point at it). Same element, one line, no reflow. */
   if (st.els.minHint) {
     st.els.minHint.hidden = false;
-    st.els.minHint.textContent = n >= min
-      ? (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n))
+    const group = !isAppPick(st);
+    st.els.minHint.dataset.cap = group && n >= GROUP_MAX_MEMBERS ? 'full' : '';
+    st.els.minHint.textContent = (group && n >= GROUP_MAX_MEMBERS)
+      ? (strings.groupLimitNote || 'A group can have up to 10 members besides you.')
+      : n >= min
+      ? (group
+        ? (strings.groupCounter || '{n} / {max}').split('{n}').join(String(n)).split('{max}').join(String(GROUP_MAX_MEMBERS))
+        : (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n)))
       : (isAppPick(st)
         ? (strings.appNeedsOne || 'Select at least one contact or group to invite.')
         : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.'));
   }
+  syncGroupCap(st);
 }
 
 /* A7 (#348, Damir F5): the single-select title depends on WHY the picker is open.
@@ -21830,6 +22043,7 @@ function createContactsPicker({
   // multi-select rule line (review MINOR-2): says WHY the confirm is inert at <2.
   const minHint = document.createElement('p');
   minHint.className = 'c-contacts__minhint';
+  minHint.id = overlayId('contacts-minhint');   // ★ #1166 V-4: the capped rows' aria-describedby (unique per picker, the F17 rule)
   minHint.setAttribute('role', 'status');
   minHint.hidden = true;
   st.els.minHint = minHint;
@@ -29651,5 +29865,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

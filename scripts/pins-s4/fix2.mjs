@@ -91,7 +91,7 @@ export default async function (h) {
     const scp = cs('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
     const st = cs('Spixi/Meta/SReactionFlags.cs');
     const sites = (scp.match(/clearReactionFlag\(\);/g) || []).length;
-    const loadSite = /UIHelpers\.setContactStatus\(friend\.walletAddress, friend\.online, 0, "", 0\);\s*\}\s*clearReactionFlag\(\);/.test(scp);
+    const loadSite = /UIHelpers\.setContactStatus\(friend\.walletAddress, friend\.online, 0, "", 0\);\s*\}\s*if \(!prepend\)\s*\{\s*clearReactionFlag\(\);\s*\}/.test(scp);   /* ★ #1166 B2 re-base: on ENTERING only — a load-more prepend clears neither the count nor the heart */
     const r = {
       threeClears: sites === 3 && loadSite,
       clearRefreshes: /if \(friend != null && SReactionFlags\.clear\(friend\.walletAddress\.ToString\(\)\)\)\s*\{\s*UIHelpers\.shouldRefreshContacts = true;/.test(scp),

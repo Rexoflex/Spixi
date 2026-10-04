@@ -6072,7 +6072,8 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
          * safe-top pad would push the hang-up row out of a 64dip card. */
         const barCss = stripCssComments((callSrc.match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n'));
         const barRule = (/body\[data-mode="bar"\] \.c-callbar,[^{]*\{([^}]*)\}/.exec(barCss) || [])[1] || '';
-        ok(/height: 100%;/.test(barRule) && /top: 0; left: 0; right: 0; bottom: 0;/.test(barRule) && !/safe-top/.test(barCss),
+        /* ★ #1166 lever 9 re-base: the card is laid out FROM THE TOP at --call-card-h (= the stage height) instead of 100% / bottom 0 — the same box at the settled size, and right before the viewport shrinks (pins-s5/motion.mjs) */
+        ok(/height: var\(--call-card-h\);/.test(barRule) && /top: 0; left: 0; right: 0; bottom: auto;/.test(barRule) && !/safe-top/.test(barCss),
           '★ AND-7 → #1074, the OTHER half: in card mode call.html fills the native stage edge to edge and pads by NO safe-top (the stage already sits below it — padding twice would clip the hang-up row)');
       }
       {
@@ -6464,8 +6465,9 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
   ok(/function applyOlderAnchor/.test(chat) && /arow\.offsetTop - olderAnchorOffset/.test(chat),
     'A1: scroll restores by ELEMENT anchor — a one-shot scrollHeight delta breaks when the re-flush paints across several renders');
   // NB: match a CALL, not the name — this file's comments discuss it by name.
-  ok(!/attachLazyHistory\s*\(/.test(chat) && !/\battachLazyHistory\b\s*[,}]/.test(chat.replace(/\/\*[\s\S]*?\*\//g, '')),
-    'A1: attachLazyHistory stays UNWIRED — it assumes a C# prepend that does not exist (docs/chat-transport-spec.md)');
+  /* ★ #1166 B2 re-base: INVERTED — C# now prepends the older slice (#1142), so attachLazyHistory IS the trigger (behaviour: pins-s5/history.mjs) */
+  ok((chat.replace(/\/\*[\s\S]*?\*\//g, '').match(/attachLazyHistory\(box, \{/g) || []).length === 1,
+    'A1 → ★ #1166 B2: attachLazyHistory is WIRED once, on the log — the C# prepend it waited for exists now (docs/chat-transport-spec.md §B2)');
   ok(/resetOlder\(\);/.test(chat), 'A1: per-peer / per-channel reset — no stale spinner or anchor riding into the next conversation');
 
   /* —— A2: paid-bot cost + paid marker —— */
@@ -8532,7 +8534,12 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
   /* ★ #46 r4 fixes (the #1151 / Damir-pick batch): CHAT 730 → 731. chat.html 747 385 → 748 150 chars (+765): M1 the
      "shown"-at-fade-end record (transitionend / next-frame path, inlined bundle), m5 the GIF remembered at its load, m2 the
      dark quote fill + five quote-label steps. 730 leaves −630, 731 leaves 394. index.html unchanged. Stated, not silent (#345). */
-  const CHAT_KB_CEIL = 731, INDEX_KB_CEIL = 543;
+  /* ★ #1166 (session 5b, the V-1…V-4 build, MEASURED after the merge of the 5 agent copies): CHAT 731 → 748, INDEX 543 → 550,
+     delta stated (#345). chat.html 746 610 → 764 245 chars (+17 635): B2 lazy history wired + the prepend path + #1151 smooth jump
+     (+7 360), the V-3 chat viewer + P-04 setAvatarFor + R3-N2 hold + R3-N3 live progress + NIT-1 helper (+8 806), the media-viewer
+     loading API (+1 602). 747 leaves 683 chars, 748 leaves 1 707. index.html 555 589 → 562 104 (+6 515): P-03 row patches + the
+     addChats / addContacts batch + setAvatarFor (+6 298) and lever 12 (+225). 549 leaves 72, 550 leaves 1 096. Stated, not silent. */
+  const CHAT_KB_CEIL = 748, INDEX_KB_CEIL = 550;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -9587,7 +9594,8 @@ console.log('#341 — Change password renders inside the Account pane');
   /* #342 review MINOR-1: the behavioural avatar pins run wholly inside the components,
    * so reverting the SHELL call site left them all green. This reads the shell. */
   const chatEnc = readFileSync(join(root, 'src/shells/chat.html'), 'utf8');
-  ok(/avatar: rec\.avatar\s*\r?\n\s*\|\| \(mode\.isMulti \? \(groupRoster\.get\(rec\.senderAddress\) \|\| \{\}\)\.avatar : identity\.avatar\)/.test(chatEnc),
+  /* ★ #1166 P-04 re-base: the first rung is recAvatar(rec) (the per-address setAvatarFor picture, else rec.avatar) — the group rung and the 1:1-only identity rung are unchanged */
+  ok(/avatar: recAvatar\(rec\)[^\n]*\r?\n\s*\|\| \(mode\.isMulti \? \(groupRoster\.get\(rec\.senderAddress\) \|\| \{\}\)\.avatar : identity\.avatar\)/.test(chatEnc),
     '★ #342 review MAJOR-1: the tip recipient photo NEVER falls back to identity.avatar in a group. identity.avatar is the GROUP photo there (SingleChatPage pushes getAvatarPath(friend)), and file/app/payment rows carry no avatar at all — so the unguarded fallback put the group face beside an individual member name, on the surface where the user checks who is about to be paid. A gradient is neutral; the wrong face is not');
   /* ★ #346 (review of #342): the NAME ladder one line above the avatar ladder had the
      very fallback the avatar ladder was written to remove. */
@@ -10971,7 +10979,7 @@ console.log('BUG-1 — chats-list membership (C# predicate)');
 {
   const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
   const helper = hp.slice(hp.indexOf('private FriendMessageHelper? getFriendMessageHelper'),
-                          hp.indexOf('public void updateChat(Friend friend)'));
+                          hp.indexOf('public void updateChat(Friend friend'));   // ★ #1166 r1 re-base: updateChat gained `bool typingEdge = false`
   ok(helper.length > 0, 'getFriendMessageHelper — the chats-list predicate — is where the suite expects it');
 
   /* ① THE PREDICATE. Returning null = "not a chat row", and the ONLY membership
@@ -11305,7 +11313,7 @@ console.log('#944 — the group / bot-room excerpt names its sender ("George: hi
   const hp = stripCode(readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8'));
   const pushes = hp.split('"addChat"').slice(1).map((t) => t.slice(0, t.indexOf(';')));
   /* ★ #1148 (4) re-base: the reaction heart is appended AFTER the sender (13th, LAST) — the sender stays 12th */
-  ok(pushes.length === 2 && pushes.every((t) => /,\s*excerpt_?[sS]enders?(\[[^\]]+\])?\s*,\s*SReactionFlags\.has\([^)]*\)\.ToString\(\)\s*\)\s*$/.test(t)),
+  ok(pushes.length === 2 && pushes.every((t) => /,\s*excerpt_?[sS]enders?(\[[^\]]+\])?\s*,\s*SReactionFlags\.has\([^)]*\)\.ToString\(\)(\s*,\s*typingEdge \? "1" : "")?\s*\)\s*$/.test(t)),   /* ★ #1166 r1 (C-M1) re-base: the lone site may append the typing-edge marker 14th */
     '★ #944: EVERY addChat push (both — derived by walking the file) carries the excerpt sender 12th, followed only by #1148\'s reaction heart (LAST; older shells ignore the tail)');
   /* ★ #969 (Damir, dial (d)) RE-BASED — the gate now names an OWN room tail too ("You: hi").
      Shape (proven by text below): an OUTER `if (isRoomRow && <kind exclusions>)` whose block is
@@ -11807,7 +11815,8 @@ console.log('#354/#355 — D-18 poisoned-window guard · AND-38 balance tap high
   /* comment-free text (mutation-harness rule 2026-08-15): the pin tracks CODE shape,
      so a future explanatory comment inside onLoadMore cannot break it. */
   const scpNC354 = scp354.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  ok(/private void onLoadMore\(\)\s*\{\s*messagesToShow \+= Config\.messagesToLoad;\s*if \(messagesToShow == 100\)\s*\{\s*messagesToShow \+= Config\.messagesToLoad;\s*\}\s*loadMessages\(\);/.test(scpNC354),
+  /* ★ #1166 B2 re-base: `requestPrepend();` sits between the guard and the load (the answer is the older slice; the window walk is unchanged) */
+  ok(/private void onLoadMore\(\)\s*\{\s*messagesToShow \+= Config\.messagesToLoad;\s*if \(messagesToShow == 100\)\s*\{\s*messagesToShow \+= Config\.messagesToLoad;\s*\}\s*requestPrepend\(\);\s*loadMessages\(\);/.test(scpNC354),
     '★ D-18 (#354): onLoadMore steps OVER the exact-100 window. Ixian-Core Friend.getMessages re-reads storage only when the channel is uncached OR msg_count != 100 (Friend.cs:910; 0.9.8k = commit 097341a, no git tag exists) — a request of exactly 100 returns the stale previous window, loadMessages counts it short (the show_more test at :1536) and kills the pill with history still on disk. Under the N52 dial (50) the FIRST press lands exactly on 100 — the guard fires once and the walk continues 50 → 150 → 200. Delete the guard and the dead end returns');
   /* r2 (Opus MINOR-2): strip comments BEFORE matching, and anchor on the full
      assignment with its semicolon — "= 250" and a "was 25" trailing comment both
@@ -18691,7 +18700,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   ok(/public bool parkOnLoad = false;/.test(scpC) && /public bool warmParkedOverlay\(SpixiContentPage target, int timeoutMs = 6000\)/.test(scpC)
     && /else if \(op\.overlayMode && parkOnLoadNow\(op\)\)[\s\S]{0,900}?if \(reason != "timeout" && op\.target\.pageLoaded && parkedOverlay == null && modalOverlayOp == null\)[\s\S]{0,120}?parkedOverlay = op;/.test(scpC),
     '★★ C3 (#546, #533 ②): a load-then-PARK path on the existing staging machinery — loaded pages go straight into the #315 parked slot (never presented); a timeout-presented or wedged page is DISPOSED, not parked; a lock up or a slot already taken → nothing');
-  ok(/Utils\.sendUiCommand\(this, "clearChatsDone"\);[\s\S]{0,900}?warmAccountAfterFirstPaint\(\);/.test(hpC) && /await Task\.Delay\(900\);/.test(hpC) && /if \(railPane\)\s*\{\s*return;\s*\}/.test(hpC.slice(hpC.indexOf('private void warmAccountAfterFirstPaint()'))),
+  /* ★ #1166 P-03 re-base: the flush is ONE push now — clearChatsDone rides the addChats batch (sendBatchOrRows' `after`); the ORDER (warm after the flush) is unchanged */
+  ok(/sendBatchOrRows\("addChats", chatsBatch, new\[\] \{ "clearChats", "clearRequests" \}, new\[\] \{ "clearChatsDone" \}\);[\s\S]{0,900}?warmAccountAfterFirstPaint\(\);/.test(hpC) && /await Task\.Delay\(900\);/.test(hpC) && /if \(railPane\)\s*\{\s*return;\s*\}/.test(hpC.slice(hpC.indexOf('private void warmAccountAfterFirstPaint()'))),
     '★ C3 (#546): HomePage warms the Account AFTER the first chats flush (clearChatsDone), a beat later, ONCE, narrow mode only — never at boot, never for the rail pane. ⚠ The two calls were adjacent until Session M put the temporary [CDPERF] chats stamp between them; the ORDER is what C3 is about, so the pin spans rather than demanding adjacency — and it still fails if the warm call moves above the flush');
   ok(/SPIXI\.SpixiContentPage\.disposeParkedOverlay\(\);/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
     'C3 (#546): Node.onLowMemory still disposes the parked page (#315 kept)');
@@ -21628,7 +21638,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(coAt > 0 && /bool mirrorSlide = op\.slideIn;/.test(co)
        && /if \(slideOut && \(mirrorSlide \|\| legacyIosSlide\)\)/.test(co),
       '★★ L8: an op that slid IN slides OUT, on EVERY platform — op.slideIn is the same per-op flag presentPreload reads, so the mirror cannot drift from the entry. Damir closed the WinUI dial: the slide-in was never platform-gated, so holding only the exit back bought no safety');
-    ok(/if \(op\.slideIn\)\s*\r?\n?\s*\{[\s\S]{0,200}?await Task\.WhenAll\(\s*op\.stage\.TranslateTo\(w \* SlideTravel, 0, 220, Easing\.CubicIn\),\s*op\.stage\.FadeTo\(0, 220, Easing\.CubicIn\)\);/.test(co)   // ★ Session I hybrid re-base
+    ok(/if \(op\.slideIn\)\s*\r?\n?\s*\{[\s\S]{0,300}?await Task\.WhenAll\(\s*op\.stage\.TranslateTo\(w \* SlideTravel, 0, ScreenSlideOutMs, Easing\.CubicIn\),\s*op\.stage\.FadeTo\(0, ScreenSlideOutMs, Easing\.CubicIn\)\);/.test(co)   // ★ Session I hybrid re-base · ★ #1166 lever 12 re-base: the exit reads the named ScreenSlideOutMs (160, was a literal 220; its value is pinned in pins-s5/motion.mjs)
        && /await op\.stage\.TranslateTo\(w, 0, 250, Easing\.CubicOut\);/.test(co),
       '★★ L8: the exit is 220 ms CubicIn and #326 keeps its own 250 ms CubicOut byte-for-byte — that was Damir\'s pick for the native pop look and this row has no mandate to re-time it. ⚠ #685 RE-TIMED THE ENTRY TO 300 ms ON THE HOUSE CURVE AND LEFT THIS ALONE ON PURPOSE: this text used to call the pair "EXACT (220 against slideStageIn\'s 220 CubicOut)" and that sentence went stale the moment the entry moved, while the pin itself kept passing. Enter 300 / exit 220 is now the deliberate asymmetry — a leaving user has already decided');
     /* ⚠ indexed on the GATE, not on the timing — a mutation round showed this pin going
@@ -23651,10 +23661,11 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       ok(tokPts.length === 4 && csPts.length === 4
         && tokPts.every((n, i) => Math.abs(n - csPts[i]) < 1e-6),
         '★★ #685, ONE CURVE: the C# screen slide solves the SAME cubic-bezier that --easing-standard declares, read out of both files and compared. It used to ride Easing.CubicOut, which starts at maximum velocity — the panel was already moving on frame one, and that abruptness is what Damir called "not smooth"');
-      ok(/private const uint ScreenSlideInMs = 300;/.test(scp685)
+      ok(/private const uint ScreenSlideInMs = 220;/.test(scp685)   /* ★ #1166 lever 12 re-base: 300 → 220 (#1165 (4)) */
         && /TranslateTo\(0, 0, ScreenSlideInMs, ScreenSlideEasing\)/.test(scp685),
         '★ #685: the enter is 300 ms (was 220) and the animation reads the named constant, so the duration has one home');
-      ok(/op\.stage\.TranslateTo\(w \* SlideTravel, 0, 220, Easing\.CubicIn\),/.test(scp685),   // ★ Session I hybrid re-base
+      ok(/op\.stage\.TranslateTo\(w \* SlideTravel, 0, ScreenSlideOutMs, Easing\.CubicIn\),/.test(scp685)   // ★ Session I hybrid re-base
+        && /private const uint ScreenSlideOutMs = 160;/.test(scp685),   /* ★ #1166 lever 12 re-base: the exit is the named 160 (was a literal 220); still shorter than the entry */
         '★★ #685, AND THE EXIT IS DELIBERATELY UNCHANGED at 220 ms CubicIn. An exit that matches the entry feels slow, because the user has already decided to leave — enter 300 / exit 220 is a CHOICE. This pin exists so a later batch cannot symmetrise it by tidiness and call it consistency');
     }
     /* ★★ #683 (Damir 2026-08-28) — THE ICON'S GROUND AND THE MARK'S SIZE.
@@ -24869,9 +24880,11 @@ console.log('#711 / #712: floating composer + the notifications sub-labels');
   {
     const tk = rdF('src/styles/tokens.css');
     /* ★ #989 re-base: dark pill = var(--neutral-800) (was the #1e222b literal) */
-    const lightBlk = tk.slice(0, tk.indexOf('--surface-composer-pill: var(--neutral-800)'));
-    ok(/--surface-composer-pill: #ffffff;\s*\n\s*--outline-composer-pill: var\(--neutral-200\);/.test(lightBlk) && /--surface-composer-pill: var\(--neutral-800\);[^\n]*\n\s*--outline-composer-pill: var\(--neutral-500\);/.test(tk),
-      '★ Session H → #989: the pill pair is defined in BOTH themes — light white + neutral-200, dark --neutral-800 (was #1e222b) (the received-bubble ground, 1.15:1 on the canvas) + neutral-500 (1.47:1 on the canvas; -800/-700 measured 1.06/1.02 against the pill)');
+    /* ★ #1166 PILL re-base (#1159 / #1165 (11)): BOTH themes point the pill at --surface-bubble-received (light white — unchanged; dark ink-750, was ink-800); the outline pair is unchanged */
+    const pillAt = tk.indexOf('[data-theme="dark"] {');
+    const lightBlk = tk.slice(0, pillAt);
+    ok(/--surface-composer-pill: var\(--surface-bubble-received\);[^\n]*\n\s*--outline-composer-pill: var\(--neutral-200\);/.test(lightBlk) && /--surface-composer-pill: var\(--surface-bubble-received\);[^\n]*\n\s*--outline-composer-pill: var\(--neutral-500\);/.test(tk.slice(pillAt)),
+      '★ Session H → #989: the pill pair is defined in BOTH themes — light white + neutral-200, dark = --surface-bubble-received BY REFERENCE (#1166: ink-750; was --neutral-800, before it #1e222b) + neutral-500 (1.47:1 on the canvas; -800/-700 measured 1.06/1.02 against the pill)');
     const inp = cc.slice(cc.indexOf('.c-composer__input {'), cc.indexOf('.c-composer__input::placeholder'));
     ok(/overflow-y: auto;/.test(inp) && /scrollbar-width: thin;/.test(inp) && /scrollbar-color: transparent transparent;/.test(inp)
        && /::-webkit-scrollbar-button \{ display: none; height: 0; \}/.test(inp) && !/scrollbar-gutter/.test(inp)
@@ -24998,13 +25011,16 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
   const scp = rdF('Spixi/Utils/SpixiContentPage.cs');
   /* the motion IS the native one — both constants read out of the C# */
   const enterMs = Number((scp.match(/private const uint ScreenSlideInMs = (\d+);/) || [])[1]);
-  const exitMs = Number((scp.match(/op\.stage\.TranslateTo\(w \* SlideTravel, 0, (\d+), Easing\.CubicIn\),/) || [])[1]);   // ★ Session I hybrid re-base
+  const exitMs = /op\.stage\.TranslateTo\(w \* SlideTravel, 0, ScreenSlideOutMs, Easing\.CubicIn\),/.test(scp)
+    ? Number((scp.match(/private const uint ScreenSlideOutMs = (\d+);/) || [])[1]) : -1;   // ★ Session I hybrid re-base · ★ #1166 lever 12 re-base: the exit reads ScreenSlideOutMs
   const tok = stripCssComments(rdF('src/styles/tokens.css'));
   const d300 = Number((tok.match(/--duration-300: (\d+)ms;/) || [])[1]);
-  ok(enterMs === 300 && exitMs === 220 && d300 === enterMs
-     && /const ENTER_MS = 300;/.test(comp) && /const EXIT_MS = 220;/.test(comp)
-     && /\.c-subslide--in\s*\{ animation: c-subslide-in\s+var\(--duration-300\) var\(--easing-standard\) both; \}/.test(css)
-     && /\.c-subslide--out\s*\{ animation: c-subslide-out 220ms var\(--easing-accelerate\) both; pointer-events: none; \}/.test(css),
+  /* ★ #1166 lever 12 re-base: 300 / 220 → 220 / 160 on both sides (#1165 (4)); the entry no longer reads --duration-300
+     (that token stays 300 for every other view transition), so d300 is no longer part of the pair */
+  ok(enterMs === 220 && exitMs === 160 && d300 === 300
+     && /const ENTER_MS = 220;/.test(comp) && /const EXIT_MS = 160;/.test(comp)
+     && /\.c-subslide--in\s*\{ animation: c-subslide-in\s+220ms var\(--easing-standard\) both; \}/.test(css)
+     && /\.c-subslide--out\s*\{ animation: c-subslide-out 160ms var\(--easing-accelerate\) both; pointer-events: none; \}/.test(css),
     '★★ Session H: the shell slide runs at the NATIVE numbers — enter ' + enterMs + ' ms on --easing-standard (= ScreenSlideInMs, = --duration-300), exit ' + exitMs + ' ms cubic-in (= the C# TranslateTo). The work order said 220/220; the page beside it moves at 300/220 and a view at a different speed reads as a different kind of screen');
   ok(/:root\[data-desktop\] \.c-subslide--in,\s*:root\[data-desktop\] \.c-subslide--out \{ animation: none; \}/.test(css)
      && /@media \(prefers-reduced-motion: reduce\) \{\s*\.c-subslide--in, \.c-subslide--out \{ animation: none; \}\s*\}/.test(css)
@@ -28714,7 +28730,8 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     const firstPaint = parseInt((hpP.match(/private const int CHAT_SPARE_WARM_AFTER_FIRST_PAINT_MS = (\d+);/) || [])[1] || '0', 10);
     const accountDelay = parseInt((hpP.match(/await Task\.Delay\((\d+)\);\s*\n\s*bool wide = rightContent\.IsVisible;/) || [])[1] || '0', 10);
     ok(firstPaint > accountDelay && accountDelay > 0
-      && /Utils\.sendUiCommand\(this, "clearChatsDone"\);[\s\S]{0,1200}?warmAccountAfterFirstPaint\(\);\s*\n\s*warmChatSpareAfterFirstPaint\(\);/.test(hpP),
+      /* ★ #1166 P-03 re-base: clearChatsDone rides the ONE addChats push (sendBatchOrRows' `after`) — same order */
+      && /sendBatchOrRows\("addChats", chatsBatch, new\[\] \{ "clearChats", "clearRequests" \}, new\[\] \{ "clearChatsDone" \}\);[\s\S]{0,1200}?warmAccountAfterFirstPaint\(\);\s*\n\s*warmChatSpareAfterFirstPaint\(\);/.test(hpP),
       '★★ Session P L1·10 trigger B (spec §2): once after the first clearChatsDone, scheduled AFTER the Account warm-boot call and delayed LONGER than the Account\'s own delay (' + firstPaint + ' ms > ' + accountDelay + ' ms) — two WebViews never boot on top of the first list paint');
     const now = csSliceP(hpP, 'private void warmChatSpareNow()');
     sliceOk(now, 'HomePage.warmChatSpareNow');
@@ -28882,7 +28899,8 @@ console.log('★★ Session P — the pre-warm + the batch transport');
       && count(b.slice(iDoneEmpty, iClear), /sendUiCommand\(this|sendMessage\(|evaluateJavascript\(|executeUiCommand/g) === 1
       && count(between, /Utils\.sendUiCommand\(/g) === 2 && !/lock \(|foreach|toJson|insertMessage|updateReactions/.test(between)
       && /if \(json != null\)\s*\{\s*cdperf\("batch"[^\n]*\n\s*Utils\.sendUiCommand\(this, "addMessages", json, "append"\);\s*\}\s*Utils\.sendUiCommand\(this, "messagesDone"\);/.test(b)
-      && count(b, /Utils\.sendUiCommand\(this, "addMessages"/g) === 1 && count(b, /Utils\.sendUiCommand\(this, "messagesDone"\);/g) === 2
+      /* ★ #1166 B2 re-base: 1 → 2 addMessages — the second is the load-more PREPEND branch (after the full triple, own pin in pins-s5/history.mjs) */
+      && count(b, /Utils\.sendUiCommand\(this, "addMessages"/g) === 2 && count(b, /Utils\.sendUiCommand\(this, "addMessages", json, "prepend"\);/g) === 1 && count(b, /Utils\.sendUiCommand\(this, "messagesDone"\);/g) === 2
       && !/insertMessage\(message, selectedChannel\);/.test(b) && !/updateReactions\(message\);/.test(b),
       '★★ Session P L2·12 (#298 B1+B3, #802 r4): loadMessages collects every row and its reactions into ONE UiBatch — `insertMessage` and `updateReactions` in TWO SEPARATE per-row trys, so a throw costs only its own half: never the history and the signal (r11), and never that row\'s reactions when the row itself already landed (r12) — serializes it inside a try when it holds ANY item (`items.Count > 0` — #802 r10: a `> 1` opened every one-message conversation EMPTY with the block green), and THEN pushes clearMessages(show_more) · addMessages(json, "append") · messagesDone ADJACENTLY (nothing between them but the null test and the stamp; the ONLY clearMessages push after the empty-history block, and NO push to this page of any spelling between the empty-history block\'s return and the adjacent clear (the one match in that region is the empty-history path\'s own messagesDone, where the region starts) — #802 r5/r6: a second clear before the loop, literal or obfuscated, re-opened the r4 MAJOR with the pin green) and INSIDE the one `lock (messages)` (#802 r5 MAJOR-1: a live arrival takes that lock in Ixian-Core before its push, so it lands AFTER messagesDone — outside the lock it raced the triple, landed before the wipe, and vanished) — the shell\'s 250 ms safety timer, armed at clearMessages, can never fire between the wipe and the signal; the signal goes out even when the serialization throws; the empty-history path pushes clearMessages("false") + messagesDone too');
     const ins3 = csSliceP(scsP, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)');
@@ -28932,7 +28950,7 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     const ch = stripCode(raw);
     const iH = ch.indexOf('const handlers = {');
     const iAdd = ch.indexOf('    addMessages(json, position) {', iH);
-    const iDone = ch.indexOf('    messagesDone() {', iAdd);
+    const iDone = Math.max(ch.indexOf('    messagesDone() {', iAdd), ch.indexOf('    messagesDone(showMore) {', iAdd));   /* ★ #1166 B2 re-base: a prepend answer carries show_more */
     const iEnd = ch.indexOf('\n    },', iDone);
     const addBody = iAdd >= 0 && iDone > iAdd ? ch.slice(iAdd, iDone) : '';
     const doneBody = iDone >= 0 && iEnd > iDone ? ch.slice(iDone, iEnd) : '';
@@ -36647,17 +36665,20 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
   ok(helperOk && helper.length > 0 && csKinds.size >= 12 && csOnly.length === 0 && shellOnly.length === 0 && badWrites.length === 0
      && !/getFriendMessageHelper\(Friend friend\)\s*\{/.test(hpAD),
     '★ CH6 ① (derived): every excerpt kind getFriendMessageHelper assigns (' + [...csKinds].sort().join(', ') + ') is admitted by home.html\'s PUSHED_EXCERPT_KINDS and vice versa (C#-only: ' + (csOnly.join(', ') || 'none') + ' · shell-only: ' + (shellOnly.join(', ') || 'none') + ' · non-literal writes: ' + (badWrites.join(' | ') || 'none') + '); the kind-less overload is gone');
-  const addChatSites = [...hpAD.matchAll(/sendUiCommand\(this, "addChat", ([^;]*)\);/g)].map((m) => m[1]);
+  /* ★ #1166 P-03 / P-04 re-base: the flush site writes into the ONE addChats batch (chatsBatch.add) and both sites carry
+     the avatar through avatarArg(…) (one argument, its inner commas folded) — same 13 positions */
+  const addChatSites = [...hpAD.matchAll(/(?:sendUiCommand\(this, |chatsBatch\.add\()"addChat", ([^;]*)\);/g)].map((m) => m[1].replace(/avatarArg\([^)]*\)/g, 'avatarArg'));
   /* ★ #946 re-based (reader E-2): #944 appended the sender, so the kind is no longer LAST.
      Positions, not a comma count: the kind is argument 11 and the sender argument 12 (LAST). */
   const ch6Parts = addChatSites.map((a) => a.split(',').map((x) => x.trim()));
   /* ★ #1148 (4) re-base: + the reaction heart as the 13th, LAST */
-  ok(addChatSites.length === 2 && ch6Parts.every((p) => p.length === 13
+  /* ★ #1166 r1 (C-M1) re-base: the LONE site appends a 14th arg, the typing-edge marker (`typingEdge ? "1" : ""`) — positions 1–13 unchanged */
+  ok(addChatSites.length === 2 && ch6Parts.every((p) => (p.length === 13 || (p.length === 14 && p[13] === 'typingEdge ? "1" : ""'))
        && /^(excerpt_kinds\[helper_msg\.walletAddress\]|excerptKind)$/.test(p[10])
        && /^(excerpt_senders\[helper_msg\.walletAddress\]|excerptSender)$/.test(p[11])
        && /^SReactionFlags\.has\((helper_msg|fmh)\.walletAddress\)\.ToString\(\)$/.test(p[12])),
     '★ CH6 ②: BOTH addChat pushes (the flush and the lone updateChat) carry the kind as the 11th argument after the command, #944\'s sender as the 12th and #1148\'s reaction heart 13th, LAST (' + addChatSites.length + ' sites — an older shell ignores the tail)');
-  ok(/addChat\(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender, reactionDot\)/.test(homeAD)
+  ok(/addChat\(wallet, from, timestamp, avatar, online, excerpt_msg, type, unread, kind, mention, excerptKind, excerptSender, reactionDot(, typingEdge)?\)/.test(homeAD)   /* ★ #1166 r1 (C-M1) re-base: + the typing-edge marker, 14th, LAST */
      && /function excerptFromPush\(raw, statusType, name, excerptKind\)/.test(homeAD)
      && !/function excerptFromRaw|canonEntry\(|#sl-carriers|sl-ex-/.test(homeAD)
      && !/id="sl-ex-/.test(rdAD('src/shells/home.html')),
@@ -36835,7 +36856,9 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
 
   /* ── C17 / CO1: the directory row carries the relation and the kind from ONE predicate */
   ok(/string relation = contactRelationFor\(friend\.walletAddress\);/.test(hpAD) && /string contactKind = friend\.bot \? "bot" : \(friend\.type == FriendType\.Group \? "group" : ""\);/.test(hpAD)
-     && /sendUiCommand\(this, "addContact", friend\.walletAddress\.ToString\(\), friend\.nickname, avatar, str_online, friend\.getUnreadMessageCount\(\)\.ToString\(\), relation, contactKind\)/.test(hpAD)
+     /* ★ #1166 P-03 / P-04 re-base: the row goes into the ONE addContacts batch, its avatar through avatarArg — same 7 args, same order */
+     && /string contactAddr = friend\.walletAddress\.ToString\(\);/.test(hpAD)
+     && /contactsBatch\.add\("addContact", contactAddr, friend\.nickname, avatarArg\(contactAddr, avatar, contactsBatch\), str_online, friend\.getUnreadMessageCount\(\)\.ToString\(\), relation, contactKind\)/.test(hpAD)
      && /addContact\(address, nickname, avatar, online, _unread, relation, kind\)/.test(homeAD)
      && /sendUiCommand\(this, "setRelation", contactRelationFor\(friend\.walletAddress\)\)/.test(cdAD) && /setRelation\(r\)/.test(cdShAD) && /createPendingContact/.test(cdShAD),
     '★ C17/CO1: addContact carries relation (contactRelationFor — the one predicate) and kind as args 6–7; ContactDetails pushes setRelation and renders the pending pane from it');
@@ -37279,8 +37302,8 @@ console.log('Office fix round (#974–#981)');
   ok(bad.length === 0,
     '★★ #989 (+ #993 review): nine semantic tokens, each declared exactly TWICE — light in a plain :root block, dark in the [data-theme="dark"] block — the LIGHT value first (= today\'s look: transparent edges, the white sent card with #265\'s 2px outgoing border, the action-tonal medallion) and the DARK value LATER in source order, so it actually wins on [data-theme="dark"]. Failing: ' + JSON.stringify(bad.map((b) => b[0])));
   const darkLit = ['chat-canvas-base', 'surface-bubble-received', 'surface-composer-pill'].filter((n) => { const d = decls(n); return !d.length || /#[0-9a-fA-F]{3,6}\b/.test(d[d.length - 1].v); });
-  ok(darkLit.length === 0 && decls('chat-canvas-base').pop().v === 'var(--ink-950)' && decls('surface-bubble-received').pop().v === 'var(--ink-750)' && decls('surface-composer-pill').pop().v === 'var(--neutral-800)',
-    '★ #989 + #1058: the dark canvas / received bubble / composer pill read the RAMP (ink-950 / ink-750 (Damir pick 2026-10-03) / neutral-800), no literal hex — two blacks from two families was defect D-01. Literal: ' + JSON.stringify(darkLit));
+  ok(darkLit.length === 0 && decls('chat-canvas-base').pop().v === 'var(--ink-950)' && decls('surface-bubble-received').pop().v === 'var(--ink-750)' && decls('surface-composer-pill').pop().v === 'var(--surface-bubble-received)',   /* ★ #1166 PILL re-base: the pill follows the bubble token (was var(--neutral-800)) */
+    '★ #989 + #1058: the dark canvas / received bubble / composer pill read the RAMP (ink-950 / ink-750 (Damir pick 2026-10-03) / the received-bubble token, #1166), no literal hex — two blacks from two families was defect D-01. Literal: ' + JSON.stringify(darkLit));
   const sent = typedC.slice(typedC.indexOf('.c-bubble-row[data-direction="sent"] .c-tcard,'), typedC.indexOf('.c-tcard[data-kind="call"]'));
   ok(/border: var\(--border-card-sent\);/.test(sent) && /background: var\(--surface-card-sent\);/.test(sent) && !/border: 2px solid/.test(sent),
     '★ #989 → #1003: the SENT card stroke is the TOKEN (none in BOTH themes since #1003 — the tint + 1px edge carry "yours") — no literal 2px border left in the rule');
@@ -40808,7 +40831,7 @@ console.log('#1101–#1107 — session 1');
       pathRule: /if \(!fm\.localSender\)\s*\{\s*string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(si),
       linkIndex: /x\.id\.Equals\(id, StringComparison\.OrdinalIgnoreCase\) && x\.n == n/.test(resolveFn),
       neverSerialized: /\[JsonIgnore\] public string\? path = null;/.test(si) && /\[JsonIgnore\] public string\? url = null;/.test(si)
-        && /new object\?\[\] \{ x\.id, x\.n, x\.kind, x\.label, x\.size, x\.ts, x\.local \? 1 : 0, x\.thumb \}/.test(si),
+        && /new object\?\[\] \{ x\.id, x\.n, x\.kind, x\.label, x\.size, x\.ts, x\.local \? 1 : 0, x\.thumb, x\.received \? 1 : 0 \}/.test(si),   /* ★ #1166 V-3 re-base: + field 9 `received` (1/0), APPENDED — a bool, never a path (#1154) */
       resolveOwnScan: /if \(id\.Length == 0 \|\| !id\.All\(Uri\.IsHexDigit\)\)/.test(si) && /lastScan\.TryGetValue\(friend\.walletAddress\.ToString\(\), out List<SharedItem>\? items\)/.test(si),
       vettedPath: /string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(si) && /return Path\.IsPathRooted\(fm\.filePath\) && File\.Exists\(fm\.filePath\) \? fm\.filePath : null;/.test(si),
       noCoreCacheReplace: /IxianHandler\.localStorage\.readLastMessages\(friend, channel, 0, ScanCap\)/.test(si) && !/getMessages\(channel, /.test(si),
@@ -40898,7 +40921,8 @@ console.log('#1101–#1107 — session 1');
     ok(/if \(!item \|\| !\/\^\[0-9a-fA-F\]\{1,128\}\$\/\.test\(String\(item\.id \|\| ''\)\)\) return;/.test(fn)
        && /const token = item\.id \+ ':' \+ \(Number\(item\.n\) \|\| 0\);/.test(fn)
        && /if \(item\.kind === 'link'\) \{\s*openModal\(createModal\(\{/.test(fn) && /onClick: \(\) => bridge\.send\('ixian:sharedOpen:' \+ token\)/.test(fn)
-       && (fn.match(/bridge\.send\(/g) || []).length === 2 && (fn.match(/bridge\.send\('ixian:sharedOpen:' \+ token\)/g) || []).length === 2   /* (#46 r1 C8) BOTH sends carry only the token */
+       && (fn.match(/bridge\.send\(/g) || []).length === 3 && (fn.match(/bridge\.send\('ixian:sharedOpen:' \+ token\)/g) || []).length === 2   /* (#46 r1 C8) BOTH sends carry only the token */
+       && (fn.match(/bridge\.send\('ixian:sharedView:' \+ token\)/g) || []).length === 1   /* ★ #1166 V-3 re-base: a LOCAL image tile opens the viewer — the third send, the token only (#1144) */
        && /bridge\.send\('ixian:sharedItems'\);/.test(code) && /cdSharedOpen\) \{ closeSharedTakeover\(\); return; \}/.test(code),
       '★★ #1106 shell: a shared item sends ONLY ixian:sharedOpen:<hex id>:<n> (never a label, URL or name); a LINK asks first (the address in full, Cancel focused — chat.html\'s confirm grammar); the list is asked at boot; back closes the "See all" cover first');
   }
@@ -41392,7 +41416,7 @@ console.log('#1101–#1107 — session 1');
       reduced: kinds.every((k) => rm.includes('.c-bubble-row[data-mention-pulse][data-direction] ' + k)),
       noIs: !/data-mention-pulse\] :is\(/.test(built),   /* the conservative-CSS baseline */
       /* the jump still pulses through the shared jumpToRow (the attribute the selector keys on) */
-      jump: /live\.setAttribute\('data-mention-pulse', ''\);/.test(built) && /const tryJump = \(\) => key && jumpToRow\(key, null, true\);/.test(built),
+      jump: /live\.setAttribute\('data-mention-pulse', ''\);/.test(built) && /return jumpToRow\(key, null, !smooth\);/.test(built),   /* ★ #1166 #1151 re-base: smooth or instant by distance (pins-s5/history.mjs), still jumpToRow */
     };
     ok(Object.values(r).every(Boolean),
       '★ G-4 (#1116 (5)): "Show in chat" (Downloads, chat info) lands on the message and PULSES it — the ring selector names every bubble kind (text · file · media · typed card), in motion and under reduced motion; before, a FILE or PHOTO row (exactly what "Show in chat" opens) never lit — ' + JSON.stringify(r));
@@ -41530,7 +41554,7 @@ console.log('#1101–#1107 — session 1');
     const m4 = S.openSharedItemMenu({ item: { ...items[64], local: false }, host: W.document.body, strings: {}, onAction: () => {} });
     const farRows = [...m4.querySelectorAll('.c-msgmenu__item')].map((b) => b.dataset.action).join();
     /* (#46 r1 B4) "Open" only where it is not the jump: a link and a LOCAL file */
-    r.menu = fileRows === 'open,show' && linkRows === 'open,show,copy' && mediaRows === 'show' && farRows === 'show'
+    r.menu = fileRows === 'open,show' && linkRows === 'open,show,copy' && mediaRows === 'open,show' && farRows === 'show'   /* ★ #1166 V-3 re-base: a LOCAL photo now has Open (the in-app viewer); a row without the received field (an older exe) still gets no delete */
       && !/delete|share|save/i.test(m1.textContent + m2.textContent);
     m2.querySelector('[data-action="show"]').click();
     r.menuAction = acts.join() === 'show';
@@ -41962,7 +41986,7 @@ for (const mod of ['cs', 'nav', 'chat', 'main', 'fix2', 'fixr1', 'fixr2', 'fix3'
 }
 /* ==== SESSION 4 PINS END ==== */
 /* ==== SESSION 5 PINS — p0 = the #1155 message-loss guard · win = #1153 · read = #1163 (no implied read) ==== */
-for (const mod of ['p0', 'win', 'read']) {   // win = #1153 (Windows white window) · read = #1163 / #1164 (session 5b)
+for (const mod of ['p0', 'win', 'read', 'home', 'motion', 'viewer', 'history', 'media']) {   // win = #1153 (Windows white window) · read = #1163 / #1164 (session 5b) · home…media = #1166 (session 5b build)
   await (await import(new URL('./pins-s5/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 }

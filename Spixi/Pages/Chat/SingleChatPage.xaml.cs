@@ -863,6 +863,7 @@ namespace SPIXI
                     && friend.state != FriendState.RequestSent && friend.state != FriendState.Approved;
                 // ★ #984 (r2 MINOR-6): remembered BEFORE the removal; a refused removal takes it back off
                 string declinedAddr = friend.walletAddress.ToString();
+                CoreMessageWriter.arrivals.forgetAddress(declinedAddr);   // ★ P0 #1155: a removed request gets nothing put back
                 bool listed = declinedIncoming && SRequestIgnore.add(declinedAddr);
                 bool requestRemoved = false;
                 try
@@ -2373,6 +2374,7 @@ namespace SPIXI
                                 string tipToken = "tip:" + txForTip.amount.ToString();
                                 if (friend.addReaction(IxianHandler.getWalletStorage().getPrimaryAddress(), new ReactionMessage(msgIdForTip, tipToken), channelForTip))
                                 {
+                                    CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), channelForTip);   // ★ #1155 r4 m2: the tip pill survives a quick re-open
                                     updateReactions(msgIdForTip, channelForTip);
                                     StreamProcessor.sendReaction(friend, msgIdForTip, tipToken, channelForTip);
                                     IxianHandler.addTransaction(txForTip, relaysForTip, new() { senderForTip }, null, true);
@@ -2498,6 +2500,8 @@ namespace SPIXI
                     if (friend.bot)
                     {
                         StreamProcessor.sendMsgReport(friend, msg_id, selectedChannel);
+                        CoreMessageWriter.arrivals.forgetMessage(friend.walletAddress.ToString(), msg_id);   // ★ P0 #1155: never put back
+                        CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), selectedChannel);   // ★ #1155 r3 m2: the blanked row reaches disk before a quick re-open
                         friend.deleteMessage(msg_id, selectedChannel);
                     }
                     break;
@@ -2541,6 +2545,8 @@ namespace SPIXI
                     sendSilentMsgDelete(friend, msg_id, selectedChannel);   // ★ A10 (#1128)
                     if (!friend.bot)
                     {
+                        CoreMessageWriter.arrivals.forgetMessage(friend.walletAddress.ToString(), msg_id);   // ★ P0 #1155: never put back
+                        CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), selectedChannel);   // ★ #1155 r3 m2: the blanked row reaches disk before a quick re-open
                         if (friend.deleteMessage(msg_id, selectedChannel))
                         {
                             deleteMessage(msg_id, selectedChannel);
@@ -2568,6 +2574,7 @@ namespace SPIXI
                     }
                     if (friend.addReaction(address, new ReactionMessage(msg_id, "like:"), selectedChannel))
                     {
+                        CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), selectedChannel);   // ★ #1155 r4 m2
                         updateReactions(msg_id, selectedChannel);
                         StreamProcessor.sendReaction(friend, msg_id, "like:", selectedChannel);
                     }
@@ -2886,28 +2893,56 @@ namespace SPIXI
             int window = want + 1;
             bool exhausted = false;
             List<FriendMessage>? messages = null;
+            /* ★★ P0 #1155: each getMessages(channel, window) below REPLACES Core's in-memory list with a disk read
+             * (CORE-8) — an arrival Core has not written yet (its delayed write, ~2 s) was dropped here and then never
+             * reached disk. Write this channel first (ArrivalGuard.cs), then put back any arrival that landed in the
+             * orphaned list during the read (after the loop). */
+            string arrivalKey = friend.walletAddress.ToString();
+            int readChannel = selectedChannel;   // ★ #1155 (#46 r3 m1): ONE channel for the read, the trim and the put-back
+            int visibleSurplus = 0;              // ★ #1155: visible rows over `want` in the LAST read (the trim's limit)
+            CoreMessageWriter.arrivals.beforeReread(arrivalKey, readChannel, CoreMessageWriter.instance);
             for (int pass = 0; pass < LOAD_WINDOW_MAX_PASSES; pass++)
             {
                 if (window == 100)
                 {
                     window++;   // D-18 (#354): exactly 100 returns Core's STALE cache instead of reading storage
                 }
-                messages = friend.getMessages(selectedChannel, window);
+                messages = friend.getMessages(readChannel, window);
                 if (messages == null || messages.Count == 0)
                 {
                     break;
                 }
                 int visibleNow;
+                int headRun;
                 lock (messages)
                 {
                     visibleNow = messages.Count(m => !rendersNothing(m));
                     exhausted = messages.Count < window;
+                    headRun = CoreMessageWriter.arrivals.sameSecondHeadRun(messages);
                 }
-                if (visibleNow > want || exhausted)
+                visibleSurplus = visibleNow - want;
+                /* ★ #1155 (#46 r3 M-1): with older history on disk, the window must also START on a second boundary that
+                 * the visible surplus can trim (the head's same-second run ≤ surplus) — otherwise Core's next write deletes
+                 * the run's older rows. A head inside a longer burst grows the window by that run. */
+                if (exhausted || (visibleNow > want && (headRun <= visibleNow - want || window > 4 * want)))   // r4 m1: growth capped at 4 × want
                 {
                     break;
                 }
-                window = Math.Max(window * 2, window + (want + 1 - visibleNow));
+                window = visibleNow > want
+                    ? window + headRun
+                    : Math.Max(window * 2, window + (want + 1 - visibleNow));
+            }
+            if (messages != null)
+            {
+                /* ★ #1155 (#46 r1 M-2): Core's write drops every on-disk row with ts >= the list's first ts, and ts is whole
+                 * seconds — a window that starts inside a same-second burst would delete the burst's older rows on its
+                 * next write. Trim the head to a second boundary (the loop above grew the window until the run fits the surplus). */
+                CoreMessageWriter.arrivals.trimSameSecondHead(messages, !exhausted, visibleSurplus);
+                int reattached = CoreMessageWriter.arrivals.afterReread(arrivalKey, readChannel, messages, CoreMessageWriter.nowMs(), CoreMessageWriter.instance);
+                if (reattached > 0)
+                {
+                    Logging.warn("[P0] reattach n=" + reattached);   // ★ #1155: the CORE-8 race happened (a count, no address)
+                }
             }
             if (messages == null
                 || messages.Count == 0)

@@ -564,6 +564,8 @@ namespace SPIXI.Meta
                                 if (fetchTaken)
                                 {
                                     OfflinePushMessages.fetchPushMessages(false, fireLocalNotification, false);
+                                    // ★★ P0 #1155: the fetched messages are already removed from the push server — write them now
+                                    CoreMessageWriter.arrivals.afterPushBatch(CoreMessageWriter.instance);
                                     fireLocalNotification = false;
                                 }
                                 else
@@ -963,6 +965,9 @@ namespace SPIXI.Meta
 
         public static void onLowMemory()
         {
+            // ★★ P0 #1155: write every channel with an unwritten arrival (also one whose write request Core dropped,
+            // ArrivalGuard.cs (3)), then the plain flush as before.
+            CoreMessageWriter.arrivals.afterPushBatch(CoreMessageWriter.instance);
             IxianHandler.localStorage?.flush();
             storage?.sleep();
             activityStorage?.sleep();
@@ -971,6 +976,22 @@ namespace SPIXI.Meta
             foreach (var p in pages)
             {
                 excludeAddresses.Add(p.friend.walletAddress);
+            }
+            // ★★ P0 #1155 (2): never free a chat with an arrival in the last ArrivalGuard.RECENT_MS — an arrival between
+            // the flush above and Core's free would otherwise live only in the list being freed.
+            var recent = CoreMessageWriter.arrivals.recentAddresses(CoreMessageWriter.nowMs());
+            if (recent.Count > 0)
+            {
+                lock (FriendList.friends)
+                {
+                    foreach (var f in FriendList.friends)
+                    {
+                        if (recent.Contains(f.walletAddress.ToString()))
+                        {
+                            excludeAddresses.Add(f.walletAddress);
+                        }
+                    }
+                }
             }
             FriendList.onLowMemory(excludeAddresses);
             // #315 (#46 r1 MINOR-3): the parked warm Account WebView is the memory
@@ -1060,6 +1081,10 @@ namespace SPIXI.Meta
             var friend_message = friend_message_with_status.message;
             if (friend_message != null)
             {
+                // ★★ P0 #1155: Core keeps this message in memory only until its delayed write (~2 s) — the guard keeps it
+                // until it is safe (ArrivalGuard.cs). FIRST, before anything below can return.
+                CoreMessageWriter.arrivals.note(wallet_address.ToString(), channel, friend_message, CoreMessageWriter.nowMs(), friend_message_with_status.updated);
+
                 bool oldMessage = false;
 
                 Friend friend = FriendList.getFriend(wallet_address);

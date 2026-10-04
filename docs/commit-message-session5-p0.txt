@@ -1,0 +1,28 @@
+Session 5 P0: no message lost on chat open; Windows white window
+
+Message loss (#1155, #1160): a message Core had not written yet (its
+delayed write, up to ~2 s) was dropped when a chat opened, because the
+open re-reads the history from disk and replaces the in-memory list.
+
+- New ArrivalGuard + CoreMessageWriter (Spixi only, Core unchanged):
+  every added message marks its chat; before the re-read a marked chat
+  is written first; after it, a message the read lost is put back.
+- The window starts on a whole second, so a write can no longer delete
+  older messages that arrived in the same second (a push backlog).
+- Every push fetch and low memory write all marked chats at once; low
+  memory keeps a chat with a message from the last 5 s.
+- Deletes, my reactions and "sent" also mark the chat; removed contacts,
+  cleared histories and wipes forget what was kept.
+- Core follow-ups for the BE engineer: CORE-8a/8b/8c in be-cutover-brief.
+
+Windows white window (#1153, #1161): an incoming call over the Developer
+page tore down that page's WebView; the window came back white.
+
+- A page still on the modal stack keeps its WebView when covered.
+- The Developer page's log read cannot throw on the UI thread.
+- WinUI UI-thread exceptions are logged (type only).
+
+Also: the 2026-10-04 notes (#1155-#1159) and the session 4 re-walk
+commit message update. Review #1162: CLEAN at round 4.
+Pins: scripts/pins-s5/p0.mjs, win.mjs; smoke BASELINE OK 5189;
+C# harness 93.

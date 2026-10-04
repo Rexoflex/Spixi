@@ -5398,9 +5398,21 @@ namespace SPIXI
 
         public void Dispose()
         {
+            Dispose(false);
+        }
+
+        /** `force`: tear down even while the page is still on a stack (CallPage's refuse-to-pop branch only). */
+        public void Dispose(bool force)
+        {
             try
             {
-                if (!Navigation.NavigationStack.Contains(this))
+                /* ★★ #1153 (session 5, the Windows white window): OnDisappearing calls Dispose() when a page is merely
+                 * COVERED, and this guard only knew the navigation stack. A MODAL page (DevPage, SettingsPage.xaml.cs:340)
+                 * covered by another modal (the incoming-call ring, CallPage.xaml.cs:952 — `hostOnTop` needs an empty
+                 * ModalStack) lost its WebView while it stayed on the ModalStack; when the call ended it came back on top
+                 * with no WebView = a white window. MAUI removes a popped modal from ModalStack BEFORE SendDisappearing
+                 * (ModalNavigationManager.PopModalAsync), so a really-popped modal is still disposed here. */
+                if (force || (!Navigation.NavigationStack.Contains(this) && !Navigation.ModalStack.Contains(this)))
                 {
                     disposed = true;
                     pageLoaded = false;
@@ -5681,6 +5693,7 @@ namespace SPIXI
             {
                 FriendList.removeFriend(existing);
                 SReactionFlags.clear(existing.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the re-added contact starts without the old heart
+                CoreMessageWriter.arrivals.forgetAddress(existing.walletAddress.ToString());   // ★ P0 #1155: the re-added contact starts with no kept arrival
                 UIHelpers.shouldRefreshContacts = true;
                 existing = null;
             }

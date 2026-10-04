@@ -1,4 +1,4 @@
-Read CLAUDE.md, then docs/handoff-2026-10-03.md (its "Update" part first), then DECISIONS #1132–#1149. Next free DECISIONS number: #1155.
+Read CLAUDE.md, then docs/handoff-2026-10-03.md (its "Update" part first), then DECISIONS #1132–#1159 (★ #1155 = P0 first). Next free DECISIONS number: #1160.
 Already decided (do not re-open): #1101–#1135 · the v1 scope + the FREEZE LINE (#1137, #1138, SCOPE CLOSED) · the session plan (#1145) · the [P1] stamp set stays until the levers are measured (#1127) · A7 BE only ·
 A10 Spixi C# only · G-3 150 s · the A2 / A4 / A5 picks (#1132) · `setFileThumb` + `ixian:photoPreviews` as 🟡 with a BE ask (#1133).
 Open for the interview: the walk result per lever (keep / discard) · levers 4 · 7 · 8 · 9 · 12 · P-03 · P-04 · B4 · the media-viewer design (#1145 (1)) · the T2 quick choices H-21 · H-2 · H-17 · H-9 (#1137). Voice (#1136) is SESSION 7 (#1145) — do not design it here.
@@ -36,7 +36,8 @@ Out: everything for sessions 6–9 (#1145) · the parallel quality session (V-19
 Also out: retiring the [P1] set (strip #933) · Core · cold start (lead 8).
 
 ## Work items
-0. First: the Windows background crash (#1153) — read the log, mechanism first; the 4 re-walk rows of #1152 (Android photo fade, 3 px frame, highlight 2 s, dark bubble); the chat-info media menu Delete from this device + Show in Downloads (#1154, 🟡 verbs, with the media viewer); the Show-in-chat smooth scroll as a recording first (#1151); the composer pill vs the lighter dark bubble (#1152 open question).
+00. ★ P0 BEFORE ANY FEATURE (#1155): the confirmed message loss (Android receiver, legacy iOS sender). Mechanism first in the tree (Core's delayed write `LocalStorage.cs:218–231` vs `loadMessages` replacing the list `SingleChatPage.xaml.cs:2895`); the fix scope (1) no list replace · (2) low-memory skip of a chat with an arrival < 5 s · (3) flush after each push batch; a CSH stress test + a pin with a break; the walk (5 runs + 1 new-app sender, `adb logcat -v time > p0-loss.txt`); re-measure chat open; update CORE-8 in `be-cutover-brief.md`; then Damir picks #1102 A (remove, recommended) or B (keep).
+0. Then: the Windows background crash (#1153) — read the log, mechanism first; the 4 re-walk rows of #1152 (Android photo fade, 3 px frame, highlight 2 s, dark bubble); the chat-info media menu Delete from this device + Show in Downloads (#1154, 🟡 verbs, with the media viewer); the Show-in-chat smooth scroll as a recording first (#1151); the composer pill vs the lighter dark bubble (#1152 open question).
 1. Walk record → DECISIONS. Android lines arrive as `[WEBVIEW] warn [P1] …`; logcat is UTF-16 (iconv).
 2. Experiment log: per lever the path it targets (lever 5 → quick re-opens; 3 → desktop switches; 2 → wallet re-visits; 11 →
    close; 10 → Account → tab visual; 1 → `why=vsc` + recording).

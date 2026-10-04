@@ -16,6 +16,8 @@
     <!-- ★ #1148 (3)/(4): the unread rule + the reaction-heart store (tests: UnreadRuleTests.cs, beside this file). -->
     <Compile Include="../../Spixi/Utils/UnreadRule.cs" />
     <Compile Include="../../Spixi/Meta/SReactionFlags.cs" />
+    <!-- ★★ P0 #1155 (session 5): the arrival guard (tests: ArrivalGuardTests.cs — a model of Core's cache + delayed writer). -->
+    <Compile Include="../../Spixi/Utils/ArrivalGuard.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

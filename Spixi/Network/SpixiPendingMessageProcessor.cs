@@ -48,6 +48,7 @@ namespace SPIXI.Network
         protected override void onMessageSent(Friend friend, int channel, StreamMessage msg)
         {
             friend.setMessageSent(channel, msg.id);
+            CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), channel);   // ★ #1155 r4 m2: "sent" survives a quick re-open
             UIHelpers.shouldRefreshContacts = true;
             var fm = friend.getMessage(channel, msg.id);
             if (fm != null)
@@ -79,6 +80,7 @@ namespace SPIXI.Network
                     return;
                 }
                 f.setMessageSent(ch, msgId);
+                CoreMessageWriter.arrivals.markDirty(f.walletAddress.ToString(), ch);   // ★ #1155 r4 m2
                 UIHelpers.shouldRefreshContacts = true;
                 var fresh = f.getMessage(ch, msgId) ?? gm;
                 UIHelpers.updateMessage(f, ch, fresh);

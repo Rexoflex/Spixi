@@ -699,7 +699,7 @@ namespace SPIXI
                             else
                             {
                                 Logging.error("Call surface: another modal is on top — refusing to pop it. (Unreachable by construction: lockUp() + App.OnResume keep the call surface and any lock mutually exclusive.)");
-                                page.Dispose();
+                                page.Dispose(true);   // ★ #1153 (#46 r1 C-m1): still on the ModalStack — force the teardown, as before #1153, so no live ring of an ended call waits under the top modal
                                 return;
                             }
                         }

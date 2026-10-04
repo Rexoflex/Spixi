@@ -244,6 +244,8 @@ Every row is Spixi-side only. A new verb / push = a 🟡 DECISIONS row + a gate 
 
 | ID | Criterion — passes when … | Check | Owner | Session | State | Evidence |
 |---|---|---|---|---|---|---|
+| V-0 | ★ P0 message loss: no message is lost when a chat opens during Core's delayed write (no list replace, low-memory skip, flush after each push batch); a CSH stress test; walk: 2 push messages → tap the 2nd notification → both shown, also after reopen | csh + pin + walk (Android, 5 runs + 1 new-app sender) | us (+ BE CORE-8) | S5 FIRST | BUILT — CSH 93 + pins-s5/p0, #46 CLEAN r4; walk owed | #1155, #1160, #1162 |
+| V-0b | #1153 Windows: a modal page covered by the incoming-call ring keeps its WebView (no white window after the call); a WinUI UI-thread exception is logged as `[CRASH] winui <type>` | pins-s5/win + walk (Developer page → ring-out → back) | us | S5 | BUILT — walk owed | #1153, #1161 |
 | V-1 | Speed: every built lever kept or discarded on measured numbers (§8 log) + P-03 (no full list rebuild) + P-04 (no base64 avatar per row) + lever 7 / 12 picks + chat info open / close (levers 7 + 8) | measurement + pins + walk | us + Damir | S5 | PARTLY — levers 1 · 2 · 2b · 3 · 5 · 10 · 11 built (#1135), measured #1146 (kept); spare warm 0 ms (#1147) owed on the re-walk | `docs/p1-measurement.md` |
 | V-2 | Lazy history B2: load-more prepends only the older slice (no clearMessages, no unread reset); `attachLazyHistory` is the scroll trigger; B4 tried as one lever | pins + walk (iPhone momentum scroll) | us | S5 | OPEN | #1142 |
 | V-3 | Media viewer: a tap on a media tile (chat + chat info) opens the in-app viewer with a viewer-size image from the local file | pins + walk + 🟡 verb/push | us + BE | S5 | OPEN | #1144, #1145 (1) |
@@ -258,6 +260,9 @@ Every row is Spixi-side only. A new verb / push = a 🟡 DECISIONS row + a gate 
 | V-12 | Disappearing messages: per-chat timer (off / 1 h / 1 day / 1 week), a readable system line, local delete, honest text | csh + pins + walk | us | S8 | OPEN | #1138 (12) |
 | V-13 | Privacy switches: read receipts off · typing off · "Hide my online status" courtesy flag (reciprocal, honest text) | pins + walk | us | S8 | OPEN | #1138 (14) |
 | V-14 | Media picker: Photo tile ON, picker + camera, EXIF stripped, resize ≤ 2048 px JPEG ~80 %, videos as files under A-9 + warning | pins + walk ×4 | us | S9 | OPEN | #1138 (16) |
+| V-14b | Paste image (desktop first, all 4): type-only detect → `ixian:pasteImage` → C# reads the clipboard, own temp PNG, preview sheet, existing send path, temp deleted | pins + walk ×4 + 🟡 verb | us + BE | S9 | OPEN | #1156 |
+| V-14c | Multi-image send: up to 10, one transfer + fileHeader each, queued; the receiver groups them into one grid bubble | pins + walk ×4 | us | S9 | OPEN | #1157 |
+| V-14d | Photo privacy: photo = ≤ 2048 px JPEG q80–85, metadata stripped (orientation first), bounded decode; file = original + a note; GPS absent on the receiver | walk ×4 (EXIF viewer, sizes, rotation, 10-photo memory) | us | S9 | OPEN | #1158 |
 | V-15 | Audit fixes (ours) #1137 (9): C-01 · C-02 · C-03 · C-04 · C-05 · H-3 + H-13 · H-14 · A-13 · A-6 · A-7 · A-8 · A-9 · A-10 · A-11 · A-14 · A-19 | per-row checks (S3 rows) | us | S9 | OPEN | #1137 (9) |
 | V-16 | Onboarding copy on the Create screen (#1139), §4 copy check passed | pin + render | us | S9 | OPEN | #1139 |
 | V-17 | Language picker note + "Report a translation problem" link for every non-English language | pin + walk | us | S9 | OPEN | #1143 |

@@ -370,3 +370,9 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
 - 2026-10-04: re-walk #1151 (Win 7 P, Android 7 P 1 F: photo fade); fixes #1152 (fade on a held frame, 3 px, highlight 2 s linear,
   dark bubble #1E2023) — #46 fresh reader MAJOR fixed. Open: Windows background crash #1153; S5 adds chat-info Delete from device +
   Show in Downloads (#1154). Smoke 5182 · CSH 72. Next free #1155.
+- 2026-10-04 (b): logged #1155 (★ P0 message loss — session 5 first), #1156–#1158 (S9: paste image, multi-image, photo
+  compression + metadata), #1159 (bubble colour tokenized — verified). Next free #1160.
+- 2026-10-04 (c, session 5 part 1, cloud twin while Damir was away): ★ P0 #1155 mechanism verified + guard built (#1160:
+  ArrivalGuard + CoreMessageWriter; CORE-8a/8b/8c in the BE brief); #1153 white window = DevPage (a modal) disposed under
+  the call ring → Dispose keeps ModalStack pages + WinUI crash logging (#1161); #46 CLEAN at r4 (#1162). Smoke 5189 ·
+  CSH 93. Experiment log cross-checked by a parser (no change). Next free #1163.

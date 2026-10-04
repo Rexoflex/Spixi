@@ -426,7 +426,10 @@ namespace Spixi
             {
                 e.PreventDefault();
 
-                if (OfflinePushMessages.fetchPushMessages(true, true))
+                bool fetched = OfflinePushMessages.fetchPushMessages(true, true);
+                // ★★ P0 #1155: the fetched messages are already removed from the push server — write them now
+                SPIXI.CoreMessageWriter.arrivals.afterPushBatch(SPIXI.CoreMessageWriter.instance);
+                if (fetched)
                 {
                     return;
                 }

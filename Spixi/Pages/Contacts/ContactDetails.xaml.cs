@@ -937,6 +937,7 @@ namespace SPIXI
             if(friend.deleteHistory())
             {
                 SReactionFlags.clear(friend.walletAddress.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
+                CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back
                 UIHelpers.shouldRefreshContacts = true;
                 /* ★ #46 loop B, MAJOR-1 — THE CONVERSATION IS GONE ON DISK, SO SAY SO.
                  * This method pushed nothing, so the shell kept the user's own unsent DRAFT

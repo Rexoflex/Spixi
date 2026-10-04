@@ -496,6 +496,21 @@ on the next re-open; on the wire its live push is unordered against the load bur
 run inside the list lock) but cannot reach the pre-read holder — the dictionary is private.
 Ask: do not replace the list on a re-read (merge the read into the existing list under the
 dictionary lock, or hand the loader a COPY), and take the write from the live list.
+★ Session 5 (#1155, #1160) — CONFIRMED ON DEVICE as a user-visible loss and WIDER than the read race. Three more Core
+facts (Ixian-Core @097341a) make it worse; Spixi now guards all three on its own side (`Spixi/Utils/ArrivalGuard.cs`),
+but only Core can close them:
+- **CORE-8a · the delayed write window.** An arrival is in memory + in the excerpt at once, on disk only after the
+  storage tick (1 s loop, written when ≥ 1 s old or idle ≥ 200 ms — `LocalStorage.cs:168`, `:218–226`), so for up to
+  ~2 s every re-read drops it — not only an arrival DURING the read. Push items are removed from the server right after
+  processing (`OfflinePushMessages.cs:180–185`), before that write. Ask: merge (above), and write before removing.
+- **CORE-8b · a write request made during a write is dropped.** `writePendingMessages` copies the list, writes, then
+  `Remove(channel)` — a request made in between (an arrival during the write) goes with it (`LocalStorage.cs:229–240`);
+  the arrival stays memory-only with NO time bound until the next write of that channel. Ask: remove the request only if
+  its `lastRequestTime` is unchanged since the copy.
+- **CORE-8c · a window write deletes older same-second rows.** `receivedTimestamp` is whole seconds and `writeMessages`
+  drops every on-disk row with ts >= the written list's first ts (`LocalStorage.cs:694–695`). A window that starts
+  inside a same-second burst (a push backlog) deletes the burst's older rows on its next write — including Core's own
+  default reads (n = 100). Ask: drop by id, or only ts > first.
 
 **CORE-9 (Session AB #907) · a deleted message is a TOMBSTONE that never leaves storage, and
 `readLastMessages` counts it.** `Friend.deleteMessage` (`Friend.cs:949`) sets `fm.message = ""` and
@@ -732,7 +747,7 @@ live there in full; this table is the index, not the evidence.
 | **N57?** — group message visibility may need a direct connection | **YES** | Ixian-Core. Repro protocol written, legs not run. |
 | **CORE-1** — `kickUser` and `banUser` are EMPTY CASES | **YES** | Re-read in the sibling at `097341a`: `CoreStreamProcessor` still has `case SpixiBotActionCode.kickUser: return true;` and the same for `banUser`. The app hides the rows because they lied; do not restore them without the Core half. Two changes are needed, and the "who may send it" half is the security half. |
 | **CORE-4** — `onMessageExpired` is called with a hardcoded `0` channel — ⚠ **ADDED at this verification** | **YES** | It was not on the eight `release-readiness.md` names. In a bot room with more than one channel, a failed message can never be marked failed and **cannot heal**, because `errorSending` has one writer in Core and no clearer. That is a message the user believes was sent. |
-| **CORE-8** — `Friend.getMessages` REPLACES the channel list on every re-read | **YES** | A message that arrives during a load lands in the orphaned list and never reaches disk. Every chat open and every load-more triggers the read. |
+| **CORE-8** — `Friend.getMessages` REPLACES the channel list on every re-read | **YES** | A message that arrives during a load lands in the orphaned list and never reaches disk. Every chat open and every load-more triggers the read. ★ Session 5: confirmed on device (#1155) + CORE-8a / 8b / 8c (the delayed-write window, the dropped request, the same-second delete); Spixi guards them (#1160), Core closes them. |
 | **the membership question** — does `Friend.addReaction` verify room membership? | **YES, and it is a QUESTION, not a fix** | Unanswerable from this checkout. If Core does not verify, one crafted reaction forges a group delivery double-check AND permanently prevents an honestly failed message from ever going red. ⚠ Do not add a membership test in the app without the answer — a wrong one silently DELETES evidence. |
 | **MAJOR #8 (Android)** — a mini-app WebView can XHR-read `wallet.ixi` | **YES** | `AllowFileAccessFromFileURLs = true` for every WebView. Inherited, unchanged. |
 | **MAJOR #9 (Android)** — `OnPermissionRequest` auto-grants mic and camera to every WebView | **YES** | Inherited, unchanged. ⚠ The 2026-09-06 sweep found the iOS twin was OURS and it has been fixed in that batch; the Android one is his. |

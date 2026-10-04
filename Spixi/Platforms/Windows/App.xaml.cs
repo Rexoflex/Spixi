@@ -61,6 +61,33 @@ public partial class App : MauiWinUIApplication
 
         InitializeComponent();
 
+        /* ★ #1153 (session 5): a UI-thread exception on Windows surfaces at WinUI's Application.UnhandledException
+         * (App.g.i.cs:69 in the debugger) — NOT at AppDomain.UnhandledException, the only handler the app had
+         * (App.xaml.cs:238) — so the white-window break left no trace in ixian.log. Log it: the TYPE, the HRESULT and
+         * the first managed frame (type + method name) only — never the message, which can carry a path or an
+         * address (the gate rule). Handled stays false: the app still stops as before; this only names the cause. */
+        UnhandledException += (sender, e) =>
+        {
+            try
+            {
+                Exception? ex = e.Exception;
+                string frame = "-";
+                var f = ex != null ? new StackTrace(ex, false).GetFrame(0)?.GetMethod() : null;
+                if (f != null)
+                {
+                    frame = (f.DeclaringType?.FullName ?? "?") + "." + f.Name;
+                }
+                IXICore.Meta.Logging.error("[CRASH] winui " + (ex?.GetType().FullName ?? "null")
+                    + " hr=0x" + (ex?.HResult ?? 0).ToString("X8")
+                    + " inner=" + (ex?.InnerException?.GetType().FullName ?? "-")
+                    + " at " + frame);
+                IXICore.Meta.Logging.flush();
+            }
+            catch
+            {
+            }
+        };
+
         Microsoft.Maui.Handlers.WindowHandler.Mapper.AppendToMapping(nameof(IWindow), (handler, view) =>
         {
             var mauiWindow = handler.VirtualView;

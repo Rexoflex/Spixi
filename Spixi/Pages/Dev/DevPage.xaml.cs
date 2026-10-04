@@ -89,14 +89,25 @@ namespace SPIXI
 
             string srcLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log");
             string destLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log.tmp");
-            if (File.Exists(destLogPath))
+            /* ★ #1153 (#46 r1 C-n3): onLoad runs on EVERY OnAppearing (also the return from a call over this modal). A
+             * file error here (the log locked or rotating) was an uncaught exception on the UI thread — a candidate for
+             * the Windows UnhandledException break. Log its type only and show no log rather than crash. */
+            string logContents = "";
+            try
             {
+                if (File.Exists(destLogPath))
+                {
+                    File.Delete(destLogPath);
+                }
+
+                File.Copy(srcLogPath, destLogPath);
+                logContents = File.ReadAllText(destLogPath);
                 File.Delete(destLogPath);
             }
-
-            File.Copy(srcLogPath, destLogPath);
-            var logContents = File.ReadAllText(destLogPath);
-            File.Delete(destLogPath);
+            catch (Exception ex)
+            {
+                Logging.warn("DevPage: log read failed: " + ex.GetType().Name);
+            }
 
             Utils.sendUiCommand(this, "setLog", logContents);
             // Execute timer-related functionality immediately

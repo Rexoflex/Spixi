@@ -636,6 +636,8 @@ namespace SPIXI
          * missing half, shared by both paths. */
         public static void deleteMessage(Friend friend, int channel, byte[] msgId)
         {
+            // ★ P0 #1155 (#46 r3 m2): Core blanked the row in memory only — write it before the next replacing read.
+            CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), channel);
             Utils.getChatPage(friend)?.deleteMessage(msgId, channel);
             refreshChatRow(friend);
         }

@@ -7192,7 +7192,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     ok(/SpixiContentPage\.disposeParkedOverlay\(\);/.test(uhBody),
       '#46 r1 MAJOR-3: reloadAllPages drops the parked page — an OS auto-theme flip must never re-present yesterday\'s theme (the #251 EmptyDetail class)');
   }
-  ok(/onLowMemory\(\)[\s\S]{0,900}?disposeParkedOverlay\(\);/.test(readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8')),
+  ok(/disposeParkedOverlay\(\);/.test((readFileSync(join(root, 'Spixi/Meta/Node.cs'), 'utf8').replace(/\r\n/g, '\n').match(/public static void onLowMemory\(\)\s*\n\s*\{([\s\S]*?)\n        \}\n/) || [])[1] || ''),   /* ★ #1155 re-base: the BODY (the P0 guard lengthened it past the 900-char window) */
     '#46 r1 MINOR-3: low memory releases the warm WebView — the memory dial has a pressure valve, and the content-process-death window shrinks to presented-only');
   ok(/if \(!overlayStack\.Remove\(op\)\)[\s\S]{0,1900}?parkedOverlay = op;\s*\r?\n\s*parked = true;\s*\r?\n\s*\}\s*\r?\n\s*\}\s*\r?\n\s*MainThread\.BeginInvokeOnMainThread/.test(scp)
     && /stillParked = parkedOverlay == op;/.test(scp)
@@ -15312,7 +15312,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
        && dpu.indexOf('SPIXI.Meta.Node.isRunning') < dpu.indexOf('fetchPushMessages'),
       '★ PIN-N4 (#493 KEPT): the Ixian fetch is still attempted ONLY when a node exists to serve it. fetchPushMessages needs the push URL, the stream processor and a wallet — on a cold push it can only throw, or burn an HTTP round-trip inside a push callback. The guard is strictly narrowing: where the fetch works today the node IS running');
     ok(/System\.Threading\.Monitor\.TryEnter\(SPIXI\.Meta\.Node\.pushFetchLock, SPIXI\.Meta\.Node\.PUSH_FETCH_TRY_MS, ref fetchTaken\);/.test(dpu)
-       && /else if \(OfflinePushMessages\.fetchPushMessages\(true, true\)\)/.test(dpu)
+       && /else\s*\{\s*bool fetched = OfflinePushMessages\.fetchPushMessages\(true, true\);[\s\S]{0,300}?if \(fetched\)\s*\{\s*return PushAction\.Suppress;/.test(dpu)   /* ★ #1155 re-base: the fetch result is kept so afterPushBatch runs on both outcomes (pins-s5/p0.mjs) */
        && !/(^|[^.\w])lock \(SPIXI\.Meta\.Node\.pushFetchLock\)/.test(dpu),
       '★★ PIN-N4 / N-1 (#46 loop m10, ROUND 2): the push lane takes the SHARED lock with the THREE-ARGUMENT TryEnter. The two-argument form takes the lock inside the call and assigns the flag after it returns; an asynchronous exception in that window holds the lock for the life of the process. A plain `lock` would make a push callback WAIT on an HTTP round trip it does not own — fetchPushMessages builds an HttpClient with NO Timeout and blocks on .Result, once per HTTP call');
     ok(/finally\s*\{\s*if \(fetchTaken\)\s*\{\s*System\.Threading\.Monitor\.Exit\(SPIXI\.Meta\.Node\.pushFetchLock\);\s*\}\s*\}/.test(dpu),
@@ -20327,7 +20327,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      * still consults it. See DECISIONS #824. */
     ok(/private volatile bool disposed = false;/.test(scpV)
        && !/public void Dispose\(\)\s*\n\s*\{\s*\n\s*disposed = true;/.test(scpV)
-       && /if \(!Navigation\.NavigationStack\.Contains\(this\)\)\s*\n\s*\{\s*\n\s*disposed = true;/.test(scpV),
+       && /if \(force \|\| \(!Navigation\.NavigationStack\.Contains\(this\) && !Navigation\.ModalStack\.Contains\(this\)\)\)\s*\n\s*\{\s*\n\s*disposed = true;/.test(scpV),   /* ★ #1153 re-base: the guard also keeps a page still on the MODAL stack (pins-s5/win.mjs) */
       '★★ V-5 (re-based, #824): the flag exists and is set INSIDE the on-stack guard, so it means "the teardown ran, this page is really gone" — not "Dispose() was called". Set first, it latched true on every page anything was pushed over, and three readers treat it as death: back stopped working on a page you returned to, and the group roster was guarded out after viewing a transaction. V-5\'s own repro (a page that was never pushed) is off-stack, so it still sets the flag and is unaffected');
     {
       const popAt = scpV.indexOf('public void popPageAsync()');
@@ -33473,10 +33473,12 @@ console.log('#907: the history window counts visible messages');
   ok(tomb && iLoad > 0 && load907.length > 0
     && /int want = \(int\)messagesToShow;\s*int window = want \+ 1;/.test(load907)                 // one row MORE than wanted = the only honest proof that older history exists
     && /if \(window == 100\)\s*\{\s*window\+\+;/.test(loop)                                     // D-18: exactly 100 returns Core's stale cache
-    && /messages = friend\.getMessages\(selectedChannel, window\);/.test(loop)
+    && /messages = friend\.getMessages\(readChannel, window\);/.test(loop) && /int readChannel = selectedChannel;/.test(load907)   /* ★ #1155 re-base: one read channel (pins-s5/p0.mjs) */
     && /visibleNow = messages\.Count\(m => !rendersNothing\(m\)\);\s*exhausted = messages\.Count < window;/.test(loop)
-    && /if \(visibleNow > want \|\| exhausted\)\s*\{\s*break;\s*\}/.test(loop)
-    && /window = Math\.Max\(window \* 2, window \+ \(want \+ 1 - visibleNow\)\);/.test(loop)
+    /* ★ #1155 re-base (#1160): the stop also needs the head's same-second run to fit the visible surplus (capped 4 × want);
+       a head inside a longer burst grows by the run — the #907 widening below is unchanged (pins-s5/p0.mjs pins the new half) */
+    && /if \(exhausted \|\| \(visibleNow > want && \(headRun <= visibleNow - want \|\| window > 4 \* want\)\)\)\s*\{\s*break;\s*\}/.test(loop)
+    && /window = visibleNow > want\s*\? window \+ headRun\s*: Math\.Max\(window \* 2, window \+ \(want \+ 1 - visibleNow\)\);/.test(loop)
     && !/getMessages\(selectedChannel, \(int\)messagesToShow\)/.test(load907),
     '★★ #907: loadMessages widens its window until it holds messagesToShow VISIBLE rows or storage is exhausted (Count < window) — Core keeps a deleted message as an empty tombstone, so "the last 50 stored rows" can be five bubbles. It asks for ONE MORE than wanted, because finding it is the only proof older history exists (the baseline showed a pill that loaded nothing on a chat of exactly 50). The D-18 step over exactly 100 lives inside the loop; the old fixed-size read is gone');
   ok(/int visible = messages\.Count\(m => !rendersNothing\(m\)\);\s*int skip_messages = Math\.Max\(0, visible - want\);/.test(load907)
@@ -42028,6 +42030,11 @@ console.log('#1101–#1107 — session 1');
 /* ==== SESSION 4 PINS (#1132 / #1133) — one module per build agent, fixed order ==== */
 for (const mod of ['cs', 'nav', 'chat', 'main', 'fix2', 'fixr1', 'fixr2', 'fix3', 'fix4', 'fixr4']) {   // fix2 = #1148 (session 4 fix batch part 2) · fixr1 / fixr2 = its #46 r1 / r2 fixes · fix3 = the #1151 re-walk fixes · fix4 = the Damir picks 2026-10-03 (dark received ground) · fixr4 = their #46 r4 fixes
   await (await import(new URL('./pins-s4/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
+}
+/* ==== SESSION 4 PINS END ==== */
+/* ==== SESSION 5 PINS — p0 = the #1155 message-loss guard · win = #1153 ==== */
+for (const mod of ['p0', 'win']) {   // win = #1153 (Windows white window)
+  await (await import(new URL('./pins-s5/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 }
 

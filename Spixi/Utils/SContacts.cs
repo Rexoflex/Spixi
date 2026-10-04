@@ -106,6 +106,7 @@ namespace SPIXI
             // Report the LOCAL removal. removeContact maps false to "fail", so a refused
             // removal must not read as a completed leave.
             bool removed = FriendList.removeFriend(group);
+            CoreMessageWriter.arrivals.forgetAddress(group.walletAddress.ToString());   // ★ P0 #1155: a left room gets nothing put back on a quick re-join
             if (!removed)
             {
                 Logging.warn("leaveGroup: the local removal was refused");
@@ -161,6 +162,7 @@ namespace SPIXI
             }
             if (FriendList.removeFriend(friend))
             {
+                CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a removed contact gets nothing put back on a quick re-add
                 UIHelpers.shouldRefreshContacts = true;
                 SChatPrefs.setFavorite(friend.walletAddress?.ToString(), false);   // CH4: the preference leaves with the record
                 SSightingStore.forget(friend.walletAddress?.ToString());   // ★ G-2: the kept sighting leaves with the contact
@@ -434,6 +436,10 @@ namespace SPIXI
                 return false;
             }
             SReactionFlags.clear(friend.walletAddress?.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
+            if (friend.walletAddress != null)
+            {
+                CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back
+            }
             UIHelpers.shouldRefreshContacts = true;
             // iOS-24 (#283): an OPEN conversation must repaint the emptied history now
             var chat_page = Utils.getChatPage(friend);

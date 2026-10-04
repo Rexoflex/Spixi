@@ -6007,6 +6007,7 @@ namespace SPIXI
                     bool declinedIncoming = friend.type == FriendType.Normal && !friend.bot
                         && friend.state != FriendState.RequestSent && friend.state != FriendState.Approved;
                     string declinedAddr = friend.walletAddress.ToString();
+                    CoreMessageWriter.arrivals.forgetAddress(declinedAddr);   // ★ P0 #1155: a declined request gets nothing put back
                     bool listed = declinedIncoming && SRequestIgnore.add(declinedAddr);
                     bool removed = false;
                     try

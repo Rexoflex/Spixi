@@ -597,22 +597,6 @@ namespace SPIXI
             }
         }
 
-        /** ★★ #1102 implied read: the tick changes of SEVERAL own messages in one push to the open chat
-         *  (SingleChatPage.updateTicks), then the chats row once. Empty list → nothing. */
-        public static void updateTicks(Friend friend, int channel, List<FriendMessage> msgs)
-        {
-            if (msgs == null || msgs.Count == 0)
-            {
-                return;
-            }
-            Utils.getChatPage(friend)?.updateTicks(msgs, channel);
-            Page? page = Application.Current?.MainPage?.Navigation?.NavigationStack?.LastOrDefault();
-            if (page != null && page is HomePage)
-            {
-                ((HomePage)page).updateChat(friend);
-            }
-        }
-
         public static void insertMessage(Friend friend, int channel, FriendMessage msg)
         {
             Utils.getChatPage(friend)?.insertMessage(msg, channel);

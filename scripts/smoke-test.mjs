@@ -40525,7 +40525,7 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
 
 /* ═══ SESSION 1 (DECISIONS #1101–#1107): the carry-over (0b) · implied read · last seen · shared items · Downloads ═══
  * Behaviour is EXECUTED on the built shells where it is shell behaviour; C# is pinned as the property it must hold, on
- * stripped code (#771). The C# implied-read RULE itself is executed by Spixi-UnitTests/ImpliedReadTests.cs (MSTest). */
+ * stripped code (#771). (#1102 implied read RETIRED by #1163 / #1164 — its pins are replaced by the inverted pin below.) */
 console.log('#1101–#1107 — session 1');
 {
   const rdX = (pth) => readFileSync(join(root, pth), 'utf8');
@@ -40629,78 +40629,7 @@ console.log('#1101–#1107 — session 1');
       '★ #1101 0b(d) (Damir): on Windows the dim around the ring card is the NATIVE scrim (#1093 card-sized WebView2), so the shell\'s "tap the dim closes the decline sheet" never saw the tap. A scrim tap OUTSIDE the card, ring mode only, sends the same callBack as hardware back — ' + JSON.stringify(r));
   }
 
-  /* —— Part 1 (#1102): IMPLIED READ — the receiver gate (1:1 only, the loaded list, one write, one batch) —— */
-  {
-    const sp = stripCode(rdX('Spixi/Network/StreamProcessor.cs'));
-    const ir = stripCode(rdX('Spixi/Utils/ImpliedRead.cs'));
-    const rc = sp.slice(sp.indexOf('case SpixiMessageCode.msgRead:'), sp.indexOf('case SpixiMessageCode.msgDelete:'));
-    const r = {
-      gate: /if \(spixi_message\.type == SpixiMessageCode\.msgRead && fm\.localSender && ImpliedRead\.appliesTo\(friend\)\)/.test(rc),
-      loadedList: /ImpliedRead\.markThrough\(friend\.getMessages\(ch\), fm\.id\)/.test(rc) && !/getMessages\(ch, /.test(rc),
-      oneWrite: (rc.match(/requestWriteMessages\(/g) || []).length === 1 && /if \(implied\.Count > 0\)\s*\{\s*IxianHandler\.localStorage\.requestWriteMessages\(friend\.walletAddress, ch\);/.test(rc),
-      oneBatch: /UIHelpers\.updateTicks\(friend, ch, implied\);/.test(rc) && !/foreach[^{]*implied/.test(rc),
-      countLog: /Logging\.info\("\[READ\] implied n=\{0\}", implied\.Count\);/.test(rc),
-      oneToOne: /return friend != null && friend\.type == FriendType\.Normal && !friend\.bot;/.test(ir),
-      rule: /&& m\.localSender\s*&& !m\.read\s*&& !m\.errorSending\s*&& \(m\.sent \|\| m\.confirmed\)\s*&& \(m\.type == FriendMessageType\.standard \|\| m\.type == FriendMessageType\.fileHeader\)\s*&& !string\.IsNullOrEmpty\(m\.message\);/.test(ir)
-        && /if \(idx < 0 \|\| !messages\[idx\]\.localSender\)/.test(ir) && /for \(int i = 0; i <= idx; i\+\+\)/.test(ir),
-      noDisk: !/localStorage|readLastMessages|File\./.test(ir),
-      tests: (rdX('Spixi-UnitTests/ImpliedReadTests.cs').match(/\[TestMethod\]/g) || []).length === 12,
-      /* (#46 r1 C2) the batch REACHES the open chat, the chats row refreshes, and lastMessage follows when it is among them */
-      delivered: /Utils\.getChatPage\(friend\)\?\.updateTicks\(msgs, channel\);/.test(stripCode(rdX('Spixi/Utils/UIHelpers.cs')))
-        && /public static void updateTicks\(Friend friend, int channel, List<FriendMessage> msgs\)/.test(stripCode(rdX('Spixi/Utils/UIHelpers.cs'))),
-      lastMessage: /FriendMessage\? lastNow = implied\.Find\(x => x\.id\.SequenceEqual\(last\.id\)\);\s*if \(lastNow != null\)\s*\{\s*friend\.metaData\.setLastMessage\(lastNow, ch\);\s*friend\.saveMetaData\(\);/.test(rc),
-    };
-    ok(Object.values(r).every(Boolean),
-      '★★ #1102 IMPLIED READ (1:1): a msgRead for OUR message X marks X and every earlier own text/file in the LOADED list read (never a disk read), with one debounced write and ONE tick batch to the open chat; groups and bots never (#658: "seen" is per member); a failed, still-QUEUED (never sent — #46 r1 A1), deleted or received row is never marked; the batch reaches the open chat and lastMessage follows; the rule is executed by 12 MSTest cases (cloud harness: 8/8 rule mutations killed, review-brief-session-1 §5) — ' + JSON.stringify(r));
-  }
-  {
-    const sc = stripCode(rdX('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
-    const ut = sc.slice(sc.indexOf('public void updateTicks(List<FriendMessage> messages, int channel)'), sc.indexOf('public void updateFile('));
-    ok(/if \(channel != selectedChannel \|\| messages == null \|\| messages\.Count == 0\)/.test(ut)
-       && /deliveryTicks\(m, out bool tSent, out bool tConfirmed, out bool tRead\);/.test(ut)
-       && /items\.Add\(new string\[\] \{ Crypto\.hashToString\(m\.id\), tSent \? "1" : "0", tConfirmed \? "1" : "0", tRead \? "1" : "0" \}\);/.test(ut)   /* (#46 r1 C2) the tuple ORDER the shell reads */
-       && /Utils\.sendUiCommand\(this, "updateTicks", JsonConvert\.SerializeObject\(items\)\);/.test(ut)
-       && !/message\.message|m\.message|filePath|transferId/.test(ut),
-      '★ #1102 C#: updateTicks is FLAGS ONLY — [[id, sent, confirmed, read]] through deliveryTicks (the group rule stays one place), the selected channel only, ONE push; no text, name or path ever rides it');
-  }
-  /* —— Part 1 (#1102), the shell: updateTicks EXECUTED on the BUILT chat shell —— */
-  {
-    const { dom, W, push, errs } = await bootS1('chat.html', 2000);
-    const d = W.document;
-    const toneOf = (id, sel) => { const row = d.querySelector('#messages [data-msgid="' + id + '"]'); const ic = row ? [...row.querySelectorAll(sel + ' .c-status-icon')] : null; return ic && ic.length ? ic[ic.length - 1].dataset.tone : (ic ? 'none' : null); };
-    const textTone = (id) => toneOf(id, '.c-bubble__meta');
-    const fileTone = (id) => toneOf(id, '.c-fbubble__stamp');
-    const textOf = (id) => { const row = d.querySelector('#messages [data-msgid="' + id + '"] .c-bubble__text'); return row ? row.textContent : null; };
-    push('onChatScreenReady');
-    push('clearMessages', 'False');
-    push('addMe', 'm1', 'addrMe', 'Me', '', 'first', String(T1), 'True', 'True', 'False', 'False', 'False');
-    push('addMe', 'm2', 'addrMe', 'Me', '', 'second', String(T1 + 1), 'True', 'True', 'False', 'False', 'False');
-    push('addMe', 'mf', 'addrMe', 'Me', '', 'failed', String(T1 + 2), 'True', 'False', 'False', 'False', 'True');
-    push('addThem', 't1', 'addrPeer', 'Bob', '', 'theirs', String(T1 + 3), 'True', 'True', 'False', 'False', 'False');
-    push('addFile', 'f1', 'addrMe', 'Me', '', 'fid1', 'report.pdf', String(T1 + 4), 'True', 'True', 'False', '100', 'True', 'False', 'True');
-    if (typeof W.messagesDone === 'function') push('messagesDone');
-    push('onChatScreenLoaded');
-    await sleep(400);
-    const before = { m1: textTone('m1'), m2: textTone('m2'), f1: fileTone('f1') };
-    push('updateTicks', JSON.stringify([['nope', '1', '1', '1'], ['m2'], 'junk', null, ['t1', '1', '1', '1'], ['mf', '1', '1', '1'], ['m1', '1', '1', '1'], ['f1', '1', '1', '1']]));   /* (#46 r1 M34) the rows that must change come LAST */
-    await sleep(1300);   // the 900 ms ghost belt (B10)
-    const r = {
-      before: before.m1 === 'delivered' && before.m2 === 'delivered' && before.f1 === 'delivered',
-      textRead: textTone('m1') === 'read',
-      fileRead: fileTone('f1') === 'read',
-      laterStays: textTone('m2') === 'delivered',
-      failedStays: textTone('mf') !== 'read',
-      /* (mutation survivor, #1102: a received or typed row draws no tick, so the shell's direction/kind guard has no
-         visible effect — it is defence only and this pin does not claim it) */
-      textUntouched: textOf('m1') === 'first',
-      noErrors: errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0,
-    };
-    push('updateTicks', 'not json');
-    r.badJson = errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0 && textTone('m1') === 'read';
-    ok(Object.values(r).every((v) => v === true),
-      '★★ #1102 EXECUTED on the BUILT chat shell: ONE updateTicks push turns an own text AND an own file to read; a row not named stays delivered; a failed row, an unknown id and malformed items are skipped (a received row draws no tick — its guard is defence only, not claimed); the bubble text is never touched (flags only); bad JSON is a no-op — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
-    try { dom.window.close(); } catch (e) {}
-  }
+  /* —— #1102 IMPLIED READ: its 3 pins RETIRED by #1163 / #1164 (session 5b) — the inverted pin is pins-s5/read.mjs —— */
 
   /* —— F-1b (#1101/#1102): the RECEIVER side was already right — pin it so it stays right —— */
   {
@@ -42032,8 +41961,8 @@ for (const mod of ['cs', 'nav', 'chat', 'main', 'fix2', 'fixr1', 'fixr2', 'fix3'
   await (await import(new URL('./pins-s4/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 /* ==== SESSION 4 PINS END ==== */
-/* ==== SESSION 5 PINS — p0 = the #1155 message-loss guard · win = #1153 ==== */
-for (const mod of ['p0', 'win']) {   // win = #1153 (Windows white window)
+/* ==== SESSION 5 PINS — p0 = the #1155 message-loss guard · win = #1153 · read = #1163 (no implied read) ==== */
+for (const mod of ['p0', 'win', 'read']) {   // win = #1153 (Windows white window) · read = #1163 / #1164 (session 5b)
   await (await import(new URL('./pins-s5/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 }

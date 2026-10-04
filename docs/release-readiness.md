@@ -281,7 +281,7 @@ row says so); the Check column names the sign-off or measurement.
 | B-1 | #232/#523 money-path review (W5/W6/PA1, `SPayments.cs`): the BE engineer signs off §1c, OR a cap gate removes `composeSend` from the tester build (#874) | BE sign-off | S12 | OPEN — `composeSend` pushed unconditionally | `HomePage.xaml.cs:2360`; `security-review-for-be-engineer.md:248-276` |
 | B-3 | Android mini-app XHR reads `wallet.ixi` (the "MAJOR #8" on file access): `AllowFileAccessFromFileURLs` false for the mini-app WebView | BE sign-off + pin | S12 | OPEN | `Platforms/Android/WebViewRenderer.cs:451`; `be-cutover-brief.md:737` |
 | B-4 | MAJOR #9: `OnPermissionRequest` refuses or prompts for mini-apps | BE sign-off | S12 | OPEN | `WebViewRenderer.cs:55`; `be-cutover-brief.md:738` |
-| B-5 | A1/L8 cleartext `walletpass`: SecureStorage with verify-then-remove migration — OR a v1.1 decision (H-9) | BE sign-off / decision row | S12 | OPEN — no `SecureStorage` in `Spixi/` | `security-review-for-be-engineer.md:452-467` |
+| B-5 | A1/L8 cleartext `walletpass`: SecureStorage with verify-then-remove migration — OR a v1.1 decision (H-9) | BE sign-off / decision row | S12 | CLOSED for v1 — v1.1 by #1165 (H-9); legacy, a stated limit | `security-review-for-be-engineer.md:452-467` |
 | B-6 | L2 (the other "MAJOR #8": `UrlDecode` turns `+` into a space in the wallet password): fixed with a migration that does not lock out `+` passwords | BE sign-off | S12 | OPEN | `security-review-for-be-engineer.md:485-545`; gate `:1238`, `:1241` |
 | B-7 | MAJOR #10 + H-9: `app.id` validated once at install (delete path + 4 more sinks) | BE sign-off | S12 | OPEN | `MiniApp.cs:67`; `MiniAppManager.cs:302/324/365` |
 | B-8 | H-6: the mini-app `t` field (`table`) validated as a plain name before `Path.Combine` | BE sign-off | S12 | OPEN | `MiniAppStorage.cs:99`, `:152`; `be-cutover-brief.md:740` |
@@ -299,7 +299,7 @@ row says so); the Check column names the sign-off or measurement.
 | B-21 | Server-side mute (iOS/macOS): the IPN server skips a muted pair | BE sign-off | H-24 (S12 if made a blocker; else I-12) | OPEN | #972 iO.7(b) |
 | B-22 | F11b busy/reject reason flag on the wire (wording = Damir) | BE sign-off | H-24 (S12 if made a blocker; else I-12) | OPEN | #1081 |
 | B-24 | Core "missing encryption keys" retry noise every 2.5 s | BE sign-off | S12 | OPEN | #991 finding (3) |
-| B-25 | Session 1's new bridge surface (pushes `updateTicks` · `jumpToMessage` · `setSharedItems` · `setDownloadSenders`; verbs `ixian:sharedItems` · `ixian:sharedOpen` · `ixian:showDownloadInChat`; trailing args on `setOnlineStatus` / `showIndicator` / `addFile`) is approved | BE sign-off | S12 | OPEN — 🟡 ASK | `be-cutover-brief.md` SESSION1-API; #1102, #1103, #1106, #1107 |
+| B-25 | Session 1's new bridge surface (pushes `jumpToMessage` · `setSharedItems` · `setDownloadSenders`; verbs `ixian:sharedItems` · `ixian:sharedOpen` · `ixian:showDownloadInChat`; trailing args on `setOnlineStatus` / `showIndicator` / `addFile`) is approved | BE sign-off | S12 | OPEN — 🟡 ASK | `be-cutover-brief.md` SESSION1-API; #1103, #1106, #1107 (`updateTicks` removed, #1164) |
 | B-26 | The wallet fiat value is right again: `ixiprice.txt` is fed from the NonKYC IXI_USDT bid/ask midpoint (server side, no app change) | BE sign-off + measurement (the file vs NonKYC) | S12 | OPEN — 🟡 ASK | `be-cutover-brief.md` FIAT-FEED; #1108 |
 | B-27 | Session 2's new bridge surface: verbs `ixian:sharedShow:<hex id>:<n>` (chat info → the existing jump) and `ixian:callRingtone:on\|off` + push `setCallRingtone` + cap `callRingtone` (#1118/#1120) — and the G-6b in-process thumbnail decode of contact images (#1121) | BE sign-off | S12 | OPEN — 🟡 ASK | `security-review-for-be-engineer.md` "Session 2 addenda"; gate "Session 2" |
 
@@ -310,24 +310,24 @@ its own criterion row in the stage it blocks).
 
 | ID | Decision | Blocks | State | Evidence |
 |---|---|---|---|---|
-| H-2 | Translator pass: define "done" (per-locale sign-off) and run it — 694–773 keys per locale in `src/strings/draft/` | S12 | OPEN | `src/strings/draft/*.json` (not "~585" any more) |
+| H-2 | Translator pass: define "done" (per-locale sign-off) and run it — 694–773 keys per locale in `src/strings/draft/` | S12 | DECIDED #1165 — the machine drafts ship in v1 (no per-locale sign-off); copy / claims check still runs | `src/strings/draft/*.json` (not "~585" any more) |
 | H-3 | R4 backup reminder: write the 30-day stamp on acknowledgement, not at push time? | S6 | PARTLY — renders now; the stamp still burns at push | `HomePage.xaml.cs:3931-3958`; `home.html:4378-4381` |
 | H-4 | Q16 delete account purges: a walk row "delete account → welcome; no contacts, chats, mini-apps, prefs remain; create works" on the release candidate | S12 | PARTLY — built #545–#548, two defects fixed #585 | `f5-findings-2026-08-26-walkday.md:64-127` |
 | H-5 | The old dials R3 media cap scope · R6 mobile tx depth · AND-24 native dialog styling · AND-39 tap-fill · M17 create-group · the privacy-shield-on-deactivate posture | S5 | UNKNOWN — no row after 2026-09-07 | no row after 2026-09-07 (grep) |
 | H-6 | Gate dials O-01 (wallet balance in the chat document) · O-04/O-06 (restore inherits `spixi.*`; mute prefs never removed) · O-05 (follows A-4) · O-15 group roster · O-19 log share without a dialog on Windows · O-20 `[CRASHDIAG]` keep · O-22 console mirror · O-28…O-31 lock/APNs posture · O-33/O-41 DOM storage + scanner key · O-36 `-diff` on built shells · O-38/O-40 second hosts | S10 | OPEN | gate `:1159-1185`, `:1374`, `:1378` |
 | H-8 | Group typing: wait for CORE-12 (B-20, then E-I6 is walked) or drop typing in groups for v1 (E-I6 and B-20 leave v1). The ONE decision for group typing | S2 | OPEN | verdict `:40` |
-| H-9 | L8/A1 (B-5): v1 blocker or v1.1? (#927 amended said OUT this round; be-cutover § Blockers says YES) | S12 | OPEN | #927; `be-cutover-brief.md:729` |
+| H-9 | L8/A1 (B-5): v1 blocker or v1.1? (#927 amended said OUT this round; be-cutover § Blockers says YES) | S12 | DECIDED #1165 — v1.1 (legacy; a stated limit) | #927; `be-cutover-brief.md:729` |
 | H-11 | (= F-0b-b) chat-open blank frames | S1 | DECIDED — the cheap test build (#1101) | #1095, #1101 |
 | H-12 | (= F-0b-d) the three Windows call dials | S1 | DECIDED — all three change (#1101) | #1094, #1101 |
 | H-13 | #930: the backup stamp counts a cancelled share sheet | S6 | OPEN | gate `:1521` |
 | H-14 | #984: device backups carry declined addresses / the trace salt | S6 | OPEN | gate `:1581` |
 | H-15 | Pre-launch U-01, U-03, U-05, U-06, D-04 haptics, D-06 dark canvas layers: fix or v1.1, each | S5 | OPEN | audit `:202-210`, `:220-224` |
 | H-16 | Leftovers: pinned-vs-hover 1.01:1 · 8 dip click-dead card pad · group avatar 2 px shorter · P.18 dark sheet step · M3/M4 shades · code-tile hover contrast | S5 | UNKNOWN — some may be superseded by #1093/#1094 | `handoff-2026-09-30d.md` §2; `handoff-2026-09-29b.md:47-55` |
-| H-17 | Terms of Use: counsel's read recorded, or "not needed" | S12 | UNKNOWN — #992 covers the Privacy Policy only | `docs/legal/terms-of-use.md:3` |
+| H-17 | Terms of Use: counsel's read recorded, or "not needed" | S12 | DECIDED #1165 — counsel reads before v1; OPEN until the read is recorded | `docs/legal/terms-of-use.md:3` |
 | H-18 | S-07 wording and the S-03 tip display (before A-7/A-10) | S3 | OPEN | audit `:79-84`, `:111-116` |
 | H-19 | S-02 owner: ours (the audit: ~30 min, before any external build) or the BE engineer's (be-cutover § Blockers)? This page assumes ours (A-6) until ruled | S3 | OPEN | `prelaunch-audit-handoff.md:71-77`; `be-cutover-brief.md:730` |
 | H-20 | PRE-2 (Account as a real tab): a v1 refactor pick (S8) or v1.1? | S5 | OPEN | `audit-refactor-plan.md` §6b |
-| H-21 | Which stores ship v1: Play · App Store · Mac (App Store or direct) · Windows (Store or direct) — decides G-9d's scope | S12 | OPEN | #1098 (Mac ships; channel not decided) |
+| H-21 | Which stores ship v1: Play · App Store · Mac (App Store or direct) · Windows (Store or direct) — decides G-9d's scope | S12 | DECIDED #1165 — Play · App Store · Mac App Store · Windows DIRECT download (not the Microsoft Store) | #1098 (Mac ships; channel not decided) |
 | H-22 | Pre-launch audit rows outside the ruled set: C-01 MAUI nav off the UI thread `:165-173` · C-02 typing timers `:174-179` (was D-6) · C-03 resume blocks the UI thread `:180-185` (was D-7) · C-04 mini-app downloads unbounded `:186-191` (was A-12) · C-05 reactions raise unread `:192-197` · P-02…P-04 `:133-153` · S-05 (Core) `:98-103` · R-01 xUnit project for C# logic `:264-268`: v1 or later, each. P-02…P-04 and C-01 are ALSO G-3c inventory seeds — one decision covers both | S5 | UNKNOWN | audit §4 step 3 `:278`; #1054 |
 | H-23 | RR's "v1.1" visible gaps with no deferring row (group rename / re-avatar · "you were added to a group" · arbitrary emoji reactions · mini-app session accept UI): confirm OUT under #295 | S5 | OPEN | #295 umbrella only |
 | H-24 | Do B-21 / B-22 become v1 blockers? (else they stay OUT under I-12). Group typing (B-20) is decided by H-8 alone | S12 | OPEN | I-12; #972, #1081 |

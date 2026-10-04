@@ -5652,35 +5652,6 @@
      * non-text row (it would overwrite the card with the raw file header); for a fileHeader it now pushes
      * THIS instead — flags only, no text. Unknown id / a received file / an unchanged status → no-op. The
      * tick crossfades like a text tick (setMessageStatus), and a rebuild inside the fade replays it. */
-    /* ★★ #1102 IMPLIED READ: the tick changes of several OWN rows in ONE push (C# SingleChatPage.updateTicks).
-     * `json` = [[id, sent, confirmed, read], …] — flags only ("1"/"0"), never text. An item changes only an OWN
-     * text or file row this shell has loaded; anything else (unknown id, a received row, a failed row, a malformed
-     * item) is skipped. At most 500 items. One repaint for rows that are not on screen; on-screen rows crossfade
-     * like a live updateFileTicks. */
-    updateTicks(json) {
-      let list = null;
-      try { list = JSON.parse(String(json)); } catch (e) { list = null; }
-      if (!Array.isArray(list)) return;
-      const live = !bursting && !loadPhase;
-      let repaint = false;
-      for (const it of list.slice(0, 500)) {
-        if (!Array.isArray(it) || it.length < 4) continue;
-        const key = String(it[0]);
-        const rec = model.get(key);
-        if (!rec || rec.direction !== 'sent' || (rec.kind !== 'text' && rec.kind !== 'file')) continue;
-        if (rec.status === 'failed') continue;
-        const next = statusFrom({ sent: it[1] === '1', confirmed: it[2] === '1', read: it[3] === '1' });
-        if (next === rec.status) continue;
-        const prev = rec.status;
-        rec.status = next;
-        if (live && prev) rec.tickFx = { from: prev, at: performance.now() };
-        const row = rows.get(key);
-        if (row && prev) setMessageStatus(row, next, window.SL || {}, { animate: live });
-        else repaint = true;
-      }
-      if (repaint) renderLog();
-    },
-
     /* ★★ #1106 — C# opens the conversation AT a message (a shared item in chat info, Downloads "Show in chat"): scroll
      * to the row and pulse it (the @-mention FAB's jumpToRow). A row the loaded window does not hold → a short toast.
      * `id` is C#'s own hex id; an unknown id only ever produces the toast. */

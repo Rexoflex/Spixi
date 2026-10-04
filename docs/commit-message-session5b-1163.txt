@@ -1,0 +1,10 @@
+Remove the implied read (#1163); record the session 5b picks
+
+A read receipt now marks only the message it names. Removed the
+implied-read rule and its MSTest, the msgRead call, the updateTicks
+push and its chat-shell receiver. The three #1102 smoke pins are
+replaced by one inverted pin (scripts/pins-s5/read.mjs).
+
+Records Damir's session 5b interview picks (#1165): levers 4, 7, 9,
+12, P-03/P-04, B4, the media viewer with both menu rows, the
+composer pill, and the T2 answers H-21, H-2, H-17, H-9.

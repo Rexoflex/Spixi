@@ -377,3 +377,6 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   the call ring → Dispose keeps ModalStack pages + WinUI crash logging (#1161); #46 CLEAN at r4 (#1162). Smoke 5189 ·
   CSH 93. Experiment log cross-checked by a parser (no change). Committed a50cae15.
 - 2026-10-04 (d): Damir picked #1102 → A, remove the implied read (#1163, build first in 5b). Next free #1164.
+- 2026-10-04 (e, session 5 part 2, half 1; cloud twin — the device shell kills the smoke): walk not done (Damir: go on).
+  #1163 BUILT (#1164: the whole #1102 surface removed, 3 pins → 1 inverted pin, 4 deliberate breaks, #46 CLEAN). Interview
+  §3 rows 2–13 answered (#1165). Smoke 5187 · CSH 93. Next: walk + "go" → V-1 … V-4. Next free #1166.

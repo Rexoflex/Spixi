@@ -4178,35 +4178,6 @@ namespace SPIXI
             Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), message.message, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString());
         }
 
-        /* ★★ #1102 IMPLIED READ — the tick changes of several own messages in ONE push (`updateTicks`),
-         * not one updateMessage per row. FLAGS ONLY: [[id, sent, confirmed, read], …] as JSON — no text, no
-         * name, no path (the updateFileTicks rule, #1028), so a file and a text ride the same item. Only the
-         * selected channel (the updateMessage rule). The shell applies an item to an OWN text/file row it has
-         * loaded and ignores everything else; an OLDER shell has no `updateTicks` and drops the push (the rows
-         * then catch up on the next open — Core has saved the flags). A NEW push: DECISIONS #1102 🟡 BE ask. */
-        public void updateTicks(List<FriendMessage> messages, int channel)
-        {
-            if (channel != selectedChannel || messages == null || messages.Count == 0)
-            {
-                return;
-            }
-            List<string[]> items = new List<string[]>();
-            foreach (FriendMessage m in messages)
-            {
-                if (m.type != FriendMessageType.standard && m.type != FriendMessageType.fileHeader)
-                {
-                    continue;
-                }
-                deliveryTicks(m, out bool tSent, out bool tConfirmed, out bool tRead);
-                items.Add(new string[] { Crypto.hashToString(m.id), tSent ? "1" : "0", tConfirmed ? "1" : "0", tRead ? "1" : "0" });
-            }
-            if (items.Count == 0)
-            {
-                return;
-            }
-            Utils.sendUiCommand(this, "updateTicks", JsonConvert.SerializeObject(items));
-        }
-
         public void updateFile(string uid, string progress, bool complete)
         {
             Utils.sendUiCommand(this, "updateFile", uid, progress, complete.ToString());

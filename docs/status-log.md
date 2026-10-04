@@ -375,4 +375,5 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
 - 2026-10-04 (c, session 5 part 1, cloud twin while Damir was away): ★ P0 #1155 mechanism verified + guard built (#1160:
   ArrivalGuard + CoreMessageWriter; CORE-8a/8b/8c in the BE brief); #1153 white window = DevPage (a modal) disposed under
   the call ring → Dispose keeps ModalStack pages + WinUI crash logging (#1161); #46 CLEAN at r4 (#1162). Smoke 5189 ·
-  CSH 93. Experiment log cross-checked by a parser (no change). Next free #1163.
+  CSH 93. Experiment log cross-checked by a parser (no change). Committed a50cae15.
+- 2026-10-04 (d): Damir picked #1102 → A, remove the implied read (#1163, build first in 5b). Next free #1164.

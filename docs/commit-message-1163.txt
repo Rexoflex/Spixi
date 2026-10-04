@@ -1,0 +1,6 @@
+Record #1163: remove the implied read (#1102 A)
+
+Damir's pick after the P0 fix: a read receipt no longer marks earlier
+messages read; the removal is the first build item of session 5 part 2.
+Updates CLAUDE.md, the 2026-10-04 handoff, the session 5b prompt and the
+status log.

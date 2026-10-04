@@ -1,7 +1,7 @@
-Read CLAUDE.md, then docs/handoff-2026-10-04.md (FIRST), then DECISIONS #1155–#1162. Next free DECISIONS number: #1163.
+Read CLAUDE.md, then docs/handoff-2026-10-04.md (FIRST), then DECISIONS #1155–#1163. Next free DECISIONS number: #1164.
 This is SESSION 5 PART 2 (same scope as docs/prompts/session-5.md; part 1 = the P0 guard #1160 + the Windows white window #1161, #46 CLEAN #1162).
-Already decided (do not re-open): everything in session-5.md "Already decided" · #1160–#1162 (the guard design, the Dispose rule, the [CRASH] line).
-Open for the interview: handoff-2026-10-04.md §3 (13 rows, #1102 A / B first). Voice (#1136) is SESSION 7 — do not design it here.
+Already decided (do not re-open): everything in session-5.md "Already decided" · #1160–#1162 (the guard design, the Dispose rule, the [CRASH] line) · #1163 (#1102 → A: remove the implied read).
+Open for the interview: handoff-2026-10-04.md §3 rows 2–13 (row 1 = #1102 is DECIDED, #1163). Voice (#1136) is SESSION 7 — do not design it here.
 
 ## 0 · Rules and precondition
 `git --no-optional-locks` on the mounted repo · chat replies in ASD-STE100 (#931) · PowerShell repo commands with every delivery ·
@@ -23,7 +23,8 @@ skipped`. V-0b: the `[CRASH] winui` line names the #1153 exception — if it is 
 For: Spixi users and Damir. After this session the open levers are decided on measured numbers, the rest of the speed work is built
 (V-1, V-2), a media tile opens the in-app viewer with the chat-info menu rows (V-3, #1154) and a group cannot exceed Core's limit (V-4).
 We know it worked when:
-  - #1102 A / B is a DECISIONS row (and, for A, ImpliedRead removed with its pins re-based).
+  - #1163 built FIRST (after the walk record, no "go" needed): ImpliedRead.cs + its StreamProcessor call + ImpliedReadTests.cs
+    removed, its smoke pins retired / inverted (a pin that the call is gone, broken on purpose), a walk row.
   - Damir's picks for levers 4 · 7 · 8 · 9 · 12 · P-03 · P-04 · B4 are DECISIONS rows; the picked ones built with pins + walk rows.
   - V-2 lazy history B2 built (prepend only the older slice, `attachLazyHistory` as the trigger; walk rows #1142). ⚠ The #1160 guard
     lives in `loadMessages` (beforeReread · window growth for the same-second head · trim · afterReread): a load-more change keeps it.

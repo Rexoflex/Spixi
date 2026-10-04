@@ -83,9 +83,10 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 - 2026-10-04 session 5 part 2 DONE (cloud twin): #1163 committed (`c0b833ef`); V-1 … V-4 + the small picks BUILT (#1166: P-03 chats batch + row patches · P-04 avatars once · levers 4 probe / 7 width+push / 9 / 12 · B2 lazy history + #1151 smooth jump · media viewer + chat-info Delete / Show in Downloads · group cap 10 · pill · R3-N2 · R3-N3 · A-N4 · NIT-1); #46 CLEAN at r2 (#1167). Smoke BASELINE OK 5224 · CSH 107. ⚠ C# UNCOMPILED. UNCOMMITTED — patch `session5b-build.patch` (PC `Claude outputs/` + project), commit = Damir with `docs/commit-message-session5b.txt`.
 - Owed (walk, sheet `docs/walk-artifact-session5b-win-android.html`): the old V-0 / V-0b / #1152 rows + W-1163 + the #1166 rows. Lever 7 fails → `InfoPaneMotion = "push"`. B4 only after the B2 numbers.
-- Next (session 6, `docs/prompts/session-6.md`): the walk record + fixes first, #1168 transfer-card legibility, then S6 = capability check + reply + edit (#1145).
+- WALK #1172 (5b): 29 P · 2 F (W-VIEW flicker + slow close · A-FADE Android) · 4 N/A; lever 7 width kept; follow-ups #1173.
+- Next (session 6, `docs/prompts/session-6.md`): the 2 F + #1173 + #1174 (menu opens on scroll, Android) first, #1168 transfer-card legibility, #1169 photo + text in one message (interview), #1170 group media tiles without sender / avatar, #1171 desktop row hover flash, then S6 = capability check + reply + edit (#1145).
 - T2 decided (#1165): H-21 Play · App Store · Mac App Store · Windows direct · H-2 machine drafts ship · H-17 counsel reads Terms (open until recorded) · H-9 B-5 = v1.1. BE asks: B-28 SESSION5B-API, CORE-8, R3-N4 (v1.1).
 - Known: an Android PHOTO-button send has a content-URI path → no preview (V-14, session 9).
 - v1 plan (#1137–#1145, Core stays clean, SCOPE CLOSED): S6 capability check + reply + edit → S7 voice → S8 groups + reactions + mini-app accept + disappearing + privacy → S9 media picker + paste/multi-image/photo privacy (#1156–#1158) + audit fixes + copy + language note → walk + fix → FREEZE.
 - Road after the v1 build: L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933, retires [P1]) → gate re-run → merge → TestFlight (#971, #937, #1099).
-- **NEXT SESSION: read `docs/handoff-2026-10-04c.md` FIRST, then paste `docs/prompts/session-6.md`.** Next free DECISIONS number: **#1169**.
+- **NEXT SESSION: read `docs/handoff-2026-10-04c.md` FIRST, then paste `docs/prompts/session-6.md`.** Next free DECISIONS number: **#1175**.

@@ -1,5 +1,5 @@
-Read CLAUDE.md, then docs/handoff-2026-10-04c.md (FIRST), then DECISIONS #1137–#1145 (the v1 plan), #1165–#1168. Next free DECISIONS number: #1169.
-This is SESSION 6. Part A = the session-5b walk record + fixes; part B = #1168; part C = S6 (#1145): the capability check
+Read CLAUDE.md, then docs/handoff-2026-10-04c.md (FIRST), then DECISIONS #1137–#1145 (the v1 plan), #1165–#1174. Next free DECISIONS number: #1175.
+This is SESSION 6. Part A = the session-5b walk is RECORDED (WALK #1172: 29 P · 2 F · 4 N/A) → fix its 2 F + the #1173 follow-ups + #1174 (Android: the message menu opens during a scroll); part B = #1168 + #1170 (group GIF / file / photo tiles show no sender or avatar — a fix, no go needed) + #1171 (desktop chats row hover flashes on a live row update — a fix, no go needed) + the #1169 interview (photo + text in one message — is it worth doing, which option, which session); part C = S6 (#1145): the capability check
 (`getAppProtocols` answer + ask, #1136 facts) + reply-to (#1137 (3)) + edit (#1137 (4)).
 Already decided (do not re-open): everything in #1137–#1145 and #1160–#1167 · Core stays clean (#1137) · voice is SESSION 7.
 
@@ -14,8 +14,8 @@ smoke BASELINE OK (the number in CLAUDE.md) / the 2 KNOWN; `node scripts/run-csh
 smoke → build the cloud twin (clone + Ixian-Core @097341a + ONE `npm i --no-save jsdom eslint globals tree-sitter tree-sitter-c-sharp`
 + dotnet-sdk-8.0). Run ONE full smoke at a time (L75).
 
-## Step 1 · the walk (Part A)
-Paste of `docs/walk-artifact-session5b-win-android.html` + the logs → a `WALK #N` DECISIONS row; each F = mechanism first
+## Step 1 · the walk (Part A) — already recorded as WALK #1172 (logs in the row)
+The 2 F (W-VIEW, A-FADE) and the #1173 list: each F = mechanism first
 (skill `spixi-build-and-walk` step 5). A build error = the first compile of #1166 (handoff §5 lists the APIs relied on).
 Lever 7: keep width or switch to push on the walk result. Lever 4: read the `[P1] spare-after` lines → a fix or nothing (one lever).
 B4 (`messagesToLoad` 50 → 25) as ONE try in the §8 log only after the B2 numbers. Record kept / discarded in `docs/p1-measurement.md`.

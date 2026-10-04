@@ -1,0 +1,10 @@
+Record #1169-#1174: walk of session 5b and follow-ups
+
+#1169: type text and attach a photo in one message (interview).
+#1170: in a group, GIF, image, file and photo tiles show no sender
+name or avatar (pre-existing since #82).
+#1171: on desktop a hovered chats row flashes when it gets a live
+update, because the row node is replaced under the cursor.
+#1172: walk of the session 5b build, 29 pass, 2 fail, 4 n/a.
+#1173: the follow-ups from the walk notes.
+#1174: on Android the message menu can open during a scroll.

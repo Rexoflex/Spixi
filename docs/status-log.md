@@ -382,4 +382,9 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   §3 rows 2–13 answered (#1165). Smoke 5187 · CSH 93. Next: walk + "go" → V-1 … V-4. Next free #1166.
 - 2026-10-04 (f, session 5 part 2 build; cloud twin): Damir committed #1163 (c0b833ef) and said go. V-1 … V-4 + small picks built by
   5 contract-first agents, merged (#1166); #46 r1 0 MAJOR / 7 MINOR fixed → r2 CLEAN (#1167); Damir log #1168 (transfer-card
-  legibility). Smoke 5224 · CSH 107. UNCOMMITTED (patch). Next free #1169.
+  legibility), #1169 (photo + text in one message). Smoke 5224 · CSH 107. UNCOMMITTED (patch). Next free #1170.
+- 2026-10-04 (g): Damir committed + pushed session 5b (4dc15e22; the #1169 doc notes missed it and follow as a doc commit); logged #1170
+  (group GIF / file / photo tiles have no sender name or avatar — pre-existing since #82). Also #1171 (desktop chats-row hover flash: the patched
+  row node is replaced under the cursor). Next free #1172.
+- 2026-10-04 (h): WALK #1172 (5b, Win + Android): 29 P · 2 F (W-VIEW, A-FADE) · 4 N/A; lever 7 width kept; lever 4 = no fix; follow-ups #1173; #1174 Android: the message
+  menu opens during a scroll (contextmenu path unguarded). Next free #1175.

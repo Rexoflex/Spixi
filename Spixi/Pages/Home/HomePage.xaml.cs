@@ -3130,6 +3130,14 @@ namespace SPIXI
 
             // Generate the excerpt depending on message type
             string excerpt = lastmsg.message;
+            /* ★ #1198 (session 6b): a REPLY travels as "> Name: quote\nbody" (ReplyQuote, the text-quote convention) —
+             * the chats row shows the BODY, never the quote line. Shape only (ReplyQuote.stripForExcerpt: a quote line +
+             * a non-empty body → the body; anything else unchanged), standard text only; the event kinds below replace
+             * the excerpt anyway. The notification never carries text (NOTIF-2), so it needs nothing. */
+            if (lastmsg.type == FriendMessageType.standard)
+            {
+                excerpt = ReplyQuote.stripForExcerpt(excerpt);
+            }
             bool skipSelfPrefix = false;   // #265: "You: No answer" reads wrong (see below)
 
             if (friend.state != FriendState.Approved)
@@ -6052,6 +6060,28 @@ namespace SPIXI
                 {
                     int deleted = SContacts.purgeFiles(files, owner);
                     Logging.info(verb + ": media purge deleted " + deleted + " of " + listed + " files");
+                    if (deleted > 0 && owner != null)
+                    {
+                        /* ★ #1202 (#1190 TODO, session 6b): an OPEN chat of the owner re-pushes the file rows it holds (their
+                         * fLocal is read again — a purged file is now "0"). Main thread: getChatPage walks the navigation
+                         * stack. Normally nothing is open (see SContacts.purgeFiles); never throws out of the Task. */
+                        Address ownerAddress = owner;
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            try
+                            {
+                                Friend? of = FriendList.getFriend(ownerAddress);
+                                if (of != null)
+                                {
+                                    Utils.getChatPage(of)?.refreshHeldFileRows();
+                                }
+                            }
+                            catch (Exception rex)
+                            {
+                                Logging.warn(verb + ": chat rows " + rex.GetType().Name);   // the type only
+                            }
+                        });
+                    }
                 }
                 catch (Exception ex)
                 {

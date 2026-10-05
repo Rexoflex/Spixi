@@ -765,9 +765,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   pointer-events: none;
 }
 .c-chat-canvas > * { position: relative; } /* content above the pattern layer */
-/* scroll thumb over the TINTED canvas (audit r2 → r3): -03 was tuned against
-   the v1 gradient and fell to 1.14:1 on the v2 sky-blue bottom — text-02 ink
-   (neutral-490 light / neutral-400 dark) clears 3:1 on both canvases */
+/* scroll thumb over the TINTED canvas: the --chat-scroll-thumb token (tokens.css) — --outline-neutral-02 in BOTH
+   themes now (dark #1134, light #1202), the same thumb as chat info. (The audit r2 → r3 text-02 ink note is history.) */
 @media (hover: hover) and (pointer: fine) {
   .c-chat-canvas .u-scroll:hover,
   .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--chat-scroll-thumb) transparent; }
@@ -1092,7 +1091,7 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
    clears 5.1:1; sender vs text differentiate by weight */
 .c-bubble-row[data-direction="sent"] .c-bubble__reply-text { color: var(--text-bubble-sent); }
 
-/* "edited" marker (§8-gated #25) — meta ink, italic, precedes the time */
+/* "edited" marker (★ #1199: shown whenever C# says edited) — meta ink, italic, precedes the time */
 .c-bubble__edited { font-style: italic; }
 
 /* —— links in message text (Damir 2026-07-03): BUTTONS, not <a> — every
@@ -1450,6 +1449,97 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 :root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="10"] { --sender-label-l: 36%; } /* 4.70 on the brand-gradient bottom · 6.62 on Mist */
 :root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="11"] { --sender-label-l: 38%; } /* 4.63 on the brand-gradient bottom · 6.52 on Mist */
 
+/* ═══ ★★ #1198 (S6) — THE REPLY GESTURES (message-menu.js attachReplySwipe / createReplyHoverButton) ═══
+   Motion is tokens only, and the close is faster than the open: the swipe glyph and the hover button arm IN on
+   --duration-200 decelerate and go OUT (the spring back, the hover leaving) on --duration-100 accelerate. Under
+   reduced motion the tokens are 0 ms (tokens.css) and the swipe does not follow the finger at all (the JS). No blur. */
+
+/* the swipe (phone, touch only). pan-y: a vertical move stays the browser's scroll, a horizontal one reaches the
+   row. The row follows the finger through --reply-swipe-x (set per move, the finger's own geometry); the glyph
+   rides in from the start edge with the row and arms at the trigger distance. */
+.c-bubble-row[data-swipe-reply] { touch-action: pan-y; }
+.c-bubble-row[data-reply-swipe] {
+  position: relative;
+  transform: translateX(var(--reply-swipe-x, 0px));
+}
+.c-bubble-row[data-reply-swipe][data-reply-return] {
+  transition: transform var(--duration-100) var(--easing-accelerate);
+}
+.c-reply-swipe {
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--spacing-40));
+  width: var(--spacing-32);
+  height: var(--spacing-32);
+  margin-top: calc(-1 * var(--spacing-16));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-chat-chip);
+  color: var(--icon-neutral-02);
+  opacity: var(--reply-swipe-p, 0);
+  transform: scale(0.8);
+  transition: transform var(--duration-100) var(--easing-accelerate), color var(--duration-100) var(--easing-accelerate);
+  pointer-events: none;
+}
+.c-bubble-row[data-reply-armed] .c-reply-swipe {
+  transform: scale(1);
+  color: var(--icon-action-default);
+  transition: transform var(--duration-200) var(--easing-decelerate), color var(--duration-200) var(--easing-decelerate);
+}
+
+/* the desktop hover button — a real <button> ("Reply"), beside the bubble (placed by the shell from the bubble's
+   own box: --reply-btn-x / --reply-btn-y). Hidden everywhere but the desktop flag; shown on row hover (pointer:
+   fine), on the #1184-style data-hover carry, and on keyboard focus; never in selection mode. Invisible ≠ absent:
+   opacity 0 keeps it in the Tab order, so focus-within can reveal it. */
+.c-bubble-row[data-reply-btn] { position: relative; }
+.c-bubble-row__reply { display: none; }
+:root[data-desktop] .c-bubble-row__reply {
+  position: absolute;
+  left: var(--reply-btn-x, 0px);
+  top: var(--reply-btn-y, 0px);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-32);
+  height: var(--spacing-32);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-chat-chip);
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-100) var(--easing-accelerate), color var(--duration-100) var(--easing-accelerate);
+}
+/* ★ #46 r3 MINOR-2: KEYBOARD focus only — a rove-focusable row (#46 r2) takes focus on a mouse click, and `:focus-within`
+   then kept the button shown after the mouse left (a second button beside the hovered row). */
+:root[data-desktop] .c-bubble-row:focus-visible > .c-bubble-row__reply,
+:root[data-desktop] .c-bubble-row__reply:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root[data-desktop] .c-bubble-row:hover > .c-bubble-row__reply,
+  :root[data-desktop] .c-bubble-row[data-hover] > .c-bubble-row__reply {
+    opacity: 1;
+    pointer-events: auto;
+    transition: opacity var(--duration-200) var(--easing-decelerate);
+  }
+  :root[data-desktop] .c-bubble-row__reply:hover { color: var(--icon-neutral-01); }
+}
+/* ★ r2 (MINOR-3): the roving row (tabindex 0 / -1, chat.html roveRows) shows the house focus ring when the KEYBOARD
+   lands on it — never on a click (focus-visible); the same ring serves selection mode's checkbox rows */
+.c-bubble-row:focus { outline: none; }
+.c-bubble-row:focus-visible { outline: var(--outline-width-2) solid var(--outline-focus); outline-offset: -2px; border-radius: var(--radius-12); }
+:root[data-desktop] .c-bubble-row__reply:focus-visible { outline: var(--outline-width-2) solid var(--outline-focus); outline-offset: 2px; }
+[data-selecting] .c-bubble-row__reply,
+[data-selecting] .c-reply-swipe { display: none !important; }
+
 </style>
 <style data-src="../styles/components/composer.css">
 /* c-composer — chat input bar (DECISIONS #64). Field pill mirrors Figma input;
@@ -1517,8 +1607,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 }
 .c-composer__cost svg { color: var(--icon-neutral-02); flex: none; }
 
-/* —— reply/edit context strip (batch 3b, §8-gated #25) —— */
+/* —— reply/edit context strip (batch 3b; ★ #1198 / #1199 live behind setCaps reply / edit) —— */
+/* ★ #1198: the strip arms in on --duration-200 decelerate (a short rise + fade, no blur); it leaves at once (removed) —
+   the close is faster than the open. Reduced motion: the token is 0 ms (tokens.css). */
+@keyframes c-composer-ctx-in { from { opacity: 0; transform: translateY(var(--spacing-4)); } }
 .c-composer__ctx {
+  animation: c-composer-ctx-in var(--duration-200) var(--easing-decelerate);
   flex-basis: 100%;
   /* bug 2026-07-05c ③: the strip is itself a flex container, so its
      min-width:auto resolves to the NOWRAP excerpt's full width — the strip
@@ -5852,6 +5946,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
      · The composer slot (and the request pane that docks in the same slot) centres
        at the same 760 so the pill's edge tracks the bubbles' edge. */
   :root[data-desktop] .messages { padding-inline: max(0px, calc((100% - 760px) / 2)); }
+  /* ★ #1198: the reply swipe moves a row up to 72 px toward the end edge — the log never scrolls sideways for it */
+  #messages { overflow-x: hidden; }
   /* ★ Session I (Damir 2026-09-02, Windows): "the unread bar is cut off on both sides" —
      the strip is a #messages child, so it centred INSIDE the 760 column and its two
      hairlines + tint stopped dead at the gutters. Ruled FULL PANE, edge to edge. The
@@ -6213,6 +6309,9 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
    *    with only 6 by C#, so args 7-11 are undefined for incoming rows.)
    *  · Text STATUS UPDATE arrives via updateMessage (chat.js:1035, xaml.cs:1624):
    *      updateMessage(id, message, sent, confirmed, read, paid, errorSending)
+   *    ★ #1198 / #1199 (S6, CONTRACT P1 / P2): addMe / addThem now carry … relation, replyTo, edited,
+   *    quoteName, quoteText (args 12–16) and updateMessage … edited, replyTo, quoteName, quoteText (args 8–11);
+   *    absent = unchanged on the row, present = C#'s answer (upsertText `fullForm`).
    *    Legacy updateMessage ONLY mutates an existing msg_<id> row (returns early
    *    if unknown). To be robust here it is an UPSERT: create if the id is
    *    unknown (using `message` as the text + `sent` for direction), else update
@@ -6237,6 +6336,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     createAppBubble, createSystemNotice, createUnreadDivider,
     attachLazyHistory,              // ★ #1166 B2 (#1142): the scroll trigger for older history (#86)
     attachMessageMenu, openMessageMenu,   // openMessageMenu = the KEYBOARD path (Shift+F10 / Menu key)
+    attachReplySwipe, attachReplyDoubleClick, createReplyHoverButton, placeReplyButton,   // ★ #1198: the reply gestures (message-menu.js)
     enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
     openAttachTray, closeAttachTray, isAttachTrayOpen, revealAttachTray,   // ★ #705: the mobile tray under the composer · ★ Session K: the K1 hold
     attachEdgeBack,                 // ★ L3 (#706): the iOS back signal, one line per shell
@@ -7435,14 +7535,82 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     return null;
   }
   const REPLY_TEXT_MAX = 140;   // the quote is one clamped line; the bubble clamps visually too
-  function replyQuoteFor(rec) {
+  /* ★★ #1198 (S6) — THE QUOTE FALLBACK. C# matches a reply's quote line against its OWN history (CONTRACT §1a: the
+     in-memory list, then one deeper read) and pushes the target id (arg 13) plus what the line said — quoteName
+     (arg 15) and quoteText (arg 16, the language-neutral excerpt). A target this shell holds renders from the row
+     itself, exactly as before; a target OUTSIDE the loaded window renders from those two strings (textContent only,
+     message-bubble.js — a peer-composed excerpt is never markup), and its tap asks C# to open the history at it
+     (ixian:quotejump:). Neither → NO quote at all: with the S6 C# a reply target is only ever a MATCHED one, so an id
+     without a quote is not a reply this device can show — the M1 "Original message" placeholder is retired.
+     The excerpt's leading emoji names the target's kind (CONTRACT §1a EXCERPT): it becomes the kind glyph, and the
+     typed kinds (payment, call, app) show the LOCALISED label, never the neutral English word C# put on the wire. */
+  /* ★ #1198 r1 (B-3): a TYPED kind (payment, call, app) only on an EXACT match of the whole excerpt with C#'s wire words
+     (ReplyQuote.excerptOf: "💸 Payment" · "📞 Call" · "🚀 App") — those become the glyph + the LOCALISED label. A text
+     that merely starts with the same emoji ("🚀 launching") is a text quote and stays as written. A 📷 / 📎 prefix (a
+     photo / file excerpt carries its NAME after it) sets the glyph and keeps the name as the text. */
+  const QUOTE_TYPED_EXACT = { '💸 Payment': 'payment', '📞 Call': 'call', '🚀 App': 'app' };
+  const QUOTE_NAMED_PREFIX = [['📷 ', 'image'], ['📎 ', 'file']];
+  /* (C NIT) cap by GRAPHEME (Intl.Segmenter), else by code point — never a lone surrogate half */
+  function capQuoteText(text, max) {
+    let parts = null;
+    try {
+      if (typeof Intl !== 'undefined' && Intl.Segmenter) parts = Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (x) => x.segment);
+    } catch (e) { parts = null; }
+    if (!parts) parts = Array.from(text);
+    return parts.length > max ? parts.slice(0, max - 1).join('') + '…' : text;
+  }
+  function replyFallbackQuote(rec) {
+    const raw = String(rec.quoteText || '');
+    if (!raw) return null;
+    let kind = null;
+    let text = raw;
+    if (Object.prototype.hasOwnProperty.call(QUOTE_TYPED_EXACT, raw)) { kind = QUOTE_TYPED_EXACT[raw]; text = ''; }
+    else {
+      for (const [pre, k] of QUOTE_NAMED_PREFIX) {
+        if (raw.startsWith(pre) && raw.length > pre.length) { kind = k; text = raw.slice(pre.length); break; }
+      }
+    }
+    text = capQuoteText(text, REPLY_TEXT_MAX);
+    /* the name is C#'s, sanitised and never an address (CONTRACT §1a NAME) — the D-19b ladder's "a real nickname
+       always wins" holds in blind rooms too, and an empty name stays empty (no label, never a guess) */
+    const sender = String(rec.quoteName || '');
+    return { sender, address: '', text, kind, thumb: null, fallback: true };
+  }
+  /* the hex id test for an outgoing quotejump — C#'s ids are Crypto.hashToString hex; anything else never leaves */
+  const QUOTE_ID_RE = /^[0-9a-fA-F]{2,256}$/;
+  function quoteTapFor(rec) {
     if (!rec || !rec.replyTo) return null;
+    const tid = String(rec.replyTo);
+    if (model.has(tid)) return () => { if (rows.get(tid)) jumpToRow(tid); };   // loaded: the shared scroll-and-pulse
+    if (!rec.quoteText || !QUOTE_ID_RE.test(tid)) return null;
+    return () => {
+      if (rows.get(tid)) { jumpToRow(tid); return; }                          // it loaded since (older history)
+      bridge.send('ixian:quotejump:' + tid);                                  // C# opens the history at it (V3)
+      armQuoteJumpWait(tid);
+    };
+  }
+  /* ★ #1198 r1 (B-5): C# answers a quotejump it can serve with jumpToMessage, and one it cannot (not in ITS history
+     either) with NOTHING. So the shell waits QUOTE_JUMP_WAIT_MS: no jumpToMessage by then → the jump path's own
+     "further back" toast (sharedJumpTooFar); a jumpToMessage that arrives (any id) cancels the wait. */
+  const QUOTE_JUMP_WAIT_MS = 2000;
+  let quoteJumpWait = 0;
+  function armQuoteJumpWait() {
+    clearTimeout(quoteJumpWait);
+    quoteJumpWait = setTimeout(() => {
+      quoteJumpWait = 0;
+      const sl = window.SL || {};
+      try { showToast({ text: sl.sharedJumpTooFar || 'This message is further back. Scroll up to find it.', host: overlayHost, strings: sl }); } catch (e) {}
+    }, QUOTE_JUMP_WAIT_MS);
+  }
+  function cancelQuoteJumpWait() { if (quoteJumpWait) { clearTimeout(quoteJumpWait); quoteJumpWait = 0; } }
+  function replyQuoteFor(rec) {
+    if (!rec) return null;
+    /* ★ #1198 r1 (Damir P2): a VALID quote line that matches NOTHING — C# sends replyTo "" with the line's own name +
+       text → the quote box is drawn from them with NO tap (quoteTapFor: no target id, no jump) */
+    if (!rec.replyTo) return rec.quoteText ? replyFallbackQuote(rec) : null;
     const s2 = window.SL || {};
     const target = model.get(String(rec.replyTo));
-    if (!target) {
-      // outside the loaded window, or deleted → honest placeholder, no sender, no tap
-      return { text: (window.SL && window.SL.replyUnavailable) || 'Original message', sender: '', address: '' };
-    }
+    if (!target) return replyFallbackQuote(rec);   // ★ #1198: C#'s quote, or nothing
     const kind = replyKindOf(target);
     const isOwn = target.direction === 'sent';
     const sender = isOwn
@@ -7453,7 +7621,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     let text = '';
     if (!kind) {
       text = String(target.text || '').replace(/\s+/g, ' ').trim();
-      if (text.length > REPLY_TEXT_MAX) text = text.slice(0, REPLY_TEXT_MAX - 1) + '…';
+      text = capQuoteText(text, REPLY_TEXT_MAX);   // ★ r2 NIT: by grapheme, never a lone surrogate
     } else if (kind === 'file') {
       text = String(target.name || '');
     }
@@ -7480,7 +7648,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     let text = '';
     if (!kind) {
       text = String(rec.text || '').replace(/\s+/g, ' ').trim();
-      if (text.length > REPLY_TEXT_MAX) text = text.slice(0, REPLY_TEXT_MAX - 1) + '…';
+      text = capQuoteText(text, REPLY_TEXT_MAX);   // ★ r2 NIT: by grapheme, never a lone surrogate
     } else if (kind === 'file') text = String(rec.name || '');
     return { sender, text, kind };
   }
@@ -7686,8 +7854,10 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       // `reply` CAPABILITY gates who can CREATE one, not whether an incoming one
       // is shown, because a peer on a newer build can send one either way.
       reply: replyQuoteFor(rec),
-      onReplyClick: (rec.replyTo && rows.get(String(rec.replyTo)))
-        ? () => jumpToRow(String(rec.replyTo)) : null,
+      /* ★ #1198: the tap is resolved at TAP time (quoteTapFor) — a loaded target scrolls to it, an unloaded one asks
+         C# (ixian:quotejump:); a quote with neither has no tap */
+      onReplyClick: quoteTapFor(rec),
+      edited: !!rec.edited,   // ★ #1199: C# says edited (addMe / addThem arg 14, updateMessage arg 8)
     });
   }
 
@@ -8637,9 +8807,12 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
          that a later push had already raised. Evaluated on open, it is always current. */
       detail: () => receiptDetail(rec),
       reactions: ['❤️'],   // the bridge only persists "like" (C8: emoji reactions need a core change — be-cutover C8)
+      /* ★ #1198 / #1199: reply + edit are GETTERS — attachMessageMenu captures these options at row-wire time and
+         replays them on every long-press (the L2 lesson above), so a setCaps that lands after the paint, and the
+         24 h edit window running out under an open chat, are both read at OPEN time, never frozen at the render. */
       capabilities: {
-        reply: bridge.cap('reply'),                       // §8-gated, OFF until BE (#25)
-        edit: bridge.cap('edit') && isSent && !!rec.text, // own text only
+        get reply() { return canReplyRec(rec); },         // ★ #1198: C# declares `reply` (setCaps) — every menuable row
+        get edit() { return canEditRec(rec); },           // ★ #1199: own text, < 24 h, delivered state — see canEditRec
         /* W8 (#348, Damir F5): tip is offered in BOT groups now — the Spixi bot group
            had no Tip while a normal group did. BLIND chats keep no tip: a tip pays the
            message's SENDER, and a blind chat hides who that is. mode.blind, not
@@ -8669,6 +8842,320 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // the menu auto-hides Copy (no text) and Edit (not own text)
     if (!isMenuableRec(rec)) return;
     attachMessageMenu(row, menuOptsFor(rec, row));
+    wireReplyGestures(rec, row);   // ★ #1198: the swipe (touch), the desktop hover button + double-click
+  }
+
+  /* ═══ ★★ #1198 / #1199 (S6) — WHO MAY REPLY TO / EDIT WHICH ROW ═══════════════════════════════════════════════
+   * REPLY: C# declares `reply` (setCaps; every chat incl. bot rooms) and the row is menuable (text, GIF / media,
+   * file / photo, payment, app card — not a call log or an event chip, isMenuableRec). C# composes the quote line
+   * (CONTRACT §1a) and degrades to a plain send for a target it cannot quote, so the shell never second-guesses it.
+   * EDIT: C# declares `edit` (1:1 + private groups, never bot rooms) · MY message · a TEXT row (not a GIF / image URL
+   * tile, not an event chip — files, payments and app cards are other kinds) · inside 24 h of its time (C# moves the
+   * time at each edit, so the window runs from the last edit; C# re-checks EditRules.canEdit and re-pushes the row
+   * when it refuses) · not a failed or still-pending send (there is nothing on the peer's side to replace yet) ·
+   * the composer is not locked. */
+  const EDIT_WINDOW_MS = 24 * 3600 * 1000;
+  const EDIT_NEWER_MAX = 25;
+  function newerMessageCount(id, cap) {
+    const i = order.indexOf(String(id));
+    if (i < 0) return 0;
+    let n = 0;
+    for (let k = i + 1; k < order.length && n < cap; k++) {
+      const r = model.get(order[k]);
+      if (r && !r.eventChip) n++;
+    }
+    return n;
+  }
+  function canReplyRec(rec) {
+    return bridge.cap('reply') && isMenuableRec(rec);   // the composer is checked at the start (it is declared later in this script)
+  }
+  function canEditRec(rec) {
+    if (!bridge.cap('edit') || !rec || composerLock) return false;
+    if (rec.direction !== 'sent' || (rec.kind || 'text') !== 'text' || rec.eventChip) return false;
+    if (!rec.text || mediaUrlOf(rec.text)) return false;
+    if (rec.status === 'failed' || rec.status === 'sending') return false;
+    if (mode.isBot) return false;                         // belt: C# never declares `edit` in a bot room
+    /* ★ r2 (MAJOR-2): the cheap C# rule mirrored — EditRules.canEdit keeps an edit to the newest messages of the channel
+       (a receiver holds only its last 100; an edit of one it lacks would be ADDED as new). The shell hides Edit once
+       EDIT_NEWER_MAX or more real MESSAGE rows are newer (model order — event chips are not messages; date separators and
+       the secure notice are never in the model). C# stays the authority: it re-checks and refuses (armPendingEdit). */
+    if (newerMessageCount(rec.id, EDIT_NEWER_MAX) >= EDIT_NEWER_MAX) return false;
+    const age = Date.now() - Number(rec.ts);
+    return Number.isFinite(age) && age < EDIT_WINDOW_MS;
+  }
+
+  function replyKindLabel(kind) {
+    const s2 = window.SL || {};
+    return ({ gif: 'GIF', image: s2.image || 'Image', file: s2.file || 'File', payment: s2.payment || 'Payment',
+      app: s2.app || 'App', call: s2.call || 'Voice call' })[kind] || '';
+  }
+  /* ★ #1198 — the ONE reply start: the menu item, the swipe, the hover button and the double-click all land here, so
+     the strip, the @-mention and the focus cannot differ by the way in. */
+  function startReply(rec) {
+    if (!rec || !composerEl || !canReplyRec(rec)) return false;
+    const live = model.get(String(rec.id)) || rec;     // the CURRENT record (a gesture may hold an older render's)
+    const q = replySourceFor(live);
+    if (!q) return false;
+    setComposerContext(composerEl, {
+      kind: 'reply',
+      title: ((window.SL && window.SL.replyingTo) || 'Reply to') + (q.sender ? ' ' + q.sender : ''),
+      text: q.text || replyKindLabel(q.kind),   // ★ #1198: a payment / app / media row says what it is in the strip
+      replyId: String(live.id),
+      strings: window.SL || {},
+    });
+    // In a group, replying also addresses the person — the @-mention half of M1
+    // is pure FE and rides along. Only for a NAMED sender, never an address, and
+    // never when the mention is already there.
+    if (mode.isMulti && !mode.blind && senderHasNick(live) && live.direction !== 'sent') {
+      const input = composerEl.querySelector('.c-composer__input');
+      const tag = '@' + live.senderNick + ' ';
+      if (input && !input.value.includes('@' + live.senderNick)) {
+        input.value = tag + input.value;
+        input.dispatchEvent(new Event('input'));
+      }
+    }
+    const inp = composerEl.querySelector('.c-composer__input');
+    if (inp) inp.focus();                               // focus returns to the input (a11y: the gesture's result is the field)
+    return true;
+  }
+  /* ★ #1199 — the edit start: the composer's EDIT context — the title, the original as the strip's excerpt, the field
+     PREFILLED with the body, the button = Save; ✕ / Escape gives back the draft that was in the field before. */
+  function startEdit(rec) {
+    const live = rec && (model.get(String(rec.id)) || rec);
+    if (!live || !composerEl || !canEditRec(live)) return false;
+    const s2 = window.SL || {};
+    setComposerContext(composerEl, {
+      kind: 'edit',
+      title: (window.SL && window.SL.editMessage) || 'Edit message',   // ★ r1 (N-8): the existing key
+      text: capQuoteText(String(live.text || '').replace(/\s+/g, ' ').trim(), REPLY_TEXT_MAX),   // ★ r2 NIT: grapheme cut
+      prefillText: String(live.text || ''),
+      editId: String(live.id),
+      strings: s2,
+    });
+    const inp = composerEl.querySelector('.c-composer__input');
+    if (inp) inp.focus();
+    return true;
+  }
+
+  /* ★★ #1199 r2 (MAJOR-2) — C# IS THE AUTHORITY ON AN EDIT, AND ITS "NO" MUST NOT BE SILENT. After a Save the shell keeps
+     what it sent ({ text, timer } per message id). C#'s answer is an updateMessage (or a re-flush addMe) for that id:
+     the body EQUAL to what was sent = the edit landed (forget it); a DIFFERENT body = C# refused and re-pushed the row's
+     current state; NOTHING within PENDING_EDIT_MS = refused too (an old exe without the verb, a lost answer). A refusal
+     takes editRefused — the shell-side refusal's own path: the toast + the typed text back in the field. */
+  const PENDING_EDIT_MS = 3000;
+  const pendingEdits = new Map();   // message id → { text, timer }
+  function armPendingEdit(id, text) {
+    const prev = pendingEdits.get(id);
+    if (prev) clearTimeout(prev.timer);
+    const cur = model.get(String(id));
+    const entry = { text: String(text), orig: cur && cur.text != null ? String(cur.text) : '', timer: 0 };   // ★ #46 r4 MINOR-1: the body BEFORE the edit
+    entry.timer = setTimeout(() => {
+      if (pendingEdits.get(id) !== entry) return;
+      pendingEdits.delete(id);
+      editRefused(entry.text);
+    }, PENDING_EDIT_MS);
+    pendingEdits.set(id, entry);
+  }
+  function noteEditAnswer(id, body, quoteText) {
+    const entry = pendingEdits.get(String(id));
+    if (!entry || body === undefined || body === null) return;
+    clearTimeout(entry.timer);
+    pendingEdits.delete(String(id));
+    /* ★ #46 r3 MINOR-1: a typed edit that is itself QUOTE-SHAPED ("> …" + a new line) comes back from C# as its BODY only
+       (the quote line becomes the box) — compare the body, or a landed edit reads as refused. */
+    const typed = entry.text.trim();
+    const nlAt = typed.indexOf('\n');
+    const typedBody = typed.startsWith('> ') && nlAt > 0 ? typed.slice(nlAt + 1).trim() : typed;
+    const got = String(body).trim();
+    /* ★ #46 r4 MINOR-1: when the edit only ADDS a quote line above the unchanged body, the old body alone cannot tell a
+       landing from C#'s re-push of a refusal — then it landed only if the answer carries the quote (quoteText). */
+    const bodyOnlyAnswer = got === typedBody && typedBody !== typed;
+    const sameAsBefore = typedBody === entry.orig.trim();
+    const landed = got === typed || (bodyOnlyAnswer && (!sameAsBefore || String(quoteText || '').trim() !== ''));
+    if (!landed) editRefused(entry.text);
+  }
+  function clearPendingEdits() { for (const e of pendingEdits.values()) clearTimeout(e.timer); pendingEdits.clear(); }
+  /* ★ #1199 r1 (B-4) + r2 — THE ONE REFUSAL PATH (the shell refused at Save, or C# refused after it). The typed text is
+     never lost and nothing the user typed since is lost either: an empty field takes the text; a field that already holds
+     words (the pre-edit draft the edit gave back, or something new) keeps them on the line BELOW the returned text. While
+     ANOTHER edit is open the field belongs to it, so the text goes into that edit's draft (its ✕ gives it back). The toast
+     says what happened. */
+  function editRefused(text) {
+    const sl = window.SL || {};
+    const t = String(text || '');
+    const c = composerEl ? getComposerContext(composerEl) : null;
+    const inp = composerEl && composerEl.querySelector('.c-composer__input');
+    if (c && c.kind === 'edit') {
+      c._draft = c._draft && c._draft.trim() ? t + '\n' + c._draft : t;
+    } else if (inp && t) {
+      const v = inp.value;
+      inp.value = v.trim() ? t + '\n' + v : t;
+      inp.dispatchEvent(new Event('input'));
+      saveDraft(inp.value);
+      try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); }
+    }
+    showToast({ text: sl.editNoLonger || 'This message can no longer be edited. Your text stays in the message field.', host: overlayHost, strings: sl });
+  }
+
+  /* ★ #1198 — the gestures, per row (re-wired on every render, like the menu). The swipe on every menuable row (touch
+     only, message-menu.js); on DESKTOP the hover button (a real <button>, placed beside the bubble from its own box)
+     and the double-click. Each one checks the capability at gesture time; the hover button is built only while the
+     capability is up (setCaps re-renders once when it arrives). */
+  function wireReplyGestures(rec, row) {
+    /* ★ #1198 r1 (N-2): nothing is wired — no swipe, no touch-action, no double-click preventDefault — until C# declares
+       `reply`; setCaps re-renders once when it lands, so the rows gain them then */
+    if (!canReplyRec(rec)) return;
+    const go = () => { startReply(rec); };
+    attachReplySwipe(row, { key: String(rec.id), onReply: go });   // ★ r1 (B-9): keyed — a rebuilt row takes the swipe over
+    if (!document.documentElement.hasAttribute('data-desktop')) return;
+    attachReplyDoubleClick(row, { onReply: go });
+    /* ★ r1 (B-1 MAJOR): a FAILED send carries the Retry circle exactly where the button would sit (before the bubble,
+       sent side) — no hover button there; Reply stays in the menu and the double-click, Retry stays clickable */
+    if (rec.direction === 'sent' && rec.status === 'failed') return;
+    row.dataset.replyBtn = '';
+    row.append(createReplyHoverButton({ onReply: go, label: replyButtonLabel(rec), strings: window.SL || {} }));
+  }
+  /* ★ r2 NIT: a row that LEAVES the failed state through the surgical tick path (upsertText patches the tick in place,
+     no rebuild) was built without its button — it gains it at the next hover / focus */
+  function ensureReplyButton(row) {
+    if (!row || !document.documentElement.hasAttribute('data-desktop') || row.querySelector(':scope > .c-bubble-row__reply')) return;
+    const rec = model.get(row.dataset.msgid || '');
+    if (!rec || !canReplyRec(rec) || (rec.direction === 'sent' && rec.status === 'failed')) return;
+    if (row.querySelector('.c-bubble-retry')) return;   // the Retry circle is still on glass: it keeps its place
+    row.dataset.replyBtn = '';
+    const b = createReplyHoverButton({ onReply: () => { startReply(rec); }, label: replyButtonLabel(rec), strings: window.SL || {} });
+    b.tabIndex = row.tabIndex === 0 ? 0 : -1;
+    row.append(b);
+  }
+  /* ★ r1 (B-7): the button's name names the message — "Reply to Bob" / "Reply to You" — through the strip's own sender
+     rule (replySourceFor: a nick, "You", "Hidden member" in a blind room); an address-shaped name is never spoken */
+  function replyButtonLabel(rec) {
+    const s2 = window.SL || {};
+    const q = replySourceFor(rec);
+    const who = q && q.sender && !isAddressShaped(q.sender) ? q.sender : '';
+    return who ? (s2.replyingTo || 'Reply to') + ' ' + who : (s2.reply || 'Reply');
+  }
+  /* ★ #1198 — the hover CARRY (the #1184 rule for the chat log): renderLogNow REPLACES every row, and a new node is
+     not :hover until the engine re-hit-tests, so the button under a still mouse would blink out on every live update.
+     The log tracks the row under the mouse (pointerover/out, mouse only); a row rebuilt under that id is born with
+     data-hover (message-bubble.css paints it like :hover) and its button is placed at once. Keyboard focus on a hover
+     button moves to the replacement's (only when the document has focus — desktop panes are separate WebViews). */
+  let hoverMsgId = null;
+  function markHoverRow(row) {
+    const prev = box.querySelector('.c-bubble-row[data-hover]');
+    if (prev && prev !== row) prev.removeAttribute('data-hover');
+    if (row) { ensureReplyButton(row); row.setAttribute('data-hover', ''); placeReplyButton(row); }
+  }
+  box.addEventListener('pointerover', (e) => {
+    if (e.pointerType && e.pointerType !== 'mouse') return;
+    const row = e.target && e.target.closest ? e.target.closest('#messages > [data-msgid]') : null;
+    hoverMsgId = row ? row.dataset.msgid : null;
+    markHoverRow(row);
+  });
+  box.addEventListener('pointerleave', (e) => {
+    if (e.pointerType && e.pointerType !== 'mouse') return;
+    hoverMsgId = null;
+    markHoverRow(null);
+  });
+  /* ★★ #1198 r2 (MINOR-3) — THE LOG IS ONE TAB STOP, WITH A ROVING ROW. A plain-text row has nothing focusable, so the
+     r1 roving reply button (tabbable only while focus was inside its row) could never be reached by Tab. Now the ROWS
+     rove: every message row is tabindex -1 except the CURRENT one (0; by default the newest, else the last one focused),
+     and the controls inside the other rows (links, file buttons, the quote, the reply button…) are tabindex -1 too —
+     so Tab enters the log ONCE (the current row), walks that row's own controls, then leaves the log. ArrowUp / ArrowDown
+     (and Home / End) on a focused row move the current row. Shift+F10 / the ContextMenu key already open the menu for
+     the row that holds focus (menuableRowOf) and keep the newest-row fallback. While the log carries the current row,
+     #messages itself is not a Tab stop (tabindex -1); with no row (an empty chat) it keeps its tabindex 0 so the history
+     region stays reachable. Selection mode owns the rows' tabindex (chat-select.js) — roving stands aside there and
+     re-applies when data-selecting leaves the log (a MutationObserver: the exit path's onExit line is pinned as is). */
+  const replyBtnOf = (row) => row && row.querySelector(':scope > .c-bubble-row__reply');
+  const ROVE_CONTROLS = 'button, a[href], input, select, textarea, [tabindex]';
+  let logFocusId = null;
+  const logRows = () => [...box.querySelectorAll(':scope > [data-msgid]')];
+  function setRowRove(row, on) {
+    row.tabIndex = on ? 0 : -1;
+    for (const c of row.querySelectorAll(ROVE_CONTROLS)) {
+      if (c.classList.contains('c-bubble-row__reply')) { c.tabIndex = on ? 0 : -1; continue; }
+      if (on) {
+        if (c.hasAttribute('data-rove-off')) {
+          const orig = c.getAttribute('data-rove-off');
+          c.removeAttribute('data-rove-off');
+          if (orig === '') c.removeAttribute('tabindex'); else c.setAttribute('tabindex', orig);
+        }
+      } else if (!c.hasAttribute('data-rove-off') && c.getAttribute('tabindex') !== '-1') {
+        c.setAttribute('data-rove-off', c.getAttribute('tabindex') || '');
+        c.tabIndex = -1;
+      }
+    }
+  }
+  function currentLogRow(list) {
+    const cur = logFocusId && rows.get(logFocusId);
+    return cur && cur.isConnected && cur.parentNode === box ? cur : (list[list.length - 1] || null);
+  }
+  function roveRows() {
+    if (box.hasAttribute('data-selecting')) return;
+    const list = logRows();
+    const cur = currentLogRow(list);
+    for (const r of list) setRowRove(r, r === cur);
+    box.tabIndex = cur ? -1 : 0;
+  }
+  function makeCurrentRow(row) {
+    if (!row || box.hasAttribute('data-selecting')) return;
+    const prev = currentLogRow(logRows());
+    logFocusId = row.dataset.msgid || null;
+    if (prev && prev !== row) setRowRove(prev, false);
+    setRowRove(row, true);
+    box.tabIndex = -1;
+  }
+  /* selection mode's exit strips every row's tabindex (chat-select.js disarm) — the roving row comes back at once */
+  try {
+    new MutationObserver(() => { if (!box.hasAttribute('data-selecting')) roveRows(); })
+      .observe(box, { attributes: true, attributeFilter: ['data-selecting'] });
+  } catch (e) {}
+  box.addEventListener('focusin', (e) => {
+    const row = e.target && e.target.closest ? e.target.closest('#messages > [data-msgid]') : null;
+    if (!row) return;
+    ensureReplyButton(row);
+    makeCurrentRow(row);
+    if (replyBtnOf(row)) placeReplyButton(row);
+  });
+  box.addEventListener('keydown', (e) => {
+    if (box.hasAttribute('data-selecting')) return;          // the selection component owns the keys there
+    const row = e.target && e.target.matches && e.target.matches('#messages > [data-msgid]') ? e.target : null;
+    if (!row) return;                                        // a control inside a row keeps its own keys
+    const list = logRows();
+    const i = list.indexOf(row);
+    let to = null;
+    if (e.key === 'ArrowUp') to = list[Math.max(0, i - 1)];
+    else if (e.key === 'ArrowDown') to = list[Math.min(list.length - 1, i + 1)];
+    else if (e.key === 'Home') to = list[0];
+    else if (e.key === 'End') to = list[list.length - 1];
+    else return;
+    e.preventDefault();
+    if (!to || to === row) return;
+    makeCurrentRow(to);
+    to.focus();
+  });
+  /* the focus a rebuild must carry: a focused row, a control inside one (lands on its row), or a reply button */
+  function logFocusCarryOf(ae) {
+    if (!ae || !box.contains(ae) || ae === box) return null;
+    const row = ae.closest ? ae.closest('#messages > [data-msgid]') : null;
+    if (!row) return null;
+    return { id: row.dataset.msgid, btn: ae.classList && ae.classList.contains('c-bubble-row__reply') };
+  }
+  function carryReplyHover(carry) {
+    if (hoverMsgId) { const r = rows.get(hoverMsgId); if (r) markHoverRow(r); }
+    roveRows();
+    if (carry && carry.id) {
+      const r = rows.get(carry.id);
+      if (!r) return;
+      let has = true;
+      try { has = document.hasFocus(); } catch (e) {}
+      if (!has) return;
+      makeCurrentRow(r);
+      const b = carry.btn ? replyBtnOf(r) : null;
+      if (b) { placeReplyButton(r); b.focus({ preventScroll: true }); }
+      else r.focus({ preventScroll: true });
+    }
   }
 
   /* ONE delete path. C# has a SINGLE-message verb only
@@ -8891,33 +9378,14 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // M1 reply-to (#441). The menu item only renders behind bridge.cap('reply'),
     // and this arm re-checks it: an action can only arrive from a menu built with
     // the capability on, but the guard makes the gate one thing, not two.
+    // ★ #1198: the body moved to startReply — the ONE start the gestures share.
     if (action === 'reply') {
       if (!bridge.cap('reply') || !composerEl) return;
-      const q = replySourceFor(rec);
-      if (!q) return;
-      setComposerContext(composerEl, {
-        kind: 'reply',
-        title: ((window.SL && window.SL.replyingTo) || 'Reply to') + (q.sender ? ' ' + q.sender : ''),
-        text: q.text,
-        replyId: String(rec.id),
-        strings: window.SL || {},
-      });
-      // In a group, replying also addresses the person — the @-mention half of M1
-      // is pure FE and rides along. Only for a NAMED sender, never an address, and
-      // never when the mention is already there.
-      if (mode.isMulti && !mode.blind && senderHasNick(rec) && rec.direction !== 'sent') {
-        const input = composerEl.querySelector('.c-composer__input');
-        const tag = '@' + rec.senderNick + ' ';
-        if (input && !input.value.includes('@' + rec.senderNick)) {
-          input.value = tag + input.value;
-          input.dispatchEvent(new Event('input'));
-        }
-      }
-      const inp = composerEl.querySelector('.c-composer__input');
-      if (inp) inp.focus();
+      startReply(rec);
       return;
     }
-    // edit is still capability-gated off → never reached in v1
+    // ★ #1199: Edit — offered by canEditRec (the menu getter), re-checked inside startEdit
+    if (action === 'edit') { startEdit(rec); return; }
     dbg('menu action (gated/unhandled)', action);
   }
 
@@ -9909,6 +10377,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // paint can't catch a blank log mid-rebuild (Damir 2026-07-07 flicker). Also
     // removes the boot spinner (it's a child of box) on the first render.
     const frag = document.createDocumentFragment();
+    /* ★ #1198: a keyboard user on a row's hover reply button keeps it across the rebuild (carryReplyHover below) */
+    const replyFocusId = logFocusCarryOf(document.activeElement);   // ★ r2: a focused row / its control / its reply button
     rows.clear();
     /* A1 (#302): the "Show older messages" affordance, above everything else.
        Model-driven, NOT appended imperatively — this fragment replaces the whole
@@ -9958,6 +10428,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       if (rec.tickFx && performance.now() - rec.tickFx.at < TICK_REPLAY_MS) replayStatusChange(row, rec.tickFx.from, performance.now() - rec.tickFx.at);   // ★ #1035: continue, do not restart
     }
     box.replaceChildren(frag);             // atomic swap — no empty intermediate state
+    carryReplyHover(replyFocusId);         // ★ #1198: the row under the mouse keeps its hover button (the #1184 carry)
     logDirty = false;                      // ★ Session P: on glass
     keepTypingLast();
     if (prependAnchor && restorePrependAnchor()) olderAnchorId = null;   // ★ #1166 B2: a prepend keeps the first visible row in place (before the 1.5-screen bottom pin)
@@ -10377,11 +10848,19 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     order.splice(i, 0, id);
   }
 
+  /* ★ #1198 / #1199: the S6 trailing args, as upsertText's `extra` — `fullForm` = the push carried them at all */
+  function s6Args(edited, quoteName, quoteText) {
+    if (edited === undefined) return { quoteName, quoteText };
+    return { fullForm: true, edited, quoteName, quoteText };
+  }
   /* UPSERT a text row. flags = { sent, confirmed, read, paid, errorSending }. */
   function upsertText(id, text, direction, ts, flags, extra) {
     id = String(id);
     const existing = model.get(id);
     const rec = existing || { id, kind: 'text', direction, senderNick: '', senderAddress: '' };
+    /* ★ #1198 / #1199: what the bubble SHOWS beyond the status — an edit changes the text and the marker, a re-match
+       the quote; any of them must escape the surgical tick path below (it patches the tick only) */
+    const faceBefore = existing ? [existing.text, !!existing.edited, existing.replyTo || '', existing.quoteName || '', existing.quoteText || ''].join('\u0001') : '';
     if (text !== undefined && text !== null) {
       rec.text = String(text);
       // #264 ⑤: recompute on every text change (updateMessage edits included) —
@@ -10399,7 +10878,24 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       // M1 (#441): the reply TARGET id (hex). Only ever SET, never cleared by a
       // later status push that omits it — updateMessage carries no reply arg.
       if (extra.replyTo !== undefined && extra.replyTo) rec.replyTo = String(extra.replyTo);
+      /* ★★ #1198 / #1199 — THE TRAILING ARGS AND WHO MAY CLEAR THEM. addMe / addThem args 14–16 and updateMessage
+         args 8–11 (CONTRACT P1 / P2) come from ONE C# parse of the stored text. DECIDED: an arg that is ABSENT
+         (undefined — an old exe's 13-arg addMe, a 7-arg status updateMessage) changes NOTHING on the row, so a
+         later status tick can never drop an "edited" marker or a quote; an arg that is PRESENT is C#'s current
+         answer and wins, an explicit "" included (edited "" = not edited; replyTo "" with the full form = C#
+         no longer matches the quote line, and the text it sent is then the whole line). `fullForm` = the push
+         carried the S6 args at all (edited !== undefined). */
+      if (extra.fullForm) {
+        rec.edited = String(extra.edited) === '1';
+        if (extra.replyTo !== undefined) rec.replyTo = extra.replyTo ? String(extra.replyTo) : '';
+        if (extra.quoteName !== undefined) rec.quoteName = String(extra.quoteName || '');
+        if (extra.quoteText !== undefined) rec.quoteText = String(extra.quoteText || '');
+      } else {
+        if (extra.quoteName !== undefined && extra.quoteName) rec.quoteName = String(extra.quoteName);
+        if (extra.quoteText !== undefined && extra.quoteText) rec.quoteText = String(extra.quoteText);
+      }
     }
+    const faceChanged = !!existing && faceBefore !== [rec.text, !!rec.edited, rec.replyTo || '', rec.quoteName || '', rec.quoteText || ''].join('\u0001');
     const prevStatus = existing ? existing.status : null;
     rec.status = statusFrom(flags || {});
     /* ★ #1028 (walk P.13): remember a LIVE tick change on the record, so a full render that lands inside
@@ -10435,7 +10931,9 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // send (updateMessage, :2320), and the tick-only updater would never paint the
     // wallet glyph. Keyed on the flag CHANGING, so ordinary status pushes on an
     // already-paid row stay surgical and don't force a full re-render.
-    if (rec.direction === 'sent' && rec.status !== 'failed' && !!rec.paid === paidBefore) {
+    /* ★ r2 NIT: a row LEAVING failed restructures too (the Retry circle and the "Not delivered" line go, the hover reply
+       button comes) — setMessageStatus only swaps the tick, so it re-renders like the way in */
+    if (rec.direction === 'sent' && rec.status !== 'failed' && prevStatus !== 'failed' && !!rec.paid === paidBefore && !faceChanged) {   // ★ #1199: an edit re-renders
       const row = rows.get(id);
       if (row) { setMessageStatus(row, rec.status, window.SL || {}, { animate: !bursting && !loadPhase }); return; }   // ★ #1010: live ticks crossfade, history never
     }
@@ -10786,6 +11284,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // Batch reset. showMore ("true"/"false") = whether a "load older" affordance
     // belongs at the top; v1 just resets the model (loadmore is a stub verb).
     clearMessages(showMore) {
+      cancelQuoteJumpWait();   // ★ r2 (MINOR-5): a widened load is C#'s answer to a quotejump — no "further back" toast over it
       thumbHoldUntil = Date.now() + THUMB_HOLD_MS;   // ★ #1166 R3-N2: a preview landing before its row is held, not dropped
       model.clear();
       rows.clear();
@@ -10861,6 +11360,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       if (pos === 'prepend' && !prependAnchor) prependAnchor = firstVisibleAnchor();
       if (!bursting) beginBurst();          // a prepend has no clearMessages before it — still ONE paint
       prependBatch = pos === 'prepend';
+      if (prependBatch) cancelQuoteJumpWait();   // ★ r2 (MINOR-5): the older-history prepend a quotejump asked for has started
       let n = 0;
       let dup = 0;
       try {
@@ -10925,16 +11425,19 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     },
 
     // TEXT create — own message. 12-arg legacy addMe shape (xaml.cs:1460).
-    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo) {
+    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText) {
       if (address) selfAddress = String(address);   // #717: who I am, for the @ picker
       if (nick) selfNick = String(nick);
       // M1 (#441): `relation` and `replyTo` are the two trailing ADDITIVE args C#
       // now sends on BOTH prefixes (one sendUiCommand). addMe declared 11 params
       // and would otherwise silently discard the reply target on own messages —
       // which is precisely the sender-persistence case that killed C8 (#215).
+      // ★ #1198 / #1199 (P1): + edited ("1" | ""), quoteName, quoteText — an old exe sends 13 args (no marker, no
+      // fallback quote) and the row renders exactly as before.
       upsertText(id, text, 'sent', toMs(time),
         { sent, confirmed, read, paid, errorSending },
-        { avatar: resolveAvatar(avatar), replyTo: replyTo || '' });
+        { avatar: resolveAvatar(avatar), replyTo: replyTo || '', ...s6Args(edited, quoteName, quoteText) });
+      noteEditAnswer(String(id), text, quoteText);   // ★ r2: a re-flush carries the answer too
     },
 
     // TEXT create — incoming message. C# pushes the FULL 11-arg shape for both
@@ -10945,7 +11448,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // derive the A3 unread boundary from the open burst.
     // D-5/N26 (#366): trailing `relation` ('contact'|'pending'|'none'|'self'|'')
     // — an old C# exe leaves it undefined → the sheet falls back to 'none'.
-    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo) {
+    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText) {
       const av = resolveAvatar(avatar);
       // A3: first LOAD-PHASE row still unread when the chat opened = the boundary.
       // Exactly-once by C# ordering (push precedes the read flip, :1603/:1661) and
@@ -10964,7 +11467,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       upsertText(id, text, 'received', toMs(time), { paid },
         { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av,
           relation: RELATIONS.has(relation) ? relation : '',
-          replyTo: replyTo || '' });   // M1 (#441)
+          replyTo: replyTo || '',      // M1 (#441)
+          ...s6Args(edited, quoteName, quoteText) });   // ★ #1198 / #1199 (P1)
       // 1:1 topbar fallback: if setAvatar (onLoad, X1) hasn't landed a header avatar yet,
       // scavenge it from the peer's first message (1:1/bot only — groups get the group
       // avatar via setAvatar). Guarded on !identity.avatar so setAvatar always wins.
@@ -10978,12 +11482,19 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // direction — a status tick must NEVER flip an existing row's side (own group
     // messages flipped to 'received' while delivery lagged, Damir F5 2026-07-08).
     // Only a robustness-create of an unseen row uses it as a best-guess direction.
-    updateMessage(id, message, sent, confirmed, read, paid, errorSending) {
+    /* ★ #1198 / #1199 (P2): + edited, replyTo, quoteName, quoteText (args 8–11) — the SAME parse as addMe, so an edited
+       reply keeps its quote. A refused edit is simply C# re-pushing the row's current state through here: the row
+       shows what C# says (the shell never paints an edit optimistically). A 7-arg push (an old exe, a status tick)
+       changes only the status and the text — the marker and the quote stay (upsertText, `fullForm`). */
+    updateMessage(id, message, sent, confirmed, read, paid, errorSending, edited, replyTo, quoteName, quoteText) {
       const key = String(id);
       const existing = model.get(key);
       const dir = existing ? undefined : (asBool(sent) ? 'sent' : 'received');
+      const s6 = s6Args(edited, quoteName, quoteText);
+      if (s6.fullForm) s6.replyTo = replyTo === undefined ? undefined : String(replyTo || '');
       upsertText(key, message, dir, existing ? existing.ts : Date.now(),
-        { sent, confirmed, read, paid, errorSending });
+        { sent, confirmed, read, paid, errorSending }, s6);
+      noteEditAnswer(key, message, quoteText);   // ★ r2 (MAJOR-2): C#'s answer to a Save — the same body = landed, another = refused
     },
 
 
@@ -11037,6 +11548,9 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       }
       model.delete(id);
       order = order.filter((x) => x !== id);
+      /* ★ #1198 / #1199: a reply or an edit in progress on the row that just went has nothing left to act on */
+      const cctx = composerEl ? getComposerContext(composerEl) : null;
+      if (cctx && (String(cctx.replyId || '') === id || String(cctx.editId || '') === id)) setComposerContext(composerEl, null);
       renderLog();
     },
 
@@ -11091,6 +11605,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       requestedMembers.clear();            // #366 per-peer reset: A's in-flight member requests must not
                                            //    paint 'pending' on B's members (desktop reparent reuse)
       removeRequestPane();                 // ⑪ per-peer reset: peer A's request pane must not survive into B
+      if (composerEl && getComposerContext(composerEl)) setComposerContext(composerEl, null);   // ★ #1198 / #1199: A's reply / edit strip must not point into B (desktop reuse)
+      clearPendingEdits();                 // ★ r2: an answer for A's edit never lands in B's field
       setComposerLock(null);               // ⑪ per-peer reset: this peer's pending state re-locks via its own
                                            //    pushes (setOnlineStatus waiting / showRequestSentModal / showContactRequest)
       requestResolved = false;             // Q1 review (#267 loop): the accept latch is per-peer/page-load — a
@@ -11196,10 +11712,14 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        degrades instead of waiting forever. Mutates the bridge's capability object in
        place; bridge.cap() reads the same reference. */
     setCaps(list) {
+      const replyBefore = bridge.cap('reply');
       String(list || '').split(',').forEach((c) => {
         c = c.trim();
         if (c) bridge.capabilities[c] = true;
       });
+      /* ★ #1198: the menu reads reply / edit at OPEN time (menuOptsFor getters), but the desktop hover button is BUILT
+         per row — a `reply` that lands after the first paint re-renders once so the rows gain it */
+      if (!replyBefore && bridge.cap('reply') && firstRenderDone) renderLog();
       // The `media` capability is one of the attach gates. The ⊕ re-derives by itself:
       // every handler in this object is wrapped at bridge.exposeAll (X8).
     },
@@ -11235,6 +11755,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       const cdPaint = lastPaintMs;
       box.scrollTop = box.scrollHeight;
       bootRepin(2000);                     // #334 iOS-62: hold the bottom through late bubble growth (abortable)
+      const fadeHold = !chatScreenLoadedOnce;   // ★ #1201: the document's FIRST open only (a channel switch / re-flush is never held)
       chatScreenLoadedOnce = true;         // ★ #1106 (#46 r1 B1)
       if (pendingJumpId) {
         /* ★ #1106 (#46 r1 B1): a "show in chat" open — C# sent jumpToMessage INSIDE the load, before this handler, and
@@ -11266,6 +11787,13 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
            no data. Sent on EVERY onChatScreenLoaded (channel switch, re-flush) — C# latches it
            and ignores it once presented. Never inside the try above: a failing stamp must
            not swallow the present. */
+        /* ★ #1201 A-FADE (Damir's pick "photos READY at open"): on the document's FIRST open the signal waits for this
+           paint's preview tiles to decode, CAPPED at 60 ms (media-bubble.js holdOpenReveal holds the mechanism): ready
+           tiles are LOADED with no fade at the present, the rest keep today's fade; no tile → at once. The callback runs
+           exactly once; a stale bundle (or a throw) falls through to today's send. C# unchanged (400 ms backstop kept). */
+        if (fadeHold) {
+          try { window.Spixi.holdOpenReveal(box, () => bridge.send('ixian:painted')); return; } catch (e) {}
+        }
         bridge.send('ixian:painted');
       }));
       dbg('onChatScreenLoaded');
@@ -11480,6 +12008,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
      * to the row and pulse it (the @-mention FAB's jumpToRow). A row the loaded window does not hold → a short toast.
      * `id` is C#'s own hex id; an unknown id only ever produces the toast. */
     jumpToMessage(id, instant) {
+      cancelQuoteJumpWait();   // ★ #1198 r1 (B-5): C# answered a quotejump (or any jump) — no "not available" toast
       const key = String(id || '');
       if (!chatScreenLoadedOnce) { pendingJumpId = key; return; }   // (#46 r1 B1) a fresh open: onChatScreenLoaded runs it
       /* (#46 r3 R3-3) every jump was INSTANT: the already-open path re-rendered the log from the bottom. ★ #1166 #1151: C#
@@ -12390,6 +12919,29 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
          string produced by C# (Crypto.hashToString) — no colon, so the single-colon
          split on the C# side is unambiguous. */
       const ctx = composerEl ? getComposerContext(composerEl) : null;
+      /* ★★ #1199 — AN EDIT SAVE. Its own verb, the id and the FULL new body (V2): `ixian:chatedit:<idHex>:<urlenc>`.
+         C# re-checks EditRules.canEdit and either replaces the message (the row updates on its updateMessage push)
+         or re-pushes the row's current state — the shell paints nothing on its own, so a refusal needs no undo here.
+         An unchanged body sends nothing (C# would refuse it). Ending the edit context gives the pre-edit draft back
+         (composer.js), and the saved draft is untouched — so clearDraft does not run for an edit. */
+      if (ctx && ctx.kind === 'edit') {
+        const target = model.get(String(ctx.editId || ''));
+        const changed = !!target && text !== String(target.text || '').trim();
+        if (target && changed && canEditRec(target) && QUOTE_ID_RE.test(String(ctx.editId))) {
+          bridge.send('ixian:chatedit:' + String(ctx.editId) + ':' + encodeURIComponent(text));
+          setComposerContext(composerEl, null);
+          armPendingEdit(String(ctx.editId), text);   // ★ r2 (MAJOR-2): C#'s answer decides — see armPendingEdit
+          return;
+        }
+        if (!changed && target) { setComposerContext(composerEl, null); return; }   // nothing to save (the button is disabled for it)
+        /* ★★ #1199 r1 (B-4) — A SAVE THE SHELL REFUSES (the 24 h ran out while typing, the row failed or went, the cap is
+           gone). DECIDED: the typed text is never lost — the edit ends and the text STAYS in the field as an ordinary
+           draft (it can be sent as a new message), with a short toast that says so. The pre-edit draft gives way to it
+           (the newer words win; one field holds one draft). */
+        setComposerContext(composerEl, null);
+        editRefused(text, null);
+        return;
+      }
       if (ctx && ctx.kind === 'reply' && ctx.replyId && bridge.cap('reply')) {
         bridge.send('ixian:chatreply:' + encodeURIComponent(ctx.replyId) + ':' + encodeURIComponent(text));
         setComposerContext(composerEl, null);
@@ -12599,11 +13151,17 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   {
     const input = composerEl.querySelector('.c-composer__input');
     if (input) {
-      const flushDraft = () => { clearTimeout(draftSaveTimer); saveDraft(input.value); };
+      /* ★ #1199: while an EDIT is up the field holds the message being edited, not the draft — the draft that persists
+         is the one the edit will give back (composer.js keeps it on the context as _draft) */
+      const draftValue = () => {
+        const c = getComposerContext(composerEl);
+        return c && c.kind === 'edit' ? String(c._draft || '') : input.value;
+      };
+      const flushDraft = () => { clearTimeout(draftSaveTimer); saveDraft(draftValue()); };
       input.addEventListener('input', (e) => {
         if (!e.isTrusted) return;
         clearTimeout(draftSaveTimer);
-        const v = input.value;
+        const v = draftValue();
         draftSaveTimer = setTimeout(() => saveDraft(v), 400);
       });
       input.addEventListener('blur', flushDraft);

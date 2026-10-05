@@ -1,0 +1,36 @@
+Session 6b: reply, edit, capability answer, photos ready at open
+
+S6 (Damir's interview picks, DECISIONS #1197-#1199):
+- Reply to any message, everywhere: the message menu, a swipe right
+  on the phone, a hover button and a double-click on the desktop. The
+  quote travels as text ("> name: excerpt" on the first line, no name
+  in a 1:1), so an old app shows it as a quoted line. The receiving
+  app finds the original in the chat's history and draws a quote box
+  that jumps to it; a quote that matches nothing draws a box without
+  a jump. The quote line is kept out of the chats-list excerpt and the
+  chat-info links.
+- Edit your own text message for 24 hours (1:1 and private groups,
+  not bot rooms), from the message menu. Sent as a chatStream replace
+  with push off; the bubble keeps its place and its original time and
+  shows "edited". Spixi 0.9.20+ replaces the text in place, older apps
+  keep the old text; no app shows a second message. An edit of a row
+  this device does not hold, or of a file, payment or system row, is
+  dropped. No notification, sound or unread for an edit.
+- Spixi answers getAppProtocols from an approved contact with
+  spixi.reply.1 and spixi.edit.1 (rate-limited; the ask is S7).
+- The message list is one Tab stop with a roving row on the desktop.
+
+Walk record of session 6a (#1200) and its follow-ups:
+- Android photos are ready when a chat opens: the first paint waits up
+  to 60 ms for the visible photos to decode, then shows them without a
+  fade (#1201).
+- Dark "Show all" keeps the pane hairline; the light chat scroll thumb
+  matches chat info (#1202).
+- A tall picture no longer runs out of its chat-info grid cell; the
+  focus ring stays visible on photo tiles (#1203).
+- The Downloads delete refreshes an open chat; a delete during a chat
+  load no longer leaves a stale row (#1190).
+
+New bridge surface (provisional, BE ask B-29): ixian:chatedit,
+ixian:quotejump, addMe/addThem args 14-16, updateMessage args 8-11,
+setCaps reply/edit. No Ixian-Core change.

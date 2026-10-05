@@ -497,7 +497,6 @@
   "repeatMismatch": "Gesli se ne ujemata.",
   "reply": "Odgovori",
   "replyTo": "Prikaži sporočilo, na katero odgovarjate",
-  "replyUnavailable": "Izvirno sporočilo",
   "replyingTo": "Odgovor za",
   "requestAmount": "Zahtevaj znesek",
   "requestConfirm": "Zahtevaj {a} IXI",
@@ -811,5 +810,7 @@
   "filePaused": "Začasno ustavljeno",
   "fileDeletedLocal": "Datoteka je izbrisana s te naprave",
   "fileUnavailable": "Ni na voljo v tej napravi",
-  "photoDeletedLocal": "Fotografija je izbrisana s te naprave"
+  "photoDeletedLocal": "Fotografija je izbrisana s te naprave",
+  "saveEdit": "Shrani",
+  "editNoLonger": "Tega sporočila ni več mogoče urediti. Vaše besedilo ostane v polju za sporočilo."
 }

@@ -8548,7 +8548,22 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
   /* ★ session 6a round 2 (#1190 · #1191, MEASURED after the merge): CHAT 757 → 760. chat.html 773 612 → 776 369 chars (+2 757):
      #1190 the not-available card / deleted bubble + fLocal intake + the live delete re-push, #1191 the in-place member
      avatar swap. 759 leaves 847 chars, 760 leaves 1 871. index.html unchanged (563 168). Stated, not silent. */
-  const CHAT_KB_CEIL = 760, INDEX_KB_CEIL = 551;
+  /* ★ session 6b (#1198 reply · #1199 edit · #1201 the open hold · #1202, MEASURED after the merge of the 3 agent copies):
+     CHAT 760 → 790, INDEX 551 → 560. chat.html 776 369 → 807 089 chars (+30 720): the reply starts (menu on every row kind,
+     the phone swipe, the desktop hover button + double-click, inlined message-menu.js), the quote fallback + quotejump, the
+     edit mode (composer Save / prefill / draft guard) + the edited marker intake, the #1201 photo hold (inlined
+     media-bubble.js). 789 leaves 847 chars, 790 leaves 1 871. index.html 563 168 → 572 003 (+8 835): the shared bundle
+     (message-menu.js, composer.js, media-bubble.js are bundle modules). 559 leaves 413, 560 leaves 1 437. Stated, not silent.
+     #46 r1 fixes (MEASURED): CHAT 790 → 795. chat.html 807 089 → 812 237 (+5 148): the document-level swipe state + the
+     touch count, the hover button's roving tabindex + its name, the quotejump wait toast, the refused-edit toast, the P2
+     no-jump quote box, the grapheme cut. 794 leaves 819, 795 leaves 1 843. index.html unchanged (572 003). Stated.
+     #46 r2 fixes (MEASURED): CHAT 795 → 804. chat.html 812 237 → 821 769 (+9 532): the log as ONE Tab stop with a roving
+     row (arrow / Home / End, controls of other rows out of the Tab order, focus carried across a rebuild), the pending-edit
+     answer (C#-refused edit → toast + text back), the 25-newer mirror, the touch self-heal, the quotejump wait cancel on the
+     load burst, the failed-row re-render. 803 leaves 503, 804 leaves 1 527. index.html unchanged (572 003). Stated.
+     #46 r3 + r4 fixes: chat.html 821 769 → 823 110 (+1 341: the quote-shaped edit answer + its quote check, the keyboard-only
+     reveal) → CHAT 804 → 805; 804 would leave 186, 805 leaves 1 210. Stated. */
+  const CHAT_KB_CEIL = 805, INDEX_KB_CEIL = 560;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -9337,7 +9352,9 @@ console.log('#348b — F5 follow-up fixes');
      lands, bridge.cap('tipResult') is permanently false, and 100% of tips take the
      ctrl.done() fallback — the exact green-"Tipped"-over-a-failed-payment bug D-10
      exists to remove — with the whole suite green. */
-  ok(/if \(!bridge\.cap\('tipResult'\)\)/.test(chB) && /setCaps", "tipResult/.test(scpB)
+  /* ★ #1198/#1199 re-base (session 6b): SingleChatPage's caps are now built in a `caps` local (reply always, edit unless
+     a bot room) and pushed as `"setCaps", caps` — the tipResult cap still leads that literal. */
+  ok(/if \(!bridge\.cap\('tipResult'\)\)/.test(chB) && (/setCaps", "tipResult/.test(scpB) || /string caps = "tipResult[^"]*";[\s\S]{0,300}?"setCaps", caps\);/.test(scpB))
     && /setCaps\(list\) \{[\s\S]{0,300}?bridge\.capabilities\[c\] = true;/.test(chB),
     '★ D-10 (#348b, audit): the wait is CAPABILITY-GATED. A new shell on an old exe would otherwise freeze 12 s after a SUCCESSFUL tip and then claim it may have failed; an old shell on a new exe would show no error at all. Both combinations were worse than the bug being fixed');
   /* ⚠ Gate row O-12 changed the SHAPE of this line and not its meaning: the replacement
@@ -12490,8 +12507,9 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     && /return "self";/.test(base366) && /return "contact";/.test(base366)
     && /return "pending";/.test(base366) && /return "none";/.test(base366),
     'D-5: contactRelationFor lives on SpixiContentPage with the 4-value vocabulary (one truth for all three pushes)');
-  ok(/errorSending\.ToString\(\), relation, reply_to\);/.test(scp366),
-    'D-5 + M1 (#441): the per-message addMe/addThem push carries the trailing relation arg — and now the reply-to id after it, additive in the same way');
+  // ★ #1198/#1199 re-base (session 6b): + edited, quoteName, quoteText after reply_to (args 14–16, additive the same way)
+  ok(/errorSending\.ToString\(\), relation, reply_to, edited, quoteName, quoteText\);/.test(scp366),
+    'D-5 + M1 (#441): the per-message addMe/addThem push carries the trailing relation arg — and now the reply-to id after it, additive in the same way (+ #1198/#1199 args 14–16)');
   ok(/relation = contactRelationFor\(resolvedSender\);/.test(scp366)
     && /!message\.localSender && !relationBlind/.test(scp366),
     'D-5 ★: relation is computed ONLY for received multi-chat rows, NEVER for a blind chat (identity-hint belt), and reads resolvedSender — a #370 reverse-resolved row gets the addressed-row treatment');
@@ -12532,9 +12550,11 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
 
   /* —— N26/D-5 + N27: shell source pins ————————————————————————————— */
   const chat366 = read('src/shells/chat.html');
-  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo\)/.test(chat366),
+  /* ★ #1198 re-base: the S6 P1 args (edited, quoteName, quoteText) follow replyTo — the intent (accept EVERY trailing arg C#
+     sends, none silently discarded) is unchanged; the signature grew by the three the contract adds */
+  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText\)/.test(chat366),
     'D-5 + M1 (#441): chat.html addThem accepts the trailing relation AND replyTo (the old signature silently discarded trailing args)');
-  ok(/addMe\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo\)/.test(chat366),
+  ok(/addMe\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText\)/.test(chat366),
     '★ M1 (#441): addMe grew the SAME two trailing params. It declared 11 and would otherwise have discarded the reply target on OWN messages — which is precisely the sender-persistence case that killed C8 on hardware (#215)');
   ok(/const RELATIONS = new Set\(\['contact', 'pending', 'pending-in', 'none', 'self'\]\);/.test(chat366),
     'D-5: pushed relation values are validated against the closed vocabulary (+ pending-in, #371)');
@@ -13874,30 +13894,46 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
 
   /* —— #441/#448 M1 — the Spixi half, which must compile against STOCK Core —— */
   const scp441 = read4('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
-  ok(!/new ChatStreamMessage\(/.test(scp441) && !/sendChatStreamMessage\(/.test(scp441.replace(/\/\*[\s\S]*?\*\//g, '')),
-    '★ M1 (#448): SingleChatPage builds no ChatStreamMessage and calls no sendChatStreamMessage. The 5-argument constructor and the reply field do not exist in stock Core, so either one would be a build break in a repo whose C# nothing here can compile');
+  /* ★ #1198/#1199 re-base (session 6b): the EDIT (#1199) builds a ChatStreamMessage — with stock Core's 4-argument
+     constructor (id, text, sequence, isStream), sent through sendSpixiMessage with its own null envelope id. The intent
+     is unchanged: no 5-argument (reply-carrier) constructor and no sendChatStreamMessage. */
+  const csm441 = [...scp441.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/new (?:IXICore\.Streaming\.Models\.)?ChatStreamMessage\(([^;]*?)\);/g)].map((m) => m[1].split(',').length);
+  ok(csm441.every((n) => n === 4) && !/sendChatStreamMessage\(/.test(scp441.replace(/\/\*[\s\S]*?\*\//g, '')),
+    '★ M1 (#448): SingleChatPage builds no 5-argument ChatStreamMessage and calls no sendChatStreamMessage. The 5-argument constructor and the reply field do not exist in stock Core, so either one would be a build break in a repo whose C# nothing here can compile (#1199: the edit uses the stock 4-argument constructor) — ' + JSON.stringify(csm441));
   ok(/SpixiMessage spixi_message = new SpixiMessage\(SpixiMessageCode\.chat, Encoding\.UTF8\.GetBytes\(str\), selectedChannel\);/.test(scp441)
     && /CoreStreamProcessor\.sendChatMessage\(friend, friend_message, selectedChannel\);/.test(scp441),
     '★ M1 (#448): the send is EXACTLY the pre-batch send — SpixiMessageCode.chat, raw UTF-8, through sendChatMessage. The wire does not move at all while the carrier is held');
-  ok((scp441.match(/★ THE SEAM/g) || []).length >= 1 && /string reply_to = "";/.test(scp441),
-    '★ M1 (#448): the per-message push seam is MARKED and empty. The arg is still pushed so the shell contract, its signature and its pins stay in place and the cutover is one line');
-  ok(/the Ixian-Core carrier is not landed yet; sending a plain message/.test(scp441),
-    '★ M1 (#448): a reply target that somehow arrives is parsed, LOGGED and dropped — the seam is exercised and the degrade is honest, rather than the verb silently doing nothing');
+  /* ★ #1198 re-base (session 6b): the seam is FILLED without Core — a reply is text with a quote line (ReplyQuote); the
+     arg starts "" and carries the MATCHED target id. The ★ THE SEAM markers are replaced by the #1198 comment. */
+  ok(!/★ THE SEAM/.test(scp441) && /string reply_to = "";/.test(scp441) && /reply_to = rm\.targetIdHex;/.test(scp441)
+    && /★★ #1198 \/ #1199 \(session 6b\) — args 13–16 \(P1\)/.test(scp441),
+    '★ M1 (#448) → #1198: the per-message reply-to arg is pushed as before and now carries the MATCHED target id (the text-quote convention, no Core carrier); the old seam markers are gone');
+  /* ★ #1198 re-base (session 6b): a reply target is now COMPOSED into a quote line (composeReply); an unusable id or a
+     non-quotable target is still logged and the body is sent plain — the honest degrade stays. */
+  ok(!/the Ixian-Core carrier is not landed yet/.test(scp441) && /Reply target id is not usable; sending a plain message\./.test(scp441)
+    && /Reply target is not a quotable message of this chat; sending a plain message\./.test(scp441),
+    '★ M1 (#448) → #1198: a reply target is parsed and composed (composeReply); a bad id or a non-quotable target is LOGGED and the body is sent plain — the degrade is honest, rather than the verb silently doing nothing');
   ok(/current_url\.StartsWith\("ixian:chatreply:", StringComparison\.Ordinal\)/.test(scp441)
     && scp441.indexOf('"ixian:chatreply:"') < scp441.indexOf('current_url.StartsWith("ixian:chat:")'),
     'M1 (#441): the reply verb is dispatched BEFORE ixian:chat:. There is no prefix collision either way (the character after "chat" is \'r\', not \':\'), but the order makes the precedence explicit rather than incidental');
   ok(/if \(friend_message == null\)/.test(scp441),
     'M1 audit NIT-11: addMessageWithType can return null (friend gone, invalid channel) — transmitting a message this device never stored would leave the peer holding something we have no record of');
-  ok(/do NOT add ",reply" here yet/.test(scp441),
-    '★ M1 (#448): the cap note says DO NOT flip it. With the carrier held, declaring `reply` would render a Reply action that silently drops the quote — a worse state than no feature');
+  /* ★ #1198/#1199 re-base (session 6b): the gate is FLIPPED by contract — the quote travels as text, so `reply` no longer
+     drops anything. The note is replaced by the ★ #1198 / #1199 caps comment. */
+  ok(!/do NOT add ",reply" here yet/.test(scp441) && /REPLY and EDIT are declared here, per chat type/.test(scp441),
+    '★ M1 (#448) → #1198/#1199: the "do NOT flip it" note is replaced — the reply quote travels as TEXT (no Core carrier), so declaring `reply` renders a Reply action that keeps the quote');
 
   /* ★ audit MINOR-10: pin the ABSENCE of `reply` in EVERY setCaps argument, not one
      literal spelling — `"tipResult, reply"`, a second call or a trailing comment would
      all have left a literal pin green. */
+  /* ★ #1198/#1199 re-base (session 6b): THE GATE IS OPENED by contract. The ONE setCaps push sends the `caps` local:
+     "…,reply" for every chat, + ",edit" unless a bot room. Still no second setCaps call and no literal spelling elsewhere. */
   const setCapsArgs441 = [...scp441.replace(/^\s*\/\/.*$/gm, '')
-    .matchAll(/sendUiCommand\(this, "setCaps",\s*"([^"]*)"/g)].map((m) => m[1]);
-  ok(setCapsArgs441.length > 0 && !setCapsArgs441.some((a) => a.split(',').map((x) => x.trim()).includes('reply')),
-    '★ M1 (#441) THE GATE: `reply` appears in NO setCaps argument. Found: ' + setCapsArgs441.join(' | '));
+    .matchAll(/sendUiCommand\(this, "setCaps",\s*([^)]*)\)/g)].map((m) => m[1].trim());
+  const capsDecl441 = (/string caps = "([^"]*)";/.exec(scp441) || [])[1] || '';
+  ok(setCapsArgs441.length === 1 && setCapsArgs441[0] === 'caps' && capsDecl441.split(',').includes('reply') && !capsDecl441.split(',').includes('edit')
+    && /if \(!friend\.bot\)\s*\{\s*caps \+= ",edit";\s*\}/.test(scp441),
+    '★ M1 (#441) THE GATE → #1198/#1199: `reply` is declared in the ONE setCaps push (every chat), `edit` only off a bot room. Found: ' + setCapsArgs441.join(' | ') + ' / ' + capsDecl441);
 
   const chat441 = read4('src/shells/chat.html');
   ok(/if \(!bridge\.cap\('reply'\) \|\| !composerEl\) return;/.test(chat441),
@@ -13905,8 +13941,11 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
   ok(/bridge\.send\('ixian:chatreply:' \+ encodeURIComponent\(ctx\.replyId\) \+ ':' \+ encodeURIComponent\(text\)\)/.test(chat441)
     && /ctx\.kind === 'reply' && ctx\.replyId && bridge\.cap\('reply'\)/.test(chat441),
     '★ M1 (#441): a reply leaves on its own verb carrying the target; everything else keeps the exact ixian:chat: grammar. The FE half is COMPLETE and waiting on the carrier');
-  ok(/return \{ text: \(window\.SL && window\.SL\.replyUnavailable\) \|\| 'Original message', sender: '', address: '' \};/.test(chat441),
-    '★ M1 (#441) FAIL SOFT: an unknown target renders an honest generic quote — never nothing (which reads as a broken reply) and never a throw. With the carrier held, EVERY target is unknown, so this is the only branch that runs');
+  /* ★ #1198 re-base (INTENT CHANGED, CONTRACT §3): with the S6 C# a reply target is only ever a MATCHED one and C# sends the
+     quote's name + excerpt with it (args 15/16). An unloaded target renders from those; a target with neither renders NO
+     quote — the generic "Original message" placeholder is retired. The behaviour is executed by pins-s6b/reply.mjs. */
+  ok(/if \(!target\) return replyFallbackQuote\(rec\);/.test(chat441) && !/replyUnavailable/.test(chat441),
+    '★ M1 (#441) → ★ #1198 FAIL SOFT: an unknown target renders C#\'s quote (quoteName / quoteText) or nothing — never a throw, and no generic placeholder any more');
   ok(/reply: replyQuoteFor\(rec\),/.test(chat441),
     '★ M1 (#441): an INCOMING reply renders whether or not WE can create one — the capability gates authoring, not display, because a peer on a newer build can send one either way');
 
@@ -17370,7 +17409,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   ok(/setCaps", "composeSend/.test(hpW5),
     'W5: HomePage declares composeSend (prefix pin — appending a cap must not redden this)');
   {
-    const capLine = (scpW5.match(/setCaps", "([^"]*)"/) || [])[1] || '';
+    // ★ #1198/#1199 re-base (session 6b): the caps literal now lives in the `caps` local pushed by the one setCaps call
+    const capLine = (scpW5.match(/setCaps", "([^"]*)"/) || scpW5.match(/string caps = "([^"]*)";/) || [])[1] || '';
     ok(capLine.indexOf('tipResult') !== -1 && capLine.indexOf('composeSend') !== -1
       && capLine.indexOf('composeRequest') !== -1 && capLine.indexOf('payRequest') !== -1,
       'W5: SingleChatPage declares tipResult + the three chat money caps (membership, not order)');
@@ -21505,7 +21545,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        `sent`/`read` (and the relay flag, arg 14) into the status it renders, which is why the C# derivation is back. */
     ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
       '★★ L2 (#641) PAIRED — INVERTED by #1028: the shipped addFile handler READS `sent`/`read` (+ the relay flag) into the tick it renders, so the C# derivation is back on that push (the negative this replaced said: if the shell ever reads them, the C# must come back)');
-    ok(/"updateMessage", Crypto\.hashToString\(message\.id\), message\.message, tSent\.ToString\(\), tConfirmed\.ToString\(\), tRead\.ToString\(\)/.test(scp),
+    // ★ #1198/#1199 re-base (session 6b): arg 2 is `rowText` (the body of a matched reply, else message.message)
+    ok(/"updateMessage", Crypto\.hashToString\(message\.id\), rowText, tSent\.ToString\(\), tConfirmed\.ToString\(\), tRead\.ToString\(\)/.test(scp)
+       && /string rowText = message\.message;/.test(scp),
       '★ L2 (#641): updateMessage pushes the DERIVED values, not the stored ones — the raw flags would re-stall the tick on every re-push');
     ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\), fTransfer, fLocal\);/.test(scp)   /* ★ #1177 re-base: + the trailing transfer arg */
        && /"addAppRequest"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp),
@@ -22784,13 +22826,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(rdAt > 0 && nullGuard
        && !/^\s*int channel = 0;/m.test(sp)
        && !/^\s*int channel = spixi_message != null/m.test(sp)
-       && receipts === 3
+       /* ★ #1199 re-base (session 6b): + the chatStream drop guard's receipt (an edit of a message this device does not
+          hold) — the same wire channel, so FOUR on the wire channel and still none on `channel` */
+       && receipts === 4
        && !/sendReceivedConfirmation\(friend, message\.id, channel\);/.test(rd)
        && /int delete_channel = resolveMessageChannel\(friend, spixi_message\.data, channel\);/.test(rd)
        && /UIHelpers\.deleteMessage\(friend, delete_channel, spixi_message\.data\);/.test(rd)
        && /UIHelpers\.updateReactions\(friend, resolveMessageChannel\(friend, reaction\.msgId, channel\), reaction\.msgId\);/.test(rd)
        && /ch = resolveMessageChannel\(friend, spixi_message\.data, channel\);/.test(rd),
-      '★★★ #46 loop (findings-A MAJOR-3): NO site in receiveData acts on a literal 0 any more. The declaration takes the SENDER\'s channel; the three delivery receipts name the channel the message was stored under; the remote delete and the reaction push resolve by message id, because SingleChatPage drops both when `channel != selectedChannel`. A receipt with the WRONG channel is worse than no receipt — the peer looks its copy up by id AND channel, finds nothing, and its clock never advances. Got ' + receipts + ' of 3 receipts on the wire channel. The declaration is the plain `int channel = spixi_message.channel;` and the null payload returns ABOVE it');
+      '★★★ #46 loop (findings-A MAJOR-3): NO site in receiveData acts on a literal 0 any more. The declaration takes the SENDER\'s channel; the three delivery receipts name the channel the message was stored under; the remote delete and the reaction push resolve by message id, because SingleChatPage drops both when `channel != selectedChannel`. A receipt with the WRONG channel is worse than no receipt — the peer looks its copy up by id AND channel, finds nothing, and its clock never advances. Got ' + receipts + ' of 4 receipts on the wire channel (#1199: + the edit drop guard). The declaration is the plain `int channel = spixi_message.channel;` and the null payload returns ABOVE it');
   }
 
   /* —— #46 loop · forEachGroupHolding LOGS ITS NO-MATCH EXIT ————————————————— */
@@ -42002,6 +42046,10 @@ for (const mod of ['p0', 'win', 'read', 'home', 'motion', 'viewer', 'history', '
 /* ==== SESSION 6 PINS — view = #1180 W-VIEW + #1181 A-FADE probe · group = #1170 · menu = #1174 · hover = #1171 · cs = #1175–#1178 ==== */
 for (const mod of ['view', 'group', 'menu', 'hover', 'cs', 'rows', 'live', 'probe']) {   // rows = #1190 · live = #1191–#1193 · probe = #1194 / #1195
   await (await import(new URL('./pins-s6/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
+}
+/* ==== SESSION 6b PINS — cs = #1197–#1199 + #1190 (C#) · reply = #1198 · edit = #1199 · fade = #1201 · small = #1202 · lead = #1203 ==== */
+for (const mod of ['cs', 'reply', 'edit', 'fade', 'small', 'lead']) {
+  await (await import(new URL('./pins-s6b/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 }
 

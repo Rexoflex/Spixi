@@ -113,6 +113,24 @@ export function createComposer({
   };
 
   const syncAction = () => {
+    /* ★ #1199 (S6 edit): while an EDIT context is up the trailing button is SAVE — the check glyph and the
+       "Save" name (strings.saveEdit), still disabled on an empty (or over-limit) field. Read at every sync
+       from the ONE context map, so a context set or cleared from outside re-labels it (setComposerContext
+       calls this through composerSync). The click path is unchanged: Save is a send, the shell's onSend
+       reads the context and routes it to ixian:chatedit:. */
+    const ctxNow = composerCtx.get(el);
+    if (ctxNow && ctxNow.kind === 'edit') {
+      action.textContent = '';
+      action.append(icon('check', { size: 20 }));
+      action.dataset.mode = 'send';
+      action.dataset.ctx = 'edit';
+      /* ★ #1199 r1 (N-6): an UNCHANGED body is not a save — Save stays disabled until the text differs from the original */
+      const unchanged = ctxNow.prefillText != null && input.value.trim() === String(ctxNow.prefillText).trim();
+      action.disabled = !hasText() || overLimit() || unchanged;
+      action.setAttribute('aria-label', strings.saveEdit || 'Save');
+      return;
+    }
+    delete action.dataset.ctx;
     if (voice && !hasText()) {
       micIcon();
       action.dataset.mode = 'mic';
@@ -147,8 +165,15 @@ export function createComposer({
       syncAction();
       return;
     }
+    /* ★ #1199: an EDIT send ends its context inside onSend, and ending an edit context RESTORES the draft that was in
+       the field before the edit (setComposerContext). Clearing the field after that would throw the restored draft
+       away — so the clear runs only when the send did not just close an edit. */
+    const ctxBefore = composerCtx.get(el);
+    // ★ #1199 r1 (N-6): Enter on an unchanged edit does what the disabled Save does — nothing (the edit stays open)
+    if (ctxBefore && ctxBefore.kind === 'edit' && ctxBefore.prefillText != null && text === String(ctxBefore.prefillText).trim()) return;
     if (onSend) onSend(text);
-    input.value = '';
+    const editClosed = !!ctxBefore && ctxBefore.kind === 'edit' && composerCtx.get(el) !== ctxBefore;
+    if (!editClosed) input.value = '';
     grow();
     syncCounter();
     syncAction();
@@ -180,6 +205,7 @@ export function createComposer({
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);
 
+  composerSync.set(el, () => { syncCounter(); syncAction(); });   // ★ #1199: setComposerContext re-labels the button
   syncCounter();
   syncAction();
   return el;
@@ -313,9 +339,11 @@ export function clearComposer(el) {
   input.dispatchEvent(new Event('input'));
 }
 
-/* —— batch 3b (§8-GATED #25 — bridge has no reply/edit yet): context strip
-   above the field for reply/edit modes. #44 free fns. —— */
+/* —— batch 3b: context strip above the field for reply/edit modes. #44 free fns.
+   ★ #1198 / #1199 (S6): LIVE — the shell opens it behind bridge.cap('reply') / cap('edit') (setCaps). —— */
 const composerCtx = new WeakMap(); // composer el → active ctx
+const composerSync = new WeakMap(); // ★ #1199: composer el → its button/counter re-sync (Save while editing)
+const resyncComposer = (el) => { const f = composerSync.get(el); if (f) f(); };
 
 /* cancel = restore: an edit ctx prefilled the field, so cancelling must bring
    the user's pre-edit draft back (audit r3: one stray Send re-posted the OLD
@@ -325,6 +353,9 @@ function cancelComposerContext(el) {
   if (!c) return;
   setComposerContext(el, null); // draft restore happens inside (edit ctx)
   if (c.onCancel) c.onCancel();
+  /* ★ #1198 r1 (B-8): the ✕ was the focused control and it just left the DOM — focus goes back to the field */
+  const input = el.querySelector('.c-composer__input');
+  if (input) { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }
 }
 
 /**
@@ -348,7 +379,7 @@ export function setComposerContext(el, ctx) {
     input.value = prevCtx._draft || '';
     input.dispatchEvent(new Event('input'));
   }
-  if (!ctx) { composerCtx.delete(el); return; }
+  if (!ctx) { composerCtx.delete(el); resyncComposer(el); return; }
   composerCtx.set(el, ctx);
   const strings = ctx.strings || getStrings();
 
@@ -382,9 +413,14 @@ export function setComposerContext(el, ctx) {
 
   if (input) {
     if (ctx.kind === 'edit' && ctx.prefill !== false) {
+      /* ★ #1199: the draft to give back is the one BEFORE any edit — replacing one edit with another must not
+         take the first edit's prefill as "the draft" (prevCtx restored it into the field just above) */
       ctx._draft = input.value; // restored on cancel (audit r3)
-      input.value = ctx.text || '';
+      /* ★ #1199: the prefill is the message BODY (ctx.prefillText) when the shell gives one; the strip's
+         excerpt (ctx.text) is the fallback — the pre-S6 contract */
+      input.value = ctx.prefillText != null ? String(ctx.prefillText) : (ctx.text || '');
       input.dispatchEvent(new Event('input')); // grow + action sync; isTrusted=false → no typing emit
+      try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}   // caret at the end
     }
     // Esc cancels the ACTIVE context (wired once per composer element)
     if (el.dataset.ctxWired === undefined) {
@@ -397,6 +433,7 @@ export function setComposerContext(el, ctx) {
     }
     input.focus();
   }
+  resyncComposer(el);   // ★ #1199: Save ⇄ Send, and the disabled state, for the context now up
 }
 
 export function getComposerContext(el) { return composerCtx.get(el) || null; }

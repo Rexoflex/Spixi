@@ -1723,3 +1723,15 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | `addFile` arg 16 `fLocal` (#1190) | "1" / "0" / "" from C#'s own disk check; never a path; the shell reads only "0" on a complete row | ours, safe — no new verb; an older shell ignores it |
 | `[P1] filelocal sent-image <case>` · `[P1] infopane close … tiles= previews= shown=` (#1190, #1194) | dev-only, fixed case words + integers; never a path, name or address | ours, safe — retire with the [P1] set (C-2l) |
 | Member avatar push to an open group (#1191) | the existing `setAvatarFor` (a data: URI C# makes from its own file); only for a member already drawn or a roster member outside blind rooms | ours, safe — no new verb; the blind gate holds (pins-s6/live) |
+
+## Session 6b (#1197–#1203) — lens applied while building
+| Surface | What | Verdict |
+|---|---|---|
+| `getAppProtocols` answer (#1197) | an approved 1:1 contact (approved && state Approved) learns this build answers `spixi.reply.1` + `spixi.edit.1`; one answer per address per 60 s, map capped 512; groups / bots / unknown senders: nothing; push OFF, no server copy (Core) | ours, accepted — a feature fingerprint to contacts only, rate-limited; 🟡 BE ask B-29 |
+| Reply quote line (#1198) | the first line of a reply LEAVES the device: `> [name: ]excerpt`. Name: none in 1:1; in a room only names the senders declared themselves (my nick, senderNick, the roster nick) — never the private alias (`Friend.nickname` = userDefinedNick); sanitized #1178, address-like → dropped; excerpt ≤ 60 text elements of a message the peer already has | ours, safe — #46 r1 A MAJOR-2 fixed (the alias leak) |
+| Quote parse of PEER text (#1198) | a peer's line becomes a box: name re-sanitized, address-like dropped, text capped; textContent only; a matched box shows THIS device's sender name (#46 r2 MINOR-2); bounded cost (memo + index, ≤ 4096-char line check, ≤ 1000 deep, never on the network thread) | ours, safe |
+| `ixian:chatedit:<hex>:<text>` (#1199, NEW 🟡 verb) | the id is validated hex (even, ≤ 32 chars) and looked up in C#'s own channel list; C# re-checks EditRules (own, text row, not system, non-bot, 24 h, newest 25, < 20 edits, size); the text is only the message body; no filesystem op | ours, safe — B-29 |
+| `ixian:quotejump:<hex>` (#1198, NEW 🟡 verb) | the hex is looked up in C#'s OWN history (≤ JumpCap); only C#'s own hex reaches requestJump; one read at a time | ours, safe — B-29 |
+| addMe / addThem args 14–16, updateMessage 8–11, setCaps reply / edit (P1–P3) | "1"/"" + C#-sanitized name / text; textContent only; an old shell ignores them | ours, safe — B-29 |
+| Receive drop guard (#1199) | a non-bot replace of an unknown id, or a replace / stream chunk onto a file, payment or system row, is dropped (receipt sent) — closes an INHERITED rewrite of those rows by a peer | inherited exposure narrowed (belt) |
+| `[P1] fade hold …` (#1201) | dev-only, fixed words + integers, nothing without `data-p1` | ours, safe — retire with the [P1] set (C-2l) |

@@ -136,6 +136,11 @@
              so no double line; the 640 cap is inert at pane width). */
   body[data-pane] .c-chat-info__body { max-width: 640px; margin-inline: auto; width: 100%; }
     body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
+  /* ★ #1202 (a) (Damir 2026-10-05, dark "Show all"): the two covers are position: fixed; inset: 0 — they paint OVER the
+     body's pane-2 hairline above (light hid the miss: the cover's surface met the chat's in contrast). In pane 2 each
+     cover carries the SAME line on its own leading edge; outside pane 2 nothing changes. */
+  body[data-pane="2"] .cd-shared-takeover,
+  body[data-pane="2"] .cd-send-takeover { border-inline-start: 1px solid var(--outline-neutral-03); }
 </style>
 </head>
 <body>

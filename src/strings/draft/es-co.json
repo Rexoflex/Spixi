@@ -497,7 +497,6 @@
   "repeatMismatch": "Las contraseñas no coinciden.",
   "reply": "Responder",
   "replyTo": "Mostrar mensaje respondido",
-  "replyUnavailable": "Mensaje original",
   "replyingTo": "Responder a",
   "requestAmount": "Solicitar un monto",
   "requestConfirm": "Solicitar {a} IXI",
@@ -810,5 +809,7 @@
   "filePaused": "En pausa",
   "fileDeletedLocal": "Archivo eliminado de este dispositivo",
   "fileUnavailable": "No disponible en este dispositivo",
-  "photoDeletedLocal": "Foto eliminada de este dispositivo"
+  "photoDeletedLocal": "Foto eliminada de este dispositivo",
+  "saveEdit": "Guardar",
+  "editNoLonger": "Este mensaje ya no se puede editar. Tu texto se queda en el campo de mensaje."
 }

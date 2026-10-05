@@ -497,7 +497,6 @@
   "repeatMismatch": "Die Passwörter stimmen nicht überein.",
   "reply": "Antworten",
   "replyTo": "Beantwortete Nachricht anzeigen",
-  "replyUnavailable": "Ursprüngliche Nachricht",
   "replyingTo": "Antwort an",
   "requestAmount": "Betrag anfordern",
   "requestConfirm": "{a} IXI anfordern",
@@ -810,5 +809,7 @@
   "filePaused": "Pausiert",
   "fileDeletedLocal": "Datei von diesem Gerät gelöscht",
   "fileUnavailable": "Auf diesem Gerät nicht verfügbar",
-  "photoDeletedLocal": "Foto von diesem Gerät gelöscht"
+  "photoDeletedLocal": "Foto von diesem Gerät gelöscht",
+  "saveEdit": "Speichern",
+  "editNoLonger": "Diese Nachricht kann nicht mehr bearbeitet werden. Dein Text bleibt im Eingabefeld."
 }

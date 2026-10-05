@@ -351,7 +351,9 @@ namespace SPIXI
                     }
                     else if (fm.type == FriendMessageType.standard)
                     {
-                        List<string> links = LinkRule.extract(fm.message);
+                        /* ★ #46 r1 C m-2 (#1198): links from the BODY — a reply's quote line holds the quoted text (a URL
+                         * there is the TARGET's link again, or one cut with "…"). (An edit keeps `timestamp`, #46 r2 MAJOR-1.) */
+                        List<string> links = LinkRule.extract(ReplyQuote.stripForExcerpt(fm.message));
                         for (int k = 0; k < links.Count; k++)
                         {
                             string u = links[k];

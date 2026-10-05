@@ -14,7 +14,7 @@ export default async function (h) {
     const darkDecl = (/--chat-scroll-thumb:\s*([^;]+);/.exec(tok.slice(Math.max(0, darkStart - 400), darkStart)) || [])[1];
     const r = {
       twoDecls: decl.length === 2,
-      light: decl[0] === 'var(--text-neutral-02)',
+      light: decl[0] === 'var(--outline-neutral-02)',   // ★ #1202 re-base (Damir 2026-10-05: "the light chat thumb looked like dark mode"): light is outline-02 now too (was text-02)
       dark: darkDecl && darkDecl.trim() === 'var(--outline-neutral-02)',
       /* the dark value is the SAME one every other dark scroller uses (base.css .u-scroll) */
       sameAsBase: /\.u-scroll:hover, \.u-scroll:focus-within \{\s*scrollbar-color: var\(--outline-neutral-02\) transparent;/.test(stripCssComments(rd('src/styles/base.css'))),
@@ -23,7 +23,7 @@ export default async function (h) {
       shipped: rd('Spixi/Resources/Raw/html/spixi.tokens.css').includes('--chat-scroll-thumb: var(--outline-neutral-02)') && built.includes('var(--chat-scroll-thumb)'),
     };
     ok(Object.values(r).every(Boolean),
-      '★ #1134 (Damir dark screenshots: "chat info has a proper dark scroll bar, in chat it is very bright"): the chat log thumb takes --chat-scroll-thumb — light keeps text-02 (3:1 on the tinted canvases), dark = outline-neutral-02, the same thumb as chat info and every other .u-scroll — ' + JSON.stringify(r));
+      '★ #1134 (Damir dark screenshots: "chat info has a proper dark scroll bar, in chat it is very bright"): the chat log thumb takes --chat-scroll-thumb — light = outline-neutral-02 (★ #1202 re-base; was text-02), dark = outline-neutral-02, the same thumb as chat info and every other .u-scroll — ' + JSON.stringify(r));
   }
 
   /* —— #1150 (Damir): a contact request is not an unread, but the ICON badge counts a pending one (= the Chats tab rule) —— */

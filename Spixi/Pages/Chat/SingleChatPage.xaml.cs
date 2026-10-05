@@ -594,7 +594,7 @@ namespace SPIXI
                 // M1 reply-to. Grammar: ixian:chatreply:<reply-id-hex>:<url-encoded text>.
                 // ★ No prefix collision with "ixian:chat:" — the character after "chat"
                 // is 'r', not ':'. The shell only ever emits this behind the `reply`
-                // capability, which is OFF until a 2-device test passes.
+                // capability — ★ #1198: declared now (setCaps); onSend composes the quote line (ReplyQuote).
                 string payload = current_url.Substring("ixian:chatreply:".Length);
                 int sep = payload.IndexOf(':');
                 if (sep > 0)
@@ -608,6 +608,27 @@ namespace SPIXI
                     // so the separator must still be removed or the body keeps a leading ':'.
                     onSend(sep == 0 ? payload.Substring(1) : payload);
                 }
+            }
+            else if (current_url.StartsWith("ixian:chatedit:", StringComparison.Ordinal))
+            {
+                /* ★★ #1199 (session 6b): ixian:chatedit:<idHex>:<url-encoded text> (🟡 NEW). No collision with "ixian:chat:"
+                 * (the character after "chat" is 'e'). The text after the FIRST ':' is the new body (it may hold ':').
+                 * onEditMessage re-checks EditRules.canEdit on C#'s own copy; a malformed payload sends nothing. */
+                string payload = current_url.Substring("ixian:chatedit:".Length);
+                int sep = payload.IndexOf(':');
+                if (sep > 0)
+                {
+                    onEditMessage(payload.Substring(0, sep), payload.Substring(sep + 1));
+                }
+                else
+                {
+                    Logging.warn("ixian:chatedit: malformed (no id)");
+                }
+            }
+            else if (current_url.StartsWith("ixian:quotejump:", StringComparison.Ordinal))
+            {
+                // ★★ #1198 (session 6b): ixian:quotejump:<idHex> (🟡 NEW) — a quote whose target the shell has not loaded.
+                onQuoteJump(current_url.Substring("ixian:quotejump:".Length));
             }
             else if (current_url.StartsWith("ixian:chat:"))
             {
@@ -1318,6 +1339,7 @@ namespace SPIXI
             {
                 avatarSent.Clear();   // ★ #1166 P-04: the shell reset its address → avatar map at onChatScreenReady above (before loadMessages)
             }
+            resetReplyDeep();   // ★ #1198: a new document — the one deeper reply-match read starts again (CONTRACT 1a)
 
             // C13: push the LOCAL user's nick so the shell can identify "me" (self-mention
             // emphasis + the @ jump-to-mention FAB). The redesigned shells build window.SL from
@@ -1492,18 +1514,20 @@ namespace SPIXI
             // ★ W5 (#523): + the money-compose caps. composeSend = attach-Pay compose ·
             // composeRequest = attach-Request sheet · payRequest = in-card Pay. An old
             // exe pushes none of these and the shell keeps the legacy native routes.
-            Utils.sendUiCommand(this, "setCaps", "tipResult,composeSend,composeRequest,payRequest");
-            /* ★ M1 REPLY-TO (#441/#448) — THE SHELL IS BUILT, THE CARRIER IS NOT.
-             * The whole FE surface (quote bubble, composer strip, menu action, jump,
-             * group @-mention prefill) is in place and the `ixian:chatreply:` verb is
-             * wired — but the protocol field lives in Ixian-Core, which is HELD OUT of
-             * this batch for the BE cutover. Until that lands, a reply degrades to a
-             * plain message.
-             * ⚠ So do NOT add ",reply" here yet: it would render a Reply action that
-             * silently drops the quote. The order is (1) land the Core patch in
-             * docs/be-cutover-ixian-core-reply-carrier.md, (2) restore the two seams
-             * marked "THE SEAM" in this file, (3) add ",reply", (4) run the 2-device
-             * checklist, and only then ship it un-gated. */
+            /* ★★ #1198 / #1199 (session 6b): REPLY and EDIT are declared here, per chat type.
+             * `reply` — EVERY chat (1:1, private group, bot room): a reply travels as TEXT with a quote line
+             *   (ReplyQuote, the text-quote convention #1137 (3) — no Core field, so the M1 "carrier" never has to land);
+             *   `ixian:chatreply:` composes it in onSend, insertMessage / updateMessage match it back.
+             * `edit` — a 1:1 chat and a private group, NOT a bot room (`friend.bot`: the bot server re-serves its own
+             *   history and Core takes no stream update of a bot message from us): `ixian:chatedit:` re-checks
+             *   EditRules.canEdit and sends a chatStream replace (#1137 (4)).
+             * An older shell ignores the extra caps; an older exe never declares them, so the shell offers neither. */
+            string caps = "tipResult,composeSend,composeRequest,payRequest,reply";
+            if (!friend.bot)
+            {
+                caps += ",edit";
+            }
+            Utils.sendUiCommand(this, "setCaps", caps);
 
             warningDisplayed = false;
             unreadIndicatorDisplayed = false;
@@ -1687,6 +1711,29 @@ namespace SPIXI
                 return;
             }
 
+            /* ★★ #1198 (session 6b): A REPLY IS TEXT WITH A QUOTE LINE (#1137 (3), the text-quote convention — no Core
+             * field). When `reply_to_id_hex` names a QUOTABLE message of this chat's open channel (ReplyQuote.excerptOf:
+             * text, file / photo, payment, call, app card), the sent text becomes
+             *     "> " + NAME + ": " + EXCERPT + "\n" + body      (NAME = the target's sender as THIS device shows it, or none)
+             * — an old Spixi shows it as a readable quote; this app matches the line back to the target (insertMessage).
+             * A bad / unknown id, a non-quotable target or a composed text over CoreConfig.maxChatMessageSize → the plain
+             * body (today's degrade). Composed BEFORE the bot-room price below: the price is for what is sent. The send
+             * itself is unchanged — SpixiMessageCode.chat through sendChatMessage (the envelope id = the record id, so the
+             * delivery and read ticks still land). The id is parsed by C# and looked up in C#'s own list; only C#'s
+             * excerpt and name reach the text. */
+            byte[]? replyMessageId = null;   // ★ #46 r1 C M-1: a composed reply gets its id HERE, so its target can be remembered first
+            string? replyTargetForSend = null;
+            if (!string.IsNullOrEmpty(reply_to_id_hex))
+            {
+                string? composed = composeReply(reply_to_id_hex, str, out string replyTargetHex);
+                if (composed != null)
+                {
+                    str = composed;
+                    replyMessageId = Guid.NewGuid().ToByteArray();   // the same 16-byte id Core would make (FriendMessage.id's getter)
+                    replyTargetForSend = replyTargetHex;   // remembered only once the send goes ahead (below)
+                }
+            }
+
             if (friend.bot)
             {
                 if (friend.metaData.botInfo.cost > 0)
@@ -1707,54 +1754,28 @@ namespace SPIXI
                 }
             }
 
-            /* ★ M1 REPLY-TO — THE CARRIER IS NOT HERE. Damir, 2026-08-20.
-             *
-             * The reply reference lives in Ixian-Core (`ChatStreamMessage.ReplyToId` +
-             * `FriendMessage.replyToId`), and Core is HELD OUT of this batch to be landed
-             * with the BE engineer at cutover — see
-             * `docs/be-cutover-ixian-core-reply-carrier.md`, which holds the exact patch.
-             *
-             * So this send is EXACTLY the pre-batch send: `SpixiMessageCode.chat`, a raw
-             * UTF-8 body, through `sendChatMessage`. ⚠ It deliberately does NOT use
-             * `sendChatStreamMessage`: stock Core passes a NULL StreamMessage id there
-             * (cutover ask 2), so the envelope id and the record id would disagree and
-             * every delivery and read tick would be lost.
-             *
-             * `reply_to_id_hex` is parsed and validated so the SEAM is exercised and the
-             * cutover diff is small — but with no field to put it in, a reply degrades to
-             * a plain message. Nothing can reach this today: the `reply` capability is
-             * declared by no `setCaps` call, so the shell cannot create one. */
-            if (!string.IsNullOrEmpty(reply_to_id_hex))
-            {
-                try
-                {
-                    byte[] parsed = Crypto.stringToHash(reply_to_id_hex);
-                    if (parsed == null || parsed.Length == 0 || parsed.Length > CoreConfig.maxMessageIdSize)
-                    {
-                        Logging.warn("Reply target id is not usable; sending a plain message.");
-                    }
-                    else
-                    {
-                        Logging.warn("Reply target received, but the Ixian-Core carrier is not landed yet; sending a plain message. See docs/be-cutover-ixian-core-reply-carrier.md.");
-                    }
-                }
-                catch (Exception)
-                {
-                    Logging.warn("Reply target id could not be parsed; sending a plain message.");
-                }
-            }
-
             SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.chat, Encoding.UTF8.GetBytes(str), selectedChannel);
             byte[] spixi_msg_bytes = spixi_message.getBytes();
 
             // store the message and display it
-            FriendMessage friend_message = Node.addMessageWithType(null, FriendMessageType.standard, friend.walletAddress, selectedChannel, str, true, null, 0, true, true, spixi_msg_bytes.Length);
+            /* ★ #46 r2 NIT: the target is remembered only now — after the bot price (a refused send returns above) — and BEFORE
+             * Core stores the message, because its live insert (Node → insertMessage) already matches it; a store that
+             * failed forgets it again (below). */
+            if (replyMessageId != null && replyTargetForSend != null)
+            {
+                rememberReplyTarget(Crypto.hashToString(replyMessageId), replyTargetForSend);
+            }
+            FriendMessage friend_message = Node.addMessageWithType(replyMessageId, FriendMessageType.standard, friend.walletAddress, selectedChannel, str, true, null, 0, true, true, spixi_msg_bytes.Length);   // ★ #46 r1 C M-1: null unless a composed reply
 
             // Audit NIT-11: addMessageWithType returns null when the friend is gone or the
             // channel is invalid. Transmitting a message that was never stored or shown
             // would leave the peer with something this device has no record of.
             if (friend_message == null)
             {
+                if (replyMessageId != null)
+                {
+                    replyTargets.TryRemove(Crypto.hashToString(replyMessageId), out _);   // ★ #46 r2 NIT: never sent → not remembered
+                }
                 Logging.error("Chat message could not be stored — not sending it.");
                 return;
             }
@@ -1763,6 +1784,496 @@ namespace SPIXI
             Utils.sendUiCommand(this, "clearInput");
 
             CoreStreamProcessor.sendChatMessage(friend, friend_message, selectedChannel);
+        }
+
+        /* ═══ ★★ #1198 / #1199 (session 6b) — REPLY + EDIT, THE C# HALF ═══
+         * A reply is TEXT with a quote line (ReplyQuote — CONTRACT 1a); an edit is a chatStream REPLACE (EditRules —
+         * CONTRACT 1b). Everything the shell sends is an id + text: C# parses the id, looks it up in ITS OWN channel list
+         * and decides — the WebView never names a sender, an excerpt or a sequence.
+         * ★ #46 r1 A MAJOR-1 (cost): candidates are MEMOISED per page by id + sequence (+ text, so a delete is seen) — each
+         * excerpt is computed once (bounded, ReplyQuote.excerptOfRange) — and indexed by excerpt (ReplyQuote.Index): a load
+         * builds ONE index for all its rows (UiBatch.replyIndex), a live arrival one over the in-memory list. A row that is
+         * not quote-shaped (ReplyQuote.looksLikeReply, a bounded check) costs nothing. The ONE deeper read
+         * (localStorage.readLastMessages, DeepSearchMax rows, once per document + channel) happens ONLY on the load path,
+         * BEFORE `lock (messages)` and off the UI thread, and only when a loaded row is quote-shaped (prefetchReplyDeep);
+         * every other path (a live arrival on the network thread, compose / edit / jump on the UI thread) reads the cached
+         * copy or nothing. The in-memory list is Core's Friend.getMessages(channel) with the default count — never a
+         * replacing read (CORE-8); a live message wins over its deeper (disk) copy, so an edit seen live invalidates the
+         * cached candidate (#46 r1 C M-2). */
+        private readonly object replyLock = new object();
+        private readonly Dictionary<string, ReplyQuote.Candidate> replyMemo = new Dictionary<string, ReplyQuote.Candidate>(StringComparer.Ordinal);
+        private const int ReplyMemoMax = 4096;
+        private List<FriendMessage>? replyDeep = null;
+        private int replyDeepChannel = int.MinValue;   // the channel replyDeep holds; MinValue = not read for this document
+        /* ★ #46 r1 C M-1: the SENDER's own device remembers the exact target it composed for (reply id hex → target id hex):
+         * process-wide, in memory only, bounded — the match prefers it (ReplyQuote tier 0). The peer's device cannot (🟡,
+         * ReplyQuote's header). */
+        private static readonly ConcurrentDictionary<string, string> replyTargets = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+        private const int ReplyTargetsMax = 512;
+        private int quoteJumpBusy = 0;   // ★ #46 r1 A NIT-3: one onQuoteJump disk read at a time
+
+        /** ★ #1198: forget the deeper read and the memo (a new document — onLoad). */
+        private void resetReplyDeep()
+        {
+            lock (replyLock)
+            {
+                replyDeep = null;
+                replyDeepChannel = int.MinValue;
+                replyMemo.Clear();
+            }
+        }
+
+        /** The cached deeper read of `channel`, or null. NEVER reads. */
+        private List<FriendMessage>? replyDeepCached(int channel)
+        {
+            lock (replyLock)
+            {
+                return replyDeepChannel == channel ? replyDeep : null;
+            }
+        }
+
+        /** ★ #1198 / #46 r1 A MAJOR-1: the ONE deeper read — called only by loadMessages, BEFORE `lock (messages)`, when a
+         *  loaded row is quote-shaped; never on the UI thread; once per document + channel (a failed read is not retried). */
+        private void prefetchReplyDeep(int channel)
+        {
+            lock (replyLock)
+            {
+                if (replyDeepChannel == channel)
+                {
+                    return;
+                }
+            }
+            if (MainThread.IsMainThread)
+            {
+                return;
+            }
+            List<FriendMessage>? read = null;
+            try
+            {
+                read = IxianHandler.localStorage.readLastMessages(friend, channel, 0, ReplyQuote.DeepSearchMax);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("reply match: the deeper read failed (" + e.GetType().Name + ")");
+            }
+            lock (replyLock)
+            {
+                replyDeep = read;
+                replyDeepChannel = channel;
+            }
+        }
+
+        /** A copy of Core's in-memory list of `channel` (Friend.getMessages, the default count — never a replacing read). */
+        private List<FriendMessage> channelSnapshot(int channel)
+        {
+            List<FriendMessage>? mem = null;
+            try
+            {
+                mem = friend.getMessages(channel);
+            }
+            catch (Exception)
+            {
+                mem = null;
+            }
+            if (mem == null)
+            {
+                return new List<FriendMessage>();
+            }
+            lock (mem)
+            {
+                return new List<FriendMessage>(mem);
+            }
+        }
+
+        /** ★ #1198: a message as a reply candidate, memoised by id + sequence + text (an edit or a delete builds a new one).
+         *  The file name + photo test are C#'s own SharedItems rules; the time is Core's `timestamp` (an edit keeps it: the
+         *  replace passes the existing time back, #46 r2 MAJOR-1);
+         *  expectedName = this device's name for the sender (replyNameOf, sanitized) — the exact-line tier. */
+        private ReplyQuote.Candidate? replyCandidateOf(FriendMessage? m)
+        {
+            if (m == null || m.id == null)
+            {
+                return null;
+            }
+            string idHex = Crypto.hashToString(m.id);
+            string rawName;
+            try
+            {
+                rawName = replyNameOf(m) ?? "";   // ★ #46 r2 NIT: part of the memo key — a roster nick change rebuilds the candidate
+            }
+            catch (Exception)
+            {
+                rawName = "";
+            }
+            lock (replyLock)
+            {
+                if (replyMemo.TryGetValue(idHex, out ReplyQuote.Candidate? memo) && memo.sequence == m.sequence && memo.type == m.type
+                    && string.Equals(memo.text, m.message, StringComparison.Ordinal) && string.Equals(memo.nameKey, rawName, StringComparison.Ordinal))
+                {
+                    return memo;
+                }
+            }
+            ReplyQuote.Candidate c = new ReplyQuote.Candidate
+            {
+                idHex = idHex, type = m.type, text = m.message, sequence = m.sequence,
+                timestamp = m.timestamp,
+            };
+            if (m.type == FriendMessageType.fileHeader && SharedItems.parseFileHeader(m.message, out string name, out _))
+            {
+                c.fileName = name;
+                c.isImage = SharedItems.isImageName(name);
+            }
+            c.nameKey = rawName;
+            c.expectedName = ReplyQuote.nameFor(rawName);
+            lock (replyLock)
+            {
+                if (replyMemo.Count >= ReplyMemoMax)
+                {
+                    replyMemo.Clear();   // bounded; rebuilt on demand
+                }
+                replyMemo[idHex] = c;
+            }
+            return c;
+        }
+
+        /** ★ #46 r1 A MAJOR-1: ONE index over `mem` (the live list — the caller holds its lock or passes a copy) + the
+         *  cached deeper read (rows `mem` does not hold: the live copy wins). Never reads the disk. */
+        private ReplyQuote.Index buildReplyIndex(int channel, List<FriendMessage> mem)
+        {
+            List<ReplyQuote.Candidate> all = new List<ReplyQuote.Candidate>(mem.Count);
+            HashSet<string> live = new HashSet<string>(StringComparer.Ordinal);
+            List<FriendMessage>? deep = replyDeepCached(channel);
+            if (deep != null)
+            {
+                foreach (FriendMessage m in mem)
+                {
+                    if (m.id != null)
+                    {
+                        live.Add(Crypto.hashToString(m.id));
+                    }
+                }
+                foreach (FriendMessage d in deep)
+                {
+                    if (d.id != null && !live.Contains(Crypto.hashToString(d.id)))
+                    {
+                        ReplyQuote.Candidate? dc = replyCandidateOf(d);
+                        if (dc != null)
+                        {
+                            all.Add(dc);
+                        }
+                    }
+                }
+            }
+            foreach (FriendMessage m in mem)
+            {
+                ReplyQuote.Candidate? c = replyCandidateOf(m);
+                if (c != null)
+                {
+                    all.Add(c);
+                }
+            }
+            return new ReplyQuote.Index(all);
+        }
+
+        /** ★ #1198: the quote of a text row. true = a quote box: matched (`match.matched`, a target id) or — Damir P2 — a
+         *  VALID quote line that matches nothing (no target id, the box drawn from the line). false = not the shape (the
+         *  text is shown unchanged). `index` = the load's ONE index; null = a live push (an index over the in-memory list). */
+        private bool matchReply(FriendMessage message, int channel, ReplyQuote.Index? index, out ReplyQuote.Match? match)
+        {
+            match = null;
+            if (message.type != FriendMessageType.standard || !ReplyQuote.looksLikeReply(message.message))
+            {
+                return false;
+            }
+            try
+            {
+                string self = message.id != null ? Crypto.hashToString(message.id) : "";
+                ReplyQuote.Index idx = index ?? buildReplyIndex(channel, channelSnapshot(channel));
+                replyTargets.TryGetValue(self, out string? preferred);
+                long replyTime = message.timestamp;   // #46 r2 MAJOR-1: Core's own time — an edit keeps it
+                if (ReplyQuote.tryMatch(message.message, replyTime, self, idx, preferred, out match) && match != null)
+                {
+                    return true;
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("reply match failed (" + e.GetType().Name + ")");
+            }
+            match = ReplyQuote.fallbackOf(message.message);   // ★ Damir P2: the box from the line, no jump
+            return match != null;
+        }
+
+        /** A WebView-supplied message id hex → bytes; null = not a usable id (empty, odd, too long, not hex). */
+        private static byte[]? parseMessageIdHex(string? hex)
+        {
+            if (string.IsNullOrEmpty(hex) || hex.Length % 2 != 0 || hex.Length > 2 * CoreConfig.maxMessageIdSize)
+            {
+                return null;
+            }
+            try
+            {
+                byte[] id = Crypto.stringToHash(hex);
+                return id != null && id.Length > 0 ? id : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /** A message of `channel` by id: the in-memory list first, then the CACHED deeper read (never a read). */
+        private FriendMessage? findChannelMessage(int channel, byte[] id)
+        {
+            FriendMessage? m = channelSnapshot(channel).Find(x => x.id != null && x.id.SequenceEqual(id));
+            if (m != null)
+            {
+                return m;
+            }
+            List<FriendMessage>? deep = replyDeepCached(channel);
+            return deep?.Find(x => x.id != null && x.id.SequenceEqual(id));
+        }
+
+        /* ★★ #46 r1 A MAJOR-2 (privacy — the handover gate: the redesign must introduce nothing) — WHICH NAME A QUOTE
+         * CARRIES. The quote line LEAVES this device in the reply text, so it may carry only a name the target's sender
+         * declared themselves — NEVER the private alias this user gave a contact. Core's `Friend.nickname` returns that
+         * alias first (`userDefinedNick`, Friend.cs:836-845), and `FriendList.getFriend(..).nickname` is the same getter, so
+         * neither is used here:
+         *   · a 1:1 chat          → NO name, for either side ("> excerpt"): the two people know who wrote what, and the
+         *                           peer's own declared nick is a PRIVATE Core field (`_nick`, no getter) — the lead
+         *                           removed a reflection read of it (fragile under trimming, and it reads Core internals);
+         *   · a group / bot room  → my own message: my own nick (what I declare to everyone); a member: the message's
+         *                           `senderNick` (Core filled it from the room roster), else the roster member's own nick
+         *                           (friend.users — what the member declared), else "".
+         * ReplyQuote.nameFor then sanitizes (#1178) and drops an address-like name — never an address in the quote. */
+        private string replyNameOf(FriendMessage target)
+        {
+            if (!(friend.bot || friend.type == FriendType.Group))
+            {
+                return "";
+            }
+            if (target.localSender)
+            {
+                return IxianHandler.localStorage.nickname ?? "";
+            }
+            if (!string.IsNullOrEmpty(target.senderNick))
+            {
+                return target.senderNick;
+            }
+            Address? who = target.senderAddress;
+            if (who != null && friend.users != null && friend.users.hasUser(who))
+            {
+                return friend.users.getUser(who)?.getNick() ?? "";
+            }
+            return "";
+        }
+
+        /** ★ #1198: the text a reply sends, or null = send the plain body (the old degrade). `targetHex` = C#'s own id of
+         *  the target (remembered for this device's match, #46 r1 C M-1). */
+        private string? composeReply(string idHex, string body, out string targetHex)
+        {
+            targetHex = "";
+            try
+            {
+                byte[]? id = parseMessageIdHex(idHex);
+                if (id == null)
+                {
+                    Logging.warn("Reply target id is not usable; sending a plain message.");
+                    return null;
+                }
+                FriendMessage? target = findChannelMessage(selectedChannel, id);
+                ReplyQuote.Candidate? tc = replyCandidateOf(target);
+                string? excerpt = tc != null ? ReplyQuote.excerptOf(tc) : null;
+                if (target == null || tc == null || excerpt == null)
+                {
+                    Logging.warn("Reply target is not a quotable message of this chat; sending a plain message.");
+                    return null;
+                }
+                string text = ReplyQuote.compose(replyNameOf(target), excerpt, body);
+                if (text.Length > CoreConfig.maxChatMessageSize)
+                {
+                    Logging.warn("Reply with its quote is over the size limit; sending a plain message.");
+                    return null;
+                }
+                targetHex = tc.idHex;
+                return text;
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Reply could not be composed (" + e.GetType().Name + "); sending a plain message.");
+                return null;
+            }
+        }
+
+        /** ★ #46 r1 C M-1: remember (process-wide, bounded) which target this device's reply `replyIdHex` was composed for. */
+        private static void rememberReplyTarget(string replyIdHex, string targetHex)
+        {
+            if (replyTargets.Count >= ReplyTargetsMax)
+            {
+                replyTargets.Clear();   // bounded; an old reply falls back to the ranked match
+            }
+            replyTargets[replyIdHex] = targetHex;
+        }
+
+        /* ★★ #1199 (session 6b) — `ixian:chatedit:<idHex>:<text>` (🟡 NEW verb). The shell offers Edit on my own recent
+         * text rows behind the `edit` cap; C# RE-CHECKS everything (EditRules.canEdit, executed in scripts/csh) on its own
+         * copy of the message: own · standard · not a system line · not deleted · not a bot room · < 24 h since the
+         * ORIGINAL send (Damir P1; #46 r2 MAJOR-1: Core's `timestamp` IS the original time — every replace passes the
+         * existing time back, below and in StreamProcessor) · sequence < 20 · among the newest 25 of the channel (Core ADDS
+         * an edit it cannot place) · the new body trimmed, non-empty, within the size, changed.
+         * Refused (#46 r2 MAJOR-2) → EVERY refusal of a row this device holds in memory re-pushes its CURRENT state
+         * (repushRefusedEdit → updateMessage) so the shell restores the bubble; a row not in memory (or an unusable id)
+         * pushes nothing (the shell's 3 s timeout restores it). Per verdict: notOwn · systemLine · botRoom · tooOld ·
+         * tooManyEdits · notRecent · bodyEmpty · tooLong · unchanged and a local replace Core refused → the text re-push;
+         * notText (a file / payment / app row — the shell never offers Edit there) and deleted (an empty row) → updateMessage
+         * pushes no TEXT for those by its own guards (a text push would turn the card into a bubble / paint an empty one),
+         * so the shell's timeout restores them.
+         * A quote-shaped text (matched, or Damir P2's fallback box) SHOWS its body, so the edit is of the BODY: the
+         * unchanged check compares with the body, and the ORIGINAL quote line is kept (newFullText = line + "\n" + body).
+         * Allowed → the own copy is replaced FIRST through Node.addMessageWithType (sender_address = our primary address:
+         * Core 0.9.8k accepts a local replace only then, FriendList.addMessageWithType's `tmp_msg.localSender` rule) — which
+         * pushes updateMessage to this page (UIHelpers.updateMessage) — then the chatStream replace goes out through
+         * CoreStreamProcessor.sendSpixiMessage with a NEW envelope id, pending + server ON, push OFF (an edit never wakes
+         * a phone). A local replace Core refused → nothing is sent and the row is re-pushed. Never throws out of
+         * onNavigating; the log carries the verdict word only — no text, no id. */
+        private void onEditMessage(string idHex, string newText)
+        {
+            int channel = selectedChannel;
+            FriendMessage? msg = null;
+            try
+            {
+                byte[]? id = parseMessageIdHex(idHex);
+                if (id == null)
+                {
+                    Logging.warn("ixian:chatedit: the id is not usable");
+                    return;
+                }
+                List<FriendMessage>? mem = friend.getMessages(channel);
+                int newer = -1;
+                if (mem != null)
+                {
+                    lock (mem)
+                    {
+                        int idx = mem.FindIndex(x => x.id != null && x.id.SequenceEqual(id));
+                        if (idx >= 0)
+                        {
+                            msg = mem[idx];
+                            newer = mem.Count - 1 - idx;
+                        }
+                    }
+                }
+                if (msg == null)
+                {
+                    Logging.warn("ixian:chatedit: refused (notRecent)");   // not in the newest in-memory rows — nothing to re-push
+                    return;
+                }
+                string? quoteLine = null;
+                string currentBody = msg.message ?? "";
+                if (ReplyQuote.splitShape(msg.message, out string line, out string shownBody))
+                {
+                    quoteLine = line;
+                    currentBody = shownBody;
+                }
+                EditVerdict verdict = EditRules.canEdit(msg.localSender, msg.type, UnreadRule.isSystemLineId(msg.id), msg.message,
+                    friend.bot, Clock.getTimestamp(), msg.timestamp, msg.sequence, newer, newText, currentBody, quoteLine, CoreConfig.maxChatMessageSize);
+                if (verdict != EditVerdict.ok)
+                {
+                    Logging.info("ixian:chatedit: refused (" + verdict + ")");
+                    repushRefusedEdit(msg, channel);   // the shell restores the row's current state
+                    return;
+                }
+                string full = EditRules.fullText(quoteLine, EditRules.trimBody(newText));
+                var csm = new IXICore.Streaming.Models.ChatStreamMessage(msg.id, full, msg.sequence + 1, false);
+                SpixiMessage sm = new SpixiMessage(SpixiMessageCode.chatStream, csm.getBytes(), channel);
+                int len = sm.getBytes().Length;
+                /* #46 r2 MAJOR-1: the timestamp = the message's OWN time — Core's replace writes it back (FriendList.cs:288),
+                 * so the edit never moves the row (Damir P1); 0 would stamp "now". */
+                FriendMessage? replaced = Node.addMessageWithType(FriendMessageType.standard, friend.walletAddress, channel, csm, true,
+                    IxianHandler.getWalletStorage().getPrimaryAddress(), msg.timestamp, false, false, len);
+                if (replaced == null)
+                {
+                    Logging.warn("ixian:chatedit: the local replace was refused; nothing was sent");
+                    repushRefusedEdit(msg, channel);
+                    return;
+                }
+                CoreStreamProcessor.sendSpixiMessage(friend, sm, null, null, true, true, false, false);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("ixian:chatedit: failed (" + e.GetType().Name + ")");
+                if (msg != null)
+                {
+                    try { repushRefusedEdit(msg, channel); } catch (Exception) { }
+                }
+            }
+        }
+
+        /** ★ #46 r2 MAJOR-2: the ONE refusal re-push of `ixian:chatedit:` — the row's CURRENT state (updateMessage: the text
+         *  row's body, ticks, quote, edited marker; nothing for a non-text or an empty row, by updateMessage's own guards). */
+        private void repushRefusedEdit(FriendMessage msg, int channel)
+        {
+            updateMessage(msg, channel);
+        }
+
+        /* ★★ #1198 (session 6b) — `ixian:quotejump:<idHex>` (🟡 NEW verb): a tap on a quote whose target the shell has not
+         * loaded. C# looks the id up in ITS OWN history of the open channel — the in-memory list, else the newest
+         * SharedItems.JumpCap rows on disk (off the UI thread; ONE such read at a time — a tap while one runs is dropped,
+         * #46 r1 A NIT-3) — computes `depth` (how many messages of the channel are newer) and hands its OWN hex to
+         * requestJump, the Show-in-chat path (#1106). Not found → nothing (the shell toasts its existing jump text). The
+         * WebView's hex never reaches the jump. */
+        private void onQuoteJump(string idHex)
+        {
+            byte[]? id = parseMessageIdHex(idHex);
+            if (id == null)
+            {
+                Logging.warn("ixian:quotejump: the id is not usable");
+                return;
+            }
+            int channel = selectedChannel;
+            Friend f = friend;
+            List<FriendMessage> mem = channelSnapshot(channel);
+            int idx = mem.FindIndex(x => x.id != null && x.id.SequenceEqual(id));
+            if (idx >= 0)
+            {
+                requestJump(f, Crypto.hashToString(mem[idx].id), mem.Count - 1 - idx);
+                return;
+            }
+            if (Interlocked.CompareExchange(ref quoteJumpBusy, 1, 0) != 0)
+            {
+                return;   // one disk read at a time
+            }
+            Task.Run(() =>
+            {
+                try
+                {
+                    List<FriendMessage> disk = IxianHandler.localStorage.readLastMessages(f, channel, 0, SharedItems.JumpCap);
+                    int at = disk.FindIndex(x => x.id != null && x.id.SequenceEqual(id));
+                    if (at < 0)
+                    {
+                        return;   // not in the history C# holds — the shell already toasted
+                    }
+                    // newer on disk + the in-memory rows the delayed writer has not written yet (ArrivalGuard)
+                    HashSet<string> onDisk = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (FriendMessage d in disk)
+                    {
+                        if (d.id != null)
+                        {
+                            onDisk.Add(Crypto.hashToString(d.id));
+                        }
+                    }
+                    int depth = disk.Count - 1 - at + mem.Count(x => x.id != null && !onDisk.Contains(Crypto.hashToString(x.id)));
+                    string ownHex = Crypto.hashToString(disk[at].id);
+                    MainThread.BeginInvokeOnMainThread(() => requestJump(f, ownHex, depth));   // getChatPage walks the navigation stack
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("ixian:quotejump: failed (" + e.GetType().Name + ")");
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref quoteJumpBusy, 0);
+                }
+            });
         }
 
         /* ═══ ★★ L2 (#649) — THERE IS NO SINGLE CHECK, AND THAT IS THE HONEST ANSWER ═══
@@ -2755,6 +3266,10 @@ namespace SPIXI
             public readonly List<string> strs = new();
             /** ★ A5 #1124: image-file rows of this burst whose preview is queued only AFTER messagesDone (id → message). */
             public readonly List<KeyValuePair<string, FriendMessage>> thumbs = new();
+            /** ★ #1202 (#1190 #46 r5 MINOR): the file rows of this burst + the fLocal each carried (re-checked after the pushes). */
+            public readonly List<KeyValuePair<FriendMessage, string>> fileRows = new();
+            /** ★ #46 r1 A MAJOR-1: the ONE reply index of this load (null = no loaded row is quote-shaped). */
+            public ReplyQuote.Index? replyIndex = null;
             private readonly Dictionary<string, int> strIndex = new();
             /** Only a long data: URI is interned — everything else stays inline. */
             private const int INTERN_MIN_LENGTH = 256;
@@ -2986,6 +3501,7 @@ namespace SPIXI
             string arrivalKey = friend.walletAddress.ToString();
             int readChannel = selectedChannel;   // ★ #1155 (#46 r3 m1): ONE channel for the read, the trim and the put-back
             int visibleSurplus = 0;              // ★ #1155: visible rows over `want` in the LAST read (the trim's limit)
+            bool anyReplyShaped = false;         // ★ #1198 / #46 r1 A MAJOR-1: set in the read loop's count (below)
             CoreMessageWriter.arrivals.beforeReread(arrivalKey, readChannel, CoreMessageWriter.instance);
             for (int pass = 0; pass < LOAD_WINDOW_MAX_PASSES; pass++)
             {
@@ -3005,6 +3521,8 @@ namespace SPIXI
                     visibleNow = messages.Count(m => !rendersNothing(m));
                     exhausted = messages.Count < window;
                     headRun = CoreMessageWriter.arrivals.sameSecondHeadRun(messages);
+                    // ★ #1198 / #46 r1 A MAJOR-1: is a row of this read quote-shaped? (the LAST pass's read is the window)
+                    anyReplyShaped = messages.Exists(m => m.type == FriendMessageType.standard && ReplyQuote.looksLikeReply(m.message));
                 }
                 visibleSurplus = visibleNow - want;
                 /* ★ #1155 (#46 r3 M-1): with older history on disk, the window must also START on a second boundary that
@@ -3059,6 +3577,13 @@ namespace SPIXI
              * reading position lost). Nothing in the loop needs the shell cleared first. */
 
             UiBatch batch = new UiBatch();   // ★ Session P: the load burst crosses ONCE (header above)
+            /* ★ #1198 / #46 r1 A MAJOR-1: a loaded row is quote-shaped (decided in the read loop's count) → the ONE deeper
+             * read happens HERE — before `lock (messages)`, off the UI thread (prefetchReplyDeep) — and the load builds ONE
+             * index inside the lock. */
+            if (anyReplyShaped)
+            {
+                prefetchReplyDeep(readChannel);
+            }
             /* ★ Session P [CDPERF] — TEMPORARY (#802 r12): the BUILD is the window in which the shell's
              * 500 ms first-paint fallback could still fire (it is gated on the peer, and the peer landed
              * at onChatScreenReady, at the top of onLoad). The clock starts BEFORE `lock (messages)`, so
@@ -3125,6 +3650,10 @@ namespace SPIXI
                     }
                 }
                 lastLoadPushed = 0;   // ★ Session I [CDPERF]
+                if (anyReplyShaped)
+                {
+                    batch.replyIndex = buildReplyIndex(readChannel, messages);   // ★ #46 r1 A MAJOR-1: one index for every row of this load
+                }
                 byte[]? firstPushedId = null;   // ★ #1166 B2: the oldest row this load hands the shell = the next prepend's anchor
                 foreach (FriendMessage message in messages)
                 {
@@ -3241,6 +3770,7 @@ namespace SPIXI
                 {
                     enqueueThumb(t.Key, t.Value);
                 }
+                recheckBurstFileRows(batch, readChannel);   // ★ #1202 (#1190 #46 r5 MINOR): AFTER the batch's pushes — a file deleted during the build is re-pushed as "0"
             }
             if (zeroedUnread)
             {
@@ -3489,6 +4019,67 @@ namespace SPIXI
                 fileRowOnlyPass = false;
             }
             return true;
+        }
+
+        /** ★ #1202 (#1190 TODO, session 6b): re-push a file row this document holds, on its OWN channel — for a caller
+         *  that knows the message but not the channel (the Downloads delete: DownloadSource carries none; the contact
+         *  purge). A held row is always of selectedChannel (a channel switch is a full reload, which starts the set over),
+         *  so refreshFileRow's held test decides. false = not held here → nothing is pushed. */
+        public bool refreshHeldFileRow(FriendMessage? message)
+        {
+            return refreshFileRow(message, selectedChannel);
+        }
+
+        /** ★ #1202 (#1190 TODO, session 6b): re-push EVERY file row this document holds (the contact purge: it holds paths,
+         *  not rows). Each re-push reads the disk again (SharedItems.localArgOf) — a few dozen rows at most. */
+        public int refreshHeldFileRows()
+        {
+            List<string> held;
+            lock (fileRowsShown)
+            {
+                held = new List<string>(fileRowsShown);
+            }
+            if (held.Count == 0)
+            {
+                return 0;
+            }
+            HashSet<string> want = new HashSet<string>(held, StringComparer.Ordinal);
+            int n = 0;
+            foreach (FriendMessage m in channelSnapshot(selectedChannel))
+            {
+                if (m.id != null && m.type == FriendMessageType.fileHeader && want.Contains(Crypto.hashToString(m.id)) && refreshFileRow(m, selectedChannel))
+                {
+                    n++;
+                }
+            }
+            return n;
+        }
+
+        /* ★★ #1202 (#1190 #46 r5 MINOR, session 6b): A DELETE DURING A CHAT LOAD. The load builds its rows into ONE batch
+         * and sends it at the END (clearMessages · addMessages · messagesDone). A file row built BEFORE the delete carries
+         * fLocal "1"; the delete's refreshFileRow (ContactDetails / Downloads, main thread) then either re-pushed the row
+         * live with "0" — and the batch, sent AFTER it, repainted it with the stale "1" — or found it not yet held and
+         * pushed nothing. Now the load re-checks, right AFTER its own pushes, every file row it sent as "1": one whose
+         * file is gone is re-pushed through refreshFileRow (held by now — the build recorded it), on the same FIFO, so
+         * the fresh "0" lands after the stale batch. A delete AFTER this re-check is the ordinary case: its own refresh is
+         * queued after the batch. "1" rows only (only a delete can be missed); COMPLETE rows only touch the disk
+         * (SharedItems.localArgOf's own early return, #46 r4 m1). */
+        private void recheckBurstFileRows(UiBatch batch, int channel)
+        {
+            foreach (KeyValuePair<FriendMessage, string> row in batch.fileRows)
+            {
+                try
+                {
+                    if (row.Value == "1" && SharedItems.localArgOf(row.Key, out _) != "1")
+                    {
+                        refreshFileRow(row.Key, channel);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("loadMessages: a file row re-check failed (" + e.GetType().Name + ")");
+                }
+            }
         }
 
         /* ★★ #1166 P-04 (#1165 (7)) — A SENDER'S AVATAR ONCE PER DOCUMENT (🟡 NEW push `setAvatarFor(address, dataUri)`).
@@ -3865,6 +4456,7 @@ namespace SPIXI
                     {
                         P1Perf.line("filelocal sent-image " + fCase);   // ★ #1190 dev-only (SPIXI_DEV_COEXIST): a fixed case word — no path, no name, no id
                     }
+                    batch?.fileRows.Add(new KeyValuePair<FriendMessage, string>(message, fLocal));   // ★ #1202: re-checked after the load's pushes (recheckBurstFileRows)
                     string fTransfer = incomingTransferArg(message, uid);   // ★ #1177: arg 15 — "live:<pct>" / "paused:<pct>" / "" (an older shell ignores it)
                     deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
                     push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal);
@@ -3980,21 +4572,36 @@ namespace SPIXI
                 // Call webview methods on the main UI thread only
                 // D-5/N26 (#366): trailing `relation` arg — ADDITIVE (an older shell
                 // ignores extras; a missing arg reads as undefined → 'none' FE-side).
-                /* M1 reply-to: trailing arg, ADDITIVE (an older shell ignores extras; a
-                   missing arg reads as undefined → no quote). Hex, never raw bytes; the
-                   shell resolves it against its own loaded rows and degrades to a generic
-                   quote label when the original is outside the window.
-                   ★ THE SEAM. `FriendMessage.replyToId` lives in Ixian-Core, which is held
-                   out of this batch for the BE cutover — so this is always empty and no
-                   quote ever renders. The arg is pushed anyway so the shell contract, its
-                   signature and its pins all stay in place and the cutover is ONE line:
-                       message.replyToId != null && message.replyToId.Length > 0
-                           ? Crypto.hashToString(message.replyToId) : ""
-                   See docs/be-cutover-ixian-core-reply-carrier.md. */
+                /* ★★ #1198 / #1199 (session 6b) — args 13–16 (P1): `replyTo` · `edited` · `quoteName` · `quoteText`, all
+                 * ADDITIVE (an older shell ignores 14–16; an older exe sends 13 → no marker, no fallback quote).
+                 * A reply is TEXT with a quote line (ReplyQuote): when the line MATCHES a message of this channel (the
+                 * in-memory list, then the one deeper read), arg 5 carries the BODY, arg 13 the target's id (C#'s own
+                 * hex), 15 / 16 the quote's name + excerpt (C#'s excerpt; the name sanitized — the shell renders both
+                 * with textContent only); a VALID quote line with no match → Damir P2: the BODY, 13 = "" (no jump) and 15 / 16
+                 * drawn from the line (ReplyQuote.fallbackOf); not the shape → the text UNCHANGED, 13 / 15 / 16 "". The old
+                 * M1 "carrier" seam (a Core `replyToId`) is gone: nothing has to land in Core.
+                 * `edited` = "1" for a standard message whose sequence moved (a chatStream replace — EditRules.isEdited),
+                 * else "". */
+                string rowText = message.message;
                 string reply_to = "";
+                string quoteName = "";
+                string quoteText = "";
+                if (matchReply(message, channel, batch?.replyIndex, out ReplyQuote.Match? rm) && rm != null)
+                {
+                    rowText = rm.body;
+                    reply_to = rm.targetIdHex;   // "" for Damir P2's fallback box (no jump)
+                    quoteName = rm.quoteName;
+                    quoteText = rm.quoteText;
+                }
+                string edited = EditRules.isEdited(message.type, message.sequence, friend.bot) ? "1" : "";
+                /* ★ Damir P1 (#46 r2 MAJOR-1): arg 6 = Core's `timestamp`, which an edit no longer changes — every replace
+                 * passes the existing time back (onEditMessage, StreamProcessor's chatStream case), so the bubble keeps its
+                 * time, its place and its day separator. (r1 used `receivedTimestamp` — THIS device's arrival time, wrong for
+                 * a received message.) */
+                long rowTime = message.timestamp;
                 // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
                 deliveryTicks(message, out bool sSent, out bool sConfirmed, out bool sRead);
-                push(batch, prefix, Crypto.hashToString(message.id), address, nick, avatar, message.message, message.timestamp.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to);
+                push(batch, prefix, Crypto.hashToString(message.id), address, nick, avatar, rowText, rowTime.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to, edited, quoteName, quoteText);
             }
 
             if(message.type == FriendMessageType.voiceCall || message.type == FriendMessageType.voiceCallEnd)
@@ -4503,9 +5110,24 @@ namespace SPIXI
             {
                 paid = true;
             }
+            /* ★★ #1198 / #1199 (session 6b) — args 8–11 (P2): `edited` · `replyTo` · `quoteName` · `quoteText`, the SAME
+             * match as insertMessage's text row (an edited reply keeps its quote: the edit re-sends the original quote
+             * line); arg 2 = the BODY when matched. An older shell ignores 8–11. */
+            string rowText = message.message;
+            string replyTo = "";
+            string quoteName = "";
+            string quoteText = "";
+            if (matchReply(message, channel, null, out ReplyQuote.Match? rm) && rm != null)
+            {
+                rowText = rm.body;
+                replyTo = rm.targetIdHex;   // "" for Damir P2's fallback box
+                quoteName = rm.quoteName;
+                quoteText = rm.quoteText;
+            }
+            string edited = EditRules.isEdited(message.type, message.sequence, friend.bot) ? "1" : "";
             // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
             deliveryTicks(message, out bool tSent, out bool tConfirmed, out bool tRead);
-            Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), message.message, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString());
+            Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), rowText, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString(), edited, replyTo, quoteName, quoteText);
         }
 
         /** ★ #1166 A-N4: `channel` = the TRANSFER's own channel (FileTransfer.channel — TransferManager passes it; an

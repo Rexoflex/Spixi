@@ -438,7 +438,6 @@
   "repeatMismatch": "パスワードが一致しません。",
   "reply": "返信",
   "replyTo": "返信元のメッセージを表示",
-  "replyUnavailable": "元のメッセージ",
   "replyingTo": "返信先",
   "requestAmount": "金額をリクエスト",
   "requestConfirm": "{a} IXI をリクエスト",
@@ -733,5 +732,7 @@
   "filePaused": "一時停止中",
   "fileDeletedLocal": "このデバイスからファイルを削除しました",
   "fileUnavailable": "このデバイスでは利用できません",
-  "photoDeletedLocal": "このデバイスから写真を削除しました"
+  "photoDeletedLocal": "このデバイスから写真を削除しました",
+  "saveEdit": "保存",
+  "editNoLonger": "このメッセージはもう編集できません。テキストは入力欄に残っています。"
 }

@@ -4632,8 +4632,23 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   gap: var(--spacing-4);
   padding: 0;
 }
-/* (#46 r1 B6) the focus ring INSIDE the tile, above its neighbours — the tight gaps would hide the global ring */
-.c-shared__tile:focus-visible { outline: var(--outline-width-2, 2px) solid var(--outline-focus, var(--surface-accent)); outline-offset: -3px; z-index: 1; }
+/* (#46 r1 B6) the focus ring INSIDE the tile, above its neighbours — the tight gaps would hide the global ring.
+   ★ #1203 r1 (B-2): since #1203 the picture is position: absolute, and a positioned child paints OVER its parent's own
+   outline — keyboard focus on a PHOTO tile was invisible. The ring is now the tile's ::after: a later positioned box
+   above the picture (z-index 1 inside the tile's focus stacking context), the SAME 2 px at the same place (outline
+   offset -3 = 1 px to 3 px inside the edge → inset 1 px + a 2 px border), a border (not a box-shadow) so forced-colors
+   mode keeps it; pointer-events none (a tap still reaches the button). The tile's own outline is off so a glyph tile
+   does not draw two rings. */
+.c-shared__tile:focus-visible { outline: none; z-index: 1; }
+.c-shared__tile:focus-visible::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  border: var(--outline-width-2, 2px) solid var(--outline-focus, var(--surface-accent));
+  border-radius: calc(var(--radius-8) - 1px);
+  pointer-events: none;
+}
 .c-shared__panel > .c-shared__all { align-self: center; min-height: 44px; padding: 0 var(--spacing-16); font-weight: var(--font-weight-semibold); }
 .c-shared__head {
   display: flex;
@@ -4674,7 +4689,12 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   padding: 0;
   cursor: pointer;
 }
-.c-shared__tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* ★ #1203 (Damir, Android 2026-10-05: a TALL screenshot ran out of its grid cell, down over the next row). Mechanism:
+   `height: 100%` of a tile whose height comes only from `aspect-ratio` is a percentage of an INDEFINITE height → it
+   resolves to auto = the picture's natural height, and that content height feeds the grid row track, so a very tall
+   picture grew its row. The picture is now taken OUT of the flow (absolute, inset 0) — it can no longer size the tile;
+   the tile stays the 1 : 1 square and object-fit: cover crops it. */
+.c-shared__tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .c-shared__rows { display: flex; flex-direction: column; }
 .c-shared__row {
   display: flex;
@@ -4823,6 +4843,11 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
              so no double line; the 640 cap is inert at pane width). */
   body[data-pane] .c-chat-info__body { max-width: 640px; margin-inline: auto; width: 100%; }
     body[data-pane="2"] { border-inline-start: 1px solid var(--outline-neutral-03); }
+  /* ★ #1202 (a) (Damir 2026-10-05, dark "Show all"): the two covers are position: fixed; inset: 0 — they paint OVER the
+     body's pane-2 hairline above (light hid the miss: the cover's surface met the chat's in contrast). In pane 2 each
+     cover carries the SAME line on its own leading edge; outside pane 2 nothing changes. */
+  body[data-pane="2"] .cd-shared-takeover,
+  body[data-pane="2"] .cd-send-takeover { border-inline-start: 1px solid var(--outline-neutral-03); }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>

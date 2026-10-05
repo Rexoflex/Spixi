@@ -1512,7 +1512,7 @@
   --surface-unread-strip: var(--surface-chat-glass);
   --outline-unread-strip: var(--outline-chat-glass);
   --text-unread-strip: var(--text-neutral-02);
-  --chat-scroll-thumb: var(--text-neutral-02);   /* ★ #1134 (Damir): the chat log thumb; light keeps 3:1 on the tinted canvases (message-bubble.css audit r3) */
+  --chat-scroll-thumb: var(--outline-neutral-02);   /* ★ #1202 (Damir 2026-10-05: "the light chat thumb looked like dark mode"): the SAME thumb as chat info and every other light scroller (base.css .u-scroll) — was text-02 (#1134 kept it for 3:1 on the tinted canvases, message-bubble.css audit r3), a dark ink thumb on the light canvas; #1134 made the same change in dark */
   --chat-canvas-base: #ECEEF1;   /* ★★ #1002 (D-09, Damir 2026-09-28): MIST — a near-neutral cool grey; the chrome stays neutral. Was #E4EAF3 — Session J (#744/A14, Damir 2026-09-02: "light mode background: E4EAF3") — a cool blue-grey again, a step deeper than AUG's #ebf0f5; white bubbles measure 1.22:1 against it. Reversal = #EEECEF (Session I k2); before that #ebf0f5 (AUG) */
   /* ★★ AUG (Damir 2026-08-30, ON DEVICE): "the unread messages strip is not very visible,
      and the Today badge also". MEASURED, and it is a direct consequence of the new ground:

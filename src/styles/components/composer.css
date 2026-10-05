@@ -63,8 +63,12 @@
 }
 .c-composer__cost svg { color: var(--icon-neutral-02); flex: none; }
 
-/* —— reply/edit context strip (batch 3b, §8-gated #25) —— */
+/* —— reply/edit context strip (batch 3b; ★ #1198 / #1199 live behind setCaps reply / edit) —— */
+/* ★ #1198: the strip arms in on --duration-200 decelerate (a short rise + fade, no blur); it leaves at once (removed) —
+   the close is faster than the open. Reduced motion: the token is 0 ms (tokens.css). */
+@keyframes c-composer-ctx-in { from { opacity: 0; transform: translateY(var(--spacing-4)); } }
 .c-composer__ctx {
+  animation: c-composer-ctx-in var(--duration-200) var(--easing-decelerate);
   flex-basis: 100%;
   /* bug 2026-07-05c ③: the strip is itself a flex container, so its
      min-width:auto resolves to the NOWRAP excerpt's full width — the strip

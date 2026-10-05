@@ -437,7 +437,6 @@
   "repeatMismatch": "Kata sandi tidak cocok.",
   "reply": "Balas",
   "replyTo": "Tampilkan pesan yang dibalas",
-  "replyUnavailable": "Pesan asli",
   "replyingTo": "Balas ke",
   "requestAmount": "Minta jumlah tertentu",
   "requestConfirm": "Minta {a} IXI",
@@ -733,5 +732,7 @@
   "filePaused": "Dijeda",
   "fileDeletedLocal": "File dihapus dari perangkat ini",
   "fileUnavailable": "Tidak tersedia di perangkat ini",
-  "photoDeletedLocal": "Foto dihapus dari perangkat ini"
+  "photoDeletedLocal": "Foto dihapus dari perangkat ini",
+  "saveEdit": "Simpan",
+  "editNoLonger": "Pesan ini tidak bisa diedit lagi. Teksmu tetap ada di kolom pesan."
 }

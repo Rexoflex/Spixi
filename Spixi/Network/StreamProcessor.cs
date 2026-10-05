@@ -672,7 +672,44 @@ namespace SPIXI
                     case SpixiMessageCode.chatStream:
                         {
                             var csm = new ChatStreamMessage(spixi_message.data);
-                            var fm = Node.addMessageWithType(FriendMessageType.standard, sender_address, spixi_message.channel, csm, false, group_sender_address, message.timestamp, fireLocalNotification, alert, 0);
+                            /* ★★ #1199 (session 6b, CONTRACT 1b): AN EDIT OF A MESSAGE THIS DEVICE DOES NOT HOLD IS DROPPED.
+                             * An edit is a chatStream REPLACE (the same id, sequence + 1, IsStream false). Core's
+                             * FriendList.addMessageWithType looks the id up in the IN-MEMORY list only (the last ~100) and, on
+                             * a miss, ADDS the message as NEW — so an edit of an older message (or of one deleted here) would
+                             * appear as a fresh message at the bottom, with an unread count and a notification. Before Core
+                             * is asked: a non-bot chat (a bot room re-serves its own history and streams its own updates),
+                             * a replace (not a stream chunk) with a sequence above 0, whose id this channel does not hold →
+                             * dropped, with the delivery receipt the "already have" branch below sends (the sender's copy is
+                             * edited; nothing is pending for it here). A bot room is untouched; a first message (sequence 0)
+                             * is untouched. Friend.getMessage reads the same in-memory list Core will (Friend.cs:926). */
+                            /* ★ #46 r1 A MINOR-6 (an inherited belt): …and a replace whose existing row is NOT a text
+                             * (standard) row is dropped too — Core's replace would rewrite a file header, a payment or a call
+                             * row in place (a peer must not rewrite its own file / payment card into other text).
+                             * ★ #46 r1 C NIT-4 (the receiver's decode): `new ChatStreamMessage(spixi_message.data)` above is
+                             * Core's own parser (it throws on an oversized id / text — the catch below the switch logs it);
+                             * the text is UTF-8 and its size check counts BYTES there and CHARS in addMessageWithType (cutover
+                             * ask 3, inherited). */
+                            /* ★ #46 r2 MINOR-1: …and a replace of one of this device's own fixed-id SYSTEM lines (the
+                             * "connected" line {1}, the {4}/{5} carriers — UnreadRule.isSystemLineId) is dropped too. */
+                            /* ★ #46 r3 MINOR-3: a STREAM chunk (IsStream, sequence above 0) in a non-bot chat appends to the row
+                             * it names (FriendList.cs:290-300) — the same belt applies: never onto a system line or a non-text row
+                             * (an unknown id stays Core's: a stream's first chunk is sequence 0, a gap is refused there). */
+                            FriendMessage? existing = friend != null && csm.Sequence > 0 && csm.MessageId != null && (!csm.IsStream || !friend.bot)
+                                ? friend.getMessage(spixi_message.channel, csm.MessageId) : null;
+                            if (friend != null && !friend.bot && csm.Sequence > 0
+                                && ((!csm.IsStream && existing == null)
+                                    || (existing != null && (existing.type != FriendMessageType.standard || UnreadRule.isSystemLineId(existing.id)))))
+                            {
+                                Logging.warn("chatStream: an edit of a message this device does not hold (or not a text row) was dropped (seq=" + csm.Sequence + ")");
+                                sendReceivedConfirmation(friend, message.id, spixi_message.channel);
+                                return null;
+                            }
+                            /* ★★ Damir P1 (#46 r2 MAJOR-1): a REPLACE keeps the message's time. Core's replace writes the
+                             * timestamp it is given back onto the row (FriendList.cs:288 `tmp_msg.timestamp = timestamp`), and
+                             * the envelope's `message.timestamp` is the EDIT's time — so the existing row's own time is passed
+                             * (the sender's original time, the one the row shows). A new message / a stream chunk: as before. */
+                            long csmTime = existing != null && !csm.IsStream ? existing.timestamp : message.timestamp;
+                            var fm = Node.addMessageWithType(FriendMessageType.standard, sender_address, spixi_message.channel, csm, false, group_sender_address, csmTime, fireLocalNotification, alert, 0);
                             if (friend != null && !friend.bot)
                             {
                                 if (fm == null)
@@ -817,6 +854,26 @@ namespace SPIXI
                         }else
                         {
                             UIHelpers.shouldRefreshContacts = true;
+                        }
+                        break;
+
+                    case SpixiMessageCode.getAppProtocols:
+                        {
+                            /* ★★ #1197 (session 6b, #1136 / #1189 (1)): THE CAPABILITY ANSWER. A peer asks which Spixi
+                             * protocols this build speaks; the answer is "spixi.reply.1", "spixi.edit.1" (SpixiProtocols.ids).
+                             * Only a known, approved, normal 1:1 contact (not a group, not a bot room, not a stranger or a
+                             * pending request) gets one, at most once per address per 60 s (SpixiProtocols.claimAnswer: the
+                             * rule + the limiter, executed in scripts/csh). Core already sent the delivery receipt for this
+                             * message (CoreStreamProcessor.receiveData's default receipt branch). The answer is Core's own
+                             * sender (CoreStreamProcessor.sendAppProtocols: an info message, no push). This app asks nobody
+                             * yet and caches nothing (S7). The clock is monotonic (TickCount64): a wall-clock change never
+                             * opens or closes the window. */
+                            if (SpixiProtocols.claimAnswer(friend?.walletAddress.ToString(), friend != null,
+                                    friend != null && friend.type == FriendType.Normal, friend != null && friend.bot,
+                                    friend != null && friend.approved && friend.state == FriendState.Approved, Environment.TickCount64))   // ★ #46 r1 A MINOR-4: the house rule (SPayments.cs:113)
+                            {
+                                CoreStreamProcessor.sendAppProtocols(friend!, SpixiProtocols.ids());
+                            }
                         }
                         break;
 

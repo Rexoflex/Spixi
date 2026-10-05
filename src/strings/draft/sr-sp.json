@@ -497,7 +497,6 @@
   "repeatMismatch": "Lozinke se ne poklapaju.",
   "reply": "Odgovori",
   "replyTo": "Prikaži poruku na koju se odgovara",
-  "replyUnavailable": "Originalna poruka",
   "replyingTo": "Odgovor za",
   "requestAmount": "Zatraži iznos",
   "requestConfirm": "Zatraži {a} IXI",
@@ -810,5 +809,7 @@
   "filePaused": "Pauzirano",
   "fileDeletedLocal": "Fajl je obrisan sa ovog uređaja",
   "fileUnavailable": "Nije dostupno na ovom uređaju",
-  "photoDeletedLocal": "Fotografija je obrisana sa ovog uređaja"
+  "photoDeletedLocal": "Fotografija je obrisana sa ovog uređaja",
+  "saveEdit": "Sačuvaj",
+  "editNoLonger": "Ova poruka više ne može da se izmeni. Vaš tekst ostaje u polju za poruku."
 }

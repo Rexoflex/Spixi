@@ -28,6 +28,10 @@
     <!-- ★ #1176 / #1177 / #1178 (session 6): Show in chat beside the info pane · the file row's transfer state · the offer notification copy (tests: InfoPaneRulesTests.cs, FileRowRulesTests.cs). -->
     <Compile Include="../../Spixi/Utils/InfoPaneRules.cs" />
     <Compile Include="../../Spixi/Utils/FileRowRules.cs" />
+    <!-- ★ #1197 / #1198 / #1199 (session 6b): the capability answer · the reply quote line · the edit rule (tests: SpixiProtocolsTests.cs, ReplyQuoteTests.cs, EditRulesTests.cs). -->
+    <Compile Include="../../Spixi/Utils/SpixiProtocols.cs" />
+    <Compile Include="../../Spixi/Utils/ReplyQuote.cs" />
+    <Compile Include="../../Spixi/Utils/EditRules.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

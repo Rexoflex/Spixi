@@ -833,3 +833,19 @@ thread; cached per file version. The precedent is legacy: a peer's AVATAR has al
 `Meta/SSightingStore.cs`: one app preference `last_sightings` (`address:seconds`, 5-min grain, ≤ 512, accepted 1:1
 contacts only), so "last seen" survives a restart. Never on the bridge, never logged; wiped with the account, removed with
 the contact.
+
+## Session 6b addenda (2026-10-05, #1197–#1199) — reply, edit, the capability answer (no Ixian-Core change)
+
+### 🟡 NEW verbs / pushes (frozen protocol — your approval asked, T1 B-29)
+
+| Verb / push | Where | What it can do |
+|---|---|---|
+| `ixian:chatedit:<hex id>:<text>` | chat | edits MY OWN text message: C# looks the id up in its own list and re-checks own · text row · not a system line · not a bot room · ≤ 24 h · among the newest 25 · < 20 edits · size; sends Core's existing chatStream replace (same id, sequence + 1, IsStream=false) with push OFF; our copy is replaced through Core (sender = my primary address, the 5d6d6e0 rule) |
+| `ixian:quotejump:<hex id>` | chat | C# finds the id in its own history (≤ 1000) and runs the existing jump (`requestJump`); nothing opened, fetched or deleted |
+| addMe / addThem args 14–16 (`edited`, `quoteName`, `quoteText`) · updateMessage args 8–11 · setCaps `reply`, `edit` | chat | display data only; the shell renders it as text |
+| `getAppProtocols` answer | StreamProcessor | answers an approved 1:1 contact with `spixi.reply.1`, `spixi.edit.1` (Core's `sendAppProtocols`), ≤ 1 per contact per 60 s |
+
+### Receive side (a belt over inherited behaviour)
+Core's replace rewrites any row of that id from the same sender (`FriendList.cs:262-307`, no type check) and ADDS an edit of an id it does
+not hold as a new message. Spixi now drops, for non-bot chats: a replace of an id it does not hold, and a replace or stream chunk onto a file,
+payment, call or local system row (the receipt is still sent). **For you to judge:** a type check in Core's replace itself (v1.1).

@@ -445,7 +445,6 @@
   "repeatMismatch": "Le password non corrispondono.",
   "reply": "Rispondi",
   "replyTo": "Mostra il messaggio citato",
-  "replyUnavailable": "Messaggio originale",
   "replyingTo": "Rispondi a",
   "requestAmount": "Richiedi un importo",
   "requestConfirm": "Richiedi {a} IXI",
@@ -740,5 +739,7 @@
   "filePaused": "In pausa",
   "fileDeletedLocal": "File eliminato da questo dispositivo",
   "fileUnavailable": "Non disponibile su questo dispositivo",
-  "photoDeletedLocal": "Foto eliminata da questo dispositivo"
+  "photoDeletedLocal": "Foto eliminata da questo dispositivo",
+  "saveEdit": "Salva",
+  "editNoLonger": "Questo messaggio non può più essere modificato. Il tuo testo resta nel campo del messaggio."
 }

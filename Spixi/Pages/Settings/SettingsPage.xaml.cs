@@ -690,8 +690,25 @@ namespace SPIXI
             {
                 string file_name = downloadNameFromUrl(e.Url, current_url, "ixian:deleteDownload:");
                 string path = TransferManager.resolveDownloadPath(file_name);
+                /* ★★ #1202 (#1190 TODO, #46 r4 m2 — session 6b): an OPEN chat that holds this file's row is told. The row is
+                 * resolved BEFORE File.Delete — DownloadsIndex.sourceOf re-checks that the file on disk is still the one
+                 * the message wrote (#46 r5 R5-3), which it cannot after the delete — and after a delete that happened,
+                 * the chat page of that conversation (Utils.getChatPage; main thread: this is onNavigating) re-pushes
+                 * THAT row only if it holds it (refreshHeldFileRow → refreshFileRow: the existing addFile push, fLocal now
+                 * "0" → the shell drops the held preview; no read side effects; DownloadSource carries no channel, and a
+                 * held row is always of the page's open channel). No index entry (a file no message names, an index not
+                 * built) → nothing to tell. No new push, no log of the name. */
+                DownloadSource? deletedSrc = null;
                 if (path != null && File.Exists(path))
                 {
+                    try
+                    {
+                        deletedSrc = DownloadsIndex.sourceOf(path);
+                    }
+                    catch (Exception)
+                    {
+                        deletedSrc = null;
+                    }
                     // Q1 review (#266/#267 loop): a locked / read-only file threw out of the
                     // navigation handler.
                     try
@@ -700,14 +717,21 @@ namespace SPIXI
                     }
                     catch (Exception ex)
                     {
+                        deletedSrc = null;   // ★ #1202: not deleted → the row stays as it is
                         Logging.warn("Exception while deleting a download: " + ex.GetType().Name);   // ★ #1107 gate: the type — the message can carry the path
                     }
                 }
-                /* TODO(#1190, #46 r4 m2): an OPEN chat that holds this file's row is not told — its held preview stays and a
-                 * tap opens the viewer on it ("This image could not be opened") until the chat reloads. The chat-info delete
-                 * re-pushes the row (SingleChatPage.refreshFileRow); here that is not a one-line call: the row must be
-                 * resolved BEFORE File.Delete (DownloadsIndex.sourceOf re-checks the file on disk), and DownloadSource
-                 * carries no channel. Decide with DECISIONS #1190 before wiring it. */
+                if (deletedSrc != null && path != null && !File.Exists(path))
+                {
+                    try
+                    {
+                        Utils.getChatPage(deletedSrc.friend)?.refreshHeldFileRow(deletedSrc.message);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("deleteDownload: chat row " + ex.GetType().Name);   // the type only
+                    }
+                }
                 // Q1 review (#266/#267 loop): refresh UNCONDITIONALLY — a rejected name or a
                 // failed delete previously left the shell list stale and silent.
                 loadDownloads(false);   // (#46 r1 B2) the sender index is reused — no history rescan per delete (a delete only removes; a NEW file arrives only with a new download, and the screen is rebuilt — and rescanned — on its next open, #46 r3 R3-1)

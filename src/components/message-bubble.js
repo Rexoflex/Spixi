@@ -15,13 +15,15 @@
  *                             // → member sheet (identity verification; blind
  *                             // groups simply don't pass it)
  *   onRetry,                  // failed sent messages: retry circle + caption tap
- *   reply: { sender, address, text,    // §8-GATED (#25): quoted strip — render
- *            kind, thumb },   // ONLY behind the reply capability handshake.
+ *   reply: { sender, address, text,    // quoted strip (★ #1198: rendered whenever the
+ *            kind, thumb },   // shell resolves a quote — the loaded target, or C#'s
+ *                             // quoteName/quoteText fallback; text only, never HTML).
  *                             // kind: 'gif'|'image'|'file'|'payment'|'call'|'voice'
  *                             // → glyph chip in the quote; thumb (data-URI,
  *                             // shell-composed) replaces the glyph for media
  *   onReplyClick,             // tap on the quote → shell scrolls to original
- *   edited: false,            // §8-GATED (#25): "edited" marker in the meta
+ *   edited: false,            // ★ #1199: the "edited" marker in the meta — shown
+ *                             // whenever C# says the message was edited
  *   onLinkClick(url),         // URLs in text render as link BUTTONS (never
  *                             // real <a> — no default-nav/middle-click bypass
  *                             // of the shell's external-link warning)
@@ -390,9 +392,10 @@ export function createMessageBubble({
     el.append(s);
   }
 
-  // reply quote (batch 3b, §8-gated #25 — bridge has no reply yet): identity-
-  // hued strip above the text; the quote itself is shell-supplied (sender +
-  // excerpt + kind/thumb), tap = scroll-to-original (shell duty via onReplyClick)
+  // reply quote (batch 3b; ★ #1198 live): identity-hued strip above the text; the
+  // quote itself is shell-supplied (sender + excerpt + kind/thumb) and rendered with
+  // textContent ONLY (a peer-composed excerpt is never markup), tap = scroll-to-original
+  // or ask C# for it (shell duty via onReplyClick)
   if (reply && (reply.text || reply.sender || reply.kind)) {
     const q = document.createElement(onReplyClick ? 'button' : 'div');
     q.className = 'c-bubble__reply';
@@ -482,7 +485,7 @@ export function createMessageBubble({
 
   const meta = document.createElement('span');
   meta.className = 'c-bubble__meta u-tabular';
-  if (edited) { // §8-gated (#25) — "edited" precedes the time, WhatsApp-style
+  if (edited) { // ★ #1199: C# says edited (addMe/addThem arg 14, updateMessage arg 8) — "edited" precedes the time, WhatsApp-style
     const ed = document.createElement('span');
     ed.className = 'c-bubble__edited';
     ed.textContent = strings.edited || 'edited';

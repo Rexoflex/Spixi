@@ -437,7 +437,6 @@
   "repeatMismatch": "Slaptažodžiai nesutampa.",
   "reply": "Atsakyti",
   "replyTo": "Rodyti žinutę, į kurią atsakyta",
-  "replyUnavailable": "Pradinis pranešimas",
   "replyingTo": "Atsakyti",
   "requestAmount": "Prašyti sumos",
   "requestConfirm": "Prašyti {a} IXI",
@@ -732,5 +731,7 @@
   "filePaused": "Pristabdyta",
   "fileDeletedLocal": "Failas ištrintas iš šio įrenginio",
   "fileUnavailable": "Šiame įrenginyje nepasiekiama",
-  "photoDeletedLocal": "Nuotrauka ištrinta iš šio įrenginio"
+  "photoDeletedLocal": "Nuotrauka ištrinta iš šio įrenginio",
+  "saveEdit": "Išsaugoti",
+  "editNoLonger": "Šios žinutės nebegalima redaguoti. Jūsų tekstas lieka žinutės laukelyje."
 }

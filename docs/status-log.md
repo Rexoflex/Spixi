@@ -397,3 +397,10 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   arg 16), #1191 (group avatar live), #1192 (heart beside the count), #1193 (#1168 A scrim), #1194 (chat-info close probe), #1195 (grid cap 9);
   #1179 answered. #46 round 2: r4 2 MAJOR fixed → r5 CLEAN. Smoke BASELINE OK 5266 · CSH 116. UNCOMMITTED → patch `session6a-build.patch`
   (replaces the earlier one). Next: Damir walks 6a → session 6b (walk record, then the S6 interview). Next free #1197.
+- 2026-10-05 (session 6b, cloud twin; Damir walked 6a in parallel): WALK #1200 (6a) 17 P · 1 F · 4 N/A recorded; A-FADE measured
+  (the fade runs, the open's held frames eat it) → fixed #1201 (photos ready at open, cap 60 ms); Damir's notes → #1202 (dark Show-all
+  hairline, light thumb, Downloads delete refresh, the load race) · #1203 (tall tile) · logged #1204 (members above the grid, S8) · #1205 (reopen
+  flash, probe). S6 interview (legacy facts: 0.9.20+ replaces an edit in place, 0.9.19- drops it) → go → built #1197 capability answer ·
+  #1198 reply · #1199 edit (3 contract-first agents + the lead, #1206). #46: r1 6 MAJOR → fixed (+ Damir P1 original time, P2 no-match box) ·
+  r2 2 MAJOR → fixed · r3 CLEAN · r4 CLEAN. Smoke BASELINE OK 5302 · CSH 154. ⚠ C# UNCOMPILED. UNCOMMITTED → patch `session6b-build.patch`.
+  Next: Damir walks 6b → session 7 (voice + the capability ask). Next free #1207.

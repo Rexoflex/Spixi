@@ -8,7 +8,10 @@
  *
  * Actions ↔ bridge reality (§5b table): react/tip/delete via
  * ixian:contextAction:*; copy is JS-side; REPLY/EDIT render ONLY behind
- * capabilities (bridge §8 proposal, DECISIONS #25); report = bots only.
+ * capabilities — ★ #1198 / #1199 (S6): C# declares them (setCaps reply / edit);
+ * report = bots only. The reply GESTURES (swipe, desktop hover button, double-
+ * click) live at the end of this file: a swipe is a MOVED press, so it shares
+ * the press record below and never opens the long-press menu.
  *
  * attachMessageMenu(row, opts) — long-press ~500ms (cancel >10px move =
  *   scroll intent, §5b) + desktop right-click. Keyboard path (Shift+F10 on a
@@ -22,7 +25,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
-import { setOverlayOpts, isEditableEl } from './overlay.js';   // ★ #1065 · #1071
+import { setOverlayOpts, isEditableEl, topOverlayEl } from './overlay.js';   // ★ #1065 · #1071 · ★ #1198: no reply gesture under an open overlay
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { anchorSheetToRow } from './desktop-anchors.js';   // ★ Batch E (a) (#557): mobile anchored dropdown
 
@@ -337,5 +340,226 @@ export function attachMessageMenu(row, opts = {}) {
     fired = true;
     kbdiag('contextmenu');
     openMessageMenu({ row, ...opts });
+  });
+}
+
+/* ═══ ★★ #1198 (S6) — THE REPLY GESTURES: the phone swipe, the desktop hover button, the desktop double-click ═══
+ * Three ways to START a reply besides the menu's "Reply" item; every one of them calls the shell's ONE start
+ * (onReply), so the strip, the @-mention and the focus are the same whichever way the user came in. The menu stays
+ * the non-gesture equivalent for every one of them (and the hover button is the non-gesture equivalent of the
+ * double-click on desktop), so no gesture is the ONLY way in.
+ *
+ * ★ THE SWIPE IS A MOVED PRESS. It needs no new rule against the long-press menu: the 500 ms timer above is cancelled
+ * by the > MOVE_CANCEL_PX move on the pressed node, and the document press record (#1174) marks the same press
+ * `moved`, which voids Android's own contextmenu for it. The swipe decides at the SAME slop, so a press is either a
+ * swipe, a scroll or a still press — never two of them.
+ *
+ * Rules (CONTRACT §3): TOUCH only (a mouse drag is a text selection) · the press starts > REPLY_SWIPE_EDGE_PX from
+ * the viewport's left edge (the iOS edge-back swipe, attachEdgeBack, keeps that strip) · horizontal travel
+ * ≥ REPLY_SWIPE_TRIGGER_PX AND > 2 × the vertical travel at the release = reply · the row follows the finger up to
+ * REPLY_SWIPE_MAX_PX with the reply glyph, then springs back · a press that goes VERTICAL first is a scroll and the
+ * swipe stands down for the whole press (pointercancel from the browser's pan ends it too) · never in selection mode
+ * or under an open overlay · reduced motion → no follow, the action alone.
+ * Motion: the follow is the finger (no animation); the glyph arms in on --duration-200 decelerate and the row springs
+ * back on --duration-100 accelerate — the close is faster than the open (message-bubble.css). */
+export const REPLY_SWIPE_EDGE_PX = 24;
+export const REPLY_SWIPE_TRIGGER_PX = 56;
+export const REPLY_SWIPE_MAX_PX = 72;
+const REPLY_SWIPE_CLICK_GUARD_MS = 400;   // a click the browser raises after a swipe's release opens nothing
+const REPLY_SWIPE_ROWS_SWEEP = 200;   // ★ r2 NIT: the swipe registry is swept of detached rows above this size
+const replyReduceMotion = () => {
+  try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+};
+const replyGestureBlocked = (row) => !!(row.closest && row.closest('[data-selecting]')) || !!topOverlayEl();
+
+/* ★★ #1198 r1 (B-6, B-9) — THE SWIPE STATE LIVES ON THE DOCUMENT, like the #1174 press record. The chat log REBUILDS every
+ * row on a live update (renderLogNow → box.replaceChildren), so a per-node swipe died with the node it began on and left
+ * the finger driving nothing. Now ONE record per document: the touch that started it (pointerId) and the MESSAGE it is
+ * on (the shell's key) — every move resolves the CURRENT row for that key (the newest attachReplySwipe for it), so a
+ * rebuild mid-swipe hands the follow to the replacement and the release replies through ITS onReply; a key with no
+ * row any more (the message went) cancels cleanly. Also on the document: the ACTIVE TOUCH COUNT — a second finger
+ * stands every swipe down (a pinch is never a reply), and no swipe starts while more than one finger is down. */
+const swipeDocs = new WeakMap();   // document → { touches: Set<pointerId>, g: the live swipe | null, rows: Map<key, {row, onReply}> }
+function swipeStateOf(doc) {
+  let st = swipeDocs.get(doc);
+  if (st) return st;
+  st = { touches: new Set(), g: null, rows: new Map() };
+  swipeDocs.set(doc, st);
+  const cur = () => { const g = st.g; if (!g) return null; const e = st.rows.get(g.key); return e && e.row.isConnected ? e : null; };
+  const standDown = () => {
+    const g = st.g;
+    st.g = null;
+    if (g && g.lastRow) replySwipeSettle(g.lastRow);
+  };
+  doc.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;
+    /* ★ r2 (MINOR-4) SELF-HEAL: a primary touch means no other finger is down — any id still in the set lost its
+       pointerup / pointercancel (a WebView that swallowed it), so the set starts clean instead of blocking every swipe */
+    if (e.isPrimary) st.touches.clear();
+    st.touches.add(e.pointerId);
+    if (st.touches.size > 1) standDown();   // a second finger: a pinch, not a swipe
+  }, true);
+  doc.addEventListener('pointermove', (e) => {
+    const g = st.g;
+    if (!g || e.pointerId !== g.id) return;
+    const entry = cur();
+    if (!entry) { standDown(); return; }                          // the message's row is gone: nothing to follow
+    if (replyGestureBlocked(entry.row)) { standDown(); return; }   // (N-1) an overlay / selection opened mid-swipe (a second finger: the pointerdown above)
+    g.dx = e.clientX - g.x;
+    g.dy = e.clientY - g.y;
+    if (g.state === 'pending') {
+      const ax = Math.abs(g.dx), ay = Math.abs(g.dy);
+      if (ay > MOVE_CANCEL_PX && ay >= ax) { st.g = null; return; }   // a scroll: the swipe stands down for this press
+      if (g.dx < -MOVE_CANCEL_PX) { st.g = null; return; }            // leftward: not ours
+      if (g.dx > MOVE_CANCEL_PX && g.dx > 2 * ay) g.state = 'swipe';
+      else return;
+    }
+    if (g.lastRow && g.lastRow !== entry.row) replySwipeSettle(g.lastRow, true);   // the old node (detached) drops its paint
+    g.lastRow = entry.row;
+    replySwipePaint(entry.row, g.dx, g.follow);
+  }, true);
+  const end = (e, cancelled) => {
+    st.touches.delete(e.pointerId);
+    const g = st.g;
+    if (!g || e.pointerId !== g.id) return;
+    const entry = cur();   // read BEFORE the record is cleared (cur() resolves through st.g)
+    st.g = null;
+    const fire = !cancelled && !!entry && g.state === 'swipe' && g.dx >= REPLY_SWIPE_TRIGGER_PX && g.dx > 2 * Math.abs(g.dy)
+      && !replyGestureBlocked(entry.row);
+    if (g.state === 'swipe') { st.swallowUntil = Date.now() + REPLY_SWIPE_CLICK_GUARD_MS; st.swallowKey = g.key; }
+    if (g.lastRow) replySwipeSettle(g.lastRow);
+    if (entry && entry.row !== g.lastRow) replySwipeSettle(entry.row);
+    if (fire) entry.onReply();
+  };
+  doc.addEventListener('pointerup', (e) => end(e, false), true);
+  doc.addEventListener('pointercancel', (e) => end(e, true), true);   // the browser took the press (a pan): nothing
+  doc.addEventListener('click', (e) => {   // the click a browser may raise after a swipe's release opens nothing —
+    if (Date.now() >= (st.swallowUntil || 0)) return;   // ON THE SWIPED ROW only (the strip's ✕, the field… stay live)
+    const entry = st.rows.get(st.swallowKey);
+    if (!entry || !e.target || !entry.row.contains(e.target)) return;
+    e.preventDefault(); e.stopPropagation(); st.swallowUntil = 0;
+  }, true);
+  return st;
+}
+function replySwipePaint(row, dx, follow) {
+  const x = Math.max(0, Math.min(REPLY_SWIPE_MAX_PX, dx));
+  if (!row.querySelector(':scope > .c-reply-swipe')) {
+    const glyph = document.createElement('span');
+    glyph.className = 'c-reply-swipe';
+    glyph.setAttribute('aria-hidden', 'true');   // decorative: the menu and the hover button carry the name
+    glyph.append(icon('arrow-back-up', { size: 20 }));
+    row.append(glyph);
+  }
+  clearTimeout(row._replySettle);
+  row.removeAttribute('data-reply-return');
+  row.dataset.replySwipe = '';
+  if (follow) row.style.setProperty('--reply-swipe-x', x + 'px');   // sanctioned runtime geometry: the finger
+  row.style.setProperty('--reply-swipe-p', String(Math.min(1, x / REPLY_SWIPE_TRIGGER_PX)));
+  if (x >= REPLY_SWIPE_TRIGGER_PX) row.dataset.replyArmed = ''; else delete row.dataset.replyArmed;
+}
+function replySwipeSettle(row, now) {
+  if (!row || !row.hasAttribute('data-reply-swipe')) return;
+  const clear = () => {
+    row.removeAttribute('data-reply-swipe');
+    row.removeAttribute('data-reply-return');
+    row.style.removeProperty('--reply-swipe-x');
+    row.style.removeProperty('--reply-swipe-p');
+    const glyph = row.querySelector(':scope > .c-reply-swipe');
+    if (glyph) glyph.remove();
+  };
+  delete row.dataset.replyArmed;
+  clearTimeout(row._replySettle);
+  if (now) { clear(); return; }
+  row.dataset.replyReturn = '';                 // the spring back (CSS transition on the custom property's user)
+  row.style.setProperty('--reply-swipe-x', '0px');
+  row.style.setProperty('--reply-swipe-p', '0');
+  row._replySettle = setTimeout(clear, 160);    // after the return: no glyph, no attribute left on the row
+}
+
+/* attachReplySwipe(row, { key, onReply }) — `key` = the message id (the shell's), so a rebuilt row takes over its swipe. */
+export function attachReplySwipe(row, { key, onReply } = {}) {
+  if (!row || typeof onReply !== 'function') return;
+  const doc = row.ownerDocument || document;
+  const st = swipeStateOf(doc);
+  const k = key != null ? String(key) : row;
+  st.rows.set(k, { row, onReply });             // the newest row for this message wins (a rebuild re-attaches)
+  row.dataset.swipeReply = '';   // message-bubble.css: touch-action pan-y — the horizontal move reaches us, a vertical one scrolls
+  row.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;        // a mouse / pen drag is a selection, never a reply
+    if (e.button !== 0 && e.button !== undefined) return;
+    /* ★ r2 NIT: stale keys (deleted messages) are swept above ~200 — HERE, at a press, when every live row is in the
+       document (a render attaches its rows inside a detached fragment, so a sweep at attach time would drop them) */
+    if (st.rows.size > REPLY_SWIPE_ROWS_SWEEP) {
+      for (const [kk, v] of st.rows) { if (!v.row.isConnected) st.rows.delete(kk); }
+    }
+    if (st.touches.size > 1) return;              // (B-6) the document capture listener already counted this finger
+    if (e.clientX <= REPLY_SWIPE_EDGE_PX) return; // (N-3) the edge-back strip — a press AT 24 px is the edge-back's alone
+    if (replyGestureBlocked(row)) return;
+    st.g = { id: e.pointerId, key: k, x: e.clientX, y: e.clientY, state: 'pending', dx: 0, dy: 0, follow: !replyReduceMotion(), lastRow: null };
+  });
+}
+
+/* ★ #1198 — the DESKTOP hover reply button: a real <button> named "Reply", beside the bubble, shown on row hover
+ * (pointer: fine), on the #1184-style data-hover carry (the shell re-marks a row REPLACED under the mouse) and on
+ * keyboard focus (focus-within). Placed by the shell (placeReplyButton):
+ * the row kinds lay their bubble out differently (a text bubble, a tile in a wider anchor, a card), so the button is
+ * positioned from the BUBBLE's own box, never from the row's flex order. */
+/* ★ #1198 r1 (B-7): NOT a Tab stop per row — tabindex -1 (a log of 200 rows must not cost 200 Tabs); the shell makes the
+   button of the row that HAS focus-within tabbable (roving), and the menu's Reply is the keyboard route everywhere else.
+   `label` names the message ("Reply to Bob") — the shell's sender rule, never an address. */
+export function createReplyHoverButton({ onReply, label = '', strings = getStrings() } = {}) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'c-bubble-row__reply';
+  b.tabIndex = -1;
+  const name = label || strings.reply || 'Reply';
+  b.setAttribute('aria-label', name);
+  b.title = name;
+  b.append(icon('arrow-back-up', { size: 18 }));
+  b.addEventListener('click', (e) => { e.stopPropagation(); if (typeof onReply === 'function') onReply(); });
+  return b;
+}
+/* the button sits beside the BUBBLE (messageMenuTarget — the one resolver): after it for a received row, before it
+   for a sent one; vertically centred on it. Geometry only — two custom properties on the row. */
+export function placeReplyButton(row) {
+  const b = row && row.querySelector(':scope > .c-bubble-row__reply');
+  const t = messageMenuTarget(row);
+  if (!b || !t || t === row) return;
+  const rr = row.getBoundingClientRect();
+  const tr = t.getBoundingClientRect();
+  const size = b.offsetWidth || 32;
+  const gap = 4;
+  const sent = row.dataset.direction === 'sent';
+  const x = sent ? (tr.left - rr.left - size - gap) : (tr.right - rr.left + gap);
+  const y = tr.top - rr.top + Math.max(0, (tr.height - size) / 2);
+  row.style.setProperty('--reply-btn-x', Math.round(x) + 'px');   // sanctioned runtime geometry (measured)
+  row.style.setProperty('--reply-btn-y', Math.round(y) + 'px');
+}
+
+/* ★ #1198 — the DESKTOP double-click: on the bubble's TEXT area (a text bubble, minus its links / buttons / mentions'
+ * controls) or on the row's own gutter (the empty row around any bubble kind). Never on a media tile, a file card or
+ * a typed card (their click opens something), never on a control. The SECOND mousedown of the pair is prevented for
+ * exactly that case, so the double-click does not also select a word; every other double-click selects as before. */
+const REPLY_DBL_CONTROLS = 'button, a, input, textarea, select, label, [role="button"], [contenteditable], img, video, audio';
+function replyDblTarget(row, target) {
+  if (!target || !target.closest) return false;
+  if (target === row) return true;                                        // the row's gutter / free space
+  if (target.closest(REPLY_DBL_CONTROLS)) return false;
+  if (target.closest('.c-bubble-row__gutter')) return true;               // beside the avatar (not the avatar button)
+  const bubble = target.closest('.c-bubble');
+  return !!bubble && row.contains(bubble);                                // a text bubble's body / meta
+}
+export function attachReplyDoubleClick(row, { onReply } = {}) {
+  if (!row || typeof onReply !== 'function') return;
+  const eligible = (e) => document.documentElement.hasAttribute('data-desktop')
+    && (e.button === 0 || e.button === undefined)
+    && !replyGestureBlocked(row)
+    && replyDblTarget(row, e.target);
+  row.addEventListener('mousedown', (e) => { if (e.detail === 2 && eligible(e)) e.preventDefault(); });   // (N-4) the pair's second press only — a triple-click still selects the line
+  row.addEventListener('dblclick', (e) => {
+    if (!eligible(e)) return;
+    e.preventDefault();
+    try { const sel = window.getSelection && window.getSelection(); if (sel && !sel.isCollapsed) sel.removeAllRanges(); } catch (err) {}
+    onReply();
   });
 }

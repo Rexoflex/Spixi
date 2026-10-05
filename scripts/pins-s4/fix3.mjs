@@ -65,6 +65,17 @@ export default async function (h) {
     const { W, push, errs, reads } = await boot();
     const d = W.document;
     const tileOf = (id) => d.querySelector('#messages [data-msgid="' + id + '"] .c-mbubble');
+    /* ★ #1201 re-base (A-FADE fix, Damir's pick "photos READY at open"): the document's FIRST open now holds
+       `painted` for its preview tiles (≤ 60 ms) and shows a tile that decodes inside the hold LOADED with no fade — in
+       the 'before' order this pin's tile is exactly such a tile (that outcome: pins-s6b/fade.mjs). The #1151 reveal
+       below is the path of every tile OUTSIDE the hold, so the 'before' run spends the document's first open on an
+       empty history first (no tile → a 0 ms hold) and then runs the same Android order as before, re-build included. */
+    if (order === 'before') {
+      push('clearMessages', 'false');
+      if (typeof W.messagesDone === 'function') push('messagesDone');
+      push('onChatScreenLoaded');
+      await sleep(150);
+    }
     push('onChatScreenReady', 'addrPeer');
     push('setChatMode', '0', '0', '', 'False');
     push('setPhotoPreviews', 'True');   // (not bursting yet: queues the rAF render the Android trace saw re-build the tile)

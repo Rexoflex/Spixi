@@ -1227,6 +1227,31 @@ namespace SPIXI.Meta
                 // If a chat page is visible, insert the message directly
                 if (friend_message_with_status.updated)
                 {
+                    /* ★★ #1199 (session 6b): THE CHATS ROW OF AN EDITED LAST MESSAGE. Core's update branch
+                     * (FriendList.addMessageWithType, the `tmp_msg` replace) returns BEFORE it calls
+                     * metaData.setLastMessage, and metaData.lastMessage is a SERIALIZED COPY (Friend.cs:128
+                     * `new FriendMessage(msg.getBytes())`), not the list's object — so the row kept the OLD text
+                     * (HomePage.getFriendMessageHelper re-reads the live message only for MY last message). When the
+                     * updated message IS the last message of this chat (same id + channel), re-copy it — the same
+                     * step Core's own Friend.setMessageRead takes (Friend.cs:706) — BEFORE the row is pushed below
+                     * (UIHelpers.updateMessage → HomePage.updateChat when HomePage is the live root; else the
+                     * shouldRefreshContacts flush after it). No new verb. */
+                    try
+                    {
+                        FriendMessage? last = friend.metaData.lastMessage;
+                        // #46 r1 A MINOR-5: a bot room's own streams raise the sequence too — not an edit, not this re-copy
+                        if (!friend.bot && last != null && last.id != null && friend_message.id != null
+                            && friend.metaData.lastMessageChannel == channel
+                            && last.id.SequenceEqual(friend_message.id))
+                        {
+                            friend.metaData.setLastMessage(friend_message, channel);
+                            friend.saveMetaData();
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("addMessageWithType: the last-message copy was not refreshed (" + e.GetType().Name + ")");
+                    }
                     UIHelpers.updateMessage(friend, channel, friend_message);
                 }
                 else
@@ -1236,8 +1261,14 @@ namespace SPIXI.Meta
 
                 UIHelpers.shouldRefreshContacts = true;
 
-                // Only send alerts if this is a new message
-                if (oldMessage == false)
+                /* Only send alerts if this is a new message.
+                 * ★★ #1199 (session 6b): …and NEVER for an UPDATE (`friend_message_with_status.updated`: an edit, a
+                 * stream chunk — Core's replace of a message already shown). An edit raised a second notification
+                 * ("New Message"), flashed and played the message sound for text the user had already seen; the unread
+                 * count already ignores an update (UnreadRule.countsAsUnread's isUpdate). The whole alert block —
+                 * the notification, SSystemAlert.flash and the SND-1 in-app sound — is skipped; my own edit
+                 * (local_sender, fire_local_notification false) no longer plays "message sent" either. */
+                if (oldMessage == false && !friend_message_with_status.updated)
                 {
                     // Send a local push notification if Spixi is not in the foreground
                     if (fire_local_notification && !local_sender)

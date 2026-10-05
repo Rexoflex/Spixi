@@ -401,9 +401,12 @@ namespace SPIXI
                 Logging.error("purgeFiles: the other-contact walk failed (" + e.GetType().Name + ") — nothing deleted");
                 return 0;
             }
-            /* TODO(#1190, #46 r4 m2): an OPEN chat of this contact is not told of these deletes (no SingleChatPage.refreshFileRow
-             * here — the purge holds paths, not rows, and need not run on the UI thread); its held previews stay until it
-             * reloads. Decide with DECISIONS #1190. */
+            /* ★ #1202 (#1190 TODO, #46 r4 m2 — session 6b): an OPEN chat of the owner is told by the CALLER after this
+             * returns (HomePage.schedulePurge: on the main thread, Utils.getChatPage(owner)?.refreshHeldFileRows()) — the
+             * purge holds paths, not rows, and runs off the UI thread. Today all three callers have already emptied
+             * (removehistory reloads the chat) or closed (removecontact / leavegroup) that chat, so it is the belt for a
+             * page that still holds rows. Another contact's chat is never affected: a path another history names is
+             * spared above. */
             foreach (string path in paths)
             {
                 try

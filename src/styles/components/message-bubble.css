@@ -30,9 +30,8 @@
   pointer-events: none;
 }
 .c-chat-canvas > * { position: relative; } /* content above the pattern layer */
-/* scroll thumb over the TINTED canvas (audit r2 → r3): -03 was tuned against
-   the v1 gradient and fell to 1.14:1 on the v2 sky-blue bottom — text-02 ink
-   (neutral-490 light / neutral-400 dark) clears 3:1 on both canvases */
+/* scroll thumb over the TINTED canvas: the --chat-scroll-thumb token (tokens.css) — --outline-neutral-02 in BOTH
+   themes now (dark #1134, light #1202), the same thumb as chat info. (The audit r2 → r3 text-02 ink note is history.) */
 @media (hover: hover) and (pointer: fine) {
   .c-chat-canvas .u-scroll:hover,
   .c-chat-canvas .u-scroll:focus-within { scrollbar-color: var(--chat-scroll-thumb) transparent; }
@@ -357,7 +356,7 @@ button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transpare
    clears 5.1:1; sender vs text differentiate by weight */
 .c-bubble-row[data-direction="sent"] .c-bubble__reply-text { color: var(--text-bubble-sent); }
 
-/* "edited" marker (§8-gated #25) — meta ink, italic, precedes the time */
+/* "edited" marker (★ #1199: shown whenever C# says edited) — meta ink, italic, precedes the time */
 .c-bubble__edited { font-style: italic; }
 
 /* —— links in message text (Damir 2026-07-03): BUTTONS, not <a> — every
@@ -714,3 +713,94 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 :root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="9"] { --sender-label-l: 42%; } /* 4.71 on the brand-gradient bottom · 6.63 on Mist */
 :root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="10"] { --sender-label-l: 36%; } /* 4.70 on the brand-gradient bottom · 6.62 on Mist */
 :root:not([data-theme="dark"]) .c-bubble[data-emoji-only] .c-bubble__sender[data-idhue="11"] { --sender-label-l: 38%; } /* 4.63 on the brand-gradient bottom · 6.52 on Mist */
+
+/* ═══ ★★ #1198 (S6) — THE REPLY GESTURES (message-menu.js attachReplySwipe / createReplyHoverButton) ═══
+   Motion is tokens only, and the close is faster than the open: the swipe glyph and the hover button arm IN on
+   --duration-200 decelerate and go OUT (the spring back, the hover leaving) on --duration-100 accelerate. Under
+   reduced motion the tokens are 0 ms (tokens.css) and the swipe does not follow the finger at all (the JS). No blur. */
+
+/* the swipe (phone, touch only). pan-y: a vertical move stays the browser's scroll, a horizontal one reaches the
+   row. The row follows the finger through --reply-swipe-x (set per move, the finger's own geometry); the glyph
+   rides in from the start edge with the row and arms at the trigger distance. */
+.c-bubble-row[data-swipe-reply] { touch-action: pan-y; }
+.c-bubble-row[data-reply-swipe] {
+  position: relative;
+  transform: translateX(var(--reply-swipe-x, 0px));
+}
+.c-bubble-row[data-reply-swipe][data-reply-return] {
+  transition: transform var(--duration-100) var(--easing-accelerate);
+}
+.c-reply-swipe {
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--spacing-40));
+  width: var(--spacing-32);
+  height: var(--spacing-32);
+  margin-top: calc(-1 * var(--spacing-16));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-chat-chip);
+  color: var(--icon-neutral-02);
+  opacity: var(--reply-swipe-p, 0);
+  transform: scale(0.8);
+  transition: transform var(--duration-100) var(--easing-accelerate), color var(--duration-100) var(--easing-accelerate);
+  pointer-events: none;
+}
+.c-bubble-row[data-reply-armed] .c-reply-swipe {
+  transform: scale(1);
+  color: var(--icon-action-default);
+  transition: transform var(--duration-200) var(--easing-decelerate), color var(--duration-200) var(--easing-decelerate);
+}
+
+/* the desktop hover button — a real <button> ("Reply"), beside the bubble (placed by the shell from the bubble's
+   own box: --reply-btn-x / --reply-btn-y). Hidden everywhere but the desktop flag; shown on row hover (pointer:
+   fine), on the #1184-style data-hover carry, and on keyboard focus; never in selection mode. Invisible ≠ absent:
+   opacity 0 keeps it in the Tab order, so focus-within can reveal it. */
+.c-bubble-row[data-reply-btn] { position: relative; }
+.c-bubble-row__reply { display: none; }
+:root[data-desktop] .c-bubble-row__reply {
+  position: absolute;
+  left: var(--reply-btn-x, 0px);
+  top: var(--reply-btn-y, 0px);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-32);
+  height: var(--spacing-32);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-chat-chip);
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-100) var(--easing-accelerate), color var(--duration-100) var(--easing-accelerate);
+}
+/* ★ #46 r3 MINOR-2: KEYBOARD focus only — a rove-focusable row (#46 r2) takes focus on a mouse click, and `:focus-within`
+   then kept the button shown after the mouse left (a second button beside the hovered row). */
+:root[data-desktop] .c-bubble-row:focus-visible > .c-bubble-row__reply,
+:root[data-desktop] .c-bubble-row__reply:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root[data-desktop] .c-bubble-row:hover > .c-bubble-row__reply,
+  :root[data-desktop] .c-bubble-row[data-hover] > .c-bubble-row__reply {
+    opacity: 1;
+    pointer-events: auto;
+    transition: opacity var(--duration-200) var(--easing-decelerate);
+  }
+  :root[data-desktop] .c-bubble-row__reply:hover { color: var(--icon-neutral-01); }
+}
+/* ★ r2 (MINOR-3): the roving row (tabindex 0 / -1, chat.html roveRows) shows the house focus ring when the KEYBOARD
+   lands on it — never on a click (focus-visible); the same ring serves selection mode's checkbox rows */
+.c-bubble-row:focus { outline: none; }
+.c-bubble-row:focus-visible { outline: var(--outline-width-2) solid var(--outline-focus); outline-offset: -2px; border-radius: var(--radius-12); }
+:root[data-desktop] .c-bubble-row__reply:focus-visible { outline: var(--outline-width-2) solid var(--outline-focus); outline-offset: 2px; }
+[data-selecting] .c-bubble-row__reply,
+[data-selecting] .c-reply-swipe { display: none !important; }

@@ -497,7 +497,6 @@
   "repeatMismatch": "Les mots de passe ne correspondent pas.",
   "reply": "Répondre",
   "replyTo": "Afficher le message auquel vous répondez",
-  "replyUnavailable": "Message d’origine",
   "replyingTo": "Répondre à",
   "requestAmount": "Demander un montant",
   "requestConfirm": "Demander {a} IXI",
@@ -810,5 +809,7 @@
   "filePaused": "En pause",
   "fileDeletedLocal": "Fichier supprimé de cet appareil",
   "fileUnavailable": "Non disponible sur cet appareil",
-  "photoDeletedLocal": "Photo supprimée de cet appareil"
+  "photoDeletedLocal": "Photo supprimée de cet appareil",
+  "saveEdit": "Enregistrer",
+  "editNoLonger": "Ce message ne peut plus être modifié. Ton texte reste dans le champ de saisie."
 }

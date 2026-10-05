@@ -437,7 +437,6 @@
   "repeatMismatch": "两次输入的密码不匹配。",
   "reply": "回复",
   "replyTo": "查看被回复的消息",
-  "replyUnavailable": "原始消息",
   "replyingTo": "回复",
   "requestAmount": "请求金额",
   "requestConfirm": "请求 {a} IXI",
@@ -732,5 +731,7 @@
   "filePaused": "已暂停",
   "fileDeletedLocal": "文件已从此设备删除",
   "fileUnavailable": "此设备上不可用",
-  "photoDeletedLocal": "照片已从此设备删除"
+  "photoDeletedLocal": "照片已从此设备删除",
+  "saveEdit": "保存",
+  "editNoLonger": "此消息已无法编辑。你的文字保留在输入框中。"
 }

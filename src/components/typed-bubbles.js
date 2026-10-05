@@ -759,6 +759,7 @@ export function createFileBubble({
   onAccept, onOpen, onRetry,
   onCancel,                // #334: sender-side cancel while the offer is un-accepted (shell-gated)
   status = null,           // ★ #1028 (walk P.22): a SENT file's delivery tick — 'sending'|'sent'|'delivered'|'read' (null = none)
+  unavailable = false,     // ★ #1190 (#1173 (4)): a COMPLETE file whose file is not on this device (C#'s addFile arg 16 = "0")
   strings = getStrings(),
 } = {}) {
   const row = document.createElement('div');
@@ -770,10 +771,16 @@ export function createFileBubble({
     g.className = 'c-bubble-row__gutter';
     row.append(g);
   }
+  /* ★★ #1190 (#1173 (4), #1188 b — walk #1172 A-PREVIEW): my sent photo whose original is gone from this device was the
+     big empty photo square + "Open file" that did nothing. Now the COMPACT card, its second line "Not available on this
+     device", NO "Open file", NO tap (no handler at all — a click sends nothing) and aria-disabled. Complete only. */
+  const gone = !!unavailable && state === 'complete';
+  if (gone) { onOpen = undefined; onAccept = undefined; onRetry = undefined; meta = strings.fileUnavailable || 'Not available on this device'; }
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'c-fbubble';
   el.dataset.state = state;
+  if (gone) { el.dataset.unavailable = ''; el.setAttribute('aria-disabled', 'true'); }
   // ONE persistent dispatcher keyed on live state — the state can flip later via
   // setFileProgress (audit r2: a progress-created bubble bound NO handler, so the
   // finished download was an enabled button that did nothing). Progress state has
@@ -791,7 +798,7 @@ export function createFileBubble({
   /* ★ #1035 (#46 auditor B, M3): the BASE label is kept on the card so the sent file's tick state can be
      appended (here and on every live change — message-bubble.js syncFileTickAria); an explicit aria-label
      on a <button> replaces its content, so the tick's own label is never heard otherwise. */
-  el.dataset.ariaBase = fileAria(state, name, strings, direction);
+  el.dataset.ariaBase = gone ? name + ', ' + meta : fileAria(state, name, strings, direction);   // ★ #1190: never "Open <name>" on a card that opens nothing
   el.setAttribute('aria-label', el.dataset.ariaBase);
 
   el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
@@ -883,6 +890,50 @@ export function createFileBubble({
     cancelBtn.setAttribute('aria-label', (strings.cancelTransfer || 'Cancel sending') + ' ' + name);
     cancelBtn.addEventListener('click', oneShot(onCancel));
     row.append(cancelBtn);
+  }
+  row.append(el);
+  return row;
+}
+
+/** ★★ #1190 (#1173 (3), #1188 render b) — a RECEIVED file that was downloaded and then DELETED FROM THIS DEVICE (chat
+ *  info "Delete from this device" #1154, the Downloads page, the OS — C#'s addFile arg 16 = "0" on a complete received
+ *  row). Not a dead glyph tile: a small italic grey bubble "Photo deleted from this device" / "File deleted from this
+ *  device" and the time. NO tap (a <div>, no handler — the viewer never opens it); the long-press menu still reaches it
+ *  (class c-fbubble = messageMenuTarget, so the message can still be deleted). The FILE NAME is not shown (the line says
+ *  what happened; the name is peer data the row no longer needs) — textContent only. */
+export function createFileGoneBubble({
+  direction = 'received',
+  photo = false,
+  timestamp = null,
+  gutter = false,
+  strings = getStrings(),
+} = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const el = document.createElement('div');
+  el.className = 'c-fbubble c-fbubble--gone';
+  el.dataset.state = 'gone';
+  const t = document.createElement('span');
+  t.className = 'c-fbubble__gone';
+  t.textContent = photo ? (strings.photoDeletedLocal || 'Photo deleted from this device')
+    : (strings.fileDeletedLocal || 'File deleted from this device');
+  el.append(t);
+  if (timestamp != null) {
+    const d = new Date(timestamp);
+    if (!isNaN(d)) {
+      const time = document.createElement('time');
+      time.className = 'c-fbubble__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = cardTime(d);
+      el.append(time);
+    }
   }
   row.append(el);
   return row;

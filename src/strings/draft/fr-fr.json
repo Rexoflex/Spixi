@@ -806,5 +806,9 @@
   "sharedDeleteLocalBody": "« {name} » est supprimé de cet appareil. Le message reste dans la discussion.",
   "viewerFailed": "Impossible d’ouvrir cette image.",
   "groupCounter": "{n} / {max}",
-  "groupLimitNote": "Un groupe peut compter jusqu’à 10 membres en plus de vous."
+  "groupLimitNote": "Un groupe peut compter jusqu’à 10 membres en plus de vous.",
+  "filePaused": "En pause",
+  "fileDeletedLocal": "Fichier supprimé de cet appareil",
+  "fileUnavailable": "Non disponible sur cet appareil",
+  "photoDeletedLocal": "Photo supprimée de cet appareil"
 }

@@ -14,5 +14,5 @@ notification-incoming-call = 来电
 notification-payment-received = 收到付款
 notification-payment-request = 付款请求
 notification-app-invite = 应用邀请
-notification-file = 收到文件
+notification-file = 向你发送了文件
 notification-contact-request = 联系人请求

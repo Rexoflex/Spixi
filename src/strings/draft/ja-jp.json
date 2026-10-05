@@ -729,5 +729,9 @@
   "sharedDeleteLocalBody": "「{name}」がこのデバイスから削除されます。メッセージはチャットに残ります。",
   "viewerFailed": "この画像を開けませんでした。",
   "groupCounter": "{n} / {max}",
-  "groupLimitNote": "グループには、あなたのほかに最大 10 人のメンバーを追加できます。"
+  "groupLimitNote": "グループには、あなたのほかに最大 10 人のメンバーを追加できます。",
+  "filePaused": "一時停止中",
+  "fileDeletedLocal": "このデバイスからファイルを削除しました",
+  "fileUnavailable": "このデバイスでは利用できません",
+  "photoDeletedLocal": "このデバイスから写真を削除しました"
 }

@@ -806,5 +806,9 @@
   "sharedDeleteLocalBody": "“{name}” se eliminará de este dispositivo. El mensaje se queda en el chat.",
   "viewerFailed": "No se pudo abrir esta imagen.",
   "groupCounter": "{n} / {max}",
-  "groupLimitNote": "Un grupo puede tener hasta 10 miembros además de ti."
+  "groupLimitNote": "Un grupo puede tener hasta 10 miembros además de ti.",
+  "filePaused": "En pausa",
+  "fileDeletedLocal": "Archivo eliminado de este dispositivo",
+  "fileUnavailable": "No disponible en este dispositivo",
+  "photoDeletedLocal": "Foto eliminada de este dispositivo"
 }

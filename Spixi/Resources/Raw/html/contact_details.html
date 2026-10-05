@@ -1087,6 +1087,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      see chatlist-item.css. :not([aria-current]) is load-bearing (source order).
      ⚠ Keep this rule TRANSITION-FREE — see the chat row's B-4 note. */
   .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
+  /* ★ #1171: the hovered row survives a live re-render (wallet-shell carryRowHover; see chatlist-item.css). */
+  .c-txlist-item[data-hover]:not([aria-current]) { background-color: var(--surface-interactive-hover); }
 }
 /* 5c-i/ii: the :active fill mirrors are REMOVED — see chatlist-item.css. */
 
@@ -2089,6 +2091,8 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
      base.css — see chatlist-item.css. State rules set background-COLOR only. */
 }
 @media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background-color: var(--surface-card-hover); } }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
+/* ★ #1171: a row re-built under a still pointer keeps its hover (chatlist-item.js carryRowHover) — the same fill as :hover */
+@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled)[data-hover] { background-color: var(--surface-card-hover); } }
 /* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
 /* F7: dim only the avatar + name — the Pending badge and the reason sub-text
    ("Can't be added to groups") must stay legible, they're the whole point of
@@ -3325,7 +3329,20 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   display: flex;
   flex-direction: column;
   background: var(--surface-scrim); /* + overlay scrim beneath ⇒ near-black */
+  /* ★ #1180 (W-VIEW, #1173 (1)): the viewer's OWN fade. Without it dismissOverlay waited for its 400 ms fallback with the
+     viewer fully opaque (the slow close). Close faster than open: 100 ms accelerate out, 200 ms decelerate in. */
+  opacity: 0;
+  transition: opacity var(--duration-100) var(--easing-accelerate);
 }
+.c-mviewer[data-open] {
+  opacity: 1;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+/* a closing viewer (data-open gone) never takes a click meant for what lies under it */
+.c-mviewer:not([data-open]) { pointer-events: none; }
+/* ★ #1180: its scrim (media-viewer.js marks it) leaves at the viewer's speed — the removal lands on the viewer's
+   transitionend and takes the scrim with it, so a slower scrim would be cut mid-fade */
+.c-scrim[data-mviewer]:not([data-open]) { transition-duration: var(--duration-100); transition-timing-function: var(--easing-accelerate); }
 
 .c-mviewer__bar {
   display: flex;
@@ -3411,8 +3428,8 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   max-height: 100%;
   object-fit: contain;
   border-radius: var(--radius-8);
-  /* spring-back after an under-threshold swipe (drag sets transition:none) */
-  transition: transform var(--duration-200) var(--easing-decelerate);
+  /* spring-back after an under-threshold swipe (drag sets transition:none) · ★ #1180: + the picture's fade-in */
+  transition: transform var(--duration-200) var(--easing-decelerate), opacity var(--duration-200) var(--easing-decelerate);
   /* mouse-drag fix: no native ghost-drag / selection during the gesture */
   user-select: none;
   -webkit-user-select: none;
@@ -3423,9 +3440,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
    a subtle spinner on a scrim disc sits over it (media-bubble's spinner grammar, the on-scrim mode-less inks).
    The stage is the positioning box; the disc never takes a pointer (swipe-to-dismiss keeps working while loading). */
 .c-mviewer__stage { position: relative; }
-/* the small tile thumbnail fills the stage while it waits (contain — the photo-viewer convention: soft, then sharp),
-   so the swap to the viewer-size picture does not jump from a postage stamp to full size */
-.c-mviewer[data-loading] .c-mviewer__img[src] { width: 100%; height: 100%; }
+/* ★ #1180 (W-VIEW): the tile thumbnail is a SQUARE crop — stretched to the stage it jumped to the real aspect at the
+   swap (the walk's flicker). It now waits INVISIBLE (data-pending) and the viewer-size picture fades in once decoded.
+   (Superseded #1166: "the thumbnail fills the stage while it waits".) */
+.c-mviewer__img[data-pending] { opacity: 0; }
 .c-mviewer__loading {
   position: absolute;
   inset: 0;
@@ -5484,6 +5502,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     if (state.txsBuf !== null) { state.txs = state.txsBuf; state.txsBuf = null; }
     if (state.membersBuf !== null) { state.members = state.membersBuf; state.membersBuf = null; state.membersLanded = true; }   // #248 roster · A8
     buildIfChanged();
+    if (sharedDeleteFocus && sharedDeleteFocus.armed) landSharedDeleteFocus();   // ★ #1190 (#46 r4 C1)
   }
 
   /* NO empty first paint (flicker fix): the boot spinner (in #contact-root markup)
@@ -5597,9 +5616,31 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   }
 
   /* ★ #1166 V-3 (#1154): "Delete from this device" asks first — an alertdialog, the item named (textContent only),
-     Cancel focused, Delete in the destructive fill. C# deletes, rescans and re-pushes setSharedItems (the tile turns
-     into its glyph; the message stays in the chat). */
+     Cancel focused, Delete in the destructive fill. C# deletes, rescans and re-pushes setSharedItems — ★ #1190: the scan
+     DROPS a received file deleted from this device, so the tile LEAVES the grid (the message stays in the chat, drawn
+     "… deleted from this device"). */
+  /* ★ #1190 (#46 r4 C1): the dialog hands focus back to its opener — the tile — which the re-push then removes, and
+     focus fell to <body>. Delete arms sharedDeleteFocus (the item's place among its kind); after the re-push renders
+     (the cover in place, the panel after its commit) focus lands on the tile now at that place, else the section's
+     selected tab — only when focus was lost (body / a detached node), never moved from somewhere real. */
+  let sharedDeleteFocus = null;   // { index, armed } — set by Delete, armed by the next setSharedItems
+  function landSharedDeleteFocus() {
+    const f = sharedDeleteFocus;
+    sharedDeleteFocus = null;
+    if (!f) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) return;
+    const over = cdSharedOpen ? document.querySelector('.cd-shared-takeover') : null;
+    const scope = over || root;
+    const panel = scope.querySelector(over ? '.c-shared-list__panel' : '.c-shared__panel');
+    const items = panel ? Array.from(panel.querySelectorAll('.c-shared__tile, .c-shared__row')) : [];
+    const target = items[Math.min(f.index, items.length - 1)]
+      || scope.querySelector(over ? '.c-shared-list__tab[aria-selected="true"]' : '.c-shared__chip[aria-selected="true"]')
+      || scope.querySelector('button');
+    try { if (target) target.focus({ preventScroll: true, focusVisible: false }); } catch (e) {}
+  }
   function confirmSharedDeleteLocal(item, token) {
+    const index = Math.max(0, (state.sharedItems || []).filter((x) => x.kind === item.kind).indexOf(item));
     openModal(createModal({
       title: strings.sharedDeleteLocalTitle || 'Delete from this device?',
       body: (strings.sharedDeleteLocalBody || '“{name}” is removed from this device. The message stays in the chat.').split('{name}').join(item.label),
@@ -5608,7 +5649,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
       strings,
       actions: [
         { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-        { label: strings.deleteConfirm || 'Delete', type: 'fill', intent: 'destructive', onClick: () => bridge.send('ixian:sharedDeleteLocal:' + token) },
+        { label: strings.deleteConfirm || 'Delete', type: 'fill', intent: 'destructive', onClick: () => { sharedDeleteFocus = { index, armed: false }; bridge.send('ixian:sharedDeleteLocal:' + token); } },
       ],
     }));
   }
@@ -5968,6 +6009,10 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
     setSharedItems(json) {
       state.sharedItems = parseSharedItems(json);
       refreshSharedTakeover();   // ★ #1166 V-3: a delete from the "See all" cover re-pushes — the open cover follows
+      if (sharedDeleteFocus) {   // ★ #1190 (#46 r4 C1): the cover is rebuilt now; the panel after its commit
+        sharedDeleteFocus.armed = true;
+        if (cdSharedOpen) landSharedDeleteFocus();
+      }
       scheduleCommit();
     },
 

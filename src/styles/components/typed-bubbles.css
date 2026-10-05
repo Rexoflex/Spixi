@@ -387,6 +387,26 @@
   color: var(--text-action-default);
 }
 
+/* ★ #1190 (#1173 (4)): my file not on this device — the compact card, no tap feedback */
+.c-fbubble[data-unavailable] { cursor: default; }
+.c-fbubble[data-unavailable]:active .c-fbubble__icon,
+.c-fbubble[data-unavailable]:hover .c-fbubble__icon { filter: none; }
+/* ★ #1190 (#1173 (3), #1188 b): a received file deleted from this device — italic grey, not a control */
+.c-fbubble--gone {
+  align-items: baseline;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-12);
+  cursor: default;
+}
+.c-fbubble__gone {
+  min-width: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  font-style: italic;
+  color: var(--text-neutral-02);
+  overflow-wrap: anywhere;
+}
+
 .c-fbubble__time {
   align-self: flex-end;
   flex: none;

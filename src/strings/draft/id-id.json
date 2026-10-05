@@ -729,5 +729,9 @@
   "sharedDeleteLocalBody": "“{name}” dihapus dari perangkat ini. Pesannya tetap ada di chat.",
   "viewerFailed": "Gambar ini tidak dapat dibuka.",
   "groupCounter": "{n} / {max}",
-  "groupLimitNote": "Grup dapat memiliki hingga 10 anggota selain Anda."
+  "groupLimitNote": "Grup dapat memiliki hingga 10 anggota selain Anda.",
+  "filePaused": "Dijeda",
+  "fileDeletedLocal": "File dihapus dari perangkat ini",
+  "fileUnavailable": "Tidak tersedia di perangkat ini",
+  "photoDeletedLocal": "Foto dihapus dari perangkat ini"
 }

@@ -685,6 +685,14 @@ namespace SPIXI
             return false;
         }
 
+        /** ★ #1176: is this chat-info page the desktop pane pinned to column 2 BESIDE the open conversation? (the state
+         *  onOverlayPresented sets and onOverlayClosed / a col-1 present clears — UI thread). ContactDetails.showInChat
+         *  keeps that pane open on "Show in chat". */
+        public bool isInfoPaneBeside(ContactDetails cd)
+        {
+            return infoPaneCol2Open && ReferenceEquals(cd, infoPaneCol2Page);
+        }
+
         /* ★ #1166 lever 7: SpixiContentPage asks how the col-2 pane moves. Entering: only the pane that is about to be
          * pinned to col 2 (infoPaneCol2Pending + the same fit test onOverlayPresented runs). Leaving: only the pane that
          * owns the open column. Everything else = None (today's slide). */
@@ -740,7 +748,10 @@ namespace SPIXI
             if (P1Perf.enabled)
             {
                 P1Perf.line("infopane " + (open ? "open" : "close") + " motion=" + (mode == ColumnMotion.Push ? "push" : "width")
-                    + " ms=" + ms + " col=" + (long)Math.Round(to));
+                    + " ms=" + ms + " col=" + (long)Math.Round(to)
+                    + " from=" + (long)Math.Round(from)   // ★ #1194 probe: the column it shrinks from (a 360 pane clipped by lever 7?)
+                    + " tiles=" + (pane != null ? pane.p1MediaTiles : -1) + " previews=" + (pane != null ? pane.p1MediaPreviews : -1)   // ★ #1194 probe — TEMPORARY
+                    + " shown=" + (pane != null ? pane.p1MediaShown : -1) + " shownPreviews=" + (pane != null ? pane.p1MediaShownPreviews : -1));   // ★ #1194 (#46 r4 m3): what the shell draws in place (≤ 9)
                 P1Perf.framesAfter(open ? "infopane" : "infopane-close");
             }
             Action<double> tick = mode == ColumnMotion.Width

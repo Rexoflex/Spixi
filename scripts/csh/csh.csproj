@@ -2,8 +2,11 @@
   <!-- ★ #46 r1 M2 (session 2): the C# harness. The MSTest project targets net10.0-windows + the MAUI app and never runs on
        this branch's CI, so the pure C# rules were "executed" nowhere a gate could see. This console project compiles
        the REAL files below (no copies) against Stubs.cs and runs the MSTest classes through a tiny attribute runner
-       (Run.cs). Run: node scripts/run-csh.mjs  (needs the .NET 8+ SDK; no NuGet access — nuget.config clears the sources). -->
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS8618;CS8600;CS8602;CS8604;CS0168;CS0649;CS8625</NoWarn>
+       (Run.cs). Run: node scripts/run-csh.mjs  (needs the .NET 8+ SDK; no NuGet access — nuget.config clears the sources).
+       ★ session 6: the target framework = the RUNNING SDK's own runtime (BundledNETCoreAppTargetFrameworkVersion), so the
+       newest installed SDK builds it with no reference-pack download (a fixed net8.0 failed with only the .NET 10 SDK:
+       NU1100 Microsoft.NETCore.App.Ref 8.0). run-csh.mjs picks the newest SDK. -->
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net$(BundledNETCoreAppTargetFrameworkVersion)</TargetFramework><ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS8618;CS8600;CS8602;CS8604;CS0168;CS0649;CS8625</NoWarn>
     <!-- ★ P-1 (#1127) — TEMPORARY: P1Perf.cs is compiled with its dev bodies (the [P1] grammar is executed here). -->
     <DefineConstants>$(DefineConstants);SPIXI_DEV_COEXIST</DefineConstants></PropertyGroup>
   <ItemGroup>
@@ -22,6 +25,9 @@
     <Compile Include="../../Spixi/Utils/ViewerRules.cs" />
     <!-- ★ #1166 P-03 / P-04 / V-4 (session 5b): the chats batch wire, the avatar ledger, the group cap (tests: ChatsListRulesTests.cs). -->
     <Compile Include="../../Spixi/Utils/ChatsListRules.cs" />
+    <!-- ★ #1176 / #1177 / #1178 (session 6): Show in chat beside the info pane · the file row's transfer state · the offer notification copy (tests: InfoPaneRulesTests.cs, FileRowRulesTests.cs). -->
+    <Compile Include="../../Spixi/Utils/InfoPaneRules.cs" />
+    <Compile Include="../../Spixi/Utils/FileRowRules.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

@@ -1,0 +1,35 @@
+Session 6a: viewer motion, group tile heads, scroll-safe menus, unread and file-row fixes
+
+Walk fails of session 5b:
+- Viewer: its own fade (in 200 ms, out 100 ms) so a close no longer
+  waits for the 400 ms removal fallback; a loading viewer keeps the
+  square preview hidden and fades the real picture in; a click or tap
+  outside the picture closes it (not a double click's second press).
+- Android photo fade: a dev-only [P1] probe for the next walk (two
+  earlier fixes missed; no third guess).
+
+Fixes:
+- Group chats: GIF, photo and file tiles show the sender's name and
+  avatar like text rows (same blind-group rule); files never join runs.
+- A member's new avatar reaches an open group chat in place.
+- Android: the long-press menu no longer opens while scrolling (one
+  press record per document, also across a re-rendered row).
+- Desktop: a chats row keeps its hover across a live update; focus
+  moves to the rebuilt row only when the document has focus.
+- Opening or resuming a chat pushes the zero unread to the row at once.
+- Show in chat keeps the desktop chat-info pane open.
+- A known incoming transfer shows "Paused" or its last percentage,
+  never "Tap to download" (addFile arg 15).
+- A file whose copy is gone from this device: my own shows a compact
+  "Not available on this device" card, a received one deleted here
+  shows "Photo deleted from this device" (addFile arg 16); chat info
+  drops it.
+- A file offer notifies "Sent you a file / photo" (group: "<member>
+  sent a file"), never "received" and never the file name; the member
+  name is sanitized and capped.
+- The reaction heart sits beside the unread count; the sending photo
+  card has a darker scrim; chat info shows 9 media in place.
+- Dev-only probes: chat-info close (tile counts), sent-file location.
+
+Tooling: the C# harness builds with the newest installed .NET SDK.
+Records decisions #1175-#1196, the review, pins and the walk sheet.

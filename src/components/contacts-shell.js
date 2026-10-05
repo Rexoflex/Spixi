@@ -50,6 +50,7 @@ import { createChip, setChipSelected } from './chip.js';
 import { overlayId } from './overlay.js';
 import { createSheet } from './sheet.js';   // ★ #863: the add-contact chooser sheet
 import { createEmptyState } from './empty-state.js';
+import { trackRowHover, snapRowHover, carryRowHover, restoreRowFocus } from './chatlist-item.js';   // ★ #1171: hover + focus across a roster re-flush
 
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
   let used = false;
@@ -227,6 +228,10 @@ function renderPickerList(st) {
   // preserve scroll across a full rebuild — the directory roster re-flushes on
   // every C# shouldRefreshContacts tick; resetting scrollTop mid-scroll is jarring.
   const prevScroll = list.scrollTop;
+  /* ★ #1171: the roster re-flush rebuilds every row — the row under the mouse (keyed by address) is born with
+     data-hover, a focused row gets the focus back (chatlist-item.js carryRowHover). */
+  trackRowHover(list, '.c-contacts__row', (row) => row.dataset.address || '');
+  const hoverSnap = snapRowHover(list);
   list.textContent = '';
   const needle = st.query.trim().toLocaleLowerCase();
   // iOS-26: People / Groups chips. MULTI mode (group creation) is people-only —
@@ -283,7 +288,8 @@ function renderPickerList(st) {
   }
   empty.hidden = true;
   list.hidden = false;
-  for (const c of matches) list.append(pickerRow(c, st));
+  for (const c of matches) { const row = pickerRow(c, st); carryRowHover(list, row, hoverSnap); list.append(row); }
+  restoreRowFocus(list, hoverSnap);
   syncGroupCap(st);                               // ★ #1166 V-4: a rebuilt list starts in the cap state
   list.scrollTop = prevScroll;                    // restore after the rebuild
 }

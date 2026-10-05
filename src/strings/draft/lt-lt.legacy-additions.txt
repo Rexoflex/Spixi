@@ -14,5 +14,5 @@ notification-incoming-call = Įeinantis skambutis
 notification-payment-received = Mokėjimas gautas
 notification-payment-request = Mokėjimo užklausa
 notification-app-invite = Programėlės kvietimas
-notification-file = Gautas failas
+notification-file = Atsiuntė jums failą
 notification-contact-request = Kontakto prašymas

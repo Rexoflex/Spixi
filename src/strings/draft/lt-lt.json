@@ -728,5 +728,9 @@
   "sharedDeleteLocalBody": "„{name}“ pašalinamas iš šio įrenginio. Žinutė lieka pokalbyje.",
   "viewerFailed": "Šio vaizdo nepavyko atidaryti.",
   "groupCounter": "{n} / {max}",
-  "groupLimitNote": "Grupėje, be jūsų, gali būti iki 10 narių."
+  "groupLimitNote": "Grupėje, be jūsų, gali būti iki 10 narių.",
+  "filePaused": "Pristabdyta",
+  "fileDeletedLocal": "Failas ištrintas iš šio įrenginio",
+  "fileUnavailable": "Šiame įrenginyje nepasiekiama",
+  "photoDeletedLocal": "Nuotrauka ištrinta iš šio įrenginio"
 }

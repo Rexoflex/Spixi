@@ -34,7 +34,7 @@
  * Update APIs are FREE FUNCTIONS operating on (listEl, state, …) per #44.
  */
 import { getStrings } from './strings-runtime.js';
-import { createChatItem } from './chatlist-item.js';
+import { createChatItem, trackRowHover, snapRowHover, carryRowHover, restoreRowFocus } from './chatlist-item.js';   // ★ #1171: hover + focus across a row replace
 import { createContactRequest } from './contact-request.js';
 import { attachChatRowMenu, liftedRowAddress, repaintRowGhost, clearChatRowMenuTimers } from './chats-row-menu.js';   // ★ review MINOR-3: a flush must not drop the pressed-row lift
 import { wrapChatRowSwipe, closeChatRowSwipe } from './chats-swipe.js';
@@ -303,6 +303,7 @@ export function renderChatsList(listEl, state, opts = {}) {
      the rows go. The release is delivered to the node under the finger, so a row replaced
      mid-press never gets its own `pointerup` — its 500 ms timer survives the flush and
      opens a menu into a shell the user has already left. See chats-row-menu.js. */
+  const hoverSnap = snapRowHover(trackChatsHover(listEl)); // ★ #1171: the hovered / focused row survives the rebuild
   clearChatRowMenuTimers();
   listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
   const ctx = {
@@ -317,6 +318,7 @@ export function renderChatsList(listEl, state, opts = {}) {
   for (const { kind, item } of timeline) {
     if (kind === 'request') { listEl.append(buildChatRequestNode(item, opts, strings)); continue; }
     const node = buildChatRowNode(listEl, state, item, opts, ctx);
+    carryRowHover(listEl, node, hoverSnap);              // ★ #1171: before the append — its first style is already the hover paint
     listEl.append(node);
     /* ★ #606 r2 (adversarial review): the GHOST follows the re-render too. It is a
        snapshot pinned to a viewport rectangle, and the flush that replaced this row
@@ -345,6 +347,14 @@ export function renderChatsList(listEl, state, opts = {}) {
     const emptyEl = chatsEmptyState(state, strings, opts);
     if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
   }
+  restoreRowFocus(listEl, hoverSnap);                    // ★ #1171: a focused row's replacement takes the focus back
+  return listEl;
+}
+
+/* ★ #1171 — the chats list's hover tracker (chatlist-item.js trackRowHover): the hoverable element is the row
+ * button, keyed by the address it already wears (#587). Idempotent; installed by the first render. */
+function trackChatsHover(listEl) {
+  trackRowHover(listEl, '.c-chatlist-item', (row) => row.dataset.address || '');
   return listEl;
 }
 
@@ -388,10 +398,15 @@ export function patchChatRows(listEl, state, addresses, opts = {}) {
     avatarSeen: new Set(),
     liftedRow,
   };
+  // ★ #1171: a replaced row is a NEW node, never `:hover` until WebView2 re-hit-tests — carry the hover (and the
+  // keyboard focus) across. Snapped from the rows being replaced; the tracker knows the hovered key.
+  const hoverSnap = snapRowHover(trackChatsHover(listEl), targets.map((i) => kids[i]));
   for (const i of targets) {
     const node = buildChatRowNode(listEl, state, timeline[i].item, opts, ctx);
+    carryRowHover(listEl, node, hoverSnap);
     kids[i].replaceWith(node);
   }
+  restoreRowFocus(listEl, hoverSnap);
   return true;
 }
 

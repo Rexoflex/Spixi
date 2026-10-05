@@ -48,6 +48,64 @@ const LONG_PRESS_MS = 500;   // §5b
 const WEBKIT_HOST = () => /^(ios|maccatalyst)$/.test(document.documentElement.getAttribute('data-platform') || '');
 const MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
 
+/* ★★ #1174 (Damir, Android, the Official Group Chat: "while SCROLLING the long-press menu sometimes opens").
+ * MECHANISM: a press opens the menu on TWO paths — our 500 ms timer (cancelled by a > 10 px move or pointercancel)
+ * and the `contextmenu` event, which Android WebView raises from its OWN long-press detector. The contextmenu path
+ * had no move / cancel / scroll test at all, so a finger that rested before the scroll took over opened the menu
+ * mid-scroll. ONE press record, shared by every long-press surface (this file, shared-items.js, chats-row-menu.js):
+ * a TOUCH press that moved past MOVE_CANCEL_PX, was cancelled (the scroll took the pointer) or saw a scroll of
+ * anything it was pressed inside (or the document) VOIDS its contextmenu — and its timer.
+ * ⚠ (#46 r1, F2) The record lives on the DOCUMENT, not on the pressed node: the chat log re-renders every row
+ * (chat.html renderLogNow → box.replaceChildren) and patchChatRows replaces chats rows, so a message arriving
+ * mid-press puts the finger over a REPLACEMENT node that never saw the pointerdown. A per-node record read "no
+ * press" there and the Android contextmenu opened the menu mid-scroll. The ancestor path is captured at pointerdown,
+ * so a scroll still matches after the pressed node was detached. Capture phase on the document: the record is
+ * current before any surface's own handlers read it. Reset on the next pointerdown / keydown (the house grammar):
+ * a mouse or pen right click has its own pointerdown (pointerType mouse / pen) → never voided; a keyboard
+ * contextmenu (Shift+F10, the Menu key) starts with a keydown → never voided. Installed ONCE per document. */
+const pressDocs = new WeakMap();   // document → { last: the current/last press record | null }
+function pressStateOf(doc) {
+  let st = pressDocs.get(doc);
+  if (st) return st;
+  st = { last: null, byId: new Map() };
+  pressDocs.set(doc, st);
+  const begin = (e) => {
+    const rec = {
+      id: e.pointerId, type: e.pointerType || '', x: e.clientX, y: e.clientY,
+      path: typeof e.composedPath === 'function' ? e.composedPath() : [],
+      moved: false, cancelled: false, scrolled: false, ended: false,
+    };
+    st.byId.clear();   // a new gesture: an older finger's record is history
+    st.byId.set(rec.id, rec);
+    st.last = rec;
+  };
+  const recOf = (e) => st.byId.get(e.pointerId) || null;
+  doc.addEventListener('pointerdown', begin, true);
+  doc.addEventListener('pointermove', (e) => {
+    const r = recOf(e);
+    if (r && !r.ended && (Math.abs(e.clientX - r.x) > MOVE_CANCEL_PX || Math.abs(e.clientY - r.y) > MOVE_CANCEL_PX)) r.moved = true;
+  }, true);
+  doc.addEventListener('pointercancel', (e) => { const r = recOf(e); if (r) { r.cancelled = true; r.ended = true; r.endedAt = Date.now(); } }, true);
+  doc.addEventListener('pointerup', (e) => { const r = recOf(e); if (r) { r.ended = true; r.endedAt = Date.now(); } }, true);   // kept: Windows touch sends contextmenu on release
+  doc.addEventListener('keydown', () => { st.last = null; st.byId.clear(); }, true);
+  doc.addEventListener('scroll', (e) => {   // scroll does not bubble — the capture listener sees the list's
+    const r = st.last;
+    if (!r || r.ended || r.type !== 'touch') return;
+    if (r.path.indexOf(e.target) !== -1) r.scrolled = true;   // the path ends …, document, window: a page scroll counts
+  }, true);
+  return st;
+}
+const PRESS_STALE_MS = 1000;   // > Windows touch's contextmenu-on-release gap; < any deliberate second press
+export function attachTouchPressGuard(node) {
+  const st = pressStateOf((node && node.ownerDocument) || document);
+  return {
+    /** true = the current / last press is a TOUCH press that became a scroll → its contextmenu (or timer) opens nothing. */
+    /* #46 r2 (1): an ENDED press voids only for PRESS_STALE_MS — a contextmenu with no new press (TalkBack's long-press
+       action raises one with no pointer events) must not stay blocked by an old scroll */
+    voids() { const r = st.last; return !!r && r.type === 'touch' && (r.moved || r.cancelled || r.scrolled) && (!r.ended || Date.now() - (r.endedAt || 0) < PRESS_STALE_MS); },
+  };
+}
+
 export function openMessageMenu({
   row,
   host,
@@ -185,6 +243,7 @@ export function openMessageMenu({
 /** Long-press (touch) + right-click (desktop) wiring for one message row. */
 export function attachMessageMenu(row, opts = {}) {
   const target = messageMenuTarget(row);   // ★ iOS-62: ONE resolver — see the note above
+  const press = attachTouchPressGuard(target);   // ★ #1174: a touch press that became a scroll voids its contextmenu
   let timer = null;
   let startX = 0;
   let startY = 0;
@@ -230,6 +289,9 @@ export function attachMessageMenu(row, opts = {}) {
     cancel();
     timer = setTimeout(() => {
       timer = null;
+      /* ★ #1174 (#46 r1, F2): a re-render detached this node mid-press (renderLogNow replaces every row) → its timer
+         opens nothing on a dead row; a press the document record saw move / cancel / scroll opens nothing either */
+      if (!target.isConnected || press.voids()) return;
       if (selecting()) return;          // selection mode owns the gesture
       fired = true;
       kbdiag('timer');
@@ -265,6 +327,7 @@ export function attachMessageMenu(row, opts = {}) {
 
   target.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (press.voids()) return;          // ★ #1174: Android's own long-press fired over a press that moved / scrolled
     if (selecting()) return;            // selection mode owns the gesture
     // audit r3 MAJOR: Android fires contextmenu at long-press ≈ the same
     // moment the pointer timer fires — without this guard both paths opened

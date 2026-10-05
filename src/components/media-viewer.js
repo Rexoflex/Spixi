@@ -19,6 +19,19 @@
  *   A viewer still busy after VIEWER_WAIT_MS stops the spinner by itself (an older exe never answers) and keeps the thumbnail.
  *   findOpenViewer(token) → the OPEN viewer opened for exactly that token, or null (a closed one is never returned,
  *   so a late push lands nowhere). Without a token the viewer is today's: no loading state, src as given.
+ *
+ *   ★ #1180 (WALK #1172 W-VIEW, #1173 (1)) — the viewer's OWN motion and the click outside:
+ *   · OPEN with no jump: the chat tile's preview is a SQUARE centre crop (SThumbnail.makeThumbnail, every platform), and
+ *     the loading viewer stretched it to the stage, then swapped it for the real-aspect picture → the shape jumped. A
+ *     loading viewer now keeps the thumbnail INVISIBLE (`data-pending` on the img: opacity 0) under the spinner; the
+ *     viewer-size picture fades in once decoded (setSrc → load → decode → next frame). A failure / the wait end shows
+ *     the thumbnail (better than nothing). A viewer without a token is unchanged (its src is the real picture).
+ *   · CLOSE fast: the viewer had NO transition of its own, so dismissOverlay's removal waited for its 400 ms fallback
+ *     timer (Windows log: overlay-close → chatoverlay 410 ms) while the scrim faded under a still-opaque viewer. The
+ *     viewer now fades with [data-open] — open 200 ms decelerate, close 100 ms accelerate (close faster than open) —
+ *     and its own scrim closes at the same 100 ms, so the transitionend removes both together.
+ *   · A click / tap OUTSIDE the picture closes (the dim stage, the bar and the foot around the buttons); a press that
+ *     became a swipe does not count as a click; the picture itself does not close.
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
@@ -94,6 +107,7 @@ export function openMediaViewer({
   const img = document.createElement('img');
   img.className = 'c-mviewer__img';
   if (src || !token) img.src = src;   // ★ #1166 V-3: a loading viewer with no thumbnail sets no src ('' would load the page URL)
+  if (token) img.dataset.pending = '';   // ★ #1180: the square-crop thumbnail stays invisible until the real picture is decoded
   img.alt = ''; // the dialog carries the accessible name
   img.draggable = false; // mouse-drag fix: native image drag hijacked the pointer stream
   stage.append(img);
@@ -103,6 +117,26 @@ export function openMediaViewer({
      grammar); prefers-reduced-motion = a static ring (css). setSrc / setFailed / the wait end it. */
   const tok = token == null ? '' : String(token);
   let waitT = 0;
+  /* ★ #1180: show the picture — a fade from opacity 0 (the pending style was painted before: the flip runs a frame later) */
+  const reveal = () => {
+    if (img.dataset.pending === undefined) return;
+    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f) => setTimeout(f, 16);
+    raf(() => { delete img.dataset.pending; });
+  };
+  let fullSrc = '';
+  const thumbSrc = src || '';
+  /* ★ #1180 (#46 r1 m3): a picture that passes the URI shape but does not decode — back to the thumbnail, shown */
+  img.addEventListener('error', () => {
+    if (!fullSrc || img.getAttribute('src') !== fullSrc) return;
+    fullSrc = '';
+    if (thumbSrc) img.src = thumbSrc; else img.removeAttribute('src');
+    el.setFailed();
+  });
+  img.addEventListener('load', () => {
+    if (!fullSrc || img.getAttribute('src') !== fullSrc) return;   // the thumbnail's own load never reveals it
+    const d = typeof img.decode === 'function' ? img.decode().catch(() => {}) : Promise.resolve();
+    d.then(reveal);   // the src changes once (thumbnail → picture): the guard above is the whole test
+  });
   const endBusy = () => {
     if (waitT) { clearTimeout(waitT); waitT = 0; }
     el.removeAttribute('aria-busy');
@@ -113,6 +147,7 @@ export function openMediaViewer({
   el.setSrc = (uri) => {
     const u = String(uri == null ? '' : uri);
     if (!VIEWER_URI_RE.test(u)) { el.setFailed(); return false; }
+    fullSrc = u;   // ★ #1180: revealed at its load (+ decode), never before
     img.src = u;
     delete el.dataset.failed;
     endBusy();
@@ -121,6 +156,7 @@ export function openMediaViewer({
   el.setFailed = () => {
     endBusy();
     el.dataset.failed = '';
+    if (!fullSrc) reveal();   // ★ #1180: no bigger picture → the thumbnail is better than an empty stage
   };
   if (tok) {
     el._viewerToken = tok;
@@ -133,7 +169,7 @@ export function openMediaViewer({
     sp.className = 'c-mviewer__spinner';
     ld.append(sp);
     stage.append(ld);
-    waitT = setTimeout(() => { waitT = 0; if (el.dataset.loading !== undefined) endBusy(); }, VIEWER_WAIT_MS);
+    waitT = setTimeout(() => { waitT = 0; if (el.dataset.loading !== undefined) { endBusy(); if (!fullSrc) reveal(); } }, VIEWER_WAIT_MS);
     openViewers.add(el);
   }
   stage.addEventListener('dragstart', (e) => e.preventDefault());
@@ -155,27 +191,45 @@ export function openMediaViewer({
   // drag EITHER direction — the image rides the finger and the viewer fades;
   // past the threshold on release = dismiss, under it = spring back.
   const DISMISS_PX = 80;
+  const TAP_PX = 10;   // ★ #1180: a press that moved less than this is a tap (click outside = close)
+  /* ★ #1180 (#46 r1 M2): a DOUBLE click on a tile opened the viewer and its second press closed it at once (the stage
+     tap / the scrim) — a tap-to-close counts only after the open fade (+ margin), and never a second click of a pair */
+  const TAP_CLOSE_AFTER_MS = 350;
+  const openedAt = performance.now();
+  const tapCloseReady = () => performance.now() - openedAt >= TAP_CLOSE_AFTER_MS;
   let startY = 0;
   let dragY = null;
+  let downOnImg = false;
+  let lastDownAt = openedAt;   // #46 r3: the double click's FIRST press opened the viewer (the stage never saw it) — the next press within 500 ms is its second
+  let secondOfPair = false;   // #46 r2 (3): the second press of a mouse double click (pointer events carry no click count)
   stage.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     startY = e.clientY;
     dragY = 0;
+    downOnImg = e.target === img;   // ★ #1180: where the press began (the capture below retargets the later events)
+    const now = performance.now();
+    secondOfPair = now - lastDownAt < 500;
+    lastDownAt = now;
     stage.setPointerCapture(e.pointerId);
     img.style.transition = 'none'; // finger-follow must not lag
   });
   stage.addEventListener('pointermove', (e) => {
     if (dragY === null) return;
     dragY = e.clientY - startY;
+    if (Math.abs(dragY) >= TAP_PX) el.style.transition = 'none';  // ★ #1180: once the finger really MOVES, the fade must not lag it (jitter / a still press leave the open fade alone)
     img.style.transform = 'translateY(' + dragY + 'px)';
     el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dragY) / 320));
   });
-  const endDrag = () => {
+  const endDrag = (e) => {
     if (dragY === null) return;
     const past = Math.abs(dragY) > DISMISS_PX;
+    /* ★ #1180: a TAP on the dim stage (not on the picture) closes — like the swipe; a cancelled press never does */
+    const tapOutside = !!e && e.type === 'pointerup' && Math.abs(dragY) < TAP_PX && !downOnImg && !secondOfPair && tapCloseReady();
     img.style.transition = ''; // spring-back transition returns (css)
-    if (past) {
+    el.style.transition = '';  // ★ #1180: the viewer's own fade returns — a swipe close fades from where the finger left it
+    if (past || tapOutside) {
       dismissOverlay(el);
+      el.style.opacity = '';   // ★ #1180: AFTER data-open went: the css close fade runs from the dragged opacity to 0
     } else {
       img.style.transform = '';
       el.style.opacity = '';
@@ -184,6 +238,13 @@ export function openMediaViewer({
   };
   stage.addEventListener('pointerup', endDrag);
   stage.addEventListener('pointercancel', endDrag);
+  /* ★ #1180: a click on the viewer's own dim ground around the bar / the foot / the caption (never on a button) closes
+     too — not the second click of a double click, not during the open fade (#46 r1 M2 / n2) */
+  el.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!t || !t.closest || t.closest('button') || (e.detail || 0) > 1 || !tapCloseReady()) return;
+    if (t === el || t.closest('.c-mviewer__bar') || t.closest('.c-mviewer__foot')) dismissOverlay(el);
+  });
 
   /* ★ #1166 V-3 (#46 r1 C-N4): every close path (✕, swipe, Esc, back) clears the wait timer and drops the viewer from
      openViewers — a closed viewer is never found and holds nothing. */
@@ -191,7 +252,13 @@ export function openMediaViewer({
     if (waitT) { clearTimeout(waitT); waitT = 0; }
     openViewers.delete(el);
   };
-  setOverlayOpts(el, { host, lightDismiss: true, escDismiss: true, onDismiss: onClosed });
+  /* ★ #1180 (#46 r1 M2): no scrim light-dismiss — the viewer covers its scrim once open, and before data-open lands the
+     click-through viewer let a double click's second press reach the scrim (open → closed at once). Outside taps close
+     through the stage / ground handlers above. */
+  setOverlayOpts(el, { host, lightDismiss: false, escDismiss: true, onDismiss: onClosed });
   openOverlay(el);
+  /* ★ #1180: the viewer's own scrim closes at the viewer's speed (overlay.css), so the two leave in the same frame */
+  const sc = el.previousElementSibling;
+  if (sc && sc.classList && sc.classList.contains('c-scrim')) sc.dataset.mviewer = '';
   return el;
 }

@@ -233,7 +233,7 @@ export default async function (h) {
         && /string uri = path != null \? \(await ViewerImage\.dataUriOfAsync\(path, stillWanted\) \?\? ""\) : "";\s*if \(!stillWanted\(\)\)\s*\{\s*return;\s*\}\s*MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*if \(page\.isDisposed\)\s*\{\s*return;\s*\}\s*Utils\.sendUiCommand\(page, "viewerImage", token, uri\);/.test(view)
         && (view.match(/ViewerImage\.dataUriOf/g) || []).length === 1 && /private volatile string\? viewerLatest = null;/.test(cd),
       delOffUi: /System\.Threading\.Tasks\.Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*if \(!SharedItems\.deleteLocal\(item\)\)/.test(del)
-        && /string json = SharedItems\.toJson\(SharedItems\.scan\(scanned\)\);/.test(del) && /if \(page\.isDisposed\)\s*\{\s*return;\s*\}\s*Utils\.sendUiCommand\(page, "setSharedItems", json\);/.test(del)
+        && /string json = SharedItems\.toJson\(page\.p1NoteShared\(SharedItems\.scan\(scanned\)\)\);/.test(del)   /* ★ #1194 re-base: the probe counter wraps the scan (pins-s6/probe.mjs) */ && /if \(page\.isDisposed\)\s*\{\s*return;\s*\}\s*Utils\.sendUiCommand\(page, "setSharedItems", json\);/.test(del)
         && !/File\.Delete/.test(del),
       dlNameOnly: /string\? name = SharedItems\.downloadsNameOf\(item\);/.test(dl) && /pushPageLoaded\(new DownloadsPage\(name\)\);/.test(dl) && !/item\.path/.test(dl),
       /* no path, name, label or id in a push or a log of the three verbs */
@@ -265,7 +265,7 @@ export default async function (h) {
         && /if \(!await decodeGate\.WaitAsync\(GateWaitMs\)\.ConfigureAwait\(false\)\)\s*\{\s*return null;\s*\}\s*bool wanted;\s*try\s*\{\s*wanted = stillWanted\(\);\s*\}\s*catch \(Exception\)\s*\{\s*wanted = false;\s*\}\s*if \(!wanted\)\s*\{\s*decodeGate\.Release\(\);\s*return null;\s*\}\s*return decodeHeld\(full\);/.test(vi)   /* #46 r2 NIT-1 re-base: a throwing stillWanted releases the slot */
         && !/decodeGate\.Wait\(/.test(vi.slice(vi.indexOf('dataUriOfAsync('), vi.indexOf('private static string? sourceOf('))),
       /* (#46 r1 C-N4) every close path clears the wait timer and drops the viewer from openViewers */
-      mvCloseCleans: /const onClosed = \(\) => \{\s*if \(waitT\) \{ clearTimeout\(waitT\); waitT = 0; \}\s*openViewers\.delete\(el\);\s*\};\s*setOverlayOpts\(el, \{ host, lightDismiss: true, escDismiss: true, onDismiss: onClosed \}\);/.test(stripCode(rd('src/components/media-viewer.js'))),
+      mvCloseCleans: /const onClosed = \(\) => \{\s*if \(waitT\) \{ clearTimeout\(waitT\); waitT = 0; \}\s*openViewers\.delete\(el\);\s*\};\s*setOverlayOpts\(el, \{ host, lightDismiss: false, escDismiss: true, onDismiss: onClosed \}\);/.test(stripCode(rd('src/components/media-viewer.js'))),   /* ★ #1180 re-base (#46 r1 M2): no scrim light-dismiss (pins-s6/view.mjs scrimClickStays) */
       viResultCap: /if \(jpeg == null \|\| !ViewerRules\.viewerJpegOk\(jpeg\.Length, MaxJpegBytes\)\)/.test(vi) && /return "data:image\/jpeg;base64," \+ Convert\.ToBase64String\(jpeg\);/.test(vi),
       viNoLog: !/Logging\./.test(vi),
     });

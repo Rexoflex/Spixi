@@ -20,6 +20,49 @@ namespace SPIXI
 	{
         private Friend friend = null;
         private bool customChatBtn = false;
+
+        /* ★ #1194 (Damir: the desktop chat-info CLOSE flickers with ~9+ media tiles, or with previews — not sure which)
+         * PROBE — TEMPORARY, retire with the [P1] set: the media-tile count and how many of them carry a preview, from
+         * the LAST shared-items push of this page. HomePage adds them to its `[P1] infopane close` line (integers only;
+         * -1 = no push yet). Written on the scan thread, read on the UI thread (ints: atomic). */
+        internal volatile int p1MediaTiles = -1;
+        internal volatile int p1MediaPreviews = -1;
+        /* ★ #1194 (#46 r4 m3): what the shell DRAWS in place — at most 9 media tiles (#1195, shared-items.js SHARED_INLINE_MAX)
+         * = the first 9 media rows in push order (parseSharedItems keeps C#'s order, reads the first 200 rows; sharedByKind
+         * keeps it; createSharedSection slices 0..9) — and how many of THOSE carry a preview. tiles= / previews= stay the scan's. */
+        private const int P1InlineMax = 9;        // = SHARED_INLINE_MAX
+        private const int P1ShellRowsRead = 200;  // = parseSharedItems rows.slice(0, 200)
+        internal volatile int p1MediaShown = -1;
+        internal volatile int p1MediaShownPreviews = -1;
+        internal System.Collections.Generic.List<SharedItem> p1NoteShared(System.Collections.Generic.List<SharedItem> items)
+        {
+            try
+            {
+                int tiles = 0, previews = 0, shown = 0, shownPreviews = 0, row = 0;
+                foreach (SharedItem it in items)
+                {
+                    if (it.kind == "media")
+                    {
+                        tiles++;
+                        if (it.thumb != null) previews++;
+                        if (row < P1ShellRowsRead && shown < P1InlineMax)
+                        {
+                            shown++;
+                            if (it.thumb != null) shownPreviews++;
+                        }
+                    }
+                    row++;
+                }
+                p1MediaTiles = tiles;
+                p1MediaPreviews = previews;
+                p1MediaShown = shown;
+                p1MediaShownPreviews = shownPreviews;
+            }
+            catch (Exception)
+            {
+            }
+            return items;
+        }
         // Unit 6 (#247): desktop pane hosting — "2" = the column beside the open
         // conversation, "1" = the detail slot, null = the mobile/full-span takeover.
         // Pushed to the shell BEFORE any content (SettingsPage setPaneMode pattern).
@@ -53,6 +96,24 @@ namespace SPIXI
              * It answered its question: docs/cdperf-2026-08-29-android.md holds BOTH
              * measurements and the trade the fix makes. The numbers are only there now. */
             loadPage(webView, "contact_details.html");
+        }
+
+        /* ★ #1176 (Damir, desktop): "Show in chat" from the chat-info pane BESIDE the conversation (column 2) used to
+         * close the pane — the jump went requestJump → popPageAsync → HomePage.onChat for every layout. Beside an open
+         * chat the pane now STAYS: requestJump alone scrolls that open chat (SingleChatPage.requestJump → its
+         * applyPendingJumpWindow). Phone / column 1 / a full-span page / no open chat: today's close + open (the rule,
+         * InfoPaneRules.showInChatClosesInfo, executed by scripts/csh). Runs on the WebView navigation (UI) thread,
+         * where HomePage writes the pane state. */
+        private void showInChat(SharedItem item)
+        {
+            SingleChatPage.requestJump(friend, item.id, item.depth);
+            bool beside = HomePage.InstanceOrNull()?.isInfoPaneBeside(this) == true;
+            if (!InfoPaneRules.showInChatClosesInfo(beside, Utils.getChatPage(friend) != null))
+            {
+                return;
+            }
+            popPageAsync();
+            HomePage.Instance()?.onChat(friend.walletAddress, null);
         }
 
         // #247: HomePage's toggle/close routing compares by address, never by instance.
@@ -574,7 +635,7 @@ namespace SPIXI
                     {
                         try
                         {
-                            string json = SharedItems.toJson(SharedItems.scan(scanned));
+                            string json = SharedItems.toJson(page.p1NoteShared(SharedItems.scan(scanned)));   // ★ #1194 probe — TEMPORARY
                             MainThread.BeginInvokeOnMainThread(() => Utils.sendUiCommand(page, "setSharedItems", json));
                         }
                         catch (Exception ex)
@@ -598,9 +659,7 @@ namespace SPIXI
                 }
                 else
                 {
-                    SingleChatPage.requestJump(friend, item.id, item.depth);
-                    popPageAsync();
-                    HomePage.Instance()?.onChat(friend.walletAddress, null);
+                    showInChat(item);   // ★ #1176
                 }
             }
             else if (current_url.StartsWith("ixian:sharedOpen:", StringComparison.Ordinal))
@@ -632,9 +691,7 @@ namespace SPIXI
                 }
                 else
                 {
-                    SingleChatPage.requestJump(friend, item.id, item.depth);
-                    popPageAsync();
-                    HomePage.Instance()?.onChat(friend.walletAddress, null);
+                    showInChat(item);   // ★ #1176
                 }
             }
             else if (current_url.Equals("ixian:sharedGroups", StringComparison.Ordinal))
@@ -719,6 +776,7 @@ namespace SPIXI
                 {
                     Friend scanned = friend;
                     ContactDetails page = this;
+                    bool deleted = false;   // ★ #1190: set on the task, read on the main thread below (after the scan)
                     System.Threading.Tasks.Task.Run(() =>
                     {
                         try
@@ -727,9 +785,34 @@ namespace SPIXI
                             {
                                 Logging.warn("ixian:sharedDeleteLocal: refused");   // a fixed word — no path, name or id
                             }
-                            string json = SharedItems.toJson(SharedItems.scan(scanned));
+                            else
+                            {
+                                deleted = true;
+                            }
+                            string json = SharedItems.toJson(page.p1NoteShared(SharedItems.scan(scanned)));   // ★ #1194 probe — TEMPORARY
                             MainThread.BeginInvokeOnMainThread(() =>
                             {
+                                /* ★★ #1190 (#1173 (3)): the OPEN chat learns of the delete. Before, nothing told it — the row kept
+                                 * its in-memory preview, so Show in chat → a tap opened the viewer on it and C# answered "" ("This
+                                 * image could not be opened"); a reopen rebuilt it as a dead glyph tile. Now the chat page of this
+                                 * conversation (Utils.getChatPage: the stack, the desktop overlay, a staging page), if any, re-pushes
+                                 * THIS row through refreshFileRow — the existing addFile push, whose 16th argument is now "0" → the
+                                 * shell drops the preview and draws "… deleted from this device" (the VoIP card re-push is the
+                                 * precedent). (#46 r4 M1) ONLY a row that page already holds: the scan reads far more rows than the
+                                 * chat loads, and a row from outside its window would be CREATED there (a "new message"); and the
+                                 * row's push only — no read-status side effects (SingleChatPage.fileRowsShown). Main thread:
+                                 * getChatPage walks the navigation stack. No new push, no log. */
+                                if (deleted && item.message != null)
+                                {
+                                    try
+                                    {
+                                        Utils.getChatPage(scanned)?.refreshFileRow(item.message, item.channel);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Logging.warn("ixian:sharedDeleteLocal: chat row " + ex.GetType().Name);   // the type only
+                                    }
+                                }
                                 if (page.isDisposed)
                                 {
                                     return;

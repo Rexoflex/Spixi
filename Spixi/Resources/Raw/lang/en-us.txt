@@ -681,7 +681,7 @@ global-share-choose = Choose Action
 global-share-savefile = Save File
 global-share-sharefile = Share File
 
-; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
+; Notifications (#334 AND-15) - per-type local notification copy (no message content; a member name only in the *-group keys, only with the sender-name setting on - #1178)
 notification-new-message = New Message
 notification-new-messages = {0} new messages
 notification-incoming-call = Incoming call
@@ -689,7 +689,12 @@ notification-missed-call = Missed call
 notification-payment-received = Payment received
 notification-payment-request = Payment request
 notification-app-invite = App invite
-notification-file = File received
+notification-file = Sent you a file
+notification-photo = Sent you a photo
+notification-file-group = {0} sent a file
+notification-photo-group = {0} sent a photo
+notification-file-neutral = New file
+notification-photo-neutral = New photo
 notification-contact-request = Contact request
 chat-new-norecipient-text = Please select a recipient to start the chat.
 group-limit-title = Too many members

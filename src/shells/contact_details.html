@@ -814,6 +814,7 @@
     if (state.txsBuf !== null) { state.txs = state.txsBuf; state.txsBuf = null; }
     if (state.membersBuf !== null) { state.members = state.membersBuf; state.membersBuf = null; state.membersLanded = true; }   // #248 roster · A8
     buildIfChanged();
+    if (sharedDeleteFocus && sharedDeleteFocus.armed) landSharedDeleteFocus();   // ★ #1190 (#46 r4 C1)
   }
 
   /* NO empty first paint (flicker fix): the boot spinner (in #contact-root markup)
@@ -927,9 +928,31 @@
   }
 
   /* ★ #1166 V-3 (#1154): "Delete from this device" asks first — an alertdialog, the item named (textContent only),
-     Cancel focused, Delete in the destructive fill. C# deletes, rescans and re-pushes setSharedItems (the tile turns
-     into its glyph; the message stays in the chat). */
+     Cancel focused, Delete in the destructive fill. C# deletes, rescans and re-pushes setSharedItems — ★ #1190: the scan
+     DROPS a received file deleted from this device, so the tile LEAVES the grid (the message stays in the chat, drawn
+     "… deleted from this device"). */
+  /* ★ #1190 (#46 r4 C1): the dialog hands focus back to its opener — the tile — which the re-push then removes, and
+     focus fell to <body>. Delete arms sharedDeleteFocus (the item's place among its kind); after the re-push renders
+     (the cover in place, the panel after its commit) focus lands on the tile now at that place, else the section's
+     selected tab — only when focus was lost (body / a detached node), never moved from somewhere real. */
+  let sharedDeleteFocus = null;   // { index, armed } — set by Delete, armed by the next setSharedItems
+  function landSharedDeleteFocus() {
+    const f = sharedDeleteFocus;
+    sharedDeleteFocus = null;
+    if (!f) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) return;
+    const over = cdSharedOpen ? document.querySelector('.cd-shared-takeover') : null;
+    const scope = over || root;
+    const panel = scope.querySelector(over ? '.c-shared-list__panel' : '.c-shared__panel');
+    const items = panel ? Array.from(panel.querySelectorAll('.c-shared__tile, .c-shared__row')) : [];
+    const target = items[Math.min(f.index, items.length - 1)]
+      || scope.querySelector(over ? '.c-shared-list__tab[aria-selected="true"]' : '.c-shared__chip[aria-selected="true"]')
+      || scope.querySelector('button');
+    try { if (target) target.focus({ preventScroll: true, focusVisible: false }); } catch (e) {}
+  }
   function confirmSharedDeleteLocal(item, token) {
+    const index = Math.max(0, (state.sharedItems || []).filter((x) => x.kind === item.kind).indexOf(item));
     openModal(createModal({
       title: strings.sharedDeleteLocalTitle || 'Delete from this device?',
       body: (strings.sharedDeleteLocalBody || '“{name}” is removed from this device. The message stays in the chat.').split('{name}').join(item.label),
@@ -938,7 +961,7 @@
       strings,
       actions: [
         { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-        { label: strings.deleteConfirm || 'Delete', type: 'fill', intent: 'destructive', onClick: () => bridge.send('ixian:sharedDeleteLocal:' + token) },
+        { label: strings.deleteConfirm || 'Delete', type: 'fill', intent: 'destructive', onClick: () => { sharedDeleteFocus = { index, armed: false }; bridge.send('ixian:sharedDeleteLocal:' + token); } },
       ],
     }));
   }
@@ -1298,6 +1321,10 @@
     setSharedItems(json) {
       state.sharedItems = parseSharedItems(json);
       refreshSharedTakeover();   // ★ #1166 V-3: a delete from the "See all" cover re-pushes — the open cover follows
+      if (sharedDeleteFocus) {   // ★ #1190 (#46 r4 C1): the cover is rebuilt now; the panel after its commit
+        sharedDeleteFocus.armed = true;
+        if (cdSharedOpen) landSharedDeleteFocus();
+      }
       scheduleCommit();
     },
 

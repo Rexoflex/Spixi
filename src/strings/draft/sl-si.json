@@ -807,5 +807,9 @@
   "sharedDeleteLocalBody": "»{name}« bo odstranjen s te naprave. Sporočilo ostane v klepetu.",
   "viewerFailed": "Te slike ni bilo mogoče odpreti.",
   "groupCounter": "{n} / {max}",
-  "groupLimitNote": "Skupina ima lahko poleg tebe največ 10 članov."
+  "groupLimitNote": "Skupina ima lahko poleg tebe največ 10 članov.",
+  "filePaused": "Začasno ustavljeno",
+  "fileDeletedLocal": "Datoteka je izbrisana s te naprave",
+  "fileUnavailable": "Ni na voljo v tej napravi",
+  "photoDeletedLocal": "Fotografija je izbrisana s te naprave"
 }

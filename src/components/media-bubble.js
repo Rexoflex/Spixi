@@ -27,6 +27,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { safeImageSrc } from './avatar.js';
 import { docLocale, timeOpts } from './timestamp.js';
+import { p1Log } from './p1.js';   // ★ #1181 A-FADE probe — TEMPORARY, retire with the [P1] set
 
 const mediaCtl = new WeakMap(); // tile el → { setSrc } (audit r3: setMediaSrc must reuse the closure state machine)
 /* #46 r3 R3-m1: the pictures this DOCUMENT has already shown (a fingerprint, not the URI — no second copy of a 60 K
@@ -189,6 +190,7 @@ export function createMediaBubble({
 
   let currentSrc = src; // may be swapped by setMediaSrc (file-transfer path)
   let revealGen = 0;     // ★ #1151: a newer load (or a drop) cancels a pending reveal
+  const pBorn = instantIfShown ? performance.now() : 0;   // ★ #1181 A-FADE probe — TEMPORARY
   const load = () => {
     if (!currentSrc) return;
     setState('loading');
@@ -214,10 +216,29 @@ export function createMediaBubble({
     /* ★ #1151 A-FADE: decode, then flip in the next frame from a recorded opacity-0 style (queueReveal above) */
     const mine = ++revealGen;
     const shown = currentSrc;
+    /* ★ #1181 A-FADE (WALK #1172, 3rd fail: "a white tile, then a sudden switch") — PROBE, not a fix (two fixes missed:
+       #1151, #1152). Dev-only [P1] lines for a preview tile: load → decoded (dec) → the flip frame (wait), the page
+       visibility at the flip, the age of the tile, then the fade's own end (or cancel / none) after the flip. Read with
+       a 60 fps screen recording: did the fade run while the picture was on screen? TEMPORARY, retire with the [P1] set. */
+    let pOn = false;
+    try { pOn = instantIfShown && document.documentElement.hasAttribute('data-p1'); } catch (_) {}   // #46 r1 n1: release builds attach nothing
+    const pT0 = pOn ? performance.now() : 0;
+    let pT1 = 0;
     const decoded = typeof img.decode === 'function' ? img.decode().catch(() => {}) : Promise.resolve();
-    decoded.then(() => queueReveal(el, () => {
-      if (mine !== revealGen || shown !== currentSrc || el.dataset.state !== 'loading') return;   // superseded / dropped
+    decoded.then(() => { pT1 = pT0 ? performance.now() : 0; }).then(() => queueReveal(el, () => {
+      if (mine !== revealGen || shown !== currentSrc || el.dataset.state !== 'loading') { if (pT0) p1Log('fade drop'); return; }   // superseded / dropped
       setState('loaded');
+      if (pT0) {
+        const pT2 = performance.now();
+        let vis = 1;
+        try { vis = document.visibilityState === 'hidden' ? 0 : 1; } catch (_) {}
+        p1Log('fade flip dec=' + Math.round(pT1 - pT0) + ' wait=' + Math.round(pT2 - pT1) + ' age=' + Math.round(pT2 - pBorn) + ' vis=' + vis);
+        const pEnd = (how) => (e) => { if (e.target !== img || e.propertyName !== 'opacity') return; img.removeEventListener('transitionend', pE); img.removeEventListener('transitioncancel', pC); p1Log('fade ' + how + ' ms=' + Math.round(performance.now() - pT2)); };
+        const pE = pEnd('end');
+        const pC = pEnd('cancel');
+        img.addEventListener('transitionend', pE);
+        img.addEventListener('transitioncancel', pC);
+      }
       landed();
       /* #46 r4 M1: "shown" at the fade's END (or the next frame with no fade) — recorded in this frame, a re-render
          queued after it re-built the tile as seen → a pop. A tile re-built away / re-sourced first records nothing. */
@@ -272,7 +293,7 @@ export function createMediaBubble({
     load();
     /* #46 r3 R3-m1: already shown here → decoded in this document's memory: loaded NOW, no fade (data-seen drops the
        transition). The img's own load event still lands (onLoad, sizing); a decode error still drops it (B-1). */
-    if (instantIfShown && shownSrcs.has(shownKey(src))) { el.dataset.seen = ''; setState('loaded'); }
+    if (instantIfShown && shownSrcs.has(shownKey(src))) { el.dataset.seen = ''; setState('loaded'); p1Log('fade seen'); }   // ★ #1181 probe: built as already shown (no fade by design)
   }
 
   // reactions overlap-anchor (audit r3): pills can't live INSIDE the tile —
@@ -292,4 +313,41 @@ export function setMediaSrc(row, src, sizeHint = null) {
   if (!el || !src) return;
   const ctl = mediaCtl.get(el);
   if (ctl) ctl.setSrc(src, sizeHint);
+}
+
+/* ★★ #1170 (Damir, Windows: "in a GROUP a received GIF shows NO sender name and NO avatar"). Since the #82 tile
+ * (2026-07-07) only TEXT rows carried the group head: the shell passed `sender` / `showAvatar` / `onSenderClick` to
+ * createMessageBubble and nothing to the media / file tiles (an empty gutter only). The head nodes are NOT built here:
+ * the shell builds them through createMessageBubble itself, with the SAME options a text row gets (the D-19b ladder,
+ * the #99 tap, the W8 #348 blind gate, the N34 Owner chip) — one builder, so a tile's head cannot drift from a text
+ * row's. This only PLACES them: the avatar in the row's gutter (made if the tile had none), the label above the tile
+ * — inside the media anchor (its definite width keeps the audit-r4 rule), or in a `.c-tile-col` column around a file
+ * card (a <button> card cannot hold the label's <button>). The row takes the run position (the in-run gap) and the
+ * `data-gutter` inset a text row's gutter row takes (Session K) — same column as the text bubbles above it.
+ * setTileHead(row, { position, label, avatar }) — label / avatar: nodes or null. Received rows only. */
+export function setTileHead(row, { position = 'single', label = null, avatar = null } = {}) {
+  if (!row || row.dataset.direction !== 'received') return row;
+  row.dataset.position = position;
+  let gutter = Array.from(row.children).find((c) => c.classList.contains('c-bubble-row__gutter')) || null;
+  if (!gutter) {
+    gutter = document.createElement('span');
+    gutter.className = 'c-bubble-row__gutter';
+    row.prepend(gutter);
+  }
+  row.dataset.gutter = '';
+  if (avatar) gutter.replaceChildren(avatar);
+  if (label) {
+    let col = row.querySelector('.c-mbubble-anchor');
+    if (!col) {
+      const card = Array.from(row.children).find((c) => c !== gutter);
+      if (!card) return row;
+      col = document.createElement('div');
+      col.className = 'c-tile-col';
+      card.before(col);
+      col.append(card);
+    }
+    label.classList.add('c-bubble__sender--tile');
+    col.prepend(label);
+  }
+  return row;
 }

@@ -703,6 +703,11 @@ namespace SPIXI
                         Logging.warn("Exception while deleting a download: " + ex.GetType().Name);   // ★ #1107 gate: the type — the message can carry the path
                     }
                 }
+                /* TODO(#1190, #46 r4 m2): an OPEN chat that holds this file's row is not told — its held preview stays and a
+                 * tap opens the viewer on it ("This image could not be opened") until the chat reloads. The chat-info delete
+                 * re-pushes the row (SingleChatPage.refreshFileRow); here that is not a one-line call: the row must be
+                 * resolved BEFORE File.Delete (DownloadsIndex.sourceOf re-checks the file on disk), and DownloadSource
+                 * carries no channel. Decide with DECISIONS #1190 before wiring it. */
                 // Q1 review (#266/#267 loop): refresh UNCONDITIONALLY — a rejected name or a
                 // failed delete previously left the shell list stale and silent.
                 loadDownloads(false);   // (#46 r1 B2) the sender index is reused — no history rescan per delete (a delete only removes; a NEW file arrives only with a new download, and the screen is rebuilt — and rescanned — on its next open, #46 r3 R3-1)

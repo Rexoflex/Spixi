@@ -8539,7 +8539,16 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      (+7 360), the V-3 chat viewer + P-04 setAvatarFor + R3-N2 hold + R3-N3 live progress + NIT-1 helper (+8 806), the media-viewer
      loading API (+1 602). 747 leaves 683 chars, 748 leaves 1 707. index.html 555 589 → 562 104 (+6 515): P-03 row patches + the
      addChats / addContacts batch + setAvatarFor (+6 298) and lever 12 (+225). 549 leaves 72, 550 leaves 1 096. Stated, not silent. */
-  const CHAT_KB_CEIL = 748, INDEX_KB_CEIL = 550;
+  /* ★ session 6 (#1170 · #1171 · #1174 · #1177 · #1180 · #1181 + the #46 r1–r3 fixes, MEASURED after the last fix): CHAT 748 → 757,
+     INDEX 550 → 551, delta stated (#345). chat.html 765 314 → 773 612 chars (+8 298): the #1170 group head on media / file tiles
+     (senderHeadOpts + tileHead + setTileHead), the #1174 document press record, the #1177 paused tile (+ its aria restore), the
+     #1180 viewer motion + click-outside + double-click / decode-error guards, the #1181 dev-only fade probe. 756 leaves 532 chars,
+     757 leaves 1 556. index.html 562 239 → 563 168 (+929):
+     the #1171 hover carry + the #1174 guard; 550 left 32 chars, 551 leaves 1 056. Stated, not silent. */
+  /* ★ session 6a round 2 (#1190 · #1191, MEASURED after the merge): CHAT 757 → 760. chat.html 773 612 → 776 369 chars (+2 757):
+     #1190 the not-available card / deleted bubble + fLocal intake + the live delete re-push, #1191 the in-place member
+     avatar swap. 759 leaves 847 chars, 760 leaves 1 871. index.html unchanged (563 168). Stated, not silent. */
+  const CHAT_KB_CEIL = 760, INDEX_KB_CEIL = 551;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -21494,11 +21503,11 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const chDead = rdf('Spixi/Resources/Raw/html/chat.html');
     /* ★★ #1028 INVERTS this paired negative (#835 — inverted, not deleted): the shipped addFile handler now READS
        `sent`/`read` (and the relay flag, arg 14) into the status it renders, which is why the C# derivation is back. */
-    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
+    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
       '★★ L2 (#641) PAIRED — INVERTED by #1028: the shipped addFile handler READS `sent`/`read` (+ the relay flag) into the tick it renders, so the C# derivation is back on that push (the negative this replaced said: if the shell ever reads them, the C# must come back)');
     ok(/"updateMessage", Crypto\.hashToString\(message\.id\), message\.message, tSent\.ToString\(\), tConfirmed\.ToString\(\), tRead\.ToString\(\)/.test(scp),
       '★ L2 (#641): updateMessage pushes the DERIVED values, not the stored ones — the raw flags would re-stall the tick on every re-push');
-    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\)\);/.test(scp)
+    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\), fTransfer, fLocal\);/.test(scp)   /* ★ #1177 re-base: + the trailing transfer arg */
        && /"addAppRequest"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp),
       '★ L2 (#641) + #1028: the FILE push carries the DERIVED flags now (the card renders a tick); the APP push keeps the RAW flags — deriving values the shell throws away would be dead code with a false guarantee attached');
     /* ★★★ L2 (#649) — NO OPTIMISTIC SINGLE CHECK. Damir ruled against his own earlier
@@ -38407,7 +38416,7 @@ console.log('★★ #1028+ — the overnight finalization');
     const fileBr = um.slice(um.indexOf('if (message.type == FriendMessageType.fileHeader)'), um.indexOf('if (message.type != FriendMessageType.standard)'));
     const r = {
       derivedBeforePush: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*push\(batch, "addFile"/.test(cs),
-      argOrder: args.length === 14 && args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()',
+      argOrder: args.length === 16 && args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()' && args[14] === 'fTransfer' && args[15] === 'fLocal',   /* ★ #1177 re-base: + arg 15, the known incoming transfer (pins-s6/cs.mjs) · ★ #1190 re-base: + arg 16, the file on this device (pins-s6/rows.mjs) */
       liveFlagsOnly: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*Utils\.sendUiCommand\(this, "updateFileTicks", Crypto\.hashToString\(message\.id\), fSent\.ToString\(\), fConfirmed\.ToString\(\), fRead\.ToString\(\)\);\s*return;/.test(fileBr)
         && !/message\.message|filePath|transferId/.test(fileBr),
       beforeTextGuard: um.indexOf('FriendMessageType.fileHeader') > -1 && um.indexOf('FriendMessageType.fileHeader') < um.indexOf('if (message.type != FriendMessageType.standard)'),
@@ -40840,7 +40849,7 @@ console.log('#1101–#1107 — session 1');
       offUiThreadNoBots: /if \(!friend\.bot\)\s*\{[\s\S]*?System\.Threading\.Tasks\.Task\.Run\(/.test(items),
       openRule: /SharedItem\? item = SharedItems\.resolve\(friend, token\);/.test(open) && /Utils\.openExternal\(item\.url\);/.test(open)
         && /else if \(item\.kind == "file" && item\.path != null && System\.IO\.File\.Exists\(item\.path\)\)\s*\{\s*try\s*\{\s*SFileOperations\.open\(item\.path\);\s*\}\s*catch \(Exception ex\)/.test(open)   /* (#46 r3 R3-5) a missing app association must not throw out of onNavigating */
-        && /SingleChatPage\.requestJump\(friend, item\.id, item\.depth\);/.test(open) && !/token\)\s*;?\s*\n?\s*SFileOperations|open\(token/.test(open),
+        && /showInChat\(item\);/.test(open) && /private void showInChat\(SharedItem item\)\s*\{\s*SingleChatPage\.requestJump\(friend, item\.id, item\.depth\);/.test(cd) && !/token\)\s*;?\s*\n?\s*SFileOperations|open\(token/.test(open),   /* ★ #1176 re-base: the jump moved into showInChat (the beside pane stays open; pins-s6/cs.mjs) */
     };
     ok(Object.values(r).every(Boolean),
       '★★ #1106 SECURITY: the WebView never receives a path or a click target (JsonIgnore) and sends back only "<hex id>:<n>", which C# resolves from ITS OWN last scan; a file opens only from a C#-resolved path (received → the vetted Downloads-root rule, sent → an absolute existing path); thumbnails are small LOCAL images only, nothing remote; the scan reads storage directly (never replaces Core\'s cache) OFF the UI thread and never for a bot room; its log lines carry counts only — ' + JSON.stringify(r));
@@ -40894,12 +40903,12 @@ console.log('#1101–#1107 — session 1');
     const S = W.Spixi;
     const got = [];
     const many = Array.from({ length: 9 }, (_, i) => ({ id: 'e' + i, n: 0, kind: 'file', label: 'f' + i, size: 1, ts: T - i, local: true, thumb: null }));
-    /* G-6 re-base: ≤ 60 of a kind show IN PLACE; "Show all N" only past that (the #1110 preview of 3 is retired) */
+    /* G-6 re-base: ≤ SHARED_INLINE_MAX of a kind show IN PLACE (★ #1195: 9, was 60); "Show all N" only past that (the #1110 preview of 3 is retired) */
     const lots = Array.from({ length: 61 }, (_, i) => ({ id: 'e' + i.toString(16), n: 0, kind: 'file', label: 'f' + i, size: 1, ts: T - i, local: true, thumb: null }));
     const sec = S.createSharedSection({ items: lots, strings: {}, onOpen: (it) => got.push(it.id + ':' + it.n), onAll: (k) => got.push('all:' + k) });
     sec.querySelector('.c-shared__row').click();
     sec.querySelector('.c-shared__all').click();
-    r.tapContract = got.join() === 'e0:0,all:file' && sec.querySelectorAll('.c-shared__row').length === 60;
+    r.tapContract = got.join() === 'e0:0,all:file' && sec.querySelectorAll('.c-shared__row').length === 9;   /* ★ #1195 re-base: 9 of a kind in place (was 60) */
     const list = S.createSharedList({ items: many.concat([{ id: 'f0', n: 0, kind: 'link', label: 'a.com', size: 0, ts: T, local: false, thumb: null }]), tab: 'link', strings: {}, onOpen: () => {}, onBack: () => {} });
     const tabs = [...list.querySelectorAll('[role="tab"]')];
     r.seeAll = tabs.length === 2 && tabs[1].getAttribute('aria-selected') === 'true' && list.querySelectorAll('.c-shared__row').length === 1;
@@ -41476,7 +41485,7 @@ console.log('#1101–#1107 — session 1');
     const r = {
       chips: chips.map((c) => c.textContent.trim()).join('|') === 'Media 64|Files 1|Links 1' && sec.querySelector('[role="tablist"]') && chips.every((c) => c.getAttribute('role') === 'tab'),
       mediaFirst: sec.dataset.kind === 'media' && chips[0].getAttribute('aria-selected') === 'true',
-      inlineCap: sec.querySelectorAll('.c-shared__tile').length === 60 && /Show all 64/.test((sec.querySelector('.c-shared__all') || {}).textContent || ''),
+      inlineCap: sec.querySelectorAll('.c-shared__tile').length === 9 && /Show all 64/.test(   /* ★ #1195 re-base: 9 in place (pins-s6/probe.mjs) */(sec.querySelector('.c-shared__all') || {}).textContent || ''),
     };
     (sec.querySelector('.c-shared__all') || { click() {} }).click();   /* (#46 r1 m8) a missing node fails THIS pin, never the run */
     r.showAll = alls.join() === 'media';
@@ -41541,8 +41550,8 @@ console.log('#1101–#1107 — session 1');
     r.clickIsAPick = sec2.dataset.kind === 'file' && picks.join() === 'media,file';   /* (#46 r3 R3-m1) a chip CLICK is a pick too */
     [...sec2.querySelectorAll('.c-shared__chip')][1].dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     r.arrowLeftIsAPick = sec2.dataset.kind === 'media' && picks.join() === 'media,file,media';   /* (#46 r4 R4-m3) */
-    /* exactly 60 → no "Show all" (n2) */
-    r.sixtyInPlace = (() => { const x = S.createSharedSection({ items: items.slice(0, 60), strings: {}, onOpen: () => {}, onAll: () => {} }); return x.querySelectorAll('.c-shared__tile').length === 60 && !x.querySelector('.c-shared__all'); })();
+    /* exactly the cap → no "Show all" (n2) · ★ #1195 re-base: the cap is 9 (was 60) */
+    r.sixtyInPlace = (() => { const x = S.createSharedSection({ items: items.slice(0, 9), strings: {}, onOpen: () => {}, onAll: () => {} }); return x.querySelectorAll('.c-shared__tile').length === 9 && !x.querySelector('.c-shared__all'); })();
     /* the menu: Open · Show in chat (+ Copy link for a link) — never a delete or share row (no verb yet, #1120) */
     const acts = [];
     const m1 = S.openSharedItemMenu({ item: items[64], host: W.document.body, strings: {}, onAction: (a) => acts.push(a) });
@@ -41581,7 +41590,8 @@ console.log('#1101–#1107 — session 1');
       && (cdh.match(/sharedTab: cdSharedTab, onSharedTab: \(k\) => \{ cdSharedTab = k; \},/g) || []).length === 2   /* (#46 r1 B2) */
       && /createSharedSection\(\{ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll, onMenu: onSharedMenu, tab: sharedTab, onTab: onSharedTab \}\)/.test(ci);   /* (#46 r2 R2-m2) …and chat-info hands it on */
     /* C#: a token only, resolved from C#'s own scan, the existing jump — nothing opened, fetched or deleted */
-    r.cs = /SharedItem\? item = SharedItems\.resolve\(friend, token\);/.test(show) && /SingleChatPage\.requestJump\(friend, item\.id, item\.depth\);\s*popPageAsync\(\);\s*HomePage\.Instance\(\)\?\.onChat\(friend\.walletAddress, null\);/.test(show)   /* (#46 r2 R2-m4) contact details closes */
+    r.cs = /SharedItem\? item = SharedItems\.resolve\(friend, token\);/.test(show) && /showInChat\(item\);/.test(show)
+      && /SingleChatPage\.requestJump\(friend, item\.id, item\.depth\);[\s\S]{0,200}?if \(!InfoPaneRules\.showInChatClosesInfo\(beside, Utils\.getChatPage\(friend\) != null\)\)\s*\{\s*return;\s*\}\s*popPageAsync\(\);\s*HomePage\.Instance\(\)\?\.onChat\(friend\.walletAddress, null\);/.test(stripCode(cd))   /* (#46 r2 R2-m4) contact details closes · ★ #1176 re-base: except the desktop beside pane (InfoPaneRules, pins-s6/cs.mjs) */
       && !/openExternal|SFileOperations|deleteMessage|File\.Delete/.test(show);
     ok(Object.values(r).every(Boolean),
       '★ G-6 (#1119 Damir picked render 1 "Telegram" + the menu sheet; #1120 the menu verbs): chat info ends with the shared items — kind chips (tabs) that switch IN PLACE, media an edge-to-edge 3-col grid (2 px, top corners rounded), ≤ 60 per kind then "Show all N", files/links in a card; a 500 ms still press (or a right click) opens the item menu and swallows the click after it, a move cancels it, a tap still opens; the menu = Open · Show in chat (+ Copy link) with NO delete/share row until its verb exists; "Show in chat" sends a token only and C# makes the existing jump — ' + JSON.stringify(r) + ' errs: ' + errs.slice(0, 2).join(' | '));
@@ -41762,7 +41772,7 @@ console.log('#1101–#1107 — session 1');
       tries: /if \(thumbs >= ThumbMaxCount \|\| tries >= ThumbMaxCount \|\| thumbBytes >= ThumbTotalMax\)/.test(si) && /tries\+\+;\s*it\.thumb = thumbOf\(it\.path\);/.test(si),
       cached: /string key = fi\.FullName \+ "\|" \+ fi\.Length\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\)\s*\+ "\|" \+ fi\.LastWriteTimeUtc\.Ticks/.test(si)
         && /if \(thumbCache\.Count >= ThumbCacheMax\)\s*\{\s*thumbCache\.Clear\(\);/.test(si),
-      matchesInline: /export const SHARED_INLINE_MAX = 60;/.test(rdS2('src/components/shared-items.js')),
+      matchesInline: /export const SHARED_INLINE_MAX = 9;/.test(rdS2('src/components/shared-items.js')) && /public const int ThumbMaxCount = 60;/.test(si),   /* ★ #1195 re-base: 9 in place, C# still makes 60 previews for the full grid */
     };
     ok(Object.values(r).every(Boolean),
       '★ G-6b (#1121): a photo bigger than 64 KB (every phone photo) gets a REAL thumbnail — a ~160 px square JPEG decoded at a SMALL size by the platform (Android bounds + inSampleSize · Apple CGImageSource thumbnail · Windows a scaled decoder; never the full bitmap, never the whole file in the push), a 20 MB source cap, made once per file version (memory cache), up to the 60 tiles shown in place; local files only; (#46 r1 A2) a contact\'s file reaches a decoder only when its first bytes are an expected image format (ImageSniff, executed by scripts/csh), ≤ 20 MB — ' + JSON.stringify(r));
@@ -41988,6 +41998,10 @@ for (const mod of ['cs', 'nav', 'chat', 'main', 'fix2', 'fixr1', 'fixr2', 'fix3'
 /* ==== SESSION 5 PINS — p0 = the #1155 message-loss guard · win = #1153 · read = #1163 (no implied read) ==== */
 for (const mod of ['p0', 'win', 'read', 'home', 'motion', 'viewer', 'history', 'media']) {   // win = #1153 (Windows white window) · read = #1163 / #1164 (session 5b) · home…media = #1166 (session 5b build)
   await (await import(new URL('./pins-s5/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
+}
+/* ==== SESSION 6 PINS — view = #1180 W-VIEW + #1181 A-FADE probe · group = #1170 · menu = #1174 · hover = #1171 · cs = #1175–#1178 ==== */
+for (const mod of ['view', 'group', 'menu', 'hover', 'cs', 'rows', 'live', 'probe']) {   // rows = #1190 · live = #1191–#1193 · probe = #1194 / #1195
+  await (await import(new URL('./pins-s6/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 }
 

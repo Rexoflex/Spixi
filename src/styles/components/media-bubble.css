@@ -199,7 +199,7 @@
   visibility: visible;
   transition: opacity var(--duration-200) var(--easing-standard);   /* #1147 (5): from quiet, the scrim face fades in with the picture (was none: no fade existed) */
   z-index: 1;   /* above the picture (same layer, later in the tile); the stamp follows it, so it stays on top */
-  background: var(--surface-scrim);   /* #46 r3 R3-M1: the INK-carrying scrim (mode-less 0.6; --text-on-scrim on it over a white photo = 4.69:1, computed — r4 NIT-1) — -deep is a halved overlay wash in light (≈ 2.2:1) */
+  background: var(--surface-scrim-strong);   /* ★★ #1193 (#1168 A): darker, mode-less 0.72 (was --surface-scrim 0.6); on-scrim text over a white photo ≈ 7.2:1 (pins-s6/live) */
   color: var(--text-on-scrim);
 }
 .c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__ring > .c-fbubble__icon { visibility: hidden; }
@@ -209,7 +209,7 @@
 .c-mbubble[data-seen][data-state="loaded"] .c-mbubble__file { transition: none; }
 /* #46 r3 R3-M1: the ring on the scrim takes the on-scrim pair (the spinner's: wash track · on-scrim fill) — the
    card's primary fill reads < 3:1 on a dark scrim */
-.c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__ring-track { stroke: var(--surface-wash-on-hero); }
+.c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__ring-track { stroke: var(--surface-wash-on-scrim-strong); }   /* ★★ #1193: 0.28 (was --surface-wash-on-hero 0.12); fill / track ≈ 3.6:1 on white */
 .c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__ring-fill { stroke: var(--icon-on-scrim); }
 .c-mbubble__cap {
   max-width: 100%;
@@ -291,3 +291,25 @@
   color: inherit;
 }
 .c-mbubble__time, .c-mbubble__stamp { z-index: 1; }   /* above the face */
+
+/* ★ #1170: the group head on a TILE (media, photo file, file card). The label is the text row's own
+   .c-bubble__sender (same face, hue, button, Owner chip — message-bubble.css); it sits ABOVE the tile instead of
+   inside a bubble, so it takes the bubble's inline padding as its indent (it lines up with a text row's name) and
+   the in-bubble gap below it. A file card is wrapped in a column so the label can sit on top; the column carries the
+   card rail (a definite base), the card fills it. */
+.c-bubble__sender--tile {
+  padding-inline: var(--bubble-pad-x);
+  margin-bottom: var(--spacing-4);
+}
+button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pad-x); }   /* beats message-bubble.css `button.c-bubble__sender { padding: 0 }` in any load order */
+.c-tile-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  /* #46 r1 m2: a DEFINITE width (the card rail), so reactions.js measureOverlapFloor (parent clientWidth) can grow a short
+     card for its pills (#570) — the card inside keeps its own size (align-items: flex-start) */
+  width: min(var(--bubble-max-pct), var(--layout-card-max));
+  max-width: 100%;
+}
+.c-tile-col > .c-fbubble { max-width: 100%; }

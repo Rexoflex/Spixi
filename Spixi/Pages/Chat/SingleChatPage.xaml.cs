@@ -1259,6 +1259,36 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setAvatar", Utils.imageToDataUri(chat_avatar));
         }
 
+        /** ★ #1191 (#1173 (5), W-AVATAR): a group / bot MEMBER changed their avatar while this chat is open
+         *  (StreamProcessor `case avatar`, MAIN THREAD). Re-send that address's picture through the SAME path a row
+         *  takes (avatarForRow → `setAvatarFor`, sent only when this document's ledger holds a different picture); the
+         *  shell swaps the disc of every drawn row of that address in place. Only a multi chat; only a member this page
+         *  already sent a picture for, or — not in a blind room (Utils.hidesParticipants) — a member on its roster
+         *  (BotUsers.hasUser), so no address reaches a page that did not already carry it. No avatar file → nothing. */
+        public void refreshMemberAvatar(Address member)
+        {
+            if (friend == null || !(friend.bot || friend.type == FriendType.Group) || member == null)
+            {
+                return;
+            }
+            string address = member.ToString();
+            bool known;
+            lock (avatarSent)
+            {
+                known = avatarSent.ContainsKey(address);
+            }
+            if (!known && (Utils.hidesParticipants(friend) || friend.users == null || !friend.users.hasUser(member)))
+            {
+                return;
+            }
+            string? path = IxianHandler.localStorage.getAvatarPath(address);
+            if (path == null)
+            {
+                return;
+            }
+            avatarForRow(Utils.imageToDataUri(path), member);
+        }
+
         private void onLoad()
         {
             // N51 (N50 loop A-3/B-4 lesson): a shell reload (reloadAllPages on a theme
@@ -3009,6 +3039,10 @@ namespace SPIXI
                 // load-more). ★ Session P: `messagesDone` ends the burst at once — the emptied
                 // log paints on the signal, not on the shell's 250 ms safety timer.
                 historyAnchor = null;   // ★ #1166 B2: the shell holds nothing — the next load-more re-flushes
+                lock (fileRowsShown)
+                {
+                    fileRowsShown.Clear();   // ★ #1190 (#46 r4 M1)
+                }
                 Utils.sendUiCommand(this, "clearMessages", "false");
                 Utils.sendUiCommand(this, "messagesDone");
                 pushPendingJump();   // ★ #1106: the shell answers "not found" with its toast
@@ -3032,6 +3066,7 @@ namespace SPIXI
              * the safe direction for bounding that window. Read a large `t=` as "the window was wide",
              * not as "serialization is slow". Measure before anyone dials the timeout (#294). */
             System.Diagnostics.Stopwatch buildClock = System.Diagnostics.Stopwatch.StartNew();
+            bool zeroedUnread = false;   // ★ #1175: the true row is re-pushed AFTER the lock (see below)
             lock (messages)
             {
                 // #907: skip the oldest VISIBLE rows beyond the window. The loop below passes
@@ -3063,6 +3098,7 @@ namespace SPIXI
                 {
                     friend.metaData.unreadMessageCount = 0;
                     friend.saveMetaData();
+                    zeroedUnread = true;   // ★ #1175: + the true row, after the lock (pushZeroedChatRow)
                     // iOS-8 (#283): announce the zeroed count to the chats list NOW.
                     // updateMessageReadStatus pushes setContactStatus only when it marks a
                     // markable message read — and it deliberately skips requestAdd — so a chat
@@ -3080,6 +3116,13 @@ namespace SPIXI
                 if (!prepend)
                 {
                     clearReactionFlag();   // ★ #1148 (4): the chats-list heart clears where the count clears (★ #1166 B2: on entering only)
+                }
+                if (!prepend)
+                {
+                    lock (fileRowsShown)
+                    {
+                        fileRowsShown.Clear();   // ★ #1190 (#46 r4 M1): a full re-flush — the shell is cleared in this burst
+                    }
                 }
                 lastLoadPushed = 0;   // ★ Session I [CDPERF]
                 byte[]? firstPushedId = null;   // ★ #1166 B2: the oldest row this load hands the shell = the next prepend's anchor
@@ -3198,6 +3241,62 @@ namespace SPIXI
                 {
                     enqueueThumb(t.Key, t.Value);
                 }
+            }
+            if (zeroedUnread)
+            {
+                pushZeroedChatRow();   // ★ #1175 (outside `lock (messages)`: updateChat takes HomePage.refreshLock)
+            }
+        }
+
+        /* ★ #1175 (Android, a group row kept unread 1 + chips + the Chats tab badge after the chat was opened, until a
+         * restart). The literal-0 setContactStatus above only reaches HomePage's status CACHE, flushed on its next tick
+         * (HomePage.updateContactStatus), and since #1166 P-03 no full chats flush follows an open on Android (the chat is
+         * an overlay; HomePage stays the nav top). DEFENSIVE half (the mechanism is still open): after the zero + save,
+         * push the TRUE row at once — UIHelpers.pushChatRowLive = a lone addChat from metaData (unread = the 0 just saved)
+         * when HomePage is live, else the refresh flag (one batched full flush on the next tick with HomePage on top).
+         * (#46 F1-2) NOT refreshChatRow: its unconditional flag ran a full chats + contacts flush on EVERY open with unread,
+         * undoing #1166 P-03 on Android. Safe off the UI thread: pushChatRowLive reads the nav stack through `?.`, and
+         * HomePage.updateChat → Utils.sendUiCommand only queues (SpixiContentPage.sendMessage). It never throws out of
+         * here: a failure keeps the cache push + the flag. */
+        private void pushZeroedChatRow()
+        {
+            try
+            {
+                UIHelpers.pushChatRowLive(friend);
+            }
+            catch (Exception e)
+            {
+                UIHelpers.shouldRefreshContacts = true;
+                Logging.warn("[UNREAD] row re-push failed: " + e.GetType().Name);
+            }
+        }
+
+        /* ★ #1177 (Android: a big download, the phone locked mid-transfer — the reopened chat showed "Tap to download" for
+         * ~5 s until the next updateFile). addFile only knows "0" / "100", the shell maps incoming + 0 % to the OFFER, and
+         * its liveTransfers memory (R3-N3) dies with the document. TransferManager still holds the transfer: when it is
+         * an ACCEPTED incoming one (acceptFile made its stream), say "live:<pct>" / "paused:<pct>" (FileRowRules — the
+         * percent is requestFileData's own; paused = no packet for FileRowRules.PausedAfterSeconds). "" = say nothing
+         * (outgoing, completed, an offer, no transfer). ⚠ getIncomingTransfer matches with uid.Contains — an empty uid
+         * would match the FIRST transfer, so it is never asked; the list is read unlocked there, so a throw = "". */
+        private static string incomingTransferArg(FriendMessage message, string uid)
+        {
+            if (message.localSender || message.completed || string.IsNullOrEmpty(uid))
+            {
+                return "";
+            }
+            try
+            {
+                FileTransfer? t = TransferManager.getIncomingTransfer(uid);
+                if (t == null || t.uid != uid)
+                {
+                    return "";
+                }
+                return FileRowRules.transferStateArg(true, t.completed, true, t.fileStream != null,
+                    t.lastPacket, t.fileSize, t.packetSize, t.lastTimeStamp, Clock.getTimestamp());
+            }
+            catch (Exception)
+            {
+                return "";
             }
         }
 
@@ -3343,6 +3442,55 @@ namespace SPIXI
             insertMessage(message, channel, null);   // ★ Session P: the LIVE path — one push per row, unchanged
         }
 
+        /* ★★ #1190 (#46 r4 M1) — WHICH FILE ROWS THIS DOCUMENT HOLDS. The chat-info "Delete from this device" re-push
+         * (ContactDetails ixian:sharedDeleteLocal) used to call insertMessage for the scanned row — but the scan reads up to
+         * SharedItems' own window (thousands of rows) while the chat holds ~50: a row from OUTSIDE the loaded window was
+         * CREATED by the shell's upsertFile (at its time position, a "live arrival" for the new-message pill), and the call
+         * ran the read-status side effects (updateMessageReadStatus: a read flag + a receipt) on an old row. Now insertMessage's
+         * file branch records every file row id it pushes for this document (load burst, prepend, live), a full (re)load
+         * starts the set over (loadMessages, !prepend — the shell is cleared in the same burst), a delete drops the id; and
+         * refreshFileRow re-pushes a row ONLY when this set holds it — through the same addFile push, which the shell
+         * applies to the EXISTING row in place (upsertFile: `existing` → no arrival count, "0" drops the held preview) —
+         * and returns right after that push and its preview check (noteThumbCandidate: the file is gone, so the job finds no
+         * local path and sends nothing) — no updateMessageReadStatus. Main thread (the caller's). */
+        private readonly HashSet<string> fileRowsShown = new HashSet<string>(StringComparer.Ordinal);   // hex message ids — lock itself
+        /* the "row only" mode of insertMessage, set by refreshFileRow around its ONE call (System.ThreadStaticAttribute: per
+         * thread, so a load on another thread never sees it; the private signature stays the one the suites slice on). */
+        [ThreadStatic] private static bool fileRowOnlyPass;
+
+        /** ★ #1190 (#46 r4 M1): does this document hold the file row `id` of `channel`? */
+        public bool hasLoadedFileRow(byte[]? id, int channel)
+        {
+            if (id == null || channel != selectedChannel)
+            {
+                return false;
+            }
+            lock (fileRowsShown)
+            {
+                return fileRowsShown.Contains(Crypto.hashToString(id));
+            }
+        }
+
+        /** ★ #1190 (#46 r4 M1): re-push ONE file row this document already holds (its file left the device). false = not
+         *  held here (another channel, outside the loaded window, never shown) → nothing is pushed. */
+        public bool refreshFileRow(FriendMessage? message, int channel)
+        {
+            if (message == null || message.type != FriendMessageType.fileHeader || !hasLoadedFileRow(message.id, channel))
+            {
+                return false;
+            }
+            fileRowOnlyPass = true;
+            try
+            {
+                insertMessage(message, channel, null);
+            }
+            finally
+            {
+                fileRowOnlyPass = false;
+            }
+            return true;
+        }
+
         /* ★★ #1166 P-04 (#1165 (7)) — A SENDER'S AVATAR ONCE PER DOCUMENT (🟡 NEW push `setAvatarFor(address, dataUri)`).
          * Every received row used to carry its sender's avatar as a 5–50 KB data: URI (X1), on every row of every load.
          * Now a GROUP / BOT row's picture goes ONCE per sender address per document — and again only when it changed
@@ -3390,6 +3538,11 @@ namespace SPIXI
             if(channel != selectedChannel)
             {
                 return;
+            }
+            bool fileRowOnly = fileRowOnlyPass;   // ★ #1190 (#46 r4 M1): refreshFileRow's ONE call on this thread
+            if (fileRowOnly && message.type != FriendMessageType.fileHeader)
+            {
+                return;   // ★ #1190 (#46 r4 M1): refreshFileRow re-pushes a FILE row only
             }
             if(friend.state != FriendState.Approved)
             {
@@ -3702,9 +3855,28 @@ namespace SPIXI
                      * it; the shell treats its absence as "relayed"). Arg 9 keeps its historical
                      * meaning (confirmed → delivered), arg 10 read. The app and payment cards still
                      * show no delivery state — their own rows. */
+                    /* ★★ #1190 (#1173 (3) + (4), #1188 b): arg 16 `fLocal` — is the file ON THIS DEVICE? "1" / "0" / "" (unknown:
+                     * an offer, the live insert of my send before onSendFile sets the path, a legacy rebuild). Only C# can
+                     * look; SharedItems.localArgOf = localPathOf + FileRowRules (csh). The shell: "0" on a complete row →
+                     * mine = the compact card "Not available on this device", a received one = "… deleted from this
+                     * device" — no tap, no viewer. An older shell ignores arg 16; an older exe sends none ("" = today). */
+                    string fLocal = SharedItems.localArgOf(message, out string fCase);
+                    if (message.localSender && SharedItems.isImageName(name))
+                    {
+                        P1Perf.line("filelocal sent-image " + fCase);   // ★ #1190 dev-only (SPIXI_DEV_COEXIST): a fixed case word — no path, no name, no id
+                    }
+                    string fTransfer = incomingTransferArg(message, uid);   // ★ #1177: arg 15 — "live:<pct>" / "paused:<pct>" / "" (an older shell ignores it)
                     deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
-                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString());
+                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal);
                     noteThumbCandidate(message, name, batch);   // ★ A5 #1124: AFTER the row's push — the shell must know the id first
+                    lock (fileRowsShown)
+                    {
+                        fileRowsShown.Add(Crypto.hashToString(message.id));   // ★ #1190 (#46 r4 M1): this document now holds this file row
+                    }
+                    if (fileRowOnly)
+                    {
+                        return;   // ★ #1190 (#46 r4 M1): the row's push only — no updateMessageReadStatus (no read flag, no receipt)
+                    }   // ★ A5 #1124: AFTER the row's push — the shell must know the id first
                 }
             }
 
@@ -3977,6 +4149,12 @@ namespace SPIXI
             {
                 friend.metaData.unreadMessageCount = 0;
                 friend.saveMetaData();
+                // ★ #1175 (#46 F1-1): the literal 0 into HomePage's status CACHE too (iOS-31 leg A, as loadMessages does).
+                // A presence push (Node.cs) may have cached the OLD count; the next tick flushes that cache AFTER the row
+                // push below (HomePage tick: loadChats, then updateContactStatus), which put the badge back. timestamp 0 =
+                // the display-only push: it overwrites the cached unread (HomePage.setContactStatus leg B(ii)).
+                UIHelpers.setContactStatus(friend.walletAddress, friend.online, 0, "", 0);
+                pushZeroedChatRow();   // ★ #1175: this zero pushed nothing at all before (the row kept its badge)
             }
             clearReactionFlag();   // ★ #1148 (4)
             lock (messages)
@@ -3999,6 +4177,10 @@ namespace SPIXI
         {
             if (channel == selectedChannel)
             {
+                lock (fileRowsShown)
+                {
+                    fileRowsShown.Remove(Crypto.hashToString(msg_id));   // ★ #1190 (#46 r4 M1): the shell drops the row
+                }
                 Utils.sendUiCommand(this, "deleteMessage", Crypto.hashToString(msg_id));
             }
         }

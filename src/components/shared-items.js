@@ -25,10 +25,15 @@ import { docLocale } from './timestamp.js';
 import { createChip, setChipSelected } from './chip.js';   // ★ G-6: the kind chips
 import { createSheet, openSheet, closeSheet } from './sheet.js';   // ★ G-6: the long-press menu
 import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
+import { attachTouchPressGuard } from './message-menu.js';   // ★ #1174: the scroll-safe contextmenu
 
 export const SHARED_KINDS = ['media', 'file', 'link'];
 export const SHARED_PREVIEW = { media: 6, file: 3, link: 3 };   // (the #1110 cards; kept for the demo and older callers)
-export const SHARED_INLINE_MAX = 60;   // ★ G-6: per kind, shown in place; more → "Show all N" (60 tiles = 20 grid rows)
+/* ★ #1195 (Damir picked "cap 9 now, shell only"): 9 per kind in place (3 grid rows), more → "Show all N" (the full grid).
+   A faster chat-info open on every platform (fewer tiles to lay out and decode; the desktop close re-lays the pane on
+   every column tick, #1194). C# still makes up to SharedItems.ThumbMaxCount (60) previews, so the full grid looks as
+   before. Superseded: G-6 60 in place (20 rows). */
+export const SHARED_INLINE_MAX = 9;
 export const SHARED_LONG_PRESS_MS = 500;
 
 /* ★ G-6: long press = the item menu. A TOUCH (or pen) held still for SHARED_LONG_PRESS_MS (a move of 10 px or a lift
@@ -42,6 +47,7 @@ export const SHARED_LONG_PRESS_MS = 500;
 function attachSharedLongPress(el, item, onMenu) {
   if (!onMenu) return;
   let timer = 0; let x = 0; let y = 0; let fired = false;
+  const press = attachTouchPressGuard(el);   // ★ #1174: a touch press that became a scroll voids its contextmenu
   const cancel = () => { clearTimeout(timer); timer = 0; };
   const fire = () => { fired = true; onMenu(item, el); };
   el.addEventListener('keydown', () => { fired = false; });   // a keyboard activation is never swallowed
@@ -51,13 +57,18 @@ function attachSharedLongPress(el, item, onMenu) {
     cancel();
     if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;   // B5: a mouse never long-presses
     x = e.clientX; y = e.clientY;
-    timer = setTimeout(() => { timer = 0; if (!fired) fire(); }, SHARED_LONG_PRESS_MS);
+    timer = setTimeout(() => {
+      timer = 0;
+      if (!el.isConnected || press.voids()) return;   // ★ #1174 (#46 r1, F2): a re-rendered (detached) tile or a scrolled press opens nothing
+      if (!fired) fire();
+    }, SHARED_LONG_PRESS_MS);
   });
   el.addEventListener('pointermove', (e) => { if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) cancel(); });
   for (const t of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(t, cancel);
   el.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     cancel();
+    if (press.voids()) return;   // ★ #1174: Android's own long-press over a press that moved / scrolled
     if (fired) return;   // B1: the timer already opened the menu for this hold
     fire();
   });

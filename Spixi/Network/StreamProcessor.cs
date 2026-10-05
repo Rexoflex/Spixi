@@ -615,6 +615,28 @@ namespace SPIXI
                                     }
                                 });
                             }
+                            /* ★ #1191 (#1173 (5), W-AVATAR; re-confirmed #1174): the chats list repainted at once (P-04), but an
+                             * OPEN group / bot chat kept a MEMBER's old picture until reopen — nothing reached it. The picture's
+                             * address is the one Core stored it under (FriendList.setAvatar, Ixian-Core FriendList.cs:144-151:
+                             * the real sender for a bot room, else the stream's sender — a contact's own 1:1 avatar message,
+                             * which also feeds the rooms that contact is in). Every open multi chat that shows that member gets
+                             * the EXISTING per-address push `setAvatarFor` (no new verb; the page's own once-per-document ledger
+                             * drops an unchanged picture). Navigation stack + WebView → MAIN THREAD. No log line with the address. */
+                            Address memberAddress = (friend != null && friend.bot && group_sender_address != null) ? group_sender_address : sender_address;
+                            MainThread.BeginInvokeOnMainThread(() =>
+                            {
+                                try
+                                {
+                                    foreach (SingleChatPage page in Utils.getChatPages())
+                                    {
+                                        page.refreshMemberAvatar(memberAddress);
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                    Logging.warn("member avatar re-push failed: " + e.GetType().Name);
+                                }
+                            });
                         }
                         else
                         {

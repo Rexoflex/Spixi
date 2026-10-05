@@ -14,5 +14,5 @@ notification-incoming-call = Panggilan masuk
 notification-payment-received = Pembayaran diterima
 notification-payment-request = Permintaan pembayaran
 notification-app-invite = Undangan aplikasi
-notification-file = File diterima
+notification-file = Mengirimi Anda file
 notification-contact-request = Permintaan kontak

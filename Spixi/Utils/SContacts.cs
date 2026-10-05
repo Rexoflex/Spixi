@@ -401,6 +401,9 @@ namespace SPIXI
                 Logging.error("purgeFiles: the other-contact walk failed (" + e.GetType().Name + ") — nothing deleted");
                 return 0;
             }
+            /* TODO(#1190, #46 r4 m2): an OPEN chat of this contact is not told of these deletes (no SingleChatPage.refreshFileRow
+             * here — the purge holds paths, not rows, and need not run on the UI thread); its held previews stay until it
+             * reloads. Decide with DECISIONS #1190. */
             foreach (string path in paths)
             {
                 try

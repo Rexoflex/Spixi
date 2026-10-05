@@ -1068,11 +1068,54 @@ namespace SPIXI.Meta
                 case FriendMessageType.sentFunds: key = "notification-payment-received"; fallback = "Payment received"; break;
                 case FriendMessageType.requestFunds: key = "notification-payment-request"; fallback = "Payment request"; break;
                 case FriendMessageType.appSession: key = "notification-app-invite"; fallback = "App invite"; break;
-                case FriendMessageType.fileHeader: key = "notification-file"; fallback = "File received"; break;
+                case FriendMessageType.fileHeader: key = "notification-file-neutral"; fallback = "New file"; break;   // ★ #1178: the offer path is fileOfferNotificationText
                 case FriendMessageType.requestAdd: key = "notification-contact-request"; fallback = "Contact request"; break;
                 default: key = "notification-new-message"; fallback = "New Message"; break;
             }
             return SpixiLocalization._SL(key) ?? fallback;
+        }
+
+        /* ★ #1178 (Damir): a file OFFER notified "<Name>: File received" — nothing is received at offer time (the header
+         * arrives; the bytes come only after Accept). The copy says what happened, never the file NAME (lock screen):
+         *   1:1  → "<Name>: Sent you a file" / "Sent you a photo";
+         *   room → "<Group>: <Member> sent a file" / "… sent a photo" (the group stays the prefix);
+         *   the sender-name preference OFF → "New file" / "New photo" — no subject and no name, like every other type
+         *   with the preference off (the member is a sender name too, so it follows the same switch).
+         * Photo = the header's file name by extension (SharedItems.isImageName, the chat-info / preview rule); the name
+         * itself never leaves this method. The key choice + fill is FileRowRules (executed by scripts/csh). Never throws:
+         * any failure = the neutral "New file". */
+        private static string fileOfferNotificationText(Friend friend, FriendMessage friend_message, Address? sender_address)
+        {
+            try
+            {
+                bool isPhoto = SharedItems.parseFileHeader(friend_message.message, out string fileName, out _) && SharedItems.isImageName(fileName);
+                bool isRoom = friend.type == FriendType.Group || friend.bot;
+                bool showSender = SNotificationPrefs.showSenderName;
+                string member = "";
+                Address? who = friend_message.senderAddress ?? sender_address;
+                if (isRoom && showSender && who != null)
+                {
+                    // the room's own roster nick first, then a contact's nick (HomePage.updateChatReaction's order)
+                    if (friend.users.hasUser(who) && friend.users.getUser(who).getNick() != "")
+                    {
+                        member = friend.users.getUser(who).getNick();
+                    }
+                    else
+                    {
+                        Friend? asContact = FriendList.getFriend(who);
+                        if (asContact != null && !string.IsNullOrEmpty(asContact.nickname))
+                        {
+                            member = asContact.nickname;
+                        }
+                    }
+                }
+                string key = FileRowRules.fileNotificationKey(isPhoto, isRoom, showSender, member, out string? memberArg);
+                return FileRowRules.fileNotificationText(key, SpixiLocalization._SL(key), memberArg);
+            }
+            catch (Exception)
+            {
+                return SpixiLocalization._SL("notification-file-neutral") ?? "New file";
+            }
         }
 
         public static FriendMessage? addMessageWithType(FriendMessageType type, Address wallet_address, int channel, ChatStreamMessage chat_stream_message, bool local_sender = false, Address? sender_address = null, long timestamp = 0, bool fire_local_notification = true, bool alert = true, int payable_data_len = 0)
@@ -1237,7 +1280,9 @@ namespace SPIXI.Meta
                                     // ★ NOTIF-2: the sender's name is prefixed ONLY when the user
                                     // opted in (default off = today's copy, byte-identical).
                                     // Message TEXT is never included, on any setting.
-                                    string notifText = notificationTextForType(type);
+                                    string notifText = type == FriendMessageType.fileHeader
+                                        ? fileOfferNotificationText(friend, friend_message, sender_address)   // ★ #1178
+                                        : notificationTextForType(type);
                                     if (SNotificationPrefs.showSenderName)
                                     {
                                         /* ⚠ AUDIT MINOR: friend.nickname falls back to _nick, and

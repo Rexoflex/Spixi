@@ -35,6 +35,8 @@
      see chatlist-item.css. :not([aria-current]) is load-bearing (source order).
      ⚠ Keep this rule TRANSITION-FREE — see the chat row's B-4 note. */
   .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
+  /* ★ #1171: the hovered row survives a live re-render (wallet-shell carryRowHover; see chatlist-item.css). */
+  .c-txlist-item[data-hover]:not([aria-current]) { background-color: var(--surface-interactive-hover); }
 }
 /* 5c-i/ii: the :active fill mirrors are REMOVED — see chatlist-item.css. */
 

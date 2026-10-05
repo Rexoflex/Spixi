@@ -642,6 +642,28 @@ namespace SPIXI
             shouldRefreshContacts = true;
         }
 
+        /** ★ #1175 (#46 F1-2): re-push ONE chats row that is NOT a typing edge (the zeroed unread on a chat open): a lone
+         *  addChat when HomePage is the live root — that push IS the whole change (#1166 P-03), no full flush — else the
+         *  flag. Unlike refreshChatRow it raises the flag only when nothing was pushed.
+         *  ⚠ NEVER THROWS: any failure degrades to the flag; the log line carries the TYPE only. */
+        public static void pushChatRowLive(Friend friend)
+        {
+            try
+            {
+                HomePage? home = liveHome();
+                if (home != null)
+                {
+                    home.updateChat(friend, false);   // NOT a typing edge (#1166 r1 C-M1 marks only refreshChatRowLive's), spelled out
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("pushChatRowLive: " + ex.GetType().Name);
+            }
+            shouldRefreshContacts = true;
+        }
+
         public static void updateMessage(Friend friend, int channel, FriendMessage msg)
         {
             Utils.getChatPage(friend)?.updateMessage(msg, channel);

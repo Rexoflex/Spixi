@@ -661,6 +661,8 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      base.css — see chatlist-item.css. State rules set background-COLOR only. */
 }
 @media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled):hover { background-color: var(--surface-card-hover); } }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
+/* ★ #1171: a row re-built under a still pointer keeps its hover (chatlist-item.js carryRowHover) — the same fill as :hover */
+@media (hover: hover) and (pointer: fine) { .c-contacts__row:not(:disabled)[data-hover] { background-color: var(--surface-card-hover); } }
 /* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
 /* F7: dim only the avatar + name — the Pending badge and the reason sub-text
    ("Can't be added to groups") must stay legible, they're the whole point of

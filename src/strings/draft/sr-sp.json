@@ -806,5 +806,9 @@
   "sharedDeleteLocalBody": "„{name}“ se uklanja sa ovog uređaja. Poruka ostaje u četu.",
   "viewerFailed": "Ova slika nije mogla da se otvori.",
   "groupCounter": "{n} / {max}",
-  "groupLimitNote": "Grupa može imati najviše 10 članova pored tebe."
+  "groupLimitNote": "Grupa može imati najviše 10 članova pored tebe.",
+  "filePaused": "Pauzirano",
+  "fileDeletedLocal": "Fajl je obrisan sa ovog uređaja",
+  "fileUnavailable": "Nije dostupno na ovom uređaju",
+  "photoDeletedLocal": "Fotografija je obrisana sa ovog uređaja"
 }

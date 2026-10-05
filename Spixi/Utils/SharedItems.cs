@@ -55,7 +55,7 @@ namespace SPIXI
         public const long ThumbMaxBytes = 64 * 1024;      // ★ G-6b: a file this small rides AS IS (no decode); a bigger one gets a real thumbnail
         public const long ThumbSourceMax = 20L * 1024 * 1024;   // ★ G-6b (#46 r1 A2): never decode a file above this (the tile keeps its glyph)
         public const int ThumbPx = 160;                   // ★ G-6b: the thumbnail's side (a 3-col tile is ~130 dp; ~10–15 KB at q60)
-        public const int ThumbMaxCount = 60;      // ★ G-6b: = SHARED_INLINE_MAX (the tiles shown in place); the rest show the glyph
+        public const int ThumbMaxCount = 60;      // ★ G-6b: the previews made per scan; the rest show the glyph. ★ #1195: the shell shows 9 in place (SHARED_INLINE_MAX) and the "Show all" grid uses up to these 60 — a lazy rest is a later verb (BE)
         public const long ThumbTotalMax = 1536 * 1024;   // (#46 r1 A7) the whole push stays a few MB at most after escaping
         public const int JumpCap = 1000;          // Damir (#1106): the chat jump widens the window at most this far
 
@@ -98,6 +98,46 @@ namespace SPIXI
             catch (Exception)
             {
                 return null;
+            }
+        }
+
+        /* ★ #1190 (#1173 (3) + (4)): addFile's 16th argument for a file row — "1" / "0" / "" (FileRowRules.localArg on
+         * FileRowRules.localPathCase). The disk test is localPathOf's own (received → the Downloads-root rule + fileMatches;
+         * sent → an absolute path that exists). `pathCase` = the case word (the dev [P1] filelocal line) — never the path.
+         * FileSystem.CacheDirectory = Microsoft.Maui.Storage.FileSystem.CacheDirectory (MAUI Essentials, a static string). */
+        /* ★ #1190 (#46 r4 m1): localArgOf runs per file row on the UI thread (loadMessages: open, channel switch, load-more,
+         * a jump widening up to JumpCap rows, the previews toggle). The cache dir is a fixed string for the process — read
+         * ONCE (System.Lazy<T>, thread-safe by default; a throw → null = "unknown", FileRowRules' own null case). */
+        private static readonly Lazy<string?> cacheDirOnce = new Lazy<string?>(() =>
+        {
+            try { return Microsoft.Maui.Storage.FileSystem.CacheDirectory; } catch (Exception) { return null; }
+        });
+
+        public static string localArgOf(FriendMessage fm, out string pathCase)
+        {
+            pathCase = FileRowRules.CaseNone;
+            try
+            {
+                if (fm == null || fm.type != FriendMessageType.fileHeader)
+                {
+                    return "";
+                }
+                if (!fm.completed)
+                {
+                    /* ★ #1190 (#46 r4 m1): an offer / a transfer in flight (either direction) — the shell draws "0" only on a
+                     * COMPLETE row, so no disk check (FileRowRules.localArg answers "" for it too). */
+                    pathCase = FileRowRules.CasePending;
+                    return "";
+                }
+                /* The remaining cost, COMPLETE rows only: localPathOf = one File.Exists (sent) or SContacts.receivedMediaPathOfPublic
+                 * + File.Exists + fileMatches (received; a stat, and a size read) — a few stats per complete file row, the
+                 * same check the chat-info scan already makes per item. */
+                pathCase = FileRowRules.localPathCase(fm.filePath, localPathOf(fm) != null, cacheDirOnce.Value);
+                return FileRowRules.localArg(fm.localSender, fm.completed, pathCase);
+            }
+            catch (Exception)
+            {
+                return "";   // unknown → the shell keeps today's row
             }
         }
 
@@ -294,6 +334,14 @@ namespace SPIXI
                             continue;
                         }
                         string? local = localPathOf(fm);
+                        /* ★ #1190 (#1173 (3), #1188 b): a RECEIVED file that was downloaded and is no longer on this device
+                         * (deleted from this device — #1154's own "Delete from this device", the Downloads page, the OS) is
+                         * DROPPED from Media / Files — not a dead glyph tile. The chat row says "… deleted from this device". */
+                        if (local == null && !fm.localSender && fm.completed
+                            && FileRowRules.isDeletedReceived(fm.localSender, fm.completed, localArgOf(fm, out _)))
+                        {
+                            continue;
+                        }
                         all.Add(new SharedItem
                         {
                             id = id, channel = ch, kind = isImageName(name) ? "media" : "file", label = name,

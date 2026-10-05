@@ -1348,6 +1348,10 @@
      inks are mode-less precisely because this surface is dark in both themes. Lightening
      it in light mode would put near-white text on a barely-dimmed photo. */
   --surface-scrim: rgba(17, 18, 19, 0.6);
+  /* ★★ #1193 (#1168, Damir's pick A in #1188): the SENDING photo's face — the ring + % + the keep-open line read on
+     the picture — sits on a DARKER ink-carrying scrim. Mode-less like --surface-scrim (same grey-1000 base, same
+     on-scrim inks). Computed over a WHITE photo: --text-on-scrim on it ≈ 7.2:1 (was 4.69 on the 0.6 scrim). */
+  --surface-scrim-strong: rgba(17, 18, 19, 0.72);
   /* ★ Batch E (b) (#557, Damir 2026-08-22): ONE LEVEL DEEPER for the MOBILE overlay
      scrim — the lift (#506②) stays, and the ground behind a long-press menu dims
      70% instead of 60%. Consumed by overlay.css's .c-scrim on non-desktop only;
@@ -1692,6 +1696,9 @@
      same value both modes: washes are relative to the surface they sit on */
   --surface-wash-on-hero: rgba(255, 255, 255, 0.12);
   --surface-wash-on-hero-pressed: rgba(255, 255, 255, 0.18);
+  /* ★★ #1193 (#1168 A): the ring TRACK on --surface-scrim-strong — a stronger white wash, so the track shows on a
+     light photo; over a white photo the --icon-on-scrim fill on it ≈ 3.6:1 (≥ 3). Mode-less (the scrim under it is). */
+  --surface-wash-on-scrim-strong: rgba(255, 255, 255, 0.28);
   --surface-wash-on-success: rgba(0, 0, 0, 0.08);
   --surface-wash-on-success-pressed: rgba(0, 0, 0, 0.14);
 

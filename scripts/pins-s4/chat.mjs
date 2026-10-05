@@ -859,7 +859,7 @@ export default async function (h) {
     const pic = (tag) => 'data:image/jpeg;base64,' + Buffer.concat([head, Buffer.from(('#' + tag).padStart(48, 'x'))]).toString('base64');
     const build = (thumb) => { const row = S.createImageFileBubble({ direction: 'sent', name: 'IMG_1.jpg', state: 'complete', thumb, timestamp: Date.now(), strings: {} });
       W.document.body.append(row); return row.querySelector('.c-mbubble'); };
-    const show = async (thumb) => { const t = build(thumb); const img = t.querySelector('.c-mbubble__img'); if (img) img.dispatchEvent(new W.Event('load')); await sleep(50); return t.dataset.state === 'loaded'; };   /* ★ #1151 re-base: the reveal is one frame after load + decode · #46 r4 M1 re-base: "shown" one frame after that (no fade in jsdom) */
+    const show = async (thumb) => { const t = build(thumb); const img = t.querySelector('.c-mbubble__img'); if (img) img.dispatchEvent(new W.Event('load')); await sleep(50); await new Promise((res) => W.requestAnimationFrame(() => W.requestAnimationFrame(res))); return t.dataset.state === 'loaded'; };   /* ★ session 6 (timing): + two frames before the body is cleared — "shown" is recorded a frame after the flip on a CONNECTED tile, and a loaded runner let 50 ms end first (red 1 run in 2 on an unchanged tree) */   /* ★ #1151 re-base: the reveal is one frame after load + decode · #46 r4 M1 re-base: "shown" one frame after that (no fade in jsdom) */
     const instant = (thumb) => { const t = build(thumb); return t.dataset.state === 'loaded' && t.hasAttribute('data-seen'); };
     const r = {};
     /* MINOR-3: two previews of the SAME length, different tails — showing one does not make the other instant */
@@ -943,6 +943,9 @@ export default async function (h) {
     push('setChatMode', '0', '0', '', 'False');
     push('setPhotoPreviews', 'True');
     push('clearMessages', 'false');
+    /* ★ session 6 (timing): the stylesheet walk runs BEFORE the clock starts — the sheets are static, and under a loaded
+       full run the walk inside the 600 ms quiet window pushed the "still quiet" checks past it (red 2 runs in 3) */
+    const rules = rulesOf(W);
     const t0 = Date.now();
     push('addFile', 'q1', 'addrPeer', 'Me', '', 'fq1', 'IMG_q1.jpg', String(T0), 'True', 'True', 'True', '100', 'True', 'False', 'True');      // mine, complete
     push('addFile', 'q2', 'addrPeer', 'Bob', '', 'fq2', 'IMG_q2.jpg', String(T0 + 1), 'False', 'False', 'False', '100', 'True', 'False', 'True'); // downloaded
@@ -952,7 +955,6 @@ export default async function (h) {
     if (typeof W.messagesDone === 'function') push('messagesDone');
     push('onChatScreenLoaded');
     await sleep(150);
-    const rules = rulesOf(W);
     const tileOf = (id) => d.querySelector('#messages [data-msgid="' + id + '"] .c-mbubble');
     const faceOf = (id) => { const t = tileOf(id); return t && t.querySelector('.c-mbubble__file'); };
     const quiet = (id) => { const f = faceOf(id); return !!f && tileOf(id).hasAttribute('data-quiet') && matching(rules, f, 'opacity').pop() === '0'; };

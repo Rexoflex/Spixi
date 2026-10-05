@@ -48,6 +48,10 @@
      base.css reduced-motion kill at (0,2,1) — a transition added here silently
      escapes reduced motion (the audit B-4 trap fix B fell into). */
   .c-chatlist-item:hover:not([aria-current]):not([data-pinned]) { background-color: var(--surface-interactive-hover); }
+  /* ★ #1171: [data-hover] = the row the mouse is ON, rebuilt by a live update (chatlist-item.js carryRowHover) —
+     the new node is not :hover until WebView2 re-hit-tests, and without this the row flashed off (~230 ms).
+     The SAME guards and paint as the :hover rule above (a separate rule: keep them in step). */
+  .c-chatlist-item[data-hover]:not([aria-current]):not([data-pinned]) { background-color: var(--surface-interactive-hover); }
 }
 /* 5c-i/ii: the :active fill mirrors are REMOVED (they were background-size flips).
    pressable.js owns the whole press lifecycle, including the paint delay that stops

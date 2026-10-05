@@ -14,5 +14,5 @@ notification-incoming-call = 着信
 notification-payment-received = 支払いを受け取りました
 notification-payment-request = 支払いリクエスト
 notification-app-invite = アプリ招待
-notification-file = ファイルを受信しました
+notification-file = ファイルを送信しました
 notification-contact-request = 連絡先リクエスト

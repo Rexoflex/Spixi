@@ -69,12 +69,15 @@ export function createIndicator({ count = 0, mention = false, muted = false, rea
 /** Indicator set for row2: muted chats show BOTH the (muted) count/@ AND the
  *  bell-off glyph (Damir review 2026-07-02). #108: mention and count COEXIST
  *  (distinct shapes — @ glyph + count circle). [] when nothing to show. */
-/* ★ #1148 (4): the heart sits where the COUNT sits, only when there is NO count (with a count the count wins) */
+/* ★ #1148 (4): the heart = someone reacted to MY message (C# SReactionFlags) — the rule is unchanged.
+   ★★ #1192 (#1173 (6), Damir's pick c in #1188): the heart sits BESIDE the count, to its LEFT — it no longer
+   disappears when the row has unread messages (the count used to win). Still never a number: the Unread chip and
+   the nav badge read the unread count, never this indicator. Alone (no count) it sits where the count would. */
 export function createIndicators({ count = 0, mention = false, muted = false, reaction = false, strings = getStrings() } = {}) {
   const out = [];
   if (mention) out.push(createIndicator({ mention: true, strings }));
+  if (reaction) out.push(createIndicator({ reaction: true, strings }));
   if (count > 0) out.push(createIndicator({ count, muted, strings }));
-  else if (reaction) out.push(createIndicator({ reaction: true, strings }));
   if (muted) out.push(createIndicator({ muted: true, strings }));
   return out;
 }
@@ -247,5 +250,94 @@ export function createChatItem({
 export function refreshTimestamps(rootEl, strings = getStrings()) {
   for (const t of rootEl.querySelectorAll('.c-chatlist-item__time[data-ts]')) {
     t.textContent = formatChatTimestamp(Number(t.dataset.ts), strings);
+  }
+}
+
+/* ★ #1171 — HOVER ACROSS A LIVE ROW REPLACE (Damir, Windows video 2026-10-04: a hovered chats row FLASHED,
+ * ~230 ms, cursor still). A live update (presence / reaction / typing / receipt) REPLACES the row node
+ * (patchChatRows, and the full render's `textContent = ''`), the hover is pure CSS `:hover`, and a NEW node is
+ * not `:hover` until WebView2 re-hit-tests (the next mouse move, or its own delayed re-check). So the list
+ * remembers which row the mouse is on (pointerover/pointerout, delegated, mouse/pen only — jsdom's
+ * matches(':hover') is always false, the pin drives these events), and a row rebuilt under that key is born
+ * with `data-hover`, which the row CSS paints exactly like `:hover` (same @media (hover: hover) guard). The
+ * mark leaves on the row's pointerleave, on any pointermove/pointerover off that row, and when the pointer
+ * leaves the list. Keyboard focus on a replaced row moves to its replacement (it fell to <body> before).
+ * Shared by the chats list, the contacts picker and the wallet tx list (each passes its row selector + key).
+ * Row-local state only: no storage, no bridge, no peer data in the DOM beyond the key the row already wears. */
+const rowHoverLists = new WeakMap();   // listEl → { sel, keyOf, key }
+
+function rowHoverClear(listEl, keep) {
+  for (const r of listEl.querySelectorAll('[data-hover]')) if (r !== keep) r.removeAttribute('data-hover');
+}
+
+/** Install the (idempotent) hover tracker on a list. `sel` = the hoverable row element, `keyOf(row)` = its key. */
+export function trackRowHover(listEl, sel, keyOf) {
+  const had = rowHoverLists.get(listEl);
+  if (had) { had.sel = sel; had.keyOf = keyOf; return had; }
+  const st = { sel, keyOf, key: null };
+  rowHoverLists.set(listEl, st);
+  const rowOf = (t) => {
+    const r = t && t.closest ? t.closest(st.sel) : null;
+    return r && listEl.contains(r) ? r : null;
+  };
+  const onOver = (e) => {
+    if (e.pointerType === 'touch') return;             // a tap is not a hover (and leaves no pointerout on some engines)
+    const r = rowOf(e.target);
+    st.key = r ? (st.keyOf(r) || null) : null;
+    rowHoverClear(listEl, r);                          // the pointer is on ANOTHER row (or none): a carried mark is stale
+  };
+  listEl.addEventListener('pointerover', onOver);
+  listEl.addEventListener('pointermove', onOver);
+  listEl.addEventListener('pointerout', (e) => {
+    if (e.pointerType === 'touch') return;
+    const to = e.relatedTarget;
+    if (to && listEl.contains(to)) return;             // row → row is settled by the next pointerover
+    st.key = null;
+    rowHoverClear(listEl, null);
+  });
+  listEl.addEventListener('pointerleave', () => { st.key = null; rowHoverClear(listEl, null); });
+  return st;
+}
+
+/** Before a row is replaced (or the list cleared): which row keys are hovered / focused now. */
+export function snapRowHover(listEl, oldRows) {
+  const st = rowHoverLists.get(listEl);
+  if (!st) return null;
+  let hover = st.key;
+  let focus = null;
+  const ae = typeof document !== 'undefined' ? document.activeElement : null;
+  for (const r of oldRows || listEl.querySelectorAll(st.sel)) {
+    const row = r.matches && r.matches(st.sel) ? r : (r.querySelector ? r.querySelector(st.sel) : null);
+    if (!row) continue;
+    const k = st.keyOf(row);
+    if (!k) continue;
+    let on = false;
+    try { on = row.matches(':hover'); } catch (e) { /* engine without :hover matching */ }
+    if (!hover && (on || row.hasAttribute('data-hover'))) hover = k;
+    if (ae && ae === row) focus = k;
+  }
+  return { hover, focus };
+}
+
+/** Mark a freshly built row (call BEFORE it is attached, so its first style is already the hover paint). */
+export function carryRowHover(listEl, node, snap) {
+  const st = rowHoverLists.get(listEl);
+  if (!st || !snap || !snap.hover || !node) return;
+  const row = node.matches && node.matches(st.sel) ? node : (node.querySelector ? node.querySelector(st.sel) : null);
+  if (!row || st.keyOf(row) !== snap.hover) return;
+  row.setAttribute('data-hover', '');
+  row.addEventListener('pointerleave', () => row.removeAttribute('data-hover'), { once: true });
+}
+
+/** After the replace: hand keyboard focus to the replacement of the row that had it (focus fell to <body>). */
+export function restoreRowFocus(listEl, snap) {
+  const st = rowHoverLists.get(listEl);
+  if (!st || !snap || !snap.focus) return;
+  /* #46 r1 m1: a document WITHOUT focus (desktop: the user types in the chat pane's own WebView2) never takes it back */
+  try { if (typeof document.hasFocus === 'function' && !document.hasFocus()) return; } catch (e) { return; }
+  const ae = document.activeElement;
+  if (ae && ae !== document.body && ae.isConnected) return;   // focus already went somewhere on purpose
+  for (const row of listEl.querySelectorAll(st.sel)) {
+    if (st.keyOf(row) === snap.focus) { try { row.focus({ preventScroll: true }); } catch (e) { /* detached */ } return; }
   }
 }

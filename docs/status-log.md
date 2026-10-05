@@ -388,3 +388,12 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   row node is replaced under the cursor). Next free #1172.
 - 2026-10-04 (h): WALK #1172 (5b, Win + Android): 29 P · 2 F (W-VIEW, A-FADE) · 4 N/A; lever 7 width kept; lever 4 = no fix; follow-ups #1173; #1174 Android: the message
   menu opens during a scroll (contextmenu path unguarded). Next free #1175.
+- 2026-10-04 (i, session 6 part A; cloud twin, Damir's PC off part of the time): precondition OK (HEAD 00f292d6 = origin; smoke 5224; the C#
+  harness now builds on the newest SDK, #1185). Built (3 contract-first agents + lead, #1186): W-VIEW (#1180), A-FADE probe (#1181), #1170
+  (#1182), #1174 (#1183), #1171 (#1184), Damir's #1175 (defensive, mechanism OPEN) · #1176 · #1177 · #1178; logged #1179 (desktop chat info
+  like Telegram, S9 / v1.1) and #1187 (Contacts → Message stutter, probe). #46: r1 4 MAJOR → fixed; r2 + r3 CLEAN. Smoke BASELINE OK 5251 ·
+  CSH 114. Renders picked (#1188); S6 interview picks (#1189), NO S6 build before "go". UNCOMMITTED → patch `session6a-build.patch`. Next free #1190.
+- 2026-10-04 (j, session 6a round 2; Damir's plan change #1196 — 6a / 6b split): built #1190 (deleted / not-available file rows, addFile
+  arg 16), #1191 (group avatar live), #1192 (heart beside the count), #1193 (#1168 A scrim), #1194 (chat-info close probe), #1195 (grid cap 9);
+  #1179 answered. #46 round 2: r4 2 MAJOR fixed → r5 CLEAN. Smoke BASELINE OK 5266 · CSH 116. UNCOMMITTED → patch `session6a-build.patch`
+  (replaces the earlier one). Next: Damir walks 6a → session 6b (walk record, then the S6 interview). Next free #1197.

@@ -209,6 +209,7 @@ import { createButton } from './button.js';
 import { closeChatRowSwipe } from './chats-swipe.js';
 import { isOverlayOpen } from './overlay.js';
 import { anchorSheetToRow } from './desktop-anchors.js';   // ★ Batch E (a) (#557): mobile anchored dropdown
+import { attachTouchPressGuard } from './message-menu.js';   // ★ #1174: the scroll-safe contextmenu
 
 const CHATMENU_LONG_PRESS_MS = 500;   // §5b
 const CHATMENU_MOVE_CANCEL_PX = 10;   // §5b: >10px move = scroll intent
@@ -800,6 +801,7 @@ export function attachChatRowMenu(row, opts = {}) {
   let startX = 0;
   let startY = 0;
   let fired = false;
+  const press = attachTouchPressGuard(row);   // ★ #1174: the message-menu.js rule — a scrolled touch press voids contextmenu
 
   const cancel = () => {
     if (timer) { clearTimeout(timer); timer = null; }
@@ -821,6 +823,7 @@ export function attachChatRowMenu(row, opts = {}) {
          has already left, never opens a menu. `isConnected` is FALSE for a replaced row,
          and openChatRowMenu would otherwise re-anchor to the live twin by address. */
       if (document.hidden || !row.isConnected) return;
+      if (press.voids()) return;   // ★ #1174 (#46 r1, F2): the document press record saw this press move / cancel / scroll
       fired = true;
       openChatRowMenu({ row, ...opts });
     }, CHATMENU_LONG_PRESS_MS);
@@ -839,6 +842,7 @@ export function attachChatRowMenu(row, opts = {}) {
 
   row.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (press.voids()) return;                  // ★ #1174: Android's own long-press over a press that became a scroll
     if (fired) return;                          // Android fires contextmenu ≈ long-press (audit r3)
     cancel();
     fired = true;

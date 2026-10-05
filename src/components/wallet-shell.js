@@ -36,6 +36,7 @@
 import { getStrings } from './strings-runtime.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { createTxItem } from './txlist-item.js';
+import { trackRowHover, snapRowHover, carryRowHover, restoreRowFocus } from './chatlist-item.js';   // ★ #1171: hover + focus across a re-render
 import { createChip, setChipSelected } from './chip.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
@@ -139,10 +140,14 @@ function walletEmpty(state, strings, opts = {}) {
 
 export function renderWalletTxList(listEl, state, opts = {}) {
   const strings = opts.strings || getStrings();
+  /* ★ #1171: every addPaymentActivity burst rebuilds every row — a hovered row (keyed by txid) is born with
+     data-hover and a focused one gets the focus back, as in the chats list. */
+  trackRowHover(listEl, '.c-txlist-item', (row) => row.dataset.txid || '');
+  const hoverSnap = snapRowHover(listEl);
   listEl.textContent = '';
   const txs = orderedTxs(state);
   for (const tx of txs) {
-    listEl.append(createTxItem({
+    const row = createTxItem({
       ...tx, strings,
       // B3 (#256): opts.onTx routes a row tap to the host (production: the
       // ixian:txdetails:<txid> bridge round-trip → the wallet_sent.html detail
@@ -158,12 +163,15 @@ export function renderWalletTxList(listEl, state, opts = {}) {
           ? opts.onTx(t)
           : openTxSheet({ tx: t, host: opts.host, strings, onExplorer: opts.onExplorer });
       },
-    }));
+    });
+    carryRowHover(listEl, row, hoverSnap);
+    listEl.append(row);
   }
   if (!txs.length) {
     const emptyEl = walletEmpty(state, strings, opts);
     if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
   }
+  restoreRowFocus(listEl, hoverSnap);
   return listEl;
 }
 

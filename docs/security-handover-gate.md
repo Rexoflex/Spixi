@@ -1713,3 +1713,13 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | #1166 P-03 | pushes `addChats(json)` / `addContacts(json)` | the same per-row calls, batched; the shell runs only an allowlist (`addChat` · `addRequest` · `setAvatarFor` / `addContact` · `setChatMuted` · `setChatFavorite` · `setAvatarFor`) | nothing introduced |
 | #1166 | appended args: `setSharedItems` 9th `received` (1/0) · `addChat` 14th typing marker ("1"/"") · `messagesDone(show_more)` | flags only | nothing introduced |
 | #1166 | log lines: `[P1] spare-after …` / `[P1] infopane …` (dev-only, the stamp grammar); warns with an exception TYPE or a fixed word + a length (`viewImage failed`, `[CHATS] batch fallback`, `[INFOPANE]`, ContactDetails refusals, `[home-shell] … dropped=N`) | no path, name, id, address or text | nothing introduced |
+
+## Session 6a (#1177, #1178, #1181) — lens applied while building
+| Surface | What | Verdict |
+|---|---|---|
+| `addFile` arg 15 (push) | "live:N" / "paused:N" / "" from C#'s own transfer state; the shell takes it only through a strict regex; no peer data | ours, safe — no new verb; an older shell ignores it |
+| File-offer notification (#1178) | a GROUP MEMBER's nickname (peer-controlled) now reaches the OS notification | ours → mitigated: control / line / paragraph / Cf / bidi stripped, capped 32 + "…", address-like or empty → neutral text; only with the sender-name pref on; never the file name (csh `FileRowRulesTests`) |
+| `[P1] fade …` log lines (#1181) | dev-only, fixed words + integers, nothing without `data-p1` | ours, safe — retire with the [P1] set (release-readiness C-2l) |
+| `addFile` arg 16 `fLocal` (#1190) | "1" / "0" / "" from C#'s own disk check; never a path; the shell reads only "0" on a complete row | ours, safe — no new verb; an older shell ignores it |
+| `[P1] filelocal sent-image <case>` · `[P1] infopane close … tiles= previews= shown=` (#1190, #1194) | dev-only, fixed case words + integers; never a path, name or address | ours, safe — retire with the [P1] set (C-2l) |
+| Member avatar push to an open group (#1191) | the existing `setAvatarFor` (a data: URI C# makes from its own file); only for a member already drawn or a roster member outside blind rooms | ours, safe — no new verb; the blind gate holds (pins-s6/live) |

@@ -9,7 +9,20 @@
   display: flex;
   flex-direction: column;
   background: var(--surface-scrim); /* + overlay scrim beneath ⇒ near-black */
+  /* ★ #1180 (W-VIEW, #1173 (1)): the viewer's OWN fade. Without it dismissOverlay waited for its 400 ms fallback with the
+     viewer fully opaque (the slow close). Close faster than open: 100 ms accelerate out, 200 ms decelerate in. */
+  opacity: 0;
+  transition: opacity var(--duration-100) var(--easing-accelerate);
 }
+.c-mviewer[data-open] {
+  opacity: 1;
+  transition: opacity var(--duration-200) var(--easing-decelerate);
+}
+/* a closing viewer (data-open gone) never takes a click meant for what lies under it */
+.c-mviewer:not([data-open]) { pointer-events: none; }
+/* ★ #1180: its scrim (media-viewer.js marks it) leaves at the viewer's speed — the removal lands on the viewer's
+   transitionend and takes the scrim with it, so a slower scrim would be cut mid-fade */
+.c-scrim[data-mviewer]:not([data-open]) { transition-duration: var(--duration-100); transition-timing-function: var(--easing-accelerate); }
 
 .c-mviewer__bar {
   display: flex;
@@ -95,8 +108,8 @@
   max-height: 100%;
   object-fit: contain;
   border-radius: var(--radius-8);
-  /* spring-back after an under-threshold swipe (drag sets transition:none) */
-  transition: transform var(--duration-200) var(--easing-decelerate);
+  /* spring-back after an under-threshold swipe (drag sets transition:none) · ★ #1180: + the picture's fade-in */
+  transition: transform var(--duration-200) var(--easing-decelerate), opacity var(--duration-200) var(--easing-decelerate);
   /* mouse-drag fix: no native ghost-drag / selection during the gesture */
   user-select: none;
   -webkit-user-select: none;
@@ -107,9 +120,10 @@
    a subtle spinner on a scrim disc sits over it (media-bubble's spinner grammar, the on-scrim mode-less inks).
    The stage is the positioning box; the disc never takes a pointer (swipe-to-dismiss keeps working while loading). */
 .c-mviewer__stage { position: relative; }
-/* the small tile thumbnail fills the stage while it waits (contain — the photo-viewer convention: soft, then sharp),
-   so the swap to the viewer-size picture does not jump from a postage stamp to full size */
-.c-mviewer[data-loading] .c-mviewer__img[src] { width: 100%; height: 100%; }
+/* ★ #1180 (W-VIEW): the tile thumbnail is a SQUARE crop — stretched to the stage it jumped to the real aspect at the
+   swap (the walk's flicker). It now waits INVISIBLE (data-pending) and the viewer-size picture fades in once decoded.
+   (Superseded #1166: "the thumbnail fills the stage while it waits".) */
+.c-mviewer__img[data-pending] { opacity: 0; }
 .c-mviewer__loading {
   position: absolute;
   inset: 0;

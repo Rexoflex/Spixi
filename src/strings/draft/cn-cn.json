@@ -728,5 +728,9 @@
   "sharedDeleteLocalBody": "“{name}”将从此设备中删除。消息仍保留在聊天中。",
   "viewerFailed": "无法打开此图片。",
   "groupCounter": "{n} / {max}",
-  "groupLimitNote": "群组除你之外最多可有 10 名成员。"
+  "groupLimitNote": "群组除你之外最多可有 10 名成员。",
+  "filePaused": "已暂停",
+  "fileDeletedLocal": "文件已从此设备删除",
+  "fileUnavailable": "此设备上不可用",
+  "photoDeletedLocal": "照片已从此设备删除"
 }

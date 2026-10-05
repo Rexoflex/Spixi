@@ -40,7 +40,7 @@ export default async function (h) {
       sentFrame: /border:\s*3px solid var\(--surface-bubble-sent\);/.test(sent) && /box-shadow:\s*var\(--bubble-elevation\);/.test(sent) && !/outline-hairline/.test(sent),
       /* the A2 jump ring and the sending scrim still work on the tile */
       a2Ring: /\.c-bubble-row\[data-mention-pulse\] \.c-mbubble, \.c-bubble-row\[data-mention-pulse\] \.c-tcard \{ animation: chat-jump-ring/.test(built),
-      scrim: /\.c-mbubble\[data-file="progress"\]\[data-state="loaded"\] \.c-mbubble__file \{[^}]*background: var\(--surface-scrim\);/.test(mb),
+      scrim: /\.c-mbubble\[data-file="progress"\]\[data-state="loaded"\] \.c-mbubble__file \{[^}]*background: var\(--surface-scrim-strong\);/.test(mb),   /* ★ #1193 re-base: Damir picked A (#1188) — the stronger scrim (contrast in pins-s6/live.mjs) */
       shipped: built.includes('border: 3px solid var(--surface-bubble-received);') && built.includes('border: 3px solid var(--surface-bubble-sent); box-shadow: var(--bubble-elevation);'),
     };
     ok(Object.values(r).every(Boolean),
@@ -145,7 +145,7 @@ export default async function (h) {
     const hA = heartOf(A);
     const r = {
       shownNoCount: !!hA && countOf(A) === '' && hA.getAttribute('aria-label') === 'New reaction' && hA.getAttribute('role') === 'img' && !!hA.querySelector('svg') && hA.textContent.trim() === '',
-      hiddenWithCount: !heartOf(B) && countOf(B) === '2',
+      besideCount: !!heartOf(B) && countOf(B) === '2' && !!heartOf(B).nextElementSibling && heartOf(B).nextElementSibling.dataset.variant === 'count',   /* ★ #1192 re-base: Damir picked c (#1188) — the heart sits BESIDE the count (pins-s6/live.mjs) */
       plainNone: !heartOf(C) && !!rowEl(C),
       olderExeNone: !heartOf(D) && !!rowEl(D),
       notInChip: chipCount() === '1',
@@ -175,7 +175,7 @@ export default async function (h) {
     r.cleared = !heartOf(A) && !!rowEl(A) && !/Reacted/.test(exA()) && chipCount() === '0' && navBadge() === '0';
     r.noErrors = errs.length === 0;
     ok(Object.values(r).every(Boolean),
-      '★★ #1148 (4) EXECUTED on the built home shell (Damir: "not a number but a heart in a neutral or very light blue circle"): addChat\'s 13th arg shows a heart (role img, label "New reaction", no digits) where the count sits when there is NO count; with a count the COUNT wins and the heart hides; an older exe\'s 12-arg push shows none; the heart is never in the Unread chip, the nav badge, the row\'s unread mark or the Unread filter; the sticky "Reacted" line holds while the heart is up; the next flush after the chat opened clears both — ' + JSON.stringify(r) + (errs.length ? ' errs=' + errs.join(' | ') : ''));
+      '★★ #1148 (4) EXECUTED on the built home shell (Damir: "not a number but a heart in a neutral or very light blue circle"): addChat\'s 13th arg shows a heart (role img, label "New reaction", no digits) where the count sits when there is NO count; with a count the heart sits BESIDE it, left of the count (★ #1192 re-base; it was: the COUNT wins and the heart hides; an older exe\'s 12-arg push shows none; the heart is never in the Unread chip, the nav badge, the row\'s unread mark or the Unread filter; the sticky "Reacted" line holds while the heart is up; the next flush after the chat opened clears both — ' + JSON.stringify(r) + (errs.length ? ' errs=' + errs.join(' | ') : ''));
     /* the heart's look: both themes from tokens (no literal colour), 20 px disc, 12 px glyph */
     const css = stripCssComments(rd('src/styles/components/chatlist-item.css'));
     const look = {

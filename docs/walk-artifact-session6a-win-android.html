@@ -1,0 +1,221 @@
+<title>Spixi Session 6 Walk</title>
+<style>
+/* Layout: one narrow column — commit steps, then a Windows part and an Android part (each: build steps, then walk rows), a sticky tally bar.
+   Tokens follow the Spixi redesign palette (ink neutrals, the Spixi blue). */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:780px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:8px 0 0;text-wrap:balance;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .tag{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 8px}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:8px;flex-wrap:wrap}
+nav.jump a{font:600 13px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:5px 12px;text-decoration:none}
+nav.jump a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps li{min-width:0}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.cmd button,.ctl button{font:600 12px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;flex:none}
+.exp{font-size:13px;color:var(--ink-2)}
+.exp b{color:var(--ink)}
+code{font:13px var(--mono);background:var(--brand-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:780px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{width:100%;min-height:120px;font:13px var(--mono)}
+.note{font-size:13px;color:var(--ink-2);border-inline-start:3px solid var(--brand);padding-inline-start:10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Spixi Session 6 Walk</h1>
+    <p class="sub"><b>Session 6a (#1175–#1196): the 2 walk fails (W-VIEW, A-FADE probe) + #1170 #1171 #1174 + your #1175–#1178 + #1190–#1195.</b> Apply the patch and commit, build Windows (F5) and Android, then walk the rows. ⚠ The C# is UNCOMPILED (SingleChatPage, ContactDetails, HomePage, Node, UIHelpers, 2 new Utils rules): a build error is this batch's bug — paste it. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both log files and the two recordings in the chat.</p>
+  </header>
+  <nav class="jump" aria-label="Parts">
+    <a href="#commit">1 · Commit + push</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
+  </nav>
+
+  <h2 id="commit">Commit + push <span class="tag">fresh PowerShell</span></h2>
+  <section class="box">
+    <h3>Steps (one command each)</h3>
+    <ol class="steps" id="steps-commit"></ol>
+  </section>
+
+  <h2 id="windows">Windows <span class="tag">F5</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-win"></ol>
+  </section>
+  <div id="rows-win"></div>
+
+  <h2 id="android">Android <span class="tag">Release + dev switch</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-and"></ol>
+  </section>
+  <div id="rows-and"></div>
+  <p class="note">Rows marked REC need a screen recording (Android: 60 fps if your recorder has it). A-UNREAD fails → save the logcat at once and say if going back to the chats list cleared it.</p>
+  <textarea id="out" readonly aria-label="Results text" hidden></textarea>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+</div></div>
+
+<script>
+const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
+const STEPS = {
+  commit: [
+    ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
+    ["Check the tree.", "git --no-optional-locks status --short", "Only <b>docs/handoff-2026-09-30e.md</b>, <b>docs/ixian-agent-strategy-reference.md</b> and <b>Claude outputs</b> files are untracked. Other changes: stop and paste them."],
+    ["Check that the patch applies.", "git apply --check \"..\\Claude outputs\\session6a-build.patch\"", "No output."],
+    ["Apply the patch (it also stages the new files).", "git apply --index \"..\\Claude outputs\\session6a-build.patch\"", "No output."],
+    ["Check the count.", "git diff --cached --stat", "The last line says <b>127 files changed</b>. Another number: stop and paste it."],
+    ["Commit.", "git commit -F docs/commit-message-session6a.txt", "Subject \"Session 6a: viewer motion, group tile heads, scroll-safe menus, unread and transfer fixes\"."],
+    ["Push.", "git push", "Ends with <b>redesign/frontend -> redesign/frontend</b>."],
+    ["Run the C# harness. It now uses your newest .NET SDK (10).", "node scripts/run-csh.mjs", "First line <b>run-csh: SDK 10.…</b>, last line <b>CSH pass=116 fail=0</b>."],
+    ["Delete the old build output (C# and html changed).", "Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue", "No output."],
+  ],
+  win: [
+    ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
+    ['Set the target.', '', 'Configuration <b>Debug</b>, target <b>Windows Machine</b>. Debug turns the [P1] lines on.'],
+    ['Press F5. Never use dotnet build for Windows (#663).', '', 'The app starts. A build error: paste it in the chat.'],
+    ['Walk the Windows rows below. Use a wide window.', '', ''],
+    ['Save the log.', '', 'Developer page → <b>Send log</b>. It saves <b>Downloads\\spixi-log-&lt;date&gt;.txt</b>.'],
+    ['Copy the log next to the other outputs (NOT into the repo folder).', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
+  ],
+  and: [
+    ['Connect the phone with USB. Check it.', 'adb devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large.', 'adb logcat -G 16M', 'No output.'],
+    ['Clear the log.', 'adb logcat -c', 'No output.'],
+    ['Build and deploy Release with the dev switch.', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Release -p:SpixiDevCoexist=true -t:Run', 'The app opens on the phone. A build error: paste it.'],
+    ['Walk the Android rows below.', '', ''],
+    ['Save the log as UTF-8.', 'adb logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s6a.txt"', 'A file of a few MB.'],
+  ],
+};
+const W = 'w', A = 'a';
+const ROWS = [
+  {p:W,id:"W-BUILD",t:"BUILD: this build is the session-6a build",d:"Open a downloaded photo in the viewer. Wait 1 s. Click the dark area beside the picture.",e:"The viewer closes fast (about 0.1 s). Only this build closes on a click outside the picture."},
+  {p:W,id:"W-VIEW",t:"#1180 viewer open + close (re-walk of the F)",d:"Tap a received photo tile (a portrait one too). Close with ✕. 5 times.",e:"Open: a dark stage with a small spinner, then the picture fades in in its REAL shape — no square that jumps, no flicker. Close: fast, the dim goes with it."},
+  {p:W,id:"W-VIEW-OUT",t:"#1180 click outside / double click",d:"Open the viewer; click the picture; click the caption bar; then double-click a tile in the chat.",e:"Click on the picture: stays open. Click on the dark ground or the caption: closes. A double click on a tile: the viewer opens and STAYS open."},
+  {p:W,id:"W-SHOWINCHAT",t:"#1176 Show in chat keeps the pane",d:"Wide window, chat info open beside the chat. Right-click a file in chat info → Show in chat.",e:"The chat scrolls to the message and pulses it; chat info STAYS open beside it."},
+  {p:W,id:"W-HOVER",t:"#1171 no hover flash",d:"Rest the mouse on a chats row (do not move it). The other device types, sends a message, goes online/offline.",e:"The row keeps its hover colour the whole time — no flash. Move the mouse away: the hover goes."},
+  {p:W,id:"W-GROUPTILE",t:"#1170 group tiles show the sender",d:"A group: members send a GIF, a photo and a PDF. Then two photos in a row from one member.",e:"Each tile has the sender's name above and avatar beside it, like a text message. Click the name/avatar: the member sheet. Sent tiles and 1:1 tiles: no name (as before)."},
+  {p:W,id:"W-BLIND",t:"#1170 blind group",d:"A blind group, a member with no nickname sends a photo.",e:"\"Hidden member\", no address, no click."},
+  {p:A,id:"A-UNREAD",t:"#1175 unread clears at once (PRIORITY)",d:"Group: a member sends a file while you are on the chats list (unread 1). Open the chat. Go back. Also: resume the app from the background on an open chat with a new message.",e:"Row badge, the Unread / Groups chips and the Chats tab badge go to 0 when the chat opens — no restart. If it FAILS: save the logcat at once; note if going back cleared it."},
+  {p:A,id:"A-PAUSED",t:"#1177 paused download",d:"Start a big download (desktop → phone). Lock the phone mid-transfer for 30 s. Unlock, open the chat.",e:"The tile shows \"Paused · N%\" (never \"Tap to download\"), then the live % when it resumes. Note how long the resume takes."},
+  {p:A,id:"A-NOTIF",t:"#1178 file offer notification",d:"App in the background. 1:1 contact sends a PDF, then a photo. A group member sends a file. Then turn OFF \"show sender name\" and repeat one.",e:"\"<Name>: Sent you a file\" / \"…Sent you a photo\"; group: \"<Group>: <Member> sent a file\"; names off: \"New file\" / \"New photo\". Never \"received\", never the file name."},
+  {p:A,id:"A-SCROLLMENU",t:"#1174 no menu while scrolling",d:"Spixi Official Group Chat: scroll up and down fast for 30 s, also starting the scroll on a GIF and resting the finger before the scroll. Then a still long press.",e:"No message menu opens during scrolling. A still long press opens it once."},
+  {p:A,id:"A-INFOSCROLL",t:"#1174 chat info + chats rows",d:"Chat info → Media grid: scroll fast. Chats list: scroll fast.",e:"No menu opens while scrolling; a still long press still opens it."},
+  {p:A,id:"A-FADE-REC",t:"#1181 photo fade probe (REC)",d:"Record the screen. Open a chat with a photo first in view, 5 times.",e:"Note what you see. Send the recording + the log ([P1] fade lines). This row only collects data (no pass / fail)."},
+  {p:A,id:"A-VIEW",t:"#1180 viewer (phone)",d:"Tap a downloaded photo; swipe down; open again, tap the dark area; double-tap a tile.",e:"No square jump on open; swipe and the outside tap close it fast; the double tap leaves it open."},
+  {p:W,id:"W-INFOCLOSE-REC",t:"#1194 chat info close flicker (REC + log)",d:"Wide window. Record the screen. Close chat info 3 times on a chat with 3 media, then on one with 30+ media (Account → Privacy: previews ON, then OFF). Then set InfoPaneMotion = \"push\" in HomePage.xaml.cs, F5, repeat with 30+.",e:"Data row: note where it flickers. The log lines [P1] infopane close … tiles= previews= shown= tell me which case it is."},
+  {p:W,id:"W-GRID9",t:"#1195 chat info shows 9 media",d:"Chat info of a chat with more than 9 photos.",e:"3 rows of tiles, then \"Show all N\"; Show all opens the full grid with every preview."},
+  {p:W,id:"W-AVATAR-LIVE",t:"#1191 group avatar live",d:"Open a BOT group (or a group with a member who is also your contact). That member changes the profile picture.",e:"The member's bubbles in the open chat change within ~1 s, no reopen. (A plain group member who is not your contact: no live change yet — known, BE row.)"},
+  {p:W,id:"W-HEART",t:"#1192 heart beside the count",d:"Someone reacts to YOUR message and also sends 2 messages while you are on the chats list.",e:"The row shows the heart LEFT of the count 2. The Unread chip counts the chat once; the heart adds nothing."},
+  {p:A,id:"A-CARD",t:"#1168 sending card on a light photo",d:"Send a photo of a white page (a screenshot of a document) to a contact.",e:"While it sends: the ring, the % and \"Keep Spixi open…\" read clearly on the darker card."},
+  {p:A,id:"A-NOTAVAIL",t:"#1190 my old sent images",d:"Open QWERTZ (or a chat with your 2 Oct screenshots).",e:"Each sent image without a picture shows a SMALL card \"Not available on this device\" — no big empty square, nothing happens on a tap. Send the log: [P1] filelocal lines say why."},
+  {p:A,id:"A-DELETED",t:"#1190 deleted from this device",d:"Chat info → long-press a received downloaded photo → Delete from this device → Delete. Look at the chat.",e:"Chat info drops it; in the chat the row becomes \"Photo deleted from this device\" (italic, no tap); the viewer never opens it."},
+  {p:A,id:"A-STUTTER-REC",t:"#1187 Contacts → Message stutter (REC)",d:"Record the screen. Home → Contacts → a contact → Message. 3 times.",e:"Note the black frames / the slide. Send the recording + the log (data row)."}
+];
+
+const KEY = 'spixi-walk-session6a-v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function el(tag, attrs, kids){ const n = document.createElement(tag); for (const k in (attrs||{})) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'html') n.innerHTML = attrs[k]; else n.setAttribute(k, attrs[k]); } (kids||[]).forEach(c => c && n.append(c)); return n; }
+async function copyText(text, btn){
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { const out = document.getElementById('out'); out.hidden = false; out.value = text; out.focus(); out.select(); btn.textContent = 'Select + Ctrl+C'; }
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+}
+function renderSteps(id, list){
+  const ol = document.getElementById(id);
+  list.forEach(([say, cmd, expect]) => {
+    const li = el('li', {}, [el('span', {text: say})]);
+    if (cmd) {
+      const b = el('button', {type:'button', 'aria-label':'Copy command'}); b.textContent = 'Copy'; b.dataset.label = 'Copy';
+      b.addEventListener('click', () => copyText(cmd, b));
+      li.append(el('div', {class:'cmd'}, [el('pre', {text: cmd}), b]));
+    }
+    if (expect) li.append(el('div', {class:'exp', html: 'Expect: ' + expect}));
+    ol.append(li);
+  });
+}
+renderSteps('steps-commit', STEPS.commit);
+renderSteps('steps-win', STEPS.win);
+renderSteps('steps-and', STEPS.and);
+function renderRows(){
+  for (const [host, plat] of [['rows-win', W], ['rows-and', A]]) {
+    const box = document.getElementById(host); box.innerHTML = ''; box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '12px';
+    ROWS.filter(r => r.p === plat).forEach(r => {
+      const s = state[r.id] || {};
+      const card = el('article', {class:'row', 'data-v': s.v || ''});
+      card.append(el('div', {class:'top'}, [el('span', {class:'id', text:r.id}), el('span', {class:'title', text:r.t})]));
+      card.append(el('dl', {}, [el('dt', {text:'Do'}), el('dd', {text:r.d}), el('dt', {text:'Pass if'}), el('dd', {text:r.e})]));
+      const ctl = el('div', {class:'ctl'});
+      [['P','Pass'],['F','Fail'],['N','N/A']].forEach(([k, lab]) => {
+        const b = el('button', {type:'button', 'data-k':k, 'aria-pressed': s.v === k ? 'true' : 'false'}); b.textContent = lab;
+        b.addEventListener('click', () => { state[r.id] = Object.assign({}, state[r.id], {v: s.v === k ? '' : k}); save(); renderRows(); tally(); });
+        ctl.append(b);
+      });
+      card.append(ctl);
+      const ta = el('textarea', {id:'note-' + r.id, 'aria-label':'Note for ' + r.id, placeholder:'Note (what you saw, numbers, paste lines)'});
+      ta.value = s.n || '';
+      ta.addEventListener('input', () => { state[r.id] = Object.assign({}, state[r.id], {n: ta.value}); save(); });
+      card.append(ta);
+      box.append(card);
+    });
+  }
+}
+function counts(){ let p=0,f=0,n=0; ROWS.forEach(r => { const v = (state[r.id]||{}).v; if (v==='P') p++; else if (v==='F') f++; else if (v==='N') n++; }); return {p,f,n}; }
+function tally(){ const c = counts(); const left = ROWS.length - c.p - c.f - c.n;
+  document.getElementById('tally').innerHTML = `<b class="p">${c.p} P</b> · <b class="f">${c.f} F</b> · <b class="n">${c.n} N/A</b> · ${left} open`; }
+document.getElementById('copy').addEventListener('click', (ev) => {
+  const c = counts();
+  const lines = ROWS.map(r => { const s = state[r.id] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id}: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
+  const text = `Re-walk session 4 fix batch (Windows F5 + Android Release dev): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
+});
+document.getElementById('reset').addEventListener('click', (ev) => {
+  const b = ev.currentTarget;
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Clear'; }, 2500); return; }
+  state = {}; save(); b.dataset.armed = ''; b.textContent = 'Clear'; renderRows(); tally();
+});
+renderRows(); tally();
+</script>

@@ -14,5 +14,5 @@ notification-incoming-call = Chiamata in entrata
 notification-payment-received = Pagamento ricevuto
 notification-payment-request = Richiesta di pagamento
 notification-app-invite = Invito app
-notification-file = File ricevuto
+notification-file = Ti ha inviato un file
 notification-contact-request = Richiesta di contatto

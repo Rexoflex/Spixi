@@ -81,12 +81,12 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-06: **session 7b BUILT** (fixes for walk #1211, Damir's picks #1214–#1224, mechanisms #1218/#1219/#1222/#1223/#1225, verdict #1226): strip B inside the pill + tile, quotes tile right + sender always, waveform W1, hover H2, FAB z-index, swipe hold / Back closes the strip, no dblclick reply on cards, #1201 REVERTED + grey picture ground, AND-47 dev logcat mirror + [P1] lines, F9 heal, #1210 (4)(6)(8). UNCOMMITTED → patch `session7b-build.patch`. ⚠ C# UNCOMPILED.
+- 2026-10-06: **session 7b committed (8e76f64f) + WALK #1227: 18 P · 0 F · 3 N/A** — A-FADE closed, F9 / F10 PASS, AND-47 fixed on device. Built: strip B, quote tiles + sender, W1, H2, FAB, reply hold + Back, no dblclick on cards, #1201 reverted + grey ground, dev logcat mirror + [P1] lines, F9 heal, #1210 (4)(6)(8) (#1214–#1226).
 - Smoke BASELINE OK **5364** · CSH **208** (cloud twin). #46: r1 2 MAJOR → fixed · r2 / r3 0 MAJOR → fixed · r4 CLEAN.
 - F10 (offline voice): late, not lost — the 0:19 clip missed the push MAILBOX and came by direct delivery at 15:28 (#1225). Walk row 7B-F10 measures the size limit with the new logs. D1 = as designed (answer not yet stored).
-- NEXT: Damir builds + walks 7b (sheet "Spixi Session 7b Walk"); record it as #1227. Then S8.
-- Open data: #1205 A-FLASH · #1194 · the Windows log gap 15:16–15:28 (#1225). BE asks: B-28, B-29, B-30 (push size), CORE-8, CORE-9 (remote delete misses `lastMessage`, #1223), R3-N4, #1191.
+- NEXT: S8 (`docs/prompts/session-8.md`) — incl. (f) desktop light-dismiss across panes, (g) the reply excerpt in the chats list (#1228 (1)), and the push-mailbox drain data first (#1228 (2)).
+- Open data: #1205 A-FLASH · #1194 · the Windows log gap 15:16–15:28 (#1225). BE asks: B-28, B-29, B-30 (push size), CORE-8, CORE-9 (remote delete misses `lastMessage`, #1223), CORE-10 (push mailbox remove / empty entry, #1228), R3-N4, #1191.
 - v1 plan (#1137–#1145, SCOPE CLOSED): S7 ✅ → 7b ✅ built → walk → S8 groups (+ #1204) + reactions + mini-app accept + disappearing + privacy → S9 → walk + fix → FREEZE.
 - Road after the v1 build: L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight.
 - Known: V-14 PHOTO-button content-URI path; #1200 my sent originals `missing` on Android (S9).
-- **NEXT SESSION: read `docs/handoff-2026-10-06b.md` FIRST.** After the walk: record it, fix fails, then paste `docs/prompts/session-8.md`. Next free DECISIONS number: **#1227**.
+- **NEXT SESSION: read `docs/handoff-2026-10-06b.md` FIRST, then paste `docs/prompts/session-8.md`.** Next free DECISIONS number: **#1229**.

@@ -10,6 +10,15 @@ ORDER:
    (d) disappearing messages (#1138 (12): per-chat timer off / 1 h / 1 day / 1 week as a readable system line new apps parse; local delete;
    honest UI text; `Friend.deleteMessage` blank rows and file messages) · (e) privacy switches (#1138 (14): read receipts off, typing off,
    "Hide my online status" as a courtesy flag in the capability answer — the S7 ask/answer, #1207; honest text; real hiding = v1.1).
+   ★ (f) 🟡 DESKTOP LIGHT-DISMISS ACROSS PANES (Damir 2026-10-06, after 7b): on Windows / Mac a click in ANOTHER pane (rail · chat ·
+   chat info) closes the open QUICK menu (chats-row right-click menu, message menu, small pop-ups) and the click still acts there
+   (Damir: "the app should feel unified"). Modal surfaces stay open: the image viewer, confirm dialogs, sheets with a choice.
+   Mechanism: each pane is its own WebView, so the rail never sees a click in the chat; proposal = shell-only — each pane closes
+   its own quick menu on window `blur` (desktop only), no C#, no JS link between panes (the isolation rule holds). First walk row:
+   prove WebView2 / WKWebView sends `blur` to a pane when another pane is clicked. Give it a DECISIONS row when Damir confirms.
+   ★ (g) the chats-list excerpt (and the notification) of a REPLY: a reply marker + the body (#1228 (1)) — render 2–3 wordings.
+   ★ FIRST, before the interview: #1228 (2) the push-mailbox drain — read `android-s7b.txt` 20:01–20:09 and the Core fetch loop; mechanism
+   first (new ids vs repeats), a dev [P1] line if needed; Core fixes go to BE (CORE-10).
    Clickable questions (AskUserQuestion, ≤ 4 per call), three options where real alternatives exist. Verify each tree fact before you ask (#215);
    read the OLD app's behaviour at its tag before you design a fallback (L80).
 3. END: the patch + the PowerShell commands + ONE walk sheet (published artifact) with the S8 rows + the re-walk rows of the last walk.

@@ -1,0 +1,6 @@
+Record walk #1227 (7b) and the S8 additions
+
+- DECISIONS #1227: walk of session 7b, 18 P / 0 F / 3 N/A; A-FADE closed
+- DECISIONS #1228: reply excerpt in the chats list, push mailbox drain
+- S8 prompt: light-dismiss across panes (f), reply excerpt (g), mailbox first
+- CLAUDE.md, handoff, status log, readiness; next free #1229

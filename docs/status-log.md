@@ -420,3 +420,5 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   loses every Android dev warn/error; F9 dropped list write + stale excerpt; F2 z-index; F5 keyboard stick. Built by 3 agents + lead;
   #46 r1 2 MAJOR → fixed (+ GATE 32/42) · r2 0/3 → fixed · r3 0/3 → fixed · r4 CLEAN. Smoke 5364 · CSH 208. UNCOMMITTED →
   `session7b-build.patch`. Next free #1227.
+- 2026-10-06 (after 7b): Damir committed 8e76f64f and walked 7b: WALK #1227 18 P · 0 F · 3 N/A (A-FADE closed, AND-47 fixed on device,
+  F10 clips 5–30 s arrived both ways). After-walk items for S8: the reply excerpt, the push-mailbox drain (#1228). Next free #1229.

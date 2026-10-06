@@ -154,7 +154,7 @@ export default async function (h) {
   /* ———— #1177 C#: addFile carries incomingTransferArg LAST; the empty-uid guard; the rule decides ———— */
   await guard('#1177 C#', async () => {
     const sc = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
-    const pushLast = /string fTransfer\s*=\s*incomingTransferArg\(message,\s*uid\);\s*deliveryTicks\([^;]*;\s*push\(batch,\s*"addFile",[^;]*fSent\.ToString\(\),\s*fTransfer,\s*fLocal\);/.test(sc);   // ★ #1190 re-base: + arg 16 fLocal
+    const pushLast = /string fTransfer\s*=\s*incomingTransferArg\(message,\s*uid\);\s*deliveryTicks\([^;]*;\s*push\(batch,\s*"addFile",[^;]*fSent\.ToString\(\),\s*fTransfer,\s*fLocal,\s*fVoice\);/.test(sc);   // ★ #1190 re-base: + arg 16 fLocal · ★ #1208 re-base: + arg 17 fVoice
     const fn = sc.slice(sc.indexOf('private static string incomingTransferArg('), sc.indexOf('private static string incomingTransferArg(') + 1200);
     const guardUid = /if\s*\(message\.localSender\s*\|\|\s*message\.completed\s*\|\|\s*string\.IsNullOrEmpty\(uid\)\)\s*\{\s*return "";\s*\}/.test(fn);
     const rule = /TransferManager\.getIncomingTransfer\(uid\)/.test(fn) && /t\.uid\s*!=\s*uid/.test(fn) && /FileRowRules\.transferStateArg\(true,\s*t\.completed,\s*true,\s*t\.fileStream\s*!=\s*null,/.test(fn) && /catch\s*\(Exception\)\s*\{\s*return "";\s*\}/.test(fn);
@@ -186,7 +186,7 @@ export default async function (h) {
   /* ———— #1178 C#: the offer path uses the new keys; never the file name ———— */
   await guard('#1178 C#', async () => {
     const nd = stripCode(rd('Spixi/Meta/Node.cs'));
-    const site = /string notifText\s*=\s*type\s*==\s*FriendMessageType\.fileHeader\s*\?\s*fileOfferNotificationText\(friend,\s*friend_message,\s*sender_address\)\s*:\s*notificationTextForType\(type\);/.test(nd);
+    const site = /string notifText\s*=\s*type\s*==\s*FriendMessageType\.fileHeader\s*\?\s*\(voiceFileNotificationText\(friend,\s*friend_message\)\s*\?\?\s*fileOfferNotificationText\(friend,\s*friend_message,\s*sender_address\)\)\s*:\s*voiceNotificationText\(friend,\s*type,\s*friend_message\)\s*\?\?\s*notificationTextForType\(type\);/.test(nd);   // ★ #1208 re-base: an inline voice text gets its own label (pins-s7/core.mjs)
     const fnStart = nd.indexOf('private static string fileOfferNotificationText(');
     const fn = nd.slice(fnStart, nd.indexOf('public static FriendMessage? addMessageWithType(FriendMessageType type', fnStart));
     const body = /SharedItems\.isImageName\(fileName\)/.test(fn) && /bool showSender\s*=\s*SNotificationPrefs\.showSenderName;/.test(fn)

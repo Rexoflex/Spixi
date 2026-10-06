@@ -1,0 +1,29 @@
+Session 7: voice messages and the capability ask
+
+S7 (Damir's interview picks, DECISIONS #1207-#1209):
+- The capability ask: opening an approved 1:1 chat asks the contact
+  once per app run which Spixi protocols it speaks (getAppProtocols;
+  Core's pending queue carries it until both apps are online). The
+  stored answer is trusted; the answer now also lists spixi.voice.1.
+- Voice messages, up to 30 s: tap the mic, a recording bar with a
+  timer, cancel and send. Leaving the chat, the app going to the
+  background or a call stops the recording and keeps the clip.
+- A contact that answered spixi.voice.1 (1:1) gets the clip inline in
+  a normal chat message (Opus at 10 kbit/s, base64, under 64 000
+  characters), so it arrives offline; the first line reads
+  "(voice message - update Spixi to play)" on an old app. Old or
+  unknown apps and every group get an Ogg Opus file (own muxer).
+- A new app shows both as a voice bubble: play / pause, a waveform
+  from the audio, the length; the first tap on a voice file accepts
+  the download, then plays. Playback is native on the loudspeaker; no
+  audio data enters the chat WebView. 1x only.
+- The chats list and the notification read "Voice message (0:12)".
+  A voice row is never edited, copied or shown as text.
+- Calls are unchanged (24 kbit/s, their audio settings); voice
+  messages use a separate voice mode of the platform recorder and
+  player.
+
+New bridge surface (provisional, BE ask B-30): ixian:voicerec,
+ixian:voiceplay, pushes voiceRec / voiceState / voiceInfo, setCaps
+voice, addMe/addThem arg 17, updateMessage arg 12, addFile arg 17.
+No Ixian-Core change.

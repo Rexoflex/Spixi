@@ -734,5 +734,20 @@
   "fileUnavailable": "このデバイスでは利用できません",
   "photoDeletedLocal": "このデバイスから写真を削除しました",
   "saveEdit": "保存",
-  "editNoLonger": "このメッセージはもう編集できません。テキストは入力欄に残っています。"
+  "editNoLonger": "このメッセージはもう編集できません。テキストは入力欄に残っています。",
+  "cancelRecording": "録音をキャンセル",
+  "recordingVoice": "音声メッセージを録音中",
+  "sendVoice": "音声メッセージを送信",
+  "playVoice": "音声メッセージを再生",
+  "pauseVoice": "音声メッセージを一時停止",
+  "voiceLoading": "音声メッセージを読み込み中",
+  "voiceUnavailable": "この音声メッセージは再生できません",
+  "micDenied": "録音するには Spixi にマイクへのアクセスが必要です。確認が表示されたら許可するか、端末の設定で許可してから、もう一度マイクをタップしてください。",
+  "micBusy": "通話中は音声メッセージを録音できません。",
+  "voiceRecError": "音声メッセージを録音できませんでした。",
+  "voiceMessageLength": "音声メッセージ（{0}）",
+  "playVoiceLength": "音声メッセージを再生、{0}",
+  "recordingStoppedAt": "録音を停止しました、{0}",
+  "recordingTime": "{0} / {1}",
+  "voiceSendFailed": "音声メッセージを送信できませんでした。"
 }

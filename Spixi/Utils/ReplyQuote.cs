@@ -18,6 +18,8 @@
  *     normalise + cap (ReplyQuoteTests checks the two against each other).
  *   · fileHeader: "📷 " + name for a photo (SharedItems.isImageName — the caller passes the answer), else "📎 " + name;
  *     the name normalised + capped the same way. An unparseable header (or a blanked one) is not quotable.
+ *   · ★ #1208: an inline voice text (VoiceCodec.tryPeekInline) → "🎤 " + M:SS; a voice file (isVoiceFileName + the header
+ *     size unknown or ≤ MaxOggBytes, the row's rule) → "🎤".
  *   · sentFunds / requestFunds → "💸 Payment" · voiceCall / voiceCallEnd → "📞 Call" · appSession → "🚀 App".
  *   · any other type → not quotable (null).
  * THE SHAPE: the first line starts with "> ", a "\n" follows within MaxLineChars (a longer first line is not a quote
@@ -67,6 +69,9 @@ namespace SPIXI
         public const string PaymentExcerpt = "💸 Payment";
         public const string CallExcerpt = "📞 Call";
         public const string AppExcerpt = "🚀 App";
+        /** ★ #1208 (session 7): an inline voice text → "🎤 M:SS"; a voice FILE (VoiceCodec.isVoiceFileName) → "🎤". */
+        public const string VoiceGlyph = "🎤 ";
+        public const string VoiceFileExcerpt = "🎤";
 
         private static readonly object NotQuotable = new object();
 
@@ -290,12 +295,20 @@ namespace SPIXI
                     {
                         return null;   // a deleted row
                     }
+                    if (VoiceCodec.tryPeekInline(text, out int voiceMs))
+                    {
+                        return VoiceGlyph + VoiceCodec.formatDuration(voiceMs);   // ★ #1208: never the base64
+                    }
                     int nl = shapeNewline(text);
                     return excerptOfRange(text, nl >= 0 ? nl + 1 : 0, text.Length);
                 case FriendMessageType.fileHeader:
                     if (string.IsNullOrEmpty(fileName))
                     {
                         return null;   // an unparseable / blanked header
+                    }
+                    if (VoiceCodec.isVoiceFileName(fileName) && headerSizeFits(text))
+                    {
+                        return VoiceFileExcerpt;   // ★ #1208: a voice file (the name + the header's size — both devices hold it)
                     }
                     return (isImage ? PhotoGlyph : FileGlyph) + excerptOfRange(fileName, 0, fileName.Length);
                 case FriendMessageType.sentFunds:
@@ -309,6 +322,22 @@ namespace SPIXI
                 default:
                     return null;
             }
+        }
+
+        /** ★ #46 r1: the row's voice-file size rule on the HEADER text ("uid:name[:size]"): no / unparseable size = unknown →
+         *  fits; else ≤ VoiceCodec.MaxOggBytes. The header only (never the local fileSize) — both devices hold the same text. */
+        private static bool headerSizeFits(string? header)
+        {
+            if (string.IsNullOrEmpty(header))
+            {
+                return true;
+            }
+            string[] split = header.Split(':');
+            if (split.Length < 3 || !ulong.TryParse(split[2], NumberStyles.None, CultureInfo.InvariantCulture, out ulong size) || size == 0)
+            {
+                return true;
+            }
+            return size <= (ulong)VoiceCodec.MaxOggBytes;
         }
 
         /** The candidate's excerpt, memoised on the candidate. */

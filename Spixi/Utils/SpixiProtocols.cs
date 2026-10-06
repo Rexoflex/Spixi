@@ -3,7 +3,12 @@
  * ids = the UTF-8 bytes of "spixi.reply.1" then "spixi.edit.1". Only an approved, known, normal 1:1 contact gets an
  * answer — never a group, a bot room, an unknown or an unapproved sender (an answer to a stranger tells it this device
  * is online and which build it runs). At most ONE answer per address per 60 s: a static map address → the last answer
- * (monotonic ms), capped at 512 entries, the oldest dropped. This app asks nobody and reads no cache yet (S7).
+ * (monotonic ms), capped at 512 entries, the oldest dropped.
+ * ★★ #1207 / #1208 (session 7): the list gains "spixi.voice.1" (order reply, edit, voice). THE ASK: the open of an
+ * approved, normal 1:1 chat (not a group, not a bot) sends ONE getAppProtocols per contact per app run (claimAsk: a
+ * lock-guarded set of the asked addresses, capped at 512, the oldest dropped — a dropped address may be asked again).
+ * The stored answer (Core Friend.supportedProtocols, no expiry) is trusted at once: supports() is an exact UTF-8 byte
+ * compare of each stored id.
  * PURE: no MAUI, no Core type — scripts/csh executes the rule and the limiter (SpixiProtocolsTests.cs). */
 using System;
 using System.Collections.Concurrent;
@@ -16,6 +21,7 @@ namespace SPIXI
     {
         public const string ReplyId = "spixi.reply.1";
         public const string EditId = "spixi.edit.1";
+        public const string VoiceId = "spixi.voice.1";   // ★ #1208 (= VoiceCodec.ProtocolId)
         public const long AnswerIntervalMs = 60 * 1000;
         public const int LimiterCap = 512;
         /** lastAnsweredMs for an address that was never answered. */
@@ -27,7 +33,75 @@ namespace SPIXI
         /** The ids this build speaks, in this order. A fresh list each call (Core keeps the reference in its message). */
         public static List<byte[]> ids()
         {
-            return new List<byte[]> { Encoding.UTF8.GetBytes(ReplyId), Encoding.UTF8.GetBytes(EditId) };
+            return new List<byte[]> { Encoding.UTF8.GetBytes(ReplyId), Encoding.UTF8.GetBytes(EditId), Encoding.UTF8.GetBytes(VoiceId) };
+        }
+
+        /** ★ #1207: does a stored answer (Core Friend.supportedProtocols) name `id`? Exact UTF-8 bytes; null → false. */
+        public static bool supports(IEnumerable<byte[]>? ids, string id)
+        {
+            if (ids == null || string.IsNullOrEmpty(id))
+            {
+                return false;
+            }
+            byte[] want = Encoding.UTF8.GetBytes(id);
+            foreach (byte[] b in ids)
+            {
+                if (b != null && b.AsSpan().SequenceEqual(want))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public const int AskCap = 512;
+        private static readonly HashSet<string> asked = new HashSet<string>(StringComparer.Ordinal);
+        private static readonly Queue<string> askedOrder = new Queue<string>();
+        private static readonly object askGate = new object();
+
+        /** ★ #1207: send a getAppProtocols on this chat open? true ONCE per process per address (approved normal 1:1,
+         *  not a bot, a known contact); the set is capped at AskCap, the oldest dropped. */
+        public static bool claimAsk(string? address, bool friendKnown, bool isNormal1to1, bool isBot, bool isApproved)
+        {
+            if (string.IsNullOrEmpty(address) || !friendKnown || !isNormal1to1 || isBot || !isApproved)
+            {
+                return false;
+            }
+            lock (askGate)
+            {
+                if (!asked.Add(address))
+                {
+                    return false;
+                }
+                askedOrder.Enqueue(address);
+                while (asked.Count > AskCap && askedOrder.Count > 0)
+                {
+                    asked.Remove(askedOrder.Dequeue());
+                }
+                return true;
+            }
+        }
+
+        /** The ask set's size (tests, the cap). */
+        public static int askCount
+        {
+            get
+            {
+                lock (askGate)
+                {
+                    return asked.Count;
+                }
+            }
+        }
+
+        /** Tests only: forget every ask. */
+        public static void resetAsks()
+        {
+            lock (askGate)
+            {
+                asked.Clear();
+                askedOrder.Clear();
+            }
         }
 
         /** ★ #1197: does this getAppProtocols get an answer? */

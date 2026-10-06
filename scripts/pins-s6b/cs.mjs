@@ -130,7 +130,8 @@ export default async function (h) {
 
   /* ———— #1198 / #1199: setCaps — reply everywhere, edit not in a bot room; the M1 block is gone ———— */
   await guard('#1198/#1199 caps', async () => {
-    const caps = /string caps\s*=\s*"tipResult,composeSend,composeRequest,payRequest,reply";\s*if\s*\(\s*!friend\.bot\s*\)\s*\{\s*caps\s*\+=\s*",edit";\s*\}\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);
+    /* ★ #1208 re-base (session 7): the voice cap (V1, pins-s7/cs.mjs) sits between the edit block and the push */
+    const caps = /string caps\s*=\s*"tipResult,composeSend,composeRequest,payRequest,reply";\s*if\s*\(\s*!friend\.bot\s*\)\s*\{\s*caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);
     const one = (SCP.match(/"setCaps"/g) || []).length === 1;
     const raw = rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
     const m1gone = !/do NOT add ",reply"|THE CARRIER IS NOT HERE|carrier is not landed/.test(raw) && /★★ #1198 \/ #1199 \(session 6b\): REPLY and EDIT are declared here/.test(raw);
@@ -221,9 +222,10 @@ export default async function (h) {
     const literal = sites.filter((s) => s.kind.startsWith('literal'));
     const prefixOnly = /string prefix\s*=\s*"addMe";/.test(SCP) && /prefix\s*=\s*"addThem";/.test(SCP) && (SCP.match(/prefix\s*=\s*"/g) || []).length === 2;
     // push(batch, prefix, id, address, nick, avatar, text, ts, sent, confirmed, read, paid, err, relation, replyTo, edited, quoteName, quoteText)
-    const rowOk = rows.length === 1 && rows.every((s) => s.a.length === 18 && s.a[6] === 'rowText' && s.a[7] === 'rowTime.ToString()' && s.a[14] === 'reply_to' && s.a[15] === 'edited' && s.a[16] === 'quoteName' && s.a[17] === 'quoteText');
+    /* ★ #1208 re-base (session 7): + arg 17 `rowVoice` (V2) on the row, + arg 12 `voice` on updateMessage */
+    const rowOk = rows.length === 1 && rows.every((s) => s.a.length === 19 && s.a[6] === 'rowText' && s.a[7] === 'rowTime.ToString()' && s.a[14] === 'reply_to' && s.a[15] === 'edited' && s.a[16] === 'quoteName' && s.a[17] === 'quoteText' && s.a[18] === 'rowVoice');
     // sendUiCommand(this, "updateMessage", id, message, sent, confirmed, read, paid, errorSending, edited, replyTo, quoteName, quoteText)
-    const updOk = updates.length === 1 && updates.every((s) => s.a.length === 13 && s.a[3] === 'rowText' && s.a[9] === 'edited' && s.a[10] === 'replyTo' && s.a[11] === 'quoteName' && s.a[12] === 'quoteText');
+    const updOk = updates.length === 1 && updates.every((s) => s.a.length === 14 && s.a[3] === 'rowText' && s.a[9] === 'edited' && s.a[10] === 'replyTo' && s.a[11] === 'quoteName' && s.a[12] === 'quoteText' && s.a[13] === 'voice');
     const ins = bodyOf(SCP, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)');
     const upd = bodyOf(SCP, 'public void updateMessage(FriendMessage message, int channel)');
     const matchIns = /if\s*\(\s*matchReply\(message,\s*channel,\s*batch\?\.replyIndex,\s*out ReplyQuote\.Match\?\s*rm\)\s*&&\s*rm\s*!=\s*null\s*\)\s*\{\s*rowText\s*=\s*rm\.body;\s*reply_to\s*=\s*rm\.targetIdHex;\s*quoteName\s*=\s*rm\.quoteName;\s*quoteText\s*=\s*rm\.quoteText;\s*\}\s*string edited\s*=\s*EditRules\.isEdited\(message\.type,\s*message\.sequence,\s*friend\.bot\)\s*\?\s*"1"\s*:\s*"";\s*long rowTime\s*=\s*message\.timestamp;/.test(ins);
@@ -337,9 +339,9 @@ export default async function (h) {
     const lm = bodyOf(SCP, 'public void loadMessages()');
     const iDone = lm.lastIndexOf('Utils.sendUiCommand(this, "messagesDone");');
     const iDoneP = lm.lastIndexOf('Utils.sendUiCommand(this, "messagesDone", show_more);');
-    const iRe = lm.search(/enqueueThumb\(t\.Key,\s*t\.Value\);\s*\}\s*recheckBurstFileRows\(batch,\s*readChannel\);\s*\}\s*if\s*\(\s*zeroedUnread\s*\)/);
+    const iRe = lm.search(/enqueueThumb\(t\.Key,\s*t\.Value\);\s*\}\s*recheckBurstFileRows\(batch,\s*readChannel\);\s*foreach\s*\(KeyValuePair<string, FriendMessage> v in batch\.voices\)\s*\{\s*enqueueVoiceInfo\(v\.Key,\s*v\.Value\);\s*\}\s*\}\s*if\s*\(\s*zeroedUnread\s*\)/);   /* ★ #1208 re-base: the voice waveforms queue right after the re-check */
     const after = iRe > iDone && iRe > iDoneP && iDone > 0 && iDoneP > 0 && (lm.match(/recheckBurstFileRows\(/g) || []).length === 1;
-    const rec = /string fLocal\s*=\s*SharedItems\.localArgOf\(message,\s*out string fCase\);[\s\S]{0,400}?batch\?\.fileRows\.Add\(new KeyValuePair<FriendMessage, string>\(message,\s*fLocal\)\);[\s\S]{0,600}?push\(batch,\s*"addFile",[^;]*fTransfer,\s*fLocal\);/.test(SCP);
+    const rec = /string fLocal\s*=\s*SharedItems\.localArgOf\(message,\s*out string fCase\);[\s\S]{0,400}?batch\?\.fileRows\.Add\(new KeyValuePair<FriendMessage, string>\(message,\s*fLocal\)\);[\s\S]{0,900}?push\(batch,\s*"addFile",[^;]*fTransfer,\s*fLocal,\s*fVoice\);/.test(SCP);   /* ★ #1208 re-base: + arg 17 fVoice (and its comment) */
     const re = bodyOf(SCP, 'private void recheckBurstFileRows(UiBatch batch, int channel)');
     const rule = /foreach\s*\(KeyValuePair<FriendMessage, string> row in batch\.fileRows\)\s*\{\s*try\s*\{\s*if\s*\(\s*row\.Value\s*==\s*"1"\s*&&\s*SharedItems\.localArgOf\(row\.Key,\s*out _\)\s*!=\s*"1"\s*\)\s*\{\s*refreshFileRow\(row\.Key,\s*channel\);\s*\}/.test(re);
     const field = /public readonly List<KeyValuePair<FriendMessage, string>> fileRows = new\(\);/.test(bodyOf(SCP, 'private sealed class UiBatch'));

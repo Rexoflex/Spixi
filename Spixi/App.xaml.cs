@@ -1355,6 +1355,12 @@ public partial class App : Application
 #if !WINDOWS
         SpixiContentPage.dropSpareChat("sleep");
 #endif
+        /* ★ #1208 (S7): the app goes to the BACKGROUND — a voice recording stops and is kept (the chat's bar holds it), a
+         * voice clip stops. Phones only: on WinUI (#507) and the Mac, OnSleep is a window DEACTIVATION — the window stays on
+         * screen and a recording there keeps running (the chat page's own leave hook still applies). */
+#if ANDROID || IOS
+        SPIXI.VoIP.VoiceClips.interruptAll("background");
+#endif
         // ★ #496: no-op on Android when lockOnPause already stamped this cycle; the real
         // stamp for every platform that has no pause hook.
         markBackgrounded();

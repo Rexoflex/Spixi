@@ -849,3 +849,19 @@ the contact.
 Core's replace rewrites any row of that id from the same sender (`FriendList.cs:262-307`, no type check) and ADDS an edit of an id it does
 not hold as a new message. Spixi now drops, for non-bot chats: a replace of an id it does not hold, and a replace or stream chunk onto a file,
 payment, call or local system row (the receipt is still sent). **For you to judge:** a type check in Core's replace itself (v1.1).
+
+## Session 7 addenda (2026-10-05, #1207–#1209) — voice messages + the capability ask (no Ixian-Core change)
+
+### 🟡 NEW verbs / pushes (frozen protocol — your approval asked, T1 B-30)
+
+| Verb / push | Where | What it can do |
+|---|---|---|
+| `ixian:voicerec:start` · `:cancel` · `:send` | chat | start / discard / send the recording C# holds (memory only); the route (inline vs file) is C#'s decision |
+| `ixian:voiceplay:<hex id>` | chat | C# looks the id up in its own list and plays the clip natively; a voice FILE not on the device starts the normal accept (the same as the user's accept tap) |
+| `voiceRec` · `voiceState` · `voiceInfo`, setCaps `voice`, addMe / addThem arg 17, updateMessage arg 12, addFile arg 17 | chat | display data only (state words, integers, 40 peak bars) |
+| `getAppProtocols` ASK + `spixi.voice.1` in the answer | SingleChatPage / StreamProcessor | asks an approved 1:1 contact once per app run at chat open (Core's `sendGetAppProtocols`, pending, no push) |
+
+### For you to judge
+- Inline voice is a normal `chat` message (≤ 64 000 chars) — the offline push carries ≈ 54 000 chars of base64 for 30 s (the push server's size limit is unknown to us).
+- `handleAppProtocols` (inherited) stores an unbounded peer list that Core persists with byte-sized counts (a > 255-id list would corrupt the saved contact).
+- A file written by C#: `<spixiUserFolder>/Voice/voice-*.ogg` (its own name, ≤ 256 KB each, never cleaned yet).

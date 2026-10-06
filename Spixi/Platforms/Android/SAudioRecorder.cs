@@ -14,8 +14,30 @@ namespace Spixi
     : Java.Lang.Object
     , AudioManager.IOnAudioFocusChangeListener
     {
+        /* ★★ #1208 (S7): a VOICE MESSAGE listener (recorder or player) — a loss of focus (another app, a phone call) is the
+         * platform's interrupt: the clip stops (a recording is kept). null = the CALL listener, unchanged below. */
+        private readonly Action? onVoiceLoss;
+
+        public AudioFocusListener()
+        {
+            onVoiceLoss = null;
+        }
+
+        public AudioFocusListener(Action? on_voice_loss)
+        {
+            onVoiceLoss = on_voice_loss;
+        }
+
         public void OnAudioFocusChange(AudioFocus focus_change)
         {
+            if (onVoiceLoss != null)
+            {
+                if (focus_change == AudioFocus.Loss || focus_change == AudioFocus.LossTransient)
+                {
+                    try { onVoiceLoss(); } catch (Exception) { }
+                }
+                return;   // a voice message never hangs up a call
+            }
             switch (focus_change)
             {
                 case AudioFocus.Loss:
@@ -40,6 +62,13 @@ namespace Spixi
 
         bool running = false;
         volatile bool muted = false;   // ★ #1074: zero the PCM, keep the frames flowing
+
+        /* ★★ #1208 (S7): this instance records a VOICE MESSAGE (startVoiceMessage) — the MIC source, no echo canceller,
+         * media focus, Opus at voiceBitrate with the VOIP application. false = a call (start), byte for byte as before. */
+        bool voiceMode = false;
+        volatile bool voiceFlushing = false;   // ★ #46 r1 A M6: true only inside a voice clip's stop()
+        int voiceBitrate = 0;
+        Action? voiceInterrupted = null;
 
         public void setMuted(bool is_muted)
         {
@@ -83,6 +112,7 @@ namespace Spixi
                 return;
             }
             running = true;
+            voiceMode = false;   // ★ #1208: a call — every branch below is the call's own
 
             // #573 (review MINOR-8): GetSystemService takes any Context — the Activity is not required.
             AudioManager am = (AudioManager)SPlatformUtils.appContext().GetSystemService(Context.AudioService);
@@ -128,6 +158,59 @@ namespace Spixi
             senderThread.Start();
         }
 
+        /* ★★ #1208 (S7) — record a VOICE MESSAGE. The MIC source (VOICE_COMMUNICATION would switch the phone into its call
+         * audio path), a TRANSIENT-EXCLUSIVE media focus request (other apps' playback pauses; a loss → onInterrupted), Opus
+         * at `bitrate` with the VOIP application. No echo canceller (nothing plays while a clip records). */
+        public void startVoiceMessage(int bitrate, Action? onInterrupted)
+        {
+            if (running)
+            {
+                Logging.warn("Audio recorder is already running.");
+                return;
+            }
+            running = true;
+            voiceMode = true;
+            voiceBitrate = bitrate;
+            voiceInterrupted = onInterrupted;
+
+            AudioManager am = (AudioManager)SPlatformUtils.appContext().GetSystemService(Context.AudioService);
+            focusListener = new AudioFocusListener(() => voiceInterrupted?.Invoke());
+            if (Build.VERSION.SdkInt < BuildVersionCodes.O)
+            {
+#pragma warning disable CS0618 // Type or member is obsolete
+                am.RequestAudioFocus(focusListener, Android.Media.Stream.Music, AudioFocus.GainTransientExclusive);
+#pragma warning restore CS0618 // Type or member is obsolete
+            }
+            else
+            {
+                AudioAttributes aa = new AudioAttributes.Builder()
+                                                        .SetContentType(AudioContentType.Speech)
+                                                        .SetUsage(AudioUsageKind.Media)
+                                                        .Build();
+                focusRequest = new AudioFocusRequestClass.Builder(AudioFocus.GainTransientExclusive)
+                                                         .SetAudioAttributes(aa)
+                                                         .SetOnAudioFocusChangeListener(focusListener)
+                                                         .Build();
+                am.RequestAudioFocus(focusRequest);
+            }
+
+            lock (outputBuffers)
+            {
+                outputBuffers.Clear();
+            }
+
+            bufferSize = AudioTrack.GetMinBufferSize(sampleRate, ChannelOut.Mono, Android.Media.Encoding.Pcm16bit);
+
+            initEncoder("opus");
+            initRecorder();
+
+            recordThread = new Thread(recordLoop);
+            recordThread.Start();
+
+            senderThread = new Thread(senderLoop);
+            senderThread.Start();
+        }
+
         private void initRecorder()
         {
             Android.Media.Encoding encoding = Android.Media.Encoding.Pcm16bit;
@@ -136,8 +219,8 @@ namespace Spixi
             buffer = new byte[bufferSize];
 
             audioRecorder = new AudioRecord(
-                // Hardware source of recording.
-                AudioSource.VoiceCommunication,
+                // Hardware source of recording. ★ #1208: a voice message records from the plain MIC (see startVoiceMessage).
+                voiceMode ? AudioSource.Mic : AudioSource.VoiceCommunication,
                 // Frequency
                 sampleRate,
                 // Mono or stereo
@@ -149,7 +232,7 @@ namespace Spixi
             );
             audioRecorder.StartRecording();
 
-            if (AcousticEchoCanceler.IsAvailable)
+            if (!voiceMode && AcousticEchoCanceler.IsAvailable)   // ★ #1208: a call only — nothing plays during a voice clip
             {
                 echoCanceller = AcousticEchoCanceler.Create(audioRecorder.AudioSessionId);
             }
@@ -212,6 +295,13 @@ namespace Spixi
 
         private void initOpusEncoder()
         {
+            if (voiceMode)
+            {
+                // ★ #1208: a voice message — VoiceCodec.BitrateBps with the VOIP application (#1208 (2): 30 s ≈ 54 000 chars inline)
+                audioEncoder = new OpusEncoder(sampleRate, voiceBitrate, channels, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP, this);
+                audioEncoder.start();
+                return;
+            }
             audioEncoder = new OpusEncoder(sampleRate, 24000, channels, Concentus.Enums.OpusApplication.OPUS_APPLICATION_RESTRICTED_LOWDELAY, this);
             audioEncoder.start();
         }
@@ -222,6 +312,7 @@ namespace Spixi
             {
                 return;
             }
+            voiceFlushing = voiceMode;   // ★ #46 r1 A M6: a voice clip keeps the frames still encoded during stop()
             running = false;
 
             if (echoCanceller != null)
@@ -277,10 +368,16 @@ namespace Spixi
             buffer = null;
             shortsBuffer = null;
             bufferSize = 0;
+            if (voiceMode)
+            {
+                flushVoiceTail();   // ★ #46 r1 A M6: the last buffered packets reach the clip (a call drops them, as before)
+            }
+            voiceFlushing = false;
             lock (outputBuffers)
             {
                 outputBuffers.Clear();
             }
+            voiceInterrupted = null;   // ★ #1208: the voice clip's interrupt callback goes with the session
 
 
             // #573 (review MINOR-8): GetSystemService takes any Context — the Activity is not required.
@@ -308,6 +405,44 @@ namespace Spixi
                     }
                     focusListener.Dispose();
                     focusListener = null;
+                }
+            }
+        }
+
+        /** ★ #46 r1 A M6: a VOICE clip's stop() hands the packets still waiting in outputBuffers (below the 150-byte batch)
+         *  to the callback ONCE — VoiceClips' generation check puts them into the ending clip. A call never comes here. */
+        private void flushVoiceTail()
+        {
+            byte[]? tail = null;
+            lock (outputBuffers)
+            {
+                int total = 0;
+                foreach (var buf in outputBuffers)
+                {
+                    total += buf.Length;
+                }
+                if (total > 0)
+                {
+                    tail = new byte[total];
+                    int written = 0;
+                    foreach (var buf in outputBuffers)
+                    {
+                        Array.Copy(buf, 0, tail, written, buf.Length);
+                        written += buf.Length;
+                    }
+                }
+                outputBuffers.Clear();
+            }
+            var callback = OnSoundDataReceived;
+            if (tail != null && callback != null)
+            {
+                try
+                {
+                    callback(tail);
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("Voice: the recorder tail flush failed (" + e.GetType().Name + ")");
                 }
             }
         }
@@ -446,7 +581,7 @@ namespace Spixi
 
         public void onEncodedData(byte[] data)
         {
-            if (!running)
+            if (!running && !voiceFlushing)   // ★ #46 r1 A M6: during a voice clip's stop() the encoder's last frames still count
             {
                 return;
             }

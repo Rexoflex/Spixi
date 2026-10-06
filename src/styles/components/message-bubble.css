@@ -804,3 +804,78 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 :root[data-desktop] .c-bubble-row__reply:focus-visible { outline: var(--outline-width-2) solid var(--outline-focus); outline-offset: 2px; }
 [data-selecting] .c-bubble-row__reply,
 [data-selecting] .c-reply-swipe { display: none !important; }
+
+/* —— ★★ #1208 (S7) the VOICE bubble: disc · 40 bars · time, the meta floats under it. Bars in the bubble's own ink
+   (currentColor → both directions, both themes); no bar transition (a ~200 ms tick would jitter). */
+.c-bubble[data-voice] { min-width: min(240px, var(--layout-bubble-max)); }
+.c-voice {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+.c-voice__play {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;    /* sanctioned: the disc, 44 hit area through the padding trick (the composer ⊕ pattern) */
+  height: 40px;
+  box-sizing: content-box;
+  padding: calc((var(--size-target-min) - 40px) / 2);
+  margin: calc(-1 * (var(--size-target-min) - 40px) / 2);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  background-clip: content-box;   /* after the shorthand: the 40 disc paints, the 44 stays the target */
+  color: var(--text-neutral-on-action);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-bubble-row[data-direction="sent"] .c-voice__play { background-color: var(--text-bubble-sent); color: var(--surface-bubble-sent); }
+.c-voice[data-state="error"] .c-voice__play { background-color: var(--surface-error); color: var(--text-neutral-on-error); }
+.c-voice[data-state="loading"] .c-voice__play { cursor: default; }
+/* ★ #46 r1 (B m-9): not on this device — the disc and bars at the disabled alpha, the words in the time slot */
+.c-voice[data-gone] .c-voice__play, .c-voice[data-gone] .c-voice__wave { opacity: var(--opacity-disabled); cursor: default; }
+.c-voice[data-gone] .c-voice__time { min-width: 0; text-align: start; white-space: normal; }
+.c-voice__spin {
+  width: 18px;   /* sanctioned: the progress ring (the media-bubble spinner's grammar) */
+  height: 18px;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid currentColor;
+  border-right-color: transparent;
+  animation: c-voice-spin 800ms linear infinite;   /* sanctioned: continuous progress indicator (mirrors the button spinner) */
+}
+@keyframes c-voice-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .c-voice__spin { animation-duration: 1600ms; }   /* keep visible motion, slower (the button spinner rule) */
+}
+.c-voice__wave {
+  flex: 1;
+  min-width: 0;
+  height: 28px;   /* sanctioned: the waveform box */
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.c-voice__bar {
+  flex: 1 1 0;
+  min-width: 1px;
+  max-width: 3px;
+  height: calc(15% + var(--voice-h, 0) * 0.85%);   /* 0 → a flat 4 px tick (the placeholder), 100 → the full box */
+  border-radius: var(--radius-full);
+  background: currentColor;
+  opacity: 0.4;   /* sanctioned: the not-yet-played ink, on the bubble's own colour in both directions and themes */
+}
+.c-voice__bar[data-played] { opacity: 1; }
+.c-voice__time {
+  flex: none;
+  min-width: 2.6em;   /* m:ss in tabular figures — the row does not jitter while the position runs */
+  text-align: end;
+  font-size: var(--bubble-meta-size);
+  line-height: var(--bubble-meta-line-height);
+  font-weight: var(--bubble-meta-weight);
+}
+.c-bubble-row[data-direction="received"] .c-voice__time { color: var(--text-bubble-received-meta); }
+.c-bubble-row[data-direction="sent"] .c-voice__time { color: var(--text-bubble-sent-meta); }

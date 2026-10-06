@@ -25,6 +25,14 @@ namespace Spixi
 
         private PlaybackCatchupController playbackCatchupController = new PlaybackCatchupController();
         private long totalFramesWritten = 0;
+
+        /* ★★ #1208 (S7): this instance plays a VOICE MESSAGE (startVoiceMessage) — USAGE_MEDIA (the loudspeaker, or a
+         * headset; VOICE_COMMUNICATION is the earpiece), a transient media focus request, the media volume keys, no
+         * catch-up. false = a call (start), byte for byte as before. */
+        private bool voiceMode = false;
+        private AudioFocusListener? voiceFocusListener = null;
+        private AudioFocusRequestClass? voiceFocusRequest = null;
+        private Android.Media.Stream? voicePrevVolumeStream = null;
         public static SAudioPlayer Instance()
         {
             if (_singletonInstance == null)
@@ -47,8 +55,49 @@ namespace Spixi
             }
 
             running = true;
+            voiceMode = false;   // ★ #1208: a call — initPlayer / onDecodedData take the call's own branches
 
             this.codec = codec;
+
+            initPlayer();
+            initDecoder();
+        }
+
+        /* ★★ #1208 (S7) — play a VOICE MESSAGE: Opus 16 kHz mono, USAGE_MEDIA (loudspeaker), media focus
+         * (GAIN_TRANSIENT — other playback pauses; a loss → onInterrupted), the activity's volume keys on the music stream
+         * while it plays (restored at stop), no catch-up (VoiceClips paces the writes). */
+        public void startVoiceMessage(Action? onInterrupted)
+        {
+            if (running)
+            {
+                Logging.warn("Audio player is already running.");
+                return;
+            }
+
+            running = true;
+            voiceMode = true;
+            codec = "opus";
+
+            AudioManager am = (AudioManager)SPlatformUtils.appContext().GetSystemService(Android.Content.Context.AudioService)!;
+            voiceFocusListener = new AudioFocusListener(onInterrupted);
+            if (Build.VERSION.SdkInt < BuildVersionCodes.O)
+            {
+#pragma warning disable CS0618 // Type or member is obsolete
+                am.RequestAudioFocus(voiceFocusListener, Android.Media.Stream.Music, AudioFocus.GainTransient);
+#pragma warning restore CS0618 // Type or member is obsolete
+            }
+            else
+            {
+                AudioAttributes fa = new AudioAttributes.Builder()
+                                                        .SetContentType(AudioContentType.Speech)
+                                                        .SetUsage(AudioUsageKind.Media)
+                                                        .Build();
+                voiceFocusRequest = new AudioFocusRequestClass.Builder(AudioFocus.GainTransient)
+                                                              .SetAudioAttributes(fa)
+                                                              .SetOnAudioFocusChangeListener(voiceFocusListener)
+                                                              .Build();
+                am.RequestAudioFocus(voiceFocusRequest);
+            }
 
             initPlayer();
             initDecoder();
@@ -68,7 +117,13 @@ namespace Spixi
             Logging.info("Final buffer size " + bufferSize);
 
             // Prepare player
-            AudioAttributes aa = new AudioAttributes.Builder()
+            // ★ #1208: a voice message plays as MEDIA (the loudspeaker); a call keeps VOICE_COMMUNICATION (the earpiece)
+            AudioAttributes aa = voiceMode
+                ? new AudioAttributes.Builder()
+                                     .SetContentType(AudioContentType.Speech)
+                                     .SetUsage(AudioUsageKind.Media)
+                                     .Build()
+                : new AudioAttributes.Builder()
                                                     .SetContentType(AudioContentType.Speech)
                                                     .SetFlags(AudioFlags.LowLatency)
                                                     .SetUsage(AudioUsageKind.VoiceCommunication)
@@ -86,7 +141,16 @@ namespace Spixi
             MainActivity? volActivityVoiceCall = MainActivity.Instance;
             if (volActivityVoiceCall != null)
             {
-                volActivityVoiceCall.VolumeControlStream = Android.Media.Stream.VoiceCall;
+                if (voiceMode)
+                {
+                    // ★ #1208: the volume keys move the MEDIA volume while a voice message plays; stop() puts the old stream back
+                    voicePrevVolumeStream = volActivityVoiceCall.VolumeControlStream;
+                    volActivityVoiceCall.VolumeControlStream = Android.Media.Stream.Music;
+                }
+                else
+                {
+                    volActivityVoiceCall.VolumeControlStream = Android.Media.Stream.VoiceCall;
+                }
             }
 
             audioPlayer.Play();
@@ -178,7 +242,20 @@ namespace Spixi
             MainActivity? volActivityNotificationDefault = MainActivity.Instance;
             if (volActivityNotificationDefault != null)
             {
-                volActivityNotificationDefault.VolumeControlStream = Android.Media.Stream.NotificationDefault;
+                if (voiceMode)
+                {
+                    // ★ #1208: back to the stream the activity had before the clip (a call keeps its own reset below)
+                    volActivityNotificationDefault.VolumeControlStream = voicePrevVolumeStream ?? Android.Media.Stream.NotificationDefault;
+                    voicePrevVolumeStream = null;
+                }
+                else
+                {
+                    volActivityNotificationDefault.VolumeControlStream = Android.Media.Stream.NotificationDefault;
+                }
+            }
+            if (voiceMode)
+            {
+                abandonVoiceFocus();   // ★ #1208
             }
 
             if (audioPlayer != null)
@@ -205,6 +282,33 @@ namespace Spixi
             }
 
             bufferSize = 0;
+        }
+
+        /** ★ #1208: give back the voice message's media focus (other apps' playback resumes). */
+        private void abandonVoiceFocus()
+        {
+            try
+            {
+                AudioManager am = (AudioManager)SPlatformUtils.appContext().GetSystemService(Android.Content.Context.AudioService)!;
+                if (voiceFocusRequest != null)
+                {
+                    am.AbandonAudioFocusRequest(voiceFocusRequest);
+                    voiceFocusRequest.Dispose();
+                    voiceFocusRequest = null;
+                }
+                else if (voiceFocusListener != null)
+                {
+#pragma warning disable CS0618 // Type or member is obsolete
+                    am.AbandonAudioFocus(voiceFocusListener);
+#pragma warning restore CS0618 // Type or member is obsolete
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: focus release failed (" + e.GetType().Name + ")");
+            }
+            voiceFocusListener?.Dispose();
+            voiceFocusListener = null;
         }
 
         public void Dispose()
@@ -266,6 +370,13 @@ namespace Spixi
         {
             if (!running || audioPlayer == null)
             {
+                return;
+            }
+
+            if (voiceMode)
+            {
+                // ★ #1208: no catch-up — VoiceClips writes at real time, so every frame plays at 1×
+                audioPlayer.Write(data, 0, data.Length);
                 return;
             }
 

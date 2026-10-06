@@ -28,7 +28,7 @@ using Newtonsoft.Json;
 namespace SPIXI
 {
     [XamlCompilation(XamlCompilationOptions.Compile)]
-    public partial class SingleChatPage : SpixiContentPage
+    public partial class SingleChatPage : SpixiContentPage, IVoiceHost
     {
         public Friend friend;
 
@@ -368,6 +368,8 @@ namespace SPIXI
 
         protected override void OnDisappearing()
         {
+            VoiceClips.interruptHost(this, "left");   // ★ #1208 (S7): the page leaves — a recording stops and is kept, a clip stops
+            clearPendingVoicePlay(null);   // ★ #46 r1 A M3 / r2 MAJOR: nothing plays later; a document that survives hears `stopped`
             webView = null;
             base.OnDisappearing();
         }
@@ -629,6 +631,25 @@ namespace SPIXI
             {
                 // ★★ #1198 (session 6b): ixian:quotejump:<idHex> (🟡 NEW) — a quote whose target the shell has not loaded.
                 onQuoteJump(current_url.Substring("ixian:quotejump:".Length));
+            }
+            /* ★★ #1208 (S7, V7 / V8 — 🟡 NEW verbs): the voice bar. The three recorder verbs are EXACT strings with no
+             * argument; `ixian:voiceplay:<idHex>` carries a row id C# pushed (32 hex) — C# looks it up in ITS OWN list of the
+             * open channel and plays what IT parsed. No collision with "ixian:chat:" (the prefix differs at "voice"). */
+            else if (current_url.Equals("ixian:voicerec:start", StringComparison.Ordinal))
+            {
+                onVoiceRecStart();
+            }
+            else if (current_url.Equals("ixian:voicerec:cancel", StringComparison.Ordinal))
+            {
+                onVoiceRecCancel();
+            }
+            else if (current_url.Equals("ixian:voicerec:send", StringComparison.Ordinal))
+            {
+                onVoiceSend();
+            }
+            else if (current_url.StartsWith("ixian:voiceplay:", StringComparison.Ordinal))
+            {
+                onVoicePlay(current_url.Substring("ixian:voiceplay:".Length));
             }
             else if (current_url.StartsWith("ixian:chat:"))
             {
@@ -1340,6 +1361,20 @@ namespace SPIXI
                 avatarSent.Clear();   // ★ #1166 P-04: the shell reset its address → avatar map at onChatScreenReady above (before loadMessages)
             }
             resetReplyDeep();   // ★ #1198: a new document — the one deeper reply-match read starts again (CONTRACT 1a)
+            /* ★★ #1208 (S7): a new document — the once-per-document waveform set starts again (keyed by thumbDoc, bumped
+             * above), a pending play-after-download is forgotten, a recording of this chat still running is stopped and
+             * kept, and a KEPT clip is told to the new shell (V6 `stopped` with its length — pushed after setCaps below,
+             * pushVoiceRec posts to the main thread). */
+            lock (voiceInfoSent)
+            {
+                voiceInfoSent.Clear();
+            }
+            Interlocked.Exchange(ref pendingVoicePlay, null);
+            int keptVoiceMs = VoiceClips.documentLoaded(this);
+            if (keptVoiceMs > 0)
+            {
+                pushVoiceRec("stopped", keptVoiceMs);
+            }
 
             // C13: push the LOCAL user's nick so the shell can identify "me" (self-mention
             // emphasis + the @ jump-to-mention FAB). The redesigned shells build window.SL from
@@ -1527,6 +1562,10 @@ namespace SPIXI
             {
                 caps += ",edit";
             }
+            if (voiceCapFor(friend))   // ★★ #1208 V1: the mic — see voiceCapFor
+            {
+                caps += ",voice";
+            }
             Utils.sendUiCommand(this, "setCaps", caps);
 
             warningDisplayed = false;
@@ -1665,6 +1704,8 @@ namespace SPIXI
                 }
 
                 loadApps();
+
+                askCapabilitiesOnce();   // ★★ #1207 (S7): the capability ask — once per contact per app run (off the UI thread)
 
                 if (!Preferences.Default.ContainsKey("rating_action"))
                 {
@@ -2346,37 +2387,65 @@ namespace SPIXI
                 fileName = spixi_img_data.name;
                 filePath = spixi_img_data.path;
 
-                Address? sender_address = null;
-                FileTransfer transfer = TransferManager.prepareFileTransfer(fileName, stream, filePath);
-                transfer.channel = selectedChannel;
-                if (friend.bot || friend.type == FriendType.Group)
-                {
-                    sender_address = IxianHandler.primaryWalletAddress;
-                    transfer.groupAddress = friend.walletAddress;
-                }
-                Logging.info("File Transfer uid: " + transfer.uid);
-
-                string message_data = string.Format("{0}:{1}", transfer.uid, transfer.fileName);
-
-                // store the message and display it
-                FriendMessage friend_message = Node.addMessageWithType(null, FriendMessageType.fileHeader, friend.walletAddress, selectedChannel, message_data, true, sender_address);
-
-                SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.fileHeader, transfer.getBytes(), selectedChannel);
-                StreamProcessor.sendSpixiMessage(friend, spixi_message, null, friend_message.id);
-
-                friend_message.transferId = transfer.uid;
-                friend_message.filePath = transfer.filePath;
-                /* ★ #1147 (2) A5-SEND (walk #1146 A-A5-SEND FAIL): insertMessage queued the preview while filePath was still the
-                   bare name (localPathOf refuses it, SharedItems.cs:92) — queue it again now that the real path is set, so my
-                   sent photo shows under the scrim WHILE it sends. thumbsSent dedupes the race with any earlier job. */
-                thumbAfterTransfer(transfer.uid, transfer.channel);   // ★ #1166 A-N4: the transfer's own channel
-
-                IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, selectedChannel);
+                sendPreparedFile(fileName, stream, filePath);   // ★ #1208: the post-picker half, shared with the voice FILE route
             }
             catch (Exception ex)
             {
                 Logging.error("Exception choosing file: " + ex.ToString());
             }
+        }
+
+        /* ★★ #1208 (S7): the POST-PICKER half of onSendFile, unchanged, factored out so C# can send a file IT made (a voice
+         * message's .ogg, named and placed by C# — sendVoiceFile) without a picker. Throws as before (the caller's catch).
+         * Returns the stored file message. */
+        /** ★ #46 r1 (A N4 · B m-12): how far the last sendPreparedFile got — 0 nothing, 1 the transfer exists (it holds the
+         *  stream), 2 Core stored the file message. Main thread only (the verb handlers). */
+        private int sendPreparedStage = 0;
+        private string? sendPreparedUid = null;   // ★ #46 r2: the transfer stage 1 registered (withdrawn on a later failure)
+
+        /** Returns the stored file message, or null when Core stored none (#46 r2: the transfer is then WITHDRAWN —
+         *  removeOutgoingTransfer disposes the stream, so no late Accept is served and nothing is left registered). */
+        private FriendMessage? sendPreparedFile(string fileName, Stream stream, string filePath)
+        {
+            Address? sender_address = null;
+            FileTransfer transfer = TransferManager.prepareFileTransfer(fileName, stream, filePath);
+            transfer.channel = selectedChannel;
+            sendPreparedStage = 1;   // ★ #46 r1 A N4: the transfer holds the stream now
+            sendPreparedUid = transfer.uid;
+            if (friend.bot || friend.type == FriendType.Group)
+            {
+                sender_address = IxianHandler.primaryWalletAddress;
+                transfer.groupAddress = friend.walletAddress;
+            }
+            Logging.info("File Transfer uid: " + transfer.uid);
+
+            string message_data = string.Format("{0}:{1}", transfer.uid, transfer.fileName);
+
+            // store the message and display it
+            FriendMessage? friend_message = Node.addMessageWithType(null, FriendMessageType.fileHeader, friend.walletAddress, selectedChannel, message_data, true, sender_address);
+            if (friend_message == null)
+            {
+                // ★ #46 r2 (was an NRE two lines below): nothing stored → nothing sent, and the transfer is withdrawn
+                Logging.error("File message could not be stored — the transfer is withdrawn.");
+                TransferManager.removeOutgoingTransfer(transfer.uid);
+                sendPreparedStage = 0;
+                sendPreparedUid = null;
+                return null;
+            }
+            sendPreparedStage = 2;   // ★ #46 r1 B m-12: Core holds the message now
+
+            SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.fileHeader, transfer.getBytes(), selectedChannel);
+            StreamProcessor.sendSpixiMessage(friend, spixi_message, null, friend_message.id);
+
+            friend_message.transferId = transfer.uid;
+            friend_message.filePath = transfer.filePath;
+            /* ★ #1147 (2) A5-SEND (walk #1146 A-A5-SEND FAIL): insertMessage queued the preview while filePath was still the
+               bare name (localPathOf refuses it, SharedItems.cs:92) — queue it again now that the real path is set, so my
+               sent photo shows under the scrim WHILE it sends. thumbsSent dedupes the race with any earlier job. */
+            thumbAfterTransfer(transfer.uid, transfer.channel);   // ★ #1166 A-N4: the transfer's own channel
+
+            IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, selectedChannel);
+            return friend_message;
         }
 
         public void onAcceptFile(int selected_channel, FriendMessage message)
@@ -2394,7 +2463,7 @@ namespace SPIXI
             var senderFriend = friend;
             if (friend.type == FriendType.Group)
             {
-                if (friend.metaData.botInfo.hideParticipantAddresses)
+                if (Utils.hidesParticipants(friend))   // ★ #46 r1 A M2: fails CLOSED while botInfo is null (was an NRE)
                 {
                     Logging.error("Cannot accept file transfer in this chat due to hidden participant addresses.");
                     return;
@@ -3266,6 +3335,8 @@ namespace SPIXI
             public readonly List<string> strs = new();
             /** ★ A5 #1124: image-file rows of this burst whose preview is queued only AFTER messagesDone (id → message). */
             public readonly List<KeyValuePair<string, FriendMessage>> thumbs = new();
+            /** ★ #1208 V4: voice rows of this burst whose waveform is queued only AFTER the batch's pushes (id → message). */
+            public readonly List<KeyValuePair<string, FriendMessage>> voices = new();
             /** ★ #1202 (#1190 #46 r5 MINOR): the file rows of this burst + the fLocal each carried (re-checked after the pushes). */
             public readonly List<KeyValuePair<FriendMessage, string>> fileRows = new();
             /** ★ #46 r1 A MAJOR-1: the ONE reply index of this load (null = no loaded row is quote-shaped). */
@@ -3771,6 +3842,11 @@ namespace SPIXI
                     enqueueThumb(t.Key, t.Value);
                 }
                 recheckBurstFileRows(batch, readChannel);   // ★ #1202 (#1190 #46 r5 MINOR): AFTER the batch's pushes — a file deleted during the build is re-pushed as "0"
+                // ★ #1208 V4: the burst's voice rows, now that the shell holds them (decoded off this thread)
+                foreach (KeyValuePair<string, FriendMessage> v in batch.voices)
+                {
+                    enqueueVoiceInfo(v.Key, v.Value);
+                }
             }
             if (zeroedUnread)
             {
@@ -4457,9 +4533,12 @@ namespace SPIXI
                         P1Perf.line("filelocal sent-image " + fCase);   // ★ #1190 dev-only (SPIXI_DEV_COEXIST): a fixed case word — no path, no name, no id
                     }
                     batch?.fileRows.Add(new KeyValuePair<FriendMessage, string>(message, fLocal));   // ★ #1202: re-checked after the load's pushes (recheckBurstFileRows)
+                    /* ★★ #1208 (S7, V3): arg 17 `voice` — "1" when this file is a VOICE message (C#'s own name rule + the
+                     * size cap + not a bot room: voiceFileArg), else "". An older shell ignores it. */
+                    string fVoice = voiceFileArg(message, name);
                     string fTransfer = incomingTransferArg(message, uid);   // ★ #1177: arg 15 — "live:<pct>" / "paused:<pct>" / "" (an older shell ignores it)
                     deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
-                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal);
+                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal, fVoice);
                     noteThumbCandidate(message, name, batch);   // ★ A5 #1124: AFTER the row's push — the shell must know the id first
                     lock (fileRowsShown)
                     {
@@ -4468,7 +4547,11 @@ namespace SPIXI
                     if (fileRowOnly)
                     {
                         return;   // ★ #1190 (#46 r4 M1): the row's push only — no updateMessageReadStatus (no read flag, no receipt)
-                    }   // ★ A5 #1124: AFTER the row's push — the shell must know the id first
+                    }
+                    if (fVoice == "1" && (message.completed || message.localSender))
+                    {
+                        noteVoiceInfo(message, batch);   // ★ #1208 V4: the waveform once the file is on this device (AFTER the row's push)
+                    }
                 }
             }
 
@@ -4599,9 +4682,17 @@ namespace SPIXI
                  * time, its place and its day separator. (r1 used `receivedTimestamp` — THIS device's arrival time, wrong for
                  * a received message.) */
                 long rowTime = message.timestamp;
+                /* ★★ #1208 (S7, V2): arg 17 `voice` — an inline voice message (VoiceCodec.tryPeekInline: shape + bounds, no
+                 * decode) → arg 5 = its FIRST LINE only (never the base64), no reply / quote / edited args, and the duration
+                 * in ms; "" for every other row (a bot room: the first line as plain text). An older shell ignores arg 17. */
+                string rowVoice = voiceRowArg(message, ref rowText, ref reply_to, ref edited, ref quoteName, ref quoteText);
                 // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
                 deliveryTicks(message, out bool sSent, out bool sConfirmed, out bool sRead);
-                push(batch, prefix, Crypto.hashToString(message.id), address, nick, avatar, rowText, rowTime.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to, edited, quoteName, quoteText);
+                push(batch, prefix, Crypto.hashToString(message.id), address, nick, avatar, rowText, rowTime.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to, edited, quoteName, quoteText, rowVoice);
+                if (rowVoice != "")
+                {
+                    noteVoiceInfo(message, batch);   // ★ #1208 V4: the waveform, decoded off this thread AFTER the row's push
+                }
             }
 
             if(message.type == FriendMessageType.voiceCall || message.type == FriendMessageType.voiceCallEnd)
@@ -4782,6 +4873,7 @@ namespace SPIXI
 
         public void deleteMessage(byte[] msg_id, int channel)
         {
+            voiceRowDeleted(msg_id);   // ★ #46 r1 B m-10: the clip playing (or waiting for its download) of a deleted row stops
             if (channel == selectedChannel)
             {
                 lock (fileRowsShown)
@@ -5125,9 +5217,13 @@ namespace SPIXI
                 quoteText = rm.quoteText;
             }
             string edited = EditRules.isEdited(message.type, message.sequence, friend.bot) ? "1" : "";
+            /* ★★ #1208 (S7): the SAME voice rule as the row push (V2) — a tick update of a voice row carries its FIRST LINE
+             * only (never the base64), no reply / edited args, and arg 12 `voice` = the duration ("" otherwise). An older
+             * shell ignores arg 12. */
+            string voice = voiceRowArg(message, ref rowText, ref replyTo, ref edited, ref quoteName, ref quoteText);
             // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
             deliveryTicks(message, out bool tSent, out bool tConfirmed, out bool tRead);
-            Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), rowText, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString(), edited, replyTo, quoteName, quoteText);
+            Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), rowText, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString(), edited, replyTo, quoteName, quoteText, voice);
         }
 
         /** ★ #1166 A-N4: `channel` = the TRANSFER's own channel (FileTransfer.channel — TransferManager passes it; an
@@ -5138,6 +5234,7 @@ namespace SPIXI
             if (complete)
             {
                 thumbAfterTransfer(uid, channel);   // ★ A5 #1124: a finished transfer may now be a LOCAL image
+                voiceAfterTransfer(uid, channel);   // ★ #1208: a finished VOICE file — its waveform, and the play the tap asked for
             }
         }
 
@@ -5536,6 +5633,1036 @@ namespace SPIXI
             Utils.sendUiCommand(this, "viewerImage", hexId, uri);
         }
 
+        /* ═══ ★★ #1208 (S7) — VOICE MESSAGES, THE PAGE HALF (#1136 (b); 🟡 NEW verbs V7 `ixian:voicerec:start|cancel|send`,
+         * V8 `ixian:voiceplay:<idHex>`; NEW pushes V4 `voiceInfo`, V5 `voiceState`, V6 `voiceRec`; V1 cap `voice`; V2 / V3
+         * arg 17 on addMe / addThem / addFile (+ arg 12 on updateMessage); BE ask B-30) ═══
+         * The audio itself is VoiceClips (Spixi/VoIP/VoiceClips.cs: one recording, one player, the kept clips per chat). This
+         * page answers the verbs, decides the ROUTE of a send, and tells the shell what C# knows.
+         *   SEND (➤) — the clip (live or kept) → VoiceCodec.chooseRoute(normal 1:1, bot, approved, the peer's answered
+         *     `spixi.voice.1` (SpixiProtocols.supports on Core's stored list, #1207), the inline text's length, Core's
+         *     maxChatMessageSize) → INLINE: humanLine + "\n" + encodeInline as ONE plain `chat` message, exactly onSend's plain
+         *     path but NO clearInput (the text draft stays) · FILE: muxOgg → C# writes VoiceCodec.voiceFileName(now UTC) in
+         *     ITS OWN folder (<spixiUserFolder>/Voice — app-private, KEPT so the sender can play its own clip) → the existing
+         *     file send (sendPreparedFile — the picker's own post-picker half). A failed send gives the clip back (kept).
+         *   PLAY (V8) — the id is C#'s own 32-hex row id; C# finds the row in ITS list of the open channel and parses the
+         *     clip ITSELF (inline: tryParseInline · file: the C#-resolved local path, ≤ MaxOggBytes, tryDemuxOgg) — bounded,
+         *     off the UI thread. A received voice FILE not on the device: the tap ACCEPTS the download (onAcceptFile, the
+         *     existing path), pushes `loading`, and plays when updateFile reports it complete while this document lives.
+         *   WAVEFORM (V4) — every voice row is decoded ONCE per document, off the UI and network threads (one drainer,
+         *     a bounded queue), the result cached per process (bounded); a failure → voiceState(id, 'error').
+         * SECURITY (CLAUDE.md ★): no WebView value reaches a file op (the id is looked up; C# names and places the .ogg); no
+         * audio byte, path or name crosses into the WebView (ids, state words and integers only); every parse of peer data
+         * is VoiceCodec's bounded one; logs carry fixed words and exception TYPES — never an id, text, path or address. */
+        private const int VoiceInfoQueueMax = 128;
+        private const int VoiceInfoCacheMax = 256;
+        private static readonly object voiceInfoCacheLock = new object();
+        private static readonly Dictionary<string, string> voiceInfoCache = new Dictionary<string, string>(StringComparer.Ordinal);   // "<id>|<kind>|<len>" → "<durMs>|<csv>"
+        private static readonly Queue<string> voiceInfoCacheOrder = new Queue<string>();
+        private readonly HashSet<string> voiceInfoSent = new HashSet<string>(StringComparer.Ordinal);   // "<doc>|<id>" — lock itself
+        private readonly ConcurrentQueue<VoiceInfoJob> voiceInfoQueue = new ConcurrentQueue<VoiceInfoJob>();
+        private int voiceInfoQueued = 0;   // jobs in voiceInfoQueue (Interlocked) — the bound
+        private int voiceInfoWorker = 0;   // 1 while a drainer runs (Interlocked)
+        private PendingVoicePlay? pendingVoicePlay = null;   // the voice file whose download a tap started (Interlocked)
+
+        private sealed class VoiceInfoJob
+        {
+            public readonly int doc;
+            public readonly string id;
+            public readonly FriendMessage fm;
+            public VoiceInfoJob(int d, string i, FriendMessage m) { doc = d; id = i; fm = m; }
+        }
+
+        private sealed class PendingVoicePlay
+        {
+            public readonly string idHex;
+            public readonly string uid;
+            public readonly int doc;
+            public readonly int channel;
+            public readonly long sinceMs;   // Environment.TickCount64 at the tap
+            public int goneTicks = 0;       // #46 r2: consecutive 1 Hz ticks that saw the transfer gone and the row not complete
+            public PendingVoicePlay(string i, string u, int d, int c, long t) { idHex = i; uid = u; doc = d; channel = c; sinceMs = t; }
+        }
+
+        /** ★ #1208 V1: does this chat offer the mic? An approved 1:1, or an approved private group whose members are known
+         *  (a voice FILE needs the group transfer); never a bot room, never a blind group (Utils.hidesParticipants fails
+         *  closed while the room info is missing). The record and send verbs re-check it. */
+        public static bool voiceCapFor(Friend? f)
+        {
+            return f != null && !f.bot && f.state == FriendState.Approved
+                && (f.type == FriendType.Normal || (f.type == FriendType.Group && !Utils.hidesParticipants(f)));
+        }
+
+        // ---- IVoiceHost (VoiceClips calls these from any thread) ----
+        public string voiceChatKey
+        {
+            get { return friend != null && friend.walletAddress != null ? friend.walletAddress.ToString() : ""; }
+        }
+
+        public bool voiceHostAlive
+        {
+            get { return !isDisposed && friend != null; }
+        }
+
+        /** V6 `voiceRec(state, elapsedMs)` — posted to the main thread; nothing for a torn-down page. */
+        public void pushVoiceRec(string state, int elapsedMs, Func<bool>? stillValid = null)
+        {
+            string ms = Math.Max(0, elapsedMs).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!isDisposed && (stillValid == null || stillValid()))   // #46 r1 B m-3: re-checked HERE, on the main thread
+                {
+                    Utils.sendUiCommand(this, "voiceRec", state, ms);
+                }
+            });
+        }
+
+        /** V5 `voiceState(idHex, state, posMs, durMs)` — posted to the main thread; nothing for a torn-down page. */
+        public void pushVoiceState(string idHex, string state, int posMs, int durMs)
+        {
+            string pos = Math.Max(0, posMs).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            string dur = Math.Max(0, durMs).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!isDisposed)
+                {
+                    Utils.sendUiCommand(this, "voiceState", idHex, state, pos, dur);
+                }
+            });
+        }
+
+        /** V8's id grammar (CONTRACT §7, #46 r1 B m-6 / A N9): parseMessageIdHex's rule — an even number of hex digits,
+         *  2 .. 2 × CoreConfig.maxMessageIdSize (the shell's QUOTE_ID_RE bound). */
+        private static bool isVoiceIdHex(string? s)
+        {
+            if (s == null || s.Length < 2 || s.Length % 2 != 0 || s.Length > 2 * CoreConfig.maxMessageIdSize)
+            {
+                return false;
+            }
+            foreach (char c in s)
+            {
+                bool hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+                if (!hex)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** ★ #1208 V2: a standard row whose text is an inline voice message (VoiceCodec.tryPeekInline — shape + bounds, no
+         *  base64 decode) shows its FIRST LINE only (never the base64) and is never a reply or an edit; the result is arg 17
+         *  of addMe / addThem and arg 12 of updateMessage — the duration in ms, or "" (not a voice row; a bot room, where
+         *  VoiceCodec.rendersAsVoice is false: the first line as plain text). */
+        private string voiceRowArg(FriendMessage message, ref string rowText, ref string replyTo, ref string edited, ref string quoteName, ref string quoteText)
+        {
+            if (message.type != FriendMessageType.standard || !VoiceCodec.tryPeekInline(message.message, out int durMs))
+            {
+                return "";
+            }
+            rowText = VoiceCodec.firstLine(message.message);
+            replyTo = "";
+            edited = "";
+            quoteName = "";
+            quoteText = "";
+            return VoiceCodec.rendersAsVoice(friend.bot) ? durMs.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+        }
+
+        /** ★ #1208 V3: is this file row a VOICE file? C#'s own name rule (VoiceCodec.isVoiceFileName), the size cap (an unknown
+         *  size — 0 — counts; the demux re-checks the real size) and not a bot room. */
+        private bool isVoiceFileRow(FriendMessage message, string name)
+        {
+            if (message.type != FriendMessageType.fileHeader || !VoiceCodec.isVoiceFileName(name) || !VoiceCodec.rendersAsVoice(friend.bot))
+            {
+                return false;
+            }
+            /* #46 r2 NIT: the HEADER's size first (`uid:name:size` — what the peer's device reads too, ReplyQuote.headerSizeFits /
+               HomePage), Core's fileSize only when the header carries none — the same rule on both devices */
+            ulong size = 0;
+            if (SharedItems.parseFileHeader(message.message, out _, out ulong headerSize))
+            {
+                size = headerSize;
+            }
+            if (size == 0)
+            {
+                size = message.fileSize;
+            }
+            return size == 0 || size <= (ulong)VoiceCodec.MaxOggBytes;
+        }
+
+        /** addFile's arg 17: "1" for a voice file row, else "". */
+        private string voiceFileArg(FriendMessage message, string name)
+        {
+            return isVoiceFileRow(message, name) ? "1" : "";
+        }
+
+        /* ---- V7: the recorder verbs (main thread — the Navigating handler) ---- */
+
+        private void onVoiceRecStart()
+        {
+            try
+            {
+                if (!voiceCapFor(friend))
+                {
+                    Logging.warn("Voice: recording refused (notAllowed)");
+                    pushVoiceRec("error", 0);
+                    return;
+                }
+                switch (VoiceClips.startRecording(this))
+                {
+                    case VoiceRecStart.Started:
+                        int recMs = VoiceClips.recordingMs(this);
+                        if (recMs >= 0)
+                        {
+                            pushVoiceRec("recording", recMs);
+                        }
+                        else
+                        {
+                            // an interrupt already ended it (it pushed its own state) — tell the state as it is now
+                            int keptNow = VoiceClips.keptMs(voiceChatKey);
+                            pushVoiceRec(keptNow > 0 ? "stopped" : "idle", keptNow);
+                        }
+                        break;
+                    case VoiceRecStart.Kept:
+                        pushVoiceRec("stopped", VoiceClips.keptMs(voiceChatKey));   // ✕ or ➤ the kept clip first
+                        break;
+                    case VoiceRecStart.Busy:
+                        pushVoiceRec("busy", 0);
+                        break;
+                    case VoiceRecStart.Denied:
+                        pushVoiceRec("denied", 0);
+                        break;
+                    default:
+                        pushVoiceRec("error", 0);
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: recording failed (" + e.GetType().Name + ")");
+                pushVoiceRec("error", 0);
+            }
+        }
+
+        private void onVoiceRecCancel()
+        {
+            try
+            {
+                VoiceClips.cancelRecording(this);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: cancel failed (" + e.GetType().Name + ")");
+            }
+            pushVoiceRec("idle", 0);
+        }
+
+        /** V7 `ixian:voicerec:send` — see the section header (SEND). §7 (#46 r1 B m-5): a refused / failed send pushes
+         *  `sendfail` then `stopped` (the clip is kept); `error` is a RECORDING failure only. #46 r1 B m-12: once the message
+         *  is STORED (stored = true), a later throw keeps NOTHING — a second ➤ would send it twice. */
+        private void onVoiceSend()
+        {
+            string key = voiceChatKey;
+            List<byte[]>? packets = null;
+            bool stored = false;
+            try
+            {
+                packets = VoiceClips.takeForSend(this);
+                if (packets == null)
+                {
+                    Logging.info("Voice: send refused (empty)");
+                    pushVoiceRec("idle", 0);
+                    return;
+                }
+                int durMs = packets.Count * VoiceCodec.FrameMs;
+                if (!voiceCapFor(friend))
+                {
+                    Logging.warn("Voice: send refused (notAllowed)");
+                    voiceSendFailed(key, packets);
+                    return;
+                }
+                string? payload = VoiceCodec.encodeInline(packets);
+                string? inlineText = payload != null ? VoiceCodec.humanLine(durMs) + "\n" + payload : null;
+                bool peerSupportsVoice = SpixiProtocols.supports(friend.supportedProtocols, SpixiProtocols.VoiceId);
+                VoiceCodec.Route route = VoiceCodec.chooseRoute(friend.type == FriendType.Normal, friend.bot,
+                    friend.approved && friend.state == FriendState.Approved, peerSupportsVoice,
+                    inlineText != null ? inlineText.Length : 0, CoreConfig.maxChatMessageSize);
+                bool sent = route == VoiceCodec.Route.Inline && inlineText != null
+                    ? sendVoiceInline(inlineText, ref stored)
+                    : sendVoiceFile(packets, ref stored);
+                if (!sent)
+                {
+                    voiceSendFailed(key, packets);
+                    return;
+                }
+                Logging.info("Voice: sent (" + (route == VoiceCodec.Route.Inline ? "inline" : "file") + ")");
+                pushVoiceRec("idle", 0);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: send failed (" + e.GetType().Name + ")");
+                if (stored || packets == null)
+                {
+                    pushVoiceRec("idle", 0);   // the message exists (its row shows the send state) — the clip is NOT given back
+                }
+                else
+                {
+                    voiceSendFailed(key, packets);
+                }
+            }
+        }
+
+        /** A send that did not store anything: the clip goes back to the chat's bar — `sendfail`, then `stopped` (§7). */
+        private void voiceSendFailed(string key, List<byte[]> packets)
+        {
+            int durMs = packets.Count * VoiceCodec.FrameMs;
+            VoiceClips.keepAgain(key, packets);
+            pushVoiceRec("sendfail", durMs);
+            pushVoiceRec("stopped", durMs);
+        }
+
+        /** The INLINE route: onSend's plain path (SpixiMessageCode.chat · Node.addMessageWithType · sendChatMessage — the
+         *  envelope id = the record id, so the ticks land) with NO clearInput: the composer's text draft stays.
+         *  `stored` turns true the moment Core holds the message. */
+        private bool sendVoiceInline(string text, ref bool stored)
+        {
+            SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.chat, Encoding.UTF8.GetBytes(text), selectedChannel);
+            byte[] spixi_msg_bytes = spixi_message.getBytes();
+            FriendMessage? friend_message = Node.addMessageWithType(null, FriendMessageType.standard, friend.walletAddress, selectedChannel, text, true, null, 0, true, true, spixi_msg_bytes.Length);
+            if (friend_message == null)
+            {
+                Logging.error("Voice: the message could not be stored — not sending it.");
+                return false;
+            }
+            stored = true;
+            CoreStreamProcessor.sendChatMessage(friend, friend_message, selectedChannel);
+            return true;
+        }
+
+        /** C#'s own folder for the voice files it SENDS: <spixiUserFolder>/Voice (app-private, next to Downloads). */
+        private static string voiceFolder()
+        {
+            return Path.Combine(Config.spixiUserFolder, "Voice");
+        }
+
+        /** The FILE route: Ogg Opus (VoiceCodec.muxOgg, a random serial) written under a name C# makes
+         *  (VoiceCodec.voiceFileName — the same UTC second twice takes the next second's name; never an overwrite), then the
+         *  existing file send. The file is KEPT: the sender's own row plays it. #46 r1 C N7: an Ogg over MaxOggBytes (a
+         *  receiver would refuse it as voice) is never sent. #46 r1 A N4: a send that throws BEFORE the transfer exists
+         *  deletes the .ogg again (and its stream); once the transfer holds the stream, the file stays (it serves the peer). */
+        private bool sendVoiceFile(List<byte[]> packets, ref bool stored)
+        {
+            if (friend.bot || Utils.hidesParticipants(friend))
+            {
+                Logging.warn("Voice: send refused (no file in this chat)");
+                return false;
+            }
+            byte[] serial = System.Security.Cryptography.RandomNumberGenerator.GetBytes(4);
+            byte[] ogg = VoiceCodec.muxOgg(packets, VoiceCodec.DefaultPreSkip, BitConverter.ToUInt32(serial, 0));
+            if (ogg.Length > VoiceCodec.MaxOggBytes)
+            {
+                Logging.warn("Voice: send refused (too big)");
+                return false;
+            }
+            string dir = voiceFolder();
+            Directory.CreateDirectory(dir);
+            string? path = null;
+            string? name = null;
+            DateTime utc = DateTime.UtcNow;
+            for (int i = 0; i < 5 && path == null; i++)
+            {
+                string n = VoiceCodec.voiceFileName(utc.AddSeconds(i));
+                string p = Path.Combine(dir, n);
+                bool created = false;
+                try
+                {
+                    using (FileStream fs = new FileStream(p, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    {
+                        created = true;
+                        fs.Write(ogg, 0, ogg.Length);
+                    }
+                    path = p;
+                    name = n;
+                }
+                catch (IOException) when (!created && File.Exists(p))
+                {
+                    // this second's name is taken — the next one
+                }
+                catch (Exception) when (created)
+                {
+                    deleteOwnVoiceFile(p);   // a half-written file of ours never stays
+                    throw;
+                }
+            }
+            if (path == null || name == null)
+            {
+                Logging.warn("Voice: send failed (no free name)");
+                return false;
+            }
+            Stream? stream = null;
+            FriendMessage? friend_message;
+            sendPreparedStage = 0;
+            sendPreparedUid = null;
+            try
+            {
+                stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);   // #46 r2: inside the try
+                friend_message = sendPreparedFile(name, stream, path);
+            }
+            catch (Exception)
+            {
+                if (sendPreparedStage >= 2)
+                {
+                    stored = true;   // Core holds the file message — nothing is given back, the file serves the peer
+                    throw;
+                }
+                withdrawVoiceFile(stream, path);   // #46 r2: nothing stored — no transfer, no stream, no .ogg stays
+                throw;
+            }
+            if (friend_message == null)
+            {
+                deleteOwnVoiceFile(path);   // sendPreparedFile withdrew its transfer (and closed the stream)
+                return false;
+            }
+            stored = true;
+            if (friend_message.id != null)
+            {
+                // the live row was pushed before the path was set — its waveform now (the sender's own file)
+                enqueueVoiceInfo(Crypto.hashToString(friend_message.id), friend_message);
+            }
+            return true;
+        }
+
+        /** #46 r2 (orphans): a voice file send that failed BEFORE Core stored the message — the transfer stage 1 registered
+         *  is removed (TransferManager.removeOutgoingTransfer disposes its stream), else the stream is closed here; then the
+         *  .ogg goes. A retry (➤ again) makes ONE new file and transfer. */
+        private void withdrawVoiceFile(Stream? stream, string path)
+        {
+            try
+            {
+                if (sendPreparedStage == 1 && sendPreparedUid != null)
+                {
+                    TransferManager.removeOutgoingTransfer(sendPreparedUid);
+                }
+                else
+                {
+                    stream?.Dispose();
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: the unsent transfer could not be removed (" + e.GetType().Name + ")");
+            }
+            sendPreparedStage = 0;
+            sendPreparedUid = null;
+            deleteOwnVoiceFile(path);
+        }
+
+        /** Delete a .ogg THIS page made in voiceFolder() (C#'s own path — never a WebView value). */
+        private static void deleteOwnVoiceFile(string path)
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: the unsent file could not be removed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /* ---- V8: play / pause / resume (main thread) ---- */
+
+        private void onVoicePlay(string idHex)
+        {
+            string? ownHex = null;
+            try
+            {
+                if (!isVoiceIdHex(idHex))
+                {
+                    Logging.warn("ixian:voiceplay: the id is not usable");
+                    return;
+                }
+                byte[]? id = parseMessageIdHex(idHex);
+                int channel = selectedChannel;
+                FriendMessage? fm = id != null ? findChannelMessage(channel, id) : null;
+                if (fm == null || fm.id == null || !VoiceCodec.rendersAsVoice(friend.bot))
+                {
+                    Logging.warn("ixian:voiceplay: no voice row holds the id");
+                    pushVoiceState(idHex, "error", 0, 0);   // #46 r2 NIT (§7 never silent): the id passed the hex grammar above
+                    return;
+                }
+                ownHex = Crypto.hashToString(fm.id);   // C#'s own hex from here on — never the WebView's
+                /* a new tap replaces a play still waiting for its download — the OTHER row's bubble hears `stopped` (#46 r2
+                   MAJOR); a tap on THAT row re-evaluates it below (§7) */
+                clearPendingVoicePlay(ownHex);
+                if (VoIPManager.isInitiated())
+                {
+                    // §7: a tap during a call is answered — `stopped` with the clip's length (an inline peek; a file: 0)
+                    Logging.info("Voice: play refused (call active)");
+                    int callDur = fm.type == FriendMessageType.standard && VoiceCodec.tryPeekInline(fm.message, out int peekMs) ? peekMs : 0;
+                    pushVoiceState(ownHex, "stopped", 0, callDur);
+                    return;
+                }
+                if (VoiceClips.toggleIfCurrent(this, ownHex))
+                {
+                    return;
+                }
+                if (fm.type == FriendMessageType.standard)
+                {
+                    string text = fm.message;
+                    if (!VoiceCodec.tryPeekInline(text, out _))
+                    {
+                        pushVoiceState(ownHex, "error", 0, 0);
+                        return;
+                    }
+                    string inlineHex = ownHex;
+                    Task.Run(() =>
+                    {
+                        if (VoiceCodec.tryParseInline(text, out int durMs, out List<byte[]>? packets) && packets != null)
+                        {
+                            VoiceClips.play(this, inlineHex, packets, durMs);
+                        }
+                        else
+                        {
+                            Logging.warn("Voice: play failed (parse)");
+                            pushVoiceState(inlineHex, "error", 0, 0);
+                        }
+                    });
+                    return;
+                }
+                if (fm.type == FriendMessageType.fileHeader && SharedItems.parseFileHeader(fm.message, out string name, out _) && isVoiceFileRow(fm, name))
+                {
+                    string? path = SharedItems.localPathOf(fm);   // C#'s own rule — never a WebView value
+                    if (path != null)
+                    {
+                        string fileHex = ownHex;
+                        Task.Run(() => playVoiceFile(fileHex, path));
+                        return;
+                    }
+                    if (!fm.localSender && !fm.completed && !string.IsNullOrEmpty(fm.transferId))
+                    {
+                        startVoiceDownload(fm, ownHex, channel);   // ★ #1208 (4): the first play tap accepts the download
+                        return;
+                    }
+                }
+                pushVoiceState(ownHex, "error", 0, 0);   // not a voice row, or its file is not on this device
+            }
+            catch (Exception e)
+            {
+                Logging.warn("ixian:voiceplay: failed (" + e.GetType().Name + ")");
+                if (ownHex != null)
+                {
+                    clearPendingVoicePlay(ownHex);
+                    pushVoiceState(ownHex, "error", 0, 0);   // never left on `loading`
+                }
+            }
+        }
+
+        /** #46 r1 B MAJOR-1 / A M2 (§7): a voice FILE not on this device — the tap accepts the download through the existing
+         *  path (onAcceptFile), but `loading` is pushed ONLY when a transfer really runs afterwards; no transfer (a blind room,
+         *  an unknown group sender, a refused accept) → `error`. The clip that is playing stops (B m-2). A row that is
+         *  already downloading (a second tap on `loading`) gets `loading` again. The pending play is watched by
+         *  checkPendingVoicePlay (updateScreen, 1 Hz): a transfer that is gone or paused → `stopped`. */
+        private void startVoiceDownload(FriendMessage fm, string ownHex, int channel)
+        {
+            if (Utils.hidesParticipants(friend))
+            {
+                Logging.warn("Voice: the download could not start (blind room)");
+                pushVoiceState(ownHex, "error", 0, 0);
+                return;
+            }
+            FileTransfer? running = incomingTransferOf(fm.transferId);
+            if (running == null)
+            {
+                onAcceptFile(channel, fm);
+                running = incomingTransferOf(fm.transferId);
+            }
+            if (running == null)
+            {
+                Logging.warn("Voice: the download could not start");
+                pushVoiceState(ownHex, "error", 0, 0);
+                return;
+            }
+            VoiceClips.stopPlayback(true);   // #46 r2 NIT: the playing clip stops only once this tap's download really runs
+            clearPendingVoicePlay(ownHex);
+            Interlocked.Exchange(ref pendingVoicePlay, new PendingVoicePlay(ownHex, fm.transferId, thumbDoc, channel, Environment.TickCount64));
+            pushVoiceState(ownHex, "loading", 0, 0);
+        }
+
+        /** TransferManager's incoming transfer of exactly `uid` (getIncomingTransfer matches with Contains). */
+        private static FileTransfer? incomingTransferOf(string uid)
+        {
+            if (string.IsNullOrEmpty(uid))
+            {
+                return null;
+            }
+            FileTransfer? t = TransferManager.getIncomingTransfer(uid);
+            return t != null && t.uid == uid ? t : null;
+        }
+
+        /** #46 r2 MAJOR: clear the pending play; its bubble hears `stopped` (main thread, isDisposed-gated by pushVoiceState)
+         *  unless it is `keepId` (a tap on that same row re-evaluates it and answers itself) or of an older document (the
+         *  shell is new). Every replace / clear of a pending play goes through here or answers the bubble itself. */
+        private void clearPendingVoicePlay(string? keepId)
+        {
+            PendingVoicePlay? old = Interlocked.Exchange(ref pendingVoicePlay, null);
+            if (old != null && old.doc == thumbDoc && !string.Equals(old.idHex, keepId, StringComparison.Ordinal))
+            {
+                pushVoiceState(old.idHex, "stopped", 0, 0);
+            }
+        }
+
+        /** #46 r2 MINOR: is THIS chat on screen? HomePage.onUpdateUI's own rule for the 1 Hz tick — the TOP overlay, or a
+         *  conversation under an open chat-info pane (ContactDetails on top); with no overlay, the top of the navigation
+         *  stack. Main thread. */
+        private bool isShownChat()
+        {
+            SpixiContentPage? top = SpixiContentPage.getTopOverlay();
+            if (top != null)
+            {
+                return top == this || (top is ContactDetails && SpixiContentPage.getOverlayPages().Contains(this));
+            }
+            Page? navTop = Microsoft.Maui.Controls.Application.Current?.MainPage?.Navigation.NavigationStack.LastOrDefault();
+            return navTop == this;
+        }
+
+        /** #46 r1 B MAJOR-1: TransferManager tells the page nothing when a transfer stalls or is dropped (no failure / pause
+         *  hook reaches it — only updateFile progress and completion), so the 1 Hz updateScreen watches the ONE pending play:
+         *  completed → voiceAfterTransfer; the transfer gone, paused (FileRowRules.transferStateArg "paused:") or never
+         *  started within PausedAfterSeconds → `stopped`; an older document → forgotten. Main thread. */
+        private void checkPendingVoicePlay()
+        {
+            PendingVoicePlay? want = Volatile.Read(ref pendingVoicePlay);
+            if (want == null)
+            {
+                return;
+            }
+            try
+            {
+                if (want.doc != thumbDoc || isDisposed)
+                {
+                    Interlocked.CompareExchange(ref pendingVoicePlay, null, want);
+                    return;
+                }
+                FileTransfer? t = incomingTransferOf(want.uid);
+                bool stalled;
+                if (t == null)
+                {
+                    FriendMessage? done = findChannelMessageByTransfer(want.channel, want.uid);
+                    if (done != null && done.completed)
+                    {
+                        voiceAfterTransfer(want.uid, want.channel);   // the completion tick was missed — play now
+                        return;
+                    }
+                    /* #46 r2 (completion race): completeFileTransfer removes the transfer BEFORE it sets fm.completed
+                       (TransferManager.cs:681-707) — "gone" counts as dropped only on TWO consecutive ticks */
+                    want.goneTicks++;
+                    stalled = want.goneTicks >= 2;
+                }
+                else
+                {
+                    string st = FileRowRules.transferStateArg(true, t.completed, true, t.fileStream != null,
+                        t.lastPacket, t.fileSize, t.packetSize, t.lastTimeStamp, Clock.getTimestamp());
+                    want.goneTicks = 0;
+                    bool neverStarted = t.lastTimeStamp <= 0 && Environment.TickCount64 - want.sinceMs > FileRowRules.PausedAfterSeconds * 1000;
+                    stalled = st.StartsWith("paused:", StringComparison.Ordinal) || neverStarted;
+                }
+                if (stalled && Interlocked.CompareExchange(ref pendingVoicePlay, null, want) == want)
+                {
+                    Logging.info("Voice: the download stalled");
+                    pushVoiceState(want.idHex, "stopped", 0, 0);
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: pending check failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** A row of `channel` by its transfer id: the in-memory list, then the CACHED deeper read (findChannelMessage's
+         *  order — #46 r1 A M4). */
+        private FriendMessage? findChannelMessageByTransfer(int channel, string uid)
+        {
+            if (string.IsNullOrEmpty(uid))
+            {
+                return null;
+            }
+            FriendMessage? m = channelSnapshot(channel).Find(x => x.transferId == uid);
+            if (m != null)
+            {
+                return m;
+            }
+            List<FriendMessage>? deep = replyDeepCached(channel);
+            return deep?.Find(x => x.transferId == uid);
+        }
+
+        /** #46 r1 B m-10: deleteMessage (local or remote) — the deleted row's clip stops, its pending download play is
+         *  forgotten (the row is gone: nothing to tell). */
+        private void voiceRowDeleted(byte[]? msgId)
+        {
+            if (msgId == null)
+            {
+                return;
+            }
+            try
+            {
+                string hex = Crypto.hashToString(msgId);
+                PendingVoicePlay? want = Volatile.Read(ref pendingVoicePlay);
+                if (want != null && want.idHex == hex)
+                {
+                    Interlocked.CompareExchange(ref pendingVoicePlay, null, want);
+                }
+                // #46 r2 NIT: stopPlayback may wait for the run thread (≤ 1 s) — never on the network thread of a remote delete
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        VoiceClips.stopIfCurrent(this, hex);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("Voice: delete stop failed (" + e.GetType().Name + ")");
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: delete stop failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** A voice FILE on this device → bounded read + demux → play. A pool thread. */
+        private void playVoiceFile(string idHex, string path)
+        {
+            try
+            {
+                if (readVoiceFile(path, out List<byte[]>? packets, out int durMs) && packets != null)
+                {
+                    VoiceClips.play(this, idHex, packets, durMs);
+                    return;
+                }
+                Logging.warn("Voice: play failed (file)");
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: play failed (" + e.GetType().Name + ")");
+            }
+            pushVoiceState(idHex, "error", 0, 0);
+        }
+
+        /** A C#-resolved voice file → its packets. Read at most MaxOggBytes + 1 bytes (a bigger file is refused, also one
+         *  that grew after the size check); VoiceCodec.tryDemuxOgg is the bounded parse. */
+        private static bool readVoiceFile(string path, out List<byte[]>? packets, out int durMs)
+        {
+            packets = null;
+            durMs = 0;
+            byte[] buf = new byte[VoiceCodec.MaxOggBytes + 1];
+            int n = 0;
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                int r;
+                while (n < buf.Length && (r = fs.Read(buf, n, buf.Length - n)) > 0)
+                {
+                    n += r;
+                }
+            }
+            if (n <= 0 || n > VoiceCodec.MaxOggBytes)
+            {
+                return false;
+            }
+            Array.Resize(ref buf, n);
+            return VoiceCodec.tryDemuxOgg(buf, out packets, out durMs);
+        }
+
+        /** updateFile(complete): a voice FILE of the shown channel arrived — the play a tap asked for (once, for this
+         *  document; #46 r1: decided BEFORE the voice-row test — a row that is no longer a voice file answers `error`), and
+         *  its waveform. The row is found like onVoicePlay finds it (#46 r1 A M4). The network thread; the work goes to the
+         *  pool. */
+        private void voiceAfterTransfer(string uid, int channel)
+        {
+            try
+            {
+                if (friend == null || isDisposed || string.IsNullOrEmpty(uid) || channel != selectedChannel)
+                {
+                    return;
+                }
+                FriendMessage? fm = findChannelMessageByTransfer(channel, uid);
+                if (fm != null && !fm.completed)
+                {
+                    return;   // not done yet — a pending play keeps waiting
+                }
+                PendingVoicePlay? want = Volatile.Read(ref pendingVoicePlay);
+                bool mine = want != null && want.uid == uid && want.doc == thumbDoc
+                    && Interlocked.CompareExchange(ref pendingVoicePlay, null, want) == want;
+                string? idHex = fm != null && fm.id != null ? Crypto.hashToString(fm.id) : null;
+                bool voice = fm != null && idHex != null && SharedItems.parseFileHeader(fm.message, out string name, out _) && isVoiceFileRow(fm, name);
+                if (mine && want != null)
+                {
+                    if (!voice || idHex != want.idHex)
+                    {
+                        pushVoiceState(want.idHex, "error", 0, 0);   // the row is gone or no voice file any more
+                    }
+                    else
+                    {
+                        string? path = SharedItems.localPathOf(fm!);
+                        if (path == null)
+                        {
+                            pushVoiceState(want.idHex, "error", 0, 0);
+                        }
+                        else
+                        {
+                            /* #46 r2 (MAJOR + MINOR A M3): the auto-play needs THIS chat on screen (the overlay tick's own
+                               predicate — an overlay covered by another never gets OnDisappearing) and no call; otherwise
+                               the bubble hears `stopped`, never left on `loading`. The predicate reads the overlay /
+                               navigation stacks: on the main thread. */
+                            string playHex = want.idHex;
+                            MainThread.BeginInvokeOnMainThread(() =>
+                            {
+                                if (isDisposed)
+                                {
+                                    return;
+                                }
+                                /* ★ lead (#46 r3 MINOR-1 / MINOR-2): also never in the background on a PHONE (the pocket case — the
+                                   background interrupt does not clear a pending play; #46 r4 MINOR-A: on a desktop a window that lost
+                                   focus is still on screen, #505, the same split as App.OnSleep's interruptAll) and never over a
+                                   running recording (play would end it) */
+                                bool backgrounded = false;
+#if ANDROID || IOS
+                                backgrounded = !App.isInForeground;
+#endif
+                                if (VoIPManager.isInitiated() || !isShownChat() || backgrounded || VoiceClips.isRecording)
+                                {
+                                    Logging.info("Voice: the downloaded clip was not played (hidden, background, recording or call)");
+                                    pushVoiceState(playHex, "stopped", 0, 0);
+                                    return;
+                                }
+                                Task.Run(() => playVoiceFile(playHex, path));
+                            });
+                        }
+                    }
+                }
+                if (voice && idHex != null)
+                {
+                    enqueueVoiceInfo(idHex, fm!);
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: after-transfer failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /* ---- V4: the waveform, once per document, off the UI and network threads ---- */
+
+        /** insertMessage: a voice row (inline, or a file on this device); a load burst defers it to after the batch. */
+        private void noteVoiceInfo(FriendMessage message, UiBatch? batch)
+        {
+            if (message.id == null)
+            {
+                return;
+            }
+            string id = Crypto.hashToString(message.id);
+            if (batch != null)
+            {
+                batch.voices.Add(new KeyValuePair<string, FriendMessage>(id, message));
+                return;
+            }
+            enqueueVoiceInfo(id, message);
+        }
+
+        private void enqueueVoiceInfo(string id, FriendMessage fm)
+        {
+            if (Interlocked.Increment(ref voiceInfoQueued) > VoiceInfoQueueMax)
+            {
+                Interlocked.Decrement(ref voiceInfoQueued);
+                return;   // bounded: the row keeps its plain bars (a reload asks again)
+            }
+            voiceInfoQueue.Enqueue(new VoiceInfoJob(thumbDoc, id, fm));
+            if (Interlocked.CompareExchange(ref voiceInfoWorker, 1, 0) == 0)
+            {
+                Task.Run(drainVoiceInfo);
+            }
+        }
+
+        /** ONE drainer per page: one clip at a time. */
+        private void drainVoiceInfo()
+        {
+            try
+            {
+                while (voiceInfoQueue.TryDequeue(out VoiceInfoJob? job))
+                {
+                    Interlocked.Decrement(ref voiceInfoQueued);
+                    try
+                    {
+                        processVoiceInfo(job);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("Voice: waveform failed (" + e.GetType().Name + ")");
+                    }
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref voiceInfoWorker, 0);
+                if (!voiceInfoQueue.IsEmpty && Interlocked.CompareExchange(ref voiceInfoWorker, 1, 0) == 0)
+                {
+                    Task.Run(drainVoiceInfo);
+                }
+            }
+        }
+
+        private void processVoiceInfo(VoiceInfoJob job)
+        {
+            if (isDisposed || job.doc != thumbDoc || friend == null)
+            {
+                return;   // a closed page or an older document
+            }
+            string sentKey = job.doc.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + job.id;
+            lock (voiceInfoSent)
+            {
+                if (!voiceInfoSent.Add(sentKey))
+                {
+                    return;   // this document has this row's waveform already
+                }
+            }
+            string? info;
+            bool notYet;
+            try
+            {
+                info = voiceInfoOf(job.fm, job.id, out notYet);
+            }
+            catch (Exception e)
+            {
+                // #46 r1 A N5: a throw (a file that vanished, a decode) answers `error` ONCE, like a refused parse / demux
+                Logging.warn("Voice: waveform failed (" + e.GetType().Name + ")");
+                info = null;
+                notYet = false;
+            }
+            if (notYet)
+            {
+                lock (voiceInfoSent)
+                {
+                    voiceInfoSent.Remove(sentKey);   // the file is not here yet — its completion asks again
+                }
+                return;
+            }
+            int doc = job.doc;
+            string id = job.id;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (isDisposed || doc != thumbDoc)
+                {
+                    lock (voiceInfoSent)
+                    {
+                        voiceInfoSent.Remove(sentKey);   // #46 r1 A N5: NOT sent — the slot is not taken
+                    }
+                    return;
+                }
+                if (info == null)
+                {
+                    Utils.sendUiCommand(this, "voiceState", id, "error", "0", "0");
+                    return;
+                }
+                int bar = info.IndexOf('|');
+                Utils.sendUiCommand(this, "voiceInfo", id, info.Substring(0, bar), info.Substring(bar + 1));
+            });
+        }
+
+        /** "<durMs>|<peaksCsv>" of a voice row, cached per process (id + kind + length); null = the clip does not parse or
+         *  decode; notYet = a voice FILE that is not on this device (no answer yet). */
+        private string? voiceInfoOf(FriendMessage fm, string id, out bool notYet)
+        {
+            notYet = false;
+            string? text = null;
+            string? path = null;
+            string key;
+            if (fm.type == FriendMessageType.standard)
+            {
+                text = fm.message;
+                if (text == null)
+                {
+                    return null;
+                }
+                key = id + "|t|" + text.Length.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            else if (fm.type == FriendMessageType.fileHeader)
+            {
+                path = SharedItems.localPathOf(fm);   // C#'s own rule
+                if (path == null)
+                {
+                    notYet = true;
+                    return null;
+                }
+                FileInfo fi = new FileInfo(path);
+                if (!fi.Exists)
+                {
+                    notYet = true;
+                    return null;
+                }
+                key = id + "|f|" + fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                return null;
+            }
+            lock (voiceInfoCacheLock)
+            {
+                if (voiceInfoCache.TryGetValue(key, out string? hit))
+                {
+                    return hit;
+                }
+            }
+            List<byte[]>? packets;
+            int durMs;
+            bool parsed = text != null
+                ? VoiceCodec.tryParseInline(text, out durMs, out packets)
+                : readVoiceFile(path!, out packets, out durMs);
+            string? csv = parsed && packets != null ? VoiceClips.peaksCsvOf(packets) : null;
+            if (csv == null)
+            {
+                return null;
+            }
+            string info = durMs.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + csv;
+            lock (voiceInfoCacheLock)
+            {
+                if (!voiceInfoCache.ContainsKey(key))
+                {
+                    while (voiceInfoCache.Count >= VoiceInfoCacheMax && voiceInfoCacheOrder.Count > 0)
+                    {
+                        voiceInfoCache.Remove(voiceInfoCacheOrder.Dequeue());   // bounded: the OLDEST goes
+                    }
+                    voiceInfoCacheOrder.Enqueue(key);
+                }
+                voiceInfoCache[key] = info;
+            }
+            return info;
+        }
+
+        /** ★★ #1207 (S7) — THE CAPABILITY ASK: an approved, normal 1:1, non-bot chat asks its contact ONCE per app run which
+         *  Spixi protocols it speaks (SpixiProtocols.claimAsk — the rule + the once-per-process map); Core's ask waits in the
+         *  pending queue until both apps are online; the answer replaces Core's stored list (StreamProcessor). Off the UI
+         *  thread (onLoad's Task). The log names no contact. */
+        private void askCapabilitiesOnce()
+        {
+            try
+            {
+                Friend? f = friend;
+                if (f == null || f.walletAddress == null)
+                {
+                    return;
+                }
+                if (SpixiProtocols.claimAsk(f.walletAddress.ToString(), true, f.type == FriendType.Normal, f.bot, f.approved && f.state == FriendState.Approved))
+                {
+                    CoreStreamProcessor.sendGetAppProtocols(f);
+                    Logging.info("Capability ask sent (chat open)");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Capability ask failed (" + e.GetType().Name + ")");
+            }
+        }
+
         public void updateGroupChatNicks(Address address, string nick)
         {
             Utils.sendUiCommand(this, "updateGroupChatNicks", address.ToString(), nick);
@@ -5848,6 +6975,7 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "setUnreadIndicator", "0");
                 unreadIndicatorDisplayed = false;
             }
+            checkPendingVoicePlay();   // ★ #46 r1 B MAJOR-1: a voice download that stalls never leaves its bubble on `loading`
         }
 
         protected override bool OnBackButtonPressed()

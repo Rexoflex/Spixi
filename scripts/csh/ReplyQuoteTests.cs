@@ -1,3 +1,4 @@
+// ★ #1208 (session 7): + the voice excerpts (inline "🎤 M:SS", file "🎤").
 // ★ #1198 (session 6b) — the reply quote line (Spixi/Utils/ReplyQuote.cs), EXECUTED: the excerpt (normalise, the 60
 // text-element cap, emoji / ZWJ / flags never cut), the #1178 name rule, compose, the shape, and the match (": " in a
 // name or an excerpt, a reply to a reply, the 300 s skew, the newest match, no match). The call sites (SingleChatPage
@@ -82,6 +83,28 @@ public class ReplyQuoteTests
         {
             Assert.IsTrue(ReplyQuote.excerptOf(t, "x", "x", false) == null, t + " is not quotable");
         }
+    }
+
+    // —— ★ #1208 (session 7): a voice message's excerpt is language-neutral and never the base64 ——
+    [TestMethod]
+    public void excerpt_of_a_voice_message()
+    {
+        var ps = new System.Collections.Generic.List<byte[]>();
+        for (int i = 0; i < 617; i++) ps.Add(new byte[] { 0x48, (byte)i });
+        string voice = VoiceCodec.humanLine(12_340) + "\n" + VoiceCodec.encodeInline(ps);
+        Assert.AreEqual("🎤 0:12", ReplyQuote.excerptOf(FriendMessageType.standard, voice, null, false), "an inline voice text → 🎤 M:SS");
+        Assert.AreEqual("🎤", ReplyQuote.excerptOf(FriendMessageType.fileHeader, "u1:voice-20261005-120000.ogg:900", "voice-20261005-120000.ogg", false), "a voice file → 🎤");
+        Assert.AreEqual("🎤", ReplyQuote.excerptOf(FriendMessageType.fileHeader, "u1:voice-20261005-120000.ogg", "voice-20261005-120000.ogg", false), "no size in the header (unknown) → 🎤");
+        Assert.AreEqual("🎤", ReplyQuote.excerptOf(FriendMessageType.fileHeader, "u1:voice-20261005-120000.ogg:262144", "voice-20261005-120000.ogg", false), "exactly MaxOggBytes → 🎤");
+        Assert.AreEqual("📎 voice-20261005-120000.ogg", ReplyQuote.excerptOf(FriendMessageType.fileHeader, "u1:voice-20261005-120000.ogg:262145", "voice-20261005-120000.ogg", false), "over the size cap → the normal file excerpt (the row is a file too)");
+        Assert.AreEqual("📎 voice-20261005-120000.ogg.txt", ReplyQuote.excerptOf(FriendMessageType.fileHeader, "x", "voice-20261005-120000.ogg.txt", false), "not the pattern → a file");
+        string notVoice = VoiceCodec.humanLine(12_340) + "\n" + "spixi.voice.2:12340:AAAA";
+        Assert.IsTrue(ReplyQuote.excerptOf(FriendMessageType.standard, notVoice, null, false)!.StartsWith("🎤 0:12 (voice message", System.StringComparison.Ordinal), "not the shape → the normal text excerpt");
+        // a reply to a voice message round-trips on the excerpt
+        var target = new ReplyQuote.Candidate { idHex = "aa", type = FriendMessageType.standard, text = voice, timestamp = 100 };
+        string reply = ReplyQuote.compose("", ReplyQuote.excerptOf(target)!, "nice");
+        Assert.AreEqual("> 🎤 0:12\nnice", reply, "the quote line");
+        Assert.IsTrue(ReplyQuote.tryMatch(reply, 200, "bb", new[] { target }, out var m) && m != null && m.targetIdHex == "aa" && m.quoteText == "🎤 0:12", "matched");
     }
 
     // —— the name ——

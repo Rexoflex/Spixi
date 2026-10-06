@@ -811,5 +811,20 @@
   "fileUnavailable": "No disponible en este dispositivo",
   "photoDeletedLocal": "Foto eliminada de este dispositivo",
   "saveEdit": "Guardar",
-  "editNoLonger": "Este mensaje ya no se puede editar. Tu texto se queda en el campo de mensaje."
+  "editNoLonger": "Este mensaje ya no se puede editar. Tu texto se queda en el campo de mensaje.",
+  "cancelRecording": "Cancelar grabación",
+  "recordingVoice": "Grabando mensaje de voz",
+  "sendVoice": "Enviar mensaje de voz",
+  "playVoice": "Reproducir mensaje de voz",
+  "pauseVoice": "Pausar mensaje de voz",
+  "voiceLoading": "Cargando mensaje de voz",
+  "voiceUnavailable": "Este mensaje de voz no se puede reproducir",
+  "micDenied": "Spixi necesita acceso al micrófono para grabar. Permítelo cuando se te pida o en la configuración de tu dispositivo, y vuelve a tocar el micrófono.",
+  "micBusy": "No puedes grabar un mensaje de voz durante una llamada.",
+  "voiceRecError": "No se pudo grabar el mensaje de voz.",
+  "voiceMessageLength": "Mensaje de voz ({0})",
+  "playVoiceLength": "Reproducir mensaje de voz, {0}",
+  "recordingStoppedAt": "Grabación detenida, {0}",
+  "recordingTime": "{0} / {1}",
+  "voiceSendFailed": "No se pudo enviar el mensaje de voz."
 }

@@ -1,0 +1,238 @@
+<title>Spixi Session 7 Walk</title>
+<style>
+/* Layout: one narrow column — commit steps, then a Windows part and an Android part (each: build steps, then walk rows), a sticky tally bar.
+   Tokens follow the Spixi redesign palette (ink neutrals, the Spixi blue). */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:780px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:8px 0 0;text-wrap:balance;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .tag{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 8px}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:8px;flex-wrap:wrap}
+nav.jump a{font:600 13px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:5px 12px;text-decoration:none}
+nav.jump a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps li{min-width:0}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.cmd button,.ctl button{font:600 12px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;flex:none}
+.exp{font-size:13px;color:var(--ink-2)}
+.exp b{color:var(--ink)}
+code{font:13px var(--mono);background:var(--brand-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:780px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{width:100%;min-height:120px;font:13px var(--mono)}
+.note{font-size:13px;color:var(--ink-2);border-inline-start:3px solid var(--brand);padding-inline-start:10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Spixi Session 7 Walk</h1>
+    <p class="sub"><b>Session 7 (#1207–#1210): voice messages + the capability ask — walked TOGETHER with session 6b (#1197–#1206: reply, edit, the capability answer, A-FADE, the 6a notes).</b> Apply the S7 patch and commit, build Windows (F5) and Android, then walk the rows. You need TWO devices with this build (voice inline, reply / edit); a third phone with the store app 0.9.22 for the old-app rows, if you have one. ⚠ The C# of 6b AND S7 is UNCOMPILED: this build is the first compile of both — a build error is a batch bug, paste it. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both logs.</p>
+  </header>
+  <nav class="jump" aria-label="Parts">
+    <a href="#commit">1 · Commit + push</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
+  </nav>
+
+  <h2 id="commit">Commit + push <span class="tag">fresh PowerShell</span></h2>
+  <section class="box">
+    <h3>Steps (one command each)</h3>
+    <ol class="steps" id="steps-commit"></ol>
+  </section>
+
+  <h2 id="windows">Windows <span class="tag">F5</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-win"></ol>
+  </section>
+  <div id="rows-win"></div>
+
+  <h2 id="android">Android <span class="tag">Release + dev switch</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-and"></ol>
+  </section>
+  <div id="rows-and"></div>
+  <p class="note">Two new apps = this build on Windows AND Android, both online. A-FLASH happens only sometimes: when it does, save the logcat AT ONCE (before anything else) and mark the row.</p>
+  <textarea id="out" readonly aria-label="Results text" hidden></textarea>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+</div></div>
+
+<script>
+const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
+const STEPS = {
+  commit: [
+    ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
+    ["Check the tree.", "git --no-optional-locks status --short", "Only untracked files (Claude outputs files and your notes). Other changes: stop and paste them."],
+    ["Check that you are on the 6b commit.", "git --no-optional-locks log --oneline -1", "<b>0bdc9edb Session 6b: …</b>. Another hash: stop and paste it."],
+    ["Refresh the index (a stale index gave \"does not match index\" before).", "git update-index --refresh", "No output, or a list of untracked notes. Both are OK."],
+    ["Check that the patch applies.", "git apply --check \"..\\Claude outputs\\session7-build.patch\"", "No output."],
+    ["Apply the patch (it also stages the new files).", "git apply --index \"..\\Claude outputs\\session7-build.patch\"", "No output."],
+    ["Check the count.", "git diff --cached --stat", "The last line says <b>117 files changed</b>. Another number: stop and paste it."],
+    ["Commit.", "git commit -F docs/commit-message-session7.txt", "Subject \"Session 7: voice messages and the capability ask\"."],
+    ["Push.", "git push", "Ends with <b>redesign/frontend -> redesign/frontend</b>."],
+    ["Run the C# harness.", "node scripts/run-csh.mjs", "Last line <b>CSH pass=190 fail=0</b>."],
+    ["Delete the old build output (C# and html changed).", "Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue", "No output."],
+  ],
+  win: [
+    ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
+    ['Set the target.', '', 'Configuration <b>Debug</b>, target <b>Windows Machine</b>. Debug turns the [P1] lines on.'],
+    ['Press F5. Never use dotnet build for Windows (#663).', '', 'The app starts. A build error: paste it in the chat.'],
+    ['Walk the Windows rows below. Use a wide window.', '', ''],
+    ['Save the log.', '', 'Developer page → <b>Send log</b>. It saves <b>Downloads\\spixi-log-&lt;date&gt;.txt</b>.'],
+    ['Copy the log next to the other outputs (NOT into the repo folder).', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
+  ],
+  and: [
+    ['Connect the phone with USB. Check it.', 'adb devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large.', 'adb logcat -G 16M', 'No output.'],
+    ['Clear the log.', 'adb logcat -c', 'No output.'],
+    ['Build and deploy Release with the dev switch.', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Release -p:SpixiDevCoexist=true -t:Run', 'The app opens on the phone. A build error: paste it.'],
+    ['Walk the Android rows below.', '', ''],
+    ['Save the log as UTF-8.', 'adb logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s7.txt"', 'A file of a few MB.'],
+  ],
+};
+const W = 'w', A = 'a';
+const ROWS = [
+  {p:W,id:"W-BUILD",t:"BUILD: this build is the session-7 build (6b + S7)",d:"Open a 1:1 chat with an approved contact. Leave the field empty.",e:"A microphone shows in the round button on the right. Only this build has it. (A build error: paste it.)"},
+  {p:W,id:"W-VOICE-REC",t:"#1208 record — the bar, ✕ and the timer",d:"Click the mic. Talk 4 s. Click ✕. Click the mic again, talk, press Escape. Click the mic, talk 3 s, click ➤.",e:"The bar replaces the field: red dot, 0:01 / 0:30 counting, ✕ and ➤. ✕ and Escape discard (the field comes back). ➤ sends a voice bubble. The composer height does not jump."},
+  {p:W,id:"W-VOICE-INLINE",t:"#1207 / #1208 inline to a new app (arrives offline)",d:"Phone with this build: open your chat with the Windows user once (both online — this sends the capability ask). Then CLOSE the app on the phone. On Windows send a 5 s voice message. Open the app on the phone later.",e:"The voice message arrives although the phone was offline when you sent it. The log has \"Capability ask sent\" and \"Voice: sent (inline)\"."},
+  {p:W,id:"W-VOICE-PLAY",t:"#1208 the voice bubble",d:"Play a received clip. Pause, play again. Start a second clip while the first plays. Tab to a play button and press Enter / Space.",e:"Waveform bars fill while it plays, the time shows the position, Pause works, the first clip stops when the second starts. Sound from the speakers. Keyboard works and the focus ring stays on the button."},
+  {p:W,id:"W-VOICE-30S",t:"#1208 the 30 s cap",d:"Click the mic and talk 35 s.",e:"At 0:30 the dot goes grey and the timer stops. Nothing is sent until you click ➤ (or ✕). The clip plays to 0:30."},
+  {p:W,id:"W-VOICE-KEEP",t:"#1208 stop and keep",d:"Start a recording. Click another chat. Come back to the first chat.",e:"The bar is still there, stopped (grey dot, frozen time). ➤ sends the kept clip; ✕ discards it."},
+  {p:W,id:"W-VOICE-GROUP",t:"#1208 voice in a private group = a file",d:"In a private group (members on this build) send a 5 s voice message. A member taps it.",e:"Your bubble is a voice bubble. The member sees a voice bubble; the first tap shows a spinner (download), then it plays. The log has \"Voice: sent (file)\"."},
+  {p:W,id:"W-VOICE-MENU",t:"#1208 the menu and the quote",d:"Right-click a voice bubble. Reply to it. Look at the chats list row and a notification (app in the background or another chat open).",e:"Menu: Reply and Delete — no Edit, no Copy. The reply quote reads \"Voice message (0:05)\". The chats list and the notification read \"🎤 Voice message (0:05)\". Never a long base64 text."},
+  {p:W,id:"W-MIC-HIDDEN",t:"#1208 where the mic is NOT shown",d:"Spixi Official Group Chat (a bot room). Your own text → Edit. A message → Reply. Type a letter.",e:"No mic in the bot room, in edit mode, in reply mode, or with text in the field (the send button shows)."},
+  {p:W,id:"W-CALL",t:"#1208 calls are unchanged",d:"After some voice messages: a voice call with the phone, 1 minute, both directions. Then try the mic during the call.",e:"Call audio is normal both ways. The mic tap during the call shows \"You can't record a voice message during a call\"."},
+  {p:A,id:"A-VOICE-REC",t:"#1208 record on the phone + the permission",d:"First time: tap the mic — the OS asks for the microphone. Deny once, tap again, allow. Record 5 s, send. Play a received clip.",e:"Deny → a short toast, the field stays. After Allow, the mic records. Playback is LOUD on the loudspeaker (not the earpiece); the volume keys change the media volume."},
+  {p:A,id:"A-VOICE-BG",t:"#1208 background and leave",d:"Record, then press Home. Open Spixi. Then play a clip and press Home.",e:"The recording stopped and is kept (bar with grey dot). The playback stopped when the app left."},
+  {p:A,id:"A-VOICE-CALL",t:"#1208 a call interrupts",d:"Play a clip (or record), have Windows call you.",e:"The clip stops (or the recording stops and is kept). The call rings and has full audio. After the call, music apps play normally."},
+  {p:A,id:"A-VOICE-DL",t:"#1208 a voice file download",d:"A group voice message you have not downloaded: tap play, then tap another clip while it downloads; then tap the first again. Also: tap play, open chat info at once.",e:"Spinner, then it plays — or it goes back to Play (never a spinner that stays). With chat info open the clip does NOT start playing behind it."},
+  {p:A,id:"A-VOICE-OLD",t:"#1208 an old app (0.9.22)",d:"Only with a phone on the store app 0.9.22: send it a voice message from this build (it never answered the ask → a file).",e:"0.9.22 shows a file voice-….ogg; open it — it plays in the phone's player. N/A without such a phone."},
+  {p:A,id:"A-VOICE-LOG",t:"#1207 / #1208 data: the log lines",d:"After the rows above, save the logcat (Android step 6).",e:"Data row: the log has \"Capability ask sent (chat open)\", \"Voice: recording started\", \"Voice: sent (inline)\" or \"(file)\". A \"Voice: play failed (parse)\" on your OWN clip = tell me (the frame rule)."},
+  {p:W,id:"6B-W-REPLY",t:"#1198 reply — menu, hover button, double-click",d:"With the Android phone (this build) in the same chat: reply to a text with the hover button, to a photo from the right-click menu, to a payment or file by double-clicking it. Click each quote.",e:"The composer shows \"Reply to …\"; the sent bubble has a quote box (photo: 📷 + name). The phone shows the same quote. A click on a quote scrolls to the original and pulses it."},
+  {p:W,id:"6B-W-REPLY-OLD",t:"#1198 quote of an old message",d:"On the phone, reply to a message far up (load older history first). On Windows, open the chat fresh (do not scroll up) and click that quote.",e:"The quote box shows at once. The click loads the older history and jumps to the original (or says it is further back). No raw \"> …\" text."},
+  {p:W,id:"6B-W-EDIT",t:"#1199 edit your message",d:"Right-click your own recent text → Edit. Change a word, press Save. Watch the phone (chat open, then chat closed, then app in the background).",e:"Your bubble shows the new text + \"edited\" and keeps its time and place. The phone updates in place with \"edited\" — no second message, no notification, no unread badge. Reopen the chat: still in the same place, same time."},
+  {p:W,id:"6B-W-EDIT-RULES",t:"#1199 where Edit is NOT offered",d:"Right-click: a received message, your photo / file, a message older than 24 h, a message in Spixi Official Group Chat, a message with 25+ newer messages.",e:"No Edit item in any of these. Escape during an edit brings your earlier draft back."},
+  {p:W,id:"6B-W-KEYS",t:"#1198 keyboard",d:"Click in the composer, press Shift+Tab into the message list. Use ArrowUp / ArrowDown, then Tab, then Enter on the Reply button. Then Shift+F10 on a row.",e:"The list is one Tab stop; the arrows move a visible focus ring row by row; Tab reaches the row's Reply button; Shift+F10 opens that row's menu."},
+  {p:W,id:"6B-W-SHOWALL",t:"#1202 (a) dark Show all hairline",d:"Dark theme, wide window, chat info beside the chat. Press Show all on Media.",e:"The thin line between the chat and the pane stays visible (as in light)."},
+  {p:W,id:"6B-W-THUMB",t:"#1202 (b) light chat scroll thumb",d:"Light theme. Hover the message list and look at the scroll thumb. Compare with chat info.",e:"The chat thumb is the same pale grey as in chat info — not the dark one from your screenshot."},
+  {p:W,id:"6B-W-TALLTILE",t:"#1203 tall picture in chat info",d:"A chat with a tall screenshot (a long page) among its media. Open chat info. Then press Tab until a photo tile has focus.",e:"Every tile is a square; the tall picture is cropped, never runs down into the next row. The focus ring is visible on the photo."},
+  {p:W,id:"6B-W-DLDEL",t:"#1202 (c) Downloads delete refreshes the chat",d:"Open a chat with a received file. Open Downloads, delete that file. Look at the chat (still open).",e:"The row becomes \"File deleted from this device\" at once, no reopen."},
+  {p:W,id:"6B-W-GROUPTILE",t:"RE-WALK #1170 group tiles show the sender (6a F)",d:"First make sure every member is online and has sent you a message (the log had \"missing encryption keys\" for two members). Members send a GIF, a photo and a PDF.",e:"Each tile has the sender's name above and avatar beside it. Note if a member still does not receive your messages (the log line \"missing encryption keys\")."},
+  {p:W,id:"6B-W-BLIND",t:"RE-WALK #1170 blind group (6a N/A)",d:"A blind group, a member with no nickname sends a photo.",e:"\"Hidden member\", no address, no click."},
+  {p:W,id:"6B-W-GRID9",t:"RE-WALK #1195 chat info shows 9 media (6a N/A)",d:"Chat info of a chat with more than 9 photos.",e:"3 rows of tiles, then \"Show all N\"; Show all opens the full grid."},
+  {p:W,id:"6B-W-INFOCLOSE-REC",t:"RE-WALK #1194 chat info close flicker (REC + log, 6a N/A)",d:"Wide window. Record the screen. Close chat info 3 times on a chat with 3 media, then on one with 30+ media (previews ON, then OFF).",e:"Data row: note where it flickers. The log lines [P1] infopane close … tiles= previews= shown= tell me the case."},
+  {p:A,id:"6B-A-SWIPE",t:"#1198 swipe right to reply",d:"In a chat swipe a bubble to the right (start in the middle of the screen). Then: scroll up and down fast; swipe from the very left edge (the back gesture); a long press.",e:"The swipe moves the bubble with a reply icon and opens \"Reply to …\". Scrolling never starts a reply. The edge swipe goes back. A long press still opens the menu, and a swipe never opens it."},
+  {p:A,id:"6B-A-EDIT",t:"#1199 edit on the phone",d:"Long-press your own text → Edit, change it, Save. Watch Windows.",e:"The same as W-EDIT, the other way round."},
+  {p:A,id:"6B-A-FADE",t:"RE-WALK #1201 photos ready at open (was A-FADE)",d:"Open a chat whose newest messages are photos, 5 times (back to the list between).",e:"The photos are there when the chat opens — no white tile, no sudden switch. The chat must not open slower. The log has [P1] fade hold … and open singlechatpage present ms= lines."},
+  {p:A,id:"6B-A-NOTIF-EDIT",t:"#1199 no notification for an edit",d:"App in the background. On Windows edit a message you sent earlier to the phone.",e:"No notification, no sound, no badge change on the phone. A NEW message still notifies."},
+  {p:A,id:"6B-A-OLDAPP",t:"#1198 / #1199 an old app (V-OLD)",d:"Only with a phone on the store app 0.9.22: send it a reply and an edit from this build.",e:"The reply shows the \"> …\" line above your text. The edit replaces the text in place, no second message (0.9.22 has no \"edited\" marker). N/A without such a phone."},
+  {p:A,id:"6B-A-TALLTILE",t:"#1203 tall picture in group info",d:"Your \"Gruppo\" group info (the tall screenshot from your 11:30 screenshot).",e:"All four tiles are squares; nothing runs below the grid."},
+  {p:A,id:"6B-A-UNREAD",t:"RE-CHECK #1175 unread clears at once",d:"Group: a member sends a file while you are on the chats list. Open the chat. Go back. Then resume the app on an open chat with a new message.",e:"The badge, the chips and the Chats tab badge go to 0 when the chat opens. If not: save the logcat at once."},
+  {p:A,id:"6B-A-FLASH",t:"#1205 white flash on reopen (DATA, when it happens)",d:"Leave the app in the background for a long time (30+ min), then open it.",e:"Data row: if the flash happens, save the logcat at once (Android step 6) and say so here. No flash in a few tries: mark N/A."}
+];
+
+const KEY = 'spixi-walk-session7-v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function el(tag, attrs, kids){ const n = document.createElement(tag); for (const k in (attrs||{})) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'html') n.innerHTML = attrs[k]; else n.setAttribute(k, attrs[k]); } (kids||[]).forEach(c => c && n.append(c)); return n; }
+async function copyText(text, btn){
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { const out = document.getElementById('out'); out.hidden = false; out.value = text; out.focus(); out.select(); btn.textContent = 'Select + Ctrl+C'; }
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+}
+function renderSteps(id, list){
+  const ol = document.getElementById(id);
+  list.forEach(([say, cmd, expect]) => {
+    const li = el('li', {}, [el('span', {text: say})]);
+    if (cmd) {
+      const b = el('button', {type:'button', 'aria-label':'Copy command'}); b.textContent = 'Copy'; b.dataset.label = 'Copy';
+      b.addEventListener('click', () => copyText(cmd, b));
+      li.append(el('div', {class:'cmd'}, [el('pre', {text: cmd}), b]));
+    }
+    if (expect) li.append(el('div', {class:'exp', html: 'Expect: ' + expect}));
+    ol.append(li);
+  });
+}
+renderSteps('steps-commit', STEPS.commit);
+renderSteps('steps-win', STEPS.win);
+renderSteps('steps-and', STEPS.and);
+function renderRows(){
+  for (const [host, plat] of [['rows-win', W], ['rows-and', A]]) {
+    const box = document.getElementById(host); box.innerHTML = ''; box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '12px';
+    ROWS.filter(r => r.p === plat).forEach(r => {
+      const s = state[r.id] || {};
+      const card = el('article', {class:'row', 'data-v': s.v || ''});
+      card.append(el('div', {class:'top'}, [el('span', {class:'id', text:r.id}), el('span', {class:'title', text:r.t})]));
+      card.append(el('dl', {}, [el('dt', {text:'Do'}), el('dd', {text:r.d}), el('dt', {text:'Pass if'}), el('dd', {text:r.e})]));
+      const ctl = el('div', {class:'ctl'});
+      [['P','Pass'],['F','Fail'],['N','N/A']].forEach(([k, lab]) => {
+        const b = el('button', {type:'button', 'data-k':k, 'aria-pressed': s.v === k ? 'true' : 'false'}); b.textContent = lab;
+        b.addEventListener('click', () => { state[r.id] = Object.assign({}, state[r.id], {v: s.v === k ? '' : k}); save(); renderRows(); tally(); });
+        ctl.append(b);
+      });
+      card.append(ctl);
+      const ta = el('textarea', {id:'note-' + r.id, 'aria-label':'Note for ' + r.id, placeholder:'Note (what you saw, numbers, paste lines)'});
+      ta.value = s.n || '';
+      ta.addEventListener('input', () => { state[r.id] = Object.assign({}, state[r.id], {n: ta.value}); save(); });
+      card.append(ta);
+      box.append(card);
+    });
+  }
+}
+function counts(){ let p=0,f=0,n=0; ROWS.forEach(r => { const v = (state[r.id]||{}).v; if (v==='P') p++; else if (v==='F') f++; else if (v==='N') n++; }); return {p,f,n}; }
+function tally(){ const c = counts(); const left = ROWS.length - c.p - c.f - c.n;
+  document.getElementById('tally').innerHTML = `<b class="p">${c.p} P</b> · <b class="f">${c.f} F</b> · <b class="n">${c.n} N/A</b> · ${left} open`; }
+document.getElementById('copy').addEventListener('click', (ev) => {
+  const c = counts();
+  const lines = ROWS.map(r => { const s = state[r.id] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id}: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
+  const text = `Walk session 6b + 7 (Windows F5 + Android Release dev): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
+});
+document.getElementById('reset').addEventListener('click', (ev) => {
+  const b = ev.currentTarget;
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Clear'; }, 2500); return; }
+  state = {}; save(); b.dataset.armed = ''; b.textContent = 'Clear'; renderRows(); tally();
+});
+renderRows(); tally();
+</script>

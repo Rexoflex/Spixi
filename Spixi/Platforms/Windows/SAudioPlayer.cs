@@ -28,6 +28,10 @@ namespace Spixi
             SpeedThreshold = 1.00
         };
 
+        /* ★★ #1208 (S7): this instance plays a VOICE MESSAGE (startVoiceMessage) — the default output device (Windows has no
+         * earpiece route), no catch-up (VoiceClips paces the writes). false = a call (start). */
+        private bool voiceMode = false;
+
         public static SAudioPlayer Instance()
         {
             if (_singletonInstance == null)
@@ -49,9 +53,26 @@ namespace Spixi
             }
 
             running = true;
+            voiceMode = false;   // ★ #1208: a call — onDecodedData keeps its catch-up
 
             initPlayer();
             initDecoder(codec);
+        }
+
+        /* ★★ #1208 (S7) — play a VOICE MESSAGE (see the field). WaveOut raises no interruption, so onInterrupted is unused. */
+        public void startVoiceMessage(Action? onInterrupted)
+        {
+            if (running)
+            {
+                Logging.warn("Audio player is already running.");
+                return;
+            }
+
+            running = true;
+            voiceMode = true;
+
+            initPlayer();
+            initDecoder("opus");
         }
 
         private void initPlayer()
@@ -163,6 +184,12 @@ namespace Spixi
 
             try
             {
+                if (voiceMode)
+                {
+                    provider.AddSamples(data, 0, data.Length);   // ★ #1208: no catch-up — real-time writes play at 1×
+                    return;
+                }
+
                 double queuedSeconds = provider.BufferedDuration.TotalSeconds;
 
                 var catchup = playbackCatchupController.Update(queuedSeconds);

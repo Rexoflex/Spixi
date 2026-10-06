@@ -734,5 +734,20 @@
   "fileUnavailable": "Tidak tersedia di perangkat ini",
   "photoDeletedLocal": "Foto dihapus dari perangkat ini",
   "saveEdit": "Simpan",
-  "editNoLonger": "Pesan ini tidak bisa diedit lagi. Teksmu tetap ada di kolom pesan."
+  "editNoLonger": "Pesan ini tidak bisa diedit lagi. Teksmu tetap ada di kolom pesan.",
+  "cancelRecording": "Batalkan rekaman",
+  "recordingVoice": "Merekam pesan suara",
+  "sendVoice": "Kirim pesan suara",
+  "playVoice": "Putar pesan suara",
+  "pauseVoice": "Jeda pesan suara",
+  "voiceLoading": "Memuat pesan suara",
+  "voiceUnavailable": "Pesan suara ini tidak bisa diputar",
+  "micDenied": "Spixi perlu akses ke mikrofon untuk merekam. Izinkan saat diminta, atau di pengaturan perangkatmu, lalu ketuk mikrofon lagi.",
+  "micBusy": "Kamu tidak bisa merekam pesan suara saat panggilan berlangsung.",
+  "voiceRecError": "Pesan suara tidak bisa direkam.",
+  "voiceMessageLength": "Pesan suara ({0})",
+  "playVoiceLength": "Putar pesan suara, {0}",
+  "recordingStoppedAt": "Rekaman dihentikan, {0}",
+  "recordingTime": "{0} / {1}",
+  "voiceSendFailed": "Pesan suara tidak bisa dikirim."
 }

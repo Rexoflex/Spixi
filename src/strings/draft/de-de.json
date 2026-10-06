@@ -811,5 +811,20 @@
   "fileUnavailable": "Auf diesem Gerät nicht verfügbar",
   "photoDeletedLocal": "Foto von diesem Gerät gelöscht",
   "saveEdit": "Speichern",
-  "editNoLonger": "Diese Nachricht kann nicht mehr bearbeitet werden. Dein Text bleibt im Eingabefeld."
+  "editNoLonger": "Diese Nachricht kann nicht mehr bearbeitet werden. Dein Text bleibt im Eingabefeld.",
+  "cancelRecording": "Aufnahme abbrechen",
+  "recordingVoice": "Sprachnachricht wird aufgenommen",
+  "sendVoice": "Sprachnachricht senden",
+  "playVoice": "Sprachnachricht abspielen",
+  "pauseVoice": "Sprachnachricht pausieren",
+  "voiceLoading": "Sprachnachricht wird geladen",
+  "voiceUnavailable": "Diese Sprachnachricht kann nicht abgespielt werden",
+  "micDenied": "Spixi braucht Zugriff auf das Mikrofon, um aufzunehmen. Erlaube ihn, wenn du gefragt wirst, oder in den Einstellungen deines Geräts, und tippe dann erneut auf das Mikrofon.",
+  "micBusy": "Während eines Anrufs kannst du keine Sprachnachricht aufnehmen.",
+  "voiceRecError": "Die Sprachnachricht konnte nicht aufgenommen werden.",
+  "voiceMessageLength": "Sprachnachricht ({0})",
+  "playVoiceLength": "Sprachnachricht abspielen, {0}",
+  "recordingStoppedAt": "Aufnahme gestoppt, {0}",
+  "recordingTime": "{0} / {1}",
+  "voiceSendFailed": "Die Sprachnachricht konnte nicht gesendet werden."
 }

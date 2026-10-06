@@ -48,7 +48,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location access is needed for push notifications when app is in use</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Microphone usage is needed for voice calls</string>
+	<string>Spixi uses the microphone for voice calls and to record voice messages.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Biometric authentication for unlocking the app</string>
 	<key>CFBundleVersion</key>

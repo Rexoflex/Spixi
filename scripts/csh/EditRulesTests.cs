@@ -1,3 +1,4 @@
+// ★ #1208 (session 7): + an inline voice text is not editable, and no edit becomes one.
 // ★ #1199 (session 6b) — the edit rule (Spixi/Utils/EditRules.cs), EXECUTED: every condition of CONTRACT 1b and its
 // edge (24 h, sequence 20, the newest 50, the size, the trim, unchanged). The `ixian:chatedit:` site is MAUI-bound;
 // scripts/pins-s6b/cs.mjs pins that it re-checks here.
@@ -32,6 +33,17 @@ public class EditRulesTests
         Assert.AreEqual(EditVerdict.deleted, V(stored: ""), "a deleted (blanked) row");
         Assert.AreEqual(EditVerdict.deleted, V(stored: null), "no stored text");
         Assert.AreEqual(EditVerdict.botRoom, V(bot: true), "a bot room");
+    }
+
+    // ★ #1208 (session 7): a voice row is not text — and an edit may not make a text row voice-shaped
+    [TestMethod]
+    public void an_inline_voice_text_is_not_editable_and_no_edit_becomes_one()
+    {
+        string voice = VoiceCodec.humanLine(20) + "\n" + VoiceCodec.encodeInline(new System.Collections.Generic.List<byte[]> { new byte[] { 0x48, 1 } });
+        Assert.AreEqual(EditVerdict.notText, V(stored: voice, current: voice), "my voice message → notText");
+        Assert.AreEqual(EditVerdict.notText, V(body: voice), "a new text that is voice-shaped → notText (the receiver would drop it)");
+        Assert.AreEqual(EditVerdict.ok, V(body: voice, quote: "> Ann: hi"), "behind a quote line it is not the shape (two \\n) → ok");
+        Assert.AreEqual(EditVerdict.ok, V(stored: VoiceCodec.humanLine(20)), "the readable first line alone is text");
     }
 
     [TestMethod]

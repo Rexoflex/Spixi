@@ -17,6 +17,12 @@ namespace Spixi
         bool running = false;
         volatile bool muted = false;   // ★ #1074: zero the PCM, keep the frames flowing
 
+        /* ★★ #1208 (S7): this instance records a VOICE MESSAGE (startVoiceMessage) — Opus at voiceBitrate (VOIP). WaveIn
+         * has no focus / interruption on Windows, so onInterrupted is never raised here. false = a call (start). */
+        bool voiceMode = false;
+        volatile bool voiceFlushing = false;   // ★ #46 r1 A M6: true only inside a voice clip's stop()
+        int voiceBitrate = 0;
+
         public void setMuted(bool is_muted)
         {
             muted = is_muted;
@@ -52,6 +58,7 @@ namespace Spixi
                 return;
             }
             running = true;
+            voiceMode = false;   // ★ #1208: a call — initOpusEncoder keeps 24 000
 
             lock (outputBuffers)
             {
@@ -62,6 +69,35 @@ namespace Spixi
             if(!initRecorder())
             {
                 // TODO show notification
+                stop();
+                return;
+            }
+
+            recordThread = new Thread(recordLoop);
+            recordThread.Start();
+        }
+
+        /* ★★ #1208 (S7) — record a VOICE MESSAGE. No input device → the recorder stops itself (isRunning() = false), as a
+         * call's start does; VoiceClips reads that as an error. */
+        public void startVoiceMessage(int bitrate, Action? onInterrupted)
+        {
+            if (running)
+            {
+                Logging.warn("Audio recorder is already running.");
+                return;
+            }
+            running = true;
+            voiceMode = true;
+            voiceBitrate = bitrate;
+
+            lock (outputBuffers)
+            {
+                outputBuffers.Clear();
+            }
+
+            initEncoder("opus");
+            if (!initRecorder())
+            {
                 stop();
                 return;
             }
@@ -119,7 +155,8 @@ namespace Spixi
 
         private void initOpusEncoder()
         {
-            audioEncoder = new OpusEncoder(sampleRate, 24000, channels, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP, this);
+            // ★ #1208: a voice message encodes at VoiceCodec.BitrateBps; a call keeps 24 000 (both VOIP)
+            audioEncoder = new OpusEncoder(sampleRate, voiceMode ? voiceBitrate : 24000, channels, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP, this);
             audioEncoder.start();
         }
 
@@ -129,6 +166,7 @@ namespace Spixi
             {
                 return;
             }
+            voiceFlushing = voiceMode;   // ★ #46 r1 A M6: a voice clip keeps the frames still encoded during stop()
             running = false;
 
             if (audioRecorder != null)
@@ -152,9 +190,52 @@ namespace Spixi
                 audioEncoder = null;
             }
 
+            if (voiceMode)
+            {
+                flushVoiceTail();   // ★ #46 r1 A M6: the last buffered packets reach the clip (a call drops them, as before)
+            }
+            voiceFlushing = false;
             lock (outputBuffers)
             {
                 outputBuffers.Clear();
+            }
+        }
+
+        /** ★ #46 r1 A M6: a VOICE clip's stop() hands the packets still waiting in outputBuffers (below the 150-byte batch)
+         *  to the callback ONCE — VoiceClips' generation check puts them into the ending clip. A call never comes here. */
+        private void flushVoiceTail()
+        {
+            byte[]? tail = null;
+            lock (outputBuffers)
+            {
+                int total = 0;
+                foreach (var buf in outputBuffers)
+                {
+                    total += buf.Length;
+                }
+                if (total > 0)
+                {
+                    tail = new byte[total];
+                    int written = 0;
+                    foreach (var buf in outputBuffers)
+                    {
+                        Array.Copy(buf, 0, tail, written, buf.Length);
+                        written += buf.Length;
+                    }
+                }
+                outputBuffers.Clear();
+            }
+            var callback = OnSoundDataReceived;
+            if (tail != null && callback != null)
+            {
+                try
+                {
+                    callback(tail);
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("Voice: the recorder tail flush failed (" + e.GetType().Name + ")");
+                }
             }
         }
 
@@ -248,7 +329,7 @@ namespace Spixi
 
         public void onEncodedData(byte[] data)
         {
-            if (!running)
+            if (!running && !voiceFlushing)   // ★ #46 r1 A M6: during a voice clip's stop() the encoder's last frames still count
             {
                 return;
             }

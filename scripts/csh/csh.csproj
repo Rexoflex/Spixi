@@ -32,6 +32,8 @@
     <Compile Include="../../Spixi/Utils/SpixiProtocols.cs" />
     <Compile Include="../../Spixi/Utils/ReplyQuote.cs" />
     <Compile Include="../../Spixi/Utils/EditRules.cs" />
+    <!-- ★ #1207 / #1208 (session 7): the voice wire text, the Ogg Opus mux / demux, the waveform, the route (tests: VoiceCodecTests.cs; ReplyQuote + EditRules call it). -->
+    <Compile Include="../../Spixi/Utils/VoiceCodec.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

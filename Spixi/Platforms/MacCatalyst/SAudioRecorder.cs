@@ -24,6 +24,15 @@ namespace Spixi
         bool running = false;
         volatile bool muted = false;   // ★ #1074: zero the PCM, keep the frames flowing
 
+        /* ★★ #1208 (S7): this instance records a VOICE MESSAGE (startVoiceMessage) — PlayAndRecord with DefaultToSpeaker
+         * (never the receiver afterwards; other audio is interrupted, not mixed), Opus at voiceBitrate with the VOIP
+         * application, an interruption observer. false = a call (start), byte for byte as before. */
+        bool voiceMode = false;
+        volatile bool voiceFlushing = false;   // ★ #46 r1 A M6: true only inside a voice clip's stop()
+        int voiceBitrate = 0;
+        Action? voiceInterrupted = null;
+        NSObject? voiceInterruptionObserver = null;
+
         public void setMuted(bool is_muted)
         {
             muted = is_muted;
@@ -58,6 +67,7 @@ namespace Spixi
                 return;
             }
             running = true;
+            voiceMode = false;   // ★ #1208: a call — initRecorder / initOpusEncoder take the call's own branches
 
             lock (outputBuffers)
             {
@@ -71,6 +81,46 @@ namespace Spixi
             recordThread.Start();
         }
 
+        /* ★★ #1208 (S7) — record a VOICE MESSAGE (see the fields). A throw leaves `running` set, exactly like start(codec):
+         * the caller (VoiceClips) disposes the instance on any failure. */
+        public void startVoiceMessage(int bitrate, Action? onInterrupted)
+        {
+            if (running)
+            {
+                Logging.warn("Audio recorder is already running.");
+                return;
+            }
+            running = true;
+            voiceMode = true;
+            voiceBitrate = bitrate;
+            voiceInterrupted = onInterrupted;
+
+            lock (outputBuffers)
+            {
+                outputBuffers.Clear();
+            }
+
+            initEncoder("opus");
+            initRecorder();
+            try
+            {
+                voiceInterruptionObserver = AVAudioSession.Notifications.ObserveInterruption((sender, args) =>
+                {
+                    if (args.InterruptionType == AVAudioSessionInterruptionType.Began)
+                    {
+                        try { voiceInterrupted?.Invoke(); } catch (Exception) { }
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: interruption observer failed (" + e.GetType().Name + ")");
+            }
+
+            recordThread = new Thread(recordLoop);
+            recordThread.Start();
+        }
+
         private void initRecorder()
         {
             NSError error = new NSError();
@@ -78,7 +128,16 @@ namespace Spixi
             {
                 throw new Exception("Error setting preferred sample rate for recorder: " + error);
             }
-            AVAudioSession.SharedInstance().SetCategory(AVAudioSessionCategory.PlayAndRecord, AVAudioSessionCategoryOptions.InterruptSpokenAudioAndMixWithOthers);
+            if (voiceMode)
+            {
+                // ★ #1208: a voice message — no mixing (other audio pauses), and DefaultToSpeaker so the session never leaves
+                // the receiver as the output route
+                AVAudioSession.SharedInstance().SetCategory(AVAudioSessionCategory.PlayAndRecord, AVAudioSessionCategoryOptions.DefaultToSpeaker);
+            }
+            else
+            {
+                AVAudioSession.SharedInstance().SetCategory(AVAudioSessionCategory.PlayAndRecord, AVAudioSessionCategoryOptions.InterruptSpokenAudioAndMixWithOthers);
+            }
             AVAudioSession.SharedInstance().SetActive(true);
 
             audioRecorder = new AVAudioEngine();
@@ -188,7 +247,8 @@ namespace Spixi
 
         private void initOpusEncoder()
         {
-            audioEncoder = new OpusEncoder(sampleRate, 24000, channels, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP, this);
+            // ★ #1208: a voice message encodes at VoiceCodec.BitrateBps; a call keeps 24 000 (both VOIP)
+            audioEncoder = new OpusEncoder(sampleRate, voiceMode ? voiceBitrate : 24000, channels, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP, this);
             audioEncoder.start();
         }
 
@@ -198,9 +258,22 @@ namespace Spixi
             {
                 return;
             }
+            voiceFlushing = voiceMode;   // ★ #46 r1 A M6: a voice clip keeps the frames still encoded during stop()
             running = false;
 
-            AVAudioSession.SharedInstance().SetActive(false);
+            if (voiceMode)
+            {
+                // ★ #1208: the observer goes first (a deactivation must not call back into a finished clip); the session is
+                // released at the END, after the engine stopped (a session with running I/O refuses to deactivate), with
+                // NotifyOthersOnDeactivation so paused music can resume
+                voiceInterruptionObserver?.Dispose();
+                voiceInterruptionObserver = null;
+                voiceInterrupted = null;
+            }
+            else
+            {
+                AVAudioSession.SharedInstance().SetActive(false);
+            }
 
             if (audioRecorder != null)
             {
@@ -233,9 +306,62 @@ namespace Spixi
                 audioEncoder = null;
             }
 
+            if (voiceMode)
+            {
+                flushVoiceTail();   // ★ #46 r1 A M6: the last buffered packets reach the clip (a call drops them, as before)
+            }
+            voiceFlushing = false;
             lock (outputBuffers)
             {
                 outputBuffers.Clear();
+            }
+            if (voiceMode)
+            {
+                try
+                {
+                    AVAudioSession.SharedInstance().SetActive(false, AVAudioSessionSetActiveOptions.NotifyOthersOnDeactivation, out NSError? deactivateError);
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+
+        /** ★ #46 r1 A M6: a VOICE clip's stop() hands the packets still waiting in outputBuffers (below the 150-byte batch)
+         *  to the callback ONCE — VoiceClips' generation check puts them into the ending clip. A call never comes here. */
+        private void flushVoiceTail()
+        {
+            byte[]? tail = null;
+            lock (outputBuffers)
+            {
+                int total = 0;
+                foreach (var buf in outputBuffers)
+                {
+                    total += buf.Length;
+                }
+                if (total > 0)
+                {
+                    tail = new byte[total];
+                    int written = 0;
+                    foreach (var buf in outputBuffers)
+                    {
+                        Array.Copy(buf, 0, tail, written, buf.Length);
+                        written += buf.Length;
+                    }
+                }
+                outputBuffers.Clear();
+            }
+            var callback = OnSoundDataReceived;
+            if (tail != null && callback != null)
+            {
+                try
+                {
+                    callback(tail);
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("Voice: the recorder tail flush failed (" + e.GetType().Name + ")");
+                }
             }
         }
 
@@ -329,7 +455,7 @@ namespace Spixi
 
         public void onEncodedData(byte[] data)
         {
-            if (!running)
+            if (!running && !voiceFlushing)   // ★ #46 r1 A M6: during a voice clip's stop() the encoder's last frames still count
             {
                 return;
             }

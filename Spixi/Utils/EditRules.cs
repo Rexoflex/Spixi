@@ -1,7 +1,8 @@
 /* ★★ #1199 (session 6b, #1137 (4)) — MAY THIS MESSAGE BE EDITED? An edit travels as a chatStream REPLACE (Core 0.9.8k:
  * the same id, sequence + 1, IsStream false — FriendList.addMessageWithType overwrites text, sequence AND timestamp),
  * so every condition below guards a way the edit could go wrong on one of the two devices:
- *   · own (localSender) · type standard · not a fixed-id system line (UnreadRule.isSystemLineId) · the stored text is not
+ *   · own (localSender) · type standard and not an inline voice text (★ #1208 VoiceCodec.tryPeekInline — and the new
+ *     text may not be voice-shaped either: the receiver drops such a replace, StreamProcessor) · not a fixed-id system line (UnreadRule.isSystemLineId) · the stored text is not
  *     empty (a deleted row) · not a bot room (the bot server re-serves its own history; Core takes no stream update of a
  *     bot message from us);
  *   · now − `timestamp` < 24 h (Damir P1): every replace passes the message's EXISTING time back to Core
@@ -68,9 +69,9 @@ namespace SPIXI
             {
                 return EditVerdict.notOwn;
             }
-            if (type != FriendMessageType.standard)
+            if (type != FriendMessageType.standard || VoiceCodec.tryPeekInline(storedText, out _))
             {
-                return EditVerdict.notText;
+                return EditVerdict.notText;   // ★ #1208: an inline voice text is not text either
             }
             if (isSystemLine)
             {
@@ -101,9 +102,14 @@ namespace SPIXI
             {
                 return EditVerdict.bodyEmpty;
             }
-            if (fullText(quoteLine, body).Length > maxSize)
+            string full = fullText(quoteLine, body);
+            if (full.Length > maxSize)
             {
                 return EditVerdict.tooLong;
+            }
+            if (VoiceCodec.tryPeekInline(full, out _))
+            {
+                return EditVerdict.notText;   // ★ #1208: an edit never turns a text row into a voice row (the receiver drops it)
             }
             if (string.Equals(body, currentBody ?? "", System.StringComparison.Ordinal))
             {

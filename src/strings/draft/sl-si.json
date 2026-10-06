@@ -812,5 +812,20 @@
   "fileUnavailable": "Ni na voljo v tej napravi",
   "photoDeletedLocal": "Fotografija je izbrisana s te naprave",
   "saveEdit": "Shrani",
-  "editNoLonger": "Tega sporočila ni več mogoče urediti. Vaše besedilo ostane v polju za sporočilo."
+  "editNoLonger": "Tega sporočila ni več mogoče urediti. Vaše besedilo ostane v polju za sporočilo.",
+  "cancelRecording": "Prekliči snemanje",
+  "recordingVoice": "Snemanje glasovnega sporočila",
+  "sendVoice": "Pošlji glasovno sporočilo",
+  "playVoice": "Predvajaj glasovno sporočilo",
+  "pauseVoice": "Začasno ustavi glasovno sporočilo",
+  "voiceLoading": "Nalaganje glasovnega sporočila",
+  "voiceUnavailable": "Tega glasovnega sporočila ni mogoče predvajati",
+  "micDenied": "Spixi za snemanje potrebuje dostop do mikrofona. Dovolite ga, ko vas vpraša, ali v nastavitvah naprave, nato znova tapnite mikrofon.",
+  "micBusy": "Med klicem ne morete posneti glasovnega sporočila.",
+  "voiceRecError": "Glasovnega sporočila ni bilo mogoče posneti.",
+  "voiceMessageLength": "Glasovno sporočilo ({0})",
+  "playVoiceLength": "Predvajaj glasovno sporočilo, {0}",
+  "recordingStoppedAt": "Snemanje ustavljeno, {0}",
+  "recordingTime": "{0} / {1}",
+  "voiceSendFailed": "Glasovnega sporočila ni bilo mogoče poslati."
 }

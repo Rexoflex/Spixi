@@ -36,6 +36,13 @@ namespace Spixi
         private PlaybackCatchupController playbackCatchupController = new PlaybackCatchupController();
         private AVAudioUnitTimePitch timePitchNode;
         private long totalFramesWritten = 0;
+
+        /* ★★ #1208 (S7): this instance plays a VOICE MESSAGE (startVoiceMessage) — the Playback category (the loudspeaker
+         * or a headset; PlayAndRecord's default route is the receiver), no preferred-rate change, no catch-up, and an
+         * interruption observer. false = a call (start), byte for byte as before. */
+        private bool voiceMode = false;
+        private Action? voiceInterrupted = null;
+        private NSObject? voiceInterruptionObserver = null;
         public static SAudioPlayer Instance()
         {
             if (_singletonInstance == null)
@@ -54,21 +61,66 @@ namespace Spixi
             }
 
             running = true;
+            voiceMode = false;   // ★ #1208: a call — initPlayer / onDecodedData take the call's own branches
 
             initPlayer();
             initDecoder(codec);
+        }
+
+        /* ★★ #1208 (S7) — play a VOICE MESSAGE: Opus 16 kHz mono through the same engine graph, the Playback category
+         * (loudspeaker; other audio is interrupted, not mixed), no catch-up (VoiceClips paces the writes); an audio session
+         * interruption (a phone call, another app) → onInterrupted. */
+        public void startVoiceMessage(Action? onInterrupted)
+        {
+            if (running)
+            {
+                Logging.warn("Audio player is already running.");
+                return;
+            }
+
+            running = true;
+            voiceMode = true;
+            voiceInterrupted = onInterrupted;
+
+            initPlayer();
+            setVolume(1.0f);   // ★ #1208: the system volume alone sets the level (initPlayer scales the node by it for a call)
+            initDecoder("opus");
+            try
+            {
+                voiceInterruptionObserver = AVAudioSession.Notifications.ObserveInterruption((sender, args) =>
+                {
+                    if (args.InterruptionType == AVAudioSessionInterruptionType.Began)
+                    {
+                        try { voiceInterrupted?.Invoke(); } catch (Exception) { }
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: interruption observer failed (" + e.GetType().Name + ")");
+            }
         }
 
         private void initPlayer()
         {
             audioEngine = new AVAudioEngine();
             NSError error = new NSError();
-            if (!AVAudioSession.SharedInstance().SetPreferredSampleRate(sampleRate, out error))
+            if (voiceMode)
             {
-                throw new Exception("Error setting preffered sample rate for player: " + error);
+                // ★ #1208: a voice message — Playback = the loudspeaker (no receiver route), the hardware rate is left alone
+                // (the engine's mixer converts the 16 kHz input)
+                AVAudioSession.SharedInstance().SetCategory(AVAudioSessionCategory.Playback, (AVAudioSessionCategoryOptions)0);
+                AVAudioSession.SharedInstance().SetActive(true);
             }
-            AVAudioSession.SharedInstance().SetCategory(AVAudioSessionCategory.PlayAndRecord, AVAudioSessionCategoryOptions.InterruptSpokenAudioAndMixWithOthers);
-            AVAudioSession.SharedInstance().SetActive(true);
+            else
+            {
+                if (!AVAudioSession.SharedInstance().SetPreferredSampleRate(sampleRate, out error))
+                {
+                    throw new Exception("Error setting preffered sample rate for player: " + error);
+                }
+                AVAudioSession.SharedInstance().SetCategory(AVAudioSessionCategory.PlayAndRecord, AVAudioSessionCategoryOptions.InterruptSpokenAudioAndMixWithOthers);
+                AVAudioSession.SharedInstance().SetActive(true);
+            }
 
             audioPlayer = new AVAudioPlayerNode();
             setVolume(AVAudioSession.SharedInstance().OutputVolume);
@@ -136,7 +188,19 @@ namespace Spixi
             running = false;
 
             totalFramesWritten = 0;
-            AVAudioSession.SharedInstance().SetActive(false);
+            if (voiceMode)
+            {
+                // ★ #1208: the observer goes first (a deactivation must not call back into a finished clip); the session is
+                // released at the END, after the engine stopped (a session with running I/O refuses to deactivate), with
+                // NotifyOthersOnDeactivation so paused music can resume
+                voiceInterruptionObserver?.Dispose();
+                voiceInterruptionObserver = null;
+                voiceInterrupted = null;
+            }
+            else
+            {
+                AVAudioSession.SharedInstance().SetActive(false);
+            }
 
             if (audioPlayer != null)
             {
@@ -180,6 +244,16 @@ namespace Spixi
                 mainMixer = null;
                 audioEngine.Dispose();
                 audioEngine = null;
+            }
+            if (voiceMode)
+            {
+                try
+                {
+                    AVAudioSession.SharedInstance().SetActive(false, AVAudioSessionSetActiveOptions.NotifyOthersOnDeactivation, out NSError? deactivateError);
+                }
+                catch (Exception)
+                {
+                }
             }
         }
 
@@ -243,6 +317,18 @@ namespace Spixi
             IntPtr channelPtr = Marshal.ReadIntPtr(basePtr, 0);
 
             Marshal.Copy(data, 0, channelPtr, data.Length);
+
+            if (voiceMode)
+            {
+                // ★ #1208: no catch-up — VoiceClips writes at real time, so every buffer plays at 1×
+                timePitchNode.Rate = 1.0f;
+                audioPlayer.ScheduleBuffer(buffer, () =>
+                {
+                    buffer.Dispose();
+                });
+                totalFramesWritten += buffer.FrameLength;
+                return;
+            }
 
             long playedFrames = 0;
             var outNode = outputNode;

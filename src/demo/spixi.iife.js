@@ -4870,6 +4870,11 @@ function hideCallBar(host = document.body) {
  *   linkPreview: { url, title, domain, image }, // §8-GATED: P2P has no server
  *                             // to unfurl — the SENDER composes the preview
  *                             // into the message (Signal-style), bridge carries it
+ *   voice: { durMs, peaks, state, posMs, onPlay },   // ★ #1208 (S7): a VOICE bubble —
+ *                             // play / pause + a 40-bar waveform + the time replace
+ *                             // the text body (`text` is ignored); live updates via
+ *                             // setVoiceBubble(row, voice). No audio here: onPlay
+ *                             // asks C# (ixian:voiceplay:), C# pushes the state.
  *   strings
  * })
  */
@@ -5145,6 +5150,7 @@ function createMessageBubble({
                                // data:image/ thumb never does. Default = no remote request.
   mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
   roleBadge = null,            // N34 (#365): 'Owner' chip label, top-right of the sender row; null = off
+  voice = null,                // ★ #1208 (S7): { durMs, peaks, state, posMs, onPlay } → a voice bubble (see the header)
   strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
@@ -5180,7 +5186,7 @@ function createMessageBubble({
 
   const el = document.createElement('div');
   el.className = 'c-bubble';
-  if (text && EMOJI_ONLY_RE.test(text.trim())) el.dataset.emojiOnly = ''; // big emoji, meta below (Damir 2026-07-03)
+  if (!voice && text && EMOJI_ONLY_RE.test(text.trim())) el.dataset.emojiOnly = ''; // big emoji, meta below (Damir 2026-07-03)
 
   // sender label: group chats, first bubble of a group, identity-hued (premium).
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
@@ -5281,10 +5287,17 @@ function createMessageBubble({
     el.append(q);
   }
 
-  const body = document.createElement('span');
-  body.className = 'c-bubble__text';
-  linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
-  el.append(body);
+  if (voice) {
+    /* ★ #1208: the voice body REPLACES the text — the row's own text (C#'s readable first line for an old app,
+       "🎤 0:12 (voice message — update Spixi to play)") is never shown in a voice bubble */
+    el.dataset.voice = '';
+    el.append(buildVoiceBody(voice, strings));
+  } else {
+    const body = document.createElement('span');
+    body.className = 'c-bubble__text';
+    linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
+    el.append(body);
+  }
 
   // link preview card (§8-GATED — sender-composed payload, P2P can't unfurl)
   if (linkPreview && (linkPreview.title || linkPreview.domain)) {
@@ -5573,20 +5586,168 @@ function createDateSeparator(ts, strings = getStrings(), now = Date.now()) {
   return el;
 }
 
+/* —— ★★ #1208 (S7) — THE VOICE BUBBLE ————————————————————————————————————————————————————————————————
+ * Damir's picks: a play / pause button, a WAVEFORM of 40 bars (C# decodes the clip once and pushes the peaks —
+ * voiceInfo; flat placeholder bars until then), the time (the duration; the position while playing or paused),
+ * the states loading / error, 1× only. There is NO audio in this WebView: the button asks C# (the shell sends
+ * ixian:voiceplay:<id>) and every state comes back as a voiceState push. The same bubble serves an inline voice
+ * row (addMe / addThem arg 17 = durMs) and a voice FILE row (addFile arg 17 = "1", duration unknown until
+ * voiceInfo). The waveform is decoration (aria-hidden); the button carries the name ("Play voice message, 0:12" /
+ * "Pause voice message"), the time is plain text. Live updates go through setVoiceBubble — in place, so the button
+ * keeps keyboard focus across a playing tick. */
+const VOICE_BARS = 40;          // = VoiceCodec.PeakCount
+const VOICE_STATES = new Set(['idle', 'loading', 'playing', 'paused', 'stopped', 'error']);
+const voiceBodyState = new WeakMap();   // .c-voice → what it shows (merged by setVoiceBubble)
+const VOICE_TAP_GUARD_MS = 400;         // #46 r1 (B m-7): a double tap is ONE play / pause
+const VOICE_RETAP_LOADING_MS = 2000;    // #46 r1 (B MAJOR-1): a tap on `loading` is ignored this long, then C# re-evaluates (§7)
+
+/** "{0} … {1}" → the values, in order. ★ #46 r1 NIT: a voice line's punctuation lives IN the translated template
+ *  ("Voice message ({0})", "Play voice message, {0}", "{0} / {1}") — never a hardcoded ", " or " (" in code. */
+function fillVoiceSlots(template, ...vals) {
+  return String(template).replace(/\{(\d)\}/g, (m, i) => (vals[+i] === undefined ? m : String(vals[+i])));
+}
+/** The ONE quote rendering of a voice message (#46 r1 B m-8): "Voice message (0:12)" with a known length, else the
+ *  label — the bubble's quote of a loaded or an unloaded target and the composer's reply strip all call this. */
+function voiceQuoteText(durMs, strings = getStrings()) {
+  const label = strings.voiceMessage || 'Voice message';
+  return Number(durMs) > 0 ? fillVoiceSlots(strings.voiceMessageLength || 'Voice message ({0})', formatVoiceDuration(durMs)) : label;
+}
+
+/** m:ss of a millisecond count, FLOORED — a running clock (the recording timer, the playing position). */
+function formatVoiceClock(ms) {
+  const s = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+/** m:ss of a clip's LENGTH — VoiceCodec.formatDuration's rule: the nearest second (half up), at least 0:01 when
+ *  there is any audio, 0:00 for none. The bubble, C#'s readable first line and the chats-list excerpt agree. */
+function formatVoiceDuration(ms) {
+  const n = Math.max(0, Number(ms) || 0);
+  if (n <= 0) return '0:00';
+  return formatVoiceClock(Math.max(1000, Math.floor(n / 1000 + 0.5) * 1000));
+}
+
+/* 40 heights 0..100 from whatever C# sent (bounded by the shell); any other count is resampled, none = flat */
+function voiceBarHeights(peaks) {
+  const out = new Array(VOICE_BARS).fill(0);
+  if (!Array.isArray(peaks) || !peaks.length) return out;
+  for (let i = 0; i < VOICE_BARS; i++) {
+    const v = Number(peaks[Math.min(peaks.length - 1, Math.floor(i * peaks.length / VOICE_BARS))]) || 0;
+    out[i] = Math.max(0, Math.min(100, v));
+  }
+  return out;
+}
+
+function buildVoiceBody(voice, strings) {
+  const wrap = document.createElement('span');
+  wrap.className = 'c-voice';
+  const play = document.createElement('button');
+  play.type = 'button';
+  play.className = 'c-voice__play';
+  let lastTap = 0;
+  play.addEventListener('click', () => {
+    const v = voiceBodyState.get(wrap);
+    if (!v || v.gone || typeof v.onPlay !== 'function') return;
+    const t = Date.now();
+    if (t - lastTap < VOICE_TAP_GUARD_MS) return;   // a double tap = one toggle
+    /* loading = C# is fetching / decoding: a quick second tap would toggle a clip that is not playing yet — but a
+       loading that LASTS is never a dead button: after VOICE_RETAP_LOADING_MS the tap goes to C#, which re-evaluates */
+    if (v.state === 'loading' && t - (v.loadingAt || 0) < VOICE_RETAP_LOADING_MS) return;
+    lastTap = t;
+    v.onPlay();
+  });
+  const wave = document.createElement('span');
+  wave.className = 'c-voice__wave';
+  wave.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < VOICE_BARS; i++) {
+    const b = document.createElement('span');
+    b.className = 'c-voice__bar';
+    wave.append(b);
+  }
+  const time = document.createElement('span');
+  time.className = 'c-voice__time u-tabular';
+  wrap.append(play, wave, time);
+  paintVoice(wrap, voice, strings);
+  return wrap;
+}
+
+function paintVoice(wrap, voice, strings = getStrings()) {
+  const v = Object.assign({ durMs: null, peaks: null, state: 'idle', posMs: 0, onPlay: null }, voiceBodyState.get(wrap) || {});
+  const was = v.state;
+  for (const k of Object.keys(voice || {})) if (voice[k] !== undefined) v[k] = voice[k];   // an absent key keeps what is shown
+  if (!VOICE_STATES.has(v.state)) v.state = 'idle';
+  if (v.state === 'loading' && was !== 'loading' && !(voice && voice.loadingAt)) v.loadingAt = Date.now();
+  voiceBodyState.set(wrap, v);
+  /* ★ #46 r1 (B m-9): `gone` = the file is not on this device — a disabled bubble with the caller's words, no tap */
+  if (v.gone) wrap.dataset.gone = ''; else delete wrap.dataset.gone;
+  wrap.dataset.state = v.state;
+  const dur = Number(v.durMs) > 0 ? Number(v.durMs) : 0;
+  const live = v.state === 'playing' || v.state === 'paused';
+  const pos = live ? Math.max(0, Math.min(dur || Infinity, Number(v.posMs) || 0)) : 0;
+
+  const play = wrap.querySelector('.c-voice__play');
+  const glyph = v.state === 'playing' ? 'player-pause' : v.state === 'error' ? 'exclamation-mark' : 'player-play';
+  if (play.dataset.glyph !== glyph + (v.state === 'loading' ? '-load' : '')) {
+    play.dataset.glyph = glyph + (v.state === 'loading' ? '-load' : '');
+    play.textContent = '';
+    if (v.state === 'loading') {
+      const sp = document.createElement('span');
+      sp.className = 'c-voice__spin';
+      sp.setAttribute('aria-hidden', 'true');
+      play.append(sp);
+    } else {
+      play.append(icon(glyph, { size: 20 }));
+    }
+  }
+  let label;
+  if (v.state === 'playing') label = strings.pauseVoice || 'Pause voice message';
+  else if (v.state === 'loading') label = strings.voiceLoading || 'Loading voice message';
+  else if (v.state === 'error') label = strings.voiceUnavailable || 'This voice message can’t be played';
+  else label = dur ? fillVoiceSlots(strings.playVoiceLength || 'Play voice message, {0}', formatVoiceDuration(dur))
+    : (strings.playVoice || 'Play voice message');
+  play.setAttribute('aria-label', label);
+  play.disabled = !!v.gone;
+  if (v.state === 'loading') play.setAttribute('aria-busy', 'true'); else play.removeAttribute('aria-busy');
+
+  const wave = wrap.querySelector('.c-voice__wave');
+  const hs = voiceBarHeights(v.peaks);
+  const known = Array.isArray(v.peaks) && v.peaks.length > 0;
+  if (known) delete wave.dataset.placeholder; else wave.dataset.placeholder = '';
+  const played = live && dur ? Math.round(pos / dur * VOICE_BARS) : 0;
+  const bars = wave.children;
+  for (let i = 0; i < bars.length; i++) {
+    bars[i].style.setProperty('--voice-h', String(hs[i]));
+    if (i < played) bars[i].dataset.played = ''; else delete bars[i].dataset.played;
+  }
+
+  const time = wrap.querySelector('.c-voice__time');
+  time.textContent = v.gone ? String(v.gone) : live ? formatVoiceClock(pos) : (dur ? formatVoiceDuration(dur) : '');
+}
+
+/** setVoiceBubble(row, patch) — the in-place update (voiceInfo / voiceState). `patch` merges into what the row
+ *  shows: { durMs, peaks, state, posMs, onPlay }. A row without a voice body is left alone. */
+function setVoiceBubble(row, patch, strings = getStrings()) {
+  const wrap = row && row.querySelector ? row.querySelector('.c-voice') : null;
+  if (!wrap) return false;
+  paintVoice(wrap, patch, strings);
+  return true;
+}
+
 /* ---- src/components/composer.js ---- */
 /**
  * c-composer — chat input bar (Figma `input` 11306:7242 + `send` 11306:7223;
  * DECISIONS #64). ⊕ attach OUTSIDE the field on the leading side (#705 —
  * Damir, Session G; it lived inside the pill until then), auto-grow textarea,
- * trailing 44px circle: voice flag OFF (v1) → send always visible, and it KEEPS
+ * trailing 44px circle: voice OFF → send always visible, and it KEEPS
  * the action colour when empty (#705: "livelier than the disabled grey" — the
  * disabled state is still real, only its paint changed); voice ON → mic when
- * empty ⇄ send when text (design's morph).
+ * empty and no reply / edit context ⇄ send when text (★ #1208 S7: the #64 slot ON,
+ * switched live by setComposerVoice; the recording bar = setComposerRecording).
  * Bridge: ixian:chat / ixian:typing / clearInput (§4); sendfile/sendmedia via attach.
  *
  * createComposer({ placeholder, voice = false, onSend(text), onAttach,
- *                  onTyping, onRecord, maxLength, onTooLong, strings }) → el
+ *                  onTyping, onRecord, onVoiceCancel, onVoiceSend, maxLength, onTooLong, strings }) → el
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
+ * setComposerVoice(el, on) · setComposerRecording(el, state, ms) · getComposerRecording(el) — ★ #1208
  *
  * maxLength (A7, #302 — legacy parity for the 64 000-char guard, legacy
  *   js/chat.js:401-409): 0 = off (default, byte-for-byte today's behaviour).
@@ -5599,6 +5760,7 @@ function createDateSeparator(ts, strings = getStrings(), now = Date.now()) {
  * onTooLong(len, max) — fired on a blocked send attempt (Enter or the button), so
  *   the shell can toast. The over-limit state is otherwise silent and visual.
  */
+
 
 
 
@@ -5618,6 +5780,8 @@ function createComposer({
   onAttach,
   onTyping,
   onRecord,
+  onVoiceCancel = null,   // ★ #1208 (S7): the recording bar's ✕ — the shell sends ixian:voicerec:cancel
+  onVoiceSend = null,     // ★ #1208 (S7): the recording bar's ➤ (the trailing disc) — the shell sends ixian:voicerec:send
   mentionSource = null,   // () => [{ name, address, avatar }] → enables @-autocomplete (#210); null = off
   maxLength = 0,          // A7: 0 = off. Counted on the TRIMMED text, raw UTF-16 units.
   onTooLong = null,       // (len, max) → shell toasts; the visual state is handled here
@@ -5689,6 +5853,18 @@ function createComposer({
   };
 
   const syncAction = () => {
+    /* ★ #1208 (S7): while the RECORDING BAR is up (C# pushed voiceRec recording / stopped) the trailing disc is
+       "Send voice message" — the same 44 disc in the same place, so the bar swap moves nothing. It wins over every
+       other mode: the bar hides the field, so neither a draft nor a reply / edit context can be sent from here. */
+    if (composerRec.has(el)) {
+      delete action.dataset.ctx;
+      action.textContent = '';
+      action.append(icon('send-2', { size: 20 }));
+      action.dataset.mode = 'voicesend';
+      action.disabled = false;
+      action.setAttribute('aria-label', strings.sendVoice || 'Send voice message');
+      return;
+    }
     /* ★ #1199 (S6 edit): while an EDIT context is up the trailing button is SAVE — the check glyph and the
        "Save" name (strings.saveEdit), still disabled on an empty (or over-limit) field. Read at every sync
        from the ONE context map, so a context set or cleared from outside re-labels it (setComposerContext
@@ -5707,7 +5883,10 @@ function createComposer({
       return;
     }
     delete action.dataset.ctx;
-    if (voice && !hasText()) {
+    /* ★ #1208 (S7, the #64 slot ON): the mic shows only when the shell says voice is on (setComposerVoice — setCaps
+       `voice`), the field is EMPTY and NO reply / edit context is up (a voice message is never a reply and never an
+       edit; with a context up the disc stays Send, disabled on an empty field). */
+    if (composerVoice.get(el) && !ctxNow && !hasText()) {
       micIcon();
       action.dataset.mode = 'mic';
       action.disabled = false;
@@ -5774,13 +5953,43 @@ function createComposer({
       send();
     }
   });
+  /* ★ #1208: one mic tap = one start. C# answers with voiceRec (recording / denied / busy / error); a second tap
+     before that answer (a double tap, a slow bridge) would otherwise send a second start — MIC_GUARD_MS holds it. */
+  let micAt = 0;
   action.addEventListener('click', () => {
-    if (action.dataset.mode === 'mic') { if (onRecord) onRecord(); }
-    else send();
+    const mode = action.dataset.mode;
+    if (mode === 'mic') {
+      const t = Date.now();
+      if (t - micAt < MIC_GUARD_MS) return;
+      micAt = t;
+      if (onRecord) onRecord();
+      return;
+    }
+    if (mode === 'voicesend') {
+      const rec = composerRec.get(el);
+      /* the tap that opened the bar must not also send it: a double tap on the mic lands its second tap on this
+         same disc, now ➤ — a send inside SEND_GUARD_MS of the bar opening is ignored */
+      if (!rec || rec.pending || Date.now() - rec.openedAt < SEND_GUARD_MS) return;
+      markRecPending(el);
+      if (onVoiceSend) onVoiceSend();
+      return;
+    }
+    send();
   });
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);
 
+  /* ★ #46 r1 NIT: Escape in the composer area (the bar's ✕, the ➤ disc) cancels a recording — the ✕'s own path */
+  el.addEventListener('keydown', (e) => {
+    const r = composerRec.get(el);
+    if (e.key !== 'Escape' || !r || menuOverField()) return;
+    e.preventDefault();
+    e.stopPropagation();
+    r.cancelNow();
+  });
+
+  composerVoice.set(el, !!voice);
+  composerParts.set(el, { field, input, action, strings, onVoiceCancel });
   composerSync.set(el, () => { syncCounter(); syncAction(); });   // ★ #1199: setComposerContext re-labels the button
   syncCounter();
   syncAction();
@@ -5962,6 +6171,7 @@ function setComposerContext(el, ctx) {
   const strip = document.createElement('div');
   strip.className = 'c-composer__ctx';
   strip.dataset.kind = ctx.kind;
+  if (ctx.quoteKind) strip.dataset.quoteKind = String(ctx.quoteKind);   // ★ #1208: what the reply quotes ('voice', 'file', …) — a style / test hook
   strip.append(icon(ctx.kind === 'edit' ? 'pencil' : 'share-3', { size: 18 }));
   const col = document.createElement('span');
   col.className = 'c-composer__ctx-info';
@@ -6004,7 +6214,9 @@ function setComposerContext(el, ctx) {
       input.addEventListener('keydown', (e) => {
         // ★ #1065 r2: while the message menu is up over the focused field, Esc belongs to the MENU
         // (overlay.js closes it) — one Esc must not also throw away the reply/edit in progress.
-        if (e.key === 'Escape' && composerCtx.has(el) && !menuOverField()) cancelComposerContext(el);
+        /* ★ #46 r2 NIT: with a recording bar up, Escape belongs to the RECORDING only (the el listener) — a reply strip can
+           meet a bar when C# restores a kept clip (voiceRec stopped) while a reply is open; one Escape must not end both */
+        if (e.key === 'Escape' && composerCtx.has(el) && !composerRec.has(el) && !menuOverField()) cancelComposerContext(el);
       });
     }
     input.focus();
@@ -6013,6 +6225,158 @@ function setComposerContext(el, ctx) {
 }
 
 function getComposerContext(el) { return composerCtx.get(el) || null; }
+
+/* —— ★★ #1208 (S7) — VOICE: the mic slot (#64 ON) and the RECORDING BAR. —————————————————————————————————————
+ * Damir's picks: TAP to record (phone and desktop), max 30 s, the bar REPLACES the input — a red dot, the timer
+ * "0:07 / 0:30", ✕ cancel and ➤ send (the trailing disc). There is NO audio in this WebView: C# records, and the bar
+ * only mirrors C#'s voiceRec pushes (V6): `recording` (at the start and every ~1 s — a resync; the timer runs
+ * locally between them), `stopped` (30 s reached, or an interrupt: the clip is kept, the dot goes grey and static,
+ * the time freezes — the bar waits for ✕ or ➤), anything else = the bar goes and the input comes back.
+ * A11y: the visible timer is aria-hidden; ONE polite status line speaks at the start and at the stop only (never
+ * per second). ✕ and ➤ are real buttons with names; the hit areas are 44 px. The bar takes the pill's place and at
+ * least the pill's height, so the composer does not move. Free fns (#44). */
+const composerVoice = new WeakMap();   // composer el → the shell's "voice is on" answer (setComposerVoice)
+const composerRec = new WeakMap();     // composer el → { state, baseMs, baseAt, openedAt, pending, bar, timer, … }
+const composerParts = new WeakMap();   // composer el → { field, input, action, strings, onVoiceCancel }
+const MIC_GUARD_MS = 800;              // one start per tap burst (C# answers well inside it)
+const SEND_GUARD_MS = 400;             // the mic tap's twin cannot be a send
+const REC_PENDING_MS = 4000;           // ✕ / ➤ wait this long for C#'s answer, then re-arm (never a dead bar)
+const VOICE_REC_MAX_MS = 30000;        // ★ #1208 (1): 30 s total — the same number as VoiceCodec.MaxDurationMs
+
+/** setComposerVoice(el, on) — the shell's answer to "may this chat record?" (setCaps `voice` and the room). */
+function setComposerVoice(el, on) {
+  if (!el || composerVoice.get(el) === !!on) return;   // unchanged: no repaint (the shell re-derives this after EVERY push)
+  composerVoice.set(el, !!on);
+  resyncComposer(el);
+}
+
+/** getComposerRecording(el) → 'recording' | 'stopped' | null */
+function getComposerRecording(el) {
+  const r = el ? composerRec.get(el) : null;
+  return r ? r.state : null;
+}
+
+function markRecPending(el) {
+  const r = composerRec.get(el);
+  if (!r) return;
+  r.pending = true;
+  r.bar.dataset.pending = '';
+  clearTimeout(r.pendingTimer);
+  r.pendingTimer = setTimeout(() => {
+    const now = composerRec.get(el);
+    if (now !== r) return;
+    r.pending = false;
+    delete r.bar.dataset.pending;
+  }, REC_PENDING_MS);
+}
+
+/** releaseComposerRecording(el) — C# answered a ✕ / ➤ without changing the bar's state (voiceRec sendfail): the
+ *  controls work again at once. */
+function releaseComposerRecording(el) {
+  const r = el ? composerRec.get(el) : null;
+  if (!r) return;
+  r.pending = false;
+  clearTimeout(r.pendingTimer);
+  delete r.bar.dataset.pending;
+}
+
+function recElapsed(r) {
+  const ms = r.state === 'recording' ? r.baseMs + (Date.now() - r.baseAt) : r.baseMs;
+  return Math.min(VOICE_REC_MAX_MS, Math.max(0, ms));
+}
+function paintRecTime(r) {
+  r.time.textContent = fillVoiceSlots(r.strings.recordingTime || '{0} / {1}', formatVoiceClock(recElapsed(r)), formatVoiceClock(VOICE_REC_MAX_MS));
+}
+
+/**
+ * setComposerRecording(el, state, elapsedMs)
+ *   state 'recording' | 'stopped' → the bar is up (built on the first one); anything else → the bar goes.
+ *   elapsedMs = C#'s clock (an int string or number); bounded to 0..30 000.
+ */
+function setComposerRecording(el, state, elapsedMs) {
+  const parts = el ? composerParts.get(el) : null;
+  if (!parts) return;
+  const { field, action, strings, onVoiceCancel } = parts;
+  const ms = Math.min(VOICE_REC_MAX_MS, Math.max(0, parseInt(elapsedMs, 10) || 0));
+  let r = composerRec.get(el);
+  if (state !== 'recording' && state !== 'stopped') {
+    if (!r) return;
+    clearInterval(r.timer);
+    clearTimeout(r.pendingTimer);
+    const hadFocus = r.bar.contains(document.activeElement);
+    r.bar.remove();
+    composerRec.delete(el);
+    delete el.dataset.rec;
+    resyncComposer(el);
+    /* the ✕ that had focus just left the DOM — the trailing disc (now the mic again) takes it; never the field,
+       which would raise the phone keyboard after a voice send */
+    if (hadFocus) { try { action.focus({ preventScroll: true }); } catch (e) { action.focus(); } }
+    return;
+  }
+  if (!r) {
+    const bar = document.createElement('div');
+    bar.className = 'c-composer__rec';
+    /* no layout shift: the bar is at least the pill's CSS height, and at least what the pill measures right now
+       (a multi-line draft under a restored clip keeps its height too) */
+    const h = field.offsetHeight;
+    if (h > 0) bar.style.minHeight = h + 'px';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'c-composer__rec-cancel';
+    cancel.setAttribute('aria-label', strings.cancelRecording || 'Cancel recording');
+    cancel.append(icon('x', { size: 20 }));
+    const dot = document.createElement('span');
+    dot.className = 'c-composer__rec-dot';
+    dot.setAttribute('aria-hidden', 'true');
+    const time = document.createElement('span');
+    time.className = 'c-composer__rec-time u-tabular';
+    time.setAttribute('aria-hidden', 'true');   // the status line below speaks; a per-second count would spam
+    const live = document.createElement('span');
+    live.className = 'c-composer__rec-live';
+    live.setAttribute('role', 'status');
+    live.setAttribute('aria-live', 'polite');
+    bar.append(cancel, dot, time, live);
+    r = { state: '', baseMs: 0, baseAt: Date.now(), openedAt: Date.now(), pending: false, pendingTimer: 0, timer: 0, bar, time, live, strings };
+    const cancelNow = () => {
+      const cur = composerRec.get(el);
+      if (!cur || cur.pending) return;
+      markRecPending(el);
+      if (onVoiceCancel) onVoiceCancel();
+    };
+    cancel.addEventListener('click', cancelNow);
+    r.cancelNow = cancelNow;
+    field.after(bar);
+    composerRec.set(el, r);
+    el.dataset.rec = '';
+    resyncComposer(el);   // the disc becomes ➤
+  }
+  const prev = r.state;
+  /* ★ #46 r1 NIT: a resync never runs the clock BACKWARDS (the local tick may be a little ahead of C#'s count) */
+  const shown = prev === 'recording' && state === 'recording' ? recElapsed(r) : 0;
+  r.state = state;
+  r.baseMs = Math.max(ms, shown);
+  r.baseAt = Date.now();
+  /* a new push is C#'s answer to a pending ✕ / ➤ only when it changes the state; a resync keeps the wait */
+  if (prev !== state && r.pending) { r.pending = false; clearTimeout(r.pendingTimer); delete r.bar.dataset.pending; }
+  r.bar.dataset.state = state;
+  clearInterval(r.timer);
+  r.timer = 0;
+  if (state === 'recording') {
+    r.timer = setInterval(() => {
+      if (composerRec.get(el) !== r) { clearInterval(r.timer); return; }
+      paintRecTime(r);
+    }, 250);
+  }
+  paintRecTime(r);
+  if (prev !== state) {
+    const words = state === 'recording'
+      ? (strings.recordingVoice || 'Recording voice message')
+      : fillVoiceSlots(strings.recordingStoppedAt || 'Recording stopped, {0}', formatVoiceClock(ms));
+    /* a region inserted WITH its text is often not announced — the first words land a beat after the bar */
+    if (prev === '') setTimeout(() => { if (composerRec.get(el) === r && r.state === state) r.live.textContent = words; }, 100);
+    else r.live.textContent = words;
+  }
+}
 
 /** Bot-chat cost hint (#86, bridge setChatMode cost/costText): slim standing
  *  line above the field — a money fact must not disappear while typing.
@@ -30589,5 +30953,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, holdOpenReveal: holdOpenReveal, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, holdOpenReveal: holdOpenReveal, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

@@ -3138,6 +3138,19 @@ namespace SPIXI
             {
                 excerpt = ReplyQuote.stripForExcerpt(excerpt);
             }
+            /* ★ #1208 (session 7): a VOICE message never shows its marker line or its base64 here — an inline voice text
+             * (VoiceCodec.tryPeekInline: the shape + bounds, no decode) reads "🎤 Voice message (0:12)" in the receiver's
+             * language — not in a bot room (§7: the row there shows the plain first line, so the list keeps today's
+             * excerpt). A voice FILE: the fileHeader branch below. */
+            if (lastmsg.type == FriendMessageType.standard && VoiceCodec.rendersAsVoice(friend.bot)   // ★ #46 r1 §7: a bot room → today's excerpt
+                && VoiceCodec.tryPeekInline(lastmsg.message, out int voiceMs))
+            {
+                excerpt = "🎤 " + VoiceCodec.lengthLabel(SpixiLocalization._SL("chat-voice-message-length"), voiceMs);   // ★ #46 r2: the localized template (cn / ja full-width)
+            }
+            else if (lastmsg.type == FriendMessageType.standard && VoiceCodec.tryPeekInline(lastmsg.message, out _))
+            {
+                excerpt = VoiceCodec.firstLine(lastmsg.message);   // ★ lead (#46 r1): a bot room shows the row's plain FIRST line — never the base64
+            }
             bool skipSelfPrefix = false;   // #265: "You: No answer" reads wrong (see below)
 
             if (friend.state != FriendState.Approved)
@@ -3212,6 +3225,16 @@ namespace SPIXI
                 {
                     excerpt = SpixiLocalization._SL("index-excerpt-file");
                     excerptKind = "file";
+                    /* ★ #1208: a voice FILE (the name rule + the size cap, as the chat row's V3) → "🎤 Voice message";
+                     * kind "text" (the mic glyph is in the text — no paperclip beside it). */
+                    if (VoiceCodec.rendersAsVoice(friend.bot)   // ★ #46 r1 §7: a bot room → today's "File"
+                        && SharedItems.parseFileHeader(lastmsg.message, out string voiceName, out ulong voiceSize)
+                        && VoiceCodec.isVoiceFileName(voiceName)
+                        && ((voiceSize != 0 ? voiceSize : lastmsg.fileSize) <= (ulong)VoiceCodec.MaxOggBytes))   // 0 = unknown → voice
+                    {
+                        excerpt = "🎤 " + (SpixiLocalization._SL("chat-voice-message") ?? "Voice message");
+                        excerptKind = "text";
+                    }
                 }
                 else if (lastmsg.type == FriendMessageType.reaction)
                 {

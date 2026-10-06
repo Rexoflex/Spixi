@@ -713,6 +713,8 @@
     createTopbar, setTopbarSub, createMessageBubble, createDateSeparator,
     createComposer, clearComposer, setComposerCost, createTypingIndicator, createScrollToLatest,
     setComposerContext, getComposerContext,   // M1 reply-to (#441): the quote strip above the input
+    setComposerVoice, setComposerRecording, getComposerRecording, releaseComposerRecording,   // ★ #1208 (S7): the mic slot + the recording bar (composer.js)
+    setVoiceBubble, voiceQuoteText,       // ★ #1208 (S7): the voice bubble's live update + the clip-length rule (message-bubble.js)
     setScrollLatestCount,           // N53: unread badge on the scroll-to-latest chevron (shipped #74, wired here)
     attachPressFeedback,
     setMessageStatus, replayStatusChange, removeMessage,
@@ -1911,6 +1913,7 @@
    * a broken reply) and never a broken node or a throw. */
   function replyKindOf(rec) {
     if (!rec) return null;
+    if (isVoiceRec(rec)) return 'voice';   // ★ #1208: an inline voice text AND a voice file quote as "Voice message"
     if (rec.kind === 'file') return 'file';
     if (rec.kind === 'payment') return 'payment';
     if (rec.kind === 'app') return 'app';
@@ -1937,8 +1940,11 @@
      (ReplyQuote.excerptOf: "💸 Payment" · "📞 Call" · "🚀 App") — those become the glyph + the LOCALISED label. A text
      that merely starts with the same emoji ("🚀 launching") is a text quote and stays as written. A 📷 / 📎 prefix (a
      photo / file excerpt carries its NAME after it) sets the glyph and keeps the name as the text. */
-  const QUOTE_TYPED_EXACT = { '💸 Payment': 'payment', '📞 Call': 'call', '🚀 App': 'app' };
+  const QUOTE_TYPED_EXACT = { '💸 Payment': 'payment', '📞 Call': 'call', '🚀 App': 'app', '🎤': 'voice' };   // ★ #1208: "🎤" = a voice FILE (ReplyQuote.excerptOf)
+  /* C#'s "m:ss" back to ms (the voice excerpt) — only to feed the one quote rendering */
+  const voiceExcerptMs = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t); return m ? (Number(m[1]) * 60 + Number(m[2])) * 1000 : 0; };
   const QUOTE_NAMED_PREFIX = [['📷 ', 'image'], ['📎 ', 'file']];
+  const QUOTE_VOICE_RE = /^🎤 \d{1,2}:\d{2}$/u;   // ★ #1208: ONLY C#'s exact voice excerpt — "🎤 hello" stays a text quote
   /* (C NIT) cap by GRAPHEME (Intl.Segmenter), else by code point — never a lone surrogate half */
   function capQuoteText(text, max) {
     let parts = null;
@@ -1954,6 +1960,7 @@
     let kind = null;
     let text = raw;
     if (Object.prototype.hasOwnProperty.call(QUOTE_TYPED_EXACT, raw)) { kind = QUOTE_TYPED_EXACT[raw]; text = ''; }
+    else if (QUOTE_VOICE_RE.test(raw)) { kind = 'voice'; text = voiceQuoteText(voiceExcerptMs(raw.slice(3)), window.SL || {}); }   // ★ #46 r1 (B m-8): the one voice quote   // ★ #1208: "🎤 0:12" = an inline voice text → the glyph + the length
     else {
       for (const [pre, k] of QUOTE_NAMED_PREFIX) {
         if (raw.startsWith(pre) && raw.length > pre.length) { kind = k; text = raw.slice(pre.length); break; }
@@ -2013,6 +2020,8 @@
       text = capQuoteText(text, REPLY_TEXT_MAX);   // ★ r2 NIT: by grapheme, never a lone surrogate
     } else if (kind === 'file') {
       text = String(target.name || '');
+    } else if (kind === 'voice') {
+      text = voiceQuoteText(voiceViewOf(target).durMs, s2);   // ★ #46 r1 (B m-8): "Voice message (0:12)" / "Voice message"
     }
     return {
       sender,
@@ -2039,6 +2048,9 @@
       text = String(rec.text || '').replace(/\s+/g, ' ').trim();
       text = capQuoteText(text, REPLY_TEXT_MAX);   // ★ r2 NIT: by grapheme, never a lone surrogate
     } else if (kind === 'file') text = String(rec.name || '');
+    else if (kind === 'voice') {                    // ★ #1208: "Voice message (0:12)" — the chats-list grammar; no length known → the label alone
+      text = voiceQuoteText(voiceViewOf(rec).durMs, s2);   // ★ #46 r1 (B m-8): the one voice quote (a template — no hardcoded " (")
+    }
     return { sender, text, kind };
   }
 
@@ -2207,7 +2219,113 @@
     return setTileHead(row, { position: position || 'single', label, avatar: gutter ? gutter.firstElementChild : null });
   }
 
+  /* ═══ ★★ #1208 (S7) VOICE — no audio in this WebView: C# records / decodes / plays, the shell draws its pushes (V2–V6)
+   * and sends the V7 / V8 verbs. voiceInfo / voiceState patch the bubble IN PLACE (no renderLog per tick) and live in
+   * `voiceClips`, so a re-render draws the same state; every value is bounded. The mic = setCaps `voice` + not a bot
+   * room + not locked, re-derived after EVERY push (the syncedHandlers wrapper, like the ⊕). ═══ */
+  const VOICE_MS_RE = /^\d{1,5}$/;
+  const VOICE_PARSE_MAX_MS = 31000;      // = VoiceCodec.ParseMaxDurationMs
+  const VOICE_PEAKS_MAX = 64;            // C# sends 40 (VoiceCodec.PeakCount); a longer list is cut, never trusted
+  const VOICE_PEAKS_CSV_MAX = 512;       // 40 × "100," = 160 chars — anything far longer is refused whole
+  const VOICE_INFO_KEEP = 512;           // ids remembered per document (oldest dropped)
+  const VOICE_COMPLETE_GRACE_MS = 1200;  // ★ #46 r2: a completed download waits this long for C#'s auto-play (≤ 1.5 s; a later `playing` still wins)
+  const VOICE_PLAY_STATES = new Set(['loading', 'playing', 'paused', 'stopped', 'error']);
+  const VOICE_REC_STATES = new Set(['idle', 'recording', 'stopped', 'denied', 'busy', 'error', 'sendfail']);
+  const voiceClips = new Map();          // id → { durMs, peaks, state, posMs } · ⚠ never `voiceInfo`: C#'s bare executeUiCommand(voiceInfo, …) would get this Map
+  function isVoiceRec(rec) {
+    if (!rec) return false;
+    if (rec.kind === 'file') return !!rec.voiceFile;
+    return (rec.kind || 'text') === 'text' && !!rec.voice;
+  }
+  function voiceMsArg(v) {
+    const t = String(v == null ? '' : v);
+    return VOICE_MS_RE.test(t) ? Math.min(VOICE_PARSE_MAX_MS, parseInt(t, 10)) : 0;
+  }
+  function voiceEntry(id) {
+    let v = voiceClips.get(id);
+    if (!v) {
+      v = { durMs: 0, peaks: null, state: 'idle', posMs: 0 };
+      voiceClips.set(id, v);
+      while (voiceClips.size > VOICE_INFO_KEEP) voiceClips.delete(voiceClips.keys().next().value);
+    }
+    return v;
+  }
+  function voiceViewOf(rec) {
+    const v = voiceClips.get(String(rec.id)) || {};
+    let state = v.state || 'idle';
+    let gone = '';
+    /* ★ #46 r1 (B m-9): a voice FILE shows its transfer minimally. Not on this device (addFile local "0", complete) = a
+       disabled bubble with the file card's own words; MY upload still running = the loading look until complete
+       (C#'s own playing / paused / loading wins — my file is on this device and plays) */
+    if (rec.kind === 'file') {
+      const sl = window.SL || {};
+      if (rec.localGone && rec.fstate === 'complete') {
+        gone = rec.direction === 'received' ? (sl.fileDeletedLocal || 'File deleted from this device') : (sl.fileUnavailable || 'Not available on this device');
+        state = 'idle';
+      } else if (rec.direction === 'sent' && rec.fstate === 'progress' && (state === 'idle' || state === 'stopped')) state = 'loading';
+    }
+    return { durMs: v.durMs || rec.voiceMs || null, peaks: v.peaks || null, state, posMs: v.posMs || 0, loadingAt: v.loadingAt || 0, gone };
+  }
+  /* ★ #46 r1 (B MAJOR-1): a voice FILE whose download C# had started for a play (loading) and that went back to an
+     offer or paused never spins for good — the clip returns to idle (C# also pushes stopped, §7) */
+  function settleVoiceFileLoading(rec) {
+    const v = rec && rec.voiceFile ? voiceClips.get(String(rec.id)) : null;
+    if (!v || v.state !== 'loading') return;
+    if (rec.fstate === 'offer' || rec.paused) { v.state = 'idle'; v.posMs = 0; v.loadingAt = 0; return; }
+    /* ★ #46 r2 (MAJOR): the download COMPLETED — C#'s auto-play pushes `playing` right after; if nothing came within
+       VOICE_COMPLETE_GRACE_MS the clip goes back to idle. Any later voiceState wins (it changes the state or, for a
+       re-pushed loading, `loadingAt`, which this timer compares). */
+    if (rec.fstate === 'complete') {
+      const id = String(rec.id);
+      const at = v.loadingAt;
+      setTimeout(() => {
+        const w = voiceClips.get(id);
+        if (!w || w.state !== 'loading' || w.loadingAt !== at) return;
+        w.state = 'idle'; w.posMs = 0; w.loadingAt = 0;
+        paintVoiceRow(id);
+      }, VOICE_COMPLETE_GRACE_MS);
+    }
+  }
+  function paintVoiceRow(id) {
+    const rec = model.get(id);
+    const row = rows.get(id);
+    if (row && isVoiceRec(rec)) setVoiceBubble(row, voiceViewOf(rec), window.SL || {});
+  }
+  /* V8: only a voice row this shell holds, with a hex id, ever leaves (C# looks it up in ITS list) */
+  function playVoice(id) {
+    const key = String(id);
+    const rec = model.get(key);
+    if (!isVoiceRec(rec) || !QUOTE_ID_RE.test(key)) return;
+    bridge.send('ixian:voiceplay:' + key);
+  }
+  function buildVoiceRow(rec, position) {
+    const isSent = rec.direction === 'sent';
+    return createMessageBubble({
+      direction: isSent ? 'sent' : 'received',
+      position,
+      text: '',                    // never the row's text: the voice body replaces it (message-bubble.js)
+      timestamp: rec.ts,
+      status: isSent ? (rec.status || null) : null,
+      paid: !!rec.paid,
+      ...senderHeadOpts(rec),
+      onRetry: (isSent && rec.kind !== 'file' && rec.status === 'failed' && bridge.cap('resend'))
+        ? () => bridge.send('ixian:contextAction:resend:' + rec.id) : null,
+      voice: { ...voiceViewOf(rec), onPlay: () => playVoice(rec.id) },
+    });
+  }
+  function voiceAllowed() {
+    return bridge.cap('voice') && !mode.isBot && !composerLock;
+  }
+  function syncVoiceCap() {
+    if (composerEl) setComposerVoice(composerEl, voiceAllowed());
+  }
+  function startVoiceRecording() {
+    if (!composerEl || !voiceAllowed() || getComposerRecording(composerEl)) return;
+    bridge.send('ixian:voicerec:start');
+  }
+
   function buildRow(rec, position) {
+    if (isVoiceRec(rec)) return buildVoiceRow(rec, position);   // ★ #1208: an inline voice text or a voice file — one bubble
     if (rec.kind === 'file') return tileHead(markPausedTile(buildFileRow(rec), rec), rec, position);   // ★ #1170: + the group head · ★ #1177: the paused tile's label
     if (rec.kind === 'app') return buildAppRow(rec);
     if (rec.kind === 'payment') return buildPaymentRow(rec);
@@ -3188,7 +3306,7 @@
     const isSent = rec.direction === 'sent';
     return {
       host: overlayHost,
-      text: rec.text || '',
+      text: isVoiceRec(rec) ? '' : (rec.text || ''),   // ★ #1208: no Copy on a voice row (its text is C#'s readable line for an OLD app)
       /* ★★ L2 (#641): a FUNCTION, not a string. attachMessageMenu captures these options
          at ROW-WIRE time and replays them on every long-press, and the writer of the
          counts does not re-render the row — addReactions patches the pills in place. A
@@ -3256,11 +3374,14 @@
     return n;
   }
   function canReplyRec(rec) {
-    return bridge.cap('reply') && isMenuableRec(rec);   // the composer is checked at the start (it is declared later in this script)
+    /* ★ #46 r1 (B m-4): no reply while the recording bar is up — the menu HIDES Reply, the gestures do nothing (the bar stays) */
+    return bridge.cap('reply') && isMenuableRec(rec) && !(composerEl && getComposerRecording(composerEl));   // the composer is checked at the start (it is declared later in this script)
   }
   function canEditRec(rec) {
     if (!bridge.cap('edit') || !rec || composerLock) return false;
+    if (composerEl && getComposerRecording(composerEl)) return false;   // ★ #46 r1 (B m-4): no edit while the recording bar is up (Edit hidden)
     if (rec.direction !== 'sent' || (rec.kind || 'text') !== 'text' || rec.eventChip) return false;
+    if (isVoiceRec(rec)) return false;                    // ★ #1208: a voice message is never edited (EditRules.canEdit agrees)
     if (!rec.text || mediaUrlOf(rec.text)) return false;
     if (rec.status === 'failed' || rec.status === 'sending') return false;
     if (mode.isBot) return false;                         // belt: C# never declares `edit` in a bot room
@@ -3276,7 +3397,7 @@
   function replyKindLabel(kind) {
     const s2 = window.SL || {};
     return ({ gif: 'GIF', image: s2.image || 'Image', file: s2.file || 'File', payment: s2.payment || 'Payment',
-      app: s2.app || 'App', call: s2.call || 'Voice call' })[kind] || '';
+      app: s2.app || 'App', call: s2.call || 'Voice call', voice: s2.voiceMessage || 'Voice message' })[kind] || '';   // ★ #1208: + voice
   }
   /* ★ #1198 — the ONE reply start: the menu item, the swipe, the hover button and the double-click all land here, so
      the strip, the @-mention and the focus cannot differ by the way in. */
@@ -3289,6 +3410,7 @@
       kind: 'reply',
       title: ((window.SL && window.SL.replyingTo) || 'Reply to') + (q.sender ? ' ' + q.sender : ''),
       text: q.text || replyKindLabel(q.kind),   // ★ #1198: a payment / app / media row says what it is in the strip
+      quoteKind: q.kind || '',                   // ★ #1208: the strip's kind (composer.js data-quote-kind) — 'voice' for a voice row
       replyId: String(live.id),
       strings: window.SL || {},
     });
@@ -3529,7 +3651,8 @@
     if (!ae || !box.contains(ae) || ae === box) return null;
     const row = ae.closest ? ae.closest('#messages > [data-msgid]') : null;
     if (!row) return null;
-    return { id: row.dataset.msgid, btn: ae.classList && ae.classList.contains('c-bubble-row__reply') };
+    return { id: row.dataset.msgid, btn: ae.classList && ae.classList.contains('c-bubble-row__reply'),
+      play: !!(ae.classList && ae.classList.contains('c-voice__play')) };   // ★ #46 r1 (B m-11): a voice play button keeps focus too
   }
   function carryReplyHover(carry) {
     if (hoverMsgId) { const r = rows.get(hoverMsgId); if (r) markHoverRow(r); }
@@ -3542,7 +3665,9 @@
       if (!has) return;
       makeCurrentRow(r);
       const b = carry.btn ? replyBtnOf(r) : null;
+      const pb = carry.play ? r.querySelector('.c-voice__play') : null;
       if (b) { placeReplyButton(r); b.focus({ preventScroll: true }); }
+      else if (pb) pb.focus({ preventScroll: true });
       else r.focus({ preventScroll: true });
     }
   }
@@ -3597,7 +3722,7 @@
       // the SAME predicate the long-press menu uses — a bot-room member can select another
       // member's message (to copy it) but cannot delete it, and the bar says so by disabling.
       deletable: (r) => canDeleteRec(model.get(r.dataset.msgid || '')),
-      textOf: (r) => { const rec = model.get(r.dataset.msgid || ''); return (rec && rec.text) || ''; },
+      textOf: (r) => { const rec = model.get(r.dataset.msgid || ''); return (rec && !isVoiceRec(rec) && rec.text) || ''; },   // ★ #1208: a voice row copies nothing
       senderOf: (r) => {
         const rec = model.get(r.dataset.msgid || '');
         if (!rec) return '';
@@ -3889,7 +4014,7 @@
    * is DISPLAY-only (C# resolves the real payee from the msg id). */
   function openTipForMessage(rec) {
     openTipSheet({
-      message: { id: rec.id, excerpt: rec.text || undefined },
+      message: { id: rec.id, excerpt: (!isVoiceRec(rec) && rec.text) || undefined },   // ★ #1208: a voice row has no text to quote
       recipient: {
         // ★ #346 (review of #342): this ladder must match the avatar ladder below,
         // and it did not. `identity.name` is the GROUP's name in a group chat (C#
@@ -5249,12 +5374,20 @@
     const rec = existing || { id, kind: 'text', direction, senderNick: '', senderAddress: '' };
     /* ★ #1198 / #1199: what the bubble SHOWS beyond the status — an edit changes the text and the marker, a re-match
        the quote; any of them must escape the surgical tick path below (it patches the tick only) */
-    const faceBefore = existing ? [existing.text, !!existing.edited, existing.replyTo || '', existing.quoteName || '', existing.quoteText || ''].join('\u0001') : '';
+    const faceBefore = existing ? [existing.text, !!existing.edited, existing.replyTo || '', existing.quoteName || '', existing.quoteText || '', existing.voiceMs || 0].join('\u0001') : '';
+    /* ★★ #1208 (V2): arg 17 = the clip length (ms) → a voice row; "" = not one; ABSENT (old exe) = unchanged */
+    if (extra && extra.voice !== undefined) {
+      const vs = String(extra.voice == null ? '' : extra.voice);
+      rec.voiceMs = VOICE_MS_RE.test(vs) ? Math.min(VOICE_PARSE_MAX_MS, parseInt(vs, 10)) : 0;
+      rec.voice = VOICE_MS_RE.test(vs);
+    }
     if (text !== undefined && text !== null) {
       rec.text = String(text);
+      /* ★ #1208 belt: a voice row keeps C#'s readable FIRST line only — never a marker line / base64 (e.g. updateMessage) */
+      if (rec.voice) rec.text = rec.text.split('\n')[0];
       // #264 ⑤: recompute on every text change (updateMessage edits included) —
       // an accepted-request line renders as a centered event chip, not a bubble.
-      rec.eventChip = !!acceptedEventSubject(rec.text);
+      rec.eventChip = !rec.voice && !!acceptedEventSubject(rec.text);
     }
     if (direction) rec.direction = direction;
     if (ts) rec.ts = ts;
@@ -5284,7 +5417,7 @@
         if (extra.quoteText !== undefined && extra.quoteText) rec.quoteText = String(extra.quoteText);
       }
     }
-    const faceChanged = !!existing && faceBefore !== [rec.text, !!rec.edited, rec.replyTo || '', rec.quoteName || '', rec.quoteText || ''].join('\u0001');
+    const faceChanged = !!existing && faceBefore !== [rec.text, !!rec.edited, rec.replyTo || '', rec.quoteName || '', rec.quoteText || '', rec.voiceMs || 0].join('\u0001');
     const prevStatus = existing ? existing.status : null;
     rec.status = statusFrom(flags || {});
     /* ★ #1028 (walk P.13): remember a LIVE tick change on the record, so a full render that lands inside
@@ -5356,6 +5489,7 @@
       if (extra.senderNick !== undefined) rec.senderNick = extra.senderNick || '';
       if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
       if (extra.status !== undefined) rec.status = extra.status;   // ★ #1028 (P.22): sent files only (addFile sets null otherwise)
+      if (extra.voice !== undefined) rec.voiceFile = String(extra.voice) === '1';   // ★ #1208 (V3): present = C#'s answer, absent = unchanged
       if (extra.local !== undefined) {
         /* ★ #1190: re-read on every addFile; "0" also forgets a held preview (the chat-info delete re-push) */
         rec.localGone = String(extra.local) === '0';
@@ -5814,7 +5948,7 @@
     },
 
     // TEXT create — own message. 12-arg legacy addMe shape (xaml.cs:1460).
-    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText) {
+    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice) {
       if (address) selfAddress = String(address);   // #717: who I am, for the @ picker
       if (nick) selfNick = String(nick);
       // M1 (#441): `relation` and `replyTo` are the two trailing ADDITIVE args C#
@@ -5825,7 +5959,7 @@
       // fallback quote) and the row renders exactly as before.
       upsertText(id, text, 'sent', toMs(time),
         { sent, confirmed, read, paid, errorSending },
-        { avatar: resolveAvatar(avatar), replyTo: replyTo || '', ...s6Args(edited, quoteName, quoteText) });
+        { avatar: resolveAvatar(avatar), replyTo: replyTo || '', ...s6Args(edited, quoteName, quoteText), voice });   // ★ #1208: arg 17
       noteEditAnswer(String(id), text, quoteText);   // ★ r2: a re-flush carries the answer too
     },
 
@@ -5837,7 +5971,7 @@
     // derive the A3 unread boundary from the open burst.
     // D-5/N26 (#366): trailing `relation` ('contact'|'pending'|'none'|'self'|'')
     // — an old C# exe leaves it undefined → the sheet falls back to 'none'.
-    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText) {
+    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice) {
       const av = resolveAvatar(avatar);
       // A3: first LOAD-PHASE row still unread when the chat opened = the boundary.
       // Exactly-once by C# ordering (push precedes the read flip, :1603/:1661) and
@@ -5857,7 +5991,8 @@
         { senderNick: resolveNick(address, nick), senderAddress: address || '', avatar: av,
           relation: RELATIONS.has(relation) ? relation : '',
           replyTo: replyTo || '',      // M1 (#441)
-          ...s6Args(edited, quoteName, quoteText) });   // ★ #1198 / #1199 (P1)
+          ...s6Args(edited, quoteName, quoteText),      // ★ #1198 / #1199 (P1)
+          voice });                    // ★ #1208 (V2): arg 17 = the clip length in ms, "" = not a voice row, absent = an old exe
       // 1:1 topbar fallback: if setAvatar (onLoad, X1) hasn't landed a header avatar yet,
       // scavenge it from the peer's first message (1:1/bot only — groups get the group
       // avatar via setAvatar). Guarded on !identity.avatar so setAvatar always wins.
@@ -5875,12 +6010,13 @@
        reply keeps its quote. A refused edit is simply C# re-pushing the row's current state through here: the row
        shows what C# says (the shell never paints an edit optimistically). A 7-arg push (an old exe, a status tick)
        changes only the status and the text — the marker and the quote stay (upsertText, `fullForm`). */
-    updateMessage(id, message, sent, confirmed, read, paid, errorSending, edited, replyTo, quoteName, quoteText) {
+    updateMessage(id, message, sent, confirmed, read, paid, errorSending, edited, replyTo, quoteName, quoteText, voice) {
       const key = String(id);
       const existing = model.get(key);
       const dir = existing ? undefined : (asBool(sent) ? 'sent' : 'received');
       const s6 = s6Args(edited, quoteName, quoteText);
       if (s6.fullForm) s6.replyTo = replyTo === undefined ? undefined : String(replyTo || '');
+      if (voice !== undefined) s6.voice = voice;   // ★ #1208 (V2, arg 12): C#'s voice answer for this row; absent (old exe / 11-arg push) = unchanged
       upsertText(key, message, dir, existing ? existing.ts : Date.now(),
         { sent, confirmed, read, paid, errorSending }, s6);
       noteEditAnswer(key, message, quoteText);   // ★ r2 (MAJOR-2): C#'s answer to a Save — the same body = landed, another = refused
@@ -5936,6 +6072,7 @@
         }
       }
       model.delete(id);
+      voiceClips.delete(id);               // ★ #1208
       order = order.filter((x) => x !== id);
       /* ★ #1198 / #1199: a reply or an edit in progress on the row that just went has nothing left to act on */
       const cctx = composerEl ? getComposerContext(composerEl) : null;
@@ -6100,6 +6237,66 @@
        declares which OPTIONAL verbs THIS build answers, so a new shell on an old exe
        degrades instead of waiting forever. Mutates the bridge's capability object in
        place; bridge.cap() reads the same reference. */
+    /* ★★ #1208 (V4): voiceInfo(idHex, durMs, peaksCsv) — the length + 40 peaks; hex id, ms ≤ 31 000, ≤ 64 values 0..100 */
+    voiceInfo(id, durMs, peaksCsv) {
+      const key = String(id == null ? '' : id);
+      const csv = String(peaksCsv == null ? '' : peaksCsv);
+      if (!QUOTE_ID_RE.test(key) || csv.length > VOICE_PEAKS_CSV_MAX) return;
+      const v = voiceEntry(key);
+      const dur = voiceMsArg(durMs);
+      if (dur) v.durMs = dur;
+      if (csv) {
+        const peaks = csv.split(',').slice(0, VOICE_PEAKS_MAX).map((x) => {
+          const n = parseInt(x, 10);
+          return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+        });
+        if (peaks.length) v.peaks = peaks;
+      }
+      paintVoiceRow(key);
+    },
+    /* ★★ #1208 (V5): voiceState(idHex, state, posMs, durMs). One clip at a time — a lost push never leaves two Pause buttons */
+    voiceState(id, state, posMs, durMs) {
+      const key = String(id == null ? '' : id);
+      const st = String(state == null ? '' : state);
+      if (!QUOTE_ID_RE.test(key) || !VOICE_PLAY_STATES.has(st)) return;
+      const v = voiceEntry(key);
+      if (st === 'loading') v.loadingAt = Date.now();   // the bubble's 2 s re-tap rule reads it — ★ #46 r2 NIT: EVERY loading push (C# re-evaluated a re-tap) restarts it
+      v.state = st;
+      v.posMs = (st === 'playing' || st === 'paused') ? voiceMsArg(posMs) : 0;
+      const dur = voiceMsArg(durMs);
+      if (dur) v.durMs = dur;
+      if (st === 'playing' || st === 'loading') {
+        for (const [k, o] of voiceClips) {
+          if (k === key || (o.state !== 'playing' && o.state !== 'paused')) continue;   // ★ #46 r1 (B m-2): only playing / paused are exclusive — another clip's LOADING stays
+          o.state = 'stopped';
+          o.posMs = 0;
+          paintVoiceRow(k);
+        }
+      }
+      paintVoiceRow(key);
+    },
+    /* ★★ #1208 (V6): voiceRec(state, elapsedMs) — recording / stopped = the bar; idle = the input; denied / busy / error = the input + a toast */
+    voiceRec(state, elapsedMs) {
+      const st = String(state == null ? '' : state);
+      if (!VOICE_REC_STATES.has(st) || !composerEl) return;
+      if (st === 'recording' || st === 'stopped') { setComposerRecording(composerEl, st, voiceMsArg(elapsedMs)); return; }
+      const sl = window.SL || {};
+      /* ★ #46 r1 (§7): sendfail = a refused / failed SEND — the clip is kept, the bar stays (C# pushes stopped next) */
+      if (st === 'sendfail') {
+        releaseComposerRecording(composerEl);   // ★ #46 r2 (MINOR-2): ✕ / ➤ answer at once — the `stopped` that follows does not change the state
+        try { showToast({ text: sl.voiceSendFailed || 'The voice message could not be sent.', tone: 'error', host: overlayHost, strings: sl }); } catch (e) {}
+        return;
+      }
+      setComposerRecording(composerEl, 'idle', 0);
+      const text = st === 'denied' ? (sl.micDenied || 'Spixi needs microphone access to record. Allow it when asked, or in your device settings, then tap the mic again.')
+        : st === 'busy' ? (sl.micBusy || 'You can’t record a voice message during a call.')
+        : st === 'error' ? (sl.voiceRecError || 'The voice message could not be recorded.')
+        : '';
+      if (text) {
+        try { showToast({ text, tone: st === 'error' ? 'error' : undefined, host: overlayHost, strings: sl }); } catch (e) {}
+      }
+    },
+
     setCaps(list) {
       const replyBefore = bridge.cap('reply');
       String(list || '').split(',').forEach((c) => {
@@ -6380,7 +6577,7 @@
      * paused also labels it "Paused". An older exe sends 14 args (the old rule); an OLDER shell ignores arg 15. */
     /* ★ #1190: arg 16 `local` — the file on this device? "1" / "0" / "" (C# SharedItems.localArgOf; an older exe → undefined
      * = today's row; an older shell ignores it). buildFileRow draws "0". */
-    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local) {
+    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice) {
       const status = asBool(me)
         ? statusFrom({ sent: relaySent === undefined ? 'True' : relaySent, confirmed: sent, read })
         : null;
@@ -6388,9 +6585,11 @@
       const pct = tx ? Math.max(Number(progress) || 0, tx.pct) : progress;
       upsertFile(id, toMs(time), asBool(me) ? 'sent' : 'received', fileid, name,
         fileStateFrom(me, progress, complete, tx), pct,
-        { senderNick: resolveNick(address, nick), senderAddress: address || '', status, local: local === undefined ? '' : local });
+        { senderNick: resolveNick(address, nick), senderAddress: address || '', status, local: local === undefined ? '' : local,
+          voice });   // ★ #1208 (V3): arg 17 "1" = C# renders this file as a voice bubble; "" = a file row; absent = an old exe
       const rec = model.get(String(id));   // the row paints on the next frame (renderLog), after this flag is set
       if (rec) rec.paused = !!(tx && tx.state === 'paused' && rec.fstate === 'progress');
+      if (rec && rec.voiceFile) { settleVoiceFileLoading(rec); paintVoiceRow(String(id)); }   // ★ #46 r1 (B MAJOR-1)
     },
 
     /* ★★ #1106 — C# opens the conversation AT a message (a shared item in chat info, Downloads "Show in chat"): scroll
@@ -6470,7 +6669,12 @@
       // setFileProgress mutates a row that is ALREADY in 'progress' (bar tick +
       // the progress→complete flip). A structural change (offer→progress etc.)
       // has no track to grow, so rebuild the row from the model instead.
-      if (row && prev === 'progress') {
+      if (rec.voiceFile) {   // ★ #1208: a voice bubble has no progress track — only a state change re-renders
+        rec.paused = false;   // ★ #46 r2 (MINOR-3): a tick = the transfer runs again (only addFile says paused)
+        settleVoiceFileLoading(rec);
+        if (prev !== rec.fstate) renderLog(); else paintVoiceRow(id);   // ★ #46 r2: a settle on a same-state tick still paints (in place)
+      }
+      else if (row && prev === 'progress') {
         setFileProgress(row, rec.progress, { state: rec.fstate });
         // ★ A5 #1124: a tile that just completed takes a preview C# already sent (the usual order is the reverse)
         if (rec.fstate === 'complete' && fileThumbs.has(id)) setImageFileThumb(row, fileThumbs.get(id));
@@ -6478,7 +6682,7 @@
       else renderLog();
       // slick completion cue for OUTGOING transfers (Damir F5): a one-shot success
       // toast the moment a sent file finishes (the bar + open button carry the rest).
-      if (done && prev !== 'complete' && rec.direction === 'sent' && !rec.sentToastShown) {
+      if (done && prev !== 'complete' && rec.direction === 'sent' && !rec.sentToastShown && !rec.voiceFile) {   // ★ #1208: a voice message is not a "File sent"
         rec.sentToastShown = true;
         showToast({ text: (window.SL && window.SL.fileSent) || 'File sent', tone: 'success', host: overlayHost, strings: window.SL || {} });
       }
@@ -6848,6 +7052,7 @@
            that REPEATS freezes the ⊕ for the whole session. Say so on the debug
            channel, or the device report reads "the ⊕ never appears" with a clean log. */
         try { syncAttachAffordance(); } catch (e) { dbg('syncAttachAffordance threw', e && e.message); }
+        try { syncVoiceCap(); } catch (e) { dbg('syncVoiceCap threw', e && e.message); }   // ★ #1208: the mic re-derives like the ⊕
       }
     };
   }
@@ -7296,7 +7501,10 @@
   let lastTypingSent = 0;
   composerEl = createComposer({
     placeholder: (window.SL && window.SL.chatPlaceholder) || 'Message',
-    voice: false,
+    voice: false,                    // ★ #1208: OFF at boot; syncVoiceCap switches it once C# declares `voice` (setCaps)
+    onRecord: () => startVoiceRecording(),                                  // ★ #1208 (V7)
+    onVoiceCancel: () => { if (composerEl) bridge.send('ixian:voicerec:cancel'); },   // ★ #1208 (V7): C# answers voiceRec idle
+    onVoiceSend: () => { if (composerEl && !composerLock) bridge.send('ixian:voicerec:send'); },   // ★ #1208 (V7): C# answers voiceRec idle
     onSend: (text) => {
       if (!text) return;
       if (composerLock) return;   // ⑪ belt-and-braces: no compose path while pending

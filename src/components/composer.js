@@ -2,15 +2,17 @@
  * c-composer — chat input bar (Figma `input` 11306:7242 + `send` 11306:7223;
  * DECISIONS #64). ⊕ attach OUTSIDE the field on the leading side (#705 —
  * Damir, Session G; it lived inside the pill until then), auto-grow textarea,
- * trailing 44px circle: voice flag OFF (v1) → send always visible, and it KEEPS
+ * trailing 44px circle: voice OFF → send always visible, and it KEEPS
  * the action colour when empty (#705: "livelier than the disabled grey" — the
  * disabled state is still real, only its paint changed); voice ON → mic when
- * empty ⇄ send when text (design's morph).
+ * empty and no reply / edit context ⇄ send when text (★ #1208 S7: the #64 slot ON,
+ * switched live by setComposerVoice; the recording bar = setComposerRecording).
  * Bridge: ixian:chat / ixian:typing / clearInput (§4); sendfile/sendmedia via attach.
  *
  * createComposer({ placeholder, voice = false, onSend(text), onAttach,
- *                  onTyping, onRecord, maxLength, onTooLong, strings }) → el
+ *                  onTyping, onRecord, onVoiceCancel, onVoiceSend, maxLength, onTooLong, strings }) → el
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
+ * setComposerVoice(el, on) · setComposerRecording(el, state, ms) · getComposerRecording(el) — ★ #1208
  *
  * maxLength (A7, #302 — legacy parity for the 64 000-char guard, legacy
  *   js/chat.js:401-409): 0 = off (default, byte-for-byte today's behaviour).
@@ -26,6 +28,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAvatar } from './avatar.js';
+import { formatVoiceClock, fillVoiceSlots } from './message-bubble.js';   // ★ #1208: the one m:ss clock (the bubble and the bar agree)
 
 /* ★ #1065 r2 (break-my-verdict MINOR-3): the message menu can now be open WHILE the composer keeps
    focus (overlay.js keepEditableFocus stamps data-keep-editable on its root, removed synchronously at
@@ -42,6 +45,8 @@ export function createComposer({
   onAttach,
   onTyping,
   onRecord,
+  onVoiceCancel = null,   // ★ #1208 (S7): the recording bar's ✕ — the shell sends ixian:voicerec:cancel
+  onVoiceSend = null,     // ★ #1208 (S7): the recording bar's ➤ (the trailing disc) — the shell sends ixian:voicerec:send
   mentionSource = null,   // () => [{ name, address, avatar }] → enables @-autocomplete (#210); null = off
   maxLength = 0,          // A7: 0 = off. Counted on the TRIMMED text, raw UTF-16 units.
   onTooLong = null,       // (len, max) → shell toasts; the visual state is handled here
@@ -113,6 +118,18 @@ export function createComposer({
   };
 
   const syncAction = () => {
+    /* ★ #1208 (S7): while the RECORDING BAR is up (C# pushed voiceRec recording / stopped) the trailing disc is
+       "Send voice message" — the same 44 disc in the same place, so the bar swap moves nothing. It wins over every
+       other mode: the bar hides the field, so neither a draft nor a reply / edit context can be sent from here. */
+    if (composerRec.has(el)) {
+      delete action.dataset.ctx;
+      action.textContent = '';
+      action.append(icon('send-2', { size: 20 }));
+      action.dataset.mode = 'voicesend';
+      action.disabled = false;
+      action.setAttribute('aria-label', strings.sendVoice || 'Send voice message');
+      return;
+    }
     /* ★ #1199 (S6 edit): while an EDIT context is up the trailing button is SAVE — the check glyph and the
        "Save" name (strings.saveEdit), still disabled on an empty (or over-limit) field. Read at every sync
        from the ONE context map, so a context set or cleared from outside re-labels it (setComposerContext
@@ -131,7 +148,10 @@ export function createComposer({
       return;
     }
     delete action.dataset.ctx;
-    if (voice && !hasText()) {
+    /* ★ #1208 (S7, the #64 slot ON): the mic shows only when the shell says voice is on (setComposerVoice — setCaps
+       `voice`), the field is EMPTY and NO reply / edit context is up (a voice message is never a reply and never an
+       edit; with a context up the disc stays Send, disabled on an empty field). */
+    if (composerVoice.get(el) && !ctxNow && !hasText()) {
       micIcon();
       action.dataset.mode = 'mic';
       action.disabled = false;
@@ -198,13 +218,43 @@ export function createComposer({
       send();
     }
   });
+  /* ★ #1208: one mic tap = one start. C# answers with voiceRec (recording / denied / busy / error); a second tap
+     before that answer (a double tap, a slow bridge) would otherwise send a second start — MIC_GUARD_MS holds it. */
+  let micAt = 0;
   action.addEventListener('click', () => {
-    if (action.dataset.mode === 'mic') { if (onRecord) onRecord(); }
-    else send();
+    const mode = action.dataset.mode;
+    if (mode === 'mic') {
+      const t = Date.now();
+      if (t - micAt < MIC_GUARD_MS) return;
+      micAt = t;
+      if (onRecord) onRecord();
+      return;
+    }
+    if (mode === 'voicesend') {
+      const rec = composerRec.get(el);
+      /* the tap that opened the bar must not also send it: a double tap on the mic lands its second tap on this
+         same disc, now ➤ — a send inside SEND_GUARD_MS of the bar opening is ignored */
+      if (!rec || rec.pending || Date.now() - rec.openedAt < SEND_GUARD_MS) return;
+      markRecPending(el);
+      if (onVoiceSend) onVoiceSend();
+      return;
+    }
+    send();
   });
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);
 
+  /* ★ #46 r1 NIT: Escape in the composer area (the bar's ✕, the ➤ disc) cancels a recording — the ✕'s own path */
+  el.addEventListener('keydown', (e) => {
+    const r = composerRec.get(el);
+    if (e.key !== 'Escape' || !r || menuOverField()) return;
+    e.preventDefault();
+    e.stopPropagation();
+    r.cancelNow();
+  });
+
+  composerVoice.set(el, !!voice);
+  composerParts.set(el, { field, input, action, strings, onVoiceCancel });
   composerSync.set(el, () => { syncCounter(); syncAction(); });   // ★ #1199: setComposerContext re-labels the button
   syncCounter();
   syncAction();
@@ -386,6 +436,7 @@ export function setComposerContext(el, ctx) {
   const strip = document.createElement('div');
   strip.className = 'c-composer__ctx';
   strip.dataset.kind = ctx.kind;
+  if (ctx.quoteKind) strip.dataset.quoteKind = String(ctx.quoteKind);   // ★ #1208: what the reply quotes ('voice', 'file', …) — a style / test hook
   strip.append(icon(ctx.kind === 'edit' ? 'pencil' : 'share-3', { size: 18 }));
   const col = document.createElement('span');
   col.className = 'c-composer__ctx-info';
@@ -428,7 +479,9 @@ export function setComposerContext(el, ctx) {
       input.addEventListener('keydown', (e) => {
         // ★ #1065 r2: while the message menu is up over the focused field, Esc belongs to the MENU
         // (overlay.js closes it) — one Esc must not also throw away the reply/edit in progress.
-        if (e.key === 'Escape' && composerCtx.has(el) && !menuOverField()) cancelComposerContext(el);
+        /* ★ #46 r2 NIT: with a recording bar up, Escape belongs to the RECORDING only (the el listener) — a reply strip can
+           meet a bar when C# restores a kept clip (voiceRec stopped) while a reply is open; one Escape must not end both */
+        if (e.key === 'Escape' && composerCtx.has(el) && !composerRec.has(el) && !menuOverField()) cancelComposerContext(el);
       });
     }
     input.focus();
@@ -437,6 +490,158 @@ export function setComposerContext(el, ctx) {
 }
 
 export function getComposerContext(el) { return composerCtx.get(el) || null; }
+
+/* —— ★★ #1208 (S7) — VOICE: the mic slot (#64 ON) and the RECORDING BAR. —————————————————————————————————————
+ * Damir's picks: TAP to record (phone and desktop), max 30 s, the bar REPLACES the input — a red dot, the timer
+ * "0:07 / 0:30", ✕ cancel and ➤ send (the trailing disc). There is NO audio in this WebView: C# records, and the bar
+ * only mirrors C#'s voiceRec pushes (V6): `recording` (at the start and every ~1 s — a resync; the timer runs
+ * locally between them), `stopped` (30 s reached, or an interrupt: the clip is kept, the dot goes grey and static,
+ * the time freezes — the bar waits for ✕ or ➤), anything else = the bar goes and the input comes back.
+ * A11y: the visible timer is aria-hidden; ONE polite status line speaks at the start and at the stop only (never
+ * per second). ✕ and ➤ are real buttons with names; the hit areas are 44 px. The bar takes the pill's place and at
+ * least the pill's height, so the composer does not move. Free fns (#44). */
+const composerVoice = new WeakMap();   // composer el → the shell's "voice is on" answer (setComposerVoice)
+const composerRec = new WeakMap();     // composer el → { state, baseMs, baseAt, openedAt, pending, bar, timer, … }
+const composerParts = new WeakMap();   // composer el → { field, input, action, strings, onVoiceCancel }
+const MIC_GUARD_MS = 800;              // one start per tap burst (C# answers well inside it)
+const SEND_GUARD_MS = 400;             // the mic tap's twin cannot be a send
+const REC_PENDING_MS = 4000;           // ✕ / ➤ wait this long for C#'s answer, then re-arm (never a dead bar)
+const VOICE_REC_MAX_MS = 30000;        // ★ #1208 (1): 30 s total — the same number as VoiceCodec.MaxDurationMs
+
+/** setComposerVoice(el, on) — the shell's answer to "may this chat record?" (setCaps `voice` and the room). */
+export function setComposerVoice(el, on) {
+  if (!el || composerVoice.get(el) === !!on) return;   // unchanged: no repaint (the shell re-derives this after EVERY push)
+  composerVoice.set(el, !!on);
+  resyncComposer(el);
+}
+
+/** getComposerRecording(el) → 'recording' | 'stopped' | null */
+export function getComposerRecording(el) {
+  const r = el ? composerRec.get(el) : null;
+  return r ? r.state : null;
+}
+
+function markRecPending(el) {
+  const r = composerRec.get(el);
+  if (!r) return;
+  r.pending = true;
+  r.bar.dataset.pending = '';
+  clearTimeout(r.pendingTimer);
+  r.pendingTimer = setTimeout(() => {
+    const now = composerRec.get(el);
+    if (now !== r) return;
+    r.pending = false;
+    delete r.bar.dataset.pending;
+  }, REC_PENDING_MS);
+}
+
+/** releaseComposerRecording(el) — C# answered a ✕ / ➤ without changing the bar's state (voiceRec sendfail): the
+ *  controls work again at once. */
+export function releaseComposerRecording(el) {
+  const r = el ? composerRec.get(el) : null;
+  if (!r) return;
+  r.pending = false;
+  clearTimeout(r.pendingTimer);
+  delete r.bar.dataset.pending;
+}
+
+function recElapsed(r) {
+  const ms = r.state === 'recording' ? r.baseMs + (Date.now() - r.baseAt) : r.baseMs;
+  return Math.min(VOICE_REC_MAX_MS, Math.max(0, ms));
+}
+function paintRecTime(r) {
+  r.time.textContent = fillVoiceSlots(r.strings.recordingTime || '{0} / {1}', formatVoiceClock(recElapsed(r)), formatVoiceClock(VOICE_REC_MAX_MS));
+}
+
+/**
+ * setComposerRecording(el, state, elapsedMs)
+ *   state 'recording' | 'stopped' → the bar is up (built on the first one); anything else → the bar goes.
+ *   elapsedMs = C#'s clock (an int string or number); bounded to 0..30 000.
+ */
+export function setComposerRecording(el, state, elapsedMs) {
+  const parts = el ? composerParts.get(el) : null;
+  if (!parts) return;
+  const { field, action, strings, onVoiceCancel } = parts;
+  const ms = Math.min(VOICE_REC_MAX_MS, Math.max(0, parseInt(elapsedMs, 10) || 0));
+  let r = composerRec.get(el);
+  if (state !== 'recording' && state !== 'stopped') {
+    if (!r) return;
+    clearInterval(r.timer);
+    clearTimeout(r.pendingTimer);
+    const hadFocus = r.bar.contains(document.activeElement);
+    r.bar.remove();
+    composerRec.delete(el);
+    delete el.dataset.rec;
+    resyncComposer(el);
+    /* the ✕ that had focus just left the DOM — the trailing disc (now the mic again) takes it; never the field,
+       which would raise the phone keyboard after a voice send */
+    if (hadFocus) { try { action.focus({ preventScroll: true }); } catch (e) { action.focus(); } }
+    return;
+  }
+  if (!r) {
+    const bar = document.createElement('div');
+    bar.className = 'c-composer__rec';
+    /* no layout shift: the bar is at least the pill's CSS height, and at least what the pill measures right now
+       (a multi-line draft under a restored clip keeps its height too) */
+    const h = field.offsetHeight;
+    if (h > 0) bar.style.minHeight = h + 'px';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'c-composer__rec-cancel';
+    cancel.setAttribute('aria-label', strings.cancelRecording || 'Cancel recording');
+    cancel.append(icon('x', { size: 20 }));
+    const dot = document.createElement('span');
+    dot.className = 'c-composer__rec-dot';
+    dot.setAttribute('aria-hidden', 'true');
+    const time = document.createElement('span');
+    time.className = 'c-composer__rec-time u-tabular';
+    time.setAttribute('aria-hidden', 'true');   // the status line below speaks; a per-second count would spam
+    const live = document.createElement('span');
+    live.className = 'c-composer__rec-live';
+    live.setAttribute('role', 'status');
+    live.setAttribute('aria-live', 'polite');
+    bar.append(cancel, dot, time, live);
+    r = { state: '', baseMs: 0, baseAt: Date.now(), openedAt: Date.now(), pending: false, pendingTimer: 0, timer: 0, bar, time, live, strings };
+    const cancelNow = () => {
+      const cur = composerRec.get(el);
+      if (!cur || cur.pending) return;
+      markRecPending(el);
+      if (onVoiceCancel) onVoiceCancel();
+    };
+    cancel.addEventListener('click', cancelNow);
+    r.cancelNow = cancelNow;
+    field.after(bar);
+    composerRec.set(el, r);
+    el.dataset.rec = '';
+    resyncComposer(el);   // the disc becomes ➤
+  }
+  const prev = r.state;
+  /* ★ #46 r1 NIT: a resync never runs the clock BACKWARDS (the local tick may be a little ahead of C#'s count) */
+  const shown = prev === 'recording' && state === 'recording' ? recElapsed(r) : 0;
+  r.state = state;
+  r.baseMs = Math.max(ms, shown);
+  r.baseAt = Date.now();
+  /* a new push is C#'s answer to a pending ✕ / ➤ only when it changes the state; a resync keeps the wait */
+  if (prev !== state && r.pending) { r.pending = false; clearTimeout(r.pendingTimer); delete r.bar.dataset.pending; }
+  r.bar.dataset.state = state;
+  clearInterval(r.timer);
+  r.timer = 0;
+  if (state === 'recording') {
+    r.timer = setInterval(() => {
+      if (composerRec.get(el) !== r) { clearInterval(r.timer); return; }
+      paintRecTime(r);
+    }, 250);
+  }
+  paintRecTime(r);
+  if (prev !== state) {
+    const words = state === 'recording'
+      ? (strings.recordingVoice || 'Recording voice message')
+      : fillVoiceSlots(strings.recordingStoppedAt || 'Recording stopped, {0}', formatVoiceClock(ms));
+    /* a region inserted WITH its text is often not announced — the first words land a beat after the bar */
+    if (prev === '') setTimeout(() => { if (composerRec.get(el) === r && r.state === state) r.live.textContent = words; }, 100);
+    else r.live.textContent = words;
+  }
+}
 
 /** Bot-chat cost hint (#86, bridge setChatMode cost/costText): slim standing
  *  line above the field — a money fact must not disappear while typing.

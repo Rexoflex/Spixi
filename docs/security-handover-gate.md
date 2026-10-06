@@ -1735,3 +1735,16 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | addMe / addThem args 14–16, updateMessage 8–11, setCaps reply / edit (P1–P3) | "1"/"" + C#-sanitized name / text; textContent only; an old shell ignores them | ours, safe — B-29 |
 | Receive drop guard (#1199) | a non-bot replace of an unknown id, or a replace / stream chunk onto a file, payment or system row, is dropped (receipt sent) — closes an INHERITED rewrite of those rows by a peer | inherited exposure narrowed (belt) |
 | `[P1] fade hold …` (#1201) | dev-only, fixed words + integers, nothing without `data-p1` | ours, safe — retire with the [P1] set (C-2l) |
+
+## Session 7 (#1207–#1209) — lens applied while building
+| Surface | What | Verdict |
+|---|---|---|
+| The capability ASK (#1207) | `getAppProtocols` to an approved normal 1:1 contact at chat open, once per contact per process (map capped 512); Core's pending queue holds it (no push, no server copy); the answer list stored by the inherited `handleAppProtocols` | ours, accepted — tells an approved contact the device is online (presence already does); 🟡 B-30 |
+| Inline voice text (#1208) | LEAVES the device: a fixed English line + the length + base64 Opus of what the user recorded — nothing else; only to a contact whose answer holds `spixi.voice.1` | ours, safe |
+| Peer voice data | inline: line 1 must be the exact human line, ≤ 64 000 chars, ≤ 1 550 packets, every packet one 20 ms frame, ≤ 31 s, never throws; Ogg: ≤ 262 144 B, CRC, one stream, same frame rule; decode bounded by the sample cap; NOT decoded in a bot room (plain first line) | ours, safe |
+| Voice FILE written by C# | `<spixiUserFolder>/Voice/voice-yyyyMMdd-HHmmss.ogg` — C#'s own name and folder, CreateNew, ≤ 262 144 B, deleted again when the send fails before the store; never a WebView-supplied name or path | ours, safe (folder not cleaned — #1210 (8)) |
+| `ixian:voicerec:start\|cancel\|send`, `ixian:voiceplay:<hex>` (NEW 🟡 verbs) | exact strings; the hex follows `parseMessageIdHex`; C# looks the id up in ITS list; a voice file not on the device starts the same accept the user taps (only for a voice-pattern row, pinned) | ours, safe — B-30 |
+| Pushes `voiceRec` · `voiceState` · `voiceInfo`, args addMe / addThem 17, updateMessage 12, addFile 17, setCaps `voice` | state words, integers, hex ids, a CSV of 40 ints 0–100; arg 5 of a voice row = the first line only; no audio, path or name crosses into the WebView; textContent only | ours, safe — B-30 |
+| Microphone | recorded only after a tap; OS permission (Info.plist text now names voice messages); stops on leave / background (phones) / call | ours, safe |
+| Logs | fixed words + exception type names; no id, text, path, address | ours, safe |
+| Inherited: `handleAppProtocols` | stores an unbounded list from any known contact; Core persists with byte-sized counts | legacy — BE (#1210 (10), B-30) |

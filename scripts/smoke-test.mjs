@@ -8562,8 +8562,18 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      answer (C#-refused edit → toast + text back), the 25-newer mirror, the touch self-heal, the quotejump wait cancel on the
      load burst, the failed-row re-render. 803 leaves 503, 804 leaves 1 527. index.html unchanged (572 003). Stated.
      #46 r3 + r4 fixes: chat.html 821 769 → 823 110 (+1 341: the quote-shaped edit answer + its quote check, the keyboard-only
-     reveal) → CHAT 804 → 805; 804 would leave 186, 805 leaves 1 210. Stated. */
-  const CHAT_KB_CEIL = 805, INDEX_KB_CEIL = 560;
+     reveal) → CHAT 804 → 805; 804 would leave 186, 805 leaves 1 210. Stated.
+     ★ #1208 (session 7, voice messages): chat.html 813 377 → 830 286 chars as this check reads them (+16 909: the
+     recording bar + the voice bubble in composer.js / message-bubble.js, the V2–V6 wiring, the bounded push parsers, the
+     one-clip-at-a-time state, the voice menu / quote rules, the strings) → CHAT 805 → 812; 811 would leave 178,
+     812 leaves 1 202. index.html unchanged (563 168). Stated.
+     #46 r1 fixes (MEASURED): chat.html 830 286 → 833 579 (+3 293: the loading settle on offer / pause, the re-tap after 2 s,
+     the one voice-quote text, the voice-file transfer looks, the play focus carry, `sendfail`, the Reply / Edit block while
+     recording) → CHAT 812 → 816; 815 would leave 981, 816 leaves 2 005. index.html unchanged. Stated.
+     #46 r2 fixes (MEASURED): chat.html 833 579 → 834 837 (+1 258: the completed-download grace settle, the paused clear on
+     a revived transfer, the re-tap window restart, the sendfail release, the Escape step-aside) → CHAT 816 → 817; 816 would
+     leave 747, 817 leaves 1 771. index.html unchanged. Stated. */
+  const CHAT_KB_CEIL = 817, INDEX_KB_CEIL = 560;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -12508,7 +12518,8 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     && /return "pending";/.test(base366) && /return "none";/.test(base366),
     'D-5: contactRelationFor lives on SpixiContentPage with the 4-value vocabulary (one truth for all three pushes)');
   // ★ #1198/#1199 re-base (session 6b): + edited, quoteName, quoteText after reply_to (args 14–16, additive the same way)
-  ok(/errorSending\.ToString\(\), relation, reply_to, edited, quoteName, quoteText\);/.test(scp366),
+  // ★ #1208 re-base (session 7): + `rowVoice` (arg 17, V2) after quoteText — additive the same way
+  ok(/errorSending\.ToString\(\), relation, reply_to, edited, quoteName, quoteText, rowVoice\);/.test(scp366),
     'D-5 + M1 (#441): the per-message addMe/addThem push carries the trailing relation arg — and now the reply-to id after it, additive in the same way (+ #1198/#1199 args 14–16)');
   ok(/relation = contactRelationFor\(resolvedSender\);/.test(scp366)
     && /!message\.localSender && !relationBlind/.test(scp366),
@@ -12552,9 +12563,10 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
   const chat366 = read('src/shells/chat.html');
   /* ★ #1198 re-base: the S6 P1 args (edited, quoteName, quoteText) follow replyTo — the intent (accept EVERY trailing arg C#
      sends, none silently discarded) is unchanged; the signature grew by the three the contract adds */
-  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText\)/.test(chat366),
+  /* ★ #1208 re-base (session 7): + `voice` (arg 17, V2) — the same intent, one more trailing arg */
+  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice\)/.test(chat366),
     'D-5 + M1 (#441): chat.html addThem accepts the trailing relation AND replyTo (the old signature silently discarded trailing args)');
-  ok(/addMe\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText\)/.test(chat366),
+  ok(/addMe\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice\)/.test(chat366),
     '★ M1 (#441): addMe grew the SAME two trailing params. It declared 11 and would otherwise have discarded the reply target on OWN messages — which is precisely the sender-persistence case that killed C8 on hardware (#215)');
   ok(/const RELATIONS = new Set\(\['contact', 'pending', 'pending-in', 'none', 'self'\]\);/.test(chat366),
     'D-5: pushed relation values are validated against the closed vocabulary (+ pending-in, #371)');
@@ -21543,13 +21555,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const chDead = rdf('Spixi/Resources/Raw/html/chat.html');
     /* ★★ #1028 INVERTS this paired negative (#835 — inverted, not deleted): the shipped addFile handler now READS
        `sent`/`read` (and the relay flag, arg 14) into the status it renders, which is why the C# derivation is back. */
-    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
+    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
       '★★ L2 (#641) PAIRED — INVERTED by #1028: the shipped addFile handler READS `sent`/`read` (+ the relay flag) into the tick it renders, so the C# derivation is back on that push (the negative this replaced said: if the shell ever reads them, the C# must come back)');
     // ★ #1198/#1199 re-base (session 6b): arg 2 is `rowText` (the body of a matched reply, else message.message)
     ok(/"updateMessage", Crypto\.hashToString\(message\.id\), rowText, tSent\.ToString\(\), tConfirmed\.ToString\(\), tRead\.ToString\(\)/.test(scp)
        && /string rowText = message\.message;/.test(scp),
       '★ L2 (#641): updateMessage pushes the DERIVED values, not the stored ones — the raw flags would re-stall the tick on every re-push');
-    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\), fTransfer, fLocal\);/.test(scp)   /* ★ #1177 re-base: + the trailing transfer arg */
+    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\), fTransfer, fLocal, fVoice\);/.test(scp)   /* ★ #1177 re-base: + the trailing transfer arg · ★ #1208 re-base: + arg 17 fVoice */
        && /"addAppRequest"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp),
       '★ L2 (#641) + #1028: the FILE push carries the DERIVED flags now (the card renders a tick); the APP push keeps the RAW flags — deriving values the shell throws away would be dead code with a false guarantee attached');
     /* ★★★ L2 (#649) — NO OPTIMISTIC SINGLE CHECK. Damir ruled against his own earlier
@@ -22828,13 +22840,14 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        && !/^\s*int channel = spixi_message != null/m.test(sp)
        /* ★ #1199 re-base (session 6b): + the chatStream drop guard's receipt (an edit of a message this device does not
           hold) — the same wire channel, so FOUR on the wire channel and still none on `channel` */
-       && receipts === 4
+       /* ★ #1208 re-base (session 7): + the voice edit guard's receipt (an edit onto / into a voice row) — FIVE */
+       && receipts === 5
        && !/sendReceivedConfirmation\(friend, message\.id, channel\);/.test(rd)
        && /int delete_channel = resolveMessageChannel\(friend, spixi_message\.data, channel\);/.test(rd)
        && /UIHelpers\.deleteMessage\(friend, delete_channel, spixi_message\.data\);/.test(rd)
        && /UIHelpers\.updateReactions\(friend, resolveMessageChannel\(friend, reaction\.msgId, channel\), reaction\.msgId\);/.test(rd)
        && /ch = resolveMessageChannel\(friend, spixi_message\.data, channel\);/.test(rd),
-      '★★★ #46 loop (findings-A MAJOR-3): NO site in receiveData acts on a literal 0 any more. The declaration takes the SENDER\'s channel; the three delivery receipts name the channel the message was stored under; the remote delete and the reaction push resolve by message id, because SingleChatPage drops both when `channel != selectedChannel`. A receipt with the WRONG channel is worse than no receipt — the peer looks its copy up by id AND channel, finds nothing, and its clock never advances. Got ' + receipts + ' of 4 receipts on the wire channel (#1199: + the edit drop guard). The declaration is the plain `int channel = spixi_message.channel;` and the null payload returns ABOVE it');
+      '★★★ #46 loop (findings-A MAJOR-3): NO site in receiveData acts on a literal 0 any more. The declaration takes the SENDER\'s channel; the three delivery receipts name the channel the message was stored under; the remote delete and the reaction push resolve by message id, because SingleChatPage drops both when `channel != selectedChannel`. A receipt with the WRONG channel is worse than no receipt — the peer looks its copy up by id AND channel, finds nothing, and its clock never advances. Got ' + receipts + ' of 5 receipts on the wire channel (#1199: + the edit drop guard · #1208: + the voice edit guard). The declaration is the plain `int channel = spixi_message.channel;` and the null payload returns ABOVE it');
   }
 
   /* —— #46 loop · forEachGroupHolding LOGS ITS NO-MATCH EXIT ————————————————— */
@@ -23088,16 +23101,20 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     let syncsAfterThrow = -1;
     let passthrough = null;
     let sameObject = null;
+    let voiceSyncs = 0;
     try {
       const handlers = {
         setChatMode() { return 'RESULT'; },
         boom() { throw new Error('handler blew up'); },
         notAFunction: 42,
       };
-      new Function('handlers', 'bridge', 'syncAttachAffordance', wire)(
+      /* ★ #1208 re-base (session 7): the same wrapper re-derives the MIC too (syncVoiceCap, its own try) — the lifted wire
+         is handed a counting stub for it, and the pin below asserts it ran once per push like the ⊕ */
+      new Function('handlers', 'bridge', 'syncAttachAffordance', 'syncVoiceCap', wire)(
         handlers,
         { exposeAll: (o) => { exposed = o; } },
-        () => { syncs += 1; });
+        () => { syncs += 1; },
+        () => { voiceSyncs += 1; });
       sameObject = exposed === handlers;
       ret = exposed.setChatMode();
       try { exposed.boom(); } catch (e) { threwThrough = true; }
@@ -23110,7 +23127,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       '★★★ #46 loop EXECUTED, THE WIRE (surviving mutations X1 · X2 · X3 · X8): `bridge.exposeAll` is handed the WRAPPED handler table, not the raw one. Change that argument back to `handlers` and every C# push stops re-deriving the composer ⊕ — with the latch, the belt, the predicate and all four flags still named and still green. This runs the wrapper instead of reading it');
     ok(ret === 'RESULT' && syncs >= 1,
       '★★★ #46 loop EXECUTED, THE WIRE: a C# push REACHES the reader — calling a wrapped handler runs syncAttachAffordance, and the handler\'s own return value survives unchanged. The ⊕ is DERIVED after every push instead of being pushed at from three call sites that no pin read');
-    ok(threwThrough === true && syncsAfterThrow === 2,
+    ok(threwThrough === true && syncsAfterThrow === 2 && voiceSyncs === 2,   /* ★ #1208: the mic re-derives on both pushes too */
       '★★★ #46 loop EXECUTED, THE WIRE: a handler that THROWS still re-derives, because the wrapper uses `finally` — and the throw is not swallowed, so C# still sees the failure. Drop the finally and one bad push leaves the ⊕ wrong for the rest of the session');
     ok(passthrough === 42,
       '★★ #46 loop EXECUTED, THE WIRE: a non-function entry in the handler table passes through untouched. The bridge carries values as well as functions, and wrapping one would break the push that reads it');
@@ -38460,7 +38477,7 @@ console.log('★★ #1028+ — the overnight finalization');
     const fileBr = um.slice(um.indexOf('if (message.type == FriendMessageType.fileHeader)'), um.indexOf('if (message.type != FriendMessageType.standard)'));
     const r = {
       derivedBeforePush: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*push\(batch, "addFile"/.test(cs),
-      argOrder: args.length === 16 && args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()' && args[14] === 'fTransfer' && args[15] === 'fLocal',   /* ★ #1177 re-base: + arg 15, the known incoming transfer (pins-s6/cs.mjs) · ★ #1190 re-base: + arg 16, the file on this device (pins-s6/rows.mjs) */
+      argOrder: args.length === 17 && args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()' && args[14] === 'fTransfer' && args[15] === 'fLocal' && args[16] === 'fVoice',   /* ★ #1208 re-base: + arg 17 fVoice (V3) */   /* ★ #1177 re-base: + arg 15, the known incoming transfer (pins-s6/cs.mjs) · ★ #1190 re-base: + arg 16, the file on this device (pins-s6/rows.mjs) */
       liveFlagsOnly: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*Utils\.sendUiCommand\(this, "updateFileTicks", Crypto\.hashToString\(message\.id\), fSent\.ToString\(\), fConfirmed\.ToString\(\), fRead\.ToString\(\)\);\s*return;/.test(fileBr)
         && !/message\.message|filePath|transferId/.test(fileBr),
       beforeTextGuard: um.indexOf('FriendMessageType.fileHeader') > -1 && um.indexOf('FriendMessageType.fileHeader') < um.indexOf('if (message.type != FriendMessageType.standard)'),
@@ -38705,7 +38722,9 @@ console.log('★★ #1028+ — the overnight finalization');
         const cp = stripCode(readFileSync(join(root, 'src/components/composer.js'), 'utf8'));
         ok(/const menuOverField = \(\) => !!\(typeof document !== 'undefined' && document\.querySelector\('\[data-keep-editable\]'\)\);/.test(cp)
            && /e\.preventDefault\(\);\s*if \(menuOverField\(\)\) return;\s*send\(\);/.test(cp)
-           && /if \(e\.key === 'Escape' && composerCtx\.has\(el\) && !menuOverField\(\)\) cancelComposerContext\(el\);/.test(cp),
+           /* ★ #1208 re-base (session 7, #46 r2 NIT-7): + `!composerRec.has(el)` — with a recording bar up, Escape belongs to the
+              recording only (composer.js's el listener); the menu rule is unchanged */
+           && /if \(e\.key === 'Escape' && composerCtx\.has\(el\) && !composerRec\.has\(el\) && !menuOverField\(\)\) cancelComposerContext\(el\);/.test(cp),
           '★ #1065 r2 (MINOR-3): while the message menu is up over the focused composer, Enter does not send and Esc closes the MENU only — the reply/edit context survives');
       }
     }
@@ -42050,6 +42069,11 @@ for (const mod of ['view', 'group', 'menu', 'hover', 'cs', 'rows', 'live', 'prob
 /* ==== SESSION 6b PINS — cs = #1197–#1199 + #1190 (C#) · reply = #1198 · edit = #1199 · fade = #1201 · small = #1202 · lead = #1203 ==== */
 for (const mod of ['cs', 'reply', 'edit', 'fade', 'small', 'lead']) {
   await (await import(new URL('./pins-s6b/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
+}
+/* ==== SESSION 7 PINS — core = #1207 / #1208 C# rules + receive (agent A) · cs = the page + audio seams (agent B) · shell = the
+ * voice UI (agent C) · lead = the updateMessage arg 12 + the integration ==== */
+for (const mod of ['core', 'cs', 'shell', 'lead']) {
+  await (await import(new URL('./pins-s7/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 }
 

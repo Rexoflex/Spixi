@@ -351,6 +351,10 @@ namespace SPIXI
                     }
                     else if (fm.type == FriendMessageType.standard)
                     {
+                        if (VoiceCodec.tryPeekInline(fm.message, out _))
+                        {
+                            continue;   // ★ #1208: an inline voice text yields no link (its base64 is not text)
+                        }
                         /* ★ #46 r1 C m-2 (#1198): links from the BODY — a reply's quote line holds the quoted text (a URL
                          * there is the TARGET's link again, or one cut with "…"). (An edit keeps `timestamp`, #46 r2 MAJOR-1.) */
                         List<string> links = LinkRule.extract(ReplyQuote.stripForExcerpt(fm.message));

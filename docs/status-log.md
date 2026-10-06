@@ -404,3 +404,9 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   #1198 reply · #1199 edit (3 contract-first agents + the lead, #1206). #46: r1 6 MAJOR → fixed (+ Damir P1 original time, P2 no-match box) ·
   r2 2 MAJOR → fixed · r3 CLEAN · r4 CLEAN. Smoke BASELINE OK 5302 · CSH 154. ⚠ C# UNCOMPILED. UNCOMMITTED → patch `session6b-build.patch`.
   Next: Damir walks 6b → session 7 (voice + the capability ask). Next free #1207.
+- 2026-10-05 (session 7, cloud twin; Damir walks 6b + S7 together next): precondition OK (0bdc9edb = origin; smoke 5302 · CSH 154).
+  S7 interview → #1207 (the capability ask at chat open, stored list trusted + one ask per contact per run) · #1208 (voice: 30 s, inline
+  to a confirmed new app, Ogg Opus file for old apps + groups, native playback, waveform, 1×, loudspeaker, tap to record, stop and keep).
+  Damir "go" → built (3 contract-first agents + lead, #1209). #46: r1 1 MAJOR → fixed · r2 1 MAJOR → fixed · r3 CLEAN · r4 CLEAN;
+  recorded #1210. Smoke BASELINE OK 5346 · CSH 190. ⚠ C# UNCOMPILED. UNCOMMITTED → patch `session7-build.patch`. The 6b walk was NOT
+  recorded this session (Damir walks 6b + S7 together; the fix session 7b records both). Next free #1211.

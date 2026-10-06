@@ -339,3 +339,84 @@
   pointer-events: none;
 }
 .c-composer__counter[data-over] { color: var(--text-error); }
+
+/* —— ★★ #1208 (S7) the RECORDING BAR: replaces the pill in the pill's skin and height (no shift); ✕ · dot · "0:07 / 0:30",
+   the trailing disc = ➤. Fades in on --duration-200, leaves at once (close faster than open); reduced motion = still dot. */
+.c-composer[data-rec] .c-composer__field { display: none; }
+@keyframes c-composer-rec-in { from { opacity: 0; } }
+.c-composer__rec {
+  animation: c-composer-rec-in var(--duration-200) var(--easing-decelerate);
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: calc(2 * var(--outline-width-1) + 2 * var(--spacing-4) + var(--line-height-body-md) + 2 * var(--composer-input-pad));
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding-block: var(--spacing-4);
+  padding-inline: var(--spacing-4) var(--spacing-12);
+  background: var(--surface-composer-pill);
+  border: var(--outline-width-1) solid var(--outline-composer-pill);
+  box-shadow: var(--elevation-1);
+  border-radius: var(--radius-24);
+  position: relative;   /* ★ #46 r1 NIT: the clip-hidden status line anchors here */
+}
+/* ✕ — a 36 disc like the ⊕ it stands in for, 44 hit area (the same padding trick) */
+.c-composer__rec-cancel {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--composer-attach-size);
+  height: var(--composer-attach-size);
+  box-sizing: content-box;
+  padding: calc((var(--size-target-min) - var(--composer-attach-size)) / 2);
+  margin: calc(-1 * (var(--size-target-min) - var(--composer-attach-size)) / 2);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  background-clip: content-box;   /* after the shorthand (the Session J A15 lesson): the 36 disc paints, the 44 stays the target */
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-composer__rec-cancel:hover { background-color: var(--surface-interactive-hover); color: var(--icon-neutral-01); }
+}
+.c-composer__rec-cancel:active { background-color: var(--surface-interactive-pressed); }
+.c-composer__rec[data-pending] .c-composer__rec-cancel { cursor: default; }
+/* the dot: red and breathing while C# records; grey and still once stopped (30 s or an interrupt — the clip is kept) */
+.c-composer__rec-dot {
+  flex: none;
+  width: 10px;   /* sanctioned: a status dot glyph, no size token this small (the typing-dot precedent) */
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--icon-error);
+}
+.c-composer__rec[data-state="recording"] .c-composer__rec-dot { animation: c-composer-rec-pulse calc(4 * var(--duration-300)) var(--easing-standard) infinite;   /* 1.2 s from the motion token (0 under reduced motion, and the rule below stops it) */ }
+.c-composer__rec[data-state="stopped"] .c-composer__rec-dot { background: var(--icon-neutral-03); }
+@keyframes c-composer-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .c-composer__rec { animation: none; }
+  .c-composer__rec[data-state="recording"] .c-composer__rec-dot { animation: none; }
+}
+.c-composer__rec-time {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  color: var(--text-neutral-01);
+  white-space: nowrap;
+}
+.c-composer__rec[data-state="stopped"] .c-composer__rec-time { color: var(--text-neutral-02); }
+/* the polite status line (start / stop only) — clip-hidden, the chat-info __live pattern */
+.c-composer__rec-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  margin: 0;
+}

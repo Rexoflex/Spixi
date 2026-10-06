@@ -704,6 +704,23 @@ namespace SPIXI
                                 sendReceivedConfirmation(friend, message.id, spixi_message.channel);
                                 return null;
                             }
+                            /* ★ #1208 (session 7): an edit never turns a row into or out of a VOICE message — a non-bot
+                             * replace or stream chunk (Sequence > 0) onto a row whose text is an inline voice text, or a
+                             * replace whose NEW text is one (VoiceCodec.tryPeekInline: the shape, no decode), is dropped like
+                             * a non-text row above — receipt sent, nothing stored, no log (the drop above already logs its kind).
+                             * ★ #46 r1 (auditor C MINOR-1): a STREAM chunk APPENDS (Core FriendList.cs:298 `message +=`), so a
+                             * chunk whose COMBINED text would be voice-shaped is dropped too (the length test first: no
+                             * concatenation past MaxTextChars — the peek would refuse it anyway). */
+                            if (friend != null && !friend.bot && csm.Sequence > 0
+                                && ((existing != null && VoiceCodec.tryPeekInline(existing.message, out _))
+                                    || (!csm.IsStream && VoiceCodec.tryPeekInline(csm.Message, out _))
+                                    || (csm.IsStream && existing != null
+                                        && (existing.message?.Length ?? 0) + (csm.Message?.Length ?? 0) <= VoiceCodec.MaxTextChars
+                                        && VoiceCodec.tryPeekInline(existing.message + csm.Message, out _))))
+                            {
+                                sendReceivedConfirmation(friend, message.id, spixi_message.channel);
+                                return null;
+                            }
                             /* ★★ Damir P1 (#46 r2 MAJOR-1): a REPLACE keeps the message's time. Core's replace writes the
                              * timestamp it is given back onto the row (FriendList.cs:288 `tmp_msg.timestamp = timestamp`), and
                              * the envelope's `message.timestamp` is the EDIT's time — so the existing row's own time is passed
@@ -860,7 +877,7 @@ namespace SPIXI
                     case SpixiMessageCode.getAppProtocols:
                         {
                             /* ★★ #1197 (session 6b, #1136 / #1189 (1)): THE CAPABILITY ANSWER. A peer asks which Spixi
-                             * protocols this build speaks; the answer is "spixi.reply.1", "spixi.edit.1" (SpixiProtocols.ids).
+                             * protocols this build speaks; the answer is "spixi.reply.1", "spixi.edit.1", "spixi.voice.1" (SpixiProtocols.ids, #1208).
                              * Only a known, approved, normal 1:1 contact (not a group, not a bot room, not a stranger or a
                              * pending request) gets one, at most once per address per 60 s (SpixiProtocols.claimAnswer: the
                              * rule + the limiter, executed in scripts/csh). Core already sent the delivery receipt for this

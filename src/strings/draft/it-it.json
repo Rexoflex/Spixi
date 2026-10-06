@@ -741,5 +741,20 @@
   "fileUnavailable": "Non disponibile su questo dispositivo",
   "photoDeletedLocal": "Foto eliminata da questo dispositivo",
   "saveEdit": "Salva",
-  "editNoLonger": "Questo messaggio non può più essere modificato. Il tuo testo resta nel campo del messaggio."
+  "editNoLonger": "Questo messaggio non può più essere modificato. Il tuo testo resta nel campo del messaggio.",
+  "cancelRecording": "Annulla registrazione",
+  "recordingVoice": "Registrazione del messaggio vocale",
+  "sendVoice": "Invia messaggio vocale",
+  "playVoice": "Riproduci messaggio vocale",
+  "pauseVoice": "Metti in pausa il messaggio vocale",
+  "voiceLoading": "Caricamento del messaggio vocale",
+  "voiceUnavailable": "Impossibile riprodurre questo messaggio vocale",
+  "micDenied": "Spixi ha bisogno di accedere al microfono per registrare. Consentilo quando richiesto, o nelle impostazioni del dispositivo, poi tocca di nuovo il microfono.",
+  "micBusy": "Non puoi registrare un messaggio vocale durante una chiamata.",
+  "voiceRecError": "Impossibile registrare il messaggio vocale.",
+  "voiceMessageLength": "Messaggio vocale ({0})",
+  "playVoiceLength": "Riproduci messaggio vocale, {0}",
+  "recordingStoppedAt": "Registrazione interrotta, {0}",
+  "recordingTime": "{0} / {1}",
+  "voiceSendFailed": "Impossibile inviare il messaggio vocale."
 }

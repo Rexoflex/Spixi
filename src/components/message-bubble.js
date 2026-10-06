@@ -30,6 +30,11 @@
  *   linkPreview: { url, title, domain, image }, // §8-GATED: P2P has no server
  *                             // to unfurl — the SENDER composes the preview
  *                             // into the message (Signal-style), bridge carries it
+ *   voice: { durMs, peaks, state, posMs, onPlay },   // ★ #1208 (S7): a VOICE bubble —
+ *                             // play / pause + a 40-bar waveform + the time replace
+ *                             // the text body (`text` is ignored); live updates via
+ *                             // setVoiceBubble(row, voice). No audio here: onPlay
+ *                             // asks C# (ixian:voiceplay:), C# pushes the state.
  *   strings
  * })
  */
@@ -305,6 +310,7 @@ export function createMessageBubble({
                                // data:image/ thumb never does. Default = no remote request.
   mention = null,              // { names:[…], self:[…] } → @-mention highlight (#210); null = off
   roleBadge = null,            // N34 (#365): 'Owner' chip label, top-right of the sender row; null = off
+  voice = null,                // ★ #1208 (S7): { durMs, peaks, state, posMs, onPlay } → a voice bubble (see the header)
   strings = getStrings(),
 } = {}) {
   // row wrapper: aligns bubble + optional avatar gutter (received groups)
@@ -340,7 +346,7 @@ export function createMessageBubble({
 
   const el = document.createElement('div');
   el.className = 'c-bubble';
-  if (text && EMOJI_ONLY_RE.test(text.trim())) el.dataset.emojiOnly = ''; // big emoji, meta below (Damir 2026-07-03)
+  if (!voice && text && EMOJI_ONLY_RE.test(text.trim())) el.dataset.emojiOnly = ''; // big emoji, meta below (Damir 2026-07-03)
 
   // sender label: group chats, first bubble of a group, identity-hued (premium).
   // Hash key mirrors createAvatar's (address || name) so label + avatar agree.
@@ -441,10 +447,17 @@ export function createMessageBubble({
     el.append(q);
   }
 
-  const body = document.createElement('span');
-  body.className = 'c-bubble__text';
-  linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
-  el.append(body);
+  if (voice) {
+    /* ★ #1208: the voice body REPLACES the text — the row's own text (C#'s readable first line for an old app,
+       "🎤 0:12 (voice message — update Spixi to play)") is never shown in a voice bubble */
+    el.dataset.voice = '';
+    el.append(buildVoiceBody(voice, strings));
+  } else {
+    const body = document.createElement('span');
+    body.className = 'c-bubble__text';
+    linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
+    el.append(body);
+  }
 
   // link preview card (§8-GATED — sender-composed payload, P2P can't unfurl)
   if (linkPreview && (linkPreview.title || linkPreview.domain)) {
@@ -731,4 +744,150 @@ export function createDateSeparator(ts, strings = getStrings(), now = Date.now()
   pill.textContent = dayBucketLabel(ts, strings, now, strings.today || 'Today');
   el.append(pill);
   return el;
+}
+
+/* —— ★★ #1208 (S7) — THE VOICE BUBBLE ————————————————————————————————————————————————————————————————
+ * Damir's picks: a play / pause button, a WAVEFORM of 40 bars (C# decodes the clip once and pushes the peaks —
+ * voiceInfo; flat placeholder bars until then), the time (the duration; the position while playing or paused),
+ * the states loading / error, 1× only. There is NO audio in this WebView: the button asks C# (the shell sends
+ * ixian:voiceplay:<id>) and every state comes back as a voiceState push. The same bubble serves an inline voice
+ * row (addMe / addThem arg 17 = durMs) and a voice FILE row (addFile arg 17 = "1", duration unknown until
+ * voiceInfo). The waveform is decoration (aria-hidden); the button carries the name ("Play voice message, 0:12" /
+ * "Pause voice message"), the time is plain text. Live updates go through setVoiceBubble — in place, so the button
+ * keeps keyboard focus across a playing tick. */
+export const VOICE_BARS = 40;          // = VoiceCodec.PeakCount
+const VOICE_STATES = new Set(['idle', 'loading', 'playing', 'paused', 'stopped', 'error']);
+const voiceBodyState = new WeakMap();   // .c-voice → what it shows (merged by setVoiceBubble)
+const VOICE_TAP_GUARD_MS = 400;         // #46 r1 (B m-7): a double tap is ONE play / pause
+const VOICE_RETAP_LOADING_MS = 2000;    // #46 r1 (B MAJOR-1): a tap on `loading` is ignored this long, then C# re-evaluates (§7)
+
+/** "{0} … {1}" → the values, in order. ★ #46 r1 NIT: a voice line's punctuation lives IN the translated template
+ *  ("Voice message ({0})", "Play voice message, {0}", "{0} / {1}") — never a hardcoded ", " or " (" in code. */
+export function fillVoiceSlots(template, ...vals) {
+  return String(template).replace(/\{(\d)\}/g, (m, i) => (vals[+i] === undefined ? m : String(vals[+i])));
+}
+/** The ONE quote rendering of a voice message (#46 r1 B m-8): "Voice message (0:12)" with a known length, else the
+ *  label — the bubble's quote of a loaded or an unloaded target and the composer's reply strip all call this. */
+export function voiceQuoteText(durMs, strings = getStrings()) {
+  const label = strings.voiceMessage || 'Voice message';
+  return Number(durMs) > 0 ? fillVoiceSlots(strings.voiceMessageLength || 'Voice message ({0})', formatVoiceDuration(durMs)) : label;
+}
+
+/** m:ss of a millisecond count, FLOORED — a running clock (the recording timer, the playing position). */
+export function formatVoiceClock(ms) {
+  const s = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+/** m:ss of a clip's LENGTH — VoiceCodec.formatDuration's rule: the nearest second (half up), at least 0:01 when
+ *  there is any audio, 0:00 for none. The bubble, C#'s readable first line and the chats-list excerpt agree. */
+export function formatVoiceDuration(ms) {
+  const n = Math.max(0, Number(ms) || 0);
+  if (n <= 0) return '0:00';
+  return formatVoiceClock(Math.max(1000, Math.floor(n / 1000 + 0.5) * 1000));
+}
+
+/* 40 heights 0..100 from whatever C# sent (bounded by the shell); any other count is resampled, none = flat */
+function voiceBarHeights(peaks) {
+  const out = new Array(VOICE_BARS).fill(0);
+  if (!Array.isArray(peaks) || !peaks.length) return out;
+  for (let i = 0; i < VOICE_BARS; i++) {
+    const v = Number(peaks[Math.min(peaks.length - 1, Math.floor(i * peaks.length / VOICE_BARS))]) || 0;
+    out[i] = Math.max(0, Math.min(100, v));
+  }
+  return out;
+}
+
+function buildVoiceBody(voice, strings) {
+  const wrap = document.createElement('span');
+  wrap.className = 'c-voice';
+  const play = document.createElement('button');
+  play.type = 'button';
+  play.className = 'c-voice__play';
+  let lastTap = 0;
+  play.addEventListener('click', () => {
+    const v = voiceBodyState.get(wrap);
+    if (!v || v.gone || typeof v.onPlay !== 'function') return;
+    const t = Date.now();
+    if (t - lastTap < VOICE_TAP_GUARD_MS) return;   // a double tap = one toggle
+    /* loading = C# is fetching / decoding: a quick second tap would toggle a clip that is not playing yet — but a
+       loading that LASTS is never a dead button: after VOICE_RETAP_LOADING_MS the tap goes to C#, which re-evaluates */
+    if (v.state === 'loading' && t - (v.loadingAt || 0) < VOICE_RETAP_LOADING_MS) return;
+    lastTap = t;
+    v.onPlay();
+  });
+  const wave = document.createElement('span');
+  wave.className = 'c-voice__wave';
+  wave.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < VOICE_BARS; i++) {
+    const b = document.createElement('span');
+    b.className = 'c-voice__bar';
+    wave.append(b);
+  }
+  const time = document.createElement('span');
+  time.className = 'c-voice__time u-tabular';
+  wrap.append(play, wave, time);
+  paintVoice(wrap, voice, strings);
+  return wrap;
+}
+
+function paintVoice(wrap, voice, strings = getStrings()) {
+  const v = Object.assign({ durMs: null, peaks: null, state: 'idle', posMs: 0, onPlay: null }, voiceBodyState.get(wrap) || {});
+  const was = v.state;
+  for (const k of Object.keys(voice || {})) if (voice[k] !== undefined) v[k] = voice[k];   // an absent key keeps what is shown
+  if (!VOICE_STATES.has(v.state)) v.state = 'idle';
+  if (v.state === 'loading' && was !== 'loading' && !(voice && voice.loadingAt)) v.loadingAt = Date.now();
+  voiceBodyState.set(wrap, v);
+  /* ★ #46 r1 (B m-9): `gone` = the file is not on this device — a disabled bubble with the caller's words, no tap */
+  if (v.gone) wrap.dataset.gone = ''; else delete wrap.dataset.gone;
+  wrap.dataset.state = v.state;
+  const dur = Number(v.durMs) > 0 ? Number(v.durMs) : 0;
+  const live = v.state === 'playing' || v.state === 'paused';
+  const pos = live ? Math.max(0, Math.min(dur || Infinity, Number(v.posMs) || 0)) : 0;
+
+  const play = wrap.querySelector('.c-voice__play');
+  const glyph = v.state === 'playing' ? 'player-pause' : v.state === 'error' ? 'exclamation-mark' : 'player-play';
+  if (play.dataset.glyph !== glyph + (v.state === 'loading' ? '-load' : '')) {
+    play.dataset.glyph = glyph + (v.state === 'loading' ? '-load' : '');
+    play.textContent = '';
+    if (v.state === 'loading') {
+      const sp = document.createElement('span');
+      sp.className = 'c-voice__spin';
+      sp.setAttribute('aria-hidden', 'true');
+      play.append(sp);
+    } else {
+      play.append(icon(glyph, { size: 20 }));
+    }
+  }
+  let label;
+  if (v.state === 'playing') label = strings.pauseVoice || 'Pause voice message';
+  else if (v.state === 'loading') label = strings.voiceLoading || 'Loading voice message';
+  else if (v.state === 'error') label = strings.voiceUnavailable || 'This voice message can’t be played';
+  else label = dur ? fillVoiceSlots(strings.playVoiceLength || 'Play voice message, {0}', formatVoiceDuration(dur))
+    : (strings.playVoice || 'Play voice message');
+  play.setAttribute('aria-label', label);
+  play.disabled = !!v.gone;
+  if (v.state === 'loading') play.setAttribute('aria-busy', 'true'); else play.removeAttribute('aria-busy');
+
+  const wave = wrap.querySelector('.c-voice__wave');
+  const hs = voiceBarHeights(v.peaks);
+  const known = Array.isArray(v.peaks) && v.peaks.length > 0;
+  if (known) delete wave.dataset.placeholder; else wave.dataset.placeholder = '';
+  const played = live && dur ? Math.round(pos / dur * VOICE_BARS) : 0;
+  const bars = wave.children;
+  for (let i = 0; i < bars.length; i++) {
+    bars[i].style.setProperty('--voice-h', String(hs[i]));
+    if (i < played) bars[i].dataset.played = ''; else delete bars[i].dataset.played;
+  }
+
+  const time = wrap.querySelector('.c-voice__time');
+  time.textContent = v.gone ? String(v.gone) : live ? formatVoiceClock(pos) : (dur ? formatVoiceDuration(dur) : '');
+}
+
+/** setVoiceBubble(row, patch) — the in-place update (voiceInfo / voiceState). `patch` merges into what the row
+ *  shows: { durMs, peaks, state, posMs, onPlay }. A row without a voice body is left alone. */
+export function setVoiceBubble(row, patch, strings = getStrings()) {
+  const wrap = row && row.querySelector ? row.querySelector('.c-voice') : null;
+  if (!wrap) return false;
+  paintVoice(wrap, patch, strings);
+  return true;
 }

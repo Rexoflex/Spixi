@@ -733,5 +733,20 @@
   "fileUnavailable": "Šiame įrenginyje nepasiekiama",
   "photoDeletedLocal": "Nuotrauka ištrinta iš šio įrenginio",
   "saveEdit": "Išsaugoti",
-  "editNoLonger": "Šios žinutės nebegalima redaguoti. Jūsų tekstas lieka žinutės laukelyje."
+  "editNoLonger": "Šios žinutės nebegalima redaguoti. Jūsų tekstas lieka žinutės laukelyje.",
+  "cancelRecording": "Atšaukti įrašymą",
+  "recordingVoice": "Įrašoma balso žinutė",
+  "sendVoice": "Siųsti balso žinutę",
+  "playVoice": "Leisti balso žinutę",
+  "pauseVoice": "Pristabdyti balso žinutę",
+  "voiceLoading": "Įkeliama balso žinutė",
+  "voiceUnavailable": "Šios balso žinutės nepavyksta paleisti",
+  "micDenied": "Spixi reikia prieigos prie mikrofono, kad galėtų įrašyti. Leiskite ją, kai bus paklausta, arba įrenginio nustatymuose, tada vėl palieskite mikrofoną.",
+  "micBusy": "Skambučio metu negalite įrašyti balso žinutės.",
+  "voiceRecError": "Balso žinutės įrašyti nepavyko.",
+  "voiceMessageLength": "Balso žinutė ({0})",
+  "playVoiceLength": "Leisti balso žinutę, {0}",
+  "recordingStoppedAt": "Įrašymas sustabdytas, {0}",
+  "recordingTime": "{0} / {1}",
+  "voiceSendFailed": "Balso žinutės išsiųsti nepavyko."
 }

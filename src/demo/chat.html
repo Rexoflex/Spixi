@@ -186,6 +186,7 @@
     setScrollLatestCount, attachMessageMenu, openTipSheet, openRequestSheet,
     createWalletSend, enterChatSelect, attachSplitPaste, createChatInfo,
     setComposerContext, getComposerContext,
+    setComposerRecording, setVoiceBubble,   // ★ #1208 (S7): the recording bar + the voice bubble's live state
     createMediaBubble, createModal, openModal,
     setMessageStatus, setPaymentStatus, removeMessage,
     createSystemNotice, attachLazyHistory, openAttachTray, closeAttachTray, isAttachTrayOpen, openMemberSheet,
@@ -601,6 +602,37 @@
       onRetry: () => toastD('Retrying'),
     }),
   );
+  /* ★ #1208 (S7): voice rows — an inline voice message (peaks known) and a voice FILE (flat bars until C#'s voiceInfo).
+     The mock plays nothing: play / pause run a fake position the way C#'s voiceState pushes would (~200 ms). */
+  const demoVoice = (direction, durMs, peaks, at, status) => {
+    let row = null, pos = 0, timer = 0;
+    const tick = () => {
+      pos += 200;
+      if (pos >= durMs) { clearInterval(timer); timer = 0; pos = 0; setVoiceBubble(row, { state: 'stopped', posMs: 0 }); return; }
+      setVoiceBubble(row, { state: 'playing', posMs: pos });
+    };
+    row = createMessageBubble({
+      direction, position: 'single', timestamp: at, status,
+      voice: {
+        durMs, peaks, state: 'idle',
+        onPlay: () => {
+          if (timer) { clearInterval(timer); timer = 0; setVoiceBubble(row, { state: 'paused', posMs: pos }); return; }
+          if (!peaks) {   // the voice FILE: the first tap = the download (loading), then C# pushes the info
+            setVoiceBubble(row, { state: 'loading' });
+            setTimeout(() => { peaks = Array.from({ length: 40 }, (_, i) => Math.round(50 + 45 * Math.sin(i / 2.3))); setVoiceBubble(row, { durMs, peaks, state: 'playing', posMs: 0 }); timer = setInterval(tick, 200); }, 900);
+            return;
+          }
+          setVoiceBubble(row, { state: 'playing', posMs: pos });
+          timer = setInterval(tick, 200);
+        },
+      },
+    });
+    return row;
+  };
+  boxD.append(
+    demoVoice('received', 12000, Array.from({ length: 40 }, (_, i) => Math.round(30 + 60 * Math.abs(Math.sin(i / 3.1)))), now - 500000),
+    demoVoice('sent', 7400, null, now - 400000, 'read'),
+  );
   // live reactions example (batch 3) — overlap in context (#65 locked);
   // seeded through the demo merge state so quick-reacts ADD to it (audit r3)
   rowRx.set(napkinRow, { reactions: [{ emoji: '😂', count: 3, own: true }, { emoji: '👍', count: 1 }] });
@@ -712,7 +744,7 @@
   });
 
   /* ============ live composers (both phones), voice flag shared ============ */
-  let voice = false;
+  let voice = false;   // ★ #1208 (S7): the toggle below turns the #64 slot ON (the mic + the mock recorder); off at boot keeps the #705 disabled-send state demonstrable
   const composers = [];
 
   /* —— #139: in-chat money actions — Pay → SEND SCREEN takeover (recipient locked,
@@ -933,6 +965,7 @@
     const slot = document.getElementById(slotId);
     const entry = { el: null };
     const mount = () => {
+      clearInterval(entry.recTimer);   // ★ #46 r1 NIT: a remount (the voice toggle) ends the mock recording with its bar
       if (entry.el) entry.el.remove();
       entry.el = createComposer({
         placeholder: 'Message',
@@ -947,7 +980,27 @@
             onAction: (id) => handleAttach(id, phone, box),  // #139: pay/request are LIVE
           });
         },
-        onRecord: () => showToast({ text: 'Voice recording lands with the BE proposal', tone: 'info', host: phone }),
+        /* ★ #1208: the mock recorder — the bar is driven exactly as C#'s voiceRec pushes drive it in the app */
+        onRecord: () => {
+          let ms = 0;
+          setComposerRecording(entry.el, 'recording', 0);
+          clearInterval(entry.recTimer);
+          entry.recTimer = setInterval(() => {
+            ms += 1000;
+            if (ms >= 30000) { clearInterval(entry.recTimer); setComposerRecording(entry.el, 'stopped', 30000); return; }
+            setComposerRecording(entry.el, 'recording', ms);
+          }, 1000);
+          entry.recMs = () => ms;
+        },
+        onVoiceCancel: () => { clearInterval(entry.recTimer); setComposerRecording(entry.el, 'idle', 0); },
+        onVoiceSend: () => {
+          clearInterval(entry.recTimer);
+          const ms = Math.max(1000, entry.recMs ? entry.recMs() : 1000);
+          setComposerRecording(entry.el, 'idle', 0);
+          box.append(demoVoice('sent', ms, Array.from({ length: 40 }, () => Math.round(20 + Math.random() * 80)), Date.now(), 'sending'));
+          keepTypingLast(box);
+          box.scrollTop = box.scrollHeight;
+        },
       });
       slot.append(entry.el);
       // #711: the floating composer — publish its height so the chevron floats above it
@@ -987,7 +1040,7 @@
   document.getElementById('caps-slot').append(ringBtn);
 
   const voiceBtn = createButton({
-    label: 'Voice flag: off', type: 'outline', size: 32,
+    label: 'Voice flag: ' + (voice ? 'on' : 'off'), type: 'outline', size: 32,   // ★ #46 r1 NIT: the label follows the boot state
     onClick: () => {
       voice = !voice;
       voiceBtn.querySelector('.c-button__label').textContent = 'Voice flag: ' + (voice ? 'on' : 'off');

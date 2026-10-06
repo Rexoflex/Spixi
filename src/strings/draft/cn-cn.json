@@ -733,5 +733,20 @@
   "fileUnavailable": "此设备上不可用",
   "photoDeletedLocal": "照片已从此设备删除",
   "saveEdit": "保存",
-  "editNoLonger": "此消息已无法编辑。你的文字保留在输入框中。"
+  "editNoLonger": "此消息已无法编辑。你的文字保留在输入框中。",
+  "cancelRecording": "取消录音",
+  "recordingVoice": "正在录制语音消息",
+  "sendVoice": "发送语音消息",
+  "playVoice": "播放语音消息",
+  "pauseVoice": "暂停语音消息",
+  "voiceLoading": "正在加载语音消息",
+  "voiceUnavailable": "无法播放此语音消息",
+  "micDenied": "Spixi 需要麦克风权限才能录音。请在系统询问时允许，或在设备设置中允许，然后再次点击麦克风。",
+  "micBusy": "通话期间无法录制语音消息。",
+  "voiceRecError": "无法录制语音消息。",
+  "voiceMessageLength": "语音消息（{0}）",
+  "playVoiceLength": "播放语音消息，{0}",
+  "recordingStoppedAt": "录音已停止，{0}",
+  "recordingTime": "{0} / {1}",
+  "voiceSendFailed": "无法发送语音消息。"
 }

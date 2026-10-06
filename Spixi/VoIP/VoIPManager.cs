@@ -129,6 +129,9 @@ namespace SPIXI.VoIP
 
             lock (controlLock) { resetCallControls(false); }   // ★ #1074 (#46 r1 MINOR-3): a new call never inherits a control
             currentCallSessionId = Guid.NewGuid().ToByteArray();
+            /* ★ #1208 (S7; #46 r1 A M1: AFTER the session id is set — a voice record / play that checks isInitiated() under
+             * VoiceClips' gate from now on is refused, and whatever already runs is stopped here): a recording is kept */
+            VoiceClips.interruptAll("call");
             currentCallContact = friend;
             currentCallCalleeAccepted = false;
             currentCallAccepted = true;
@@ -193,6 +196,7 @@ namespace SPIXI.VoIP
                 rejectCall(session_id);
                 return false;
             }
+            VoiceClips.interruptAll("call");   // ★ #1208 (S7; #46 r1 A M1: after the session id is set, above): a recording is kept, a clip stops
             aquirePowerLocks();
             // #334 AND-11: pre-request the mic at RING time (messenger practice) so
             // the grant dialog resolves while the phone is still ringing instead of

@@ -1059,6 +1059,33 @@ namespace SPIXI.Meta
         // fallback. voiceCallEnd deliberately falls through to the default (a call-end
         // push isn't reliably a missed call — dial). requestAdd included: a contact
         // request notifying as "New Message" was the same information loss.
+        /* ★ #1208 (S7, Damir): an inline voice message notifies as "🎤 Voice message (0:12)" — the per-type label plus the
+         * clip LENGTH (VoiceCodec.tryPeekInline reads the marker line only: no decode, no text of the message). null = not
+         * a voice message (or a bot room, where a voice-shaped text renders as plain text — rendersAsVoice) → the type label. */
+        private static string? voiceNotificationText(Friend friend, FriendMessageType type, FriendMessage? friend_message)
+        {
+            if (type != FriendMessageType.standard || friend_message == null || !VoiceCodec.rendersAsVoice(friend.bot)
+                || !VoiceCodec.tryPeekInline(friend_message.message, out int durMs))
+            {
+                return null;
+            }
+            return "🎤 " + VoiceCodec.lengthLabel(SpixiLocalization._SL("chat-voice-message-length"), durMs);   // ★ #46 r2: the localized template
+        }
+
+        /* ★ #1208 (#46 r1, contract §5): a voice FILE offer notifies as "🎤 Voice message" — the same rule as its row and
+         * its reply excerpt (ReplyQuote: the name + the header's size; not in a bot room). Reads the header's NAME only to
+         * test the pattern; the name never reaches the text. null → the #1178 file-offer copy. */
+        private static string? voiceFileNotificationText(Friend friend, FriendMessage? friend_message)
+        {
+            if (friend_message == null || !VoiceCodec.rendersAsVoice(friend.bot)
+                || !SharedItems.parseFileHeader(friend_message.message, out string name, out _)
+                || ReplyQuote.excerptOf(FriendMessageType.fileHeader, friend_message.message, name, false) != ReplyQuote.VoiceFileExcerpt)
+            {
+                return null;
+            }
+            return "🎤 " + (SpixiLocalization._SL("chat-voice-message") ?? "Voice message");
+        }
+
         private static string notificationTextForType(FriendMessageType type)
         {
             string key, fallback;
@@ -1312,8 +1339,8 @@ namespace SPIXI.Meta
                                     // opted in (default off = today's copy, byte-identical).
                                     // Message TEXT is never included, on any setting.
                                     string notifText = type == FriendMessageType.fileHeader
-                                        ? fileOfferNotificationText(friend, friend_message, sender_address)   // ★ #1178
-                                        : notificationTextForType(type);
+                                        ? (voiceFileNotificationText(friend, friend_message) ?? fileOfferNotificationText(friend, friend_message, sender_address))   // ★ #1178 · ★ #1208: a voice file
+                                        : voiceNotificationText(friend, type, friend_message) ?? notificationTextForType(type);   // ★ #1208
                                     if (SNotificationPrefs.showSenderName)
                                     {
                                         /* ⚠ AUDIT MINOR: friend.nickname falls back to _nick, and

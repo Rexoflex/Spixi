@@ -784,7 +784,7 @@ export default async function (h) {
       /* ★ #1166 B2 re-base: the full triple and the prepend branch both end before the thumb queue (a prepended photo gets its preview too) */
       afterDone: /Utils\.sendUiCommand\(this, "messagesDone"\);\s*pushPendingJump\(\);\s*\}\s*else\s*\{[^{}]*\{[^{}]*\}\s*Utils\.sendUiCommand\(this, "messagesDone", show_more\);\s*pushPendingJump\(\);\s*\}\s*foreach \(KeyValuePair<string, FriendMessage> t in batch\.thumbs\)\s*\{\s*enqueueThumb\(t\.Key, t\.Value\);/.test(loadM),
       /* C-c3: updateFile's COMPLETE tick is what asks for the preview of a finished transfer */
-      updateFile: /^public void updateFile\(string uid, string progress, bool complete, int channel\)\s*\{\s*Utils\.sendUiCommand\(this, "updateFile", uid, progress, complete\.ToString\(\)\);\s*if \(complete\)\s*\{\s*thumbAfterTransfer\(uid, channel\);\s*\}\s*\}$/.test(upd),   /* ★ #1166 A-N4 re-base */
+      updateFile: /^public void updateFile\(string uid, string progress, bool complete, int channel\)\s*\{\s*Utils\.sendUiCommand\(this, "updateFile", uid, progress, complete\.ToString\(\)\);\s*if \(complete\)\s*\{\s*thumbAfterTransfer\(uid, channel\);\s*voiceAfterTransfer\(uid, channel\);\s*\}\s*\}$/.test(upd),   /* ★ #1166 A-N4 re-base · ★ #1208 re-base: + the voice waveform / play-after-download */
       transfer: /if \(fm == null \|\| fm\.id == null \|\| fm\.type != FriendMessageType\.fileHeader \|\| !\(fm\.completed \|\| fm\.localSender\)\)/.test(after) && /!SharedItems\.isImageName\(name\)/.test(after)
         && /enqueueThumb\(Crypto\.hashToString\(fm\.id\), fm\);/.test(after),
       /* C-c4: the ENQUEUE starts the drainer (the copy in drainThumbs' finally only re-arms a running one) */
@@ -831,9 +831,13 @@ export default async function (h) {
   {
     const sc = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
     const bodyIn = (t, sig) => { const i = t.indexOf(sig); if (i < 0) return ''; let k = t.indexOf('{', i), depth = 0; for (let j = k; j < t.length; j++) { if (t[j] === '{') depth++; else if (t[j] === '}' && --depth === 0) return t.slice(i, j + 1); } return ''; };
-    const send = bodyIn(sc, 'public async Task onSendFile(bool media = true)');
+    /* ★ #1208 re-base (session 7): the post-picker half moved, unchanged, into sendPreparedFile (shared with the voice FILE
+       route); onSendFile calls it once — the pin reads the moved body and asserts the one call */
+    const picker = bodyIn(sc, 'public async Task onSendFile(bool media = true)');
+    const send = bodyIn(sc, 'private FriendMessage? sendPreparedFile(string fileName, Stream stream, string filePath)');
     const after = bodyIn(sc, 'private void thumbAfterTransfer(string uid, int channel)');   /* ★ #1166 A-N4 re-base */
     const r = {
+      moved: (picker.match(/sendPreparedFile\(fileName, stream, filePath\);/g) || []).length === 1 && !/thumbAfterTransfer\(/.test(picker),
       /* the call sits RIGHT AFTER the path assignment (before the write), with the transfer's own uid */
       order: /friend_message\.transferId = transfer\.uid;\s*friend_message\.filePath = transfer\.filePath;\s*thumbAfterTransfer\(transfer\.uid, transfer\.channel\);\s*IxianHandler\.localStorage\.requestWriteMessages/.test(send),   /* ★ #1166 A-N4 re-base */
       once: (send.match(/thumbAfterTransfer\(/g) || []).length === 1,

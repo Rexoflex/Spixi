@@ -179,15 +179,24 @@
   text-align: center;
   pointer-events: none;
 }
-/* ★ #1147 (5) photo fade on chat open (Damir): a LOCAL photo tile waiting for its preview (typed-bubbles.js data-quiet)
-   shows the tile ground only — no glyph, no caption — at the placeholder size; the picture then fades in over it (the
-   img's --duration-200 first-show fade), or, with no preview in PHOTO_QUIET_MS, the face fades in (the same token).
-   Reduced motion: --duration-200 is 0 ms (tokens.css) → no fades, instant. */
+/* ★ #1147 (5): a quiet tile (data-quiet) hides its face; the picture or, after PHOTO_QUIET_MS, the face fades in */
 .c-mbubble[data-file] .c-mbubble__file { transition: opacity var(--duration-200) var(--easing-standard); }
 .c-mbubble[data-quiet] .c-mbubble__file { opacity: 0; }
-/* the picture is the face now — #46 r1 B-6: the face stays UNDER the picture while it fades in (the img sits above it),
-   then hides at the fade's end (a discrete visibility step after --duration-200), so no blank ground shows between */
-.c-mbubble[data-file] .c-mbubble__img { z-index: 1; object-fit: cover; }   /* #46 r1 B-m2: cover — contain left a 1 px sliver of ground inside the frame (the preview is a square crop on a square tile, B-M2) */
+/* ★ 7b (#1221) the grey ground: a layer under the img. #46 r2 m1+m2: shown on a QUIET tile only (quiet holds through
+   loaded); never-quiet = #1133 (3) white; quiet expiry fades it out with the face in. */
+.c-mbubble[data-file]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surface-neutral-02);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-standard);
+}
+.c-mbubble[data-file][data-quiet]::before,
+.c-mbubble[data-file="progress"][data-state="loaded"]::before { opacity: 1; }   /* #46 r3: my sending photo drops quiet at load — keep the ground under its fade */
+/* #46 r1 B-6: the face stays UNDER the fading picture, then hides at the fade's end */
+.c-mbubble[data-file] .c-mbubble__img { z-index: 1; object-fit: cover; }   /* #46 r1 B-m2: cover (no sliver) */
 .c-mbubble[data-state="loaded"] .c-mbubble__file {
   visibility: hidden;
   transition: visibility 0s linear var(--duration-200);

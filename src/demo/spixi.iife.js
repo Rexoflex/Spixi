@@ -4970,6 +4970,47 @@ function REPLY_KIND_LABELS(kind, strings = getStrings()) {
   }[kind] || '';
 }
 
+/* ★ 7b (#1215): the quote's right-hand tile. An image takes a data: URI ONLY (a src set as a property — never a remote
+   fetch, never markup); a file shows its extension on the file card's family tile (createFileTile); voice = the mic. */
+const QUOTE_TILE_SRC_RE = /^data:image\/(?:jpeg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
+function replyTileEl(tile) {
+  if (!tile || typeof tile !== 'object') return null;
+  if (tile.type === 'image') {
+    const tileSrc = safeImageSrc(String(tile.src || ''));   // ★ O-13 gate: local only (no allowRemote) — then the raster test
+    if (!tileSrc || !QUOTE_TILE_SRC_RE.test(tileSrc)) return null;
+    const th = document.createElement('img');
+    th.className = 'c-bubble__reply-thumb';
+    th.alt = '';
+    th.src = tileSrc;
+    return th;
+  }
+  if (tile.type === 'file') {
+    const ext = /^[A-Z0-9]{1,4}$/.test(String(tile.ext || '')) ? String(tile.ext) : '';
+    const ft = createFileTile(ext ? 'f.' + ext.toLowerCase() : '');
+    ft.classList.add('c-bubble__reply-tile');
+    return ft;
+  }
+  if (tile.type === 'voice') return replyGlyphEl('voice');
+  return null;
+}
+function replyGlyphEl(kind) {
+  if (!kind || !REPLY_KIND_GLYPHS[kind]) return null;
+  const g = document.createElement('span');
+  g.className = 'c-bubble__reply-glyph';
+  g.setAttribute('aria-hidden', 'true');
+  g.append(icon(REPLY_KIND_GLYPHS[kind], { size: 16 }));
+  return g;
+}
+/** ★ 7b (#1215): swap a built quote's right-hand tile (a preview that landed after the quote was drawn). */
+function setReplyQuoteTile(quoteEl, tile) {
+  if (!quoteEl) return;
+  const next = replyTileEl(tile);
+  if (!next) return;
+  const old = quoteEl.querySelector(':scope > .c-bubble__reply-thumb, :scope > .c-bubble__reply-tile, :scope > .c-bubble__reply-glyph');
+  if (old && old.tagName === 'IMG' && next.tagName === 'IMG' && old.getAttribute('src') === next.getAttribute('src')) return;
+  if (old) old.replaceWith(next); else quoteEl.append(next);
+}
+
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
    BIG with the meta dropped below. Covers ZWJ sequences, skin tones, VS16. */
 /* ★ Session I (#731/#735): FLAGS were missed — a flag is a PAIR of Regional Indicator
@@ -5253,24 +5294,6 @@ function createMessageBubble({
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
     q.dataset.idhue = String(identityIndex(reply.address || reply.sender || ''));   // ★ #1001
-    // media/typed originals show a small identifier (Damir 2026-07-03):
-    // shell-composed thumb (data-URI) for media, kind glyph otherwise
-    // ★ O-13: the quote thumb goes through the one image test. A refused value falls
-    // through to the kind glyph below, so the quote still says what it quotes.
-    const replyThumb = safeImageSrc(reply.thumb, { allowRemote: allowRemoteImages });
-    if (replyThumb) {
-      const th = document.createElement('img');
-      th.className = 'c-bubble__reply-thumb';
-      th.src = replyThumb;
-      th.alt = '';
-      q.append(th);
-    } else if (reply.kind && REPLY_KIND_GLYPHS[reply.kind]) {
-      const g = document.createElement('span');
-      g.className = 'c-bubble__reply-glyph';
-      g.setAttribute('aria-hidden', 'true');
-      g.append(icon(REPLY_KIND_GLYPHS[reply.kind], { size: 16 }));
-      q.append(g);
-    }
     const info = document.createElement('span');
     info.className = 'c-bubble__reply-info';
     if (reply.sender) {
@@ -5284,6 +5307,11 @@ function createMessageBubble({
     qt.textContent = reply.text || REPLY_KIND_LABELS(reply.kind, strings);
     info.append(qt);
     q.append(info);
+    /* ★ 7b (#1215): the identifier sits on the RIGHT — the target's picture, its file-type tile, the mic, or (not loaded /
+       no picture) the kind glyph. reply.thumb is the older name of an image tile. */
+    const tile = reply.tile || (reply.thumb ? { type: 'image', src: reply.thumb } : null);
+    const tileEl = replyTileEl(tile) || replyGlyphEl(reply.kind);
+    if (tileEl) q.append(tileEl);
     el.append(q);
   }
 
@@ -5765,6 +5793,7 @@ function setVoiceBubble(row, patch, strings = getStrings()) {
 
 
 
+
 /* ★ #1065 r2 (break-my-verdict MINOR-3): the message menu can now be open WHILE the composer keeps
    focus (overlay.js keepEditableFocus stamps data-keep-editable on its root, removed synchronously at
    dismiss). Keys typed then belong to the menu, not to the draft. */
@@ -6133,29 +6162,68 @@ const resyncComposer = (el) => { const f = composerSync.get(el); if (f) f(); };
 /* cancel = restore: an edit ctx prefilled the field, so cancelling must bring
    the user's pre-edit draft back (audit r3: one stray Send re-posted the OLD
    message text as a new message) */
-function cancelComposerContext(el) {
-  const c = composerCtx.get(el);
-  if (!c) return;
+/* ★ 7b (#1219): exported — the shell's Back (chatBack / the edge swipe) closes the strip through THIS path with
+   refocus:false and blurs the field, so a Back never raises the keyboard. Returns true when a context was open. */
+function cancelComposerContext(el, { refocus = true } = {}) {
+  const c = el ? composerCtx.get(el) : null;
+  if (!c) return false;
   setComposerContext(el, null); // draft restore happens inside (edit ctx)
   if (c.onCancel) c.onCancel();
   /* ★ #1198 r1 (B-8): the ✕ was the focused control and it just left the DOM — focus goes back to the field */
   const input = el.querySelector('.c-composer__input');
-  if (input) { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }
+  if (input && refocus) { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }
+  if (input && !refocus && document.activeElement === input) input.blur();
+  return true;
+}
+
+/* ★ 7b (#1214 / the S1⇄S2 contract): the tile at the strip's end — a photo / GIF preview (a data: image URI ONLY,
+   set as a property; anything else = no tile), a file's extension tile (the file card's family colours), a mic for
+   a voice row. null / unknown = none. Decorative: the excerpt names the message. */
+const CTX_TILE_SRC_RE = /^data:image\/(?:jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
+function ctxTile(tile) {
+  if (!tile || typeof tile !== 'object') return null;
+  let t = null;
+  if (tile.type === 'image') {
+    const src = safeImageSrc(String(tile.src || ''));   // ★ O-13: local only (no allowRemote), then the raster test
+    if (!src || !CTX_TILE_SRC_RE.test(src)) return null;
+    t = document.createElement('img');
+    t.alt = '';
+    t.decoding = 'async';
+    t.src = src;
+  } else if (tile.type === 'file') {
+    const ext = String(tile.ext || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    t = document.createElement('span');
+    t.dataset.file = '';
+    t.className = 'c-fbubble__icon';   // the card's tile ground (typed-bubbles.css), resized by composer.css
+    t.dataset.kind = ext ? fileKind('f.' + ext.toLowerCase()).family : 'other';
+    if (ext) { const lab = document.createElement('span'); lab.className = 'c-fbubble__ext'; lab.textContent = ext; t.append(lab); }
+    else t.append(icon('file-isr', { size: 20 }));
+  } else if (tile.type === 'voice') {
+    t = document.createElement('span');
+    t.dataset.voice = '';
+    t.append(icon('microphone', { size: 20 }));
+  } else return null;
+  t.classList.add('c-composer__ctx-tile');
+  t.setAttribute('aria-hidden', 'true');
+  return t;
 }
 
 /**
  * setComposerContext(el, ctx | null)
  *   ctx = { kind: 'reply'|'edit', title, text, prefill (edit, default true),
- *           onCancel, strings }
- * The strip renders icon + title/excerpt + cancel ✕; edit prefills the field
+ *           tile (reply: { type:'image', src } | { type:'file', ext } | { type:'voice' } | null), onCancel, strings }
+ * ★ 7b (#1214, strip B): the strip is the FIRST LINE INSIDE the pill (.c-composer__field[data-ctx]) — glyph ·
+ * title/excerpt · tile · ✕, a hairline under it. Edit prefills the field
  * (synthetic input event — no spurious ixian:typing, isTrusted guard).
  * Esc in the field cancels the active context before it clears text.
  * getComposerContext(el) → active ctx or null (shell reads this on send).
  */
 function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
+  const field = el.querySelector('.c-composer__field');
   const prev = el.querySelector('.c-composer__ctx');
   if (prev) prev.remove();
+  if (field) delete field.dataset.ctx;
   // freeze audit: REPLACING an active edit ctx (e.g. Reply picked mid-edit)
   // must give the pre-edit draft back — else the old message text sends as
   // the new context's body and the draft is lost
@@ -6184,17 +6252,22 @@ function setComposerContext(el, ctx) {
   text.textContent = ctx.text || '';
   col.append(title, text);
   strip.append(col);
+  /* #46 r1 B-m3: the strip says what it is — a screen reader hears "Reply to Bob" / "Edit message", not a bare name */
+  strip.setAttribute('role', 'group');
+  strip.setAttribute('aria-label', ctx.kind === 'edit' ? (strings.editMessage || 'Edit message')
+    : (ctx.title ? (strings.replyingTo || 'Reply to') + ' ' + ctx.title : (strings.reply || 'Reply')));
+  const tile = ctx.kind === 'reply' ? ctxTile(ctx.tile) : null;   // ★ 7b (#1214): an edit has no tile
+  if (tile) strip.append(tile);
   const x = document.createElement('button');
   x.type = 'button';
   x.className = 'c-composer__ctx-cancel';
   x.setAttribute('aria-label', strings.cancel || 'Cancel');
-  x.append(icon('x', { size: 16 }));
+  x.append(icon('x', { size: 20 }));   // ★ 7b (#1214): 20 glyph in a 32 target ("hard to see" at 16)
   x.addEventListener('click', () => cancelComposerContext(el));
   strip.append(x);
-  // flex-wrap row: the strip takes a full line; the COST line (standing money
-  // fact, #86 bot surface) stays topmost — reply/edit ctx slots under it
-  const cost = el.querySelector('.c-composer__cost');
-  if (cost) cost.after(strip);
+  /* ★ 7b (#1214, strip B): the strip is the pill's FIRST line (Telegram grammar); data-ctx turns the field's wrap on
+     (no :has() — the WebView baseline). The COST line (#86) stays a bar line above the pill, so it is still topmost. */
+  if (field) { field.dataset.ctx = ctx.kind; field.prepend(strip); }
   else el.prepend(strip);
 
   if (input) {
@@ -6219,7 +6292,7 @@ function setComposerContext(el, ctx) {
         if (e.key === 'Escape' && composerCtx.has(el) && !composerRec.has(el) && !menuOverField()) cancelComposerContext(el);
       });
     }
-    input.focus();
+    try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }   // ★ 7b (#1219): the shell keeps the target row in view
   }
   resyncComposer(el);   // ★ #1199: Save ⇄ Send, and the disabled state, for the context now up
 }
@@ -6318,7 +6391,8 @@ function setComposerRecording(el, state, elapsedMs) {
     bar.className = 'c-composer__rec';
     /* no layout shift: the bar is at least the pill's CSS height, and at least what the pill measures right now
        (a multi-line draft under a restored clip keeps its height too) */
-    const h = field.offsetHeight;
+    const ctxStrip = field.querySelector(':scope > .c-composer__ctx');   // ★ 7b (#1214): the strip is inside the pill now — not part of the input line's height
+    const h = field.offsetHeight - (ctxStrip ? ctxStrip.offsetHeight : 0);
     if (h > 0) bar.style.minHeight = h + 'px';
     const cancel = document.createElement('button');
     cancel.type = 'button';
@@ -8447,6 +8521,9 @@ function attachMessageMenu(row, opts = {}) {
 const REPLY_SWIPE_EDGE_PX = 24;
 const REPLY_SWIPE_TRIGGER_PX = 56;
 const REPLY_SWIPE_MAX_PX = 72;
+/* #46 r1 M13: the spring-back clear waits OUT the return transition (--duration-200 = 200 ms, message-bubble.css) —
+   a shorter wait would pull the glyph and the transform mid-return (a snap) */
+const REPLY_SWIPE_SETTLE_MS = 260;
 const REPLY_SWIPE_CLICK_GUARD_MS = 400;   // a click the browser raises after a swipe's release opens nothing
 const REPLY_SWIPE_ROWS_SWEEP = 200;   // ★ r2 NIT: the swipe registry is swept of detached rows above this size
 const replyReduceMotion = () => {
@@ -8498,7 +8575,7 @@ function swipeStateOf(doc) {
     }
     if (g.lastRow && g.lastRow !== entry.row) replySwipeSettle(g.lastRow, true);   // the old node (detached) drops its paint
     g.lastRow = entry.row;
-    replySwipePaint(entry.row, g.dx, g.follow);
+    replySwipePaint(entry.row, g.dx - MOVE_CANCEL_PX, g.follow);   // ★ 7b (#1219): minus the engage slop — the row starts from 0, no jump at engage
   }, true);
   const end = (e, cancelled) => {
     st.touches.delete(e.pointerId);
@@ -8506,7 +8583,7 @@ function swipeStateOf(doc) {
     if (!g || e.pointerId !== g.id) return;
     const entry = cur();   // read BEFORE the record is cleared (cur() resolves through st.g)
     st.g = null;
-    const fire = !cancelled && !!entry && g.state === 'swipe' && g.dx >= REPLY_SWIPE_TRIGGER_PX && g.dx > 2 * Math.abs(g.dy)
+    const fire = !cancelled && !!entry && g.state === 'swipe' && g.dx - MOVE_CANCEL_PX >= REPLY_SWIPE_TRIGGER_PX && g.dx > 2 * Math.abs(g.dy)   // ★ 7b (#1219): the painted travel decides — armed ⇔ fires
       && !replyGestureBlocked(entry.row);
     if (g.state === 'swipe') { st.swallowUntil = Date.now() + REPLY_SWIPE_CLICK_GUARD_MS; st.swallowKey = g.key; }
     if (g.lastRow) replySwipeSettle(g.lastRow);
@@ -8555,7 +8632,7 @@ function replySwipeSettle(row, now) {
   row.dataset.replyReturn = '';                 // the spring back (CSS transition on the custom property's user)
   row.style.setProperty('--reply-swipe-x', '0px');
   row.style.setProperty('--reply-swipe-p', '0');
-  row._replySettle = setTimeout(clear, 160);    // after the return: no glyph, no attribute left on the row
+  row._replySettle = setTimeout(clear, REPLY_SWIPE_SETTLE_MS);    // after the return (--duration-200, message-bubble.css): no glyph, no attribute left on the row
 }
 
 /* attachReplySwipe(row, { key, onReply }) — `key` = the message id (the shell's), so a rebuilt row takes over its swipe. */
@@ -8623,8 +8700,13 @@ function placeReplyButton(row) {
  * a typed card (their click opens something), never on a control. The SECOND mousedown of the pair is prevented for
  * exactly that case, so the double-click does not also select a word; every other double-click selects as before. */
 const REPLY_DBL_CONTROLS = 'button, a, input, textarea, select, label, [role="button"], [contenteditable], img, video, audio';
+/* ★ 7b (#1220, walk F7: "a double-click on a payment card opens details"): only a TEXT row replies on a double-click —
+   a payment / request / file / call / app card, a media tile and a voice bubble have their own click action, so the
+   double-click there is theirs (no reply; their repeatable actions carry typed-bubbles' reentryGuard — one run). */
+const textRow = (row) => { const t = messageMenuTarget(row); return !!t && t !== row && t.classList.contains('c-bubble') && !t.querySelector('.c-voice'); };
 function replyDblTarget(row, target) {
   if (!target || !target.closest) return false;
+  if (!textRow(row)) return false;
   if (target === row) return true;                                        // the row's gutter / free space
   if (target.closest(REPLY_DBL_CONTROLS)) return false;
   if (target.closest('.c-bubble-row__gutter')) return true;               // beside the avatar (not the avatar button)
@@ -8718,61 +8800,6 @@ function queueReveal(el, run) {
     }
     for (const [, run] of due) { try { run(); } catch (_) {} }   // write
   });
-}
-
-/* ★ #1201 A-FADE FIX (DECISIONS #1201, Damir's pick "photos READY at open"; WALK #1172 / #1200 A-FADE, 4th report).
-   MECHANISM (measured, the #1181 probe + a 60 fps recording): on a chat open the fade DOES run (`fade flip dec=1..9
-   wait=2..98`, `fade end ms=207..245`) — but it runs while the page is still STAGED: the shell's `ixian:painted` goes
-   at the first paint, C# presents on it and the present drops ~100 ms of frames (`[CDPERF] chat held frames=3..4
-   ms=108..110`), so the screen shows the tile ground for 1–2 frames and then the picture almost at once: the fade is
-   spent off screen. THE FIX: the chat shell (chat.html onChatScreenLoaded, the FIRST open of the document only) calls
-   holdOpenReveal(<the log>, send) where it used to send `painted`. For every preview tile of the first paint that is
-   in the log's view:
-     · its picture is decoded already (loaded, fade running off screen) → it is FINISHED now (data-seen: the r3 rule,
-       transition none) — LOADED with no fade;
-     · it is still loading → it is HELD: if its decode lands inside the cap it flips LOADED at once (data-seen, no fade)
-       instead of queueing the fade (the tile's showHeld below);
-     · at the cap (OPEN_HOLD_CAP_MS, 60 ms after the call) a tile still loading is let go and keeps TODAY's path exactly
-       (decode → the next frame → the fade) — the hold never turns a tile into a white → pop.
-   `send` (the present signal) goes when every held tile has landed (+ one frame, so the flip is in a frame before C#
-   presents — bounded by the cap too) or at the cap; with NO such tile it goes at once (0 ms). Tiles built later
-   (scroll-back, a new message) are never held: they fade as today. Off-view tiles are not held (nobody sees them;
-   their decode must not delay the present). `send` is called exactly once, whatever throws. Damir's condition: "if
-   that doesn't slow the open of chats and cause flickering if cap happens" → the walk reads `open singlechatpage
-   present ms` beside the dev-only probe line `[P1] fade hold ms=<n> tiles=<n> ready=<n> hit=<0|1>` (#1181 grammar). */
-const OPEN_HOLD_CAP_MS = 60;
-function holdOpenReveal(root, send) {
-  const t0 = performance.now();
-  let over = false, timer = 0, tiles = 0, ready = 0, wait = 0;
-  const held = [];
-  const finish = (hit) => {
-    if (over) return;
-    over = true;
-    clearTimeout(timer);
-    for (const c of held) { try { c.unhold(); } catch (_) {} }   // the cap: a tile still loading is back on today's fade path
-    p1Log('fade hold ms=' + Math.round(performance.now() - t0) + ' tiles=' + tiles + ' ready=' + ready + ' hit=' + (hit ? 1 : 0));
-    try { send(); } catch (_) {}
-  };
-  const settle = () => { rafOf()(() => finish(false)); };   // every held tile landed: one frame for the flip, then present
-  try {
-    let view = null;
-    try { view = root.getBoundingClientRect(); } catch (_) {}
-    for (const el of root.querySelectorAll('.c-mbubble')) {
-      const c = mediaCtl.get(el);
-      if (!c || !c.hold || !el.isConnected) continue;
-      if (view) { const r = el.getBoundingClientRect(); if (r.bottom < view.top || r.top > view.bottom) continue; }
-      const st = c.hold((ok) => {   // called once, later: true = shown LOADED at once, false = let go (error / re-sourced)
-        if (over) return;
-        if (ok) ready++;
-        if (--wait === 0) settle();
-      });
-      if (st === 'ready') { tiles++; ready++; }
-      else if (st === 'wait') { tiles++; wait++; held.push(c); }
-    }
-  } catch (_) { finish(false); return; }
-  if (!tiles) { finish(false); return; }   // nothing to hold: the present is not delayed at all
-  timer = setTimeout(() => finish(wait > 0), OPEN_HOLD_CAP_MS);
-  if (wait === 0) settle();                 // only finished tiles: one frame so the snap is in a frame
 }
 
 function mediaAria(state, kind, alt, strings) {
@@ -8895,17 +8922,6 @@ function createMediaBubble({
   let currentSrc = src; // may be swapped by setMediaSrc (file-transfer path)
   let revealGen = 0;     // ★ #1151: a newer load (or a drop) cancels a pending reveal
   const pBorn = instantIfShown ? performance.now() : 0;   // ★ #1181 A-FADE probe — TEMPORARY
-  /* ★ #1201: this tile under the open hold (holdOpenReveal above). heldCb is set only while the hold waits for it; it
-     is called ONCE — true when the tile was shown LOADED at once, false when it was let go (an error, a new src). */
-  let heldCb = null;
-  const holdRelease = (shownNow) => { const cb = heldCb; heldCb = null; if (cb) { try { cb(shownNow); } catch (_) {} } };
-  const showHeld = () => {   // the open hold's flip: LOADED with no fade — data-seen drops the transition (the r3 rule)
-    el.dataset.seen = '';
-    setState('loaded');
-    if (currentSrc && el.isConnected) noteShown(currentSrc);   // on screen at the present → a re-render shows it at once
-    if (onLoad) { try { onLoad(); } catch (_) {} }
-    holdRelease(true);
-  };
   const load = () => {
     if (!currentSrc) return;
     setState('loading');
@@ -8940,12 +8956,8 @@ function createMediaBubble({
     const pT0 = pOn ? performance.now() : 0;
     let pT1 = 0;
     const decoded = typeof img.decode === 'function' ? img.decode().catch(() => {}) : Promise.resolve();
-    decoded.then(() => { pT1 = pT0 ? performance.now() : 0; }).then(() => {
-      /* ★ #1201: held by the open hold (holdOpenReveal) → LOADED now, no fade, no queued frame */
-      if (heldCb && mine === revealGen && shown === currentSrc && el.dataset.state === 'loading') { showHeld(); return; }
-      queueReveal(el, () => {
+    decoded.then(() => { pT1 = pT0 ? performance.now() : 0; }).then(() => queueReveal(el, () => {
       if (mine !== revealGen || shown !== currentSrc || el.dataset.state !== 'loading') { if (pT0) p1Log('fade drop'); return; }   // superseded / dropped
-      if (heldCb) { showHeld(); return; }   // ★ #1201: the reveal was queued before the open hold began
       setState('loaded');
       if (pT0) {
         const pT2 = performance.now();
@@ -8974,12 +8986,10 @@ function createMediaBubble({
           if (!(dur > 0)) { off(); rec(); }
         });
       }
-      });
-    });
+    }));
   });
   img.addEventListener('error', () => {
     revealGen++;                     // ★ #1151: no pending reveal survives an error
-    holdRelease(false);              // ★ #1201: nor an open hold (the present does not wait for a broken picture)
     if (typeof onSrcError !== 'function') { setState('failed'); return; }
     currentSrc = '';                 // #46 r1 B-1: drop it — idle with no src, so a tap is the owner's (load() is a no-op)
     img.removeAttribute('src');
@@ -8989,21 +8999,8 @@ function createMediaBubble({
   mediaCtl.set(el, { setSrc: (s, hint) => {
     if (!(width > 0 && height > 0) && hint) fitTile(hint.w, hint.h);   // #46 r1 B-6
     if (!shownSrcs.has(shownKey(s))) delete el.dataset.seen;            // #46 r3 R3-m1: a NEW picture keeps its first-show fade
-    holdRelease(false);   // ★ #1201: a NEW src leaves the open hold (its own first show keeps the fade)
     currentSrc = s; load();
-  },
-  /* ★ #1201 (holdOpenReveal): 'ready' = its picture is up (the off-screen fade is finished NOW — data-seen), 'wait' =
-     still loading (held: showHeld on its decode, or unhold at the cap), 'none' = nothing to do (not a preview tile,
-     idle / failed, or already seen). */
-  hold: (cb) => {
-    if (!instantIfShown || !currentSrc || el.dataset.seen !== undefined) return 'none';
-    if (el.dataset.state === 'loaded') { el.dataset.seen = ''; if (el.isConnected) noteShown(currentSrc); return 'ready'; }
-    if (el.dataset.state !== 'loading') return 'none';
-    heldCb = cb;
-    return 'wait';
-  },
-  unhold: () => { heldCb = null; },   // the cap: today's path (decode → the next frame → the fade), exactly
-  });
+  } });
 
   el.addEventListener('click', () => {
     const s = el.dataset.state;
@@ -30953,5 +30950,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, holdOpenReveal: holdOpenReveal, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

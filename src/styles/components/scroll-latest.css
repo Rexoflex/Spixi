@@ -6,6 +6,10 @@
      position:relative at EQUAL specificity — this file must load after it
      (as in the demos) or the button would anchor to the scroll flow */
   position: absolute;
+  /* ★ 7b (#1218 F2): above the bubble internals (media img / face / stamp, the hover reply disc: z-index 1 in the same
+     stacking context — a photo's time pill painted OVER this button), below the composer (--z-20), menus (--z-30) and
+     the scrim (--z-40). The canvas / scroller stay z-index auto (message-menu.css precondition). */
+  z-index: var(--z-10);
   inset-inline-end: var(--spacing-16);
   /* ★ #711: the composer floats INSIDE the canvas now, so the chevron offsets itself by
      the composer slot's height (--composer-h, written on the canvas by the shell's

@@ -66,28 +66,45 @@
 /* —— reply/edit context strip (batch 3b; ★ #1198 / #1199 live behind setCaps reply / edit) —— */
 /* ★ #1198: the strip arms in on --duration-200 decelerate (a short rise + fade, no blur); it leaves at once (removed) —
    the close is faster than the open. Reduced motion: the token is 0 ms (tokens.css). */
+/* ★ 7b (#1214, strip B — Damir's pick, the Telegram row INSIDE the pill): the strip is the field's FIRST line, full
+   pill width (negative inline margins cancel the field's padding — the ⊕ room at the start, spacing-12 at the end),
+   a hairline under it; the field wraps ONLY while it holds one ([data-ctx], set by setComposerContext — no :has()). */
 @keyframes c-composer-ctx-in { from { opacity: 0; transform: translateY(var(--spacing-4)); } }
+.c-composer__field[data-ctx] { flex-wrap: wrap; row-gap: 0; }
 .c-composer__ctx {
   animation: c-composer-ctx-in var(--duration-200) var(--easing-decelerate);
-  flex-basis: 100%;
   /* bug 2026-07-05c ③: the strip is itself a flex container, so its
      min-width:auto resolves to the NOWRAP excerpt's full width — the strip
      blew past the phone edge and hid the cancel ✕. min-width:0 restores the
      basis+shrink sizing (headless-Chrome verified: 642px → container width) */
   min-width: 0;
+  flex: 0 0 calc(100% + var(--composer-attach-size) + var(--spacing-8) + var(--spacing-12));
+  margin-block: calc(-1 * var(--spacing-4)) var(--spacing-4);
+  margin-inline: calc(-1 * (var(--composer-attach-size) + var(--spacing-8))) calc(-1 * var(--spacing-12));
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
-  padding: var(--spacing-4) var(--spacing-8);
-  border-radius: var(--radius-12);
-  background: var(--surface-input);
+  gap: calc(var(--spacing-8) + var(--spacing-2));   /* 10 — the approved render (#1214) */
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+  background: transparent;
   color: var(--icon-action-default); /* leading glyph ink */
 }
+/* the ⊕ hidden (A2): the field's start pad is spacing-12, so the strip's start margin follows it */
+.c-composer[data-no-attach] .c-composer__ctx {
+  flex-basis: calc(100% + 2 * var(--spacing-12));
+  margin-inline-start: calc(-1 * var(--spacing-12));
+}
+.c-composer__ctx > svg { flex: none; color: var(--icon-action-default); }
+[dir="rtl"] .c-composer__ctx[data-kind="reply"] > svg { transform: scaleX(-1); }
 .c-composer__ctx-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  border-inline-start: 3px solid var(--surface-action-default);   /* sanctioned: the quote bar (no 3 px outline token) */
+  padding-inline-start: var(--spacing-8);
 }
 .c-composer__ctx-title {
   font-size: var(--font-size-label-sm);
@@ -95,14 +112,33 @@
   letter-spacing: var(--tracking-label-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-action-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .c-composer__ctx-text {
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-02);
+  color: var(--text-neutral-01);   /* ★ 7b (#1214): contrast — was neutral-02 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* ★ 7b (#1214): the target's tile — a photo thumb (cover), a file's extension tile (the card's family ground,
+   typed-bubbles.css .c-fbubble__icon), a mic for a voice row */
+.c-composer__ctx .c-composer__ctx-tile {
+  flex: none;
+  width: 36px;    /* sanctioned: the strip tile (#1214) */
+  height: 36px;
+  border-radius: var(--radius-8);
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.c-composer__ctx .c-composer__ctx-tile[data-voice] {
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
 }
 .c-composer__ctx-cancel {
   position: relative; /* hit-area extension (same pattern as attach) */
@@ -110,17 +146,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;  /* visual size sanctioned; target extended via ::after */
-  height: 28px;
+  width: var(--spacing-32);  /* ★ 7b (#1214): 32 visual, the target extended via ::after */
+  height: var(--spacing-32);
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--icon-neutral-02);
+  color: var(--icon-neutral-01);   /* ★ 7b (#1214): was neutral-02 ("hard to see") */
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-.c-composer__ctx-cancel::after { content: ''; position: absolute; inset: -8px; }
+.c-composer__ctx-cancel::after { content: ''; position: absolute; inset: calc(-1 * var(--spacing-8)); }
 @media (hover: hover) and (pointer: fine) {
   .c-composer__ctx-cancel:hover { background: var(--surface-interactive-hover); color: var(--icon-neutral-01); }
 }
@@ -343,6 +379,10 @@
 /* —— ★★ #1208 (S7) the RECORDING BAR: replaces the pill in the pill's skin and height (no shift); ✕ · dot · "0:07 / 0:30",
    the trailing disc = ➤. Fades in on --duration-200, leaves at once (close faster than open); reduced motion = still dot. */
 .c-composer[data-rec] .c-composer__field { display: none; }
+/* #46 r1 B-m1: recording with a strip open — the pill keeps only the strip, a line above the bar */
+.c-composer[data-rec] .c-composer__field[data-ctx] { display: flex; flex: 0 0 100%; padding-block: 0; }
+.c-composer[data-rec] .c-composer__field[data-ctx] > :not(.c-composer__ctx) { display: none; }
+.c-composer[data-rec] .c-composer__field[data-ctx] > .c-composer__ctx { margin-block: 0; border-bottom: 0; }
 @keyframes c-composer-rec-in { from { opacity: 0; } }
 .c-composer__rec {
   animation: c-composer-rec-in var(--duration-200) var(--easing-decelerate);

@@ -168,7 +168,7 @@ export default async function (h) {
     n.dispatchEvent(pev(W, 'pointermove', { x: 130, y: 202 }));
     n.dispatchEvent(pev(W, 'pointermove', { x: 180, y: 203 }));
     const row = rowOf(d, 'aa01');
-    r.follows = row.hasAttribute('data-reply-swipe') && row.style.getPropertyValue('--reply-swipe-x') === '72px' && !!row.querySelector('.c-reply-swipe') && row.hasAttribute('data-reply-armed');
+    r.follows = row.hasAttribute('data-reply-swipe') && row.style.getPropertyValue('--reply-swipe-x') === '70px' && !!row.querySelector('.c-reply-swipe') && row.hasAttribute('data-reply-armed');   // ★ 7b (#1219) re-base: the paint is dx − the 10 px engage slop (80 → 70)
     n.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));   // Android's own long-press over the moved press
     n.dispatchEvent(pev(W, 'pointerup', { x: 180, y: 203 }));
     await sleep(30);

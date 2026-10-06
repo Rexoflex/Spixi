@@ -36,6 +36,10 @@ namespace SPIXI
 
                 string message_data = string.Format("{0}:{1}:{2}", transfer.uid, transfer.fileName, transfer.fileSize);
                 FriendMessage fm = Node.addMessageWithType(message_id, FriendMessageType.fileHeader, sender, data.channel, message_data, false, group_sender_address);
+                if (P1Perf.enabled)   // ★ 7b #46 r1 (A-NIT1)
+                {
+                    P1Perf.line("filehdr rx stored=" + (fm != null ? "1" : "0") + " ch=" + data.channel);   // ★ 7b (#1222): a flag + the channel number
+                }
                 if (fm != null)
                 {
                     // TODO this can probably be removed now
@@ -890,6 +894,7 @@ namespace SPIXI
                                     friend != null && friend.approved && friend.state == FriendState.Approved, Environment.TickCount64))   // ★ #46 r1 A MINOR-4: the house rule (SPayments.cs:113)
                             {
                                 CoreStreamProcessor.sendAppProtocols(friend!, SpixiProtocols.ids());
+                                P1Perf.line("cap answer sent");   // ★ 7b (#1222): fixed words
                             }
                         }
                         break;
@@ -976,6 +981,10 @@ namespace SPIXI
 
             friend.supportedProtocols = data.protocolIds;
             friend.save();
+            if (P1Perf.enabled)   // ★ 7b #46 r1 (A-NIT1)
+            {
+                P1Perf.line("cap answer rx n=" + (data.protocolIds?.Count ?? 0) + " voice=" + (SpixiProtocols.supports(data.protocolIds, SpixiProtocols.VoiceId) ? "1" : "0"));   // ★ 7b (#1222): a count + a flag
+            }
         }
 
         private static void handleAppData(Address sender_address, byte[] app_data_raw, Address? group_sender_address)

@@ -151,7 +151,7 @@ export default async function (h) {
     const before = s.sent.length;
     action(d).click();
     await sleep(40);
-    const out = s.sent.slice(before);
+    const out = s.sent.slice(before).filter((c) => !/^ixian:chatoverlay:/.test(c));   // ★ 7b (#1219) re-base: the strip's close re-syncs the back mirror
     r.saveExact = out.length === 1 && out[0] === 'ixian:chatedit:ee02:' + encodeURIComponent('my better words & more');
     r.draftBack = input(d).value === 'my unsent draft' && !strip(d);
     r.sendNameBack = action(d).getAttribute('aria-label') === 'Send';

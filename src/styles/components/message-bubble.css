@@ -307,13 +307,19 @@ button.c-bubble__sender {
 }
 button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .c-bubble__reply-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-/* media/typed identifiers in the quote (Damir 2026-07-03) */
-.c-bubble__reply-thumb {
-  width: 32px;   /* quote thumb, matches the 32px glyph chip */
-  height: 32px;
+/* media/typed identifiers in the quote (Damir 2026-07-03).
+   ★ 7b (#1215): on the RIGHT (after the info column, message-bubble.js) — the picture / the file-type tile are 44 × 44,
+   flush to the quote's end edge (the negative margins cancel the quote's end padding and part of its block padding);
+   the quote grows to hold them (44 − 2 × 2 + the 4px block padding = 48). The kind glyph (not loaded / no picture) keeps its 32px chip. */
+.c-bubble__reply-thumb,
+.c-bubble__reply > .c-bubble__reply-tile {
+  width: 44px;   /* 44 sanctioned: the quote's picture / file tile (#1215, Damir's pick on the render) */
+  height: 44px;
   border-radius: var(--radius-8);
   object-fit: cover;
   flex: none;
+  margin-block: calc(-1 * var(--spacing-2));
+  margin-inline-end: calc(-1 * var(--spacing-4));
 }
 .c-bubble__reply-glyph {
   width: 32px;
@@ -727,8 +733,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   position: relative;
   transform: translateX(var(--reply-swipe-x, 0px));
 }
+/* ★ 7b (#1219): the spring back eases OUT (--duration-200 decelerate — it was a 100 ms accelerate snap) */
 .c-bubble-row[data-reply-swipe][data-reply-return] {
-  transition: transform var(--duration-100) var(--easing-accelerate);
+  transition: transform var(--duration-200) var(--easing-decelerate);
 }
 .c-reply-swipe {
   position: absolute;
@@ -753,6 +760,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--icon-action-default);
   transition: transform var(--duration-200) var(--easing-decelerate), color var(--duration-200) var(--easing-decelerate);
 }
+.c-bubble-row[data-reply-return] .c-reply-swipe {
+  transition: transform var(--duration-100) var(--easing-accelerate), color var(--duration-100) var(--easing-accelerate), opacity var(--duration-200) var(--easing-decelerate);   /* #46 r1: opacity eases on the return only (the drag follows the finger) */
+}
 
 /* the desktop hover button — a real <button> ("Reply"), beside the bubble (placed by the shell from the bubble's
    own box: --reply-btn-x / --reply-btn-y). Hidden everywhere but the desktop flag; shown on row hover (pointer:
@@ -768,13 +778,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--spacing-32);
-  height: var(--spacing-32);
+  /* ★ 7b (#1217 H2, Damir's pick): a lifted menu-surface disc, 36 × 36, the icon in the action colour (was a 32px chat chip,
+     neutral icon). placeReplyButton centres it from its measured offsetWidth, so the size lives here only. */
+  width: 36px;    /* 36 sanctioned: the hover reply disc (#1217 H2) — no 36 on the spacing ramp */
+  height: 36px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-full);
-  background: var(--surface-chat-chip);
-  color: var(--icon-neutral-02);
+  background: var(--surface-menu);
+  box-shadow: var(--elevation-2);
+  color: var(--icon-action-default);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -795,8 +808,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     pointer-events: auto;
     transition: opacity var(--duration-200) var(--easing-decelerate);
   }
-  :root[data-desktop] .c-bubble-row__reply:hover { color: var(--icon-neutral-01); }
+  :root[data-desktop] .c-bubble-row__reply:hover { color: var(--icon-action-hover); }   /* ★ 7b (#1217): the action pair */
 }
+:root[data-desktop] .c-bubble-row__reply:active { color: var(--icon-action-pressed); }
 /* ★ r2 (MINOR-3): the roving row (tabindex 0 / -1, chat.html roveRows) shows the house focus ring when the KEYBOARD
    lands on it — never on a click (focus-visible); the same ring serves selection mode's checkbox rows */
 .c-bubble-row:focus { outline: none; }
@@ -858,11 +872,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   gap: 2px;
+  overflow: hidden;   /* ★ 7b (#1216 W1): a box narrower than the 40 bars clips them at the END — never squeezed */
 }
 .c-voice__bar {
-  flex: 1 1 0;
-  min-width: 1px;
-  max-width: 3px;
+  flex: 0 0 3px;      /* ★ 7b (#1216 W1, Damir's pick): every bar 3px wide, 2px apart, no grow / shrink (was 1–3px, squeezed) */
+  width: 3px;
   height: calc(15% + var(--voice-h, 0) * 0.85%);   /* 0 → a flat 4 px tick (the placeholder), 100 → the full box */
   border-radius: var(--radius-full);
   background: currentColor;

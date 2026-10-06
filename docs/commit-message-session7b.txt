@@ -1,0 +1,19 @@
+Session 7b: walk #1211 fixes (strip, quotes, swipe, fade, logs, heal)
+
+- Reply / edit strip inside the composer pill with a tile, sender title,
+  a11y name; visible while recording (#1214)
+- Quotes: tile on the right and a sender line always; 1:1 name drawn
+  locally, bridge-only markers for far targets (#1215)
+- Waveform with equal 3 px bars (#1216); raised hover reply button (#1217)
+- Scroll-to-latest and mention buttons above the bubble layers (#1218)
+- Reply hold: no jump to the newest message after swipe / reply / edit,
+  calmer spring-back, Back closes the strip first (#1219)
+- No double-click reply on cards with their own click (#1220)
+- Revert the 60 ms open hold (#1201); grey picture ground under quiet
+  photo tiles (#1221)
+- Android dev builds: warn/error lines reach logcat and the log file;
+  dev-only [P1] lines for push, capability and history writes (#1222)
+- Write pending arrivals before background; heal a missing last message;
+  a local delete clears a stale excerpt (#1223)
+- Audio focus refusal, reserved-glyph text quotes, broken clip sweep (#1224)
+- Docs: DECISIONS #1214-#1226, handoff, readiness, gate, lessons L86-L88

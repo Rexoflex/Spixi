@@ -71,61 +71,6 @@ function queueReveal(el, run) {
   });
 }
 
-/* ★ #1201 A-FADE FIX (DECISIONS #1201, Damir's pick "photos READY at open"; WALK #1172 / #1200 A-FADE, 4th report).
-   MECHANISM (measured, the #1181 probe + a 60 fps recording): on a chat open the fade DOES run (`fade flip dec=1..9
-   wait=2..98`, `fade end ms=207..245`) — but it runs while the page is still STAGED: the shell's `ixian:painted` goes
-   at the first paint, C# presents on it and the present drops ~100 ms of frames (`[CDPERF] chat held frames=3..4
-   ms=108..110`), so the screen shows the tile ground for 1–2 frames and then the picture almost at once: the fade is
-   spent off screen. THE FIX: the chat shell (chat.html onChatScreenLoaded, the FIRST open of the document only) calls
-   holdOpenReveal(<the log>, send) where it used to send `painted`. For every preview tile of the first paint that is
-   in the log's view:
-     · its picture is decoded already (loaded, fade running off screen) → it is FINISHED now (data-seen: the r3 rule,
-       transition none) — LOADED with no fade;
-     · it is still loading → it is HELD: if its decode lands inside the cap it flips LOADED at once (data-seen, no fade)
-       instead of queueing the fade (the tile's showHeld below);
-     · at the cap (OPEN_HOLD_CAP_MS, 60 ms after the call) a tile still loading is let go and keeps TODAY's path exactly
-       (decode → the next frame → the fade) — the hold never turns a tile into a white → pop.
-   `send` (the present signal) goes when every held tile has landed (+ one frame, so the flip is in a frame before C#
-   presents — bounded by the cap too) or at the cap; with NO such tile it goes at once (0 ms). Tiles built later
-   (scroll-back, a new message) are never held: they fade as today. Off-view tiles are not held (nobody sees them;
-   their decode must not delay the present). `send` is called exactly once, whatever throws. Damir's condition: "if
-   that doesn't slow the open of chats and cause flickering if cap happens" → the walk reads `open singlechatpage
-   present ms` beside the dev-only probe line `[P1] fade hold ms=<n> tiles=<n> ready=<n> hit=<0|1>` (#1181 grammar). */
-const OPEN_HOLD_CAP_MS = 60;
-export function holdOpenReveal(root, send) {
-  const t0 = performance.now();
-  let over = false, timer = 0, tiles = 0, ready = 0, wait = 0;
-  const held = [];
-  const finish = (hit) => {
-    if (over) return;
-    over = true;
-    clearTimeout(timer);
-    for (const c of held) { try { c.unhold(); } catch (_) {} }   // the cap: a tile still loading is back on today's fade path
-    p1Log('fade hold ms=' + Math.round(performance.now() - t0) + ' tiles=' + tiles + ' ready=' + ready + ' hit=' + (hit ? 1 : 0));
-    try { send(); } catch (_) {}
-  };
-  const settle = () => { rafOf()(() => finish(false)); };   // every held tile landed: one frame for the flip, then present
-  try {
-    let view = null;
-    try { view = root.getBoundingClientRect(); } catch (_) {}
-    for (const el of root.querySelectorAll('.c-mbubble')) {
-      const c = mediaCtl.get(el);
-      if (!c || !c.hold || !el.isConnected) continue;
-      if (view) { const r = el.getBoundingClientRect(); if (r.bottom < view.top || r.top > view.bottom) continue; }
-      const st = c.hold((ok) => {   // called once, later: true = shown LOADED at once, false = let go (error / re-sourced)
-        if (over) return;
-        if (ok) ready++;
-        if (--wait === 0) settle();
-      });
-      if (st === 'ready') { tiles++; ready++; }
-      else if (st === 'wait') { tiles++; wait++; held.push(c); }
-    }
-  } catch (_) { finish(false); return; }
-  if (!tiles) { finish(false); return; }   // nothing to hold: the present is not delayed at all
-  timer = setTimeout(() => finish(wait > 0), OPEN_HOLD_CAP_MS);
-  if (wait === 0) settle();                 // only finished tiles: one frame so the snap is in a frame
-}
-
 function mediaAria(state, kind, alt, strings) {
   const what = alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image'));
   if (state === 'idle') return (strings.tapToLoad || 'Tap to load') + ', ' + what;
@@ -246,17 +191,6 @@ export function createMediaBubble({
   let currentSrc = src; // may be swapped by setMediaSrc (file-transfer path)
   let revealGen = 0;     // ★ #1151: a newer load (or a drop) cancels a pending reveal
   const pBorn = instantIfShown ? performance.now() : 0;   // ★ #1181 A-FADE probe — TEMPORARY
-  /* ★ #1201: this tile under the open hold (holdOpenReveal above). heldCb is set only while the hold waits for it; it
-     is called ONCE — true when the tile was shown LOADED at once, false when it was let go (an error, a new src). */
-  let heldCb = null;
-  const holdRelease = (shownNow) => { const cb = heldCb; heldCb = null; if (cb) { try { cb(shownNow); } catch (_) {} } };
-  const showHeld = () => {   // the open hold's flip: LOADED with no fade — data-seen drops the transition (the r3 rule)
-    el.dataset.seen = '';
-    setState('loaded');
-    if (currentSrc && el.isConnected) noteShown(currentSrc);   // on screen at the present → a re-render shows it at once
-    if (onLoad) { try { onLoad(); } catch (_) {} }
-    holdRelease(true);
-  };
   const load = () => {
     if (!currentSrc) return;
     setState('loading');
@@ -291,12 +225,8 @@ export function createMediaBubble({
     const pT0 = pOn ? performance.now() : 0;
     let pT1 = 0;
     const decoded = typeof img.decode === 'function' ? img.decode().catch(() => {}) : Promise.resolve();
-    decoded.then(() => { pT1 = pT0 ? performance.now() : 0; }).then(() => {
-      /* ★ #1201: held by the open hold (holdOpenReveal) → LOADED now, no fade, no queued frame */
-      if (heldCb && mine === revealGen && shown === currentSrc && el.dataset.state === 'loading') { showHeld(); return; }
-      queueReveal(el, () => {
+    decoded.then(() => { pT1 = pT0 ? performance.now() : 0; }).then(() => queueReveal(el, () => {
       if (mine !== revealGen || shown !== currentSrc || el.dataset.state !== 'loading') { if (pT0) p1Log('fade drop'); return; }   // superseded / dropped
-      if (heldCb) { showHeld(); return; }   // ★ #1201: the reveal was queued before the open hold began
       setState('loaded');
       if (pT0) {
         const pT2 = performance.now();
@@ -325,12 +255,10 @@ export function createMediaBubble({
           if (!(dur > 0)) { off(); rec(); }
         });
       }
-      });
-    });
+    }));
   });
   img.addEventListener('error', () => {
     revealGen++;                     // ★ #1151: no pending reveal survives an error
-    holdRelease(false);              // ★ #1201: nor an open hold (the present does not wait for a broken picture)
     if (typeof onSrcError !== 'function') { setState('failed'); return; }
     currentSrc = '';                 // #46 r1 B-1: drop it — idle with no src, so a tap is the owner's (load() is a no-op)
     img.removeAttribute('src');
@@ -340,21 +268,8 @@ export function createMediaBubble({
   mediaCtl.set(el, { setSrc: (s, hint) => {
     if (!(width > 0 && height > 0) && hint) fitTile(hint.w, hint.h);   // #46 r1 B-6
     if (!shownSrcs.has(shownKey(s))) delete el.dataset.seen;            // #46 r3 R3-m1: a NEW picture keeps its first-show fade
-    holdRelease(false);   // ★ #1201: a NEW src leaves the open hold (its own first show keeps the fade)
     currentSrc = s; load();
-  },
-  /* ★ #1201 (holdOpenReveal): 'ready' = its picture is up (the off-screen fade is finished NOW — data-seen), 'wait' =
-     still loading (held: showHeld on its decode, or unhold at the cap), 'none' = nothing to do (not a preview tile,
-     idle / failed, or already seen). */
-  hold: (cb) => {
-    if (!instantIfShown || !currentSrc || el.dataset.seen !== undefined) return 'none';
-    if (el.dataset.state === 'loaded') { el.dataset.seen = ''; if (el.isConnected) noteShown(currentSrc); return 'ready'; }
-    if (el.dataset.state !== 'loading') return 'none';
-    heldCb = cb;
-    return 'wait';
-  },
-  unhold: () => { heldCb = null; },   // the cap: today's path (decode → the next frame → the fade), exactly
-  });
+  } });
 
   el.addEventListener('click', () => {
     const s = el.dataset.state;

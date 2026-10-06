@@ -58,7 +58,7 @@ import { createStatusIcon } from './chatlist-item.js';
 import { createBadge } from './badge.js';
 import { dayBucketLabel, docLocale, timeOpts } from './timestamp.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
-import { fileNameAria } from './typed-bubbles.js';   // ★ #1166 r5 NIT-1: the ONE file-name rule (build + live)
+import { fileNameAria, createFileTile } from './typed-bubbles.js';   // ★ #1166 r5 NIT-1: the ONE file-name rule (build + live)
 
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
@@ -128,6 +128,47 @@ function REPLY_KIND_LABELS(kind, strings = getStrings()) {
     voice: strings.voiceMessage || 'Voice message',
     app: strings.app || 'App',
   }[kind] || '';
+}
+
+/* ★ 7b (#1215): the quote's right-hand tile. An image takes a data: URI ONLY (a src set as a property — never a remote
+   fetch, never markup); a file shows its extension on the file card's family tile (createFileTile); voice = the mic. */
+const QUOTE_TILE_SRC_RE = /^data:image\/(?:jpeg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
+function replyTileEl(tile) {
+  if (!tile || typeof tile !== 'object') return null;
+  if (tile.type === 'image') {
+    const tileSrc = safeImageSrc(String(tile.src || ''));   // ★ O-13 gate: local only (no allowRemote) — then the raster test
+    if (!tileSrc || !QUOTE_TILE_SRC_RE.test(tileSrc)) return null;
+    const th = document.createElement('img');
+    th.className = 'c-bubble__reply-thumb';
+    th.alt = '';
+    th.src = tileSrc;
+    return th;
+  }
+  if (tile.type === 'file') {
+    const ext = /^[A-Z0-9]{1,4}$/.test(String(tile.ext || '')) ? String(tile.ext) : '';
+    const ft = createFileTile(ext ? 'f.' + ext.toLowerCase() : '');
+    ft.classList.add('c-bubble__reply-tile');
+    return ft;
+  }
+  if (tile.type === 'voice') return replyGlyphEl('voice');
+  return null;
+}
+function replyGlyphEl(kind) {
+  if (!kind || !REPLY_KIND_GLYPHS[kind]) return null;
+  const g = document.createElement('span');
+  g.className = 'c-bubble__reply-glyph';
+  g.setAttribute('aria-hidden', 'true');
+  g.append(icon(REPLY_KIND_GLYPHS[kind], { size: 16 }));
+  return g;
+}
+/** ★ 7b (#1215): swap a built quote's right-hand tile (a preview that landed after the quote was drawn). */
+export function setReplyQuoteTile(quoteEl, tile) {
+  if (!quoteEl) return;
+  const next = replyTileEl(tile);
+  if (!next) return;
+  const old = quoteEl.querySelector(':scope > .c-bubble__reply-thumb, :scope > .c-bubble__reply-tile, :scope > .c-bubble__reply-glyph');
+  if (old && old.tagName === 'IMG' && next.tagName === 'IMG' && old.getAttribute('src') === next.getAttribute('src')) return;
+  if (old) old.replaceWith(next); else quoteEl.append(next);
 }
 
 /* emoji-only detection (Damir 2026-07-03): 1–3 emoji and nothing else render
@@ -413,24 +454,6 @@ export function createMessageBubble({
     }
     q.style.setProperty('--reply-h', hashHue(reply.address || reply.sender || ''));
     q.dataset.idhue = String(identityIndex(reply.address || reply.sender || ''));   // ★ #1001
-    // media/typed originals show a small identifier (Damir 2026-07-03):
-    // shell-composed thumb (data-URI) for media, kind glyph otherwise
-    // ★ O-13: the quote thumb goes through the one image test. A refused value falls
-    // through to the kind glyph below, so the quote still says what it quotes.
-    const replyThumb = safeImageSrc(reply.thumb, { allowRemote: allowRemoteImages });
-    if (replyThumb) {
-      const th = document.createElement('img');
-      th.className = 'c-bubble__reply-thumb';
-      th.src = replyThumb;
-      th.alt = '';
-      q.append(th);
-    } else if (reply.kind && REPLY_KIND_GLYPHS[reply.kind]) {
-      const g = document.createElement('span');
-      g.className = 'c-bubble__reply-glyph';
-      g.setAttribute('aria-hidden', 'true');
-      g.append(icon(REPLY_KIND_GLYPHS[reply.kind], { size: 16 }));
-      q.append(g);
-    }
     const info = document.createElement('span');
     info.className = 'c-bubble__reply-info';
     if (reply.sender) {
@@ -444,6 +467,11 @@ export function createMessageBubble({
     qt.textContent = reply.text || REPLY_KIND_LABELS(reply.kind, strings);
     info.append(qt);
     q.append(info);
+    /* ★ 7b (#1215): the identifier sits on the RIGHT — the target's picture, its file-type tile, the mic, or (not loaded /
+       no picture) the kind glyph. reply.thumb is the older name of an image tile. */
+    const tile = reply.tile || (reply.thumb ? { type: 'image', src: reply.thumb } : null);
+    const tileEl = replyTileEl(tile) || replyGlyphEl(reply.kind);
+    if (tileEl) q.append(tileEl);
     el.append(q);
   }
 

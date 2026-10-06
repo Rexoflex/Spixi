@@ -213,17 +213,20 @@ public partial class App : Application
              * have — Windows never had the logcat problem (its log is the file + Debug output),
              * and Damir's first Windows run after this batch hung with the chats pane on
              * ERR_FILE_NOT_FOUND; the mirror is removed from that suspect list by construction.
-             * The store build is byte-for-byte what it was: console off. */
-#if SPIXI_DEV_COEXIST && ANDROID
-            Logging.setOptions(Config.maxLogSize, Config.maxLogCount, true);
-#else
+             * The store build is byte-for-byte what it was: console off.
+             * ★ 7b (#1222, AND-47): the console mirror is OFF again in the dev build too — with it on, Core's log_internal
+             * set Console.ForegroundColor for every warn / error line before writing it, which throws on Android and lost
+             * the WHOLE line from logcat AND the file. Dev Android now tails the file to logcat instead (DevLogTail.cs,
+             * started below); Windows / iOS / Mac are untouched. */
             Logging.setOptions(Config.maxLogSize, Config.maxLogCount, false);
-#endif
             if (!Logging.start(Config.spixiUserFolder, Config.logVerbosity))
             {
                 Environment.Exit(1);
                 return;
             }
+#if SPIXI_DEV_COEXIST && ANDROID
+            DevLogTail.startLogcatMirror(Config.spixiUserFolder);   // ★ 7b (#1222): dev-only file → logcat (tag DOTNET); a store build has no thread
+#endif
             // ★ #46 r2: anything copyResources recorded before the logger existed lands NOW.
             flushStartupDiagnostics();
             Logging.info("Starting Spixi {0} ({1})", Config.version, CoreConfig.version);
@@ -1365,6 +1368,7 @@ public partial class App : Application
         // stamp for every platform that has no pause hook.
         markBackgrounded();
         isInForeground = false;
+        CoreMessageWriter.writeArrivalsNow();   // ★ 7b (#1223 (a)): pending arrivals first, then the plain flush (every platform: a no-op when clean)
         IxianHandler.localStorage?.flush();
         Node.pause();
     }

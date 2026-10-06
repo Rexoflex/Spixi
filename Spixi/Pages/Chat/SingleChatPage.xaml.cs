@@ -1957,7 +1957,7 @@ namespace SPIXI
             ReplyQuote.Candidate c = new ReplyQuote.Candidate
             {
                 idHex = idHex, type = m.type, text = m.message, sequence = m.sequence,
-                timestamp = m.timestamp,
+                timestamp = m.timestamp, localSender = m.localSender,   // ★ 7b (#1215): the 1:1 bridge marker (ReplyQuote.bridgeName)
             };
             if (m.type == FriendMessageType.fileHeader && SharedItems.parseFileHeader(m.message, out string name, out _))
             {
@@ -2073,6 +2073,12 @@ namespace SPIXI
             }
             List<FriendMessage>? deep = replyDeepCached(channel);
             return deep?.Find(x => x.id != null && x.id.SequenceEqual(id));
+        }
+
+        /** ★ 7b (#1215): a plain 1:1 — not a group, not a bot room (replyNameOf's "" case; the bridge marker's case). */
+        private bool isOneToOneRoom()
+        {
+            return !(friend.bot || friend.type == FriendType.Group);
         }
 
         /* ★★ #46 r1 A MAJOR-2 (privacy — the handover gate: the redesign must introduce nothing) — WHICH NAME A QUOTE
@@ -3157,6 +3163,7 @@ namespace SPIXI
                         CoreMessageWriter.arrivals.forgetMessage(friend.walletAddress.ToString(), msg_id);   // ★ P0 #1155: never put back
                         CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), selectedChannel);   // ★ #1155 r3 m2: the blanked row reaches disk before a quick re-open
                         friend.deleteMessage(msg_id, selectedChannel);
+                        CoreMessageWriter.clearDeletedLast(friend, msg_id);   // ★ 7b #46 r1 (A-MINOR-1): same as the delete below
                     }
                     break;
 
@@ -3206,6 +3213,10 @@ namespace SPIXI
                             deleteMessage(msg_id, selectedChannel);
                             // ★ C16 / Q12 (Session AD): Core just recomputed lastMessage —
                             // the chats row learns it NOW, not at the next full flush.
+                            UIHelpers.refreshChatRow(friend);
+                        }
+                        if (CoreMessageWriter.clearDeletedLast(friend, msg_id))   // ★ 7b #46 r1 (A-MINOR-1): a miss left the text in the saved excerpt (F9)
+                        {
                             UIHelpers.refreshChatRow(friend);
                         }
                     }
@@ -3554,6 +3565,42 @@ namespace SPIXI
             }
         }
 
+        /** ★ 7b (#1223) F9 HEAL (ChatHeal.cs has the mechanism): the saved `metaData.lastMessage` (what the chats list shows) is
+         *  an incoming message of this channel that the re-read does not hold and that is not older than its newest row → its
+         *  saved copy goes back in order and the channel is written. Not in a bot room (bot rooms have their own history
+         *  flow and no ArrivalGuard). + ★ 7b (#1222) the dev-only `[P1] chat load` line. Never throws. */
+        private void healLastMessage(string arrivalKey, int readChannel, List<FriendMessage> messages)
+        {
+            try
+            {
+                FriendMessage? last = friend.metaData.lastMessage;
+                if (last == null)
+                {
+                    return;
+                }
+                if (P1Perf.enabled)   // ★ 7b #46 r1 (A-NIT1): the scan + the string only in a dev build
+                {
+                    bool inWindow;
+                    lock (messages)
+                    {
+                        inWindow = ChatHeal.indexOfId(messages, last.id, m => m.id) >= 0;
+                    }
+                    P1Perf.line("chat load last-in-window=" + (inWindow ? "1" : "0") + " type=" + (int)last.type + " local=" + (last.localSender ? "1" : "0"));
+                }
+                int at = CoreMessageWriter.healLast(messages, last, friend.metaData.lastMessageChannel, readChannel, friend.bot);   // ★ 7b #46 r1 (C09): bot → ChatHeal.eligible
+                if (at >= 0)
+                {
+                    CoreMessageWriter.arrivals.markDirty(arrivalKey, readChannel);
+                    CoreMessageWriter.instance.requestWrite(arrivalKey, readChannel);
+                    P1Perf.line("chat heal last=1");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("chat heal skipped (" + e.GetType().Name + ")");
+            }
+        }
+
         public void loadMessages()
         {
             applyPendingJumpWindow(false);   // ★ #1106
@@ -3618,6 +3665,7 @@ namespace SPIXI
                 {
                     Logging.warn("[P0] reattach n=" + reattached);   // ★ #1155: the CORE-8 race happened (a count, no address)
                 }
+                healLastMessage(arrivalKey, readChannel, messages);   // ★ 7b (#1223): F9 — the saved excerpt's message, put back
             }
             if (messages == null
                 || messages.Count == 0)
@@ -4673,8 +4721,8 @@ namespace SPIXI
                 {
                     rowText = rm.body;
                     reply_to = rm.targetIdHex;   // "" for Damir P2's fallback box (no jump)
-                    quoteName = rm.quoteName;
-                    quoteText = rm.quoteText;
+                    quoteName = ReplyQuote.bridgeName(rm, isOneToOneRoom());   // ★ 7b (#1215): a 1:1 match → \u0001me / \u0001peer (bridge only)
+                    quoteText = ReplyQuote.bridgeText(rm);                     // ★ 7b (#1224 (6), #46 r1 A-NIT5): a text that starts with a kind glyph → a leading U+2060
                 }
                 string edited = EditRules.isEdited(message.type, message.sequence, friend.bot) ? "1" : "";
                 /* ★ Damir P1 (#46 r2 MAJOR-1): arg 6 = Core's `timestamp`, which an edit no longer changes — every replace
@@ -5213,8 +5261,8 @@ namespace SPIXI
             {
                 rowText = rm.body;
                 replyTo = rm.targetIdHex;   // "" for Damir P2's fallback box
-                quoteName = rm.quoteName;
-                quoteText = rm.quoteText;
+                quoteName = ReplyQuote.bridgeName(rm, isOneToOneRoom());   // ★ 7b (#1215): the SAME bridge args as the row push
+                quoteText = ReplyQuote.bridgeText(rm);                     // ★ 7b (#1224 (6))
             }
             string edited = EditRules.isEdited(message.type, message.sequence, friend.bot) ? "1" : "";
             /* ★★ #1208 (S7): the SAME voice rule as the row push (V2) — a tick update of a voice row carries its FIRST LINE

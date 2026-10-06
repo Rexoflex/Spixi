@@ -376,6 +376,7 @@ namespace SPIXI.Meta
                 }
 
                 Logging.info("Node started");
+                VoiceFolderSweep.runOnce(Path.Combine(Config.spixiUserFolder, "Voice"));   // ★ 7b (#1224 (8)): background, bounded, broken files only
 
                 /* ★★ ROUND 3 (review3-cs MAJOR-1) — THE LAST STATEMENT, ON PURPOSE.
                  * Read the header of this method before you move this line. The counter
@@ -563,9 +564,18 @@ namespace SPIXI.Meta
                                 Monitor.TryEnter(pushFetchLock, PUSH_FETCH_TRY_MS, ref fetchTaken);
                                 if (fetchTaken)
                                 {
-                                    OfflinePushMessages.fetchPushMessages(false, fireLocalNotification, false);
+                                    ulong p1Before = P1Perf.enabled ? OfflinePushMessages.receivedOfflineMessages : 0;   // ★ 7b (#1222)
+                                    bool p1Ran = OfflinePushMessages.fetchPushMessages(false, fireLocalNotification, false);
                                     // ★★ P0 #1155: the fetched messages are already removed from the push server — write them now
                                     CoreMessageWriter.arrivals.afterPushBatch(CoreMessageWriter.instance);
+                                    if (P1Perf.enabled)   // ★ 7b #46 r1 (A-NIT1 / A-MINOR-2): dev only, and only a fetch that RAN (the cooldown returns false at once) or got messages
+                                    {
+                                        ulong p1Got = OfflinePushMessages.receivedOfflineMessages - p1Before;
+                                        if (p1Ran || p1Got > 0)
+                                        {
+                                            P1Perf.line("push fetch got=" + p1Got + " where=loop");   // ★ 7b (#1222): a count
+                                        }
+                                    }
                                     fireLocalNotification = false;
                                 }
                                 else

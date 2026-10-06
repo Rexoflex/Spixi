@@ -34,6 +34,9 @@
     <Compile Include="../../Spixi/Utils/EditRules.cs" />
     <!-- ★ #1207 / #1208 (session 7): the voice wire text, the Ogg Opus mux / demux, the waveform, the route (tests: VoiceCodecTests.cs; ReplyQuote + EditRules call it). -->
     <Compile Include="../../Spixi/Utils/VoiceCodec.cs" />
+    <!-- ★ 7b (#1223 / #1222): the F9 heal decision · the dev logcat tail's rules (tests: S7bRulesTests.cs, with ReplyQuote's bridge args + VoiceCodec's sweep rule). -->
+    <Compile Include="../../Spixi/Utils/ChatHeal.cs" />
+    <Compile Include="../../Spixi/Utils/DevLogTail.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

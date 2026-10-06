@@ -1042,13 +1042,19 @@ button.c-bubble__sender {
 }
 button.c-bubble__reply { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .c-bubble__reply-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-/* media/typed identifiers in the quote (Damir 2026-07-03) */
-.c-bubble__reply-thumb {
-  width: 32px;   /* quote thumb, matches the 32px glyph chip */
-  height: 32px;
+/* media/typed identifiers in the quote (Damir 2026-07-03).
+   ★ 7b (#1215): on the RIGHT (after the info column, message-bubble.js) — the picture / the file-type tile are 44 × 44,
+   flush to the quote's end edge (the negative margins cancel the quote's end padding and part of its block padding);
+   the quote grows to hold them (44 − 2 × 2 + the 4px block padding = 48). The kind glyph (not loaded / no picture) keeps its 32px chip. */
+.c-bubble__reply-thumb,
+.c-bubble__reply > .c-bubble__reply-tile {
+  width: 44px;   /* 44 sanctioned: the quote's picture / file tile (#1215, Damir's pick on the render) */
+  height: 44px;
   border-radius: var(--radius-8);
   object-fit: cover;
   flex: none;
+  margin-block: calc(-1 * var(--spacing-2));
+  margin-inline-end: calc(-1 * var(--spacing-4));
 }
 .c-bubble__reply-glyph {
   width: 32px;
@@ -1462,8 +1468,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   position: relative;
   transform: translateX(var(--reply-swipe-x, 0px));
 }
+/* ★ 7b (#1219): the spring back eases OUT (--duration-200 decelerate — it was a 100 ms accelerate snap) */
 .c-bubble-row[data-reply-swipe][data-reply-return] {
-  transition: transform var(--duration-100) var(--easing-accelerate);
+  transition: transform var(--duration-200) var(--easing-decelerate);
 }
 .c-reply-swipe {
   position: absolute;
@@ -1488,6 +1495,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--icon-action-default);
   transition: transform var(--duration-200) var(--easing-decelerate), color var(--duration-200) var(--easing-decelerate);
 }
+.c-bubble-row[data-reply-return] .c-reply-swipe {
+  transition: transform var(--duration-100) var(--easing-accelerate), color var(--duration-100) var(--easing-accelerate), opacity var(--duration-200) var(--easing-decelerate);   /* #46 r1: opacity eases on the return only (the drag follows the finger) */
+}
 
 /* the desktop hover button — a real <button> ("Reply"), beside the bubble (placed by the shell from the bubble's
    own box: --reply-btn-x / --reply-btn-y). Hidden everywhere but the desktop flag; shown on row hover (pointer:
@@ -1503,13 +1513,16 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--spacing-32);
-  height: var(--spacing-32);
+  /* ★ 7b (#1217 H2, Damir's pick): a lifted menu-surface disc, 36 × 36, the icon in the action colour (was a 32px chat chip,
+     neutral icon). placeReplyButton centres it from its measured offsetWidth, so the size lives here only. */
+  width: 36px;    /* 36 sanctioned: the hover reply disc (#1217 H2) — no 36 on the spacing ramp */
+  height: 36px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-full);
-  background: var(--surface-chat-chip);
-  color: var(--icon-neutral-02);
+  background: var(--surface-menu);
+  box-shadow: var(--elevation-2);
+  color: var(--icon-action-default);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -1530,8 +1543,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     pointer-events: auto;
     transition: opacity var(--duration-200) var(--easing-decelerate);
   }
-  :root[data-desktop] .c-bubble-row__reply:hover { color: var(--icon-neutral-01); }
+  :root[data-desktop] .c-bubble-row__reply:hover { color: var(--icon-action-hover); }   /* ★ 7b (#1217): the action pair */
 }
+:root[data-desktop] .c-bubble-row__reply:active { color: var(--icon-action-pressed); }
 /* ★ r2 (MINOR-3): the roving row (tabindex 0 / -1, chat.html roveRows) shows the house focus ring when the KEYBOARD
    lands on it — never on a click (focus-visible); the same ring serves selection mode's checkbox rows */
 .c-bubble-row:focus { outline: none; }
@@ -1593,11 +1607,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   gap: 2px;
+  overflow: hidden;   /* ★ 7b (#1216 W1): a box narrower than the 40 bars clips them at the END — never squeezed */
 }
 .c-voice__bar {
-  flex: 1 1 0;
-  min-width: 1px;
-  max-width: 3px;
+  flex: 0 0 3px;      /* ★ 7b (#1216 W1, Damir's pick): every bar 3px wide, 2px apart, no grow / shrink (was 1–3px, squeezed) */
+  width: 3px;
   height: calc(15% + var(--voice-h, 0) * 0.85%);   /* 0 → a flat 4 px tick (the placeholder), 100 → the full box */
   border-radius: var(--radius-full);
   background: currentColor;
@@ -1685,28 +1699,45 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* —— reply/edit context strip (batch 3b; ★ #1198 / #1199 live behind setCaps reply / edit) —— */
 /* ★ #1198: the strip arms in on --duration-200 decelerate (a short rise + fade, no blur); it leaves at once (removed) —
    the close is faster than the open. Reduced motion: the token is 0 ms (tokens.css). */
+/* ★ 7b (#1214, strip B — Damir's pick, the Telegram row INSIDE the pill): the strip is the field's FIRST line, full
+   pill width (negative inline margins cancel the field's padding — the ⊕ room at the start, spacing-12 at the end),
+   a hairline under it; the field wraps ONLY while it holds one ([data-ctx], set by setComposerContext — no :has()). */
 @keyframes c-composer-ctx-in { from { opacity: 0; transform: translateY(var(--spacing-4)); } }
+.c-composer__field[data-ctx] { flex-wrap: wrap; row-gap: 0; }
 .c-composer__ctx {
   animation: c-composer-ctx-in var(--duration-200) var(--easing-decelerate);
-  flex-basis: 100%;
   /* bug 2026-07-05c ③: the strip is itself a flex container, so its
      min-width:auto resolves to the NOWRAP excerpt's full width — the strip
      blew past the phone edge and hid the cancel ✕. min-width:0 restores the
      basis+shrink sizing (headless-Chrome verified: 642px → container width) */
   min-width: 0;
+  flex: 0 0 calc(100% + var(--composer-attach-size) + var(--spacing-8) + var(--spacing-12));
+  margin-block: calc(-1 * var(--spacing-4)) var(--spacing-4);
+  margin-inline: calc(-1 * (var(--composer-attach-size) + var(--spacing-8))) calc(-1 * var(--spacing-12));
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
-  padding: var(--spacing-4) var(--spacing-8);
-  border-radius: var(--radius-12);
-  background: var(--surface-input);
+  gap: calc(var(--spacing-8) + var(--spacing-2));   /* 10 — the approved render (#1214) */
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-8);
+  border-bottom: var(--outline-width-1) solid var(--outline-neutral-01);
+  background: transparent;
   color: var(--icon-action-default); /* leading glyph ink */
 }
+/* the ⊕ hidden (A2): the field's start pad is spacing-12, so the strip's start margin follows it */
+.c-composer[data-no-attach] .c-composer__ctx {
+  flex-basis: calc(100% + 2 * var(--spacing-12));
+  margin-inline-start: calc(-1 * var(--spacing-12));
+}
+.c-composer__ctx > svg { flex: none; color: var(--icon-action-default); }
+[dir="rtl"] .c-composer__ctx[data-kind="reply"] > svg { transform: scaleX(-1); }
 .c-composer__ctx-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  border-inline-start: 3px solid var(--surface-action-default);   /* sanctioned: the quote bar (no 3 px outline token) */
+  padding-inline-start: var(--spacing-8);
 }
 .c-composer__ctx-title {
   font-size: var(--font-size-label-sm);
@@ -1714,14 +1745,33 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   letter-spacing: var(--tracking-label-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-action-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .c-composer__ctx-text {
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-02);
+  color: var(--text-neutral-01);   /* ★ 7b (#1214): contrast — was neutral-02 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* ★ 7b (#1214): the target's tile — a photo thumb (cover), a file's extension tile (the card's family ground,
+   typed-bubbles.css .c-fbubble__icon), a mic for a voice row */
+.c-composer__ctx .c-composer__ctx-tile {
+  flex: none;
+  width: 36px;    /* sanctioned: the strip tile (#1214) */
+  height: 36px;
+  border-radius: var(--radius-8);
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.c-composer__ctx .c-composer__ctx-tile[data-voice] {
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
 }
 .c-composer__ctx-cancel {
   position: relative; /* hit-area extension (same pattern as attach) */
@@ -1729,17 +1779,17 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;  /* visual size sanctioned; target extended via ::after */
-  height: 28px;
+  width: var(--spacing-32);  /* ★ 7b (#1214): 32 visual, the target extended via ::after */
+  height: var(--spacing-32);
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--icon-neutral-02);
+  color: var(--icon-neutral-01);   /* ★ 7b (#1214): was neutral-02 ("hard to see") */
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--duration-100) var(--easing-standard);
 }
-.c-composer__ctx-cancel::after { content: ''; position: absolute; inset: -8px; }
+.c-composer__ctx-cancel::after { content: ''; position: absolute; inset: calc(-1 * var(--spacing-8)); }
 @media (hover: hover) and (pointer: fine) {
   .c-composer__ctx-cancel:hover { background: var(--surface-interactive-hover); color: var(--icon-neutral-01); }
 }
@@ -1962,6 +2012,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* —— ★★ #1208 (S7) the RECORDING BAR: replaces the pill in the pill's skin and height (no shift); ✕ · dot · "0:07 / 0:30",
    the trailing disc = ➤. Fades in on --duration-200, leaves at once (close faster than open); reduced motion = still dot. */
 .c-composer[data-rec] .c-composer__field { display: none; }
+/* #46 r1 B-m1: recording with a strip open — the pill keeps only the strip, a line above the bar */
+.c-composer[data-rec] .c-composer__field[data-ctx] { display: flex; flex: 0 0 100%; padding-block: 0; }
+.c-composer[data-rec] .c-composer__field[data-ctx] > :not(.c-composer__ctx) { display: none; }
+.c-composer[data-rec] .c-composer__field[data-ctx] > .c-composer__ctx { margin-block: 0; border-bottom: 0; }
 @keyframes c-composer-rec-in { from { opacity: 0; } }
 .c-composer__rec {
   animation: c-composer-rec-in var(--duration-200) var(--easing-decelerate);
@@ -3352,6 +3406,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      position:relative at EQUAL specificity — this file must load after it
      (as in the demos) or the button would anchor to the scroll flow */
   position: absolute;
+  /* ★ 7b (#1218 F2): above the bubble internals (media img / face / stamp, the hover reply disc: z-index 1 in the same
+     stacking context — a photo's time pill painted OVER this button), below the composer (--z-20), menus (--z-30) and
+     the scrim (--z-40). The canvas / scroller stay z-index auto (message-menu.css precondition). */
+  z-index: var(--z-10);
   inset-inline-end: var(--spacing-16);
   /* ★ #711: the composer floats INSIDE the canvas now, so the chevron offsets itself by
      the composer slot's height (--composer-h, written on the canvas by the shell's
@@ -5285,15 +5343,24 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   text-align: center;
   pointer-events: none;
 }
-/* ★ #1147 (5) photo fade on chat open (Damir): a LOCAL photo tile waiting for its preview (typed-bubbles.js data-quiet)
-   shows the tile ground only — no glyph, no caption — at the placeholder size; the picture then fades in over it (the
-   img's --duration-200 first-show fade), or, with no preview in PHOTO_QUIET_MS, the face fades in (the same token).
-   Reduced motion: --duration-200 is 0 ms (tokens.css) → no fades, instant. */
+/* ★ #1147 (5): a quiet tile (data-quiet) hides its face; the picture or, after PHOTO_QUIET_MS, the face fades in */
 .c-mbubble[data-file] .c-mbubble__file { transition: opacity var(--duration-200) var(--easing-standard); }
 .c-mbubble[data-quiet] .c-mbubble__file { opacity: 0; }
-/* the picture is the face now — #46 r1 B-6: the face stays UNDER the picture while it fades in (the img sits above it),
-   then hides at the fade's end (a discrete visibility step after --duration-200), so no blank ground shows between */
-.c-mbubble[data-file] .c-mbubble__img { z-index: 1; object-fit: cover; }   /* #46 r1 B-m2: cover — contain left a 1 px sliver of ground inside the frame (the preview is a square crop on a square tile, B-M2) */
+/* ★ 7b (#1221) the grey ground: a layer under the img. #46 r2 m1+m2: shown on a QUIET tile only (quiet holds through
+   loaded); never-quiet = #1133 (3) white; quiet expiry fades it out with the face in. */
+.c-mbubble[data-file]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surface-neutral-02);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-200) var(--easing-standard);
+}
+.c-mbubble[data-file][data-quiet]::before,
+.c-mbubble[data-file="progress"][data-state="loaded"]::before { opacity: 1; }   /* #46 r3: my sending photo drops quiet at load — keep the ground under its fade */
+/* #46 r1 B-6: the face stays UNDER the fading picture, then hides at the fade's end */
+.c-mbubble[data-file] .c-mbubble__img { z-index: 1; object-fit: cover; }   /* #46 r1 B-m2: cover (no sliver) */
 .c-mbubble[data-state="loaded"] .c-mbubble__file {
   visibility: hidden;
   transition: visibility 0s linear var(--duration-200);
@@ -6294,6 +6361,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
      Keyed off the sibling c-scroll-latest[data-visible] (appended before this button). */
   .chat-mention-fab {
     position: absolute;
+    z-index: var(--z-10);   /* ★ 7b (#1218 F2): the chevron's layer (scroll-latest.css) — above the bubbles' z-index 1 internals */
     inset-inline-end: var(--spacing-16);
     inset-block-end: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-16));   /* primary bottom slot (chevron hidden) — above the floating composer (#711), and above the keyboard lift (N1, #976) */
     width: var(--size-target-min); height: var(--size-target-min);
@@ -6480,8 +6548,10 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     createTopbar, setTopbarSub, createMessageBubble, createDateSeparator,
     createComposer, clearComposer, setComposerCost, createTypingIndicator, createScrollToLatest,
     setComposerContext, getComposerContext,   // M1 reply-to (#441): the quote strip above the input
+    cancelComposerContext,          // ★ 7b (#1219): Back closes the strip through the ✕ path
     setComposerVoice, setComposerRecording, getComposerRecording, releaseComposerRecording,   // ★ #1208 (S7): the mic slot + the recording bar (composer.js)
     setVoiceBubble, voiceQuoteText,       // ★ #1208 (S7): the voice bubble's live update + the clip-length rule (message-bubble.js)
+    setReplyQuoteTile,                    // ★ 7b (#1215): a quote's tile patched in place (message-bubble.js)
     setScrollLatestCount,           // N53: unread badge on the scroll-to-latest chevron (shipped #74, wired here)
     attachPressFeedback,
     setMessageStatus, replayStatusChange, removeMessage,
@@ -7587,7 +7657,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // The check runs AFTER the append, so the pill's ~40px growth can flip the
     // verdict for a user sitting within 40px of the threshold (loop B-7) — in
     // that band the pill simply appears without the scroll, which is harmless.
-    if (nearBottom()) box.scrollTop = box.scrollHeight;
+    if (nearBottom()) pinLogEnd();   // #46 r1: the reply hold wins
     if (typingTimer) clearTimeout(typingTimer);
     typingTimer = setTimeout(hideTyping, 5000);  // legacy showUserTyping auto-hides after 5s
   }
@@ -7602,6 +7672,51 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
      first, and the first frames of a scroll from the bottom would snap back (#46 r3 R3-3). One gate, not one per site. */
   let smoothJumpUntil = 0;
   const nearBottom = () => performance.now() >= smoothJumpUntil && box.scrollTop + box.clientHeight * 1.5 >= box.scrollHeight;
+
+  /* ★ 7b (#1219, "the chat jumps when I swipe to reply"): for REPLY_HOLD_MS after startReply / startEdit the re-pins
+     keep THAT row in view (block:'nearest'), not the end. */
+  const REPLY_HOLD_MS = 800;
+  let replyHold = null, replyHoldT = 0, onHoldOver = null;   // { id, until } · #46 r2 m3: the end re-syncs the chevron
+  function holdReplyTarget(id) {
+    const h = replyHold = { id: String(id), until: performance.now() + REPLY_HOLD_MS };
+    clearTimeout(replyHoldT);
+    replyHoldT = setTimeout(() => { if (replyHold === h) { replyHold = null; if (onHoldOver) onHoldOver(); } }, REPLY_HOLD_MS);
+  }
+  function heldReplyRow() {
+    if (!replyHold) return null;
+    if (performance.now() >= replyHold.until) { replyHold = null; return null; }
+    const row = rows.get(replyHold.id);
+    return row && row.isConnected ? row : null;
+  }
+  /* #46 r1 B-M1: the log shown above the slot's top (it rides --composer-lift over the iOS keyboard) */
+  function logVisibleHeight() {
+    const slot = document.getElementById('chat-composer');
+    const sr = slot ? slot.getBoundingClientRect() : null;
+    return sr && sr.height > 0 ? Math.max(0, Math.min(box.clientHeight, sr.top - box.getBoundingClientRect().top))
+      : box.clientHeight - (slot ? slot.offsetHeight : 0);
+  }
+  function keepRowInView(row) {
+    const boxTop = box.getBoundingClientRect().top;
+    const visible = logVisibleHeight();
+    const top = row.getBoundingClientRect().top - boxTop + box.scrollTop;
+    const bottom = top + row.offsetHeight;
+    const viewBottom = box.scrollTop + visible;
+    if (bottom > viewBottom) box.scrollTop = Math.max(0, box.scrollTop + (bottom - viewBottom));
+    else if (top < box.scrollTop) box.scrollTop = Math.max(0, top);
+  }
+  /* the one "follow the newest" write for the grow pin and the keyboard sticks — the held row wins while held.
+     `held` = a row a stick captured at its start (kept while the hold lasts — #46 r2 n2). */
+  function pinLogEnd(held) {
+    const row = held && held.isConnected ? held : heldReplyRow();
+    if (row) keepRowInView(row);
+    else box.scrollTop = box.scrollHeight;
+  }
+  let replyHoldCut = 0;   // #46 r1 C-note: MY send ends the hold (a running stick's captured row too)
+  function endReplyHold() {
+    const was = replyHold;
+    replyHold = null; replyHoldCut++; clearTimeout(replyHoldT);
+    if (was && onHoldOver) onHoldOver();
+  }
 
   /* status derivation from the legacy bool flags (chat.js updateMessage / addMe):
    *   errorSending → failed   (highest priority)
@@ -7736,8 +7851,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     text = capQuoteText(text, REPLY_TEXT_MAX);
     /* the name is C#'s, sanitised and never an address (CONTRACT §1a NAME) — the D-19b ladder's "a real nickname
        always wins" holds in blind rooms too, and an empty name stays empty (no label, never a guess) */
-    const sender = String(rec.quoteName || '');
-    return { sender, address: '', text, kind, thumb: null, fallback: true };
+    /* ★ 7b (#1215): in a 1:1 C# may name the side instead of a person — `\u0001me` (→ "You") or `\u0001peer` (→ the
+       header name); any other value is a name as before (textContent only) */
+    const qn = String(rec.quoteName || '');
+    const sender = qn === QUOTE_NAME_ME ? ((window.SL || {}).you || 'You') : qn === QUOTE_NAME_PEER ? peerQuoteName() : qn;
+    return { sender, address: '', text, kind, tile: null, fallback: true };
   }
   /* the hex id test for an outgoing quotejump — C#'s ids are Crypto.hashToString hex; anything else never leaves */
   const QUOTE_ID_RE = /^[0-9a-fA-F]{2,256}$/;
@@ -7771,36 +7889,52 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     /* ★ #1198 r1 (Damir P2): a VALID quote line that matches NOTHING — C# sends replyTo "" with the line's own name +
        text → the quote box is drawn from them with NO tap (quoteTapFor: no target id, no jump) */
     if (!rec.replyTo) return rec.quoteText ? replyFallbackQuote(rec) : null;
-    const s2 = window.SL || {};
     const target = model.get(String(rec.replyTo));
     if (!target) return replyFallbackQuote(rec);   // ★ #1198: C#'s quote, or nothing
-    const kind = replyKindOf(target);
-    const isOwn = target.direction === 'sent';
-    const sender = isOwn
-      ? (s2.you || 'You')
-      : (senderHasNick(target) ? target.senderNick
-          : (mode.isMulti && mode.blind ? (s2.hiddenMember || 'Hidden member')
-              : (identity.nick || '')));
-    let text = '';
-    if (!kind) {
-      text = String(target.text || '').replace(/\s+/g, ' ').trim();
-      text = capQuoteText(text, REPLY_TEXT_MAX);   // ★ r2 NIT: by grapheme, never a lone surrogate
-    } else if (kind === 'file') {
-      text = String(target.name || '');
-    } else if (kind === 'voice') {
-      text = voiceQuoteText(voiceViewOf(target).durMs, s2);   // ★ #46 r1 (B m-8): "Voice message (0:12)" / "Voice message"
-    }
+    const q = replySourceFor(target);
+    if (!q) return null;
+    /* ★ 7b (#1215): a photo FILE with no preview yet quotes with the picture glyph (its tile lands with setFileThumb →
+       refreshQuoteTiles) */
+    const kind = q.kind === 'file' && !q.tile && isPhotoFileName(target.name) ? 'image' : q.kind;
     return {
-      sender,
-      address: isOwn ? '' : (target.senderAddress || identity.address || ''),
-      text,
+      sender: q.sender,
+      address: target.direction === 'sent' ? '' : (target.senderAddress || identity.address || ''),
+      text: q.text,
       kind,
-      thumb: null,   // media originals: the tile is fetched on demand (#82), so no thumb to quote
+      tile: q.tile,
     };
   }
 
+  /* ★ 7b (#1215): the quote's names. C#'s 1:1 side markers (bridge only, never on the wire) and the header name. */
+  const QUOTE_NAME_ME = '\u0001me';
+  const QUOTE_NAME_PEER = '\u0001peer';
+  function peerQuoteName() {
+    const n = String(identity.name || '');
+    return n && isAddressShaped(n) ? truncateAddressMiddle(n) : n;   // #211: an address echo is never shown in full
+  }
+  function memberQuoteName(rec) {   // the tip ladder's rungs (#346 / #603): the roster nick, else the truncated address
+    const n = (groupRoster.get(rec.senderAddress) || {}).name || '';
+    if (n && !isPseudoAddressNick(n) && n !== rec.senderAddress) return n;
+    return rec.senderAddress ? truncateAddressMiddle(String(rec.senderAddress)) : '';
+  }
+  /* ★ 7b (#1215): a row's picture for a quote / the strip — a data: URI only (the fileThumbs cache, else the row's own
+     loaded preview); a remote GIF src is never copied */
+  const QUOTE_THUMB_RE = /^data:image\/(?:jpeg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
+  function quoteThumbOf(rec) {
+    const id = String(rec.id);
+    const t = fileThumbs.get(id);
+    if (t) return t;
+    const row = rows.get(id);
+    const img = row && row.querySelector('.c-mbubble__img');
+    const src = img ? String(img.getAttribute('src') || '') : '';
+    return QUOTE_THUMB_RE.test(src) ? src : '';
+  }
+
   /* The composer strip's view of the row you are replying TO (not the same as
-     replyQuoteFor, which reads a row's OWN reply target). */
+     replyQuoteFor, which reads a row's OWN reply target) — and, ★ 7b (#1215), the loaded-target half of the bubble
+     quote. CONTRACT (S1 ⇄ S2): { sender, text, kind, tile }; sender is ALWAYS filled (own → "You", the nick, a blind
+     room's hidden member, else the header name); tile = { type:'image', src } (a data: preview) · { type:'file', ext }
+     (≤ 4 upper-case chars, '' = generic) · { type:'voice' } · null. */
   function replySourceFor(rec) {
     if (!rec || !rec.id) return null;
     const s2 = window.SL || {};
@@ -7809,16 +7943,40 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const sender = isOwn ? (s2.you || 'You')
       : (senderHasNick(rec) ? rec.senderNick
           : (mode.isMulti && mode.blind ? (s2.hiddenMember || 'Hidden member')
-              : (identity.nick || '')));
+              : mode.isMulti ? memberQuoteName(rec)   // a group's identity.name is the GROUP — never a member's label
+              : peerQuoteName()));   // ★ 7b (#1215): was identity.nick, which nothing sets — no sender in a 1:1
     let text = '';
+    let tile = null;
     if (!kind) {
       text = String(rec.text || '').replace(/\s+/g, ' ').trim();
       text = capQuoteText(text, REPLY_TEXT_MAX);   // ★ r2 NIT: by grapheme, never a lone surrogate
-    } else if (kind === 'file') text = String(rec.name || '');
-    else if (kind === 'voice') {                    // ★ #1208: "Voice message (0:12)" — the chats-list grammar; no length known → the label alone
+    } else if (kind === 'file') {
+      text = String(rec.name || '');
+      if (isPhotoFileName(text)) {
+        const src = quoteThumbOf(rec);
+        if (src) tile = { type: 'image', src };
+      } else {
+        const m = /\.([A-Za-z0-9]{1,4})$/.exec(text);
+        tile = { type: 'file', ext: m ? m[1].toUpperCase() : '' };
+      }
+    } else if (kind === 'voice') {                  // ★ #1208: "Voice message (0:12)" — the chats-list grammar; no length known → the label alone
       text = voiceQuoteText(voiceViewOf(rec).durMs, s2);   // ★ #46 r1 (B m-8): the one voice quote (a template — no hardcoded " (")
+      tile = { type: 'voice' };
+    } else if (kind === 'image' || kind === 'gif') {
+      const src = quoteThumbOf(rec);
+      if (src) tile = { type: 'image', src };
     }
-    return { sender, text, kind };
+    return { sender, text, kind, tile };
+  }
+  /* ★ 7b (#1215): a preview that lands AFTER the quotes of its row were built (setFileThumb) — patch their tile in place */
+  function refreshQuoteTiles(targetId) {
+    for (const r of model.values()) {
+      if (!r || String(r.replyTo || '') !== targetId) continue;
+      const row = rows.get(String(r.id));
+      const qEl = row && row.querySelector('.c-bubble__reply');
+      const q = qEl && replyQuoteFor(r);
+      if (q && q.tile && q.tile.type === 'image') setReplyQuoteTile(qEl, q.tile);
+    }
   }
 
   /* Shared scroll-to-and-pulse. Extracted from the @-mention FAB so the reply
@@ -8294,7 +8452,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       onOpen: () => openMediaViewer({ host: overlayHost, src: media.url, kind: media.kind, alt: label, strings: window.SL || {} }),
       // the tile grows from its placeholder box to the GIF's full size on load —
       // if the user was at the bottom, pull the log down (the URL is remembered at its load, below).
-      onLoad: () => { if (nearBottom()) box.scrollTop = box.scrollHeight; },
+      onLoad: () => { if (nearBottom()) pinLogEnd(); },
     });
     /* #46 r4 m5: remember the open when the media LOADS, not at the tile's reveal (onLoad waits for decode + a frame
        since #1151) — a re-render in that gap must not rebuild a tapped GIF back to "tap to load" (auto-load off). */
@@ -8345,7 +8503,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const photoTile = photoPreviews && isPhotoFileName(rec.name);
     return (photoTile ? createImageFileBubble : createFileBubble)({
       thumb: photoTile ? (fileThumbs.get(String(rec.id)) || null) : null,
-      onLoad: photoTile ? () => { if (nearBottom()) box.scrollTop = box.scrollHeight; } : undefined,   // the tile grew to the picture
+      onLoad: photoTile ? () => { if (nearBottom()) pinLogEnd(); } : undefined,   // the tile grew to the picture
       onThumbError: photoTile ? () => dropFileThumb(String(rec.id)) : undefined,   // #46 r1 B-1: a picture that will not decode is forgotten
       quietKey: photoTile && rec.fromLoad ? String(rec.id) : null,   // ★ #1147 (5): the quiet wait is per message — #46 r1 B-m4: a history-load row only, never a live insert
       direction: rec.direction,
@@ -9173,12 +9331,15 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const live = model.get(String(rec.id)) || rec;     // the CURRENT record (a gesture may hold an older render's)
     const q = replySourceFor(live);
     if (!q) return false;
+    holdReplyTarget(live.id);                           // ★ 7b (#1219): no jump — the re-pins keep this row in view
     setComposerContext(composerEl, {
       kind: 'reply',
-      title: ((window.SL && window.SL.replyingTo) || 'Reply to') + (q.sender ? ' ' + q.sender : ''),
+      title: q.sender || '',                     // ★ 7b (#1214): strip B — the sender alone (composer.js falls back to "Reply")
       text: q.text || replyKindLabel(q.kind),   // ★ #1198: a payment / app / media row says what it is in the strip
       quoteKind: q.kind || '',                   // ★ #1208: the strip's kind (composer.js data-quote-kind) — 'voice' for a voice row
+      tile: q.tile || null,                      // ★ 7b (#1214): the S1⇄S2 contract — replySourceFor's tile (S2)
       replyId: String(live.id),
+      onCancel: endReplyHold,                    // #46 r2 n1: ✕ / Esc / Back
       strings: window.SL || {},
     });
     // In a group, replying also addresses the person — the @-mention half of M1
@@ -9193,7 +9354,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       }
     }
     const inp = composerEl.querySelector('.c-composer__input');
-    if (inp) inp.focus();                               // focus returns to the input (a11y: the gesture's result is the field)
+    if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }   // focus returns to the input (a11y); ★ 7b (#1219): no scroll
     return true;
   }
   /* ★ #1199 — the edit start: the composer's EDIT context — the title, the original as the strip's excerpt, the field
@@ -9202,16 +9363,18 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const live = rec && (model.get(String(rec.id)) || rec);
     if (!live || !composerEl || !canEditRec(live)) return false;
     const s2 = window.SL || {};
+    holdReplyTarget(live.id);                           // ★ 7b (#1219): no jump
     setComposerContext(composerEl, {
       kind: 'edit',
       title: (window.SL && window.SL.editMessage) || 'Edit message',   // ★ r1 (N-8): the existing key
       text: capQuoteText(String(live.text || '').replace(/\s+/g, ' ').trim(), REPLY_TEXT_MAX),   // ★ r2 NIT: grapheme cut
       prefillText: String(live.text || ''),
       editId: String(live.id),
+      onCancel: endReplyHold,
       strings: s2,
     });
     const inp = composerEl.querySelector('.c-composer__input');
-    if (inp) inp.focus();
+    if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }   // ★ 7b (#1219)
     return true;
   }
 
@@ -10713,7 +10876,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     logDirty = false;                      // ★ Session P: on glass
     keepTypingLast();
     if (prependAnchor && restorePrependAnchor()) olderAnchorId = null;   // ★ #1166 B2: a prepend keeps the first visible row in place (before the 1.5-screen bottom pin)
-    else if (scrollWasAtBottom) box.scrollTop = box.scrollHeight;
+    else if (scrollWasAtBottom) pinLogEnd();   // #46 r1: the reply hold wins
     else applyOlderAnchor();               // A1: hold the reading position across a load-more re-flush
     firstRenderDone = true;                 // boot spinner is now gone
     if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
@@ -11899,6 +12062,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
                                            //    paint 'pending' on B's members (desktop reparent reuse)
       removeRequestPane();                 // ⑪ per-peer reset: peer A's request pane must not survive into B
       if (composerEl && getComposerContext(composerEl)) setComposerContext(composerEl, null);   // ★ #1198 / #1199: A's reply / edit strip must not point into B (desktop reuse)
+      endReplyHold();                      // #46 r3: A's reply hold (and its timer) never carries into B
       clearPendingEdits();                 // ★ r2: an answer for A's edit never lands in B's field
       setComposerLock(null);               // ⑪ per-peer reset: this peer's pending state re-locks via its own
                                            //    pushes (setOnlineStatus waiting / showRequestSentModal / showContactRequest)
@@ -12108,7 +12272,6 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       const cdPaint = lastPaintMs;
       box.scrollTop = box.scrollHeight;
       bootRepin(2000);                     // #334 iOS-62: hold the bottom through late bubble growth (abortable)
-      const fadeHold = !chatScreenLoadedOnce;   // ★ #1201: the document's FIRST open only (a channel switch / re-flush is never held)
       chatScreenLoadedOnce = true;         // ★ #1106 (#46 r1 B1)
       if (pendingJumpId) {
         /* ★ #1106 (#46 r1 B1): a "show in chat" open — C# sent jumpToMessage INSIDE the load, before this handler, and
@@ -12140,13 +12303,6 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
            no data. Sent on EVERY onChatScreenLoaded (channel switch, re-flush) — C# latches it
            and ignores it once presented. Never inside the try above: a failing stamp must
            not swallow the present. */
-        /* ★ #1201 A-FADE (Damir's pick "photos READY at open"): on the document's FIRST open the signal waits for this
-           paint's preview tiles to decode, CAPPED at 60 ms (media-bubble.js holdOpenReveal holds the mechanism): ready
-           tiles are LOADED with no fade at the present, the rest keep today's fade; no tile → at once. The callback runs
-           exactly once; a stale bundle (or a throw) falls through to today's send. C# unchanged (400 ms backstop kept). */
-        if (fadeHold) {
-          try { window.Spixi.holdOpenReveal(box, () => bridge.send('ixian:painted')); return; } catch (e) {}
-        }
         bridge.send('ixian:painted');
       }));
       dbg('onChatScreenLoaded');
@@ -12503,6 +12659,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       storeFileThumb(key, u);
       const row = rows.get(key);
       if (row) setImageFileThumb(row, u);   // a tile that shows a picture only (complete, or MY photo still sending — #46 r2 R2-1); a card ignores it
+      refreshQuoteTiles(key);               // ★ 7b (#1215): the quotes of this photo show it
     },
 
     // CALL event (chat.js addCall:1496): (id, text, declined, time) + C4 trailing
@@ -12791,6 +12948,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
         exitChatSelect();
         return;
       }
+      if (closeComposerCtxForBack()) return;               // ★ 7b (#1219): the reply / edit strip, the lowest layer
       syncChatOverlay();
     },
   };
@@ -12843,7 +13001,13 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       || box.dataset.overlayOpen !== undefined
       || !!channelDropdown || !!chatSelect
       || !!chatSendView                                // loop MAJOR fix: the money cover consumes back too
-      || (composerEl && isAttachTrayOpen(composerEl)); // ★ #705: the attach tray consumes back
+      || (composerEl && isAttachTrayOpen(composerEl)) // ★ #705: the attach tray consumes back
+      || (composerEl && !!getComposerContext(composerEl)); // ★ 7b (#1219): an open reply / edit strip consumes back
+  }
+  /* ★ 7b (#1219): Back (hardware → chatBack, the iOS edge swipe) closes an open reply / edit strip through the ✕ path
+     (an edit gives the draft back) WITHOUT re-focusing the field — no keyboard after a Back — and sends no ixian:back */
+  function closeComposerCtxForBack() {
+    return !!composerEl && cancelComposerContext(composerEl, { refocus: false });
   }
   function syncChatOverlay() {
     if (chatOverlaySyncT) return;
@@ -12877,9 +13041,16 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
    * (setSelectedChannel — the counter must not carry across rooms). */
   let stlUnread = 0;
   let stlFlushQuietUntil = 0;   // loop B-1: re-flush quiet window (set by clearMessages)
+  const stlAway = () => box.scrollHeight - box.scrollTop - box.clientHeight;
   function setStlUnread(n) {
     stlUnread = n;
     setScrollLatestCount(stl, n, window.SL || {});
+    if (!n) stl.toggleAttribute('data-visible', stlAway() > 200);   // #46 r2 m3: drop a forced cue
+  }
+  function newestRowShown() {   // #46 r2 m3: ≥ 48 px of the newest row (all of a shorter one) shows above the composer
+    let row = box.lastElementChild;   // #46 r3: the newest MESSAGE row — never the typing pill (always appended last)
+    while (row && !(row.classList.contains('c-bubble-row') && !row.classList.contains('c-bubble-row--typing'))) row = row.previousElementSibling;
+    return !row || logVisibleHeight() - (row.getBoundingClientRect().top - box.getBoundingClientRect().top) >= Math.min(row.offsetHeight, 48);
   }
   function noteArrival(existing, rec) {
     if (existing || bursting) return;                    // update or history stream — not an arrival
@@ -12897,17 +13068,22 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // loop B-9: an old exe's addCall carries no `outgoing` arg → no direction —
     // never count a directionless call row (it may be the user's own).
     if (rec && rec.kind === 'call' && !rec.direction) return;
-    if (nearBottom()) return;                            // visible on arrival — nothing unread
+    if (nearBottom() && !heldReplyRow()) return;         // visible on arrival — nothing unread (held: not pinned, count it)
     setStlUnread(stlUnread + 1);
   }
-  box.addEventListener('scroll', () => {
+  const stlRecheck = () => {
     /* #376 loop B-5: clear at the CHEVRON's own threshold (200px, scroll-latest.js
        SHOW_THRESHOLD), not nearBottom's half-viewport — the badge must not vanish
        while three bubbles are still below the fold. Count-side stays nearBottom():
        inside that band renderLogNow sticks to the bottom on arrival (same
        predicate), so the pairing is coherent. */
-    if (stlUnread && box.scrollHeight - box.scrollTop - box.clientHeight <= 200) setStlUnread(0);
-  }, { passive: true });
+    /* #46 r2 m3: and only once the newest row shows; a counted arrival still hidden keeps the chevron UP with its badge */
+    if (!stlUnread) return;
+    if (stlAway() <= 200 && newestRowShown()) setStlUnread(0);
+    else stl.setAttribute('data-visible', '');
+  };
+  box.addEventListener('scroll', stlRecheck, { passive: true });
+  onHoldOver = stlRecheck;   // #46 r3: a direct call — a synthetic 'scroll' reached every capture listener (press cancel, probes)
 
   /* ★ Session K [SCROLL] — TEMPORARY, the scroll-jank instrument (Damir, walk J2, heavy seed:
      "a bit janky when going into chats and scrolling"). Nothing stamps SCROLL today — the
@@ -13283,6 +13459,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
          string produced by C# (Crypto.hashToString) — no colon, so the single-colon
          split on the C# side is unambiguous. */
       const ctx = composerEl ? getComposerContext(composerEl) : null;
+      endReplyHold();
       /* ★★ #1199 — AN EDIT SAVE. Its own verb, the id and the FULL new body (V2): `ixian:chatedit:<idHex>:<urlenc>`.
          C# re-checks EditRules.canEdit and either replaces the message (the row updates on its updateMessage push)
          or re-pushes the row's current state — the shell paints nothing on its own, so a refusal needs no undo here.
@@ -13357,6 +13534,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     mentionSource: mentionMembers,
   });
   document.getElementById('chat-composer').replaceChildren(composerEl);
+  /* ★ 7b (#1219): the strip's open / close re-syncs the back mirror (setComposerContext writes field[data-ctx]) */
+  try { new MutationObserver(syncChatOverlay).observe(composerEl, { subtree: true, attributes: true, attributeFilter: ['data-ctx'] }); } catch (e) {}
   /* ★★ ORDER (Session AE, the #46 reviewer's MAJOR-1): this block sits ABOVE the #711 publish
      block on purpose. `publish()` runs SYNCHRONOUSLY inside that block's `try` and now calls
      scheduleComposerFade(); with the fade's `let` declarations below it the call threw a TDZ
@@ -13485,7 +13664,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       lastSlotH = h;
       const atBottom = nearBottom();
       canvasEl.style.setProperty('--composer-h', h + 'px');
-      if (grew && atBottom) requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
+      if (grew && atBottom) requestAnimationFrame(() => { pinLogEnd(); });   // ★ 7b (#1219): a held reply target stays in view instead
       scheduleComposerFade();   // ★ Session AE: the band moved (tray, keyboard on iOS, a resize) — re-mask the rows under it
     };
     publish();
@@ -13789,13 +13968,14 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     function stickDuring(ms) {
       // #328 loop fix: reduced-motion has no transition to track — one write.
       if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        box.scrollTop = box.scrollHeight;
+        pinLogEnd();   // ★ 7b (#1219): the three keyboard sticks (vv apply, Android resize, __setKbInset) honour the reply hold
         return;
       }
       stickEnd = performance.now() + ms;
       cancelAnimationFrame(stickRaf);
+      const cut = replyHoldCut;
       (function step() {
-        box.scrollTop = box.scrollHeight;
+        pinLogEnd(cut === replyHoldCut ? heldReplyRow() : null);   // #46 r2 n2 · r3: the LIVE held row; expired → the end
         if (performance.now() < stickEnd) stickRaf = requestAnimationFrame(step);
       })();
     }
@@ -14107,6 +14287,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     if (chatSelect) { exitChatSelect(); return; }
     // ★ L1 (#640) / W5: the money cover consumes back before the page pops (chatBack order)
     if (chatSendView) { closeSendTakeover(); return; }
+    if (closeComposerCtxForBack()) return;                   // ★ 7b (#1219): the reply / edit strip, as chatBack
     bridge.send('ixian:back');
   } });
 

@@ -87,7 +87,7 @@ export default async function (h) {
   await guard('#1197 answer', async () => {
     const at = SP.indexOf('case SpixiMessageCode.getAppProtocols:');
     const cs = at >= 0 ? SP.slice(at, SP.indexOf('break;', at) + 6) : '';
-    const claim = /if\s*\(\s*SpixiProtocols\.claimAnswer\(\s*friend\?\.walletAddress\.ToString\(\),\s*friend\s*!=\s*null,\s*friend\s*!=\s*null\s*&&\s*friend\.type\s*==\s*FriendType\.Normal,\s*friend\s*!=\s*null\s*&&\s*friend\.bot,\s*friend\s*!=\s*null\s*&&\s*friend\.approved\s*&&\s*friend\.state\s*==\s*FriendState\.Approved,\s*Environment\.TickCount64\)\s*\)\s*\{\s*CoreStreamProcessor\.sendAppProtocols\(friend!,\s*SpixiProtocols\.ids\(\)\);\s*\}/.test(cs);
+    const claim = /if\s*\(\s*SpixiProtocols\.claimAnswer\(\s*friend\?\.walletAddress\.ToString\(\),\s*friend\s*!=\s*null,\s*friend\s*!=\s*null\s*&&\s*friend\.type\s*==\s*FriendType\.Normal,\s*friend\s*!=\s*null\s*&&\s*friend\.bot,\s*friend\s*!=\s*null\s*&&\s*friend\.approved\s*&&\s*friend\.state\s*==\s*FriendState\.Approved,\s*Environment\.TickCount64\)\s*\)\s*\{\s*CoreStreamProcessor\.sendAppProtocols\(friend!,\s*SpixiProtocols\.ids\(\)\);\s*P1Perf\.line\("cap answer sent"\);\s*\}/.test(cs);   // ★ 7b re-base (#1222): + the dev-only [P1] line after the send
     const onlySend = (SP.match(/sendAppProtocols\(/g) || []).length === 1;
     const csh = /Spixi\/Utils\/SpixiProtocols\.cs/.test(rd('scripts/csh/csh.csproj'));
     ok(at >= 0 && claim && onlySend && csh,
@@ -228,8 +228,9 @@ export default async function (h) {
     const updOk = updates.length === 1 && updates.every((s) => s.a.length === 14 && s.a[3] === 'rowText' && s.a[9] === 'edited' && s.a[10] === 'replyTo' && s.a[11] === 'quoteName' && s.a[12] === 'quoteText' && s.a[13] === 'voice');
     const ins = bodyOf(SCP, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)');
     const upd = bodyOf(SCP, 'public void updateMessage(FriendMessage message, int channel)');
-    const matchIns = /if\s*\(\s*matchReply\(message,\s*channel,\s*batch\?\.replyIndex,\s*out ReplyQuote\.Match\?\s*rm\)\s*&&\s*rm\s*!=\s*null\s*\)\s*\{\s*rowText\s*=\s*rm\.body;\s*reply_to\s*=\s*rm\.targetIdHex;\s*quoteName\s*=\s*rm\.quoteName;\s*quoteText\s*=\s*rm\.quoteText;\s*\}\s*string edited\s*=\s*EditRules\.isEdited\(message\.type,\s*message\.sequence,\s*friend\.bot\)\s*\?\s*"1"\s*:\s*"";\s*long rowTime\s*=\s*message\.timestamp;/.test(ins);
-    const matchUpd = /if\s*\(\s*matchReply\(message,\s*channel,\s*null,\s*out ReplyQuote\.Match\?\s*rm\)\s*&&\s*rm\s*!=\s*null\s*\)\s*\{\s*rowText\s*=\s*rm\.body;\s*replyTo\s*=\s*rm\.targetIdHex;\s*quoteName\s*=\s*rm\.quoteName;\s*quoteText\s*=\s*rm\.quoteText;\s*\}\s*string edited\s*=\s*EditRules\.isEdited\(message\.type,\s*message\.sequence,\s*friend\.bot\)\s*\?\s*"1"\s*:\s*"";/.test(upd);
+    // ★ 7b re-base (#1215 / #1224 (6)): args 15 / 16 go through ReplyQuote.bridgeName / bridgeText (rules executed in scripts/csh S7bRulesTests)
+    const matchIns = /if\s*\(\s*matchReply\(message,\s*channel,\s*batch\?\.replyIndex,\s*out ReplyQuote\.Match\?\s*rm\)\s*&&\s*rm\s*!=\s*null\s*\)\s*\{\s*rowText\s*=\s*rm\.body;\s*reply_to\s*=\s*rm\.targetIdHex;\s*quoteName\s*=\s*ReplyQuote\.bridgeName\(rm,\s*isOneToOneRoom\(\)\);\s*quoteText\s*=\s*ReplyQuote\.bridgeText\(rm\);\s*\}\s*string edited\s*=\s*EditRules\.isEdited\(message\.type,\s*message\.sequence,\s*friend\.bot\)\s*\?\s*"1"\s*:\s*"";\s*long rowTime\s*=\s*message\.timestamp;/.test(ins);
+    const matchUpd = /if\s*\(\s*matchReply\(message,\s*channel,\s*null,\s*out ReplyQuote\.Match\?\s*rm\)\s*&&\s*rm\s*!=\s*null\s*\)\s*\{\s*rowText\s*=\s*rm\.body;\s*replyTo\s*=\s*rm\.targetIdHex;\s*quoteName\s*=\s*ReplyQuote\.bridgeName\(rm,\s*isOneToOneRoom\(\)\);\s*quoteText\s*=\s*ReplyQuote\.bridgeText\(rm\);\s*\}\s*string edited\s*=\s*EditRules\.isEdited\(message\.type,\s*message\.sequence,\s*friend\.bot\)\s*\?\s*"1"\s*:\s*"";/.test(upd);
     ok(literal.length === 0 && prefixOnly && rowOk && updOk && matchIns && matchUpd,
       'P1/P2: every addMe / addThem builder carries 16 args (text = the matched BODY, 13 replyTo, 14 edited, 15 quoteName, 16 quoteText) and every updateMessage builder 11 (2 = body, 8 edited, 9 replyTo, 10 quoteName, 11 quoteText), both from matchReply + EditRules.isEdited — '
       + JSON.stringify({ literal: literal.length, prefixOnly, rows: rows.map((s) => s.f + ':' + s.a.length), updates: updates.map((s) => s.f + ':' + s.a.length), rowOk, updOk, matchIns, matchUpd }));
@@ -348,5 +349,86 @@ export default async function (h) {
     ok(after && rec && rule && field,
       '#1202 C#: every file row a load batches is recorded with the fLocal it carried; AFTER the batch\'s pushes (clearMessages · addMessages · messagesDone, or the prepend) the load re-checks each "1" row and re-pushes one whose file is gone through refreshFileRow — the fresh "0" lands after the stale batch — '
       + JSON.stringify({ iDone, iDoneP, iRe, after, rec, rule, field }));
+  });
+
+  /* ==== ★ 7b #46 r1 (F2) — the 7b C# call sites. The pure rules are EXECUTED in scripts/csh (S7bRulesTests.cs); these pin
+     that the MAUI-bound callers use them. Deliberate breaks (each fails exactly its pin, recorded in the r1 report):
+       CoreMessageWriter.healLast: `bot` → `false` in the ChatHeal.eligible call                 → 7b heal call sites
+       SingleChatPage "deleteMessage": the clearDeletedLast arm dropped                           → 7b delete clears the excerpt
+       App.OnSleep: writeArrivalsNow moved after the flush                                       → 7b background write order
+       VoiceClips: `VoiceRecStart.Busy` → `VoiceRecStart.Error` on focus                         → 7b focus busy
+       Node loop: `p1Ran || p1Got > 0` → `true`                                                  → 7b dev-only [P1] */
+  await guard('7b heal call sites', async () => {
+    const CMW = stripCode(rd('Spixi/Utils/CoreMessageWriter.cs'));
+    const hl = bodyOf(CMW, 'public static int healLast(');
+    const pred = /bool eligible = ChatHeal\.eligible\(last\.localSender, last\.type == FriendMessageType\.reaction, last\.message, bot, lastChannel, readChannel\);\s*int at = ChatHeal\.healAt\(list, last, eligible, m => m\.id, m => m\.receivedTimestamp\);/.test(hl)
+      && /public static int healLast\(List<FriendMessage> list, FriendMessage last, int lastChannel, int readChannel, bool bot\)/.test(CMW);
+    const hm = bodyOf(SCP, 'private void healLastMessage(');
+    const call = /int at = CoreMessageWriter\.healLast\(messages, last, friend\.metaData\.lastMessageChannel, readChannel, friend\.bot\);/.test(hm)
+      && (SCP.match(/CoreMessageWriter\.healLast\(/g) || []).length === 1;
+    const lm = bodyOf(SCP, 'public void loadMessages()');
+    const iAfter = lm.indexOf('CoreMessageWriter.arrivals.afterReread(');
+    const iHeal = lm.indexOf('healLastMessage(arrivalKey, readChannel, messages);');
+    const order = iAfter > 0 && iHeal > iAfter && (lm.match(/healLastMessage\(/g) || []).length === 1;
+    const app = stripCode(rd('Spixi/App.xaml.cs'));
+    const sleep = bodyOf(app, 'protected override void OnSleep()');
+    const sleepOrder = /CoreMessageWriter\.writeArrivalsNow\(\);\s*IxianHandler\.localStorage\?\.flush\(\);/.test(sleep);
+    const maui = stripCode(rd('Spixi/MauiProgram.cs'));
+    const pauseOrder = /App\.isInForeground = false;\s*SPIXI\.CoreMessageWriter\.writeArrivalsNow\(\);\s*IxianHandler\.localStorage\?\.flush\(\);/.test(maui);
+    const wan = /public static void writeArrivalsNow\(\)\s*\{\s*try\s*\{\s*arrivals\.afterPushBatch\(instance\);\s*\}\s*catch/.test(CMW);
+    ok(pred && call && order && sleepOrder && pauseOrder && wan,
+      '★ 7b #46 r1 (C09 + call sites): healLast decides through ChatHeal.eligible ON THE FriendMessage fields (localSender, reaction, text = tombstone, bot, channel — executed in scripts/csh) and passes it to healAt; healLastMessage is its ONE caller with friend.bot; loadMessages calls healLastMessage once, AFTER afterReread; App.OnSleep and Android OnPause run writeArrivalsNow (afterPushBatch, guarded) right BEFORE the plain flush — '
+      + JSON.stringify({ pred, call, order, sleepOrder, pauseOrder, wan }));
+  });
+
+  await guard('7b delete clears the excerpt', async () => {
+    const CMW = stripCode(rd('Spixi/Utils/CoreMessageWriter.cs'));
+    const cd = bodyOf(CMW, 'public static bool clearDeletedLast(Friend friend, byte[] msgId)');
+    const rule = /if \(last == null \|\| !ChatHeal\.deleteLeftLast\(last\.id, last\.message, msgId\)\)\s*\{\s*return false;\s*\}/.test(cd)
+      && /ChatHeal\.newestLive\(list, m => m\.type != FriendMessageType\.standard \|\| !string\.IsNullOrEmpty\(m\.message\), m => m\.id, msgId\)/.test(cd)
+      && /friend\.metaData\.setLastMessage\(next, ch\);\s*friend\.saveMetaData\(\);/.test(cd) && /catch \(Exception e\)/.test(cd);
+    /* every friend.deleteMessage( in Spixi is followed (within its statement / if-block) by clearDeletedLast(friend, msg_id) */
+    const sites = [];
+    for (const f of allCs()) {
+      const t = stripCode(rd(f));
+      for (let i = t.indexOf('friend.deleteMessage('); i >= 0; i = t.indexOf('friend.deleteMessage(', i + 1)) {
+        sites.push(f + ':' + /CoreMessageWriter\.clearDeletedLast\(friend, msg_id\)/.test(t.slice(i, i + 520)));
+      }
+    }
+    const local = /if \(friend\.deleteMessage\(msg_id, selectedChannel\)\)\s*\{\s*deleteMessage\(msg_id, selectedChannel\);\s*UIHelpers\.refreshChatRow\(friend\);\s*\}\s*if \(CoreMessageWriter\.clearDeletedLast\(friend, msg_id\)\)\s*\{\s*UIHelpers\.refreshChatRow\(friend\);\s*\}/.test(SCP);
+    ok(rule && sites.length === 2 && sites.every((x) => x.endsWith(':true')) && local,
+      '★ 7b #46 r1 (A-MINOR-1): a delete Core MISSED (the id only in metaData.lastMessage — the F9 state) no longer leaves the deleted text in the saved excerpt for the heal to bring back: after BOTH local friend.deleteMessage calls, clearDeletedLast replaces it (ChatHeal.deleteLeftLast → the newest live row by Core\'s own predicate, else null) and saves; the local delete re-pushes the chats row — '
+      + JSON.stringify({ rule, sites, local }));
+  });
+
+  await guard('7b focus busy', async () => {
+    const VC = stripCode(rd('Spixi/VoIP/VoiceClips.cs'));
+    const map = /bool focusBusy = e is AudioFocusBusyException;/.test(VC) && /return focusBusy \? VoiceRecStart\.Busy : VoiceRecStart\.Error;/.test(VC);
+    const REC = stripCode(rd('Spixi/Platforms/Android/SAudioRecorder.cs'));
+    const sv = bodyOf(REC, 'public void startVoiceMessage(int bitrate, Action? onInterrupted)');
+    const thr = /if \(focusResult != AudioFocusRequest\.Granted\)\s*\{\s*releaseVoiceFocusRequest\(am\);\s*running = false;\s*voiceMode = false;\s*voiceInterrupted = null;\s*throw new AudioFocusBusyException\(\);\s*\}/.test(sv)
+      && sv.indexOf('throw new AudioFocusBusyException();') < sv.indexOf('initRecorder();');
+    const rel = bodyOf(REC, 'private void releaseVoiceFocusRequest(AudioManager am)');
+    const sdk = /if \(Build\.VERSION\.SdkInt < BuildVersionCodes\.O\)\s*\{[^{}]*\{[^{}]*am\.AbandonAudioFocus\(focusListener\);[^{}]*\}\s*\}\s*else if \(focusRequest != null\)\s*\{\s*am\.AbandonAudioFocusRequest\(focusRequest\);/.test(rel);
+    const sweepCalls = [];
+    for (const f of allCs()) { if (/VoiceFolderSweep\.runOnce\(/.test(stripCode(rd(f)))) sweepCalls.push(f + ':' + (stripCode(rd(f)).match(/VoiceFolderSweep\.runOnce\(/g) || []).length); }
+    const sweepOnce = sweepCalls.join(',') === 'Spixi/Meta/Node.cs:1'
+      && /VoiceFolderSweep\.runOnce\(Path\.Combine\(Config\.spixiUserFolder, "Voice"\)\);/.test(NODE)
+      && /public static void runOnce\(string dir\)\s*\{\s*if \(Interlocked\.Exchange\(ref started, 1\) != 0\)\s*\{\s*return;\s*\}\s*Task\.Run\(/.test(stripCode(rd('Spixi/VoIP/VoiceFolderSweep.cs')));
+    ok(map && thr && sdk && sweepOnce,
+      '★ 7b #46 r1 (C10, #1224 (4)/(8)): the Android voice start throws AudioFocusBusyException on a non-GRANTED focus BEFORE anything starts (the request released — AbandonAudioFocusRequest only on API 26+, CA1416); VoiceClips maps exactly that to VoiceRecStart.Busy; the Voice-folder sweep has ONE call site (Node, C#\'s own path) and runs once per process (Interlocked, background) — '
+      + JSON.stringify({ map, thr, sdk, sweepCalls }));
+  });
+
+  await guard('7b dev-only [P1]', async () => {
+    const loop = /bool p1Ran = OfflinePushMessages\.fetchPushMessages\(false, fireLocalNotification, false\);\s*CoreMessageWriter\.arrivals\.afterPushBatch\(CoreMessageWriter\.instance\);\s*if \(P1Perf\.enabled\)\s*\{\s*ulong p1Got = OfflinePushMessages\.receivedOfflineMessages - p1Before;\s*if \(p1Ran \|\| p1Got > 0\)\s*\{\s*P1Perf\.line\("push fetch got=" \+ p1Got \+ " where=loop"\);\s*\}\s*\}/.test(NODE)
+      && /ulong p1Before = P1Perf\.enabled \? OfflinePushMessages\.receivedOfflineMessages : 0;/.test(NODE);
+    const push = ['Android', 'iOS'].map((pl) => /ulong p1Before = SPIXI\.P1Perf\.enabled \? OfflinePushMessages\.receivedOfflineMessages : 0;[\s\S]{0,400}?if \(SPIXI\.P1Perf\.enabled\)\s*\{\s*SPIXI\.P1Perf\.line\("push fetch got=" \+ \(OfflinePushMessages\.receivedOfflineMessages - p1Before\) \+ " where=push"\);\s*\}/.test(stripCode(rd('Spixi/Platforms/' + pl + '/SPushService.cs'))));
+    const sp = /if \(P1Perf\.enabled\)\s*\{\s*P1Perf\.line\("filehdr rx stored="/.test(SP) && /if \(P1Perf\.enabled\)\s*\{\s*P1Perf\.line\("cap answer rx n="/.test(SP);
+    const hm = bodyOf(SCP, 'private void healLastMessage(');
+    const scp = /if \(P1Perf\.enabled\)\s*\{\s*bool inWindow;\s*lock \(messages\)\s*\{\s*inWindow = ChatHeal\.indexOfId\(messages, last\.id, m => m\.id\) >= 0;\s*\}\s*P1Perf\.line\("chat load last-in-window="/.test(hm);
+    ok(loop && push.every(Boolean) && sp && scp,
+      '★ 7b #46 r1 (A-NIT1 / A-MINOR-2): every 7b [P1] argument is computed only under P1Perf.enabled (a store build does no extra work), and the node-loop "push fetch" line logs only a fetch that RAN or got messages — never every cooldown pass — '
+      + JSON.stringify({ loop, push, sp, scp }));
   });
 }

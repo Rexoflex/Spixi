@@ -129,6 +129,7 @@ public static class MauiProgram
                     {
                         Logging.info("Android OnPause - app going to background");
                         App.isInForeground = false;
+                        SPIXI.CoreMessageWriter.writeArrivalsNow();   // ★ 7b (#1223 (a)): pending arrivals first, then the plain flush
                         IxianHandler.localStorage?.flush();
                         Node.pause();
                     });

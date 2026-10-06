@@ -31,4 +31,13 @@ namespace SPIXI.VoIP
          * [int16 little-endian length][Opus packet], 20 ms per packet. stop() ends either mode. */
         void startVoiceMessage(int bitrate, Action? onInterrupted);
     }
+
+    /** ★ 7b (#1224 (4), #1210 (4)): startVoiceMessage could not get the platform's audio focus (Android: RequestAudioFocus
+     *  not GRANTED — another app or a phone call holds the audio). Nothing was started; VoiceClips answers `busy`. */
+    public sealed class AudioFocusBusyException : Exception
+    {
+        public AudioFocusBusyException() : base("audio focus not granted")
+        {
+        }
+    }
 }

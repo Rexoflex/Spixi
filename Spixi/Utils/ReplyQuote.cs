@@ -88,6 +88,7 @@ namespace SPIXI
             public int sequence;       // the memo key with idHex
             public string expectedName = "";   // nameFor(this device's name for the sender) — the exact-line tier + a matched quote's name
             public string nameKey = "";        // the raw name expectedName was made from (the caller re-checks it: a roster nick can change)
+            public bool localSender;           // ★ 7b (#1215): mine → the bridge marker "\u0001me" in a 1:1 (bridgeName)
             // the excerpt, computed once (ONE reference field: a string, or NotQuotable — a reader sees a whole answer)
             internal object? excerptMemo;
         }
@@ -100,6 +101,67 @@ namespace SPIXI
             public string quoteText = "";
             public string body = "";
             public bool matched = true;
+            public bool localSender;                                   // ★ 7b (#1215): the matched target's (bridgeName)
+            public FriendMessageType targetType = FriendMessageType.standard;   // ★ 7b (#1224 (6)): the matched target's (bridgeText)
+            public bool targetInlineVoice;                             // ★ 7b #46 r1 (A-NIT5): a standard target that IS an inline voice text (its "🎤 m:ss" is real)
+        }
+
+        /** ★ 7b (#1215): the BRIDGE-ONLY sender markers the chat shell maps (\u0001me → its "You", \u0001peer → the header
+         *  name). Never in a composed quote line on the wire (compose / quoteLine never call bridgeName). */
+        public const string BridgeMe = "\u0001me";
+        public const string BridgePeer = "\u0001peer";
+        /** ★ 7b (#1224 (6)) → #46 r1 (A-NIT5): U+2060 WORD JOINER — PREPENDED to a TEXT target's excerpt that starts with a
+         *  reserved kind glyph, so none of the shell's typed readings (exact word, "🎤 m:ss", "📷 " / "📎 " prefix) can match. */
+        public const string WordJoiner = "\u2060";
+        /** ★ 7b #46 r1 (A-NIT5): the leading glyphs the shell's fallback quote reads as a kind (chat.html QUOTE_TYPED_EXACT,
+         *  QUOTE_VOICE_RE, QUOTE_NAMED_PREFIX) — every excerptOf kind word starts with one of them. */
+        private static readonly string[] reservedGlyphs = { "🎤", "📷", "📎", "💸", "📞", "🚀" };
+
+        /** ★ 7b (#1215): arg quoteName for the BRIDGE. A MATCHED quote in a 1:1 with no name ("" — #1198 privacy: the wire
+         *  never carries a 1:1 name) → BridgeMe when the target is mine, else BridgePeer; everything else unchanged. */
+        public static string bridgeName(Match? m, bool isOneToOne)
+        {
+            if (m == null)
+            {
+                return "";
+            }
+            if (isOneToOne && m.matched && m.quoteName.Length == 0)
+            {
+                return m.localSender ? BridgeMe : BridgePeer;
+            }
+            return m.quoteName;
+        }
+
+        /** ★ 7b (#1224 (6)) → #46 r1 (A-NIT5): arg quoteText for the BRIDGE (never the wire). A MATCHED standard-text target
+         *  (not an inline voice text) whose excerpt starts with a reserved glyph ("🎤 0:12", "📷 x", "💸 Payment", …) gets a
+         *  LEADING U+2060, so the shell's fallback reads it as text, never as that kind. Everything else unchanged. */
+        public static string bridgeText(Match? m)
+        {
+            if (m == null)
+            {
+                return "";
+            }
+            if (m.matched && m.targetType == FriendMessageType.standard && !m.targetInlineVoice && startsReserved(m.quoteText))
+            {
+                return WordJoiner + m.quoteText;
+            }
+            return m.quoteText;
+        }
+
+        private static bool startsReserved(string? s)
+        {
+            if (string.IsNullOrEmpty(s))
+            {
+                return false;
+            }
+            foreach (string g in reservedGlyphs)
+            {
+                if (s.StartsWith(g, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** ★ #46 r1 A MAJOR-1: candidates indexed by their excerpt — a reply row costs a few dictionary probes, not a walk. */
@@ -475,7 +537,9 @@ namespace SPIXI
             /* ★ #46 r2 MINOR-2: a MATCHED quote names the sender as THIS device shows it (the candidate's expectedName — "" in
              * a 1:1), never the name written in the peer's line (peer-controlled; it could name anyone). The line's own name
              * is used only by fallbackOf (no match). */
-            match = new Match { targetIdHex = best.idHex, quoteName = best.expectedName, quoteText = bestExcerpt, body = body, matched = true };
+            match = new Match { targetIdHex = best.idHex, quoteName = best.expectedName, quoteText = bestExcerpt, body = body, matched = true,
+                localSender = best.localSender, targetType = best.type,   // ★ 7b (#1215 / #1224 (6)): for bridgeName / bridgeText
+                targetInlineVoice = best.type == FriendMessageType.standard && VoiceCodec.tryPeekInline(best.text, out _) };   // ★ 7b #46 r1 (A-NIT5)
             return true;
         }
 

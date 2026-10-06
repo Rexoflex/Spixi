@@ -1734,7 +1734,7 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | `ixian:quotejump:<hex>` (#1198, NEW 🟡 verb) | the hex is looked up in C#'s OWN history (≤ JumpCap); only C#'s own hex reaches requestJump; one read at a time | ours, safe — B-29 |
 | addMe / addThem args 14–16, updateMessage 8–11, setCaps reply / edit (P1–P3) | "1"/"" + C#-sanitized name / text; textContent only; an old shell ignores them | ours, safe — B-29 |
 | Receive drop guard (#1199) | a non-bot replace of an unknown id, or a replace / stream chunk onto a file, payment or system row, is dropped (receipt sent) — closes an INHERITED rewrite of those rows by a peer | inherited exposure narrowed (belt) |
-| `[P1] fade hold …` (#1201) | dev-only, fixed words + integers, nothing without `data-p1` | ours, safe — retire with the [P1] set (C-2l) |
+| `[P1] fade hold …` (#1201) | dev-only, fixed words + integers, nothing without `data-p1` | RETIRED — #1201 reverted in 7b (#1221) |
 
 ## Session 7 (#1207–#1209) — lens applied while building
 | Surface | What | Verdict |
@@ -1748,3 +1748,17 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | Microphone | recorded only after a tap; OS permission (Info.plist text now names voice messages); stops on leave / background (phones) / call | ours, safe |
 | Logs | fixed words + exception type names; no id, text, path, address | ours, safe |
 | Inherited: `handleAppProtocols` | stores an unbounded list from any known contact; Core persists with byte-sized counts | legacy — BE (#1210 (10), B-30) |
+
+## Session 7b (#1214–#1226) — lens applied while building
+| Surface | What | Verdict |
+|---|---|---|
+| Strip / quote image tiles (#1214, #1215) | `<img>.src` set as a property from `safeImageSrc` (local only, no `allowRemote`) AND an anchored raster `data:` base64 test (jpeg/png/gif/webp); SVG and every remote URL refused; names via textContent | ours, safe (GATE 32/42 walk passes) |
+| Quote name markers `\u0001me` / `\u0001peer`, U+2060 prefix (#1215, #1224 (6)) | BRIDGE ONLY (the two push sites); never composed into a wire line (`compose` untouched; `nameFor` strips U+0001 so a peer cannot forge them — csh) | ours, safe |
+| 1:1 quote sender = the header name (#1215) | drawn in the shell only; the reply on the wire still carries no 1:1 name (#1198) | ours, safe |
+| DevLogTail (#1222) | DEV Android only: tails the app-private `ixian.log` into logcat tag DOTNET — the same lines Core already writes to the file; store builds: no thread, no code | ours, safe — retire with the dev set |
+| New [P1] lines (#1222, #1223) | `push handoff bytes=` · `push fetch got= where=` · `cap answer sent` · `cap answer rx n= voice=` · `filehdr rx stored= ch=` · `chat load last-in-window= type= local=` · `chat heal last=1` · `chat heal cleared-last=1` — fixed words + integers (P1Perf grammar), dev only | ours, safe — retire with the [P1] set |
+| New every-build log lines | `[P0] background write skipped: <Type>` · `chat heal skipped (<Type>)` · `clear deleted last skipped (<Type>)` · `Voice: recording refused (focus)` · `Voice: folder sweep stopped (<Type>)` · `Voice: folder sweep removed <n> broken file(s)` — no id, text, path, address | ours, safe |
+| F9 heal + delete clear (#1223) | writes only a message Core already holds in `metaData.lastMessage` (incoming, not a tombstone, same channel, id absent); a local delete clears a stale excerpt | ours, safe — residual: a REMOTE delete in that state is Core's (CORE-9) |
+| Voice folder sweep (#1224 (8)) | C#'s own folder + own name pattern only, ≥ 24 h AND broken (empty / no OggS); no WebView input | ours, safe |
+| Audio focus (#1224 (4)) | a refused focus = no recording (Busy); focus abandoned on every exit | ours, safe |
+

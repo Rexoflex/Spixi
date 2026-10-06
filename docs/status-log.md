@@ -414,3 +414,9 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   33 P · 1 F (A-FADE → revert #1201, #1213) · 3 N/A; the 6a W-GROUPTILE F closed; first compile of 6b + S7 OK on Windows + Android.
   Walk notes → #1212 (quotes with thumbnail + sender, reply / edit in the composer, swipe jump + Back, the unread badge under an image,
   waveform bars, payment double-click, hover button). Next: session 7b (fixes only, render + ask). Next free #1214.
+- 2026-10-06 (session 7b): fixes for walk #1211. Interview with renders on the BUILT shell (strip A/B/C, quotes, waveform W0–W3,
+  hover H0–H3): Damir picked B · as rendered · W1 · H2; Back closes the strip; no dblclick reply on cards; grey ground only for A-FADE;
+  #1210 (4)(6)(8); F10 dev logs + size test; F9 fix. Mechanisms: F10 late-not-lost (mailbox miss, direct delivery at 15:28); AND-47
+  loses every Android dev warn/error; F9 dropped list write + stale excerpt; F2 z-index; F5 keyboard stick. Built by 3 agents + lead;
+  #46 r1 2 MAJOR → fixed (+ GATE 32/42) · r2 0/3 → fixed · r3 0/3 → fixed · r4 CLEAN. Smoke 5364 · CSH 208. UNCOMMITTED →
+  `session7b-build.patch`. Next free #1227.

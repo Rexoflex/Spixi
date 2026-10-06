@@ -27,8 +27,9 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
-import { createAvatar } from './avatar.js';
+import { createAvatar, safeImageSrc } from './avatar.js';
 import { formatVoiceClock, fillVoiceSlots } from './message-bubble.js';   // ★ #1208: the one m:ss clock (the bubble and the bar agree)
+import { fileKind } from './typed-bubbles.js';   // ★ 7b (#1214): the strip's file tile wears the file card's family colours
 
 /* ★ #1065 r2 (break-my-verdict MINOR-3): the message menu can now be open WHILE the composer keeps
    focus (overlay.js keepEditableFocus stamps data-keep-editable on its root, removed synchronously at
@@ -398,29 +399,68 @@ const resyncComposer = (el) => { const f = composerSync.get(el); if (f) f(); };
 /* cancel = restore: an edit ctx prefilled the field, so cancelling must bring
    the user's pre-edit draft back (audit r3: one stray Send re-posted the OLD
    message text as a new message) */
-function cancelComposerContext(el) {
-  const c = composerCtx.get(el);
-  if (!c) return;
+/* ★ 7b (#1219): exported — the shell's Back (chatBack / the edge swipe) closes the strip through THIS path with
+   refocus:false and blurs the field, so a Back never raises the keyboard. Returns true when a context was open. */
+export function cancelComposerContext(el, { refocus = true } = {}) {
+  const c = el ? composerCtx.get(el) : null;
+  if (!c) return false;
   setComposerContext(el, null); // draft restore happens inside (edit ctx)
   if (c.onCancel) c.onCancel();
   /* ★ #1198 r1 (B-8): the ✕ was the focused control and it just left the DOM — focus goes back to the field */
   const input = el.querySelector('.c-composer__input');
-  if (input) { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }
+  if (input && refocus) { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }
+  if (input && !refocus && document.activeElement === input) input.blur();
+  return true;
+}
+
+/* ★ 7b (#1214 / the S1⇄S2 contract): the tile at the strip's end — a photo / GIF preview (a data: image URI ONLY,
+   set as a property; anything else = no tile), a file's extension tile (the file card's family colours), a mic for
+   a voice row. null / unknown = none. Decorative: the excerpt names the message. */
+const CTX_TILE_SRC_RE = /^data:image\/(?:jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
+function ctxTile(tile) {
+  if (!tile || typeof tile !== 'object') return null;
+  let t = null;
+  if (tile.type === 'image') {
+    const src = safeImageSrc(String(tile.src || ''));   // ★ O-13: local only (no allowRemote), then the raster test
+    if (!src || !CTX_TILE_SRC_RE.test(src)) return null;
+    t = document.createElement('img');
+    t.alt = '';
+    t.decoding = 'async';
+    t.src = src;
+  } else if (tile.type === 'file') {
+    const ext = String(tile.ext || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    t = document.createElement('span');
+    t.dataset.file = '';
+    t.className = 'c-fbubble__icon';   // the card's tile ground (typed-bubbles.css), resized by composer.css
+    t.dataset.kind = ext ? fileKind('f.' + ext.toLowerCase()).family : 'other';
+    if (ext) { const lab = document.createElement('span'); lab.className = 'c-fbubble__ext'; lab.textContent = ext; t.append(lab); }
+    else t.append(icon('file-isr', { size: 20 }));
+  } else if (tile.type === 'voice') {
+    t = document.createElement('span');
+    t.dataset.voice = '';
+    t.append(icon('microphone', { size: 20 }));
+  } else return null;
+  t.classList.add('c-composer__ctx-tile');
+  t.setAttribute('aria-hidden', 'true');
+  return t;
 }
 
 /**
  * setComposerContext(el, ctx | null)
  *   ctx = { kind: 'reply'|'edit', title, text, prefill (edit, default true),
- *           onCancel, strings }
- * The strip renders icon + title/excerpt + cancel ✕; edit prefills the field
+ *           tile (reply: { type:'image', src } | { type:'file', ext } | { type:'voice' } | null), onCancel, strings }
+ * ★ 7b (#1214, strip B): the strip is the FIRST LINE INSIDE the pill (.c-composer__field[data-ctx]) — glyph ·
+ * title/excerpt · tile · ✕, a hairline under it. Edit prefills the field
  * (synthetic input event — no spurious ixian:typing, isTrusted guard).
  * Esc in the field cancels the active context before it clears text.
  * getComposerContext(el) → active ctx or null (shell reads this on send).
  */
 export function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
+  const field = el.querySelector('.c-composer__field');
   const prev = el.querySelector('.c-composer__ctx');
   if (prev) prev.remove();
+  if (field) delete field.dataset.ctx;
   // freeze audit: REPLACING an active edit ctx (e.g. Reply picked mid-edit)
   // must give the pre-edit draft back — else the old message text sends as
   // the new context's body and the draft is lost
@@ -449,17 +489,22 @@ export function setComposerContext(el, ctx) {
   text.textContent = ctx.text || '';
   col.append(title, text);
   strip.append(col);
+  /* #46 r1 B-m3: the strip says what it is — a screen reader hears "Reply to Bob" / "Edit message", not a bare name */
+  strip.setAttribute('role', 'group');
+  strip.setAttribute('aria-label', ctx.kind === 'edit' ? (strings.editMessage || 'Edit message')
+    : (ctx.title ? (strings.replyingTo || 'Reply to') + ' ' + ctx.title : (strings.reply || 'Reply')));
+  const tile = ctx.kind === 'reply' ? ctxTile(ctx.tile) : null;   // ★ 7b (#1214): an edit has no tile
+  if (tile) strip.append(tile);
   const x = document.createElement('button');
   x.type = 'button';
   x.className = 'c-composer__ctx-cancel';
   x.setAttribute('aria-label', strings.cancel || 'Cancel');
-  x.append(icon('x', { size: 16 }));
+  x.append(icon('x', { size: 20 }));   // ★ 7b (#1214): 20 glyph in a 32 target ("hard to see" at 16)
   x.addEventListener('click', () => cancelComposerContext(el));
   strip.append(x);
-  // flex-wrap row: the strip takes a full line; the COST line (standing money
-  // fact, #86 bot surface) stays topmost — reply/edit ctx slots under it
-  const cost = el.querySelector('.c-composer__cost');
-  if (cost) cost.after(strip);
+  /* ★ 7b (#1214, strip B): the strip is the pill's FIRST line (Telegram grammar); data-ctx turns the field's wrap on
+     (no :has() — the WebView baseline). The COST line (#86) stays a bar line above the pill, so it is still topmost. */
+  if (field) { field.dataset.ctx = ctx.kind; field.prepend(strip); }
   else el.prepend(strip);
 
   if (input) {
@@ -484,7 +529,7 @@ export function setComposerContext(el, ctx) {
         if (e.key === 'Escape' && composerCtx.has(el) && !composerRec.has(el) && !menuOverField()) cancelComposerContext(el);
       });
     }
-    input.focus();
+    try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }   // ★ 7b (#1219): the shell keeps the target row in view
   }
   resyncComposer(el);   // ★ #1199: Save ⇄ Send, and the disabled state, for the context now up
 }
@@ -583,7 +628,8 @@ export function setComposerRecording(el, state, elapsedMs) {
     bar.className = 'c-composer__rec';
     /* no layout shift: the bar is at least the pill's CSS height, and at least what the pill measures right now
        (a multi-line draft under a restored clip keeps its height too) */
-    const h = field.offsetHeight;
+    const ctxStrip = field.querySelector(':scope > .c-composer__ctx');   // ★ 7b (#1214): the strip is inside the pill now — not part of the input line's height
+    const h = field.offsetHeight - (ctxStrip ? ctxStrip.offsetHeight : 0);
     if (h > 0) bar.style.minHeight = h + 'px';
     const cancel = document.createElement('button');
     cancel.type = 'button';

@@ -292,7 +292,7 @@ Summary: **889** keys · **146** map to a legacy id · **743** new · legacy dic
 | `splitPasteAction` | Send as {n} separate messages | label | medium | {n} | — |
 | `splitPasteLabel` | Pasted {n} copied messages | label | medium | {n} | — |
 
-## chat.html (49)
+## chat.html (48)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
@@ -332,7 +332,6 @@ Summary: **889** keys · **146** map to a legacy id · **743** new · legacy dic
 | `payRequestTitle` | Pay this request | title | short |  | — |
 | `readOf` | {n} of {m} read | text | short | {n} {m} | — |
 | `removeFromGroup` | Remove from group | label | short |  | — |
-| `replyingTo` | Reply to | title | short |  | — |
 | `secureNoticeLink` | How it works | text | short |  | — |
 | `secureNoticeText` | Messages are sealed on your device and can be opened only by the person you sent them to. Nobody in between can read them, not even us. | text | long |  | — |
 | `secureNoticeTitle` | Encrypted. Peer-to-peer. Yours alone. | title | medium |  | — |
@@ -429,19 +428,20 @@ Summary: **889** keys · **146** map to a legacy id · **743** new · legacy dic
 |---|---|---|---|---|---|
 | `remove` | remove | aria | short |  | — |
 
-## composer.js (12)
+## composer.js (13)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
 | `attach` | Attach | aria | short |  | — |
 | `cancelRecording` | Cancel recording | aria | short |  | — |
-| `editMessage` | Edit message | text/title | short |  | — |
+| `editMessage` | Edit message | text/aria/title | short |  | — |
 | `mentionMembers` | Members | aria | short |  | `chat-member-count` |
 | `record` | Record voice message | aria | short |  | — |
 | `recordingStoppedAt` | Recording stopped, {0} | text | medium | {0} | — |
 | `recordingTime` | {0} / {1} | text | short | {0} {1} | — |
 | `recordingVoice` | Recording voice message | text | medium |  | — |
-| `reply` | Reply | text/label | short |  | — |
+| `reply` | Reply | text/aria/label | short |  | — |
+| `replyingTo` | Reply to | aria | short |  | — |
 | `saveEdit` | Save | aria | short |  | `settings-save` |
 | `send` | Send | aria/label/title | short |  | `contact-details-send` |
 | `sendVoice` | Send voice message | aria | short |  | — |

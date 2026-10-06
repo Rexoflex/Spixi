@@ -749,9 +749,14 @@ namespace Spixi
                         }
                         else
                         {
+                            ulong p1Before = SPIXI.P1Perf.enabled ? OfflinePushMessages.receivedOfflineMessages : 0;   // ★ 7b (#1222)
                             bool fetched = OfflinePushMessages.fetchPushMessages(true, true);
                             // ★★ P0 #1155: the fetched messages are already removed from the push server — write them now
                             SPIXI.CoreMessageWriter.arrivals.afterPushBatch(SPIXI.CoreMessageWriter.instance);
+                            if (SPIXI.P1Perf.enabled)   // ★ 7b #46 r1 (A-NIT1): the count only in a dev build
+                            {
+                                SPIXI.P1Perf.line("push fetch got=" + (OfflinePushMessages.receivedOfflineMessages - p1Before) + " where=push");   // ★ 7b (#1222): a count
+                            }
                             if (fetched)
                             {
                                 return PushAction.Suppress;

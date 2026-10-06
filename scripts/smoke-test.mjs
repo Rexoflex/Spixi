@@ -8572,8 +8572,13 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      recording) → CHAT 812 → 816; 815 would leave 981, 816 leaves 2 005. index.html unchanged. Stated.
      #46 r2 fixes (MEASURED): chat.html 833 579 → 834 837 (+1 258: the completed-download grace settle, the paused clear on
      a revived transfer, the re-tap window restart, the sendfail release, the Escape step-aside) → CHAT 816 → 817; 816 would
-     leave 747, 817 leaves 1 771. index.html unchanged. Stated. */
-  const CHAT_KB_CEIL = 817, INDEX_KB_CEIL = 560;
+     leave 747, 817 leaves 1 771. index.html unchanged. Stated.
+     ★ session 7b (#1214–#1221, MEASURED after the merge of S1 + S2): chat.html 834 867 → 845 104 chars (+10 237: the strip
+     inside the pill + its tile, the reply-target hold, Back closes the strip, the quote tiles + sender rungs + the bridge
+     markers, the FAB layer; −the #1201 hold) → CHAT 817 → 827; 826 would leave 720, 827 leaves 1 744. index.html unchanged.
+     #46 r1 + r2 fixes (MEASURED): chat.html 845 104 → ~846 700 (the iOS-lift visible bottom, the hold through every auto-pin +
+     its end cue, the strip a11y name; comments trimmed to fit) → CHAT 827 → 829 (≈ 2 200 chars left). Stated. */
+  const CHAT_KB_CEIL = 829, INDEX_KB_CEIL = 560;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -13071,7 +13076,10 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
          The old predicate ended `|| !!chatSendView;` — the tray is in the flow, not on the
          overlay stack, so the mirror must read it explicitly or hardware back pops the
          conversation under an open tray. */
-      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect\s*\|\| !!chatSendView\s*\|\| \(composerEl && isAttachTrayOpen\(composerEl\)\);/.test(nc(txt)),
+      /* ★ 7b (#1219) re-based: a FIFTH, the composer's reply / edit strip (Back closes it first) — re-synced by a
+         MutationObserver on the composer's data-ctx */
+      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect\s*\|\| !!chatSendView\s*\|\| \(composerEl && isAttachTrayOpen\(composerEl\)\)\s*\|\| \(composerEl && !!getComposerContext\(composerEl\)\);/.test(nc(txt))
+      && /new MutationObserver\(syncChatOverlay\)\.observe\(composerEl, \{ subtree: true, attributes: true, attributeFilter: \['data-ctx'\] \}\)/.test(txt),
       'N51 (' + label + '): the mirror covers body[data-overlay-open], the BOX host (loop A-2: the reactions inspect sheet mounts on #messages — dead until C8, covered now) and the THREE off-stack surfaces (+ the #705 attach tray)');
   }
   /* ★ #705 re-based: the attach TRAY arm sits after the stack and before the money
@@ -13079,7 +13087,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
      (the tile that opens the cover closes the tray first), so their relative order is
      only a tie-break. The order is channel → stack → tray → cover → selection. Same
      shape in the edge swipe (pinned below). */
-  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(closeAttachTrayIfOpen\(\)\) return;\s*if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*syncChatOverlay\(\);\s*\}/.test(chatNc),
+  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(closeAttachTrayIfOpen\(\)\) return;\s*if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*if \(closeComposerCtxForBack\(\)\) return;\s*syncChatOverlay\(\);\s*\}/.test(chatNc),   // ★ 7b (#1219) re-based: the strip is the last arm before the heal
     '★ N51: chatBack arms in the edge-swipe order (#328 precedent: channel → stack → tray (#705) → cover → selection) and EVERY arm self-heals a stale mirror — incl. the loop A-1 belt on the select arm (a dead handle re-syncs instead of eating every press)');
   ok(/if \(dismiss && dismiss\(\)\) return;\s*if \(closeAttachTrayIfOpen\(\)\) return;\s*if \(chatSelect\) \{ exitChatSelect\(\); return; \}/.test(chatNc),
     '★ #705: the iOS edge swipe closes the attach tray in the SAME order as chatBack (after the stack, before selection) — one gesture grammar, two entry points');
@@ -13104,7 +13112,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
   /* —— N54: typing scroll gate —— */
   {
     const body = chatNc.slice(chatNc.indexOf('function showTyping(who, nick)'), chatNc.indexOf('function hideTyping()'));
-    ok(/if \(nearBottom\(\)\) box\.scrollTop = box\.scrollHeight;/.test(body)
+    ok(/if \(nearBottom\(\)\) pinLogEnd\(\);/.test(body)   /* #46 r1 C-note (7b) re-base: the one pin write (a held reply target wins; behaviour: pins-s7b/swipe.mjs) */
       && !/\n\s*box\.scrollTop = box\.scrollHeight;/.test(body),
       '★ N54: showTyping scrolls ONLY when already at the bottom — the unconditional jump yanked the view away from older messages mid-read');
   }
@@ -13116,7 +13124,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     ok((txt.match(/noteArrival\(existing, rec\);/g) || []).length === 5,
       '★ N53 (' + label + '): ALL FIVE upserts (text/file/app/payment/call) count an arrival — a partial wiring would badge texts but not the payment that scrolled past you');
   }
-  ok(/function noteArrival\(existing, rec\) \{\s*if \(existing \|\| bursting\) return;\s*if \(Date\.now\(\) < stlFlushQuietUntil\) return;\s*if \(rec && rec\.direction === 'sent'\) return;\s*if \(rec && rec\.kind === 'call' && !rec\.direction\) return;\s*if \(nearBottom\(\)\) return;\s*setStlUnread\(stlUnread \+ 1\);\s*\}/.test(chatNc),
+  ok(/function noteArrival\(existing, rec\) \{\s*if \(existing \|\| bursting\) return;\s*if \(Date\.now\(\) < stlFlushQuietUntil\) return;\s*if \(rec && rec\.direction === 'sent'\) return;\s*if \(rec && rec\.kind === 'call' && !rec\.direction\) return;\s*if \(nearBottom\(\) && !heldReplyRow\(\)\) return;\s*setStlUnread\(stlUnread \+ 1\);\s*\}/.test(chatNc),
     '★ N53: noteArrival counts only a LIVE incoming CREATE while scrolled up — updates, the history burst, the post-clearMessages quiet window, own sends, directionless old-exe call rows and at-bottom arrivals never inflate the badge');
   {
     const cm = chatNc.slice(chatNc.indexOf('clearMessages('), chatNc.indexOf('clearMessages(') + 2600);
@@ -13124,9 +13132,9 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
       '★ N53 (#376 loop B-1, MAJOR): clearMessages opens a 5s quiet window — the load-more/reloadScreen re-flushes have NO onChatScreenLoaded, their burst dies on a 250ms idle timer, and ONE mid-stream stall let the badge count requested HISTORY as unread (the model is wiped, every re-flushed row is a create, applyOlderAnchor holds the user scrolled up). Fails SAFE: a live arrival inside the window is missed, never miscounted');
   }
   ok((chatNc.match(/resetOlder\(\);\s*setStlUnread\(0\);/g) || []).length === 2
-    && /if \(stlUnread && box\.scrollHeight - box\.scrollTop - box\.clientHeight <= 200\) setStlUnread\(0\);/.test(chatNc),
+    && /if \(!stlUnread\) return;\s*if \(stlAway\(\) <= 200 && newestRowShown\(\)\) setStlUnread\(0\);/.test(chatNc) && /const stlAway = \(\) => box\.scrollHeight - box\.scrollTop - box\.clientHeight;/.test(chatNc),   /* #46 r2 m3 re-based (behaviour: pins-s7b/swipe.mjs) */
     'N53: the counter resets per peer + per bot channel (ADJACENT to each resetOlder — loop B-10a pins placement, not just presence) and clears at the CHEVRON\'s 200px threshold (loop B-5: nearBottom\'s half-viewport cleared the badge with three bubbles still unread)');
-  ok(/if \(nearBottom\(\)\) box\.scrollTop = box\.scrollHeight;/.test(nc(chatBuilt).slice(nc(chatBuilt).indexOf('function showTyping(who, nick)'), nc(chatBuilt).indexOf('function hideTyping()'))),
+  ok(/if \(nearBottom\(\)\) pinLogEnd\(\);/.test(nc(chatBuilt).slice(nc(chatBuilt).indexOf('function showTyping(who, nick)'), nc(chatBuilt).indexOf('function hideTyping()'))),
     'N54 (built): the typing gate reached the shipped shell (loop B-10b — the partial-rebuild class)');
 
   /* —— N52: the @-jump pulse actually READS —— */
@@ -15381,7 +15389,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
        && dpu.indexOf('SPIXI.Meta.Node.isRunning') < dpu.indexOf('fetchPushMessages'),
       '★ PIN-N4 (#493 KEPT): the Ixian fetch is still attempted ONLY when a node exists to serve it. fetchPushMessages needs the push URL, the stream processor and a wallet — on a cold push it can only throw, or burn an HTTP round-trip inside a push callback. The guard is strictly narrowing: where the fetch works today the node IS running');
     ok(/System\.Threading\.Monitor\.TryEnter\(SPIXI\.Meta\.Node\.pushFetchLock, SPIXI\.Meta\.Node\.PUSH_FETCH_TRY_MS, ref fetchTaken\);/.test(dpu)
-       && /else\s*\{\s*bool fetched = OfflinePushMessages\.fetchPushMessages\(true, true\);[\s\S]{0,300}?if \(fetched\)\s*\{\s*return PushAction\.Suppress;/.test(dpu)   /* ★ #1155 re-base: the fetch result is kept so afterPushBatch runs on both outcomes (pins-s5/p0.mjs) */
+       && /else\s*\{\s*ulong p1Before = SPIXI\.P1Perf\.enabled \? OfflinePushMessages\.receivedOfflineMessages : 0;\s*bool fetched = OfflinePushMessages\.fetchPushMessages\(true, true\);[\s\S]{0,700}?if \(fetched\)\s*\{\s*return PushAction\.Suppress;/.test(dpu)   /* ★ #1155 re-base: the fetch result is kept so afterPushBatch runs on both outcomes (pins-s5/p0.mjs) · ★ 7b re-base (#1222): + the counter read before the fetch and the dev-only [P1] count line after it · ★ 7b #46 r1 (A-NIT1) re-base: the counter is read only when P1Perf.enabled, the dev-only block sits after afterPushBatch (window 400 → 700) */
        && !/(^|[^.\w])lock \(SPIXI\.Meta\.Node\.pushFetchLock\)/.test(dpu),
       '★★ PIN-N4 / N-1 (#46 loop m10, ROUND 2): the push lane takes the SHARED lock with the THREE-ARGUMENT TryEnter. The two-argument form takes the lock inside the call and assigns the flag after it returns; an asynchronous exception in that window holds the lock for the life of the process. A plain `lock` would make a push callback WAIT on an HTTP round trip it does not own — fetchPushMessages builds an HttpClient with NO Timeout and blocks on .Result, once per HTTP call');
     ok(/finally\s*\{\s*if \(fetchTaken\)\s*\{\s*System\.Threading\.Monitor\.Exit\(SPIXI\.Meta\.Node\.pushFetchLock\);\s*\}\s*\}/.test(dpu),
@@ -24773,7 +24781,7 @@ console.log('L3 (#706): edge-back — the recogniser executed + every shell\'s c
     const ch = stripCode(rdF('src/shells/chat.html'));
     ok(!/function edgeSwipeBack\(\)/.test(ch) && !/tracking = t\.clientX <= 24;/.test(ch)
        && /attachEdgeBack\(\{ onBack: \(\) => \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(ch)
-       && /if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*bridge\.send\('ixian:back'\);\s*\} \}\);/.test(ch),
+       && /if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(closeComposerCtxForBack\(\)\) return;\s*bridge\.send\('ixian:back'\);\s*\} \}\);/.test(ch),   // ★ 7b (#1219) re-based: the reply / edit strip before the pop
       '★★ #706 [chat]: the inline recogniser is GONE (one implementation, not two) and the chain is chatBack\'s order with the money cover included: channel → stack → tray → selection → cover → ixian:back');
     const cd = stripCode(rdF('src/shells/contact_details.html'));
     ok(/if \(cdSendView\) \{ closeSendTakeover\(\); return; \}\s*bridge\.send\('ixian:back'\);/.test(cd),
@@ -25424,13 +25432,21 @@ console.log('Session I ②: [CDPERF] chat-open instrument · the seed harness');
 {
   /* ★★ Session J — WHY NOTHING REACHED LOGCAT (#747 A26/A28/A30): App.xaml.cs started Ixian's
      Logging with console_output=false, so every [CDPERF]/[L14] Logging.info line went to
-     files/Spixi/ixian.log ONLY. The dev-coexist build mirrors to the console now (logcat
-     `mono-stdout`); the store build keeps `false`. Both branches pinned, in order. */
+     files/Spixi/ixian.log ONLY. Session J mirrored the dev-coexist build to the console.
+     ★ 7b re-base (#1222, AND-47): that mirror made Core's log_internal set Console.ForegroundColor for
+     every warn / error line, which throws on Android and lost the WHOLE line (logcat AND file). The
+     console stays OFF on every build now; the dev Android build tails the FILE to logcat instead
+     (DevLogTail.startLogcatMirror, right after Logging.start succeeds — its rules executed in
+     scripts/csh S7bRulesTests); a store build has no #if branch and no thread. */
   const appCs = stripCode(readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8'));
   const appRaw = readFileSync(join(root, 'Spixi/App.xaml.cs'), 'utf8');
-  ok(/#if SPIXI_DEV_COEXIST && ANDROID\s*Logging\.setOptions\(Config\.maxLogSize, Config\.maxLogCount, true\);\s*#else\s*Logging\.setOptions\(Config\.maxLogSize, Config\.maxLogCount, false\);\s*#endif/.test(appRaw)
-     && !/Logging\.setOptions\(Config\.maxLogSize, Config\.maxLogCount, true\);[\s\S]*Logging\.setOptions\(Config\.maxLogSize, Config\.maxLogCount, true\);/.test(appCs),
-    '★★ Session J: Logging mirrors to the CONSOLE only under SPIXI_DEV_COEXIST && ANDROID (the [CDPERF]/[L14] stamps reach logcat as mono-stdout); Windows Debug — where the symbol is also defined (#732) — and every store build keep console_output=false — the line that silently ate every Session I number');
+  const tailCs = readFileSync(join(root, 'Spixi/Utils/DevLogTail.cs'), 'utf8');
+  ok((appCs.match(/Logging\.setOptions\(/g) || []).length === 1
+     && /Logging\.setOptions\(Config\.maxLogSize, Config\.maxLogCount, false\);\s*if \(!Logging\.start\(Config\.spixiUserFolder, Config\.logVerbosity\)\)\s*\{\s*Environment\.Exit\(1\);\s*return;\s*\}\s*#if SPIXI_DEV_COEXIST && ANDROID\s*DevLogTail\.startLogcatMirror\(Config\.spixiUserFolder\);[^\n]*\s*#endif/.test(appRaw)
+     && !/maxLogCount, true\)/.test(appCs)
+     && /^#if SPIXI_DEV_COEXIST\r?$/m.test(tailCs) && /#if ANDROID\s*private static int started = 0;/.test(tailCs)
+     && /Android\.Util\.Log\.Info\(Tag, line\);/.test(tailCs) && /FileShare\.ReadWrite \| System\.IO\.FileShare\.Delete/.test(tailCs),
+    '★★ Session J → ★ 7b (#1222, AND-47): Logging never mirrors to the CONSOLE (console_output=false on every build — the Android ForegroundColor throw lost warn / error lines from logcat AND ixian.log); the dev Android build starts DevLogTail.startLogcatMirror right after a successful Logging.start (the file → logcat tag DOTNET, FileShare.ReadWrite | Delete); DevLogTail.cs compiles only under SPIXI_DEV_COEXIST and the thread only on ANDROID — a store build is unchanged');
 }
 {
   const rdF = (pth) => readFileSync(join(root, pth), 'utf8');
@@ -27397,7 +27413,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       '★ Session K (#757 ① r2): the clear-scrim rule is presentation-independent AND out-specifies the mobile deep wash ((0,3,0) on line 19) — one tag, one grammar');
   }
   /* ★ walk K, Damir on K1: "the chat behind it moves down behind the sheet, and jumps back up when I use the keyboard" */
-  ok(/const grew = h > lastSlotH;/.test(ch) && /const atBottom = nearBottom\(\);/.test(ch) && /if \(grew && atBottom\) requestAnimationFrame\(\(\) => \{ box\.scrollTop = box\.scrollHeight; \}\);/.test(ch)
+  ok(/const grew = h > lastSlotH;/.test(ch) && /const atBottom = nearBottom\(\);/.test(ch) && /if \(grew && atBottom\) requestAnimationFrame\(\(\) => \{ pinLogEnd\(\); \}\);/.test(ch) && /else box\.scrollTop = box\.scrollHeight;/.test(ch)   /* ★ 7b (#1219) re-based: the one pin write (a held reply target wins) */
      && ch.indexOf('const atBottom = nearBottom();') < ch.indexOf("setProperty('--composer-h', h + 'px')"),
     '★ Session K (walk K K1 note): when the composer slot GROWS (the tray) and the reader was at the bottom — judged BEFORE the padding lands — the log re-pins on the next frame, so the newest bubbles never hide under the tray until the keyboard\'s AND-16 re-pin snaps them back');
   /* ★ #766 (Damir: "everything should open as soon as possible without any delay unless it's unavoidable") */
@@ -42066,8 +42082,8 @@ for (const mod of ['p0', 'win', 'read', 'home', 'motion', 'viewer', 'history', '
 for (const mod of ['view', 'group', 'menu', 'hover', 'cs', 'rows', 'live', 'probe']) {   // rows = #1190 · live = #1191–#1193 · probe = #1194 / #1195
   await (await import(new URL('./pins-s6/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
-/* ==== SESSION 6b PINS — cs = #1197–#1199 + #1190 (C#) · reply = #1198 · edit = #1199 · fade = #1201 · small = #1202 · lead = #1203 ==== */
-for (const mod of ['cs', 'reply', 'edit', 'fade', 'small', 'lead']) {
+/* ==== SESSION 6b PINS — cs = #1197–#1199 + #1190 (C#) · reply = #1198 · edit = #1199 · small = #1202 · lead = #1203 ==== */
+for (const mod of ['cs', 'reply', 'edit', 'small', 'lead']) {
   await (await import(new URL('./pins-s6b/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
 /* ==== SESSION 7 PINS — core = #1207 / #1208 C# rules + receive (agent A) · cs = the page + audio seams (agent B) · shell = the
@@ -42075,6 +42091,9 @@ for (const mod of ['cs', 'reply', 'edit', 'fade', 'small', 'lead']) {
 for (const mod of ['core', 'cs', 'shell', 'lead']) {
   await (await import(new URL('./pins-s7/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });
 }
+/* ==== SESSION 7b PINS — strip = #1214 · back + swipe = #1219 / #1220 (S1) · quote = #1215 · wave = #1216 · fab = #1217 / #1218 · fade2 = #1221 (S2) ==== */
+for (const mod of ['strip', 'back', 'swipe']) await (await import(new URL('./pins-s7b/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ 7b S1: strip = #1214 · back + swipe = #1219 / #1220
+for (const mod of ['quote', 'wave', 'fab', 'fade2']) { await (await import(new URL('./pins-s7b/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep }); }
 }
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

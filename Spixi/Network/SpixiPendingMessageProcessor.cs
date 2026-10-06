@@ -55,7 +55,24 @@ namespace SPIXI.Network
             {
                 UIHelpers.updateMessage(friend, channel, fm);
             }
+            if (P1Perf.enabled)
+            {
+                P1Perf.line("push handoff bytes=" + p1Bytes(msg));   // ★ 7b (#1222): the handed-off size (an int) — no id, no address
+            }
             markGroupCopySent(msg.id, channel);
+        }
+
+        /** ★ 7b (#1222) dev-only: the serialized size of a handed-off message (0 if it cannot be serialized). */
+        private static int p1Bytes(StreamMessage msg)
+        {
+            try
+            {
+                return msg.getBytes().Length;
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
         }
 
         /* ★★★ #650: land the flag on the GROUP's copy as well. One member's hand-off to the

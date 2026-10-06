@@ -175,10 +175,11 @@ namespace Spixi
 
             AudioManager am = (AudioManager)SPlatformUtils.appContext().GetSystemService(Context.AudioService);
             focusListener = new AudioFocusListener(() => voiceInterrupted?.Invoke());
+            AudioFocusRequest focusResult;   // ★ 7b (#1224 (4)): the answer is honoured below (#1210 (4): it was ignored)
             if (Build.VERSION.SdkInt < BuildVersionCodes.O)
             {
 #pragma warning disable CS0618 // Type or member is obsolete
-                am.RequestAudioFocus(focusListener, Android.Media.Stream.Music, AudioFocus.GainTransientExclusive);
+                focusResult = am.RequestAudioFocus(focusListener, Android.Media.Stream.Music, AudioFocus.GainTransientExclusive);
 #pragma warning restore CS0618 // Type or member is obsolete
             }
             else
@@ -191,7 +192,17 @@ namespace Spixi
                                                          .SetAudioAttributes(aa)
                                                          .SetOnAudioFocusChangeListener(focusListener)
                                                          .Build();
-                am.RequestAudioFocus(focusRequest);
+                focusResult = am.RequestAudioFocus(focusRequest);
+            }
+            if (focusResult != AudioFocusRequest.Granted)
+            {
+                /* ★ 7b (#1224 (4)): another app / a phone call holds the audio — recording now would capture silence. Nothing
+                 * has started (no AudioRecord, no encoder, no thread): give the request back and refuse (VoiceClips → busy). */
+                releaseVoiceFocusRequest(am);
+                running = false;
+                voiceMode = false;
+                voiceInterrupted = null;
+                throw new AudioFocusBusyException();
             }
 
             lock (outputBuffers)
@@ -209,6 +220,34 @@ namespace Spixi
 
             senderThread = new Thread(senderLoop);
             senderThread.Start();
+        }
+
+        /** ★ 7b (#1224 (4)): a voice start that was NOT granted focus — abandon the request and drop the listener. */
+        private void releaseVoiceFocusRequest(AudioManager am)
+        {
+            try
+            {
+                if (Build.VERSION.SdkInt < BuildVersionCodes.O)   // ★ 7b #46 r1 (A-NIT2): the API-26 call only on API 26+ (stop()'s shape, CA1416)
+                {
+                    if (focusListener != null)
+                    {
+#pragma warning disable CS0618 // Type or member is obsolete
+                        am.AbandonAudioFocus(focusListener);
+#pragma warning restore CS0618 // Type or member is obsolete
+                    }
+                }
+                else if (focusRequest != null)
+                {
+                    am.AbandonAudioFocusRequest(focusRequest);
+                    focusRequest.Dispose();
+                    focusRequest = null;
+                }
+                focusListener?.Dispose();
+                focusListener = null;
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private void initRecorder()

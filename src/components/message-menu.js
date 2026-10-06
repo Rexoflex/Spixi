@@ -365,6 +365,9 @@ export function attachMessageMenu(row, opts = {}) {
 export const REPLY_SWIPE_EDGE_PX = 24;
 export const REPLY_SWIPE_TRIGGER_PX = 56;
 export const REPLY_SWIPE_MAX_PX = 72;
+/* #46 r1 M13: the spring-back clear waits OUT the return transition (--duration-200 = 200 ms, message-bubble.css) —
+   a shorter wait would pull the glyph and the transform mid-return (a snap) */
+export const REPLY_SWIPE_SETTLE_MS = 260;
 const REPLY_SWIPE_CLICK_GUARD_MS = 400;   // a click the browser raises after a swipe's release opens nothing
 const REPLY_SWIPE_ROWS_SWEEP = 200;   // ★ r2 NIT: the swipe registry is swept of detached rows above this size
 const replyReduceMotion = () => {
@@ -416,7 +419,7 @@ function swipeStateOf(doc) {
     }
     if (g.lastRow && g.lastRow !== entry.row) replySwipeSettle(g.lastRow, true);   // the old node (detached) drops its paint
     g.lastRow = entry.row;
-    replySwipePaint(entry.row, g.dx, g.follow);
+    replySwipePaint(entry.row, g.dx - MOVE_CANCEL_PX, g.follow);   // ★ 7b (#1219): minus the engage slop — the row starts from 0, no jump at engage
   }, true);
   const end = (e, cancelled) => {
     st.touches.delete(e.pointerId);
@@ -424,7 +427,7 @@ function swipeStateOf(doc) {
     if (!g || e.pointerId !== g.id) return;
     const entry = cur();   // read BEFORE the record is cleared (cur() resolves through st.g)
     st.g = null;
-    const fire = !cancelled && !!entry && g.state === 'swipe' && g.dx >= REPLY_SWIPE_TRIGGER_PX && g.dx > 2 * Math.abs(g.dy)
+    const fire = !cancelled && !!entry && g.state === 'swipe' && g.dx - MOVE_CANCEL_PX >= REPLY_SWIPE_TRIGGER_PX && g.dx > 2 * Math.abs(g.dy)   // ★ 7b (#1219): the painted travel decides — armed ⇔ fires
       && !replyGestureBlocked(entry.row);
     if (g.state === 'swipe') { st.swallowUntil = Date.now() + REPLY_SWIPE_CLICK_GUARD_MS; st.swallowKey = g.key; }
     if (g.lastRow) replySwipeSettle(g.lastRow);
@@ -473,7 +476,7 @@ function replySwipeSettle(row, now) {
   row.dataset.replyReturn = '';                 // the spring back (CSS transition on the custom property's user)
   row.style.setProperty('--reply-swipe-x', '0px');
   row.style.setProperty('--reply-swipe-p', '0');
-  row._replySettle = setTimeout(clear, 160);    // after the return: no glyph, no attribute left on the row
+  row._replySettle = setTimeout(clear, REPLY_SWIPE_SETTLE_MS);    // after the return (--duration-200, message-bubble.css): no glyph, no attribute left on the row
 }
 
 /* attachReplySwipe(row, { key, onReply }) — `key` = the message id (the shell's), so a rebuilt row takes over its swipe. */
@@ -541,8 +544,13 @@ export function placeReplyButton(row) {
  * a typed card (their click opens something), never on a control. The SECOND mousedown of the pair is prevented for
  * exactly that case, so the double-click does not also select a word; every other double-click selects as before. */
 const REPLY_DBL_CONTROLS = 'button, a, input, textarea, select, label, [role="button"], [contenteditable], img, video, audio';
+/* ★ 7b (#1220, walk F7: "a double-click on a payment card opens details"): only a TEXT row replies on a double-click —
+   a payment / request / file / call / app card, a media tile and a voice bubble have their own click action, so the
+   double-click there is theirs (no reply; their repeatable actions carry typed-bubbles' reentryGuard — one run). */
+const textRow = (row) => { const t = messageMenuTarget(row); return !!t && t !== row && t.classList.contains('c-bubble') && !t.querySelector('.c-voice'); };
 function replyDblTarget(row, target) {
   if (!target || !target.closest) return false;
+  if (!textRow(row)) return false;
   if (target === row) return true;                                        // the row's gutter / free space
   if (target.closest(REPLY_DBL_CONTROLS)) return false;
   if (target.closest('.c-bubble-row__gutter')) return true;               // beside the avatar (not the avatar button)

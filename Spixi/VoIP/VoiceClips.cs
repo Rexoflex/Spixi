@@ -209,7 +209,15 @@ namespace SPIXI.VoIP
             }
             catch (Exception e)
             {
-                Logging.warn("Voice: the recorder failed to start (" + e.GetType().Name + ")");
+                bool focusBusy = e is AudioFocusBusyException;   // ★ 7b (#1224 (4)): the platform holds the audio → `busy`, not an error
+                if (focusBusy)
+                {
+                    Logging.info("Voice: recording refused (focus)");
+                }
+                else
+                {
+                    Logging.warn("Voice: the recorder failed to start (" + e.GetType().Name + ")");
+                }
                 lock (gate)
                 {
                     if (startingGen == gen)
@@ -219,7 +227,7 @@ namespace SPIXI.VoIP
                     }
                 }
                 try { r.Dispose(); } catch (Exception) { }
-                return VoiceRecStart.Error;
+                return focusBusy ? VoiceRecStart.Busy : VoiceRecStart.Error;
             }
             bool published = false;
             bool callNow = false;

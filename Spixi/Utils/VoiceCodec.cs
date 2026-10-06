@@ -278,6 +278,27 @@ namespace SPIXI
 
         // ———————————————————————————— file name ————————————————————————————
 
+        /* ★ 7b (#1224 (8), #1210 (8)) — THE VOICE-FOLDER SWEEP RULE. <spixiUserFolder>/Voice holds the voice FILES this
+         * device SENT (SingleChatPage.sendVoiceFile): a complete .ogg is referenced by its own row (the sender plays it) and
+         * serves a peer's later download, so it ALWAYS stays (VoiceClips' kept clips are memory-only — nothing of them is on
+         * disk). The sweep deletes only C#'s own names that are ≥ SweepMinAgeSeconds old AND not a playable Ogg (empty, or the
+         * first 4 bytes are not "OggS") — a send that died between the create and the write. */
+        public const long SweepMinAgeSeconds = 24 * 3600;
+        public const int SweepMaxFiles = 2000;
+
+        public static bool isSweepable(string? name, long length, byte[]? head, long ageSeconds)
+        {
+            if (!isVoiceFileName(name) || ageSeconds < SweepMinAgeSeconds || length < 0)
+            {
+                return false;
+            }
+            if (length == 0)
+            {
+                return true;
+            }
+            return head == null || head.Length < 4 || head[0] != (byte)'O' || head[1] != (byte)'g' || head[2] != (byte)'g' || head[3] != (byte)'S';
+        }
+
         /** ^voice-\d{8}-\d{6}\.ogg$ — ordinal, ASCII digits only (so no path separator, no case variant, no suffix). */
         public static bool isVoiceFileName(string? name)
         {

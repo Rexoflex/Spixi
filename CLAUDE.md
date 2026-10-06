@@ -81,13 +81,13 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-05 session 7 DONE (cloud twin): S7 interview #1207 (capability ask at chat open) · #1208 (voice: 30 s, inline to a confirmed new app, Ogg Opus file for old apps + groups, native playback, waveform, 1×, loudspeaker, tap to record, stop and keep) → BUILT #1209 · #46 CLEAN (r3, r4) · recorded #1210. Smoke BASELINE OK **5346** · CSH **190**. ⚠ C# UNCOMPILED (6b + S7: the next build is the first compile of both). UNCOMMITTED — patch `session7-build.patch` (PC `Claude outputs/` + the chat) on 0bdc9edb, commit = Damir with `docs/commit-message-session7.txt`.
-- Owed: ONE walk of 6b + S7 together (sheet "Spixi Session 7 Walk", `docs/walk-artifact-session7-win-android.html`; two devices with this build; a 0.9.22 phone for the old-app rows) → session 7b = record both walks + fix (prompt `docs/prompts/session-7b.md`).
-- 6b data rows still open: A-FADE (#1201) · A-FLASH (#1205) · W-INFOCLOSE-REC (#1194) · W-GROUPTILE ("missing encryption keys") · A-UNREAD (#1175).
+- 2026-10-06: session 7 committed (a175c978) + WALK #1211 (6b + S7 as one build, Windows + Android): 33 P · 1 F · 3 N/A — first compile of 6b + S7 OK; W-GROUPTILE + A-UNREAD closed. Smoke BASELINE OK **5346** · CSH **190**.
+- A-FADE F → **revert #1201** (the 60 ms open hold) and fix the photo FADE instead (#1213). Damir's walk notes → #1212: quotes with thumbnail + sender, reply / edit inside the composer, swipe jump + Back, unread badge under an image, waveform bars, payment double-click, hover button. Findings: `docs/walk-findings-session7.md`.
+- Owed from Damir: the Windows log of walk #1211 (`Downloads\spixi-log-*.txt` → `Claude outputs\`).
+- Open data: #1205 A-FLASH (no flash this time) · #1194 · D1 (the phone's voice sends went as files — why?).
 - Logged: #1204 members above the media grid (S8) · #1210 S7 residuals · A-PAUSED resume after the app was closed (S9) · keep two viewers on desktop.
-- Picked (#1188, #1195, #1196): #1173 (8) Downloads dialog → S9 · #1169 caption option (a) → S9 · #1179 (a) sticky pane → S9, (b) grow the window → v1.1.
-- T2 decided (#1165): H-21 Play · App Store · Mac App Store · Windows direct · H-2 machine drafts ship · H-17 counsel reads Terms (open until recorded) · H-9 B-5 = v1.1. BE asks: B-28, B-29 SESSION6B, B-30 SESSION7 (voice + the ask), CORE-8, R3-N4 (v1.1), #1191.
-- v1 plan (#1137–#1145, Core stays clean, SCOPE CLOSED): S7 ✅ built → 7b walk + fix → S8 groups (+ #1204) + reactions + mini-app accept + disappearing + privacy → S9 media picker + paste/multi-image/photo privacy + #1169 + #1179 (a) + #1173 (8) + audit fixes + copy + language note + the a11y rows of #1206 → walk + fix → FREEZE.
+- BE asks: B-28, B-29 SESSION6B, B-30 SESSION7, CORE-8, R3-N4 (v1.1), #1191. T2 decided (#1165).
+- v1 plan (#1137–#1145, Core stays clean, SCOPE CLOSED): S7 ✅ → **7b fixes (#1212, #1213)** → S8 groups (+ #1204) + reactions + mini-app accept + disappearing + privacy → S9 media picker + #1169 + #1179 (a) + #1173 (8) + audit fixes + copy + language note + #1206 a11y rows → walk + fix → FREEZE.
 - Road after the v1 build: L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933, retires [P1]) → gate re-run → merge → TestFlight (#971, #937, #1099).
 - Known: an Android PHOTO-button send stores a content-URI path → "Not available on this device" (V-14); my sent originals are `missing` on Android (#1200 → S9 with #1158).
-- **NEXT SESSION: read `docs/handoff-2026-10-05b.md` FIRST, then paste `docs/prompts/session-7b.md`.** Next free DECISIONS number: **#1211**.
+- **NEXT SESSION: read `docs/handoff-2026-10-06.md` FIRST, then paste `docs/prompts/session-7b.md`.** Next free DECISIONS number: **#1214**.

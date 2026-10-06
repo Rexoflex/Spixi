@@ -1,0 +1,13 @@
+Record walk #1211 (6b + S7) and the 7b work list
+
+- Walk #1211 (Windows F5 + Android Release dev): 33 P, 1 F, 3 N/A.
+  First compile of 6b + S7 on Windows and Android. Voice messages
+  passed on both. A-FADE failed: the 60 ms open hold (#1201) is to be
+  reverted and the photo fade fixed instead (#1213).
+- Damir's walk notes for 7b (#1212): quotes with a thumbnail and the
+  sender, reply and edit inside the composer, swipe and Back, the
+  unread badge under an image, waveform bars, payment double-click,
+  hover reply button.
+- docs/walk-findings-session7.md, handoff 2026-10-06, the 7b prompt.
+
+Docs only; no code change.

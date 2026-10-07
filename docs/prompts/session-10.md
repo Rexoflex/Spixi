@@ -1,17 +1,45 @@
-Read CLAUDE.md, then the newest docs/handoff-*.md (FIRST — `docs/handoff-2026-10-07b.md`), then DECISIONS #1243–#1251 (and #1205, #1228,
-#1229 for A-FLASH and CORE-10). Next free DECISIONS number: the number in CLAUDE.md (#1252).
+Read CLAUDE.md, then the newest docs/handoff-*.md (FIRST — `docs/handoff-2026-10-07b.md`), then DECISIONS #1243–#1253 (and #1205, #1228,
+#1229 for A-FLASH and CORE-10). Next free DECISIONS number: the number in CLAUDE.md (#1254).
 This is SESSION 10 (a new chat): FIRST the S9 walk record; THEN the fix round for its fails; THEN FREEZE prep per the v1 plan.
 Already decided (do not re-open): every pick in #1243–#1248 · the A-FLASH fix shape (#1249) · the recorded-not-fixed list of #1251.
 
 ORDER:
 1. Precondition (below). If Damir has NOT applied / committed the S9 patch yet: give him the apply + commit commands first (handoff §0).
-2. S9 WALK RECORD: Damir pastes the "Spixi Session 9 Walk" results → a `WALK #1252: n P · n F · n N/A` DECISIONS row; each F = mechanism
-   FIRST (read `android-s9.txt` + the Windows log before a fix, #294). The ⚠ C# was UNCOMPILED: a compile error is an F with its file:line.
-3. A-FLASH DATA (#1249): read the `[P1] boot hold ms= why=dropped|cap` lines (cap = the shell never sent `ixian:bootDropped` in time) and
-   `[P1] hold release bg=kept|set` + `frames open … drop= max=` for 10 opens. Pass = no white at cold start, held opens drop 0, max ≈ 20 ms,
-   no grey frame on the recording. Not passed → a probe, not a third fix.
-4. RE-WALK data: 8-GROW-A with the `[P1] grow` lines (reply with focus vs without; the IME resize vs the 200 ms strip grow) → mechanism, then
-   the fix · 7B-REC.
+2. ✅ DONE in session 9 (after the export): WALK #1252 (25 P · 4 F · 5 N/A) with the mechanism of every F, and Damir's picks #1253.
+   Read both rows in full. Verify each mechanism in the tree (#215) before you fix; the S9 twin was /home/claude/w-merge (gone in a new chat).
+3. THE FIX LIST (S10 build — interview first for the items marked ASK; everything else is decided):
+   F1 9-FLASH-OPEN: the chat's MAUI `_webView.BackgroundColor` writes (SpixiContentPage.cs:~4600 setHoldGrounds, :~329 applyPageSurfaceColor)
+      still reach the native SetBackgroundColor through the compat renderer (MAUI 10.0.71 VisualElementRenderer.UpdateBackgroundColor →
+      ViewHandler.MapBackground → ViewExtensions.UpdateBackground). Fix: never write the chat WebView's BackgroundColor around the hold; set it
+      Transparent once at load; keep the stage/content grounds (#248). Fix the probe to log the NATIVE background before/after. Pass = no grey
+      frame, held-open max ≈ unheld (~33 ms). QWERTZ photo pop should go with it; else start the #1221 fade after `hold release`.
+   F2 9-GRID-W: "Download all (n)" on the group bubble (shell loop of the existing `ixian:acceptfile:<fileid>` per offer member; the bridge sends
+      one at a time; C# handler per-id) · reply/swipe on the bubble quotes the whole group ("📷 n photos"; reply quote carrier: check
+      ReplyQuote.cs for a group form; old apps see a quote of the first photo) · one photo from the viewer.
+   F3 9-EXCERPT: read side — a fileHeader with empty text = deleted → walk back to the newest live row (ChatHeal.newestLive) in the HomePage
+      excerpt; also clearDeletedLast for empty-text fileHeaders + call it from UIHelpers.deleteMessage (remote path); "{n} photos" = the count
+      of LIVE members, not SPhotoGroups.countOf.
+   F4 9-HAPTIC: probe first — `haptic k= ok= hfe= sdk=` per call (Settings.System haptic_feedback_enabled). hfe=0 → working as designed (Damir
+      turns on Touch feedback, re-walk). hfe=1 + ok=false → perform on the WebView itself, click → VIRTUAL_KEY (EFFECT_CLICK); or Vibrator +
+      VibrationEffect.createPredefined(EFFECT_CLICK / EFFECT_HEAVY_CLICK) with VIBRATE (normal permission) and touch usage (respects the setting).
+   F5 Toasts (all shells): toast.css left:50% + translate(-50%) with no width → only half the screen; 2-line clamp. Fix A (rendered in S9):
+      left/right 16px, margin-inline:auto, width:max-content, max-width:min(100% - 32px, 400px), y-only transform, clamp 4 lines; duration
+      max(3500, 55 ms × chars).
+   F6 Wallet first visit: empty list ~180 ms then all rows (clear → ~50 add → one commit). Options (ASK + render): push the tx list once in the
+      background after bootDropped so the first visit has rows · or a 120 ms fade on the first commit after a blank list. Add a probe (tab2
+      arrival, txpush, commit time).
+   F7 Downloads: the list shows a part file `incoming-<guid>.ixipart` (the A-6 part file lives in the Downloads root) → keep part files out of
+      the list (or write them outside the Downloads root); the "From" picker: avatars + better style (ASK + render 2–3 options).
+   P1 Paste/attach STRIP above the composer (#1253): paste + picker → thumbnails with ✕ in a strip; composer text = caption; one group bubble
+      (ASK: keep the preview sheet for the camera? render the strip on mobile + desktop, both themes, 3 options).
+   P2 File cap 50 MB free (#1253): `PhotoRules.maxFileBytes(tier)`; receiver accepts the largest tier; texts "over 50 MB".
+   P3 9-GRP-OWNER (#1253 ⚠): members ARE notified at creation (HomePage.xaml.cs:2522-2537) → re-ask the second line ("Members can see the
+      group now." / one line / none). 
+   Still owed from S9: 9-COPY, 9-A11Y, 7B-REC, 9-PROBE (CORE-10), 9-MAC, 9-BIG-RECV (needs a sender without the cap: S8 build / upstream).
+   Not urgent (Damir): desktop window resize shows a dark band while dragging (clip 20261007-1358-15.1307520.mp4) — mechanism first.
+4. A-FLASH data: cold start PASSED. The log has 7 `[P1] boot hold ms=1020…1800 why=dropped` (all dropped, none cap) — but 5 of 7 are
+   ABOVE the 1500 ms cap → the cap timer did not fire on time (main looper busy during boot?). Check the cap's start point / posting; the
+   cover may stay up to ~1.8 s. 8-GROW-A PASSED.
 5. CORE-10: only if a long-offline capture came (phone offline > 30 min while others send): the `[P1] push fetch got= new= rep= reid= fix= ran=
    codes=` lines → write CORE-10 with the numbers (draft #1229). Fixes stay Core / BE.
 6. OPEN PICKS (clickable questions, renders where visual): Android 12+ splash = keep the plain-colour cover vs keep the real SplashScreenView
@@ -35,7 +63,7 @@ own command contains (L94).
 
 ## Outcome (O)
 For: Spixi users, Damir and the BE engineer. After this session the S9 build is walked, every F has a mechanism and a fix, and the v1 list
-is ready for the FREEZE. We know it worked when: WALK #1252 is recorded · A-FLASH passes on the recording + `[P1]` lines (DoD V-26) ·
+is ready for the FREEZE. We know it worked when: WALK #1252 recorded (done) · the fix list F1–F7 + P1–P3 built and re-walked · A-FLASH passes on the recording + `[P1]` lines (DoD V-26) ·
 8-GROW-A has a measured mechanism (V-25) · V-14 / V-14b / V-14c / V-14d / V-15 / V-16 / V-17 / V-18 / V-27 → WALKED · the fix rows #46 CLEAN ·
 the freeze checklist lists every remaining blocker with owner.
 

@@ -87,4 +87,4 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - Open for Damir: Android 12+ splash (plain colour vs `SetOnExitAnimationListener`, #1249) · a long-offline capture for CORE-10 · the old-app caption check.
 - BE asks: B-31 (S9 verbs / pushes, FileTransfer trailer, caption own id, silent reactions, `localonly.json`, `Sent/`, camera text, A-14 Mac WebView handler, C-04) · CORE-10 still a draft · B-28, B-29, B-30, CORE-8, CORE-9.
 - v1 plan: S9 ✅ built → walk → S10 fix round → FREEZE. Road after: sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
-- **NEXT SESSION: read `docs/handoff-2026-10-07b.md` FIRST, then paste `docs/prompts/session-10.md`.** Next free DECISIONS number: **#1252**.
+- **NEXT SESSION: read `docs/handoff-2026-10-07b.md` FIRST, then paste `docs/prompts/session-10.md`.** Next free DECISIONS number: **#1254**.

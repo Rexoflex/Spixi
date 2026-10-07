@@ -97,12 +97,14 @@ export default async function (h) {
   /* ———— M4: decode / encode OFF the UI thread; the pushes ON it, only for this document / chat ———— */
   await guard('S9 A1 M4 threads', async () => {
     const pick = bodyOf(SCP, 'private async Task onPickPhotos(string route)');
-    const fin = bodyOf(SCP, 'private void finishPick(MediaBatch batch, int doc, Friend chat)');
-    const prep = bodyOf(SCP, 'private static void prepareBatch(MediaBatch batch, List<SpixiImageData> picks)');
-    ok(/_ = Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*prepareBatch\(batch, picks\);\s*\}[\s\S]*?onMain\(\(\) => finishPick\(batch, doc, chat\)\);\s*\}\);/.test(pick)
+    /* ★ S10 P1 re-base (#1254, agent A): finishPick gains the append TARGET, prepareBatch the `take` bound; mediaPicked is
+       pushed from TWO places inside finishPick (the append under the target's id · a new batch) — pins-s10/a-wiring.mjs */
+    const fin = bodyOf(SCP, 'private void finishPick(MediaBatch batch, MediaBatch? target, int doc, Friend chat)');
+    const prep = bodyOf(SCP, 'private static void prepareBatch(MediaBatch batch, List<SpixiImageData> picks, int take)');
+    ok(/_ = Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*prepareBatch\(batch, picks, take\);\s*\}[\s\S]*?onMain\(\(\) => finishPick\(batch, target, doc, chat\)\);\s*\}\);/.test(pick)
       && count(SCP, /prepareBatch\(/g) === 2 && count(SCP, /finishPick\(/g) === 2
       && /if \(isDisposed \|\| doc != thumbDoc \|\| friend != chat \|\| batch\.peer != friend\.walletAddress\.ToString\(\)\)\s*\{\s*foreach \(MediaItem it in batch\.items\)\s*\{\s*deleteOwnMediaFile\(it\.path\);\s*\}\s*return;\s*\}/.test(fin)
-      && count(SCP, /"mediaPicked"/g) === 1 && /Utils\.sendUiCommand\(this, "mediaPicked", batch\.id, PhotoRules\.pickedJson\(batch\.shown\)\);/.test(fin)
+      && count(SCP, /"mediaPicked"/g) === 2 && count(fin, /"mediaPicked"/g) === 2 && /Utils\.sendUiCommand\(this, "mediaPicked", batch\.id, PhotoRules\.pickedJson\(batch\.shown\)\);/.test(fin)
       && /mediaDecodeGate\.Wait\(60000\)/.test(prep) && /Spixi\.SThumbnail\.makeViewerJpeg\(src, PhotoRules\.MaxEdge\)/.test(prep)
       && /Spixi\.SThumbnail\.makeViewerJpeg\(jpg, PhotoRules\.ThumbEdge\)/.test(prep)
       && /Interlocked\.Exchange\(ref mediaBusy, 0\);/.test(fin) && /if \(Interlocked\.Exchange\(ref mediaBusy, 1\) != 0\)/.test(pick),
@@ -116,7 +118,8 @@ export default async function (h) {
     const mc = bodyOf(SCP, 'private void onMediaCancel(string batchId)');
     ok(/if \(b == null \|\| id == null \|\| !string\.Equals\(b\.id, id, StringComparison\.Ordinal\)\s*\|\| friend == null \|\| b\.peer != friend\.walletAddress\.ToString\(\)\)\s*\{\s*Logging\.warn\("ixian:mediaSend: no such batch"\);\s*return;\s*\}/.test(ms)
       && /if \(!PhotoRules\.parseMediaSend\(payload, b\.count, out _, out List<int> keys, out string caption\)\)/.test(ms)
-      && /MediaItem\? it = b\.items\.Find\(x => x\.k == k\);\s*if \(it == null\)\s*\{[^}]*return;\s*\}/.test(ms)
+      /* ★ S10 #46 r1 M1 re-base: an unknown key is SKIPPED (a ✕ raced the send); a send naming NO prepared photo is refused (pins-s10/a-wiring) */
+      && /MediaItem\? it = b\.items\.Find\(x => x\.k == k\);\s*if \(it != null\)\s*\{\s*chosen\.Add\(it\);\s*\}/.test(ms) && /if \(chosen\.Count == 0\)\s*\{[^}]*return;\s*\}/.test(ms)
       && before(ms, 'mediaAllowed()', 'mediaBatch = null;') && before(ms, 'mediaBatch = null;', 'sendMediaBatch(b, chosen, caption);')
       && before(sb, 'SPhotoGroups.setMany(peer, groupRows, SPhotoGroups.FromMe);', 'sendPreparedFile(') && count(sb, /SPhotoGroups\.set(Many)?\(/g) === 1   /* #46 r3 m3: ONE batch write */
       && /if \(fm == null\)\s*\{\s*SPhotoGroups\.remove\(peer, msgHex\);\s*deleteOwnMediaFile\(final\);\s*continue;\s*\}/.test(sb)
@@ -124,7 +127,7 @@ export default async function (h) {
       && /if \(captionId != null && sent > 0\)\s*\{\s*sendCaption\(caption, captionId\);\s*\}/.test(sb) && before(sb, 'sendPreparedFile(', 'sendCaption(')
       && /Node\.addMessageWithType\(captionId, FriendMessageType\.standard,/.test(bodyOf(SCP, 'private void sendCaption(string caption, byte[] captionId)'))
       && /if \(b == null \|\| !PhotoRules\.isId16\(batchId\) \|\| !string\.Equals\(b\.id, batchId, StringComparison\.Ordinal\)\)/.test(mc),
-      'S9 A1 M5 mediaSend: only this page\'s open batch for this chat; parseMediaSend against the batch count; every key must be a prepared item; the kept photos move to Sent/<uid>.jpg, their group is recorded BEFORE the store (the live insert reads arg 18) and forgotten when the store fails; the caption is a text message stored with the trailer\'s captionId, sent AFTER the files; mediaCancel needs the same batch id');
+      'S9 A1 M5 mediaSend: only this page\'s open batch for this chat; parseMediaSend against the batch count; only prepared items are sent (S10: an unknown key is skipped, none → refused); the kept photos move to Sent/<uid>.jpg, their group is recorded BEFORE the store (the live insert reads arg 18) and forgotten when the store fails; the caption is a text message stored with the trailer\'s captionId, sent AFTER the files; mediaCancel needs the same batch id');
   });
 
   /* ———— M6: sendPreparedFile's options are consumed once and only by it ———— */
@@ -155,13 +158,13 @@ export default async function (h) {
     const acc = bodyOf(TM, 'public static void acceptFile(Friend friend, string uid)');
     const done = bodyOf(TM, 'public static void completeFileTransfer(Address sender, string uid)');
     const onAcc = bodyOf(SCP, 'public void onAcceptFile(int selected_channel, FriendMessage message)');
-    ok(/if \(transfer == null \|\| transfer\.fileSize > \(ulong\)PhotoRules\.MaxFileBytes\)\s*\{\s*Logging\.warn\("[^"]*"\);\s*return null;\s*\}/.test(pin) && before(pin, 'PhotoRules.MaxFileBytes', 'incomingTransfers.Add(')
-      && before(acc, 'PhotoRules.MaxFileBytes', 'SetLength(') && before(acc, 'PhotoRules.MaxFileBytes', 'File.Create(')
-      && /transfer\.filePath = Path\.Combine\(downloadsPath, PhotoRules\.partFileName\(Guid\.NewGuid\(\)\.ToString\("N"\)\)\);/.test(acc) && !/\.ixipart"/.test(acc)
-      && /string safe_name = PhotoRules\.SafeFileName\(transfer\.fileName\);\s*string final_file_path = Path\.Combine\(downloadsPath, safe_name\);/.test(done)
+    ok(/if \(transfer == null \|\| transfer\.fileSize > \(ulong\)PhotoRules\.MaxReceiveBytes\)\s*\{\s*Logging\.warn\("[^"]*"\);\s*return null;\s*\}/.test(pin) && before(pin, 'PhotoRules.MaxReceiveBytes', 'incomingTransfers.Add(')
+      && before(acc, 'PhotoRules.MaxReceiveBytes', 'SetLength(') && before(acc, 'PhotoRules.MaxReceiveBytes', 'File.Create(')
+      && /string partialDir = Path\.Combine\(downloadsPath, S10FixRules\.PartialFolder\);\s*Directory\.CreateDirectory\(partialDir\);\s*transfer\.filePath = Path\.Combine\(partialDir, PhotoRules\.partFileName\(Guid\.NewGuid\(\)\.ToString\("N"\)\)\);/.test(acc)   /* ★ S10 F7 re-base (#1254): the part file lives in Downloads/.partial (behaviour: pins-s10/b-wiring.mjs) */ && !/\.ixipart"/.test(acc)
+      && /string safe_name = S10FixRules\.finalLeaf\(PhotoRules\.SafeFileName\(transfer\.fileName\)\);\s*string final_file_path = Path\.Combine\(downloadsPath, safe_name\);/.test(done)
       && /PhotoRules\.collisionName\(safe_name, instance_num\)/.test(done) && before(done, 'isInsideDownloadsRoot(', 'File.Move(')
-      && /if \(message\.fileSize > \(ulong\)PhotoRules\.MaxFileBytes\)\s*\{[^}]*"mediaError", PhotoRules\.ErrFileTooBigIn\);\s*return;\s*\}/.test(onAcc)
-      && /if \(transfer\.fileSize > \(ulong\)PhotoRules\.MaxFileBytes\)\s*\{\s*Logging\.warn\("[^"]*"\);\s*lock \(incomingTransfers\)\s*\{\s*incomingTransfers\.Remove\(transfer\);\s*\}\s*return;\s*\}/.test(acc)   /* #46 r1 (tests): the belt's return */ && before(onAcc, 'PhotoRules.MaxFileBytes', 'prepareIncomingFileTransfer('),
+      && /if \(message\.fileSize > \(ulong\)PhotoRules\.MaxReceiveBytes\)\s*\{[^}]*"mediaError", PhotoRules\.ErrFileTooBigIn\);\s*return;\s*\}/.test(onAcc)
+      && /if \(transfer\.fileSize > \(ulong\)PhotoRules\.MaxReceiveBytes\)\s*\{\s*Logging\.warn\("[^"]*"\);\s*lock \(incomingTransfers\)\s*\{\s*incomingTransfers\.Remove\(transfer\);\s*\}\s*return;\s*\}/.test(acc)   /* #46 r1 (tests): the belt's return */ && before(onAcc, 'PhotoRules.MaxReceiveBytes', 'prepareIncomingFileTransfer('),
       'S9 A1 M8 A-9 / A-6: an offer above 100 MB is refused before anything is created or SetLength reserves space (onAcceptFile tells the shell, TransferManager refuses twice); the part file is C#\'s own name (never the peer\'s name or uid); the final name is SafeFileName + " (n)", checked inside the Downloads root before the move');
   });
 
@@ -185,9 +188,9 @@ export default async function (h) {
       && /if \(sentFile == null\)\s*\{\s*deleteOwnMediaFile\(copy\.path\);\s*return;\s*\}\s*if \(PhotoRules\.isVideoName\(fileName\)\)\s*\{\s*Utils\.sendUiCommand\(this, "fileNotice", "videoLocation"\);\s*\}/.test(osf)
       && /catch \(Exception\)\s*\{\s*sendPreparedNext = null;\s*if \(sendPreparedStage < 2\)\s*\{\s*withdrawSendFile\(stream, copy\.path\);\s*\}\s*throw;\s*\}/.test(osf)
       && /deleteOwnMediaFile\(copyPath\);/.test(bodyOf(SCP, 'private void withdrawSendFile(Stream? stream, string? copyPath)'))
-      && /string\? leaf = PhotoRules\.sentFileName\(uid, PhotoRules\.sentExtension\(pickedName\)\);/.test(mk) && /PhotoRules\.copyBounded\(picked, dest, PhotoRules\.MaxFileBytes, out readFailed\)/.test(mk)
-      && /if \(known > PhotoRules\.MaxFileBytes\)\s*\{\s*r\.tooBig = true;\s*return r;\s*\}/.test(mk),
-      'S9 A1 M10 #1200 copy: Send file copies the picked stream (≤ 100 MB, else mediaError fileTooBig and nothing is sent) to Sent/<uid><allow-listed ext> off the UI thread and sends THAT path with the same uid; a video adds fileNotice videoLocation');
+      && /string\? leaf = PhotoRules\.sentFileName\(uid, PhotoRules\.sentExtension\(pickedName\)\);/.test(mk) && /PhotoRules\.copyBounded\(picked, dest, PhotoRules\.maxFileBytes\(PhotoRules\.FileTier\.Free\), out readFailed\)/.test(mk)
+      && /if \(known > PhotoRules\.maxFileBytes\(PhotoRules\.FileTier\.Free\)\)\s*\{\s*r\.tooBig = true;\s*return r;\s*\}/.test(mk),
+      'S9 A1 M10 #1200 copy: Send file copies the picked stream (≤ 50 MB — ★ S10 P2: maxFileBytes(Free), else mediaError fileTooBig and nothing is sent) to Sent/<uid><allow-listed ext> off the UI thread and sends THAT path with the same uid; a video adds fileNotice videoLocation');
   });
 
   /* ———— M11: deletes touch only C#'s own Sent/ files ———— */

@@ -523,6 +523,9 @@ namespace SPIXI
                     {
                         try { page.applyPageSurfaceColor(); }
                         catch (Exception ex) { Logging.warn("pushThemeToAllPages (surface): " + ex.Message); }
+                        // ★ S10 #46 r1 M5: AFTER the surface pass — the chat's stage + content grounds (its WebView stays transparent, F1)
+                        try { SpixiContentPage.recolourStagedGrounds(page); }
+                        catch (Exception ex) { Logging.warn("pushThemeToAllPages (grounds): " + ex.GetType().Name); }
                     });
                 }
                 catch (Exception ex) { Logging.warn("pushThemeToAllPages: " + ex.Message); }
@@ -700,6 +703,7 @@ namespace SPIXI
             // ★ P0 #1155 (#46 r3 m2): Core blanked the row in memory only — write it before the next replacing read.
             CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), channel);
             Utils.getChatPage(friend)?.deleteMessage(msgId, channel);
+            CoreMessageWriter.clearDeletedLast(friend, msgId);   // ★ S10 F3 (#1254): Core's recompute may have kept the deleted photo as the excerpt
             refreshChatRow(friend);
         }
 

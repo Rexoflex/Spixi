@@ -671,6 +671,7 @@ global-friend-request-connected = Vous êtes maintenant en contact avec {0}.
 chat-group-added-you = {0} vous a ajouté à ce groupe
 chat-group-added-you-noname = Vous avez été ajouté à ce groupe
 chat-group-you-created = Vous avez créé ce groupe
+chat-group-members-see = Les membres peuvent maintenant voir le groupe.
 
 global-update-available = Une nouvelle version de Spixi est disponible ({0}). Mettez à jour pour profiter de la meilleure expérience.
 global-modal-external-link-title = Lien externe

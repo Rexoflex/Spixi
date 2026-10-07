@@ -205,6 +205,7 @@
     createSettingsAbout, createSettingsHowTo,
     createSettingsContributors, createSettingsBackup, setBackupScreenStatus,
     createSettingsDownloads, setDownloads,
+    setDownloadsAvatars,             // ★ S10 F7 (#1254): the From sheet's sender avatars
     createChatAppearance, setSettingsSaveVisible,
     createNotificationsScreen,       // ★ NOTIF-2: built since #147, dark until now
     createPrivacy,                   // ★ security sweep E-1b: the media-autoload switch (FE-only)
@@ -297,6 +298,7 @@
   let dlBuf = null, dlTimer = 0;
   let dlLast = [];              // ★★ #1107: the list on screen — setDownloadSenders merges into it
   let dlSenders = new Map();    // ★★ #1107: name → { sender, senderKey } from phase 2 (REPLACED by each setDownloadSenders; kept across clearFiles — #46 r1 B2)
+  let dlAvatars = [];           // ★ S10 F7 (#1254): [[senderKey, dataUri], …] from setDownloadAvatars (cleared with each sender push — keys are per scan)
   function dlWithSenders(list) {
     return list.map((f) => { const s = dlSenders.get(f.name); return s ? Object.assign({}, f, s) : f; });
   }
@@ -547,7 +549,8 @@
    * so this document does no derivation — the old "v × 0.36 for dark" line is gone
    * from here, from chat.html's pre-paint script and from applyPatternPrefs alike.
    * readPatternLevel migrates the legacy fractional values. */
-  const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground' };
+  const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground',
+    previewLines: 'spixi.chat.previewlines' };   // ★ S10 P4 (#1254): '1' | '2' (absent / anything else = '2'); the CONSUMER is home.html (the chats list)
   function readChatPrefs() {
     // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
     // mobile Default (1). Mirrors chat.html's pre-paint boot read so the
@@ -586,7 +589,9 @@
       // any other value falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
       if (gr === 'flat' || gr === 'gradient' || gr === 'green' || gr === 'blue') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too · ★ S8 (#1237): and the blue   // ★ #998: anything else, incl. absent/corrupt → the default above
     } catch (e) {}
-    return { pattern, textScale, patternStyle, chatGround };
+    let previewLines = '2';
+    try { if (localStorage.getItem(CHAT_PREFS.previewLines) === '1') previewLines = '1'; } catch (e) {}   // ★ S10 P4: the home.html ladder's twin
+    return { pattern, textScale, patternStyle, chatGround, previewLines };
   }
 
   /* ★ security sweep E-1b — the remote-media opt-out, read here and written by the
@@ -1643,6 +1648,8 @@
           onPatternStyle: (v) => { try { localStorage.setItem(CHAT_PREFS.patternStyle, String(v)); } catch (e) {} },
           onChatGround: (v) => { try { localStorage.setItem(CHAT_PREFS.ground, String(v)); } catch (e) {} },
           onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
+          previewLines: prefs.previewLines,
+          onPreviewLines: (v) => { try { localStorage.setItem(CHAT_PREFS.previewLines, v === '1' ? '1' : '2'); } catch (e) {} },
         }));
       }
       // #242/#243: Theme/Language as pane sublevels (the hub routes here via
@@ -1698,6 +1705,7 @@
            document.body confirm outlive the node (#804, auditor A). */
         releaseDownloads();
         dlSenders = new Map();   // (#46 r3 R3-1) a NEW Downloads screen never paints the previous scan's senders — they come with ITS phase 2
+        dlAvatars = [];          // ★ S10 F7: nor the previous scan's avatars
         downloadsEl = createSettingsDownloads({
           files: [], host: document.body, strings,
           onBack: showHub,
@@ -2266,7 +2274,29 @@
         if (!Array.isArray(r) || r.length < 3 || typeof r[0] !== 'string' || typeof r[2] !== 'string' || !/^s\d{1,6}$/.test(r[2])) continue;
         dlSenders.set(r[0], { sender: String(r[1] || ''), senderKey: r[2] });
       }
+      /* ★ S10 F7: the sender keys are per scan (s0, s1 …) — a key can name another person after this push, so the old
+         avatars go with it; setDownloadAvatars follows right after. */
+      dlAvatars = [];
+      if (downloadsEl) setDownloadsAvatars(downloadsEl, dlAvatars);
       if (downloadsEl && downloadsEl.isConnected && dlBuf === null) setDownloads(downloadsEl, dlWithSenders(dlLast));
+    },
+    /* ★ S10 F7 (#1254) — 🟡 NEW push, right after every setDownloadSenders: [[senderKey, dataUri], …] for the senders
+       with an avatar file. Validated: an array ≤ 256 rows; key = a string ≤ 128 chars; value = a local
+       data:image/(png|jpeg|webp);base64 URI ≤ 200 000 chars (no remote URL, no other image type). A bad row is skipped;
+       a non-array (or bad JSON) changes nothing. */
+    setDownloadAvatars(json) {
+      let rows = null;
+      try { rows = JSON.parse(String(json)); } catch (e) { rows = null; }
+      if (!Array.isArray(rows) || rows.length > 256) return;
+      const ok = [];
+      for (const r of rows) {
+        if (!Array.isArray(r) || r.length < 2 || typeof r[0] !== 'string' || !r[0] || r[0].length > 128) continue;
+        const v = r[1];
+        if (typeof v !== 'string' || v.length > 200000 || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/.test(v)) continue;
+        ok.push([r[0], v]);
+      }
+      dlAvatars = ok;
+      if (downloadsEl) setDownloadsAvatars(downloadsEl, dlAvatars);
     },
 
     // setEncPassResult('1'|'0') — #341. The standalone settings_encryption.html has

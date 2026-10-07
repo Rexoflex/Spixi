@@ -134,6 +134,21 @@ namespace SPIXI
             get { return this is SingleChatPage; }
         }
 
+        /* ★ S10 F1 (#1254): the chat's MAUI WebView ground too — Android only, where the compat renderer maps it onto the
+         * handler's platform view, a layer of the WebView stack (applyPageSurfaceColor sets it Transparent once;
+         * setHoldGrounds, Android-only, never writes it). */
+        private bool keepsMauiWebViewTransparent
+        {
+            get
+            {
+#if ANDROID
+                return keepsNativeWebViewTransparent;
+#else
+                return false;
+#endif
+            }
+        }
+
         // The native surface painted behind (and on) this page's WebView — chosen per
         // shell so the pre-paint frame matches what the shell will render (N1/N3).
         protected Color pageSurfaceColor = ThemeManager.getSurfaceColor();
@@ -326,7 +341,23 @@ namespace SPIXI
             }
             if (_webView != null)
             {
-                _webView.BackgroundColor = pageSurfaceColor;
+                /* ★ S10 F1 (#1254): on the chat (compat renderer) a MAUI BackgroundColor write is mapped onto the WebView stack —
+                 * VisualElementRenderer.UpdateBackgroundColor → ViewHandler.MapBackground → the handler's PlatformView
+                 * .UpdateBackground. The in-repo [P1] a1 log reads `pv=spixiwebviewrenderer2`: that PlatformView is the RENDERER
+                 * (the ViewGroup hosting the SpixiWebview), not the native WebView itself (MAUI 10.0.71 ViewRenderer.cs:34 would
+                 * allow either). Whichever layer it lands on, a background change there around the hold is the suspect of the
+                 * grey frame — the fix removes the write either way (the `hold nbg … vg=` probe shows both layers). The chat's
+                 * MAUI WebView is Transparent ONCE (compare, no repeat write) and never the surface colour; its resize backing
+                 * is the stage / content grounds (re-coloured on a theme flip by recolourStagedGrounds). Every other page — and the chat on iOS / Mac / Windows (no compat renderer; an
+                 * iOS WKWebView with a clear ground could flash its own white) — unchanged. */
+                if (!keepsMauiWebViewTransparent)
+                {
+                    _webView.BackgroundColor = pageSurfaceColor;
+                }
+                else if (!Colors.Transparent.Equals(_webView.BackgroundColor))
+                {
+                    _webView.BackgroundColor = Colors.Transparent;
+                }
 #if ANDROID
                 /* ★ F1 (2026-08-22, Damir on device: a WHITE flash before the lock).
                  *
@@ -424,6 +455,36 @@ namespace SPIXI
                     + " page=" + (BackgroundColor != null ? BackgroundColor.ToHex() : "null")
                     + " webViewBg=" + (_webView != null && _webView.BackgroundColor != null ? _webView.BackgroundColor.ToHex() : "null")
                     + " windowBg=#144576(styles.xml:37→splash_screen)");
+            }
+        }
+
+        /** ★ S10 #46 r1 M5 (main thread, AFTER page.applyPageSurfaceColor — UIHelpers.pushThemeToAllPages): the chat's MAUI
+         *  WebView no longer carries the surface colour (F1), so a theme flip must re-colour the grounds UNDER it — the stage
+         *  and the moved page content of every op that stages / shows this page. MAUI views only, never the WebView; skipped
+         *  while a hold keeps them transparent. Every other page: nothing (its WebView still carries the colour). */
+        internal static void recolourStagedGrounds(SpixiContentPage page)
+        {
+            if (!page.keepsMauiWebViewTransparent)
+            {
+                return;
+            }
+            List<PreloadOp> ops = new List<PreloadOp>();
+            lock (preloadLock)
+            {
+                ops.AddRange(overlayStack.FindAll(o => o.target == page));
+                if (activePreload != null && activePreload.target == page && !ops.Contains(activePreload))
+                {
+                    ops.Add(activePreload);
+                }
+            }
+            foreach (PreloadOp op in ops)
+            {
+                if (op.groundsHeld || op.target.ownsStageGround)
+                {
+                    continue;
+                }
+                op.stage.BackgroundColor = page.pageSurfaceColor;
+                op.targetContent.BackgroundColor = page.pageSurfaceColor;
             }
         }
 
@@ -966,6 +1027,9 @@ namespace SPIXI
              * drawn (PresentHold: the visual-state callback + one frame, capped); then the grounds come back and the
              * stage goes input-live. Replaces the #1101 0b(b) 0.01 pre-reveal, which ADDED blank frames (#1115). */
             public bool holdUntilDrawn = false;
+            /* ★ S10 #46 r1 M5: true while setHoldGrounds holds the grounds TRANSPARENT (main thread) — a theme sweep then leaves
+             * them alone (recolourStagedGrounds); the release paints the CURRENT pageSurfaceColor anyway. */
+            public bool groundsHeld = false;
             public volatile bool closing = false;   // ★ L8: set at the top of closeOverlay
             // W7: the inset this stage was staged with (#245 rail strip for the Account
             // peer pane; zero for every other op). Remembered so a page opened FROM this
@@ -4523,6 +4587,7 @@ namespace SPIXI
         {
             Android.Webkit.WebView? native = null;
             try { native = nativeWebViewOf(op.target._webView); } catch (Exception) { }   // ★ #1132 lever 1 (A1): the renderer's .Control — the direct cast was null on every open (why=noview)
+            string nbgPre = P1Perf.enabled ? nativeGroundToken(native) : "none";   // ★ S10 F1 [P1] — TEMPORARY: the native base at hold start
             setHoldGrounds(op, native, true);
             op.stage.Opacity = 1;
             PreloadOp held = op;
@@ -4547,6 +4612,8 @@ namespace SPIXI
                 {
                     // ★ S9 A-FLASH C2 — TEMPORARY, retire with the [P1] set: did the release touch the native WebView base?
                     P1Perf.line("hold release bg=" + (held.target.keepsNativeWebViewTransparent || heldView == null ? "kept" : "set"));
+                    // ★ S10 F1 — TEMPORARY, retire with the [P1] set: the NATIVE SpixiWebview base at hold start and after release
+                    P1Perf.line("hold nbg pre=" + nbgPre + " post=" + nativeGroundToken(heldView) + " vg=" + groundTokenOf((heldView?.Parent as Android.Views.View)?.Background));
                 }
                 Logging.info("[CDPERF] chat held frames={0} ms={1} why={2}", frames, ms, why);   // ★ G-1 — TEMPORARY, retire with the set
             });
@@ -4592,10 +4659,14 @@ namespace SPIXI
         /** ★ G-1: the four grounds under the chat WebView — transparent while held, the page surface after. */
         private static void setHoldGrounds(PreloadOp op, Android.Webkit.WebView? native, bool held)
         {
+            op.groundsHeld = held;
             Color ground = held ? Colors.Transparent : op.target.pageSurfaceColor;
             op.stage.BackgroundColor = ground;
             op.targetContent.BackgroundColor = ground;
-            if (op.target._webView != null)
+            /* ★ S10 F1 (#1254): the chat's MAUI WebView ground is NEVER written here — on the compat renderer the write lands on
+             * the handler's platform view (the renderer, per the pv= log; VisualElementRenderer → ViewHandler.MapBackground), a
+             * layer of the WebView stack: applyPageSurfaceColor keeps it Transparent; the stage + content are the #248 backing. */
+            if (op.target._webView != null && !op.target.keepsNativeWebViewTransparent)
             {
                 op.target._webView.BackgroundColor = ground;
             }
@@ -4606,6 +4677,37 @@ namespace SPIXI
                 native.SetBackgroundColor(held ? Android.Graphics.Color.Transparent
                     : Android.Graphics.Color.ParseColor(op.target.pageSurfaceColorString));
             }
+        }
+
+        /** ★ S10 F1 [P1] — TEMPORARY, retire with the set: the native WebView's Background as 8 lowercase hex (a ColorDrawable),
+         *  `none` for null / another drawable / a failed read (S10MediaRules.argbToken — the [P1] grammar has no '#'). */
+        private static string nativeGroundToken(Android.Webkit.WebView? native)
+        {
+            try
+            {
+                return groundTokenOf(native?.Background);
+            }
+            catch (Exception)
+            {
+                return S10MediaRules.argbToken(null);
+            }
+        }
+
+        /** ★ S10 #46 r1 M6 [P1] — TEMPORARY: one drawable → 8 hex (a ColorDrawable) or `none`. Also read for the renderer
+         *  ViewGroup (`vg=`, the native WebView's parent — the layer the pv= log says the MAUI write lands on). */
+        private static string groundTokenOf(Android.Graphics.Drawables.Drawable? d)
+        {
+            try
+            {
+                if (d is Android.Graphics.Drawables.ColorDrawable cd)
+                {
+                    return S10MediaRules.argbToken(cd.Color.ToArgb());
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return S10MediaRules.argbToken(null);
         }
 #endif
 
@@ -5354,10 +5456,13 @@ namespace SPIXI
                  * performHapticFeedback (CONTEXT_CLICK / LONG_PRESS — honours the user's system "touch feedback" switch and
                  * needs NO VIBRATE permission; MAUI's HapticFeedback.Perform calls Permissions.EnsureDeclared<Vibrate> and
                  * would throw without it). iOS: MAUI HapticFeedback (UIImpactFeedbackGenerator). Windows / Mac: a no-op.
-                 * success = a click (no success haptic in MAUI). Never throws; nothing is logged per call. */
+                 * success = a click (no success haptic in MAUI). Never throws; nothing is logged per call.
+                 * ★ S10 F4 (#1254): on Android a REFUSED view haptic falls back to the Vibrator (performHapticAndroid — VIBRATE is
+                 * now declared) and every call writes one dev-only [P1] line (fixed words + integers). */
                 if (hasGeneratedContent && App.isInForeground)
                 {
-                    performHaptic(S9FixRules.hapticKind(url.Substring("ixian:haptic:".Length)));
+                    string hapticArg = url.Substring("ixian:haptic:".Length);
+                    performHaptic(S9FixRules.hapticKind(hapticArg), S10MediaRules.hapticWord(hapticArg));   // ★ S10 F4: the exact word too (probe + heavy click)
                 }
             }
             else if (url.StartsWith("ixian:hangUp:"))
@@ -5379,19 +5484,18 @@ namespace SPIXI
             return true;
         }
 
-        /** ★ S9 A3 D-04: the platform half of `ixian:haptic` (main thread — the verb handler runs there). */
-        private static void performHaptic(S9FixRules.Haptic kind)
+        /** ★ S9 A3 D-04: the platform half of `ixian:haptic` (main thread — the verb handler runs there). `word` = the exact
+         *  verb word (S10MediaRules.hapticWord: click / long / success) or null. */
+        private static void performHaptic(S9FixRules.Haptic kind, string? word)
         {
-            if (kind == S9FixRules.Haptic.None)
+            if (kind == S9FixRules.Haptic.None || word == null)
             {
                 return;
             }
             try
             {
 #if ANDROID
-                Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window?.DecorView?.PerformHapticFeedback(kind == S9FixRules.Haptic.LongPress
-                    ? global::Android.Views.FeedbackConstants.LongPress
-                    : global::Android.Views.FeedbackConstants.ContextClick);
+                performHapticAndroid(kind, word);
 #elif IOS
                 Microsoft.Maui.Devices.HapticFeedback.Default.Perform(kind == S9FixRules.Haptic.LongPress
                     ? Microsoft.Maui.Devices.HapticFeedbackType.LongPress
@@ -5403,6 +5507,70 @@ namespace SPIXI
                 // a device without haptics, or a platform refusal — the tap itself already happened
             }
         }
+
+#if ANDROID
+        /* ★ S10 F4 (#1254): the decor view's performHapticFeedback returns false when the device / view refuses it (Damir's
+         * phone: no buzz). Fallback ONLY then, and only while the user's "touch feedback" switch is not OFF (hfe = 0 → no
+         * buzz, his rule; -1 = unknown): the Vibrator (API 31+ VibratorManager.DefaultVibrator, else the Vibrator service)
+         * plays the PREDEFINED click (long / success = heavy click), API 29+ only (S10MediaRules.hapticFallback). Needs
+         * android.permission.VIBRATE (a normal permission, AndroidManifest.xml). Never FLAG_IGNORE_GLOBAL_SETTING. */
+        private static void performHapticAndroid(S9FixRules.Haptic kind, string word)
+        {
+            Android.App.Activity? act = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            bool ok = act?.Window?.DecorView?.PerformHapticFeedback(kind == S9FixRules.Haptic.LongPress
+                ? global::Android.Views.FeedbackConstants.LongPress
+                : global::Android.Views.FeedbackConstants.ContextClick) == true;
+            int hfe = -1;
+            try
+            {
+                hfe = Android.Provider.Settings.System.GetInt(act?.ContentResolver, "haptic_feedback_enabled", -1);
+            }
+            catch (Exception)
+            {
+                hfe = -1;
+            }
+            int sdk = (int)Android.OS.Build.VERSION.SdkInt;
+            if (P1Perf.enabled)
+            {
+                // ★ S10 F4 — TEMPORARY, retire with the [P1] set: fixed words + integers only
+                P1Perf.line("haptic k=" + word + " ok=" + (ok ? "1" : "0") + " hfe=" + hfe.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + " sdk=" + sdk.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            if (!S10MediaRules.hapticFallback(ok, hfe, sdk) || !OperatingSystem.IsAndroidVersionAtLeast(29))
+            {
+                return;
+            }
+            Android.Content.Context ctx = Spixi.SPlatformUtils.appContext();   // #573: the ONE context helper (throws → the caller's catch)
+            Android.OS.Vibrator? vib = null;
+            if (OperatingSystem.IsAndroidVersionAtLeast(31))
+            {
+                Android.OS.VibratorManager? vm = ctx.GetSystemService(Android.Content.Context.VibratorManagerService) as Android.OS.VibratorManager;
+                vib = vm?.DefaultVibrator;
+            }
+            else
+            {
+#pragma warning disable CA1422 // VibratorService is obsolete from API 31 — this branch runs below 31 only
+                vib = ctx.GetSystemService(Android.Content.Context.VibratorService) as Android.OS.Vibrator;
+#pragma warning restore CA1422
+            }
+            if (vib == null || !vib.HasVibrator)
+            {
+                return;
+            }
+            Android.OS.VibrationEffect effect = Android.OS.VibrationEffect.CreatePredefined(S10MediaRules.hapticHeavy(word)
+                ? Android.OS.VibrationEffect.EffectHeavyClick
+                : Android.OS.VibrationEffect.EffectClick);
+            if (OperatingSystem.IsAndroidVersionAtLeast(33))
+            {
+                // ★ S10 #46 r1 N2: API 33+ tags it as TOUCH feedback (the system applies the touch-feedback intensity / switch)
+                vib.Vibrate(effect, Android.OS.VibrationAttributes.CreateForUsage(Android.OS.VibrationAttributesUsageType.Touch));   // ★ #46 r2 MAJOR-1: the binding takes the ENUM (methodmap: createForUsage → VibrationAttributesUsageType); the UsageTouch int const is [Obsolete(error)]
+            }
+            else
+            {
+                vib.Vibrate(effect);
+            }
+        }
+#endif
 
         /// <summary>★ #1028 — the cap on one native copy (chars). Mirrors NATIVE_COPY_MAX in native.js.</summary>
         public const int NATIVE_COPY_MAX = 64000;

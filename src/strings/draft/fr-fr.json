@@ -867,5 +867,17 @@
   "languageReport": "Signaler un problème de traduction",
   "fileTooBig100": "Ce fichier dépasse 100 Mo et ne peut pas être envoyé.",
   "fileTooBigIn100": "Ce fichier dépasse 100 Mo et ne peut pas être téléchargé.",
-  "mediaStorageDenied": "Spixi a besoin d’accéder au stockage pour enregistrer la photo. Autorisez-le dans les réglages de l’appareil."
+  "mediaStorageDenied": "Spixi a besoin d’accéder au stockage pour enregistrer la photo. Autorisez-le dans les réglages de l’appareil.",
+  "addPhotos": "Ajouter des photos",
+  "photoStripCount": "{n} sur 10",
+  "mediaCaptionTooLong": "Cette légende est trop longue.",
+  "fileTooBig50": "Ce fichier dépasse 50 Mo et ne peut pas être envoyé.",
+  "photosDownloadAll": "Tout télécharger ({n})",
+  "photosShowAll": "Voir les {n} photos",
+  "downloadsSenderFiles": "{n} fichiers",
+  "downloadsSenderFilesOne": "1 fichier",
+  "downloadsSenderLast": "dernier {when}",
+  "chatPreviewLines": "Aperçu des messages",
+  "previewLinesOne": "1 ligne",
+  "previewLinesTwo": "2 lignes"
 }

@@ -363,8 +363,11 @@ export function setTileHead(row, { position = 'single', label = null, avatar = n
  *   caption — the caption text (textContent only) or null
  * The shell appends its cell rows into `.c-mgrid` (addPhotoGridCell) AFTER its group head, so the head lands on the
  * group's column (the column carries `c-mbubble-anchor`, the class setTileHead looks for — it is FIRST in document order).
- * The group carries role="group" + "{n} photos"; the "+N" is aria-hidden (the name already says how many). */
-export function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false, strings = getStrings() } = {}) {
+ * The group carries role="group" + "{n} photos"; the "+N" is aria-hidden (the name already says how many).
+ * ★ S10 F2 (#1254): downloadAll — n ≥ 1 → a "Download all (n)" text button under the grid (downloadAllLabel, the shell's
+ *   filled template; onDownloadAll on tap — one tap, then it waits for the shell's re-render); 0 = none. */
+export function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false,
+  downloadAll = 0, downloadAllLabel = '', onDownloadAll = null, strings = getStrings() } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row c-mgrid-row';
   row.dataset.direction = direction;
@@ -396,14 +399,32 @@ export function createPhotoGridBubble({ direction = 'received', count = 1, more 
     box.dataset.caption = '';
     box.append(cap);
   }
+  if (Number(downloadAll) > 0 && typeof onDownloadAll === 'function') {
+    const dl = document.createElement('button');
+    dl.type = 'button';
+    dl.className = 'c-mgrid__dlall';
+    dl.append(icon('download', { size: 18 }));
+    const t = document.createElement('span');
+    t.textContent = downloadAllLabel || ('Download all (' + Number(downloadAll) + ')');
+    dl.append(t);
+    dl.addEventListener('click', () => {
+      if (dl.disabled) return;
+      dl.disabled = true;   // one tap: the offers flip to progress on C#'s ticks and the re-render drops the button
+      try { onDownloadAll(); } catch (_) {}
+    });
+    box.dataset.dlall = '';
+    box.append(dl);
+  }
   col.append(box);
   row.append(col);
   return row;
 }
 
 /** Put one photo-file row (createImageFileBubble) into the group's grid as a cell: its own gutter, pre-accept Cancel
- *  and fixed tile geometry go (the grid sizes the cell); `isLast` + `more` > 0 lays the "+N" over it. → the cell row */
-export function addPhotoGridCell(groupRow, cellRow, { isLast = false } = {}) {
+ *  and fixed tile geometry go (the grid sizes the cell); `isLast` + `more` > 0 lays the "+N" over it. → the cell row
+ *  ★ S10 F2 (#1254): `onMore` given → the "+N" is its own BUTTON over the cell (named `moreLabel`) and the photo tile
+ *  under it leaves the tab order (the button covers it); no `onMore` = the S9 decorative overlay. */
+export function addPhotoGridCell(groupRow, cellRow, { isLast = false, onMore = null, moreLabel = '' } = {}) {
   const grid = groupRow && groupRow.querySelector('.c-mgrid');
   if (!grid || !cellRow) return null;
   cellRow.classList.add('c-mgrid__cell');
@@ -413,7 +434,17 @@ export function addPhotoGridCell(groupRow, cellRow, { isLast = false } = {}) {
   const tile = cellRow.querySelector('.c-mbubble');
   if (tile) { tile.style.removeProperty('width'); tile.style.removeProperty('aspect-ratio'); }
   const more = Number(grid.dataset.more) || 0;
-  if (isLast && more > 0 && tile) {
+  if (isLast && more > 0 && tile && typeof onMore === 'function') {
+    const m = document.createElement('button');   // a sibling of the tile (a button never nests in the tile's button)
+    m.type = 'button';
+    m.className = 'c-mgrid__more';
+    m.textContent = '+' + more;
+    if (moreLabel) m.setAttribute('aria-label', moreLabel);
+    m.addEventListener('click', (e) => { e.stopPropagation(); try { onMore(); } catch (_) {} });
+    tile.tabIndex = -1;
+    tile.setAttribute('aria-hidden', 'true');
+    tile.after(m);
+  } else if (isLast && more > 0 && tile) {
     const m = document.createElement('span');
     m.className = 'c-mgrid__more';
     m.setAttribute('aria-hidden', 'true');

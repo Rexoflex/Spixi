@@ -19,13 +19,21 @@ namespace SPIXI
     public static class PhotoRules
     {
         // —— limits (#1244 / #1245) ——
-        public const int MaxBatch = 10;                         // photos per pick / per group
+        public const int MaxBatch = 10;                         // photos per batch / per group (★ S10: every batch counts 10 slots — keys 0–9)
         public const int MaxEdge = 2048;                        // the sent photo's long edge, px (#1158)
         public const int JpegQuality = 82;                      // the sent photo's JPEG quality (#1158)
         public const int ThumbEdge = 320;                       // the preview-sheet thumbnail's long edge, px
         public const int ThumbMaxBytes = 64 * 1024;             // a bigger thumbnail is not pushed ("" — the shell shows a glyph)
         public const long SourceMax = 20L * 1024 * 1024;        // the decode cap (A-11 / G-6b): a bigger source → mediaError tooBig
-        public const long MaxFileBytes = 100L * 1024 * 1024;    // A-9: send AND receive
+        /* ★ S10 P2 (#1253 / #1254): the SEND cap is per tier (free 50 MiB, premium 100 MiB — no tier UI yet, every send site
+         * uses Free); the RECEIVE cap is the largest tier, so a premium sender's file is still accepted. */
+        public enum FileTier { Free, Premium }
+        public const long MaxReceiveBytes = 100L * 1024 * 1024;   // A-9 receive: = maxFileBytes(Premium)
+
+        public static long maxFileBytes(FileTier t)
+        {
+            return t == FileTier.Premium ? 100L * 1024 * 1024 : 50L * 1024 * 1024;
+        }
         public const int MaxCaptionChars = 4096;
         public const int SafeNameMax = 120;
 
@@ -35,10 +43,10 @@ namespace SPIXI
         public const string ErrClipboardEmpty = "clipboardEmpty";
         public const string ErrCameraDenied = "cameraDenied";
         public const string ErrTooMany = "tooMany";
-        public const string ErrFileTooBig = "fileTooBig";       // 🟡 NOT in the contract list (A1 report): a "Send file" above MaxFileBytes
+        public const string ErrFileTooBig = "fileTooBig";       // 🟡 NOT in the contract list (A1 report): a "Send file" above maxFileBytes(Free)
         public const string ErrStorageDenied = "storageDenied";   // 🟡 #46 r2 n2: Android ≤ 12 storage permission refused for the camera (B1 has its own text)
         public const string StorageDeniedMarker = "storage";      // the PermissionException message Android SFilePicker throws for it
-        public const string ErrFileTooBigIn = "fileTooBigIn";   // 🟡 #46 r1 (shell auditor): a RECEIVED offer above MaxFileBytes (B1 has its own text)
+        public const string ErrFileTooBigIn = "fileTooBigIn";   // 🟡 #46 r1 (shell auditor): a RECEIVED offer above MaxReceiveBytes (B1 has its own text)
         public const long MaxPixels = 100L * 1000 * 1000;       // #46 r1 m-10: a source above ~100 MP is never decoded (iOS / Mac read the size first)
         public const int MaxPreviewBytes = 64 * 1024;           // #46 r1 NIT: a header's preview above this is skipped unread (no sender sets one)
 

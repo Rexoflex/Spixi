@@ -239,7 +239,7 @@ export default async function (h) {
     {
       const n = s.toasts.length;
       push('voiceRec', 'sendfail', '0');
-      for (let i = 0; i < 60 && s.toasts.length === n; i++) await sleep(100);
+      for (let i = 0; i < 120 && s.toasts.length === n; i++) await sleep(100);   // ★ S10 F5 re-base: a toast now stays max(3500, 55 ms × chars)
       r.sendfailToast = s.toasts.length === n + 1 && /could not be sent/.test(s.toasts[n]) && !/recorded/.test(s.toasts[n]);
       r.sendfailKeepsBar = bar(d) === b && b.dataset.state === 'stopped';
     }
@@ -277,7 +277,7 @@ export default async function (h) {
       await sleep(20);
       const n = s.toasts.length;
       push('voiceRec', st, '0');
-      for (let i = 0; i < 60 && s.toasts.length === n; i++) await sleep(100);   // the toast host shows one at a time (3.5 s each)
+      for (let i = 0; i < 120 && s.toasts.length === n; i++) await sleep(100);   // the toast host shows one at a time (3.5 s each)
       r[st + 'Back'] = !bar(d) && isMic(d);
       r[st + 'Toast'] = s.toasts.length === n + 1 && re.test(s.toasts[s.toasts.length - 1]);
     }

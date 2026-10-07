@@ -109,6 +109,19 @@ const EXCERPT_GLYPHS = {
   reply: 'arrow-back-up',   // ★ S8 (#1236): the last message is a reply (C# stripped the quote); the glyph is aria-hidden, a hidden "Reply:" speaks it
   'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
 };
+/* ★ S10 #46 r1 (R3-3): the 2-line excerpt's sender cap — 24 user-perceived characters (Intl.Segmenter graphemes when
+   the engine has it, else code points, so a surrogate pair or an emoji is never cut in half), then "…". null = fits. */
+const SENDER_FLOW_MAX = 24;
+function capGraphemes(text, max) {
+  let parts;
+  try {
+    parts = (typeof Intl === 'object' && typeof Intl.Segmenter === 'function')
+      ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map((x) => x.segment)
+      : Array.from(text);
+  } catch (e) { parts = Array.from(text); }
+  if (parts.length <= max) return null;
+  return parts.slice(0, max).join('').replace(/\s+$/, '') + '…';
+}
 export function createExcerpt({ type = 'text', text = '', sender = null, dots = false, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
@@ -128,8 +141,16 @@ export function createExcerpt({ type = 'text', text = '', sender = null, dots = 
     const n = document.createElement('span');
     n.className = 'c-excerpt__sender-name';
     n.textContent = String(sender);
+    /* ★ S10 #46 r1 (R3-3): the 2-line flow (chatlist-item.css) has no 40% cap — a name over SENDER_FLOW_MAX grapheme
+       clusters carries its capped form in data-short (the CSS shows it in that mode only) and the full name as the
+       title; the text node keeps the FULL name (the accessible name, and the 1-line row's CSS ellipsis). */
+    const short = capGraphemes(String(sender), SENDER_FLOW_MAX);
+    if (short !== null) { s.dataset.short = short; s.title = String(sender); }
     s.append(n, document.createTextNode(':'));
-    el.append(s);
+    /* ★ S10 P4 (#1254): a real space after "Name:" — the 2-line flow (chatlist-item.css) is inline, where the flex
+       gap does not exist; in the 1-line flex row a whitespace-only node renders nothing. Outside the sender span, so
+       its text stays "Name:". */
+    el.append(s, document.createTextNode(' '));
   }
   const glyph = EXCERPT_GLYPHS[type];
   if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));

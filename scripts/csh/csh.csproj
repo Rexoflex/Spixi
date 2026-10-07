@@ -58,6 +58,10 @@
     <Compile Include="../../Spixi/Utils/S9FixRules.cs" />
     <Compile Include="../../Spixi/Meta/SAppJoins.cs" />
     <Compile Include="../../Spixi/Meta/SVoicePlayed.cs" />
+    <!-- ★ S10 A (#1254 P1 / F1 / F4): the strip's keys + mediaDrop parse, the [P1] colour token, the haptic fallback (tests: S10MediaTests.cs). -->
+    <Compile Include="../../Spixi/Utils/S10MediaRules.cs" />
+    <!-- ★ S10 agent B (#1254): F3 live photo count · F6 pre-push · F7 part-file sweep + avatar URIs (tests: S10FixTests.cs; ChatHeal + S9FixRules above). -->
+    <Compile Include="../../Spixi/Utils/S10FixRules.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

@@ -23,6 +23,11 @@
      capability, which stays a probe (L15). Unknown/unsubstituted → no attribute. -->
 <script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
 <script>(function(){if('*SL{SpixiP1}'==='1')document.documentElement.setAttribute('data-p1','');})();</script>
+<!-- ★ S10 P4 (#1254): the chats-list excerpt lines — spixi.chat.previewlines ('1' | '2'; absent / anything else = '2'),
+     written by Settings → Chat appearance (settings.html CHAT_PREFS). Set BEFORE first paint, and re-read when another
+     document writes it (storage) or this one comes back (visibilitychange · pageshow). Only the two literals reach the
+     attribute. -->
+<script>(function(){function r(){var v='2';try{if(localStorage.getItem('spixi.chat.previewlines')==='1')v='1';}catch(e){}if(document.documentElement.dataset.previewLines!==v)document.documentElement.dataset.previewLines=v;}r();window.addEventListener('storage',function(e){if(!e||e.key===null||e.key==='spixi.chat.previewlines')r();});document.addEventListener('visibilitychange',function(){if(!document.hidden)r();});window.addEventListener('pageshow',r);})();</script>
 <!-- Desktop nav rail (spec 6e.1, #232 ④): gates on :root[data-desktop] — the #228
      platform flag set above (zero-C#; the old ?desktop=1/.is-desktop opt-in is
      superseded — C# never set __SPIXI_DESKTOP__). Browser-preview forcing only:

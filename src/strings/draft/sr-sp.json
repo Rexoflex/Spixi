@@ -867,5 +867,17 @@
   "languageReport": "Prijavi grešku u prevodu",
   "fileTooBig100": "Ovaj fajl je veći od 100 MB i ne može da se pošalje.",
   "fileTooBigIn100": "Ovaj fajl je veći od 100 MB i ne može da se preuzme.",
-  "mediaStorageDenied": "Spixi-ju je potreban pristup skladištu da bi sačuvao fotografiju sa kamere. Dozvolite ga u podešavanjima uređaja."
+  "mediaStorageDenied": "Spixi-ju je potreban pristup skladištu da bi sačuvao fotografiju sa kamere. Dozvolite ga u podešavanjima uređaja.",
+  "addPhotos": "Dodaj fotografije",
+  "photoStripCount": "{n} od 10",
+  "mediaCaptionTooLong": "Ovaj opis je predugačak.",
+  "fileTooBig50": "Ovaj fajl je veći od 50 MB i ne može da se pošalje.",
+  "photosDownloadAll": "Preuzmi sve ({n})",
+  "photosShowAll": "Prikaži sve fotografije ({n})",
+  "downloadsSenderFiles": "Fajlova: {n}",
+  "downloadsSenderFilesOne": "1 fajl",
+  "downloadsSenderLast": "poslednji {when}",
+  "chatPreviewLines": "Pregled poruke",
+  "previewLinesOne": "1 red",
+  "previewLinesTwo": "2 reda"
 }

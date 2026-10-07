@@ -867,5 +867,17 @@
   "languageReport": "Сообщить об ошибке перевода",
   "fileTooBig100": "Этот файл больше 100 МБ, и его нельзя отправить.",
   "fileTooBigIn100": "Этот файл больше 100 МБ, и его нельзя скачать.",
-  "mediaStorageDenied": "Spixi нужен доступ к хранилищу, чтобы сохранить фото с камеры. Разрешите его в настройках устройства."
+  "mediaStorageDenied": "Spixi нужен доступ к хранилищу, чтобы сохранить фото с камеры. Разрешите его в настройках устройства.",
+  "addPhotos": "Добавить фото",
+  "photoStripCount": "{n} из 10",
+  "mediaCaptionTooLong": "Подпись слишком длинная.",
+  "fileTooBig50": "Этот файл больше 50 МБ, его нельзя отправить.",
+  "photosDownloadAll": "Скачать все ({n})",
+  "photosShowAll": "Показать все фото ({n})",
+  "downloadsSenderFiles": "Файлов: {n}",
+  "downloadsSenderFilesOne": "1 файл",
+  "downloadsSenderLast": "последний {when}",
+  "chatPreviewLines": "Предпросмотр сообщений",
+  "previewLinesOne": "1 строка",
+  "previewLinesTwo": "2 строки"
 }

@@ -867,5 +867,17 @@
   "languageReport": "Übersetzungsfehler melden",
   "fileTooBig100": "Diese Datei ist größer als 100 MB und kann nicht gesendet werden.",
   "fileTooBigIn100": "Diese Datei ist größer als 100 MB und kann nicht heruntergeladen werden.",
-  "mediaStorageDenied": "Spixi braucht Zugriff auf den Speicher, um das Kamerafoto zu sichern. Erlaube ihn in den Geräteeinstellungen."
+  "mediaStorageDenied": "Spixi braucht Zugriff auf den Speicher, um das Kamerafoto zu sichern. Erlaube ihn in den Geräteeinstellungen.",
+  "addPhotos": "Fotos hinzufügen",
+  "photoStripCount": "{n} von 10",
+  "mediaCaptionTooLong": "Diese Bildunterschrift ist zu lang.",
+  "fileTooBig50": "Diese Datei ist größer als 50 MB und kann nicht gesendet werden.",
+  "photosDownloadAll": "Alle herunterladen ({n})",
+  "photosShowAll": "Alle {n} Fotos anzeigen",
+  "downloadsSenderFiles": "{n} Dateien",
+  "downloadsSenderFilesOne": "1 Datei",
+  "downloadsSenderLast": "zuletzt {when}",
+  "chatPreviewLines": "Nachrichtenvorschau",
+  "previewLinesOne": "1 Zeile",
+  "previewLinesTwo": "2 Zeilen"
 }

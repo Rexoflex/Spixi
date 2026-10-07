@@ -2275,6 +2275,19 @@ const EXCERPT_GLYPHS = {
   reply: 'arrow-back-up',   // ★ S8 (#1236): the last message is a reply (C# stripped the quote); the glyph is aria-hidden, a hidden "Reply:" speaks it
   'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
 };
+/* ★ S10 #46 r1 (R3-3): the 2-line excerpt's sender cap — 24 user-perceived characters (Intl.Segmenter graphemes when
+   the engine has it, else code points, so a surrogate pair or an emoji is never cut in half), then "…". null = fits. */
+const SENDER_FLOW_MAX = 24;
+function capGraphemes(text, max) {
+  let parts;
+  try {
+    parts = (typeof Intl === 'object' && typeof Intl.Segmenter === 'function')
+      ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map((x) => x.segment)
+      : Array.from(text);
+  } catch (e) { parts = Array.from(text); }
+  if (parts.length <= max) return null;
+  return parts.slice(0, max).join('').replace(/\s+$/, '') + '…';
+}
 function createExcerpt({ type = 'text', text = '', sender = null, dots = false, strings = getStrings() } = {}) {
   text = text == null ? '' : String(text);         // harden: a non-string from the bridge must not throw (.includes) and abort the whole list render
   const el = document.createElement('span');
@@ -2294,8 +2307,16 @@ function createExcerpt({ type = 'text', text = '', sender = null, dots = false, 
     const n = document.createElement('span');
     n.className = 'c-excerpt__sender-name';
     n.textContent = String(sender);
+    /* ★ S10 #46 r1 (R3-3): the 2-line flow (chatlist-item.css) has no 40% cap — a name over SENDER_FLOW_MAX grapheme
+       clusters carries its capped form in data-short (the CSS shows it in that mode only) and the full name as the
+       title; the text node keeps the FULL name (the accessible name, and the 1-line row's CSS ellipsis). */
+    const short = capGraphemes(String(sender), SENDER_FLOW_MAX);
+    if (short !== null) { s.dataset.short = short; s.title = String(sender); }
     s.append(n, document.createTextNode(':'));
-    el.append(s);
+    /* ★ S10 P4 (#1254): a real space after "Name:" — the 2-line flow (chatlist-item.css) is inline, where the flex
+       gap does not exist; in the 1-line flex row a whitespace-only node renders nothing. Outside the sender span, so
+       its text stays "Name:". */
+    el.append(s, document.createTextNode(' '));
   }
   const glyph = EXCERPT_GLYPHS[type];
   if (glyph && ICONS[glyph]) el.append(icon(glyph, { size: 16 }));
@@ -4626,14 +4647,17 @@ function setWarning(el, message) {
  * later toasts queue. One confirmation per action (#29) — never toast an
  * action that already confirms via button morph, navigation, or alert.
  *
- * showToast({ text, tone = 'info'|'success'|'error', duration = 3500,
+ * showToast({ text, tone = 'info'|'success'|'error', duration,
  *             host = document.body, strings }) → dismiss()
+ * ★ S10 F5 (#1254): duration = max(3500, 55 ms × the text length) — a long sentence stays long enough to read;
+ *   a caller's own `duration` is the floor instead of 3500; never more than TOAST_MAX_MS (12 s, #46 m-8).
  */
 
 
 const TONE_GLYPHS = { info: 'info-circle', success: 'check', error: 'alert-square-rounded' };
 
 const toastHostState = new WeakMap(); // host → { current, queue }
+const TOAST_MAX_MS = 12000;   // ★ S10 #46 m-8: a very long text never holds the queue past 12 s
 
 function showToast(opts = {}) {
   const host = opts.host || document.body;
@@ -4657,6 +4681,7 @@ function showToast(opts = {}) {
 }
 
 function presentToast(host, state, { text = '', tone = 'info', duration = 3500 } = {}) {
+  const shownMs = Math.min(TOAST_MAX_MS, Math.max(Number(duration) || 3500, 55 * String(text).length));   // ★ S10 F5 · #46 m-8 cap
   const el = document.createElement('div');
   el.className = 'c-toast';
   el.dataset.tone = tone;
@@ -4698,7 +4723,7 @@ function presentToast(host, state, { text = '', tone = 'info', duration = 3500 }
   };
 
   el.addEventListener('click', dismiss);
-  const autoTimer = setTimeout(dismiss, duration);
+  const autoTimer = setTimeout(dismiss, shownMs);
   return dismiss;
 }
 
@@ -5908,6 +5933,7 @@ function setVoiceBubble(row, patch, strings = getStrings()) {
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
  * setComposerVoice(el, on) · setComposerRecording(el, state, ms) · getComposerRecording(el) — ★ #1208
  * setComposerRecLevel(el, level) — ★ S8 (#1239): one live-wave bar per C# voiceRecLevel push
+ * setComposerMedia(el, n, { maxLength, onTooLong }) — ★ S10 P1 (#1254): the media strip's photo count
  *
  * maxLength (A7, #302 — legacy parity for the 64 000-char guard, legacy
  *   js/chat.js:401-409): 0 = off (default, byte-for-byte today's behaviour).
@@ -5990,7 +6016,13 @@ function createComposer({
      newlines should go through. Legacy counted untrimmed innerText — this is the
      same rule, minus that off-by-whitespace. */
   const textLen = () => input.value.trim().length;
-  const overLimit = () => maxLength > 0 && textLen() > maxLength;
+  /* ★ S10 P1 (#1254): while the media strip holds photos the text is the CAPTION — its own (smaller) cap wins */
+  const mediaN = () => (composerMedia.get(el) || { n: 0 }).n;
+  const capMax = () => {
+    const m = composerMedia.get(el);
+    return m && m.n > 0 && m.maxLength > 0 ? (maxLength > 0 ? Math.min(maxLength, m.maxLength) : m.maxLength) : maxLength;
+  };
+  const overLimit = () => capMax() > 0 && textLen() > capMax();
 
   /* The counter is the honest way to communicate the limit: it says the number in
      every locale for free, and it appears BEFORE the user commits — the realistic
@@ -5998,9 +6030,10 @@ function createComposer({
      bad path. Hidden below 90% so it costs nothing in normal use. */
   let counter = null;
   const syncCounter = () => {
-    if (!maxLength) return;
+    const max = capMax();
+    if (!max) { if (counter) { counter.remove(); counter = null; } return; }
     const len = textLen();
-    const show = len > maxLength * 0.9;
+    const show = len > max * 0.9;
     if (!show) { if (counter) { counter.remove(); counter = null; } return; }
     if (!counter) {
       counter = document.createElement('span');
@@ -6008,8 +6041,8 @@ function createComposer({
       counter.setAttribute('aria-hidden', 'true');   // the blocked-send toast carries this for SRs
       field.append(counter);
     }
-    const over = len > maxLength;
-    counter.textContent = (over ? '−' : '') + Math.abs(maxLength - len).toLocaleString();
+    const over = len > max;
+    counter.textContent = (over ? '−' : '') + Math.abs(max - len).toLocaleString();
     if (over) counter.setAttribute('data-over', ''); else counter.removeAttribute('data-over');
   };
 
@@ -6047,7 +6080,7 @@ function createComposer({
     /* ★ #1208 (S7, the #64 slot ON): the mic shows only when the shell says voice is on (setComposerVoice — setCaps
        `voice`), the field is EMPTY and NO reply / edit context is up (a voice message is never a reply and never an
        edit; with a context up the disc stays Send, disabled on an empty field). */
-    if (composerVoice.get(el) && !ctxNow && !hasText()) {
+    if (composerVoice.get(el) && !ctxNow && !hasText() && !mediaN()) {   // ★ S10 P1: photos in the strip → the disc is SEND
       micIcon();
       action.dataset.mode = 'mic';
       action.disabled = false;
@@ -6055,7 +6088,7 @@ function createComposer({
     } else {
       sendIcon();
       action.dataset.mode = 'send';
-      action.disabled = !hasText() || overLimit();
+      action.disabled = (!hasText() && !mediaN()) || overLimit();   // ★ S10 P1: ≥ 1 photo in the strip sends with no text
       action.setAttribute('aria-label', strings.send || 'Send');
     }
   };
@@ -6071,10 +6104,19 @@ function createComposer({
 
   const send = () => {
     const text = input.value.trim();
-    if (!text) return;
+    if (!text && !mediaN()) return;   // ★ S10 P1: the strip's photos go with an empty caption
     // A7: bail BEFORE onSend and BEFORE the clear — the text stays on screen, the
     // caret stays, the draft stays. Both entry paths (Enter and the action button)
     // funnel through here, so this one return covers them.
+    /* ★ S10 P1: a CAPTION over the strip's cap (MEDIA_CAPTION_MAX) bails the same way, with the shell's caption toast */
+    const media = composerMedia.get(el);
+    if (media && media.n > 0 && media.maxLength > 0 && text.length > media.maxLength) {
+      const cb = media.onTooLong || onTooLong;
+      if (cb) { try { cb(text.length, media.maxLength); } catch (_) {} }
+      syncCounter();
+      syncAction();
+      return;
+    }
     if (maxLength > 0 && text.length > maxLength) {
       if (onTooLong) { try { onTooLong(text.length, maxLength); } catch (_) {} }
       syncCounter();
@@ -6530,6 +6572,19 @@ const MIC_GUARD_MS = 800;              // one start per tap burst (C# answers we
 const SEND_GUARD_MS = 400;             // the mic tap's twin cannot be a send
 const REC_PENDING_MS = 4000;           // ✕ / ➤ wait this long for C#'s answer, then re-arm (never a dead bar)
 const VOICE_REC_MAX_MS = 30000;        // ★ #1208 (1): 30 s total — the same number as VoiceCodec.MaxDurationMs
+
+/* ★ S10 P1 (#1254): the media strip's photo count. n ≥ 1 → the trailing disc is Send (never the mic) and is enabled with
+   an empty field; the text is the caption: `maxLength` caps it (over it = no send, `onTooLong(len, max)` — the shell's
+   caption toast). n = 0 → today's composer. */
+const composerMedia = new WeakMap();   // composer el → { n, maxLength, onTooLong }
+/** setComposerMedia(el, n, { maxLength, onTooLong }) — the shell's strip state (0 = no strip). */
+function setComposerMedia(el, n, { maxLength = 0, onTooLong = null } = {}) {
+  if (!el) return;
+  const c = Math.max(0, Number(n) || 0);
+  if (c) composerMedia.set(el, { n: c, maxLength: Number(maxLength) || 0, onTooLong });
+  else composerMedia.delete(el);
+  resyncComposer(el);
+}
 
 /** setComposerVoice(el, on) — the shell's answer to "may this chat record?" (setCaps `voice` and the room). */
 function setComposerVoice(el, on) {
@@ -9398,8 +9453,11 @@ function setTileHead(row, { position = 'single', label = null, avatar = null } =
  *   caption — the caption text (textContent only) or null
  * The shell appends its cell rows into `.c-mgrid` (addPhotoGridCell) AFTER its group head, so the head lands on the
  * group's column (the column carries `c-mbubble-anchor`, the class setTileHead looks for — it is FIRST in document order).
- * The group carries role="group" + "{n} photos"; the "+N" is aria-hidden (the name already says how many). */
-function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false, strings = getStrings() } = {}) {
+ * The group carries role="group" + "{n} photos"; the "+N" is aria-hidden (the name already says how many).
+ * ★ S10 F2 (#1254): downloadAll — n ≥ 1 → a "Download all (n)" text button under the grid (downloadAllLabel, the shell's
+ *   filled template; onDownloadAll on tap — one tap, then it waits for the shell's re-render); 0 = none. */
+function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false,
+  downloadAll = 0, downloadAllLabel = '', onDownloadAll = null, strings = getStrings() } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row c-mgrid-row';
   row.dataset.direction = direction;
@@ -9431,14 +9489,32 @@ function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, to
     box.dataset.caption = '';
     box.append(cap);
   }
+  if (Number(downloadAll) > 0 && typeof onDownloadAll === 'function') {
+    const dl = document.createElement('button');
+    dl.type = 'button';
+    dl.className = 'c-mgrid__dlall';
+    dl.append(icon('download', { size: 18 }));
+    const t = document.createElement('span');
+    t.textContent = downloadAllLabel || ('Download all (' + Number(downloadAll) + ')');
+    dl.append(t);
+    dl.addEventListener('click', () => {
+      if (dl.disabled) return;
+      dl.disabled = true;   // one tap: the offers flip to progress on C#'s ticks and the re-render drops the button
+      try { onDownloadAll(); } catch (_) {}
+    });
+    box.dataset.dlall = '';
+    box.append(dl);
+  }
   col.append(box);
   row.append(col);
   return row;
 }
 
 /** Put one photo-file row (createImageFileBubble) into the group's grid as a cell: its own gutter, pre-accept Cancel
- *  and fixed tile geometry go (the grid sizes the cell); `isLast` + `more` > 0 lays the "+N" over it. → the cell row */
-function addPhotoGridCell(groupRow, cellRow, { isLast = false } = {}) {
+ *  and fixed tile geometry go (the grid sizes the cell); `isLast` + `more` > 0 lays the "+N" over it. → the cell row
+ *  ★ S10 F2 (#1254): `onMore` given → the "+N" is its own BUTTON over the cell (named `moreLabel`) and the photo tile
+ *  under it leaves the tab order (the button covers it); no `onMore` = the S9 decorative overlay. */
+function addPhotoGridCell(groupRow, cellRow, { isLast = false, onMore = null, moreLabel = '' } = {}) {
   const grid = groupRow && groupRow.querySelector('.c-mgrid');
   if (!grid || !cellRow) return null;
   cellRow.classList.add('c-mgrid__cell');
@@ -9448,7 +9524,17 @@ function addPhotoGridCell(groupRow, cellRow, { isLast = false } = {}) {
   const tile = cellRow.querySelector('.c-mbubble');
   if (tile) { tile.style.removeProperty('width'); tile.style.removeProperty('aspect-ratio'); }
   const more = Number(grid.dataset.more) || 0;
-  if (isLast && more > 0 && tile) {
+  if (isLast && more > 0 && tile && typeof onMore === 'function') {
+    const m = document.createElement('button');   // a sibling of the tile (a button never nests in the tile's button)
+    m.type = 'button';
+    m.className = 'c-mgrid__more';
+    m.textContent = '+' + more;
+    if (moreLabel) m.setAttribute('aria-label', moreLabel);
+    m.addEventListener('click', (e) => { e.stopPropagation(); try { onMore(); } catch (_) {} });
+    tile.tabIndex = -1;
+    tile.setAttribute('aria-hidden', 'true');
+    tile.after(m);
+  } else if (isLast && more > 0 && tile) {
     const m = document.createElement('span');
     m.className = 'c-mgrid__more';
     m.setAttribute('aria-hidden', 'true');
@@ -10572,6 +10658,9 @@ function openMemberSheet({
  *   ArrowLeft / ArrowRight keys and a horizontal swipe; "2 / 7" says where it is. Each page starts the token's
  *   loading state again (the thumbnail invisible under the spinner) and calls onPage(i, item) — the shell asks C# for
  *   that picture (viewImage). One item (or none) = today's viewer, byte-identical.
+ *   ★ S10 F2 (#1254) onReply(i, item) — a PAGED viewer only: a Reply button in the top bar (leading; Save keeps the
+ *   trailing slot) — the viewer closes, then onReply(index, the item on screen) (the shell replies to THAT photo).
+ *   canReplyItem(i, item) → false hides it on that page (#46 n-3); the glyph mirrors in RTL (#46 n-2).
  *   findOpenViewer(token) → the OPEN viewer opened for exactly that token, or null (a closed one is never returned,
  *   so a late push lands nowhere). Without a token the viewer is today's: no loading state, src as given.
  *
@@ -10619,9 +10708,12 @@ function openMediaViewer({
   items = null,
   index = 0,
   onPage = null,
+  onReply = null,
+  canReplyItem = null,   // ★ S10 #46 n-3: (i, item) → false hides Reply on that page
   strings = getStrings(),
 } = {}) {
   const pages = Array.isArray(items) ? items.filter((it) => it && it.token) : [];
+  const canReply = pages.length > 1 && typeof onReply === 'function';   // ★ S10 F2
   let at = pages.length > 1 ? Math.max(0, Math.min(pages.length - 1, Number(index) || 0)) : 0;
   if (pages.length > 1) { src = pages[at].src || ''; token = pages[at].token; alt = pages[at].alt || alt; }
   const el = document.createElement('section');
@@ -10637,15 +10729,35 @@ function openMediaViewer({
   // (with the top inset), and CLOSE moved to a prominent bottom-centered button
   // (below). A top bar renders only when there's something to show.
   let capEl = null;
-  if (alt || onSave) {
+  let replyBtn = null;
+  const syncReply = () => {
+    if (!replyBtn) return;
+    let okR = true;
+    if (typeof canReplyItem === 'function') { try { okR = !!canReplyItem(at, pages[at]); } catch (_) { okR = false; } }
+    replyBtn.hidden = !okR;
+  };
+  if (alt || onSave || canReply) {
     const bar = document.createElement('div');
     bar.className = 'c-mviewer__bar';
-    if (onSave) {
-      const spacer = document.createElement('span');   // balance the Save button so the caption stays centered
-      spacer.className = 'c-mviewer__spacer';
-      spacer.setAttribute('aria-hidden', 'true');
-      bar.append(spacer);
-    }
+    const spacer = () => {   // balance a one-sided button so the caption stays centered
+      const sp = document.createElement('span');
+      sp.className = 'c-mviewer__spacer';
+      sp.setAttribute('aria-hidden', 'true');
+      return sp;
+    };
+    if (canReply) {
+      const rb = document.createElement('button');
+      rb.type = 'button';
+      rb.className = 'c-mviewer__btn c-mviewer__reply';
+      rb.setAttribute('aria-label', strings.reply || 'Reply');
+      const g = icon('arrow-back-up', { size: 22 });
+      if (document.documentElement.dir === 'rtl') g.style.transform = 'scaleX(-1)';   // n-2: the arrow points inline-start
+      rb.append(g);
+      replyBtn = rb;
+      /* the viewer closes FIRST (its focus restore is synchronous), so the shell's reply strip keeps the focus it gives */
+      rb.addEventListener('click', () => { if (rb.hidden) return; const i = at; const it = pages[i]; dismissOverlay(el); try { onReply(i, it); } catch (_) {} });
+      bar.append(rb);
+    } else if (onSave) bar.append(spacer());
     if (alt) {
       const cap = document.createElement('span');
       cap.className = 'c-mviewer__caption';
@@ -10661,7 +10773,7 @@ function openMediaViewer({
       save.append(icon('download', { size: 22 }));
       save.addEventListener('click', () => onSave());
       bar.append(save);
-    }
+    } else if (canReply) bar.append(spacer());
     el.append(bar);
   }
 
@@ -10792,6 +10904,7 @@ function openMediaViewer({
       /* ★ #46 M7: a disabled button drops its focus to BODY — hand it to the other arrow, else the close */
       const ae = document.activeElement;
       if ((ae === prev || ae === next) && ae.disabled) { const to = ae === prev ? next : prev; (to.disabled ? close : to).focus({ preventScroll: true }); }
+      syncReply();
       if (!quiet && typeof onPage === 'function') { try { onPage(at, it); } catch (_) {} }
       return true;
     };
@@ -10898,157 +11011,146 @@ function openMediaViewer({
   return el;
 }
 
-/* ---- src/components/media-send-sheet.js ---- */
+/* ---- src/components/media-strip.js ---- */
 /**
- * c-msend — ★ S9 (#1244 S = C): the PHOTO PREVIEW SHEET after a pick / a camera shot / a paste. C# prepared the batch
- * (bounded decode, rotation, ≤ 2048 px, JPEG q82, NO metadata) and pushed `mediaPicked(batchId, json)`; the shell
- * validated every item and opens this sheet. The sheet shows the thumbnails (C#'s own ≤ 64 KB data: JPEGs — the only
- * sink is <img src>), a ✕ per photo, the count title ("3 photos" / "1 photo"), the honest note ("Location removed ·
- * resized"), a caption field (≤ CAPTION_MAX characters) and the Send disc.
+ * c-mstrip — ★ S10 P1 (#1254, Damir pick A): the PASTE / ATTACH STRIP. It replaces the S9 preview sheet
+ * (media-send-sheet.js, removed everywhere — the camera too). C# prepared the batch (bounded decode, rotation, ≤ 2048 px,
+ * JPEG q82, NO metadata) and pushed `mediaPicked(batchId, json)` with the FULL item list of the batch; the shell vetted
+ * every item and shows them HERE: a floating tray card above the composer pill — 64 × 64 tiles (the C# thumb, cover
+ * cropped; a glyph tile when C# made no preview), a ✕ disc per tile, a "+" tile while the strip holds < MEDIA_STRIP_MAX,
+ * then "{n} of 10". The composer text is the CAPTION; the composer's send disc sends the strip (the shell's onSend).
  *
- * openMediaSendSheet({ host, items, strings, onSend, onCancel }) → sheet | null
- *   items    — [{ k, thumb }] in pick order (the shell vetted them: k = "0".."9", thumb = a base64 JPEG data: URI)
- *   onSend(keys, caption) — keys = the KEPT item keys in their order; caption = the trimmed field text ('' = none)
- *   onCancel() — every other way out: the ✕ on the LAST photo, the scrim, Esc, Back, a closeMediaSendSheet().
- *   Exactly ONE of onSend / onCancel runs per sheet (a latch), so C# hears one answer for one batch.
- * closeMediaSendSheet(sheet) — the shell's own close (a peer switch, a newer batch) → onCancel.
+ * openMediaStrip({ host, items, strings, onRemove, onAdd, onEmpty }) → ctrl | null
+ *   host     — the composer's parent (the chat's #chat-composer slot): the strip is its FIRST child, above the pill
+ *   items    — [{ k, thumb }] in batch order (k = "0".."9", thumb = a vetted base64 JPEG data: URI or '' = the glyph)
+ *   onRemove(k) — a ✕ on a tile while ≥ 2 remain (the shell sends ixian:mediaDrop:<id>:<k>)
+ *   onAdd()     — the "+" tile (the shell opens the photo picker: ixian:sendmedia)
+ *   onEmpty()   — the ✕ on the LAST tile: the shell cancels the batch (ixian:mediaCancel, never a mediaDrop) and closes
+ * ctrl = { el, setItems(items), keys(), count(), close() }
+ *   setItems — REPLACE the tiles with this list (C#'s same-batch push after an append); keys() — the keys in strip order;
+ *   close()  — the strip leaves the DOM (idempotent; the SHELL answers C# — this component sends nothing).
+ * Sinks: the thumb is set as an <img> src PROPERTY (the shell's FILE_THUMB_RE-vetted data: JPEG); every label is
+ * textContent / setAttribute.
  */
 
 
 
+const MEDIA_CAPTION_MAX = 4096;   // C# refuses a longer caption after decode (S9 CONTRACT §1b) — the composer enforces it now
+const MEDIA_STRIP_MAX = 10;       // PhotoRules.MaxBatch: keys are the digits 0–9
 
+const fill = (tpl, n) => String(tpl).split('{n}').join(String(n));
 
-const MEDIA_CAPTION_MAX = 4096;   // C# refuses a longer caption after decode (CONTRACT §1b)
+function openMediaStrip({ host, items = [], strings = getStrings(), onRemove, onAdd, onEmpty } = {}) {
+  if (!host) return null;
+  const el = document.createElement('div');
+  el.className = 'c-mstrip';
+  el.setAttribute('role', 'group');
+  const row = document.createElement('div');
+  row.className = 'c-mstrip__row';
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'c-mstrip__add';
+  add.setAttribute('aria-label', strings.addPhotos || 'Add photos');
+  add.addEventListener('click', () => { if (onAdd) { try { onAdd(); } catch (_) {} } });
+  const count = document.createElement('span');
+  count.className = 'c-mstrip__count';
+  count.setAttribute('aria-hidden', 'true');   // the group's name says how many
+  el.append(row);
 
-function openMediaSendSheet({ host, items = [], strings = getStrings(), onSend, onCancel } = {}) {
-  const list = Array.isArray(items) ? items.filter((it) => it && it.k != null).slice(0, 10) : [];   // ★ #46 M3: a thumb-less item is a glyph tile
-  if (!list.length) return null;
-  let answered = false;
-  const answer = (fn) => { if (answered) return false; answered = true; if (fn) { try { fn(); } catch (_) {} } return true; };
-
-  const root = document.createElement('div');
-  root.className = 'c-msend';
-  const head = document.createElement('div');
-  head.className = 'c-msend__head';
-  const title = document.createElement('h2');
-  title.className = 'c-msend__title';
-  const note = document.createElement('span');
-  note.className = 'c-msend__note';
-  note.textContent = strings.photoSendNote || 'Location removed · resized';
-  head.append(title, note);
-
-  const grid = document.createElement('div');
-  grid.className = 'c-msend__grid';
-  grid.setAttribute('role', 'list');
-
-  const capRow = document.createElement('div');
-  capRow.className = 'c-msend__foot';
-  const cap = document.createElement('textarea');
-  cap.className = 'c-msend__caption';
-  cap.rows = 1;
-  cap.maxLength = MEDIA_CAPTION_MAX;
-  cap.placeholder = strings.addCaption || 'Add a caption…';
-  cap.setAttribute('aria-label', strings.caption || 'Caption');
-  cap.dataset.autofocus = '';   // a keyboard open lands in the caption (a touch open focuses the sheet itself — overlay.js, no keyboard pop)
-  const send = document.createElement('button');
-  send.type = 'button';
-  send.className = 'c-msend__send';
-  send.append(icon('send-2', { size: 22 }));
-  capRow.append(cap, send);
-  root.append(head, grid, capRow);
-
-  const kept = list.map((it) => String(it.k));
-  const sheet = createSheet({
-    content: root, host,
-    strings: { ...strings, sheet: strings.photoPreview || 'Photo preview' },
-    onDismiss: () => { answer(onCancel); },
-  });
-  sheet.classList.add('c-sheet--msend');
-  sheet.removeAttribute('aria-label');
-  title.id = overlayId('c-msend-title');
-  sheet.setAttribute('aria-labelledby', title.id);
+  let closed = false;
+  let list = [];
 
   const relabel = () => {
-    const n = kept.length;
-    title.textContent = n === 1 ? (strings.photoCountOne || '1 photo')
-      : (strings.photoCountMany || '{n} photos').split('{n}').join(String(n));
-    send.setAttribute('aria-label', n === 1 ? (strings.sendPhotoOne || 'Send 1 photo')
-      : (strings.sendPhotoMany || 'Send {n} photos').split('{n}').join(String(n)));
-    grid.dataset.count = String(n);
+    const n = list.length;
+    el.setAttribute('aria-label', n === 1 ? (strings.photoCountOne || '1 photo') : fill(strings.photoCountMany || '{n} photos', n));
+    count.textContent = fill(strings.photoStripCount || '{n} of 10', n);
+    el.dataset.count = String(n);
+    add.hidden = n >= MEDIA_STRIP_MAX;
     let i = 0;
-    for (const cell of grid.children) {
+    for (const t of row.querySelectorAll('.c-mstrip__tile')) {
       i += 1;
-      const x = cell.querySelector('.c-msend__remove');
-      if (x) x.setAttribute('aria-label', (strings.removePhotoN || 'Remove photo {n}').split('{n}').join(String(i)));
+      const x = t.querySelector('.c-mstrip__remove');
+      if (x) x.setAttribute('aria-label', fill(strings.removePhotoN || 'Remove photo {n}', i));
     }
   };
 
-  for (const it of list) {
+  const tileFor = (it) => {
     const key = String(it.k);
-    const cell = document.createElement('div');
-    cell.className = 'c-msend__cell';
-    cell.setAttribute('role', 'listitem');
-    cell.dataset.k = key;
-    let img;
+    const tile = document.createElement('div');
+    tile.className = 'c-mstrip__tile';
+    tile.dataset.k = key;
+    let pic;
     if (it.thumb) {
-      img = document.createElement('img');
-      img.className = 'c-msend__img';
-      img.alt = '';
-      img.src = String(it.thumb);   // the shell's FILE_THUMB_RE-vetted data: JPEG — the one sink
+      pic = document.createElement('img');
+      pic.className = 'c-mstrip__img';
+      pic.alt = '';
+      pic.draggable = false;
+      pic.src = String(it.thumb);
     } else {
-      img = document.createElement('span');   // ★ #46 M3: C# made no preview — the photo glyph; the photo still goes
-      img.className = 'c-msend__img c-msend__glyph';
-      img.setAttribute('aria-hidden', 'true');
-      img.append(icon('photo', { size: 28 }));
+      pic = document.createElement('span');   // C# made no preview: the photo glyph — the photo still goes
+      pic.className = 'c-mstrip__img c-mstrip__glyph';
+      pic.setAttribute('aria-hidden', 'true');
+      pic.append(icon('photo', { size: 24 }));
     }
     const x = document.createElement('button');
     x.type = 'button';
-    x.className = 'c-msend__remove';
-    x.append(icon('x', { size: 16 }));
+    x.className = 'c-mstrip__remove';
+    x.append(icon('x', { size: 14 }));
     x.addEventListener('click', () => {
-      const at = kept.indexOf(key);
+      if (closed) return;
+      const at = list.findIndex((o) => o.k === key);
       if (at === -1) return;
-      if (kept.length === 1) { closeSheet(sheet); return; }   // ✕ on the last photo = cancel the batch (onDismiss)
-      kept.splice(at, 1);
-      const next = cell.nextElementSibling || cell.previousElementSibling;
-      cell.remove();
+      if (list.length === 1) { if (onEmpty) { try { onEmpty(); } catch (_) {} } return; }   // the last ✕ = cancel the batch
+      list.splice(at, 1);
+      const next = tile.nextElementSibling && tile.nextElementSibling.classList.contains('c-mstrip__tile')
+        ? tile.nextElementSibling : tile.previousElementSibling;
+      tile.remove();
       relabel();
-      const f = next && next.querySelector('.c-msend__remove');
+      const f = next && next.querySelector('.c-mstrip__remove');
       if (f) f.focus({ preventScroll: true });   // focus never falls to the body
+      if (onRemove) { try { onRemove(key); } catch (_) {} }
     });
-    cell.append(img, x);
-    grid.append(cell);
-  }
-  relabel();
+    tile.append(pic, x);
+    return tile;
+  };
 
-  /* the caption field grows with its text up to ~5 lines, then scrolls */
-  const grow = () => {
-    cap.style.height = 'auto';
-    cap.style.height = Math.min(cap.scrollHeight || 0, 120) + 'px';
+  /* ★ S10 #46 m-3: a re-render keeps the keyboard where it was — on the same key's ✕, else on "+" */
+  const focusedKey = () => {
+    const a = document.activeElement;
+    if (!a || !el.contains(a)) return null;
+    if (a === add) return '+';
+    const t = a.closest && a.closest('.c-mstrip__tile');
+    return t ? t.dataset.k : null;
   };
-  cap.addEventListener('input', grow);
-  const doSend = () => {
-    if (!kept.length) return;
-    const text = cap.value.trim().slice(0, MEDIA_CAPTION_MAX);
-    const keys = kept.slice();
-    if (!answer(() => { if (onSend) onSend(keys, text); })) return;
-    closeSheet(sheet);
+  const restoreFocus = (k) => {
+    if (k == null) return;
+    const t = k === '+' ? null : row.querySelector('.c-mstrip__tile[data-k="' + k + '"] .c-mstrip__remove');
+    const f = t || (!add.hidden ? add : row.querySelector('.c-mstrip__tile:last-of-type .c-mstrip__remove'));
+    if (f) f.focus({ preventScroll: true });
   };
-  send.addEventListener('click', doSend);
-  cap.addEventListener('keydown', (e) => {
-    /* desktop: Enter sends, Shift+Enter is a new line (the composer's grammar); touch keyboards keep Enter = new line */
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && document.documentElement.hasAttribute('data-desktop')) {
-      e.preventDefault();
-      doSend();
+  const setItems = (next) => {
+    if (closed) return;
+    const fk = focusedKey();
+    const grew = Array.isArray(next) && next.length > list.length;
+    list = (Array.isArray(next) ? next : []).filter((it) => it && it.k != null).slice(0, MEDIA_STRIP_MAX)
+      .map((it) => ({ k: String(it.k), thumb: it.thumb ? String(it.thumb) : '' }));
+    row.replaceChildren(...list.map(tileFor), add, count);
+    relabel();
+    restoreFocus(fk);
+    if (grew) {   // an append shows its new tiles (and the "+") — the inline END (RTL scrolls negative)
+      try { row.scrollLeft = getComputedStyle(row).direction === 'rtl' ? -row.scrollWidth : row.scrollWidth; } catch (_) {}
     }
-  });
+  };
 
-  openSheet(sheet);
-  return sheet;
-}
-
-function closeMediaSendSheet(sheet) {
-  if (sheet && sheet.isConnected) closeSheet(sheet);
+  setItems(items);
+  host.prepend(el);
+  return {
+    el,
+    setItems,
+    keys: () => list.map((o) => o.k),
+    count: () => list.length,
+    close: () => { if (closed) return; closed = true; el.remove(); },
+  };
 }
 
 /* ---- src/components/call-screen.js ---- */
@@ -25932,6 +26034,18 @@ function settingsOptionSheet({ title, hint, note, options, current, host, string
       if (flagEl) fl.append(flagEl);
       opt.append(fl);
     }
+    /* ★ S10 F7 (#1254): optional leading `o.avatar` (an Element the caller built) + a `o.sub` line under the label
+       (the Downloads From sheet, option C). Either one makes the row "rich" (taller, the selected row tinted); a
+       caller with neither gets the exact row it always had. */
+    const rich = o.avatar instanceof Element || (typeof o.sub === 'string' && o.sub !== '');
+    if (rich) opt.classList.add('c-settings__opt--rich');
+    if (o.avatar instanceof Element) {
+      const av = document.createElement('span');
+      av.className = 'c-settings__opt-avatar';
+      av.setAttribute('aria-hidden', 'true');
+      av.append(o.avatar);
+      opt.append(av);
+    }
     const lab = document.createElement('span');
     lab.className = 'c-settings__opt-label';
     lab.textContent = o.label;
@@ -25940,7 +26054,17 @@ function settingsOptionSheet({ title, hint, note, options, current, host, string
     const tick = icon('check', { size: 18 });
     tick.classList.add('c-settings__opt-check');
     status.append(tick);
-    opt.append(lab, status);
+    if (typeof o.sub === 'string' && o.sub !== '') {
+      const text = document.createElement('span');
+      text.className = 'c-settings__opt-text';
+      const sub = document.createElement('span');
+      sub.className = 'c-settings__opt-sub';
+      sub.textContent = o.sub;                // caller text (counts + a date) — textContent only
+      text.append(lab, sub);
+      opt.append(text, status);
+    } else {
+      opt.append(lab, status);
+    }
     opt.addEventListener('click', () => {
       if (inFlight || o.value === current) return;
       inFlight = true;
@@ -27473,6 +27597,7 @@ function backupCtrl(onDone, onFail) {
 
 
 
+
 /* ★ Session M (#774): the Colour control is a VALUE ROW that opens the house option sheet,
    not a third tile pair — see createChatAppearance. The direction is safe and already
    travelled: build-demo-bundle.mjs orders settings-shell BEFORE settings-screens, and
@@ -27921,6 +28046,8 @@ function createChatAppearance({
   onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
   onChatGround,                  // (id) — shell sets data-chat-ground + persists (★ AUG)
   onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
+  previewLines = '2',            // ★ S10 P4 (#1254): the chat-list excerpt — '1' | '2' lines (spixi.chat.previewlines)
+  onPreviewLines,                // ('1' | '2') — shell persists; home.html reads it. No handler → no row.
   strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
@@ -28187,8 +28314,45 @@ function createChatAppearance({
   /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
      does not exist, so only two are appended. A live theme flip re-renders this whole
      screen (settings.html onApplied), which is what keeps the order correct. */
+  /* ★ S10 P4 (#1254, Damir: 2B flow, default 2 lines): "Message preview" — a single value row under Text size (the
+     Canvas row's card shape) that opens the house option sheet: "1 line" / "2 lines". The chats list (home.html)
+     reads the stored value; nothing in THIS document paints a chat row. */
+  let previewSec = null;
+  if (onPreviewLines) {
+    const lineOpts = [
+      { value: '1', label: strings.previewLinesOne || '1 line' },
+      { value: '2', label: strings.previewLinesTwo || '2 lines' },
+    ];
+    let linesCurrent = previewLines === '1' ? '1' : '2';
+    const lineLabel = (v) => (lineOpts.find((o) => o.value === v) || lineOpts[1]).label;
+    previewSec = document.createElement('div');
+    previewSec.className = 'c-settings__section c-settings-appearance__previewsec';
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'c-settings__row c-settings-appearance__preview-lines';
+    row.setAttribute('aria-haspopup', 'dialog');
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label';
+    lab.textContent = strings.chatPreviewLines || 'Message preview';
+    const val = document.createElement('span');
+    val.className = 'c-settings__row-value';
+    val.textContent = lineLabel(linesCurrent);
+    row.append(lab, val, icon('chevron-right', { size: 18 }));
+    row.addEventListener('click', () => settingsOptionSheet({
+      title: strings.chatPreviewLines || 'Message preview',
+      options: lineOpts, current: linesCurrent, host, strings,
+      commit: (v, ctrl) => {
+        linesCurrent = v;
+        val.textContent = lineLabel(v);
+        onPreviewLines(v);
+        ctrl.done();
+      },
+    }));
+    previewSec.append(row);
+  }
   body.append(sizeSec, styleSec);
   if (groundSec) body.append(groundSec);
+  if (previewSec) sizeSec.after(previewSec);   // ★ S10 P4: right under Text size
 
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));
@@ -28587,6 +28751,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -28731,6 +28896,7 @@ function createSettingsDownloads({
   const controls = document.createElement('div');
   controls.className = 'c-settings-dl__controls';
   let senders = new Map();             // key → label, from the current list
+  let avatars = new Map();             // ★ S10 F7: key → data:image URI (setDownloadsAvatars; validated by the shell)
   const countEl = document.createElement('span');
   countEl.className = 'c-settings-dl__count';
   const fromChip = document.createElement('button');
@@ -28753,9 +28919,38 @@ function createSettingsDownloads({
     countEl.textContent = n === 1 ? (strings.downloadsCountOne || '1 file')
       : (strings.downloadsCount || '{n} files').split('{n}').join(String(n));
   }
+  /* ★ S10 F7 (#1254, Damir pick C): each row = a 40 px avatar (the pushed photo, else the name's gradient initials) +
+     "{n} files · last {when}" — counted from the list on screen (`current`, all files, not the search). {when} = the
+     sender's newest epoch time in the row's own date format (formatTxTimestamp; no relative form exists); an old exe's
+     opaque time string gives no "last" part. "Everyone" = a tonal people disc + the total. */
+  const filesLabel = (n) => (n === 1 ? (strings.downloadsSenderFilesOne || '1 file')
+    : (strings.downloadsSenderFiles || '{n} files').split('{n}').join(String(n)));
+  function senderStats() {
+    const stats = new Map();             // key → { n, newest (epoch s, 0 = unknown) }
+    for (const f of current) {
+      if (!f.senderKey) continue;
+      const st = stats.get(f.senderKey) || { n: 0, newest: 0 };
+      st.n++;
+      const t = String(f.time || '').trim();
+      if (/^\d{1,12}$/.test(t) && Number(t) > st.newest) st.newest = Number(t);
+      stats.set(f.senderKey, st);
+    }
+    return stats;
+  }
   function openSenderSheet() {
-    const options = [{ value: '', label: strings.downloadsAllSenders || 'Everyone' }]
-      .concat([...senders.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, l]) => ({ value: k, label: l })));
+    const stats = senderStats();
+    const everyone = document.createElement('span');
+    everyone.className = 'c-settings__opt-glyph';
+    everyone.append(icon('users', { size: 20 }));
+    const options = [{ value: '', label: strings.downloadsAllSenders || 'Everyone', avatar: everyone, sub: filesLabel(current.length) }]
+      .concat([...senders.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, l]) => {
+        const st = stats.get(k) || { n: 0, newest: 0 };
+        let sub = filesLabel(st.n);
+        if (st.newest > 0) {
+          sub += ' · ' + (strings.downloadsSenderLast || 'last {when}').split('{when}').join(formatTxTimestamp(st.newest * 1000));
+        }
+        return { value: k, label: l, sub, avatar: createAvatar({ src: avatars.get(k) || null, name: l, address: k, size: 40 }) };
+      }));
     const sheet = settingsOptionSheet({
       title: strings.downloadsFilterSender || 'From',
       options, current: senderKey, host: hostFor(), strings,
@@ -28958,7 +29153,21 @@ function createSettingsDownloads({
   render(files);
 
   el._dlRender = render;                   // setDownloads hook
+  /* ★ S10 F7: the avatars arrive in their own push right after the senders; they are read when the sheet opens. A
+     value that is not a local data:image URI is dropped here too (safeImageSrc without allowRemote). */
+  el._dlAvatars = (entries) => {
+    avatars = new Map();
+    for (const [k, v] of entries || []) {
+      const src = safeImageSrc(v);
+      if (typeof k === 'string' && src) avatars.set(k, src);
+    }
+  };
   return el;
+}
+
+/** ★ S10 F7 (#1254): the From sheet's avatars — entries = [[senderKey, dataUri], …] (the shell validated them). */
+function setDownloadsAvatars(el, entries = []) {
+  if (el && el._dlAvatars) el._dlAvatars(entries);
 }
 
 /** Wholesale list update — mirrors the clearFiles + addFile(name, ctime[, size]) push. */
@@ -31743,5 +31952,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, openMediaSendSheet: openMediaSendSheet, closeMediaSendSheet: closeMediaSendSheet, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

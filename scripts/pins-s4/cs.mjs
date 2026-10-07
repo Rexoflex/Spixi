@@ -101,8 +101,12 @@ export default async function (h) {
     const appsResets = [...hp.matchAll(/(?<!bool )appsPushedToShell = false;/g)].map((m) => m.index);   // the declaration is not a reset
     const BUMP = 'System.Threading.Interlocked.Increment(ref txDocGen);';
     const paired = appsResets.filter((i) => hp.slice(i + 'appsPushedToShell = false;'.length).trimStart().startsWith(BUMP));
+    /* ★ S10 F6 (#1254): the wallet pre-push + its [P1] probe READ the generation (once per document) — reads only */
+    const s10 = body(hp, 'private void scheduleWalletPrePush(bool fromOnLoad)') + body(hp, 'private void probeFirstWalletVisit()');
+    const s10Reads = count(s10, /System\.Threading\.Volatile\.Read\(ref txDocGen\)/g);
     ok(appsResets.length >= 3 && paired.length === appsResets.length && hp.split(BUMP).length - 1 === appsResets.length
-      && count(hp, /ref txDocGen\b/g) === appsResets.length + 2,
+      && count(s10, /ref txDocGen\b/g) === s10Reads
+      && count(hp, /ref txDocGen\b/g) === appsResets.length + 2 + s10Reads,
       '★ S4 lever 2: the wallet document generation is bumped at every one of the ' + appsResets.length + ' sites appsPushedToShell resets (onLoaded · reload · reloadShell — a fresh or dying document holds no rows; the onLoaded bump also closes the reload window: a burst that read the generation before the fresh document\'s onload latches an old one), directly beside it, and nowhere else (the only other uses: the fed property\'s read and the burst\'s read) — paired ' + paired.length);
 
     /* the gate is raised when names or the fiat price moved under rows already pushed — tab entry AND the tick */

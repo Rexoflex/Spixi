@@ -1681,6 +1681,45 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-settings__opt[aria-checked='true'] { font-weight: var(--font-weight-semibold); }
 .c-settings__opt[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
 .c-settings__opt[data-loading] .c-settings__opt-check { display: none; }
+/* ★ S10 F7 (#1254, Damir pick C): the rich row — a 40 px avatar slot, the label over a sub line, the selected row
+   tinted. Only rows built with o.avatar / o.sub carry the modifier; every other picker is unchanged. */
+.c-settings__opt--rich {
+  gap: var(--spacing-12);
+  min-height: 64px;                 /* sanctioned: 40 px avatar + 2 × 12 px */
+  padding: var(--spacing-12);
+}
+.c-settings__opt--rich[aria-checked='true'] { background: var(--surface-action-tonal-default); }
+.c-settings__opt-avatar { flex: none; display: flex; width: 40px; height: 40px; }   /* sanctioned: avatar-40 slot */
+.c-settings__opt-glyph {            /* the "Everyone" disc — a tonal people glyph */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;                      /* sanctioned: avatar-40 */
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+/* ★ S10 #46 r1 (R3-16): on the tinted SELECTED row the disc would be the row's own token and vanish — it takes the
+   screen ground instead (disc/row 1.41 light · 1.32 dark; the action glyph on it 6.7 / 7.2 : 1, pins-s10/d-from). */
+.c-settings__opt--rich[aria-checked='true'] .c-settings__opt-glyph { background: var(--surface-screen); }
+.c-settings__opt-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-settings__opt-text > .c-settings__opt-label { flex: none; }
+.c-settings__opt-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  font-weight: var(--font-weight-regular);
+}
 
 /* —— theme sheet: VISUAL PREVIEW TILES (#147) —— */
 .c-settings__themes {
@@ -2056,6 +2095,10 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-account .c-disc.c-settings-contrib__art-disc { width: 64px; height: 64px; border-radius: 19px; }
 .c-account .c-disc.c-settings-about__logo > svg,
 .c-account .c-disc.c-settings-contrib__art-disc > svg { width: 32px; height: 32px; }
+
+/* ★ S10 P4 (#1254): the Chat appearance "Message preview" card is a single value row — the hub's card padding (4),
+   as the Canvas card (settings-screens.css .c-settings-appearance__groundsec, Session M #774). */
+.c-settings-appearance .c-settings__section.c-settings-appearance__previewsec { padding: var(--spacing-4); }
 
 </style><!-- shared row/group/section grammar -->
 <style data-src="../styles/components/chip.css">

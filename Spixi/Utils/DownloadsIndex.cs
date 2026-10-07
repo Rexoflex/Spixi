@@ -152,19 +152,70 @@ namespace SPIXI
             return hit != null && FileMatch.matches(hit.message, full) ? hit : null;
         }
 
-        /** Phase 2's ONE push: [[file name, sender label, sender key], …] for the files that HAVE a sender. */
-        public static string sendersJson(IEnumerable<string> fullPaths)
+        /** ★ S10 #46 r1 (N3 / R3-18): phase 2's TWO pushes from ONE snapshot of the index (one byPath reference, one lookup
+         *  per file — senders and avatars can never describe two different builds). Off the UI thread (the avatar files are
+         *  read here).
+         *  senders = [[file name, sender label, sender key], …] for the files that HAVE a sender.
+         *  avatars (🟡 NEW push setDownloadAvatars, S10 F7 #1254) = [[sender key, data URI], …] for those senders that HAVE an
+         *  avatar file — C#'s own file only (IxianHandler.localStorage.getAvatarPath → Utils.imageToDataUri, a local read;
+         *  never a remote fetch, never a WebView-supplied path). A sentinel ("img/…"), a miss (the raw path comes back), a gif
+         *  or an oversized URI is skipped (S10FixRules.avatarUriOk — the shell checks the same); one entry per key,
+         *  ≤ S10FixRules.MaxAvatarEntries. Never the address on the wire: the key is the opaque per-scan "s<n>". */
+        public static void pushJson(IEnumerable<string> fullPaths, out string senders, out string avatars)
         {
+            Dictionary<string, DownloadSource> snap;
+            lock (indexLock)
+            {
+                snap = byPath;
+            }
             List<string[]> rows = new List<string[]>();
+            List<string[]> faces = new List<string[]>();
+            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (string p in fullPaths)
             {
-                DownloadSource? s = sourceOf(p);
-                if (s != null)
+                DownloadSource? s = sourceIn(snap, p);
+                if (s == null)
                 {
-                    rows.Add(new string[] { Path.GetFileName(p), s.label, s.key });
+                    continue;
+                }
+                rows.Add(new string[] { Path.GetFileName(p), s.label, s.key });
+                if (faces.Count >= S10FixRules.MaxAvatarEntries || !seen.Add(s.key))
+                {
+                    continue;
+                }
+                try
+                {
+                    string? avatar = IxianHandler.localStorage.getAvatarPath(s.friend.walletAddress.ToString());
+                    if (string.IsNullOrEmpty(avatar))
+                    {
+                        continue;
+                    }
+                    string uri = Utils.imageToDataUri(avatar);
+                    if (S10FixRules.avatarUriOk(uri))
+                    {
+                        faces.Add(new string[] { s.key, uri });
+                    }
+                }
+                catch (Exception)
+                {
+                    // no avatar for this sender
                 }
             }
-            return JsonConvert.SerializeObject(rows);
+            senders = JsonConvert.SerializeObject(rows);
+            avatars = JsonConvert.SerializeObject(faces);
+        }
+
+        /** sourceOf against a snapshot taken once by the caller. */
+        private static DownloadSource? sourceIn(Dictionary<string, DownloadSource> snap, string full)
+        {
+            if (string.IsNullOrEmpty(full))
+            {
+                return null;
+            }
+            string n;
+            try { n = norm(full); } catch (Exception) { return null; }
+            DownloadSource? hit = snap.TryGetValue(n, out DownloadSource? s) ? s : null;
+            return hit != null && FileMatch.matches(hit.message, full) ? hit : null;
         }
     }
 }

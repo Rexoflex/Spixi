@@ -571,6 +571,12 @@ namespace SPIXI
             {
                 onMediaCancel(current_url.Substring("ixian:mediaCancel:".Length));
             }
+            /* ★ S10 P1 (#1254, 🟡 NEW verb): the ✕ of one strip tile — `<16hex>:<digit>` only (S10MediaRules.parseDrop); C#
+             * deletes the file IT recorded for that key. No push back. */
+            else if (current_url.StartsWith("ixian:mediaDrop:", StringComparison.Ordinal))
+            {
+                onMediaDrop(current_url.Substring("ixian:mediaDrop:".Length));
+            }
             else if (current_url.StartsWith("ixian:acceptfile:"))
             {
                 string id = current_url.Substring("ixian:acceptfile:".Length);
@@ -2460,7 +2466,7 @@ namespace SPIXI
 
                 /* ★★ S9 #1200 + A-9 (#1244): "Send file" sends C#'s OWN durable copy — <spixiUserFolder>/Sent/<transferUid><allow-
                  * listed ext> (PhotoRules.sentFileName; the picker's path is a provider cache or a content uri that does not last)
-                 * — and refuses a file above PhotoRules.MaxFileBytes before anything is sent. The copy runs OFF the UI thread.
+                 * — and refuses a file above PhotoRules.maxFileBytes(Free) (★ S10 P2: 50 MiB) before anything is sent. The copy runs OFF the UI thread.
                  * A copy that fails sends the picked stream as before (when it can rewind) — the dev probe names the case. */
                 string uid = Guid.NewGuid().ToString("N");
                 Stream picked = stream;
@@ -2648,7 +2654,7 @@ namespace SPIXI
             public string id = "";
             public string peer = "";
             public int channel = 0;
-            public int count = 0;          // items picked (keys are < count)
+            public int count = PhotoRules.MaxBatch;   // ★ S10 P1 (#1254): every batch has 10 key slots (digits 0–9; appends fill the free ones)
             public string route = "";
             public List<MediaItem> items = new List<MediaItem>();
             public List<PhotoRules.PickedItem> shown = new List<PhotoRules.PickedItem>();
@@ -2727,7 +2733,7 @@ namespace SPIXI
             public string caseWord = PhotoRules.CaseMissingOther;
         }
 
-        /** ★ #1200 "Send file": the picked stream → Sent/<uid><allow-listed ext>, ≤ MaxFileBytes. OFF the UI thread. */
+        /** ★ #1200 "Send file": the picked stream → Sent/<uid><allow-listed ext>, ≤ maxFileBytes(Free) (★ S10 P2: 50 MiB). OFF the UI thread. */
         private static DurableCopy makeDurableCopy(Stream picked, string? pickedName, string uid)
         {
             DurableCopy r = new DurableCopy();
@@ -2742,7 +2748,7 @@ namespace SPIXI
                 {
                     known = -1;
                 }
-                if (known > PhotoRules.MaxFileBytes)
+                if (known > PhotoRules.maxFileBytes(PhotoRules.FileTier.Free))
                 {
                     r.tooBig = true;
                     return r;
@@ -2758,7 +2764,7 @@ namespace SPIXI
                 bool readFailed = false;
                 try
                 {
-                    long got = PhotoRules.copyBounded(picked, dest, PhotoRules.MaxFileBytes, out readFailed);
+                    long got = PhotoRules.copyBounded(picked, dest, PhotoRules.maxFileBytes(PhotoRules.FileTier.Free), out readFailed);
                     if (got < 0)
                     {
                         r.tooBig = true;
@@ -2817,10 +2823,23 @@ namespace SPIXI
             bool handedOver = false;
             try
             {
+                /* ★ S10 P1 (#1254): a pick while the strip's batch is OPEN for this chat + channel APPENDS to it — at most the
+                 * free slots are picked; a full batch opens no picker (tooMany). No open batch → a new one (keys 0..n-1). */
+                MediaBatch? target = mediaBatch;
+                if (target != null && (friend == null || target.peer != friend.walletAddress.ToString() || target.channel != selectedChannel))
+                {
+                    target = null;
+                }
+                int free = target != null ? PhotoRules.MaxBatch - target.items.Count : PhotoRules.MaxBatch;
+                if (free <= 0)
+                {
+                    Utils.sendUiCommand(this, "mediaError", PhotoRules.ErrTooMany);
+                    return;
+                }
                 List<SpixiImageData> picks = new List<SpixiImageData>();
                 if (route == PhotoRules.RoutePhoto)
                 {
-                    picks = await SFilePicker.PickImagesAsync(PhotoRules.MaxBatch) ?? new List<SpixiImageData>();
+                    picks = await SFilePicker.PickImagesAsync(free) ?? new List<SpixiImageData>();
                 }
                 else if (route == PhotoRules.RouteCamera)
                 {
@@ -2869,17 +2888,19 @@ namespace SPIXI
                     disposePicks(picks, 0);
                     return;
                 }
-                dropMediaBatch();   // one open batch per page: a new pick replaces the old sheet's files
+                /* ★ S10 P1: the new photos are prepared into a TEMP batch `add` (its own id names only the pending FILES —
+                 * MediaItem.path carries the path, so a key ≠ the file index is fine); finishPick appends it to `target` or
+                 * makes it the open batch. Extras past the free slots → tooMany (prepareBatch disposes them). */
                 string batchId = PhotoRules.idFromBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8));
                 MediaBatch batch = new MediaBatch
                 {
                     id = batchId,
                     peer = friend.walletAddress.ToString(),
                     channel = selectedChannel,
-                    count = Math.Min(picks.Count, PhotoRules.MaxBatch),
                     route = route,
                 };
-                if (picks.Count > PhotoRules.MaxBatch)
+                int take = Math.Min(picks.Count, free);
+                if (picks.Count > free)
                 {
                     batch.errors.Add(PhotoRules.ErrTooMany);
                 }
@@ -2890,13 +2911,13 @@ namespace SPIXI
                 {
                     try
                     {
-                        prepareBatch(batch, picks);
+                        prepareBatch(batch, picks, take);
                     }
                     catch (Exception e)
                     {
                         Logging.warn("Media: the photos could not be prepared (" + e.GetType().Name + ")");
                     }
-                    onMain(() => finishPick(batch, doc, chat));
+                    onMain(() => finishPick(batch, target, doc, chat));
                 });
             }
             catch (Exception e)
@@ -2920,14 +2941,15 @@ namespace SPIXI
             }
         }
 
-        /** OFF the UI thread: every picked image → C#'s own Sent/pending-<batch>-<k>.jpg (the #1158 rule) + its sheet thumbnail. */
-        private static void prepareBatch(MediaBatch batch, List<SpixiImageData> picks)
+        /** OFF the UI thread: the first `take` picked images → C#'s own Sent/pending-<batch>-<k>.jpg (the #1158 rule) + the
+         *  strip thumbnail. */
+        private static void prepareBatch(MediaBatch batch, List<SpixiImageData> picks, int take)
         {
             try
             {
                 string dir = sentFolder();
                 ensureSentFolder(dir);
-                for (int k = 0; k < batch.count; k++)
+                for (int k = 0; k < take && k < picks.Count && k < PhotoRules.MaxBatch; k++)
                 {
                     SpixiImageData p = picks[k];
                     string? srcLeaf = PhotoRules.pendingFileName(batch.id, k, ".src");
@@ -3008,9 +3030,11 @@ namespace SPIXI
             }
         }
 
-        /** Main thread: the batch is ready — open the sheet (mediaPicked) and tell each distinct error once (mediaError). A
-         *  torn-down page / an older document / another chat gets nothing and its files go. */
-        private void finishPick(MediaBatch batch, int doc, Friend chat)
+        /** Main thread: the new photos are ready — append them to `target` when it is still the open batch of this chat +
+         *  channel (each takes the smallest free key; none left → that file goes + tooMany), else they become the open batch;
+         *  push the FULL list (mediaPicked) and tell each distinct error once (mediaError). A torn-down page / an older
+         *  document / another chat gets nothing and its files go. */
+        private void finishPick(MediaBatch batch, MediaBatch? target, int doc, Friend chat)
         {
             try
             {
@@ -3024,9 +3048,39 @@ namespace SPIXI
                 }
                 if (batch.items.Count > 0)
                 {
-                    dropMediaBatch();
-                    mediaBatch = batch;
-                    Utils.sendUiCommand(this, "mediaPicked", batch.id, PhotoRules.pickedJson(batch.shown));
+                    if (target != null && ReferenceEquals(mediaBatch, target) && target.peer == batch.peer && target.channel == selectedChannel)
+                    {
+                        foreach (MediaItem it in batch.items)
+                        {
+                            string oldKey = it.k.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            PhotoRules.PickedItem? shown = batch.shown.Find(x => x.k == oldKey);
+                            List<int> used = new List<int>(target.items.Count);
+                            foreach (MediaItem t in target.items)
+                            {
+                                used.Add(t.k);
+                            }
+                            int k = S10MediaRules.nextKey(used);
+                            if (k < 0 || shown == null)
+                            {
+                                deleteOwnMediaFile(it.path);
+                                if (k < 0 && !batch.errors.Contains(PhotoRules.ErrTooMany))
+                                {
+                                    batch.errors.Add(PhotoRules.ErrTooMany);
+                                }
+                                continue;
+                            }
+                            shown.k = k.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            target.items.Add(new MediaItem { k = k, path = it.path });
+                            target.shown.Add(shown);
+                        }
+                        Utils.sendUiCommand(this, "mediaPicked", target.id, PhotoRules.pickedJson(target.shown));
+                    }
+                    else
+                    {
+                        dropMediaBatch();   // ★ S10 P1: the append target is gone (sent / cancelled) — only a stale other-channel batch is replaced here (the shell cancels it too)
+                        mediaBatch = batch;
+                        Utils.sendUiCommand(this, "mediaPicked", batch.id, PhotoRules.pickedJson(batch.shown));
+                    }
                 }
                 List<string> told = new List<string>();
                 foreach (string code in batch.errors)
@@ -3085,6 +3139,37 @@ namespace SPIXI
             dropMediaBatch();
         }
 
+        /** ★ S10 P1 (#1254): `ixian:mediaDrop:<batchId>:<k>` (main thread) — one strip tile's ✕: the item k of the open batch
+         *  goes (its file deleted, the key free again). Unknown batch / key → one fixed-word warn, nothing else. The LAST ✕
+         *  is a mediaCancel (the shell's rule), so an emptied batch here is only a misbehaving shell — it stays open. */
+        private void onMediaDrop(string payload)
+        {
+            if (!S10MediaRules.parseDrop(payload, out string batchId, out int k))
+            {
+                Logging.warn("ixian:mediaDrop: malformed");
+                return;
+            }
+            MediaBatch? b = mediaBatch;
+            if (b == null || !string.Equals(b.id, batchId, StringComparison.Ordinal))
+            {
+                Logging.warn("ixian:mediaDrop: no such batch");
+                return;
+            }
+            MediaItem? it = b.items.Find(x => x.k == k);
+            if (it == null)
+            {
+                Logging.warn("ixian:mediaDrop: no such photo");
+                return;
+            }
+            string key = k.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            b.items.Remove(it);
+            b.shown.RemoveAll(x => x.k == key);
+            deleteOwnMediaFile(it.path);
+            /* ★ S10 #46 r3 (r2 MAJOR-2, 🟡 NEW push): confirm the drop — the shell forgets the key's stale-push filter, so the
+             * same photo added back into this freed key (nextKey = the smallest free) is shown, never hidden then deleted. */
+            Utils.sendUiCommand(this, "mediaDropped", b.id, key);
+        }
+
         /** `ixian:mediaSend:<batchId>:<keys>:<captionB64url>` (main thread). */
         private void onMediaSend(string payload)
         {
@@ -3108,17 +3193,22 @@ namespace SPIXI
                 dropMediaBatch();   // ★ #46 r1 NIT: a batch belongs to the channel it was picked in
                 return;
             }
+            /* ★ S10 #46 r1 M1: a key this batch no longer holds = a tile whose ✕ (mediaDrop) reached C# first — SKIP it (its
+             * file is already gone); only a send with NO known key is refused (and the batch dropped, as before). */
             List<MediaItem> chosen = new List<MediaItem>();
             foreach (int k in keys)
             {
                 MediaItem? it = b.items.Find(x => x.k == k);
-                if (it == null)
+                if (it != null)
                 {
-                    Logging.warn("ixian:mediaSend: a key is not a prepared photo");
-                    dropMediaBatch();   // ★ #46 r1 m-2
-                    return;
+                    chosen.Add(it);
                 }
-                chosen.Add(it);
+            }
+            if (chosen.Count == 0)
+            {
+                Logging.warn("ixian:mediaSend: no key is a prepared photo");
+                dropMediaBatch();   // ★ #46 r1 m-2
+                return;
             }
             if (!mediaAllowed())
             {
@@ -3127,7 +3217,7 @@ namespace SPIXI
                 return;
             }
             mediaBatch = null;   // consumed
-            deleteBatchFiles(b, keys);   // the ones removed in the sheet
+            deleteBatchFiles(b, keys);   // ★ S10 N4: every prepared photo the send does not name (a strip ✕ already deleted its own)
             sendMediaBatch(b, chosen, caption);
         }
 
@@ -3353,9 +3443,9 @@ namespace SPIXI
                 Logging.warn("Incoming file transfer {0} already prepared.", message.transferId);
                 return;
             }
-            if (message.fileSize > (ulong)PhotoRules.MaxFileBytes)
+            if (message.fileSize > (ulong)PhotoRules.MaxReceiveBytes)
             {
-                // ★ S9 A-9 (#1245): an offer above the 100 MB cap is never accepted (TransferManager refuses it too)
+                // ★ S9 A-9 (#1245): an offer above the 100 MB cap is never accepted (TransferManager refuses it too); ★ S10 P2: the receive cap = the largest tier
                 Logging.warn("File offer refused: above the size cap");
                 Utils.sendUiCommand(this, "mediaError", PhotoRules.ErrFileTooBigIn);   // ★ #46 r1: a RECEIVED offer (its own text)
                 return;

@@ -28,10 +28,17 @@ namespace SPIXI
             return GroupAvatarRule.writesAddedLine(groupCreated, storedMessages, hasLastMessage);
         }
 
-        /** The line's text: the localized string, else the English fallback. Never a format (no argument). */
-        public static string createdLine(string? localized)
+        /* ★ S10 P3 (#1254): the owner's line is TWO lines — "You created this group" + "\n" + "Members can see the group now."
+         * (the chat shell renders the "\n" as a line break). Each half: the localized string, else its English fallback. */
+        public const string MembersSeeKey = "chat-group-members-see";
+        public const string MembersSeeFallback = "Members can see the group now.";
+
+        /** The line's text: line1 + "\n" + line2, each the localized string, else the English fallback. Never a format. */
+        public static string createdLine(string? localizedCreated, string? localizedSecond)
         {
-            return string.IsNullOrWhiteSpace(localized) ? CreatedFallback : localized;
+            string a = string.IsNullOrWhiteSpace(localizedCreated) ? CreatedFallback : localizedCreated;
+            string b = string.IsNullOrWhiteSpace(localizedSecond) ? MembersSeeFallback : localizedSecond;
+            return a + "\n" + b;
         }
 
         // —— 8-APP ——

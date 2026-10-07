@@ -680,6 +680,7 @@ global-friend-request-connected = Anda sekarang terhubung dengan {0}.
 chat-group-added-you = {0} menambahkan Anda ke grup ini
 chat-group-added-you-noname = Anda ditambahkan ke grup ini
 chat-group-you-created = Anda membuat grup ini
+chat-group-members-see = Anggota sekarang dapat melihat grup ini.
 
 global-update-available = Versi baru Spixi ({0}) telah tersedia. Harap perbarui untuk pengalaman terbaik.
 global-modal-external-link-title = Anda akan mengunjungi tautan eksternal

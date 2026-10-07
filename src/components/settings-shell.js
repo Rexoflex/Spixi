@@ -193,6 +193,18 @@ export function settingsOptionSheet({ title, hint, note, options, current, host,
       if (flagEl) fl.append(flagEl);
       opt.append(fl);
     }
+    /* ★ S10 F7 (#1254): optional leading `o.avatar` (an Element the caller built) + a `o.sub` line under the label
+       (the Downloads From sheet, option C). Either one makes the row "rich" (taller, the selected row tinted); a
+       caller with neither gets the exact row it always had. */
+    const rich = o.avatar instanceof Element || (typeof o.sub === 'string' && o.sub !== '');
+    if (rich) opt.classList.add('c-settings__opt--rich');
+    if (o.avatar instanceof Element) {
+      const av = document.createElement('span');
+      av.className = 'c-settings__opt-avatar';
+      av.setAttribute('aria-hidden', 'true');
+      av.append(o.avatar);
+      opt.append(av);
+    }
     const lab = document.createElement('span');
     lab.className = 'c-settings__opt-label';
     lab.textContent = o.label;
@@ -201,7 +213,17 @@ export function settingsOptionSheet({ title, hint, note, options, current, host,
     const tick = icon('check', { size: 18 });
     tick.classList.add('c-settings__opt-check');
     status.append(tick);
-    opt.append(lab, status);
+    if (typeof o.sub === 'string' && o.sub !== '') {
+      const text = document.createElement('span');
+      text.className = 'c-settings__opt-text';
+      const sub = document.createElement('span');
+      sub.className = 'c-settings__opt-sub';
+      sub.textContent = o.sub;                // caller text (counts + a date) — textContent only
+      text.append(lab, sub);
+      opt.append(text, status);
+    } else {
+      opt.append(lab, status);
+    }
     opt.addEventListener('click', () => {
       if (inFlight || o.value === current) return;
       inFlight = true;

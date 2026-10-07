@@ -39,7 +39,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 2. **Render** any visual change on the BUILT shell, both themes; Damir picks the dials.
 3. **Pipeline:** FULL = (`generate-icons` if SVGs) → `extract-strings` → `build-locales` → `build-strings-iife` → `build-demo-bundle` → `build-shells` — **bundle BEFORE shells** (#258); shell/CSS/token-only = `build-shells`; C#-only = none. Then the `--check` gates.
 4. **Pins:** behaviour, not source text (#771/#798); **break the code on purpose — the pin must fail for exactly that reason** (mutation, #802) before you believe it.
-5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5567** (with the Ixian-Core sibling, session 9 #1251). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=280 fail=0` on the newest installed SDK (#1122, #1129, #1135, #1149, #1150, #1160, #1166, #1185, #1186, #1206, #1209, #1226, #1241, #1242, #1250, #1251).
+5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5604** (with the Ixian-Core sibling, session 10 #1257). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=299 fail=0` on the newest installed SDK (#1122, #1129, #1135, #1149, #1150, #1160, #1166, #1185, #1186, #1206, #1209, #1226, #1241, #1242, #1250, #1251, #1256).
 6. **#46 loop** (Opus, in-session) until CLEAN — after a green smoke run, before the batch leaves the machine; smoke again after the last fix; verdict written into its brief (#660).
 7. **Walk:** Damir builds — **Windows = F5, never `dotnet build`** (#663); Android Debug; **iPhone + Mac (and Android, #449): wipe `obj`/`bin` when the html changed, then a plain build, then Run — incremental builds do not repackage Raw html** (#320); the BUILD row must show something only this build has. Walk sheet → pasted results → a `WALK #N: n P · n F · n N/A` DECISIONS row; each fail = mechanism first.
 8. **Commit:** one logical unit; `docs/commit-message-<batch>.txt` (no attribution lines — ★ COMMIT RULE); Damir reviews the diff, commits and pushes; never `git add -A`. Use `git --no-optional-locks` on the mounted repo; give the PowerShell repo commands with every delivery.
@@ -81,10 +81,10 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-07: **session 9 BUILT, UNCOMMITTED** (patch `session9-build.patch` on "Session 8: …" + #1243–#1247, commit message `docs/commit-message-session9.txt`). S8 walked: WALK #1243 22 P · 1 F (8-GROW-A) · 2 N/A. S9: media picker family (Photos + Camera, paste, ≤ 10 per pick, preview sheet + caption, receiver grid, no metadata, `Sent/` copies, 100 MB cap) · V-15 audit fixes · copy + language note · polish / a11y / (f) · S8 fix rows · later picks · A-FLASH fix (#1244–#1250).
-- Smoke BASELINE OK **5567** · CSH **280** (cloud twin). #46 **CLEAN at r4** (#1251). ⚠ C# UNCOMPILED (12 new + 35 changed C# files; handoff §0).
-- NEXT: Damir applies the patch, builds (Windows F5; Android wipe obj/bin), walks the "Spixi Session 9 Walk" sheet (34 rows), sends `android-s9.txt` + the A-FLASH screen recording.
-- Open for Damir: Android 12+ splash (plain colour vs `SetOnExitAnimationListener`, #1249) · a long-offline capture for CORE-10 · the old-app caption check.
-- BE asks: B-31 (S9 verbs / pushes, FileTransfer trailer, caption own id, silent reactions, `localonly.json`, `Sent/`, camera text, A-14 Mac WebView handler, C-04) · CORE-10 still a draft · B-28, B-29, B-30, CORE-8, CORE-9.
-- v1 plan: S9 ✅ built → walk → S10 fix round → FREEZE. Road after: sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
-- **NEXT SESSION: read `docs/handoff-2026-10-07b.md` FIRST, then paste `docs/prompts/session-10.md`.** Next free DECISIONS number: **#1254**.
+- 2026-10-07: **session 10 BUILT, UNCOMMITTED** (patch `session10-build.patch` on "Record walk #1252 (S9) and the S10 fix list", commit message `docs/commit-message-session10.txt`). S9 walked: WALK #1252 25 P · 4 F · 5 N/A. S10: the S9 fix round F1–F7 + P1 strip · P2 50 MB · P3 · P4 excerpt 2 lines (#1254–#1256); the "new added" flash = F1 (#1255).
+- Smoke BASELINE OK **5604** · CSH **299** (cloud twin). #46 **CLEAN at r4** (#1257). ⚠ C# UNCOMPILED (2 new + 11 changed C# files; handoff §0).
+- NEXT: Damir applies the patch, builds (Windows F5; Android wipe obj/bin), walks the "Spixi Session 10 Walk" sheet, sends `android-s10.txt` + the 10-FLASH recording.
+- Open for Damir: Android 12+ splash (#1249) · cold-start main-thread stall (perf, after the freeze?) · CORE-10 capture · the old-app caption check.
+- BE asks: B-31 (S9) · B-32 (S10: mediaDrop, mediaDropped, setDownloadAvatars, VIBRATE, `.partial`, 50 MB) · CORE-10 draft · B-28, B-29, B-30, CORE-8, CORE-9.
+- v1 plan: S10 ✅ built → walk → S11 FREEZE prep. Road after: sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
+- **NEXT SESSION: read `docs/handoff-2026-10-07c.md` FIRST, then paste `docs/prompts/session-11.md`.** Next free DECISIONS number: **#1259**.

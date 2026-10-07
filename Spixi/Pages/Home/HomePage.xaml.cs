@@ -912,6 +912,7 @@ namespace SPIXI
 #if ANDROID
                 global::Spixi.MainActivity.releaseBootHold("dropped");
 #endif
+                scheduleWalletPrePush(false);   // ★ S10 F6 (#1254): the wallet rows before the first Wallet tab visit
             }
             else if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
@@ -1483,6 +1484,7 @@ namespace SPIXI
                 repaintOwnSystemBars();
                 if (currentTab == "tab2")
                 {
+                    probeFirstWalletVisit();   // ★ S10 F6 — TEMPORARY [P1]
                     // ★ #1132 lever 2: force ONLY when this document has never been fed; otherwise the dirty gate decides
                     raiseTxDirtyIfRowsStale();
                     loadTransactions(!txPushedToShell);
@@ -2593,7 +2595,7 @@ namespace SPIXI
                 {
                     return;
                 }
-                string text = S9FixRules.createdLine(SpixiLocalization._SL(S9FixRules.CreatedKey));
+                string text = S9FixRules.createdLine(SpixiLocalization._SL(S9FixRules.CreatedKey), SpixiLocalization._SL(S9FixRules.MembersSeeKey));   // ★ S10 P3 (#1254): two lines
                 Node.addMessageWithType(new byte[] { UnreadRule.AddedToGroupLineId }, FriendMessageType.standard, group.walletAddress, 0, text, false, null, 0, false, false);
                 UIHelpers.shouldRefreshContacts = true;
                 Logging.info("createGroup: the created-group line was written");
@@ -2766,6 +2768,7 @@ namespace SPIXI
             }
 
             checkForRating();
+            scheduleWalletPrePush(true);   // ★ S10 F6 #46 r1 (M4): bootDropped may have come BEFORE this onload
         }
 
         private void onNavigated(object sender, WebNavigatedEventArgs e)
@@ -3229,6 +3232,46 @@ namespace SPIXI
             return true;
         }
 
+        /** ★ S10 F3 (#1254): the newest live row (ChatHeal.isLive) of a channel's loaded list, or null. */
+        private static FriendMessage? newestLiveRow(Friend friend, int channel)
+        {
+            List<FriendMessage>? list = friend.getMessages(channel);
+            if (list == null)
+            {
+                return null;
+            }
+            lock (list)
+            {
+                int at = ChatHeal.newestLive(list, m => ChatHeal.isLive(m.type, m.message), m => m.id, null);
+                return at >= 0 ? list[at] : null;
+            }
+        }
+
+        /** ★ S10 F3 (#1254): the live members of `row`'s photo group (SPhotoGroups.get = the same group id, same peer).
+         *  ★ #46 r1 (M7): only S10FixRules.PhotoWindowRows rows on each side of `row` (members are sent together) and the walk
+         *  stops at the group's stored count. The list is Core's in-memory channel list (Friend.getMessages reads the disk only
+         *  when the channel is not cached yet — once; the excerpt's localSender path already asks the same list). */
+        private static int livePhotoMembers(Friend friend, int channel, FriendMessage row)
+        {
+            List<FriendMessage>? list = friend.getMessages(channel);
+            if (list == null || row.id == null)
+            {
+                return 0;
+            }
+            string peer = friend.walletAddress.ToString();
+            string group = SPhotoGroups.get(peer, Crypto.hashToString(row.id));
+            string gid = S10FixRules.groupIdOf(group);
+            int want = SPhotoGroups.countOf(group);
+            lock (list)
+            {
+                int anchor = S10FixRules.lastIndexOfId(list, row.id, m => m.id);
+                return S10FixRules.livePhotoCount(list, gid,
+                    m => m.type == FriendMessageType.fileHeader && m.id != null && ChatHeal.isLive(m.type, m.message),
+                    m => S10FixRules.groupIdOf(SPhotoGroups.get(peer, Crypto.hashToString(m.id!))),
+                    anchor, S10FixRules.PhotoWindowRows, want);
+            }
+        }
+
         private FriendMessageHelper? getFriendMessageHelper(Friend friend, out string excerptKind, out string excerptSender)
         {
             excerptKind = "text";
@@ -3291,6 +3334,24 @@ namespace SPIXI
                 }
             }
 
+            /* ★ S10 F3 (#1254): a deleted PHOTO stayed as the row's "Photo". Core's delete recompute keeps a blanked fileHeader
+             * row as lastMessage (Friend.cs:964-972 — `type != standard` passes it with empty text). The excerpt reads the
+             * newest LIVE row of that channel instead (ChatHeal.isLive); none → the empty excerpt of a cleared chat. Display
+             * only — the saved copy is replaced at the delete sites (CoreMessageWriter.clearDeletedLast). */
+            bool s10Dead = false;
+            if (lastmsg.type == FriendMessageType.fileHeader && !ChatHeal.isLive(lastmsg.type, lastmsg.message))
+            {
+                FriendMessage? liveRow = newestLiveRow(friend, friend.metaData.lastMessageChannel);
+                if (liveRow != null)
+                {
+                    lastmsg = liveRow;
+                }
+                else
+                {
+                    s10Dead = true;
+                }
+            }
+
             // Generate the excerpt depending on message type
             string excerpt = lastmsg.message;
             /* ★ #1198 (session 6b): a REPLY travels as "> Name: quote\nbody" (ReplyQuote, the text-quote convention) —
@@ -3336,7 +3397,12 @@ namespace SPIXI
             }
             else
             {
-                if (lastmsg.type == FriendMessageType.requestFunds)
+                if (s10Dead)
+                {
+                    excerpt = "";   // ★ S10 F3: every row of the channel is deleted — the cleared chat's empty excerpt
+                    skipSelfPrefix = true;
+                }
+                else if (lastmsg.type == FriendMessageType.requestFunds)
                 {
                     excerptKind = "payment";
                     if (lastmsg.localSender)
@@ -3405,8 +3471,11 @@ namespace SPIXI
                     else if (SharedItems.parseFileHeader(lastmsg.message, out string photoName, out _)
                         && SharedItems.isImageName(photoName))
                     {
+                        /* ★ S10 F3 (#1254): "{n} photos" = the LIVE members of that group still in the list (a deleted member no
+                         * longer counts); this row is live, so at least 1 → "Photo". */
                         int photoCount = lastmsg.id != null
-                            ? SPhotoGroups.countOf(SPhotoGroups.get(friend.walletAddress.ToString(), Crypto.hashToString(lastmsg.id)))
+                            && SPhotoGroups.countOf(SPhotoGroups.get(friend.walletAddress.ToString(), Crypto.hashToString(lastmsg.id))) > 1
+                            ? Math.Max(1, livePhotoMembers(friend, friend.metaData.lastMessageChannel, lastmsg))
                             : 0;
                         excerpt = photoCount > 1
                             ? string.Format(SpixiLocalization._SL("index-excerpt-photos") ?? "{0} photos", photoCount)
@@ -3508,6 +3577,10 @@ namespace SPIXI
                         // #969: an own tail in a room reads "You: …" (localized; never the nick).
                         excerptSender = SpixiLocalization._SL("index-excerpt-you");
                     }
+                }
+                if (s10Dead)
+                {
+                    excerptSender = "";   // ★ S10 F3 (#1254): no sender before the empty excerpt of an all-deleted channel
                 }
             }
 
@@ -4292,6 +4365,86 @@ namespace SPIXI
             return OpenPerfRules.walletNameSignature(names);
         }
 
+        /* ★ S10 F6 (#1254): the FIRST Wallet tab visit painted an empty wallet, then the rows — the tab entry was the first
+         * push this document ever got. Once the home shell is on screen (ixian:bootDropped) AND the document announced itself
+         * (ixian:onload) — whichever comes SECOND (★ #46 r1 M4: with reduced motion bootDropped precedes the onload, whose
+         * generation bump used to kill the pre-push; S10FixRules.PrePushGate) — ONCE per document and
+         * S10FixRules.PrePushDelayMs later, the rows are pushed while the user is still on another tab: the same forced push
+         * the tab entry makes (loadTransactions(true) — off the UI thread, under txPushLock), only when the document was never
+         * fed and the wallet tab is not the current one (S10FixRules.walletPrePush). A document reloaded meanwhile → nothing
+         * (its own events schedule again). UI thread only. */
+        private readonly S10FixRules.PrePushGate prePushGate = new S10FixRules.PrePushGate();
+        private int prePushDocGen = -1;
+        private int prePushRanGen = -1;
+        private int tab2ProbeDocGen = -1;
+        private long bootDroppedT0 = 0;
+        private int lastTxRows = 0;
+        private int lastTxRowsGen = -1;
+
+        private void scheduleWalletPrePush(bool fromOnLoad)
+        {
+            int gen = System.Threading.Volatile.Read(ref txDocGen);
+            if (!fromOnLoad)
+            {
+                bootDroppedT0 = P1Perf.now();
+            }
+            if (!(fromOnLoad ? prePushGate.onLoaded(gen) : prePushGate.onDropped(gen)))
+            {
+                return;
+            }
+            prePushDocGen = gen;
+            Task.Delay(S10FixRules.PrePushDelayMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    if (!running || gen != System.Threading.Volatile.Read(ref txDocGen) || !S10FixRules.walletPrePush(txPushedToShell, currentTab))
+                    {
+                        return;
+                    }
+                    prePushRanGen = gen;
+                    long t0 = P1Perf.now();
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            loadTransactions(true);   // on the pool: the burst runs here, so its end is the probe's end
+                            if (P1Perf.enabled)
+                            {
+                                P1Perf.line("wallet prepush rows=" + System.Threading.Volatile.Read(ref lastTxRows) + " ms=" + P1Perf.msSince(t0));   // TEMPORARY [P1]
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Logging.warn("wallet prepush skipped (" + e.GetType().Name + ")");
+                        }
+                    });
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("wallet prepush skipped (" + e.GetType().Name + ")");
+                }
+            }));
+        }
+
+        /** ★ S10 F6 — TEMPORARY, retire with the [P1] set: the first Wallet tab visit of a document — was it pre-pushed, how
+         *  many rows did this document get before it, how long after bootDropped (-1 = no bootDropped for this document). */
+        private void probeFirstWalletVisit()
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            int gen = System.Threading.Volatile.Read(ref txDocGen);
+            if (tab2ProbeDocGen == gen)
+            {
+                return;
+            }
+            tab2ProbeDocGen = gen;
+            int rows = System.Threading.Volatile.Read(ref lastTxRowsGen) == gen ? System.Threading.Volatile.Read(ref lastTxRows) : 0;
+            long ms = prePushDocGen == gen ? P1Perf.msSince(bootDroppedT0) : -1;
+            P1Perf.line("wallet tab2 first prepushed=" + (prePushRanGen == gen ? "1" : "0") + " rows=" + rows + " ms=" + ms);
+        }
+
         public void loadTransactions(bool forceRefresh)
         {
             /* ★★ ROUND 2 — THIS FLUSH MUST NEVER RUN ON THE UI THREAD.
@@ -4447,6 +4600,8 @@ namespace SPIXI
                 System.Threading.Interlocked.Exchange(ref txPushedNameSig, nameSigAtPush);
                 txPushedFiat = fiatAtPush;
                 System.Threading.Interlocked.Exchange(ref txPushedGen, OpenPerfRules.walletLatchAfterBurst(pageLoaded, txGenAtPush));
+                System.Threading.Volatile.Write(ref lastTxRows, p1Rows);   // ★ S10 F6 — TEMPORARY [P1]: the probes' row count
+                System.Threading.Volatile.Write(ref lastTxRowsGen, txGenAtPush);
 
                 /* ★ #506③ — the END of the burst, which this flush never announced.
                  *

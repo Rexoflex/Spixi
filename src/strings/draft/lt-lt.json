@@ -789,5 +789,17 @@
   "languageReport": "Pranešti apie vertimo klaidą",
   "fileTooBig100": "Šis failas didesnis nei 100 MB, todėl jo negalima išsiųsti.",
   "fileTooBigIn100": "Šis failas didesnis nei 100 MB, todėl jo negalima atsisiųsti.",
-  "mediaStorageDenied": "Spixi reikia prieigos prie saugyklos, kad išsaugotų kameros nuotrauką. Leiskite tai įrenginio nustatymuose."
+  "mediaStorageDenied": "Spixi reikia prieigos prie saugyklos, kad išsaugotų kameros nuotrauką. Leiskite tai įrenginio nustatymuose.",
+  "addPhotos": "Pridėti nuotraukų",
+  "photoStripCount": "{n} iš 10",
+  "mediaCaptionTooLong": "Šis aprašas per ilgas.",
+  "fileTooBig50": "Šis failas didesnis nei 50 MB ir negali būti išsiųstas.",
+  "photosDownloadAll": "Atsisiųsti viską ({n})",
+  "photosShowAll": "Rodyti visas nuotraukas ({n})",
+  "downloadsSenderFiles": "Failų: {n}",
+  "downloadsSenderFilesOne": "1 failas",
+  "downloadsSenderLast": "paskutinis {when}",
+  "chatPreviewLines": "Žinutės peržiūra",
+  "previewLinesOne": "1 eilutė",
+  "previewLinesTwo": "2 eilutės"
 }

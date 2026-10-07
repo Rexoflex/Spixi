@@ -384,12 +384,49 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
   background: var(--surface-scrim);
   color: var(--text-on-scrim);
+  font: inherit;
   font-size: var(--font-size-heading-xs);
   font-weight: var(--font-weight-semibold);
-  pointer-events: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+/* ★ S10 F2 (#1254): the "+N" is a button over the fourth cell now (tappable); the S9 overlay inside a tile stays inert */
+span.c-mgrid__more { pointer-events: none; }
+button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: -2px; }
+/* ★ S10 F2: "Download all (n)" — a text button under the grid of a received group while offers remain */
+.c-mgrid__dlall {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  width: 100%;
+  min-height: var(--size-target-min);
+  margin: 0;
+  padding: var(--spacing-4) var(--spacing-12);
+  border: 0;
+  border-radius: calc(var(--bubble-radius) - 3px);
+  background: transparent;
+  color: var(--text-action-default);
+  font: inherit;
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-mgrid__dlall svg { flex: none; }
+@media (hover: hover) and (pointer: fine) {
+  .c-mgrid__dlall:hover { background: var(--surface-action-tonal-default); }
+}
+.c-mgrid__dlall:active { background: var(--surface-action-tonal-default); }
+.c-mgrid__dlall:disabled { opacity: 0.6; cursor: default; }
+.c-mgrid__dlall:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: -2px; }
 .c-mgrid__caption {
   padding: 6px 9px 4px;
   font-size: calc(var(--font-size-body-md) * var(--chat-text-scale, 1));

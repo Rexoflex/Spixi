@@ -316,7 +316,7 @@ public class S9MediaTests
         Assert.AreEqual("missing-data", PhotoRules.copyFailureCase(true, new IOException()), "a read failure");
         Assert.AreEqual("missing-storage", PhotoRules.copyFailureCase(false, new IOException()), "a write IOException");
         Assert.AreEqual("missing-other", PhotoRules.copyFailureCase(false, new InvalidOperationException()), "anything else");
-        Assert.IsTrue(PhotoRules.MaxFileBytes == 100L * 1024 * 1024 && PhotoRules.SourceMax == 20L * 1024 * 1024 && PhotoRules.MaxEdge == 2048 && PhotoRules.JpegQuality == 82, "the #1244 numbers");
+        Assert.IsTrue(PhotoRules.MaxReceiveBytes == 100L * 1024 * 1024 && PhotoRules.maxFileBytes(PhotoRules.FileTier.Free) == 50L * 1024 * 1024 && PhotoRules.SourceMax == 20L * 1024 * 1024 && PhotoRules.MaxEdge == 2048 && PhotoRules.JpegQuality == 82, "the #1244 numbers");
     }
 
     [TestMethod]

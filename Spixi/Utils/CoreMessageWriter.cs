@@ -53,13 +53,14 @@ namespace SPIXI
         /** ★ 7b #46 r1 (A-MINOR-1): call after EVERY friend.deleteMessage. Core's delete recomputes metaData.lastMessage only
          *  when it finds the row (Friend.cs:958-975); in the F9 state the row exists only as that saved excerpt, so the excerpt
          *  kept the deleted text and the next loadMessages healed it back. → replace it with the newest live row of its
-         *  channel (Core's own predicate, Friend.cs:966-967), or clear it, and save. Returns true when it changed. Never throws. */
+         *  channel (★ S10 F3: ChatHeal.isLive — Core's predicate minus the blanked file row), or clear it, and save. Returns true when it changed. Never throws. */
         public static bool clearDeletedLast(Friend friend, byte[] msgId)
         {
             try
             {
                 FriendMessage? last = friend.metaData.lastMessage;
-                if (last == null || !ChatHeal.deleteLeftLast(last.id, last.message, msgId))
+                // ★ S10 F3 (#1254): a fileHeader excerpt is replaced even when Core already blanked it (its recompute kept it)
+                if (last == null || !ChatHeal.deleteLeftLast(last.id, last.type == FriendMessageType.fileHeader, last.message, msgId))
                 {
                     return false;
                 }
@@ -70,7 +71,7 @@ namespace SPIXI
                 {
                     lock (list)
                     {
-                        int at = ChatHeal.newestLive(list, m => m.type != FriendMessageType.standard || !string.IsNullOrEmpty(m.message), m => m.id, msgId);
+                        int at = ChatHeal.newestLive(list, m => ChatHeal.isLive(m.type, m.message), m => m.id, msgId);   // ★ S10 F3: a blanked file row is dead too
                         next = at >= 0 ? list[at] : null;
                     }
                 }

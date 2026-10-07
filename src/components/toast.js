@@ -4,14 +4,17 @@
  * later toasts queue. One confirmation per action (#29) — never toast an
  * action that already confirms via button morph, navigation, or alert.
  *
- * showToast({ text, tone = 'info'|'success'|'error', duration = 3500,
+ * showToast({ text, tone = 'info'|'success'|'error', duration,
  *             host = document.body, strings }) → dismiss()
+ * ★ S10 F5 (#1254): duration = max(3500, 55 ms × the text length) — a long sentence stays long enough to read;
+ *   a caller's own `duration` is the floor instead of 3500; never more than TOAST_MAX_MS (12 s, #46 m-8).
  */
 import { icon } from './icons.js';
 
 const TONE_GLYPHS = { info: 'info-circle', success: 'check', error: 'alert-square-rounded' };
 
 const toastHostState = new WeakMap(); // host → { current, queue }
+const TOAST_MAX_MS = 12000;   // ★ S10 #46 m-8: a very long text never holds the queue past 12 s
 
 export function showToast(opts = {}) {
   const host = opts.host || document.body;
@@ -35,6 +38,7 @@ export function showToast(opts = {}) {
 }
 
 function presentToast(host, state, { text = '', tone = 'info', duration = 3500 } = {}) {
+  const shownMs = Math.min(TOAST_MAX_MS, Math.max(Number(duration) || 3500, 55 * String(text).length));   // ★ S10 F5 · #46 m-8 cap
   const el = document.createElement('div');
   el.className = 'c-toast';
   el.dataset.tone = tone;
@@ -76,6 +80,6 @@ function presentToast(host, state, { text = '', tone = 'info', duration = 3500 }
   };
 
   el.addEventListener('click', dismiss);
-  const autoTimer = setTimeout(dismiss, duration);
+  const autoTimer = setTimeout(dismiss, shownMs);
   return dismiss;
 }

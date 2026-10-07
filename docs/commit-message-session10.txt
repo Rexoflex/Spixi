@@ -1,0 +1,29 @@
+Session 10: S9 walk fix round, media strip, excerpt lines
+
+The S9 walk (#1252) fix round and Damir's picks (#1253, #1254):
+- P1 paste / attach strip above the composer (tray A; paste, photo picker
+  and camera; the composer text is the caption; one group bubble). The S9
+  preview sheet is removed. C# appends a pick to the open batch (up to 10);
+  new verb ixian:mediaDrop and push mediaDropped.
+- F1 the chat WebView background is no longer written around the open hold
+  on Android (the release re-rastered the WebView: the grey / dark frames and
+  the "new added" flash, #1255). Probe [P1] hold nbg.
+- F2 photo grid: "Download all (n)", tappable "+N", a group reply quote
+  "n photos", Reply from the viewer.
+- F3 a deleted photo no longer stays the chats-list excerpt; "n photos"
+  counts live photos.
+- F4 haptics probe and a Vibrator fallback that respects the system touch
+  feedback setting (VIBRATE, normal permission).
+- F5 toasts full width (up to 400 px), 4 lines, a longer time.
+- F6 the wallet list is pushed once in the background after boot.
+- F7 Downloads: part files live in Downloads/.partial (one-time legacy sweep);
+  the From sheet shows avatars, file counts and the last date (push
+  setDownloadAvatars).
+- P2 50 MB send cap for the free tier (receive up to 100 MB).
+- P3 the owner's created-group line has a second line.
+- P4 chats-list message preview: 1 or 2 lines (default 2), set in Chat
+  appearance.
+
+#46 review clean at round 4 (#1257). Smoke BASELINE OK 5604, CSH 299.
+The C# is not yet compiled: the next build is its first compile.
+Decisions #1254-#1258; handoff docs/handoff-2026-10-07c.md.

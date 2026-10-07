@@ -790,5 +790,17 @@
   "languageReport": "Laporkan masalah terjemahan",
   "fileTooBig100": "File ini lebih dari 100 MB dan tidak dapat dikirim.",
   "fileTooBigIn100": "File ini lebih dari 100 MB dan tidak dapat diunduh.",
-  "mediaStorageDenied": "Spixi memerlukan akses penyimpanan untuk menyimpan foto kamera. Izinkan di pengaturan perangkat."
+  "mediaStorageDenied": "Spixi memerlukan akses penyimpanan untuk menyimpan foto kamera. Izinkan di pengaturan perangkat.",
+  "addPhotos": "Tambahkan foto",
+  "photoStripCount": "{n} dari 10",
+  "mediaCaptionTooLong": "Keterangan ini terlalu panjang.",
+  "fileTooBig50": "File ini lebih dari 50 MB dan tidak dapat dikirim.",
+  "photosDownloadAll": "Unduh semua ({n})",
+  "photosShowAll": "Tampilkan semua {n} foto",
+  "downloadsSenderFiles": "{n} file",
+  "downloadsSenderFilesOne": "1 file",
+  "downloadsSenderLast": "terakhir {when}",
+  "chatPreviewLines": "Pratinjau pesan",
+  "previewLinesOne": "1 baris",
+  "previewLinesTwo": "2 baris"
 }

@@ -361,8 +361,96 @@ namespace SPIXI
             tm_thread.Start();
         }
 
+        /* ★ S10 F7 (#1254): a received file's part file showed in Downloads ("incoming-….ixipart") while it downloaded, and
+         * an interrupted one stayed there for ever (an incoming transfer lives in memory only — nothing resumes it after a
+         * restart). The part files live in Downloads/.partial now (the Downloads list reads the root only); at start:
+         *   · ONCE (★ #46 r1 M2 — a legacy migration, recorded by .partial/.root-swept): every ROOT file whose leaf is C#'s
+         *     part-file shape (S10FixRules.isPartLeaf — the pre-S10 location) goes. Once only, because the root holds the
+         *     user's received files; a received file can no longer carry that shape anyway (S10FixRules.finalLeaf);
+         *   · every PART file (isPartLeaf) in .partial older than 24 h (S10FixRules.partialDeletes) goes.
+         * ★ #46 r1 (N1): a .partial that is a symlink / junction is never followed (S10FixRules.isReparse) — nothing in it is
+         * deleted and no marker is written. Leaf-named inside C#'s own folders (never a WebView-supplied name). Fixed words
+         * only in the log. Never throws. */
+        private static void sweepPartFiles()
+        {
+            try
+            {
+                if (!Directory.Exists(downloadsPath))
+                {
+                    return;
+                }
+                string partial = Path.Combine(downloadsPath, S10FixRules.PartialFolder);
+                if (Directory.Exists(partial) && S10FixRules.isReparse(File.GetAttributes(partial)))
+                {
+                    Logging.warn("Part file sweep skipped: the part folder is a link");
+                    return;
+                }
+                string marker = Path.Combine(partial, S10FixRules.RootSweptMarker);
+                if (!File.Exists(marker))
+                {
+                    foreach (string f in Directory.EnumerateFiles(downloadsPath))
+                    {
+                        string leaf = Path.GetFileName(f);
+                        if (S10FixRules.isPartLeaf(leaf))
+                        {
+                            try { File.Delete(Path.Combine(downloadsPath, leaf)); } catch (Exception) { }
+                        }
+                    }
+                    Directory.CreateDirectory(partial);
+                    File.WriteAllBytes(marker, Array.Empty<byte>());
+                }
+                deletePartFiles(partial, true);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Part file sweep skipped (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** ★ #46 r1 (M3): Delete downloads (SettingsPage.onDeleteDownloads, after resetIncomingTransfers) — every part file
+         *  in .partial goes too. Returns the count. Never throws. */
+        public static int deleteAllPartFiles()
+        {
+            try
+            {
+                return deletePartFiles(Path.Combine(downloadsPath, S10FixRules.PartialFolder), false);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Part file delete skipped (" + e.GetType().Name + ")");
+                return 0;
+            }
+        }
+
+        /** The part files (isPartLeaf; staleOnly → older than 24 h) directly in `partial`; a linked folder → nothing. */
+        private static int deletePartFiles(string partial, bool staleOnly)
+        {
+            if (!Directory.Exists(partial) || S10FixRules.isReparse(File.GetAttributes(partial)))
+            {
+                return 0;
+            }
+            int n = 0;
+            DateTime now = DateTime.UtcNow;
+            foreach (string f in Directory.EnumerateFiles(partial))
+            {
+                string leaf = Path.GetFileName(f);
+                string full = Path.Combine(partial, leaf);
+                try
+                {
+                    if (S10FixRules.partialDeletes(leaf, File.GetLastWriteTimeUtc(full), now, staleOnly))
+                    {
+                        File.Delete(full);
+                        n++;
+                    }
+                }
+                catch (Exception) { }
+            }
+            return n;
+        }
+
         public static void onUpdate()
         {
+            sweepPartFiles();   // ★ S10 F7 (#1254): at start, on this thread (off the UI thread); never throws
             try
             {
                 while (running)
@@ -495,10 +583,10 @@ namespace SPIXI
 
         public static FileTransfer prepareIncomingFileTransfer(FileTransfer transfer)
         {
-            /* ★ S9 A-9 (#1244 / #1245, CONTRACT §1f): an offer above PhotoRules.MaxFileBytes (100 MB) is refused here, before
+            /* ★ S9 A-9 (#1244 / #1245, CONTRACT §1f): an offer above PhotoRules.MaxReceiveBytes (100 MB) is refused here, before
              * anything is created or SetLength reserves the space (acceptFile keeps a second check). The caller treats null
              * as "not accepted" (SingleChatPage.onAcceptFile). Fixed words only. */
-            if (transfer == null || transfer.fileSize > (ulong)PhotoRules.MaxFileBytes)
+            if (transfer == null || transfer.fileSize > (ulong)PhotoRules.MaxReceiveBytes)   // ★ S10 P2 (#1254): the receive cap = the largest tier (100 MB)
             {
                 Logging.warn("File offer refused: above the size cap");
                 return null;
@@ -740,7 +828,7 @@ namespace SPIXI
                 /* ★ S9 A-6 (#1245, CONTRACT §1f): the stored name is the peer's name SANITIZED (PhotoRules.SafeFileName — a
                  * plain leaf on every OS) and C# chooses the final path: Downloads/<safe name>, a collision → "<name> (n)<ext>".
                  * The result is re-checked against the Downloads root before the move (fail-closed). */
-                string safe_name = PhotoRules.SafeFileName(transfer.fileName);
+                string safe_name = S10FixRules.finalLeaf(PhotoRules.SafeFileName(transfer.fileName));   // ★ S10 #46 r1 (M2): never a part-file leaf
                 string final_file_path = Path.Combine(downloadsPath, safe_name);
                 int instance_num = 0;
                 while (File.Exists(final_file_path) && instance_num < 10000)
@@ -891,10 +979,18 @@ namespace SPIXI
                 if (transfer == null)
                     return;
 
+                /* ★ S10 #46 r2 (m-6): already accepted (its part file is open) → nothing: no second part file, no second
+                 * acceptFile to the peer (a double tap, "Download all" over a started photo). */
+                if (transfer.fileStream != null)
+                {
+                    Logging.info("File accept skipped: already in progress");
+                    return;
+                }
+
                 Logging.info("Accepting file");   // ★ S9 A-6: fixed words — the name is the peer's
 
                 // ★ S9 A-9 (#1245): the belt behind prepareIncomingFileTransfer — never reserve more than the cap
-                if (transfer.fileSize > (ulong)PhotoRules.MaxFileBytes)
+                if (transfer.fileSize > (ulong)PhotoRules.MaxReceiveBytes)   // ★ S10 P2 (#1254)
                 {
                     Logging.warn("File accept refused: above the size cap");
                     lock (incomingTransfers)
@@ -907,8 +1003,10 @@ namespace SPIXI
                 transfer.lastTimeStamp = Clock.getTimestamp();
 
                 // ★ S9 A-6 (#1245): the part file is C#'s own name (never the peer's name or uid in a path)
-                Directory.CreateDirectory(downloadsPath);
-                transfer.filePath = Path.Combine(downloadsPath, PhotoRules.partFileName(Guid.NewGuid().ToString("N")));
+                // ★ S10 F7 (#1254): …in Downloads/.partial (created on demand) — completeFileTransfer moves it into the root
+                string partialDir = Path.Combine(downloadsPath, S10FixRules.PartialFolder);
+                Directory.CreateDirectory(partialDir);
+                transfer.filePath = Path.Combine(partialDir, PhotoRules.partFileName(Guid.NewGuid().ToString("N")));
 
                 transfer.fileStream = File.Create(transfer.filePath);
                 transfer.fileStream.SetLength((long)transfer.fileSize);

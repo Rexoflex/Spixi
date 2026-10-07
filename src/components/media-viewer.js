@@ -22,6 +22,9 @@
  *   ArrowLeft / ArrowRight keys and a horizontal swipe; "2 / 7" says where it is. Each page starts the token's
  *   loading state again (the thumbnail invisible under the spinner) and calls onPage(i, item) — the shell asks C# for
  *   that picture (viewImage). One item (or none) = today's viewer, byte-identical.
+ *   ★ S10 F2 (#1254) onReply(i, item) — a PAGED viewer only: a Reply button in the top bar (leading; Save keeps the
+ *   trailing slot) — the viewer closes, then onReply(index, the item on screen) (the shell replies to THAT photo).
+ *   canReplyItem(i, item) → false hides it on that page (#46 n-3); the glyph mirrors in RTL (#46 n-2).
  *   findOpenViewer(token) → the OPEN viewer opened for exactly that token, or null (a closed one is never returned,
  *   so a late push lands nowhere). Without a token the viewer is today's: no loading state, src as given.
  *
@@ -69,9 +72,12 @@ export function openMediaViewer({
   items = null,
   index = 0,
   onPage = null,
+  onReply = null,
+  canReplyItem = null,   // ★ S10 #46 n-3: (i, item) → false hides Reply on that page
   strings = getStrings(),
 } = {}) {
   const pages = Array.isArray(items) ? items.filter((it) => it && it.token) : [];
+  const canReply = pages.length > 1 && typeof onReply === 'function';   // ★ S10 F2
   let at = pages.length > 1 ? Math.max(0, Math.min(pages.length - 1, Number(index) || 0)) : 0;
   if (pages.length > 1) { src = pages[at].src || ''; token = pages[at].token; alt = pages[at].alt || alt; }
   const el = document.createElement('section');
@@ -87,15 +93,35 @@ export function openMediaViewer({
   // (with the top inset), and CLOSE moved to a prominent bottom-centered button
   // (below). A top bar renders only when there's something to show.
   let capEl = null;
-  if (alt || onSave) {
+  let replyBtn = null;
+  const syncReply = () => {
+    if (!replyBtn) return;
+    let okR = true;
+    if (typeof canReplyItem === 'function') { try { okR = !!canReplyItem(at, pages[at]); } catch (_) { okR = false; } }
+    replyBtn.hidden = !okR;
+  };
+  if (alt || onSave || canReply) {
     const bar = document.createElement('div');
     bar.className = 'c-mviewer__bar';
-    if (onSave) {
-      const spacer = document.createElement('span');   // balance the Save button so the caption stays centered
-      spacer.className = 'c-mviewer__spacer';
-      spacer.setAttribute('aria-hidden', 'true');
-      bar.append(spacer);
-    }
+    const spacer = () => {   // balance a one-sided button so the caption stays centered
+      const sp = document.createElement('span');
+      sp.className = 'c-mviewer__spacer';
+      sp.setAttribute('aria-hidden', 'true');
+      return sp;
+    };
+    if (canReply) {
+      const rb = document.createElement('button');
+      rb.type = 'button';
+      rb.className = 'c-mviewer__btn c-mviewer__reply';
+      rb.setAttribute('aria-label', strings.reply || 'Reply');
+      const g = icon('arrow-back-up', { size: 22 });
+      if (document.documentElement.dir === 'rtl') g.style.transform = 'scaleX(-1)';   // n-2: the arrow points inline-start
+      rb.append(g);
+      replyBtn = rb;
+      /* the viewer closes FIRST (its focus restore is synchronous), so the shell's reply strip keeps the focus it gives */
+      rb.addEventListener('click', () => { if (rb.hidden) return; const i = at; const it = pages[i]; dismissOverlay(el); try { onReply(i, it); } catch (_) {} });
+      bar.append(rb);
+    } else if (onSave) bar.append(spacer());
     if (alt) {
       const cap = document.createElement('span');
       cap.className = 'c-mviewer__caption';
@@ -111,7 +137,7 @@ export function openMediaViewer({
       save.append(icon('download', { size: 22 }));
       save.addEventListener('click', () => onSave());
       bar.append(save);
-    }
+    } else if (canReply) bar.append(spacer());
     el.append(bar);
   }
 
@@ -242,6 +268,7 @@ export function openMediaViewer({
       /* ★ #46 M7: a disabled button drops its focus to BODY — hand it to the other arrow, else the close */
       const ae = document.activeElement;
       if ((ae === prev || ae === next) && ae.disabled) { const to = ae === prev ? next : prev; (to.disabled ? close : to).focus({ preventScroll: true }); }
+      syncReply();
       if (!quiet && typeof onPage === 'function') { try { onPage(at, it); } catch (_) {} }
       return true;
     };

@@ -148,3 +148,7 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L98 | An absolute path recorded at send time breaks after an iOS container move (the Sent sweep would delete every older copy): name own files by LEAF and re-root under the current folder. | #1251 (r3) |
 | L99 | A pre-draw block also stops the WebView's own frames (the boot hold could only ever hit its cap): cover natively on the decor view and remove the cover on a signal instead. | #1249 |
 | L100 | MAUI `CapturePhotoAsync` on iOS needs PhotosAddOnly and encodes a PNG on the main thread: use the native picker and our own photo rule off the UI thread. | #1251 (r1 A) |
+| L101 | A pin that feeds the shell a push the real producer never sends proves nothing (the r2 "confirm" push did not exist in C#): build the fixture from what the C# code actually pushes, in its order. | #1257 (r3) |
+| L102 | .NET for Android binds some API-33 int constants as `[Obsolete(error)]` enums and the method takes the ENUM: check `methodmap.csv` / `map.csv` before you cast. | #1257 (r2) |
+| L103 | A cleanup keyed on a file-NAME shape must not cover names a peer can choose: give received files a name that can never match, and run legacy sweeps once. | #1257 (r1 M2) |
+| L104 | A hold that ends after the first frame shows any later re-raster on glass: a short chat (2 rows, 15 ms hold) is the test case for open flashes, not a long one. | #1255 |

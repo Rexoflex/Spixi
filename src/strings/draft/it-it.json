@@ -797,5 +797,17 @@
   "languageReport": "Segnala un problema di traduzione",
   "fileTooBig100": "Questo file supera i 100 MB e non può essere inviato.",
   "fileTooBigIn100": "Questo file supera i 100 MB e non può essere scaricato.",
-  "mediaStorageDenied": "Spixi ha bisogno dell’accesso alla memoria per salvare la foto della fotocamera. Consentilo nelle impostazioni del dispositivo."
+  "mediaStorageDenied": "Spixi ha bisogno dell’accesso alla memoria per salvare la foto della fotocamera. Consentilo nelle impostazioni del dispositivo.",
+  "addPhotos": "Aggiungi foto",
+  "photoStripCount": "{n} di 10",
+  "mediaCaptionTooLong": "Questa didascalia è troppo lunga.",
+  "fileTooBig50": "Questo file supera i 50 MB e non può essere inviato.",
+  "photosDownloadAll": "Scarica tutto ({n})",
+  "photosShowAll": "Mostra tutte le {n} foto",
+  "downloadsSenderFiles": "{n} file",
+  "downloadsSenderFilesOne": "1 file",
+  "downloadsSenderLast": "ultimo {when}",
+  "chatPreviewLines": "Anteprima messaggio",
+  "previewLinesOne": "1 riga",
+  "previewLinesTwo": "2 righe"
 }

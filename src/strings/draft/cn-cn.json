@@ -789,5 +789,17 @@
   "languageReport": "报告翻译问题",
   "fileTooBig100": "此文件超过 100 MB，无法发送。",
   "fileTooBigIn100": "此文件超过 100 MB，无法下载。",
-  "mediaStorageDenied": "Spixi 需要存储权限才能保存相机照片。请在设备设置中允许。"
+  "mediaStorageDenied": "Spixi 需要存储权限才能保存相机照片。请在设备设置中允许。",
+  "addPhotos": "添加照片",
+  "photoStripCount": "{n}/10",
+  "mediaCaptionTooLong": "说明文字太长。",
+  "fileTooBig50": "此文件超过 50 MB，无法发送。",
+  "photosDownloadAll": "全部下载（{n}）",
+  "photosShowAll": "显示全部 {n} 张照片",
+  "downloadsSenderFiles": "{n} 个文件",
+  "downloadsSenderFilesOne": "1 个文件",
+  "downloadsSenderLast": "最近 {when}",
+  "chatPreviewLines": "消息预览",
+  "previewLinesOne": "1 行",
+  "previewLinesTwo": "2 行"
 }

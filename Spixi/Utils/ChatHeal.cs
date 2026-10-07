@@ -18,6 +18,7 @@
  * PURE: generic over the message type; scripts/csh executes it (S7bRulesTests.cs). */
 using System;
 using System.Collections.Generic;
+using IXICore.Streaming;
 
 namespace SPIXI
 {
@@ -67,6 +68,23 @@ namespace SPIXI
         public static bool deleteLeftLast(byte[]? lastId, string? lastText, byte[]? deletedId)
         {
             return lastId != null && deletedId != null && !string.IsNullOrEmpty(lastText) && sameId(lastId, deletedId);
+        }
+
+        /* ★ S10 F3 (#1254): a deleted PHOTO came back as the chats excerpt. Core's delete blanks the row (`message = ""`) and
+         * recomputes lastMessage with `type != standard || text non-empty` (Friend.cs:964-968) — a fileHeader row passes that
+         * test with EMPTY text, so the tombstone of the deleted photo (or an older deleted file) became the excerpt ("Photo").
+         * THE live test, used everywhere Spixi recomputes: an empty text on a standard OR a fileHeader row = deleted. */
+        public static bool isLive(FriendMessageType type, string? text)
+        {
+            return !(string.IsNullOrEmpty(text) && (type == FriendMessageType.standard || type == FriendMessageType.fileHeader));
+        }
+
+        /** ★ S10 F3 (#1254): the deleteLeftLast twin that also sees Core's FILE tombstone — the saved last message IS the deleted
+         *  id AND (its text is still there (the F9 miss) OR it is a fileHeader: Core's own recompute picked the blanked file row,
+         *  Friend.cs:964-972) → the caller replaces it. */
+        public static bool deleteLeftLast(byte[]? lastId, bool lastIsFileHeader, string? lastText, byte[]? deletedId)
+        {
+            return lastId != null && deletedId != null && (!string.IsNullOrEmpty(lastText) || lastIsFileHeader) && sameId(lastId, deletedId);
         }
 
         /** The newest row (from the end) that `isLive` accepts and whose id is not `skipId`, or -1 (then the excerpt is cleared). */

@@ -693,6 +693,7 @@ global-friend-request-connected = Zdaj ste povezani z {0}.
 chat-group-added-you = {0} vas je dodal(a) v to skupino
 chat-group-added-you-noname = Dodani ste bili v to skupino
 chat-group-you-created = Ustvarili ste to skupino
+chat-group-members-see = Člani zdaj vidijo skupino.
 
 global-update-available = Na voljo je nova različica aplikacije Spixi ({0}). Prosimo, posodobite za najboljšo izkušnjo.
 global-modal-external-link-title = Zunanji link

@@ -45,10 +45,11 @@ public class S9FixTests
         Assert.IsFalse(S9FixRules.writesCreatedLine(true, -1, false), "an unknown count → no line");
         Assert.IsFalse(S9FixRules.writesCreatedLine(false, 0, false), "no group → no line");
         Assert.AreEqual("chat-group-you-created", S9FixRules.CreatedKey, "the key");
-        Assert.AreEqual("Du hast diese Gruppe erstellt", S9FixRules.createdLine("Du hast diese Gruppe erstellt"), "the localized text as given");
-        Assert.AreEqual("You created this group", S9FixRules.createdLine(null), "a missing key → the English fallback");
-        Assert.AreEqual("You created this group", S9FixRules.createdLine("  "), "a blank value → the English fallback");
-        Assert.AreEqual("{0}", S9FixRules.createdLine("{0}"), "the text is never formatted (no argument)");
+        // ★ S10 P3 (#1254): createdLine is TWO lines now (line1 + "\n" + line2) — the S10 cases live in S10FixTests.cs
+        Assert.AreEqual("Du hast diese Gruppe erstellt\nX", S9FixRules.createdLine("Du hast diese Gruppe erstellt", "X"), "the localized text as given");
+        Assert.AreEqual("You created this group\nX", S9FixRules.createdLine(null, "X"), "a missing key → the English fallback");
+        Assert.AreEqual("You created this group\nX", S9FixRules.createdLine("  ", "X"), "a blank value → the English fallback");
+        Assert.AreEqual("{0}\nX", S9FixRules.createdLine("{0}", "X"), "the text is never formatted (no argument)");
         Assert.IsTrue(UnreadRule.isSystemLineId(new byte[] { UnreadRule.AddedToGroupLineId }), "the line's id {7} is a system line (no unread)");
     }
 

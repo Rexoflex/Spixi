@@ -294,3 +294,68 @@
    (Telegram-class density; font-size-audit §2). Mobile keeps spacing-12.
    #228: trigger = platform flag (shell boot), not viewport — constant on resize. */
 :root[data-desktop] .c-chatlist-item { padding-block: var(--spacing-8); }
+
+/* ★ S10 P4 (#1254, Damir pick 2B, default 2 lines): "Message preview: 2 lines" (Chat appearance → home.html sets
+   :root[data-preview-lines]). The excerpt becomes ONE inline flow — the sender ("Han Solo: "), the kind glyph and the
+   text wrap together, clamped at 2 lines; a word too long for the line breaks anywhere. Every row keeps the 2-line
+   height (a one-line excerpt leaves the second line empty — the list does not jump row to row), and the trailing
+   column grows with it so the time stays on the name's line and the indicators on the first excerpt line. '1' (or no
+   attribute) = the single ellipsized line above, unchanged. Swipe panels are inset-block 0 — they follow the row. */
+:root[data-preview-lines="2"] .c-chatlist-item .c-excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  min-height: calc(2 * var(--line-height-body-sm));
+}
+:root[data-preview-lines="2"] .c-chatlist-item__right {
+  min-height: calc(var(--row-name-line-height) + 2 * var(--line-height-body-sm));
+}
+:root[data-preview-lines="2"] .c-chatlist-item .c-excerpt__sender,
+:root[data-preview-lines="2"] .c-chatlist-item .c-excerpt__sender-name,
+:root[data-preview-lines="2"] .c-chatlist-item .c-excerpt__text {
+  display: inline;
+  max-width: none;
+  overflow: visible;
+  white-space: normal;
+}
+/* ★ S10 #46 r1 (R3-2, security lens): the flex row isolated each part (flex items are blockified); the inline flow
+   does not — so the peer-chosen name and the peer text are bidi-ISOLATED here, and an RLO / RTL run in one can never
+   reorder the other, the colon or the glyph. */
+:root[data-preview-lines="2"] .c-chatlist-item .c-excerpt__sender-name,
+:root[data-preview-lines="2"] .c-chatlist-item .c-excerpt__text {
+  unicode-bidi: isolate;
+}
+/* ★ S10 #46 r1 (R3-3): the S9 U-05 promise (a long name never hides the message) in the inline flow — a name over 24
+   grapheme clusters (chatlist-item.js SENDER_FLOW_MAX) SHOWS the capped "…" form from data-short; the full name stays
+   in the DOM, visually hidden, so it is the row's accessible name (and the title). The generated text has an empty
+   alt ("/ ''") where the engine supports it, so a screen reader does not read the name twice. */
+/* ★ S10 #46 r2 MINOR-1: only where the engine has the empty-alt `content: … / ''` (WebKit < 17.4 does not — iOS / Mac 15–17.3
+   would read the capped name AND the hidden full name to VoiceOver). Elsewhere the full name flows (no cap). */
+@supports (content: "x" / "") {
+  :root[data-preview-lines="2"] .c-chatlist-item .c-excerpt__sender[data-short]::before {
+    content: attr(data-short) / '';
+    unicode-bidi: isolate;            /* R3-2: the capped name is isolated like the full one (its own rule — a pseudo-element in a selector list) */
+  }
+  :root[data-preview-lines="2"] .c-chatlist-item .c-excerpt__sender[data-short] > .c-excerpt__sender-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+/* the glyph and the typing dots sit on the text's line with the gap the flex row had (spacing-4) */
+:root[data-preview-lines="2"] .c-chatlist-item .c-excerpt > svg {
+  display: inline-block;
+  vertical-align: -3px;             /* sanctioned: 16 px glyph on the body-sm baseline */
+  margin-inline-end: var(--spacing-4);
+}
+:root[data-preview-lines="2"] .c-chatlist-item .c-excerpt__typing {
+  vertical-align: middle;
+  margin-inline-end: var(--spacing-4);
+}

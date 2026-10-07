@@ -28,8 +28,11 @@ export default async function (h) {
     s.push('clearChatsDone');
     await sleep(300);
     const snd = s.d.querySelector('.c-excerpt__sender');
+    /* ★ S10 P4 (#1254) re-base: U-05 is the ONE-line excerpt ("Message preview: 1 line"); the default is now 2 lines,
+       where the sender flows inline with the text (pins-s10/d-preview) — so this reads the 1-line mode explicitly. */
+    s.d.documentElement.dataset.previewLines = '1';
     ok(!!snd && snd.textContent === 'Hannah:' && cs(snd).flexShrink === '0' && cs(snd).maxWidth === '40%',
-      '★ S9 U-05 (#1247): a group excerpt sender does not shrink and caps at 40% — ' + JSON.stringify(snd && [snd.textContent, cs(snd).flexShrink, cs(snd).maxWidth]));
+      '★ S9 U-05 (#1247): a group excerpt sender does not shrink and caps at 40% (the 1-line preview) — ' + JSON.stringify(snd && [snd.textContent, cs(snd).flexShrink, cs(snd).maxWidth]));
     s.dom.window.close();
 
     /* —— settings.html: Privacy icons = A —— */

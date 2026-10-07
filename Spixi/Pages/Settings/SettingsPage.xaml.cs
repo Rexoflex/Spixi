@@ -1770,7 +1770,7 @@ namespace SPIXI
                 {
                     if (downloadsSendersReady)   // (#46 r4 R4-2) before the scan answers, the index is the PREVIOUS screen's — push nothing
                     {
-                        Utils.sendUiCommand(this, "setDownloadSenders", DownloadsIndex.sendersJson(paths));
+                        pushDownloadSenders(paths, screen);   // ★ S10 #46 r1 (N3): off the UI thread, one snapshot
                     }
                     return;
                 }
@@ -1782,7 +1782,7 @@ namespace SPIXI
                         {
                             return;   // (#46 r2 R2-10) superseded — the newer build pushes
                         }
-                        string json = DownloadsIndex.sendersJson(paths);
+                        DownloadsIndex.pushJson(paths, out string json, out string avatars);   // ★ S10 #46 r1 (N3): ONE snapshot, off the UI thread
                         MainThread.BeginInvokeOnMainThread(() =>
                         {
                             if (screen != page.downloadsScreen)
@@ -1791,6 +1791,7 @@ namespace SPIXI
                             }
                             page.downloadsSendersReady = true;
                             Utils.sendUiCommand(page, "setDownloadSenders", json);
+                            Utils.sendUiCommand(page, "setDownloadAvatars", avatars);   // ★ S10 F7 (#1254): right after the senders
                         });
                     }
                     catch (Exception ex)
@@ -1801,11 +1802,39 @@ namespace SPIXI
             }
         }
 
+        /** ★ S10 #46 r1 (N3 / R3-18): the delete re-push (no rescan) — senders + avatars from ONE index snapshot, built OFF
+         *  the UI thread (the avatar files are read there), pushed on the main thread only if the screen is still this one. */
+        private void pushDownloadSenders(List<string> paths, int screen)
+        {
+            SettingsPage page = this;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    DownloadsIndex.pushJson(paths, out string json, out string avatars);
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        if (screen != page.downloadsScreen || !page.downloadsSendersReady)
+                        {
+                            return;
+                        }
+                        Utils.sendUiCommand(page, "setDownloadSenders", json);
+                        Utils.sendUiCommand(page, "setDownloadAvatars", avatars);   // ★ S10 F7 (#1254): right after the senders
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("loadDownloads: the sender push failed (" + ex.GetType().Name + ")");   // the type only
+                }
+            });
+        }
+
         public void onDeleteDownloads()
         {
             try
             {
                 TransferManager.resetIncomingTransfers();
+                TransferManager.deleteAllPartFiles();   // ★ S10 #46 r1 (M3): the .partial part files go too (not counted)
                 int file_count = 0;
                 foreach (var file in Directory.EnumerateFiles(Path.Combine(Config.spixiUserFolder, "Downloads")))
                 {

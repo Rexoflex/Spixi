@@ -895,3 +895,21 @@ payment, call or local system row (the receipt is still sent). **For you to judg
 - A-14: the Mac now uses the iOS WebView handler (`Spixi.csproj` target `SpixiMacUsesAppleWebViewHandler`) — a WebView setting change on Mac.
 - C-04: mini-app `installFromUrl` = https only, await + timeout, streamed with a 100 MB cap, GUID temp name (no new fetch).
 - CORE-10 (push mailbox drain) is still a DRAFT: no long-offline capture yet (#1243).
+
+## Session 10 addenda (2026-10-07, #1254–#1257) — the S9 walk fix round (no Ixian-Core change, no wire change)
+
+### 🟡 NEW verbs / pushes (your approval asked, T1 B-32)
+| Verb / push | Where | What it can do |
+|---|---|---|
+| `ixian:mediaDrop:<16hex>:<k>` | chat | removes ONE prepared photo (key = one digit) from the OPEN batch with that id; C# deletes the file it recorded for that key; answers `mediaDropped(id, k)` |
+| `mediaDropped(id, k)` (push) | chat | tells the shell the drop was done (C#'s own id + digit) |
+| `setDownloadAvatars([[s<n>, dataUri]])` (push) | Settings → Downloads | the From sheet's avatars: data URIs C# builds from its OWN avatar files; opaque per-scan keys, no address |
+| append batches | chat | a photo pick while a batch is open ADDS to it (≤ 10); a send skips a key already dropped |
+
+### Other C# (judge)
+| Item | What |
+|---|---|
+| `android.permission.VIBRATE` | a NORMAL permission; used only when the view haptic is refused and the system touch feedback is not OFF (API 29+, API 33+ USAGE_TOUCH) |
+| `Downloads/.partial` | incoming part files move out of the Downloads root; a one-time legacy sweep of root part files (marker `.partial/.root-swept`); a 24 h sweep of part-shaped names only, never through a reparse point; a received file whose name has the part shape gets a `_` prefix |
+| 50 MB free send cap | `PhotoRules.maxFileBytes(FileTier.Free)` = 50 MiB on send; the receiver accepts up to `MaxReceiveBytes` = 100 MiB (the largest tier) |
+| Chat WebView background | the Android chat's MAUI WebView background is no longer written around the open hold (a write reached the native WebView and re-rastered it — the "new added" flash, #1255) |

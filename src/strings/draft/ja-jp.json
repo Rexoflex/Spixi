@@ -790,5 +790,17 @@
   "languageReport": "翻訳の問題を報告",
   "fileTooBig100": "このファイルは 100 MB を超えているため送信できません。",
   "fileTooBigIn100": "このファイルは 100 MB を超えているためダウンロードできません。",
-  "mediaStorageDenied": "カメラの写真を保存するには Spixi にストレージへのアクセスが必要です。デバイスの設定で許可してください。"
+  "mediaStorageDenied": "カメラの写真を保存するには Spixi にストレージへのアクセスが必要です。デバイスの設定で許可してください。",
+  "addPhotos": "写真を追加",
+  "photoStripCount": "{n} / 10",
+  "mediaCaptionTooLong": "キャプションが長すぎます。",
+  "fileTooBig50": "このファイルは 50 MB を超えているため送信できません。",
+  "photosDownloadAll": "すべてダウンロード（{n}）",
+  "photosShowAll": "{n} 枚の写真をすべて表示",
+  "downloadsSenderFiles": "{n} 個のファイル",
+  "downloadsSenderFilesOne": "1 個のファイル",
+  "downloadsSenderLast": "最終 {when}",
+  "chatPreviewLines": "メッセージのプレビュー",
+  "previewLinesOne": "1 行",
+  "previewLinesTwo": "2 行"
 }

@@ -23,6 +23,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
+import { settingsOptionSheet } from './settings-shell.js';   // ★ S10 P4 (#1254): the Message preview picker (same safe edge as below)
 /* ★ Session M (#774): the Colour control is a VALUE ROW that opens the house option sheet,
    not a third tile pair — see createChatAppearance. The direction is safe and already
    travelled: build-demo-bundle.mjs orders settings-shell BEFORE settings-screens, and
@@ -471,6 +472,8 @@ export function createChatAppearance({
   onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
   onChatGround,                  // (id) — shell sets data-chat-ground + persists (★ AUG)
   onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
+  previewLines = '2',            // ★ S10 P4 (#1254): the chat-list excerpt — '1' | '2' lines (spixi.chat.previewlines)
+  onPreviewLines,                // ('1' | '2') — shell persists; home.html reads it. No handler → no row.
   strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
@@ -737,8 +740,45 @@ export function createChatAppearance({
   /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
      does not exist, so only two are appended. A live theme flip re-renders this whole
      screen (settings.html onApplied), which is what keeps the order correct. */
+  /* ★ S10 P4 (#1254, Damir: 2B flow, default 2 lines): "Message preview" — a single value row under Text size (the
+     Canvas row's card shape) that opens the house option sheet: "1 line" / "2 lines". The chats list (home.html)
+     reads the stored value; nothing in THIS document paints a chat row. */
+  let previewSec = null;
+  if (onPreviewLines) {
+    const lineOpts = [
+      { value: '1', label: strings.previewLinesOne || '1 line' },
+      { value: '2', label: strings.previewLinesTwo || '2 lines' },
+    ];
+    let linesCurrent = previewLines === '1' ? '1' : '2';
+    const lineLabel = (v) => (lineOpts.find((o) => o.value === v) || lineOpts[1]).label;
+    previewSec = document.createElement('div');
+    previewSec.className = 'c-settings__section c-settings-appearance__previewsec';
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'c-settings__row c-settings-appearance__preview-lines';
+    row.setAttribute('aria-haspopup', 'dialog');
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label';
+    lab.textContent = strings.chatPreviewLines || 'Message preview';
+    const val = document.createElement('span');
+    val.className = 'c-settings__row-value';
+    val.textContent = lineLabel(linesCurrent);
+    row.append(lab, val, icon('chevron-right', { size: 18 }));
+    row.addEventListener('click', () => settingsOptionSheet({
+      title: strings.chatPreviewLines || 'Message preview',
+      options: lineOpts, current: linesCurrent, host, strings,
+      commit: (v, ctrl) => {
+        linesCurrent = v;
+        val.textContent = lineLabel(v);
+        onPreviewLines(v);
+        ctrl.done();
+      },
+    }));
+    previewSec.append(row);
+  }
   body.append(sizeSec, styleSec);
   if (groundSec) body.append(groundSec);
+  if (previewSec) sizeSec.after(previewSec);   // ★ S10 P4: right under Text size
 
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));

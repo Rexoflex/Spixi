@@ -14,6 +14,7 @@
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
  * setComposerVoice(el, on) · setComposerRecording(el, state, ms) · getComposerRecording(el) — ★ #1208
  * setComposerRecLevel(el, level) — ★ S8 (#1239): one live-wave bar per C# voiceRecLevel push
+ * setComposerMedia(el, n, { maxLength, onTooLong }) — ★ S10 P1 (#1254): the media strip's photo count
  *
  * maxLength (A7, #302 — legacy parity for the 64 000-char guard, legacy
  *   js/chat.js:401-409): 0 = off (default, byte-for-byte today's behaviour).
@@ -96,7 +97,13 @@ export function createComposer({
      newlines should go through. Legacy counted untrimmed innerText — this is the
      same rule, minus that off-by-whitespace. */
   const textLen = () => input.value.trim().length;
-  const overLimit = () => maxLength > 0 && textLen() > maxLength;
+  /* ★ S10 P1 (#1254): while the media strip holds photos the text is the CAPTION — its own (smaller) cap wins */
+  const mediaN = () => (composerMedia.get(el) || { n: 0 }).n;
+  const capMax = () => {
+    const m = composerMedia.get(el);
+    return m && m.n > 0 && m.maxLength > 0 ? (maxLength > 0 ? Math.min(maxLength, m.maxLength) : m.maxLength) : maxLength;
+  };
+  const overLimit = () => capMax() > 0 && textLen() > capMax();
 
   /* The counter is the honest way to communicate the limit: it says the number in
      every locale for free, and it appears BEFORE the user commits — the realistic
@@ -104,9 +111,10 @@ export function createComposer({
      bad path. Hidden below 90% so it costs nothing in normal use. */
   let counter = null;
   const syncCounter = () => {
-    if (!maxLength) return;
+    const max = capMax();
+    if (!max) { if (counter) { counter.remove(); counter = null; } return; }
     const len = textLen();
-    const show = len > maxLength * 0.9;
+    const show = len > max * 0.9;
     if (!show) { if (counter) { counter.remove(); counter = null; } return; }
     if (!counter) {
       counter = document.createElement('span');
@@ -114,8 +122,8 @@ export function createComposer({
       counter.setAttribute('aria-hidden', 'true');   // the blocked-send toast carries this for SRs
       field.append(counter);
     }
-    const over = len > maxLength;
-    counter.textContent = (over ? '−' : '') + Math.abs(maxLength - len).toLocaleString();
+    const over = len > max;
+    counter.textContent = (over ? '−' : '') + Math.abs(max - len).toLocaleString();
     if (over) counter.setAttribute('data-over', ''); else counter.removeAttribute('data-over');
   };
 
@@ -153,7 +161,7 @@ export function createComposer({
     /* ★ #1208 (S7, the #64 slot ON): the mic shows only when the shell says voice is on (setComposerVoice — setCaps
        `voice`), the field is EMPTY and NO reply / edit context is up (a voice message is never a reply and never an
        edit; with a context up the disc stays Send, disabled on an empty field). */
-    if (composerVoice.get(el) && !ctxNow && !hasText()) {
+    if (composerVoice.get(el) && !ctxNow && !hasText() && !mediaN()) {   // ★ S10 P1: photos in the strip → the disc is SEND
       micIcon();
       action.dataset.mode = 'mic';
       action.disabled = false;
@@ -161,7 +169,7 @@ export function createComposer({
     } else {
       sendIcon();
       action.dataset.mode = 'send';
-      action.disabled = !hasText() || overLimit();
+      action.disabled = (!hasText() && !mediaN()) || overLimit();   // ★ S10 P1: ≥ 1 photo in the strip sends with no text
       action.setAttribute('aria-label', strings.send || 'Send');
     }
   };
@@ -177,10 +185,19 @@ export function createComposer({
 
   const send = () => {
     const text = input.value.trim();
-    if (!text) return;
+    if (!text && !mediaN()) return;   // ★ S10 P1: the strip's photos go with an empty caption
     // A7: bail BEFORE onSend and BEFORE the clear — the text stays on screen, the
     // caret stays, the draft stays. Both entry paths (Enter and the action button)
     // funnel through here, so this one return covers them.
+    /* ★ S10 P1: a CAPTION over the strip's cap (MEDIA_CAPTION_MAX) bails the same way, with the shell's caption toast */
+    const media = composerMedia.get(el);
+    if (media && media.n > 0 && media.maxLength > 0 && text.length > media.maxLength) {
+      const cb = media.onTooLong || onTooLong;
+      if (cb) { try { cb(text.length, media.maxLength); } catch (_) {} }
+      syncCounter();
+      syncAction();
+      return;
+    }
     if (maxLength > 0 && text.length > maxLength) {
       if (onTooLong) { try { onTooLong(text.length, maxLength); } catch (_) {} }
       syncCounter();
@@ -636,6 +653,19 @@ const MIC_GUARD_MS = 800;              // one start per tap burst (C# answers we
 const SEND_GUARD_MS = 400;             // the mic tap's twin cannot be a send
 const REC_PENDING_MS = 4000;           // ✕ / ➤ wait this long for C#'s answer, then re-arm (never a dead bar)
 const VOICE_REC_MAX_MS = 30000;        // ★ #1208 (1): 30 s total — the same number as VoiceCodec.MaxDurationMs
+
+/* ★ S10 P1 (#1254): the media strip's photo count. n ≥ 1 → the trailing disc is Send (never the mic) and is enabled with
+   an empty field; the text is the caption: `maxLength` caps it (over it = no send, `onTooLong(len, max)` — the shell's
+   caption toast). n = 0 → today's composer. */
+const composerMedia = new WeakMap();   // composer el → { n, maxLength, onTooLong }
+/** setComposerMedia(el, n, { maxLength, onTooLong }) — the shell's strip state (0 = no strip). */
+export function setComposerMedia(el, n, { maxLength = 0, onTooLong = null } = {}) {
+  if (!el) return;
+  const c = Math.max(0, Number(n) || 0);
+  if (c) composerMedia.set(el, { n: c, maxLength: Number(maxLength) || 0, onTooLong });
+  else composerMedia.delete(el);
+  resyncComposer(el);
+}
 
 /** setComposerVoice(el, on) — the shell's answer to "may this chat record?" (setCaps `voice` and the room). */
 export function setComposerVoice(el, on) {

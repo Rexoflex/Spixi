@@ -8595,7 +8595,7 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      picks #46 r1 fixes (MEASURED): 866 140 → 871 075 (+4 935: the live-only accent + reflush keep, the still ring after 30 s,
      the overlaid seconds-left hint track, the 40-bar fit, the reopen-from-on-screen strip) → CHAT 848 → 853; 852 would leave
      404, 853 leaves 1 428 (after the r2 / r3 lead fixes: 872 044 chars). Stated. */
-  const CHAT_KB_CEIL = 885,   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 560;
+  const CHAT_KB_CEIL = 900,   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 560;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -13099,7 +13099,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
          conversation under an open tray. */
       /* ★ 7b (#1219) re-based: a FIFTH, the composer's reply / edit strip (Back closes it first) — re-synced by a
          MutationObserver on the composer's data-ctx */
-      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect\s*\|\| !!chatSendView\s*\|\| \(composerEl && isAttachTrayOpen\(composerEl\)\)\s*\|\| \(composerEl && !!getComposerContext\(composerEl\)\);/.test(nc(txt))
+      && /return document\.body\.dataset\.overlayOpen !== undefined\s*\|\| box\.dataset\.overlayOpen !== undefined\s*\|\| !!channelDropdown \|\| !!chatSelect\s*\|\| !!chatSendView\s*\|\| \(composerEl && isAttachTrayOpen\(composerEl\)\)\s*\|\| \(composerEl && !!getComposerContext\(composerEl\)\)\s*\|\| !!mediaStrip;/.test(nc(txt))   /* ★ S10 P1 re-base (#1254): the open strip counts (behaviour: pins-s10/c-strip.mjs) */
       && /new MutationObserver\(syncChatOverlay\)\.observe\(composerEl, \{ subtree: true, attributes: true, attributeFilter: \['data-ctx'\] \}\)/.test(txt),
       'N51 (' + label + '): the mirror covers body[data-overlay-open], the BOX host (loop A-2: the reactions inspect sheet mounts on #messages — dead until C8, covered now) and the THREE off-stack surfaces (+ the #705 attach tray)');
   }
@@ -13108,7 +13108,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
      (the tile that opens the cover closes the tray first), so their relative order is
      only a tie-break. The order is channel → stack → tray → cover → selection. Same
      shape in the edge swipe (pinned below). */
-  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(closeAttachTrayIfOpen\(\)\) return;\s*if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*if \(closeComposerCtxForBack\(\)\) return;\s*syncChatOverlay\(\);\s*\}/.test(chatNc),   // ★ 7b (#1219) re-based: the strip is the last arm before the heal
+  ok(/chatBack\(\) \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}\s*const dismiss = window\.Spixi && window\.Spixi\.dismissTopOverlay;\s*if \(dismiss && dismiss\(\)\) return;\s*if \(closeAttachTrayIfOpen\(\)\) return;\s*if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(chatSelect\) \{\s*if \(box\.dataset\.selecting === undefined\) \{ chatSelect = null; syncChatOverlay\(\); return; \}\s*exitChatSelect\(\);\s*return;\s*\}\s*if \(closeComposerCtxForBack\(\)\) return;\s*if \(closeMediaSheetIfOpen\(\)\) return;\s*syncChatOverlay\(\);\s*\}/.test(chatNc),   /* ★ S10 P1 re-base: the media strip closes after the reply / edit strip */   // ★ 7b (#1219) re-based: the strip is the last arm before the heal
     '★ N51: chatBack arms in the edge-swipe order (#328 precedent: channel → stack → tray (#705) → cover → selection) and EVERY arm self-heals a stale mirror — incl. the loop A-1 belt on the select arm (a dead handle re-syncs instead of eating every press)');
   ok(/if \(dismiss && dismiss\(\)\) return;\s*if \(closeAttachTrayIfOpen\(\)\) return;\s*if \(chatSelect\) \{ exitChatSelect\(\); return; \}/.test(chatNc),
     '★ #705: the iOS edge swipe closes the attach tray in the SAME order as chatBack (after the stack, before selection) — one gesture grammar, two entry points');
@@ -24819,7 +24819,7 @@ console.log('L3 (#706): edge-back — the recogniser executed + every shell\'s c
     const ch = stripCode(rdF('src/shells/chat.html'));
     ok(!/function edgeSwipeBack\(\)/.test(ch) && !/tracking = t\.clientX <= 24;/.test(ch)
        && /attachEdgeBack\(\{ onBack: \(\) => \{\s*if \(channelDropdown\) \{ closeChannelSelector\(\); return; \}/.test(ch)
-       && /if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(closeComposerCtxForBack\(\)\) return;\s*bridge\.send\('ixian:back'\);\s*\} \}\);/.test(ch),   // ★ 7b (#1219) re-based: the reply / edit strip before the pop
+       && /if \(chatSendView\) \{ closeSendTakeover\(\); return; \}\s*if \(closeComposerCtxForBack\(\)\) return;\s*if \(closeMediaSheetIfOpen\(\)\) return;\s*bridge\.send\('ixian:back'\);\s*\} \}\);/.test(ch),   /* ★ S10 P1 re-base: the edge swipe closes the strip before the pop */   // ★ 7b (#1219) re-based: the reply / edit strip before the pop
       '★★ #706 [chat]: the inline recogniser is GONE (one implementation, not two) and the chain is chatBack\'s order with the money cover included: channel → stack → tray → selection → cover → ixian:back');
     const cd = stripCode(rdF('src/shells/contact_details.html'));
     ok(/if \(cdSendView\) \{ closeSendTakeover\(\); return; \}\s*bridge\.send\('ixian:back'\);/.test(cd),
@@ -30325,7 +30325,7 @@ console.log('★★ handover-gate fix batch — the security pins');
     const keysTested = storAll.map((h) => [...h.matchAll(/([A-Z_]+_KEY|[A-Z_]+_PREFIX|'spixi\.[a-z.]+')/g)].map((x) => x[1]).join('+'));
     const retiredKey = storAll.some((h) => /spixi\.exdel|spixi\.landtab|spixi\.backup|LANDTAB|EXDEL|BACKUP_STAMP/.test(h));
     const storAnyForm = (homeCode.match(/addEventListener\s*\(\s*(['"`])storage\1/g) || []).length;   // every spelling incl. the spaced one
-    ok(storAll.length === 3 && storHandlers.length === 3 && storAnyForm === 3 && !onstorage && !retiredKey && stor.length > 40 && /e\.key !== PINS_KEY/.test(stor) && /pinnedChats\.clear\(\)/.test(stor),
+    ok(storAll.length === 4 && storHandlers.length === 4 && storAnyForm === 4 &&   /* ★ S10 P4 re-base (#1254): + the head script's spixi.chat.previewlines listener (behaviour: pins-s10/d-preview.mjs) */ !onstorage && !retiredKey && stor.length > 40 && /e\.key !== PINS_KEY/.test(stor) && /pinnedChats\.clear\(\)/.test(stor),
       '★ gate 5 (derived: ' + storAll.length + ' storage listeners, keys ' + keysTested.join(' · ') + '; retired families absent): home.html re-seeds pinnedChats from the `storage` event keyed on PINS_KEY. A storage event never fires in the document that wrote the value, so this cannot fight savePins — and without it a home document that was open during a contact-details removal writes the address back');
   }
 
@@ -41161,7 +41161,7 @@ console.log('#1101–#1107 — session 1');
         /* (#46 r5 R5-3) every lookup re-checks the file: a path reused while the screen is open has no sender */
         && /return hit != null && FileMatch\.matches\(hit\.message, full\) \? hit : null;/.test(di) && /message = fm \};/.test(di)
         && /return full != null && File\.Exists\(full\) && fileMatches\(fm, full\) \? full : null;/.test(stripCode(rdX('Spixi/Utils/SharedItems.cs'))),   /* (#46 r4 R4-1/R4-4) a reused path is not this message's file */
-      readyGate: /if \(downloadsSendersReady\)\s*\{\s*Utils\.sendUiCommand\(this, "setDownloadSenders", DownloadsIndex\.sendersJson\(paths\)\);/.test(load) && /page\.downloadsSendersReady = true;/.test(load)
+      readyGate: /if \(downloadsSendersReady\)\s*\{\s*pushDownloadSenders\(paths, screen\);/.test(load)   /* ★ S10 #46 r1 re-base: the delete re-push builds senders + avatars off the UI thread (behaviour: pins-s10/b-wiring.mjs) */ && /page\.downloadsSendersReady = true;/.test(load)
         && /if \(rescan\)\s*\{\s*downloadsSendersReady = false;\s*downloadsScreen\+\+;\s*\}\s*int screen = downloadsScreen;/.test(load)
         && /if \(screen != page\.downloadsScreen\)\s*\{\s*return;\s*\}\s*page\.downloadsSendersReady = true;/.test(load),   /* (#46 r4 R4-2, r5 R5-4) */
       noBots: /if \(f == null \|\| f\.bot \|\| \(f\.type != FriendType\.Normal && f\.type != FriendType\.Group\)\)\s*\{\s*continue;/.test(di),   /* (#46 r1 M4) */
@@ -41189,7 +41189,7 @@ console.log('#1101–#1107 — session 1');
     const pick = async (label) => {
       fromChip.click();
       await sleep(60);
-      const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => o.textContent.trim() === label);
+      const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => ((o.querySelector('.c-settings__opt-label') || {}).textContent || '').trim() === label);   /* ★ S10 F7 re-base: a rich row's text includes the sub line — match the label */
       if (opt) opt.click();
       await sleep(400);
     };
@@ -41220,7 +41220,7 @@ console.log('#1101–#1107 — session 1');
     /* (#46 r1 M32) the sheet lists Everyone first, then the senders SORTED */
     fromChip.click();
     await sleep(60);
-    const order = [...W.document.querySelectorAll('.c-settings__opt')].map((o) => o.textContent.trim());
+    const order = [...W.document.querySelectorAll('.c-settings__opt')].map((o) => ((o.querySelector('.c-settings__opt-label') || {}).textContent || '').trim());   /* ★ S10 F7 re-base: the label only */
     r.sortedSheet = order.join() === 'Everyone,Bob,Zara';   /* the list order is Zara, Bob — the sheet sorts */
     W.Spixi.dismissTopOverlay && W.Spixi.dismissTopOverlay();
     await sleep(400);
@@ -41262,7 +41262,7 @@ console.log('#1101–#1107 — session 1');
     const chipQ = W.document.querySelector('.c-settings-dl__from-btn');   /* G-5 re-base */
     if (chipQ) chipQ.click();   /* (#46 r2 R2-5) */
     await sleep(60);
-    const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => o.textContent.trim() === 'Ana');
+    const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => ((o.querySelector('.c-settings__opt-label') || {}).textContent || '').trim() === 'Ana');   /* ★ S10 F7 re-base */
     if (opt) opt.click();
     await sleep(400);
     list();   // the C# re-push after a delete (clearFiles + addFile…), no new setDownloadSenders yet
@@ -41616,7 +41616,7 @@ console.log('#1101–#1107 — session 1');
     };
     if (btn) btn.click();
     await sleep(60);
-    const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => o.textContent.trim() === 'Bob');
+    const opt = [...W.document.querySelectorAll('.c-settings__opt')].find((o) => ((o.querySelector('.c-settings__opt-label') || {}).textContent || '').trim() === 'Bob');   /* ★ S10 F7 re-base */
     if (opt) opt.click();
     await sleep(400);
     r.filtered = count() === '1 file' && /From: Bob/.test(btn ? btn.textContent : '') && btn.hasAttribute('data-active');
@@ -42191,6 +42191,7 @@ await (await import(new URL('./pins-s9/a2-wiring.mjs', import.meta.url))).defaul
 for (const mod of ['a1-wiring', 'a3-wiring']) await (await import(new URL('./pins-s9/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 A1 media C# wiring · A3 S8 fixes + desktop + links (pure rules: scripts/csh/S9MediaTests.cs, S9FixTests.cs)
 for (const mod of ['b1-attach', 'b1-sheet', 'b1-grid', 'b1-misc', 'b1-a11y', 'b1-u03', 'b1-react']) await (await import(new URL('./pins-s9/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 B1 chat shell (b1-kit.mjs = the shared boot, not a module)
 for (const mod of ['b2-copy', 'b2-lang', 'b2-dl', 'b2-polish', 'b2-home', 'b2-f1', 'b2-toggle']) await (await import(new URL('./pins-s9/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 B2 other shells + copy (b2-kit.mjs = the shared boot, not a module)
+for (const mod of ['a-wiring', 'b-wiring', 'c-strip', 'c-readd', 'c-grid', 'c-toast', 'd-from', 'd-preview']) await (await import(new URL('./pins-s10/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S10 (#1254) — a = C# media/F1/F4/P2 · b = C# F3/F6/F7/P3 · c = chat shell strip/grid/toast · d = From sheet + preview lines (d-kit.mjs = a boot helper, not a module; pure rules: scripts/csh/S10MediaTests.cs, S10FixTests.cs)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

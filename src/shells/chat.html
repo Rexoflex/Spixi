@@ -136,7 +136,7 @@
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/media-bubble.css"><!-- GIF/image tiles (remote media URLs) -->
 <link rel="stylesheet" href="../styles/components/media-viewer.css">
-<link rel="stylesheet" href="../styles/components/media-send-sheet.css"><!-- ★ S9 (#1244): the photo preview sheet -->
+<link rel="stylesheet" href="../styles/components/media-strip.css"><!-- ★ S10 P1 (#1254): the paste / attach strip (replaces the S9 preview sheet) -->
 <!-- ★ W-a (Damir F5 2026-08-23, root cause): the in-chat Pay compose (W5/#523) and
      its review sheet (.c-sendreview) render UNSTYLED without this link — default
      white input on both themes, name + address run-on, review rows concatenated.
@@ -404,6 +404,8 @@
     text-align: center;
   }
   .chat-event__chip svg { flex: none; color: var(--icon-accent); }
+  /* ★ S10 P3 (#1254): the two-line group line — the "\n" is a line break, and a two-line pill is a rounded card */
+  .chat-event__chip[data-lines] { white-space: pre-line; border-radius: var(--radius-16); }
   /* attach → App-invite picker (inside a c-sheet) */
   /* ★ #1085 (office walk OV.23, Damir: "should be nicer, show apps; many apps → an entire
      screen with search"): each row = the app's own icon tile + name + publisher; more than
@@ -730,7 +732,8 @@
     createImageFileBubble, isPhotoFileName, setImageFileThumb, resetPhotoQuiet,   // ★ A5 #1124 (#1133): an image file on the media tile
     createMediaBubble, setMediaSrc, setTileHead, openMediaViewer,
     findOpenViewer,                 // ★ #1166 V-3: the viewer a viewerImage push answers (media-viewer.js)
-    openMediaSendSheet, closeMediaSendSheet,   // ★ S9 (#1244): the photo preview sheet (media-send-sheet.js)
+    openMediaStrip, MEDIA_CAPTION_MAX,   // ★ S10 P1 (#1254): the paste / attach strip (media-strip.js — the S9 sheet is gone)
+    setComposerMedia,               // ★ S10 P1: the composer's strip state — Send with photos, the caption cap (composer.js)
     createPhotoGridBubble, addPhotoGridCell,   // ★ S9 (#1244 G = A): the photo group bubble (media-bubble.js)
     timeOpts, docLocale,            // ★ S9 a11y (#1206): the row's accessible name says its time like the bubble does (timestamp.js)
     p1Log,                          // ★ S9 (8-GROW-A): the dev-only [P1] grow line (p1.js; no-op unless <html data-p1>)
@@ -1660,12 +1663,19 @@
     fileThumbChars -= old.length;
   }
   const FILE_THUMB_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
-  /* ★ S9 (#1244) — the photo preview sheet's input rules (mediaPicked). */
-  const MEDIA_BATCH_RE = /^[0-9a-f]{16}$/i;
+  /* ★ S9 (#1244) — the photo batch's input rules (mediaPicked). ★ S10 P1 (#1254): the batch shows in the STRIP. */
+  const MEDIA_BATCH_RE = /^[0-9a-f]{16}$/;   // ★ S10 #46 n-6: lower case only, as C#'s isId16
   const MEDIA_KEY_RE = /^[0-9]$/;
   const MEDIA_JSON_MAX = 10 * (FILE_THUMB_MAX + 200);
   const MEDIA_ERROR_TONE = { tooBig: 'error', decode: 'error', clipboardEmpty: '', cameraDenied: '', storageDenied: '', tooMany: '', fileTooBig: 'error', fileTooBigIn: 'error' };
-  let mediaSheet = null;   // the open preview sheet (one batch at a time)
+  let mediaStrip = null;   // ★ S10 P1 (#1254): { id, ctrl, sigs, dropped } — the open strip (one batch at a time)
+  /* ★ S10 #46 m-1: the ids of batches this document ENDED (sent / cancelled) — a late mediaPicked for one is ignored */
+  const endedBatches = [];
+  const MEDIA_ENDED_KEEP = 8;
+  function rememberEndedBatch(id) {
+    if (endedBatches.indexOf(id) === -1) endedBatches.push(id);
+    while (endedBatches.length > MEDIA_ENDED_KEEP) endedBatches.shift();
+  }
   function parseMediaItems(json) {
     const t = typeof json === 'string' ? json : '';
     if (!t || t.length > MEDIA_JSON_MAX) return [];
@@ -1679,9 +1689,12 @@
       const k = typeof it.k === 'string' ? it.k : '';
       const thumb = typeof it.thumb === 'string' ? it.thumb : '';
       if (!MEDIA_KEY_RE.test(k) || seen.has(k) || it.kind !== 'photo') continue;
-      if (thumb && (thumb.length > FILE_THUMB_MAX || !FILE_THUMB_RE.test(thumb))) continue;   // ★ S9 #46 M3: "" (C# made no preview) = a glyph tile, kept
+      /* ★ S9 #46 M3: "" (C# made no preview) = a glyph tile, kept · ★ S10 #46 R3-14: a thumb that is not C#'s vetted
+         data: JPEG (a remote URL, another type, too long) is NEVER loaded — the photo stays, as the glyph tile */
+      const ok = !!thumb && thumb.length <= FILE_THUMB_MAX && FILE_THUMB_RE.test(thumb);
       seen.add(k);
-      out.push({ k, thumb });
+      /* sig = the item as C# described it — a same-id push repeating a just-dropped key with the same sig is stale (m-2) */
+      out.push({ k, thumb: ok ? thumb : '', sig: [thumb, it.w, it.h, it.kb].map((x) => String(x == null ? '' : x)).join('|') });
     }
     return out;
   }
@@ -1703,10 +1716,42 @@
     try { items = Array.from(cd.items || []); } catch (e) { items = []; }
     return items.some((it) => !!it && it.kind === 'file' && /^image\//i.test(String(it.type || '')));
   }
-  function closeMediaSheetIfOpen() {
-    const sh = mediaSheet;
-    mediaSheet = null;
-    if (sh) closeMediaSendSheet(sh);   // → its onDismiss → onCancel → ixian:mediaCancel (once — the sheet latches)
+  /* ★ S10 P1 (#1254): the strip leaves; `answer` = the batch is cancelled (ixian:mediaCancel) — a send closes it
+     without one. Every exit (last ✕, Esc, Back, a chat switch, a newer batch, a lock) lands here once. → true if open. */
+  function endMediaStrip(answer) {
+    const ms = mediaStrip;
+    if (!ms) return false;
+    mediaStrip = null;
+    rememberEndedBatch(ms.id);
+    ms.ctrl.close();
+    if (composerEl) setComposerMedia(composerEl, 0);
+    if (answer) bridge.send('ixian:mediaCancel:' + ms.id);
+    syncChatOverlay();
+    return true;
+  }
+  function closeMediaSheetIfOpen() { return endMediaStrip(true); }
+  /* ★ S10 #46 m-3: the last ✕ and Escape leave focus in the composer field (never on the body) */
+  function focusComposerInput() {
+    const inp = composerEl && composerEl.querySelector('.c-composer__input');
+    if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }
+  }
+  /* ★ S10 P1: the composer text is the CAPTION — over MEDIA_CAPTION_MAX it does not send (composer.js) and says so */
+  const mediaCaptionCap = {
+    maxLength: MEDIA_CAPTION_MAX,
+    onTooLong: () => {
+      const sl = window.SL || {};
+      try { showToast({ text: sl.mediaCaptionTooLong || 'This caption is too long.', tone: 'error', host: overlayHost, strings: sl }); } catch (e) {}
+    },
+  };
+  /* ★ S10 P1: the composer's Send with the strip open → ONE ixian:mediaSend:<id>:<keys in strip order>:<b64url caption>;
+     the strip closes with no mediaCancel. An open REPLY is not carried (the photos are not a reply) and stays up. */
+  function sendMediaStrip(text) {
+    const ms = mediaStrip;
+    if (!ms) return;
+    const ks = ms.ctrl.keys().filter((k) => MEDIA_KEY_RE.test(k));
+    if (!ks.length) { endMediaStrip(true); return; }
+    bridge.send('ixian:mediaSend:' + ms.id + ':' + ks.join(',') + ':' + b64url(text));
+    endMediaStrip(false);
   }
   /** setFileThumb's store (the bounded map above). */
   function storeFileThumb(key, u) {
@@ -2172,7 +2217,7 @@
      quote. CONTRACT (S1 ⇄ S2): { sender, text, kind, tile }; sender is ALWAYS filled (own → "You", the nick, a blind
      room's hidden member, else the header name); tile = { type:'image', src } (a data: preview) · { type:'file', ext }
      (≤ 4 upper-case chars, '' = generic) · { type:'voice' } · null. */
-  function replySourceFor(rec) {
+  function replySourceFor(rec, { single = false } = {}) {   // ★ S10 #46 n-5: single = that ONE photo (a viewer Reply)
     if (!rec || !rec.id) return null;
     const s2 = window.SL || {};
     const kind = replyKindOf(rec);
@@ -2192,6 +2237,10 @@
       if (isPhotoFileName(text)) {
         const src = quoteThumbOf(rec);
         if (src) tile = { type: 'image', src };
+        /* ★ S10 F2 (#1254): the FIRST photo of a grid group of ≥ 2 = the group's quote (the wire is still that photo's
+           quote line) — the strip and the quote box say "📷 {n} photos"; any other member quotes as itself */
+        const n = single ? 0 : groupFirstCount(rec);
+        if (n) text =   /* groupFirstCount answers 0 below two photos (#46 R3-15) */ '\u{1F4F7} ' + (s2.photoCountMany || '{n} photos').split('{n}').join(String(n));
       } else {
         const m = /\.([A-Za-z0-9]{1,4})$/.exec(text);
         tile = { type: 'file', ext: m ? m[1].toUpperCase() : '' };
@@ -2204,6 +2253,12 @@
       if (src) tile = { type: 'image', src };
     }
     return { sender, text, kind, tile };
+  }
+  /* ★ S10 F2: the photo count of the grid group whose FIRST member is `rec` (this render's plan), else 0 */
+  function groupFirstCount(rec) {   // ★ S10 #46 n-4: only the member whose group INDEX is 0 (the photo the wire quotes)
+    const lead = gridMembers.get(String(rec.id));
+    const g = lead && gridGroups.get(lead);
+    return g && g.members.length >= 2 && rec.group && rec.group.index === 0 && String(g.members[0].id) === String(rec.id) ? g.members.length : 0;
   }
   /* ★ 7b (#1215): a preview that lands AFTER the quotes of its row were built (setFileThumb) — patch their tile in place */
   function refreshQuoteTiles(targetId) {
@@ -2843,14 +2898,25 @@
     const first = g.members[0];
     const shown = g.members.slice(0, 4);
     const more = g.members.length - shown.length;
+    /* ★ S10 F2 (#1254): "Download all (n)" while n ≥ 1 members are offers; the "+N" cell is tappable (offers → the same;
+       none → the viewer at the fifth photo). The button re-renders away on the updateFile ticks (offer → progress). */
+    const offers = groupOffers(g);
+    const fill = (t, n) => String(t).split('{n}').join(String(n));
     const row = createPhotoGridBubble({
       direction: first.direction, count: shown.length, more, total: g.members.length,
       caption: g.caption ? String(g.caption.text) : null,
       gutter: mode.isMulti && first.direction === 'received', strings: sl,
+      downloadAll: offers.length,
+      downloadAllLabel: fill(sl.photosDownloadAll || 'Download all ({n})', offers.length),
+      onDownloadAll: () => acceptGroupOffers(g),
     });
     tileHead(row, first, position);   // the group head BEFORE the cells (setTileHead finds the group column first)
+    const onMore = more > 0 ? () => { if (groupOffers(g).length) acceptGroupOffers(g); else openGroupAt(g, 4); } : null;
+    const moreLabel = offers.length ? fill(sl.photosDownloadAll || 'Download all ({n})', offers.length)
+      : fill(sl.photosShowAll || 'Show all {n} photos', g.members.length);
     shown.forEach((m, i) => {
-      const cell = addPhotoGridCell(row, markPausedTile(buildFileRow(m), m), { isLast: i === shown.length - 1 });
+      const last = i === shown.length - 1;
+      const cell = addPhotoGridCell(row, markPausedTile(buildFileRow(m), m), { isLast: last, onMore: last ? onMore : null, moreLabel });
       if (!cell) return;
       gridCells.set(String(m.id), cell);
       if (isMenuableRec(m)) attachMessageMenu(cell, menuOptsFor(m, row));   // the cell's own menu; Select = the group row
@@ -2874,6 +2940,39 @@
         host: box, onToggle: (emoji) => reactToMessage(target.id, emoji), locked: !!mine });
     }
     return row;
+  }
+  /* ★ S10 F2 (#1254): a group's OFFERS = received members not started and not gone, in group order */
+  function groupOffers(g) {
+    return g.members.filter((m) => m.direction === 'received' && m.fstate === 'offer' && !m.transferStarted && !m.localGone && m.fileid);
+  }
+  /* ★ S10 F2: one tap = every offer accepted, in group order, on the existing verb (the bridge sends them one at a time) */
+  const ACCEPT_GUARD_MS = 3000;
+  /* ★ S10 #46 m-6: ONE accept per offer inside ACCEPT_GUARD_MS — the cell tap and Download all share it (C# ignores a second
+     accept anyway); past it a refused offer can be asked again. → true when it asked */
+  function askAccept(rec) {
+    const now = Date.now();
+    if (rec.acceptAskedAt && now - rec.acceptAskedAt < ACCEPT_GUARD_MS) return false;
+    rec.acceptAskedAt = now;
+    bridge.send('ixian:acceptfile:' + rec.fileid);
+    if (rec.group) setTimeout(() => { if (rec.fstate === 'offer' && !rec.transferStarted && gridMembers.has(String(rec.id))) renderLog(); }, ACCEPT_GUARD_MS + 50);   // the disabled Download all comes back
+    return true;
+  }
+  function acceptGroupOffers(g) {
+    if (composerLock) return;
+    for (const m of groupOffers(g)) askAccept(m);
+  }
+  /* ★ S10 F2: the "+N" with no offers left → the viewer on the group from member index `from` (the next viewable one) */
+  function openGroupAt(g, from) {
+    const items = groupViewerItems(g.members[0]);
+    if (!items) {   // ★ S10 #46 m-7: only a member ON this device opens (an offer / a transfer opens nothing)
+      const m = g.members.slice(from).concat(g.members.slice(0, from)).find((x) => x.fstate === 'complete' && !x.localGone);
+      if (m) openFileOrViewer(m);
+      return;
+    }
+    const ids = g.members.map((m) => String(m.id));
+    let at = items.findIndex((it) => ids.indexOf(String(it.token)) >= from);
+    if (at < 0) at = items.length - 1;
+    openGroupViewer(items, at);
   }
   /* the group's photos the viewer can page through: complete, previews on, a preview in hand — in the group's order */
   function groupViewerItems(rec) {
@@ -2916,7 +3015,7 @@
       timestamp: rec.ts,
       status: rec.direction === 'sent' ? (rec.status || null) : null,   // ★ #1028 (P.22): the sent file's tick
       gutter: mode.isMulti && rec.direction === 'received',
-      onAccept: () => bridge.send('ixian:acceptfile:' + rec.fileid),
+      onAccept: () => askAccept(rec),   // ★ S10 #46 m-6: the shared guard
       onOpen: () => openFileOrViewer(rec),   // ★ #1166 V-3: a photo tile showing its preview → the viewer; else the file
       /* #334 (Damir ask): CANCEL an own offer the peer hasn't accepted yet —
        * routes through the DELETE grammar (the only durable local retraction:
@@ -2949,6 +3048,16 @@
    * textContent only. */
   const VIEWER_URI_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
   const VIEWER_URI_MAX = 1700000;   // ≥ the base64 of C#'s ViewerImage.MaxJpegBytes (1 200 000 → 1 600 000) + the prefix
+  /* ★ S9 (#1244) the paged group viewer · ★ S10 F2 (#1254): + Reply — to the photo ON SCREEN (startReply of that member) */
+  function openGroupViewer(items, at) {
+    const replyTo = (it) => { const m = it && model.get(String(it.token)); return m && canReplyRec(m) ? m : null; };
+    openMediaViewer({ host: overlayHost, items, index: at, kind: 'image', strings: window.SL || {},
+      onPage: (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:viewImage:' + it.token); },
+      canReplyItem: (i, it) => !!replyTo(it),   // ★ S10 #46 n-3: Reply only on a photo canReplyRec allows
+      onReply: bridge.cap('reply') ? (i, it) => { const m = replyTo(it); if (m) startReply(m, { single: true }); } : null });   // n-5: THAT photo
+    const it0 = items[at];
+    if (it0) bridge.send('ixian:viewImage:' + it0.token);
+  }
   function openFileOrViewer(rec) {
     if (rec.localGone && rec.fstate === 'complete') return;   // ★ #1190: not on this device (belt: no tap there)
     const id = String(rec.id);
@@ -2957,10 +3066,7 @@
     if (!thumb) { bridge.send('ixian:openfile:' + rec.fileid); return; }
     const items = groupViewerItems(rec);   // ★ S9 (#1244): a photo of a group → the viewer pages through the group
     if (items) {
-      const at = Math.max(0, items.findIndex((it) => it.token === id));
-      openMediaViewer({ host: overlayHost, items, index: at, kind: 'image', strings: window.SL || {},
-        onPage: (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:viewImage:' + it.token); } });
-      bridge.send('ixian:viewImage:' + id);
+      openGroupViewer(items, Math.max(0, items.findIndex((it) => it.token === id)));
       return;
     }
     openMediaViewer({ host: overlayHost, src: thumb, token: id, kind: 'image', alt: rec.name || '', strings: window.SL || {} });
@@ -3164,6 +3270,8 @@
     } catch (e) { /* glyph optional */ }
     const line = document.createElement('span');
     line.textContent = parts ? (parts[0] + display + parts[1]) : rec.text;
+    /* ★ S10 P3 (#1254): C#'s created line is two lines joined by "\n" (S9FixRules.createdLine) — the chip keeps the break */
+    if (!parts && /\n/.test(String(rec.text || ''))) chip.dataset.lines = '';
     chip.append(line);
     row.append(chip);
     return row;
@@ -3779,6 +3887,7 @@
   }
   function canEditRec(rec) {
     if (!bridge.cap('edit') || !rec || composerLock) return false;
+    if (mediaStrip) return false;                          // ★ S10 P1 (#1254): the field holds a CAPTION — no edit while the strip is open
     if (composerEl && getComposerRecording(composerEl)) return false;   // ★ #46 r1 (B m-4): no edit while the recording bar is up (Edit hidden)
     if (rec.direction !== 'sent' || (rec.kind || 'text') !== 'text' || rec.eventChip) return false;
     if (isVoiceRec(rec)) return false;                    // ★ #1208: a voice message is never edited (EditRules.canEdit agrees)
@@ -3801,10 +3910,10 @@
   }
   /* ★ #1198 — the ONE reply start: the menu item, the swipe, the hover button and the double-click all land here, so
      the strip, the @-mention and the focus cannot differ by the way in. */
-  function startReply(rec) {
+  function startReply(rec, opts) {
     if (!rec || !composerEl || !canReplyRec(rec)) return false;
     const live = model.get(String(rec.id)) || rec;     // the CURRENT record (a gesture may hold an older render's)
-    const q = replySourceFor(live);
+    const q = replySourceFor(live, opts);
     if (!q) return false;
     holdReplyTarget(live.id);                           // ★ 7b (#1219): no jump — the re-pins keep this row in view
     setComposerContext(composerEl, {
@@ -5322,6 +5431,7 @@
   function setComposerLock(kind) {
     if (composerLock === kind) { refreshPendingStrip(); return; }
     composerLock = kind;
+    if (kind) closeMediaSheetIfOpen();   // ★ S10 P1: a locked composer cancels an open photo batch
     if (pendingStrip) { pendingStrip.remove(); pendingStrip = null; }
     if (composerEl) composerEl.hidden = !!kind;
     if (kind === 'outgoing') {
@@ -7327,30 +7437,70 @@
       refreshQuoteTiles(key);               // ★ 7b (#1215): the quotes of this photo show it
     },
 
-    /* ★★ S9 (#1244, 🟡 NEW push): mediaPicked validates C#'s prepared batch, shows the preview sheet and answers ixian:mediaSend or ixian:mediaCancel (never a path or bytes). */
+    /* ★★ S9 (#1244, 🟡 NEW push): mediaPicked validates C#'s prepared batch and answers ixian:mediaSend or ixian:mediaCancel (never a path or bytes).
+       ★★ S10 P1 (#1254): the batch shows in the STRIP above the composer. json = the batch's FULL item list: the SAME id as
+       the open strip → its tiles are REPLACED (an append in C#); another id → the old batch is cancelled first. */
     mediaPicked(batchId, json) {
       const bid = String(batchId == null ? '' : batchId);
       if (!MEDIA_BATCH_RE.test(bid)) return;
-      const items = parseMediaItems(json);
-      if (!items.length || composerLock || !attachFlags().media) { bridge.send('ixian:mediaCancel:' + bid); return; }
-      closeMediaSheetIfOpen();   // a newer batch: the older one is answered with mediaCancel (its sheet's onDismiss)
+      if (endedBatches.indexOf(bid) !== -1) return;   // ★ S10 #46 m-1: a batch this document already ended (sent / cancelled)
+      let items = parseMediaItems(json);
+      const same = !!mediaStrip && mediaStrip.id === bid;
+      if (!items.length || composerLock || !attachFlags().media || !composerEl) {
+        if (same) endMediaStrip(true); else { rememberEndedBatch(bid); bridge.send('ixian:mediaCancel:' + bid); }
+        return;
+      }
+      if (same) {
+        /* ★ S10 #46 m-2: a key the user just ✕-ed, repeated with the SAME sig, is C#'s list from before the drop — left out;
+           another sig under that key is a new photo in the freed slot — shown */
+        const ms0 = mediaStrip;
+        /* ★ S10 #46 r2 MAJOR-2: a same-id push WITHOUT a dropped key = C# processed that drop — forget it, so the same photo
+           added back later (same sig, the freed key) is shown, never hidden and then deleted on send */
+        const pushedKeys = new Set(items.map((it) => it.k));
+        for (const dk of [...ms0.dropped.keys()]) if (!pushedKeys.has(dk)) ms0.dropped.delete(dk);
+        items = items.filter((it) => {
+          if (!ms0.dropped.has(it.k)) return true;
+          if (ms0.dropped.get(it.k) === it.sig) return false;
+          ms0.dropped.delete(it.k);
+          return true;
+        });
+        if (!items.length) return;
+        for (const it of items) ms0.sigs.set(it.k, it.sig);
+        ms0.ctrl.setItems(items);
+        setComposerMedia(composerEl, ms0.ctrl.count(), mediaCaptionCap);
+        return;
+      }
+      closeMediaSheetIfOpen();   // a newer batch: the older one is answered with mediaCancel
       closeAttachTrayIfOpen();
-      const sheet = openMediaSendSheet({
-        host: overlayHost, items, strings: window.SL || {},
-        onSend: (keys, caption) => {
-          if (mediaSheet === sheet) mediaSheet = null;
-          const ks = keys.filter((k) => MEDIA_KEY_RE.test(k));
-          if (!ks.length) { bridge.send('ixian:mediaCancel:' + bid); return; }
-          bridge.send('ixian:mediaSend:' + bid + ':' + ks.join(',') + ':' + b64url(caption));
+      /* a caption is not an edit: an open EDIT gives its draft back (the ✕ path); a REPLY stays up — a media send never carries it */
+      const ctx = getComposerContext(composerEl);
+      if (ctx && ctx.kind === 'edit') cancelComposerContext(composerEl, { refocus: false });
+      const slot = document.getElementById('chat-composer');
+      const ms = { id: bid, ctrl: null, sigs: new Map(items.map((it) => [it.k, it.sig])), dropped: new Map() };
+      ms.ctrl = openMediaStrip({
+        host: slot, items, strings: window.SL || {},
+        onRemove: (k) => {
+          if (mediaStrip !== ms || !MEDIA_KEY_RE.test(k)) return;
+          ms.dropped.set(k, ms.sigs.get(k) || '');   // m-2
+          bridge.send('ixian:mediaDrop:' + bid + ':' + k);
+          setComposerMedia(composerEl, ms.ctrl.count(), mediaCaptionCap);
         },
-        onCancel: () => {
-          if (mediaSheet === sheet) mediaSheet = null;
-          bridge.send('ixian:mediaCancel:' + bid);
-          syncChatOverlay();
-        },
+        onAdd: () => { if (mediaStrip === ms && !composerLock && attachFlags().media) bridge.send('ixian:sendmedia'); },
+        onEmpty: () => { if (mediaStrip === ms) { endMediaStrip(true); focusComposerInput(); } },   // m-3: focus lands in the field
       });
-      mediaSheet = sheet || null;
+      if (!ms.ctrl) { rememberEndedBatch(bid); bridge.send('ixian:mediaCancel:' + bid); return; }
+      mediaStrip = ms;
+      setComposerMedia(composerEl, ms.ctrl.count(), mediaCaptionCap);
       syncChatOverlay();
+    },
+    /* ★ S10 #46 r3 (🟡 NEW push): mediaDropped(batchId, k) — C# removed that photo; its stale-push filter (m-2) is forgotten,
+       so a photo C# later puts into the freed key is shown. Anything else is ignored. */
+    mediaDropped(batchId, k) {
+      const bid = String(batchId == null ? '' : batchId);
+      const key = String(k == null ? '' : k);
+      const ms = mediaStrip;
+      if (!ms || ms.id !== bid || !MEDIA_KEY_RE.test(key)) return;
+      ms.dropped.delete(key);
     },
     /* ★ S9 (🟡 NEW push): mediaError(code) — a fixed code → a fixed toast; anything else is ignored. Never logged. */
     mediaError(code) {
@@ -7364,7 +7514,7 @@
         cameraDenied: sl.mediaCameraDenied || 'Spixi needs camera access to take a photo. Allow it in your device settings.',
         tooMany: sl.mediaTooMany || 'You can send up to 10 photos at a time. The extra photos were left out.',
         fileTooBigIn: sl.fileTooBigIn100 || 'This file is over 100 MB and can’t be downloaded.',   // ★ S9 #46 M4: a received offer over the cap
-        fileTooBig: sl.fileTooBig100 || 'This file is over 100 MB and can’t be sent.',   // ★ S9 A-9: a Send file / a received offer over the cap
+        fileTooBig: sl.fileTooBig50 || 'This file is over 50 MB and can’t be sent.',   // ★ S10 P2 (#1254): the free send cap is 50 MB (C# PhotoRules.maxFileBytes(Free))
       })[c];
       if (!text || !Object.prototype.hasOwnProperty.call(MEDIA_ERROR_TONE, c)) return;
       try { showToast({ text, tone: MEDIA_ERROR_TONE[c] || undefined, host: overlayHost, strings: sl }); } catch (e) {}
@@ -7667,6 +7817,7 @@
         return;
       }
       if (closeComposerCtxForBack()) return;               // ★ 7b (#1219): the reply / edit strip, the lowest layer
+      if (closeMediaSheetIfOpen()) return;                 // ★ S10 P1 (#1254): then the media strip (mediaCancel)
       syncChatOverlay();
     },
   };
@@ -7720,7 +7871,8 @@
       || !!channelDropdown || !!chatSelect
       || !!chatSendView                                // loop MAJOR fix: the money cover consumes back too
       || (composerEl && isAttachTrayOpen(composerEl)) // ★ #705: the attach tray consumes back
-      || (composerEl && !!getComposerContext(composerEl)); // ★ 7b (#1219): an open reply / edit strip consumes back
+      || (composerEl && !!getComposerContext(composerEl)) // ★ 7b (#1219): an open reply / edit strip consumes back
+      || !!mediaStrip;                                    // ★ S10 P1 (#1254): the media strip consumes back (the S9 sheet did)
   }
   /* ★ 7b (#1219): Back (hardware → chatBack, the iOS edge swipe) closes an open reply / edit strip through the ✕ path
      (an edit gives the draft back) WITHOUT re-focusing the field — no keyboard after a Back — and sends no ixian:back */
@@ -8161,8 +8313,9 @@
     onVoiceCancel: () => { if (composerEl) bridge.send('ixian:voicerec:cancel'); },   // ★ #1208 (V7): C# answers voiceRec idle
     onVoiceSend: () => { if (composerEl && !composerLock) bridge.send('ixian:voicerec:send'); },   // ★ #1208 (V7): C# answers voiceRec idle
     onSend: (text) => {
-      if (!text) return;
       if (composerLock) return;   // ⑪ belt-and-braces: no compose path while pending
+      if (mediaStrip) { sendMediaStrip(text); clearDraft(); return; }   // ★ S10 P1 (#1254): the text is the strip's caption ('' = none)
+      if (!text) return;
       if (text.length > MAX_MESSAGE_CHARS) return;    // A7 belt — composer already blocked it
       /* M1 reply-to (#441). A reply goes out on its own verb carrying the target id;
          everything else keeps the exact ixian:chat: grammar. The context is read
@@ -8252,9 +8405,23 @@
     if (pasteIn) pasteIn.addEventListener('paste', (e) => {
       if (composerLock || !attachFlags().media || !clipboardHasImageType(e.clipboardData)) return;
       e.preventDefault();
+      const ctx = getComposerContext(composerEl);
+      if (ctx && ctx.kind === 'edit') return;   // ★ S10 #46 m-5: a picture cannot go into an EDIT — refused (a text paste is unchanged)
       bridge.send('ixian:pasteImage');
     });
   }
+  /* ★ S10 P1 (#1254): Escape (a hardware keyboard, focus in the composer or the strip) cancels the media strip — after the
+     @-picker, the reply / edit strip and a recording bar, which own Escape first (capture: before the field's listeners) */
+  document.getElementById('chat-composer').addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.isComposing || !mediaStrip || !composerEl) return;   // ★ S10 #46 m-4: an IME's Escape is its own
+    if (isAttachTrayOpen(composerEl)) return;   // m-4: the tray closes first (its document listener)
+    if (getComposerContext(composerEl) || getComposerRecording(composerEl) || document.querySelector('[data-keep-editable]')) return;
+    const inp = composerEl.querySelector('.c-composer__input');
+    if (inp && inp.getAttribute('aria-expanded') === 'true') return;
+    e.preventDefault();
+    closeMediaSheetIfOpen();
+    focusComposerInput();
+  }, true);
   /* ★ 7b (#1219): the strip's open / close re-syncs the back mirror (setComposerContext writes field[data-ctx]) */
   try { new MutationObserver(syncChatOverlay).observe(composerEl, { subtree: true, attributes: true, attributeFilter: ['data-ctx'] }); } catch (e) {}
   /* ★★ ORDER (Session AE, the #46 reviewer's MAJOR-1): this block sits ABOVE the #711 publish
@@ -9013,6 +9180,7 @@
     // ★ L1 (#640) / W5: the money cover consumes back before the page pops (chatBack order)
     if (chatSendView) { closeSendTakeover(); return; }
     if (closeComposerCtxForBack()) return;                   // ★ 7b (#1219): the reply / edit strip, as chatBack
+    if (closeMediaSheetIfOpen()) return;                     // ★ S10 P1 (#1254): the media strip, as chatBack
     bridge.send('ixian:back');
   } });
 

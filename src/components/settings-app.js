@@ -35,6 +35,7 @@ import { settingsConfirm, settingsOptionSheet } from './settings-shell.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { fillFileName, createFileTile } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
 import { formatFileSize } from './shared-items.js';         // ★★ #1107: one size format (chat info + Downloads)
+import { createAvatar, safeImageSrc } from './avatar.js';                 // ★ S10 F7 (#1254): the From sheet's sender avatars
 
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
@@ -180,6 +181,7 @@ export function createSettingsDownloads({
   const controls = document.createElement('div');
   controls.className = 'c-settings-dl__controls';
   let senders = new Map();             // key → label, from the current list
+  let avatars = new Map();             // ★ S10 F7: key → data:image URI (setDownloadsAvatars; validated by the shell)
   const countEl = document.createElement('span');
   countEl.className = 'c-settings-dl__count';
   const fromChip = document.createElement('button');
@@ -202,9 +204,38 @@ export function createSettingsDownloads({
     countEl.textContent = n === 1 ? (strings.downloadsCountOne || '1 file')
       : (strings.downloadsCount || '{n} files').split('{n}').join(String(n));
   }
+  /* ★ S10 F7 (#1254, Damir pick C): each row = a 40 px avatar (the pushed photo, else the name's gradient initials) +
+     "{n} files · last {when}" — counted from the list on screen (`current`, all files, not the search). {when} = the
+     sender's newest epoch time in the row's own date format (formatTxTimestamp; no relative form exists); an old exe's
+     opaque time string gives no "last" part. "Everyone" = a tonal people disc + the total. */
+  const filesLabel = (n) => (n === 1 ? (strings.downloadsSenderFilesOne || '1 file')
+    : (strings.downloadsSenderFiles || '{n} files').split('{n}').join(String(n)));
+  function senderStats() {
+    const stats = new Map();             // key → { n, newest (epoch s, 0 = unknown) }
+    for (const f of current) {
+      if (!f.senderKey) continue;
+      const st = stats.get(f.senderKey) || { n: 0, newest: 0 };
+      st.n++;
+      const t = String(f.time || '').trim();
+      if (/^\d{1,12}$/.test(t) && Number(t) > st.newest) st.newest = Number(t);
+      stats.set(f.senderKey, st);
+    }
+    return stats;
+  }
   function openSenderSheet() {
-    const options = [{ value: '', label: strings.downloadsAllSenders || 'Everyone' }]
-      .concat([...senders.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, l]) => ({ value: k, label: l })));
+    const stats = senderStats();
+    const everyone = document.createElement('span');
+    everyone.className = 'c-settings__opt-glyph';
+    everyone.append(icon('users', { size: 20 }));
+    const options = [{ value: '', label: strings.downloadsAllSenders || 'Everyone', avatar: everyone, sub: filesLabel(current.length) }]
+      .concat([...senders.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, l]) => {
+        const st = stats.get(k) || { n: 0, newest: 0 };
+        let sub = filesLabel(st.n);
+        if (st.newest > 0) {
+          sub += ' · ' + (strings.downloadsSenderLast || 'last {when}').split('{when}').join(formatTxTimestamp(st.newest * 1000));
+        }
+        return { value: k, label: l, sub, avatar: createAvatar({ src: avatars.get(k) || null, name: l, address: k, size: 40 }) };
+      }));
     const sheet = settingsOptionSheet({
       title: strings.downloadsFilterSender || 'From',
       options, current: senderKey, host: hostFor(), strings,
@@ -407,7 +438,21 @@ export function createSettingsDownloads({
   render(files);
 
   el._dlRender = render;                   // setDownloads hook
+  /* ★ S10 F7: the avatars arrive in their own push right after the senders; they are read when the sheet opens. A
+     value that is not a local data:image URI is dropped here too (safeImageSrc without allowRemote). */
+  el._dlAvatars = (entries) => {
+    avatars = new Map();
+    for (const [k, v] of entries || []) {
+      const src = safeImageSrc(v);
+      if (typeof k === 'string' && src) avatars.set(k, src);
+    }
+  };
   return el;
+}
+
+/** ★ S10 F7 (#1254): the From sheet's avatars — entries = [[senderKey, dataUri], …] (the shell validated them). */
+export function setDownloadsAvatars(el, entries = []) {
+  if (el && el._dlAvatars) el._dlAvatars(entries);
 }
 
 /** Wholesale list update — mirrors the clearFiles + addFile(name, ctime[, size]) push. */

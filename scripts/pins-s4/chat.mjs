@@ -534,7 +534,7 @@ export default async function (h) {
     r.offUntilTold = /\blet photoPreviews = false;/.test(src);
     r.oneCallSite = /const photoTile = photoPreviews && isPhotoFileName\(rec\.name\);\s*return \(photoTile \? createImageFileBubble : createFileBubble\)\(\{/.test(src)
       /* ★ #1166 V-3 re-base: onOpen goes through openFileOrViewer (a photo tile showing its preview → the viewer; everything else → the same ixian:openfile) — executed in pins-s5/media.mjs */
-      && /onAccept: \(\) => bridge\.send\('ixian:acceptfile:' \+ rec\.fileid\),\s*onOpen: \(\) => openFileOrViewer\(rec\),/.test(src)
+      && /onAccept: \(\) => askAccept\(rec\),\s*onOpen: \(\) => openFileOrViewer\(rec\),/.test(src) && /function askAccept\(rec\) \{[^}]*bridge\.send\('ixian:acceptfile:' \+ rec\.fileid\);/.test(src)   /* ★ S10 #46 m-6 re-base: the cell accept goes through the shared 3 s guard (behaviour: pins-s10/c-grid.mjs) */
       && /if \(!thumb\) \{ bridge\.send\('ixian:openfile:' \+ rec\.fileid\); return; \}/.test(src);
     /* the shell's accept rule, as source (the regex and the cap the behaviour pin above exercises) */
     r.shellRule = /const FILE_THUMB_MAX = 90000;/.test(src) && /const FILE_THUMB_RE = \/\^data:image\\\/jpeg;base64,\[A-Za-z0-9\+\/\]\+=\*\$\/;/.test(src);

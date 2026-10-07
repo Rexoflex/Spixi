@@ -77,7 +77,7 @@ export default async function (h) {
     const en = /^chat-group-you-created = You created this group\r?$/m.test(rd('Spixi/Resources/Raw/lang/en-us.txt'));
     ok(/CoreStreamProcessor\.sendSpixiMessage\(g, cgm\);\s*writeCreatedGroupLine\(g\);/.test(hps)
       && /if \(!S9FixRules\.writesCreatedLine\(true, stored\?\.Count \?\? -1, group\.metaData\.lastMessage != null\)\)\s*\{\s*return;\s*\}/.test(w)
-      && /string text = S9FixRules\.createdLine\(SpixiLocalization\._SL\(S9FixRules\.CreatedKey\)\);/.test(w)
+      && /string text = S9FixRules\.createdLine\(SpixiLocalization\._SL\(S9FixRules\.CreatedKey\), SpixiLocalization\._SL\(S9FixRules\.MembersSeeKey\)\);/.test(w)   // ★ S10 P3 (#1254): the two-line form
       && /Node\.addMessageWithType\(new byte\[\] \{ UnreadRule\.AddedToGroupLineId \}, FriendMessageType\.standard, group\.walletAddress, 0, text, false, null, 0, false, false\);/.test(w)
       && before(w, 'S9FixRules.writesCreatedLine(', 'Node.addMessageWithType(') && !/string\.Format/.test(w) && logsFixed(w)
       && langs.length === 13 && keyed.length === 13 && en,
@@ -178,14 +178,14 @@ export default async function (h) {
   /* ———— D-04: `ixian:haptic:<kind>` — our shells only, foreground only, exact kinds, no permission ———— */
   await guard('S9 A3 haptic verb', async () => {
     const g = bodyOf(SCB, 'protected bool onNavigatingGlobal(string url)');
-    const ph = bodyOf(SCB, 'private static void performHaptic(S9FixRules.Haptic kind)');
+    const ph = bodyOf(SCB, 'private static void performHaptic(S9FixRules.Haptic kind, string? word)');
     const man = rd('Spixi/Platforms/Android/AndroidManifest.xml');
-    ok(/else if \(url\.StartsWith\("ixian:haptic:", StringComparison\.Ordinal\)\)\s*\{\s*if \(hasGeneratedContent && App\.isInForeground\)\s*\{\s*performHaptic\(S9FixRules\.hapticKind\(url\.Substring\("ixian:haptic:"\.Length\)\)\);\s*\}\s*\}/.test(g)
-      && /if \(kind == S9FixRules\.Haptic\.None\)\s*\{\s*return;\s*\}/.test(ph)
-      && /#if ANDROID\s*Microsoft\.Maui\.ApplicationModel\.Platform\.CurrentActivity\?\.Window\?\.DecorView\?\.PerformHapticFeedback\(/.test(ph)
+    ok(/else if \(url\.StartsWith\("ixian:haptic:", StringComparison\.Ordinal\)\)\s*\{\s*if \(hasGeneratedContent && App\.isInForeground\)\s*\{\s*string hapticArg = url\.Substring\("ixian:haptic:"\.Length\);\s*performHaptic\(S9FixRules\.hapticKind\(hapticArg\), S10MediaRules\.hapticWord\(hapticArg\)\);\s*\}\s*\}/.test(g)
+      && /if \(kind == S9FixRules\.Haptic\.None \|\| word == null\)\s*\{\s*return;\s*\}/.test(ph)
+      && /#if ANDROID\s*performHapticAndroid\(kind, word\);/.test(ph)
       && /#elif IOS\s*Microsoft\.Maui\.Devices\.HapticFeedback\.Default\.Perform\(/.test(ph) && !/WINDOWS|MACCATALYST/.test(ph)
-      && !/android\.permission\.VIBRATE/.test(man),
-      'S9 A3 D-04: ixian:haptic is answered for our own shells only (not a mini-app), in the foreground, for click / long / success only; Android uses the view\'s own haptic (no VIBRATE permission), iOS MAUI HapticFeedback, desktop nothing');
+      && (man.match(/android\.permission\.VIBRATE/g) || []).length === 1,   /* ★ S10 F4 re-base (#1254): the Vibrator fallback needs VIBRATE, declared once (behaviour: pins-s10/a-wiring.mjs) */
+      'S9 A3 D-04: ixian:haptic is answered for our own shells only (not a mini-app), in the foreground, for click / long / success only; Android uses the view\'s own haptic (S10: + the Vibrator fallback when refused, VIBRATE declared), iOS MAUI HapticFeedback, desktop nothing');
   });
 
   /* ———— #1246: the report link — a CODE in, C#\'s own mailto out, through the one gate (MailCompose) ———— */
@@ -279,7 +279,7 @@ export default async function (h) {
       && /released = true;\s*try\s*\{\s*parent\.RemoveView\(cover\);/.test(rel) && /"boot hold ms=" \+ \(System\.Environment\.TickCount64 - t0\) \+ " why=" \+ why/.test(rel)
       && /startBootHold\(rootView\);/.test(oc)
       && count(APP, /homeIsBootRoot = true;/g) === 1 && /homeIsBootRoot = true;\s*MainPage = new NavigationPage\(HomePage\.Instance\(\)\);/.test(APP)
-      && /if \(current_url\.Equals\("ixian:bootDropped", StringComparison\.Ordinal\)\)\s*\{\s*#if ANDROID\s*global::Spixi\.MainActivity\.releaseBootHold\("dropped"\);\s*#endif\s*\}/.test(HOME),
+      && /if \(current_url\.Equals\("ixian:bootDropped", StringComparison\.Ordinal\)\)\s*\{\s*#if ANDROID\s*global::Spixi\.MainActivity\.releaseBootHold\("dropped"\);\s*#endif\s*scheduleWalletPrePush\(false\);\s*\}/.test(HOME),   // ★ S10 F6 (#1254): + the wallet pre-push (pins-s10/b-wiring)
       'S9 A3 r1 A-FLASH C1: on a cold start straight into home (no lock / first run / retry), Android covers the drawing content with a native splash view until home.html (cover removed) sends ixian:bootDropped, capped at 1500 ms, once per process; [P1] boot hold ms= why=dropped|cap');
   });
 

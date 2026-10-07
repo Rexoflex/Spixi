@@ -384,8 +384,10 @@ export default async function (h) {
   await guard('7b delete clears the excerpt', async () => {
     const CMW = stripCode(rd('Spixi/Utils/CoreMessageWriter.cs'));
     const cd = bodyOf(CMW, 'public static bool clearDeletedLast(Friend friend, byte[] msgId)');
-    const rule = /if \(last == null \|\| !ChatHeal\.deleteLeftLast\(last\.id, last\.message, msgId\)\)\s*\{\s*return false;\s*\}/.test(cd)
-      && /ChatHeal\.newestLive\(list, m => m\.type != FriendMessageType\.standard \|\| !string\.IsNullOrEmpty\(m\.message\), m => m\.id, msgId\)/.test(cd)
+    /* ★ S10 F3 (#1254): the fileHeader-aware deleteLeftLast overload + ChatHeal.isLive (a blanked file row is dead too —
+       both executed in scripts/csh S10FixTests.cs) */
+    const rule = /if \(last == null \|\| !ChatHeal\.deleteLeftLast\(last\.id, last\.type == FriendMessageType\.fileHeader, last\.message, msgId\)\)\s*\{\s*return false;\s*\}/.test(cd)
+      && /ChatHeal\.newestLive\(list, m => ChatHeal\.isLive\(m\.type, m\.message\), m => m\.id, msgId\)/.test(cd)
       && /friend\.metaData\.setLastMessage\(next, ch\);\s*friend\.saveMetaData\(\);/.test(cd) && /catch \(Exception e\)/.test(cd);
     /* every friend.deleteMessage( in Spixi is followed (within its statement / if-block) by clearDeletedLast(friend, msg_id) */
     const sites = [];

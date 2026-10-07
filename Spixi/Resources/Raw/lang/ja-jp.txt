@@ -680,6 +680,7 @@ global-friend-request-connected = {0} とつながりました。
 chat-group-added-you = {0} さんがあなたをこのグループに追加しました
 chat-group-added-you-noname = このグループに追加されました
 chat-group-you-created = このグループを作成しました
+chat-group-members-see = メンバーがこのグループを見られるようになりました。
 
 global-update-available = Spixi の新しいバージョン ({0}) が利用可能です。最新のエクスペリエンスのために更新してください。
 global-modal-external-link-title = 外部リンク

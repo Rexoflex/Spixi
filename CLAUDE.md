@@ -83,8 +83,8 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 - 2026-10-07: **session 10 BUILT, UNCOMMITTED** (patch `session10-build.patch` on "Record walk #1252 (S9) and the S10 fix list", commit message `docs/commit-message-session10.txt`). S9 walked: WALK #1252 25 P · 4 F · 5 N/A. S10: the S9 fix round F1–F7 + P1 strip · P2 50 MB · P3 · P4 excerpt 2 lines (#1254–#1256); the "new added" flash = F1 (#1255).
 - Smoke BASELINE OK **5604** · CSH **299** (cloud twin). #46 **CLEAN at r4** (#1257). ⚠ C# UNCOMPILED (2 new + 11 changed C# files; handoff §0).
-- NEXT: Damir applies the patch, builds (Windows F5; Android wipe obj/bin), walks the "Spixi Session 10 Walk" sheet, sends `android-s10.txt` + the 10-FLASH recording.
+- S10 committed (f3770cb4 + build fix 3963b21e, #1259) and WALKED: WALK #1260 13 P · 3 F (10-GRID, 10-FLASH, 10-HAPTIC) · 5 N/A; picks #1261 (P4 default 1 line, inline chooser, album pattern rethink, auto-download). NEXT: S11 (`docs/prompts/session-11.md`); the 10-FLASH recording is owed.
 - Open for Damir: Android 12+ splash (#1249) · cold-start main-thread stall (perf, after the freeze?) · CORE-10 capture · the old-app caption check.
 - BE asks: B-31 (S9) · B-32 (S10: mediaDrop, mediaDropped, setDownloadAvatars, VIBRATE, `.partial`, 50 MB) · CORE-10 draft · B-28, B-29, B-30, CORE-8, CORE-9.
 - v1 plan: S10 ✅ built → walk → S11 FREEZE prep. Road after: sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
-- **NEXT SESSION: read `docs/handoff-2026-10-07c.md` FIRST, then paste `docs/prompts/session-11.md`.** Next free DECISIONS number: **#1260**.
+- **NEXT SESSION: read `docs/handoff-2026-10-07c.md` FIRST, then paste `docs/prompts/session-11.md`.** Next free DECISIONS number: **#1262**.

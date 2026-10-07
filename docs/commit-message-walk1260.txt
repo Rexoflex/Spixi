@@ -1,0 +1,7 @@
+Record walk #1260 (S10) and the S11 plan
+
+Walk #1260: 13 P, 3 F (10-GRID, 10-FLASH, 10-HAPTIC), 5 N/A, with first
+reads from android-s10.txt. Damir's picks #1261: the chats preview defaults
+to 1 line with an inline chooser, the photo album pattern is rethought, and
+photos get an auto-download setting. The session 11 prompt and the handoff
+are updated; release-readiness rows V-26 and V-28 follow the walk.

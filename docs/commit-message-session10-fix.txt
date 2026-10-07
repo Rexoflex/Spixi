@@ -1,0 +1,7 @@
+Session 10 build fix: Vibrator usage argument is an int
+
+The first Android compile of S10 failed with CS1503 at
+SpixiContentPage.cs:5566: VibrationAttributes.CreateForUsage takes an int
+in the net10.0-android binding. Restore the (int) cast of
+VibrationAttributesUsageType.Touch, update the a-wiring pin, and correct
+lesson L102. Decision #1259.

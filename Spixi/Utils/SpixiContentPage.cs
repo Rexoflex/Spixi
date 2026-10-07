@@ -5563,7 +5563,7 @@ namespace SPIXI
             if (OperatingSystem.IsAndroidVersionAtLeast(33))
             {
                 // ★ S10 #46 r1 N2: API 33+ tags it as TOUCH feedback (the system applies the touch-feedback intensity / switch)
-                vib.Vibrate(effect, Android.OS.VibrationAttributes.CreateForUsage(Android.OS.VibrationAttributesUsageType.Touch));   // ★ #46 r2 MAJOR-1: the binding takes the ENUM (methodmap: createForUsage → VibrationAttributesUsageType); the UsageTouch int const is [Obsolete(error)]
+                vib.Vibrate(effect, Android.OS.VibrationAttributes.CreateForUsage((int)Android.OS.VibrationAttributesUsageType.Touch));   // ★ S10 build fix (#1259, CS1503 on Damir's build): CreateForUsage takes an INT in the net10.0-android binding; the enum value = USAGE_TOUCH (18); the UsageTouch int const is [Obsolete(error)]
             }
             else
             {

@@ -1,5 +1,5 @@
-Read CLAUDE.md, then the newest docs/handoff-*.md (FIRST — `docs/handoff-2026-10-07c.md`), then DECISIONS #1252–#1258. Next free DECISIONS
-number: the number in CLAUDE.md (#1259).
+Read CLAUDE.md, then the newest docs/handoff-*.md (FIRST — `docs/handoff-2026-10-07c.md`), then DECISIONS #1252–#1259. Next free DECISIONS
+number: the number in CLAUDE.md (#1260).
 This is SESSION 11 (a new chat): FIRST the S10 walk record; THEN its fails (mechanism first); THEN FREEZE prep per the v1 plan.
 Already decided (do not re-open): every pick in #1252–#1254 · the recorded-not-fixed list of #1257.
 

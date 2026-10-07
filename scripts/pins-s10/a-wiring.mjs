@@ -143,8 +143,8 @@ export default async function (h) {
       && /if \(vib == null \|\| !vib\.HasVibrator\)\s*\{\s*return;\s*\}/.test(pa)
       && /Android\.OS\.VibrationEffect effect = Android\.OS\.VibrationEffect\.CreatePredefined\(S10MediaRules\.hapticHeavy\(word\)\s*\? Android\.OS\.VibrationEffect\.EffectHeavyClick\s*: Android\.OS\.VibrationEffect\.EffectClick\);/.test(pa)
       /* #46 r1 N2: API 33+ = TOUCH usage (the enum value — the UsageTouch const is Obsolete(error) in .NET for Android) */
-      && /if \(OperatingSystem\.IsAndroidVersionAtLeast\(33\)\)\s*\{\s*vib\.Vibrate\(effect, Android\.OS\.VibrationAttributes\.CreateForUsage\(Android\.OS\.VibrationAttributesUsageType\.Touch\)\);\s*\}\s*else\s*\{\s*vib\.Vibrate\(effect\);\s*\}/.test(pa)
-      && !/VibrationAttributes\.UsageTouch/.test(SCB) && !/CreateForUsage\(\(int\)/.test(SCB)   /* #46 r2 MAJOR-1: an int cast does not compile (the parameter is the enum) */ && count(SCB, /VibrationAttributes\.CreateForUsage\(/g) === 1
+      && /if \(OperatingSystem\.IsAndroidVersionAtLeast\(33\)\)\s*\{\s*vib\.Vibrate\(effect, Android\.OS\.VibrationAttributes\.CreateForUsage\(\(int\)Android\.OS\.VibrationAttributesUsageType\.Touch\)\);\s*\}\s*else\s*\{\s*vib\.Vibrate\(effect\);\s*\}/.test(pa)
+      && !/VibrationAttributes\.UsageTouch/.test(SCB)    /* #1259: the net10.0-android binding takes an INT (CS1503 on the enum, Damir's build) — the r2 claim was wrong */ && count(SCB, /VibrationAttributes\.CreateForUsage\(/g) === 1
       && !/IgnoreGlobalSetting|FLAG_IGNORE|FeedbackFlags/.test(SCB),
       'S10 A F4: every Android haptic logs [P1] `haptic k=<word> ok=<0|1> hfe=<n> sdk=<n>`; only a REFUSED view haptic with touch feedback not OFF (hfe ≠ 0) on API 29+ falls back to the Vibrator (31+: VibratorManager.DefaultVibrator) playing the predefined click / heavy click (API 33+ tagged USAGE_TOUCH); the global setting is never ignored');
   });

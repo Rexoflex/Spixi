@@ -87,4 +87,4 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - Open for Damir: Android 12+ splash (#1249) · cold-start main-thread stall (perf, after the freeze?) · CORE-10 capture · the old-app caption check.
 - BE asks: B-31 (S9) · B-32 (S10: mediaDrop, mediaDropped, setDownloadAvatars, VIBRATE, `.partial`, 50 MB) · CORE-10 draft · B-28, B-29, B-30, CORE-8, CORE-9.
 - v1 plan: S10 ✅ built → walk → S11 FREEZE prep. Road after: sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
-- **NEXT SESSION: read `docs/handoff-2026-10-07c.md` FIRST, then paste `docs/prompts/session-11.md`.** Next free DECISIONS number: **#1259**.
+- **NEXT SESSION: read `docs/handoff-2026-10-07c.md` FIRST, then paste `docs/prompts/session-11.md`.** Next free DECISIONS number: **#1260**.

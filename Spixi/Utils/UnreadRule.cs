@@ -49,10 +49,22 @@ namespace SPIXI
 
         /** The fixed one-byte ids Spixi writes for lines that are not a contact's message: {1} = the "connected" line
          *  (StreamProcessor requestAdd/acceptAdd/acceptAddBot, HomePage.writeConnectedLine) · {4} / {5} = the nickname /
-         *  avatar ids Node's notification site already skips. */
+         *  avatar ids Node's notification site already skips · ★ S8 (#1231) {7} = the "added you to this group" line
+         *  (StreamProcessor.writeAddedToGroupLine). ★ #46 r1 (A-MINOR-1): NOT {6} — Core sends every avatar with id {6}
+         *  (CoreStreamProcessor.cs:2346) and a room's receipts for {6} would land on the line (Friend.addReaction). No peer
+         *  can write a one-byte id row (StreamProcessor drops it: SystemLineRules.isReservedId). */
         public static bool isSystemLineId(byte[]? id)
         {
-            return id != null && id.Length == 1 && (id[0] == 1 || id[0] == 4 || id[0] == 5);
+            return id != null && id.Length == 1 && (id[0] == 1 || id[0] == 4 || id[0] == 5 || id[0] == AddedToGroupLineId);
+        }
+
+        /** ★ S8 (#1231): the id of the "added you to this group" line — a line only THIS device wrote (no read receipt).
+         *  ★ #46 r1 (A-MINOR-1): 7, not 6 (Core's avatar id). The chat shell matches it as "07". */
+        public const byte AddedToGroupLineId = 7;
+
+        public static bool isAddedToGroupLineId(byte[]? id)
+        {
+            return id != null && id.Length == 1 && id[0] == AddedToGroupLineId;
         }
 
         /** #1150 (Damir): the app ICON badge counts a pending incoming contact request as 1 for as long as it is pending

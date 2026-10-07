@@ -23,7 +23,7 @@
  * THREADS — every public method may be called from any thread. `gate` guards the state; no platform call (start,
  * stop, write) is made while holding it. Pushes go through IVoiceHost, which marshals to the main thread.
  * SECURITY — no audio byte, path or name crosses into the WebView: the host pushes a state word, milliseconds, the row
- * id C# itself pushed. Logs carry fixed words and exception TYPES only — never an id, an address, a length of a
+ * id C# itself pushed, and (★ S8 picks #1239) the live mic level as ONE integer 0–100. Logs carry fixed words and exception TYPES only — never an id, an address, a length of a
  * peer's data or a path. */
 using IXICore.Meta;
 using Spixi;
@@ -50,6 +50,11 @@ namespace SPIXI.VoIP
 
         /** V5 `voiceState(idHex, state, posMs, durMs)`. */
         void pushVoiceState(string idHex, string state, int posMs, int durMs);
+
+        /** ★ S8 picks (#1239) `voiceRecLevel(level)`: the live mic level 0–100 while recording (VoiceLevel.Gate: one per
+         *  100 ms cell of the recording clock = 10/s, ≥ 50 ms apart). `stillValid` is asked again ON the main thread (the
+         *  recording may have ended since). */
+        void pushVoiceRecLevel(int level, Func<bool>? stillValid = null);
     }
 
     public enum VoiceRecStart
@@ -84,6 +89,7 @@ namespace SPIXI.VoIP
         private static List<byte[]>? recPackets = null;
         private static Stopwatch? recClock = null;
         private static Timer? recTimer = null;
+        private static VoiceLevel.Gate? recLevelGate = null;   // ★ S8 picks (#1239): the level push throttle of the live recording
         private static int recGen = 0;   // bumped by every start and end: a stale callback / tick is a no-op
         /* #46 r1 A M6: while endRecording stops the recorder, the recorder FLUSHES its last buffered packets to the callback
            (voice mode, every platform) — they land in the ending clip: flushGen = that recording's generation, flushPackets
@@ -201,6 +207,7 @@ namespace SPIXI.VoIP
             try
             {
                 r.setOnSoundDataReceived((data) => onRecData(gen, data));
+                r.setOnVoiceLevel((level) => onRecLevel(gen, level));   // ★ S8 picks (#1239): the live wave (voice mode only)
                 r.startVoiceMessage(VoiceCodec.BitrateBps, () => interruptAll("focus"));
                 if (!r.isRunning())
                 {
@@ -249,6 +256,7 @@ namespace SPIXI.VoIP
                     recPackets = packets;
                     recClock = Stopwatch.StartNew();
                     recTimer = new Timer((_) => recTick(gen), null, RecTickMs, RecTickMs);
+                    recLevelGate = new VoiceLevel.Gate();
                     published = true;
                 }
             }
@@ -433,6 +441,29 @@ namespace SPIXI.VoIP
             }
         }
 
+        /** ★ S8 picks (#1239) — the recorder's level callback (its capture thread): the LIVE recording of `gen` only (a
+         *  starting / ending / stale one pushes nothing), throttled by VoiceLevel.Gate (one push per 100 ms cell of the
+         *  recording clock = 10/s on every platform, ≥ 50 ms apart, the PEAK since the last push; #46 r1 A MINOR-1).
+         *  Only the integer leaves — to the page, which posts it to the main thread and re-checks isLiveRecording there. Never logged, never stored. */
+        private static void onRecLevel(int gen, int level)
+        {
+            IVoiceHost? h;
+            int send;
+            lock (gate)
+            {
+                if (gen != recGen || recorder == null || recHost == null || recClock == null || recLevelGate == null)
+                {
+                    return;
+                }
+                if (!recLevelGate.offer(recClock.ElapsedMilliseconds, level, out send))
+                {
+                    return;
+                }
+                h = recHost;
+            }
+            h.pushVoiceRecLevel(send, () => isLiveRecording(gen));
+        }
+
         /** Every RecTickMs: the liveness check, the backstop, the `recording` resync. A Timer thread. */
         private static void recTick(int gen)
         {
@@ -541,6 +572,7 @@ namespace SPIXI.VoIP
             recPackets = null;
             recClock = null;
             recTimer = null;
+            recLevelGate = null;   // ★ S8 picks (#1239)
         }
 
         private static void putKeptLocked(string key, List<byte[]> packets)

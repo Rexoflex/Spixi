@@ -225,6 +225,7 @@ namespace SPIXI
                 {
                     FriendList.removeFriend(old_friend);
                     SReactionFlags.clear(old_friend.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the re-added contact starts without the old heart
+                    SAppDeclines.clear(old_friend.walletAddress?.ToString());   // ★ S8 r4
                     CoreMessageWriter.arrivals.forgetAddress(old_friend.walletAddress.ToString());   // ★ P0 #1155: the re-added contact starts with no kept arrival
                     UIHelpers.shouldRefreshContacts = true;
                 }

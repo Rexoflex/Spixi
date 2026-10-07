@@ -671,6 +671,8 @@ global-invalid-address-text = Prašome įvesti galiojantį adresą.
 
 global-friend-request-accepted = {0} priėmė jūsų kontakto prašymą.
 global-friend-request-connected = Dabar esate susisiekę su {0}.
+chat-group-added-you = {0} pridėjo jus prie šios grupės
+chat-group-added-you-noname = Jūs buvote pridėti prie šios grupės
 
 global-update-available = Yra nauja Spixi versija ({0}). Atnaujinkite, kad gautumėte geriausią patirtį.
 global-modal-external-link-title = Aplankyti išorinę nuorodą

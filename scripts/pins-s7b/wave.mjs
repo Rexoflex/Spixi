@@ -1,4 +1,4 @@
-/* ==== SESSION 7b (S2) — ★ 7b (#1216 W1) THE WAVEFORM: fixed 3px bars, 2px apart, clipped at the end ====
+/* ==== SESSION 7b (S2) — ★ 7b (#1216 W1) THE WAVEFORM: 2px bars (S8), ≤ 2px apart, all 40 fit at 320 (S8 picks r1), clipped at the end ====
  * On the BUILT chat.html (jsdom): a voice file row + voiceInfo(40 peaks) → 40 bars; the CSS cascade on a bar resolves
  * to no grow, no shrink, a 3px basis and width; the wave box gaps 2px and clips (overflow hidden), so a narrow box cuts
  * bars at the END and never squeezes them. Deliberate breaks: see the 7b hand-back. */
@@ -45,16 +45,21 @@ export default async function (h) {
     const r = {
       forty: bars.length === 40,
       noGrow: !!cs && cs.getPropertyValue('flex-grow') === '0',
-      noShrink: !!cs && cs.getPropertyValue('flex-shrink') === '0',
-      basis3: !!cs && cs.getPropertyValue('flex-basis') === '3px',
-      width3: !!cs && cs.getPropertyValue('width') === '3px',
+      /* ★ S8 picks #46 r1 (NIT, lead: "fit 40 bars so the last bar draws") RE-BASE: the 40th bar was clipped at 320 / 360,
+         so a narrow box now gives up its gaps first (space-between over a 1 px gap, a 158 px cap = Telegram's 2 px gaps)
+         and then up to half a pixel per bar (shrink 1, min-width 1.5px); the box still clips below 99 px. Was: no shrink,
+         a fixed 2 px gap. */
+      shrinkFloor: !!cs && cs.getPropertyValue('flex-shrink') === '1' && cs.getPropertyValue('min-width') === '1.5px',
+      basis3: !!cs && cs.getPropertyValue('flex-basis') === '2px',   // ★ S8 picks (#1240) re-base: Damir's Telegram-thin 2 px supersedes #1216's 3 px; fixed / no grow / no shrink / clipped all stay
+      width3: !!cs && cs.getPropertyValue('width') === '2px',
       round: !!cs && /radius-full|999|50%/.test(cs.getPropertyValue('border-radius') + cs.getPropertyValue('border-top-left-radius')),
-      gap2: !!ws && /^2px( 2px)?$/.test((ws.getPropertyValue('gap') || ws.getPropertyValue('column-gap')).trim()),
+      gap1Spread: !!ws && /^1px( 1px)?$/.test((ws.getPropertyValue('gap') || ws.getPropertyValue('column-gap')).trim())
+        && ws.getPropertyValue('justify-content') === 'space-between' && ws.getPropertyValue('max-width') === '158px',
       clips: !!ws && (ws.getPropertyValue('overflow') === 'hidden' || ws.getPropertyValue('overflow-x') === 'hidden'),
       noErr: errs.filter((e) => /ReferenceError|TypeError|dispatch failed/.test(e)).length === 0,
     };
     ok(Object.values(r).every(Boolean),
-      '★ 7b (#1216 W1, Damir\'s pick) on the BUILT chat shell: a voice bubble draws the 40 peaks as 40 bars, each FIXED at 3px (flex 0 0 3px, width 3px — no grow, no shrink), round, 2px apart; the wave box clips (overflow hidden), so a narrow bubble cuts bars at the END and never squeezes them — '
+      '★ 7b (#1216 W1, Damir\'s pick) on the BUILT chat shell: a voice bubble draws the 40 peaks as 40 bars, 2px wide (basis + width 2px — S8 #1240 re-base of the 7b 3px; no grow), round, at most 2px apart (a 158px box, space-between over a 1px gap) and — ★ S8 picks #46 r1 re-base — a narrow box gives up its gaps first, then at most half a pixel per bar (min-width 1.5px), so all 40 draw at 320 / 360; below that the wave box clips (overflow hidden) at the END — '
       + JSON.stringify(r) + (cs ? ' flex=' + cs.getPropertyValue('flex-grow') + '/' + cs.getPropertyValue('flex-shrink') + '/' + cs.getPropertyValue('flex-basis') + ' w=' + cs.getPropertyValue('width') : '') + ' ' + errs.slice(0, 2).join(' | '));
     dom.window.close();
   } catch (e) { ok(false, '#1216 wave THREW: ' + (e && e.stack || e)); }

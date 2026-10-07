@@ -69,7 +69,7 @@ export function openAppMenu({ app = {}, host, onAction, allowInvite = false, str
   }, true);
 
   content.append(list);
-  const sheet = createSheet({ content, host, strings });
+  const sheet = createSheet({ content, host, strings, blurDismiss: true });   // ★ S8 (#1235)
   openSheet(sheet);
   anchorSheetToRow(sheet, row, { host, align: anchor || row });   // ★ Session K: the mobile dropdown
   /* ★ Session K (Damir: "shouldn't dim at all, just the menu next to the app"): no backdrop wash

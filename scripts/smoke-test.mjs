@@ -2239,12 +2239,13 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(!!groundRow && !!appear.querySelector('.c-settings-appearance__groundsec')
     && appear.querySelector('.c-settings-appearance__dots').getAttribute('role') === 'radiogroup'
     /* ★ #1080 F15 RE-BASE (Damir picked G2): a THIRD light ground, the green gradient — three circles in light (dark keeps two, below) */
-    && dots.length === 3 && dots.map((b) => b.getAttribute('aria-label')).join('|') === 'Solid|Brand gradient|Green gradient'
+    /* ★ S8 (#1237) RE-BASE (Damir's pick, rows #1237): a FOURTH ground, Blue (light Sky B1) — four circles, the same exact list one longer */
+    && dots.length === 4 && dots.map((b) => b.getAttribute('aria-label')).join('|') === 'Solid|Brand gradient|Green gradient|Blue gradient'
     && dots.every((b) => b.tagName === 'BUTTON' && b.querySelector('.c-settings-appearance__dot-face').getAttribute('data-chat-ground') === b.dataset.value)
-    && dots[0].getAttribute('aria-checked') === 'true' && dots[1].getAttribute('aria-checked') === 'false' && dots[2].getAttribute('aria-checked') === 'false'
-    && !/Solid|Brand gradient|Green gradient/.test(groundRow.textContent)
+    && dots[0].getAttribute('aria-checked') === 'true' && dots[1].getAttribute('aria-checked') === 'false' && dots[2].getAttribute('aria-checked') === 'false' && dots[3].getAttribute('aria-checked') === 'false'
+    && !/Solid|Brand gradient|Green gradient|Blue gradient/.test(groundRow.textContent)
     && appear.querySelectorAll('.c-settings-swatches').length === 1,
-    '★★ #998 → #1019 → #1080: in LIGHT the Canvas choice is THREE COLOUR CIRCLES in a radiogroup (each face paints the ground it picks through the chat\'s own token rules), named "Solid" / "Brand gradient" / "Green gradient" for screen readers only — no words on screen, no sheet; Solid is checked by default; still not a third tile pair (#774)');
+    '★★ #998 → #1019 → #1080: in LIGHT the Canvas choice is FOUR COLOUR CIRCLES in a radiogroup (each face paints the ground it picks through the chat\'s own token rules), named "Solid" / "Brand gradient" / "Green gradient" / "Blue gradient" for screen readers only — no words on screen, no sheet; Solid is checked by default; still not a third tile pair (#774)');
   const prevPreview = appear.querySelector('.c-settings-appearance__preview');
   if (dots[1]) dots[1].click();
   ok(groundPick === 'gradient' && prevPreview.getAttribute('data-chat-ground') === 'gradient'
@@ -8141,7 +8142,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     const apDark = wd.Spixi.createChatAppearance({ isDesktop: false });
     ok([...apDark.querySelectorAll('.c-settings-swatches--style')].length === 1
       && !!apDark.querySelector('.c-settings-appearance__ground')
-      && [...apDark.querySelectorAll('.c-settings-appearance__dot')].map((b) => b.dataset.value).join() === 'flat,gradient',
+      && [...apDark.querySelectorAll('.c-settings-appearance__dot')].map((b) => b.dataset.value).join() === 'flat,gradient,green,blue',   /* ★ S8 (#1237) re-base: dark offers the same four (DG1 Forest, DB1 Azure) */
       '★★★ #1066 (Damir 2026-09-29: "offer a gradient in dark mode too"): in DARK the Canvas row is SHOWN too (Solid + the dark brand gradient) — still exactly ONE swatch group. REVERSES: ★★★ AUG GROUND: in DARK the row is ABSENT, not shown with one option — Damir re-ruled it explicitly on 2026-09-04 when offered "hide it or design a gradient" (#774 ③). ⓘ #855 made this the rule on BOTH sides rather than a dark special case: the guard is `isLight && CHAT_GROUNDS.length > 1`, so "a one-option chooser reads as broken" is now enforced by the same expression in both themes. The stored pref survives untouched either way');
     if (prevTheme === null) de.removeAttribute('data-theme'); else de.setAttribute('data-theme', prevTheme);
   }
@@ -8577,8 +8578,24 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      inside the pill + its tile, the reply-target hold, Back closes the strip, the quote tiles + sender rungs + the bridge
      markers, the FAB layer; −the #1201 hold) → CHAT 817 → 827; 826 would leave 720, 827 leaves 1 744. index.html unchanged.
      #46 r1 + r2 fixes (MEASURED): chat.html 845 104 → ~846 700 (the iOS-lift visible bottom, the hold through every auto-pin +
-     its end cue, the strip a11y name; comments trimmed to fit) → CHAT 827 → 829 (≈ 2 200 chars left). Stated. */
-  const CHAT_KB_CEIL = 829, INDEX_KB_CEIL = 560;
+     its end cue, the strip a11y name; comments trimmed to fit) → CHAT 827 → 829 (≈ 2 200 chars left). Stated.
+     ★ session 8 (#1231–#1235, MEASURED after the merge of S1 + S2 + CS): chat.html 847 210 → 852 886 chars (+5 676: the 6-emoji
+     menu + pressed / inert state, the like:<emoji>:<n> parse + the untrusted-emoji check, the appDecline path + Declined state,
+     the id-6 group line chip, the bot-selector blur close, overlay.js blurDismiss in the bundle) → CHAT 829 → 835; 834 would
+     leave 1 130, 835 leaves 2 154. index.html 551 KB, unchanged ceiling. Stated.
+     #46 r1 fixes (MEASURED): chat.html 852 886 → 855 073 (+2 187: the X4 emoji rule (category test + keycaps), the
+     receipts-off detail + setReadReceipts, my-emoji-only menu, the id-07 chip by id) → CHAT 835 → 837; 836 would leave 991,
+     837 leaves 2 015. Stated.
+     #46 r2 fixes (MEASURED): chat.html 855 073 → 856 202 (+1 129: the keycap / letter-like-block / stacked-mark emoji rules)
+     → CHAT 837 → 838; 837 would leave 886, 838 leaves 1 910. Stated.
+     #46 r4 (allow-list) shrank chat.html to 854 539. ★ S8 PICKS (#1237–#1240, MEASURED after the merge of P-V + P-G):
+     854 539 → 866 140 chars (+11 601: the voice-bubble face + mic badge, the S-A ring, the live recording wave + tiers +
+     the seconds-left hint, the strip grow motion, the Blue ground in the pre-paint ladders) → CHAT 838 → 848; 847 would
+     leave 1 188, 848 leaves 2 212. index.html 552 KB, unchanged ceiling. Stated.
+     picks #46 r1 fixes (MEASURED): 866 140 → 871 075 (+4 935: the live-only accent + reflush keep, the still ring after 30 s,
+     the overlaid seconds-left hint track, the 40-bar fit, the reopen-from-on-screen strip) → CHAT 848 → 853; 852 would leave
+     404, 853 leaves 1 428 (after the r2 / r3 lead fixes: 872 044 chars). Stated. */
+  const CHAT_KB_CEIL = 853, INDEX_KB_CEIL = 560;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -12952,7 +12969,9 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
     'R2 (#371): the member sheet renders "Request received" for pending-in — badge only, the request-button arm is unreachable for both pending flavors');
   {
     const ci371 = read('src/components/chat-info.js');
-    ok(/removeMemberRow[\s\S]{0,700}?count === 1 \? \(strings\.memberOne \|\| '1 member'\)/.test(ci371),
+    // ★ S8 #46 r2 (N3) → r3 (NIT-4): anchored on the DEFINITION `function removeMemberRow(` (the bare name also matches
+    // its earlier call sites, 5.5 k chars before); window back to 700 — the target sits 547 chars past the anchor
+    ok(/function removeMemberRow\([\s\S]{0,700}?count === 1 \? \(strings\.memberOne \|\| '1 member'\)/.test(ci371),
       'R2 (#371, loop B-3): the SECOND hero-sub writer (removeMemberRow, after a kick/ban) takes the singular branch too — kicking a 2-person group down to 1 must not regress to "1 members"');
     ok(ci371.includes("truncateAddressMiddle(m.address))"),
       'D-19b (#370, loop B-5): the nameless non-blind member-row fallback truncates per the #211 canon — the list printed a full ~50-char base58 as a NAME while the sheet truncated the same address');
@@ -15413,8 +15432,10 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       ok(nodeNC.indexOf(loopFetchAnchor) > 0,
         '★ F5-3 (#553): the node-loop fetch runs ONLY with a wallet loaded — Config.enablePushNotifications && IxianHandler.wallets.Count > 0. Drop the wallet clause and a zombie start (running latched, no wallet) throws KeyNotFoundException out of the fetch every 2.5 s');
       const loopFetch = nodeNC.slice(nodeNC.indexOf(loopFetchAnchor),
-        nodeNC.indexOf('// Update the friendlist') > 0
-          ? nodeNC.indexOf('// Update the friendlist')
+        /* ★ S8 (#1229) RE-ANCHORED: nodeNC has no comments, so the old '// Update the friendlist' end never matched and
+           a fixed 2000-char window was used — the S8 probe lines pushed the finally past it. End on the next CODE line. */
+        nodeNC.indexOf('updateFriendStatuses();', nodeNC.indexOf(loopFetchAnchor)) > 0
+          ? nodeNC.indexOf('updateFriendStatuses();', nodeNC.indexOf(loopFetchAnchor))
           : nodeNC.indexOf(loopFetchAnchor) + 2000);
       /* ⚠ THE CLEAR IS TESTED BY BRACE SCOPE, NOT BY POSITION. An index comparison
          ("after the guard, before the else") stays GREEN when the clear is moved one
@@ -22522,6 +22543,11 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         /* the wallet chip: `case "received":` and `return "received";` inside
            filterTransactions / filterToString. Nothing else may name a key. */
         if (/case "received":|return "received";/.test(text)) continue;
+        /* ★ S8 (#1234) — THE ONE READ-RECEIPT KEY, exempt BY SITE: Core itself writes a group msgRead as the
+           reaction "seen:" (CoreStreamProcessor.cs:631), so the receipts-off switch must name it once. Exactly the
+           declaration `private const string ReadReceiptKey = "seen";` in PrivacyRules.cs — counted below (= 1).
+           ★ #46 r1 (C-MAJOR-1): PRIVATE — a public constant let any file name the key with no literal (probe P1′). */
+        if (f === 'Spixi/Utils/PrivacyRules.cs' && /^\s*private const string ReadReceiptKey = "seen";\s*$/.test(text)) continue;
         /* ⚠ AND A COMMENT IS NOT A HOME. One doc-block in SingleChatPage says a missed call
            is "seen" in the log — prose about a call, not a reaction key. A pin that counts
            prose goes red on correct code, which is the exact defect this round rewrote four
@@ -22533,6 +22559,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         offenders.push(f + ':' + line);
       }
     }
+    /* ★ #46 r1 (C-NIT-1): counted on COMMENT-STRIPPED code (stripCode keeps literals) — a doc line quoting the
+       declaration is not a second home. (C-MAJOR-1): the constant is private and its NAME is used exactly once outside
+       the declaration, in PrivacyRules.cs — the showsReactionKey test; no other .cs file names it at all. */
+    const csCode = new Map(csFiles.map((f) => [f, stripCode(csText.get(f))]));
+    const readKeyDecls = csFiles.reduce((n, f) => n + ((csCode.get(f).match(/\bconst string ReadReceiptKey = "seen";/g) || []).length), 0);
+    const readKeyUses = csFiles.flatMap((f) => (csCode.get(f).match(/\bReadReceiptKey\b/g) || []).map(() => f));
+    ok(readKeyDecls === 1 && /^\s*private const string ReadReceiptKey = "seen";\s*$/m.test(csCode.get('Spixi/Utils/PrivacyRules.cs') || '')
+       && readKeyUses.length === 2 && readKeyUses.every((f) => f === 'Spixi/Utils/PrivacyRules.cs')
+       && /return readReceiptsOn \|\| !string\.Equals\(key, ReadReceiptKey, StringComparison\.Ordinal\);/.test(csCode.get('Spixi/Utils/PrivacyRules.cs') || ''),
+      '★ S8 (#1234) · #46 r1 C-MAJOR-1: the read-receipt key is declared ONCE, PRIVATE, in PrivacyRules.cs (the only by-site exemption of PART 2 besides the wallet chip) and named once more there only (showsReactionKey) — decls ' + readKeyDecls + ' · uses ' + JSON.stringify(readKeyUses));
     ok(offenders.length === 0,
       '★★★ ROUND 4, PART 2 — NO KEY LIST SURVIVES. No .cs file names a delivery reaction key any more, outside the wallet Sent/Received chip. The list grew from one key to two to three and a reviewer then found two more; a rule written as a list is a rule that needs a patch every time Core adds a receipt. Sites still naming a key: ' + JSON.stringify(offenders));
 
@@ -26001,10 +26037,11 @@ console.log('Session I ③: the premium pass token batch');
      So each of the three must NAME 'gradient' in live code (stripped, #771). */
   /* ★★ #1080 F15 RE-BASE (Damir picked G2): a THIRD value, 'green' (light only), joins the allowlist in all
      three ladders — the same rule, one member longer; the default is still 'flat'. */
-  ok(/if\(g!=='flat'&&g!=='gradient'&&g!=='green'\)g='flat';/.test(rdF('src/shells/chat.html'))
-    && /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green'\) gr = 'flat';/.test(rdF('src/shells/chat.html'))
+  /* ★ S8 (#1237) RE-BASE: a FOURTH value, 'blue', joins the allowlist in all three ladders — same rule, one member longer, still exact */
+  ok(/if\(g!=='flat'&&g!=='gradient'&&g!=='green'&&g!=='blue'\)g='flat';/.test(rdF('src/shells/chat.html'))
+    && /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green' && gr !== 'blue'\) gr = 'flat';/.test(rdF('src/shells/chat.html'))
     && /let chatGround = 'flat';/.test(rdF('src/shells/settings.html'))
-    && /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
+    && /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green' \|\| gr === 'blue'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
     && (stripCode(rdF('src/shells/chat.html')).match(/'gradient'/g) || []).length >= 2
     && /'gradient'/.test(stripCode(rdF('src/shells/settings.html'))),
     '★★ #835 → #855 → #998: SOLID is the default and the BRAND gradient is admitted again by all three ladders (the #690 rule). Superseded #855 text: SOLID is the ONLY light ground, and all three ladders CLOSE on it — chat.html\'s pre-paint script, chat.html\'s live re-resolve, and settings.html\'s readChatPrefs (the #690 three-ladder rule). The NEGATIVE half is the point: no ladder may ADMIT \'gradient\', so a stored gradient falls through to solid instead of stranding the user on a canvas the picker cannot change. Superseded: gradient default-ON everywhere (#835 flipped the default; #855 retired the option)');
@@ -26194,7 +26231,8 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
   /* ★ #998 re-base: the brand gradient is an option again, so the read-back is the TWO-value
      one this pin tested before #855 — prose and assertion re-based together (#859). */
   /* ★ #1080 F15 re-base: three stored grounds now (Solid · Brand gradient · Green gradient) — prose and assertion together (#859) */
-  ok(/if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
+  /* ★ S8 (#1237) re-base: four stored grounds (+ Blue gradient) — the assertion one member longer, still exact */
+  ok(/if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green' \|\| gr === 'blue'\) chatGround = gr;/.test(rdF('src/shells/settings.html'))
      && /preview\.setAttribute\('data-chat-ground', groundCurrent\);/.test(rdF('src/components/settings-screens.js')),
     '★ #755 → #855 → #998 → #1080 (Damir, Windows: "shows the gradient selected but doesn\'t have it applied"): settings reads back every LIVE stored ground — three now (Solid · Brand gradient · Green gradient, #1080) — and the live preview is stamped with the current ground at BUILD, not only on a pick. The original defect was that a stored \'flat\' fell through to the gradient default, so the picker re-opened on the value the chat did not have');
   ok(/background: var\(--surface-input, var\(--surface-neutral-02\)\);/.test(rdF('src/styles/components/search-field.css')),
@@ -26209,7 +26247,8 @@ console.log('Session J: the seven walk fixes · Damir\'s evening rulings · the 
        && /if \(kbUp\) \{\s*handKeyboardToTray\(trayArgs, input\);/.test(ch),   /* ★ Session K (K1) re-base: kbUp now routes to the hold instead of `instant` */
       '★ #756 (the [KBTRAY] capture: "open ih=590 focused=false" with the keyboard on screen): whether the keyboard is up is read from the KEYBOARD (the resize shrink / the iOS inset) — tapping the ⊕ button moves focus off the field before its click runs, so activeElement said "no keyboard" and the tray ROSE while the keyboard was still up; that rise-then-drop was the flicker. \u2605\u2605 r3 R3-KB narrows the rule rather than reversing it: kbUp is still MEASURED from the viewport, but the measurement is GATED on some editable holding focus, because under Android adjustResize a keyboard shrink and a window shrink are the same event and nothing else separates them. The ⊕ button is not editable, so the steal that broke the old `activeElement === input` test answers "no keyboard" here too — which is right, because the ⊕ blurred the field and that resize is the keyboard leaving');
     const mb = rdF('src/components/message-bubble.js');
-    ok(/if \(showAvatar && \(position === 'first' \|\| position === 'single'\)\) \{/.test(mb) && /nextGutter\.append\(av\)/.test(mb) && !/prevGutter\.append\(av\)/.test(mb)
+    /* ★ S8 picks (#1240) re-base: a voice row with its in-bubble face takes no gutter avatar (one face per row) — the condition is one clause longer, still exact */
+    ok(/if \(showAvatar && \(position === 'first' \|\| position === 'single'\) && !\(voice && voice\.who\)\) \{/.test(mb) && /nextGutter\.append\(av\)/.test(mb) && !/prevGutter\.append\(av\)/.test(mb)
        && /\.c-bubble-row__gutter \{[^}]*align-self: flex-start;/.test(stripCssComments(rdF('src/styles/components/message-bubble.css'))),
       '★ #756 (Damir\'s pick D on the tail sheet): the group avatar rides the FIRST bubble, top-aligned beside the tail — and removeMessage passes it DOWN to the heir with the sender label (the old "moves up to the new tail" leg is gone)');
   }
@@ -27413,7 +27452,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       '★ Session K (#757 ① r2): the clear-scrim rule is presentation-independent AND out-specifies the mobile deep wash ((0,3,0) on line 19) — one tag, one grammar');
   }
   /* ★ walk K, Damir on K1: "the chat behind it moves down behind the sheet, and jumps back up when I use the keyboard" */
-  ok(/const grew = h > lastSlotH;/.test(ch) && /const atBottom = nearBottom\(\);/.test(ch) && /if \(grew && atBottom\) requestAnimationFrame\(\(\) => \{ pinLogEnd\(\); \}\);/.test(ch) && /else box\.scrollTop = box\.scrollHeight;/.test(ch)   /* ★ 7b (#1219) re-based: the one pin write (a held reply target wins) */
+  ok(/const grew = h > lastSlotH;/.test(ch) && /const atBottom = nearBottom\(\);/.test(ch) && /if \(grew && atBottom\) \{ pinLogEnd\(\); requestAnimationFrame\(\(\) => \{ pinLogEnd\(\); \}\); \}/.test(ch)   /* ★ S8 (#1238) re-based: the pin runs IN the callback too, the rAF stays (behaviour: pins-s8p/g-grow.mjs) */ && /else box\.scrollTop = box\.scrollHeight;/.test(ch)   /* ★ 7b (#1219) re-based: the one pin write (a held reply target wins) */
      && ch.indexOf('const atBottom = nearBottom();') < ch.indexOf("setProperty('--composer-h', h + 'px')"),
     '★ Session K (walk K K1 note): when the composer slot GROWS (the tray) and the reader was at the bottom — judged BEFORE the padding lands — the log re-pins on the next frame, so the newest bubbles never hide under the tray until the keyboard\'s AND-16 re-pin snaps them back');
   /* ★ #766 (Damir: "everything should open as soon as possible without any delay unless it's unavoidable") */
@@ -34916,15 +34955,16 @@ console.log('#907: the history window counts visible messages');
      reload — the mirror image of the failure #855 guarded. */
   /* ★ #1080 F15 RE-BASE (Damir picked G2): a third member, 'green' — LIGHT ONLY — so the row is guarded on
      the grounds THIS theme can paint (groundsHere), and every ladder admits the three values. */
-  const grounds62 = [...scr62.matchAll(/\{ id: '(flat|gradient|green)', key: 'ground/g)].map((m) => m[1]);
+  /* ★ S8 (#1237) RE-BASE: a fourth member, 'blue' (light Sky · dark Azure) — every ladder admits the four, exactly */
+  const grounds62 = [...scr62.matchAll(/\{ id: '([a-z]+)', key: 'ground/g)].map((m) => m[1]);
   const rowDerived62 = /if \(groundsHere\.length > 1\) \{/.test(scr62) && /const groundsHere = CHAT_GROUNDS\.filter\(/.test(scr62);   // ★ #1066: both themes · #1080: per theme
   const gDefaults62 = {
-    'chat.html head': /if\(g!=='flat'&&g!=='gradient'&&g!=='green'\)g='flat'/.test(headScript62),
-    'chat.html readPatternPrefs': /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green'\) gr = 'flat';/.test(stripCode(chat62)),
-    'settings.html readChatPrefs': /let chatGround = 'flat';/.test(set62) && /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green'\) chatGround = gr;/.test(set62),
+    'chat.html head': /if\(g!=='flat'&&g!=='gradient'&&g!=='green'&&g!=='blue'\)g='flat'/.test(headScript62),
+    'chat.html readPatternPrefs': /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green' && gr !== 'blue'\) gr = 'flat';/.test(stripCode(chat62)),
+    'settings.html readChatPrefs': /let chatGround = 'flat';/.test(set62) && /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green' \|\| gr === 'blue'\) chatGround = gr;/.test(set62),
   };
   const gStale62 = Object.keys(gDefaults62).filter((k) => !gDefaults62[k]);
-  ok(grounds62.join() === 'flat,gradient,green' && rowDerived62 && gStale62.length === 0,
+  ok(grounds62.join() === 'flat,gradient,green,blue' && rowDerived62 && gStale62.length === 0,
     '★★ GATE 62 (d) → #998 → #1080: THE BRAND AND GREEN GRADIENTS ARE OPTIONS AND EVERY LADDER ADMITS THEM — CHAT_GROUNDS = '
     + JSON.stringify(grounds62) + ' · the Canvas row is guarded on groundsHere.length > 1 (' + rowDerived62
     + ') · ladders ' + JSON.stringify(gDefaults62)
@@ -39902,18 +39942,23 @@ console.log('#1080 — walk #1074–#1078 fix round');
     const ss = stripCode(rd8('src/components/settings-screens.js'));
     const ch = rd8('src/shells/chat.html');
     const st = stripCode(rd8('src/shells/settings.html'));
-    const member = /\{ id: 'green', key: 'groundGreenGradient', label: 'Green gradient', lightOnly: true \}/.test(ss);
-    const filtered = /const groundsHere = CHAT_GROUNDS\.filter\(\(o\) => !o\.lightOnly \|\| document\.documentElement\.getAttribute\('data-theme'\) !== 'dark'\);/.test(ss)
-      && /for \(const o of groundsHere\)/.test(ss) && /if \(groundsHere\.length > 1\)/.test(ss) && !/for \(const o of CHAT_GROUNDS\)/.test(ss);
-    const head = /if\(g!=='flat'&&g!=='gradient'&&g!=='green'\)g='flat';/.test(ch);
-    const ladder = /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green'\) gr = 'flat';/.test(stripCode(ch));
-    const third = /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green'\) chatGround = gr;/.test(st);
+    /* ★ S8 (#1237) RE-BASE (Damir: dark green DG1 + a blue ground): green is NO LONGER light-only — it has a dark rule.
+       The pin keeps every clause and flips the two that the ruling flips: the member carries no lightOnly flag, and a
+       DARK rule must exist (was: must not); the dark fixture now shows FOUR dots with the stored green CHECKED (was: two,
+       none green). The "tap on the shown dot writes it" half stays asserted.
+       ★ S8 picks #46 r1 (NIT): the `filtered` clause (the lightOnly filter's source text) is DROPPED — no CHAT_GROUNDS
+       member carries lightOnly any more (asserted just below: no `lightOnly: true` anywhere in settings-screens.js), so
+       it pinned a mechanism nothing exercises. */
+    const member = /\{ id: 'green', key: 'groundGreenGradient', label: 'Green gradient' \}/.test(ss) && !/lightOnly: true/.test(ss);
+    const head = /if\(g!=='flat'&&g!=='gradient'&&g!=='green'&&g!=='blue'\)g='flat';/.test(ch);   // ★ S8 (#1237): + 'blue'
+    const ladder = /if \(gr !== 'flat' && gr !== 'gradient' && gr !== 'green' && gr !== 'blue'\) gr = 'flat';/.test(stripCode(ch));
+    const third = /if \(gr === 'flat' \|\| gr === 'gradient' \|\| gr === 'green' \|\| gr === 'blue'\) chatGround = gr;/.test(st);
     const lightRule = /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='green'\],\s*:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='green'\]\s*\{/.test(tokensCss);
-    const noDark = !/(?<!not\()\[data-theme=['"]dark['"]\][^{]*\[data-chat-ground=['"]green['"]\]/.test(tokensCss);
+    const darkRule = /:root\[data-theme='dark'\]\[data-chat-ground='green'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='green'\]\s*\{[^}]*--gradient-chat: linear-gradient\(180deg, #11231A 0%, #0E1A14 45%, var\(--chat-canvas-base\) 100%\)/.test(tokensCss);   // ★ S8: now = the dark DG1 rule EXISTS
     const extract = /groundGreenGradient: 'Green gradient'/.test(rd8('scripts/extract-strings.mjs'));
     /* behaviour (#46 r1): in DARK a stored 'green' shows TWO dots, none of them green, the flat one checked —
        and a tap on that flat dot still WRITES 'flat' (the stored light-only pick must stay reachable) */
-    let darkDots = -1, darkNoGreen = false, darkFlatChecked = false, darkTapWrites = '';
+    let darkDots = -1, darkGreenChecked = false, darkFlatUnchecked = false, darkTapWrites = '';   // ★ S8 picks #46 r1 NIT: renamed — the names now say what they hold
     {
       const hadWin = globalThis.window, hadDoc = globalThis.document;
       const gdom = new JSDOM('<!doctype html><html data-theme="dark"><body></body></html>', { pretendToBeVisual: true });
@@ -39926,15 +39971,15 @@ console.log('#1080 — walk #1074–#1078 fix round');
         W.document.body.append(scr);
         const dots = [...W.document.querySelectorAll('.c-settings-appearance__dot')];
         darkDots = dots.length;
-        darkNoGreen = !dots.some((b) => b.dataset.value === 'green');
+        darkGreenChecked = dots.some((b) => b.dataset.value === 'green' && b.getAttribute('aria-checked') === 'true');
         const flat = dots.find((b) => b.dataset.value === 'flat');
-        darkFlatChecked = !!flat && flat.getAttribute('aria-checked') === 'true';
+        darkFlatUnchecked = !!flat && flat.getAttribute('aria-checked') === 'false';
         if (flat) flat.click();
       } finally { globalThis.window = hadWin; globalThis.document = hadDoc; }
     }
-    const darkFixture = darkDots === 2 && darkNoGreen && darkFlatChecked && darkTapWrites === 'flat';
-    const c = { member, filtered, head, ladder, third, lightRule, noDark, extract, darkFixture };
-    ok(Object.values(c).every(Boolean), '★★ #1080 F15 (Damir picked G2): the green gradient is a light-only CHAT_GROUNDS member, offered only where it paints, admitted by all THREE ladders (head, chat, settings), painted by a light-only rule (none in dark — it falls to the flat midnight), its label is extractable, and in dark a stored green shows the flat dot checked while a tap on it still writes \'flat\' — ' + JSON.stringify(c) + JSON.stringify({ darkDots, darkNoGreen, darkFlatChecked, darkTapWrites }));
+    const darkFixture = darkDots === 4 && darkGreenChecked && darkFlatUnchecked && darkTapWrites === 'flat';
+    const c = { member, head, ladder, third, lightRule, darkRule, extract, darkFixture };
+    ok(Object.values(c).every(Boolean), '★★ #1080 F15 → ★ S8 (#1237): the green gradient is a CHAT_GROUNDS member in BOTH themes (a light G2 rule + the dark DG1 rule), no member is lightOnly, every ladder admits it (and blue), its label is extractable, and in dark a stored green shows FOUR dots with green checked while a tap on the flat dot writes \'flat\'. Superseded #1080 text: the green gradient is a light-only CHAT_GROUNDS member, offered only where it paints, admitted by all THREE ladders (head, chat, settings), painted by a light-only rule (none in dark — it falls to the flat midnight), its label is extractable, and in dark a stored green shows the flat dot checked while a tap on it still writes \'flat\' — ' + JSON.stringify(c) + JSON.stringify({ darkDots, darkGreenChecked, darkFlatUnchecked, darkTapWrites }));
   }
 
   /* —— F16: the dark unread strip is visible —— */
@@ -42095,6 +42140,15 @@ for (const mod of ['core', 'cs', 'shell', 'lead']) {
 for (const mod of ['strip', 'back', 'swipe']) await (await import(new URL('./pins-s7b/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ 7b S1: strip = #1214 · back + swipe = #1219 / #1220
 for (const mod of ['quote', 'wave', 'fab', 'fade2']) { await (await import(new URL('./pins-s7b/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep }); }
 }
+// ★ S8 CS — cs-wiring = the C# call sites of #1229 probe · #1231 groups · #1232 reactions · #1233 mini-app accept / decline · #1234 privacy · #1236 reply excerpt (the pure rules: scripts/csh/S8RulesTests.cs)
+for (const mod of ['cs-wiring']) { await (await import(new URL('./pins-s8/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep }); }   // ★ S8 CS
+/* ★ S8 S2 — ui-overlay = #1235 · ui-groupinfo = #1231 / #1204 b · ui-privacy = #1234 · ui-reply = #1236 (ui-kit.mjs is the shared boot, not a pin module) */
+for (const mod of ['ui-overlay', 'ui-groupinfo', 'ui-privacy', 'ui-reply']) { await (await import(new URL('./pins-s8/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep }); }   // ★ S8 S2
+// ★ S8 S1 — chat-reactions = #1232 · chat-app = #1233 · chat-sysline = #1231 · chat-blur = #1235 (the menu / inspect rows need S2's overlay.js blurDismiss) · chat-receipts = #1234 X5
+for (const mod of ['chat-reactions', 'chat-app', 'chat-sysline', 'chat-blur', 'chat-receipts']) await (await import(new URL('./pins-s8/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S8 S1
+for (const mod of ['v-rec', 'v-face', 'v-ring', 'v-r1']) await (await import(new URL('./pins-s8p/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S8 picks P-V — v-rec = #1239 R1 live wave · v-ring = #1239 S-A send ring + #1240 wave · v-face = #1240 face + mic badge (v-kit.mjs = the shared boot, not a module)
+for (const mod of ['g-grounds', 'g-grow']) await (await import(new URL('./pins-s8p/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S8 picks P-G — g-grounds = #1237 four grounds both themes · g-grow = #1238 the strip grows + the RO pin
+await (await import(new URL('./pins-s8p/c-wiring.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S8 picks P-C — c-wiring = #1239 voiceRecLevel · #1240 setSelfAvatar · r5 NIT-2 (pure rules: scripts/csh/S8PicksTests.cs)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

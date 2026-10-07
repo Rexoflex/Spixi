@@ -32,8 +32,13 @@ export default async function (h) {
     slot.getBoundingClientRect = () => { const t = g.clientHeight - g.pill - (g.lift || 0); return { top: t, bottom: t + g.pill, left: 0, right: 400, width: 400, height: g.pill }; };
     return { box, set: (v) => { top = v; } };
   };
+  /* ★ S8 (#1238) re-base of the STUB, not the assertions: the row now MOVES with the log's scrollTop (as a real row does).
+     The grow pin runs twice since S8 (in the ResizeObserver callback + the rAF belt); with a frozen rect the second,
+     correctly idempotent keepRowInView scrolled a second time on stale geometry. Every expected scrollTop is unchanged. */
   const stubRow = (row, viewTop, hgt = 40) => {
-    row.getBoundingClientRect = () => ({ top: viewTop, bottom: viewTop + hgt, left: 0, right: 300, width: 300, height: hgt });
+    const box = row.ownerDocument.getElementById('messages');
+    const top0 = box.scrollTop;
+    row.getBoundingClientRect = () => { const t = viewTop - (box.scrollTop - top0); return { top: t, bottom: t + hgt, left: 0, right: 300, width: 300, height: hgt }; };
     Object.defineProperty(row, 'offsetHeight', { configurable: true, get: () => hgt });
   };
   const frames = (W, n = 4) => new Promise((res) => { let i = 0; const f = () => (++i >= n ? res() : W.requestAnimationFrame(f)); W.requestAnimationFrame(f); });

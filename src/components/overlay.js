@@ -13,6 +13,10 @@
  * current opts, so an in-flight money sheet (lightDismiss+escDismiss false) is
  * actually locked on every path. escDismiss:false also makes dismissTopOverlay
  * CONSUME the back press without closing (back must not dismiss what Esc can't).
+ *
+ * ★ S8 (#1235): opts.blurDismiss (default false) — on DESKTOP (data-desktop) a window `blur` (a click
+ * in another pane = another WebView, or another app) closes every open overlay that carries it, via
+ * dismissOverlay (onDismiss runs). Quick menus only; a modal / an unflagged sheet stays.
  */
 
 import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
@@ -132,6 +136,23 @@ function onDocFocusin(e) {
   (lastInput === 'pointer' ? top.el : (focusables(top.el)[0] || top.el)).focus({ preventScroll: true });
 }
 
+/* ★ S8 (#1235): ONE window `blur` listener, installed at the first open of a blurDismiss overlay on a
+ * desktop document (data-desktop is a UA stamp set before first paint and constant, #228). The
+ * attribute is read again at the event so a document without it never closes anything. Not
+ * `visibilitychange` (contract §2.6). Live opts (setOverlayOpts) decide, like every other path. */
+let blurHooked = false;
+function onWindowBlur() {
+  if (!document.documentElement.hasAttribute('data-desktop')) return;
+  for (const entry of stack.slice().reverse()) {
+    if (liveOpts(entry).blurDismiss) dismissOverlay(entry.el);
+  }
+}
+function hookWindowBlur() {
+  if (blurHooked || typeof window === 'undefined' || !document.documentElement.hasAttribute('data-desktop')) return;
+  blurHooked = true;
+  window.addEventListener('blur', onWindowBlur);
+}
+
 /** Open `el` as an overlay above a scrim inside `host`. Internal — sheets/modals wrap this. */
 export function openOverlay(el, opts) {
   if (stack.some((s) => s.el === el)) return; // already open — no-op
@@ -144,6 +165,7 @@ export function openOverlay(el, opts) {
 
   opts = opts || overlayOpts.get(el) || {};
   overlayOpts.set(el, opts);                    // WeakMap = the single live source for policy reads
+  if (opts.blurDismiss) hookWindowBlur();       // ★ S8 (#1235)
   const host = opts.host || document.body;
   const opener = document.activeElement;
 

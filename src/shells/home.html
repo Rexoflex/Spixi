@@ -2150,6 +2150,7 @@
   const PUSHED_EXCERPT_KINDS = new Set([
     'typing', 'request-sent', 'request', 'request-done', 'payment', 'app-invite',
     'file', 'call', 'call-missed', 'call-declined', 'connected', 'reaction', 'text',
+    'reply',   // ★ S8 (#1236): C# strips the quote and marks a reply; the row shows the BODY with a reply glyph
   ]);
 
   /** raw excerpt + pushed kind → chatlist excerpt { type, text }. */
@@ -2168,6 +2169,11 @@
        addresses are NEVER shown in full in an excerpt. */
     if (k === 'connected') return { type: 'connected', text: canonExcerptText(decoded, name) };
     if (k === 'typing') return { type: 'typing', text: decoded, dots: true };
+    if (k === 'reply') {   // ★ S8 (#1236): peer text → the B4 canon, like `text`
+      // ★ S8 r1 (#1236): a reply whose body is a lone GIF link keeps the GIF mapping — the reply glyph + "GIF", never the raw URL
+      if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'reply', text: 'GIF' };
+      return { type: 'reply', text: canonExcerptText(decoded) };
+    }
     if (k !== 'text') return { type: k, text: trimmed };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)

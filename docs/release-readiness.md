@@ -256,11 +256,11 @@ Every row is Spixi-side only. A new verb / push = a 🟡 DECISIONS row + a gate 
 | V-7 | Edit: chatStream replace (same id, sequence + 1, IsStream=false), push OFF, "edited", ORIGINAL time and place kept; own text, 1:1 + private groups, 24 h, newest 25; an old app: 0.9.20+ replaces silently, 0.9.19- keeps the old text (no ✏️ — no app shows a second message) | pins + csh + walk | us | S6 | BUILT #1199 (#46 CLEAN); WALK owed (W-EDIT, W-EDIT-RULES, A-EDIT, A-NOTIF-EDIT, A-OLDAPP) | #1137 (4), #441, #1189, #1199 |
 | V-8 | Voice messages: dual path (inline 1:1 to a confirmed app, a file otherwise), excerpt + notification "🎤 Voice message (0:12)", the mic slot ON | pins + csh + walk ×4 platforms | us + BE | S7 | BUILT #1209 · WALK #1211 PASS (Win + Android); 7b: W1 bars, focus busy, sweep | #1136, #1138 (11), #1216, #1224 |
 | V-8b | Offline voice: an inline clip to a CLOSED peer arrives through the push mailbox at every length ≤ 30 s (or the route changes on data); the tick claims only the hand-off | walk 7B-F10 (5–30 s, both directions) + [P1] push lines + BE B-30 | us + BE | 7b | WALK #1227 PASS (5–30 s both ways); the #1225 miss did not repeat; mailbox drain → #1228 (2) | #1212 (10), #1225, #1227, #1228 |
-| V-9 | Groups: "you were added" notice · owner-only avatar change · rename (createGroup with the full member list) | pins + walk | us | S8 | OPEN | #1137 (5) |
-| V-10 | Reactions with any emoji (`like:<emoji>`, one per person) | pins + walk | us | S8 | OPEN | #1137 (6) |
-| V-11 | Mini-app session accept / decline UI | pins + walk | us | S8 | OPEN | #1137 (7); supersedes §I I-5 |
-| V-12 | Disappearing messages: per-chat timer (off / 1 h / 1 day / 1 week), a readable system line, local delete, honest text | csh + pins + walk | us | S8 | OPEN | #1138 (12) |
-| V-13 | Privacy switches: read receipts off · typing off · "Hide my online status" courtesy flag (reciprocal, honest text) | pins + walk | us | S8 | OPEN | #1138 (14) |
+| V-9 | Groups: "you were added" notice · owner-only avatar change · ~~rename~~ (v1.1, #1230) · #1204 members position | pins + walk | us | S8 | BUILT #1231 / #1241 (id-07 line, owner rule + badge, N = 11); WALK owed (S8 sheet) | #1137 (5), #1231 |
+| V-10 | Reactions: 6 quick emoji (`like:<emoji>`, one per person, not removable); display = allow-list (🟡 to confirm) | pins + csh + walk | us | S8 | BUILT #1232 / #1241; WALK owed; the allow-list awaits Damir | #1137 (6), #1232 |
+| V-11 | Mini-app session accept / decline UI | pins + walk | us | S8 | BUILT #1233 / #1241 (Join = accept, silent reject, Declined both sides); WALK owed | #1137 (7), #1233; supersedes §I I-5 |
+| V-12 | ~~Disappearing messages~~ — MOVED OUT of v1 → v1.1 with Core (§I I-V1) | — | — | — | OUT — #1230 | #1138 (12), #1230 |
+| V-13 | Privacy switches: read receipts off · typing off · "Hide my online status" courtesy flag (reciprocal, honest text) | pins + csh + walk | us | S8 | BUILT #1234 / #1241; WALK owed | #1138 (14), #1234 |
 | V-14 | Media picker: Photo tile ON, picker + camera, EXIF stripped, resize ≤ 2048 px JPEG ~80 %, videos as files under A-9 + warning | pins + walk ×4 | us | S9 | OPEN | #1138 (16) |
 | V-14b | Paste image (desktop first, all 4): type-only detect → `ixian:pasteImage` → C# reads the clipboard, own temp PNG, preview sheet, existing send path, temp deleted | pins + walk ×4 + 🟡 verb | us + BE | S9 | OPEN | #1156 |
 | V-14c | Multi-image send: up to 10, one transfer + fileHeader each, queued; the receiver groups them into one grid bubble | pins + walk ×4 | us | S9 | OPEN | #1157 |
@@ -274,6 +274,8 @@ Every row is Spixi-side only. A new verb / push = a 🟡 DECISIONS row + a gate 
 | V-21 | Session 6a (walk #1172 fails + Damir's logs): W-VIEW viewer motion + click outside (#1180) · A-FADE probe data (#1181) · group tile heads (#1170/#1182) · no menu on scroll (#1174/#1183) · hover kept (#1171/#1184) · unread zero pushed at once (#1175, mechanism OPEN) · Show in chat keeps the pane (#1176) · paused, never the offer (#1177) · file-offer copy (#1178) | pins-s6 + csh + walk | us | S6 | WALKED #1200: 17 P · 1 F (W-GROUPTILE: delivery, "missing encryption keys") · 4 N/A → re-walk rows in the 6b sheet | #1175–#1186, #1200 |
 | V-22 | Session 6 render picks: #1168 card scrim A (#1193) · #1173 (3) deleted bubble + (4) not-available card (#1190) · (5) group avatar live (#1191) · (6) heart beside the count (#1192) · chat-info grid cap 9 (#1195) — BUILT; (8) desktop Downloads dialog · #1169 caption (a) · #1179 (a) sticky pane → S9; #1179 (b) → v1.1 | pins + render + walk | us | S6a / S9 | BUILT (6a part); WALK owed; S9 part OPEN | #1188, #1190–#1196 |
 | V-23 | #1187 Contacts → Message stutter and #1194 chat-info close flicker: mechanism from the walk recordings + logs, then the fixes | walk REC + pin | us | S6b | OPEN — probes built, recordings owed | #1187, #1194 |
+| V-24 | S8 extras: the push-mailbox probe (#1229, dev) · desktop light-dismiss across panes (#1235) · the reply excerpt in the chats list (#1236) | pins + walk (WebView2 / WKWebView blur between panes) | us | S8 | BUILT #1241; WALK owed | #1229, #1235, #1236 |
+| V-25 | S8 picks: chat grounds 4 per theme (#1237) · composer grow on Reply / Edit (#1238) · voice recording R1 live wave + S-A sending ring (#1239) · voice bubble face + mic badge + the lower wave (#1240) | pins + csh + walk ×4 | us | S8 | BUILT #1242; WALK owed | #1237–#1240 |
 
 ## T1 · The BE engineer's rows (inherited — his to fix, still unsafe until he does)
 
@@ -358,12 +360,12 @@ its own criterion row in the stage it blocks).
 | I-10 | Row-reorder animation (after P-03); background downloads | audit §7 |
 | I-11 | CORE-11 history encryption at rest (after L8) | `security-review-for-be-engineer.md:465-467` |
 | I-12 | Server-side mute, busy reason flag — unless H-24 makes them blockers (B-21, B-22). (Group typing is not here: it is v1 via E-I6 unless H-8 drops it) | #972, #1081 |
-| I-13 | Group rename / re-avatar, "you were added to a group", arbitrary emoji reactions, mini-app session accept UI | #295 (confirm in H-23) |
+| I-13 | Group rename (Core keeps the old name + resets mute on a re-sent createGroup, #1230) · arbitrary emoji reactions beyond the 6 (the full picker) — the added line, the owner photo, 6 reactions and the mini-app accept UI are v1 now (#1231–#1233) | #295, #1230 |
 | I-14 | CH3 mark-read persistence | #928 |
 | I-15 | PRE-2 — unless picked in S8 (H-20) | `audit-refactor-plan.md` §6b |
 | I-16 | The "going offline" announce, the build (was B-23; BE's; F-3 records the ask) | session-1 item 3 |
 | I-17 | A contact-request decline the peer hears (a Core/protocol reject message, BE); v1 has the app-side ignore list (J-22) | #970, #978 |
-| I-V1 | v1.1 (Core): remove / change a reaction · ReplyToId (#448) · group typing (B-20, H-8) · A7 lastMessage after a delete · the owner-relayed delete push (Core :857) · S-01 · S-05 · C-06 · B-21 / B-22 (H-24) · the group limit + channel cap in Core | #1137, #1141 |
+| I-V1 | v1.1 (Core): disappearing messages (#1230: real row delete CORE-9, files, > 100 rows) · group rename + kept mute (#1230) · remove / change a reaction · ReplyToId (#448) · group typing (B-20, H-8) · A7 lastMessage after a delete · the owner-relayed delete push (Core :857) · S-01 · S-05 · C-06 · B-21 / B-22 (H-24) · the group limit + channel cap in Core | #1137, #1141 |
 | I-V2 | v1.1: GIF picker · archive chat · pinned messages · link previews (sender-made, off) · note to self · polls · video re-encoding / metadata stripping · real presence hiding · video calls · multi-device · offline files via relay storage · password-less start via the device key store · group add / remove members · RTL layout · reproducible Android build | #1138, #1139, #1140, #1143 |
 | I-V3 | Release trains (v1.0.x, monthly): forward · search in chat · send contact · one new language per release (queue in #1143) · later: in-app payment notice · premium update notice · two-step send payment · L-4 (ask) | #1143 |
 

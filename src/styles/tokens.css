@@ -2009,13 +2009,23 @@
 /* ★★ #1080 F15 (Damir 2026-09-30, picked G2 of a rendered 3-way, from his green title-bar colours):
    the GREEN gradient — light only, never the default, same two selectors as the brand rule (the chat
    root + the settings preview/dot). The ink is a deep green at the same level as the brand ink.
-   There is NO dark rule on purpose: in dark a stored 'green' paints the flat midnight ground.
+   ★ S8 (#1237): green has a DARK rule now (Forest DG1, below the dark brand rule) — it is no longer light-only.
    Reversal = delete this rule and the CHAT_GROUNDS member. */
 :root:not([data-theme='dark'])[data-chat-ground='green'],
 :root:not([data-theme='dark']) [data-chat-ground='green'] {
   --gradient-chat: linear-gradient(160deg, #D6EBC6 0%, #D2EDA8 45%, #CFE9BD 100%), var(--chat-canvas-base);
   --chat-pattern-ink: #2F5A1E;
   --surface-select-row-gap: #B8D4AB;   /* #46 r1 B-m1: the band over the green's middle stop (ring 4.34:1) */
+}
+/* ★★ S8 (#1237, Damir 2026-10-07, picked B1 "Sky" of the rendered s8x 3-way): the BLUE gradient, light half — a cool
+   sky wash, never the default, same two selectors as the brand and green rules; its own deep-navy ink. Measured on the
+   plain stops: sent #2160c2 4.30 → 3.83:1 · white received 1.39 → 1.56:1 · the A2 ring 3.85:1 on its gap.
+   Reversal = delete this rule, the dark 'blue' rule and the CHAT_GROUNDS member. */
+:root:not([data-theme='dark'])[data-chat-ground='blue'],
+:root:not([data-theme='dark']) [data-chat-ground='blue'] {
+  --gradient-chat: linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%), var(--chat-canvas-base);
+  --chat-pattern-ink: #1E3A66;
+  --surface-select-row-gap: #ADC1E9;   /* the select-row band (16 %) made opaque over the middle stop #C5D6F1 — ring 3.85:1 */
 }
 /* ⚠★ AND THE FLAT TILE HAS TO SAY SO EXPLICITLY. Custom properties INHERIT: once <html>
    carries data-chat-ground='gradient', the wash above cascades into every descendant —
@@ -2038,6 +2048,24 @@
 :root[data-theme='dark'] [data-chat-ground='gradient'] {
   --gradient-chat: linear-gradient(180deg, #151B36 0%, #11142A 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);   /* r2 NIT: the last stop IS the canvas — no seam if the base is re-picked */
   --surface-select-row-gap: #273259;   /* #46 r2 R2-m2: the band over the gradient's middle stop (22 % over #11142A) — the flat #232D45 left a seam */
+}
+/* ★★ S8 (#1237, Damir 2026-10-07, picked from the rendered s8x 3-ways): the DARK green (DG1 "Forest") and the DARK blue
+   (DB1 "Azure") — the #1066 grammar exactly: a tinted top settling into the midnight canvas (the last stop IS
+   var(--chat-canvas-base), no seam), so the composer and the newest messages sit on the plain ground. Each carries its
+   own pattern ink (the dark #C6CFFD periwinkle read violet on these hues). Measured on the plain top → bottom stops:
+   sent #1a4a96 1.93 / 1.89 → 2.27:1 (the dark brand gradient: 1.98) · the A2 ring 4.68:1 on each gap.
+   Reversal = delete these two rules (green falls back to light-only: put `lightOnly: true` back on its member). */
+:root[data-theme='dark'][data-chat-ground='green'],
+:root[data-theme='dark'] [data-chat-ground='green'] {
+  --gradient-chat: linear-gradient(180deg, #11231A 0%, #0E1A14 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);
+  --chat-pattern-ink: #BFE8CB;
+  --surface-select-row-gap: #253748;   /* the select-row band (22 %) made opaque over the middle stop #0E1A14 — ring 4.68:1 */
+}
+:root[data-theme='dark'][data-chat-ground='blue'],
+:root[data-theme='dark'] [data-chat-ground='blue'] {
+  --gradient-chat: linear-gradient(180deg, #0D2238 0%, #0C1828 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);
+  --chat-pattern-ink: #C2DDFB;
+  --surface-select-row-gap: #233557;   /* the select-row band (22 %) made opaque over the middle stop #0C1828 — ring 4.68:1 */
 }
 :root[data-theme='dark'] [data-chat-ground='flat'] {
   --gradient-chat: var(--chat-canvas-base);

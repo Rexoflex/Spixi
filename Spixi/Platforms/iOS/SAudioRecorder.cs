@@ -30,12 +30,19 @@ namespace Spixi
         bool voiceMode = false;
         volatile bool voiceFlushing = false;   // ★ #46 r1 A M6: true only inside a voice clip's stop()
         int voiceBitrate = 0;
+        volatile Action<int>? voiceLevel = null;   // ★ S8 picks (#1239): the live mic level — voice mode only (setOnVoiceLevel)
         Action? voiceInterrupted = null;
         NSObject? voiceInterruptionObserver = null;
 
         public void setMuted(bool is_muted)
         {
             muted = is_muted;
+        }
+
+        /* ★ S8 picks (#1239): the rec bar's live wave. Read on the capture thread only in the voice mode (tapVoiceLevel). */
+        public void setOnVoiceLevel(Action<int>? on_level)
+        {
+            voiceLevel = on_level;
         }
 
         List<byte[]> outputBuffers = new List<byte[]>();
@@ -214,6 +221,7 @@ namespace Spixi
             }
             voiceFlushing = voiceMode;   // ★ #46 r1 A M6: a voice clip keeps the frames still encoded during stop()
             running = false;
+            voiceLevel = null;   // ★ S8 picks #46 r1 A NIT-3: the level callback goes with the session (like voiceInterrupted)
 
             if (voiceMode)
             {
@@ -360,11 +368,30 @@ namespace Spixi
                         Array.Clear(buffer, offset, size);   // ★ #1074: silence, not a gap
                     }
                     audioEncoder.encode(buffer, offset, size);
+                    tapVoiceLevel(buffer, offset, size);   // ★ S8 picks (#1239): voice mode only
                 }
                 catch (Exception e)
                 {
                     Logging.error("Exception occured in encode loop: " + e);
                 }
+            }
+        }
+
+        /** ★ S8 picks (#1239): a VOICE MESSAGE's buffer → its level (0–100) → VoiceClips. The PCM is only READ (after the
+         *  encoder got it); a call (voiceMode false) never comes past the first line. Nothing is logged. */
+        private void tapVoiceLevel(byte[] pcm, int offset, int size)
+        {
+            Action<int>? on_level = voiceLevel;
+            if (!voiceMode || on_level == null)
+            {
+                return;
+            }
+            try
+            {
+                on_level(SPIXI.VoiceLevel.fromPcm16Bytes(pcm, offset, size));
+            }
+            catch (Exception)
+            {
             }
         }
 

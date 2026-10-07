@@ -189,6 +189,12 @@
 :root[data-theme='dark'] [data-chat-ground='gradient'] .c-sysnotice__card {
   box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);   /* sanctioned: the Session J notice edge (rgba(118,157,255,.35), E1b/N82(c)) softened for the one ground where the card and canvas share hue — a one-surface hairline, no semantic role carries it */
 }
+/* ★ S8 (#1237): the DARK BLUE ground (DB1 Azure) is the second ground that shares the #0c1a4a card's hue (1.03:1 at the
+   top stop #0D2238) — the same soft hairline. The dark GREEN (DG1) does not need it: the card's blue separates by hue. */
+:root[data-theme='dark'][data-chat-ground='blue'] .c-sysnotice__card,
+:root[data-theme='dark'] [data-chat-ground='blue'] .c-sysnotice__card {
+  box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);   /* sanctioned: the #1066 notice hairline above, for the second same-hue dark ground */
+}
 
 
 /* ★★ AUG GROUND (Damir 2026-08-30): the card FOLLOWS the canvas choice.

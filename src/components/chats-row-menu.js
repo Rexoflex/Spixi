@@ -271,7 +271,7 @@ export function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedG
     }, true);
     content.append(list);
     let undoLift = () => {};
-    const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift() });
+    const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift(), blurDismiss: true });   // ★ S8 (#1235)
     openSheet(sheet);
     anchorSheetToRow(sheet, row, { host, address: chat && chat.address });   // ★ Batch E (a) (#557): mobile dropdown, above the row
     undoLift = liftPressedRow(sheet, row, chat && chat.address);    // ★ #572 ③: and the row it points at lifts above the scrim
@@ -340,7 +340,7 @@ export function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedG
    * act() would strand a permanently lifted row, and a lifted row is
    * pointer-events:none — a chat the user can no longer tap. */
   let undoLift = () => {};
-  const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift() });
+  const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift(), blurDismiss: true });   // ★ S8 (#1235)
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): the chats-row menu anchors to the
    * long-pressed row on mobile — same grammar as the message menu, one helper.

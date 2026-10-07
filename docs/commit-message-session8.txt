@@ -1,0 +1,15 @@
+Session 8: groups, reactions, mini-app decline, privacy, voice picks
+
+- Push mailbox: dev [P1] probe (new / rep / reid / fix / ran / codes) for the drain (#1229)
+- Groups: "<owner> added you" line (id 7), owner-only group photo + change badge, members above the grid up to 11 (#1231)
+- Reactions: 6 quick emoji, one per person; display allow-list (#1232)
+- Mini-app: Join sends accept, Decline sends a silent reject, "Declined" on both sides (#1233)
+- Privacy: read receipts, typing, hide online status (reciprocal, honest text) (#1234)
+- Desktop: quick menus close when another pane is clicked (#1235)
+- Chats list: reply rows show the reply glyph (#1236)
+- Chat grounds: Blue (Sky) in light, Green (Forest) and Blue (Azure) in dark (#1237)
+- Composer: Reply / Edit strip grows and shrinks (#1238)
+- Voice: live blue wave while recording, 0:07 / 0:30 kept, send ring (#1239)
+- Voice bubble: sender face with mic badge, lower thinner wave (#1240)
+- Peers can no longer create system lines (one-byte ids dropped)
+- Pins: pins-s8, pins-s8p, csh S8RulesTests + S8PicksTests; smoke 5461, csh 236

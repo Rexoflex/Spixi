@@ -37,6 +37,17 @@
     <!-- ★ 7b (#1223 / #1222): the F9 heal decision · the dev logcat tail's rules (tests: S7bRulesTests.cs, with ReplyQuote's bridge args + VoiceCodec's sweep rule). -->
     <Compile Include="../../Spixi/Utils/ChatHeal.cs" />
     <Compile Include="../../Spixi/Utils/DevLogTail.cs" />
+    <!-- ★ S8 (#1229 / #1231 / #1232 / #1233 / #1234): the mailbox probe · the group rules · the quick reactions · the invite rules + declined store · the privacy rules + prefs (tests: S8RulesTests.cs; PresenceDisplay reads PrivacyRules + SPrivacyPrefs). -->
+    <Compile Include="../../Spixi/Utils/PushFetchProbe.cs" />
+    <Compile Include="../../Spixi/Utils/GroupAvatarRule.cs" />
+    <Compile Include="../../Spixi/Utils/SystemLineRules.cs" />   <!-- ★ #46 r1 (A-MINOR-2): peers cannot write a one-byte-id row -->
+    <Compile Include="../../Spixi/Utils/ReactionSet.cs" />
+    <Compile Include="../../Spixi/Utils/AppInviteRules.cs" />
+    <Compile Include="../../Spixi/Meta/SAppDeclines.cs" />
+    <Compile Include="../../Spixi/Utils/PrivacyRules.cs" />
+    <Compile Include="../../Spixi/Meta/SPrivacyPrefs.cs" />
+    <!-- ★ S8 picks (#1239): the live mic level of a voice recording + its push throttle (tests: S8PicksTests.cs). -->
+    <Compile Include="../../Spixi/Utils/VoiceLevel.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

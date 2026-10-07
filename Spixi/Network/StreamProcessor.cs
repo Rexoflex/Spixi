@@ -280,6 +280,8 @@ namespace SPIXI
         // Called when receiving S2 data from clients
         public override ReceiveDataResponse? receiveData(byte[] bytes, RemoteEndpoint endpoint, bool fireLocalNotification = true, bool alert = true)
         {
+            // ★ S8 (#1229): [P1] mailbox probe — the only null-endpoint caller is OfflinePushMessages.cs:165 (dev only, no-op otherwise)
+            int p1Cls = endpoint == null ? PushFetchProbe.note(bytes) : PushFetchProbe.ClsOff;
             if (isIgnoredRequest(bytes))
             {
                 return null;
@@ -288,6 +290,10 @@ namespace SPIXI
             if (rdr == null)
             {
                 return rdr;
+            }
+            if (p1Cls != PushFetchProbe.ClsOff && rdr.spixiMessage != null)
+            {
+                PushFetchProbe.noteCode(p1Cls, (int)rdr.spixiMessage.type);   // ★ S8 (#1229): the type of a rep / reid entry
             }
 
             StreamMessage message = rdr.streamMessage;
@@ -592,10 +598,27 @@ namespace SPIXI
 
                     case SpixiMessageCode.msgTyping:
                         // ★ C21 (Session AD): in a room the TYPIST is the group-sender, not the room
-                        handleFriendIsTyping(friend, group_sender_address);
+                        // ★ S8 (#1234): typing indicators OFF → an incoming typing is not shown (reciprocal)
+                        if (PrivacyRules.showsTyping(SPrivacyPrefs.typingIndicators))
+                        {
+                            handleFriendIsTyping(friend, group_sender_address);
+                        }
                         break;
 
                     case SpixiMessageCode.avatar:
+                        /* ★ S8 (#1231): a GROUP's picture comes from its OWNER only. Core (CoreStreamProcessor.cs:813-890) hands
+                         * a group-addressed message over with sender_address = the group and group_sender_address = the
+                         * stream sender, or — when the owner relayed it with spixi_message.groupSenderAddress — the REAL
+                         * sender. The owner's own picture (CoreStreamProcessor.sendAvatar(member, group), :2323) arrives
+                         * straight from the owner with no groupSenderAddress, so group_sender_address IS the owner. A
+                         * member's picture relayed by the owner names that member → dropped. A Group friend is not a bot
+                         * (setGroupMode), so FriendList.setAvatar (FriendList.cs:136) would store ANY member's group-addressed
+                         * picture as the group's. GroupAvatarRule (csh). No address in the line. */
+                        if (friend != null && !GroupAvatarRule.accept(friend.type == FriendType.Group, group_sender_address?.addressNoChecksum, groupOwnerBytes(friend)))
+                        {
+                            Logging.warn("avatar: a group picture from a non-owner was dropped");
+                            break;
+                        }
                         if (spixi_message.data != null && spixi_message.data.Length < 500000)
                         {
                             byte[] resized_avatar = SFilePicker.ResizeImage(spixi_message.data, 128, 128, 100);
@@ -616,6 +639,22 @@ namespace SPIXI
                                     catch (Exception e)
                                     {
                                         Logging.warn("avatar re-push failed: " + e.GetType().Name);
+                                    }
+                                });
+                            }
+                            else if (friend != null && friend.type == FriendType.Group)
+                            {
+                                // ★ S8 (#1231): a GROUP's own picture (owner-only, above — group_sender_address = the owner) re-pushes its open chat's header too
+                                Friend changedGroup = friend;
+                                MainThread.BeginInvokeOnMainThread(() =>
+                                {
+                                    try
+                                    {
+                                        Utils.getChatPage(changedGroup)?.pushHeaderAvatar();
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        Logging.warn("group avatar re-push failed: " + e.GetType().Name);
                                     }
                                 });
                             }
@@ -659,6 +698,14 @@ namespace SPIXI
                         break;
 
                     case SpixiMessageCode.chat:
+                        /* ★ #46 r1 (A-MINOR-2): a ONE-byte id is reserved for this device's own system lines ({1} {4} {5} {7},
+                         * SystemLineRules) — a peer's chat with one would be drawn as a system chip. Dropped before Core
+                         * stores it; no receipt (a receipt names the id, and the sender's own line {7} would take it). */
+                        if (SystemLineRules.isReservedId(message.id))
+                        {
+                            Logging.warn("chat: a message with a reserved one-byte id was dropped");
+                            return null;
+                        }
                         // F3: a garbage packet leaves `data` null, and GetString(null) throws
                         // ArgumentNullException on the network thread. Read it as empty instead.
                         Node.addMessageWithType(message.id, FriendMessageType.standard, sender_address, spixi_message.channel, safeString(spixi_message.data), false, group_sender_address, message.timestamp, fireLocalNotification, alert, 0);
@@ -676,6 +723,15 @@ namespace SPIXI
                     case SpixiMessageCode.chatStream:
                         {
                             var csm = new ChatStreamMessage(spixi_message.data);
+                            /* ★ #46 r1 (A-MINOR-2): a row under a reserved one-byte id — see the chat case.
+                             * ★ S8 #46 r2 (M1): at ANY sequence — in a bot room Core stores a replace (sequence ≥ 1) whose id it
+                             * does not hold as a NEW row (FriendList refuses only IsStream && Sequence > 0). A real id is a GUID
+                             * (StreamMessage.cs:146), and an own edit never targets a system line (EditRules.canEdit). */
+                            if (SystemLineRules.isReservedId(csm.MessageId))
+                            {
+                                Logging.warn("chatStream: a message with a reserved one-byte id was dropped");
+                                return null;
+                            }
                             /* ★★ #1199 (session 6b, CONTRACT 1b): AN EDIT OF A MESSAGE THIS DEVICE DOES NOT HOLD IS DROPPED.
                              * An edit is a chatStream REPLACE (the same id, sequence + 1, IsStream false). Core's
                              * FriendList.addMessageWithType looks the id up in the IN-MEMORY list only (the last ~100) and, on
@@ -935,6 +991,7 @@ namespace SPIXI
 
                     case SpixiMessageCode.createGroup:
                         {
+                            writeAddedToGroupLine(friend, spixi_message.data, message.timestamp);   // ★ S8 (#1231); ★ #46 r2 (M3): the createGroup's own send time
                             UIHelpers.shouldRefreshContacts = true;
                             break;
                         }
@@ -948,6 +1005,68 @@ namespace SPIXI
                 Logging.error("Exception occured in StreamProcessor.receiveData: " + e);
             }
             return rdr;
+        }
+
+        /** ★ S8 (#1231): the group's owner (its roster's first entry, Ixian-Core BotUsers.getOwner) as raw address bytes;
+         *  null when the roster cannot answer (an empty roster throws in First()). */
+        private static byte[]? groupOwnerBytes(Friend friend)
+        {
+            if (friend.type != FriendType.Group)
+            {
+                return null;
+            }
+            try
+            {
+                return friend.users?.getOwner()?.addressNoChecksum;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /* ★ S8 (#1231): "<name> added you to this group" — a system line in the group Core just joined, ONLY when that group
+         * holds no message yet (a re-sent createGroup to a group with history adds nothing; a replayed older one never reaches
+         * here — GroupChat.JoinGroup throws, Ixian-Core GroupChat.cs:76-80). The group = GroupChat.DeriveGroupAddress(the
+         * sender's own address, cgm.randomId) — Core's own derivation (CoreStreamProcessor.cs:1575, GroupChat.cs:13), so the
+         * sender IS the owner. The name = the contact's nickname as this device knows it (friend.nickname — ★ #46 r1: an empty
+         * one writes "You were added to this group", GroupAvatarRule.addedLineText). Fixed id {7} (★ #46 r1: not Core's avatar
+         * id {6}; UnreadRule.isSystemLineId / isAddedToGroupLineId): no unread count, no notification
+         * (fire_local_notification false), no read receipt. Channel 0 = a group's default channel (BotChannels.hasChannel(0)).
+         * No address and no name in a log line.
+         * ★ S8 #46 r2 (M3): stamped with the createGroup StreamMessage's own timestamp (Clock.getNetworkTimestamp() seconds at
+         * the sender, StreamMessage.cs:159 — the unit the chat case passes) — with 0 Core stamps the RECEIVE time (FriendList.cs:233),
+         * so after an offline drain the line would sort below the group's first messages. */
+        private static void writeAddedToGroupLine(Friend? friend, byte[]? data, long sentTimestamp)
+        {
+            try
+            {
+                if (friend == null || friend.publicKey == null || data == null)
+                {
+                    return;
+                }
+                CreateGroupMessage cgm = new CreateGroupMessage(data);
+                Address groupAddress = GroupChat.DeriveGroupAddress(new Address(friend.publicKey), cgm.randomId);
+                Friend? group = FriendList.getFriend(groupAddress);
+                if (group == null || group.type != FriendType.Group)
+                {
+                    return;
+                }
+                List<FriendMessage>? stored = group.getMessages(0);
+                if (!GroupAvatarRule.writesAddedLine(true, stored?.Count ?? -1, group.metaData.lastMessage != null))
+                {
+                    return;
+                }
+                // ★ #46 r1 (C-MAJOR-3 / A-NIT-1): the key + arg come from the pure rule (an empty name → the no-name key)
+                GroupAvatarRule.AddedLine line = GroupAvatarRule.addedLineText(friend.nickname);
+                string text = string.Format(SpixiLocalization._SL(line.key) ?? line.fallback, line.arg);
+                Node.addMessageWithType(new byte[] { UnreadRule.AddedToGroupLineId }, FriendMessageType.standard, group.walletAddress, 0, text, false, null, sentTimestamp, false, false);
+                Logging.info("createGroup: the added-to-group line was written");
+            }
+            catch (Exception e)
+            {
+                Logging.warn("createGroup: the added-to-group line failed (" + e.GetType().Name + ")");
+            }
         }
 
         protected void handleFriendIsTyping(Friend friend, Address? typist = null)
@@ -1358,6 +1477,8 @@ namespace SPIXI
                 });
             });
 
+            markDeclinedByPeer(sender_address, session_id);   // ★ S8 (#1233): the card reads "Declined" (stored + pushed), page or not
+
             MiniAppPage page = Node.MiniAppManager.getAppPage(group_sender_address, session_id);
             if (page == null)
             {
@@ -1368,6 +1489,64 @@ namespace SPIXI
             page.appRequestRejectReceived(group_sender_address, app_data.data);
 
             UIHelpers.refreshAppRequests = true;
+        }
+
+        /* ★ S8 (#1233) — THE INVITER'S SIDE OF A DECLINE. The peer's appRequestReject names only the session id; the row is
+         * my NEWEST own appSession invite in that 1:1 chat whose app id derives that session (MiniAppPage.sessionIdFor —
+         * Spixi's session id is the app id's hash). It is stored as declined (SAppDeclines, keyed by the row) and, when the
+         * chat is open, re-pushed with app_state "Declined" (SingleChatPage.refreshAppRow, main thread). A 1:1 only: in a
+         * group one member's no is not the room's answer (and this device sends no group reject either). A call (VoIP)
+         * returned above. Never throws; the log names nothing. */
+        private static void markDeclinedByPeer(Address sender_address, byte[]? session_id)
+        {
+            try
+            {
+                if (session_id == null)
+                {
+                    return;
+                }
+                Friend? friend = FriendList.getFriend(sender_address);
+                if (friend == null || friend.type != FriendType.Normal || friend.bot)
+                {
+                    return;
+                }
+                FriendMessage? row = null;
+                var rows = friend.getMessages(0);
+                if (rows != null)
+                {
+                    lock (rows)
+                    {
+                        // ★ #46 r1 (C-MAJOR-3): the row predicate is the pure AppInviteRules.isMyInviteForSession (csh)
+                        row = rows.FindLast(m => m.id != null && AppInviteRules.isMyInviteForSession(m.type, m.localSender,
+                            m.type == FriendMessageType.appSession && AppInviteRules.appIdOf(m.message).Length > 0 ? MiniAppPage.sessionIdFor(AppInviteRules.appIdOf(m.message)) : null,
+                            session_id));
+                    }
+                }
+                if (row == null)
+                {
+                    Logging.info("app reject: no own invite row for that session");
+                    return;
+                }
+                if (SAppDeclines.add(friend.walletAddress.ToString(), Crypto.hashToString(row.id)))
+                {
+                    FriendMessage declined = row;
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        try
+                        {
+                            Utils.getChatPage(friend)?.refreshAppRow(declined, 0);
+                        }
+                        catch (Exception e)
+                        {
+                            Logging.warn("app reject: the card re-push failed (" + e.GetType().Name + ")");
+                        }
+                    });
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("app reject: the declined mark failed (" + e.GetType().Name + ")");
+            }
         }
 
         public static void handleAppEndSession(Address sender_address, byte[] app_data_raw, Address? group_sender_address)

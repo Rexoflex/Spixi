@@ -455,7 +455,7 @@ export function createAppBubble({
     invite: strings.invitedYou || 'Invited you to join',
     invited: strings.youInvited || 'You have sent an invite',
     missing: strings.invitedYou || 'Invited you to join',
-    declined: strings.declinedInvite || 'You declined this invite',
+    declined: dir === 'sent' ? appDeclinedByPeer(strings) : (strings.declinedInvite || 'You declined this invite'),   // ★ S8 (#1233)
     canceled: strings.canceledInvite || 'You canceled this invite',   // ★ B2 (#533 ①): the sender's terminal tombstone
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
@@ -536,6 +536,8 @@ function appIconEl(iconUrl, name) {
   }
   return ic;
 }
+/* ★ S8 (#1233): MY invite, declined by the peer (C# app_state "Declined" on my own row) — "You declined" would be false */
+function appDeclinedByPeer(strings) { return strings.inviteDeclined || 'Your invite was declined'; }
 function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
   const { row, el } = cardShell(dir, 'app', 'compact', gutter);
   if (state === 'declined' || state === 'canceled') el.dataset.state = state;
@@ -543,7 +545,7 @@ function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
     invite: strings.invitedYou || 'Invited you to join',
     invited: strings.youInvited || 'You have sent an invite',
     missing: strings.invitedYou || 'Invited you to join',
-    declined: strings.declinedInvite || 'You declined this invite',
+    declined: dir === 'sent' ? appDeclinedByPeer(strings) : (strings.declinedInvite || 'You declined this invite'),   // ★ S8 (#1233)
     canceled: strings.canceledInvite || 'You canceled this invite',
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',

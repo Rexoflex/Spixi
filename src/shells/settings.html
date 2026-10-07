@@ -430,6 +430,9 @@
     callRingtone: true,        // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
     notifPushProvider: true,   // ★ P2 (#708): matches the C# default (KEY_PUSH_PROVIDER = true)
     photoPreviews: true,       // ★ #1133 (A5 #1124): matches the C# default (SChatPrefs "chatPhotoPreviews" = true)
+    readReceipts: true,        // ★ S8 (#1234): the C# defaults (SChatPrefs) — receipts ON, typing ON, hide-online OFF
+    typingIndicators: true,
+    hideOnline: false,
     /* PA1 (#525): "Confirm payments" — display state only. The C# verb persists
        IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
        so this never rides the dirty/save path (no #288 clobber class). */
@@ -572,7 +575,7 @@
          while chat.html's ladder honoured the flat. Both stored values are read now. */
       // ★ #855 → #998: 'gradient' is ADMITTED again (the brand gradient, light only);
       // any other value falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
-      if (gr === 'flat' || gr === 'gradient' || gr === 'green') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too   // ★ #998: anything else, incl. absent/corrupt → the default above
+      if (gr === 'flat' || gr === 'gradient' || gr === 'green' || gr === 'blue') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too · ★ S8 (#1237): and the blue   // ★ #998: anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
   }
@@ -1296,9 +1299,10 @@
     }
     /* ★ #1133: the Privacy screen also keeps its live node, so a setPhotoPreviews push with
        no tap in flight moves the switch IN PLACE (a pending tap is resolved by the latch). */
-    if (!notifPending.photoPreviews) {
-      const pv = (paneMode ? detailWrap : root).querySelector('[data-pref="photoPreviews"] .c-settings__switch');
-      if (pv && pv.getAttribute('aria-checked') !== String(state.photoPreviews)) pv.setAttribute('aria-checked', String(state.photoPreviews));
+    for (const k of ['photoPreviews', 'readReceipts', 'typingIndicators', 'hideOnline']) {   // ★ S8 (#1234): + the three privacy switches
+      if (notifPending[k]) continue;
+      const pv = (paneMode ? detailWrap : root).querySelector('[data-pref="' + k + '"] .c-settings__switch');
+      if (pv && pv.getAttribute('aria-checked') !== String(state[k])) pv.setAttribute('aria-checked', String(state[k]));
     }
     /* ★ Session J (#753, Damir: "when I loaded seed heavy the note in About didn't change"):
        the About sublevel KEEPS its live node across rebuilds (the rule above), so the
@@ -1460,6 +1464,9 @@
       : (key === 'notifPushProvider') ? 'ixian:notifPushProvider:'   // ★ P2 (#708)
       : (key === 'callRingtone') ? 'ixian:callRingtone:'             // ★ E-W4 (🟡 #1118)
       : (key === 'photoPreviews') ? 'ixian:photoPreviews:'           // ★ #1133 (🟡 new verb): the Privacy switch
+      : (key === 'readReceipts') ? 'ixian:readReceipts:'             // ★ S8 (#1234): the three privacy verbs
+      : (key === 'typingIndicators') ? 'ixian:typingIndicators:'
+      : (key === 'hideOnline') ? 'ixian:hideOnline:'
       : 'ixian:notifSounds:';
     bridge.send(verb + (next ? 'on' : 'off'));
   }
@@ -1568,11 +1575,12 @@
          preferences one case below: same document, same localStorage origin, no verb
          and no C# change. `chat.html` reads the key on every render, so the choice
          takes hold in each conversation opened after it.
-         The §9 rows (read receipts / typing) stay dark — they still have no verb. */
+         ★ S8 (#1234): read receipts / typing / hide online have verbs now (cap-gated rows below). */
       case 'privacy': return createPrivacy({
         mediaAutoload: mediaAutoloadPref(),
         photoPreviews: state.photoPreviews,   // ★ #1133: the setPhotoPreviews seed / echo
-        capabilities: { readReceipts: bridge.cap('readReceipts'), typing: bridge.cap('typing') },
+        readReceipts: state.readReceipts, typingIndicators: state.typingIndicators, hideOnline: state.hideOnline,   // ★ S8 (#1234)
+        capabilities: { readReceipts: bridge.cap('readReceipts'), typing: bridge.cap('typing'), hideOnline: bridge.cap('hideOnline') },
         strings,
         onBack: showHub,
         onMediaAutoload: (next, ctrl) => {
@@ -1587,6 +1595,10 @@
            NOTIF-2 latch: optimistic, resolved by the setPhotoPreviews echo, failed back after
            NOTIF_ACK_MS. No row on an exe without the verb (the W-g rule). */
         onPhotoPreviews: bridge.cap('photoPreviews') ? (next, ctrl) => { latchNotif('photoPreviews', next, ctrl); } : undefined,
+        /* ★ S8 (#1234): the three privacy switches — the same latch (optimistic, resolved by the set* echo). */
+        onReadReceipts: (next, ctrl) => { latchNotif('readReceipts', next, ctrl); },
+        onTyping: (next, ctrl) => { latchNotif('typingIndicators', next, ctrl); },
+        onHideOnline: (next, ctrl) => { latchNotif('hideOnline', next, ctrl); },
       });
       /* ★ #978 (#970, Damir 2026-09-24): Declined requests — the un-block path for the app-side
          ignore list. The addresses come from THIS page's own push (C# SRequestIgnore), the tap
@@ -2053,6 +2065,9 @@
     setCallRingtone(s) { applyNotifPush('callRingtone', s); },   // ★ E-W4 (🟡 #1118): the echo half of ixian:callRingtone
     setNotifPushProvider(s) { applyNotifPush('notifPushProvider', s); },   // ★ P2 (#708): the echo half of ixian:notifPushProvider
     setPhotoPreviews(s) { applyNotifPush('photoPreviews', s); },   // ★ #1133 (🟡 new push): the onLoad seed + the echo of ixian:photoPreviews
+    setReadReceipts(s) { applyNotifPush('readReceipts', s); },          // ★ S8 (#1234): seed + echo of ixian:readReceipts
+    setTypingIndicators(s) { applyNotifPush('typingIndicators', s); },  // ★ S8 (#1234): seed + echo of ixian:typingIndicators
+    setHideOnline(s) { applyNotifPush('hideOnline', s); },              // ★ S8 (#1234): seed + echo of ixian:hideOnline
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411
     showRemoveAvatar(show) { state.hasCustomAvatar = (show === '1' || show === 'true' || show === true); scheduleRebuild(); },

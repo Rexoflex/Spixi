@@ -1414,6 +1414,43 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   .c-chat-info__avatar-view:hover { box-shadow: 0 0 0 var(--outline-width-2) var(--outline-action-hover); }
 }
 .c-chat-info__avatar-view:active { box-shadow: 0 0 0 var(--outline-width-2) var(--outline-action-pressed); }
+/* ★ S8 (#1231): the owner's camera badge on a group hero. The wrap is the positioning box (it hugs the 80 avatar);
+   the BUTTON is the 44 hit area, centred on the avatar's lower trailing rim; the 36 disc inside carries the look —
+   --surface-menu ground, a 2 px --surface-screen ring that cuts it from the photo, elevation-2 so it reads as a
+   control on both ramps. */
+.c-chat-info__avatar-wrap { position: relative; display: inline-flex; flex: none; }
+.c-chat-info__photo-badge {
+  position: absolute;
+  inset-inline-end: -14px;
+  inset-block-end: -10px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-chat-info__photo-badge-disc {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-menu);
+  box-shadow: 0 0 0 var(--outline-width-2) var(--surface-screen), var(--elevation-2);
+  color: var(--icon-neutral-01);
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-chat-info__photo-badge:hover .c-chat-info__photo-badge-disc { background: var(--surface-card-hover); }
+}
+.c-chat-info__photo-badge:active .c-chat-info__photo-badge-disc { background: var(--surface-card-pressed); }
 .c-chat-info__id {
   min-width: 0;                     /* long names ellipsize, never blow out (③ lesson) */
   width: 100%;                      /* centered hero: the column is the full row, so
@@ -1660,6 +1697,10 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   flex: none;
 }
 .c-chat-info__setting > svg:last-child { color: var(--icon-neutral-02); flex: none; }
+/* ★ S8 (#1204 b): the "Members (n)" jump row of a room > 11 (one card, one row — the setting-row grammar) */
+.c-chat-info__members-jump > .c-chat-info__card > .c-chat-info__setting { width: 100%; }
+.c-chat-info__members { scroll-margin-block-start: var(--spacing-12); }   /* the jump lands the label below the body's top edge, not flush */
+.c-chat-info__members-jump-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* disappearing-messages option sheet */
 .c-chat-info__sd { display: flex; flex-direction: column; gap: var(--spacing-4); }
@@ -3574,6 +3615,17 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   .c-msgmenu__react:hover { background: var(--surface-interactive-hover); transform: scale(1.12); }
 }
 .c-msgmenu__react:active { background: var(--surface-interactive-pressed); }
+/* ★ S8 (#1232, #46 r1 X6): one reaction per person, not removable (Core). Once I reacted the row holds ONLY my emoji,
+   pressed AND aria-disabled: the tonal ground, no hover / scale / press feedback, default cursor. No opacity / filter
+   (the stacking-context gate). */
+.c-msgmenu__react[aria-pressed="true"] { background: var(--surface-action-tonal-default); }
+.c-msgmenu__react[aria-disabled="true"] { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .c-msgmenu__react[aria-disabled="true"]:hover { background: transparent; transform: none; }
+  .c-msgmenu__react[aria-pressed="true"]:hover { background: var(--surface-action-tonal-default); }
+}
+.c-msgmenu__react[aria-disabled="true"]:active { background: transparent; }
+.c-msgmenu__react[aria-pressed="true"]:active { background: var(--surface-action-tonal-default); }   /* ★ X6: mine (pressed AND aria-disabled, no scale via the rule above) keeps its ground */
 
 .c-msgmenu__list { display: flex; flex-direction: column; }
 .c-msgmenu__item {
@@ -5225,6 +5277,7 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
         })),
         blind: state.group.blind,
         amOwner: state.group.amOwner,   // N48 (#370): hero "You are the owner" chip in blind rooms
+        onGroupPhoto: () => bridge.send('ixian:groupPhoto'),   // ★ S8 (#1231): chat-info shows the badge to a group OWNER only; C# re-checks
         notifications: state.group.notifications,
         capabilities: { notifications: true, admin: state.group.admin },
         host: document.body,

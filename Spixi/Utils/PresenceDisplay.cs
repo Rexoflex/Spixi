@@ -111,8 +111,29 @@ namespace SPIXI
             {
                 return false;
             }
+            if (presenceHidden(friend))
+            {
+                return false;   // ★ S8 (#1234): hideOnline (reciprocal) or the contact announced spixi.presence-hidden.1
+            }
             long seen = lastSightingNetwork(friend);
             return isFresh(seen, Clock.getNetworkTimestamp());
+        }
+
+        /** ★ S8 (#1234): hide this contact's online dot AND last seen? My "Hide my online status" is ON (reciprocal: I see
+         *  nobody's), or the contact's stored capability answer names spixi.presence-hidden.1 (always). Display only —
+         *  `friend.online` (Core routing) is untouched. Never throws (a failed read = not hidden by the contact). */
+        public static bool presenceHidden(Friend friend)
+        {
+            bool announces = false;
+            try
+            {
+                announces = SpixiProtocols.supports(friend.supportedProtocols, PrivacyRules.PresenceHiddenId);
+            }
+            catch (Exception)
+            {
+                // the list changed under the read — the switch below still applies
+            }
+            return PrivacyRules.hidesPresence(SPrivacyPrefs.hideOnline, announces);
         }
 
         /** Pure: is a sighting at `seen` (network s) fresh at `now` (network s)? 0 = never seen = not fresh. */
@@ -124,6 +145,10 @@ namespace SPIXI
         /** The newest sighting as LOCAL Unix seconds for the shells' relative time; 0 = unknown. */
         public static long lastSeenEpoch(Friend friend)
         {
+            if (friend != null && presenceHidden(friend))
+            {
+                return 0;   // ★ S8 (#1234): "unknown" — the shells show nothing
+            }
             return localEpochOf(lastSightingNetwork(friend), Clock.getNetworkTimestamp(), DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         }
 

@@ -65,7 +65,9 @@
 
 /* —— reply/edit context strip (batch 3b; ★ #1198 / #1199 live behind setCaps reply / edit) —— */
 /* ★ #1198: the strip arms in on --duration-200 decelerate (a short rise + fade, no blur); it leaves at once (removed) —
-   the close is faster than the open. Reduced motion: the token is 0 ms (tokens.css). */
+   the close is faster than the open. Reduced motion: the token is 0 ms (tokens.css).
+   ★ S8 (#1238): SUPERSEDED where WAAPI runs — composer.js ctxStripMotion GROWS the strip 0 → full (--duration-200
+   standard) and collapses it (150 ms accelerate); this keyframe stays as the no-WAAPI fallback only. */
 /* ★ 7b (#1214, strip B — Damir's pick, the Telegram row INSIDE the pill): the strip is the field's FIRST line, full
    pill width (negative inline margins cancel the field's padding — the ⊕ room at the start, spacing-12 at the end),
    a hairline under it; the field wraps ONLY while it holds one ([data-ctx], set by setComposerContext — no :has()). */
@@ -96,6 +98,8 @@
   flex-basis: calc(100% + 2 * var(--spacing-12));
   margin-inline-start: calc(-1 * var(--spacing-12));
 }
+/* ★ S8 (#1238): a strip on its way out takes no tap even where `inert` is unsupported (it is also inert) */
+.c-composer__ctx[data-closing] { pointer-events: none; }
 .c-composer__ctx > svg { flex: none; color: var(--icon-action-default); }
 [dir="rtl"] .c-composer__ctx[data-kind="reply"] > svg { transform: scaleX(-1); }
 .c-composer__ctx-info {
@@ -442,8 +446,7 @@
   .c-composer__rec[data-state="recording"] .c-composer__rec-dot { animation: none; }
 }
 .c-composer__rec-time {
-  flex: 1;
-  min-width: 0;
+  flex: none;   /* ★ S8 (#1239 R1): the live wave takes the rest of the line (was flex: 1) */
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
@@ -451,6 +454,75 @@
   white-space: nowrap;
 }
 .c-composer__rec[data-state="stopped"] .c-composer__rec-time { color: var(--text-neutral-02); }
+/* ★★ S8 (#1239 R1, Damir's pick) — THE LIVE WAVE: the real mic level (C# voiceRecLevel) scrolling in from the END, in
+   the voice bubble's grammar (2 px bars, 2 px apart, round, a quiet bar = a dot). NOT red: the action-blue family, the
+   NEWEST bars strongest and the older ones a token step quieter each (light: 600 → 500 → 300 on the white pill; dark:
+   300 → 400 → 600 on the ink pill — "strong" is lighter there). Colour by position, so a bar takes the next tier as it
+   moves; no opacity anywhere (the stacking gate). Stopped = the neutral ink, frozen. The dot stays RED: the universal
+   "recording" sign, the last 5 s too (#46 r1 NIT); the last 5 s turn the timer the warning colour and lay "{n} s left"
+   over the wave's leading end. */
+.c-composer__rec {
+  --rec-wave-new: var(--primary-600);
+  --rec-wave-mid: var(--primary-500);
+  --rec-wave-old: var(--primary-300);
+}
+[data-theme="dark"] .c-composer__rec {
+  --rec-wave-new: var(--primary-300);
+  --rec-wave-mid: var(--primary-400);
+  --rec-wave-old: var(--primary-600);
+}
+/* ★ #46 r1 (S8 picks m-3 / m-4): the wave's TRACK — the wave fills it, the near-limit hint is laid OVER its leading end on
+   the pill ground (absolute: no width taken, so the wave neither jumps at 0:25 nor twitches each second) */
+.c-composer__rec-track {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.c-composer__rec-wave {
+  flex: 1;
+  min-width: 0;
+  height: 24px;   /* sanctioned: the live wave box (the bubble wave is 20) */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;   /* the newest bar is at the END; the overflow (the oldest) is clipped at the START */
+  gap: 2px;
+  overflow: hidden;
+}
+.c-composer__rec-bar {
+  flex: 0 0 2px;
+  width: 2px;
+  height: calc(2px + var(--rec-h, 0) * 0.22px);   /* 0 → a 2 px dot, 100 → the 24 px box */
+  border-radius: var(--radius-full);
+  background: var(--rec-wave-old);
+}
+.c-composer__rec-bar:nth-last-child(-n+28) { background: var(--rec-wave-mid); }
+.c-composer__rec-bar:nth-last-child(-n+10) { background: var(--rec-wave-new); }
+.c-composer__rec[data-state="stopped"] .c-composer__rec-bar { background: var(--icon-neutral-03); }
+.c-composer__rec-hint {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  max-width: calc(100% - 48px);   /* sanctioned (#46 picks r2 MINOR-1): ≥ 48 px of the newest bars always show; one line, never wrapped */
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--spacing-8);   /* air between the words and the first bar they leave visible */
+  background: var(--surface-composer-pill);   /* the pill ground: the oldest bars go under it */
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-warning);
+}
+.c-composer__rec-hint:empty { display: none; }
+/* ★ #46 picks r2 (MINOR-1): a hint that does not fit in one line beside the 48 px of wave (it / fr / ru at 320 px) is not shown —
+   the timer already turns the warning colour; composer.js sets data-cramped from the hint's own overflow */
+.c-composer__rec-hint[data-cramped] { visibility: hidden; }
+.c-composer__rec[data-near] .c-composer__rec-time { color: var(--text-warning); }   /* ★ #46 r1 NIT: the timer warns; the dot stays red */
 /* the polite status line (start / stop only) — clip-hidden, the chat-info __live pattern */
 .c-composer__rec-live {
   position: absolute;

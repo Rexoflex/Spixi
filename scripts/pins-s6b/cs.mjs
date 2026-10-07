@@ -421,14 +421,14 @@ export default async function (h) {
   });
 
   await guard('7b dev-only [P1]', async () => {
-    const loop = /bool p1Ran = OfflinePushMessages\.fetchPushMessages\(false, fireLocalNotification, false\);\s*CoreMessageWriter\.arrivals\.afterPushBatch\(CoreMessageWriter\.instance\);\s*if \(P1Perf\.enabled\)\s*\{\s*ulong p1Got = OfflinePushMessages\.receivedOfflineMessages - p1Before;\s*if \(p1Ran \|\| p1Got > 0\)\s*\{\s*P1Perf\.line\("push fetch got=" \+ p1Got \+ " where=loop"\);\s*\}\s*\}/.test(NODE)
+    const loop = /bool p1Ran = OfflinePushMessages\.fetchPushMessages\(false, fireLocalNotification, false\);\s*CoreMessageWriter\.arrivals\.afterPushBatch\(CoreMessageWriter\.instance\);\s*if \(P1Perf\.enabled\)\s*\{\s*ulong p1Got = OfflinePushMessages\.receivedOfflineMessages - p1Before;\s*if \(p1Ran \|\| p1Got > 0 \|\| PushFetchProbe\.touched\)\s*\{\s*PushFetchProbe\.line\("loop", p1Ran, p1Got\);\s*\}\s*\}/.test(NODE)
       && /ulong p1Before = P1Perf\.enabled \? OfflinePushMessages\.receivedOfflineMessages : 0;/.test(NODE);
-    const push = ['Android', 'iOS'].map((pl) => /ulong p1Before = SPIXI\.P1Perf\.enabled \? OfflinePushMessages\.receivedOfflineMessages : 0;[\s\S]{0,400}?if \(SPIXI\.P1Perf\.enabled\)\s*\{\s*SPIXI\.P1Perf\.line\("push fetch got=" \+ \(OfflinePushMessages\.receivedOfflineMessages - p1Before\) \+ " where=push"\);\s*\}/.test(stripCode(rd('Spixi/Platforms/' + pl + '/SPushService.cs'))));
+    const push = ['Android', 'iOS'].map((pl) => /ulong p1Before = SPIXI\.P1Perf\.enabled \? OfflinePushMessages\.receivedOfflineMessages : 0;[\s\S]{0,400}?if \(SPIXI\.P1Perf\.enabled\)\s*\{\s*SPIXI\.PushFetchProbe\.line\("push", fetched, OfflinePushMessages\.receivedOfflineMessages - p1Before\);\s*\}/.test(stripCode(rd('Spixi/Platforms/' + pl + '/SPushService.cs'))));
     const sp = /if \(P1Perf\.enabled\)\s*\{\s*P1Perf\.line\("filehdr rx stored="/.test(SP) && /if \(P1Perf\.enabled\)\s*\{\s*P1Perf\.line\("cap answer rx n="/.test(SP);
     const hm = bodyOf(SCP, 'private void healLastMessage(');
     const scp = /if \(P1Perf\.enabled\)\s*\{\s*bool inWindow;\s*lock \(messages\)\s*\{\s*inWindow = ChatHeal\.indexOfId\(messages, last\.id, m => m\.id\) >= 0;\s*\}\s*P1Perf\.line\("chat load last-in-window="/.test(hm);
     ok(loop && push.every(Boolean) && sp && scp,
-      '★ 7b #46 r1 (A-NIT1 / A-MINOR-2): every 7b [P1] argument is computed only under P1Perf.enabled (a store build does no extra work), and the node-loop "push fetch" line logs only a fetch that RAN or got messages — never every cooldown pass — '
+      '★ 7b #46 r1 (A-NIT1 / A-MINOR-2) · re-based S8 (#1229: the line moved into PushFetchProbe.line; the loop also prints a fetch that reached the server, `touched`): every 7b [P1] argument is computed only under P1Perf.enabled (a store build does no extra work), and the node-loop "push fetch" line logs only a fetch that RAN or got messages — never every cooldown pass — '
       + JSON.stringify({ loop, push, sp, scp }));
   });
 }

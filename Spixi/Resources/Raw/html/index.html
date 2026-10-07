@@ -1156,6 +1156,15 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   white-space: nowrap;
 }
 .c-chatlist-item[data-unread] .c-excerpt__text { font-weight: var(--font-weight-semibold); }
+/* ★ S8 (#1236): the reply excerpt's spoken prefix ("Reply:") — read by screen readers, never painted */
+.c-excerpt__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 /* #944: the group/bot-room sender ("George:") — one step darker than the excerpt, the
    name capped at 60% of the line so the message itself always keeps room, the colon
    outside the ellipsis so it never gets cut. */
@@ -2101,6 +2110,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   .c-msgmenu__react:hover { background: var(--surface-interactive-hover); transform: scale(1.12); }
 }
 .c-msgmenu__react:active { background: var(--surface-interactive-pressed); }
+/* ★ S8 (#1232, #46 r1 X6): one reaction per person, not removable (Core). Once I reacted the row holds ONLY my emoji,
+   pressed AND aria-disabled: the tonal ground, no hover / scale / press feedback, default cursor. No opacity / filter
+   (the stacking-context gate). */
+.c-msgmenu__react[aria-pressed="true"] { background: var(--surface-action-tonal-default); }
+.c-msgmenu__react[aria-disabled="true"] { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .c-msgmenu__react[aria-disabled="true"]:hover { background: transparent; transform: none; }
+  .c-msgmenu__react[aria-pressed="true"]:hover { background: var(--surface-action-tonal-default); }
+}
+.c-msgmenu__react[aria-disabled="true"]:active { background: transparent; }
+.c-msgmenu__react[aria-pressed="true"]:active { background: var(--surface-action-tonal-default); }   /* ★ X6: mine (pressed AND aria-disabled, no scale via the rule above) keeps its ground */
 
 .c-msgmenu__list { display: flex; flex-direction: column; }
 .c-msgmenu__item {
@@ -7856,6 +7876,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   const PUSHED_EXCERPT_KINDS = new Set([
     'typing', 'request-sent', 'request', 'request-done', 'payment', 'app-invite',
     'file', 'call', 'call-missed', 'call-declined', 'connected', 'reaction', 'text',
+    'reply',   // ★ S8 (#1236): C# strips the quote and marks a reply; the row shows the BODY with a reply glyph
   ]);
 
   /** raw excerpt + pushed kind → chatlist excerpt { type, text }. */
@@ -7874,6 +7895,11 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
        addresses are NEVER shown in full in an excerpt. */
     if (k === 'connected') return { type: 'connected', text: canonExcerptText(decoded, name) };
     if (k === 'typing') return { type: 'typing', text: decoded, dots: true };
+    if (k === 'reply') {   // ★ S8 (#1236): peer text → the B4 canon, like `text`
+      // ★ S8 r1 (#1236): a reply whose body is a lone GIF link keeps the GIF mapping — the reply glyph + "GIF", never the raw URL
+      if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'reply', text: 'GIF' };
+      return { type: 'reply', text: canonExcerptText(decoded) };
+    }
     if (k !== 'text') return { type: k, text: trimmed };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)

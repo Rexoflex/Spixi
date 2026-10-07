@@ -207,6 +207,15 @@
   white-space: nowrap;
 }
 .c-chatlist-item[data-unread] .c-excerpt__text { font-weight: var(--font-weight-semibold); }
+/* ★ S8 (#1236): the reply excerpt's spoken prefix ("Reply:") — read by screen readers, never painted */
+.c-excerpt__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 /* #944: the group/bot-room sender ("George:") — one step darker than the excerpt, the
    name capped at 60% of the line so the message itself always keeps room, the colon
    outside the ellipsis so it never gets cut. */

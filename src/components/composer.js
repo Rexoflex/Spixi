@@ -13,6 +13,7 @@
  *                  onTyping, onRecord, onVoiceCancel, onVoiceSend, maxLength, onTooLong, strings }) → el
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
  * setComposerVoice(el, on) · setComposerRecording(el, state, ms) · getComposerRecording(el) — ★ #1208
+ * setComposerRecLevel(el, level) — ★ S8 (#1239): one live-wave bar per C# voiceRecLevel push
  *
  * maxLength (A7, #302 — legacy parity for the 64 000-char guard, legacy
  *   js/chat.js:401-409): 0 = off (default, byte-for-byte today's behaviour).
@@ -445,6 +446,61 @@ function ctxTile(tile) {
   return t;
 }
 
+/* ★★ S8 (#1238, Damir 2026-10-07: "as you wrote") — THE STRIP GROWS, the tx-detail drawer grammar (wallet-shell.js #1056).
+   WAAPI on the strip's box: height, block padding, block margins and the hairline go 0 → their resting values, so the
+   PILL grows and the slot's ResizeObserver (chat.html) re-pins the log inside its own callback — the bubbles ride up
+   with the pill, no dip. OPEN = --duration-200 on --easing-standard, the content hidden for the first 30 % and fading
+   in after (it never shows squashed). CLOSE = 0.75 × that (150 ms) on --easing-accelerate, the content gone in the first
+   half; a closing strip is `inert` + [data-closing] (no tap, no focus, not read) and leaves the DOM at the end. No
+   overshoot. Durations AND easings are READ from the tokens, so reduced motion (the tokens are 0 ms there) and an
+   engine without WAAPI are instant — the same end state; the CSS rise (c-composer-ctx-in) is that engine's fallback. */
+const ctxAnims = new WeakMap();   // strip → its running Animation
+function ctxToken(name, fallback) {
+  try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; } catch (e) { return fallback; }
+}
+function ctxStripMotion(strip, open, done, fromBox) {
+  let fired = false;
+  const finish = () => {
+    if (fired) return;
+    fired = true;
+    ctxAnims.delete(strip);
+    if (open) strip.style.overflow = '';
+    if (done) done();
+  };
+  if (!open) { strip.dataset.closing = ''; strip.setAttribute('inert', ''); }
+  const base = parseFloat(ctxToken('--duration-200', '200ms'));
+  const ms = Number.isFinite(base) ? Math.round(open ? base : base * 0.75) : 0;
+  if (!ms || typeof strip.animate !== 'function' || !strip.offsetHeight) { finish(); return; }
+  /* FROM = what is on screen now — a close that lands mid-grow starts from the half-grown box, not from full */
+  const cs = getComputedStyle(strip);
+  const now = { height: cs.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderBottomWidth: cs.borderBottomWidth };
+  const fromOpacity = cs.opacity;
+  const run = ctxAnims.get(strip);
+  if (run) run.cancel();
+  const shut = { height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px', borderBottomWidth: '0px' };
+  strip.style.animation = 'none';   // the CSS rise is the no-WAAPI fallback only (never put back: that would replay it)
+  strip.style.overflow = 'hidden';
+  /* ★ #46 r1 (S8 picks m-5): a strip that REPLACES a closing one opens from that strip's box AS IT IS ON SCREEN
+     (fromBox, measured before it left) — the same FROM = on-screen rule as a close mid-grow; from 0 the slot dropped
+     32 px in one frame on a close + reopen inside the 150 ms */
+  const frames = open
+    ? [{ ...(fromBox || shut), opacity: 0, offset: 0 }, { opacity: 0, offset: 0.3 }, { ...now, opacity: 1, offset: 1 }]
+    : [{ ...now, opacity: fromOpacity, offset: 0 }, { opacity: 0, offset: 0.5 }, { ...shut, opacity: 0, offset: 1 }];
+  let a;
+  try {
+    a = strip.animate(frames, {
+      duration: ms,
+      easing: open ? ctxToken('--easing-standard', 'cubic-bezier(0.2, 0, 0, 1)') : ctxToken('--easing-accelerate', 'cubic-bezier(0.3, 0, 1, 1)'),
+      fill: open ? 'none' : 'forwards',
+    });
+  } catch (e) { finish(); return; }
+  ctxAnims.set(strip, a);
+  a.onfinish = finish;
+  /* a timeline that does not tick (a hidden pane) must not leave a strip half-way — the end state lands anyway
+     (a PAUSED animation is someone's deliberate hold — devtools, a frame-by-frame render — and is left alone) */
+  setTimeout(() => { if (!fired && ctxAnims.get(strip) === a && a.playState !== 'paused') { a.cancel(); finish(); } }, ms + 120);
+}
+
 /**
  * setComposerContext(el, ctx | null)
  *   ctx = { kind: 'reply'|'edit', title, text, prefill (edit, default true),
@@ -458,9 +514,23 @@ function ctxTile(tile) {
 export function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
   const field = el.querySelector('.c-composer__field');
+  /* ★ S8 (#1238): a strip still CLOSING is dropped at once (a new context, or a second close, wins). An open strip is
+     either SWAPPED in place (Reply ⇄ Edit: no collapse, no grow) or, on a close, collapsed by ctxStripMotion below. */
+  let fromBox = null;   // ★ #46 r1 (m-5): the closing strip's box on screen now — a new strip grows FROM it
+  for (const old of el.querySelectorAll('.c-composer__ctx[data-closing]')) {
+    if (!fromBox && ctx && old.offsetHeight) {
+      const cs = getComputedStyle(old);
+      fromBox = { height: cs.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderBottomWidth: cs.borderBottomWidth };
+    }
+    const a = ctxAnims.get(old);
+    if (a) a.cancel();
+    ctxAnims.delete(old);
+    old.remove();
+  }
   const prev = el.querySelector('.c-composer__ctx');
-  if (prev) prev.remove();
-  if (field) delete field.dataset.ctx;
+  const closing = !!prev && !ctx;
+  if (prev && !closing) { const a = ctxAnims.get(prev); if (a) a.cancel(); ctxAnims.delete(prev); prev.remove(); }
+  if (field && !closing) delete field.dataset.ctx;
   // freeze audit: REPLACING an active edit ctx (e.g. Reply picked mid-edit)
   // must give the pre-edit draft back — else the old message text sends as
   // the new context's body and the draft is lost
@@ -469,7 +539,20 @@ export function setComposerContext(el, ctx) {
     input.value = prevCtx._draft || '';
     input.dispatchEvent(new Event('input'));
   }
-  if (!ctx) { composerCtx.delete(el); resyncComposer(el); return; }
+  if (!ctx) {
+    composerCtx.delete(el);
+    if (closing) {
+      /* the field keeps its wrap while the strip collapses; the value flips to 'closing' at once, so the back mirror
+         (chat.html observes data-ctx) learns NOW that no context is open, not 150 ms later */
+      if (field) field.dataset.ctx = 'closing';
+      ctxStripMotion(prev, false, () => {
+        prev.remove();
+        if (field && !field.querySelector(':scope > .c-composer__ctx')) delete field.dataset.ctx;
+      });
+    }
+    resyncComposer(el);
+    return;
+  }
   composerCtx.set(el, ctx);
   const strings = ctx.strings || getStrings();
 
@@ -506,6 +589,7 @@ export function setComposerContext(el, ctx) {
      (no :has() — the WebView baseline). The COST line (#86) stays a bar line above the pill, so it is still topmost. */
   if (field) { field.dataset.ctx = ctx.kind; field.prepend(strip); }
   else el.prepend(strip);
+  if (!prev) ctxStripMotion(strip, true, null, fromBox);   // ★ S8 (#1238): a FRESH strip grows (from a closing one's box, m-5); a swap (Reply over Edit) stays put
 
   if (input) {
     if (ctx.kind === 'edit' && ctx.prefill !== false) {
@@ -594,8 +678,41 @@ function recElapsed(r) {
   const ms = r.state === 'recording' ? r.baseMs + (Date.now() - r.baseAt) : r.baseMs;
   return Math.min(VOICE_REC_MAX_MS, Math.max(0, ms));
 }
+/* ★ S8 (#1239 R1): the last 5 s — the TIMER turns the warning colour and "{n} s left" shows over the wave's leading end.
+   ★ #46 r1 (S8 picks NIT): the DOT stays red (the universal "recording" sign) — only the timer + the hint warn.
+   ★ #46 r1 (m-3 / m-4): the hint is LAID OVER the wave (composer.css), it takes no width from it — the wave keeps one
+   width from 0:00 to 0:30 in every locale, in tabular figures. The seconds are CEILED: 25.4 s → "5 s left", 29.1 s → "1".
+   The timer KEEPS "0:07 / 0:30" (Damir: the limit always visible). The hint is aria-hidden like the timer (no per-second
+   speech); the polite status line still speaks at the start and the stop only. */
+const REC_NEAR_MS = VOICE_REC_MAX_MS - 5000;
 function paintRecTime(r) {
-  r.time.textContent = fillVoiceSlots(r.strings.recordingTime || '{0} / {1}', formatVoiceClock(recElapsed(r)), formatVoiceClock(VOICE_REC_MAX_MS));
+  const ms = recElapsed(r);
+  r.time.textContent = fillVoiceSlots(r.strings.recordingTime || '{0} / {1}', formatVoiceClock(ms), formatVoiceClock(VOICE_REC_MAX_MS));
+  const near = r.state === 'recording' && ms >= REC_NEAR_MS;
+  if (near) r.bar.dataset.near = ''; else delete r.bar.dataset.near;
+  const hint = near ? fillVoiceSlots(r.strings.voiceSecondsLeft || '{0} s left', String(Math.max(0, Math.ceil((VOICE_REC_MAX_MS - ms) / 1000)))) : '';
+  if (r.hint.textContent !== hint) r.hint.textContent = hint;
+  /* ★ #46 picks r2 (MINOR-1): one line beside ≥ 48 px of wave, or not at all (the timer still warns) */
+  const cramped = !!hint && r.hint.scrollWidth > r.hint.clientWidth + 1;
+  if (cramped !== r.hint.hasAttribute('data-cramped')) { if (cramped) r.hint.dataset.cramped = ''; else delete r.hint.dataset.cramped; }   // written on a change only
+}
+
+/* ★★ S8 (#1239 R1) — THE LIVE WAVE. C# pushes voiceRecLevel(0..100) about 10 times a second (one per 100 ms slot, the peak since the last push — #46 picks r1) while it records (the mic level,
+   never audio); each push is ONE new bar at the END, the older bars move one step towards the start and fall off it
+   (the box clips at the START — justify-content: flex-end). Only while the bar is RECORDING: a level for a stopped bar,
+   a closed bar or another composer is dropped. A non-number is dropped; a number is rounded and clamped to 0..100. The
+   bar count covers a wide desktop pill (180 × 4 px); a narrow pill shows only the newest. One push = one node moved
+   (the oldest bar leaves the start, a new one joins the end) — the tier colours ride on the position (composer.css). */
+const REC_WAVE_BARS = 180;
+export function setComposerRecLevel(el, level) {
+  const r = el ? composerRec.get(el) : null;
+  if (!r || r.state !== 'recording') return;
+  const n = Number(level);
+  if (level === null || level === '' || typeof level === 'boolean' || !Number.isFinite(n)) return;
+  const b = r.wave.firstElementChild;
+  if (!b) return;
+  b.style.setProperty('--rec-h', String(Math.max(0, Math.min(100, Math.round(n)))));
+  r.wave.append(b);   // the oldest bar becomes the newest
 }
 
 /**
@@ -634,8 +751,9 @@ export function setComposerRecording(el, state, elapsedMs) {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.className = 'c-composer__rec-cancel';
-    cancel.setAttribute('aria-label', strings.cancelRecording || 'Cancel recording');
-    cancel.append(icon('x', { size: 20 }));
+    /* ★ S8 (#1239 R1): DISCARD — the trash glyph and its name (the clip is thrown away; the verb is still voicerec:cancel) */
+    cancel.setAttribute('aria-label', strings.discardRecording || 'Discard recording');
+    cancel.append(icon('trash', { size: 20 }));
     const dot = document.createElement('span');
     dot.className = 'c-composer__rec-dot';
     dot.setAttribute('aria-hidden', 'true');
@@ -646,8 +764,25 @@ export function setComposerRecording(el, state, elapsedMs) {
     live.className = 'c-composer__rec-live';
     live.setAttribute('role', 'status');
     live.setAttribute('aria-live', 'polite');
-    bar.append(cancel, dot, time, live);
-    r = { state: '', baseMs: 0, baseAt: Date.now(), openedAt: Date.now(), pending: false, pendingTimer: 0, timer: 0, bar, time, live, strings };
+    /* ★ S8 (#1239 R1): the live wave (decorative — aria-hidden) and the near-limit hint */
+    const wave = document.createElement('span');
+    wave.className = 'c-composer__rec-wave';
+    wave.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < REC_WAVE_BARS; i++) {
+      const b = document.createElement('span');
+      b.className = 'c-composer__rec-bar';
+      wave.append(b);
+    }
+    const hint = document.createElement('span');
+    hint.className = 'c-composer__rec-hint u-tabular';
+    hint.setAttribute('aria-hidden', 'true');
+    /* ★ #46 r1 (S8 picks m-3 / m-4): the wave and the hint share ONE track — the hint lies over the wave's leading end
+       (absolute), so it never takes width from the wave (it squeezed it to 0 px at 320 px in it / fr / ru) */
+    const track = document.createElement('span');
+    track.className = 'c-composer__rec-track';
+    track.append(wave, hint);
+    bar.append(cancel, dot, time, track, live);
+    r = { state: '', baseMs: 0, baseAt: Date.now(), openedAt: Date.now(), pending: false, pendingTimer: 0, timer: 0, bar, time, live, strings, wave, hint };
     const cancelNow = () => {
       const cur = composerRec.get(el);
       if (!cur || cur.pending) return;

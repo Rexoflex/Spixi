@@ -2254,6 +2254,7 @@ const EXCERPT_GLYPHS = {
   'call-declined': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
   request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
+  reply: 'arrow-back-up',   // ★ S8 (#1236): the last message is a reply (C# stripped the quote); the glyph is aria-hidden, a hidden "Reply:" speaks it
   'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
 };
 function createExcerpt({ type = 'text', text = '', sender = null, dots = false, strings = getStrings() } = {}) {
@@ -2299,6 +2300,14 @@ function createExcerpt({ type = 'text', text = '', sender = null, dots = false, 
   }
   const t = document.createElement('span');
   t.className = 'c-excerpt__text';
+  /* ★ S8 (#1236): the glyph is aria-hidden (icons.js) and, unlike File / Reacted, the text is the message itself —
+     so a visually-hidden prefix says what the arrow means to a screen reader. */
+  if (type === 'reply') {
+    const sr = document.createElement('span');
+    sr.className = 'c-excerpt__sr';
+    sr.textContent = (strings.repliedPrefix || 'Reply:') + ' ';
+    t.append(sr);
+  }
   if (type === 'draft') {
     const prefix = document.createElement('span');
     prefix.className = 'c-excerpt__draft';
@@ -2316,7 +2325,7 @@ function createExcerpt({ type = 'text', text = '', sender = null, dots = false, 
     m.textContent = text.slice(i, stop);
     t.append(m, document.createTextNode(text.slice(stop)));
   } else {
-    t.textContent = text;
+    t.append(document.createTextNode(text));   // ★ S8 (#1236): append, not textContent — keeps the reply prefix
   }
   el.append(t);
   return el;
@@ -3737,6 +3746,10 @@ function createTxItem({
  * current opts, so an in-flight money sheet (lightDismiss+escDismiss false) is
  * actually locked on every path. escDismiss:false also makes dismissTopOverlay
  * CONSUME the back press without closing (back must not dismiss what Esc can't).
+ *
+ * ★ S8 (#1235): opts.blurDismiss (default false) — on DESKTOP (data-desktop) a window `blur` (a click
+ * in another pane = another WebView, or another app) closes every open overlay that carries it, via
+ * dismissOverlay (onDismiss runs). Quick menus only; a modal / an unflagged sheet stays.
  */
 
 
@@ -3856,6 +3869,23 @@ function onDocFocusin(e) {
   (lastInput === 'pointer' ? top.el : (focusables(top.el)[0] || top.el)).focus({ preventScroll: true });
 }
 
+/* ★ S8 (#1235): ONE window `blur` listener, installed at the first open of a blurDismiss overlay on a
+ * desktop document (data-desktop is a UA stamp set before first paint and constant, #228). The
+ * attribute is read again at the event so a document without it never closes anything. Not
+ * `visibilitychange` (contract §2.6). Live opts (setOverlayOpts) decide, like every other path. */
+let blurHooked = false;
+function onWindowBlur() {
+  if (!document.documentElement.hasAttribute('data-desktop')) return;
+  for (const entry of stack.slice().reverse()) {
+    if (liveOpts(entry).blurDismiss) dismissOverlay(entry.el);
+  }
+}
+function hookWindowBlur() {
+  if (blurHooked || typeof window === 'undefined' || !document.documentElement.hasAttribute('data-desktop')) return;
+  blurHooked = true;
+  window.addEventListener('blur', onWindowBlur);
+}
+
 /** Open `el` as an overlay above a scrim inside `host`. Internal — sheets/modals wrap this. */
 function openOverlay(el, opts) {
   if (stack.some((s) => s.el === el)) return; // already open — no-op
@@ -3868,6 +3898,7 @@ function openOverlay(el, opts) {
 
   opts = opts || overlayOpts.get(el) || {};
   overlayOpts.set(el, opts);                    // WeakMap = the single live source for policy reads
+  if (opts.blurDismiss) hookWindowBlur();       // ★ S8 (#1235)
   const host = opts.host || document.body;
   const opener = document.activeElement;
 
@@ -4022,9 +4053,10 @@ function dismissTopOverlay() {
  * bridge-era toggleAnimatedSlider menus. z-40, light-dismiss by default.
  *
  * createSheet({ title, content, host, lightDismiss = true, escDismiss = true,
- *               onDismiss, strings })
+ *               onDismiss, strings, blurDismiss = false })
  *   lightDismiss — scrim click closes (sheet default: true)
  *   escDismiss   — Esc closes (default: true; safe dismiss path, ARIA APG)
+ *   blurDismiss  — desktop: a window blur (click in another pane) closes it (★ S8 #1235; quick menus only)
  *   strings.sheet — aria-label fallback when there is no title ('Menu')
  * openSheet(el) / closeSheet(el) free fns (#44).
  */
@@ -4033,7 +4065,7 @@ function dismissTopOverlay() {
 
 function createSheet({
   title = '', content = null, host, lightDismiss = true, escDismiss = true,
-  onDismiss, strings = getStrings(),
+  onDismiss, strings = getStrings(), blurDismiss = false,
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-sheet';
@@ -4062,7 +4094,7 @@ function createSheet({
   if (content) body.append(content);
   el.append(body);
 
-  setOverlayOpts(el, { host, lightDismiss, escDismiss, onDismiss });
+  setOverlayOpts(el, { host, lightDismiss, escDismiss, onDismiss, blurDismiss });   // ★ S8 (#1235): blurDismiss
   return el;
 }
 
@@ -4870,7 +4902,8 @@ function hideCallBar(host = document.body) {
  *   linkPreview: { url, title, domain, image }, // §8-GATED: P2P has no server
  *                             // to unfurl — the SENDER composes the preview
  *                             // into the message (Signal-style), bridge carries it
- *   voice: { durMs, peaks, state, posMs, onPlay },   // ★ #1208 (S7): a VOICE bubble —
+ *   voice: { durMs, peaks, state, posMs, onPlay,     // ★ #1208 (S7): a VOICE bubble —
+ *            who, heard, sending, sendPct, sendStill },  // ★ S8 (#1239 / #1240): the face + mic badge, the send ring
  *                             // play / pause + a 40-bar waveform + the time replace
  *                             // the text body (`text` is ignored); live updates via
  *                             // setVoiceBubble(row, voice). No audio here: onPlay
@@ -5207,7 +5240,9 @@ function createMessageBubble({
     // "avatars are not aligned with the tail"): on the FIRST bubble, TOP-aligned beside the
     // tail (WhatsApp's group grammar); it sat bottom-aligned on the LAST bubble while the tail
     // rode the first. Other rows keep the gutter width so bubbles align.
-    if (showAvatar && (position === 'first' || position === 'single')) {
+    /* ★ S8 (#1240): a VOICE row that carries its sender's avatar INSIDE the bubble (voice.who) draws none in the gutter —
+       one face per row; the gutter keeps its width so the run stays aligned */
+    if (showAvatar && (position === 'first' || position === 'single') && !(voice && voice.who)) {
       const av = createAvatar({ src: avatar, name, address, size: bubbleAvatarSize() });   // ★ Session K: the --bubble-avatar-size token, not a literal 24
       if (onSenderClick) { // #99: avatar opens the member sheet too
         const b = document.createElement('button');
@@ -5319,7 +5354,7 @@ function createMessageBubble({
     /* ★ #1208: the voice body REPLACES the text — the row's own text (C#'s readable first line for an old app,
        "🎤 0:12 (voice message — update Spixi to play)") is never shown in a voice bubble */
     el.dataset.voice = '';
-    el.append(buildVoiceBody(voice, strings));
+    el.append(buildVoiceBody({ ...voice, dir: direction }, strings));   // ★ S8 (#1240): the badge reads the direction
   } else {
     const body = document.createElement('span');
     body.className = 'c-bubble__text';
@@ -5411,7 +5446,10 @@ function createMessageBubble({
       meta.append(pg);
     }
   }
-  if (meta.childNodes.length) el.append(meta);
+  /* ★ S8 (#1240): a voice bubble carries its time + ticks on the line UNDER the wave (beside the clip time, WhatsApp) — not
+     on a line of their own under the face; every meta lookup is a descendant query, so the move is invisible to them */
+  const voiceFoot = voice ? el.querySelector('.c-voice__foot') : null;
+  if (meta.childNodes.length) (voiceFoot || el).append(meta);
 
   // failed sent message (Damir 2026-07-03, r2): clean bubble — retry circle
   // hugging it + red "Not delivered" caption carry the error (both retry-able).
@@ -5588,7 +5626,7 @@ function removeMessage(row) {
       // with the label (firstElementChild: may be the bare avatar OR its #99 button wrap)
       const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
       const nextGutter = next.querySelector('.c-bubble-row__gutter');
-      if (av && nextGutter && !nextGutter.childNodes.length) nextGutter.append(av);
+      if (av && nextGutter && !nextGutter.childNodes.length && !next.querySelector('.c-voice__who')) nextGutter.append(av);   // ★ S8 (#1240): a voice heir already shows its face
     }
   } else if (pos === 'last') {
     const prev = row.previousElementSibling;
@@ -5683,6 +5721,10 @@ function buildVoiceBody(voice, strings) {
     lastTap = t;
     v.onPlay();
   });
+  /* ★ S8 (#1240): the wave and the time share a column — the time sits UNDER the wave's start (Telegram), so the row
+     keeps room for the face at the trailing end */
+  const main = document.createElement('span');
+  main.className = 'c-voice__main';
   const wave = document.createElement('span');
   wave.className = 'c-voice__wave';
   wave.setAttribute('aria-hidden', 'true');
@@ -5693,9 +5735,73 @@ function buildVoiceBody(voice, strings) {
   }
   const time = document.createElement('span');
   time.className = 'c-voice__time u-tabular';
-  wrap.append(play, wave, time);
+  const foot = document.createElement('span');
+  foot.className = 'c-voice__foot';
+  foot.append(time);
+  main.append(wave, foot);
+  wrap.append(play, main);
   paintVoice(wrap, voice, strings);
   return wrap;
+}
+
+/* ★★ S8 (#1240, Damir's WhatsApp reference) — THE FACE: a round 40 avatar at the trailing end of the voice bubble (the
+   sender's; MY own on a sent one) with a small MIC badge over its bottom-start edge. `who` = { src, name, address } —
+   no picture = the initials / gradient disc (createAvatar). Decorative (aria-hidden): the row already names its sender
+   (the group label, the 1:1 header). Rebuilt only when the face CHANGES (a playing tick never touches it). Badge tone:
+   accent = a received clip not played in this document yet; neutral = played, or mine. */
+function paintVoiceWho(wrap, v) {
+  let whoEl = wrap.querySelector(':scope > .c-voice__who');
+  const who = v.who && typeof v.who === 'object' ? v.who : null;
+  if (!who) { if (whoEl) whoEl.remove(); return; }
+  const key = [who.src || '', who.name || '', who.address || ''].join('\u0001');
+  if (!whoEl || whoEl.dataset.key !== key) {
+    const fresh = document.createElement('span');
+    fresh.className = 'c-voice__who';
+    fresh.setAttribute('aria-hidden', 'true');
+    fresh.dataset.key = key;
+    const badge = document.createElement('span');
+    badge.className = 'c-voice__badge';
+    badge.append(icon('microphone', { size: 12 }));
+    fresh.append(createAvatar({ src: who.src || null, name: who.name || '', address: who.address || '', size: 40 }), badge);
+    if (whoEl) whoEl.replaceWith(fresh); else wrap.append(fresh);
+    whoEl = fresh;
+  }
+  whoEl.dataset.tone = v.dir === 'received' && !v.heard && !v.gone ? 'accent' : 'neutral';   // a clip not on this device has nothing to hear
+}
+
+/* ★★ S8 (#1239 S-A) — SENDING: a ring INSIDE the play disc, round the glyph (Telegram's download grammar), in the disc's
+   own ink. `sending` = 'file' (a voice FILE upload: determinate, `sendPct` 0..100 from updateFile) | 'inline' (an inline
+   voice before its sent tick: an indeterminate arc that turns; reduced motion = a still, full ring) | '' = none. SVG
+   circles, no conic-gradient / mask (the WebView baseline); pathLength 100 makes the dash a plain percentage. */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function paintVoiceRing(play, sending, pct, still) {
+  let ring = play.querySelector(':scope > .c-voice__ring');
+  if (!sending) { if (ring) ring.remove(); return; }
+  if (!ring) {
+    ring = document.createElementNS(SVG_NS, 'svg');
+    ring.setAttribute('class', 'c-voice__ring');
+    ring.setAttribute('viewBox', '0 0 40 40');
+    ring.setAttribute('aria-hidden', 'true');
+    ring.setAttribute('focusable', 'false');
+    for (const cls of ['c-voice__ring-track', 'c-voice__ring-arc']) {
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('class', cls);
+      c.setAttribute('cx', '20');
+      c.setAttribute('cy', '20');
+      c.setAttribute('r', '17');
+      c.setAttribute('pathLength', '100');
+      ring.append(c);
+    }
+  }
+  ring.dataset.mode = sending;
+  /* ★ #46 r1 (S8 picks m-6): `still` = an inline send whose tick is long overdue — the arc stops turning and closes into
+     a still, full ring (the reduced-motion look): the send is still pending, nothing claims progress */
+  const isStill = sending === 'inline' && !!still;
+  if (isStill) ring.dataset.still = ''; else delete ring.dataset.still;
+  const arc = ring.lastChild;
+  const p = sending === 'file' ? Math.max(0, Math.min(100, Math.round(Number(pct) || 0))) : isStill ? 100 : 25;
+  arc.setAttribute('stroke-dasharray', p + ' 100');
+  if (ring.parentNode !== play) play.append(ring);
 }
 
 function paintVoice(wrap, voice, strings = getStrings()) {
@@ -5708,16 +5814,21 @@ function paintVoice(wrap, voice, strings = getStrings()) {
   /* ★ #46 r1 (B m-9): `gone` = the file is not on this device — a disabled bubble with the caller's words, no tap */
   if (v.gone) wrap.dataset.gone = ''; else delete wrap.dataset.gone;
   wrap.dataset.state = v.state;
+  const sending = !v.gone && (v.sending === 'file' || v.sending === 'inline') ? v.sending : '';   // ★ S8 (#1239)
+  if (sending) wrap.dataset.sending = sending; else delete wrap.dataset.sending;
   const dur = Number(v.durMs) > 0 ? Number(v.durMs) : 0;
   const live = v.state === 'playing' || v.state === 'paused';
   const pos = live ? Math.max(0, Math.min(dur || Infinity, Number(v.posMs) || 0)) : 0;
 
   const play = wrap.querySelector('.c-voice__play');
+  /* ★ S8 (#1239): while SENDING the disc keeps the play glyph (quieted by CSS) and the ring carries the progress — never
+     the loading spinner, so the upload and a play's decode never look alike */
+  const spin = v.state === 'loading' && !sending;
   const glyph = v.state === 'playing' ? 'player-pause' : v.state === 'error' ? 'exclamation-mark' : 'player-play';
-  if (play.dataset.glyph !== glyph + (v.state === 'loading' ? '-load' : '')) {
-    play.dataset.glyph = glyph + (v.state === 'loading' ? '-load' : '');
+  if (play.dataset.glyph !== glyph + (spin ? '-load' : '')) {
+    play.dataset.glyph = glyph + (spin ? '-load' : '');
     play.textContent = '';
-    if (v.state === 'loading') {
+    if (spin) {
       const sp = document.createElement('span');
       sp.className = 'c-voice__spin';
       sp.setAttribute('aria-hidden', 'true');
@@ -5726,15 +5837,16 @@ function paintVoice(wrap, voice, strings = getStrings()) {
       play.append(icon(glyph, { size: 20 }));
     }
   }
+  paintVoiceRing(play, sending, v.sendPct, v.sendStill);
   let label;
   if (v.state === 'playing') label = strings.pauseVoice || 'Pause voice message';
-  else if (v.state === 'loading') label = strings.voiceLoading || 'Loading voice message';
+  else if (v.state === 'loading' && !sending) label = strings.voiceLoading || 'Loading voice message';
   else if (v.state === 'error') label = strings.voiceUnavailable || 'This voice message can’t be played';
   else label = dur ? fillVoiceSlots(strings.playVoiceLength || 'Play voice message, {0}', formatVoiceDuration(dur))
     : (strings.playVoice || 'Play voice message');
   play.setAttribute('aria-label', label);
   play.disabled = !!v.gone;
-  if (v.state === 'loading') play.setAttribute('aria-busy', 'true'); else play.removeAttribute('aria-busy');
+  if (v.state === 'loading' || sending) play.setAttribute('aria-busy', 'true'); else play.removeAttribute('aria-busy');
 
   const wave = wrap.querySelector('.c-voice__wave');
   const hs = voiceBarHeights(v.peaks);
@@ -5749,10 +5861,11 @@ function paintVoice(wrap, voice, strings = getStrings()) {
 
   const time = wrap.querySelector('.c-voice__time');
   time.textContent = v.gone ? String(v.gone) : live ? formatVoiceClock(pos) : (dur ? formatVoiceDuration(dur) : '');
+  paintVoiceWho(wrap, v);
 }
 
 /** setVoiceBubble(row, patch) — the in-place update (voiceInfo / voiceState). `patch` merges into what the row
- *  shows: { durMs, peaks, state, posMs, onPlay }. A row without a voice body is left alone. */
+ *  shows: { durMs, peaks, state, posMs, onPlay, who, heard, sending, sendPct, sendStill } (★ S8 #1239 / #1240). A row without a voice body is left alone. */
 function setVoiceBubble(row, patch, strings = getStrings()) {
   const wrap = row && row.querySelector ? row.querySelector('.c-voice') : null;
   if (!wrap) return false;
@@ -5776,6 +5889,7 @@ function setVoiceBubble(row, patch, strings = getStrings()) {
  *                  onTyping, onRecord, onVoiceCancel, onVoiceSend, maxLength, onTooLong, strings }) → el
  * clearComposer(el) — bridge clearInput hook (#44 free fn)
  * setComposerVoice(el, on) · setComposerRecording(el, state, ms) · getComposerRecording(el) — ★ #1208
+ * setComposerRecLevel(el, level) — ★ S8 (#1239): one live-wave bar per C# voiceRecLevel push
  *
  * maxLength (A7, #302 — legacy parity for the 64 000-char guard, legacy
  *   js/chat.js:401-409): 0 = off (default, byte-for-byte today's behaviour).
@@ -6208,6 +6322,61 @@ function ctxTile(tile) {
   return t;
 }
 
+/* ★★ S8 (#1238, Damir 2026-10-07: "as you wrote") — THE STRIP GROWS, the tx-detail drawer grammar (wallet-shell.js #1056).
+   WAAPI on the strip's box: height, block padding, block margins and the hairline go 0 → their resting values, so the
+   PILL grows and the slot's ResizeObserver (chat.html) re-pins the log inside its own callback — the bubbles ride up
+   with the pill, no dip. OPEN = --duration-200 on --easing-standard, the content hidden for the first 30 % and fading
+   in after (it never shows squashed). CLOSE = 0.75 × that (150 ms) on --easing-accelerate, the content gone in the first
+   half; a closing strip is `inert` + [data-closing] (no tap, no focus, not read) and leaves the DOM at the end. No
+   overshoot. Durations AND easings are READ from the tokens, so reduced motion (the tokens are 0 ms there) and an
+   engine without WAAPI are instant — the same end state; the CSS rise (c-composer-ctx-in) is that engine's fallback. */
+const ctxAnims = new WeakMap();   // strip → its running Animation
+function ctxToken(name, fallback) {
+  try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; } catch (e) { return fallback; }
+}
+function ctxStripMotion(strip, open, done, fromBox) {
+  let fired = false;
+  const finish = () => {
+    if (fired) return;
+    fired = true;
+    ctxAnims.delete(strip);
+    if (open) strip.style.overflow = '';
+    if (done) done();
+  };
+  if (!open) { strip.dataset.closing = ''; strip.setAttribute('inert', ''); }
+  const base = parseFloat(ctxToken('--duration-200', '200ms'));
+  const ms = Number.isFinite(base) ? Math.round(open ? base : base * 0.75) : 0;
+  if (!ms || typeof strip.animate !== 'function' || !strip.offsetHeight) { finish(); return; }
+  /* FROM = what is on screen now — a close that lands mid-grow starts from the half-grown box, not from full */
+  const cs = getComputedStyle(strip);
+  const now = { height: cs.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderBottomWidth: cs.borderBottomWidth };
+  const fromOpacity = cs.opacity;
+  const run = ctxAnims.get(strip);
+  if (run) run.cancel();
+  const shut = { height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px', borderBottomWidth: '0px' };
+  strip.style.animation = 'none';   // the CSS rise is the no-WAAPI fallback only (never put back: that would replay it)
+  strip.style.overflow = 'hidden';
+  /* ★ #46 r1 (S8 picks m-5): a strip that REPLACES a closing one opens from that strip's box AS IT IS ON SCREEN
+     (fromBox, measured before it left) — the same FROM = on-screen rule as a close mid-grow; from 0 the slot dropped
+     32 px in one frame on a close + reopen inside the 150 ms */
+  const frames = open
+    ? [{ ...(fromBox || shut), opacity: 0, offset: 0 }, { opacity: 0, offset: 0.3 }, { ...now, opacity: 1, offset: 1 }]
+    : [{ ...now, opacity: fromOpacity, offset: 0 }, { opacity: 0, offset: 0.5 }, { ...shut, opacity: 0, offset: 1 }];
+  let a;
+  try {
+    a = strip.animate(frames, {
+      duration: ms,
+      easing: open ? ctxToken('--easing-standard', 'cubic-bezier(0.2, 0, 0, 1)') : ctxToken('--easing-accelerate', 'cubic-bezier(0.3, 0, 1, 1)'),
+      fill: open ? 'none' : 'forwards',
+    });
+  } catch (e) { finish(); return; }
+  ctxAnims.set(strip, a);
+  a.onfinish = finish;
+  /* a timeline that does not tick (a hidden pane) must not leave a strip half-way — the end state lands anyway
+     (a PAUSED animation is someone's deliberate hold — devtools, a frame-by-frame render — and is left alone) */
+  setTimeout(() => { if (!fired && ctxAnims.get(strip) === a && a.playState !== 'paused') { a.cancel(); finish(); } }, ms + 120);
+}
+
 /**
  * setComposerContext(el, ctx | null)
  *   ctx = { kind: 'reply'|'edit', title, text, prefill (edit, default true),
@@ -6221,9 +6390,23 @@ function ctxTile(tile) {
 function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
   const field = el.querySelector('.c-composer__field');
+  /* ★ S8 (#1238): a strip still CLOSING is dropped at once (a new context, or a second close, wins). An open strip is
+     either SWAPPED in place (Reply ⇄ Edit: no collapse, no grow) or, on a close, collapsed by ctxStripMotion below. */
+  let fromBox = null;   // ★ #46 r1 (m-5): the closing strip's box on screen now — a new strip grows FROM it
+  for (const old of el.querySelectorAll('.c-composer__ctx[data-closing]')) {
+    if (!fromBox && ctx && old.offsetHeight) {
+      const cs = getComputedStyle(old);
+      fromBox = { height: cs.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderBottomWidth: cs.borderBottomWidth };
+    }
+    const a = ctxAnims.get(old);
+    if (a) a.cancel();
+    ctxAnims.delete(old);
+    old.remove();
+  }
   const prev = el.querySelector('.c-composer__ctx');
-  if (prev) prev.remove();
-  if (field) delete field.dataset.ctx;
+  const closing = !!prev && !ctx;
+  if (prev && !closing) { const a = ctxAnims.get(prev); if (a) a.cancel(); ctxAnims.delete(prev); prev.remove(); }
+  if (field && !closing) delete field.dataset.ctx;
   // freeze audit: REPLACING an active edit ctx (e.g. Reply picked mid-edit)
   // must give the pre-edit draft back — else the old message text sends as
   // the new context's body and the draft is lost
@@ -6232,7 +6415,20 @@ function setComposerContext(el, ctx) {
     input.value = prevCtx._draft || '';
     input.dispatchEvent(new Event('input'));
   }
-  if (!ctx) { composerCtx.delete(el); resyncComposer(el); return; }
+  if (!ctx) {
+    composerCtx.delete(el);
+    if (closing) {
+      /* the field keeps its wrap while the strip collapses; the value flips to 'closing' at once, so the back mirror
+         (chat.html observes data-ctx) learns NOW that no context is open, not 150 ms later */
+      if (field) field.dataset.ctx = 'closing';
+      ctxStripMotion(prev, false, () => {
+        prev.remove();
+        if (field && !field.querySelector(':scope > .c-composer__ctx')) delete field.dataset.ctx;
+      });
+    }
+    resyncComposer(el);
+    return;
+  }
   composerCtx.set(el, ctx);
   const strings = ctx.strings || getStrings();
 
@@ -6269,6 +6465,7 @@ function setComposerContext(el, ctx) {
      (no :has() — the WebView baseline). The COST line (#86) stays a bar line above the pill, so it is still topmost. */
   if (field) { field.dataset.ctx = ctx.kind; field.prepend(strip); }
   else el.prepend(strip);
+  if (!prev) ctxStripMotion(strip, true, null, fromBox);   // ★ S8 (#1238): a FRESH strip grows (from a closing one's box, m-5); a swap (Reply over Edit) stays put
 
   if (input) {
     if (ctx.kind === 'edit' && ctx.prefill !== false) {
@@ -6357,8 +6554,41 @@ function recElapsed(r) {
   const ms = r.state === 'recording' ? r.baseMs + (Date.now() - r.baseAt) : r.baseMs;
   return Math.min(VOICE_REC_MAX_MS, Math.max(0, ms));
 }
+/* ★ S8 (#1239 R1): the last 5 s — the TIMER turns the warning colour and "{n} s left" shows over the wave's leading end.
+   ★ #46 r1 (S8 picks NIT): the DOT stays red (the universal "recording" sign) — only the timer + the hint warn.
+   ★ #46 r1 (m-3 / m-4): the hint is LAID OVER the wave (composer.css), it takes no width from it — the wave keeps one
+   width from 0:00 to 0:30 in every locale, in tabular figures. The seconds are CEILED: 25.4 s → "5 s left", 29.1 s → "1".
+   The timer KEEPS "0:07 / 0:30" (Damir: the limit always visible). The hint is aria-hidden like the timer (no per-second
+   speech); the polite status line still speaks at the start and the stop only. */
+const REC_NEAR_MS = VOICE_REC_MAX_MS - 5000;
 function paintRecTime(r) {
-  r.time.textContent = fillVoiceSlots(r.strings.recordingTime || '{0} / {1}', formatVoiceClock(recElapsed(r)), formatVoiceClock(VOICE_REC_MAX_MS));
+  const ms = recElapsed(r);
+  r.time.textContent = fillVoiceSlots(r.strings.recordingTime || '{0} / {1}', formatVoiceClock(ms), formatVoiceClock(VOICE_REC_MAX_MS));
+  const near = r.state === 'recording' && ms >= REC_NEAR_MS;
+  if (near) r.bar.dataset.near = ''; else delete r.bar.dataset.near;
+  const hint = near ? fillVoiceSlots(r.strings.voiceSecondsLeft || '{0} s left', String(Math.max(0, Math.ceil((VOICE_REC_MAX_MS - ms) / 1000)))) : '';
+  if (r.hint.textContent !== hint) r.hint.textContent = hint;
+  /* ★ #46 picks r2 (MINOR-1): one line beside ≥ 48 px of wave, or not at all (the timer still warns) */
+  const cramped = !!hint && r.hint.scrollWidth > r.hint.clientWidth + 1;
+  if (cramped !== r.hint.hasAttribute('data-cramped')) { if (cramped) r.hint.dataset.cramped = ''; else delete r.hint.dataset.cramped; }   // written on a change only
+}
+
+/* ★★ S8 (#1239 R1) — THE LIVE WAVE. C# pushes voiceRecLevel(0..100) about 10 times a second (one per 100 ms slot, the peak since the last push — #46 picks r1) while it records (the mic level,
+   never audio); each push is ONE new bar at the END, the older bars move one step towards the start and fall off it
+   (the box clips at the START — justify-content: flex-end). Only while the bar is RECORDING: a level for a stopped bar,
+   a closed bar or another composer is dropped. A non-number is dropped; a number is rounded and clamped to 0..100. The
+   bar count covers a wide desktop pill (180 × 4 px); a narrow pill shows only the newest. One push = one node moved
+   (the oldest bar leaves the start, a new one joins the end) — the tier colours ride on the position (composer.css). */
+const REC_WAVE_BARS = 180;
+function setComposerRecLevel(el, level) {
+  const r = el ? composerRec.get(el) : null;
+  if (!r || r.state !== 'recording') return;
+  const n = Number(level);
+  if (level === null || level === '' || typeof level === 'boolean' || !Number.isFinite(n)) return;
+  const b = r.wave.firstElementChild;
+  if (!b) return;
+  b.style.setProperty('--rec-h', String(Math.max(0, Math.min(100, Math.round(n)))));
+  r.wave.append(b);   // the oldest bar becomes the newest
 }
 
 /**
@@ -6397,8 +6627,9 @@ function setComposerRecording(el, state, elapsedMs) {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.className = 'c-composer__rec-cancel';
-    cancel.setAttribute('aria-label', strings.cancelRecording || 'Cancel recording');
-    cancel.append(icon('x', { size: 20 }));
+    /* ★ S8 (#1239 R1): DISCARD — the trash glyph and its name (the clip is thrown away; the verb is still voicerec:cancel) */
+    cancel.setAttribute('aria-label', strings.discardRecording || 'Discard recording');
+    cancel.append(icon('trash', { size: 20 }));
     const dot = document.createElement('span');
     dot.className = 'c-composer__rec-dot';
     dot.setAttribute('aria-hidden', 'true');
@@ -6409,8 +6640,25 @@ function setComposerRecording(el, state, elapsedMs) {
     live.className = 'c-composer__rec-live';
     live.setAttribute('role', 'status');
     live.setAttribute('aria-live', 'polite');
-    bar.append(cancel, dot, time, live);
-    r = { state: '', baseMs: 0, baseAt: Date.now(), openedAt: Date.now(), pending: false, pendingTimer: 0, timer: 0, bar, time, live, strings };
+    /* ★ S8 (#1239 R1): the live wave (decorative — aria-hidden) and the near-limit hint */
+    const wave = document.createElement('span');
+    wave.className = 'c-composer__rec-wave';
+    wave.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < REC_WAVE_BARS; i++) {
+      const b = document.createElement('span');
+      b.className = 'c-composer__rec-bar';
+      wave.append(b);
+    }
+    const hint = document.createElement('span');
+    hint.className = 'c-composer__rec-hint u-tabular';
+    hint.setAttribute('aria-hidden', 'true');
+    /* ★ #46 r1 (S8 picks m-3 / m-4): the wave and the hint share ONE track — the hint lies over the wave's leading end
+       (absolute), so it never takes width from the wave (it squeezed it to 0 px at 320 px in it / fr / ru) */
+    const track = document.createElement('span');
+    track.className = 'c-composer__rec-track';
+    track.append(wave, hint);
+    bar.append(cancel, dot, time, track, live);
+    r = { state: '', baseMs: 0, baseAt: Date.now(), openedAt: Date.now(), pending: false, pendingTimer: 0, timer: 0, bar, time, live, strings, wave, hint };
     const cancelNow = () => {
       const cur = composerRec.get(el);
       if (!cur || cur.pending) return;
@@ -6935,7 +7183,7 @@ function createAppBubble({
     invite: strings.invitedYou || 'Invited you to join',
     invited: strings.youInvited || 'You have sent an invite',
     missing: strings.invitedYou || 'Invited you to join',
-    declined: strings.declinedInvite || 'You declined this invite',
+    declined: dir === 'sent' ? appDeclinedByPeer(strings) : (strings.declinedInvite || 'You declined this invite'),   // ★ S8 (#1233)
     canceled: strings.canceledInvite || 'You canceled this invite',   // ★ B2 (#533 ①): the sender's terminal tombstone
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
@@ -7016,6 +7264,8 @@ function appIconEl(iconUrl, name) {
   }
   return ic;
 }
+/* ★ S8 (#1233): MY invite, declined by the peer (C# app_state "Declined" on my own row) — "You declined" would be false */
+function appDeclinedByPeer(strings) { return strings.inviteDeclined || 'Your invite was declined'; }
 function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
   const { row, el } = cardShell(dir, 'app', 'compact', gutter);
   if (state === 'declined' || state === 'canceled') el.dataset.state = state;
@@ -7023,7 +7273,7 @@ function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
     invite: strings.invitedYou || 'Invited you to join',
     invited: strings.youInvited || 'You have sent an invite',
     missing: strings.invitedYou || 'Invited you to join',
-    declined: strings.declinedInvite || 'You declined this invite',
+    declined: dir === 'sent' ? appDeclinedByPeer(strings) : (strings.declinedInvite || 'You declined this invite'),   // ★ S8 (#1233)
     canceled: strings.canceledInvite || 'You canceled this invite',
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
@@ -7809,7 +8059,9 @@ function createUnreadDivider(strings = getStrings()) {
  *   animate: true,                       // pop-in for a JUST-ADDED reaction (live only, not history)
  *   maxVisible: 3,                       // Damir 2026-07-03: heavy reactions cap — first N types + "+N" pill
  *   host, onInspect,                     // "+N" (inspect) opens openReactionsSheet in host unless onInspect overrides
- *   onToggle(emoji),                     // → ixian:contextAction like/react
+ *   onToggle(emoji),                     // → ixian:contextAction:react:<id>:<index> (★ S8 #1232)
+ *   locked,                              // ★ S8: I already reacted — other pills aria-disabled, no tap sends
+ *                                        //   (★ X6: a pill outside QUICK_REACTIONS is ALWAYS aria-disabled, never wired)
  *   strings,
  * })
  * Re-invoking replaces the previous set (the bridge re-emits the full list).
@@ -7818,6 +8070,8 @@ function createUnreadDivider(strings = getStrings()) {
  * openReactionsSheet({ host, reactions, tip, strings }) — full inspect list
  * (every type + count + senders), c-sheet presentation.
  */
+
+
 
 
 
@@ -7831,6 +8085,9 @@ function addReactions(row, {
   host,
   onInspect,
   onToggle,
+  /* ★ S8 (#1232): one reaction per person, never removed (Core) — once I reacted, a pill that is not
+     mine is aria-disabled and its tap sends nothing (mine stays aria-pressed). */
+  locked = false,
   strings = getStrings(),
 } = {}) {
   // media tiles anchor on .c-mbubble-anchor (tile overflow:hidden would clip
@@ -7877,7 +8134,13 @@ function addReactions(row, {
       n.textContent = String(r.count);
       pill.append(n);
     }
-    if (onToggle) pill.addEventListener('click', () => onToggle(r.emoji));
+    /* ★ S8 (#1232, #46 r1 X6): a pill is LIVE only when it can send — one of the six (QUICK_REACTIONS, sent by
+       index) AND I have not reacted. A peer's emoji outside the six is always inert; once I reacted every pill
+       but mine is inert. Inert = aria-disabled, NO click handler, no hover (reactions.css).
+       ★ S8 #46 r2 (N1): MY pill too — pressed AND aria-disabled (it has no handler; like the menu's own emoji). */
+    const live = !locked && QUICK_REACTIONS.indexOf(r.emoji) !== -1;
+    if (!live) pill.setAttribute('aria-disabled', 'true');
+    if (onToggle && live) pill.addEventListener('click', () => onToggle(r.emoji));
     el.append(pill);
   }
   if (reactions.length > maxVisible) {
@@ -8039,6 +8302,7 @@ function openReactionsSheet({ host, reactions = [], tip = '', strings = getStrin
     content.append(rowEl);
   }
   const sheet = createSheet({ title: strings.reactions || 'Reactions', content, host, strings });
+  setOverlayOpts(sheet, { blurDismiss: true });   // ★ S8 (#1235): a click in another desktop pane closes it (overlay.js)
   openSheet(sheet);
   return sheet;
 }
@@ -8185,6 +8449,8 @@ function setScrollLatestCount(el, count, strings = getStrings()) {
 
 
 
+/* ★ S8 (#1232): EXPORTED — the shell sends a reaction as its INDEX in this list (ixian:contextAction:react:<id>:<i>),
+   and C# ReactionSet.Quick holds the SAME six in the SAME order. Reorder one side only and every reaction lands wrong. */
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
 /* ★ iOS-62 / #492 (Damir on device 2026-08-21, DECIDED: the cheap TINT).
@@ -8275,9 +8541,11 @@ function openMessageMenu({
    * a 1:1 chat and a room with no answer yet look exactly as they did. */
   detail = '',   // string, or a function evaluated at OPEN time (see below)
   capabilities = {},
-  reactions = QUICK_REACTIONS,   // overridable: the native bridge only supports a
-                                 // single "like" reaction today, so the shell passes
-                                 // just ['❤️'] rather than 6 emojis that all map to like
+  reactions = QUICK_REACTIONS,   // ★ S8 (#1232): the shell passes all six (C# sends each as like:<emoji>)
+  /* ★ S8 (#1232): MY reaction on this message ('' = none). One reaction per person and Core cannot remove
+     it, so once set: ONLY that emoji is rendered, PRESSED and inert (X6), and no tap sends anything.
+     A string or a FUNCTION (read at OPEN time — attachMessageMenu replays wire-time options, see `detail`). */
+  reacted = '',
   onAction,
   strings = getStrings(),
 } = {}) {
@@ -8299,7 +8567,10 @@ function openMessageMenu({
   reacts.className = 'c-msgmenu__reacts';
   reacts.setAttribute('role', 'group');
   reacts.setAttribute('aria-label', strings.react || 'React');
-  for (const emoji of reactions) {
+  const mine = String((typeof reacted === 'function' ? (() => { try { return reacted(); } catch (e) { return ''; } })() : reacted) || '');
+  /* ★ S8 (#46 r1 X6): once I reacted the row shows ONLY my emoji — pressed, inert (no handler, no hover / scale); the
+     other five are not rendered at all (nothing to tap, nothing that looks tappable). */
+  for (const emoji of (mine ? [mine] : reactions)) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-msgmenu__react';
@@ -8308,7 +8579,12 @@ function openMessageMenu({
     em.setAttribute('aria-hidden', 'true');
     em.textContent = emoji;
     b.append(em);
-    b.addEventListener('click', () => act('react', emoji));
+    if (mine) {   // ★ S8 (#1232, X6): already reacted — my one emoji, pressed and inert; nothing sends
+      b.setAttribute('aria-pressed', 'true');
+      b.setAttribute('aria-disabled', 'true');
+    } else {
+      b.addEventListener('click', () => act('react', emoji));
+    }
     reacts.append(b);
   }
   content.append(reacts);
@@ -8387,7 +8663,7 @@ function openMessageMenu({
   const sheet = createSheet({ content, host, strings, onDismiss: untint });
   /* ★ #1065 (R.10, Damir): a long-press while typing must not drop the keyboard — the menu opens
      WITHOUT taking focus from the composer (overlay.js keepEditableFocus). */
-  setOverlayOpts(sheet, { keepEditableFocus: true });
+  setOverlayOpts(sheet, { keepEditableFocus: true, blurDismiss: true });   // ★ S8 (#1235): a click in another desktop pane closes it (overlay.js)
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): on MOBILE the menu anchors to the
    * pressed message — ABOVE it when there is room, so it can never cover what it
@@ -9351,6 +9627,7 @@ function openAttachSheet({ host, media = false, apps = true, payments = true, fi
   const sheet = createSheet({
     content: grid, host,
     strings: { ...strings, sheet: strings.attachTitle || 'Add to chat' },
+    blurDismiss: true,   // ★ S8 (#1235): desktop — a click in another pane closes the popover
   });
   openSheet(sheet);
   return sheet;
@@ -10154,6 +10431,7 @@ function openMemberSheet({
   const sheet = createSheet({
     content, host, strings,
     title: '', // content carries the identity — a title would duplicate the name
+    blurDismiss: true,   // ★ S8 (#1235)
   });
   sheet.setAttribute('aria-label', strings.memberDetails || 'Member details');
   openSheet(sheet);
@@ -11342,7 +11620,7 @@ function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, 
     }, true);
     content.append(list);
     let undoLift = () => {};
-    const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift() });
+    const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift(), blurDismiss: true });   // ★ S8 (#1235)
     openSheet(sheet);
     anchorSheetToRow(sheet, row, { host, address: chat && chat.address });   // ★ Batch E (a) (#557): mobile dropdown, above the row
     undoLift = liftPressedRow(sheet, row, chat && chat.address);    // ★ #572 ③: and the row it points at lifts above the scrim
@@ -11411,7 +11689,7 @@ function openChatRowMenu({ chat = {}, row = null, host, onAction, onNeedGroups, 
    * act() would strand a permanently lifted row, and a lifted row is
    * pointer-events:none — a chat the user can no longer tap. */
   let undoLift = () => {};
-  const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift() });
+  const sheet = createSheet({ content, host, strings, onDismiss: () => undoLift(), blurDismiss: true });   // ★ S8 (#1235)
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): the chats-row menu anchors to the
    * long-pressed row on mobile — same grammar as the message menu, one helper.
@@ -13077,7 +13355,7 @@ function openAppMenu({ app = {}, host, onAction, allowInvite = false, strings = 
   }, true);
 
   content.append(list);
-  const sheet = createSheet({ content, host, strings });
+  const sheet = createSheet({ content, host, strings, blurDismiss: true });   // ★ S8 (#1235)
   openSheet(sheet);
   anchorSheetToRow(sheet, row, { host, align: anchor || row });   // ★ Session K: the mobile dropdown
   /* ★ Session K (Damir: "shouldn't dim at all, just the menu next to the app"): no backdrop wash
@@ -21313,7 +21591,7 @@ function openSharedItemMenu({ item, host, strings = getStrings(), onAction } = {
   if (receivedLocal) add('trash', strings.sharedDeleteLocal || 'Delete from this device', 'delete', true);
   content.append(list);
   const title = item.kind === 'link' ? (sharedLinkHost(item.label) || item.label) : item.label;
-  sheet = createSheet({ title, content, host, strings });
+  sheet = createSheet({ title, content, host, strings, blurDismiss: true });   // ★ S8 (#1235)
   openSheet(sheet);
   return sheet;
 }
@@ -21453,6 +21731,10 @@ function createSharedList({ items = [], tab = 'media', strings = getStrings(), o
 
 
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
+/* ★ S8 (#1204 b): a room of up to 11 members lists them ABOVE the shared section (#1141: the roster of a small
+   group is the screen's point); a larger room keeps the full roster LAST and gets one "Members (n)" row above the
+   shared section that scrolls to it. */
+const MEMBERS_FIRST_MAX = 11;
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
 const SELF_DESTRUCT_OPTIONS = [        // seconds; 0 = off (§9 — no bridge command yet)
   { value: 0, key: 'sdOff', label: 'Off' },
@@ -21555,6 +21837,7 @@ function createChatInfo({
   members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
   blind = false,                 // chat mode 2: identities hidden
   amOwner = false,               // N48 (#370): MY OWN owner status (self-only push; blind-safe)
+  onGroupPhoto = null,           // ★ S8 (#1231): owner only (group) — the hero camera badge → the shell sends ixian:groupPhoto
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
   allowRemoteImages = false,     // ★ O-13: a REMOTE http(s) thumb needs the shell's opt-in; a
@@ -21675,6 +21958,26 @@ function createChatInfo({
     hero.append(view);
   } else {
     hero.append(heroAvatar);
+  }
+  /* ★ S8 (#1231): the OWNER of a group changes its photo — a camera badge on the hero's lower trailing edge (36 px
+     disc on --surface-menu, 44 px hit area). GROUPS only, matching the C# owner gate (a bot room's getOwner() is not
+     reliable — the N48 rule below). The avatar tap itself is unchanged (a photo still opens the viewer). The badge
+     is a SIBLING of the viewer button, never inside it (no nested buttons). */
+  if (amOwner && kind === 'group' && onGroupPhoto) {
+    const wrap = document.createElement('span');
+    wrap.className = 'c-chat-info__avatar-wrap';
+    wrap.append(hero.firstElementChild);           // the viewer button or the bare avatar (onerror's replaceWith still works in here)
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'c-chat-info__photo-badge';
+    badge.setAttribute('aria-label', strings.changeGroupPhoto || 'Change group photo');
+    const disc = document.createElement('span');
+    disc.className = 'c-chat-info__photo-badge-disc';
+    disc.append(icon('photo', { size: 18 }));
+    badge.append(disc);
+    badge.addEventListener('click', () => onGroupPhoto());
+    wrap.append(badge);
+    hero.prepend(wrap);
   }
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
@@ -22067,7 +22370,8 @@ function createChatInfo({
     ? createSharedSection({ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll, onMenu: onSharedMenu, tab: sharedTab, onTab: onSharedTab })
     : null;
   /* (#46 r1 B3) a GROUP / bot room keeps the section where it was (#1106): ABOVE the roster, which is unbounded — the
-     grid must not sit under hundreds of member rows. A 1:1 places it LAST (below). */
+     grid must not sit under hundreds of member rows. A 1:1 places it LAST (below). ★ S8 (#1204 b): a room of ≤ 11
+     members moves its roster above this section (see MEMBERS_FIRST_MAX at the roster). */
   if (sharedSec && roomKind) body.append(sharedSec);
 
   /* ——— shared media (capabilities.media — NO legacy command, §9; demo-fed) ——— */
@@ -22136,6 +22440,37 @@ function createChatInfo({
     }
     membersCard.append(listEl);
     body.append(sec);
+    /* ★ S8 (#1204 b): placement by size (MEMBERS_FIRST_MAX, #1141). The shared block (and the legacy media strip) is
+       already in the body above this point. ≤ 11 → the roster moves above it. > 11 → the roster stays LAST (it is
+       unbounded) and ONE row above the shared block jumps to it: scroll + focus on the roster label (not the search
+       field — no soft keyboard on a jump). No shared block → nothing to jump over, no row. */
+    const sharedAnchor = body.querySelector(':scope > .c-shared, :scope > .c-chat-info__media');
+    let membersJump = null;   // removeMemberRow (below, same block) rewrites its count
+    let jumpWrap = null;      // ★ S8 r1 (#1204 b): removeMemberRow drops it when a kick takes the room to ≤ 11
+    if (sharedAnchor && count <= MEMBERS_FIRST_MAX) {
+      body.insertBefore(sec, sharedAnchor);
+    } else if (sharedAnchor) {
+      const jump = groupCard({ cls: 'c-chat-info__members-jump' });
+      membersJump = document.createElement('button');
+      membersJump.type = 'button';
+      membersJump.className = 'c-chat-info__row c-chat-info__setting';
+      const jLab = document.createElement('span');
+      jLab.className = 'c-chat-info__row-label';
+      const jText = document.createElement('span');
+      jText.className = 'c-chat-info__members-jump-text';
+      jText.textContent = countLabel.textContent;
+      jLab.append(rowGlyph('users'), jText);
+      membersJump.append(jLab, icon('chevron-right', { size: 18 }));
+      membersJump.addEventListener('click', () => {
+        const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+        try { sec.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' }); } catch (e) { sec.scrollIntoView(); }
+        countLabel.setAttribute('tabindex', '-1');
+        countLabel.focus({ preventScroll: true });
+      });
+      jump.card.append(membersJump);
+      jumpWrap = jump.wrap;
+      body.insertBefore(jump.wrap, sharedAnchor);
+    }
 
     const memberSheetFor = (m) => openMemberSheet({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
@@ -22206,9 +22541,18 @@ function createChatInfo({
       members.splice(i, 1);
       count = Math.max(0, count - 1);
       countLabel.textContent = (strings.membersTitle || 'Members') + ' (' + count + ')';
+      if (membersJump) membersJump.querySelector('.c-chat-info__members-jump-text').textContent = countLabel.textContent;   // ★ S8 (#1204 b)
       // R2 (#371, loop B-3): the SECOND hero-sub writer — kick a member out of a
       // 2-person group and the plural form regressed to "1 members" here.
       sub.textContent = count === 1 ? (strings.memberOne || '1 member') : count + ' ' + (strings.members || 'members');
+      /* ★ S8 r1 (#1204 b): a kick that takes the room to ≤ MEMBERS_FIRST_MAX re-runs the placement at once — the jump
+         row goes and the roster moves above the shared block (not only at the next panel rebuild). */
+      if (jumpWrap && count <= MEMBERS_FIRST_MAX && jumpWrap.parentNode === body) {
+        body.insertBefore(sec, jumpWrap);
+        jumpWrap.remove();
+        jumpWrap = null;
+        membersJump = null;
+      }
       renderMembers();
     }
 
@@ -26062,7 +26406,7 @@ function createSettingsHub({
   if ((capabilities.readReceipts || capabilities.typing || capabilities.mediaAutoload) && onPrivacy) sec.card.append(settingRow({
     glyph: 'eye-off', hue: 'info', key: 'privacy',
     label: strings.privacy || 'Privacy',
-    sub: strings.privacySub || 'Automatic media download',
+    sub: strings.privacySub || 'Read receipts, typing, online status and media',   // ★ S8 r1 (#1234): names the screen, not 1 of its 5 rows
     onClick: () => onPrivacy(),
   }).section);
 
@@ -26786,7 +27130,11 @@ const CHAT_GROUNDS = [
   /* ★★ #1080 F15 (Damir 2026-09-30, from his green title-bar screenshot; picked G2 of a rendered
      3-way): a SOFT GREEN gradient — LIGHT ONLY (`lightOnly`). There is no dark green rule, so in dark
      the dot is not offered and a stored 'green' paints the flat midnight ground (tokens.css). */
-  { id: 'green', key: 'groundGreenGradient', label: 'Green gradient', lightOnly: true },
+  /* ★★ S8 (#1237, Damir 2026-10-07): green is offered in DARK too (DG1 "Forest" — tokens.css has a dark rule now), and a
+     fourth ground joins: BLUE — light B1 "Sky", dark DB1 "Azure". Both themes offer the same four: Solid · Brand · Green ·
+     Blue. The `lightOnly` filter below stays as the mechanism (no member uses it today). */
+  { id: 'green', key: 'groundGreenGradient', label: 'Green gradient' },
+  { id: 'blue', key: 'groundBlueGradient', label: 'Blue gradient' },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -27143,7 +27491,7 @@ function screenShell(className, title, onBack) {
 function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
   patternStyle = 'contours',     // ★ #997: the only style left (matrix, doodles + Live flow retired)
-  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — ★ #1066: both themes (a rule per theme in tokens.css)
+  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — ★ #1066: both themes (a rule per theme in tokens.css) · ★ S8 (#1237): | 'green' | 'blue'
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   host,                          // ★ #1019: unused since the Canvas choice became circles (no sheet); kept so existing callers stay valid
@@ -27264,8 +27612,9 @@ function createChatAppearance({
      live document, like the rest of this block), so a stored light-only pick shows as the flat it paints. */
   const groundsHere = CHAT_GROUNDS.filter((o) => !o.lightOnly || document.documentElement.getAttribute('data-theme') !== 'dark');
   let groundCurrent = groundsHere.some((o) => o.id === chatGround) ? chatGround : 'flat';
-  /* (#46 r1) what is STORED, as distinct from what is shown: in dark a stored 'green' shows the flat dot
-     checked, and a tap on that dot must still WRITE 'flat' (else the stored light-only pick is unreachable). */
+  /* (#46 r1) what is STORED, as distinct from what is shown: in dark a stored light-only pick shows the flat dot
+     checked, and a tap on that dot must still WRITE 'flat' (else the stored light-only pick is unreachable).
+     ★ S8 (#1237): green was that pick until it got a dark rule — the rule stays for any future light-only member. */
   let groundStored = chatGround;
   /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
      at build it inherited the document's, and settings.html's root never carries one, so the
@@ -27455,9 +27804,9 @@ function createChatAppearance({
 }
 
 /**
- * Privacy — the media-autoload switch, plus §9-GATED toggles (read receipts /
- * typing indicators). The §9 rows render ONLY when their capability is flagged;
- * no legacy command exists for either.
+ * Privacy — the media-autoload switch, plus CAP-GATED toggles (read receipts /
+ * typing indicators / ★ S8 #1234 hide online). Those rows render ONLY when the exe
+ * flags the capability AND the shell passes the handler (verbs since S8).
  *
  * ★ THE MEDIA ROW IS FRONTEND-ONLY (security sweep, row E-1b). It writes
  * `spixi.media.autoload`, which the chat shell already read but which NOTHING in
@@ -27473,10 +27822,12 @@ function createPrivacy({
   typingIndicators = true,
   mediaAutoload = true,          // FE-only: spixi.media.autoload (the shell reads it per render)
   photoPreviews = true,          // ★ #1133 (A5 #1124): C#-held (SChatPrefs.photoPreviews), default ON
-  capabilities = {},             // { readReceipts, typing }
+  hideOnline = false,            // ★ S8 (#1234): C#-held (SChatPrefs.hideOnline), default OFF
+  capabilities = {},             // { readReceipts, typing, hideOnline }
   onBack,
-  onReadReceipts,                // (next, ctrl) — §9
-  onTyping,                      // (next, ctrl) — §9
+  onReadReceipts,                // (next, ctrl) — ★ S8 (#1234): ixian:readReceipts:on|off, resolved by the echo
+  onTyping,                      // (next, ctrl) — ★ S8 (#1234): ixian:typingIndicators:on|off, resolved by the echo
+  onHideOnline,                  // (next, ctrl) — ★ S8 (#1234): ixian:hideOnline:on|off, resolved by the echo
   onMediaAutoload,               // (next, ctrl) — FE-only, writes localStorage
   onPhotoPreviews,               // (next, ctrl) — ★ #1133: ixian:photoPreviews:on|off, resolved by the echo
   strings = getStrings(),
@@ -27507,33 +27858,39 @@ function createPrivacy({
     body.append(pv);
   }
 
-  /* The note describes the §9 pair only — it says "turning one off also hides theirs
-     from you", which is true of a receipt and false of the local media switch. It
-     therefore renders with the rows it is about, and only when they render (#772). */
-  if ((capabilities.readReceipts && onReadReceipts) || (capabilities.typing && onTyping)) {
-    const note = document.createElement('p');
-    note.className = 'c-settings__note';
-    note.textContent = strings.privacyNote ||
-      'These apply to everyone you chat with. Turning one off also hides theirs from you.';
-    body.append(note);
-  }
-
-  if (capabilities.readReceipts && onReadReceipts) body.append(switchRow({
+  /* ★ S8 (#1234): the three C#-held privacy switches. Each sub says BOTH directions (the rule is reciprocal —
+     Damir's pick), so the shared note that said "turning one off also hides theirs" is retired: it was false for
+     hide-online (ON hides) and every row now says it itself. data-pref = the in-place echo (settings.html). */
+  const privacyRow = (pref, opts) => {
+    const r = switchRow({ ...opts, live, failText: strings.privacyFailed || 'Couldn’t update. Try again.' });
+    r.dataset.pref = pref;
+    /* ★ S8 r1 (#1234): the switch's name is the label only — its hint (the reciprocal rule) is its description */
+    const hint = r.querySelector('.c-settings__row-sub');
+    const sw = r.querySelector('[role="switch"]');
+    if (hint && sw) {
+      hint.id = 'c-privacy-hint-' + pref;
+      sw.setAttribute('aria-describedby', hint.id);
+    }
+    body.append(r);
+  };
+  if (capabilities.readReceipts && onReadReceipts) privacyRow('readReceipts', {
     glyph: 'checks', hue: 'info',
     label: strings.readReceipts || 'Read receipts',
-    sub: strings.readReceiptsSub || 'Others see when you’ve read their messages',
-    checked: readReceipts, live,
-    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
-    onToggle: onReadReceipts,
-  }));
-  if (capabilities.typing && onTyping) body.append(switchRow({
+    sub: strings.readReceiptsHint || 'When off, others don’t see when you read their messages, and you don’t see when they read yours.',
+    checked: readReceipts, onToggle: onReadReceipts,
+  });
+  if (capabilities.typing && onTyping) privacyRow('typingIndicators', {
     glyph: 'dots', hue: 'accent',
     label: strings.typingIndicators || 'Typing indicators',
-    sub: strings.typingIndicatorsSub || 'Others see when you’re typing',
-    checked: typingIndicators, live,
-    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
-    onToggle: onTyping,
-  }));
+    sub: strings.typingIndicatorsHint || 'When off, others don’t see when you type, and you don’t see when they type.',
+    checked: typingIndicators, onToggle: onTyping,
+  });
+  if (capabilities.hideOnline && onHideOnline) privacyRow('hideOnline', {
+    glyph: 'eye-off', hue: 'info',
+    label: strings.hideOnlineTitle || 'Hide my online status',
+    sub: strings.hideOnlineHint || 'When on, Spixi asks others’ apps to hide your online status and last seen, and you don’t see theirs. Older apps and the network can still see when you are online.',
+    checked: hideOnline, onToggle: onHideOnline,
+  });
   return el;
 }
 
@@ -30950,5 +31307,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

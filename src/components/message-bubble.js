@@ -30,7 +30,8 @@
  *   linkPreview: { url, title, domain, image }, // §8-GATED: P2P has no server
  *                             // to unfurl — the SENDER composes the preview
  *                             // into the message (Signal-style), bridge carries it
- *   voice: { durMs, peaks, state, posMs, onPlay },   // ★ #1208 (S7): a VOICE bubble —
+ *   voice: { durMs, peaks, state, posMs, onPlay,     // ★ #1208 (S7): a VOICE bubble —
+ *            who, heard, sending, sendPct, sendStill },  // ★ S8 (#1239 / #1240): the face + mic badge, the send ring
  *                             // play / pause + a 40-bar waveform + the time replace
  *                             // the text body (`text` is ignored); live updates via
  *                             // setVoiceBubble(row, voice). No audio here: onPlay
@@ -367,7 +368,9 @@ export function createMessageBubble({
     // "avatars are not aligned with the tail"): on the FIRST bubble, TOP-aligned beside the
     // tail (WhatsApp's group grammar); it sat bottom-aligned on the LAST bubble while the tail
     // rode the first. Other rows keep the gutter width so bubbles align.
-    if (showAvatar && (position === 'first' || position === 'single')) {
+    /* ★ S8 (#1240): a VOICE row that carries its sender's avatar INSIDE the bubble (voice.who) draws none in the gutter —
+       one face per row; the gutter keeps its width so the run stays aligned */
+    if (showAvatar && (position === 'first' || position === 'single') && !(voice && voice.who)) {
       const av = createAvatar({ src: avatar, name, address, size: bubbleAvatarSize() });   // ★ Session K: the --bubble-avatar-size token, not a literal 24
       if (onSenderClick) { // #99: avatar opens the member sheet too
         const b = document.createElement('button');
@@ -479,7 +482,7 @@ export function createMessageBubble({
     /* ★ #1208: the voice body REPLACES the text — the row's own text (C#'s readable first line for an old app,
        "🎤 0:12 (voice message — update Spixi to play)") is never shown in a voice bubble */
     el.dataset.voice = '';
-    el.append(buildVoiceBody(voice, strings));
+    el.append(buildVoiceBody({ ...voice, dir: direction }, strings));   // ★ S8 (#1240): the badge reads the direction
   } else {
     const body = document.createElement('span');
     body.className = 'c-bubble__text';
@@ -571,7 +574,10 @@ export function createMessageBubble({
       meta.append(pg);
     }
   }
-  if (meta.childNodes.length) el.append(meta);
+  /* ★ S8 (#1240): a voice bubble carries its time + ticks on the line UNDER the wave (beside the clip time, WhatsApp) — not
+     on a line of their own under the face; every meta lookup is a descendant query, so the move is invisible to them */
+  const voiceFoot = voice ? el.querySelector('.c-voice__foot') : null;
+  if (meta.childNodes.length) (voiceFoot || el).append(meta);
 
   // failed sent message (Damir 2026-07-03, r2): clean bubble — retry circle
   // hugging it + red "Not delivered" caption carry the error (both retry-able).
@@ -748,7 +754,7 @@ export function removeMessage(row) {
       // with the label (firstElementChild: may be the bare avatar OR its #99 button wrap)
       const av = row.querySelector('.c-bubble-row__gutter')?.firstElementChild;
       const nextGutter = next.querySelector('.c-bubble-row__gutter');
-      if (av && nextGutter && !nextGutter.childNodes.length) nextGutter.append(av);
+      if (av && nextGutter && !nextGutter.childNodes.length && !next.querySelector('.c-voice__who')) nextGutter.append(av);   // ★ S8 (#1240): a voice heir already shows its face
     }
   } else if (pos === 'last') {
     const prev = row.previousElementSibling;
@@ -843,6 +849,10 @@ function buildVoiceBody(voice, strings) {
     lastTap = t;
     v.onPlay();
   });
+  /* ★ S8 (#1240): the wave and the time share a column — the time sits UNDER the wave's start (Telegram), so the row
+     keeps room for the face at the trailing end */
+  const main = document.createElement('span');
+  main.className = 'c-voice__main';
   const wave = document.createElement('span');
   wave.className = 'c-voice__wave';
   wave.setAttribute('aria-hidden', 'true');
@@ -853,9 +863,73 @@ function buildVoiceBody(voice, strings) {
   }
   const time = document.createElement('span');
   time.className = 'c-voice__time u-tabular';
-  wrap.append(play, wave, time);
+  const foot = document.createElement('span');
+  foot.className = 'c-voice__foot';
+  foot.append(time);
+  main.append(wave, foot);
+  wrap.append(play, main);
   paintVoice(wrap, voice, strings);
   return wrap;
+}
+
+/* ★★ S8 (#1240, Damir's WhatsApp reference) — THE FACE: a round 40 avatar at the trailing end of the voice bubble (the
+   sender's; MY own on a sent one) with a small MIC badge over its bottom-start edge. `who` = { src, name, address } —
+   no picture = the initials / gradient disc (createAvatar). Decorative (aria-hidden): the row already names its sender
+   (the group label, the 1:1 header). Rebuilt only when the face CHANGES (a playing tick never touches it). Badge tone:
+   accent = a received clip not played in this document yet; neutral = played, or mine. */
+function paintVoiceWho(wrap, v) {
+  let whoEl = wrap.querySelector(':scope > .c-voice__who');
+  const who = v.who && typeof v.who === 'object' ? v.who : null;
+  if (!who) { if (whoEl) whoEl.remove(); return; }
+  const key = [who.src || '', who.name || '', who.address || ''].join('\u0001');
+  if (!whoEl || whoEl.dataset.key !== key) {
+    const fresh = document.createElement('span');
+    fresh.className = 'c-voice__who';
+    fresh.setAttribute('aria-hidden', 'true');
+    fresh.dataset.key = key;
+    const badge = document.createElement('span');
+    badge.className = 'c-voice__badge';
+    badge.append(icon('microphone', { size: 12 }));
+    fresh.append(createAvatar({ src: who.src || null, name: who.name || '', address: who.address || '', size: 40 }), badge);
+    if (whoEl) whoEl.replaceWith(fresh); else wrap.append(fresh);
+    whoEl = fresh;
+  }
+  whoEl.dataset.tone = v.dir === 'received' && !v.heard && !v.gone ? 'accent' : 'neutral';   // a clip not on this device has nothing to hear
+}
+
+/* ★★ S8 (#1239 S-A) — SENDING: a ring INSIDE the play disc, round the glyph (Telegram's download grammar), in the disc's
+   own ink. `sending` = 'file' (a voice FILE upload: determinate, `sendPct` 0..100 from updateFile) | 'inline' (an inline
+   voice before its sent tick: an indeterminate arc that turns; reduced motion = a still, full ring) | '' = none. SVG
+   circles, no conic-gradient / mask (the WebView baseline); pathLength 100 makes the dash a plain percentage. */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function paintVoiceRing(play, sending, pct, still) {
+  let ring = play.querySelector(':scope > .c-voice__ring');
+  if (!sending) { if (ring) ring.remove(); return; }
+  if (!ring) {
+    ring = document.createElementNS(SVG_NS, 'svg');
+    ring.setAttribute('class', 'c-voice__ring');
+    ring.setAttribute('viewBox', '0 0 40 40');
+    ring.setAttribute('aria-hidden', 'true');
+    ring.setAttribute('focusable', 'false');
+    for (const cls of ['c-voice__ring-track', 'c-voice__ring-arc']) {
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('class', cls);
+      c.setAttribute('cx', '20');
+      c.setAttribute('cy', '20');
+      c.setAttribute('r', '17');
+      c.setAttribute('pathLength', '100');
+      ring.append(c);
+    }
+  }
+  ring.dataset.mode = sending;
+  /* ★ #46 r1 (S8 picks m-6): `still` = an inline send whose tick is long overdue — the arc stops turning and closes into
+     a still, full ring (the reduced-motion look): the send is still pending, nothing claims progress */
+  const isStill = sending === 'inline' && !!still;
+  if (isStill) ring.dataset.still = ''; else delete ring.dataset.still;
+  const arc = ring.lastChild;
+  const p = sending === 'file' ? Math.max(0, Math.min(100, Math.round(Number(pct) || 0))) : isStill ? 100 : 25;
+  arc.setAttribute('stroke-dasharray', p + ' 100');
+  if (ring.parentNode !== play) play.append(ring);
 }
 
 function paintVoice(wrap, voice, strings = getStrings()) {
@@ -868,16 +942,21 @@ function paintVoice(wrap, voice, strings = getStrings()) {
   /* ★ #46 r1 (B m-9): `gone` = the file is not on this device — a disabled bubble with the caller's words, no tap */
   if (v.gone) wrap.dataset.gone = ''; else delete wrap.dataset.gone;
   wrap.dataset.state = v.state;
+  const sending = !v.gone && (v.sending === 'file' || v.sending === 'inline') ? v.sending : '';   // ★ S8 (#1239)
+  if (sending) wrap.dataset.sending = sending; else delete wrap.dataset.sending;
   const dur = Number(v.durMs) > 0 ? Number(v.durMs) : 0;
   const live = v.state === 'playing' || v.state === 'paused';
   const pos = live ? Math.max(0, Math.min(dur || Infinity, Number(v.posMs) || 0)) : 0;
 
   const play = wrap.querySelector('.c-voice__play');
+  /* ★ S8 (#1239): while SENDING the disc keeps the play glyph (quieted by CSS) and the ring carries the progress — never
+     the loading spinner, so the upload and a play's decode never look alike */
+  const spin = v.state === 'loading' && !sending;
   const glyph = v.state === 'playing' ? 'player-pause' : v.state === 'error' ? 'exclamation-mark' : 'player-play';
-  if (play.dataset.glyph !== glyph + (v.state === 'loading' ? '-load' : '')) {
-    play.dataset.glyph = glyph + (v.state === 'loading' ? '-load' : '');
+  if (play.dataset.glyph !== glyph + (spin ? '-load' : '')) {
+    play.dataset.glyph = glyph + (spin ? '-load' : '');
     play.textContent = '';
-    if (v.state === 'loading') {
+    if (spin) {
       const sp = document.createElement('span');
       sp.className = 'c-voice__spin';
       sp.setAttribute('aria-hidden', 'true');
@@ -886,15 +965,16 @@ function paintVoice(wrap, voice, strings = getStrings()) {
       play.append(icon(glyph, { size: 20 }));
     }
   }
+  paintVoiceRing(play, sending, v.sendPct, v.sendStill);
   let label;
   if (v.state === 'playing') label = strings.pauseVoice || 'Pause voice message';
-  else if (v.state === 'loading') label = strings.voiceLoading || 'Loading voice message';
+  else if (v.state === 'loading' && !sending) label = strings.voiceLoading || 'Loading voice message';
   else if (v.state === 'error') label = strings.voiceUnavailable || 'This voice message can’t be played';
   else label = dur ? fillVoiceSlots(strings.playVoiceLength || 'Play voice message, {0}', formatVoiceDuration(dur))
     : (strings.playVoice || 'Play voice message');
   play.setAttribute('aria-label', label);
   play.disabled = !!v.gone;
-  if (v.state === 'loading') play.setAttribute('aria-busy', 'true'); else play.removeAttribute('aria-busy');
+  if (v.state === 'loading' || sending) play.setAttribute('aria-busy', 'true'); else play.removeAttribute('aria-busy');
 
   const wave = wrap.querySelector('.c-voice__wave');
   const hs = voiceBarHeights(v.peaks);
@@ -909,10 +989,11 @@ function paintVoice(wrap, voice, strings = getStrings()) {
 
   const time = wrap.querySelector('.c-voice__time');
   time.textContent = v.gone ? String(v.gone) : live ? formatVoiceClock(pos) : (dur ? formatVoiceDuration(dur) : '');
+  paintVoiceWho(wrap, v);
 }
 
 /** setVoiceBubble(row, patch) — the in-place update (voiceInfo / voiceState). `patch` merges into what the row
- *  shows: { durMs, peaks, state, posMs, onPlay }. A row without a voice body is left alone. */
+ *  shows: { durMs, peaks, state, posMs, onPlay, who, heard, sending, sendPct, sendStill } (★ S8 #1239 / #1240). A row without a voice body is left alone. */
 export function setVoiceBubble(row, patch, strings = getStrings()) {
   const wrap = row && row.querySelector ? row.querySelector('.c-voice') : null;
   if (!wrap) return false;

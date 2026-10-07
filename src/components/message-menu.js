@@ -29,7 +29,9 @@ import { setOverlayOpts, isEditableEl, topOverlayEl } from './overlay.js';   // 
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { anchorSheetToRow } from './desktop-anchors.js';   // ★ Batch E (a) (#557): mobile anchored dropdown
 
-const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+/* ★ S8 (#1232): EXPORTED — the shell sends a reaction as its INDEX in this list (ixian:contextAction:react:<id>:<i>),
+   and C# ReactionSet.Quick holds the SAME six in the SAME order. Reorder one side only and every reaction lands wrong. */
+export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
 /* ★ iOS-62 / #492 (Damir on device 2026-08-21, DECIDED: the cheap TINT).
  *
@@ -119,9 +121,11 @@ export function openMessageMenu({
    * a 1:1 chat and a room with no answer yet look exactly as they did. */
   detail = '',   // string, or a function evaluated at OPEN time (see below)
   capabilities = {},
-  reactions = QUICK_REACTIONS,   // overridable: the native bridge only supports a
-                                 // single "like" reaction today, so the shell passes
-                                 // just ['❤️'] rather than 6 emojis that all map to like
+  reactions = QUICK_REACTIONS,   // ★ S8 (#1232): the shell passes all six (C# sends each as like:<emoji>)
+  /* ★ S8 (#1232): MY reaction on this message ('' = none). One reaction per person and Core cannot remove
+     it, so once set: ONLY that emoji is rendered, PRESSED and inert (X6), and no tap sends anything.
+     A string or a FUNCTION (read at OPEN time — attachMessageMenu replays wire-time options, see `detail`). */
+  reacted = '',
   onAction,
   strings = getStrings(),
 } = {}) {
@@ -143,7 +147,10 @@ export function openMessageMenu({
   reacts.className = 'c-msgmenu__reacts';
   reacts.setAttribute('role', 'group');
   reacts.setAttribute('aria-label', strings.react || 'React');
-  for (const emoji of reactions) {
+  const mine = String((typeof reacted === 'function' ? (() => { try { return reacted(); } catch (e) { return ''; } })() : reacted) || '');
+  /* ★ S8 (#46 r1 X6): once I reacted the row shows ONLY my emoji — pressed, inert (no handler, no hover / scale); the
+     other five are not rendered at all (nothing to tap, nothing that looks tappable). */
+  for (const emoji of (mine ? [mine] : reactions)) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-msgmenu__react';
@@ -152,7 +159,12 @@ export function openMessageMenu({
     em.setAttribute('aria-hidden', 'true');
     em.textContent = emoji;
     b.append(em);
-    b.addEventListener('click', () => act('react', emoji));
+    if (mine) {   // ★ S8 (#1232, X6): already reacted — my one emoji, pressed and inert; nothing sends
+      b.setAttribute('aria-pressed', 'true');
+      b.setAttribute('aria-disabled', 'true');
+    } else {
+      b.addEventListener('click', () => act('react', emoji));
+    }
     reacts.append(b);
   }
   content.append(reacts);
@@ -231,7 +243,7 @@ export function openMessageMenu({
   const sheet = createSheet({ content, host, strings, onDismiss: untint });
   /* ★ #1065 (R.10, Damir): a long-press while typing must not drop the keyboard — the menu opens
      WITHOUT taking focus from the composer (overlay.js keepEditableFocus). */
-  setOverlayOpts(sheet, { keepEditableFocus: true });
+  setOverlayOpts(sheet, { keepEditableFocus: true, blurDismiss: true });   // ★ S8 (#1235): a click in another desktop pane closes it (overlay.js)
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): on MOBILE the menu anchors to the
    * pressed message — ABOVE it when there is room, so it can never cover what it

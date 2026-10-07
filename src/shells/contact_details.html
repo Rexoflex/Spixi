@@ -517,6 +517,7 @@
         })),
         blind: state.group.blind,
         amOwner: state.group.amOwner,   // N48 (#370): hero "You are the owner" chip in blind rooms
+        onGroupPhoto: () => bridge.send('ixian:groupPhoto'),   // ★ S8 (#1231): chat-info shows the badge to a group OWNER only; C# re-checks
         notifications: state.group.notifications,
         capabilities: { notifications: true, admin: state.group.admin },
         host: document.body,

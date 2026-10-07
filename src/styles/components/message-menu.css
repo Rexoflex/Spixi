@@ -45,6 +45,17 @@
   .c-msgmenu__react:hover { background: var(--surface-interactive-hover); transform: scale(1.12); }
 }
 .c-msgmenu__react:active { background: var(--surface-interactive-pressed); }
+/* ★ S8 (#1232, #46 r1 X6): one reaction per person, not removable (Core). Once I reacted the row holds ONLY my emoji,
+   pressed AND aria-disabled: the tonal ground, no hover / scale / press feedback, default cursor. No opacity / filter
+   (the stacking-context gate). */
+.c-msgmenu__react[aria-pressed="true"] { background: var(--surface-action-tonal-default); }
+.c-msgmenu__react[aria-disabled="true"] { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .c-msgmenu__react[aria-disabled="true"]:hover { background: transparent; transform: none; }
+  .c-msgmenu__react[aria-pressed="true"]:hover { background: var(--surface-action-tonal-default); }
+}
+.c-msgmenu__react[aria-disabled="true"]:active { background: transparent; }
+.c-msgmenu__react[aria-pressed="true"]:active { background: var(--surface-action-tonal-default); }   /* ★ X6: mine (pressed AND aria-disabled, no scale via the rule above) keeps its ground */
 
 .c-msgmenu__list { display: flex; flex-direction: column; }
 .c-msgmenu__item {

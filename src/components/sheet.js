@@ -3,9 +3,10 @@
  * bridge-era toggleAnimatedSlider menus. z-40, light-dismiss by default.
  *
  * createSheet({ title, content, host, lightDismiss = true, escDismiss = true,
- *               onDismiss, strings })
+ *               onDismiss, strings, blurDismiss = false })
  *   lightDismiss — scrim click closes (sheet default: true)
  *   escDismiss   — Esc closes (default: true; safe dismiss path, ARIA APG)
+ *   blurDismiss  — desktop: a window blur (click in another pane) closes it (★ S8 #1235; quick menus only)
  *   strings.sheet — aria-label fallback when there is no title ('Menu')
  * openSheet(el) / closeSheet(el) free fns (#44).
  */
@@ -14,7 +15,7 @@ import { openOverlay, dismissOverlay, setOverlayOpts, overlayId } from './overla
 
 export function createSheet({
   title = '', content = null, host, lightDismiss = true, escDismiss = true,
-  onDismiss, strings = getStrings(),
+  onDismiss, strings = getStrings(), blurDismiss = false,
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-sheet';
@@ -43,7 +44,7 @@ export function createSheet({
   if (content) body.append(content);
   el.append(body);
 
-  setOverlayOpts(el, { host, lightDismiss, escDismiss, onDismiss });
+  setOverlayOpts(el, { host, lightDismiss, escDismiss, onDismiss, blurDismiss });   // ★ S8 (#1235): blurDismiss
   return el;
 }
 

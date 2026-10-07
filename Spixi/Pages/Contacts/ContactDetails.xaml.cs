@@ -600,6 +600,10 @@ namespace SPIXI
             {
                 onRemoveHistory();
             }
+            else if (current_url.Equals("ixian:groupPhoto", StringComparison.Ordinal))
+            {
+                onGroupPhoto();   // ★ S8 (#1231): the owner changes the group's picture
+            }
             else if (current_url.StartsWith("ixian:openChat:", StringComparison.Ordinal))
             {
                 // ★ A4: a shared-group row → that group's conversation. Close this
@@ -1132,6 +1136,7 @@ namespace SPIXI
             if(friend.deleteHistory())
             {
                 SReactionFlags.clear(friend.walletAddress.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
+                SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                 CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back
                 UIHelpers.shouldRefreshContacts = true;
                 /* ★ #46 loop B, MAJOR-1 — THE CONVERSATION IS GONE ON DISK, SO SAY SO.
@@ -1203,6 +1208,151 @@ namespace SPIXI
                 }
 
                 Utils.sendUiCommand(this, "addPaymentActivity", transaction.getTxIdString(), tx_type, time, amount.ToString(), confirmed, outgoing ? "out" : "in");
+            }
+        }
+
+        /** ★ S8 (#1231): am I this private GROUP's owner? The setGroupInfo `amOwner` rule (groups only — a bot room's
+         *  getOwner() is not reliable), raw addresses, never thrown. */
+        private bool amGroupOwner()
+        {
+            if (friend == null || friend.type != FriendType.Group)
+            {
+                return false;
+            }
+            try
+            {
+                var ownerAddress = friend.users.getOwner();
+                var selfAddress = IxianHandler.getWalletStorage().getPrimaryAddress();
+                return ownerAddress != null && selfAddress != null && ownerAddress.SequenceEqual(selfAddress);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        /* ★ #46 r1 (A-NIT-5): one picker at a time — a second tap while the picker (or the send) runs does nothing. */
+        private int groupPhotoBusy = 0;
+
+        /* ★ S8 (#1231) — THE OWNER CHANGES THE GROUP PHOTO (`ixian:groupPhoto`, no args).
+         * Owner only (a non-owner verb = ignored + warn). The SAME native picker + resize the own-avatar change uses
+         * (SettingsPage.onChangeAvatarAsync: SFilePicker.PickImageAsync → ResizeImage 960×960 q80; the 128 px copy as
+         * StreamProcessor's avatar case makes it). No temp file and no WebView path: the bytes stay in memory and are stored
+         * by Core's FriendList.setAvatar(group, full, 128, null) (FriendList.cs:136 — a Group friend is not a bot, so the
+         * group's own address). Then CoreStreamProcessor.sendAvatar(member, group) (CoreStreamProcessor.cs:2323: the group's
+         * stored picture, group-addressed, no push) to every member that is a contact of mine — the receivers accept it
+         * because it comes from the owner (GroupAvatarRule). A picture of 500 000 bytes or more is refused (every receiver
+         * drops it: StreamProcessor's avatar case). Then the hero (`setAvatar`), the open chat's header and the chats list
+         * are re-pushed. Cancel = nothing. The log names no address. */
+        private void onGroupPhoto()
+        {
+            if (!amGroupOwner())
+            {
+                Logging.warn("ixian:groupPhoto: not the group owner — ignored");
+                return;
+            }
+            if (System.Threading.Interlocked.CompareExchange(ref groupPhotoBusy, 1, 0) != 0)
+            {
+                return;   // the picker is already open
+            }
+            _ = changeGroupPhotoAsync();
+        }
+
+        private async System.Threading.Tasks.Task changeGroupPhotoAsync()
+        {
+            try
+            {
+                var picked = await SFilePicker.PickImageAsync();
+                if (picked == null || picked.stream == null)
+                {
+                    return;   // cancel
+                }
+                byte[]? full;
+                // ★ #46 r1 (A-NIT-5): the picked stream is disposed on every path (a throw in CopyTo included)
+                using (System.IO.Stream src = picked.stream)
+                using (System.IO.MemoryStream ms = new System.IO.MemoryStream())
+                {
+                    src.CopyTo(ms);
+                    full = SFilePicker.ResizeImage(ms.ToArray(), 960, 960, 80);
+                }
+                if (full == null || full.Length == 0)
+                {
+                    return;
+                }
+                if (full.Length >= 500000)
+                {
+                    Logging.warn("ixian:groupPhoto: the picture is too large for the receivers — refused");
+                    await displaySpixiAlert(SpixiLocalization._SL("intro-new-avatarerror-title"), "", SpixiLocalization._SL("global-dialog-ok"));
+                    return;
+                }
+                byte[]? small = SFilePicker.ResizeImage(full, 128, 128, 100);
+                if (small == null || small.Length == 0)
+                {
+                    return;   // ★ S8 picks (r5 NIT-2): no 128 px copy — no local setAvatar (it would wipe the thumb), no send
+                }
+                if (!amGroupOwner())
+                {
+                    return;   // the roster changed while the picker was open
+                }
+                Address groupAddress = friend.walletAddress;
+                FriendList.setAvatar(groupAddress, full, small, null);
+                Friend group = friend;
+                int sent = 0;
+                await System.Threading.Tasks.Task.Run(() =>
+                {
+                    List<Address> members = new List<Address>();
+                    lock (group.users.contacts)
+                    {
+                        foreach (var kv in group.users.contacts)
+                        {
+                            members.Add(kv.Key);
+                        }
+                    }
+                    foreach (Address member in members)
+                    {
+                        try
+                        {
+                            if (IxianHandler.getWalletStorage().isMyAddress(member))
+                            {
+                                continue;
+                            }
+                            Friend? pf = FriendList.getFriend(member);
+                            if (pf == null)
+                            {
+                                continue;   // not a contact of mine — Core's group send skips it the same way
+                            }
+                            StreamProcessor.sendAvatar(pf, groupAddress);
+                            sent++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.warn("ixian:groupPhoto: a member send failed (" + ex.GetType().Name + ")");
+                        }
+                    }
+                });
+                Logging.info("ixian:groupPhoto: stored, sent to " + sent + " member(s)");
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    try
+                    {
+                        string avatar = IxianHandler.localStorage.getAvatarPath(groupAddress.ToString(), false) ?? "";
+                        Utils.sendUiCommand(this, "setAvatar", Utils.imageToDataUri(avatar));
+                        Utils.getChatPage(group)?.pushHeaderAvatar();
+                        UIHelpers.shouldRefreshContacts = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("ixian:groupPhoto: the re-push failed (" + ex.GetType().Name + ")");
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                Logging.warn("ixian:groupPhoto failed (" + e.GetType().Name + ")");
+            }
+            finally
+            {
+                System.Threading.Interlocked.Exchange(ref groupPhotoBusy, 0);
             }
         }
 

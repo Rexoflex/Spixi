@@ -30,6 +30,11 @@ namespace SPIXI.VoIP
          * session interruption) — VoiceClips then stops and keeps the clip. The data callback is unchanged: batches of
          * [int16 little-endian length][Opus packet], 20 ms per packet. stop() ends either mode. */
         void startVoiceMessage(int bitrate, Action? onInterrupted);
+
+        /* ★ S8 picks (#1239) — the live mic LEVEL of a VOICE MESSAGE (the rec bar's wave). Set before startVoiceMessage;
+         * called on the recorder's capture thread with VoiceLevel.fromPcm16* (0–100) of each captured buffer, in the voice
+         * mode ONLY (a call — start(codec) — never calls it: its encode path is unchanged). Never logged, never stored. */
+        void setOnVoiceLevel(Action<int>? on_level);
     }
 
     /** ★ 7b (#1224 (4), #1210 (4)): startVoiceMessage could not get the platform's audio focus (Android: RequestAudioFocus

@@ -3138,6 +3138,8 @@ namespace SPIXI
             {
                 excerpt = ReplyQuote.stripForExcerpt(excerpt);
             }
+            // ★ S8 (#1236): the row's excerpt is a REPLY's body (the same shape test stripForExcerpt makes)
+            bool s8Reply = lastmsg.type == FriendMessageType.standard && ReplyQuote.looksLikeReply(lastmsg.message);
             /* ★ #1208 (session 7): a VOICE message never shows its marker line or its base64 here — an inline voice text
              * (VoiceCodec.tryPeekInline: the shape + bounds, no decode) reads "🎤 Voice message (0:12)" in the receiver's
              * language — not in a bot room (§7: the row there shows the plain first line, so the list keeps today's
@@ -3278,6 +3280,14 @@ namespace SPIXI
                     }
                 }
 
+                /* ★ S8 (#1236): a stripped reply on a plain text row → kind `reply` (the shell's reply glyph + a visually
+                 * hidden "Reply:" prefix); the excerpt stays the body; a room keeps its excerptSender below. A voice text is
+                 * never reply-shaped (its first line is the marker), and every event kind above keeps its own. */
+                if (s8Reply && excerptKind == "text" && lastmsg.type == FriendMessageType.standard)
+                {
+                    excerptKind = "reply";
+                }
+
                 /* ★ #969 (Damir, dial (d)): in a ROOM an own tail no longer bakes the
                  * index-excerpt-self text prefix — it travels as the excerpt SENDER below
                  * ("You: hi", the same styled span as "George: hi"). 1:1 rows keep the old
@@ -3371,7 +3381,8 @@ namespace SPIXI
                 }
                 else if (lastmsg.read && !isGroupRow)
                 {
-                    type = "read";
+                    // ★ S8 (#1234): read receipts OFF → this row shows delivered, never read (reciprocal)
+                    type = PrivacyRules.shownStatus(SPrivacyPrefs.readReceipts, "read");
                 }
                 else
                 {
@@ -6366,6 +6377,7 @@ namespace SPIXI
                         SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
                         SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
                         SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
+                        SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                     }
                 }
             }

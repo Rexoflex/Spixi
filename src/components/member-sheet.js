@@ -255,6 +255,7 @@ export function openMemberSheet({
   const sheet = createSheet({
     content, host, strings,
     title: '', // content carries the identity — a title would duplicate the name
+    blurDismiss: true,   // ★ S8 (#1235)
   });
   sheet.setAttribute('aria-label', strings.memberDetails || 'Member details');
   openSheet(sheet);

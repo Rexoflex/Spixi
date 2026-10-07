@@ -422,3 +422,10 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   `session7b-build.patch`. Next free #1227.
 - 2026-10-06 (after 7b): Damir committed 8e76f64f and walked 7b: WALK #1227 18 P · 0 F · 3 N/A (A-FADE closed, AND-47 fixed on device,
   F10 clips 5–30 s arrived both ways). After-walk items for S8: the reply excerpt, the push-mailbox drain (#1228). Next free #1229.
+- 2026-10-06/07 (session 8, cloud twin; unattended after 00:30): precondition OK (fe86a846 = origin; smoke 5364 · CSH 208). #1228 (2)
+  mailbox drain read first (#1229: a floor of 3 server entries re-served every pass; probe built, CORE-10 later). S8 interview → #1230 scope
+  (disappearing + rename → v1.1) · #1231 groups · #1232 6 quick reactions · #1233 mini-app accept / silent decline · #1234 privacy (reciprocal)
+  · #1235 light-dismiss · #1236 reply row R1. Built by 3 agents + lead; #46 r1 5 MAJOR → … → r5 CLEAN (the emoji display became an
+  allow-list at r4, #1232 🟡) — #1241. Damir's extra asks → renders (s8x) → picks #1237 grounds · #1238 grow · #1239 R1 live wave + S-A ·
+  #1240 voice face + lower wave; built by 3 agents + lead; #46 picks r1 2 MAJOR → r4 CLEAN — #1242. Smoke BASELINE OK 5461 · CSH 236.
+  ⚠ C# UNCOMPILED. UNCOMMITTED → patch `session8-build.patch`. Next: Damir applies + walks S8 → S9. Next free #1243.

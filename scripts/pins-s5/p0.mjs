@@ -87,8 +87,10 @@ export default async function (h) {
     const rm = all.filter((p) => p !== 'Spixi/Utils/SDevSeed.cs').flatMap((p) => {
       const t = cs(p); const out = []; let i = -1;
       while ((i = t.indexOf('FriendList.removeFriend(', i + 1)) >= 0) {
-        /* after the call, or (the two decline sites, whose try/finally shape is pinned by #985) the declined address right before it */
-        out.push(p + ':' + (/CoreMessageWriter\.arrivals\.forgetAddress\(\w+\.walletAddress\.ToString\(\)\);/.test(t.slice(i, i + 260))
+        /* ★ S8 #46 r4 re-base: window 260 → 420 — the re-add heals now clear the heart AND the declined invites (SAppDeclines, pin
+           pins-s8/cs-wiring A4) before forgetting the arrivals; three statements cannot fit 260 chars even without comments.
+           after the call, or (the two decline sites, whose try/finally shape is pinned by #985) the declined address right before it */
+        out.push(p + ':' + (/CoreMessageWriter\.arrivals\.forgetAddress\(\w+\.walletAddress\.ToString\(\)\);/.test(t.slice(i, i + 420))
           || /CoreMessageWriter\.arrivals\.forgetAddress\(declinedAddr\);\s*bool listed = /.test(t.slice(Math.max(0, i - 400), i))));
       }
       return out;

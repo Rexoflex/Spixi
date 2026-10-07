@@ -9,7 +9,8 @@
  * lock-guarded set of the asked addresses, capped at 512, the oldest dropped — a dropped address may be asked again).
  * The stored answer (Core Friend.supportedProtocols, no expiry) is trusted at once: supports() is an exact UTF-8 byte
  * compare of each stored id.
- * PURE: no MAUI, no Core type — scripts/csh executes the rule and the limiter (SpixiProtocolsTests.cs). */
+ * PURE: no MAUI, no Core type — scripts/csh executes the rule and the limiter (SpixiProtocolsTests.cs). ★ S8 (#1234): the one
+ * exception is ids() reading the hideOnline preference (SPrivacyPrefs; csh compiles it against its Preferences stub). */
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -30,10 +31,23 @@ namespace SPIXI
         private static readonly ConcurrentDictionary<string, long> lastAnswered = new ConcurrentDictionary<string, long>(StringComparer.Ordinal);
         private static readonly object gate = new object();   // check-and-set + the trim are one step
 
-        /** The ids this build speaks, in this order. A fresh list each call (Core keeps the reference in its message). */
+        /** The ids this build speaks, in this order. A fresh list each call (Core keeps the reference in its message).
+         *  ★ S8 (#1234): + `spixi.presence-hidden.1` LAST while "Hide my online status" is ON (SPrivacyPrefs.hideOnline —
+         *  the one non-pure read here; the rule itself is ids(bool)). */
         public static List<byte[]> ids()
         {
-            return new List<byte[]> { Encoding.UTF8.GetBytes(ReplyId), Encoding.UTF8.GetBytes(EditId), Encoding.UTF8.GetBytes(VoiceId) };
+            return ids(SPIXI.Meta.SPrivacyPrefs.hideOnline);
+        }
+
+        /** ★ S8 (#1234): the answer, + `spixi.presence-hidden.1` (PrivacyRules.PresenceHiddenId) LAST when `presenceHidden`. */
+        public static List<byte[]> ids(bool presenceHidden)
+        {
+            List<byte[]> l = new List<byte[]> { Encoding.UTF8.GetBytes(ReplyId), Encoding.UTF8.GetBytes(EditId), Encoding.UTF8.GetBytes(VoiceId) };
+            if (presenceHidden)
+            {
+                l.Add(Encoding.UTF8.GetBytes(PrivacyRules.PresenceHiddenId));
+            }
+            return l;
         }
 
         /** ★ #1207: does a stored answer (Core Friend.supportedProtocols) name `id`? Exact UTF-8 bytes; null → false. */
@@ -94,7 +108,7 @@ namespace SPIXI
             }
         }
 
-        /** Tests only: forget every ask. */
+        /** Forget every ask — tests, and ★ S8 (#1234) the hideOnline toggle (the next chat open asks each contact again). */
         public static void resetAsks()
         {
             lock (askGate)

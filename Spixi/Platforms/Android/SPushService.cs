@@ -743,6 +743,10 @@ namespace Spixi
                     try
                     {
                         System.Threading.Monitor.TryEnter(SPIXI.Meta.Node.pushFetchLock, SPIXI.Meta.Node.PUSH_FETCH_TRY_MS, ref fetchTaken);
+                        if (fetchTaken)
+                        {
+                            SPIXI.PushFetchProbe.begin();   // ★ S8 (#1229): per-pass rep / reid counters (dev only) — only while WE hold the fetch
+                        }
                         if (!fetchTaken)
                         {
                             Logging.warn("[NOTIFDIAG] offline fetch is busy, skipped (" + where + ")");
@@ -755,7 +759,8 @@ namespace Spixi
                             SPIXI.CoreMessageWriter.arrivals.afterPushBatch(SPIXI.CoreMessageWriter.instance);
                             if (SPIXI.P1Perf.enabled)   // ★ 7b #46 r1 (A-NIT1): the count only in a dev build
                             {
-                                SPIXI.P1Perf.line("push fetch got=" + (OfflinePushMessages.receivedOfflineMessages - p1Before) + " where=push");   // ★ 7b (#1222): a count
+                                // ★ S8 (#1229): ALWAYS (also ran=0 got=0 — force=true never hits the cooldown)
+                                SPIXI.PushFetchProbe.line("push", fetched, OfflinePushMessages.receivedOfflineMessages - p1Before);
                             }
                             if (fetched)
                             {

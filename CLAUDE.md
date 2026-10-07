@@ -39,7 +39,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 2. **Render** any visual change on the BUILT shell, both themes; Damir picks the dials.
 3. **Pipeline:** FULL = (`generate-icons` if SVGs) → `extract-strings` → `build-locales` → `build-strings-iife` → `build-demo-bundle` → `build-shells` — **bundle BEFORE shells** (#258); shell/CSS/token-only = `build-shells`; C#-only = none. Then the `--check` gates.
 4. **Pins:** behaviour, not source text (#771/#798); **break the code on purpose — the pin must fail for exactly that reason** (mutation, #802) before you believe it.
-5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5364** (with the Ixian-Core sibling, session 7b #1226). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=208 fail=0` on the newest installed SDK (#1122, #1129, #1135, #1149, #1150, #1160, #1166, #1185, #1186, #1206, #1209, #1226).
+5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5461** (with the Ixian-Core sibling, session 8 #1242). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=236 fail=0` on the newest installed SDK (#1122, #1129, #1135, #1149, #1150, #1160, #1166, #1185, #1186, #1206, #1209, #1226, #1241, #1242).
 6. **#46 loop** (Opus, in-session) until CLEAN — after a green smoke run, before the batch leaves the machine; smoke again after the last fix; verdict written into its brief (#660).
 7. **Walk:** Damir builds — **Windows = F5, never `dotnet build`** (#663); Android Debug; **iPhone + Mac (and Android, #449): wipe `obj`/`bin` when the html changed, then a plain build, then Run — incremental builds do not repackage Raw html** (#320); the BUILD row must show something only this build has. Walk sheet → pasted results → a `WALK #N: n P · n F · n N/A` DECISIONS row; each fail = mechanism first.
 8. **Commit:** one logical unit; `docs/commit-message-<batch>.txt` (no attribution lines — ★ COMMIT RULE); Damir reviews the diff, commits and pushes; never `git add -A`. Use `git --no-optional-locks` on the mounted repo; give the PowerShell repo commands with every delivery.
@@ -81,12 +81,12 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-06: **session 7b committed (8e76f64f) + WALK #1227: 18 P · 0 F · 3 N/A** — A-FADE closed, F9 / F10 PASS, AND-47 fixed on device. Built: strip B, quote tiles + sender, W1, H2, FAB, reply hold + Back, no dblclick on cards, #1201 reverted + grey ground, dev logcat mirror + [P1] lines, F9 heal, #1210 (4)(6)(8) (#1214–#1226).
-- Smoke BASELINE OK **5364** · CSH **208** (cloud twin). #46: r1 2 MAJOR → fixed · r2 / r3 0 MAJOR → fixed · r4 CLEAN.
-- F10 (offline voice): late, not lost — the 0:19 clip missed the push MAILBOX and came by direct delivery at 15:28 (#1225). Walk row 7B-F10 measures the size limit with the new logs. D1 = as designed (answer not yet stored).
-- NEXT: S8 (`docs/prompts/session-8.md`) — incl. (f) desktop light-dismiss across panes, (g) the reply excerpt in the chats list (#1228 (1)), and the push-mailbox drain data first (#1228 (2)).
-- Open data: #1205 A-FLASH · #1194 · the Windows log gap 15:16–15:28 (#1225). BE asks: B-28, B-29, B-30 (push size), CORE-8, CORE-9 (remote delete misses `lastMessage`, #1223), CORE-10 (push mailbox remove / empty entry, #1228), R3-N4, #1191.
-- v1 plan (#1137–#1145, SCOPE CLOSED): S7 ✅ → 7b ✅ built → walk → S8 groups (+ #1204) + reactions + mini-app accept + disappearing + privacy → S9 → walk + fix → FREEZE.
-- Road after the v1 build: L6 → sweep phases 1–2 → Damir picks → freeze + `freeze-v1` → characterization → refactor picks → strip (#933) → gate re-run → merge → TestFlight.
+- 2026-10-07: **session 8 + the S8 picks BUILT, UNCOMMITTED** (patch `session8-build.patch`, commit message `docs/commit-message-session8.txt`). S8: mailbox probe (#1229), groups (added line id {7}, owner photo, N = 11), 6 quick reactions + display allow-list (🟡), mini-app accept / silent decline, privacy switches (reciprocal), desktop light-dismiss, reply row (#1229–#1236). Picks: Sky / Forest / Azure grounds, composer grow, R1 live wave + S-A ring, voice face + mic badge + lower wave (#1237–#1240).
+- Smoke BASELINE OK **5461** · CSH **236** (cloud twin). #46: S8 core CLEAN at r5 (r1 5 MAJOR) · picks CLEAN at r4 (r1 2 MAJOR) (#1241, #1242). ⚠ C# UNCOMPILED.
+- OUT of v1 (#1230): disappearing messages, group rename → v1.1 with Core.
+- NEXT: Damir applies the patch, builds (Windows F5; Android wipe obj/bin), walks the "Spixi Session 8 Walk" sheet, sends `android-s8.txt` (the new `[P1] push fetch … rep= reid= fix= ran=` lines) → then S9.
+- Open for Damir: the reaction display allow-list (#1232 🟡) · the light sent-wave trade-off (#1240) · no hint at 320 px (#1239).
+- BE asks: CORE-10 (after the probe data), `GroupChat.cs:103` mute reset, the fixed avatar id {6} (offline group photo), the new 🟡 pushes / verbs (gate doc §S8 + §S8 picks), B-28, B-29, B-30, CORE-8, CORE-9, R3-N4, #1191.
+- v1 plan: S8 ✅ built → walk → S9 (media picker family + audit fixes + copy + language note) → walk + fix → FREEZE. Road after: L6 → sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
 - Known: V-14 PHOTO-button content-URI path; #1200 my sent originals `missing` on Android (S9).
-- **NEXT SESSION: read `docs/handoff-2026-10-06b.md` FIRST, then paste `docs/prompts/session-8.md`.** Next free DECISIONS number: **#1229**.
+- **NEXT SESSION: read `docs/handoff-2026-10-07.md` FIRST, then paste `docs/prompts/session-9.md`.** Next free DECISIONS number: **#1243**.

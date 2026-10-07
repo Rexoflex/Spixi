@@ -217,6 +217,9 @@ namespace SPIXI
             {
                 caps += ",pushProvider";
             }
+            // ★ S8 (#1234): the three Privacy switches — this exe handles ixian:readReceipts / typingIndicators / hideOnline
+            // (kept ABOVE photoPreviews: pins-s4/nav.mjs reads photoPreviews as the last cap before the dev cap)
+            caps += ",readReceipts,typing,hideOnline";
             // ★ #1133 (A5 #1124): the Privacy "Show photo previews in chats" row — this exe handles ixian:photoPreviews.
             caps += ",photoPreviews";
             /* ★ S9 (Session AD): the Developer row. The cap is granted ONLY while dev mode
@@ -238,6 +241,7 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
             Utils.sendUiCommand(this, "setCallRingtone", SNotificationPrefs.callRingtone.ToString());   // ★ E-W4 (🟡 new push; an older shell ignores it)
             Utils.sendUiCommand(this, "setPhotoPreviews", SChatPrefs.photoPreviews.ToString());   // ★ #1133 (🟡 new push): seed the Privacy switch
+            pushPrivacySwitches();   // ★ S8 (#1234): seed the three Privacy switches
             if (SPushService.pushProviderSupported())
             {
                 Utils.sendUiCommand(this, "setNotifPushProvider", SNotificationPrefs.pushProviderEnabled.ToString());   // P2 (#708): seed the switch
@@ -951,6 +955,28 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "setPhotoPreviews", SChatPrefs.photoPreviews.ToString());
                 foreach (var chat_page in Utils.getChatPages()) chat_page.onPhotoPreviewsChanged();   // ★ #46 r1 A-M1: a chat alive under Account gets no OnAppearing — tell it now (each page catches its own failure)
             }
+            /* ★ S8 (#1234, 🟡 new verbs): store, then echo the STORED value (the photoPreviews grammar). "on" or not-"on". */
+            else if (current_url.StartsWith("ixian:readReceipts:", StringComparison.Ordinal))
+            {
+                SPrivacyPrefs.readReceipts = current_url.Substring("ixian:readReceipts:".Length).Equals("on", StringComparison.Ordinal);
+                Utils.sendUiCommand(this, "setReadReceipts", SPrivacyPrefs.readReceipts.ToString());
+                UIHelpers.shouldRefreshContacts = true;   // the chats rows' ticks follow the switch at the next flush
+                foreach (var chat_page in Utils.getChatPages()) chat_page.onPrivacyChanged();   // ★ #46 r1 (X5 / A-MINOR-5): live chats re-tick now
+            }
+            else if (current_url.StartsWith("ixian:typingIndicators:", StringComparison.Ordinal))
+            {
+                SPrivacyPrefs.typingIndicators = current_url.Substring("ixian:typingIndicators:".Length).Equals("on", StringComparison.Ordinal);
+                Utils.sendUiCommand(this, "setTypingIndicators", SPrivacyPrefs.typingIndicators.ToString());
+                foreach (var chat_page in Utils.getChatPages()) chat_page.onPrivacyChanged();   // ★ #46 r1 (X5 / A-MINOR-5): a shown typing pill goes
+            }
+            else if (current_url.StartsWith("ixian:hideOnline:", StringComparison.Ordinal))
+            {
+                SPrivacyPrefs.hideOnline = current_url.Substring("ixian:hideOnline:".Length).Equals("on", StringComparison.Ordinal);
+                Utils.sendUiCommand(this, "setHideOnline", SPrivacyPrefs.hideOnline.ToString());
+                SpixiProtocols.resetAsks();   // the per-run ask cache: the next chat open asks each contact again (claimAsk)
+                UIHelpers.shouldRefreshContacts = true;   // the dots follow the switch at the next flush
+                foreach (var chat_page in Utils.getChatPages()) chat_page.onPrivacyChanged();   // ★ #46 r1 (X5 / A-MINOR-5): every live chat hears every switch
+            }
             else if (current_url.StartsWith("ixian:lock:", StringComparison.Ordinal))
             {
                 string status = current_url.Substring("ixian:lock:".Length);
@@ -1565,9 +1591,18 @@ namespace SPIXI
             try { SRequestIgnore.clear(); } catch (Exception ex) { Logging.error("wipe: ignore list threw: " + ex.GetType().Name); }   // ★ #978: the in-process copy too
             try { SSightingStore.clear(); } catch (Exception ex) { Logging.error("wipe: sightings threw: " + ex.GetType().Name); }   // ★ G-2: the in-process copy too
             try { SReactionFlags.clearAll(); } catch (Exception ex) { Logging.error("wipe: reaction flags threw: " + ex.GetType().Name); }   // ★ #1148 (4)
+            try { SAppDeclines.clearAll(); } catch (Exception ex) { Logging.error("wipe: app declines threw: " + ex.GetType().Name); }   // ★ S8 (#1233): the in-process copy too
             try { CoreMessageWriter.arrivals.clear(); } catch (Exception ex) { Logging.error("wipe: arrivals threw: " + ex.GetType().Name); }   // ★ P0 #1155
 
             // (6. the WebView spixi.* wipe ran as step 0 — see above)
+        }
+
+        /** ★ S8 (#1234): the three Privacy switches' stored values (onLoad seed; each verb echoes its own). */
+        private void pushPrivacySwitches()
+        {
+            Utils.sendUiCommand(this, "setReadReceipts", SPrivacyPrefs.readReceipts.ToString());
+            Utils.sendUiCommand(this, "setTypingIndicators", SPrivacyPrefs.typingIndicators.ToString());
+            Utils.sendUiCommand(this, "setHideOnline", SPrivacyPrefs.hideOnline.ToString());
         }
 
         /// <summary>★ #978 (#970): the Declined-requests list, as ONE comma-joined argument
@@ -1598,6 +1633,7 @@ namespace SPIXI
             SRequestIgnore.clear();   // ★ #978: a declined requester belongs to the account that declined
             SSightingStore.clear();   // ★ G-2: a sighting belongs to the account that made it
             SReactionFlags.clearAll();   // ★ #1148 (4): so does a reaction heart
+            SAppDeclines.clearAll();   // ★ S8 (#1233): and a declined invite
             CoreMessageWriter.arrivals.clear();   // ★ P0 #1155: and every kept arrival
         }
 
@@ -1605,6 +1641,7 @@ namespace SPIXI
         {
             FriendList.deleteEntireHistory();
             SReactionFlags.clearAll();   // #46 r1 A-M2 (#1148 (4)): every conversation is gone, so is every reaction heart
+            SAppDeclines.clearAll();   // ★ S8 (#1233): every invite row is gone too
             CoreMessageWriter.arrivals.clear();   // ★ P0 #1155: and every kept arrival
             /* ★ #46 loop B, MAJOR-1 (the SIXTH removal path) — EVERY conversation on the
              * device is gone, so every conversation's local keys must go, and the user's own
@@ -1837,6 +1874,18 @@ namespace SPIXI
             }
 
             FriendList.broadcastAvatarChange();
+            /* ★ S8 picks (#1240) + #46 r1 A NIT-1 / MINOR-2: AFTER the contacts were told; the 128 px URI is made once, off the
+               main thread (warmSelfAvatar — each live chat joins that one resize), then `setSelfAvatar` to every live chat.
+               A failure here never breaks the save (a type-only log). */
+            try
+            {
+                SingleChatPage.warmSelfAvatar();
+                foreach (var chat_page in Utils.getChatPages()) chat_page.onSelfAvatarChanged();
+            }
+            catch (Exception e)
+            {
+                Logging.warn("applyAvatar: telling the chats failed (" + e.GetType().Name + ")");   // a type only
+            }
         }
 
         public void onRemoveAvatar()
@@ -1846,6 +1895,14 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "showRemoveAvatar", "0");
                 Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
                 Node.changedSettings = true;
+                try
+                {
+                    foreach (var chat_page in Utils.getChatPages()) chat_page.onSelfAvatarChanged();   // ★ S8 picks (#1240): my avatar is gone → "" (initials) to every live chat
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("onRemoveAvatar: telling the chats failed (" + e.GetType().Name + ")");   // a type only
+                }
             }
         }
 

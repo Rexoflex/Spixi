@@ -111,10 +111,14 @@
   color: var(--text-action-default);
 }
 
+/* ★ S8 (#46 r1 X6): the hover / press border is for a LIVE pill only — an inert (aria-disabled) pill keeps its resting
+   border in every placement, so it never looks tappable. */
 @media (hover: hover) and (pointer: fine) {
-  .c-reactions__pill:hover { border-color: var(--outline-action-hover); }
+  .c-reactions__pill:not([aria-disabled="true"]):hover { border-color: var(--outline-action-hover); }
 }
-.c-reactions__pill:active { border-color: var(--outline-action-default); }
+.c-reactions__pill:not([aria-disabled="true"]):active { border-color: var(--outline-action-default); }
+/* ★ S8 (#1232): after my one reaction the other pills are inert (Core: one per person, not removable). */
+.c-reactions__pill[aria-disabled="true"] { cursor: default; }
 
 .c-reactions__count { font-size: var(--font-size-label-xs); }
 

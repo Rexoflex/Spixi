@@ -346,6 +346,14 @@
 :root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='gradient'] {
   background: linear-gradient(180deg, #1C2448 0%, #151B36 100%);   /* sanctioned: a swatch face for the #1066 dark ground — its top stop #151B36 plus one lighter step so the 32px dot separates from the solid dot; no semantic role carries a dot face */
 }
+/* ★ S8 (#1237): the same rule for the two new dark grounds — each dot paints its ground's TOP (DG1 Forest #11231A, DB1 Azure
+   #0D2238) plus one lighter step, so the four dark dots read as four choices, not four black circles. */
+:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='green'] {
+  background: linear-gradient(180deg, #1A3326 0%, #11231A 100%);   /* sanctioned: a swatch face for the S8 dark green ground — its top stop plus one lighter step (the #1066 r2 rule) */
+}
+:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='blue'] {
+  background: linear-gradient(180deg, #173452 0%, #0D2238 100%);   /* sanctioned: a swatch face for the S8 dark blue ground — its top stop plus one lighter step (the #1066 r2 rule) */
+}
 .c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__dot-face {
   box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default);
 }

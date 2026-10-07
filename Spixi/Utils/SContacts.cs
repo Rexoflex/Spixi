@@ -115,6 +115,7 @@ namespace SPIXI
             {
                 SChatPrefs.setFavorite(group.walletAddress?.ToString(), false);   // CH4: the preference leaves with the record
                 SReactionFlags.clear(group.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the reaction heart leaves with the group
+                SAppDeclines.clear(group.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
             }
             UIHelpers.shouldRefreshContacts = true;
             return removed;
@@ -167,6 +168,7 @@ namespace SPIXI
                 SChatPrefs.setFavorite(friend.walletAddress?.ToString(), false);   // CH4: the preference leaves with the record
                 SSightingStore.forget(friend.walletAddress?.ToString());   // ★ G-2: the kept sighting leaves with the contact
                 SReactionFlags.clear(friend.walletAddress?.ToString());    // ★ #1148 (4): the reaction heart too
+                SAppDeclines.clear(friend.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                 return "ok";
             }
             blockers = sharedGroups(friend);
@@ -442,6 +444,7 @@ namespace SPIXI
                 return false;
             }
             SReactionFlags.clear(friend.walletAddress?.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
+            SAppDeclines.clear(friend.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
             if (friend.walletAddress != null)
             {
                 CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back

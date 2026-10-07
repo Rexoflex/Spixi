@@ -101,7 +101,11 @@ export const CHAT_GROUNDS = [
   /* ★★ #1080 F15 (Damir 2026-09-30, from his green title-bar screenshot; picked G2 of a rendered
      3-way): a SOFT GREEN gradient — LIGHT ONLY (`lightOnly`). There is no dark green rule, so in dark
      the dot is not offered and a stored 'green' paints the flat midnight ground (tokens.css). */
-  { id: 'green', key: 'groundGreenGradient', label: 'Green gradient', lightOnly: true },
+  /* ★★ S8 (#1237, Damir 2026-10-07): green is offered in DARK too (DG1 "Forest" — tokens.css has a dark rule now), and a
+     fourth ground joins: BLUE — light B1 "Sky", dark DB1 "Azure". Both themes offer the same four: Solid · Brand · Green ·
+     Blue. The `lightOnly` filter below stays as the mechanism (no member uses it today). */
+  { id: 'green', key: 'groundGreenGradient', label: 'Green gradient' },
+  { id: 'blue', key: 'groundBlueGradient', label: 'Blue gradient' },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -458,7 +462,7 @@ function screenShell(className, title, onBack) {
 export function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
   patternStyle = 'contours',     // ★ #997: the only style left (matrix, doodles + Live flow retired)
-  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — ★ #1066: both themes (a rule per theme in tokens.css)
+  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — ★ #1066: both themes (a rule per theme in tokens.css) · ★ S8 (#1237): | 'green' | 'blue'
   textScale = 1,
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
   host,                          // ★ #1019: unused since the Canvas choice became circles (no sheet); kept so existing callers stay valid
@@ -579,8 +583,9 @@ export function createChatAppearance({
      live document, like the rest of this block), so a stored light-only pick shows as the flat it paints. */
   const groundsHere = CHAT_GROUNDS.filter((o) => !o.lightOnly || document.documentElement.getAttribute('data-theme') !== 'dark');
   let groundCurrent = groundsHere.some((o) => o.id === chatGround) ? chatGround : 'flat';
-  /* (#46 r1) what is STORED, as distinct from what is shown: in dark a stored 'green' shows the flat dot
-     checked, and a tap on that dot must still WRITE 'flat' (else the stored light-only pick is unreachable). */
+  /* (#46 r1) what is STORED, as distinct from what is shown: in dark a stored light-only pick shows the flat dot
+     checked, and a tap on that dot must still WRITE 'flat' (else the stored light-only pick is unreachable).
+     ★ S8 (#1237): green was that pick until it got a dark rule — the rule stays for any future light-only member. */
   let groundStored = chatGround;
   /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
      at build it inherited the document's, and settings.html's root never carries one, so the
@@ -770,9 +775,9 @@ export function createChatAppearance({
 }
 
 /**
- * Privacy — the media-autoload switch, plus §9-GATED toggles (read receipts /
- * typing indicators). The §9 rows render ONLY when their capability is flagged;
- * no legacy command exists for either.
+ * Privacy — the media-autoload switch, plus CAP-GATED toggles (read receipts /
+ * typing indicators / ★ S8 #1234 hide online). Those rows render ONLY when the exe
+ * flags the capability AND the shell passes the handler (verbs since S8).
  *
  * ★ THE MEDIA ROW IS FRONTEND-ONLY (security sweep, row E-1b). It writes
  * `spixi.media.autoload`, which the chat shell already read but which NOTHING in
@@ -788,10 +793,12 @@ export function createPrivacy({
   typingIndicators = true,
   mediaAutoload = true,          // FE-only: spixi.media.autoload (the shell reads it per render)
   photoPreviews = true,          // ★ #1133 (A5 #1124): C#-held (SChatPrefs.photoPreviews), default ON
-  capabilities = {},             // { readReceipts, typing }
+  hideOnline = false,            // ★ S8 (#1234): C#-held (SChatPrefs.hideOnline), default OFF
+  capabilities = {},             // { readReceipts, typing, hideOnline }
   onBack,
-  onReadReceipts,                // (next, ctrl) — §9
-  onTyping,                      // (next, ctrl) — §9
+  onReadReceipts,                // (next, ctrl) — ★ S8 (#1234): ixian:readReceipts:on|off, resolved by the echo
+  onTyping,                      // (next, ctrl) — ★ S8 (#1234): ixian:typingIndicators:on|off, resolved by the echo
+  onHideOnline,                  // (next, ctrl) — ★ S8 (#1234): ixian:hideOnline:on|off, resolved by the echo
   onMediaAutoload,               // (next, ctrl) — FE-only, writes localStorage
   onPhotoPreviews,               // (next, ctrl) — ★ #1133: ixian:photoPreviews:on|off, resolved by the echo
   strings = getStrings(),
@@ -822,33 +829,39 @@ export function createPrivacy({
     body.append(pv);
   }
 
-  /* The note describes the §9 pair only — it says "turning one off also hides theirs
-     from you", which is true of a receipt and false of the local media switch. It
-     therefore renders with the rows it is about, and only when they render (#772). */
-  if ((capabilities.readReceipts && onReadReceipts) || (capabilities.typing && onTyping)) {
-    const note = document.createElement('p');
-    note.className = 'c-settings__note';
-    note.textContent = strings.privacyNote ||
-      'These apply to everyone you chat with. Turning one off also hides theirs from you.';
-    body.append(note);
-  }
-
-  if (capabilities.readReceipts && onReadReceipts) body.append(switchRow({
+  /* ★ S8 (#1234): the three C#-held privacy switches. Each sub says BOTH directions (the rule is reciprocal —
+     Damir's pick), so the shared note that said "turning one off also hides theirs" is retired: it was false for
+     hide-online (ON hides) and every row now says it itself. data-pref = the in-place echo (settings.html). */
+  const privacyRow = (pref, opts) => {
+    const r = switchRow({ ...opts, live, failText: strings.privacyFailed || 'Couldn’t update. Try again.' });
+    r.dataset.pref = pref;
+    /* ★ S8 r1 (#1234): the switch's name is the label only — its hint (the reciprocal rule) is its description */
+    const hint = r.querySelector('.c-settings__row-sub');
+    const sw = r.querySelector('[role="switch"]');
+    if (hint && sw) {
+      hint.id = 'c-privacy-hint-' + pref;
+      sw.setAttribute('aria-describedby', hint.id);
+    }
+    body.append(r);
+  };
+  if (capabilities.readReceipts && onReadReceipts) privacyRow('readReceipts', {
     glyph: 'checks', hue: 'info',
     label: strings.readReceipts || 'Read receipts',
-    sub: strings.readReceiptsSub || 'Others see when you’ve read their messages',
-    checked: readReceipts, live,
-    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
-    onToggle: onReadReceipts,
-  }));
-  if (capabilities.typing && onTyping) body.append(switchRow({
+    sub: strings.readReceiptsHint || 'When off, others don’t see when you read their messages, and you don’t see when they read yours.',
+    checked: readReceipts, onToggle: onReadReceipts,
+  });
+  if (capabilities.typing && onTyping) privacyRow('typingIndicators', {
     glyph: 'dots', hue: 'accent',
     label: strings.typingIndicators || 'Typing indicators',
-    sub: strings.typingIndicatorsSub || 'Others see when you’re typing',
-    checked: typingIndicators, live,
-    failText: strings.privacyFailed || 'Couldn’t update. Try again.',
-    onToggle: onTyping,
-  }));
+    sub: strings.typingIndicatorsHint || 'When off, others don’t see when you type, and you don’t see when they type.',
+    checked: typingIndicators, onToggle: onTyping,
+  });
+  if (capabilities.hideOnline && onHideOnline) privacyRow('hideOnline', {
+    glyph: 'eye-off', hue: 'info',
+    label: strings.hideOnlineTitle || 'Hide my online status',
+    sub: strings.hideOnlineHint || 'When on, Spixi asks others’ apps to hide your online status and last seen, and you don’t see theirs. Older apps and the network can still see when you are online.',
+    checked: hideOnline, onToggle: onHideOnline,
+  });
   return el;
 }
 

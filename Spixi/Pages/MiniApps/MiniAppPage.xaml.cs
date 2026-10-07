@@ -39,6 +39,13 @@ namespace SPIXI
 
         private MiniAppActionHandler? miniAppActionHandler;
 
+        /** ★ S8 (#1233): a mini-app session id — sha3_512sqTrunc of the app id's UTF-8 bytes (the constructor's rule, moved
+         *  here unchanged so SingleChatPage / StreamProcessor derive the SAME id from a stored invite row). */
+        public static byte[] sessionIdFor(string app_id)
+        {
+            return CryptoManager.lib.sha3_512sqTrunc(UTF8Encoding.UTF8.GetBytes(app_id));
+        }
+
         public MiniAppPage(string app_id, Address host_user_address, Friend? friend_or_group, string app_entry_point)
         {
             InitializeComponent();
@@ -46,7 +53,7 @@ namespace SPIXI
 
 
             // TODO randomize session id and add support for more users
-            sessionId = CryptoManager.lib.sha3_512sqTrunc(UTF8Encoding.UTF8.GetBytes(app_id));
+            sessionId = sessionIdFor(app_id);   // ★ S8 (#1233): the one home of the math (Join's accept + Decline's reject reuse it)
 
             appId = app_id;
 

@@ -195,7 +195,7 @@ export default async function (h) {
     await sleep(30);
     const b = bar(d);
     r.barUp = !!b && b.dataset.state === 'recording' && comp.hasAttribute('data-rec') && W.getComputedStyle(field).display === 'none';
-    r.barParts = !!b && !!b.querySelector('.c-composer__rec-dot') && b.querySelector('.c-composer__rec-cancel').getAttribute('aria-label') === 'Cancel recording';
+    r.barParts = !!b && !!b.querySelector('.c-composer__rec-dot') && b.querySelector('.c-composer__rec-cancel').getAttribute('aria-label') === 'Discard recording';   // ★ S8 picks (#1239 R1) re-base: the ✕ is the trash "Discard recording" now (same verb voicerec:cancel)
     r.timerStart = !!b && b.querySelector('.c-composer__rec-time').textContent === '0:00 / 0:30';
     r.timerHidden = !!b && b.querySelector('.c-composer__rec-time').getAttribute('aria-hidden') === 'true';
     r.sendDisc = action(d).dataset.mode === 'voicesend' && action(d).getAttribute('aria-label') === 'Send voice message' && !action(d).disabled;
@@ -286,7 +286,7 @@ export default async function (h) {
     r.junkIgnored = !bar(d);
     r.noErr = noErr(s.errs);
     ok(Object.values(r).every((x) => x === true),
-      '★★ #1208 RECORDING BAR on the built chat shell: voiceRec recording → the bar REPLACES the field (✕ "Cancel recording", the dot, "0:00 / 0:30" aria-hidden) and the disc is "Send voice message"; the tap that opened it sends nothing; ONE polite status line at the start, silent on a resync; recording 7000 → "0:07 / 0:30", then it ticks locally, a late resync never runs it backwards and the tick stops at 0:30; ✕ sends EXACTLY ixian:voicerec:cancel (once); stopped 30000 → frozen "0:30 / 0:30" + "Recording stopped, 0:30"; sendfail → one "could not be sent" toast and the bar stays; ➤ sends EXACTLY ixian:voicerec:send (once); idle → the input and the mic back; a restored stopped clip shows its length; while the bar is up the menu has no Reply / Edit, a junk state changes nothing and Escape sends ixian:voicerec:cancel; denied / busy / error → the input back + one toast each; a junk state is ignored — ' + JSON.stringify(r));
+      '★★ #1208 RECORDING BAR on the built chat shell: voiceRec recording → the bar REPLACES the field (the trash "Discard recording" — S8 #1239, the dot, "0:00 / 0:30" aria-hidden) and the disc is "Send voice message"; the tap that opened it sends nothing; ONE polite status line at the start, silent on a resync; recording 7000 → "0:07 / 0:30", then it ticks locally, a late resync never runs it backwards and the tick stops at 0:30; ✕ sends EXACTLY ixian:voicerec:cancel (once); stopped 30000 → frozen "0:30 / 0:30" + "Recording stopped, 0:30"; sendfail → one "could not be sent" toast and the bar stays; ➤ sends EXACTLY ixian:voicerec:send (once); idle → the input and the mic back; a restored stopped clip shows its length; while the bar is up the menu has no Reply / Edit, a junk state changes nothing and Escape sends ixian:voicerec:cancel; denied / busy / error → the input back + one toast each; a junk state is ignored — ' + JSON.stringify(r));
     s.dom.window.close();
   });
 

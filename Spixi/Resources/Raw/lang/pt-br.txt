@@ -662,6 +662,8 @@ global-invalid-address-text = Por favor, insira um endereço válido.
 
 global-friend-request-accepted = {0} aceitou seu pedido de contato.
 global-friend-request-connected = Você agora está conectado com {0}.
+chat-group-added-you = {0} adicionou você a este grupo
+chat-group-added-you-noname = Você foi adicionado a este grupo
 
 global-update-available = Uma nova versão do Spixi está disponível ({0}). Atualize para obter a melhor experiência.
 global-modal-external-link-title = Link externo

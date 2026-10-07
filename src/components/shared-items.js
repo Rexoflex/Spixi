@@ -325,7 +325,7 @@ export function openSharedItemMenu({ item, host, strings = getStrings(), onActio
   if (receivedLocal) add('trash', strings.sharedDeleteLocal || 'Delete from this device', 'delete', true);
   content.append(list);
   const title = item.kind === 'link' ? (sharedLinkHost(item.label) || item.label) : item.label;
-  sheet = createSheet({ title, content, host, strings });
+  sheet = createSheet({ title, content, host, strings, blurDismiss: true });   // ★ S8 (#1235)
   openSheet(sheet);
   return sheet;
 }

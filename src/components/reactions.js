@@ -17,7 +17,9 @@
  *   animate: true,                       // pop-in for a JUST-ADDED reaction (live only, not history)
  *   maxVisible: 3,                       // Damir 2026-07-03: heavy reactions cap — first N types + "+N" pill
  *   host, onInspect,                     // "+N" (inspect) opens openReactionsSheet in host unless onInspect overrides
- *   onToggle(emoji),                     // → ixian:contextAction like/react
+ *   onToggle(emoji),                     // → ixian:contextAction:react:<id>:<index> (★ S8 #1232)
+ *   locked,                              // ★ S8: I already reacted — other pills aria-disabled, no tap sends
+ *                                        //   (★ X6: a pill outside QUICK_REACTIONS is ALWAYS aria-disabled, never wired)
  *   strings,
  * })
  * Re-invoking replaces the previous set (the bridge re-emits the full list).
@@ -29,6 +31,8 @@
 import { getStrings } from './strings-runtime.js';
 import { createBadge } from './badge.js';
 import { createSheet, openSheet } from './sheet.js';
+import { setOverlayOpts } from './overlay.js';   // ★ S8 (#1235): blurDismiss on the inspect sheet
+import { QUICK_REACTIONS } from './message-menu.js';   // ★ S8 (X6): a pill outside the six can never send
 
 export function addReactions(row, {
   reactions = [],
@@ -39,6 +43,9 @@ export function addReactions(row, {
   host,
   onInspect,
   onToggle,
+  /* ★ S8 (#1232): one reaction per person, never removed (Core) — once I reacted, a pill that is not
+     mine is aria-disabled and its tap sends nothing (mine stays aria-pressed). */
+  locked = false,
   strings = getStrings(),
 } = {}) {
   // media tiles anchor on .c-mbubble-anchor (tile overflow:hidden would clip
@@ -85,7 +92,13 @@ export function addReactions(row, {
       n.textContent = String(r.count);
       pill.append(n);
     }
-    if (onToggle) pill.addEventListener('click', () => onToggle(r.emoji));
+    /* ★ S8 (#1232, #46 r1 X6): a pill is LIVE only when it can send — one of the six (QUICK_REACTIONS, sent by
+       index) AND I have not reacted. A peer's emoji outside the six is always inert; once I reacted every pill
+       but mine is inert. Inert = aria-disabled, NO click handler, no hover (reactions.css).
+       ★ S8 #46 r2 (N1): MY pill too — pressed AND aria-disabled (it has no handler; like the menu's own emoji). */
+    const live = !locked && QUICK_REACTIONS.indexOf(r.emoji) !== -1;
+    if (!live) pill.setAttribute('aria-disabled', 'true');
+    if (onToggle && live) pill.addEventListener('click', () => onToggle(r.emoji));
     el.append(pill);
   }
   if (reactions.length > maxVisible) {
@@ -247,6 +260,7 @@ export function openReactionsSheet({ host, reactions = [], tip = '', strings = g
     content.append(rowEl);
   }
   const sheet = createSheet({ title: strings.reactions || 'Reactions', content, host, strings });
+  setOverlayOpts(sheet, { blurDismiss: true });   // ★ S8 (#1235): a click in another desktop pane closes it (overlay.js)
   openSheet(sheet);
   return sheet;
 }

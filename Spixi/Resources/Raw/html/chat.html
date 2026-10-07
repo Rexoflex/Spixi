@@ -69,8 +69,10 @@
         ★ #835 flipped the default away from the gradient; ★★ #855 retired the option;
         ★★ #998 (Damir 2026-09-28) restored it as the BRAND gradient. Allowlisted the same way
         the style is, so any corrupt value lands on 'flat' BEFORE first paint. The attribute
-        is set in BOTH themes and is inert in dark (the brand gradient is a light ground). -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='contours')s='contours';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient'&&g!=='green')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
+        is set in BOTH themes and is inert in dark (the brand gradient is a light ground).
+        ★ S8 (#1237): four values now — flat · gradient · green · blue — each with a light AND a dark
+        rule; this is ladder 1 of the #690 three (readPatternPrefs below · settings.html readChatPrefs). -->
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='contours')s='contours';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient'&&g!=='green'&&g!=='blue')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -1555,15 +1557,21 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 [data-selecting] .c-reply-swipe { display: none !important; }
 
 /* —— ★★ #1208 (S7) the VOICE bubble: disc · 40 bars · time, the meta floats under it. Bars in the bubble's own ink
-   (currentColor → both directions, both themes); no bar transition (a ~200 ms tick would jitter). */
-.c-bubble[data-voice] { min-width: min(240px, var(--layout-bubble-max)); }
+   (both directions, both themes); no bar transition (a ~200 ms tick would jitter).
+   ★★ S8 (#1240, Damir: "more like Telegram" + the WhatsApp face): disc · [wave over the time] · the sender's face with a
+   mic badge. The wave is LOW and THIN — 2 px bars, 2 px apart, round caps, a 20 px box; a quiet bar is a 2 px dot.
+   Played bars in the bubble's strong ink, the rest in its muted ink. */
+/* ★ #46 r1 (S8 picks M-1): the 280 floor is capped by the bubble's OWN max (82 % of the row, the layout max) — a min-width
+   above the max wins in CSS, and at 320 px a group row (the 40 px gutter) pushed the voice bubble 18 px past the log edge */
+.c-bubble[data-voice] { min-width: min(280px, var(--bubble-max-pct), var(--layout-bubble-max)); }
 .c-voice {
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
+  gap: var(--spacing-12);
   min-width: 0;
 }
 .c-voice__play {
+  position: relative;   /* ★ S8 (#1239): the send ring is laid over the disc */
   flex: none;
   display: flex;
   align-items: center;
@@ -1586,7 +1594,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-voice[data-state="loading"] .c-voice__play { cursor: default; }
 /* ★ #46 r1 (B m-9): not on this device — the disc and bars at the disabled alpha, the words in the time slot */
 .c-voice[data-gone] .c-voice__play, .c-voice[data-gone] .c-voice__wave { opacity: var(--opacity-disabled); cursor: default; }
-.c-voice[data-gone] .c-voice__time { min-width: 0; text-align: start; white-space: normal; }
+.c-voice[data-gone] .c-voice__time { flex: 1 1 auto; min-width: 0; text-align: start; white-space: normal; }
 .c-voice__spin {
   width: 18px;   /* sanctioned: the progress ring (the media-bubble spinner's grammar) */
   height: 18px;
@@ -1600,34 +1608,117 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 @media (prefers-reduced-motion: reduce) {
   .c-voice__spin { animation-duration: 1600ms; }   /* keep visible motion, slower (the button spinner rule) */
 }
-.c-voice__wave {
+/* ★★ S8 (#1239 S-A) the SEND ring — inside the 40 disc, round the (quieted) play glyph, in the disc's own ink: a track
+   and an arc. file = the upload percentage (the arc's dash); inline = a quarter arc that turns until the sent tick;
+   reduced motion = a still, FULL ring (no turning, and no partial arc that would read as a percentage). */
+.c-voice[data-sending] .c-voice__play { cursor: default; }
+.c-voice[data-sending] .c-voice__play > svg:not(.c-voice__ring) { opacity: var(--opacity-disabled); }   /* sanctioned: the glyph leaf, quieted while the ring speaks */
+.c-voice__ring {
+  position: absolute;
+  inset: calc((var(--size-target-min) - 40px) / 2);   /* exactly over the 40 disc */
+  width: 40px;   /* sanctioned: the disc */
+  height: 40px;
+  transform: rotate(-90deg);   /* the arc starts at 12 o'clock */
+  pointer-events: none;
+}
+.c-voice__ring circle { fill: none; stroke: currentColor; stroke-width: 2.5; }   /* sanctioned: the ring's stroke (no stroke token) */
+.c-voice__ring-track { opacity: 0.22; }   /* sanctioned: the track leaf — the disc ink, quiet */
+.c-voice__ring-arc { stroke-linecap: round; }
+.c-voice__ring[data-mode="inline"] { animation: c-voice-ring-turn calc(4 * var(--duration-300)) linear infinite; }   /* 1.2 s from the motion token */
+@keyframes c-voice-ring-turn { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+.c-voice__ring[data-still] { animation: none; }   /* ★ #46 r1 (S8 picks m-6): an overdue tick — the full ring stands still (the arc's dash is 100 in JS) */
+@media (prefers-reduced-motion: reduce) {
+  .c-voice__ring[data-mode="inline"] { animation: none; }
+  .c-voice__ring[data-mode="inline"] .c-voice__ring-arc { stroke-dasharray: 100 0; }
+}
+.c-voice__main {
   flex: 1;
   min-width: 0;
-  height: 28px;   /* sanctioned: the waveform box */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+/* ★ #46 r1 (S8 picks NIT): ALL 40 bars draw at 320 / 360 too (the 40th was clipped). The box is at most 40 × 2 + 39 × 2 =
+   158 px (Telegram's 2 px gaps); narrower, the gaps go first (space-between, never below 1 px), then the bars give up to
+   half a pixel each (1.5 px). Only a box under 40 × 1.5 + 39 = 99 px still clips at the END (7b #1216 W1). */
+.c-voice__wave {
+  min-width: 0;
+  max-width: 158px;   /* sanctioned: 40 bars × 2 px + 39 gaps × 2 px */
+  height: 20px;   /* sanctioned: the waveform box — ★ S8 (#1240): Telegram-low (was 28) */
   display: flex;
   align-items: center;
-  gap: 2px;
-  overflow: hidden;   /* ★ 7b (#1216 W1): a box narrower than the 40 bars clips them at the END — never squeezed */
+  justify-content: space-between;
+  gap: 1px;
+  overflow: hidden;   /* ★ 7b (#1216 W1): a box narrower than the 40 bars clips them at the END */
 }
 .c-voice__bar {
-  flex: 0 0 3px;      /* ★ 7b (#1216 W1, Damir's pick): every bar 3px wide, 2px apart, no grow / shrink (was 1–3px, squeezed) */
-  width: 3px;
-  height: calc(15% + var(--voice-h, 0) * 0.85%);   /* 0 → a flat 4 px tick (the placeholder), 100 → the full box */
+  flex: 0 1 2px;      /* ★ S8 (#1240, Damir: "more like Telegram"): 2 px bars (7b #1216: 3 px); they shrink only on a narrow box */
+  min-width: 1.5px;   /* sanctioned: the thinnest bar that still reads as one */
+  width: 2px;
+  height: calc(2px + var(--voice-h, 0) * 0.18px);   /* 0 → a 2 px round DOT (quiet / the placeholder), 100 → the 20 px box */
   border-radius: var(--radius-full);
-  background: currentColor;
-  opacity: 0.4;   /* sanctioned: the not-yet-played ink, on the bubble's own colour in both directions and themes */
 }
-.c-voice__bar[data-played] { opacity: 1; }
+/* ★ #46 r1 (S8 picks m-1): the UNPLAYED ink is a QUIETER step, so played / unplayed part at ≥ 3:1 in all four cases
+   (it was 2.50 light received · 1.57 dark received · 1.94 sent). Measured (played vs unplayed · unplayed vs the bubble):
+   light received neutral-950 / neutral-430 6.33 · 2.91 — dark received neutral-100 / neutral-460 4.14 · 3.32 —
+   sent (both themes) neutral-10 / primary-500 3.66 · 1.56 light, 2.23 dark. Colour only (no opacity: the stacking gate). */
+.c-voice { --voice-bar-unplayed: var(--neutral-430); }
+[data-theme="dark"] .c-voice { --voice-bar-unplayed: var(--neutral-460); }
+.c-bubble-row[data-direction="received"] .c-voice__bar { background: var(--voice-bar-unplayed); }
+.c-bubble-row[data-direction="received"] .c-voice__bar[data-played] { background: var(--text-bubble-received); }
+.c-bubble-row[data-direction="sent"] .c-voice__bar { background: var(--primary-500); }
+.c-bubble-row[data-direction="sent"] .c-voice__bar[data-played] { background: var(--text-bubble-sent); }
+.c-voice__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+.c-voice__foot > .c-bubble__meta { flex: none; float: none; margin: 0; margin-inline-start: auto; transform: none; white-space: nowrap; }   /* the bubble's meta, pushed to the line's end */
 .c-voice__time {
   flex: none;
   min-width: 2.6em;   /* m:ss in tabular figures — the row does not jitter while the position runs */
-  text-align: end;
+  text-align: start;
   font-size: var(--bubble-meta-size);
   line-height: var(--bubble-meta-line-height);
   font-weight: var(--bubble-meta-weight);
 }
 .c-bubble-row[data-direction="received"] .c-voice__time { color: var(--text-bubble-received-meta); }
 .c-bubble-row[data-direction="sent"] .c-voice__time { color: var(--text-bubble-sent-meta); }
+/* the face: a 40 avatar, the mic badge over its bottom-start edge, cut out of the avatar by a ring in the bubble's ground */
+.c-voice__who {
+  position: relative;
+  flex: none;
+  display: block;
+  width: var(--size-avatar-40);
+  height: var(--size-avatar-40);
+}
+.c-voice__badge {
+  position: absolute;
+  inset-inline-start: -6px;   /* sanctioned: the badge overhangs the avatar's edge (WhatsApp) */
+  bottom: -3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;   /* sanctioned: a status badge glyph disc, no size token this small */
+  height: 20px;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--surface-bubble-received);
+  background: var(--text-bubble-received-meta);   /* neutral: played — the bubble's muted ink, the glyph cut in its ground */
+  color: var(--surface-bubble-received);
+}
+/* ★ #46 r1 (S8 picks m-2): the accent is the ICON action ink — primary-600 light (6.98:1 on the white bubble), primary-400
+   dark (6.25:1 on ink-750; the surface action blue read 2.34:1 there); the glyph is cut in the bubble ground (same ratios) */
+.c-voice__who[data-tone="accent"] .c-voice__badge { background: var(--icon-action-default); color: var(--surface-bubble-received); }
+/* ★ #46 picks r2 (MINOR-3): in LIGHT the played (neutral) badge was as dark as the accent (1.06:1 apart) — it goes quiet
+   (a light grey disc, the glyph in the muted ink), so "not yet played" is the one that stands out. Dark keeps the muted-ink disc. */
+:root:not([data-theme="dark"]) .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-300); color: var(--text-bubble-received-meta); }
+/* ★ #46 picks r3 (MINOR-B): the DARK mirror — the played disc was the LOUDER one (8.77:1 vs the accent 6.25:1); now ink-500
+   (1.41:1 on the bubble, the glyph 6.22:1 on it, the accent 4.43:1 against it) */
+[data-theme="dark"] .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-500); color: var(--text-bubble-received-meta); }
+
+.c-bubble-row[data-direction="sent"] .c-voice__badge { border-color: var(--surface-bubble-sent); background: var(--text-bubble-sent); color: var(--surface-bubble-sent); }
 
 </style>
 <style data-src="../styles/components/composer.css">
@@ -1698,7 +1789,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 
 /* —— reply/edit context strip (batch 3b; ★ #1198 / #1199 live behind setCaps reply / edit) —— */
 /* ★ #1198: the strip arms in on --duration-200 decelerate (a short rise + fade, no blur); it leaves at once (removed) —
-   the close is faster than the open. Reduced motion: the token is 0 ms (tokens.css). */
+   the close is faster than the open. Reduced motion: the token is 0 ms (tokens.css).
+   ★ S8 (#1238): SUPERSEDED where WAAPI runs — composer.js ctxStripMotion GROWS the strip 0 → full (--duration-200
+   standard) and collapses it (150 ms accelerate); this keyframe stays as the no-WAAPI fallback only. */
 /* ★ 7b (#1214, strip B — Damir's pick, the Telegram row INSIDE the pill): the strip is the field's FIRST line, full
    pill width (negative inline margins cancel the field's padding — the ⊕ room at the start, spacing-12 at the end),
    a hairline under it; the field wraps ONLY while it holds one ([data-ctx], set by setComposerContext — no :has()). */
@@ -1729,6 +1822,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   flex-basis: calc(100% + 2 * var(--spacing-12));
   margin-inline-start: calc(-1 * var(--spacing-12));
 }
+/* ★ S8 (#1238): a strip on its way out takes no tap even where `inert` is unsupported (it is also inert) */
+.c-composer__ctx[data-closing] { pointer-events: none; }
 .c-composer__ctx > svg { flex: none; color: var(--icon-action-default); }
 [dir="rtl"] .c-composer__ctx[data-kind="reply"] > svg { transform: scaleX(-1); }
 .c-composer__ctx-info {
@@ -2075,8 +2170,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   .c-composer__rec[data-state="recording"] .c-composer__rec-dot { animation: none; }
 }
 .c-composer__rec-time {
-  flex: 1;
-  min-width: 0;
+  flex: none;   /* ★ S8 (#1239 R1): the live wave takes the rest of the line (was flex: 1) */
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
@@ -2084,6 +2178,75 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   white-space: nowrap;
 }
 .c-composer__rec[data-state="stopped"] .c-composer__rec-time { color: var(--text-neutral-02); }
+/* ★★ S8 (#1239 R1, Damir's pick) — THE LIVE WAVE: the real mic level (C# voiceRecLevel) scrolling in from the END, in
+   the voice bubble's grammar (2 px bars, 2 px apart, round, a quiet bar = a dot). NOT red: the action-blue family, the
+   NEWEST bars strongest and the older ones a token step quieter each (light: 600 → 500 → 300 on the white pill; dark:
+   300 → 400 → 600 on the ink pill — "strong" is lighter there). Colour by position, so a bar takes the next tier as it
+   moves; no opacity anywhere (the stacking gate). Stopped = the neutral ink, frozen. The dot stays RED: the universal
+   "recording" sign, the last 5 s too (#46 r1 NIT); the last 5 s turn the timer the warning colour and lay "{n} s left"
+   over the wave's leading end. */
+.c-composer__rec {
+  --rec-wave-new: var(--primary-600);
+  --rec-wave-mid: var(--primary-500);
+  --rec-wave-old: var(--primary-300);
+}
+[data-theme="dark"] .c-composer__rec {
+  --rec-wave-new: var(--primary-300);
+  --rec-wave-mid: var(--primary-400);
+  --rec-wave-old: var(--primary-600);
+}
+/* ★ #46 r1 (S8 picks m-3 / m-4): the wave's TRACK — the wave fills it, the near-limit hint is laid OVER its leading end on
+   the pill ground (absolute: no width taken, so the wave neither jumps at 0:25 nor twitches each second) */
+.c-composer__rec-track {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.c-composer__rec-wave {
+  flex: 1;
+  min-width: 0;
+  height: 24px;   /* sanctioned: the live wave box (the bubble wave is 20) */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;   /* the newest bar is at the END; the overflow (the oldest) is clipped at the START */
+  gap: 2px;
+  overflow: hidden;
+}
+.c-composer__rec-bar {
+  flex: 0 0 2px;
+  width: 2px;
+  height: calc(2px + var(--rec-h, 0) * 0.22px);   /* 0 → a 2 px dot, 100 → the 24 px box */
+  border-radius: var(--radius-full);
+  background: var(--rec-wave-old);
+}
+.c-composer__rec-bar:nth-last-child(-n+28) { background: var(--rec-wave-mid); }
+.c-composer__rec-bar:nth-last-child(-n+10) { background: var(--rec-wave-new); }
+.c-composer__rec[data-state="stopped"] .c-composer__rec-bar { background: var(--icon-neutral-03); }
+.c-composer__rec-hint {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  max-width: calc(100% - 48px);   /* sanctioned (#46 picks r2 MINOR-1): ≥ 48 px of the newest bars always show; one line, never wrapped */
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--spacing-8);   /* air between the words and the first bar they leave visible */
+  background: var(--surface-composer-pill);   /* the pill ground: the oldest bars go under it */
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-warning);
+}
+.c-composer__rec-hint:empty { display: none; }
+/* ★ #46 picks r2 (MINOR-1): a hint that does not fit in one line beside the 48 px of wave (it / fr / ru at 320 px) is not shown —
+   the timer already turns the warning colour; composer.js sets data-cramped from the hint's own overflow */
+.c-composer__rec-hint[data-cramped] { visibility: hidden; }
+.c-composer__rec[data-near] .c-composer__rec-time { color: var(--text-warning); }   /* ★ #46 r1 NIT: the timer warns; the dot stays red */
 /* the polite status line (start / stop only) — clip-hidden, the chat-info __live pattern */
 .c-composer__rec-live {
   position: absolute;
@@ -3275,10 +3438,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-action-default);
 }
 
+/* ★ S8 (#46 r1 X6): the hover / press border is for a LIVE pill only — an inert (aria-disabled) pill keeps its resting
+   border in every placement, so it never looks tappable. */
 @media (hover: hover) and (pointer: fine) {
-  .c-reactions__pill:hover { border-color: var(--outline-action-hover); }
+  .c-reactions__pill:not([aria-disabled="true"]):hover { border-color: var(--outline-action-hover); }
 }
-.c-reactions__pill:active { border-color: var(--outline-action-default); }
+.c-reactions__pill:not([aria-disabled="true"]):active { border-color: var(--outline-action-default); }
+/* ★ S8 (#1232): after my one reaction the other pills are inert (Core: one per person, not removable). */
+.c-reactions__pill[aria-disabled="true"] { cursor: default; }
 
 .c-reactions__count { font-size: var(--font-size-label-xs); }
 
@@ -3526,6 +3693,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   .c-msgmenu__react:hover { background: var(--surface-interactive-hover); transform: scale(1.12); }
 }
 .c-msgmenu__react:active { background: var(--surface-interactive-pressed); }
+/* ★ S8 (#1232, #46 r1 X6): one reaction per person, not removable (Core). Once I reacted the row holds ONLY my emoji,
+   pressed AND aria-disabled: the tonal ground, no hover / scale / press feedback, default cursor. No opacity / filter
+   (the stacking-context gate). */
+.c-msgmenu__react[aria-pressed="true"] { background: var(--surface-action-tonal-default); }
+.c-msgmenu__react[aria-disabled="true"] { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .c-msgmenu__react[aria-disabled="true"]:hover { background: transparent; transform: none; }
+  .c-msgmenu__react[aria-pressed="true"]:hover { background: var(--surface-action-tonal-default); }
+}
+.c-msgmenu__react[aria-disabled="true"]:active { background: transparent; }
+.c-msgmenu__react[aria-pressed="true"]:active { background: var(--surface-action-tonal-default); }   /* ★ X6: mine (pressed AND aria-disabled, no scale via the rule above) keeps its ground */
 
 .c-msgmenu__list { display: flex; flex-direction: column; }
 .c-msgmenu__item {
@@ -4303,6 +4481,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root[data-theme='dark'][data-chat-ground='gradient'] .c-sysnotice__card,
 :root[data-theme='dark'] [data-chat-ground='gradient'] .c-sysnotice__card {
   box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);   /* sanctioned: the Session J notice edge (rgba(118,157,255,.35), E1b/N82(c)) softened for the one ground where the card and canvas share hue — a one-surface hairline, no semantic role carries it */
+}
+/* ★ S8 (#1237): the DARK BLUE ground (DB1 Azure) is the second ground that shares the #0c1a4a card's hue (1.03:1 at the
+   top stop #0D2238) — the same soft hairline. The dark GREEN (DG1) does not need it: the card's blue separates by hue. */
+:root[data-theme='dark'][data-chat-ground='blue'] .c-sysnotice__card,
+:root[data-theme='dark'] [data-chat-ground='blue'] .c-sysnotice__card {
+  box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);   /* sanctioned: the #1066 notice hairline above, for the second same-hue dark ground */
 }
 
 
@@ -6550,6 +6734,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     setComposerContext, getComposerContext,   // M1 reply-to (#441): the quote strip above the input
     cancelComposerContext,          // ★ 7b (#1219): Back closes the strip through the ✕ path
     setComposerVoice, setComposerRecording, getComposerRecording, releaseComposerRecording,   // ★ #1208 (S7): the mic slot + the recording bar (composer.js)
+    setComposerRecLevel,                  // ★ S8 (#1239): the recording bar's live wave (composer.js)
     setVoiceBubble, voiceQuoteText,       // ★ #1208 (S7): the voice bubble's live update + the clip-length rule (message-bubble.js)
     setReplyQuoteTile,                    // ★ 7b (#1215): a quote's tile patched in place (message-bubble.js)
     setScrollLatestCount,           // N53: unread badge on the scroll-to-latest chevron (shipped #74, wired here)
@@ -6564,6 +6749,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     createAppBubble, createSystemNotice, createUnreadDivider,
     attachLazyHistory,              // ★ #1166 B2 (#1142): the scroll trigger for older history (#86)
     attachMessageMenu, openMessageMenu,   // openMessageMenu = the KEYBOARD path (Shift+F10 / Menu key)
+    QUICK_REACTIONS,                // ★ S8 (#1232): the six reactions — sent as their index (message-menu.js)
     attachReplySwipe, attachReplyDoubleClick, createReplyHoverButton, placeReplyButton,   // ★ #1198: the reply gestures (message-menu.js)
     enterChatSelect, openTipSheet, openMemberSheet, openAttachSheet,
     openAttachTray, closeAttachTray, isAttachTrayOpen, revealAttachTray,   // ★ #705: the mobile tray under the composer · ★ Session K: the K1 hold
@@ -6695,7 +6881,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        the list", and restoring the option restores their pick. */
     /* ★★ #998 (Damir 2026-09-28): the option is BACK as the BRAND gradient (light only) — this
        ladder admits 'gradient' again, in step with the head script and settings.html. */
-    if (gr !== 'flat' && gr !== 'gradient' && gr !== 'green') gr = 'flat';   // ★ #1080 F15: + the green gradient (light only — tokens.css has no dark rule, so it paints flat in dark)
+    if (gr !== 'flat' && gr !== 'gradient' && gr !== 'green' && gr !== 'blue') gr = 'flat';   // ★ #1080 F15: + the green gradient · ★ S8 (#1237): + the blue gradient — all four paint in BOTH themes (a light and a dark rule each, tokens.css)
     return { level: p, style: s, ground: gr, text: t };
   }
   function applyPatternPrefs(prefs) {
@@ -6855,20 +7041,27 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     ACCEPTED_PARTS,
     tplParts(slCarrier('sl-request-accepted', '{0} has accepted your contact request.')),
   ].filter(Boolean).sort((a, b) => (b[0].length + b[1].length) - (a[0].length + a[1].length));
-  /** → { parts, subject } for the template that matched, else null. */
-  function acceptedEventMatch(text) {
+  /* ★ S8 (#1231, #46 r1 X1/X2): the group "added you" line is a SYSTEM line with the fixed id {7} ("07" — {6} is
+     Core's avatar id). Matched on the id ALONE: C# drops every incoming peer message with a 1-byte id
+     (SystemLineRules.isReservedId), so a peer cannot forge it, and a language change or an empty owner name
+     (C#'s `chat-group-added-you-noname`) can no longer turn it into a replyable bubble. Same chip as the
+     "connected" line, its own glyph; C#'s sentence is shown whole, as textContent. */
+  const GROUP_ADDED_ID = '07';
+  function tplSubject(t, parts) {
+    const [p, sfx] = parts;
+    if (t.length <= p.length + sfx.length) return null;
+    if (!t.startsWith(p) || !t.endsWith(sfx)) return null;
+    return t.slice(p.length, t.length - sfx.length);
+  }
+  /** → { parts, subject, glyph } for the template that matched, else null. `id` = the row's message id (hex). */
+  function acceptedEventMatch(text, id) {
     const t = String(text || '');
+    if (String(id) === GROUP_ADDED_ID) return { parts: null, subject: t, glyph: 'user-plus' };   // ★ S8 (#1231, X2): the id is the whole gate
     for (const parts of EVENT_TPLS) {
-      const [p, sfx] = parts;
-      if (t.length <= p.length + sfx.length) continue;
-      if (!t.startsWith(p) || !t.endsWith(sfx)) continue;
-      return { parts, subject: t.slice(p.length, t.length - sfx.length) };
+      const subject = tplSubject(t, parts);
+      if (subject !== null) return { parts, subject, glyph: 'heart-handshake' };
     }
     return null;
-  }
-  function acceptedEventSubject(text) {
-    const m = acceptedEventMatch(text);
-    return m ? m.subject : null;
   }
 
   /* M16 (#59): the two connectivity strings C# routes through showWarning
@@ -7288,6 +7481,13 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     el.querySelector('.chat-channel-panel').addEventListener('transitionend', done, { once: true });
     setTimeout(done, 260);
   }
+
+  /* ★ S8 (#1235): DESKTOP light-dismiss across panes — a click in another pane (its own WebView) blurs this window,
+     and the selector closes like the shared-stack overlays with blurDismiss (overlay.js). Not on mobile; never on
+     visibilitychange. data-desktop is read at the event (the flag is set by the boot, not at parse). */
+  window.addEventListener('blur', () => {
+    if (channelDropdown && document.documentElement.hasAttribute('data-desktop')) closeChannelSelector();
+  });
 
   function openChannelSelector() {
     if (!mode.isBot) return;
@@ -8153,6 +8353,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   const VOICE_PEAKS_MAX = 64;            // C# sends 40 (VoiceCodec.PeakCount); a longer list is cut, never trusted
   const VOICE_PEAKS_CSV_MAX = 512;       // 40 × "100," = 160 chars — anything far longer is refused whole
   const VOICE_INFO_KEEP = 512;           // ids remembered per document (oldest dropped)
+  const VOICE_RING_STILL_MS = 30000;     // ★ #46 r1 (S8 picks m-6): an inline voice's turning arc stops after this long without its tick
   const VOICE_COMPLETE_GRACE_MS = 1200;  // ★ #46 r2: a completed download waits this long for C#'s auto-play (≤ 1.5 s; a later `playing` still wins)
   const VOICE_PLAY_STATES = new Set(['loading', 'playing', 'paused', 'stopped', 'error']);
   const VOICE_REC_STATES = new Set(['idle', 'recording', 'stopped', 'denied', 'busy', 'error', 'sendfail']);
@@ -8189,7 +8390,57 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
         state = 'idle';
       } else if (rec.direction === 'sent' && rec.fstate === 'progress' && (state === 'idle' || state === 'stopped')) state = 'loading';
     }
-    return { durMs: v.durMs || rec.voiceMs || null, peaks: v.peaks || null, state, posMs: v.posMs || 0, loadingAt: v.loadingAt || 0, gone };
+    /* ★ S8 (#1239 S-A): MY clip on its way — a voice FILE while its upload runs (the ring = updateFile's percentage), an
+       inline voice until its sent tick (status 'sending': the turning arc). A failed row has its own look (Retry). */
+    let sending = '';
+    let sendStill = false;
+    if (rec.direction === 'sent' && !gone) {
+      if (rec.kind === 'file') sending = rec.fstate === 'progress' ? 'file' : '';
+      /* ★ #46 r1 (S8 picks m-6): the turning arc is for a send THIS document started (v.live) — a row from the history
+         load that still says "sending" has no tick coming that we know of, so it draws no ring; a live one whose tick has
+         not come in VOICE_RING_STILL_MS stops turning (a still, full ring — the reduced-motion look), never a spin forever */
+      else if (rec.status === 'sending' && v.live) {
+        sending = 'inline';
+        const left = VOICE_RING_STILL_MS - (Date.now() - (v.liveAt || 0));
+        if (left <= 0) sendStill = true;
+        else if (!v.stillTimer) {
+          const id = String(rec.id);
+          v.stillTimer = setTimeout(() => { const w = voiceClips.get(id); if (w) w.stillTimer = 0; paintVoiceRow(id); }, left + 20);
+        }
+      }
+    }
+    /* ★ #46 r1 (S8 picks M-2, lead decision): `heard` lives per DOCUMENT (C# keeps no played flag yet), so after a reopen
+       every clip of the history would wear the accent again. The accent is therefore only for a received clip that
+       ARRIVED LIVE in this document (v.live — set at the row's creation outside a load burst) and has not played here;
+       every history row is neutral. (A persisted played flag = later C# work.) */
+    return { durMs: v.durMs || rec.voiceMs || null, peaks: v.peaks || null, state, posMs: v.posMs || 0, loadingAt: v.loadingAt || 0, gone,
+      sending, sendStill, sendPct: sending === 'file' ? Math.max(0, Math.min(100, Number(rec.progress) || 0)) : 0,
+      who: voiceWho(rec), heard: !!v.heard || !v.live };
+  }
+  /** ★ #46 r1 (S8 picks M-2 / m-6): a voice row CREATED outside a load burst arrived live in this document — remembered
+   *  on its voiceClips entry (which outlives a clearMessages re-flush, so a re-flushed live clip stays live) */
+  function noteLiveVoice(existing, rec) {
+    if (existing || bursting || !isVoiceRec(rec)) return;
+    const v = voiceEntry(String(rec.id));
+    v.live = true;
+    v.liveAt = Date.now();
+  }
+  /* ★★ S8 (#1240) — THE FACE in a voice bubble: received = the sender (1:1: the chat's avatar · group / bot: the
+     per-address picture, recAvatar — the SAME picture and name the gutter would show, so nothing new is revealed in a
+     blind room); sent = ME (setSelfAvatar; no picture = my initials from my own nick). The gutter of a voice row stays
+     EMPTY (one face per row — message-bubble.js). */
+  let selfAvatar = null;   // setSelfAvatar: my picture as a base64 data: image (AVATAR_URI_RE), else null = my initials
+  function voiceWho(rec) {
+    if (rec.direction === 'sent') {
+      const env = window.SPIXI_ENV || {};
+      return { src: selfAvatar, name: selfNickPushed || selfNick || String(env.selfNick || ''), address: selfAddress || '' };
+    }
+    if (!mode.isMulti) return { src: identity.avatar || null, name: identity.name || '', address: identity.address || '' };
+    return { src: recAvatar(rec), name: senderHasNick(rec) ? rec.senderNick : '', address: rec.senderAddress || '' };
+  }
+  /** repaint the face of every drawn voice row that `match(rec)` picks — in place (no renderLog) */
+  function repaintVoiceFaces(match) {
+    for (const [id, rec] of model) if (isVoiceRec(rec) && rows.has(id) && match(rec)) paintVoiceRow(id);
   }
   /* ★ #46 r1 (B MAJOR-1): a voice FILE whose download C# had started for a play (loading) and that went back to an
      offer or paused never spins for good — the clip returns to idle (C# also pushes stopped, §7) */
@@ -8611,10 +8862,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 
   /* app invite/session card (chat.js addAppRequest:1174). state derives from the
    * stable localSender + appStatus signals; actions reuse the EXISTING verbs
-   * (installApp / joinApp). C7(a): Decline is a LOCAL action — the invite card flips
-   * to a terminal 'declined' state (persisted per peer, survives re-flush/re-open);
-   * the sender is NOT notified (be-cutover C7 decline-notify is future BE). Only on
-   * incoming invites (invite / missing states); own invites keep Cancel. */
+   * (installApp / joinApp). ★ S8 (#1233): Decline sends ixian:appDecline:<id> — C# sends the
+   * peer a SILENT reject and stores the decline, then re-pushes the card with app_state
+   * "Declined" (the shell paints 'declined' at the tap). A peer's decline of MY invite
+   * arrives the same way (own row → 'declined'). Only incoming invites (invite / missing
+   * states) offer Decline; own invites keep Cancel. */
   function buildAppRow(rec) {
     const incoming = rec.direction === 'received';
     const declined = incoming && declinedApps.has(String(rec.id));
@@ -8661,8 +8913,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       // minimized session. No End-session verb exists in the bridge → onEnd omitted
       // (createAppBubble gates it, so no dead button).
       onResume: () => bridge.send('ixian:joinApp:' + rec.appid),
-      // local decline → persist + repaint as 'declined'; not shown once already declined
-      onDecline: (incoming && !declined) ? () => declineApp(rec.id) : undefined,
+      // ★ S8 (#1233): Decline → ixian:appDecline (C# sends a silent reject + stores it); 'declined' at once (optimistic)
+      onDecline: (incoming && !declined && rec.astate !== 'declined') ? () => declineApp(rec.id) : undefined,
       /* ★ B2 (#533 ①, Damir's locked shape): Cancel on MY invite → confirm → the
          RECIPIENT'S invite is removed through the existing msgDelete path (C#
          `cancelInvite`: sendMsgDelete to the peer, NO local delete) and MY card flips to
@@ -8696,6 +8948,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
    *   incoming, session active      → 'in-session' (Resume) — C# 'Minimized' (xaml)
    *   incoming, installed, no session→ 'invite'    (Join) */
   function appStateFrom(localSender, appStatus) {
+    if (appStatus === 'Declined') return 'declined';     // ★ S8 (#1233): C#'s stored decline — mine (incoming) or the peer's (my own invite)
     if (asBool(localSender)) return 'invited';
     if (appStatus === 'Missing') return 'missing';
     if (appStatus === 'Minimized') return 'in-session';   // joined already → Resume, not Join again
@@ -8733,8 +8986,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   function buildEventRow(rec) {
     // #434: rebuild from the template that actually MATCHED this row — a legacy
     // line must not be re-rendered inside the new sentence.
-    const matched = acceptedEventMatch(rec.text);
-    const parts = matched ? matched.parts : ACCEPTED_PARTS;
+    const matched = acceptedEventMatch(rec.text, rec.id);
+    const parts = matched ? matched.parts : ACCEPTED_PARTS;   // ★ S8 (X2): null for the id-{7} line → C#'s whole sentence
     const subject = matched ? matched.subject : '';
     /* ★ #589: this test was `/^[a-zA-Z0-9]{24,}$/` — 24 characters, and not even
        base58-restricted, so it accepted 0/O/I/l. A 24-character nickname without
@@ -8746,7 +8999,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const chip = document.createElement('div');
     chip.className = 'chat-event__chip';
     try {
-      if (window.SpixiIcons && window.SpixiIcons.icon) chip.append(window.SpixiIcons.icon('heart-handshake', { size: 16 }));
+      if (window.SpixiIcons && window.SpixiIcons.icon) chip.append(window.SpixiIcons.icon(matched ? matched.glyph : 'heart-handshake', { size: 16 }));
     } catch (e) { /* glyph optional */ }
     const line = document.createElement('span');
     line.textContent = parts ? (parts[0] + display + parts[1]) : rec.text;
@@ -9030,13 +9283,28 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // honor it exclusively so a stale local myLikes can't override an authoritative
     // negative (e.g. a reaction removed on another device). myLikes is used ONLY on
     // old exes that don't send the arg (ownStr === undefined).
-    const likedByMe = ownStr !== undefined ? ownKeys.has('like') : myLikes.has(String(id));
+    /* ★ S8 (#1232): emoji reactions. C# pushes one `like:<emoji>:<count>;` per emoji and marks mine in the own arg
+       as `like:<emoji>`; the legacy forms (`like:<n>` / own `like`) still mean ❤️. ONE reaction per person, so
+       `ownEmoji` is a single value. An old exe without the own arg → myLikes (a heart only). */
+    let ownEmoji = '';
+    if (ownStr !== undefined) {
+      for (const k of ownKeys) {
+        if (k === 'like') { ownEmoji = '❤️'; break; }
+        if (k.startsWith('like:')) { ownEmoji = reactionEmoji(k.slice(5)); break; }
+      }
+    } else if (myLikes.has(String(id))) ownEmoji = '❤️';
+    const byEmoji = new Map();   // emoji → pill (two entries that fold to ❤️ add up)
     for (const tok of String(str || '').split(';')) {
       if (!tok) continue;
       const parts = tok.split(':');
       const count = parseInt(parts[parts.length - 1], 10) || 0;
       if (count <= 0) continue;
-      if (tok.startsWith('like')) reactions.push({ emoji: '❤️', count, own: likedByMe });
+      if (parts[0] === 'like') {
+        const emoji = parts.length >= 3 ? reactionEmoji(parts.slice(1, -1).join(':')) : '❤️';
+        const pill = byEmoji.get(emoji);
+        if (pill) pill.count += count;
+        else { const p = { emoji, count, own: emoji === ownEmoji }; byEmoji.set(emoji, p); reactions.push(p); }
+      }
       else if (tok.startsWith('tip')) tipCount += count;   // ★ C6: the SUM rides the 4th arg (tipTotal)
       // ★★ L2 (#641): read + download, per DISTINCT member (Core de-duplicates by sender).
       // `received:` falls through this chain on purpose — see the note above.
@@ -9057,7 +9325,23 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const tip = tipCount > 0
       ? (sl.tipped || 'Tipped') + totalLabel + (tipCount > 1 ? ' ×' + tipCount : '')
       : '';
-    return { reactions, tip, seenCount, downloadedCount };
+    return { reactions, tip, seenCount, downloadedCount, ownEmoji };
+  }
+  /* ★ S8 (#1232; #46 r4 — an ALLOW-LIST, the lead's design change after three rounds of letter-shaped characters
+     slipping through a category rule): a peer's reaction emoji is UNTRUSTED text. v1 only ever SENDS the six
+     (QUICK_REACTIONS), so only these are SHOWN — one of the six, or 👍 + exactly one skin-tone modifier U+1F3FB–1F3FF.
+     Everything else (null / '', ❤ without VS16, any other emoji, flags, letters, ':' / ';') → ❤️, and the pills fold
+     every ❤️ into one. IDENTICAL to C#'s ReactionSet.shownEmoji (which already folds) — repeated here as defence in
+     depth, written with textContent only. The shared case table scripts/pins-s8/emoji-cases.json pins both sides.
+     The v1.1 full picker will widen the list. */
+  function reactionEmoji(raw) {
+    const e = String(raw == null ? '' : raw);
+    if (QUICK_REACTIONS.indexOf(e) !== -1) return e;
+    if (e.length === 4 && e.slice(0, 2) === QUICK_REACTIONS[0]) {
+      const tone = e.codePointAt(2);
+      if (tone >= 0x1f3fb && tone <= 0x1f3ff) return e;
+    }
+    return '❤️';
   }
 
   /* React to a message with a like (the ONE reaction the bridge supports —
@@ -9065,24 +9349,35 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
    * the toggle, and optimistically reflects it on the row so the pill shows
    * selected immediately (C#'s addReactions re-emit lands the authoritative
    * count next). Shared by the context-menu React action AND tapping a pill. */
-  function reactToMessage(id) {
+  /* ★ S8 (#1232): `emoji` picks the reaction — its INDEX in QUICK_REACTIONS (message-menu.js) is what crosses the
+     bridge (ixian:contextAction:react:<id>:<i>; C# ReactionSet.Quick holds the same six). An emoji outside the six (a
+     peer's pill) cannot be sent; a message I already reacted to sends nothing (one per person, never removed). */
+  function reactToMessage(id, emoji) {
     // ⑪ Q1 re-review: no outbound stream traffic while the contact is PENDING. A
     // pending-outgoing chat still renders ONE row (the empty `requestAddSent`
     // marker falls through insertMessage's requestAdd special-case, xaml:1306-1322),
     // so its pill/menu were reachable — a reaction to a non-contact never arrives.
     if (composerLock) return;
     id = String(id);
-    myLikes.add(id);
-    saveLikes();                                       // persist own-state across re-flushes (C5 interim)
-    bridge.send('ixian:contextAction:like:' + id);
     const rec = model.get(id);
+    if (ownReaction(rec)) return;                      // ★ S8: one reaction per person — no second send
+    const index = QUICK_REACTIONS.indexOf(emoji == null ? '❤️' : String(emoji));
+    if (index < 0) return;
+    if (emoji === '❤️' || emoji == null) { myLikes.add(id); saveLikes(); }   // the old-exe own-state fallback knows hearts only (C5 interim)
+    bridge.send('ixian:contextAction:react:' + id + ':' + index);
     if (!rec) return;
+    const em = QUICK_REACTIONS[index];
+    rec.ownEmoji = em;                                 // optimistic; C#'s addReactions re-push is the truth
     rec.reactions = rec.reactions || [];
-    const heart = rec.reactions.find((r) => r.emoji === '❤️');
-    if (heart) heart.own = true;                       // count updates when C# responds
-    else rec.reactions.push({ emoji: '❤️', count: 1, own: true }); // optimistic first like
+    const pill = rec.reactions.find((r) => r.emoji === em);
+    if (pill) { pill.own = true; pill.count = (pill.count || 0) + 1; }
+    else rec.reactions.push({ emoji: em, count: 1, own: true }); // optimistic first reaction
     const row = rows.get(id);
     if (row) applyRowReactions(rec, row, true);
+  }
+  /** ★ S8 (#1232): my reaction on this record ('' = none) — C#'s own arg, else the optimistic one above. */
+  function ownReaction(rec) {
+    return (rec && rec.ownEmoji) || '';
   }
 
   /* apply a record's stored reactions to its live row — called from renderLog so
@@ -9095,7 +9390,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       tip: rec.tip || '',
       animate: !!animate,
       host: box,
-      onToggle: () => reactToMessage(rec.id),
+      onToggle: (emoji) => reactToMessage(rec.id, emoji),   // ★ S8 (#1232): the pill's own emoji
+      locked: !!ownReaction(rec),                           // ★ S8: already reacted — other pills disabled
     });
   }
 
@@ -9212,7 +9508,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        count can exceed the room. The clamp is written ONCE and both counts pass
        through it. Delete this line and the "9 of 3" case fails for both counts. */
     const inRoom = (n) => Math.min(Math.max(Number(n) || 0, 0), others);
-    const seen = inRoom(rec.seenCount);
+    /* ★ S8 (#1234, #46 r1 X5): READ RECEIPTS OFF (C#'s setReadReceipts('False')) is reciprocal — I send none and C# omits
+       `seen:` — so no seen sentence at all: no "n of m read", no "Nobody has seen this yet" (that would be false). Only
+       what is still true stays (the download clause), else no line. */
+    const receiptsOff = mode.receiptsOff === true;
+    const seen = receiptsOff ? 0 : inRoom(rec.seenCount);
     /* The download count belongs to a FILE row only. No other row kind carries a
        fileReceived: receipt, so a count on one would answer a question nobody asked. */
     const got = rec.kind === 'file' ? inRoom(rec.downloadedCount) : 0;
@@ -9223,7 +9523,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     /* ★ Damir F5, 2026-08-28. Reached ONLY here: a group, my own message, a known
        roster of two or more, and not one receipt of any kind. Every other empty case
        returned above, where we have no honest answer to give. */
-    if (!parts.length) return s.noneSeenYet || 'Nobody has seen this yet';
+    if (!parts.length) return receiptsOff ? '' : (s.noneSeenYet || 'Nobody has seen this yet');
     return parts.join(' · ');
   }
 
@@ -9238,7 +9538,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
          string computed here froze at wire time, so a menu could report a read count
          that a later push had already raised. Evaluated on open, it is always current. */
       detail: () => receiptDetail(rec),
-      reactions: ['❤️'],   // the bridge only persists "like" (C8: emoji reactions need a core change — be-cutover C8)
+      reactions: QUICK_REACTIONS,   // ★ S8 (#1232): the six — sent by index, C# stores like:<emoji>
+      reacted: () => ownReaction(rec),   // ★ S8: read at OPEN time — mine pressed, the rest disabled
       /* ★ #1198 / #1199: reply + edit are GETTERS — attachMessageMenu captures these options at row-wire time and
          replays them on every long-press (the L2 lesson above), so a setCaps that lands after the paint, and the
          24 h edit window running out under an open chat, are both read at OPEN time, never frozen at the render. */
@@ -9267,7 +9568,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
         // (text rows) + bulk Delete (any row), so a file/payment card qualifies.
         select: true,
       },
-      onAction: (action, arg) => onMenuAction(action, rec, row),
+      onAction: (action, arg) => onMenuAction(action, rec, row, arg),   // ★ S8: arg = the emoji of a react
     };
   }
   function wireMenu(rec, row) {
@@ -9793,13 +10094,13 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     }));
   }
 
-  function onMenuAction(action, rec, row) {
+  function onMenuAction(action, rec, row, arg) {
     const id = rec.id;
     // ⑪ Q1 re-review: the menu is the last non-composer outbound surface — react/tip
     // both emit to a peer that hasn't accepted us. Copy/delete are local-only, but the
     // whole menu is gated for one grammar: nothing leaves this chat while pending.
     if (composerLock) return;
-    if (action === 'react') { reactToMessage(id); return; }
+    if (action === 'react') { reactToMessage(id, arg); return; }   // ★ S8 (#1232)
     if (action === 'copy') {
       // ★ #993: + the file:// fallback — the menu's Copy was a no-op on iPhone/Mac
       // ★ #1028 (walk R.9): native first, and the result is SHOWN — the menu closed and nothing told the
@@ -11317,7 +11618,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       if (rec.voice) rec.text = rec.text.split('\n')[0];
       // #264 ⑤: recompute on every text change (updateMessage edits included) —
       // an accepted-request line renders as a centered event chip, not a bubble.
-      rec.eventChip = !rec.voice && !!acceptedEventSubject(rec.text);
+      rec.eventChip = !rec.voice && !!acceptedEventMatch(rec.text, rec.id);   // ★ S8 (#1231, X2): + the id-{7} group line (any text, even '')
     }
     if (direction) rec.direction = direction;
     if (ts) rec.ts = ts;
@@ -11368,6 +11669,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        code, not a bug — see the F5 checklist. */
     const paidBefore = !!rec.paid;
     if (flags && flags.paid !== undefined) rec.paid = asBool(flags.paid);
+    noteLiveVoice(existing, rec);   // ★ #46 r1 (S8 picks M-2 / m-6)
     model.set(id, rec);
     orderInsert(id);
     if (!prependBatch) hideTyping();  // any new/updated message clears the typing pill (legacy addText → hideUserTyping) — ★ #1166 r1 N5: an OLDER row does not
@@ -11387,7 +11689,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        button comes) — setMessageStatus only swaps the tick, so it re-renders like the way in */
     if (rec.direction === 'sent' && rec.status !== 'failed' && prevStatus !== 'failed' && !!rec.paid === paidBefore && !faceChanged) {   // ★ #1199: an edit re-renders
       const row = rows.get(id);
-      if (row) { setMessageStatus(row, rec.status, window.SL || {}, { animate: !bursting && !loadPhase }); return; }   // ★ #1010: live ticks crossfade, history never
+      if (row) {
+        setMessageStatus(row, rec.status, window.SL || {}, { animate: !bursting && !loadPhase });   // ★ #1010: live ticks crossfade, history never
+        if (prevStatus !== rec.status && isVoiceRec(rec)) paintVoiceRow(id);   // ★ S8 (#1239): the sent tick ends the send ring (in place)
+        return;
+      }
     }
     renderLog();
   }
@@ -11427,6 +11733,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       }
     }
     if (!existing) claimHeldThumb(rec);   // ★ #1166 R3-N2: a preview that landed before this row
+    noteLiveVoice(existing, rec);   // ★ #46 r1 (S8 picks M-2): a voice FILE that arrived live
     model.set(id, rec);
     orderInsert(id);
     if (!prependBatch) hideTyping();   // ★ #1166 r1 N5
@@ -11667,6 +11974,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     setAvatar(avatar) {
       identity.avatar = resolveAvatar(avatar);
       renderTopbar();
+      if (!mode.isMulti) repaintVoiceFaces((rec) => rec.direction === 'received');   // ★ S8 (#1240): the peer's face in their voice bubbles
     },
 
     /* ★★ #1166 P-04 (🟡 NEW push, BE ask): setAvatarFor(address, dataUri) — a group / bot sender's avatar, once per
@@ -11689,6 +11997,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
         if (!old || !mk) continue;
         old.replaceWith(mk({ src: recAvatar(rec), name: senderHasNick(rec) ? rec.senderNick : '', address: rec.senderAddress || '', size: Number(old.dataset.size) || 24 }));
       }
+      if (mode.isMulti) repaintVoiceFaces((rec) => rec.direction === 'received' && String(rec.senderAddress || '') === a);   // ★ S8 (#1240): the face in their voice bubbles
     },
 
     // setOnlineStatus receives a fully-localised string from C# (chat-online /
@@ -12053,7 +12362,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       avatarByAddr.clear();                // ★ #1166 P-04: per-peer reset (C# starts its once-per-document avatar set again at this push)
       heldThumbs.clear(); thumbHoldUntil = 0; liveTransfers.clear();   // ★ #1166 R3-N2 / R3-N3: per-peer reset
       resetPhotoQuiet();                   // #46 r2 R2-MAJ1: the photo quiet waits too — desktop A → B → A re-waits, no glyph-then-swap
-      loadDeclinedApps();                  // restore which app invites the user declined (per-peer, C7)
+      loadDeclinedApps();                  // ★ S8 (#1233): reset the optimistic set for this peer (C# holds the state)
       loadCanceledApps();                  // ★ B2: …and which own invites they canceled
       groupRoster.clear();                 // per-peer reset: don't leak peer A's roster into B (desktop reparent)
       groupNicks.clear();                  // per-peer reset (repopulated by this peer's updateGroupChatNicks burst)
@@ -12193,6 +12502,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       const v = voiceEntry(key);
       if (st === 'loading') v.loadingAt = Date.now();   // the bubble's 2 s re-tap rule reads it — ★ #46 r2 NIT: EVERY loading push (C# re-evaluated a re-tap) restarts it
       v.state = st;
+      if (st === 'playing' || st === 'paused') v.heard = true;   // ★ S8 (#1240): the mic badge goes neutral once a clip played in this document
       v.posMs = (st === 'playing' || st === 'paused') ? voiceMsArg(posMs) : 0;
       const dur = voiceMsArg(durMs);
       if (dur) v.durMs = dur;
@@ -12226,6 +12536,25 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       if (text) {
         try { showToast({ text, tone: st === 'error' ? 'error' : undefined, host: overlayHost, strings: sl }); } catch (e) {}
       }
+    },
+    /* ★★ S8 (#1239, NEW push): voiceRecLevel(level) — the mic level 0..100 (C#: ~every 100 ms (10/s, #46 picks r1) while recording; a number
+       only, never audio). One live-wave bar per push; ignored unless the bar is RECORDING (composer.js). The text must be a
+       plain decimal — an optional minus, 1–4 digits, an optional fraction of 1–3 digits (no exponent, no hex, no "NaN");
+       anything else is dropped; composer.js rounds and clamps it to 0..100. Never logged. */
+    voiceRecLevel(level) {
+      if (!composerEl) return;
+      const t = String(level == null ? '' : level).trim();
+      if (!/^-?\d{1,4}(\.\d{1,3})?$/.test(t)) return;
+      setComposerRecLevel(composerEl, Number(t));
+    },
+    /* ★★ S8 (#1240, NEW push): setSelfAvatar(dataUri) — MY picture for my voice bubbles, once per document before the
+       first history push and again when it changes. The setAvatarFor rule: a base64 data: image only (AVATAR_URI_RE),
+       anything else = my initials. Not reset per peer (it is me in every chat). Drawn rows repaint in place. */
+    setSelfAvatar(uri) {
+      const u = typeof uri === 'string' && AVATAR_URI_RE.test(uri) ? uri : null;
+      if (u === selfAvatar) return;
+      selfAvatar = u;
+      repaintVoiceFaces((rec) => rec.direction === 'sent');
     },
 
     setCaps(list) {
@@ -12623,6 +12952,16 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       renderLog();
     },
 
+    /* ★ S8 (#1234, #46 r1 X5): setReadReceipts("True"|"False") — C# pushes it to every chat page at load (before the
+     * messages) and on a Privacy toggle (onPrivacyChanged). Never pushed (an older exe) = True. Anything else is
+     * ignored. Kept as `mode.receiptsOff` (absent until pushed = receipts on). Read at menu OPEN time by receiptDetail
+     * (the detail is a getter), so nothing re-renders. */
+    setReadReceipts(v) {
+      const t = String(v);
+      if (t !== 'True' && t !== 'False') return;
+      mode.receiptsOff = t === 'False';
+    },
+
     /* ★★ #1166 V-3 (🟡 NEW push, BE ask): viewerImage(<token>, <data uri | "">) — C#'s answer to ixian:viewImage. Applied
      * only to a viewer opened for THAT token that is still open (findOpenViewer); the value must be a base64 JPEG data:
      * URI ≤ VIEWER_URI_MAX — it only ever becomes the viewer's <img src>. "" (or anything else) → the viewer keeps the
@@ -12710,6 +13049,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       rec.tip = parsed.tip;
       rec.seenCount = parsed.seenCount;               // ★★ L2 (#641): the long-press detail
       rec.downloadedCount = parsed.downloadedCount;   // ★ file cards
+      rec.ownEmoji = parsed.ownEmoji;                 // ★ S8 (#1232): my one reaction (menu + pills read it)
       const row = rows.get(String(id));
       if (row) {
         if (rec.reactions.length || rec.tip) applyRowReactions(rec, row, true);
@@ -13395,24 +13735,18 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     saveCanceledApps();
     renderLog();                                 // repaint the card as 'canceled'
   }
+  /* ★ S8 (#1233): the DECLINED state is C#'s now (a Spixi pref; addAppRequest pushes app_state "Declined"), so the
+     `spixi.app.declined.<peer>` localStorage family is GONE — no write, no read. This set is the OPTIMISTIC paint
+     only: the card flips at the tap, C#'s re-push confirms. Memory only, reset per peer. */
   let declinedApps = new Set();
-  const DECLINED_APP_PREFIX = 'spixi.app.declined.';
-  function declinedAppKey() { return identity.address ? DECLINED_APP_PREFIX + identity.address : ''; }
   function loadDeclinedApps() {
     declinedApps = new Set();                    // reset for THIS peer (desktop peer-switch safe)
-    const k = declinedAppKey();
-    if (!k) return;
-    try {
-      const arr = JSON.parse(localStorage.getItem(k) || '[]');
-      if (Array.isArray(arr)) arr.forEach((id) => declinedApps.add(String(id)));
-    } catch (_) {}
   }
   function declineApp(id) {
     id = String(id);
     if (declinedApps.has(id)) return;
     declinedApps.add(id);
-    const k = declinedAppKey();
-    if (k) { try { localStorage.setItem(k, JSON.stringify([...declinedApps])); } catch (_) {} }
+    bridge.send('ixian:appDecline:' + id);       // ★ S8 (#1233): the invite row's message id (hex); C# validates it
     renderLog();                                 // repaint the card as 'declined'
   }
 
@@ -13664,7 +13998,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       lastSlotH = h;
       const atBottom = nearBottom();
       canvasEl.style.setProperty('--composer-h', h + 'px');
-      if (grew && atBottom) requestAnimationFrame(() => { pinLogEnd(); });   // ★ 7b (#1219): a held reply target stays in view instead
+      /* ★ S8 (#1238, the composer grow): pin IN this callback too — a ResizeObserver runs after layout and before paint,
+         so the log moves in the SAME frame as the growing pill. The rAF pin alone trailed one frame (measured on the
+         s8x prototype: the last bubble dipped 7 px under a growing reply strip, 9–12 px on an Edit's prefill line). The
+         rAF stays as the belt. pinLogEnd honours the 7b reply hold (a held target row stays in view instead). */
+      if (grew && atBottom) { pinLogEnd(); requestAnimationFrame(() => { pinLogEnd(); }); }   // ★ 7b (#1219): a held reply target stays in view instead
       scheduleComposerFade();   // ★ Session AE: the band moved (tray, keyboard on iOS, a resize) — re-mask the rows under it
     };
     publish();

@@ -4026,6 +4026,14 @@ button.c-settings-howto__join:disabled {
 :root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='gradient'] {
   background: linear-gradient(180deg, #1C2448 0%, #151B36 100%);   /* sanctioned: a swatch face for the #1066 dark ground — its top stop #151B36 plus one lighter step so the 32px dot separates from the solid dot; no semantic role carries a dot face */
 }
+/* ★ S8 (#1237): the same rule for the two new dark grounds — each dot paints its ground's TOP (DG1 Forest #11231A, DB1 Azure
+   #0D2238) plus one lighter step, so the four dark dots read as four choices, not four black circles. */
+:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='green'] {
+  background: linear-gradient(180deg, #1A3326 0%, #11231A 100%);   /* sanctioned: a swatch face for the S8 dark green ground — its top stop plus one lighter step (the #1066 r2 rule) */
+}
+:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='blue'] {
+  background: linear-gradient(180deg, #173452 0%, #0D2238 100%);   /* sanctioned: a swatch face for the S8 dark blue ground — its top stop plus one lighter step (the #1066 r2 rule) */
+}
 .c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__dot-face {
   box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default);
 }
@@ -5394,15 +5402,21 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 [data-selecting] .c-reply-swipe { display: none !important; }
 
 /* —— ★★ #1208 (S7) the VOICE bubble: disc · 40 bars · time, the meta floats under it. Bars in the bubble's own ink
-   (currentColor → both directions, both themes); no bar transition (a ~200 ms tick would jitter). */
-.c-bubble[data-voice] { min-width: min(240px, var(--layout-bubble-max)); }
+   (both directions, both themes); no bar transition (a ~200 ms tick would jitter).
+   ★★ S8 (#1240, Damir: "more like Telegram" + the WhatsApp face): disc · [wave over the time] · the sender's face with a
+   mic badge. The wave is LOW and THIN — 2 px bars, 2 px apart, round caps, a 20 px box; a quiet bar is a 2 px dot.
+   Played bars in the bubble's strong ink, the rest in its muted ink. */
+/* ★ #46 r1 (S8 picks M-1): the 280 floor is capped by the bubble's OWN max (82 % of the row, the layout max) — a min-width
+   above the max wins in CSS, and at 320 px a group row (the 40 px gutter) pushed the voice bubble 18 px past the log edge */
+.c-bubble[data-voice] { min-width: min(280px, var(--bubble-max-pct), var(--layout-bubble-max)); }
 .c-voice {
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
+  gap: var(--spacing-12);
   min-width: 0;
 }
 .c-voice__play {
+  position: relative;   /* ★ S8 (#1239): the send ring is laid over the disc */
   flex: none;
   display: flex;
   align-items: center;
@@ -5425,7 +5439,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-voice[data-state="loading"] .c-voice__play { cursor: default; }
 /* ★ #46 r1 (B m-9): not on this device — the disc and bars at the disabled alpha, the words in the time slot */
 .c-voice[data-gone] .c-voice__play, .c-voice[data-gone] .c-voice__wave { opacity: var(--opacity-disabled); cursor: default; }
-.c-voice[data-gone] .c-voice__time { min-width: 0; text-align: start; white-space: normal; }
+.c-voice[data-gone] .c-voice__time { flex: 1 1 auto; min-width: 0; text-align: start; white-space: normal; }
 .c-voice__spin {
   width: 18px;   /* sanctioned: the progress ring (the media-bubble spinner's grammar) */
   height: 18px;
@@ -5439,34 +5453,117 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 @media (prefers-reduced-motion: reduce) {
   .c-voice__spin { animation-duration: 1600ms; }   /* keep visible motion, slower (the button spinner rule) */
 }
-.c-voice__wave {
+/* ★★ S8 (#1239 S-A) the SEND ring — inside the 40 disc, round the (quieted) play glyph, in the disc's own ink: a track
+   and an arc. file = the upload percentage (the arc's dash); inline = a quarter arc that turns until the sent tick;
+   reduced motion = a still, FULL ring (no turning, and no partial arc that would read as a percentage). */
+.c-voice[data-sending] .c-voice__play { cursor: default; }
+.c-voice[data-sending] .c-voice__play > svg:not(.c-voice__ring) { opacity: var(--opacity-disabled); }   /* sanctioned: the glyph leaf, quieted while the ring speaks */
+.c-voice__ring {
+  position: absolute;
+  inset: calc((var(--size-target-min) - 40px) / 2);   /* exactly over the 40 disc */
+  width: 40px;   /* sanctioned: the disc */
+  height: 40px;
+  transform: rotate(-90deg);   /* the arc starts at 12 o'clock */
+  pointer-events: none;
+}
+.c-voice__ring circle { fill: none; stroke: currentColor; stroke-width: 2.5; }   /* sanctioned: the ring's stroke (no stroke token) */
+.c-voice__ring-track { opacity: 0.22; }   /* sanctioned: the track leaf — the disc ink, quiet */
+.c-voice__ring-arc { stroke-linecap: round; }
+.c-voice__ring[data-mode="inline"] { animation: c-voice-ring-turn calc(4 * var(--duration-300)) linear infinite; }   /* 1.2 s from the motion token */
+@keyframes c-voice-ring-turn { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+.c-voice__ring[data-still] { animation: none; }   /* ★ #46 r1 (S8 picks m-6): an overdue tick — the full ring stands still (the arc's dash is 100 in JS) */
+@media (prefers-reduced-motion: reduce) {
+  .c-voice__ring[data-mode="inline"] { animation: none; }
+  .c-voice__ring[data-mode="inline"] .c-voice__ring-arc { stroke-dasharray: 100 0; }
+}
+.c-voice__main {
   flex: 1;
   min-width: 0;
-  height: 28px;   /* sanctioned: the waveform box */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+/* ★ #46 r1 (S8 picks NIT): ALL 40 bars draw at 320 / 360 too (the 40th was clipped). The box is at most 40 × 2 + 39 × 2 =
+   158 px (Telegram's 2 px gaps); narrower, the gaps go first (space-between, never below 1 px), then the bars give up to
+   half a pixel each (1.5 px). Only a box under 40 × 1.5 + 39 = 99 px still clips at the END (7b #1216 W1). */
+.c-voice__wave {
+  min-width: 0;
+  max-width: 158px;   /* sanctioned: 40 bars × 2 px + 39 gaps × 2 px */
+  height: 20px;   /* sanctioned: the waveform box — ★ S8 (#1240): Telegram-low (was 28) */
   display: flex;
   align-items: center;
-  gap: 2px;
-  overflow: hidden;   /* ★ 7b (#1216 W1): a box narrower than the 40 bars clips them at the END — never squeezed */
+  justify-content: space-between;
+  gap: 1px;
+  overflow: hidden;   /* ★ 7b (#1216 W1): a box narrower than the 40 bars clips them at the END */
 }
 .c-voice__bar {
-  flex: 0 0 3px;      /* ★ 7b (#1216 W1, Damir's pick): every bar 3px wide, 2px apart, no grow / shrink (was 1–3px, squeezed) */
-  width: 3px;
-  height: calc(15% + var(--voice-h, 0) * 0.85%);   /* 0 → a flat 4 px tick (the placeholder), 100 → the full box */
+  flex: 0 1 2px;      /* ★ S8 (#1240, Damir: "more like Telegram"): 2 px bars (7b #1216: 3 px); they shrink only on a narrow box */
+  min-width: 1.5px;   /* sanctioned: the thinnest bar that still reads as one */
+  width: 2px;
+  height: calc(2px + var(--voice-h, 0) * 0.18px);   /* 0 → a 2 px round DOT (quiet / the placeholder), 100 → the 20 px box */
   border-radius: var(--radius-full);
-  background: currentColor;
-  opacity: 0.4;   /* sanctioned: the not-yet-played ink, on the bubble's own colour in both directions and themes */
 }
-.c-voice__bar[data-played] { opacity: 1; }
+/* ★ #46 r1 (S8 picks m-1): the UNPLAYED ink is a QUIETER step, so played / unplayed part at ≥ 3:1 in all four cases
+   (it was 2.50 light received · 1.57 dark received · 1.94 sent). Measured (played vs unplayed · unplayed vs the bubble):
+   light received neutral-950 / neutral-430 6.33 · 2.91 — dark received neutral-100 / neutral-460 4.14 · 3.32 —
+   sent (both themes) neutral-10 / primary-500 3.66 · 1.56 light, 2.23 dark. Colour only (no opacity: the stacking gate). */
+.c-voice { --voice-bar-unplayed: var(--neutral-430); }
+[data-theme="dark"] .c-voice { --voice-bar-unplayed: var(--neutral-460); }
+.c-bubble-row[data-direction="received"] .c-voice__bar { background: var(--voice-bar-unplayed); }
+.c-bubble-row[data-direction="received"] .c-voice__bar[data-played] { background: var(--text-bubble-received); }
+.c-bubble-row[data-direction="sent"] .c-voice__bar { background: var(--primary-500); }
+.c-bubble-row[data-direction="sent"] .c-voice__bar[data-played] { background: var(--text-bubble-sent); }
+.c-voice__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+.c-voice__foot > .c-bubble__meta { flex: none; float: none; margin: 0; margin-inline-start: auto; transform: none; white-space: nowrap; }   /* the bubble's meta, pushed to the line's end */
 .c-voice__time {
   flex: none;
   min-width: 2.6em;   /* m:ss in tabular figures — the row does not jitter while the position runs */
-  text-align: end;
+  text-align: start;
   font-size: var(--bubble-meta-size);
   line-height: var(--bubble-meta-line-height);
   font-weight: var(--bubble-meta-weight);
 }
 .c-bubble-row[data-direction="received"] .c-voice__time { color: var(--text-bubble-received-meta); }
 .c-bubble-row[data-direction="sent"] .c-voice__time { color: var(--text-bubble-sent-meta); }
+/* the face: a 40 avatar, the mic badge over its bottom-start edge, cut out of the avatar by a ring in the bubble's ground */
+.c-voice__who {
+  position: relative;
+  flex: none;
+  display: block;
+  width: var(--size-avatar-40);
+  height: var(--size-avatar-40);
+}
+.c-voice__badge {
+  position: absolute;
+  inset-inline-start: -6px;   /* sanctioned: the badge overhangs the avatar's edge (WhatsApp) */
+  bottom: -3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;   /* sanctioned: a status badge glyph disc, no size token this small */
+  height: 20px;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--surface-bubble-received);
+  background: var(--text-bubble-received-meta);   /* neutral: played — the bubble's muted ink, the glyph cut in its ground */
+  color: var(--surface-bubble-received);
+}
+/* ★ #46 r1 (S8 picks m-2): the accent is the ICON action ink — primary-600 light (6.98:1 on the white bubble), primary-400
+   dark (6.25:1 on ink-750; the surface action blue read 2.34:1 there); the glyph is cut in the bubble ground (same ratios) */
+.c-voice__who[data-tone="accent"] .c-voice__badge { background: var(--icon-action-default); color: var(--surface-bubble-received); }
+/* ★ #46 picks r2 (MINOR-3): in LIGHT the played (neutral) badge was as dark as the accent (1.06:1 apart) — it goes quiet
+   (a light grey disc, the glyph in the muted ink), so "not yet played" is the one that stands out. Dark keeps the muted-ink disc. */
+:root:not([data-theme="dark"]) .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-300); color: var(--text-bubble-received-meta); }
+/* ★ #46 picks r3 (MINOR-B): the DARK mirror — the played disc was the LOUDER one (8.77:1 vs the accent 6.25:1); now ink-500
+   (1.41:1 on the bubble, the glyph 6.22:1 on it, the accent 4.43:1 against it) */
+[data-theme="dark"] .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-500); color: var(--text-bubble-received-meta); }
+
+.c-bubble-row[data-direction="sent"] .c-voice__badge { border-color: var(--surface-bubble-sent); background: var(--text-bubble-sent); color: var(--surface-bubble-sent); }
 
 </style><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
@@ -6643,6 +6740,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     callRingtone: true,        // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
     notifPushProvider: true,   // ★ P2 (#708): matches the C# default (KEY_PUSH_PROVIDER = true)
     photoPreviews: true,       // ★ #1133 (A5 #1124): matches the C# default (SChatPrefs "chatPhotoPreviews" = true)
+    readReceipts: true,        // ★ S8 (#1234): the C# defaults (SChatPrefs) — receipts ON, typing ON, hide-online OFF
+    typingIndicators: true,
+    hideOnline: false,
     /* PA1 (#525): "Confirm payments" — display state only. The C# verb persists
        IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
        so this never rides the dirty/save path (no #288 clobber class). */
@@ -6785,7 +6885,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          while chat.html's ladder honoured the flat. Both stored values are read now. */
       // ★ #855 → #998: 'gradient' is ADMITTED again (the brand gradient, light only);
       // any other value falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
-      if (gr === 'flat' || gr === 'gradient' || gr === 'green') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too   // ★ #998: anything else, incl. absent/corrupt → the default above
+      if (gr === 'flat' || gr === 'gradient' || gr === 'green' || gr === 'blue') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too · ★ S8 (#1237): and the blue   // ★ #998: anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     return { pattern, textScale, patternStyle, chatGround };
   }
@@ -7509,9 +7609,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     }
     /* ★ #1133: the Privacy screen also keeps its live node, so a setPhotoPreviews push with
        no tap in flight moves the switch IN PLACE (a pending tap is resolved by the latch). */
-    if (!notifPending.photoPreviews) {
-      const pv = (paneMode ? detailWrap : root).querySelector('[data-pref="photoPreviews"] .c-settings__switch');
-      if (pv && pv.getAttribute('aria-checked') !== String(state.photoPreviews)) pv.setAttribute('aria-checked', String(state.photoPreviews));
+    for (const k of ['photoPreviews', 'readReceipts', 'typingIndicators', 'hideOnline']) {   // ★ S8 (#1234): + the three privacy switches
+      if (notifPending[k]) continue;
+      const pv = (paneMode ? detailWrap : root).querySelector('[data-pref="' + k + '"] .c-settings__switch');
+      if (pv && pv.getAttribute('aria-checked') !== String(state[k])) pv.setAttribute('aria-checked', String(state[k]));
     }
     /* ★ Session J (#753, Damir: "when I loaded seed heavy the note in About didn't change"):
        the About sublevel KEEPS its live node across rebuilds (the rule above), so the
@@ -7673,6 +7774,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       : (key === 'notifPushProvider') ? 'ixian:notifPushProvider:'   // ★ P2 (#708)
       : (key === 'callRingtone') ? 'ixian:callRingtone:'             // ★ E-W4 (🟡 #1118)
       : (key === 'photoPreviews') ? 'ixian:photoPreviews:'           // ★ #1133 (🟡 new verb): the Privacy switch
+      : (key === 'readReceipts') ? 'ixian:readReceipts:'             // ★ S8 (#1234): the three privacy verbs
+      : (key === 'typingIndicators') ? 'ixian:typingIndicators:'
+      : (key === 'hideOnline') ? 'ixian:hideOnline:'
       : 'ixian:notifSounds:';
     bridge.send(verb + (next ? 'on' : 'off'));
   }
@@ -7781,11 +7885,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          preferences one case below: same document, same localStorage origin, no verb
          and no C# change. `chat.html` reads the key on every render, so the choice
          takes hold in each conversation opened after it.
-         The §9 rows (read receipts / typing) stay dark — they still have no verb. */
+         ★ S8 (#1234): read receipts / typing / hide online have verbs now (cap-gated rows below). */
       case 'privacy': return createPrivacy({
         mediaAutoload: mediaAutoloadPref(),
         photoPreviews: state.photoPreviews,   // ★ #1133: the setPhotoPreviews seed / echo
-        capabilities: { readReceipts: bridge.cap('readReceipts'), typing: bridge.cap('typing') },
+        readReceipts: state.readReceipts, typingIndicators: state.typingIndicators, hideOnline: state.hideOnline,   // ★ S8 (#1234)
+        capabilities: { readReceipts: bridge.cap('readReceipts'), typing: bridge.cap('typing'), hideOnline: bridge.cap('hideOnline') },
         strings,
         onBack: showHub,
         onMediaAutoload: (next, ctrl) => {
@@ -7800,6 +7905,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
            NOTIF-2 latch: optimistic, resolved by the setPhotoPreviews echo, failed back after
            NOTIF_ACK_MS. No row on an exe without the verb (the W-g rule). */
         onPhotoPreviews: bridge.cap('photoPreviews') ? (next, ctrl) => { latchNotif('photoPreviews', next, ctrl); } : undefined,
+        /* ★ S8 (#1234): the three privacy switches — the same latch (optimistic, resolved by the set* echo). */
+        onReadReceipts: (next, ctrl) => { latchNotif('readReceipts', next, ctrl); },
+        onTyping: (next, ctrl) => { latchNotif('typingIndicators', next, ctrl); },
+        onHideOnline: (next, ctrl) => { latchNotif('hideOnline', next, ctrl); },
       });
       /* ★ #978 (#970, Damir 2026-09-24): Declined requests — the un-block path for the app-side
          ignore list. The addresses come from THIS page's own push (C# SRequestIgnore), the tap
@@ -8266,6 +8375,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     setCallRingtone(s) { applyNotifPush('callRingtone', s); },   // ★ E-W4 (🟡 #1118): the echo half of ixian:callRingtone
     setNotifPushProvider(s) { applyNotifPush('notifPushProvider', s); },   // ★ P2 (#708): the echo half of ixian:notifPushProvider
     setPhotoPreviews(s) { applyNotifPush('photoPreviews', s); },   // ★ #1133 (🟡 new push): the onLoad seed + the echo of ixian:photoPreviews
+    setReadReceipts(s) { applyNotifPush('readReceipts', s); },          // ★ S8 (#1234): seed + echo of ixian:readReceipts
+    setTypingIndicators(s) { applyNotifPush('typingIndicators', s); },  // ★ S8 (#1234): seed + echo of ixian:typingIndicators
+    setHideOnline(s) { applyNotifPush('hideOnline', s); },              // ★ S8 (#1234): seed + echo of ixian:hideOnline
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411
     showRemoveAvatar(show) { state.hasCustomAvatar = (show === '1' || show === 'true' || show === true); scheduleRebuild(); },

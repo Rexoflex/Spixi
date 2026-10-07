@@ -105,6 +105,7 @@ export function openAttachSheet({ host, media = false, apps = true, payments = t
   const sheet = createSheet({
     content: grid, host,
     strings: { ...strings, sheet: strings.attachTitle || 'Add to chat' },
+    blurDismiss: true,   // ★ S8 (#1235): desktop — a click in another pane closes the popover
   });
   openSheet(sheet);
   return sheet;

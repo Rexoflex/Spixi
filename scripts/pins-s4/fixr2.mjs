@@ -157,7 +157,7 @@ export default async function (h) {
       const stops = lg[1].split(/,\s*(?![^()]*\))/).slice(1).map((s) => s.trim().split(/\s+/)[0]);
       return stops.length === 3 ? rgb(stops[1]) : null;
     };
-    const GROUNDS = [['light', 'flat'], ['light', 'gradient'], ['light', 'green'], ['dark', 'flat'], ['dark', 'gradient']];
+    const GROUNDS = [['light', 'flat'], ['light', 'gradient'], ['light', 'green'], ['light', 'blue'], ['dark', 'flat'], ['dark', 'gradient'], ['dark', 'green'], ['dark', 'blue']];   // ★ S8 (#1237): + the three new grounds
     const res = {}, r = {};
     const flatGap = {};
     for (const [theme, ground] of GROUNDS) {

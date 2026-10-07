@@ -81,6 +81,10 @@ import { createSharedSection } from './shared-items.js';
 import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
 
 const SEARCH_FROM = 8;         // search = a filter from 8 members (#142 — no caps)
+/* ★ S8 (#1204 b): a room of up to 11 members lists them ABOVE the shared section (#1141: the roster of a small
+   group is the screen's point); a larger room keeps the full roster LAST and gets one "Members (n)" row above the
+   shared section that scrolls to it. */
+const MEMBERS_FIRST_MAX = 11;
 const TX_PREVIEW = 5;          // expanded payments show the 5 most recent
 const SELF_DESTRUCT_OPTIONS = [        // seconds; 0 = off (§9 — no bridge command yet)
   { value: 0, key: 'sdOff', label: 'Off' },
@@ -183,6 +187,7 @@ export function createChatInfo({
   members = [],                  // [{ name, address, admin, owner, relation }] — owner → "Owner" chip (#248)
   blind = false,                 // chat mode 2: identities hidden
   amOwner = false,               // N48 (#370): MY OWN owner status (self-only push; blind-safe)
+  onGroupPhoto = null,           // ★ S8 (#1231): owner only (group) — the hero camera badge → the shell sends ixian:groupPhoto
   notifications = true,
   media = [],                    // [{ id, thumb, kind }] — flagged section
   allowRemoteImages = false,     // ★ O-13: a REMOTE http(s) thumb needs the shell's opt-in; a
@@ -303,6 +308,26 @@ export function createChatInfo({
     hero.append(view);
   } else {
     hero.append(heroAvatar);
+  }
+  /* ★ S8 (#1231): the OWNER of a group changes its photo — a camera badge on the hero's lower trailing edge (36 px
+     disc on --surface-menu, 44 px hit area). GROUPS only, matching the C# owner gate (a bot room's getOwner() is not
+     reliable — the N48 rule below). The avatar tap itself is unchanged (a photo still opens the viewer). The badge
+     is a SIBLING of the viewer button, never inside it (no nested buttons). */
+  if (amOwner && kind === 'group' && onGroupPhoto) {
+    const wrap = document.createElement('span');
+    wrap.className = 'c-chat-info__avatar-wrap';
+    wrap.append(hero.firstElementChild);           // the viewer button or the bare avatar (onerror's replaceWith still works in here)
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'c-chat-info__photo-badge';
+    badge.setAttribute('aria-label', strings.changeGroupPhoto || 'Change group photo');
+    const disc = document.createElement('span');
+    disc.className = 'c-chat-info__photo-badge-disc';
+    disc.append(icon('photo', { size: 18 }));
+    badge.append(disc);
+    badge.addEventListener('click', () => onGroupPhoto());
+    wrap.append(badge);
+    hero.prepend(wrap);
   }
   const idCol = document.createElement('div');
   idCol.className = 'c-chat-info__id';
@@ -695,7 +720,8 @@ export function createChatInfo({
     ? createSharedSection({ items: shared, strings, onOpen: onSharedOpen, onAll: onSharedAll, onMenu: onSharedMenu, tab: sharedTab, onTab: onSharedTab })
     : null;
   /* (#46 r1 B3) a GROUP / bot room keeps the section where it was (#1106): ABOVE the roster, which is unbounded — the
-     grid must not sit under hundreds of member rows. A 1:1 places it LAST (below). */
+     grid must not sit under hundreds of member rows. A 1:1 places it LAST (below). ★ S8 (#1204 b): a room of ≤ 11
+     members moves its roster above this section (see MEMBERS_FIRST_MAX at the roster). */
   if (sharedSec && roomKind) body.append(sharedSec);
 
   /* ——— shared media (capabilities.media — NO legacy command, §9; demo-fed) ——— */
@@ -764,6 +790,37 @@ export function createChatInfo({
     }
     membersCard.append(listEl);
     body.append(sec);
+    /* ★ S8 (#1204 b): placement by size (MEMBERS_FIRST_MAX, #1141). The shared block (and the legacy media strip) is
+       already in the body above this point. ≤ 11 → the roster moves above it. > 11 → the roster stays LAST (it is
+       unbounded) and ONE row above the shared block jumps to it: scroll + focus on the roster label (not the search
+       field — no soft keyboard on a jump). No shared block → nothing to jump over, no row. */
+    const sharedAnchor = body.querySelector(':scope > .c-shared, :scope > .c-chat-info__media');
+    let membersJump = null;   // removeMemberRow (below, same block) rewrites its count
+    let jumpWrap = null;      // ★ S8 r1 (#1204 b): removeMemberRow drops it when a kick takes the room to ≤ 11
+    if (sharedAnchor && count <= MEMBERS_FIRST_MAX) {
+      body.insertBefore(sec, sharedAnchor);
+    } else if (sharedAnchor) {
+      const jump = groupCard({ cls: 'c-chat-info__members-jump' });
+      membersJump = document.createElement('button');
+      membersJump.type = 'button';
+      membersJump.className = 'c-chat-info__row c-chat-info__setting';
+      const jLab = document.createElement('span');
+      jLab.className = 'c-chat-info__row-label';
+      const jText = document.createElement('span');
+      jText.className = 'c-chat-info__members-jump-text';
+      jText.textContent = countLabel.textContent;
+      jLab.append(rowGlyph('users'), jText);
+      membersJump.append(jLab, icon('chevron-right', { size: 18 }));
+      membersJump.addEventListener('click', () => {
+        const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+        try { sec.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' }); } catch (e) { sec.scrollIntoView(); }
+        countLabel.setAttribute('tabindex', '-1');
+        countLabel.focus({ preventScroll: true });
+      });
+      jump.card.append(membersJump);
+      jumpWrap = jump.wrap;
+      body.insertBefore(jump.wrap, sharedAnchor);
+    }
 
     const memberSheetFor = (m) => openMemberSheet({
       host: host || el.closest('.demo-phone') || undefined,   // audit m6: shell passes host
@@ -834,9 +891,18 @@ export function createChatInfo({
       members.splice(i, 1);
       count = Math.max(0, count - 1);
       countLabel.textContent = (strings.membersTitle || 'Members') + ' (' + count + ')';
+      if (membersJump) membersJump.querySelector('.c-chat-info__members-jump-text').textContent = countLabel.textContent;   // ★ S8 (#1204 b)
       // R2 (#371, loop B-3): the SECOND hero-sub writer — kick a member out of a
       // 2-person group and the plural form regressed to "1 members" here.
       sub.textContent = count === 1 ? (strings.memberOne || '1 member') : count + ' ' + (strings.members || 'members');
+      /* ★ S8 r1 (#1204 b): a kick that takes the room to ≤ MEMBERS_FIRST_MAX re-runs the placement at once — the jump
+         row goes and the roster moves above the shared block (not only at the next panel rebuild). */
+      if (jumpWrap && count <= MEMBERS_FIRST_MAX && jumpWrap.parentNode === body) {
+        body.insertBefore(sec, jumpWrap);
+        jumpWrap.remove();
+        jumpWrap = null;
+        membersJump = null;
+      }
       renderMembers();
     }
 

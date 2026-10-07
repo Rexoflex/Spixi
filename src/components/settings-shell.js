@@ -1024,7 +1024,7 @@ export function createSettingsHub({
   if ((capabilities.readReceipts || capabilities.typing || capabilities.mediaAutoload) && onPrivacy) sec.card.append(settingRow({
     glyph: 'eye-off', hue: 'info', key: 'privacy',
     label: strings.privacy || 'Privacy',
-    sub: strings.privacySub || 'Automatic media download',
+    sub: strings.privacySub || 'Read receipts, typing, online status and media',   // ★ S8 r1 (#1234): names the screen, not 1 of its 5 rows
     onClick: () => onPrivacy(),
   }).section);
 

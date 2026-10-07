@@ -377,6 +377,7 @@ namespace SPIXI.Meta
 
                 Logging.info("Node started");
                 VoiceFolderSweep.runOnce(Path.Combine(Config.spixiUserFolder, "Voice"));   // ★ 7b (#1224 (8)): background, bounded, broken files only
+                SingleChatPage.warmSelfAvatar();   // ★ S8 picks #46 r1 A MINOR-2: my avatar's 128 px URI, made off the main thread (never throws)
 
                 /* ★★ ROUND 3 (review3-cs MAJOR-1) — THE LAST STATEMENT, ON PURPOSE.
                  * Read the header of this method before you move this line. The counter
@@ -564,16 +565,21 @@ namespace SPIXI.Meta
                                 Monitor.TryEnter(pushFetchLock, PUSH_FETCH_TRY_MS, ref fetchTaken);
                                 if (fetchTaken)
                                 {
+                                    PushFetchProbe.begin();   // ★ S8 (#1229): per-pass rep / reid counters (dev only)
                                     ulong p1Before = P1Perf.enabled ? OfflinePushMessages.receivedOfflineMessages : 0;   // ★ 7b (#1222)
                                     bool p1Ran = OfflinePushMessages.fetchPushMessages(false, fireLocalNotification, false);
                                     // ★★ P0 #1155: the fetched messages are already removed from the push server — write them now
                                     CoreMessageWriter.arrivals.afterPushBatch(CoreMessageWriter.instance);
-                                    if (P1Perf.enabled)   // ★ 7b #46 r1 (A-NIT1 / A-MINOR-2): dev only, and only a fetch that RAN (the cooldown returns false at once) or got messages
+                                    if (P1Perf.enabled)   // ★ 7b #46 r1 (A-NIT1 / A-MINOR-2): dev only
                                     {
                                         ulong p1Got = OfflinePushMessages.receivedOfflineMessages - p1Before;
-                                        if (p1Ran || p1Got > 0)
+                                        /* ★ S8 (#1229): print also `ran=0 got=0` (the empty-entry stuck case) — but NOT the
+                                         * cooldown no-op. Core's cooldown (`lastUpdate`, private, OfflinePushMessages.cs:94)
+                                         * returns false at once with no network, so: returned false AND no note AND under
+                                         * PushFetchProbe.CooldownMs (50 ms) → skip. A HEURISTIC (`touched`), documented there. */
+                                        if (p1Ran || p1Got > 0 || PushFetchProbe.touched)
                                         {
-                                            P1Perf.line("push fetch got=" + p1Got + " where=loop");   // ★ 7b (#1222): a count
+                                            PushFetchProbe.line("loop", p1Ran, p1Got);   // ★ S8 (#1229): counts + type codes only
                                         }
                                     }
                                     fireLocalNotification = false;
@@ -1313,7 +1319,8 @@ namespace SPIXI.Meta
                         if (App.isInForeground == false || Utils.getChatPage(friend) == null)
                         {
                             // don't fire notification for nickname and avatar
-                            if (!friend_message.id.SequenceEqual(new byte[] { 4 }) && !friend_message.id.SequenceEqual(new byte[] { 5 }))
+                            if (!friend_message.id.SequenceEqual(new byte[] { 4 }) && !friend_message.id.SequenceEqual(new byte[] { 5 })
+                                && !UnreadRule.isAddedToGroupLineId(friend_message.id))   // ★ S8 (#1231): nor the added-to-group line {7} (#46 r1: not Core's avatar id {6})
                             {
                                 // ★ NOTIF-1 (Damir on device: "notifications work on the bot
                                 // group but not private groups"). The old predicate here was
@@ -1469,7 +1476,8 @@ namespace SPIXI.Meta
                         && type != FriendMessageType.voiceCall
                         && type != FriendMessageType.voiceCallEnd
                         && !friend_message.id.SequenceEqual(new byte[] { 4 })
-                        && !friend_message.id.SequenceEqual(new byte[] { 5 });
+                        && !friend_message.id.SequenceEqual(new byte[] { 5 })
+                        && !UnreadRule.isAddedToGroupLineId(friend_message.id);   // ★ S8 (#1231)
                     if (!soundable)
                     {
                         // nothing — this event plays no in-app effect by design

@@ -105,6 +105,7 @@ const EXCERPT_GLYPHS = {
   'call-declined': 'phone-off',
   payment: 'wallet', 'app-invite': 'apps', draft: 'pencil', reaction: 'heart-plus',
   request: 'user-plus',   // M5 outgoing contact request — `user-plus` SHIPS today (icons.js:81)
+  reply: 'arrow-back-up',   // ★ S8 (#1236): the last message is a reply (C# stripped the quote); the glyph is aria-hidden, a hidden "Reply:" speaks it
   'request-done': 'user-plus',   // #273 settled contact event ("Contact Accepted") — same glyph, but NOT a pending request (Requests filter/chip key on type 'request' and must exclude it)
 };
 export function createExcerpt({ type = 'text', text = '', sender = null, dots = false, strings = getStrings() } = {}) {
@@ -150,6 +151,14 @@ export function createExcerpt({ type = 'text', text = '', sender = null, dots = 
   }
   const t = document.createElement('span');
   t.className = 'c-excerpt__text';
+  /* ★ S8 (#1236): the glyph is aria-hidden (icons.js) and, unlike File / Reacted, the text is the message itself —
+     so a visually-hidden prefix says what the arrow means to a screen reader. */
+  if (type === 'reply') {
+    const sr = document.createElement('span');
+    sr.className = 'c-excerpt__sr';
+    sr.textContent = (strings.repliedPrefix || 'Reply:') + ' ';
+    t.append(sr);
+  }
   if (type === 'draft') {
     const prefix = document.createElement('span');
     prefix.className = 'c-excerpt__draft';
@@ -167,7 +176,7 @@ export function createExcerpt({ type = 'text', text = '', sender = null, dots = 
     m.textContent = text.slice(i, stop);
     t.append(m, document.createTextNode(text.slice(stop)));
   } else {
-    t.textContent = text;
+    t.append(document.createTextNode(text));   // ★ S8 (#1236): append, not textContent — keeps the reply prefix
   }
   el.append(t);
   return el;

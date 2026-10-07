@@ -349,6 +349,10 @@ namespace SPIXI
             base.OnAppearing();
             // ★ A5 #1124: the chat re-appears (back from Account → Privacy) — a CHANGED value is told before reloadScreen
             // re-flushes the history, so the rows render the new way and, when ON, the reload queues the previews
+            if (friend != null && readReceiptsPushed != null)
+            {
+                pushReadReceipts();   // ★ #46 r1 (X5): a changed receipts switch is told before reloadScreen re-flushes the ticks
+            }
             if (friend != null && photoPreviewsPushed != null)
             {
                 pushPhotoPreviews();
@@ -676,6 +680,10 @@ namespace SPIXI
                 string app_id = current_url.Substring("ixian:joinApp:".Length);
                 onJoinApp(app_id);
             }
+            else if (current_url.StartsWith("ixian:appDecline:", StringComparison.Ordinal))
+            {
+                onAppDecline(current_url.Substring("ixian:appDecline:".Length));   // ★ S8 (#1233)
+            }
             else if (current_url.StartsWith("ixian:loadContacts"))
             {
                 loadContacts();
@@ -753,7 +761,11 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:typing"))
             {
-                StreamProcessor.sendTyping(friend);
+                // ★ S8 (#1234): typing indicators OFF → nothing is sent (the receive side hides theirs: StreamProcessor)
+                if (PrivacyRules.sendsTyping(SPrivacyPrefs.typingIndicators))
+                {
+                    StreamProcessor.sendTyping(friend);
+                }
             }
             // Exact match, as on ContactDetails: a bare-name prefix test would swallow any
             // future ixian:leave* verb from this shell.
@@ -934,6 +946,7 @@ namespace SPIXI
                     SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
                     SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
                     SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
+                    SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                 }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
@@ -1356,6 +1369,12 @@ namespace SPIXI
             }
             photoPreviewsPushed = null;
             pushPhotoPreviews();
+            readReceiptsPushed = null;   // ★ #46 r1 (X5): a new document — told before the first history push
+            pushReadReceipts();
+            typingShownKnown = SPrivacyPrefs.typingIndicators;
+            selfAvatarPushed = null;     // ★ S8 picks (#1240): a new document — my avatar, before the first history push
+            selfAvatarDoc = true;
+            pushSelfAvatar();
             lock (avatarSent)
             {
                 avatarSent.Clear();   // ★ #1166 P-04: the shell reset its address → avatar map at onChatScreenReady above (before loadMessages)
@@ -2657,6 +2676,7 @@ namespace SPIXI
 
         public void onJoinApp(string app_id)
         {
+            sendJoinAccept(app_id);   // ★ S8 (#1233): an INCOMING invite tells its inviter (once per peer + session per run)
             if (homePage != null)
             {
                 homePage.onJoinApp(app_id, friend);
@@ -2673,6 +2693,107 @@ namespace SPIXI
             });
 
         }
+
+        /* ★ S8 (#1233) — JOIN SAYS YES. `ixian:joinApp:<appId>` carries no row, so the row is the NEWEST appSession row of
+         * that app in this chat (the card the user just tapped, or a newer one): when it is INCOMING (not my own invite's
+         * Launch), not the call app, and this (peer, session) was not accepted in this run, Core's own
+         * sendAppRequestAccept(friend, sessionId) goes out (CoreStreamProcessor.cs:3071-3077: pending, no server copy, no
+         * push). sessionId = MiniAppPage.sessionIdFor(appId). A bot room never gets here (onApp refuses bots; the same here).
+         * AppInviteRules (csh). Never throws; the log names nothing. */
+        private void sendJoinAccept(string? app_id)
+        {
+            try
+            {
+                if (friend == null || friend.bot || string.IsNullOrEmpty(app_id))
+                {
+                    return;
+                }
+                FriendMessage? newest = null;
+                var rows = friend.getMessages(selectedChannel);
+                if (rows != null)
+                {
+                    lock (rows)
+                    {
+                        newest = rows.FindLast(m => m.type == FriendMessageType.appSession && AppInviteRules.appIdOf(m.message) == app_id);
+                    }
+                }
+                byte[] sessionId = MiniAppPage.sessionIdFor(app_id);
+                string peer = friend.walletAddress.ToString();
+                string sessionHex = Crypto.hashToString(sessionId);
+                if (AppInviteRules.joinSendsAccept(app_id, newest != null, newest != null && !newest.localSender, AppInviteRules.wasAccepted(peer, sessionHex))
+                    && AppInviteRules.claimAccept(peer, sessionHex))
+                {
+                    StreamProcessor.sendAppRequestAccept(friend, sessionId);
+                    Logging.info("app join: accept sent");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("app join: accept failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /* ★ S8 (#1233) — DECLINE. `ixian:appDecline:<msgIdHex>`: the id is validated (hex), the row must be an INCOMING,
+         * non-blank appSession invite in THIS chat (AppInviteRules.canDecline). The app / session come from the STORED row,
+         * never from the WebView. 1:1: a SILENT appRequestReject — Core's sendAppRequestReject (CoreStreamProcessor.cs:
+         * 3079-3085) with its flags except push OFF (pending + server copy, no push: the sendSilentMsgDelete pattern). A
+         * GROUP: local only — one member's no is not the room's answer, and a reject there would fan out to every member.
+         * Then the row is stored as declined (SAppDeclines) and re-pushed with app_state "Declined" (the shell's optimistic
+         * state, confirmed). Main thread (onNavigating). The log names nothing. */
+        private void onAppDecline(string msgIdHex)
+        {
+            try
+            {
+                if (friend == null || friend.bot || !ReactionSet.isHexId(msgIdHex))
+                {
+                    Logging.warn("appDecline: an invalid argument was ignored");
+                    return;
+                }
+                byte[] msgId = Crypto.stringToHash(msgIdHex);
+                FriendMessage? row = friend.getMessage(selectedChannel, msgId);
+                if (row == null || !AppInviteRules.canDecline(row.type == FriendMessageType.appSession, row.localSender, row.message))
+                {
+                    Logging.warn("appDecline: no incoming invite row for that id");
+                    return;
+                }
+                string appId = AppInviteRules.appIdOf(row.message);
+                if (friend.type == FriendType.Normal)
+                {
+                    byte[] sessionId = MiniAppPage.sessionIdFor(appId);
+                    SpixiMessage reject = new SpixiMessage(SpixiMessageCode.appRequestReject, new IXICore.Streaming.Models.AppDataMessage(sessionId, null).getBytes());
+                    StreamProcessor.sendSpixiMessage(friend, reject, null, null, true, true, false, false);
+                }
+                SAppDeclines.add(friend.walletAddress.ToString(), Crypto.hashToString(row.id));
+                refreshAppRow(row, selectedChannel);
+                Logging.info("appDecline: declined (" + (friend.type == FriendType.Normal ? "sent" : "local") + ")");
+            }
+            catch (Exception e)
+            {
+                Logging.warn("appDecline failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** ★ S8 (#1233): re-push ONE app invite row (its declined state changed) through the SAME addAppRequest push — the
+         *  shell's upsertApp updates the row it holds in place. No read-status side effect (the appRowOnlyPass return). */
+        public void refreshAppRow(FriendMessage? message, int channel)
+        {
+            if (message == null || message.type != FriendMessageType.appSession)
+            {
+                return;
+            }
+            appRowOnlyPass = true;
+            try
+            {
+                insertMessage(message, channel, null);
+            }
+            finally
+            {
+                appRowOnlyPass = false;
+            }
+        }
+
+        /* the "app row only" mode of insertMessage (refreshAppRow) — per thread, like fileRowOnlyPass */
+        [ThreadStatic] private static bool appRowOnlyPass;
 
         public async void onInstallApp(string app_url)
         {
@@ -2773,6 +2894,7 @@ namespace SPIXI
                 }
                 return;
             }
+            int quickIndex = ReactionSet.HeartIndex;   // ★ S8 (#1232): `like` = ❤️; `react` sets its validated index
             switch(action)
             {
                 case "tip":
@@ -3222,7 +3344,25 @@ namespace SPIXI
                     }
                     break;
 
+                /* ★ S8 (#1232): `react:<msgIdHex>:<index>` — the hex id and 0 ≤ index ≤ 5 are validated (else ignored), then the
+                 * like case below is the ONE writer for both verbs. `like` (the old verb) = index 1 (❤️, quickIndex's default),
+                 * whose wire is still the bare `like:`. One reaction per person per message, not removable (Core
+                 * FriendMessage.addReaction keeps the FIRST `like` per sender — FriendMessage.cs:282): a second emoji adds and
+                 * sends nothing. The like body is the old one with ReactionSet.wireFor in place of the literal. */
+                case "react":
+                    {
+                        int index = ReactionSet.parseIndex(data);
+                        if (index < 0 || !ReactionSet.isHexId(msg_id_hex))
+                        {
+                            Logging.warn("react: an invalid argument was ignored");
+                            break;
+                        }
+                        quickIndex = index;
+                    }
+                    goto case "like";
+
                 case "like":
+                    string wire = ReactionSet.wireFor(quickIndex);   // ★ S8 (#1232): see `react` above
                     var address = IxianHandler.getWalletStorage().getPrimaryAddress();
                     /* ★★ ROUND 3 (review3-cs MINOR-1) — THE WRITER OF THE PAIR. It read the
                      * same raw chain and threw on a group with no BotInfo: the tap did
@@ -3237,11 +3377,11 @@ namespace SPIXI
                         // if blind group and not owner, use derived address
                         address = GroupChat.DeriveGroupAddress(address, friend.metaData.botInfo.randomId);
                     }
-                    if (friend.addReaction(address, new ReactionMessage(msg_id, "like:"), selectedChannel))
+                    if (friend.addReaction(address, new ReactionMessage(msg_id, wire), selectedChannel))
                     {
                         CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), selectedChannel);   // ★ #1155 r4 m2
                         updateReactions(msg_id, selectedChannel);
-                        StreamProcessor.sendReaction(friend, msg_id, "like:", selectedChannel);
+                        StreamProcessor.sendReaction(friend, msg_id, wire, selectedChannel);
                     }
                     break;
             }
@@ -4259,6 +4399,11 @@ namespace SPIXI
             {
                 return;   // ★ #1190 (#46 r4 M1): refreshFileRow re-pushes a FILE row only
             }
+            bool appRowOnly = appRowOnlyPass;   // ★ S8 (#1233): refreshAppRow's ONE call on this thread
+            if (appRowOnly && message.type != FriendMessageType.appSession)
+            {
+                return;
+            }
             if(friend.state != FriendState.Approved)
             {
                 if (message.type == FriendMessageType.requestAdd)
@@ -4671,6 +4816,13 @@ namespace SPIXI
                     }
                 }
 
+                /* ★ S8 (#1233): a declined row (my Decline on an incoming invite, or the peer's decline of my own invite —
+                 * SAppDeclines, keyed by THIS row) reads "Declined" on both sides; it wins over Missing / Minimized. */
+                if (message.id != null && SAppDeclines.has(friend.walletAddress.ToString(), Crypto.hashToString(message.id)))
+                {
+                    app_state = "Declined";
+                }
+
                 // X1: local app-icon path → data-URI (http remote-icon URL + "img/" sentinel pass through).
                 app_image = Utils.imageToDataUri(app_image);
 
@@ -4678,6 +4830,10 @@ namespace SPIXI
                 // ⚠ NO deliveryTicks — the shell's addAppRequest handler discards these two
                 // as well, and says so in its own comment. See the addFile note above.
                 push(batch, "addAppRequest", Crypto.hashToString(message.id), app_id, app_name, app_image, address, nick, avatar, message.timestamp.ToString(), message.localSender.ToString(), message.confirmed.ToString(), message.read.ToString(), app_state, app_install_url);
+                if (appRowOnly)
+                {
+                    return;   // ★ S8 (#1233): refreshAppRow — the row only, no read-status side effect
+                }
             }
 
             if (message.type == FriendMessageType.standard)
@@ -4856,7 +5012,8 @@ namespace SPIXI
                 // live push must agree, or a muted chat's badge flickers on each update.
                 UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.metaData.unreadMessageCount, "", 0);
 
-                if (!friend.bot)
+                // ★ S8 (#1234): read receipts OFF → no msgRead (1:1 and groups); never for the added-to-group line {7} (#1231)
+                if (PrivacyRules.sendsReadReceipt(SPrivacyPrefs.readReceipts, friend.bot, UnreadRule.isAddedToGroupLineId(message.id)))
                 {
                     // Send read confirmation
                     SpixiMessage msg_read = new SpixiMessage(SpixiMessageCode.msgRead, message.id, selectedChannel);
@@ -5052,13 +5209,27 @@ namespace SPIXI
              * ⚠ Why a skipped push is safe: every reaction event pushes again, and the shell
              * re-renders from the next full string. A PARTIAL string would show wrong counts,
              * so it is never sent. */
+            bool receiptsOn = SPrivacyPrefs.readReceipts;   // ★ S8 (#1234): read once per push
             try
             {
                 lock (fm.reactions)
                 {
                     foreach (var reaction in fm.reactions)
                     {
-                        reactions_str += reaction.Key + ":" + reaction.Value.Count() + ";";
+                        if (!PrivacyRules.showsReactionKey(receiptsOn, reaction.Key))
+                        {
+                            continue;   // ★ S8 (#1234): read receipts OFF → a room's `seen:` count is not shown (reciprocal)
+                        }
+                        /* ★ S8 (#1232): a like entry is `like:<emoji>:<count>;` per shown emoji (ReactionSet: the peer's emoji is
+                         * UNTRUSTED — an unsafe one counts as ❤️; an old app's bare `like:` is ❤️). Every other key unchanged. */
+                        if (reaction.Key == "like")
+                        {
+                            reactions_str += ReactionSet.likeTokens(reaction.Value.Select(rd => rd?.data));
+                        }
+                        else
+                        {
+                            reactions_str += reaction.Key + ":" + reaction.Value.Count() + ";";
+                        }
                         if (reaction.Key == "tip")
                         {
                             IxiNumber tipTotal = 0;
@@ -5086,9 +5257,11 @@ namespace SPIXI
                             tip_total_str = anyTip ? tipTotal.ToString() : "";
                         }
                         // C5: which reaction keys the local user has added (trailing arg — never reorder)
-                        if (reaction.Value.Find(x => x.sender.SequenceEqual(own_address)) != null)
+                        var own_rd = reaction.Value.Find(x => x.sender.SequenceEqual(own_address));
+                        if (own_rd != null)
                         {
-                            own_reactions_str += reaction.Key + ";";
+                            // ★ S8 (#1232): my like carries its emoji — `like:<emoji>;` (other keys: `key;` as before)
+                            own_reactions_str += reaction.Key == "like" ? ReactionSet.ownLikeToken(own_rd.data) : reaction.Key + ";";
                         }
                     }
                 }
@@ -5165,6 +5338,13 @@ namespace SPIXI
          * set must not paint a double check that we cannot see. markGroupCopyFailed
          * passes `true` for the opposite reason. That asymmetry is deliberate. */
         private void deliveryTicks(FriendMessage message, out bool sent, out bool confirmed, out bool read)
+        {
+            deliveryTicksStored(message, out sent, out confirmed, out read);
+            // ★ S8 (#1234): read receipts OFF → this device shows no `read` (a read reads as delivered) — reciprocal
+            PrivacyRules.shownStatus(SPrivacyPrefs.readReceipts, ref sent, ref confirmed, ref read);
+        }
+
+        private void deliveryTicksStored(FriendMessage message, out bool sent, out bool confirmed, out bool read)
         {
             sent = message.sent;
             confirmed = message.confirmed;
@@ -5286,6 +5466,53 @@ namespace SPIXI
             }
         }
 
+        /* ★ #46 r1 (X5 — B-MAJOR-1 / A-MINOR-5): THE PRIVACY SWITCHES REACH AN OPEN CHAT.
+         * `setReadReceipts("True"|"False")` tells the shell the receipts switch (once per document before the first history
+         * push, and on a change) — while False the long-press detail shows no "seen" sentence. SettingsPage calls
+         * onPrivacyChanged on EVERY live chat page after any of the 3 switches (Utils.getChatPages, like
+         * onPhotoPreviewsChanged): the switch is re-told, and when receipts changed (a "read" tick must read as delivered
+         * at once, the room's seen counts go) or typing was turned OFF (a shown typing pill must go), the history is
+         * re-flushed — clearMessages hides the typing pill, every row is pushed again through deliveryTicks /
+         * updateReactions with the new switch. Hide-online needs nothing here: the 1 Hz presence push follows the switch.
+         * Main thread; a failure logs its TYPE only. */
+        private bool? readReceiptsPushed = null;   // the value this document was told; null = not yet (main thread)
+        private bool typingShownKnown = true;      // the typing switch this document last saw (main thread)
+
+        private void pushReadReceipts()
+        {
+            bool on = SPrivacyPrefs.readReceipts;
+            if (readReceiptsPushed == on)
+            {
+                return;
+            }
+            readReceiptsPushed = on;
+            Utils.sendUiCommand(this, "setReadReceipts", on ? "True" : "False");
+        }
+
+        public void onPrivacyChanged()
+        {
+            try
+            {
+                if (friend == null || readReceiptsPushed == null)
+                {
+                    return;   // a document not told yet hears the switches in onLoad
+                }
+                bool receiptsChanged = readReceiptsPushed != SPrivacyPrefs.readReceipts;
+                bool typingNow = SPrivacyPrefs.typingIndicators;
+                bool typingTurnedOff = typingShownKnown && !typingNow;
+                typingShownKnown = typingNow;
+                pushReadReceipts();
+                if (receiptsChanged || typingTurnedOff)
+                {
+                    loadMessages();
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("onPrivacyChanged failed: " + e.GetType().Name);   // a type only
+            }
+        }
+
         /* ═══ ★★ A5 #1124 — PHOTO PREVIEWS IN THE CHAT (Damir #1133 (3); 🟡 NEW push `setFileThumb`, BE ask) ═══
          *
          * WHAT: an image FILE message whose file is LOCAL on this device — sent by me, or downloaded by the user's tap and
@@ -5373,6 +5600,7 @@ namespace SPIXI
                 Logging.warn("onPhotoPreviewsChanged failed: " + e.GetType().Name);   // a type only
             }
         }
+
 
         /** insertMessage's file branch: an image file ON THIS DEVICE (a completed download, or my own) is a candidate;
          *  a load burst defers it to messagesDone. */
@@ -5679,6 +5907,228 @@ namespace SPIXI
                 return;
             }
             Utils.sendUiCommand(this, "viewerImage", hexId, uri);
+        }
+
+        /* ═══ ★ S8 picks (#1239 / #1240) — two NEW pushes for the voice shell (🟡; docs/security-handover-gate.md §S8 picks) ═══
+         * Kept OUTSIDE the #1208 voice section below on purpose: that section's pin (pins-s7/cs.mjs "no audio into the
+         * WebView") allows voiceRec / voiceState / voiceInfo only; these two are pinned by scripts/pins-s8p/c-wiring.mjs.
+         *
+         * `voiceRecLevel(level)` (#1239) — the rec bar's live wave. VoiceClips.onRecLevel calls it (any thread) for the LIVE
+         *   recording only, on a fixed 100 ms grid of the recording clock (10/s on every platform, ≥ 50 ms apart, the
+         *   PEAK since the last push — VoiceLevel.Gate, #46 r1 A MINOR-1); level = ONE integer 0–100 (VoiceLevel: RMS →
+         *   dBFS, −50…0 dB → 0…100). Posted to the main thread; nothing for a torn-down page; `stillValid` (isLiveRecording) is asked again
+         *   there, so a level posted just before the recording ended never lands after its `stopped`. Never logged.
+         *
+         * `setSelfAvatar(dataUri)` (#1240) — MY avatar for the sent voice bubble: a 128 px JPEG data URI, the size and form
+         *   of the senders' `setAvatarFor` pictures (Core's `_128.jpg` thumbs; StreamProcessor's avatar case makes them with
+         *   SFilePicker.ResizeImage(…, 128, 128, 100) — the same call here, from Core's own avatar.jpg: C#'s own path, no
+         *   WebView value). "" = I have no avatar (the shell shows my initials). Once per document BEFORE the first history
+         *   push (onLoad, beside setReadReceipts) and again when it changed (SettingsPage applyAvatar / onRemoveAvatar →
+         *   onSelfAvatarChanged on every live chat page, like onPhotoPreviewsChanged). The URI is cached per process by the
+         *   file's length + write time (one resize per avatar). #46 r1 A MINOR-2: the RESIZE never runs on the main thread —
+         *   onLoad pushes a KNOWN answer at once (a cached URI, or "" for no file: a stat only), else ONE shared resize runs
+         *   on the pool (selfAvatarDataUriAsync; a second caller joins it) and the answer is pushed on the main thread when
+         *   ready, if the page is alive, the document is the same and no newer request came (then it may land after the first
+         *   history rows — the shell re-paints the sent voice faces). The cache is warmed off the main thread at node start
+         *   (Node.start) and after a change (SettingsPage.applyAvatar), so onLoad normally has it. It could not be made (a
+         *   decode / read failure) → nothing, or "" (initials) when this document already shows a picture of mine (NIT-2:
+         *   never a stale face). No log line but an exception TYPE. */
+        private const int SelfAvatarPx = 128;
+        private const long SelfAvatarSourceMax = 4 * 1024 * 1024;   // avatar.jpg is ≤ 960 px q80 (SettingsPage); a belt
+        private static readonly object selfAvatarLock = new object();
+        private static string? selfAvatarKey = null;     // "<length>:<write ticks>" of the avatar.jpg the cached URI came from
+        private static string selfAvatarUri = "";
+        private static Task<string?>? selfAvatarTask = null;   // the ONE resize in flight (under selfAvatarLock)
+        private static string? selfAvatarTaskKey = null;       // …and the avatar.jpg key it is for
+        private string? selfAvatarPushed = null;         // what this document was told (main thread); null = nothing yet
+        private bool selfAvatarDoc = false;              // a document of this page has loaded (main thread)
+        private int selfAvatarReq = 0;                   // bumped per request (main thread): an older answer is dropped
+
+        /** ★ S8 picks (#1239) IVoiceHost: `voiceRecLevel(level)` — posted to the main thread; nothing for a torn-down page. */
+        public void pushVoiceRecLevel(int level, Func<bool>? stillValid = null)
+        {
+            string lv = Math.Max(0, Math.Min(100, level)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!isDisposed && (stillValid == null || stillValid()))   // re-checked HERE: still the live recording
+                {
+                    Utils.sendUiCommand(this, "voiceRecLevel", lv);
+                }
+            });
+        }
+
+        /** A STAT of my avatar.jpg — no read, no decode: safe on the main thread. true = the answer is known now ("" = no
+         *  avatar of mine; null = it cannot be made — the size rule; a cached URI); false = a resize is needed (`key`). */
+        private static bool selfAvatarPeek(out string? uri, out string path, out string key)
+        {
+            key = "";
+            path = IxianHandler.localStorage.getOwnAvatarPath(false);
+            FileInfo fi = new FileInfo(path);
+            if (!fi.Exists)
+            {
+                uri = "";
+                return true;
+            }
+            if (fi.Length <= 0 || fi.Length > SelfAvatarSourceMax)
+            {
+                uri = null;
+                return true;
+            }
+            key = fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":"
+                + fi.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            lock (selfAvatarLock)
+            {
+                if (selfAvatarKey == key)
+                {
+                    uri = selfAvatarUri;
+                    return true;
+                }
+            }
+            uri = null;
+            return false;
+        }
+
+        /** The resize — on the POOL only (selfAvatarDataUriAsync). null = it could not be made (a type-only warn). */
+        private static string? selfAvatarMake(string path, string key)
+        {
+            string? uri = null;
+            try
+            {
+                byte[]? small = SFilePicker.ResizeImage(File.ReadAllBytes(path), SelfAvatarPx, SelfAvatarPx, 100);
+                if (small != null && small.Length > 0)
+                {
+                    uri = "data:image/jpeg;base64," + Convert.ToBase64String(small);
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("setSelfAvatar: the picture could not be made (" + e.GetType().Name + ")");   // a type only
+            }
+            lock (selfAvatarLock)
+            {
+                if (uri != null)
+                {
+                    selfAvatarKey = key;
+                    selfAvatarUri = uri;
+                }
+                if (selfAvatarTaskKey == key)
+                {
+                    selfAvatarTask = null;   // done (a success is in the cache; a failure may be tried again later)
+                    selfAvatarTaskKey = null;
+                }
+            }
+            return uri;
+        }
+
+        /** My avatar as a 128 px JPEG data URI ("" = no avatar of mine; null = it could not be made). A known answer comes
+         *  back COMPLETED (a stat only); else ONE shared resize runs on the pool (a caller for the same file joins it).
+         *  Never throws. */
+        private static Task<string?> selfAvatarDataUriAsync()
+        {
+            try
+            {
+                if (selfAvatarPeek(out string? known, out string path, out string key))
+                {
+                    return Task.FromResult(known);
+                }
+                lock (selfAvatarLock)
+                {
+                    if (selfAvatarKey == key)
+                    {
+                        return Task.FromResult<string?>(selfAvatarUri);   // a resize finished since the peek
+                    }
+                    if (selfAvatarTask != null && selfAvatarTaskKey == key)
+                    {
+                        return selfAvatarTask;
+                    }
+                    selfAvatarTaskKey = key;
+                    selfAvatarTask = Task.Run(() => selfAvatarMake(path, key));
+                    return selfAvatarTask;
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("setSelfAvatar: the picture could not be made (" + e.GetType().Name + ")");   // a type only
+                return Task.FromResult<string?>(null);
+            }
+        }
+
+        /** ★ #46 r1 A MINOR-2: start the resize of my avatar's URI on the pool NOW (Node.start, SettingsPage.applyAvatar),
+         *  so the next onLoad pushes it at once, before the history. The caller does a stat only; the shared task is
+         *  registered before this returns, so a chat page asking right after joins it (one resize). Never throws. */
+        public static void warmSelfAvatar()
+        {
+            _ = selfAvatarDataUriAsync();
+        }
+
+        /** Tell this document my avatar. Main thread. A known answer is told AT ONCE (onLoad: before the history push);
+         *  else when the pool resize is done — on the main thread, only if this page is alive, the document is the same
+         *  and no newer request came. */
+        private void pushSelfAvatar()
+        {
+            if (isDisposed)
+            {
+                return;
+            }
+            int req = ++selfAvatarReq;
+            int doc = thumbDoc;
+            Task<string?> t = selfAvatarDataUriAsync();
+            if (t.IsCompleted)
+            {
+                tellSelfAvatar(t.Status == TaskStatus.RanToCompletion ? t.Result : null);
+                return;
+            }
+            t.ContinueWith((done) =>
+            {
+                string? uri = done.Status == TaskStatus.RanToCompletion ? done.Result : null;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (isDisposed || doc != thumbDoc || req != selfAvatarReq)   // re-checked HERE, on the main thread
+                    {
+                        return;
+                    }
+                    tellSelfAvatar(uri);
+                });
+            }, TaskScheduler.Default);
+        }
+
+        /** Main thread: `setSelfAvatar` when this document has not got this one. null (could not be made) = nothing — or ""
+         *  (initials) when this document shows a picture of mine (#46 r1 A NIT-2: never a stale face after a change). */
+        private void tellSelfAvatar(string? uri)
+        {
+            if (uri == null)
+            {
+                if (string.IsNullOrEmpty(selfAvatarPushed))
+                {
+                    return;   // nothing told yet, or the initials already
+                }
+                uri = "";
+            }
+            if (uri == selfAvatarPushed)
+            {
+                return;
+            }
+            selfAvatarPushed = uri;
+            Utils.sendUiCommand(this, "setSelfAvatar", uri);
+        }
+
+        /** ★ S8 picks (#1240): my avatar changed (SettingsPage applyAvatar / onRemoveAvatar) while this chat is ALIVE — an
+         *  overlay under Account gets no OnAppearing (the onPhotoPreviewsChanged rule). A page with no document yet hears it
+         *  in onLoad; a torn-down page nothing (#46 r1 A NIT-6). Main thread; a failure logs its TYPE only. */
+        public void onSelfAvatarChanged()
+        {
+            try
+            {
+                if (isDisposed || friend == null || !selfAvatarDoc)
+                {
+                    return;
+                }
+                pushSelfAvatar();
+            }
+            catch (Exception e)
+            {
+                Logging.warn("onSelfAvatarChanged failed: " + e.GetType().Name);   // a type only
+            }
         }
 
         /* ═══ ★★ #1208 (S7) — VOICE MESSAGES, THE PAGE HALF (#1136 (b); 🟡 NEW verbs V7 `ixian:voicerec:start|cancel|send`,

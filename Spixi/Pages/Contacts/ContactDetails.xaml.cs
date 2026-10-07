@@ -847,7 +847,7 @@ namespace SPIXI
                 }
                 else
                 {
-                    pushPageLoaded(new DownloadsPage(name));
+                    pushPageLoaded(DownloadsPage.create(name));   // ★ S9 A3 #1173 (8): a centred dialog on desktop
                 }
             }
             /* ★★ L1 (#640) — THE LEGACY MONEY BRANCHES ARE GONE.
@@ -1137,6 +1137,7 @@ namespace SPIXI
             {
                 SReactionFlags.clear(friend.walletAddress.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
                 SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
+                SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back
                 UIHelpers.shouldRefreshContacts = true;
                 /* ★ #46 loop B, MAJOR-1 — THE CONVERSATION IS GONE ON DISK, SO SAY SO.

@@ -111,6 +111,29 @@ namespace SPIXI
             }
         }
 
+        /* ★ S9 A3 #1173 (8) (#1246): a page that paints its OWN ground over the app — the desktop Downloads dialog (a
+         * native scrim around a centred card, the CallPage Windows model: the WebView2 cannot be see-through, so it is only
+         * ever card-sized and everything around it is native). True → pushPageLoaded's stage stays TRANSPARENT and
+         * applyPageSurfaceColor leaves the page's root content alone (the WebView keeps the surface). Default false. */
+        internal virtual bool ownsStageGround
+        {
+            get { return false; }
+        }
+
+        /* ★ S9 A-FLASH C2 (#1205, Damir's clip: every HELD chat open = ~100 ms of chat, then ONE flat-grey frame; cold opens
+         * without the hold do not). Mechanism (lead + agents, from the frame grab): the hold set the chat's NATIVE
+         * android.webkit.WebView base colour Transparent at start and back to the page surface at release
+         * (setHoldGrounds) — WebView.setBackgroundColor changes Chromium's compositor base layer, which forces a full
+         * re-raster: the grey frame. The chat WebView's native base is now TRANSPARENT for its whole life (the renderer
+         * already creates it transparent, WebViewRenderer.cs AND-19) and is never changed around the hold; only the MAUI
+         * grounds (stage, page content, the renderer ViewGroup under the WebView) move. Nothing shows through: chat.html
+         * paints its own opaque ground (`html, body { background: var(--surface-screen) }`), and under it sits the MAUI
+         * ground — the #248 resize backing is unchanged. Every other page (the F1 lock fix above) keeps setting it. */
+        private bool keepsNativeWebViewTransparent
+        {
+            get { return this is SingleChatPage; }
+        }
+
         // The native surface painted behind (and on) this page's WebView — chosen per
         // shell so the pre-paint frame matches what the shell will render (N1/N3).
         protected Color pageSurfaceColor = ThemeManager.getSurfaceColor();
@@ -297,7 +320,7 @@ namespace SPIXI
             pageSurfaceColorString = surfaceColorStringFor(loadedHtmlFileName ?? "");
             pageSurfaceColor = Color.FromArgb(pageSurfaceColorString);
             this.BackgroundColor = pageSurfaceColor;
-            if (Content != null)
+            if (Content != null && !ownsStageGround)   // ★ S9 A3 #1173 (8): a dialog page paints its own scrim on its root
             {
                 Content.BackgroundColor = pageSurfaceColor;
             }
@@ -329,7 +352,7 @@ namespace SPIXI
                 try
                 {
                     Android.Webkit.WebView? nativeWebView = nativeWebViewOf(_webView);   // ★ #1132 lever 1 (A1): the cast used to be null here too
-                    if (nativeWebView != null)
+                    if (nativeWebView != null && !keepsNativeWebViewTransparent)   // ★ S9 A-FLASH C2 (#1205): the chat keeps the renderer's transparent base
                     {
                         nativeWebView.SetBackgroundColor(Android.Graphics.Color.ParseColor(pageSurfaceColorString));
                     }
@@ -3543,7 +3566,8 @@ namespace SPIXI
                     // divider): WebView2 composition surfaces LAG a resize — paint the
                     // stage with the page's own themed surface so any exposed strip
                     // matches the shell instead of whatever sits behind the stage.
-                    BackgroundColor = target.pageSurfaceColor,
+                    // ★ S9 A3 #1173 (8): a page that owns its ground (the Downloads dialog's scrim) → transparent.
+                    BackgroundColor = target.ownsStageGround ? Colors.Transparent : target.pageSurfaceColor,
                 };
 
                 // Q1 review (#266/#267 loop, ① formpane): a CHAINED push INHERITS the slot of
@@ -4519,6 +4543,11 @@ namespace SPIXI
                     }
                 }
                 catch (Exception) { }
+                if (P1Perf.enabled)
+                {
+                    // ★ S9 A-FLASH C2 — TEMPORARY, retire with the [P1] set: did the release touch the native WebView base?
+                    P1Perf.line("hold release bg=" + (held.target.keepsNativeWebViewTransparent || heldView == null ? "kept" : "set"));
+                }
                 Logging.info("[CDPERF] chat held frames={0} ms={1} why={2}", frames, ms, why);   // ★ G-1 — TEMPORARY, retire with the set
             });
         }
@@ -4570,7 +4599,9 @@ namespace SPIXI
             {
                 op.target._webView.BackgroundColor = ground;
             }
-            if (native != null)
+            /* ★ S9 A-FLASH C2 (#1205): the chat's NATIVE base stays transparent through the whole hold — a base-colour change is
+             * a Chromium re-raster (the one grey frame). Only a page that does not keep it (none holds today) gets it back. */
+            if (native != null && !op.target.keepsNativeWebViewTransparent)
             {
                 native.SetBackgroundColor(held ? Android.Graphics.Color.Transparent
                     : Android.Graphics.Color.ParseColor(op.target.pageSurfaceColorString));
@@ -5314,6 +5345,21 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "nativeCopyResult", token, ok ? "1" : "0");
                 });
             }
+            else if (url.StartsWith("ixian:haptic:", StringComparison.Ordinal))
+            {
+                /* ★ S9 A3 D-04 (#1247, 🟡 a NEW verb, every page): `ixian:haptic:<click|long|success>` → a system haptic.
+                 * The kind is an EXACT word (S9FixRules.hapticKind; unknown = ignored); nothing else rides the verb, nothing
+                 * is answered. Refused for a mini-app WebView (!hasGeneratedContent: third-party code does not buzz the
+                 * phone through us) and while the app is not in the foreground. Android: the decor view's own
+                 * performHapticFeedback (CONTEXT_CLICK / LONG_PRESS — honours the user's system "touch feedback" switch and
+                 * needs NO VIBRATE permission; MAUI's HapticFeedback.Perform calls Permissions.EnsureDeclared<Vibrate> and
+                 * would throw without it). iOS: MAUI HapticFeedback (UIImpactFeedbackGenerator). Windows / Mac: a no-op.
+                 * success = a click (no success haptic in MAUI). Never throws; nothing is logged per call. */
+                if (hasGeneratedContent && App.isInForeground)
+                {
+                    performHaptic(S9FixRules.hapticKind(url.Substring("ixian:haptic:".Length)));
+                }
+            }
             else if (url.StartsWith("ixian:hangUp:"))
             {
                 // ★ review MINOR-1: same inbound gate as onAppReject — a surface that
@@ -5331,6 +5377,31 @@ namespace SPIXI
                 return false;
             }
             return true;
+        }
+
+        /** ★ S9 A3 D-04: the platform half of `ixian:haptic` (main thread — the verb handler runs there). */
+        private static void performHaptic(S9FixRules.Haptic kind)
+        {
+            if (kind == S9FixRules.Haptic.None)
+            {
+                return;
+            }
+            try
+            {
+#if ANDROID
+                Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window?.DecorView?.PerformHapticFeedback(kind == S9FixRules.Haptic.LongPress
+                    ? global::Android.Views.FeedbackConstants.LongPress
+                    : global::Android.Views.FeedbackConstants.ContextClick);
+#elif IOS
+                Microsoft.Maui.Devices.HapticFeedback.Default.Perform(kind == S9FixRules.Haptic.LongPress
+                    ? Microsoft.Maui.Devices.HapticFeedbackType.LongPress
+                    : Microsoft.Maui.Devices.HapticFeedbackType.Click);
+#endif
+            }
+            catch (Exception)
+            {
+                // a device without haptics, or a platform refusal — the tap itself already happened
+            }
         }
 
         /// <summary>★ #1028 — the cap on one native copy (chars). Mirrors NATIVE_COPY_MAX in native.js.</summary>
@@ -5909,6 +5980,7 @@ namespace SPIXI
                 FriendList.removeFriend(existing);
                 SReactionFlags.clear(existing.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the re-added contact starts without the old heart
                 SAppDeclines.clear(existing.walletAddress?.ToString());   // ★ S8 r4
+                SPeerLocalStores.forget(existing.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 CoreMessageWriter.arrivals.forgetAddress(existing.walletAddress.ToString());   // ★ P0 #1155: the re-added contact starts with no kept arrival
                 UIHelpers.shouldRefreshContacts = true;
                 existing = null;

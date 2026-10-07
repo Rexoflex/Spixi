@@ -865,3 +865,33 @@ payment, call or local system row (the receipt is still sent). **For you to judg
 - Inline voice is a normal `chat` message (≤ 64 000 chars) — the offline push carries ≈ 54 000 chars of base64 for 30 s (the push server's size limit is unknown to us).
 - `handleAppProtocols` (inherited) stores an unbounded peer list that Core persists with byte-sized counts (a > 255-id list would corrupt the saved contact).
 - A file written by C#: `<spixiUserFolder>/Voice/voice-*.ogg` (its own name, ≤ 256 KB each, never cleaned yet).
+
+## Session 9 addenda (2026-10-07, #1244–#1251) — media, audit fixes, local-only store (no Ixian-Core change)
+
+### 🟡 NEW wire shapes (your approval asked, T1 B-31)
+| Item | What | For you to judge |
+|---|---|---|
+| FileTransfer TRAILER | after the channel: groupId string · groupIndex int32 · groupCount int32 · captionId hex string; written only for a photo group (> 1 photo or a caption); the 0e85a4b8 reader ignores trailing bytes; our reader validates; first writer wins, stored only for a stored incoming row | the field layout; a version byte? |
+| Caption | a normal text message whose id = captionId (C#'s own id), sent after the files; an old app shows it as text | OK as a plain message? |
+| Silent reactions | like + tip sent with push OFF (`sendSpixiMessage(…, true, true, false, false)`); Core `sendReaction` pushes (`CoreStreamProcessor.cs:2882-2887`); an old-app reactor still pushes | a push flag in Core's `sendReaction` (v1.1) |
+
+### 🟡 NEW verbs / pushes (your approval asked, T1 B-31)
+| Verb / push | Where | What it can do |
+|---|---|---|
+| `ixian:camera` · `ixian:pasteImage` | chat | C# opens its picker / reads its clipboard; bytes → a C#-named pending file |
+| `ixian:mediaSend:<16hex>:<keys>:<b64url caption>` · `ixian:mediaCancel:<16hex>` | chat | sends / drops photos C# prepared in THAT batch; the caption is text |
+| `ixian:haptic:<click\|long\|success>` | all own shells | MAUI HapticFeedback |
+| `ixian:reportTranslation:<code>` | Settings, Launch | C# builds `mailto:support@spixi.io` for a known language code |
+| `ixian:bootDropped` | home | removes the Android native boot cover (cap 1500 ms) |
+| `mediaPicked` · `mediaError` · `fileNotice(videoLocation)` · `setPresentation('dialog')` · addFile args 18–19 · addMe / addThem 18 · updateMessage 13 · app_state `Joined` · excerptKind `photo` · caps `media`, `camera` | chat / home / downloads | display data only |
+
+### LOCAL STORE + FILES (INTRODUCED, accepted)
+- `<spixiUserFolder>/localonly.json` (`SLocalOnlyStore`): photo groups, app joins, voice played, and the MOVED `ignored_requests` + `push_trace_salt` (H-14). Excluded from Android backups + iOS / Mac `IsExcludedFromBackup`.
+- `<spixiUserFolder>/Sent/`: durable copies of my sent photos / files (#1200), C#'s own names; pending files deleted on every exit; an orphan sweep (leaf names, ≥ 10 min, only after complete history reads); excluded from backups. A new DELETE path on our own folder (CH3 class).
+- Photos: no metadata, ≤ 2048 px, JPEG q82; 100 MB cap on send and receive (A-9); peer file names sanitized, C# picks the stored name (A-6). Narrowing `provider_paths.xml` stays yours (H-19).
+
+### For you to judge
+- iOS / Mac `NSCameraUsageDescription` changed: "Spixi uses the camera to scan QR codes and to take photos for chats."
+- A-14: the Mac now uses the iOS WebView handler (`Spixi.csproj` target `SpixiMacUsesAppleWebViewHandler`) — a WebView setting change on Mac.
+- C-04: mini-app `installFromUrl` = https only, await + timeout, streamed with a 100 MB cap, GUID temp name (no new fetch).
+- CORE-10 (push mailbox drain) is still a DRAFT: no long-offline capture yet (#1243).

@@ -58,3 +58,7 @@
    later tidy-up that makes the two families agree is the regression GATE 58 exists to
    catch. */
 .c-chats-header__filters > .c-chip { max-width: none; }
+/* ★ S9 U-01 family (#1247): the same scroller also needs its chips NOT TO SHRINK — chip.css's
+   `min-width: 0` (#841) let flex squeeze them to "A." / "Un… 3" / "Gr… 3" at 320 px, so the row
+   never overflowed and never scrolled. flex: none = each chip keeps its label; the row scrolls. */
+.c-chats-header__filters > .c-chip { flex: none; }

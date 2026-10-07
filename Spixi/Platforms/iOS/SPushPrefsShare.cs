@@ -181,8 +181,9 @@ namespace Spixi
         private const string KEY_TRACE_SALT = "push_trace_salt";
 
         /// <summary>
-        /// ★ #974: the per-install random salt for the trace tags, created once and kept in the
-        /// app's preferences (so a tag is stable across writes and restarts). It is written into
+        /// ★ #974: the per-install random salt for the trace tags, created once and kept on the
+        /// device (so a tag is stable across writes and restarts) — ★ H-14 (#1245): in SLocalOnlyStore, a file
+        /// excluded from device backups, migrated once from the old preference. It is written into
         /// the App Group store for the extension and into NO log. Never throws; "" on failure,
         /// and then both sides print "-" instead of a tag.
         /// </summary>
@@ -190,11 +191,11 @@ namespace Spixi
         {
             try
             {
-                string salt = Microsoft.Maui.Storage.Preferences.Default.Get(KEY_TRACE_SALT, "");
+                string salt = SPIXI.Meta.SLocalOnlyStore.getMigrating(KEY_TRACE_SALT);   // ★ H-14
                 if (string.IsNullOrEmpty(salt))
                 {
                     salt = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
-                    Microsoft.Maui.Storage.Preferences.Default.Set(KEY_TRACE_SALT, salt);
+                    SPIXI.Meta.SLocalOnlyStore.set(KEY_TRACE_SALT, salt);   // ★ H-14
                 }
                 return salt;
             }

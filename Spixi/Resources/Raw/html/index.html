@@ -1166,13 +1166,15 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   white-space: nowrap;
 }
 /* #944: the group/bot-room sender ("George:") — one step darker than the excerpt, the
-   name capped at 60% of the line so the message itself always keeps room, the colon
-   outside the ellipsis so it never gets cut. */
+   name capped so the message itself always keeps room, the colon outside the ellipsis so
+   it never gets cut. ★ S9 U-05 (#1247, audit U-05: "Han … :"): the name NO LONGER SHRINKS
+   with a long message (flex-shrink 0 — a short name is always whole) and the cap is 40% of
+   the line (was 60% with shrink), so a long name stops at 40% and the message keeps ≥ 60%. */
 .c-excerpt__sender {
   display: flex;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
-  max-width: 60%;
+  max-width: 40%;
   color: var(--text-neutral-01);
   white-space: nowrap;
 }
@@ -2985,6 +2987,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    later tidy-up that makes the two families agree is the regression GATE 58 exists to
    catch. */
 .c-chats-header__filters > .c-chip { max-width: none; }
+/* ★ S9 U-01 family (#1247): the same scroller also needs its chips NOT TO SHRINK — chip.css's
+   `min-width: 0` (#841) let flex squeeze them to "A." / "Un… 3" / "Gr… 3" at 320 px, so the row
+   never overflowed and never scrolled. flex: none = each chip keeps its label; the row scrolls. */
+.c-chats-header__filters > .c-chip { flex: none; }
 
 </style>
 <style data-src="../styles/components/chats-swipe.css">
@@ -3123,6 +3129,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    the gate now derives the chip containers from the components and requires the two sets
    to agree, so a scroller that forgets and a wrapping row that borrows both fail. */
 .c-contacts__kinds > .c-chip { max-width: none; }
+.c-contacts__kinds > .c-chip { flex: none; }   /* ★ S9 U-01 family: a scroller's chips keep their width (chip.css min-width:0 squeezed them; the row never scrolled) */
 
 .c-contacts__kinds {
   display: flex;
@@ -4092,6 +4099,13 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   padding-block: var(--spacing-8) var(--spacing-12);
   flex: none;
 }
+/* ★ S9 U-01 (#1247, audit U-01): the chips KEEP their width. chip.css gives every chip
+   `min-width: 0` (#841, the wrapping-row default), so in this nowrap row the chips shrank
+   to "A" / "S." / "R…" at 361–450 px and the row never overflowed — which is the signal
+   fit() (wallet-shell.js, #278) needs to compact the pill. flex: none restores it: the row
+   overflows, fit() compacts / wraps the pill, the labels stay whole. Filter labels are our
+   own short strings (never network text), so the #841 guard is not needed here. */
+.c-wallet-filters > .c-chip { flex: none; }
 .c-wallet-misstx {
   margin-inline-start: auto;
   flex: none;
@@ -5821,6 +5835,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    later tidy-up that makes the two families agree is the regression GATE 58 exists to
    catch. */
 .c-apps-discover__cats > .c-chip { max-width: none; }
+.c-apps-discover__cats > .c-chip { flex: none; }   /* ★ S9 U-01 family: a scroller's chips keep their width (chip.css min-width:0 squeezed them; the row never scrolled) */
 
 </style><!-- apps-add composes a discover row even with discover:false -->
 <style>
@@ -7386,6 +7401,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     // ★ Batch A (#539) A4/A5: the remove-contact sheet asks for the shared groups;
     // C# answers with `setSharedGroups(addr, name, addr, …)` (below).
     onNeedGroups: (addr) => { if (addr) bridge.send('ixian:sharedGroups:' + addr); },
+    onRowLongPress: () => { try { bridge.send('ixian:haptic:long'); } catch (e) {} },   // ★ S9 D-04: a TOUCH long-press opened the row menu (C# no-op on desktop)
     onPersist: (action, chat, detail) => {
       /* ★ #562 (Damir 2026-08-25) SUPERSEDES B1's removeFriend revoke: HIDE, don't
          destroy. Damir's repro: a revoked request's Friend record was gone, so the
@@ -7877,6 +7893,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     'typing', 'request-sent', 'request', 'request-done', 'payment', 'app-invite',
     'file', 'call', 'call-missed', 'call-declined', 'connected', 'reaction', 'text',
     'reply',   // ★ S8 (#1236): C# strips the quote and marks a reply; the row shows the BODY with a reply glyph
+    'photo',   // ★ S9 (🟡 NEW value, A1): a photo / photo group — text "Photo" / "{n} photos" / the caption; an old exe never sends it
   ]);
 
   /** raw excerpt + pushed kind → chatlist excerpt { type, text }. */
@@ -7900,6 +7917,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'reply', text: 'GIF' };
       return { type: 'reply', text: canonExcerptText(decoded) };
     }
+    if (k === 'photo') return { type: 'photo', text: canonExcerptText(decoded) };   // ★ S9: a caption is PEER text → the B4 canon, like `text`
     if (k !== 'text') return { type: k, text: trimmed };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
@@ -10137,7 +10155,11 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       if (!ctrl) { dbg('signSendResult (no pending review)'); return; }
       walletSendCtrl = null;
       const s = String(status || '');
-      if (s === 'ok') { ctrl.done(); return; }
+      if (s === 'ok') {
+        ctrl.done();
+        try { bridge.send('ixian:haptic:success'); } catch (e) {}   // ★ S9 D-04: the payment went out (no-op on desktop, C#)
+        return;
+      }
       if (s === 'cancel') { ctrl.fail(''); return; }
       // loop MAJOR fix: an empty fail is NOT a cancel — null routes to the
       // component's default error copy instead of the silent branch.
@@ -10279,14 +10301,28 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    *    so real chats populate on first entry. ———————————————————————————————— */
   // Splash boot cover teardown (Batch B): short fade (reduced motion: instant),
   // transitionend + timeout fallback (the #29 morph pattern).
+  /* ★ S9 A-FLASH (🟡 NEW verb, A3): C# holds the Android splash (pre-draw listener, cap 1.5 s) until
+     this page says its boot cover is GONE — `ixian:bootDropped`, exactly once per document, when the
+     cover's fade has ENDED (transitionend on the cover; a 260 ms backstop if no transitionend comes),
+     at once when there is no cover or motion is reduced. Through the bridge (queued), never location.href. */
+  var bootDroppedSent = false;
+  function sendBootDropped() {
+    if (bootDroppedSent) return;
+    bootDroppedSent = true;
+    try { bridge.send('ixian:bootDropped'); } catch (e) {}
+  }
   function dropAppBoot() {
     var b = document.getElementById('app-boot');
-    if (!b) return;
+    if (!b) { sendBootDropped(); return; }
     var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
-    if (reduce) { b.remove(); return; }
+    if (reduce) { b.remove(); sendBootDropped(); return; }
     b.style.opacity = '0';
-    b.addEventListener('transitionend', function () { b.remove(); }, { once: true });
-    setTimeout(function () { if (b.parentNode) b.remove(); }, 400);   // > --duration-200
+    /* ★ S9 #46 r1 M5: the cover is REMOVED before bootDropped on every path — the first frame C# shows
+       after its hold must never be the cover. The backstop removes it too (it used to send at 260 ms
+       with the cover still up until 400 ms). */
+    var finish = function () { if (b.parentNode) b.remove(); sendBootDropped(); };
+    b.addEventListener('transitionend', function (e) { if (e && e.target !== b) return; finish(); });
+    setTimeout(finish, 260);                                          // backstop: the fade is --duration-200
   }
 
   function signalReady() {

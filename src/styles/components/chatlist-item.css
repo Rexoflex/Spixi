@@ -217,13 +217,15 @@
   white-space: nowrap;
 }
 /* #944: the group/bot-room sender ("George:") — one step darker than the excerpt, the
-   name capped at 60% of the line so the message itself always keeps room, the colon
-   outside the ellipsis so it never gets cut. */
+   name capped so the message itself always keeps room, the colon outside the ellipsis so
+   it never gets cut. ★ S9 U-05 (#1247, audit U-05: "Han … :"): the name NO LONGER SHRINKS
+   with a long message (flex-shrink 0 — a short name is always whole) and the cap is 40% of
+   the line (was 60% with shrink), so a long name stops at 40% and the message keeps ≥ 60%. */
 .c-excerpt__sender {
   display: flex;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
-  max-width: 60%;
+  max-width: 40%;
   color: var(--text-neutral-01);
   white-space: nowrap;
 }

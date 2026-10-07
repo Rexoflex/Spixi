@@ -170,6 +170,7 @@
    *   introload · accept · language:<code> · create · restore · back ·
    *   create:<nick>:<password> · avatar · error · selectfile ·
    *   restore:<password> · proceed:<password>
+   *   ★ S9 (#1246, 🟡 NEW): reportTranslation:<langCode> (the language note's link)
    * Pushes: setVersion · showTerms · showOnboardingSection · loadAvatar ·
    *   setUploadedFileName · showPasswordError · removeLoadingOverlay ·
    *   setLaunchView.
@@ -276,6 +277,10 @@
     // fire-and-forget; the reload re-boots this shell on the welcome view.
     // ★ N72: there is no appearance hook any more — the pill is gone.
     onLanguage: (code) => bridge.send('ixian:language:' + code),
+    /* ★ S9 L (#1246, 🟡 verb): the language note's report link. The code is the page's own
+       language (the SL carrier, shape-checked above) — C# validates it against its list and
+       builds the mailto itself; the WebView never sends a URL. */
+    onReportTranslation: (code) => { if (/^[a-z]{2}-[a-z]{2}$/.test(String(code || ''))) bridge.send('ixian:reportTranslation:' + code); },
     /* ★ F-2 (#399): the view report moved OUT of these hooks and into the component's
        one switch point (`show()` → onViewChange below). C# needs the current view for
        the hardware back button, and reporting it from the two CTA hooks meant every

@@ -114,10 +114,40 @@ namespace SPIXI
         {
             string current_url = HttpUtility.UrlDecode(e.Url);
             e.Cancel = true;
-
-            if (onNavigatingGlobal(current_url))
+            /* ★ A-8 / S-04 (#1245): the bridge verbs are fenced. This runs on the UI thread for EVERY navigation the
+             * installed mini app's own code makes; a malformed verb used to throw out of here (Substring with no '=',
+             * FromBase64String on bad input) and take Spixi down. Now a bad verb is dropped with one fixed-word line
+             * (never the URL: it carries the app's data), and the navigation stays cancelled. Cancel-first and the ONE
+             * `file:` re-allow stay in this method (Session O ①). */
+            bool handled;
+            try
+            {
+                handled = handleBridgeUrl(current_url);
+            }
+            catch (Exception ex)
+            {
+                handled = true;
+                Logging.warn("MiniAppPage: a bridge verb was dropped (" + ex.GetType().Name + ")");
+            }
+            if (handled)
             {
                 return;
+            }
+            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            {
+                // allow normal navigation only for local files
+                e.Cancel = false;
+                return;
+            }
+            e.Cancel = true;
+        }
+
+        /** ★ A-8: the mini-app bridge verbs (the global ones first). True = the URL was a verb (handled or dropped). */
+        private bool handleBridgeUrl(string current_url)
+        {
+            if (onNavigatingGlobal(current_url))
+            {
+                return true;
             }
 
             if (current_url.StartsWith("ixian:onload", StringComparison.Ordinal))
@@ -144,9 +174,12 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:protocolData", StringComparison.Ordinal))
             {
-                var prefixLen = "ixian:protocolData".Length;
-                var protocolId = current_url.Substring(prefixLen, current_url.IndexOf('=') - prefixLen);
-                var data = current_url.Substring(current_url.IndexOf('=') + 1);
+                // ★ A-8: validate BEFORE slicing — no '=' (or an empty id) drops the verb
+                if (!AuditRules.trySplitKeyValue(current_url.Substring("ixian:protocolData".Length), out string protocolId, out string data))
+                {
+                    Logging.warn("MiniAppPage: protocolData without a key was dropped");
+                    return true;
+                }
                 byte[] protocolIdBytes = null;
                 if (protocolId != "null")
                 {
@@ -168,13 +201,21 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:setStorageData", StringComparison.Ordinal))
             {
-                var prefixLen = "ixian:setStorageData".Length;
-                var key = current_url.Substring(prefixLen, current_url.IndexOf('=') - prefixLen);
-                var value = current_url.Substring(current_url.IndexOf('=') + 1);
+                // ★ A-8: validate BEFORE slicing; bad base64 drops the verb (it never stores a partial value)
+                if (!AuditRules.trySplitKeyValue(current_url.Substring("ixian:setStorageData".Length), out string key, out string value))
+                {
+                    Logging.warn("MiniAppPage: setStorageData without a key was dropped");
+                    return true;
+                }
                 byte[] valueToStore = null;
                 if (value != "null")
                 {
-                    valueToStore = Convert.FromBase64String(value);
+                    valueToStore = AuditRules.tryBase64(value);
+                    if (valueToStore == null)
+                    {
+                        Logging.warn("MiniAppPage: setStorageData with a bad value was dropped");
+                        return true;
+                    }
                 }
                 Node.MiniAppStorage.setStorageData(appId, "main", key, valueToStore);
             }
@@ -185,16 +226,20 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("xa:", StringComparison.Ordinal))
             {
-                var action = current_url.Substring("xa:".Length);
-                handleAction(UTF8Encoding.UTF8.GetString(Convert.FromBase64String(action)));
+                // ★ A-8: bad base64 drops the verb
+                byte[]? actionBytes = AuditRules.tryBase64(current_url.Substring("xa:".Length));
+                if (actionBytes == null)
+                {
+                    Logging.warn("MiniAppPage: an xa action with a bad encoding was dropped");
+                    return true;
+                }
+                handleAction(UTF8Encoding.UTF8.GetString(actionBytes));
             }
-            else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            else
             {
-                // allow normal navigation only for local files
-                e.Cancel = false;
-                return;
+                return false;   // not a bridge verb — onNavigating decides (file: or stay cancelled)
             }
-            e.Cancel = true;
+            return true;
         }
 
         private void sendActionRejected(string command, string id, string error)
@@ -293,12 +338,13 @@ namespace SPIXI
                 }
 
                 HttpResponseMessage? response = null;
-                using (HttpClient client = new HttpClient())
+                // ★ C-04 (#1245): awaited (was `.Result` on the UI thread) and bounded
+                using (HttpClient client = new HttpClient() { Timeout = TimeSpan.FromSeconds(AuditRules.MiniAppPostTimeoutSeconds) })
                 {
                     try
                     {
                         HttpContent httpContent = new StringContent(actionResponse, Encoding.UTF8, "application/x-www-form-urlencoded");
-                        response = client.PostAsync(jsonResult.responseUrl, httpContent).Result;
+                        response = await client.PostAsync(jsonResult.responseUrl, httpContent);
                         if (response.IsSuccessStatusCode)
                         {
                             await displaySpixiAlert(SpixiLocalization._SL("app-action-title"), SpixiLocalization._SL("app-action-sent"), SpixiLocalization._SL("global-dialog-ok"));

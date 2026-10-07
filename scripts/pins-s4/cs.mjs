@@ -55,10 +55,10 @@ export default async function (h) {
       return /PlatformView\s+(is|as)\s+(global::)?Android\.Webkit\.WebView\b/.test(t);
     });
     const r2 = {
-      surface: /Android\.Webkit\.WebView\? nativeWebView = nativeWebViewOf\(_webView\);\s*if \(nativeWebView != null\)\s*\{\s*nativeWebView\.SetBackgroundColor\(Android\.Graphics\.Color\.ParseColor\(pageSurfaceColorString\)\);/.test(surf),
+      surface: /Android\.Webkit\.WebView\? nativeWebView = nativeWebViewOf\(_webView\);\s*if \(nativeWebView != null && !keepsNativeWebViewTransparent\)\s*\{\s*nativeWebView\.SetBackgroundColor\(Android\.Graphics\.Color\.ParseColor\(pageSurfaceColorString\)\);/.test(surf),
       hold: /try \{ native = nativeWebViewOf\(op\.target\._webView\); \} catch \(Exception\) \{ \}/.test(hold)
         && hold.indexOf('native = nativeWebViewOf(') < hold.indexOf('setHoldGrounds(op, native, true);') && /Spixi\.PresentHold\.start\(native, HoldCapMs, /.test(hold),
-      noStray: strays.length === 0 && files.length > 50,
+      noStray: strays.length === 0 && files.length > 50,   /* ★ S9 A-FLASH C2 re-base (#1205): `surface` — the F1 pass skips the chat's native base (keepsNativeWebViewTransparent), every other page keeps it */
     };
     ok(Object.values(r2).every(Boolean),
       '★ S4 lever 1 (A1): BOTH sites go through it — the F1 surface pass (applyPageSurfaceColor) and the G-1 hold (holdStageUntilDrawn, before the grounds go transparent, the view PresentHold waits on) — and no other `PlatformView is/as Android.Webkit.WebView` exists in any of ' + files.length + ' C# files (strays: ' + (strays.join(', ') || 'none') + ') — ' + JSON.stringify(r2));

@@ -351,3 +351,75 @@ export function setTileHead(row, { position = 'single', label = null, avatar = n
   }
   return row;
 }
+
+/* ═══ ★★ S9 (#1244 G = A) — THE PHOTO GROUP BUBBLE: one bubble for the photos of ONE pick (C#'s group tag, addFile arg 18)
+ * — a square 2 × 2 grid with "+N" on the fourth cell (2 photos: side by side · 3: one tall + two), and the caption (the
+ * sender's text message whose id the tag names) UNDER the grid, inside the same bubble. Received: framed in the incoming
+ * ground; sent: the outgoing ground (the photo tile's own 3 px frame, #1151 — now around the whole group, 2 px between
+ * the cells). The CELLS are the shell's own photo-file rows (createImageFileBubble — every per-photo state: offer,
+ * downloading ring, complete, failed, the picture); this only lays them out.
+ * createPhotoGridBubble({ direction, count, more, total, caption, gutter, strings }) → row
+ *   count — the cells that will be shown (1–4) · more — photos past the fourth (the "+N") · total — every photo present
+ *   caption — the caption text (textContent only) or null
+ * The shell appends its cell rows into `.c-mgrid` (addPhotoGridCell) AFTER its group head, so the head lands on the
+ * group's column (the column carries `c-mbubble-anchor`, the class setTileHead looks for — it is FIRST in document order).
+ * The group carries role="group" + "{n} photos"; the "+N" is aria-hidden (the name already says how many). */
+export function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false, strings = getStrings() } = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row c-mgrid-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const col = document.createElement('div');
+  col.className = 'c-mbubble-anchor c-mgrid-col';
+  const box = document.createElement('div');
+  box.className = 'c-mgrid-box';
+  const grid = document.createElement('div');
+  grid.className = 'c-mgrid';
+  const n = Math.max(1, Math.min(4, Number(count) || 1));
+  grid.dataset.n = String(n);
+  grid.dataset.more = String(Math.max(0, Number(more) || 0));
+  grid.setAttribute('role', 'group');
+  const all = Math.max(n, Number(total) || 0);
+  grid.setAttribute('aria-label', all === 1 ? (strings.photoCountOne || '1 photo')
+    : (strings.photoCountMany || '{n} photos').split('{n}').join(String(all)));
+  box.append(grid);
+  if (caption != null && String(caption) !== '') {
+    const cap = document.createElement('div');
+    cap.className = 'c-mgrid__caption';
+    cap.dir = 'auto';
+    cap.textContent = String(caption);
+    box.dataset.caption = '';
+    box.append(cap);
+  }
+  col.append(box);
+  row.append(col);
+  return row;
+}
+
+/** Put one photo-file row (createImageFileBubble) into the group's grid as a cell: its own gutter, pre-accept Cancel
+ *  and fixed tile geometry go (the grid sizes the cell); `isLast` + `more` > 0 lays the "+N" over it. → the cell row */
+export function addPhotoGridCell(groupRow, cellRow, { isLast = false } = {}) {
+  const grid = groupRow && groupRow.querySelector('.c-mgrid');
+  if (!grid || !cellRow) return null;
+  cellRow.classList.add('c-mgrid__cell');
+  for (const c of Array.from(cellRow.children)) {
+    if (c.classList.contains('c-bubble-row__gutter') || c.classList.contains('c-fbubble__cancel')) c.remove();
+  }
+  const tile = cellRow.querySelector('.c-mbubble');
+  if (tile) { tile.style.removeProperty('width'); tile.style.removeProperty('aspect-ratio'); }
+  const more = Number(grid.dataset.more) || 0;
+  if (isLast && more > 0 && tile) {
+    const m = document.createElement('span');
+    m.className = 'c-mgrid__more';
+    m.setAttribute('aria-hidden', 'true');
+    m.textContent = '+' + more;
+    tile.append(m);
+  }
+  grid.append(cellRow);
+  return cellRow;
+}

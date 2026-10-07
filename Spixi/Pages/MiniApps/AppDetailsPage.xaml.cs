@@ -240,11 +240,11 @@ namespace SPIXI
             }
 
             Utils.sendUiCommand(this, "showInstalling");
-            Task.Run(() =>
+            Task.Run(async () =>
             {
                 if (path == null)
                 {
-                    string app_name = Node.MiniAppManager.installFromUrl(fetchedApp);
+                    string? app_name = await Node.MiniAppManager.installFromUrlAsync(fetchedApp);   // ★ S9 C-04 (#1245): awaited, bounded, capped
                     if (app_name != null)
                     {
                         UIHelpers.shouldRefreshApps = true;

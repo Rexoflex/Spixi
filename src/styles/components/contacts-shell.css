@@ -75,6 +75,7 @@
    the gate now derives the chip containers from the components and requires the two sets
    to agree, so a scroller that forgets and a wrapping row that borrows both fail. */
 .c-contacts__kinds > .c-chip { max-width: none; }
+.c-contacts__kinds > .c-chip { flex: none; }   /* ★ S9 U-01 family: a scroller's chips keep their width (chip.css min-width:0 squeezed them; the row never scrolled) */
 
 .c-contacts__kinds {
   display: flex;

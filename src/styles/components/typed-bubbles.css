@@ -333,7 +333,7 @@
 /* ★ #1022 (Opus r1 M2): no desaturation on the failed tile — a filter reaches the red retry badge
    too and the hover filter replaced it anyway; the red badge + the red retry line carry the state. */
 @media (hover: hover) and (pointer: fine) {
-  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(1.06); }
+  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(0.96); }   /* ★ S9 H-16 f (#1247): darken on hover — the white label stays ≥ 4.5:1 (1.06 dropped it to 4.09:1) */
 }
 .c-fbubble:not(:disabled):active .c-fbubble__icon { filter: brightness(0.92); } /* audit: no pressed feedback */
 .c-fbubble:disabled { cursor: default; } /* progress state */
@@ -621,4 +621,10 @@
 @media (prefers-reduced-motion: reduce) {
   .c-tcard[data-live-complete] .c-tcard__status,
   .c-tcard[data-live-complete] .c-tcard__status-check path { animation: none; }
+}
+
+/* ★ S9 U-03 (#1247, measured): 12 % toward black lifts the card's error badge from 4.44:1 to 5.31:1 light · 5.41:1 dark. */
+.c-tcard__badge .c-badge[data-weight="tonal"][data-type="error"] {
+  color: var(--text-error);
+  color: color-mix(in srgb, var(--text-error) 88%, #000);   /* sanctioned: U-03 — black is the mix target (12 % darker), not a paint */
 }

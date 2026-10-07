@@ -1,0 +1,17 @@
+Session 9: media picker family, audit fixes, copy, S8 fixes
+
+- Media: Photos + Camera tiles, paste image, up to 10 per pick, preview sheet with caption (#1244)
+- Photos: bounded decode, rotation first, max 2048 px JPEG q82, all metadata removed (#1244)
+- Groups of photos: FileTransfer trailer (old apps ignore it), receiver 2x2 grid, caption under the grid (#1244, #1250)
+- Sent photos and files: durable copy in Sent/ (#1200), excluded from backups; 100 MB cap on send and receive (A-9)
+- Received file names sanitized, C# chooses the stored name (A-6)
+- V-15 audit fixes: C-01, C-02, C-03, C-04 install (https, timeout, cap), A-8, A-13, A-14 Mac WebView handler, A-19 (#1245)
+- Backup: "Did you save the backup?" after the share (H-13); local-only store excluded from backups (H-14)
+- Tips show the count only; "End-to-end encrypted" text (A-7, A-10)
+- Create screen copy; AI translation note + "Report a translation problem" mail link (#1246)
+- Desktop: Show in Downloads as a centred dialog; info pane follows the chat (#1246, #1247)
+- Polish + a11y: wallet chips, badge contrast, code tiles, group excerpt names, haptics, 4 a11y rows (#1247)
+- S8 fixes: owner "You created this group" line, mini-app "Joined" + "Open again", voice played state kept, desktop reply caret (#1247)
+- Reactions sent without a push notification; chats list "Photo" / "{n} photos"; last-row reaction space; toggle cards B (#1248)
+- Android: no white flash at cold start, no grey frame on a held chat open (#1249)
+- Pins: pins-s9, csh S9MediaTests + S9AuditTests + S9FixTests; smoke 5567, csh 280

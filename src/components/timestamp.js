@@ -29,7 +29,24 @@ export function timeOpts(extra) {
   const hc = document.documentElement.dataset.hourCycle;
   const opts = Object.assign({ hour: '2-digit', minute: '2-digit' }, extra || {});
   if (hc === 'h23' || hc === 'h12') opts.hourCycle = hc;
+  /* ★ S9 A-19 (#1245): a 12-hour clock shows "9:05 AM", never "09:05 AM" — `hour: 'numeric'` ONLY when the clock in
+     force is h11 / h12 (the pushed carrier, else the locale's own cycle); a 24-hour clock keeps its 2-digit hour. A
+     caller that passes its own `hour` keeps it. */
+  if (!(extra && extra.hour) && /^h1[12]$/.test(opts.hourCycle || localeHourCycle())) opts.hour = 'numeric';
   return opts;
+}
+/* the document locale's default hour cycle ('h11' | 'h12' | 'h23' | 'h24' | ''), memoised per locale */
+let hcMemo = null;
+function localeHourCycle() {
+  const loc = docLocale() || '';
+  if (hcMemo && hcMemo.loc === loc) return hcMemo.hc;
+  let hc = '';
+  try {
+    const ro = new Intl.DateTimeFormat(loc || undefined, { hour: 'numeric' }).resolvedOptions();
+    hc = ro.hourCycle || (ro.hour12 === true ? 'h12' : (ro.hour12 === false ? 'h23' : ''));
+  } catch (e) { hc = ''; }
+  hcMemo = { loc, hc };
+  return hc;
 }
 
 /** Shared day-bucket ladder (chat list + conversation separators — single source,

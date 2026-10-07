@@ -1454,6 +1454,39 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
 .c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
 .c-settings__row[data-row="stacked"] { min-height: var(--row-h-stacked); }   /* ★ Session J: a nav row with a sub-line (the third height; Damir's pick) */
+/* ★ S9 toggle layout B (Damir): a SWITCH row with a stacked label is a two-row grid — disc + title + switch on
+   ONE line (the switch centred on the title line, not on the whole card), the description BELOW, starting
+   under the title (disc + its gap) and running the full remaining width, under the switch column too.
+   The stack becomes `display: contents`, so its two children (.c-settings__row-top, .c-settings__row-sub)
+   are the grid items; the disc goes back into the title line's flow (the N59b absolute-centred disc stays
+   for every OTHER stacked row). A switch row WITHOUT a sub is the same one-line row as before: label | switch,
+   centred, the same 8 px gap. The DOM is unchanged, so the switch keeps its aria-label (the title) and — on the
+   three rows that carry one (read receipts, typing, hide online) — its aria-describedby → the description.
+   ★ #46 r3 n3: row-gap 8 = the switch's 44 px tap layer (::after inset -8px) ends ABOVE the description, so no
+   part of the description's first line toggles the switch (at 2 px its top ~5 px did). */
+.c-settings__row[data-row="switch"] {
+  --row-disc-w: 32px;               /* sanctioned: the .c-disc box (base.css) — the description's indent */
+  --row-disc-gap: var(--spacing-12);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--spacing-8);
+  row-gap: var(--spacing-8);       /* ≥ the tap layer's 8 px overhang below the switch box (#46 r3 n3) */
+}
+.c-settings__row[data-row="switch"] > .c-settings__switch { grid-column: 2; grid-row: 1; }
+.c-settings__row[data-row="switch"] > .c-settings__row-label { grid-column: 1; grid-row: 1; }
+.c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: contents; }
+.c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-top {
+  grid-column: 1; grid-row: 1;
+  min-width: 0;
+  gap: var(--row-disc-gap);
+}
+.c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: static; transform: none; }
+.c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub {
+  grid-column: 1 / -1; grid-row: 2;
+  margin: 0;
+  padding-inline-start: calc(var(--row-disc-w) + var(--row-disc-gap));
+}
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */
@@ -1566,6 +1599,45 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
+}
+/* ★ S9 L (#1246 L = A): the language note — a tinted card ABOVE the list, outside the
+   radiogroup; the link is a real button (verb, not a URL). On a phone the long picker's
+   frame keeps filling the tall sheet: the box passes the flex column through. */
+.c-settings__opts-box { display: flex; flex-direction: column; min-height: 0; }
+:root:not([data-desktop]) .c-sheet[data-tall] .c-settings__opts-box { flex: 1 1 auto; }
+.c-settings__opts-note {
+  flex: none;
+  margin: 0 0 var(--spacing-12);
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-4);
+  border-radius: var(--radius-12);
+  background: var(--surface-sheet-card);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__opts-note-text { margin: 0 0 var(--spacing-4); }
+.c-settings__opts-note-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;                 /* sanctioned: inline text-link hit height (≥ 24 px, WCAG 2.5.8) */
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-link);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__opts-note-link:hover { color: var(--text-link-hover); }
+}
+.c-settings__opts-note-link:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 2px;
+  border-radius: var(--radius-4, 4px);
 }
 .c-settings__opt {
   display: flex;
@@ -1949,6 +2021,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-account .c-settings__row-top { gap: var(--spacing-16); }
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
+.c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.
@@ -2839,7 +2912,7 @@ button.c-settings-howto__join:disabled {
 /* ★ #1022 (Opus r1 M2): no desaturation on the failed tile — a filter reaches the red retry badge
    too and the hover filter replaced it anyway; the red badge + the red retry line carry the state. */
 @media (hover: hover) and (pointer: fine) {
-  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(1.06); }
+  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(0.96); }   /* ★ S9 H-16 f (#1247): darken on hover — the white label stays ≥ 4.5:1 (1.06 dropped it to 4.09:1) */
 }
 .c-fbubble:not(:disabled):active .c-fbubble__icon { filter: brightness(0.92); } /* audit: no pressed feedback */
 .c-fbubble:disabled { cursor: default; } /* progress state */
@@ -3129,6 +3202,12 @@ button.c-settings-howto__join:disabled {
   .c-tcard[data-live-complete] .c-tcard__status-check path { animation: none; }
 }
 
+/* ★ S9 U-03 (#1247, measured): 12 % toward black lifts the card's error badge from 4.44:1 to 5.31:1 light · 5.41:1 dark. */
+.c-tcard__badge .c-badge[data-weight="tonal"][data-type="error"] {
+  color: var(--text-error);
+  color: color-mix(in srgb, var(--text-error) 88%, #000);   /* sanctioned: U-03 — black is the mix target (12 % darker), not a paint */
+}
+
 </style><!-- ★ A3 (#1126): the Downloads rows reuse the chat's file-type tile (.c-fbubble__icon / __ext) -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
@@ -3155,6 +3234,12 @@ button.c-settings-howto__join:disabled {
   /* ★ #1166 V-3 (#1154) "Show in Downloads": the row C# named carries a tonal wash (the #136 just-sent wash token),
      static — no motion, so nothing to reduce. */
   .c-settings-dl__row[data-highlight] { background-color: var(--surface-action-tonal-default); }
+  /* ★ S9 (#1173 (8), #1246 D = B): the DIALOG presentation — desktop "Show in Downloads" opens this
+     page in a centred native dialog (C#: ≤ 600 × ≤ 640 over a scrim, its own WebView). The chrome is
+     native; the shell's part: the leading ← becomes a trailing ✕ (a dialog closes, it does not go
+     back), the title takes the leading edge. Set by the setPresentation('dialog') push. */
+  :root[data-presentation="dialog"] .c-settings-dl .c-topbar[data-variant="view"] { padding-inline-start: var(--spacing-16); }
+  :root[data-presentation="dialog"] .c-settings-dl .c-topbar[data-variant="view"] > [data-dl-close] { order: 2; margin-inline-start: auto; }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
 </head>
@@ -3185,7 +3270,8 @@ button.c-settings-howto__join:disabled {
    *          a LOCALE-OPAQUE string → displayed verbatim, never parsed.
    *          NOTE: OnAppearing calls onLoad() directly, so pushes can arrive
    *          before ixian:onload.
-   *   JS→C#: ixian:onload · ixian:back (popPageAsync, #264) · ixian:open:<name>
+   *   C#→JS (★ S9, 🟡 NEW): setPresentation('dialog'|'page') — the desktop dialog host (#1173 (8)).
+   *   JS→C#: ixian:onload · ixian:back (popPageAsync, #264; ★ S9: also ✕ / Esc in the dialog) · ixian:open:<name>
    *          (fire-and-forget; C# opens/previews via the OS) · ixian:delete:<name>
    *          (C# deletes then re-pushes the whole list) · ixian:deleted (clear all).
    *
@@ -3201,6 +3287,7 @@ button.c-settings-howto__join:disabled {
     attachPressFeedback,
     applyPushedTheme,
     } = window.Spixi;
+  const icon = window.SpixiIcons && window.SpixiIcons.icon;   // ★ S9: the ✕ glyph for the dialog presentation (home.html grammar)
   /* D-16 r2/r3 (audits C-4 + Opus finding 2): this shell renders the Downloads
      surface — the FILE rows (.c-settings-dl__open, a press family since r3) and
      one destructive .c-settings__row — and was the one rows-bearing shell without
@@ -3283,7 +3370,60 @@ button.c-settings-howto__join:disabled {
     }, 80);
   }
 
+  /* ★ S9 (#1173 (8), #1246 D = B) — the dialog presentation (🟡 NEW push `setPresentation(kind)`,
+     kind ∈ 'dialog' | 'page'; anything else is ignored). C# (A3) pushes 'dialog' when it hosts this
+     page in the desktop dialog; an older exe never pushes → the page stays a page. In dialog mode:
+     · the topbar's ← is re-dressed as ✕ "Close" (SAME button, SAME verb ixian:back — C# closes the
+       dialog on it; no new verb);
+     · Esc sends ixian:back when NO confirm is open (a confirm takes Esc first — overlay.js closes it;
+       this listener runs in the capture phase BEFORE overlay.js's and stands aside while one is up).
+     Click-out (the scrim) is native. Esc in page mode is unchanged (nothing). */
+  let presentation = 'page';
+  let backGlyph = null;
+  function dlBackButton() {
+    const bar = dlEl.querySelector('.c-topbar');
+    return bar ? bar.querySelector(':scope > button') : null;
+  }
+  function applyPresentation(kind) {
+    const btn = dlBackButton();
+    if (kind === 'dialog') {
+      document.documentElement.dataset.presentation = 'dialog';
+      if (btn && !btn.hasAttribute('data-dl-close')) {
+        const old = btn.querySelector('svg');
+        const x = (typeof icon === 'function') ? icon('x') : null;
+        if (old && x) { backGlyph = old; old.replaceWith(x); }
+        btn.dataset.dlBackLabel = btn.getAttribute('aria-label') || '';
+        btn.setAttribute('aria-label', strings.close || 'Close');
+        btn.setAttribute('data-dl-close', '');
+      }
+    } else {
+      delete document.documentElement.dataset.presentation;
+      if (btn && btn.hasAttribute('data-dl-close')) {
+        const x = btn.querySelector('svg');
+        if (x && backGlyph) x.replaceWith(backGlyph);
+        backGlyph = null;
+        btn.setAttribute('aria-label', btn.dataset.dlBackLabel || strings.back || 'Back');
+        delete btn.dataset.dlBackLabel;
+        btn.removeAttribute('data-dl-close');
+      }
+    }
+    presentation = kind;
+  }
+  let escLatch = 0;
+  window.addEventListener('keydown', (e) => {
+    if (presentation !== 'dialog' || e.key !== 'Escape' || e.repeat || e.defaultPrevented) return;
+    if (document.body.dataset.overlayOpen !== undefined) return;   // a confirm is up — overlay.js closes it
+    if (Date.now() < escLatch) return;                              // one close per press burst
+    escLatch = Date.now() + 600;
+    e.preventDefault();
+    bridge.send('ixian:back');
+  }, true);
+
   const handlers = {
+    setPresentation(kind) {
+      const k = String(kind == null ? '' : kind);
+      if (k === 'dialog' || k === 'page') applyPresentation(k);
+    },
     /* ★ N71 (#421): the live re-theme push. C# used to RELOAD every page on an OS
      * theme flip, which threw the user back to Chats (N78) and discarded unsaved
      * input; it pushes now, so this shell must be able to receive one. Shared body

@@ -1,6 +1,9 @@
 ﻿using IXICore.Meta;
+using Microsoft.Maui;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
+using Microsoft.Maui.Devices;
+using Microsoft.Maui.Graphics;
 using Spixi;
 using System;
 using System.IO;
@@ -27,15 +30,87 @@ namespace SPIXI
          * never a WebView string, never a path. Sent ONE time, after the list (highlightDownload); null = no highlight. */
         private string? highlightName = null;
 
-        public DownloadsPage(string? highlight = null)
+        /* ★ S9 A3 #1173 (8) (#1246 D = B): on DESKTOP "Show in Downloads" (chat info) and the Account fallback open this
+         * page as a centred DIALOG — max 600 × 640, a 24 px gutter, over a native scrim that covers the whole host (#265:
+         * nothing behind it is tappable) — still its OWN WebView. The CallPage Windows model (winScrim): WinUI's WebView2
+         * cannot be see-through, so the WebView is only ever card-sized and the scrim around it is native (a real XAML
+         * alpha). The stage stays transparent (ownsStageGround). Closes: a click on the scrim, the shell's ✕ / Esc (it
+         * sends the existing ixian:back once C# pushed `setPresentation('dialog')` — 🟡 a NEW push, agreed with B2), the
+         * back route. Phones keep the full-screen page (S9FixRules.downloadsDialog). */
+        private readonly bool dialogMode = false;
+        private Border? dialogCard = null;
+        private static readonly Color dialogScrim = Color.FromRgba(17, 18, 19, 153);   // = tokens.css --surface-scrim rgba(17, 18, 19, 0.6) (CallPage.winScrim)
+
+        public DownloadsPage(string? highlight = null, bool dialog = false)
         {
             InitializeComponent();
 
             highlightName = string.IsNullOrEmpty(highlight) ? null : highlight;
+            dialogMode = dialog;
 
             NavigationPage.SetHasNavigationBar(this, false);
 
             loadPage(webView, "downloads.html");
+
+            if (dialogMode)
+            {
+                wrapAsDialog();
+            }
+        }
+
+        /** ★ S9 A3 #1173 (8): the one constructor the Downloads entries use — the dialog on desktop, the page elsewhere. */
+        public static DownloadsPage create(string? highlight = null)
+        {
+            bool desktop = DeviceInfo.Platform == DevicePlatform.WinUI || DeviceInfo.Platform == DevicePlatform.MacCatalyst;
+            return new DownloadsPage(highlight, S9FixRules.downloadsDialog(desktop));
+        }
+
+        internal override bool ownsStageGround
+        {
+            get { return dialogMode; }
+        }
+
+        private void wrapAsDialog()
+        {
+            View? inner = Content;
+            if (inner == null)
+            {
+                return;
+            }
+            Content = null;
+            Grid root = new Grid { BackgroundColor = dialogScrim };
+            BoxView scrim = new BoxView { Color = Colors.Transparent, HorizontalOptions = LayoutOptions.Fill, VerticalOptions = LayoutOptions.Fill };
+            TapGestureRecognizer tap = new TapGestureRecognizer();
+            tap.Tapped += (s, e) => onBack();   // click-out closes (the light-dismiss grammar)
+            scrim.GestureRecognizers.Add(tap);
+            Border card = new Border
+            {
+                StrokeThickness = 0,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(16) },
+                BackgroundColor = pageSurfaceColor,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+                Content = inner,
+            };
+            S9FixRules.dialogSize(0, 0, out double w0, out double h0);
+            card.WidthRequest = w0;
+            card.HeightRequest = h0;
+            root.Children.Add(scrim);
+            root.Children.Add(card);
+            root.SizeChanged += (s, e) => sizeDialog(root);
+            dialogCard = card;
+            Content = root;
+        }
+
+        private void sizeDialog(Grid root)
+        {
+            if (dialogCard == null)
+            {
+                return;
+            }
+            S9FixRules.dialogSize(root.Width, root.Height, out double w, out double h);
+            dialogCard.WidthRequest = w;
+            dialogCard.HeightRequest = h;
         }
 
         public override void recalculateLayout()
@@ -196,6 +271,11 @@ namespace SPIXI
             // deferred mirror push converges to 0 in the same task, but "fresh document"
             // is not what every call site means.
             shellOverlayOpen = false;
+            if (dialogMode)
+            {
+                // ★ S9 A3 #1173 (8) (🟡 a NEW push, agreed with B2): the shell shows ✕ instead of ← and sends ixian:back on ✕ / Esc
+                Utils.sendUiCommand(this, "setPresentation", "dialog");
+            }
             loadFiles();
 
             // ★ #1166 V-3 (#1154): one-shot — after the list it names (the shell waits for its own settle)

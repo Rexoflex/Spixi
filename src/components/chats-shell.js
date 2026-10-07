@@ -266,7 +266,7 @@ function buildChatRowNode(listEl, state, c, opts, ctx) {
     el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
     if (opts.rowMenu !== false) {
       attachChatRowMenu(el, {
-        chat: c, host: opts.host, strings, handshaking: true,
+        chat: c, host: opts.host, strings, handshaking: true, onLongPress: opts.onRowLongPress,
         onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
       });
     }
@@ -275,6 +275,7 @@ function buildChatRowNode(listEl, state, c, opts, ctx) {
   if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
     attachChatRowMenu(el, {
       chat: c, host: opts.host, strings, capabilities: caps,
+      onLongPress: opts.onRowLongPress,                // ★ S9 D-04: the host's haptic for a TOUCH long-press
       onNeedGroups: opts.onNeedGroups,                 // A4/A5: the remove-contact sheet asks C# for the shared groups
       onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
     });

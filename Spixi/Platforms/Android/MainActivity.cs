@@ -63,9 +63,14 @@ public class MainActivity : MauiAppCompatActivity
 {
     public const int PickImageId = 1000;
     public const int SaveFileId = 1001;
+    public const int PickImagesId = 1002;   // ★ S9 (#1244): the chat's multi-photo pick (SFilePicker.PickImagesAsync)
     public string SaveFilePath { get; set; }
 
     public TaskCompletionSource<SpixiImageData?> PickImageTaskCompletionSource { set; get; }
+    /* ★ S9 #46 r1 m-9: STATIC — the result reaches whichever MainActivity instance the system delivers it to (a recreated
+     * activity included), so the chat's pick (and its mediaBusy) can never wait on a dead instance's field. */
+    public static TaskCompletionSource<System.Collections.Generic.List<SpixiImageData>>? PickImagesTaskCompletionSource { set; get; }
+    public static int PickImagesMax { set; get; } = 10;
     internal static MainActivity Instance { get; private set; }
     public static Thickness? Insets = null;
 
@@ -201,6 +206,137 @@ public class MainActivity : MauiAppCompatActivity
             lastTopPublished = v;
         }
     }
+    /* ★ S9 A-FLASH C1 (#1205, Damir's clip: cold start = the blue splash, then the home shell's WHITE boot cover, then
+     * home). The cover (home.html `.app-boot`) was on glass the moment the splash exited.
+     * ★ #46 r1 (MINOR-4): r0 skipped the content view's DRAW (a pre-draw listener answering false) — that can stop
+     * Chromium's frames too, so rAF / transitionend might never run and every hold would end at the cap. Now the content
+     * keeps drawing UNDERNEATH a NATIVE overlay added on top of the decor view at create: the activity's own window
+     * splash drawable (`@layout/splash_screen`: #175595 + the splash bitmap — exactly what shows between the system
+     * splash and the first content frame), falling back to the plain #175595. It is removed (instantly) when home.html
+     * has REMOVED its cover and sends `ixian:bootDropped` (HomePage → releaseBootHold("dropped")), or at BootHoldCapMs
+     * ("cap"). ONCE per process, and only when App chose HomePage as the boot root (no lock, no first run, no retry —
+     * their shells send nothing); a re-created activity is never covered. On the decor view, so MAUI's SetContentView
+     * cannot drop it. Android only. Main thread. */
+    private const int BootHoldCapMs = 1500;
+    private static bool bootHoldUsed = false;
+    private static BootCover? bootHold = null;
+
+    private void startBootHold(View? rootView)
+    {
+        try
+        {
+            if (bootHoldUsed || rootView == null || !global::Spixi.App.homeIsBootRoot)
+            {
+                return;
+            }
+            bootHoldUsed = true;
+            if (Window?.DecorView is not ViewGroup decor)
+            {
+                return;
+            }
+            View cover = new View(this);
+            if (OperatingSystem.IsAndroidVersionAtLeast(31))
+            {
+                /* ★ #46 r2 (M1): on Android 12+ the launch screen is the SYSTEM splash — windowSplashScreenBackground +
+                 * windowSplashScreenAnimatedIcon (values-v31 / values-night-v31), NOT the layer-list below (a stale drawable
+                 * there, SPlatformUtils). Its icon geometry (the system's icon view size and adaptive mask) is not something
+                 * this code can reproduce exactly, and a mark at another size would be a new jump — so the cover is the
+                 * SAME background colour only, read from the theme (light #175595 / night #13171b). */
+                cover.SetBackgroundColor(splashBackgroundColor());
+            }
+            else
+            {
+                Android.Graphics.Drawables.Drawable? ground = null;
+                try { ground = ContextCompat.GetDrawable(this, Resource.Layout.splash_screen); } catch (Exception) { }
+                if (ground != null)
+                {
+                    cover.Background = ground;   // below 31 the window splash IS this layer-list
+                }
+                else
+                {
+                    cover.SetBackgroundColor(Android.Graphics.Color.ParseColor("#175595"));
+                }
+            }
+            cover.Clickable = true;   // nothing behind it takes a tap while it is up
+            cover.Elevation = 10000f;
+            decor.AddView(cover, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
+            cover.BringToFront();
+            bootHold = new BootCover(decor, cover);
+            new Handler(Looper.MainLooper!).PostDelayed(() => releaseBootHold("cap"), BootHoldCapMs);
+        }
+        catch (Exception e)
+        {
+            Logging.warn("boot hold failed to start (" + e.GetType().Name + ")");
+            releaseBootHold("cap");
+        }
+    }
+
+    /** ★ #46 r2 (M1): the theme's windowSplashScreenBackground (API 31+; follows the night qualifier), else #175595. */
+    private Android.Graphics.Color splashBackgroundColor()
+    {
+        try
+        {
+            Android.Util.TypedValue tv = new Android.Util.TypedValue();
+            if (OperatingSystem.IsAndroidVersionAtLeast(31) && Theme != null
+                && Theme.ResolveAttribute(Android.Resource.Attribute.WindowSplashScreenBackground, tv, true)
+                && tv.Type >= Android.Util.DataType.FirstColorInt && tv.Type <= Android.Util.DataType.LastColorInt)
+            {
+                return new Android.Graphics.Color(tv.Data);
+            }
+        }
+        catch (Exception)
+        {
+        }
+        return Android.Graphics.Color.ParseColor("#175595");
+    }
+
+    /** ★ S9 A-FLASH C1: remove the cover — `why` = "dropped" (home removed its own cover) or "cap". Idempotent; main thread. */
+    internal static void releaseBootHold(string why)
+    {
+        BootCover? hold = bootHold;
+        bootHold = null;
+        if (hold == null)
+        {
+            return;
+        }
+        hold.release(why == "dropped" ? "dropped" : "cap");
+    }
+
+    private sealed class BootCover
+    {
+        private readonly ViewGroup parent;
+        private readonly View cover;
+        private readonly long t0 = System.Environment.TickCount64;
+        private bool released = false;
+
+        public BootCover(ViewGroup p, View c)
+        {
+            parent = p;
+            cover = c;
+        }
+
+        public void release(string why)
+        {
+            if (released)
+            {
+                return;
+            }
+            released = true;
+            try
+            {
+                parent.RemoveView(cover);
+            }
+            catch (Exception)
+            {
+                try { cover.Visibility = ViewStates.Gone; } catch (Exception) { }
+            }
+            if (SPIXI.P1Perf.enabled)
+            {
+                SPIXI.P1Perf.line("boot hold ms=" + (System.Environment.TickCount64 - t0) + " why=" + why);   // dev-only, fixed words + an integer
+            }
+        }
+    }
+
     protected override void OnCreate(Bundle? bundle)
     {
         Instance = this;
@@ -246,6 +382,8 @@ public class MainActivity : MauiAppCompatActivity
             SPlatformUtils.setEdgeToEdge();
         }
         // End of edge-to-edge setup
+
+        startBootHold(rootView);   // ★ S9 A-FLASH C1 (#1205)
 
         if (ContextCompat.CheckSelfPermission(Instance, Manifest.Permission.Camera) != Permission.Granted)
         {           
@@ -416,7 +554,8 @@ public class MainActivity : MauiAppCompatActivity
             {
                 Android.Net.Uri uri = intent.Data;
 
-                SpixiImageData spixi_img_data = new SpixiImageData() { name = Path.GetFileName(uri.Path), path = uri.Path, stream = ContentResolver.OpenInputStream(uri) };
+                // ★ S9 (V-14 / #1200): a content uri's PATH is not a file — it is never handed on (the avatar callers read the stream)
+                SpixiImageData spixi_img_data = new SpixiImageData() { name = Path.GetFileName(uri.Path), path = "", stream = ContentResolver.OpenInputStream(uri) };
 
                 // Set the Stream as the completion of the Task
                 PickImageTaskCompletionSource.SetResult(spixi_img_data);
@@ -425,6 +564,58 @@ public class MainActivity : MauiAppCompatActivity
             {
                 PickImageTaskCompletionSource.SetResult(null);
             }
+        }
+        else if (requestCode == PickImagesId)
+        {
+            /* ★ S9 (#1244): the multi-photo pick. One content-resolver stream per picked uri for the first PickImagesMax items
+             * (a uri that cannot be opened → an entry with no stream: the caller reports `decode`); an EMPTY entry per extra
+             * item (the caller reports `tooMany`). The uri's path is never kept. Cancel → an empty list. Never throws. */
+            System.Collections.Generic.List<SpixiImageData> picked = new System.Collections.Generic.List<SpixiImageData>();
+            try
+            {
+                if (resultCode == Result.Ok && intent != null)
+                {
+                    System.Collections.Generic.List<Android.Net.Uri> uris = new System.Collections.Generic.List<Android.Net.Uri>();
+                    ClipData? clip = intent.ClipData;
+                    if (clip != null)
+                    {
+                        for (int i = 0; i < clip.ItemCount; i++)
+                        {
+                            Android.Net.Uri? u = clip.GetItemAt(i)?.Uri;
+                            if (u != null)
+                            {
+                                uris.Add(u);
+                            }
+                        }
+                    }
+                    else if (intent.Data != null)
+                    {
+                        uris.Add(intent.Data);
+                    }
+                    for (int i = 0; i < uris.Count; i++)
+                    {
+                        Stream? st = null;
+                        if (i < PickImagesMax)
+                        {
+                            try
+                            {
+                                st = ContentResolver?.OpenInputStream(uris[i]);
+                            }
+                            catch (Exception e)
+                            {
+                                Logging.warn("Photo pick: a picked item could not be opened (" + e.GetType().Name + ")");
+                            }
+                        }
+                        picked.Add(new SpixiImageData() { name = "", path = "", stream = st });
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Photo pick: the result could not be read (" + e.GetType().Name + ")");
+            }
+            PickImagesTaskCompletionSource?.TrySetResult(picked);
+            PickImagesTaskCompletionSource = null;
         }
         else if (requestCode == SaveFileId && resultCode == Result.Ok && intent != null)
         {

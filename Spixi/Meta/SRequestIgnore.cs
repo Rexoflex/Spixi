@@ -20,8 +20,9 @@ namespace SPIXI.Meta
     /// Declined requests (<c>ixian:unignore:</c>), after which a new request from it arrives
     /// normally. The sender is NOT told — that stays the protocol row (Q18/RC1).
     ///
-    /// Storage: ONE preference string, the addresses joined by ',' (base58 carries no comma),
-    /// capped at <see cref="CAP"/> (oldest dropped). An app preference, never a <c>spixi.*</c>
+    /// Storage: ONE string, the addresses joined by ',' (base58 carries no comma),
+    /// capped at <see cref="CAP"/> (oldest dropped). ★ H-14 (#1245): kept in <see cref="SLocalOnlyStore"/> (a file
+    /// excluded from device backups), migrated once from the old preference of the same key. Never a <c>spixi.*</c>
     /// WebView key (the file:// storage partition question, security review MAJOR #4, does not
     /// arise). Nothing here logs an address: the log is shareable (O-26); the lines carry counts.
     /// Every method is safe on a null/empty/malformed address and never throws.
@@ -39,7 +40,7 @@ namespace SPIXI.Meta
             List<string> list = new List<string>();
             try
             {
-                string raw = Preferences.Default.Get(KEY, "");
+                string raw = SLocalOnlyStore.getMigrating(KEY);   // ★ H-14: out of the backed-up preferences
                 foreach (string part in raw.Split(','))
                 {
                     string a = part.Trim();
@@ -58,7 +59,7 @@ namespace SPIXI.Meta
         {
             try
             {
-                Preferences.Default.Set(KEY, string.Join(",", list));
+                SLocalOnlyStore.set(KEY, string.Join(",", list));   // ★ H-14
             }
             catch (Exception e)
             {
@@ -159,7 +160,8 @@ namespace SPIXI.Meta
             lock (gate)
             {
                 cache = new List<string>();
-                try { Preferences.Default.Remove(KEY); } catch (Exception) { }
+                try { Preferences.Default.Remove(KEY); } catch (Exception) { }   // a not-yet-migrated copy
+                try { SLocalOnlyStore.remove(KEY); } catch (Exception) { }   // ★ H-14
             }
         }
     }

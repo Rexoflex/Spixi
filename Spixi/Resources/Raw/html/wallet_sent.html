@@ -1103,6 +1103,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding-block: var(--spacing-8) var(--spacing-12);
   flex: none;
 }
+/* ★ S9 U-01 (#1247, audit U-01): the chips KEEP their width. chip.css gives every chip
+   `min-width: 0` (#841, the wrapping-row default), so in this nowrap row the chips shrank
+   to "A" / "S." / "R…" at 361–450 px and the row never overflowed — which is the signal
+   fit() (wallet-shell.js, #278) needs to compact the pill. flex: none restores it: the row
+   overflows, fit() compacts / wraps the pill, the labels stay whole. Filter labels are our
+   own short strings (never network text), so the #841 guard is not needed here. */
+.c-wallet-filters > .c-chip { flex: none; }
 .c-wallet-misstx {
   margin-inline-start: auto;
   flex: none;

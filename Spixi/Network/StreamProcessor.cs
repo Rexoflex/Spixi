@@ -33,6 +33,8 @@ namespace SPIXI
             if (friend != null)
             {
                 FileTransfer transfer = new FileTransfer(data.data);
+                // ★ S9 A-6 (#1245): the peer's name is SANITIZED before it is stored or shown (a plain leaf on every OS)
+                transfer.fileName = PhotoRules.SafeFileName(transfer.fileName);
 
                 string message_data = string.Format("{0}:{1}:{2}", transfer.uid, transfer.fileName, transfer.fileSize);
                 FriendMessage fm = Node.addMessageWithType(message_id, FriendMessageType.fileHeader, sender, data.channel, message_data, false, group_sender_address);
@@ -47,6 +49,32 @@ namespace SPIXI
                     fm.filePath = transfer.fileName;
                     fm.fileSize = transfer.fileSize;
                     IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, transfer.channel);
+                }
+                /* ★ S9 (#1244, CONTRACT §1d) · #46 r1 M-2: a file of a photo GROUP (the trailer, validated by its reader) is
+                 * remembered only AFTER Core stored an INCOMING row (a replayed id that names MY row — localSender — or a
+                 * refused store records nothing), FIRST WRITER WINS (SPhotoGroups.set never rewrites a row's group), with the
+                 * row's sender (`from`: the group member, else the peer) so only that sender's text can be its caption. The
+                 * live insert already pushed the row — an open chat re-pushes it once so arg 18 lands (main thread). */
+                if (fm != null && !fm.localSender && fm.id != null && transfer.groupId.Length > 0)
+                {
+                    string from = group_sender_address != null ? group_sender_address.ToString() : sender.ToString();
+                    if (SPhotoGroups.set(sender.ToString(), Crypto.hashToString(fm.id),
+                        PhotoRules.groupArg(transfer.groupId, transfer.groupIndex, transfer.groupCount, transfer.captionId), from))
+                    {
+                        FriendMessage stored = fm;
+                        int channel = data.channel;
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            try
+                            {
+                                Utils.getChatPage(friend)?.refreshFileRow(stored, channel);
+                            }
+                            catch (Exception e)
+                            {
+                                Logging.warn("File header: the group re-push failed (" + e.GetType().Name + ")");
+                            }
+                        });
+                    }
                 }
             }
             else
@@ -140,7 +168,7 @@ namespace SPIXI
                 Friend? friend = FriendList.getFriend(ft.groupAddress);
                 if (friend != null && friend.type == FriendType.Group)
                 {
-                    var chat_message = friend.getMessages(ft.channel)?.Find(x => x.transferId == uid);
+                    var chat_message = friend.getMessages(ft.channel)?.Find(x => x.localSender && x.transferId == uid);   // ★ S9 #46 r4: MY outgoing row only
                     if (chat_message != null)
                     {
                         friend.addReaction(sender, new ReactionMessage(chat_message.id, "fileReceived:"), ft.channel);
@@ -1077,17 +1105,24 @@ namespace SPIXI
             friend.isTyping = true;
             UIHelpers.refreshChatRowLive(friend);
 
-            Timer? timer = null;
-            timer = new(_ =>
+            /* ★ C-02 (#1245): ONE timer per peer, in our own concurrent map (not Core's shared `_typingTimers` List,
+             * which every thread wrote and whose callback removed the FIRST timer, not its own). A new burst restarts
+             * the peer's timer; a firing callback removes only its own entry and clears the row only when it was still
+             * the current timer; the callback body runs in a try (an escaped Timer exception ends the process). */
+            string typingKey;
+            try { typingKey = friend.walletAddress.ToString(); } catch (Exception) { return; }
+            typingTimers.restart(typingKey, 5000, () =>
             {
                 friend.isTyping = false;
                 UIHelpers.refreshChatRowLive(friend);
-                _typingTimers.Remove(_typingTimers.FirstOrDefault());
-            }, timer, 5000, Timeout.Infinite);
-
-            _typingTimers.Add(timer);
+            });
             Utils.getChatPage(friend)?.showTyping(typist);
         }
+
+        /* ★ C-02 (#1245): keyed by the peer's address TEXT — Core's Address has no value equality (reference keys
+         * would never match the next burst's Address instance). Fixed-word log on a callback failure. */
+        private static readonly AuditRules.KeyedTimers typingTimers =
+            new AuditRules.KeyedTimers(e => Logging.warn("typing timer: the callback failed (" + e.GetType().Name + ")"));
 
         private static void handleAppProtocols(Address sender_address, AppProtocolsMessage data)
         {

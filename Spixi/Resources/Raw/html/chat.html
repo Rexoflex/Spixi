@@ -1224,7 +1224,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    a box-level opacity would cap the read tick at 0.7 too, since a child can never be
    more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
    be dimmed — the #48 rule). Received bubbles were untouched until #1041 (below). */
-.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.7; }
+/* ★ S9 U-03 (#1247, measured): 0.92 lifts the sent time from 3.30:1 to 4.53:1 light · 4.41:1 to 6.37:1 dark. */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.92; }
 /* ★ #1041 (Damir 2026-09-29, screenshot: "the incoming timestamp should be reduced opacity as well,
    it clashes with the actual message"): the RECEIVED meta row takes the same 0.7 on its children —
    one timestamp weight on both sides of the conversation. ⚠ Measured, and Damir's knowing trade (the
@@ -2624,7 +2625,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* ★ #1022 (Opus r1 M2): no desaturation on the failed tile — a filter reaches the red retry badge
    too and the hover filter replaced it anyway; the red badge + the red retry line carry the state. */
 @media (hover: hover) and (pointer: fine) {
-  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(1.06); }
+  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(0.96); }   /* ★ S9 H-16 f (#1247): darken on hover — the white label stays ≥ 4.5:1 (1.06 dropped it to 4.09:1) */
 }
 .c-fbubble:not(:disabled):active .c-fbubble__icon { filter: brightness(0.92); } /* audit: no pressed feedback */
 .c-fbubble:disabled { cursor: default; } /* progress state */
@@ -2912,6 +2913,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 @media (prefers-reduced-motion: reduce) {
   .c-tcard[data-live-complete] .c-tcard__status,
   .c-tcard[data-live-complete] .c-tcard__status-check path { animation: none; }
+}
+
+/* ★ S9 U-03 (#1247, measured): 12 % toward black lifts the card's error badge from 4.44:1 to 5.31:1 light · 5.41:1 dark. */
+.c-tcard__badge .c-badge[data-weight="tonal"][data-type="error"] {
+  color: var(--text-error);
+  color: color-mix(in srgb, var(--text-error) 88%, #000);   /* sanctioned: U-03 — black is the mix target (12 % darker), not a paint */
 }
 
 </style>
@@ -3485,6 +3492,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-neutral-02);
   overflow-wrap: break-word; /* audit r3: inspecting WHO reacted is the point — wrap, never truncate */
 }
+/* ★ S9 r2 (Damir): the newest message row (data-log-end) always carries the same 20 px padding reserve, so a reaction never changes the log height (#966: padding, not margin). */
+.c-bubble-row[data-log-end] { padding-bottom: var(--spacing-20); }
+/* ★ S9: a photo-group CELL is a grid item — its pill reserve would break the grid (the group row reserves, above) */
+.c-mgrid > .c-bubble-row[data-reactions="overlap"] { padding-bottom: 0; }
 
 </style>
 <style data-src="../styles/components/typing-indicator.css">
@@ -5671,6 +5682,84 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 .c-tile-col > .c-fbubble { max-width: 100%; }
 
+/* ★★ S9 (#1244 G = A): the photo group bubble is a square grid of photo-file tiles in one 3 px frame, with the caption under it. */
+.c-mgrid-col { display: block; }
+.c-bubble-row[data-direction="sent"] .c-mgrid-col { margin-inline-start: auto; }
+.c-mgrid-box {
+  border-radius: var(--bubble-radius);
+  padding: 3px;
+  background: var(--surface-bubble-received);
+  color: var(--text-bubble-received);
+  box-shadow: 0 0 0 1px var(--outline-hairline), var(--bubble-elevation);
+}
+.c-bubble-row[data-direction="sent"] .c-mgrid-box {
+  background: var(--gradient-bubble-sent, var(--surface-bubble-sent));
+  color: var(--text-bubble-sent);
+  box-shadow: var(--bubble-elevation);
+}
+.c-mgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  border-radius: calc(var(--bubble-radius) - 3px);
+  overflow: hidden;
+}
+.c-mgrid[data-n="1"] { grid-template-columns: 1fr; aspect-ratio: 1 / 1; }
+.c-mgrid[data-n="2"] { aspect-ratio: 2 / 1; }
+.c-mgrid[data-n="3"],
+.c-mgrid[data-n="4"] { grid-template-rows: 1fr 1fr; aspect-ratio: 1 / 1; }
+.c-mgrid[data-n="3"] > .c-mgrid__cell:first-child { grid-row: 1 / 3; }
+.c-mgrid > .c-mgrid__cell {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+.c-mgrid .c-mbubble-anchor { width: 100%; height: 100%; }
+.c-mgrid .c-mbubble,
+.c-bubble-row[data-direction="sent"] .c-mgrid .c-mbubble[data-file] {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+/* a cell is small: the long "keep Spixi open" hint goes, the name / percentage stays */
+.c-mgrid .c-mbubble__hint { display: none; }
+.c-mgrid .c-mbubble__file { padding: var(--spacing-8); gap: var(--spacing-4); }
+.c-mgrid .c-mbubble__cap,
+.c-mgrid .c-mbubble__cta { font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs); }
+.c-mgrid > .c-mgrid__cell:not(:last-child) .c-mbubble__time,
+.c-mgrid > .c-mgrid__cell:not(:last-child) .c-mbubble__stamp { display: none; }
+.c-mgrid__more {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-scrim);
+  color: var(--text-on-scrim);
+  font-size: var(--font-size-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  pointer-events: none;
+}
+.c-mgrid__caption {
+  padding: 6px 9px 4px;
+  font-size: calc(var(--font-size-body-md) * var(--chat-text-scale, 1));
+  line-height: calc(var(--bubble-line-height) * var(--chat-text-scale, 1));
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.c-mgrid .c-mbubble__time,
+.c-mgrid .c-mbubble__stamp { z-index: 3; }
+
 </style><!-- GIF/image tiles (remote media URLs) -->
 <style data-src="../styles/components/media-viewer.css">
 /* c-mviewer — full-screen media viewer (#86). Sits on the overlay stack at
@@ -5830,7 +5919,139 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   .c-mviewer__spinner { animation: none; }
 }
 
+/* ★ S9 (#1244 G = A): a paged viewer (a photo group) — ‹ ✕ › in the foot, the "2 / 7" counter under it */
+.c-mviewer__foot[data-paged] { align-items: center; gap: var(--spacing-24); }
+.c-mviewer__nav:disabled { opacity: 0.35; cursor: default; }
+.c-mviewer__count {
+  flex: none;
+  text-align: center;
+  color: var(--text-on-scrim);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  padding-top: var(--spacing-4);
+}
+
 </style>
+<style data-src="../styles/components/media-send-sheet.css">
+/* ★ S9 (#1244 S = C): the photo preview sheet has the count and note, square thumbnails with a remove disc, the caption field and the Send disc. */
+.c-msend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  padding: 0 var(--spacing-16) calc(var(--spacing-16) + var(--safe-bottom, 0px));
+}
+.c-msend__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+}
+.c-msend__title {
+  margin: 0;
+  font-size: var(--font-size-heading-xs);
+  line-height: var(--line-height-heading-xs);
+  letter-spacing: var(--tracking-heading-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-01);
+}
+.c-msend__note {
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-02);
+  text-align: end;
+}
+.c-msend__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-8);
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+}
+.c-msend__cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-12);
+  overflow: hidden;
+  background: var(--surface-input-sheet);
+}
+.c-msend__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* the ✕ disc: a 24 px glyph disc inside a 44 px target (the corner of the tile) */
+.c-msend__remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-on-scrim);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-msend__remove::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+}
+.c-msend__remove > svg { position: relative; margin: 4px; }
+.c-msend__remove:focus-visible { outline: none; }
+.c-msend__remove:focus-visible::before { box-shadow: 0 0 0 2px var(--outline-action-default); }
+.c-msend__foot {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-8);
+}
+.c-msend__caption {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--size-target-min);
+  max-height: 120px;
+  box-sizing: border-box;
+  resize: none;
+  border: 0;
+  border-radius: var(--radius-24);
+  padding: 10px var(--spacing-16);
+  background: var(--surface-input-sheet);
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+}
+.c-msend__caption::placeholder { color: var(--text-neutral-02); opacity: 1; }
+.c-msend__caption:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: 0; }
+.c-msend__send {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-msend__send:active { background: var(--surface-action-pressed); }
+.c-msend__send:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: 2px; }
+.c-msend__glyph { display: flex; align-items: center; justify-content: center; color: var(--text-neutral-02); }
+
+</style><!-- ★ S9 (#1244): the photo preview sheet -->
 <!-- ★ W-a (Damir F5 2026-08-23, root cause): the in-chat Pay compose (W5/#523) and
      its review sheet (.c-sendreview) render UNSTYLED without this link — default
      white input on both themes, name + address run-on, review rows concatenated.
@@ -6745,6 +6966,10 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     createImageFileBubble, isPhotoFileName, setImageFileThumb, resetPhotoQuiet,   // ★ A5 #1124 (#1133): an image file on the media tile
     createMediaBubble, setMediaSrc, setTileHead, openMediaViewer,
     findOpenViewer,                 // ★ #1166 V-3: the viewer a viewerImage push answers (media-viewer.js)
+    openMediaSendSheet, closeMediaSendSheet,   // ★ S9 (#1244): the photo preview sheet (media-send-sheet.js)
+    createPhotoGridBubble, addPhotoGridCell,   // ★ S9 (#1244 G = A): the photo group bubble (media-bubble.js)
+    timeOpts, docLocale,            // ★ S9 a11y (#1206): the row's accessible name says its time like the bubble does (timestamp.js)
+    p1Log,                          // ★ S9 (8-GROW-A): the dev-only [P1] grow line (p1.js; no-op unless <html data-p1>)
     createPaymentBubble, createCallBubble,
     createAppBubble, createSystemNotice, createUnreadDivider,
     attachLazyHistory,              // ★ #1166 B2 (#1142): the scroll trigger for older history (#86)
@@ -7671,6 +7896,54 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     fileThumbChars -= old.length;
   }
   const FILE_THUMB_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
+  /* ★ S9 (#1244) — the photo preview sheet's input rules (mediaPicked). */
+  const MEDIA_BATCH_RE = /^[0-9a-f]{16}$/i;
+  const MEDIA_KEY_RE = /^[0-9]$/;
+  const MEDIA_JSON_MAX = 10 * (FILE_THUMB_MAX + 200);
+  const MEDIA_ERROR_TONE = { tooBig: 'error', decode: 'error', clipboardEmpty: '', cameraDenied: '', storageDenied: '', tooMany: '', fileTooBig: 'error', fileTooBigIn: 'error' };
+  let mediaSheet = null;   // the open preview sheet (one batch at a time)
+  function parseMediaItems(json) {
+    const t = typeof json === 'string' ? json : '';
+    if (!t || t.length > MEDIA_JSON_MAX) return [];
+    let arr;
+    try { arr = JSON.parse(t); } catch (e) { return []; }
+    if (!Array.isArray(arr)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const it of arr.slice(0, 10)) {
+      if (!it || typeof it !== 'object') continue;
+      const k = typeof it.k === 'string' ? it.k : '';
+      const thumb = typeof it.thumb === 'string' ? it.thumb : '';
+      if (!MEDIA_KEY_RE.test(k) || seen.has(k) || it.kind !== 'photo') continue;
+      if (thumb && (thumb.length > FILE_THUMB_MAX || !FILE_THUMB_RE.test(thumb))) continue;   // ★ S9 #46 M3: "" (C# made no preview) = a glyph tile, kept
+      seen.add(k);
+      out.push({ k, thumb });
+    }
+    return out;
+  }
+  /* the caption on the verb: UTF-8 → base64url (RFC 4648 §5, '-' '_'), WITH '=' padding; '' stays '' */
+  function b64url(text) {
+    const t = String(text || '');
+    if (!t) return '';
+    let bin = '';
+    for (const b of new TextEncoder().encode(t)) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_');
+  }
+  function clipboardHasImageType(cd) {
+    if (!cd) return false;
+    let types = [];
+    try { types = Array.from(cd.types || []).map((t) => String(t).toLowerCase()); } catch (e) { types = []; }
+    if (types.indexOf('text/plain') !== -1) return false;   // text beside a picture (a copied web page) = a text paste
+    if (types.some((t) => t.startsWith('image/'))) return true;
+    let items = [];
+    try { items = Array.from(cd.items || []); } catch (e) { items = []; }
+    return items.some((it) => !!it && it.kind === 'file' && /^image\//i.test(String(it.type || '')));
+  }
+  function closeMediaSheetIfOpen() {
+    const sh = mediaSheet;
+    mediaSheet = null;
+    if (sh) closeMediaSendSheet(sh);   // → its onDismiss → onCancel → ixian:mediaCancel (once — the sheet latches)
+  }
   /** setFileThumb's store (the bounded map above). */
   function storeFileThumb(key, u) {
     dropFileThumb(key);
@@ -8124,7 +8397,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const id = String(rec.id);
     const t = fileThumbs.get(id);
     if (t) return t;
-    const row = rows.get(id);
+    const row = liveRowOf(id);   // ★ S9: a grouped photo → its own cell (the first img of the group is another photo)
     const img = row && row.querySelector('.c-mbubble__img');
     const src = img ? String(img.getAttribute('src') || '') : '';
     return QUOTE_THUMB_RE.test(src) ? src : '';
@@ -8415,7 +8688,14 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        every history row is neutral. (A persisted played flag = later C# work.) */
     return { durMs: v.durMs || rec.voiceMs || null, peaks: v.peaks || null, state, posMs: v.posMs || 0, loadingAt: v.loadingAt || 0, gone,
       sending, sendStill, sendPct: sending === 'file' ? Math.max(0, Math.min(100, Number(rec.progress) || 0)) : 0,
-      who: voiceWho(rec), heard: !!v.heard || !v.live };
+      who: voiceWho(rec), heard: voiceHeard(rec, v) };
+  }
+  /* ★ S9 (8-FACE, #1247): C#'s stored played flag decides the mic badge ("1" neutral, "0" accent until it plays here), and no flag keeps the #1240 per-document rule. */
+  function voiceHeard(rec, v) {
+    const p = rec && rec.direction === 'received' ? rec.played : undefined;
+    if (p === '1') return true;
+    if (p === '0') return !!v.heard;
+    return !!v.heard || !v.live;
   }
   /** ★ #46 r1 (S8 picks M-2 / m-6): a voice row CREATED outside a load burst arrived live in this document — remembered
    *  on its voiceClips entry (which outlives a clearMessages re-flush, so a re-flushed live clip stays live) */
@@ -8737,6 +9017,113 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
    * so a sent file shows the bar + "keep Spixi open" hint while transferring and
    * flips to complete (open button + success toast) when done — instead of the
    * legacy "own file = instantly complete". meta is empty (bridge sends no size). */
+  /* ★★ S9 (#1244 G = A, #1169) — PHOTO GROUPS. */
+  const GROUP_ARG_RE = /^([0-9a-f]{16})\|(\d{1,2})\|(\d{1,2})\|([0-9a-f]{0,64})$/i;
+  function parseGroupArg(v) {
+    const m = GROUP_ARG_RE.exec(String(v == null ? '' : v));
+    if (!m) return null;
+    const index = Number(m[2]);
+    const count = Number(m[3]);
+    if (!(count >= 1 && count <= 10 && index >= 0 && index < count)) return null;
+    return { gid: m[1].toLowerCase(), index, count, cap: m[4].toLowerCase() };
+  }
+  let gridCells = new Map();     // member id → its CELL row (this render)
+  let gridMembers = new Map();   // member id / caption id → the lead id (this render)
+  let gridGroups = new Map();    // lead id → { members, caption, ids }
+  function gridEligible(r) {
+    return !!r && r.kind === 'file' && !!r.group && photoPreviews && isPhotoFileName(r.name) && !r.voiceFile
+      && !(r.localGone && r.fstate === 'complete');
+  }
+  function planPhotoGroups(ids) {
+    const byKey = new Map();
+    const inWindow = new Set(ids);
+    for (const id of ids) {
+      const r = model.get(id);
+      if (!gridEligible(r)) continue;
+      const key = r.direction + '|' + (r.direction === 'received' ? String(r.senderAddress || '') : '') + '|' + r.group.gid;
+      let l = byKey.get(key);
+      if (!l) { l = []; byKey.set(key, l); }
+      l.push(r);
+    }
+    const groups = new Map();
+    const memberLead = new Map();
+    const skip = new Set();
+    for (const list of byKey.values()) {
+      let caption = null;
+      const capId = (list.find((r) => r.group.cap) || { group: {} }).group.cap || '';
+      if (capId) {
+        const c = [...inWindow].find((oid) => oid.toLowerCase() === capId);
+        const cr = c ? model.get(c) : null;
+        if (cr && (cr.kind || 'text') === 'text' && cr.direction === list[0].direction && !cr.voice && !cr.eventChip && cr.text
+            && (cr.direction !== 'received' || String(cr.senderAddress || '') === String(list[0].senderAddress || ''))) caption = cr;
+      }
+      if (list.length < 2 && !caption) continue;
+      const lead = list[0];   // the earliest in the log: the bubble's place
+      const members = list.slice().sort((a, b) => a.group.index - b.group.index);
+      const allIds = members.map((m) => String(m.id)).concat(caption ? [String(caption.id)] : []);
+      groups.set(String(lead.id), { members, caption, ids: allIds, lead });
+      for (const mid of allIds) { memberLead.set(mid, String(lead.id)); if (mid !== String(lead.id)) skip.add(mid); }
+    }
+    return { groups, memberLead, skip };
+  }
+  /* the row a LIVE update may patch: a grouped member's own cell; a grouped id with no cell (past the fourth, the
+     caption) → null (the caller re-renders); anything else → its row */
+  function liveRowOf(id) {
+    const k = String(id);
+    if (gridCells.has(k)) return gridCells.get(k);
+    if (gridMembers.has(k)) return null;
+    return rows.get(k) || null;
+  }
+  function buildGridRow(g, position) {
+    const sl = window.SL || {};
+    const first = g.members[0];
+    const shown = g.members.slice(0, 4);
+    const more = g.members.length - shown.length;
+    const row = createPhotoGridBubble({
+      direction: first.direction, count: shown.length, more, total: g.members.length,
+      caption: g.caption ? String(g.caption.text) : null,
+      gutter: mode.isMulti && first.direction === 'received', strings: sl,
+    });
+    tileHead(row, first, position);   // the group head BEFORE the cells (setTileHead finds the group column first)
+    shown.forEach((m, i) => {
+      const cell = addPhotoGridCell(row, markPausedTile(buildFileRow(m), m), { isLast: i === shown.length - 1 });
+      if (!cell) return;
+      gridCells.set(String(m.id), cell);
+      if (isMenuableRec(m)) attachMessageMenu(cell, menuOptsFor(m, row));   // the cell's own menu; Select = the group row
+    });
+    const capEl = row.querySelector('.c-mgrid__caption');
+    if (capEl && g.caption && isMenuableRec(g.caption)) attachMessageMenu(capEl, menuOptsFor(g.caption, row));
+    if (canReplyRec(first)) attachReplySwipe(row, { key: String(g.lead.id), onReply: () => { startReply(first); } });
+    /* ★ S9 #46 M2: ONE pill set on the bubble's corner = every photo's + the caption's reactions summed (a pill on a cell was clipped by the grid; the caption and photos past the fourth had none). */
+    const all = g.members.concat(g.caption ? [g.caption] : []);
+    const sum = new Map();
+    let tipN = 0;
+    let mine = '';
+    for (const m of all) {
+      for (const x of (m.reactions || [])) { const o = sum.get(x.emoji) || { emoji: x.emoji, count: 0, own: false }; o.count += x.count || 0; o.own = o.own || !!x.own; sum.set(x.emoji, o); }
+      tipN += Number(m.tipN) || (m.tip ? 1 : 0);
+      mine = mine || ownReaction(m);
+    }
+    const target = g.caption || first;
+    if (sum.size || tipN) {
+      applyReactions(row, { reactions: [...sum.values()], tip: tipN ? (sl.tipped || 'Tipped') + (tipN > 1 ? ' ×' + tipN : '') : '',
+        host: box, onToggle: (emoji) => reactToMessage(target.id, emoji), locked: !!mine });
+    }
+    return row;
+  }
+  /* the group's photos the viewer can page through: complete, previews on, a preview in hand — in the group's order */
+  function groupViewerItems(rec) {
+    const lead = gridMembers.get(String(rec.id));
+    const g = lead && gridGroups.get(lead);
+    if (!g) return null;
+    const items = [];
+    for (const m of g.members) {
+      const t = m.fstate === 'complete' && !m.localGone ? fileThumbs.get(String(m.id)) : undefined;
+      if (t) items.push({ src: t, token: String(m.id), alt: m.name || '' });
+    }
+    return items.length > 1 ? items : null;
+  }
+
   function buildFileRow(rec) {
     /* ★ #1190 (#1173 (3)(4)): file not on this device ("0") + complete → received = "… deleted from this device", mine =
        the compact card "Not available on this device"; no photo square, no tap. */
@@ -8804,6 +9191,14 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const thumb = photoPreviews && rec.kind === 'file' && rec.fstate === 'complete' && isPhotoFileName(rec.name)
       ? fileThumbs.get(id) : undefined;
     if (!thumb) { bridge.send('ixian:openfile:' + rec.fileid); return; }
+    const items = groupViewerItems(rec);   // ★ S9 (#1244): a photo of a group → the viewer pages through the group
+    if (items) {
+      const at = Math.max(0, items.findIndex((it) => it.token === id));
+      openMediaViewer({ host: overlayHost, items, index: at, kind: 'image', strings: window.SL || {},
+        onPage: (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:viewImage:' + it.token); } });
+      bridge.send('ixian:viewImage:' + id);
+      return;
+    }
     openMediaViewer({ host: overlayHost, src: thumb, token: id, kind: 'image', alt: rec.name || '', strings: window.SL || {} });
     bridge.send('ixian:viewImage:' + id);
   }
@@ -8913,6 +9308,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       // minimized session. No End-session verb exists in the bridge → onEnd omitted
       // (createAppBubble gates it, so no dead button).
       onResume: () => bridge.send('ixian:joinApp:' + rec.appid),
+      onOpenAgain: () => bridge.send('ixian:joinApp:' + rec.appid),   // ★ S9 (8-APP): "Open again" = the EXISTING joinApp verb
       // ★ S8 (#1233): Decline → ixian:appDecline (C# sends a silent reject + stores it); 'declined' at once (optimistic)
       onDecline: (incoming && !declined && rec.astate !== 'declined') ? () => declineApp(rec.id) : undefined,
       /* ★ B2 (#533 ①, Damir's locked shape): Cancel on MY invite → confirm → the
@@ -8952,6 +9348,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     if (asBool(localSender)) return 'invited';
     if (appStatus === 'Missing') return 'missing';
     if (appStatus === 'Minimized') return 'in-session';   // joined already → Resume, not Join again
+    if (appStatus === 'Joined') return 'joined';          // ★ S9 (8-APP, #1247, 🟡 new value): C#'s durable join (SAppJoins) → "Open again"
     return 'invite';
   }
 
@@ -9320,12 +9717,12 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        when several tipped; an empty total (an old exe, or only pre-C6 `System.Byte[]`
        tokens) keeps the count-only label. The total is what the tippers' clients
        CLAIMED — a display fact; it is never read as a balance. */
-    const total = String(tipTotal == null ? '' : tipTotal).trim();
-    const totalLabel = /^\d+(\.\d+)?$/.test(total) ? ' ' + formatIxiAmount(total) + ' IXI' : '';
+    /* ★★ S9 A-7 (#1245, Damir): the COUNT only — "Tipped" / "Tipped ×3". */
+    void tipTotal;
     const tip = tipCount > 0
-      ? (sl.tipped || 'Tipped') + totalLabel + (tipCount > 1 ? ' ×' + tipCount : '')
+      ? (sl.tipped || 'Tipped') + (tipCount > 1 ? ' ×' + tipCount : '')
       : '';
-    return { reactions, tip, seenCount, downloadedCount, ownEmoji };
+    return { reactions, tip, tipN: tipCount, seenCount, downloadedCount, ownEmoji };
   }
   /* ★ S8 (#1232; #46 r4 — an ALLOW-LIST, the lead's design change after three rounds of letter-shaped characters
      slipping through a category rule): a peer's reaction emoji is UNTRUSTED text. v1 only ever SENDS the six
@@ -9372,9 +9769,22 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     const pill = rec.reactions.find((r) => r.emoji === em);
     if (pill) { pill.own = true; pill.count = (pill.count || 0) + 1; }
     else rec.reactions.push({ emoji: em, count: 1, own: true }); // optimistic first reaction
+    if (gridMembers.has(String(id))) { renderLog(); return; }   // ★ S9 #46 M2: a group's pills are summed on the bubble
     const row = rows.get(id);
     if (row) applyRowReactions(rec, row, true);
   }
+  /* ★ S9 #46 M6 (D-04): ixian:haptic:long goes when the message menu opens from a touch long-press (a finger pressed < 1.5 s ago, reset by any key). */
+  let lastTouchAt = -1e9;
+  document.addEventListener('pointerdown', (e) => { lastTouchAt = e.pointerType === 'touch' ? performance.now() : -1e9; }, true);
+  document.addEventListener('keydown', () => { lastTouchAt = -1e9; }, true);   // #46 r2 n3: a keyboard menu never takes the touch haptic
+  try {
+    new MutationObserver((recs) => {   // the message menu mounts on the body (overlay.js) — one look per added sheet
+      if (performance.now() - lastTouchAt > 1500) return;
+      if (!recs.some((r) => [...r.addedNodes].some((n) => n.querySelector && n.querySelector('.c-msgmenu')))) return;
+      lastTouchAt = -1e9;   // once per press
+      bridge.send('ixian:haptic:long');
+    }).observe(document.body, { childList: true });
+  } catch (e) {}
   /** ★ S8 (#1232): my reaction on this record ('' = none) — C#'s own arg, else the optimistic one above. */
   function ownReaction(rec) {
     return (rec && rec.ownEmoji) || '';
@@ -9654,8 +10064,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
         input.dispatchEvent(new Event('input'));
       }
     }
-    const inp = composerEl.querySelector('.c-composer__input');
-    if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }   // focus returns to the input (a11y); ★ 7b (#1219): no scroll
+    focusStripInput('reply');   // focus returns to the input (a11y); ★ 7b (#1219): no scroll · ★ S9 (8-GROW): the desktop re-focus + the [P1] grow probe
     return true;
   }
   /* ★ #1199 — the edit start: the composer's EDIT context — the title, the original as the strip's excerpt, the field
@@ -9674,9 +10083,65 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       onCancel: endReplyHold,
       strings: s2,
     });
-    const inp = composerEl.querySelector('.c-composer__input');
-    if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }   // ★ 7b (#1219)
+    focusStripInput('edit');   // ★ 7b (#1219) · ★ S9 (8-GROW)
     return true;
+  }
+  /* ★★ S9 (8-GROW, #1243): Reply and Edit focus the input at once (mobile unchanged); desktop focuses again a frame later and at 100 ms unless the user moved meanwhile. */
+  function focusStripInput(kind) {
+    const inp = composerEl && composerEl.querySelector('.c-composer__input');
+    if (!inp) return;
+    try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); }
+    const desk = document.documentElement.hasAttribute('data-desktop');
+    growProbe(kind, inp, desk);
+    if (!desk) return;
+    const ctx0 = getComposerContext(composerEl);
+    const sig = (c) => (c ? c.kind + ':' + (c.replyId || c.editId || '') : '');
+    const want = sig(ctx0);
+    let moved = false;   // ★ #46 N4: the user pressed / typed somewhere meanwhile → their focus wins
+    const mark = () => { moved = true; };
+    document.addEventListener('pointerdown', mark, true);
+    document.addEventListener('keydown', mark, true);
+    setTimeout(() => { document.removeEventListener('pointerdown', mark, true); document.removeEventListener('keydown', mark, true); }, 150);
+    const again = () => {
+      if (moved || !inp.isConnected || sig(getComposerContext(composerEl)) !== want || document.activeElement === inp) return;
+      const ae = document.activeElement;
+      if (ae && ae !== document.body && (isEditableTarget(ae) || (ae.closest && ae.closest('.c-sheet, .c-modal, .c-mviewer, [role="dialog"]')))) return;
+      try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); }
+    };
+    requestAnimationFrame(again);
+    setTimeout(again, 100);
+  }
+  function isEditableTarget(n) {
+    return !!n && (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA' || n.isContentEditable === true);
+  }
+  function growProbe(kind, inp, desk) {
+    if (!document.documentElement.hasAttribute('data-p1')) return;   // dev builds only (the [P1] carrier)
+    try {
+      const slot = document.getElementById('chat-composer');
+      const c0 = slot ? Math.round(slot.getBoundingClientRect().height) : 0;
+      const h0 = window.innerHeight;
+      let hMin = h0, hMax = h0, n = 0, drop = 0, max = 0, foc100 = -1;
+      const foc0 = document.activeElement === inp ? 1 : 0;
+      const t0 = performance.now();
+      let last = t0;
+      setTimeout(() => { foc100 = document.activeElement === inp ? 1 : 0; }, 100);
+      const tick = () => {
+        const t = performance.now();
+        const g = t - last;
+        last = t;
+        n += 1;
+        if (g > 24) drop += 1;
+        if (g > max) max = g;
+        const h = window.innerHeight;
+        if (h < hMin) hMin = h;
+        if (h > hMax) hMax = h;
+        if (t - t0 < 450) { requestAnimationFrame(tick); return; }
+        const c1 = slot ? Math.round(slot.getBoundingClientRect().height) : 0;
+        p1Log('grow ' + (kind === 'edit' ? 'edit' : 'reply') + ' n=' + n + ' drop=' + drop + ' max=' + Math.round(max)
+          + ' dh=' + (hMin - h0) + ' dhup=' + (hMax - h0) + ' dc=' + (c1 - c0) + ' foc0=' + foc0 + ' foc100=' + foc100 + ' desk=' + (desk ? 1 : 0));
+      };
+      requestAnimationFrame(tick);
+    } catch (e) { /* a probe never breaks the reply */ }
   }
 
   /* ★★ #1199 r2 (MAJOR-2) — C# IS THE AUTHORITY ON AN EDIT, AND ITS "NO" MUST NOT BE SILENT. After a Save the shell keeps
@@ -9755,7 +10220,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        sent side) — no hover button there; Reply stays in the menu and the double-click, Retry stays clickable */
     if (rec.direction === 'sent' && rec.status === 'failed') return;
     row.dataset.replyBtn = '';
-    row.append(createReplyHoverButton({ onReply: go, label: replyButtonLabel(rec), strings: window.SL || {} }));
+    placeReplyBtnInDom(row, rec, createReplyHoverButton({ onReply: go, label: replyButtonLabel(rec), strings: window.SL || {} }));
+  }
+  /* ★ S9 a11y (#1206): the DOM order follows the screen — on a SENT row the button sits BEFORE the bubble (left of it), so it comes first in the row; a received row keeps it after the bubble. */
+  function placeReplyBtnInDom(row, rec, b) {
+    if (rec && rec.direction === 'sent') row.prepend(b); else row.append(b);
   }
   /* ★ r2 NIT: a row that LEAVES the failed state through the surgical tick path (upsertText patches the tick in place,
      no rebuild) was built without its button — it gains it at the next hover / focus */
@@ -9767,7 +10236,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     row.dataset.replyBtn = '';
     const b = createReplyHoverButton({ onReply: () => { startReply(rec); }, label: replyButtonLabel(rec), strings: window.SL || {} });
     b.tabIndex = row.tabIndex === 0 ? 0 : -1;
-    row.append(b);
+    placeReplyBtnInDom(row, rec, b);   // ★ S9 a11y (#1206): sent = before the bubble
   }
   /* ★ r1 (B-7): the button's name names the message — "Reply to Bob" / "Reply to You" — through the strip's own sender
      rule (replySourceFor: a nick, "You", "Hidden member" in a blind room); an address-shaped name is never spoken */
@@ -9848,10 +10317,28 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     setRowRove(row, true);
     box.tabIndex = -1;
   }
-  /* selection mode's exit strips every row's tabindex (chat-select.js disarm) — the roving row comes back at once */
+  /* selection mode's exit strips every row's tabindex (chat-select.js disarm) — the roving row comes back at once.
+     ★ S9 a11y (#1206): the ENTRY and the EXIT both forget the current row (logFocusId) — after a selection (a bulk delete,
+     rows re-rendered) the remembered id may name a row that is gone or no longer the one the user was on; the newest
+     row is the current one again. The exit also gives each row back its role (chat-select removes the attribute). */
   try {
-    new MutationObserver(() => { if (!box.hasAttribute('data-selecting')) roveRows(); })
-      .observe(box, { attributes: true, attributeFilter: ['data-selecting'] });
+    new MutationObserver(() => {
+      logFocusId = null;
+      if (!box.hasAttribute('data-selecting')) { restoreRowRoles(); roveRows(); }
+    }).observe(box, { attributes: true, attributeFilter: ['data-selecting'] });
+  } catch (e) {}
+  /* ★ S9 a11y (#1206): a control added in place into a row that is not the current one leaves the Tab order at once. */
+  try {
+    new MutationObserver((recs) => {
+      if (box.hasAttribute('data-selecting')) return;
+      const touched = new Set();
+      for (const r of recs) {
+        if (r.target === box || !r.addedNodes || !r.addedNodes.length) continue;
+        const row = r.target.closest ? r.target.closest('#messages > [data-msgid]') : null;
+        if (row && row.tabIndex !== 0) touched.add(row);
+      }
+      for (const row of touched) setRowRove(row, false);
+    }).observe(box, { childList: true, subtree: true });
   } catch (e) {}
   box.addEventListener('focusin', (e) => {
     const row = e.target && e.target.closest ? e.target.closest('#messages > [data-msgid]') : null;
@@ -9878,6 +10365,41 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     to.focus();
   });
   /* the focus a rebuild must carry: a focused row, a control inside one (lands on its row), or a reply button */
+  /* ★★ S9 a11y (#1206): every message row is an article described by "<sender>, <time>[, <status>]" (never a raw address), and restoreRowRoles gives the role back after selection mode. */
+  function rowAccessibleName(rec) {
+    const sl = window.SL || {};
+    let who = '';
+    if (rec.direction === 'sent') who = sl.you || 'You';
+    else if (senderHasNick(rec)) who = rec.senderNick;
+    else if (mode.blind) who = sl.hiddenMember || 'Hidden member';
+    else if (mode.isMulti) who = rec.senderAddress ? truncateAddressMiddle(rec.senderAddress, 9, 6) : '';
+    else who = identity.name && !isAddressShaped(identity.name) ? identity.name : '';
+    let when = '';
+    try { const d = new Date(rec.ts); if (!isNaN(d)) when = d.toLocaleTimeString(docLocale(), timeOpts()); } catch (e) { when = ''; }
+    const st = rec.direction === 'sent' && rec.status ? (sl['status-' + rec.status] || '') : '';
+    return [who, when, st].filter(Boolean).join(', ');
+  }
+  function labelRow(row, rec) {
+    if (!row || !rec || rec.eventChip || !row.classList || row.classList.contains('chat-event')) return;
+    row.setAttribute('role', 'article');
+    row.dataset.a11yRole = 'article';
+    /* ★ S9 #46 M1: sender, time and status are the row's DESCRIPTION (a hidden span), never its aria-label, so the body stays the accessible name in both modes. */
+    const name = rowAccessibleName(rec);
+    let d = row.querySelector(':scope > .chat-row-desc');
+    if (!d) { d = document.createElement('span'); d.className = 'chat-row-desc'; d.hidden = true; d.id = 'rd-' + String(rec.id); row.append(d); }
+    d.textContent = name;
+    row.setAttribute('aria-describedby', d.id);
+  }
+  function relabelRow(id) {
+    const row = rows.get(String(id));
+    const rec = model.get(String(id));
+    if (row && rec && row.dataset.msgid === String(id) && row.getAttribute('role') === 'article') labelRow(row, rec);
+  }
+  function restoreRowRoles() {
+    for (const r of box.querySelectorAll(':scope > [data-a11y-role]')) {
+      if (!r.getAttribute('role')) r.setAttribute('role', r.dataset.a11yRole);
+    }
+  }
   function logFocusCarryOf(ae) {
     if (!ae || !box.contains(ae) || ae === box) return null;
     const row = ae.closest ? ae.closest('#messages > [data-msgid]') : null;
@@ -10061,7 +10583,13 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // still arrives with a row this user may not delete is REFUSED whole, never trimmed — a
     // silent subset would be the confusing half of the dead control this closes.
     if (!items.every((it) => canDeleteRec(model.get(it.id)))) return;
-    const n = items.length;
+    /* ★ S9 (#1244): a selected photo GROUP is the whole group — every photo + its caption (each its own message to C#) */
+    const delIds = [];
+    for (const it of items) {
+      const g = gridGroups.get(String(it.id));
+      for (const x of (g ? g.ids : [String(it.id)])) if (x && delIds.indexOf(x) === -1 && model.has(x)) delIds.push(x);   // one side + one sender per group (planPhotoGroups) → the belt above answers for every member
+    }
+    const n = delIds.length;
     const title = n === 1
       ? (s.deleteSelectedOne || 'Delete this message?')
       /* PLURALS: this dictionary is one flat key → one string (verify-locales
@@ -10085,7 +10613,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
           onClick: () => {
             // Snapshot the ids FIRST: exiting selection re-paints rows, and each
             // verb echoes a deleteMessage push that re-renders the log under us.
-            const ids = items.map((it) => it.id).filter(Boolean);
+            const ids = delIds.slice();   // ★ S9: the group expansion above
             exitChatSelect();
             for (const id of ids) sendDeleteMessage(id);
           },
@@ -10100,7 +10628,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // both emit to a peer that hasn't accepted us. Copy/delete are local-only, but the
     // whole menu is gated for one grammar: nothing leaves this chat while pending.
     if (composerLock) return;
-    if (action === 'react') { reactToMessage(id, arg); return; }   // ★ S8 (#1232)
+    if (action === 'react') { bridge.send('ixian:haptic:click'); reactToMessage(id, arg); return; }   // ★ S8 (#1232) · ★ S9 #46 M6 (D-04): a click haptic on the pick
     if (action === 'copy') {
       // ★ #993: + the file:// fallback — the menu's Copy was a no-op on iPhone/Mac
       // ★ #1028 (walk R.9): native first, and the result is SHOWN — the menu closed and nothing told the
@@ -10349,7 +10877,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 
   /* composer ⊕ → attach sheet (tile grid) replacing the legacy native attach bar.
    *   file    → ixian:sendfile            (native picker)
-   *   photo/gif → ixian:sendmedia         (gated on the media capability, #81)
+   *   photo → ixian:sendmedia · camera → ixian:camera (★ S9: media + camera capabilities)
    *   pay     → composeSend cap: the #139 lockedRecipient compose takeover
    *             (W5 — C# signs after the NATIVE confirm). ★★ L1 (#640): no fallback
    *   request → composeRequest cap: the #139 amount sheet → ixian:sendrequest
@@ -10381,7 +10909,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        pre-built on the next feature. */
     const canSendFile = known && !mode.isBot && !((mode.type === 1 || mode.type === 2) && mode.hidesAddresses);
     return {
-      media: canSendFile && bridge.cap('media'),   // Photo/GIF also need the BE image standard (#81)
+      media: canSendFile && bridge.cap('media'),   // ★ S9 (#1244): Photos — C# declares `media` when this exe has the photo pipeline
+      camera: canSendFile && bridge.cap('media') && bridge.cap('camera'),   // ★ S9: Camera — C# declares `camera` on Android + iOS only
       apps: known && !mode.isBot,            // App invite: onApp is blocked in bots (xaml:834); 1:1 + groups OK
       payments: known && mode.type === 0,    // 1:1 only
       files: canSendFile,
@@ -10585,7 +11114,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   function onAttachAction(id) {
     if (!attachTilesFor(attachFlags()).some((t) => t.id === id)) return;
     if (id === 'file') bridge.send('ixian:sendfile');
-    else if (id === 'photo' || id === 'gif') bridge.send('ixian:sendmedia');
+    else if (id === 'photo') bridge.send('ixian:sendmedia');   // ★ S9: the system photo picker, ≤ 10 → mediaPicked
+    else if (id === 'camera') bridge.send('ixian:camera');      // ★ S9 (🟡 NEW verb): one photo → mediaPicked
     // ★★ L1 (#640): the `else` legs are gone with WalletSendPage / WalletReceivePage.
     // SingleChatPage declares BOTH caps unconditionally (:909), so those legs could
     // only ever run against an exe that no longer exists. The gate stays honest.
@@ -11103,7 +11633,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
          is dropped from the copy — not because it is false on spixi2 (it is true there), but
          because it is false for an rsa2 peer and Damir wants a reassuring line that is true on
          both paths. rsa2 is deprecated in due course; the copy does not wait for it. */
-      text: s.secureNoticeText || 'Messages are sealed on your device and can be opened only by the person you sent them to. Nobody in between can read them, not even us.',
+      /* ★ S9 A-10 (#1245): "sealed on your device" → END-TO-END ENCRYPTED; a changed meaning = a NEW key (secureNoticeTextE2e) */
+      text: s.secureNoticeTextE2e || 'Messages are end-to-end encrypted and can be opened only by the person you sent them to. Nobody in between can read them, not even us.',
       linkLabel: s.secureNoticeLink || 'How it works',
       onLink: () => bridge.send('ixian:openLink:' + SECURE_LINK),
     });
@@ -11153,25 +11684,39 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       const r = model.get(oid);
       return !(r && r.kind === 'payment' && r.txid && !isRequestRec(r) && requestTxids.has(r.txid));
     });
-    const pos = positionsFor(ids);
+    /* ★ S9 (#1244): the photo groups of this window — members past the lead and the caption leave the run */
+    const gplan = planPhotoGroups(ids);
+    gridCells = new Map();
+    gridMembers = gplan.memberLead;
+    gridGroups = gplan.groups;
+    const shownIds = gplan.skip.size ? ids.filter((oid) => !gplan.skip.has(oid)) : ids;
+    const pos = positionsFor(shownIds);
     let lastDay = null;
-    for (const id of ids) {
+    let lastMsgRow = null;   // ★ S9 r2 (Damir): the newest message row always carries the reaction reserve (reactions.css data-log-end)
+    for (const id of shownIds) {
       const rec = model.get(id);
       const day = new Date(rec.ts).toDateString();
       if (day !== lastDay) { frag.append(createDateSeparator(rec.ts)); lastDay = day; }
       // A3: the one-shot unread divider sits under any date separator, above the
       // first still-unread incoming row of this open (scrolls with the content).
-      if (id === unreadBoundaryId) frag.append(createUnreadDivider(window.SL || {}));
-      const row = buildRow(rec, pos[id]);
+      if (id === unreadBoundaryId || (unreadBoundaryId && gplan.memberLead.get(unreadBoundaryId) === id)) frag.append(createUnreadDivider(window.SL || {}));
+      const grp = gplan.groups.get(id);
+      const row = grp ? buildGridRow(grp, pos[id]) : buildRow(rec, pos[id]);
       row.dataset.msgid = id;
+      labelRow(row, rec);                  // ★ S9 a11y (#1206): role + accessible name (sender, time, status)
       rows.set(id, row);
+      if (grp) for (const mid of grp.ids) rows.set(mid, row);   // ★ S9: a jump / pulse / quote to any photo or the caption finds the bubble
       if (jumpPulse && jumpPulse.id === id) applyJumpPulse(row, performance.now() - jumpPulse.at);   // #46 r1 B-3: continue, do not restart
       frag.append(row);
+      if (row.classList.contains('c-bubble-row')) lastMsgRow = row;   // ★ #46 N2: a MESSAGE row (an event chip last keeps the reserve on the newest message)
+      if (grp) continue;                   // ★ S9: the cells carry their own pills + menus (buildGridRow)
       applyRowReactions(rec, row, false);  // re-attach pills after a rebuild
       wireMenu(rec, row);                  // long-press / right-click context menu
       // ★ #1028 (P.13): a tick that changed LIVE inside the last fade window crossfades on the rebuilt row too
       if (rec.tickFx && performance.now() - rec.tickFx.at < TICK_REPLAY_MS) replayStatusChange(row, rec.tickFx.from, performance.now() - rec.tickFx.at);   // ★ #1035: continue, do not restart
     }
+    /* ★ S9 r2 (Damir): the newest message row always reserves the reaction pill's overhang, so a reaction never grows the log and never hides under the composer. */
+    if (lastMsgRow) lastMsgRow.dataset.logEnd = '';
     box.replaceChildren(frag);             // atomic swap — no empty intermediate state
     carryReplyHover(replyFocusId);         // ★ #1198: the row under the mouse keeps its hover button (the #1184 carry)
     logDirty = false;                      // ★ Session P: on glass
@@ -11612,6 +12157,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       rec.voiceMs = VOICE_MS_RE.test(vs) ? Math.min(VOICE_PARSE_MAX_MS, parseInt(vs, 10)) : 0;
       rec.voice = VOICE_MS_RE.test(vs);
     }
+    /* ★ S9 (8-FACE, #1247): the stored played flag of a received clip is "1" or "0" (no stored flag = "0"), "" otherwise, and an absent arg leaves the row unchanged. */
+    if (extra && extra.played !== undefined) {
+      const pv = String(extra.played == null ? '' : extra.played);
+      rec.played = (pv === '1' || pv === '0') ? pv : '';
+    }
     if (text !== undefined && text !== null) {
       rec.text = String(text);
       /* ★ #1208 belt: a voice row keeps C#'s readable FIRST line only — never a marker line / base64 (e.g. updateMessage) */
@@ -11688,9 +12238,10 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     /* ★ r2 NIT: a row LEAVING failed restructures too (the Retry circle and the "Not delivered" line go, the hover reply
        button comes) — setMessageStatus only swaps the tick, so it re-renders like the way in */
     if (rec.direction === 'sent' && rec.status !== 'failed' && prevStatus !== 'failed' && !!rec.paid === paidBefore && !faceChanged) {   // ★ #1199: an edit re-renders
-      const row = rows.get(id);
+      const row = liveRowOf(id);   // ★ S9: a group caption has no row of its own → re-render
       if (row) {
         setMessageStatus(row, rec.status, window.SL || {}, { animate: !bursting && !loadPhase });   // ★ #1010: live ticks crossfade, history never
+        relabelRow(id);   // ★ S9 a11y (#1206): the row's name carries the new state
         if (prevStatus !== rec.status && isVoiceRec(rec)) paintVoiceRow(id);   // ★ S8 (#1239): the sent tick ends the send ring (in place)
         return;
       }
@@ -11726,6 +12277,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       if (extra.senderAddress !== undefined) rec.senderAddress = extra.senderAddress || '';
       if (extra.status !== undefined) rec.status = extra.status;   // ★ #1028 (P.22): sent files only (addFile sets null otherwise)
       if (extra.voice !== undefined) rec.voiceFile = String(extra.voice) === '1';   // ★ #1208 (V3): present = C#'s answer, absent = unchanged
+      if (extra.group !== undefined) rec.group = parseGroupArg(extra.group);
+      if (extra.played !== undefined) {   // ★ S9 (8-FACE): addFile arg 19 — the same stored flag as addThem arg 18
+        const pv = String(extra.played == null ? '' : extra.played);
+        rec.played = (pv === '1' || pv === '0') ? pv : '';
+      }         // ★ S9 (#1244): present = C#'s answer ("" / bad = none), absent = unchanged
       if (extra.local !== undefined) {
         /* ★ #1190: re-read on every addFile; "0" also forgets a held preview (the chat-info delete re-push) */
         rec.localGone = String(extra.local) === '0';
@@ -12187,7 +12743,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     },
 
     // TEXT create — own message. 12-arg legacy addMe shape (xaml.cs:1460).
-    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice) {
+    addMe(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice, played) {
       if (address) selfAddress = String(address);   // #717: who I am, for the @ picker
       if (nick) selfNick = String(nick);
       // M1 (#441): `relation` and `replyTo` are the two trailing ADDITIVE args C#
@@ -12198,7 +12754,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       // fallback quote) and the row renders exactly as before.
       upsertText(id, text, 'sent', toMs(time),
         { sent, confirmed, read, paid, errorSending },
-        { avatar: resolveAvatar(avatar), replyTo: replyTo || '', ...s6Args(edited, quoteName, quoteText), voice });   // ★ #1208: arg 17
+        { avatar: resolveAvatar(avatar), replyTo: replyTo || '', ...s6Args(edited, quoteName, quoteText), voice, played });   // ★ #1208: arg 17 · ★ S9 (8-FACE): arg 18
       noteEditAnswer(String(id), text, quoteText);   // ★ r2: a re-flush carries the answer too
     },
 
@@ -12210,7 +12766,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     // derive the A3 unread boundary from the open burst.
     // D-5/N26 (#366): trailing `relation` ('contact'|'pending'|'none'|'self'|'')
     // — an old C# exe leaves it undefined → the sheet falls back to 'none'.
-    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice) {
+    addThem(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice, played) {
       const av = resolveAvatar(avatar);
       // A3: first LOAD-PHASE row still unread when the chat opened = the boundary.
       // Exactly-once by C# ordering (push precedes the read flip, :1603/:1661) and
@@ -12231,7 +12787,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
           relation: RELATIONS.has(relation) ? relation : '',
           replyTo: replyTo || '',      // M1 (#441)
           ...s6Args(edited, quoteName, quoteText),      // ★ #1198 / #1199 (P1)
-          voice });                    // ★ #1208 (V2): arg 17 = the clip length in ms, "" = not a voice row, absent = an old exe
+          voice,                       // ★ #1208 (V2): arg 17 = the clip length in ms, "" = not a voice row, absent = an old exe
+          played });                   // ★ S9 (8-FACE, #1247): arg 18 = "1" / "0" for a clip I received, "" otherwise, absent = an old exe
       // 1:1 topbar fallback: if setAvatar (onLoad, X1) hasn't landed a header avatar yet,
       // scavenge it from the peer's first message (1:1/bot only — groups get the group
       // avatar via setAvatar). Guarded on !identity.avatar so setAvatar always wins.
@@ -12249,13 +12806,14 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
        reply keeps its quote. A refused edit is simply C# re-pushing the row's current state through here: the row
        shows what C# says (the shell never paints an edit optimistically). A 7-arg push (an old exe, a status tick)
        changes only the status and the text — the marker and the quote stay (upsertText, `fullForm`). */
-    updateMessage(id, message, sent, confirmed, read, paid, errorSending, edited, replyTo, quoteName, quoteText, voice) {
+    updateMessage(id, message, sent, confirmed, read, paid, errorSending, edited, replyTo, quoteName, quoteText, voice, played) {
       const key = String(id);
       const existing = model.get(key);
       const dir = existing ? undefined : (asBool(sent) ? 'sent' : 'received');
       const s6 = s6Args(edited, quoteName, quoteText);
       if (s6.fullForm) s6.replyTo = replyTo === undefined ? undefined : String(replyTo || '');
       if (voice !== undefined) s6.voice = voice;   // ★ #1208 (V2, arg 12): C#'s voice answer for this row; absent (old exe / 11-arg push) = unchanged
+      if (played !== undefined) s6.played = played;   // ★ S9 (8-FACE): arg 13 — the stored played flag; absent = unchanged
       upsertText(key, message, dir, existing ? existing.ts : Date.now(),
         { sent, confirmed, read, paid, errorSending }, s6);
       noteEditAnswer(key, message, quoteText);   // ★ r2 (MAJOR-2): C#'s answer to a Save — the same body = landed, another = refused
@@ -12350,6 +12908,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       exitChatSelect();                    // per-peer reset: a selection (and its contextual
                                            // topbar) must never survive into another conversation
       closeSendTakeover();                 // round-2 MINOR: an open money cover must not strand into peer B
+      closeMediaSheetIfOpen();             // ★ S9: A's photo batch is cancelled (mediaCancel) — it never goes to B
       closePayReview();                    // loop r1 B-3 (Batch W): the request-in review sheet sweeps with the compose
       identity.address = address || '';
       identity.avatar = null;              // per-peer reset (desktop reparent); setAvatar (onLoad) re-sets it
@@ -12829,7 +13388,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
      * paused also labels it "Paused". An older exe sends 14 args (the old rule); an OLDER shell ignores arg 15. */
     /* ★ #1190: arg 16 `local` — the file on this device? "1" / "0" / "" (C# SharedItems.localArgOf; an older exe → undefined
      * = today's row; an older shell ignores it). buildFileRow draws "0". */
-    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice) {
+    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice, group, played) {
       const status = asBool(me)
         ? statusFrom({ sent: relaySent === undefined ? 'True' : relaySent, confirmed: sent, read })
         : null;
@@ -12838,7 +13397,10 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       upsertFile(id, toMs(time), asBool(me) ? 'sent' : 'received', fileid, name,
         fileStateFrom(me, progress, complete, tx), pct,
         { senderNick: resolveNick(address, nick), senderAddress: address || '', status, local: local === undefined ? '' : local,
-          voice });   // ★ #1208 (V3): arg 17 "1" = C# renders this file as a voice bubble; "" = a file row; absent = an old exe
+          voice,   // ★ #1208 (V3): arg 17 "1" = C# renders this file as a voice bubble; "" = a file row; absent = an old exe
+          group,      // ★ S9 (#1244): arg 18 — see below
+          played });  // ★ S9 (8-FACE): arg 19 — a voice FILE I received: "1" / "0" / "" (the addThem arg 18 rule); absent = an old exe
+          /* arg 18 "<gid>|<index>|<count>|<captionIdHex>" = one photo of a pick; "" = none; absent = an old exe */
       const rec = model.get(String(id));   // the row paints on the next frame (renderLog), after this flag is set
       if (rec) rec.paused = !!(tx && tx.state === 'paused' && rec.fstate === 'progress');
       if (rec && rec.voiceFile) { settleVoiceFileLoading(rec); paintVoiceRow(String(id)); }   // ★ #46 r1 (B MAJOR-1)
@@ -12884,8 +13446,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       rec.status = next;
       const live = !bursting && !loadPhase;
       if (live && prev) rec.tickFx = { from: prev, at: performance.now() };
-      const row = rows.get(key);
-      if (row && prev) setMessageStatus(row, next, window.SL || {}, { animate: live });
+      const row = liveRowOf(key);   // ★ S9: a grouped photo's own cell (none → re-render)
+      if (row && prev) { setMessageStatus(row, next, window.SL || {}, { animate: live }); relabelRow(key); }   // ★ S9 a11y: + the row's name
       else renderLog();
     },
 
@@ -12917,7 +13479,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       // BOTH directions tick then flip to complete (Damir F5: outgoing shows
       // progress too — the sender gets per-packet ticks, TransferManager:410).
       rec.fstate = done ? 'complete' : 'progress';
-      const row = rows.get(id);
+      const row = liveRowOf(id);   // ★ S9: a grouped photo's own cell; a member with no cell → re-render
       // setFileProgress mutates a row that is ALREADY in 'progress' (bar tick +
       // the progress→complete flip). A structural change (offer→progress etc.)
       // has no track to grow, so rebuild the row from the model instead.
@@ -12996,9 +13558,59 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       if (!rec || rec.kind !== 'file' || !isPhotoFileName(rec.name)) return;
       if (fileThumbs.get(key) === u) return;                 // the same preview again: nothing to redo
       storeFileThumb(key, u);
-      const row = rows.get(key);
+      const row = liveRowOf(key);   // ★ S9: a grouped photo's own cell (a member past the fourth has none — nothing to patch)
       if (row) setImageFileThumb(row, u);   // a tile that shows a picture only (complete, or MY photo still sending — #46 r2 R2-1); a card ignores it
       refreshQuoteTiles(key);               // ★ 7b (#1215): the quotes of this photo show it
+    },
+
+    /* ★★ S9 (#1244, 🟡 NEW push): mediaPicked validates C#'s prepared batch, shows the preview sheet and answers ixian:mediaSend or ixian:mediaCancel (never a path or bytes). */
+    mediaPicked(batchId, json) {
+      const bid = String(batchId == null ? '' : batchId);
+      if (!MEDIA_BATCH_RE.test(bid)) return;
+      const items = parseMediaItems(json);
+      if (!items.length || composerLock || !attachFlags().media) { bridge.send('ixian:mediaCancel:' + bid); return; }
+      closeMediaSheetIfOpen();   // a newer batch: the older one is answered with mediaCancel (its sheet's onDismiss)
+      closeAttachTrayIfOpen();
+      const sheet = openMediaSendSheet({
+        host: overlayHost, items, strings: window.SL || {},
+        onSend: (keys, caption) => {
+          if (mediaSheet === sheet) mediaSheet = null;
+          const ks = keys.filter((k) => MEDIA_KEY_RE.test(k));
+          if (!ks.length) { bridge.send('ixian:mediaCancel:' + bid); return; }
+          bridge.send('ixian:mediaSend:' + bid + ':' + ks.join(',') + ':' + b64url(caption));
+        },
+        onCancel: () => {
+          if (mediaSheet === sheet) mediaSheet = null;
+          bridge.send('ixian:mediaCancel:' + bid);
+          syncChatOverlay();
+        },
+      });
+      mediaSheet = sheet || null;
+      syncChatOverlay();
+    },
+    /* ★ S9 (🟡 NEW push): mediaError(code) — a fixed code → a fixed toast; anything else is ignored. Never logged. */
+    mediaError(code) {
+      const c = String(code == null ? '' : code);
+      const sl = window.SL || {};
+      const text = ({
+        tooBig: sl.mediaTooBig || 'This photo is too large to send as a photo. Use Send file instead.',
+        decode: sl.mediaDecode || 'This picture could not be read.',
+        clipboardEmpty: sl.mediaClipboardEmpty || 'There is no picture to paste.',
+        storageDenied: sl.mediaStorageDenied || 'Spixi needs storage access to save the camera photo. Allow it in your device settings.',   // #46 r2 n2 (Android ≤ 12)
+        cameraDenied: sl.mediaCameraDenied || 'Spixi needs camera access to take a photo. Allow it in your device settings.',
+        tooMany: sl.mediaTooMany || 'You can send up to 10 photos at a time. The extra photos were left out.',
+        fileTooBigIn: sl.fileTooBigIn100 || 'This file is over 100 MB and can’t be downloaded.',   // ★ S9 #46 M4: a received offer over the cap
+        fileTooBig: sl.fileTooBig100 || 'This file is over 100 MB and can’t be sent.',   // ★ S9 A-9: a Send file / a received offer over the cap
+      })[c];
+      if (!text || !Object.prototype.hasOwnProperty.call(MEDIA_ERROR_TONE, c)) return;
+      try { showToast({ text, tone: MEDIA_ERROR_TONE[c] || undefined, host: overlayHost, strings: sl }); } catch (e) {}
+    },
+    /* ★ S9 (#1244 / #1138 (16), 🟡 NEW push): fileNotice(kind) — "videoLocation" after a VIDEO went out through Send file:
+     * one toast. Any other kind is ignored. */
+    fileNotice(kind) {
+      if (String(kind) !== 'videoLocation') return;
+      const sl = window.SL || {};
+      try { showToast({ text: sl.videoLocationNote || 'Videos are sent as they are, with any location data inside.', host: overlayHost, strings: sl }); } catch (e) {}
     },
 
     // CALL event (chat.js addCall:1496): (id, text, declined, time) + C4 trailing
@@ -13047,9 +13659,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
       const parsed = parseReactions(reactions, id, own, tipTotal);
       rec.reactions = parsed.reactions;
       rec.tip = parsed.tip;
+      rec.tipN = parsed.tipN;   // ★ S9 #46 M2: a photo group sums its members' tips
       rec.seenCount = parsed.seenCount;               // ★★ L2 (#641): the long-press detail
       rec.downloadedCount = parsed.downloadedCount;   // ★ file cards
       rec.ownEmoji = parsed.ownEmoji;                 // ★ S8 (#1232): my one reaction (menu + pills read it)
+      if (gridMembers.has(String(id))) { renderLog(); return; }   // ★ S9 #46 M2: the group's summed pills (buildGridRow)
       const row = rows.get(String(id));
       if (row) {
         if (rec.reactions.length || rec.tip) applyRowReactions(rec, row, true);
@@ -13868,6 +14482,15 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
     mentionSource: mentionMembers,
   });
   document.getElementById('chat-composer').replaceChildren(composerEl);
+  /* ★★ S9 (#1244 / #1156): a paste with an image type and no text/plain (clipboard types only) sends ixian:pasteImage, and C# answers mediaPicked or mediaError. */
+  {
+    const pasteIn = composerEl.querySelector('.c-composer__input');
+    if (pasteIn) pasteIn.addEventListener('paste', (e) => {
+      if (composerLock || !attachFlags().media || !clipboardHasImageType(e.clipboardData)) return;
+      e.preventDefault();
+      bridge.send('ixian:pasteImage');
+    });
+  }
   /* ★ 7b (#1219): the strip's open / close re-syncs the back mirror (setComposerContext writes field[data-ctx]) */
   try { new MutationObserver(syncChatOverlay).observe(composerEl, { subtree: true, attributes: true, attributeFilter: ['data-ctx'] }); } catch (e) {}
   /* ★★ ORDER (Session AE, the #46 reviewer's MAJOR-1): this block sits ABOVE the #711 publish

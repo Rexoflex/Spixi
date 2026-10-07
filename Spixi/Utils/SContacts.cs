@@ -116,6 +116,8 @@ namespace SPIXI
                 SChatPrefs.setFavorite(group.walletAddress?.ToString(), false);   // CH4: the preference leaves with the record
                 SReactionFlags.clear(group.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the reaction heart leaves with the group
                 SAppDeclines.clear(group.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
+                SPeerLocalStores.forget(group.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+                scheduleSentSweep();   // ★ S9 #46 r1 m-3: my Sent copies the left room named go too
             }
             UIHelpers.shouldRefreshContacts = true;
             return removed;
@@ -169,6 +171,8 @@ namespace SPIXI
                 SSightingStore.forget(friend.walletAddress?.ToString());   // ★ G-2: the kept sighting leaves with the contact
                 SReactionFlags.clear(friend.walletAddress?.ToString());    // ★ #1148 (4): the reaction heart too
                 SAppDeclines.clear(friend.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
+                SPeerLocalStores.forget(friend.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+                scheduleSentSweep();   // ★ S9 #46 r1 m-3: my Sent copies this history named go too
                 return "ok";
             }
             blockers = sharedGroups(friend);
@@ -214,7 +218,18 @@ namespace SPIXI
          * ⚠ Residual, accepted: a transfer completed inside the writer's ~200 ms deferral is
          * still `completed=false` on disk and stays; a file whose only OTHER referrer's history
          * is already gone (an orphan) is not protected; the log line names the counts only. */
+        /** ★ S9 #46 r2 m2: a read's completeness — false when ANY history file or directory could not be read in full. */
+        private sealed class ReadStatus
+        {
+            public bool complete = true;
+        }
+
         private static List<FriendMessage> readMessagesRaw(string path)
+        {
+            return readMessagesRaw(path, null);
+        }
+
+        private static List<FriendMessage> readMessagesRaw(string path, ReadStatus? status)
         {
             List<FriendMessage> messages = new List<FriendMessage>();
             try
@@ -232,6 +247,10 @@ namespace SPIXI
                         int msg_len = reader.ReadInt32();
                         if (msg_len <= 0 || msg_len > 16 * 1024 * 1024)
                         {
+                            if (status != null)
+                            {
+                                status.complete = false;   // ★ #46 r2 m2: a partial list
+                            }
                             break;
                         }
                         messages.Add(new FriendMessage(reader.ReadBytes(msg_len)));
@@ -242,11 +261,20 @@ namespace SPIXI
             {
                 // the TYPE only — the path names the peer
                 Logging.warn("readMessagesRaw: a history file did not parse (" + e.GetType().Name + ")");
+                if (status != null)
+                {
+                    status.complete = false;   // ★ #46 r2 m2
+                }
             }
             return messages;
         }
 
         private static IEnumerable<FriendMessage> allMessagesOnDisk(Address wallet)
+        {
+            return allMessagesOnDisk(wallet, null);
+        }
+
+        private static IEnumerable<FriendMessage> allMessagesOnDisk(Address wallet, ReadStatus? status)
         {
             string chats_root = Path.Combine(IxianHandler.localStorage.documentsPath, "Chats", wallet.ToString());
             if (!Directory.Exists(chats_root))
@@ -260,6 +288,10 @@ namespace SPIXI
             }
             catch (Exception)
             {
+                if (status != null)
+                {
+                    status.complete = false;
+                }
                 yield break;
             }
             foreach (string channel_dir in channel_dirs)
@@ -271,11 +303,15 @@ namespace SPIXI
                 }
                 catch (Exception)
                 {
+                    if (status != null)
+                    {
+                        status.complete = false;
+                    }
                     continue;
                 }
                 foreach (string f in files)
                 {
-                    foreach (FriendMessage fm in readMessagesRaw(f))
+                    foreach (FriendMessage fm in readMessagesRaw(f, status))
                     {
                         yield return fm;
                     }
@@ -334,6 +370,147 @@ namespace SPIXI
                 if (seg == "." || seg == "..") return true;
             }
             return false;
+        }
+
+        /* ═══ ★ S9 #46 r1 m-3 — MY DURABLE SENT COPIES leave with the history that names them ═══
+         * <spixiUserFolder>/Sent/<uid><ext> are C#'s own copies of the photos and files I sent (#1200). When a history is
+         * deleted (one contact, a contact removal, a room leave) the rows that named them are gone — the copies would stay as
+         * private orphans. scheduleSentSweep runs OFF the UI thread AFTER the deletion: it deletes every DIRECT child of Sent/
+         * whose name is a sent copy (PhotoRules.isSentCopyName), older than SentSweepMinAgeSeconds (a send in flight is never
+         * touched), that NO remaining history names as a sent file's path. deleteAllSentCopies (the account wipe / delete all
+         * history) deletes every sent copy and every pending photo. Never throws; logs a count only. */
+        public const long SentSweepMinAgeSeconds = 600;
+        private static int sentSweepRunning = 0;
+
+        private static string sentFolder()
+        {
+            return Path.Combine(Config.spixiUserFolder, PhotoRules.SentFolderName);
+        }
+
+        private static int sentSweepAgain = 0;   // ★ #46 r2 m5: a request while a sweep runs → one more pass after it
+
+        public static void scheduleSentSweep()
+        {
+            System.Threading.Interlocked.Exchange(ref sentSweepAgain, 1);
+            if (System.Threading.Interlocked.CompareExchange(ref sentSweepRunning, 1, 0) != 0)
+            {
+                return;   // the running sweep sees the flag and runs once more (it reads every history again)
+            }
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                while (true)
+                {
+                    while (System.Threading.Interlocked.Exchange(ref sentSweepAgain, 0) == 1)
+                    {
+                        sweepSentOnce();
+                    }
+                    System.Threading.Interlocked.Exchange(ref sentSweepRunning, 0);
+                    // a request that came in between the last pass and the release: take the slot back and run again
+                    if (System.Threading.Volatile.Read(ref sentSweepAgain) == 0
+                        || System.Threading.Interlocked.CompareExchange(ref sentSweepRunning, 1, 0) != 0)
+                    {
+                        return;
+                    }
+                }
+            });
+        }
+
+        /** One pass (OFF the UI thread). ★ #46 r2 m2: if ANY history read failed or was partial, NOTHING is deleted. */
+        private static void sweepSentOnce()
+        {
+            int deleted = 0;
+            try
+            {
+                string dir = sentFolder();
+                if (!Directory.Exists(dir))
+                {
+                    return;
+                }
+                HashSet<string> named = new HashSet<string>(StringComparer.Ordinal);
+                ReadStatus status = new ReadStatus();
+                List<Friend> all;
+                lock (FriendList.friends)
+                {
+                    all = new List<Friend>(FriendList.friends);
+                }
+                foreach (Friend f in all)
+                {
+                    if (f == null || f.walletAddress == null)
+                    {
+                        continue;
+                    }
+                    foreach (FriendMessage fm in allMessagesOnDisk(f.walletAddress, status))
+                    {
+                        // ★ #46 r3 MAJOR: named by LEAF (+ a "Sent" parent) — a path recorded under an older app root still counts
+                        string? sentLeaf = fm.localSender && fm.type == FriendMessageType.fileHeader ? PhotoRules.sentLeafOf(fm.filePath) : null;
+                        if (sentLeaf != null)
+                        {
+                            named.Add(sentLeaf);
+                        }
+                    }
+                }
+                if (!status.complete)
+                {
+                    Logging.warn("Sent sweep skipped: a history could not be read in full");
+                    return;
+                }
+                DateTime now = DateTime.UtcNow;
+                List<KeyValuePair<string, double>> leaves = new List<KeyValuePair<string, double>>();
+                foreach (string path in Directory.EnumerateFiles(dir, "*", SearchOption.TopDirectoryOnly))
+                {
+                    try
+                    {
+                        leaves.Add(new KeyValuePair<string, double>(Path.GetFileName(path), (now - File.GetLastWriteTimeUtc(path)).TotalSeconds));
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+                foreach (string leaf in PhotoRules.sentSweepVictims(leaves, named, status.complete, SentSweepMinAgeSeconds))
+                {
+                    try
+                    {
+                        File.Delete(Path.Combine(dir, leaf));
+                        deleted++;
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Sent sweep stopped (" + e.GetType().Name + ")");
+            }
+            if (deleted > 0)
+            {
+                Logging.info("Sent sweep removed " + deleted + " files");
+            }
+        }
+
+        /** The account is wiped / every history deleted: every sent copy and pending photo goes (direct children only). */
+        public static void deleteAllSentCopies()
+        {
+            try
+            {
+                string dir = sentFolder();
+                if (!Directory.Exists(dir))
+                {
+                    return;
+                }
+                foreach (string path in Directory.EnumerateFiles(dir, "*", SearchOption.TopDirectoryOnly))
+                {
+                    string leaf = Path.GetFileName(path);
+                    if (PhotoRules.isSentCopyName(leaf) || PhotoRules.isPendingName(leaf))
+                    {
+                        try { File.Delete(path); } catch (Exception) { }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Sent copies could not be removed (" + e.GetType().Name + ")");
+            }
         }
 
         public static List<string> collectReceivedMedia(Friend friend)
@@ -445,6 +622,8 @@ namespace SPIXI
             }
             SReactionFlags.clear(friend.walletAddress?.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
             SAppDeclines.clear(friend.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
+            SPeerLocalStores.forget(friend.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+            scheduleSentSweep();   // ★ S9 #46 r1 m-3: my Sent copies this history named go too
             if (friend.walletAddress != null)
             {
                 CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back

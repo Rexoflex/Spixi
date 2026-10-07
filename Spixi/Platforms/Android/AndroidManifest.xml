@@ -54,4 +54,13 @@
 	<uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
 	<uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+	<!-- ★ S9 (#1244): the chat's Camera tile (MAUI MediaPicker.CapturePhotoAsync) checks that a camera app answers
+	     ACTION_IMAGE_CAPTURE — on Android 11+ that check needs this package-visibility entry. No new permission (CAMERA
+	     is above, for the QR scanner); the photo pick uses ACTION_GET_CONTENT and needs no media permission. -->
+	<queries>
+		<intent>
+			<action android:name="android.media.action.IMAGE_CAPTURE" />
+		</intent>
+	</queries>
+
 </manifest>

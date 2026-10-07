@@ -143,3 +143,8 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L93 | Before fixing an auditor's MAJOR, diff its copy against the delivered tree: a reader's own deliberate break left in its copy was reported as a defect (its file was 10 min newer than the copy). | #1242 (picks r4) |
 | L94 | `pkill -f <pattern>` / a `pgrep` loop kills the shell that runs it when the pattern is in its own command line (exit 144 twice): kill by pid from `ps` filtered with `[n]ode`, or never kill — fix the input and start a new run. | #1242 |
 | L95 | A detached cloud smoke run dies with a container restart or a turn boundary without its done marker: always end the run with `echo SMOKEDONE rc=$?` and treat a log without it as NOT run. | #1241 |
+| L96 | A one-token comment trim to fit a size ceiling cut comments mid-word: to save bytes, shorten or drop WHOLE sentences only. | #1251 (r2) |
+| L97 | A gate re-base that exempts a whole FILE is weaker than the gate (the #1028 clipboard gate let a new clipboard read through): exempt the one API, not the file. | #1251 (r1 D) |
+| L98 | An absolute path recorded at send time breaks after an iOS container move (the Sent sweep would delete every older copy): name own files by LEAF and re-root under the current folder. | #1251 (r3) |
+| L99 | A pre-draw block also stops the WebView's own frames (the boot hold could only ever hit its cap): cover natively on the decor view and remove the cover on a signal instead. | #1249 |
+| L100 | MAUI `CapturePhotoAsync` on iOS needs PhotosAddOnly and encodes a PNG on the main thread: use the native picker and our own photo rule off the UI thread. | #1251 (r1 A) |

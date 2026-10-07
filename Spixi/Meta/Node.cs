@@ -377,6 +377,7 @@ namespace SPIXI.Meta
 
                 Logging.info("Node started");
                 VoiceFolderSweep.runOnce(Path.Combine(Config.spixiUserFolder, "Voice"));   // ★ 7b (#1224 (8)): background, bounded, broken files only
+                SingleChatPage.sweepPendingPhotos();   // ★ S9 (#1244): background, bounded — only C#'s own Sent/pending-* photos
                 SingleChatPage.warmSelfAvatar();   // ★ S8 picks #46 r1 A MINOR-2: my avatar's 128 px URI, made off the main thread (never throws)
 
                 /* ★★ ROUND 3 (review3-cs MAJOR-1) — THE LAST STATEMENT, ON PURPOSE.

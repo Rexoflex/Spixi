@@ -6549,8 +6549,8 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
     && /if \(lastBackup > 0 && Clock\.getTimestamp\(\) - lastBackup <= Config\.backupReminder\)\s*\{\s*return;/.test(remBody)
     && remBody.indexOf('lastBackupTimestamp()') < remBody.indexOf('toggleAnimatedSlider')
     && /public static long lastBackupTimestamp\(\)/.test(bpS2) && /private static void recordBackup\(\)/.test(bpS2)
-    && (bpS2.match(/recordBackup\(\);/g) || []).length === 2
-    && (stripCode(bpS2).match(/await SFileOperations\.share\([^;]*\);\s*recordBackup\(\);/g) || []).length === 2   // AFTER the sheet returned (loop m4)
+    && (bpS2.match(/recordBackup\(\);/g) || []).length === 2   /* ★ S9 A2 r1 (#1245 H-13) re-based: TWO stamp sites, both inside recordBackupIfSaved — the user's "Yes", and Windows FileSaver's own success */
+    && (stripCode(bpS2).match(/bool\? outcome = await shareBackup\([^;]*\);\s*await recordBackupIfSaved\(outcome\);/g) || []).length === 2   /* ★ S9 A2 r1 (#46 R1-B) re-based: the share outcome rides into the decision */   // AFTER the sheet returned (loop m4) — ★ S9 A2 re-based: then the native question
     && /private void onLoad\(\)\s*\{\s*pushBackupStatus\(this\);/.test(stripCode(bpS2)),
     'A11 → S2: the backed-up-recently gate is C#\'s (displayBackupReminder returns inside the reminder window of BackupPage.lastBackupTimestamp, BEFORE the push) and BOTH backup paths record the stamp; the shell holds no spixi.backup.last');
   ok(/RATING_SNOOZE_KEY/.test(home),
@@ -8595,7 +8595,7 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      picks #46 r1 fixes (MEASURED): 866 140 → 871 075 (+4 935: the live-only accent + reflush keep, the still ring after 30 s,
      the overlaid seconds-left hint track, the 40-bar fit, the reopen-from-on-screen strip) → CHAT 848 → 853; 852 would leave
      404, 853 leaves 1 428 (after the r2 / r3 lead fixes: 872 044 chars). Stated. */
-  const CHAT_KB_CEIL = 853, INDEX_KB_CEIL = 560;
+  const CHAT_KB_CEIL = 885,   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 560;
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -9386,7 +9386,7 @@ console.log('#348b — F5 follow-up fixes');
      exists to remove — with the whole suite green. */
   /* ★ #1198/#1199 re-base (session 6b): SingleChatPage's caps are now built in a `caps` local (reply always, edit unless
      a bot room) and pushed as `"setCaps", caps` — the tipResult cap still leads that literal. */
-  ok(/if \(!bridge\.cap\('tipResult'\)\)/.test(chB) && (/setCaps", "tipResult/.test(scpB) || /string caps = "tipResult[^"]*";[\s\S]{0,300}?"setCaps", caps\);/.test(scpB))
+  ok(/if \(!bridge\.cap\('tipResult'\)\)/.test(chB) && (/setCaps", "tipResult/.test(scpB) || /string caps = "tipResult[^"]*";[\s\S]{0,1500}?"setCaps", caps\);/.test(scpB))   /* ★ S9 re-base: window 300 → 1500 — the S9 media / camera caps (A1, #1244) and their comment sit between the literal and the push */
     && /setCaps\(list\) \{[\s\S]{0,300}?bridge\.capabilities\[c\] = true;/.test(chB),
     '★ D-10 (#348b, audit): the wait is CAPABILITY-GATED. A new shell on an old exe would otherwise freeze 12 s after a SUCCESSFUL tip and then claim it may have failed; an old shell on a new exe would show no error at all. Both combinations were worse than the bug being fixed');
   /* ⚠ Gate row O-12 changed the SHAPE of this line and not its meaning: the replacement
@@ -10128,7 +10128,7 @@ console.log('multi-message selection (selection topbar + bulk delete)');
   ok(/deleteSelectedMany \|\| 'Delete \{n\} messages\?'/.test(chatShell)
     && /role: 'alertdialog'/.test(chatShell),
     'bulk delete confirms in the house alertdialog and NAMES the count (Damir’s ask)');
-  ok(/const ids = items\.map\(\(it\) => it\.id\)\.filter\(Boolean\);\s+exitChatSelect\(\);/.test(chatShell),
+  ok(/const ids = delIds\.slice\(\);[^\n]*\n\s+exitChatSelect\(\);/.test(chatShell) && /const delIds = \[\];\s+for \(const it of items\) \{/.test(chatShell),   /* ★ S9 re-base: the snapshot is the group-expanded id list (delIds — a photo group = every photo + its caption; behaviour: pins-s9/b1-grid.mjs) */
     'the ids are snapshotted BEFORE the exit — each verb echoes a re-render that would move the rows underneath');
 }
 
@@ -10232,7 +10232,7 @@ console.log('multi-select entry gestures · counted confirm · attach sheet titl
       && !/surface-action-disabled/.test(disabledRule),
       '★ #705: the send disc is DISABLED when empty and its :disabled rule paints --surface-action-default / on-action ink — the state is real (no click, no hover), only the grey went');
     let picked = null;
-    const tray = W.Spixi.openAttachTray({ composerEl: comp, media: true, strings: W.SL || {}, onAction: (id) => { picked = id; } });
+    const tray = W.Spixi.openAttachTray({ composerEl: comp, media: true, camera: true, strings: W.SL || {}, onAction: (id) => { picked = id; } });   /* ★ S9 re-base (#1244 P = B): GIF gone, Camera in — media + camera = the six tiles (pins-s9/b1-attach.mjs) */
     await sleep(60);
     ok(!!tray && tray.classList.contains('c-attach-tray') && comp.nextElementSibling === tray
       && tray.querySelectorAll('.c-attach__tile').length === 6 && tray.getAttribute('aria-label') === 'Add to chat',
@@ -12541,7 +12541,8 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     'D-5: contactRelationFor lives on SpixiContentPage with the 4-value vocabulary (one truth for all three pushes)');
   // ★ #1198/#1199 re-base (session 6b): + edited, quoteName, quoteText after reply_to (args 14–16, additive the same way)
   // ★ #1208 re-base (session 7): + `rowVoice` (arg 17, V2) after quoteText — additive the same way
-  ok(/errorSending\.ToString\(\), relation, reply_to, edited, quoteName, quoteText, rowVoice\);/.test(scp366),
+  // ★ S9 A3 re-base (8-FACE #1247): + `rowPlayed` (arg 18) after rowVoice — additive the same way
+  ok(/errorSending\.ToString\(\), relation, reply_to, edited, quoteName, quoteText, rowVoice, rowPlayed\);/.test(scp366),
     'D-5 + M1 (#441): the per-message addMe/addThem push carries the trailing relation arg — and now the reply-to id after it, additive in the same way (+ #1198/#1199 args 14–16)');
   ok(/relation = contactRelationFor\(resolvedSender\);/.test(scp366)
     && /!message\.localSender && !relationBlind/.test(scp366),
@@ -12586,9 +12587,10 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
   /* ★ #1198 re-base: the S6 P1 args (edited, quoteName, quoteText) follow replyTo — the intent (accept EVERY trailing arg C#
      sends, none silently discarded) is unchanged; the signature grew by the three the contract adds */
   /* ★ #1208 re-base (session 7): + `voice` (arg 17, V2) — the same intent, one more trailing arg */
-  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice\)/.test(chat366),
+  /* ★ S9 re-base (8-FACE): + `played` (arg 18) — the same intent, one more trailing arg (behaviour: pins-s9/b1-misc.mjs) */
+  ok(/addThem\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice, played\)/.test(chat366),
     'D-5 + M1 (#441): chat.html addThem accepts the trailing relation AND replyTo (the old signature silently discarded trailing args)');
-  ok(/addMe\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice\)/.test(chat366),
+  ok(/addMe\(id, address, nick, avatar, text, time, sent, confirmed, read, paid, errorSending, relation, replyTo, edited, quoteName, quoteText, voice, played\)/.test(chat366),   /* ★ S9 re-base: + played (arg 18) */
     '★ M1 (#441): addMe grew the SAME two trailing params. It declared 11 and would otherwise have discarded the reply target on OWN messages — which is precisely the sender-persistence case that killed C8 on hardware (#215)');
   ok(/const RELATIONS = new Set\(\['contact', 'pending', 'pending-in', 'none', 'self'\]\);/.test(chat366),
     'D-5: pushed relation values are validated against the closed vocabulary (+ pending-in, #371)');
@@ -12908,7 +12910,7 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
   /* —— N49: selectChat lifecycle —— */
   const hp370 = nc(read('Spixi/Pages/Home/HomePage.xaml.cs'));
   /* ★ #1093 RE-BASE: the FAB-picker release (onChatShown) is pushed first, on every present — the highlight rule is unchanged */
-  ok(/overlay is SingleChatPage presentedChat\)\s*\{\s*Utils\.sendUiCommand\(this, "onChatShown"\);\s*if \(rightContent\.IsVisible\)\s*\{\s*Utils\.sendUiCommand\(this, "selectChat", presentedChat\.friend\.walletAddress\.ToString\(\)\);\s*\}\s*return;\s*\}/.test(hp370),
+  ok(/overlay is SingleChatPage presentedChat\)\s*\{\s*Utils\.sendUiCommand\(this, "onChatShown"\);\s*if \(rightContent\.IsVisible\)\s*\{\s*Utils\.sendUiCommand\(this, "selectChat", presentedChat\.friend\.walletAddress\.ToString\(\)\);\s*\}\s*followInfoPane\(presentedChat\);\s*return;\s*\}/.test(hp370),   /* ★ S9 A3 re-base (#1179 (a)): the present also lets a desktop info pane follow the switch (after the highlight, behaviour pinned in pins-s9/a3-wiring.mjs) */
     '★ N49 (#370): the row highlight is pushed at PRESENT time (onOverlayPresented), WIDE only (r2 F-1: a phone takeover\'s close slide reveals the list before the clear — an unconditional stamp tinted the just-left row for the whole slide-out). Pattern var = presentedChat, NOT scp (a method-tail lambda already declares scp — CS0136, loop A-1)');
   ok(!/pushPageLoaded\(new SingleChatPage[\s\S]{0,400}?sendUiCommand\(this, "selectChat"/.test(hp370),
     'N49 (#370): the old call-site push is GONE (present-time is the only setter)');
@@ -13112,11 +13114,11 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     '★ #705: the iOS edge swipe closes the attach tray in the SAME order as chatBack (after the stack, before selection) — one gesture grammar, two entry points');
   ok(/if \(chatSelect && box\.dataset\.selecting === undefined\) chatSelect = null;/.test(chatNc),
     '★ N51 (#376 loop A-1, MAJOR): a constructor-auto-exited selection (initial row not selectable) fires onExit BEFORE the handle lands — the dead-handle guard at startChatSelect drops it, or hardware back is WEDGED for the life of the conversation');
-  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 13   // +2 (#523): the money cover's open + close · +3 (#705): the attach tray's open (openAttach), close (closeAttachTrayIfOpen) and the tile-close (the tray's onAction) · +1 (#721): the keyboard hand-off drop · +1 (Session K, K1): the keyboard → tray hold mounts (handKeyboardToTray)
+  ok((chatNc.match(/syncChatOverlay\(\);/g) || []).length === 15   // ★ S9 re-base +2: the photo preview sheet's open (mediaPicked) and close (its onCancel) · +2 (#523): the money cover's open + close · +3 (#705): the attach tray's open (openAttach), close (closeAttachTrayIfOpen) and the tile-close (the tray's onAction) · +1 (#721): the keyboard hand-off drop · +1 (Session K, K1): the keyboard → tray hold mounts (handKeyboardToTray)
     && /channelDropdown = overlay;\s*syncChatOverlay\(\);/.test(chatNc)
     && /channelDropdown = null;\s*channelSheetBody = null;\s*syncChatOverlay\(\);/.test(chatNc)
     && /onExit: \(\) => \{ chatSelect = null; syncChatOverlay\(\); \}/.test(chatNc),
-    'N51: the off-stack surfaces sync EXPLICITLY at every open/close site (13 call sites incl. the two A-1 heals, the #523 money cover pair, the #705 tray trio, the #721 hand-off and the Session K keyboard → tray hold — the MutationObservers only see data-overlay-open)');
+    'N51: the off-stack surfaces sync EXPLICITLY at every open/close site (15 call sites incl. the two A-1 heals, the #523 money cover pair, the #705 tray trio, the #721 hand-off and the Session K keyboard → tray hold, the S9 photo sheet open + close — the MutationObservers only see data-overlay-open)');
 
   /* —— AND-37: settings back over a sheet —— */
   for (const [label, txt] of [['source', setSrcNc], ['built', nc(setBuilt)]]) {
@@ -18600,7 +18602,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     }
     ok(!/Logging\.(error|warn)\([^;]*ex\.Message/.test(scA) && !/ixian:removecontact failed: " \+ ex\.Message/.test(hpA),
       'loop r1: no handler logs ex.Message on a peer-supplied token (Core\'s Address ctor formats the base58 into it)');
-    ok(/\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(mbcss)
+    ok(/\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta > \* \{ opacity: 0\.92; \}/.test(mbcss)   /* ★ S9 U-03 re-base: 0.7 → 0.92 (4.53:1 light · 6.37:1 dark, measured; pins-s9/b1-u03.mjs) */
       && /\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="read"\],\s*\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="failed"\] \{ opacity: 1; \}/.test(mbcss)
       && !/\.c-bubble__meta \{[^}]*opacity/.test(mbcss),
       '★ A9: outgoing timestamp + edited marker at 0.7 alpha on the CHILDREN (a box opacity would cap the read tick), the READ tick (and failed) at 1.0; received bubbles take the same 0.7 since #1041 (pinned in the #1040 block). ⚠ E1 amended the DELIVERED glyph out of that 0.7 group — see the pin below; this one still owns the blanket rule and the 1.0 pair');
@@ -18617,7 +18619,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const deliveredRule = /\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="delivered"\] \{ opacity: 0\.571; \}/;
       ok(deliveredRule.test(mbcss),
         '★★ E1: the DELIVERED double-check sits at 0.571, below the rest of the meta row, so the READ tick separates on LIGHTNESS and not on hue alone (ΔE 43.3 → 48.6)');
-      ok(mbcss.search(deliveredRule) > mbcss.indexOf('.c-bubble__meta > * { opacity: 0.7; }'),
+      ok(mbcss.search(deliveredRule) > mbcss.indexOf('.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.92; }') && mbcss.indexOf('.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.92; }') > 0,   /* ★ S9 U-03 re-base: the SENT blanket rule is 0.92 */
         '★ E1: the delivered rule comes AFTER the blanket 0.7 in source order. It also outranks it on specificity, so this is belt and braces — but a future refactor that flattens the selector would leave source order as the only thing deciding, and a 0.7 that wins puts the tick back where it started');
       ok(!/\.c-bubble__meta > \* \{ opacity: 0\.5/.test(mbcss),
         '★★ E1: the drop targets the DELIVERED GLYPH ALONE. Damir asked for "just that case" — folding it into the blanket rule would have dimmed the timestamp and the edited marker with it, which is a legibility regression sold as a receipt fix');
@@ -21584,13 +21586,13 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const chDead = rdf('Spixi/Resources/Raw/html/chat.html');
     /* ★★ #1028 INVERTS this paired negative (#835 — inverted, not deleted): the shipped addFile handler now READS
        `sent`/`read` (and the relay flag, arg 14) into the status it renders, which is why the C# derivation is back. */
-    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
+    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice, group, played\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
       '★★ L2 (#641) PAIRED — INVERTED by #1028: the shipped addFile handler READS `sent`/`read` (+ the relay flag) into the tick it renders, so the C# derivation is back on that push (the negative this replaced said: if the shell ever reads them, the C# must come back)');
     // ★ #1198/#1199 re-base (session 6b): arg 2 is `rowText` (the body of a matched reply, else message.message)
     ok(/"updateMessage", Crypto\.hashToString\(message\.id\), rowText, tSent\.ToString\(\), tConfirmed\.ToString\(\), tRead\.ToString\(\)/.test(scp)
        && /string rowText = message\.message;/.test(scp),
       '★ L2 (#641): updateMessage pushes the DERIVED values, not the stored ones — the raw flags would re-stall the tick on every re-push');
-    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\), fTransfer, fLocal, fVoice\);/.test(scp)   /* ★ #1177 re-base: + the trailing transfer arg · ★ #1208 re-base: + arg 17 fVoice */
+    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\), fTransfer, fLocal, fVoice, fGroup, fPlayed\);/.test(scp)   /* ★ #1177 re-base: + the trailing transfer arg · ★ #1208 re-base: + arg 17 fVoice · ★ S9 A1 re-base: + arg 18 fGroup */
        && /"addAppRequest"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp),
       '★ L2 (#641) + #1028: the FILE push carries the DERIVED flags now (the card renders a tick); the APP push keeps the RAW flags — deriving values the shell throws away would be dead code with a false guarantee attached');
     /* ★★★ L2 (#649) — NO OPTIMISTIC SINGLE CHECK. Damir ruled against his own earlier
@@ -22852,7 +22854,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* —— L11 F2 · THE NAVIGATION STACK IS READ WITH LastOrDefault ——————————————— */
   {
     const hp = rdf('Spixi/Pages/Home/HomePage.xaml.cs');
-    ok(/Page\? page = Navigation\.NavigationStack\.LastOrDefault\(\);/.test(hp)
+    ok(/Page\? page = navCopy\.LastOrDefault\(\);/.test(hp)   /* ★ S9 A2 (#1245 C-01) re-based: the tick reads a MAIN-THREAD copy of the stack (pins-s9/a2-wiring.mjs C-01) */
        && !/Navigation\.NavigationStack\.Last\(\);/.test(hp),
       '★★ #46 loop (L11 F2): the 1 Hz UI tick reads the navigation stack with LastOrDefault, not Last. `Last()` THROWS on an empty stack, and the stack is empty during a teardown window — the throw aborted the whole tick, so the overlay tick and the rail highlight stopped with it. Both uses below already tolerate a null page');
   }
@@ -29414,7 +29416,7 @@ console.log('★★ Session Q (#804) — the Account sublevels render in the set
     const homeShell = stripCode(readFileSync(join(root, 'src/shells/home.html'), 'utf8'));
     const spCode = stripCode(spQ);
     ok(/pushPageLoaded\(new BackupPage\(\)/.test(spCode)
-      && /pushPageLoaded\(new DownloadsPage\(\)\)/.test(spCode)
+      && /pushPageLoaded\(DownloadsPage\.create\(\)\)/.test(spCode)   // ★ S9 A3 re-base (#1173 (8)): the one constructor (a dialog on desktop) — was `new DownloadsPage()`
       && /pushPageLoaded\(new EncryptionPassword\(\)/.test(spCode),
       '★ #804 PIN 3a: all three pushed pages survive in SettingsPage as the no-cap fallback. A new shell paired with an old exe would otherwise tap a row that does nothing at all');
     /* The nudge's own handler, not the file. `showBackupNudge({` … `onBackup:` … the
@@ -29440,7 +29442,9 @@ console.log('★★ Session Q (#804) — the Account sublevels render in the set
    * #803 measured. Widening this pin to cover them would fail on correct code.
    * ⚠ stripCode: the comments this batch added NAME the three page classes. */
   {
-    const pushed = Array.from(stripCode(spQ).matchAll(/pushPageLoaded\(new ([A-Za-z_][A-Za-z0-9_]*)\(/g)).map((m) => m[1]);
+    /* ★ S9 A3 re-base (#1173 (8)): a page may be built through its own static `create(…)` factory (DownloadsPage.create — the
+       desktop dialog) — the walk reads both spellings, so a fourth type cannot hide behind a factory either */
+    const pushed = Array.from(stripCode(spQ).matchAll(/pushPageLoaded\((?:new ([A-Za-z_][A-Za-z0-9_]*)\(|([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_]*\()/g)).map((m) => m[1] || m[2]);
     const allowed = ['BackupPage', 'DownloadsPage', 'EncryptionPassword'];
     const stray = pushed.filter((t) => allowed.indexOf(t) < 0);
     ok(pushed.length >= 3 && stray.length === 0,
@@ -31288,7 +31292,7 @@ console.log('★★ handover-gate fix batch — the security pins');
       '}',
       'try',
       '{',
-      'Browser.Default.OpenAsync(target).ContinueWith(t =>',
+      '(kind == ExternalTarget.MailCompose ? Launcher.Default.OpenAsync(target) : Browser.Default.OpenAsync(target)).ContinueWith(t =>',   // ★ S9 A3 #46 r1 re-base (MAJOR-2): mailto → the system launcher (iOS / Mac's in-app browser opens http(s) only); web → the browser
       '{',
       'if (t.IsFaulted || t.IsCanceled || !t.Result)',
       '{',
@@ -31314,8 +31318,11 @@ console.log('★★ handover-gate fix batch — the security pins');
         (g) => (g.match(/Uri\.TryCreate\(/g) || []).length === 1 && !/new Uri\(/.test(g)],
       ['the object OPENED is the object the test ran on',
         (g) => /Browser\.Default\.OpenAsync\(target\)/.test(g)],
+      ['★ S9 A3 #46 r1 (MAJOR-2): a MailCompose link goes to the system Launcher, a Web link to the Browser — and only those two sinks, both on `target`',
+        (g) => /\(kind == ExternalTarget\.MailCompose \? Launcher\.Default\.OpenAsync\(target\) : Browser\.Default\.OpenAsync\(target\)\)\.ContinueWith\(/.test(g)
+            && (g.match(/OpenAsync\(/g) || []).length === 2],
       ['the hand-off Task is OBSERVED, so the failure line is reachable for the ORDINARY failure — no browser installed, no activity to receive the intent. That failure is raised INSIDE the Task, which the catch cannot see, and a discarded Task makes it an unobserved exception no log can read (r4 MINOR-3)',
-        (g) => /OpenAsync\(target\)\s*\.ContinueWith\(/.test(g)
+        (g) => /OpenAsync\(target\)\)?\s*\.ContinueWith\(/.test(g)   /* ★ S9 re-base: the hand-off is the kind's sink (a parenthesised ternary) */
             && /t\.IsFaulted/.test(g) && /t\.IsCanceled/.test(g) && /!t\.Result/.test(g)],
       ['Web admits http and https ONLY, and only with an EMPTY UserInfo — the one construct that puts the real host after readable text',
         (g) => /kind == ExternalTarget\.Web/.test(g)
@@ -36949,8 +36956,12 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
 
   /* ── C6: the tip token carries the AMOUNT (it was the Transaction byte[] → "tip:System.Byte[]") and the total is summed once */
   ok((scpAD.match(/string tipToken = "tip:" \+ txForTip\.amount\.ToString\(\);/g) || []).length === 1 && (scpAD.match(/\btipToken\b/g) || []).length === 3 && !/"tip:" \+ txForTip\.id/.test(scpAD)
-     && /if \(reaction\.Key == "tip"\)/.test(scpAD) && /tipTotal \+= a;/.test(scpAD) && /tip_total_str = anyTip \? tipTotal\.ToString\(\) : "";/.test(scpAD),
-    '★ C6: ONE tip token (`tip:<amount>`, declared once, used at both the addReaction and the sendReaction site — never the byte[] id), and updateReactions sums the per-sender amounts into the 4th addReactions arg');
+     /* ★ S9 A3 re-base (A-7 #1245): the per-sender amount SUM is gone — a tip shows its COUNT only (the `tip:<n>;` token of
+        arg 2); the 4th arg stays in place and is always "" (declared once, never reassigned). Was: `tipTotal += a` +
+        `tip_total_str = anyTip ? …`. */
+     && !/tipTotal \+= a;/.test(scpAD) && !/\banyTip\b/.test(scpAD) && (scpAD.match(/\btip_total_str\s*=/g) || []).length === 1
+     && /string tip_total_str = "";/.test(scpAD),
+    '★ C6 → S9 A-7: ONE tip token (`tip:<amount>`, declared once, used at both the addReaction and the sendReaction site — never the byte[] id); updateReactions no longer sums the amounts — the 4th addReactions arg is always "" (the count rides arg 2)');
   ok(/addReactions\(id, reactions, own, tipTotal\)/.test(chatAD)
      && /handlers\.addReactions\(args\[0\], item\.r\[0\] == null \? '' : String\(item\.r\[0\]\), item\.r\[1\] == null \? '' : String\(item\.r\[1\]\), item\.r\[2\] == null \? '' : String\(item\.r\[2\]\)\)/.test(chatAD)
      && /function parseReactions\(str, id, ownStr, tipTotal\)/.test(chatAD),
@@ -37037,7 +37048,7 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
   const collect = methodAD(scAD, 'public static List<string> collectReceivedMedia(Friend friend)');
   const purge = methodAD(scAD, 'public static int purgeFiles(List<string> paths, Address? owner)');
   {
-    const rawRead = methodAD(scAD, 'private static List<FriendMessage> readMessagesRaw(string path)');
+    const rawRead = methodAD(scAD, 'private static List<FriendMessage> readMessagesRaw(string path, ReadStatus? status)');   /* ★ S9 #46 r2 m2 re-base: the reader body moved to the overload that records an incomplete read (the 1-arg form only forwards) */
     const pathOf = methodAD(scAD, 'private static string? receivedMediaPathOf(FriendMessage fm)');
     ok(collect.length > 0 && rawRead.length > 0 && pathOf.length > 0
        && /fm\.type != FriendMessageType\.fileHeader \|\| fm\.localSender \|\| !fm\.completed/.test(pathOf)
@@ -38237,10 +38248,34 @@ console.log('★★ #1028+ — the overnight finalization');
     const walkCs = (d) => readdirSync(join(root, d), { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walkCs(d + '/' + e.name) : (/\.cs$/.test(e.name) ? [d + '/' + e.name] : []));
     /* ★ #1035 (auditor A, m5): the read APIs of every platform — MAUI, WinRT, Android, UIKit (an assignment to
        UIPasteboard.General.String is a WRITE and is allowed) */
-    const readers = walkCs('Spixi').filter((f) => /\bGetTextAsync\s*\(|\bClipboard\.GetContent\s*\(|\bPrimaryClip(Description)?\b|UIPasteboard\.General\.(String|Strings|Url|Urls|Image|Images)\b(?!\s*=[^=])/.test(stripCode(rdO(f))));
+    /* ★ S9 A1 re-base (#1156 / #1244, CONTRACT §1b): ONE sanctioned reader family — the four Platforms/<os>/SClipboardImage.cs
+       (an IMAGE, bounded), reached ONLY from SingleChatPage's `ixian:pasteImage` branch of onPickPhotos. + DataForPasteboardType
+       (the UIKit typed read) in the reader set. Every other C# file still reads nothing. */
+    const readers = walkCs('Spixi').filter((f) => /\bGetTextAsync\s*\(|\bClipboard\.GetContent\s*\(|\bPrimaryClip(Description)?\b|\bDataForPasteboardType\s*\(|UIPasteboard\.General\.(String|Strings|Url|Urls|Image|Images)\b(?!\s*=[^=])/.test(stripCode(rdO(f))));
+    const imageReaders = ['Android', 'iOS', 'MacCatalyst', 'Windows'].map((o) => 'Spixi/Platforms/' + o + '/SClipboardImage.cs');
+    const otherReaders = readers.filter((f) => !imageReaders.includes(f));
+    const pasteCalls = walkCs('Spixi').map((f) => [f, (stripCode(rdO(f)).match(/\bSClipboardImage\.readAsync\(/g) || []).length]).filter((x) => x[1] > 0);
+    const scpPick = stripCode(rdO('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
+    const pasteAt = scpPick.indexOf('else if (route == PhotoRules.RoutePaste)');
+    const readAt = scpPick.indexOf('SClipboardImage.readAsync(');
+    r.imageReadOnlyOnPaste = imageReaders.every((f) => readers.includes(f))
+      && pasteCalls.length === 1 && pasteCalls[0][0] === 'Spixi/Pages/Chat/SingleChatPage.xaml.cs' && pasteCalls[0][1] === 1
+      && pasteAt > 0 && readAt > pasteAt && readAt - pasteAt < 200
+      && /current_url\.Equals\("ixian:pasteImage", StringComparison\.Ordinal\)\)\s*\{\s*#pragma warning disable CS4014\s*onPickPhotos\(PhotoRules\.RoutePaste\);/.test(scpPick)
+      && (scpPick.match(/PhotoRules\.RoutePaste/g) || []).length === 2;
     /* ⓘ CONTENT reads only: a PRESENCE check (HasStrings — the #993 M5 add-contact diagnostic, ContactNewPage) reads
        no text and is not a leak; it retires with the freeze's diagnostic sweep. */
-    r.writeOnly = readers.length === 0;
+    r.writeOnly = otherReaders.length === 0;   // ★ S9 A1 re-base: no reader outside the four SClipboardImage files
+    /* ★ S9 #46 r1 (tests auditor): the four SClipboardImage files are exempt ONLY for the IMAGE read APIs (Android
+       PrimaryClip → a content uri, WinRT GetContent → PNG / Bitmap, UIKit DataForPasteboardType / Image). A TEXT read stays
+       forbidden there too, and each one bounds what it reads by the cap. */
+    const textRead = /\bGetTextAsync\s*\(|\bCoerceToText\s*\(|\.Text\b|StandardDataFormats\.(Text|Html|Rtf|WebLink|ApplicationLink|Uri)\b|\b(?:UIPasteboard\.General|pb)\.(String|Strings|Url|Urls)\b(?!\s*=[^=])/;
+    const imgSrc = Object.fromEntries(imageReaders.map((f) => [f, stripCode(rdO(f))]));
+    r.imageReadersNoText = imageReaders.every((f) => !textRead.test(imgSrc[f]))
+      && /SFilePicker\.readBounded\(src, cap\)/.test(imgSrc['Spixi/Platforms/Android/SClipboardImage.cs'])
+      && (imgSrc['Spixi/Platforms/Windows/SClipboardImage.cs'].match(/return await readBounded\(src, cap\);/g) || []).length === 2
+      && /long left = cap \+ 1;/.test(imgSrc['Spixi/Platforms/Windows/SClipboardImage.cs'])
+      && ['iOS', 'MacCatalyst'].every((o) => /if \(\(long\)d\.Length > cap\)\s*\{\s*return TooBig;\s*\}\s*return d\.ToArray\(\);/.test(imgSrc['Spixi/Platforms/' + o + '/SClipboardImage.cs']));
     /* the decoder refuses before it decodes: alphabet, cap, UTF-8 strict */
     const dec = cs.slice(cs.indexOf('public static string? decodeCopyPayload'), cs.indexOf('public static string? decodeCopyPayload') + 1600);
     r.decoder = /payload\.Length > NATIVE_COPY_MAX \* 4 \+ 4/.test(dec) && /c == '-' \|\| c == '_' \|\| c == '='/.test(dec)
@@ -38248,7 +38283,7 @@ console.log('★★ #1028+ — the overnight finalization');
     /* the legacy empty `ixian:copy` stub is gone (one copy verb, not a no-op beside it) */
     r.stubGone = !/"ixian:copy"/.test(stripCode(rdO('Spixi/Pages/Home/HomePage.xaml.cs')));
     ok(Object.values(r).every((v) => v === true),
-      '★★ #1028 security gate: the C# copy verb refuses a mini-app WebView before anything else, takes a ≤16-digit token and a base64url payload (alphabet + cap + strict UTF-8 checked BEFORE the clipboard), answers nativeCopyResult on both outcomes, logs only an exception TYPE (the decoder logs nothing), is refused in the background and rate-limited (#1035), and no C# file anywhere reads clipboard CONTENT — ' + JSON.stringify(r) + ' readers: ' + JSON.stringify(readers));
+      '★★ #1028 security gate: the C# copy verb refuses a mini-app WebView before anything else, takes a ≤16-digit token and a base64url payload (alphabet + cap + strict UTF-8 checked BEFORE the clipboard), answers nativeCopyResult on both outcomes, logs only an exception TYPE (the decoder logs nothing), is refused in the background and rate-limited (#1035), and no C# file reads clipboard CONTENT except the four SClipboardImage files (an image, reached only from ixian:pasteImage — S9) — ' + JSON.stringify(r) + ' readers: ' + JSON.stringify(readers));
   }
   {
     /* P.11: the Account header Copy shows a ✓ for a copy that happened — and only then */
@@ -38533,7 +38568,7 @@ console.log('★★ #1028+ — the overnight finalization');
     const fileBr = um.slice(um.indexOf('if (message.type == FriendMessageType.fileHeader)'), um.indexOf('if (message.type != FriendMessageType.standard)'));
     const r = {
       derivedBeforePush: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*push\(batch, "addFile"/.test(cs),
-      argOrder: args.length === 17 && args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()' && args[14] === 'fTransfer' && args[15] === 'fLocal' && args[16] === 'fVoice',   /* ★ #1208 re-base: + arg 17 fVoice (V3) */   /* ★ #1177 re-base: + arg 15, the known incoming transfer (pins-s6/cs.mjs) · ★ #1190 re-base: + arg 16, the file on this device (pins-s6/rows.mjs) */
+      argOrder: args.length === 19 && args[18] === 'fPlayed' &&   /* ★ S9 A1 r1 re-base: + arg 19 fPlayed */ args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()' && args[14] === 'fTransfer' && args[15] === 'fLocal' && args[16] === 'fVoice' && args[17] === 'fGroup',   /* ★ S9 A1 re-base: + arg 18 fGroup (CONTRACT §1c) */   /* ★ #1208 re-base: + arg 17 fVoice (V3) */   /* ★ #1177 re-base: + arg 15, the known incoming transfer (pins-s6/cs.mjs) · ★ #1190 re-base: + arg 16, the file on this device (pins-s6/rows.mjs) */
       liveFlagsOnly: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*Utils\.sendUiCommand\(this, "updateFileTicks", Crypto\.hashToString\(message\.id\), fSent\.ToString\(\), fConfirmed\.ToString\(\), fRead\.ToString\(\)\);\s*return;/.test(fileBr)
         && !/message\.message|filePath|transferId/.test(fileBr),
       beforeTextGuard: um.indexOf('FriendMessageType.fileHeader') > -1 && um.indexOf('FriendMessageType.fileHeader') < um.indexOf('if (message.type != FriendMessageType.standard)'),
@@ -40755,7 +40790,10 @@ console.log('#1101–#1107 — session 1');
       /* all four grounds, both ways */
       four: /Color ground = held \? Colors\.Transparent : op\.target\.pageSurfaceColor;/.test(grounds) && /op\.stage\.BackgroundColor = ground;/.test(grounds)
         && /op\.targetContent\.BackgroundColor = ground;/.test(grounds) && /op\.target\._webView\.BackgroundColor = ground;/.test(grounds)
-        && /native\.SetBackgroundColor\(held \? Android\.Graphics\.Color\.Transparent\s*: Android\.Graphics\.Color\.ParseColor\(op\.target\.pageSurfaceColorString\)\);/.test(grounds),
+        && /native\.SetBackgroundColor\(held \? Android\.Graphics\.Color\.Transparent\s*: Android\.Graphics\.Color\.ParseColor\(op\.target\.pageSurfaceColorString\)\);/.test(grounds)
+        /* ★ S9 A-FLASH C2 re-base (#1205): …but NOT for the chat — its native base stays transparent for its whole life (a base-
+           colour change is a Chromium re-raster = the one grey frame); the MAUI grounds still move both ways */
+        && /if \(native != null && !op\.target\.keepsNativeWebViewTransparent\)/.test(grounds),
       cap: /private const int HoldCapMs = 250;/.test(sc) && /PresentHold\.start\(native, HoldCapMs, /.test(hold),
       /* (#46 r1 M1) the hold reaches the REAL native WebView, makes ITS ground transparent, and nothing repaints a ground
          between "transparent" and the hold's start */
@@ -40966,7 +41004,7 @@ console.log('#1101–#1107 — session 1');
       neverSerialized: /\[JsonIgnore\] public string\? path = null;/.test(si) && /\[JsonIgnore\] public string\? url = null;/.test(si)
         && /new object\?\[\] \{ x\.id, x\.n, x\.kind, x\.label, x\.size, x\.ts, x\.local \? 1 : 0, x\.thumb, x\.received \? 1 : 0 \}/.test(si),   /* ★ #1166 V-3 re-base: + field 9 `received` (1/0), APPENDED — a bool, never a path (#1154) */
       resolveOwnScan: /if \(id\.Length == 0 \|\| !id\.All\(Uri\.IsHexDigit\)\)/.test(si) && /lastScan\.TryGetValue\(friend\.walletAddress\.ToString\(\), out List<SharedItem>\? items\)/.test(si),
-      vettedPath: /string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(si) && /return Path\.IsPathRooted\(fm\.filePath\) && File\.Exists\(fm\.filePath\) \? fm\.filePath : null;/.test(si),
+      vettedPath: /string\? full = SContacts\.receivedMediaPathOfPublic\(fm\);/.test(si) && /if \(Path\.IsPathRooted\(fm\.filePath\) && File\.Exists\(fm\.filePath\)\)\s*\{\s*return fm\.filePath;\s*\}/.test(si) && /string\? rerooted = SPIXI\.PhotoRules\.rerootSent\(fm\.filePath, Path\.Combine\(SPIXI\.Meta\.Config\.spixiUserFolder, SPIXI\.PhotoRules\.SentFolderName\)\);\s*return rerooted != null && File\.Exists\(rerooted\) \? rerooted : null;/.test(si),   /* ★ S9 #46 r3 re-base: a sent path that no longer exists re-roots ONLY into today's Sent folder (rerootSent: a sent-copy leaf in a folder named Sent) — still a C#-resolved existing path */
       noCoreCacheReplace: /IxianHandler\.localStorage\.readLastMessages\(friend, channel, 0, ScanCap\)/.test(si) && !/getMessages\(channel, /.test(si),
       thumbsSmallLocal: /public const long ThumbMaxBytes = 64 \* 1024;/.test(si) && /byte\[\]\? jpeg = Spixi\.SThumbnail\.makeJpeg\(fi\.FullName, ThumbPx\);/.test(si)   /* G-6b re-base: small files as is, bigger ones a bounded-decode thumbnail */ && !/http|WebClient|HttpClient|Download/i.test(si.slice(thumbAt, chansAt)) && !/HttpClient|WebClient|WebRequest/.test(si),
       logsCountsOnly: logs.length > 0 && logs.every((l) => !/label|url|path|name|walletAddress|address/i.test(l.replace(/"[^"]*"/g, ''))),
@@ -42149,6 +42187,10 @@ for (const mod of ['chat-reactions', 'chat-app', 'chat-sysline', 'chat-blur', 'c
 for (const mod of ['v-rec', 'v-face', 'v-ring', 'v-r1']) await (await import(new URL('./pins-s8p/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S8 picks P-V — v-rec = #1239 R1 live wave · v-ring = #1239 S-A send ring + #1240 wave · v-face = #1240 face + mic badge (v-kit.mjs = the shared boot, not a module)
 for (const mod of ['g-grounds', 'g-grow']) await (await import(new URL('./pins-s8p/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S8 picks P-G — g-grounds = #1237 four grounds both themes · g-grow = #1238 the strip grows + the RO pin
 await (await import(new URL('./pins-s8p/c-wiring.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S8 picks P-C — c-wiring = #1239 voiceRecLevel · #1240 setSelfAvatar · r5 NIT-2 (pure rules: scripts/csh/S8PicksTests.cs)
+await (await import(new URL('./pins-s9/a2-wiring.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 A2 — V-15 audit fixes C-01 · C-02 · C-03 · C-04 · A-8 · A-13 · A-14 · H-3 · H-13 · H-14 (pure rules: scripts/csh/S9AuditTests.cs)
+for (const mod of ['a1-wiring', 'a3-wiring']) await (await import(new URL('./pins-s9/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 A1 media C# wiring · A3 S8 fixes + desktop + links (pure rules: scripts/csh/S9MediaTests.cs, S9FixTests.cs)
+for (const mod of ['b1-attach', 'b1-sheet', 'b1-grid', 'b1-misc', 'b1-a11y', 'b1-u03', 'b1-react']) await (await import(new URL('./pins-s9/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 B1 chat shell (b1-kit.mjs = the shared boot, not a module)
+for (const mod of ['b2-copy', 'b2-lang', 'b2-dl', 'b2-polish', 'b2-home', 'b2-f1', 'b2-toggle']) await (await import(new URL('./pins-s9/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 B2 other shells + copy (b2-kit.mjs = the shared boot, not a module)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

@@ -429,3 +429,10 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
   allow-list at r4, #1232 🟡) — #1241. Damir's extra asks → renders (s8x) → picks #1237 grounds · #1238 grow · #1239 R1 live wave + S-A ·
   #1240 voice face + lower wave; built by 3 agents + lead; #46 picks r1 2 MAJOR → r4 CLEAN — #1242. Smoke BASELINE OK 5461 · CSH 236.
   ⚠ C# UNCOMPILED. UNCOMMITTED → patch `session8-build.patch`. Next: Damir applies + walks S8 → S9. Next free #1243.
+- 2026-10-07 (session 9, cloud twin): S8 walk recorded — WALK #1243 22 P · 1 F (8-GROW-A, measure first) · 2 N/A; CORE-10 stays a draft
+  (no long-offline capture). S9 interview → #1244 media family (tray B, preview sheet C, grid A, photo rule, #1200 durable copy, ≤ 10, A-9 100 MB)
+  · #1245 V-15 picks · #1246 Create copy, language note + mailto report, desktop Downloads dialog B · #1247 polish / a11y / (f) / S8 fix rows,
+  S8 dials locked. Later picks #1248 (privacy icons A, silent reactions, photo excerpt, last-row reserve, toggle B). A-FLASH mechanism from
+  Damir's clip → native cover until `ixian:bootDropped` + chat background kept (#1249). Built by 5 contract-first agents + lead (#1250); #46
+  r1 4 MAJOR + 8 test-survivor MAJORs → r2 1 → r3 1 → r4 CLEAN (#1251). Smoke BASELINE OK 5567 · CSH 280. ⚠ C# UNCOMPILED.
+  UNCOMMITTED → patch `session9-build.patch`. Next: Damir applies + walks S9 → S10 fix round → FREEZE. Next free #1252.

@@ -681,8 +681,9 @@ export function createSettingsAbout({
 
   const desc = document.createElement('p');
   desc.className = 'c-settings__note c-settings-about__desc';
-  desc.textContent = description || strings.aboutBody
-    || 'Spixi lets you chat and send IXI directly, peer to peer. Your messages are encrypted on your device and your keys never leave it.';
+  // ★ S9 A-10 (#1245, audit S-07): in-transit wording (history is not encrypted at rest), NEW key
+  desc.textContent = description || strings.aboutBody2
+    || 'Spixi lets you chat and send IXI directly, peer to peer. Your messages are end-to-end encrypted and your keys never leave your device.';
   body.append(desc);
 
   /* links card — website / network / source (degrade to text without onOpenLink) */

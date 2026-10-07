@@ -131,7 +131,7 @@ export default async function (h) {
   /* ———— #1198 / #1199: setCaps — reply everywhere, edit not in a bot room; the M1 block is gone ———— */
   await guard('#1198/#1199 caps', async () => {
     /* ★ #1208 re-base (session 7): the voice cap (V1, pins-s7/cs.mjs) sits between the edit block and the push */
-    const caps = /string caps\s*=\s*"tipResult,composeSend,composeRequest,payRequest,reply";\s*if\s*\(\s*!friend\.bot\s*\)\s*\{\s*caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);
+    const caps = /string caps\s*=\s*"tipResult,composeSend,composeRequest,payRequest,reply";\s*if\s*\(\s*!friend\.bot\s*\)\s*\{\s*caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*caps\s*\+=\s*",media";\s*#if ANDROID \|\| IOS\s*if\s*\(\s*SFilePicker\.CameraAvailable\(\)\s*\)\s*\{\s*caps\s*\+=\s*",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);   /* ★ S9 A1 re-base: + the media / camera caps (CONTRACT §1a; pins-s9/a1-wiring.mjs) */
     const one = (SCP.match(/"setCaps"/g) || []).length === 1;
     const raw = rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs');
     const m1gone = !/do NOT add ",reply"|THE CARRIER IS NOT HERE|carrier is not landed/.test(raw) && /★★ #1198 \/ #1199 \(session 6b\): REPLY and EDIT are declared here/.test(raw);
@@ -223,9 +223,9 @@ export default async function (h) {
     const prefixOnly = /string prefix\s*=\s*"addMe";/.test(SCP) && /prefix\s*=\s*"addThem";/.test(SCP) && (SCP.match(/prefix\s*=\s*"/g) || []).length === 2;
     // push(batch, prefix, id, address, nick, avatar, text, ts, sent, confirmed, read, paid, err, relation, replyTo, edited, quoteName, quoteText)
     /* ★ #1208 re-base (session 7): + arg 17 `rowVoice` (V2) on the row, + arg 12 `voice` on updateMessage */
-    const rowOk = rows.length === 1 && rows.every((s) => s.a.length === 19 && s.a[6] === 'rowText' && s.a[7] === 'rowTime.ToString()' && s.a[14] === 'reply_to' && s.a[15] === 'edited' && s.a[16] === 'quoteName' && s.a[17] === 'quoteText' && s.a[18] === 'rowVoice');
+    const rowOk = rows.length === 1 && rows.every((s) => s.a.length === 20 && s.a[6] === 'rowText' && s.a[7] === 'rowTime.ToString()' && s.a[14] === 'reply_to' && s.a[15] === 'edited' && s.a[16] === 'quoteName' && s.a[17] === 'quoteText' && s.a[18] === 'rowVoice' && s.a[19] === 'rowPlayed');   // ★ S9 A3 re-base (8-FACE #1247): + arg 18 rowPlayed (19 → 20 entries)
     // sendUiCommand(this, "updateMessage", id, message, sent, confirmed, read, paid, errorSending, edited, replyTo, quoteName, quoteText)
-    const updOk = updates.length === 1 && updates.every((s) => s.a.length === 14 && s.a[3] === 'rowText' && s.a[9] === 'edited' && s.a[10] === 'replyTo' && s.a[11] === 'quoteName' && s.a[12] === 'quoteText' && s.a[13] === 'voice');
+    const updOk = updates.length === 1 && updates.every((s) => s.a.length === 15 && s.a[3] === 'rowText' && s.a[9] === 'edited' && s.a[10] === 'replyTo' && s.a[11] === 'quoteName' && s.a[12] === 'quoteText' && s.a[13] === 'voice');   // ★ S9 A3 re-base (8-FACE #1247): + arg 13 played (14 → 15 entries)
     const ins = bodyOf(SCP, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)');
     const upd = bodyOf(SCP, 'public void updateMessage(FriendMessage message, int channel)');
     // ★ 7b re-base (#1215 / #1224 (6)): args 15 / 16 go through ReplyQuote.bridgeName / bridgeText (rules executed in scripts/csh S7bRulesTests)
@@ -342,7 +342,7 @@ export default async function (h) {
     const iDoneP = lm.lastIndexOf('Utils.sendUiCommand(this, "messagesDone", show_more);');
     const iRe = lm.search(/enqueueThumb\(t\.Key,\s*t\.Value\);\s*\}\s*recheckBurstFileRows\(batch,\s*readChannel\);\s*foreach\s*\(KeyValuePair<string, FriendMessage> v in batch\.voices\)\s*\{\s*enqueueVoiceInfo\(v\.Key,\s*v\.Value\);\s*\}\s*\}\s*if\s*\(\s*zeroedUnread\s*\)/);   /* ★ #1208 re-base: the voice waveforms queue right after the re-check */
     const after = iRe > iDone && iRe > iDoneP && iDone > 0 && iDoneP > 0 && (lm.match(/recheckBurstFileRows\(/g) || []).length === 1;
-    const rec = /string fLocal\s*=\s*SharedItems\.localArgOf\(message,\s*out string fCase\);[\s\S]{0,400}?batch\?\.fileRows\.Add\(new KeyValuePair<FriendMessage, string>\(message,\s*fLocal\)\);[\s\S]{0,900}?push\(batch,\s*"addFile",[^;]*fTransfer,\s*fLocal,\s*fVoice\);/.test(SCP);   /* ★ #1208 re-base: + arg 17 fVoice (and its comment) */
+    const rec = /string fLocal\s*=\s*SharedItems\.localArgOf\(message,\s*out string fCase\);[\s\S]{0,400}?batch\?\.fileRows\.Add\(new KeyValuePair<FriendMessage, string>\(message,\s*fLocal\)\);[\s\S]{0,900}?push\(batch,\s*"addFile",[^;]*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed\);/.test(SCP);   /* ★ #1208 re-base: + arg 17 fVoice (and its comment) · ★ S9 A1 re-base: + arg 18 fGroup */
     const re = bodyOf(SCP, 'private void recheckBurstFileRows(UiBatch batch, int channel)');
     const rule = /foreach\s*\(KeyValuePair<FriendMessage, string> row in batch\.fileRows\)\s*\{\s*try\s*\{\s*if\s*\(\s*row\.Value\s*==\s*"1"\s*&&\s*SharedItems\.localArgOf\(row\.Key,\s*out _\)\s*!=\s*"1"\s*\)\s*\{\s*refreshFileRow\(row\.Key,\s*channel\);\s*\}/.test(re);
     const field = /public readonly List<KeyValuePair<FriendMessage, string>> fileRows = new\(\);/.test(bodyOf(SCP, 'private sealed class UiBatch'));

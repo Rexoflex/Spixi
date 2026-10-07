@@ -218,6 +218,14 @@ namespace SPIXI
             {
                 acceptedTerms = true;
             }
+            else if (verb.StartsWith("ixian:reportTranslation:", StringComparison.Ordinal))
+            {
+                /* ★ S9 A3 #1246 (🟡 NEW verb; Launch had no link path): the language note's "Report a translation problem" —
+                 * a language CODE only; C# validates it against the app's languages and builds the mailto itself
+                 * (Utils.openTranslationReport → the one external-open gate, MailCompose kind). No password-bearing verb is
+                 * touched: dispatched on the anchored verb like every payload verb here (#393 MAJOR-2). */
+                Utils.openTranslationReport(verb.Substring("ixian:reportTranslation:".Length));
+            }
             else if (current_url.StartsWith("ixian:language:", StringComparison.Ordinal))
             {
                 string lang = current_url.Substring("ixian:language:".Length);
@@ -557,7 +565,7 @@ namespace SPIXI
                         IxianHandler.localStorage.writeAccountFile();
 
                         Preferences.Default.Remove("lockenabled");
-                        Preferences.Default.Remove("waletpass");
+                        Preferences.Default.Remove("walletpass");   // ★ A-13 (#1245): the `waletpass` typo removed a key nothing ever wrote (none at 0e85a4b8 either)
                         /* ★ N12 (#383), amended by N76 (#391): a CREATE is not a restore.
                          * Clearing the reminder stamp is what ARMS the first-asset backup
                          * nudge (HomePage.displayBackupReminder): absent stamp + no asset =
@@ -669,11 +677,12 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setUploadedFileName", pickedName ?? filepath);
         }
 
-        // Attempt to restore the wallet
-        private bool onRestore(string pass)
+        /* ★ A-13 (#1245): the restore's preference writes, run ONLY after the wallet verified (both restore paths call
+         * this right before Node.loadWallet, which reads "walletpass"). A wrong-password restore used to clear
+         * `lockenabled` and overwrite `walletpass` before any check; now it leaves every preference untouched. */
+        private static void applyRestorePrefs(string pass)
         {
             Preferences.Default.Remove("lockenabled");
-            Preferences.Default.Remove("waletpass");
 
             /* ★ N12 (#383, Damir 2026-08-18): "when restoring an account, we shouldn't
              * nudge the user to back up immediately, since it's restoring from backup."
@@ -687,12 +696,16 @@ namespace SPIXI
             Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());
             /* #456: a RESTORE may carry years of history. Clear the create marker here —
              * this leg runs for BOTH restore paths (the account zip and the bare wallet
-             * file) before either branches, so neither can inherit it from an earlier
-             * create on the same device. */
+             * file; ★ A-13: after each one verified), so neither can inherit it from an
+             * earlier create on the same device. */
             Preferences.Default.Remove("walletCreatedHere");
 
             Preferences.Default.Set("walletpass", pass);
+        }
 
+        // Attempt to restore the wallet
+        private bool onRestore(string pass)
+        {
             string source_path = Path.Combine(Config.spixiUserFolder, Config.walletFile) + ".tmp";
             if(!File.Exists(source_path))
             {
@@ -946,6 +959,7 @@ namespace SPIXI
                 }
                 File.Move(Path.Combine(tmpDirectory, "wallet.ixi"), Path.Combine(Config.spixiUserFolder, "wallet.ixi"));
 
+                applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
                 Node.loadWallet();
                 restoreCommitted = true;          // round-2 MINOR-2: past this line the account IS restored
                 Directory.Delete(tmpDirectory, true);
@@ -1022,6 +1036,7 @@ namespace SPIXI
             else
             {
                 File.Move(source_path, target_filepath);
+                applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
                 Node.loadWallet();
             }
             goHome();

@@ -306,6 +306,8 @@ index-excerpt-payment-received = Pembayaran Diterima
 index-excerpt-contact-accepted = Kontak Diterima
 index-excerpt-contact-request = Permintaan Kontak
 index-excerpt-file = Berkas
+index-excerpt-photo = Foto
+index-excerpt-photos = {0} foto
 index-excerpt-voice-call = Panggilan Suara
 index-excerpt-self = Saya:
 index-excerpt-you = Anda
@@ -457,6 +459,10 @@ settings-backup-notice = Cadangan ini dan kata sandi enkripsi yang terkait denga
 settings-backup-notice2 = - kehilangan perangkat ini<br />- hapus Spixi dari perangkat Anda<br />- hapus akun Spixi milik Anda<br />- hapus dompet milik Anda
 settings-backup-invalidpassword-title = Kata sandi tidak valid
 settings-backup-invalidpassword-text = Harap masukkan kata sandi yang valid.
+settings-backup-saved-title = Apakah Anda sudah menyimpan cadangan?
+settings-backup-saved-text = Pilih Ya hanya jika file cadangan sekarang sudah disimpan atau dikirim ke tempat yang aman.
+settings-backup-saved-yes = Ya
+settings-backup-saved-no = Tidak
 
 ; Settings Encryption Screen
 settings-encryption-title = Kata sandi
@@ -673,6 +679,7 @@ global-friend-request-accepted = {0} telah menerima permintaan pertemanan Anda.
 global-friend-request-connected = Anda sekarang terhubung dengan {0}.
 chat-group-added-you = {0} menambahkan Anda ke grup ini
 chat-group-added-you-noname = Anda ditambahkan ke grup ini
+chat-group-you-created = Anda membuat grup ini
 
 global-update-available = Versi baru Spixi ({0}) telah tersedia. Harap perbarui untuk pengalaman terbaik.
 global-modal-external-link-title = Anda akan mengunjungi tautan eksternal

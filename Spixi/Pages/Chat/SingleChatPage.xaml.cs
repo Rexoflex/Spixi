@@ -376,6 +376,10 @@ namespace SPIXI
             clearPendingVoicePlay(null);   // ★ #46 r1 A M3 / r2 MAJOR: nothing plays later; a document that survives hears `stopped`
             webView = null;
             base.OnDisappearing();
+            if (isDisposed)
+            {
+                dropMediaBatch();   // ★ S9 #46 r1 m-2: the page is torn down (base.OnDisappearing disposed it) — its prepared photos go
+            }
         }
 
         private void onNavigating(object sender, WebNavigatingEventArgs e)
@@ -543,18 +547,43 @@ namespace SPIXI
                 onSendFile(false);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             }
+            /* ★★ S9 (#1244, CONTRACT §1b — 🟡 NEW verbs): the media family. `camera` / `pasteImage` are EXACT strings with no
+             * argument (the paste verb is the ONLY place the clipboard is read); `mediaSend:` / `mediaCancel:` carry a batch id
+             * C# generated (16 hex) — every argument is validated by PhotoRules, a wrong / unknown batch is ignored with one
+             * fixed-word log. No WebView value ever names a file: the prepared files are C#'s own (Sent/pending-<batch>-<k>.jpg). */
+            else if (current_url.Equals("ixian:camera", StringComparison.Ordinal))
+            {
+#pragma warning disable CS4014
+                onPickPhotos(PhotoRules.RouteCamera);
+#pragma warning restore CS4014
+            }
+            else if (current_url.Equals("ixian:pasteImage", StringComparison.Ordinal))
+            {
+#pragma warning disable CS4014
+                onPickPhotos(PhotoRules.RoutePaste);
+#pragma warning restore CS4014
+            }
+            else if (current_url.StartsWith("ixian:mediaSend:", StringComparison.Ordinal))
+            {
+                onMediaSend(current_url.Substring("ixian:mediaSend:".Length));
+            }
+            else if (current_url.StartsWith("ixian:mediaCancel:", StringComparison.Ordinal))
+            {
+                onMediaCancel(current_url.Substring("ixian:mediaCancel:".Length));
+            }
             else if (current_url.StartsWith("ixian:acceptfile:"))
             {
                 string id = current_url.Substring("ixian:acceptfile:".Length);
 
-                FriendMessage fm = friend.getMessages(selectedChannel).Find(x => x.transferId == id);
+                // ★ S9 #46 r4: an INCOMING row only — never my own sent row that a peer's offer reused the id of
+                FriendMessage? fm = friend.getMessages(selectedChannel)?.Find(x => !x.localSender && x.transferId == id);
                 if (fm != null)
                 {
                     onAcceptFile(selectedChannel, fm);
                 }
                 else
                 {
-                    Logging.error("Cannot find message with transfer id: {0}", id);
+                    Logging.error("Cannot find an incoming file message for the supplied transfer id");   // ★ S9 #46 r4: fixed words (a WebView token)
                 }
 
             }
@@ -579,6 +608,10 @@ namespace SPIXI
                 if (File.Exists(fm.filePath))
                 {
                     SFileOperations.open(fm.filePath);
+                }
+                else if (fm.localSender && SharedItems.localPathOf(fm) is string sentNow)
+                {
+                    SFileOperations.open(sentNow);   // ★ S9 #46 r3: my Sent copy under today's app root (C#'s own rule)
                 }
                 else
                 {
@@ -947,6 +980,7 @@ namespace SPIXI
                     SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
                     SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
                     SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
+                    SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
@@ -1380,6 +1414,7 @@ namespace SPIXI
                 avatarSent.Clear();   // ★ #1166 P-04: the shell reset its address → avatar map at onChatScreenReady above (before loadMessages)
             }
             resetReplyDeep();   // ★ #1198: a new document — the one deeper reply-match read starts again (CONTRACT 1a)
+            dropMediaBatch();   // ★ S9 (#1244): a new document has no preview sheet — the prepared photos of the old one go
             /* ★★ #1208 (S7): a new document — the once-per-document waveform set starts again (keyed by thumbDoc, bumped
              * above), a pending play-after-download is forgotten, a recording of this chat still running is stopped and
              * kept, and a KEPT clip is told to the new shell (V6 `stopped` with its length — pushed after setCaps below,
@@ -1585,6 +1620,17 @@ namespace SPIXI
             {
                 caps += ",voice";
             }
+            /* ★★ S9 (#1244, CONTRACT §1a — 🟡 NEW caps): `media` = this exe has the S9 photo pipeline (sendmedia = the multi
+             * pick + the preview sheet, pasteImage, mediaSend / mediaCancel); `camera` = the Camera tile (Android + iOS only).
+             * The shell ANDs them with its own canSendFile (no bot room, no blind group — onSendFile's refusal); C# refuses
+             * there too (mediaAllowed). An old shell ignores both; an old exe declares neither (Photo stays hidden). */
+            caps += ",media";
+#if ANDROID || IOS
+            if (SFilePicker.CameraAvailable())   // ★ #46 r1 (shell auditor): a device with no camera shows no Camera tile
+            {
+                caps += ",camera";
+            }
+#endif
             Utils.sendUiCommand(this, "setCaps", caps);
 
             warningDisplayed = false;
@@ -2380,6 +2426,14 @@ namespace SPIXI
                 Logging.error("File sending is not supported in this chat.");
                 return;
             }
+            if (media)
+            {
+                /* ★★ S9 (#1244): the PHOTO tile is the multi-photo pick → the preview sheet (mediaPicked) → mediaSend. The old
+                 * route (one picked image sent as a FILE, the Android content-uri path as its "path" — V-14) is gone; only a
+                 * shell that saw the `media` cap shows the tile (chat.html attachFlags). */
+                await onPickPhotos(PhotoRules.RoutePhoto);
+                return;
+            }
             // Show file picker and send the file
             try
             {
@@ -2387,15 +2441,7 @@ namespace SPIXI
                 string fileName = null;
                 string filePath = null;
 
-                SpixiImageData? spixi_img_data;
-                if (media)
-                {
-                    spixi_img_data = await SFilePicker.PickImageAsync();
-                }
-                else
-                {
-                    spixi_img_data = await SFilePicker.PickFileAsync();
-                }
+                SpixiImageData? spixi_img_data = await SFilePicker.PickFileAsync();
 
                 if (spixi_img_data == null)
                 {
@@ -2412,12 +2458,93 @@ namespace SPIXI
                 fileName = spixi_img_data.name;
                 filePath = spixi_img_data.path;
 
-                sendPreparedFile(fileName, stream, filePath);   // ★ #1208: the post-picker half, shared with the voice FILE route
+                /* ★★ S9 #1200 + A-9 (#1244): "Send file" sends C#'s OWN durable copy — <spixiUserFolder>/Sent/<transferUid><allow-
+                 * listed ext> (PhotoRules.sentFileName; the picker's path is a provider cache or a content uri that does not last)
+                 * — and refuses a file above PhotoRules.MaxFileBytes before anything is sent. The copy runs OFF the UI thread.
+                 * A copy that fails sends the picked stream as before (when it can rewind) — the dev probe names the case. */
+                string uid = Guid.NewGuid().ToString("N");
+                Stream picked = stream;
+                DurableCopy copy = await Task.Run(() => makeDurableCopy(picked, fileName, uid));
+                if (copy.tooBig)
+                {
+                    picked.Dispose();
+                    Logging.warn("Send file refused: above the size cap");
+                    Utils.sendUiCommand(this, "mediaError", PhotoRules.ErrFileTooBig);
+                    return;
+                }
+                probeSendPath(PhotoRules.RouteFile, copy.caseWord);
+                if (copy.path != null)
+                {
+                    picked.Dispose();
+                    stream = new FileStream(copy.path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    filePath = copy.path;
+                }
+                else if (picked.CanSeek)
+                {
+                    picked.Seek(0, SeekOrigin.Begin);   // the legacy send: the picked stream and the picker's path
+                }
+                else
+                {
+                    picked.Dispose();
+                    Logging.warn("Send file: the file could not be copied or re-read — not sent");
+                    return;
+                }
+                sendPreparedNext = new PreparedSend { transferId = copy.path != null ? uid : "" };
+
+                sendPreparedStage = 0;
+                sendPreparedUid = null;
+                FriendMessage? sentFile = null;
+                try
+                {
+                    sentFile = sendPreparedFile(fileName, stream, filePath);   // ★ #1208: the post-picker half, shared with the voice FILE route
+                }
+                catch (Exception)
+                {
+                    sendPreparedNext = null;
+                    if (sendPreparedStage < 2)
+                    {
+                        withdrawSendFile(stream, copy.path);   // ★ #46 r1 m-1: nothing stored → no transfer, no stream, no Sent copy
+                    }
+                    throw;
+                }
+                if (sentFile == null)
+                {
+                    deleteOwnMediaFile(copy.path);   // ★ #46 r1 m-1: sendPreparedFile withdrew its transfer — the copy goes too
+                    return;
+                }
+                if (PhotoRules.isVideoName(fileName))
+                {
+                    Utils.sendUiCommand(this, "fileNotice", "videoLocation");   // ★ S9 (#1138 (16), 🟡 NEW push): a video goes as it is — after a SUCCESSFUL send only
+                }
             }
             catch (Exception ex)
             {
-                Logging.error("Exception choosing file: " + ex.ToString());
+                Logging.error("Exception choosing file: " + ex.GetType().Name);   // ★ S9: the TYPE — a message can carry a path
             }
+        }
+
+        /** ★ #46 r1 m-1: a Send file that failed BEFORE Core stored the message — the transfer stage 1 registered is removed (it
+         *  disposes the stream), else the stream is closed; then C#'s durable copy goes (null = the legacy picker path: kept). */
+        private void withdrawSendFile(Stream? stream, string? copyPath)
+        {
+            try
+            {
+                if (sendPreparedStage == 1 && sendPreparedUid != null)
+                {
+                    TransferManager.removeOutgoingTransfer(sendPreparedUid);
+                }
+                else
+                {
+                    stream?.Dispose();
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Send file: the unsent transfer could not be removed (" + e.GetType().Name + ")");
+            }
+            sendPreparedStage = 0;
+            sendPreparedUid = null;
+            deleteOwnMediaFile(copyPath);
         }
 
         /* ★★ #1208 (S7): the POST-PICKER half of onSendFile, unchanged, factored out so C# can send a file IT made (a voice
@@ -2433,7 +2560,20 @@ namespace SPIXI
         private FriendMessage? sendPreparedFile(string fileName, Stream stream, string filePath)
         {
             Address? sender_address = null;
-            FileTransfer transfer = TransferManager.prepareFileTransfer(fileName, stream, filePath);
+            PreparedSend? opts = sendPreparedNext;   // ★ S9 (#1244): the caller's own uid / group / message id, consumed once
+            sendPreparedNext = null;
+            FileTransfer transfer = TransferManager.prepareFileTransfer(fileName, stream, filePath, opts != null ? opts.transferId : "");
+            if (transfer == null)
+            {
+                throw new InvalidOperationException("transfer");   // a duplicate uid (impossible for a fresh Guid) — the callers' catch
+            }
+            if (opts != null && opts.groupId.Length > 0)
+            {
+                transfer.groupId = opts.groupId;   // ★ S9 (#1244, CONTRACT §1d): the group trailer of this file's header
+                transfer.groupIndex = opts.groupIndex;
+                transfer.groupCount = opts.groupCount;
+                transfer.captionId = opts.captionId;
+            }
             transfer.channel = selectedChannel;
             sendPreparedStage = 1;   // ★ #46 r1 A N4: the transfer holds the stream now
             sendPreparedUid = transfer.uid;
@@ -2447,7 +2587,7 @@ namespace SPIXI
             string message_data = string.Format("{0}:{1}", transfer.uid, transfer.fileName);
 
             // store the message and display it
-            FriendMessage? friend_message = Node.addMessageWithType(null, FriendMessageType.fileHeader, friend.walletAddress, selectedChannel, message_data, true, sender_address);
+            FriendMessage? friend_message = Node.addMessageWithType(opts?.messageId, FriendMessageType.fileHeader, friend.walletAddress, selectedChannel, message_data, true, sender_address);   // ★ S9: null = Core makes the id (every caller but mediaSend)
             if (friend_message == null)
             {
                 // ★ #46 r2 (was an NRE two lines below): nothing stored → nothing sent, and the transfer is withdrawn
@@ -2473,11 +2613,751 @@ namespace SPIXI
             return friend_message;
         }
 
+        /* ═══ ★★ S9 — THE MEDIA FAMILY, THE C# HALF (#1244 / #1158 / #1200 / #1157 / #1156 · CONTRACT §1a–§1f) ═══
+         *
+         * Photos (the PHOTO tile `ixian:sendmedia`, the Camera tile `ixian:camera`, a paste `ixian:pasteImage`):
+         *   pick / capture / clipboard (main thread) → prepareBatch OFF the UI thread: each image is copied BOUNDED
+         *   (≤ PhotoRules.SourceMax, else `tooBig`) into C#'s own Sent/pending-<batch>-<k>.src, sniffed (ImageSniff), decoded
+         *   BOUNDED + rotated + scaled to ≤ 2048 px + encoded JPEG q82 with NO metadata (Spixi.SThumbnail.makeViewerJpeg, one
+         *   decode at a time in the process) into Sent/pending-<batch>-<k>.jpg; the .src goes at once → `mediaPicked`
+         *   (main thread) opens the shell's preview sheet. `mediaSend` renames the KEPT items to Sent/<transferUid>.jpg (the
+         *   durable copy #1200 — FriendMessage.filePath), sends them as files tagged with ONE group (the FileTransfer
+         *   trailer, CONTRACT §1d) and then the caption as a text message whose id = the trailer's captionId; `mediaCancel`
+         *   / a new document / a new pick / the app start (Node → sweepPendingPhotos) delete the pending files.
+         * Every file name here is made by PhotoRules from C#'s own values; the WebView sends ids, keys and a caption only.
+         * Pushes on the main thread; logs are fixed words + exception TYPES (never a path, a name or the caption). */
+        private sealed class PreparedSend
+        {
+            public string transferId = "";
+            public string groupId = "";
+            public int groupIndex = 0;
+            public int groupCount = 0;
+            public string captionId = "";
+            public byte[]? messageId = null;
+        }
+        private PreparedSend? sendPreparedNext = null;   // set by a caller right before sendPreparedFile; consumed there (main thread)
+
+        private sealed class MediaItem
+        {
+            public int k;
+            public string path = "";
+        }
+
+        private sealed class MediaBatch
+        {
+            public string id = "";
+            public string peer = "";
+            public int channel = 0;
+            public int count = 0;          // items picked (keys are < count)
+            public string route = "";
+            public List<MediaItem> items = new List<MediaItem>();
+            public List<PhotoRules.PickedItem> shown = new List<PhotoRules.PickedItem>();
+            public List<string> errors = new List<string>();
+        }
+
+        private MediaBatch? mediaBatch = null;   // the ONE open batch of this page (main thread)
+        private int mediaBusy = 0;               // a pick / prepare in flight (Interlocked) — a second tap is ignored
+        private static readonly SemaphoreSlim mediaDecodeGate = new SemaphoreSlim(1, 1);   // one 2048-px decode in the process
+
+        private static string sentFolder()
+        {
+            return Path.Combine(Config.spixiUserFolder, PhotoRules.SentFolderName);
+        }
+
+        /** ★ S9 A1 r1: create C#'s Sent folder; on iOS / Mac mark it excluded from the device backup (the durable copies of
+         *  sent photos / files must not fill iCloud — Android excludes Spixi/Sent in its backup rules). Never throws past
+         *  the create; the flag is set on every call (cheap, and a restore that lost it is healed on the next send). */
+        private static void ensureSentFolder(string dir)
+        {
+            Directory.CreateDirectory(dir);
+#if IOS || MACCATALYST
+            try
+            {
+                using Foundation.NSUrl url = Foundation.NSUrl.FromFilename(dir);
+                if (!url.SetResource(Foundation.NSUrl.IsExcludedFromBackupKey, Foundation.NSNumber.FromBoolean(true), out Foundation.NSError err) && err != null)
+                {
+                    Logging.warn("Media: the Sent backup exclusion failed");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: the Sent backup exclusion threw (" + e.GetType().Name + ")");
+            }
+#endif
+        }
+
+        private bool mediaAllowed()
+        {
+            return friend != null && !friend.bot && !Utils.hidesParticipants(friend);
+        }
+
+        private static void probeSendPath(string route, string caseWord)
+        {
+            if (P1Perf.enabled)
+            {
+                string? body = PhotoRules.probeLine(route, caseWord);
+                if (body != null)
+                {
+                    P1Perf.line(body);   // ★ #1200 dev probe: fixed words only
+                }
+            }
+        }
+
+        private static void deleteOwnMediaFile(string? path)
+        {
+            if (string.IsNullOrEmpty(path) || !PhotoRules.isUnderDir(path, sentFolder()))
+            {
+                return;   // only a file under C#'s own Sent folder
+            }
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: a prepared file could not be removed (" + e.GetType().Name + ")");
+            }
+        }
+
+
+        private sealed class DurableCopy
+        {
+            public string? path = null;
+            public bool tooBig = false;
+            public string caseWord = PhotoRules.CaseMissingOther;
+        }
+
+        /** ★ #1200 "Send file": the picked stream → Sent/<uid><allow-listed ext>, ≤ MaxFileBytes. OFF the UI thread. */
+        private static DurableCopy makeDurableCopy(Stream picked, string? pickedName, string uid)
+        {
+            DurableCopy r = new DurableCopy();
+            try
+            {
+                long known = -1;
+                try
+                {
+                    known = picked.CanSeek ? picked.Length : -1;
+                }
+                catch (Exception)
+                {
+                    known = -1;
+                }
+                if (known > PhotoRules.MaxFileBytes)
+                {
+                    r.tooBig = true;
+                    return r;
+                }
+                string? leaf = PhotoRules.sentFileName(uid, PhotoRules.sentExtension(pickedName));
+                if (leaf == null)
+                {
+                    return r;
+                }
+                string dir = sentFolder();
+                ensureSentFolder(dir);
+                string dest = Path.Combine(dir, leaf);
+                bool readFailed = false;
+                try
+                {
+                    long got = PhotoRules.copyBounded(picked, dest, PhotoRules.MaxFileBytes, out readFailed);
+                    if (got < 0)
+                    {
+                        r.tooBig = true;
+                        return r;
+                    }
+                    if (got == 0)
+                    {
+                        deleteOwnMediaFile(dest);
+                        r.caseWord = PhotoRules.CaseMissingData;
+                        return r;
+                    }
+                    try { File.SetLastWriteTimeUtc(dest, DateTime.UtcNow); } catch (Exception) { }   // ★ #46 r2 m2: fresh for the Sent sweep
+                    r.path = dest;
+                    r.caseWord = PhotoRules.CaseCopy;
+                }
+                catch (Exception e)
+                {
+                    r.caseWord = PhotoRules.copyFailureCase(readFailed, e);
+                    Logging.warn("Send file: the copy failed (" + e.GetType().Name + ")");
+                }
+            }
+            catch (Exception e)
+            {
+                r.caseWord = PhotoRules.copyFailureCase(false, e);
+                Logging.warn("Send file: the copy failed (" + e.GetType().Name + ")");
+            }
+            return r;
+        }
+
+        /** Main thread: run `a` now when on the main thread, else post it. */
+        private static void onMain(Action a)
+        {
+            if (MainThread.IsMainThread)
+            {
+                a();
+            }
+            else
+            {
+                MainThread.BeginInvokeOnMainThread(a);
+            }
+        }
+
+        /** The three photo routes (photo pick · camera · paste). Main thread (the verb handler); the work is off it. */
+        private async Task onPickPhotos(string route)
+        {
+            if (!mediaAllowed())
+            {
+                Logging.warn("Media: not available in this chat");
+                return;
+            }
+            if (Interlocked.Exchange(ref mediaBusy, 1) != 0)
+            {
+                Logging.warn("Media: a pick is already running");
+                return;
+            }
+            bool handedOver = false;
+            try
+            {
+                List<SpixiImageData> picks = new List<SpixiImageData>();
+                if (route == PhotoRules.RoutePhoto)
+                {
+                    picks = await SFilePicker.PickImagesAsync(PhotoRules.MaxBatch) ?? new List<SpixiImageData>();
+                }
+                else if (route == PhotoRules.RouteCamera)
+                {
+                    SpixiImageData? shot = null;
+                    try
+                    {
+                        shot = await SFilePicker.CapturePhotoAsync(PhotoRules.SourceMax);
+                    }
+                    catch (Exception e) when (e is PermissionException || e is FeatureNotSupportedException)
+                    {
+                        Logging.warn("Media: the camera is not available (" + e.GetType().Name + ")");
+                        string code = PhotoRules.cameraErrorCode(e is PermissionException, e.Message);   // ★ #46 r2 n2: storageDenied on Android ≤ 12
+                        onMain(() => Utils.sendUiCommand(this, "mediaError", code));
+                        return;
+                    }
+                    if (shot != null)
+                    {
+                        picks.Add(shot);
+                    }
+                }
+                else if (route == PhotoRules.RoutePaste)
+                {
+                    byte[]? bytes = await SClipboardImage.readAsync(PhotoRules.SourceMax);
+                    if (ReferenceEquals(bytes, SClipboardImage.TooBig))
+                    {
+                        onMain(() => Utils.sendUiCommand(this, "mediaError", PhotoRules.ErrTooBig));   // ★ #46 r1 NIT: no cap-sized buffer
+                        return;
+                    }
+                    if (bytes == null || bytes.Length == 0)
+                    {
+                        onMain(() => Utils.sendUiCommand(this, "mediaError", PhotoRules.ErrClipboardEmpty));
+                        return;
+                    }
+                    picks.Add(new SpixiImageData() { name = "", path = "", stream = new MemoryStream(bytes, false) });
+                }
+                else
+                {
+                    return;
+                }
+                if (picks.Count == 0)
+                {
+                    return;   // an empty pick / a cancel sends nothing (CONTRACT §1c)
+                }
+                if (!mediaAllowed())
+                {
+                    disposePicks(picks, 0);
+                    return;
+                }
+                dropMediaBatch();   // one open batch per page: a new pick replaces the old sheet's files
+                string batchId = PhotoRules.idFromBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8));
+                MediaBatch batch = new MediaBatch
+                {
+                    id = batchId,
+                    peer = friend.walletAddress.ToString(),
+                    channel = selectedChannel,
+                    count = Math.Min(picks.Count, PhotoRules.MaxBatch),
+                    route = route,
+                };
+                if (picks.Count > PhotoRules.MaxBatch)
+                {
+                    batch.errors.Add(PhotoRules.ErrTooMany);
+                }
+                int doc = thumbDoc;
+                Friend chat = friend;
+                handedOver = true;
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        prepareBatch(batch, picks);
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("Media: the photos could not be prepared (" + e.GetType().Name + ")");
+                    }
+                    onMain(() => finishPick(batch, doc, chat));
+                });
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: the pick failed (" + e.GetType().Name + ")");
+            }
+            finally
+            {
+                if (!handedOver)
+                {
+                    Interlocked.Exchange(ref mediaBusy, 0);
+                }
+            }
+        }
+
+        private static void disposePicks(List<SpixiImageData> picks, int from)
+        {
+            for (int i = from; i < picks.Count; i++)
+            {
+                try { picks[i]?.stream?.Dispose(); } catch (Exception) { }
+            }
+        }
+
+        /** OFF the UI thread: every picked image → C#'s own Sent/pending-<batch>-<k>.jpg (the #1158 rule) + its sheet thumbnail. */
+        private static void prepareBatch(MediaBatch batch, List<SpixiImageData> picks)
+        {
+            try
+            {
+                string dir = sentFolder();
+                ensureSentFolder(dir);
+                for (int k = 0; k < batch.count; k++)
+                {
+                    SpixiImageData p = picks[k];
+                    string? srcLeaf = PhotoRules.pendingFileName(batch.id, k, ".src");
+                    string? jpgLeaf = PhotoRules.pendingFileName(batch.id, k, ".jpg");
+                    if (p == null || p.stream == null || srcLeaf == null || jpgLeaf == null)
+                    {
+                        batch.errors.Add(PhotoRules.ErrDecode);
+                        continue;
+                    }
+                    string src = Path.Combine(dir, srcLeaf);
+                    string jpg = Path.Combine(dir, jpgLeaf);
+                    try
+                    {
+                        long got = PhotoRules.copyBounded(p.stream, src, PhotoRules.SourceMax, out _);
+                        if (got < 0)
+                        {
+                            batch.errors.Add(PhotoRules.ErrTooBig);
+                            continue;
+                        }
+                        if (got == 0 || !ImageSniff.looksLikeImage(SharedItems.readHead(src)))
+                        {
+                            deleteOwnMediaFile(src);
+                            batch.errors.Add(PhotoRules.ErrDecode);
+                            continue;
+                        }
+                        byte[]? photo = null;
+                        byte[]? thumb = null;
+                        if (mediaDecodeGate.Wait(60000))
+                        {
+                            try
+                            {
+                                photo = Spixi.SThumbnail.makeViewerJpeg(src, PhotoRules.MaxEdge);
+                                deleteOwnMediaFile(src);
+                                if (photo != null && PhotoRules.jpegSize(photo, out _, out _))
+                                {
+                                    File.WriteAllBytes(jpg, photo);
+                                    thumb = Spixi.SThumbnail.makeViewerJpeg(jpg, PhotoRules.ThumbEdge);
+                                }
+                            }
+                            finally
+                            {
+                                mediaDecodeGate.Release();
+                            }
+                        }
+                        deleteOwnMediaFile(src);
+                        if (photo == null || !PhotoRules.jpegSize(photo, out int w, out int h) || !File.Exists(jpg))
+                        {
+                            deleteOwnMediaFile(jpg);
+                            batch.errors.Add(PhotoRules.ErrDecode);
+                            continue;
+                        }
+                        batch.items.Add(new MediaItem { k = k, path = jpg });
+                        batch.shown.Add(new PhotoRules.PickedItem
+                        {
+                            k = k.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            thumb = thumb != null && PhotoRules.thumbOk(thumb.Length) ? "data:image/jpeg;base64," + Convert.ToBase64String(thumb) : "",
+                            w = w,
+                            h = h,
+                            kb = PhotoRules.kbOf(photo.Length),
+                        });
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("Media: a photo could not be prepared (" + e.GetType().Name + ")");
+                        deleteOwnMediaFile(src);
+                        deleteOwnMediaFile(jpg);
+                        batch.errors.Add(PhotoRules.ErrDecode);
+                    }
+                    finally
+                    {
+                        try { p.stream?.Dispose(); } catch (Exception) { }
+                    }
+                }
+            }
+            finally
+            {
+                disposePicks(picks, 0);   // the extras past MaxBatch (and any left open) — a second Dispose is harmless
+            }
+        }
+
+        /** Main thread: the batch is ready — open the sheet (mediaPicked) and tell each distinct error once (mediaError). A
+         *  torn-down page / an older document / another chat gets nothing and its files go. */
+        private void finishPick(MediaBatch batch, int doc, Friend chat)
+        {
+            try
+            {
+                if (isDisposed || doc != thumbDoc || friend != chat || batch.peer != friend.walletAddress.ToString())
+                {
+                    foreach (MediaItem it in batch.items)
+                    {
+                        deleteOwnMediaFile(it.path);
+                    }
+                    return;
+                }
+                if (batch.items.Count > 0)
+                {
+                    dropMediaBatch();
+                    mediaBatch = batch;
+                    Utils.sendUiCommand(this, "mediaPicked", batch.id, PhotoRules.pickedJson(batch.shown));
+                }
+                List<string> told = new List<string>();
+                foreach (string code in batch.errors)
+                {
+                    if (!told.Contains(code))
+                    {
+                        told.Add(code);
+                        Utils.sendUiCommand(this, "mediaError", code);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: the picked photos could not be shown (" + e.GetType().Name + ")");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref mediaBusy, 0);
+            }
+        }
+
+        /** Main thread: forget the open batch and delete its prepared files. */
+        private void dropMediaBatch()
+        {
+            MediaBatch? b = mediaBatch;
+            mediaBatch = null;
+            if (b == null)
+            {
+                return;
+            }
+            deleteBatchFiles(b, null);
+        }
+
+        /** ★ #46 r1: delete a batch's prepared files except the kept keys (PhotoRules.pathsToDelete, csh-executed). */
+        private static void deleteBatchFiles(MediaBatch b, ICollection<int>? keep)
+        {
+            List<KeyValuePair<int, string>> items = new List<KeyValuePair<int, string>>();
+            foreach (MediaItem it in b.items)
+            {
+                items.Add(new KeyValuePair<int, string>(it.k, it.path));
+            }
+            foreach (string path in PhotoRules.pathsToDelete(items, keep))
+            {
+                deleteOwnMediaFile(path);
+            }
+        }
+
+        private void onMediaCancel(string batchId)
+        {
+            MediaBatch? b = mediaBatch;
+            if (b == null || !PhotoRules.isId16(batchId) || !string.Equals(b.id, batchId, StringComparison.Ordinal))
+            {
+                Logging.warn("ixian:mediaCancel: no such batch");
+                return;
+            }
+            dropMediaBatch();
+        }
+
+        /** `ixian:mediaSend:<batchId>:<keys>:<captionB64url>` (main thread). */
+        private void onMediaSend(string payload)
+        {
+            MediaBatch? b = mediaBatch;
+            string? id = PhotoRules.batchIdOfSend(payload);
+            if (b == null || id == null || !string.Equals(b.id, id, StringComparison.Ordinal)
+                || friend == null || b.peer != friend.walletAddress.ToString())
+            {
+                Logging.warn("ixian:mediaSend: no such batch");
+                return;
+            }
+            if (!PhotoRules.parseMediaSend(payload, b.count, out _, out List<int> keys, out string caption))
+            {
+                Logging.warn("ixian:mediaSend: malformed");
+                dropMediaBatch();   // ★ #46 r1 m-2: the sheet's send was refused — its prepared files go (the shell closes on the next pick)
+                return;
+            }
+            if (b.channel != selectedChannel)
+            {
+                Logging.warn("ixian:mediaSend: the channel changed");
+                dropMediaBatch();   // ★ #46 r1 NIT: a batch belongs to the channel it was picked in
+                return;
+            }
+            List<MediaItem> chosen = new List<MediaItem>();
+            foreach (int k in keys)
+            {
+                MediaItem? it = b.items.Find(x => x.k == k);
+                if (it == null)
+                {
+                    Logging.warn("ixian:mediaSend: a key is not a prepared photo");
+                    dropMediaBatch();   // ★ #46 r1 m-2
+                    return;
+                }
+                chosen.Add(it);
+            }
+            if (!mediaAllowed())
+            {
+                Logging.warn("Media: not available in this chat");
+                dropMediaBatch();   // ★ #46 r1 m-2
+                return;
+            }
+            mediaBatch = null;   // consumed
+            deleteBatchFiles(b, keys);   // the ones removed in the sheet
+            sendMediaBatch(b, chosen, caption);
+        }
+
+        /** The kept photos as ONE group (CONTRACT §1d), then the caption text. Main thread. */
+        private void sendMediaBatch(MediaBatch b, List<MediaItem> chosen, string caption)
+        {
+            /* ★ #46 r1 m-4: TWO PASSES. Pass 1 moves every kept photo to its durable Sent/<uid>.jpg (the step that fails in
+             * practice); pass 2 sends the SURVIVORS with index / count over the survivors only — a receiver never waits for a
+             * group member that was never sent. (A store that fails in pass 2 is the rare leftover gap.) */
+            List<KeyValuePair<string, string>> kept = new List<KeyValuePair<string, string>>();   // uid → final path
+            foreach (MediaItem it in chosen)
+            {
+                string uid = Guid.NewGuid().ToString("N");
+                string? leaf = PhotoRules.sentFileName(uid, ".jpg");
+                if (leaf == null)
+                {
+                    deleteOwnMediaFile(it.path);
+                    continue;
+                }
+                string final = Path.Combine(sentFolder(), leaf);
+                try
+                {
+                    File.Move(it.path, final);
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("Media: a photo could not be kept (" + e.GetType().Name + ")");
+                    probeSendPath(b.route, PhotoRules.copyFailureCase(false, e));
+                    deleteOwnMediaFile(it.path);
+                    continue;
+                }
+                // ★ #46 r2 m2 / r3 m2: the move keeps the PICK time — a sheet open > 10 min must not look old to the Sent sweep;
+                // its OWN try: a failed stamp never drops a photo that was already moved
+                try { File.SetLastWriteTimeUtc(final, DateTime.UtcNow); } catch (Exception) { }
+                probeSendPath(b.route, PhotoRules.CaseCopy);
+                kept.Add(new KeyValuePair<string, string>(uid, final));
+            }
+            int count = kept.Count;
+            byte[]? captionId = caption.Length > 0 && count > 0 ? Guid.NewGuid().ToByteArray() : null;   // the same 16-byte id Core would make
+            string captionHex = captionId != null ? Crypto.hashToString(captionId) : "";
+            bool grouped = PhotoRules.groupedAfter(count, captionId != null);
+            string gid = grouped ? PhotoRules.idFromBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8)) : "";
+            string peer = friend.walletAddress.ToString();
+            DateTime utc = DateTime.UtcNow;
+            int sent = 0;
+            /* ★ #46 r3 m3: every row's id is made first and the whole group recorded in ONE SPhotoGroups.setMany (the stored
+             * string is rebuilt once per batch) — still BEFORE any store, so each live insert reads its arg 18. */
+            List<byte[]> msgIds = new List<byte[]>(count);
+            List<KeyValuePair<string, string>> groupRows = new List<KeyValuePair<string, string>>(count);
+            for (int i = 0; i < count; i++)
+            {
+                byte[] id = Guid.NewGuid().ToByteArray();
+                msgIds.Add(id);
+                groupRows.Add(new KeyValuePair<string, string>(Crypto.hashToString(id), PhotoRules.groupArg(gid, i, count, captionHex)));
+            }
+            if (grouped)
+            {
+                SPhotoGroups.setMany(peer, groupRows, SPhotoGroups.FromMe);
+            }
+            for (int i = 0; i < count; i++)
+            {
+                string uid = kept[i].Key;
+                string final = kept[i].Value;
+                byte[] msgId = msgIds[i];
+                string msgHex = groupRows[i].Key;
+                Stream? stream = null;
+                FriendMessage? fm = null;
+                sendPreparedStage = 0;
+                sendPreparedUid = null;
+                try
+                {
+                    stream = new FileStream(final, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    sendPreparedNext = new PreparedSend
+                    {
+                        transferId = uid,
+                        groupId = gid,
+                        groupIndex = i,
+                        groupCount = grouped ? count : 0,
+                        captionId = captionHex,
+                        messageId = msgId,
+                    };
+                    fm = sendPreparedFile(PhotoRules.photoName(utc, i, count), stream, final);
+                }
+                catch (Exception e)
+                {
+                    sendPreparedNext = null;
+                    Logging.warn("Media: a photo could not be sent (" + e.GetType().Name + ")");
+                    if (sendPreparedStage >= 2)
+                    {
+                        sent++;   // Core holds the message — the file serves the peer
+                        continue;
+                    }
+                    try
+                    {
+                        if (sendPreparedStage == 1 && sendPreparedUid != null)
+                        {
+                            TransferManager.removeOutgoingTransfer(sendPreparedUid);
+                        }
+                        else
+                        {
+                            stream?.Dispose();
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    fm = null;
+                }
+                if (fm == null)
+                {
+                    SPhotoGroups.remove(peer, msgHex);
+                    deleteOwnMediaFile(final);   // sendPreparedFile withdrew its transfer (and closed the stream)
+                    continue;
+                }
+                sent++;
+            }
+            sendPreparedStage = 0;
+            sendPreparedUid = null;
+            if (captionId != null && sent > 0)
+            {
+                sendCaption(caption, captionId);
+            }
+        }
+
+        /** The caption: a NORMAL text message (an old app shows it as one) whose id = the trailer's captionId. */
+        private void sendCaption(string caption, byte[] captionId)
+        {
+            try
+            {
+                SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.chat, Encoding.UTF8.GetBytes(caption), selectedChannel);
+                byte[] bytes = spixi_message.getBytes();
+                if (bytes.Length > CoreConfig.maxChatMessageSize)
+                {
+                    Logging.warn("Media: the caption is too long — not sent");
+                    return;
+                }
+                FriendMessage? cm = Node.addMessageWithType(captionId, FriendMessageType.standard, friend.walletAddress, selectedChannel, caption, true, null, 0, true, true, bytes.Length);
+                if (cm == null)
+                {
+                    Logging.error("Media: the caption could not be stored — not sending it.");
+                    return;
+                }
+                CoreStreamProcessor.sendChatMessage(friend, cm, selectedChannel);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: the caption could not be sent (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** ★ S9 (#1200): deleting MY file message deletes C#'s durable copy — only a path under Sent/ (never Downloads,
+         *  never a picker path). Called by the deleteMessage action after the transfer is withdrawn. */
+        private static void deleteSentCopyOf(FriendMessage? fm)
+        {
+            if (fm == null || !fm.localSender || fm.type != FriendMessageType.fileHeader || string.IsNullOrEmpty(fm.filePath))
+            {
+                return;
+            }
+            deleteOwnMediaFile(PhotoRules.rerootSent(fm.filePath, sentFolder()) ?? fm.filePath);   // ★ #46 r3: under today's root
+        }
+
+        private static int pendingSweepStarted = 0;
+
+        /** ★ S9 (#1244): at node start, ONE background pass deletes the prepared photos a closed app left behind
+         *  (Sent/pending-<16 hex>-<k>.jpg|.src — PhotoRules.isPendingName; nothing else in Sent/). Never throws; a count only. */
+        public static void sweepPendingPhotos()
+        {
+            if (Interlocked.Exchange(ref pendingSweepStarted, 1) != 0)
+            {
+                return;
+            }
+            Task.Run(() =>
+            {
+                int deleted = 0;
+                try
+                {
+                    string dir = sentFolder();
+                    if (!Directory.Exists(dir))
+                    {
+                        return;
+                    }
+                    int seen = 0;
+                    foreach (string path in Directory.EnumerateFiles(dir, PhotoRules.PendingPrefix + "*", SearchOption.TopDirectoryOnly))
+                    {
+                        if (++seen > 1000)
+                        {
+                            break;
+                        }
+                        if (!PhotoRules.isPendingName(Path.GetFileName(path)))
+                        {
+                            continue;
+                        }
+                        try
+                        {
+                            File.Delete(path);
+                            deleted++;
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("Media: the pending sweep stopped (" + e.GetType().Name + ")");
+                }
+                if (deleted > 0)
+                {
+                    Logging.info("Media: pending sweep removed " + deleted + " files");
+                }
+            });
+        }
+
         public void onAcceptFile(int selected_channel, FriendMessage message)
         {
+            if (message == null || message.localSender)
+            {
+                Logging.warn("Accept refused: not an incoming file");   // ★ S9 #46 r4: my own row is never downloaded over
+                return;
+            }
             if (TransferManager.getIncomingTransfer(message.transferId) != null)
             {
                 Logging.warn("Incoming file transfer {0} already prepared.", message.transferId);
+                return;
+            }
+            if (message.fileSize > (ulong)PhotoRules.MaxFileBytes)
+            {
+                // ★ S9 A-9 (#1245): an offer above the 100 MB cap is never accepted (TransferManager refuses it too)
+                Logging.warn("File offer refused: above the size cap");
+                Utils.sendUiCommand(this, "mediaError", PhotoRules.ErrFileTooBigIn);   // ★ #46 r1: a RECEIVED offer (its own text)
                 return;
             }
 
@@ -2676,22 +3556,127 @@ namespace SPIXI
 
         public void onJoinApp(string app_id)
         {
-            sendJoinAccept(app_id);   // ★ S8 (#1233): an INCOMING invite tells its inviter (once per peer + session per run)
+            /* ★ S9 A3 #46 r1 (MINOR-2): "Open again" (a card already Joined) rides the same verb — it REOPENS: no second
+             * appRequestAccept (after a restart the per-run claim is empty) and no new mark. Only a Join of an invite row
+             * that is not joined yet accepts + marks (S9FixRules.joinIsReopen). */
+            FriendMessage? joinRow = findJoinRow(app_id);
+            bool reopen = S9FixRules.joinIsReopen(joinRow?.id != null, joinRow?.id != null && SAppJoins.has(friend.walletAddress.ToString(), Crypto.hashToString(joinRow!.id!)));
+            FriendMessage? joinedRow = joinRow;
+            if (!reopen)
+            {
+                sendJoinAccept(app_id);   // ★ S8 (#1233): an INCOMING invite tells its inviter (once per peer + session per run)
+                joinedRow = markJoined(joinRow);   // ★ S9 A3 8-APP: the card reads "Joined" from now on (SAppJoins)
+            }
             if (homePage != null)
             {
-                homePage.onJoinApp(app_id, friend);
+                byte[] session = homePage.onJoinApp(app_id, friend);
+                watchAppPageClose(Node.MiniAppManager.getAppPage(friend.walletAddress, session), joinedRow);   // ★ #46 r1: THIS page, by its session
+                refreshAppRow(joinedRow, selectedChannel);
                 return;
             }
 
             MiniAppPage miniAppPage = new MiniAppPage(app_id, IxianHandler.getWalletStorage().getPrimaryAddress(), friend, Node.MiniAppManager.getAppEntryPoint(app_id));
             miniAppPage.accepted = true;
             Node.MiniAppManager.addAppPage(miniAppPage);
+            watchAppPageClose(miniAppPage, joinedRow);
+            refreshAppRow(joinedRow, selectedChannel);
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 hostNav.PushAsync(miniAppPage, Config.defaultXamarinAnimations);   // #225: root nav
             });
 
+        }
+
+        /* ★ S9 A3 8-APP (#1243 (3), #1247) — A DURABLE "JOINED". `ixian:joinApp:<appId>` carries no row, so the row is the
+         * NEWEST incoming invite row of that app in this chat (S9FixRules.marksJoin — the card the user tapped, or a newer
+         * invite of the same app); it is stored in SAppJoins (peer|msgIdHex) and re-pushed (refreshAppRow) — the addAppRequest
+         * push then says Minimized while the page lives and Joined after it closed (S9FixRules.appState). My own invite
+         * (Launch) and the call app are never marked. A bot room never gets here (onApp / sendJoinAccept refuse bots — the
+         * same here). Never throws; the log names nothing. Returns the marked row (null = none). */
+        private FriendMessage? findJoinRow(string? app_id)
+        {
+            try
+            {
+                if (friend == null || friend.bot || string.IsNullOrEmpty(app_id))
+                {
+                    return null;
+                }
+                var rows = friend.getMessages(selectedChannel);
+                if (rows == null)
+                {
+                    return null;
+                }
+                lock (rows)
+                {
+                    return rows.FindLast(m => m.id != null && S9FixRules.marksJoin(m.type == FriendMessageType.appSession, m.localSender, AppInviteRules.appIdOf(m.message), app_id));
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("app join: the row lookup failed (" + e.GetType().Name + ")");
+                return null;
+            }
+        }
+
+        private FriendMessage? markJoined(FriendMessage? row)
+        {
+            try
+            {
+                if (friend == null || friend.bot)
+                {
+                    return null;
+                }
+                if (row == null || row.id == null)
+                {
+                    return null;
+                }
+                if (SAppJoins.add(friend.walletAddress.ToString(), Crypto.hashToString(row.id)))
+                {
+                    Logging.info("app join: the row was marked joined");
+                }
+                return row;
+            }
+            catch (Exception e)
+            {
+                Logging.warn("app join: marking failed (" + e.GetType().Name + ")");
+                return null;
+            }
+        }
+
+        /* ★ S9 A3 8-APP: when the mini-app page leaves the screen (its own back removes it from MiniAppManager first —
+         * MiniAppPage.onBack — so the re-push then reads Joined, not Minimized), the joined row is re-pushed once. A page
+         * covered by another page also fires Disappearing: the re-push is idempotent (it still reads Minimized). The handler
+         * is removed after its first run; a torn-down chat page pushes nothing (isDisposed). Main thread (MAUI page events). */
+        private void watchAppPageClose(MiniAppPage? page, FriendMessage? row)
+        {
+            if (page == null || row == null)
+            {
+                return;
+            }
+            EventHandler? handler = null;
+            handler = (s, e) =>
+            {
+                try
+                {
+                    /* ★ #46 r1 (MINOR-2): a COVERING page also fires Disappearing — the handler stays until the page has
+                     * really left MiniAppManager (its back removes it first), so the real close still re-pushes "Joined" */
+                    bool closed = page.sessionId == null || Node.MiniAppManager.getAppPage(friend.walletAddress, page.sessionId) != page;
+                    if (closed)
+                    {
+                        page.Disappearing -= handler;
+                    }
+                    if (!isDisposed)
+                    {
+                        refreshAppRow(row, selectedChannel);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("app join: the close refresh failed (" + ex.GetType().Name + ")");
+                }
+            };
+            page.Disappearing += handler;
         }
 
         /* ★ S8 (#1233) — JOIN SAYS YES. `ixian:joinApp:<appId>` carries no row, so the row is the NEWEST appSession row of
@@ -3158,7 +4143,7 @@ namespace SPIXI
                                 {
                                     CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), channelForTip);   // ★ #1155 r4 m2: the tip pill survives a quick re-open
                                     updateReactions(msgIdForTip, channelForTip);
-                                    StreamProcessor.sendReaction(friend, msgIdForTip, tipToken, channelForTip);
+                                    sendSilentReaction(friend, msgIdForTip, tipToken, channelForTip);   // ★ S9 (Damir): a tip reaction raises no push notification
                                     IxianHandler.addTransaction(txForTip, relaysForTip, new() { senderForTip }, null, true);
                                     // D-10: the SHEET reports the result — it morphs and closes,
                                     // and the tip pill lands over the message via addReactions.
@@ -3324,6 +4309,12 @@ namespace SPIXI
                         {
                             TransferManager.removeOutgoingTransfer(del_msg.transferId);
                         }
+                        if (del_msg != null && del_msg.type == FriendMessageType.fileHeader && del_msg.localSender)
+                        {
+                            // ★ S9 (#1200): my durable Sent/ copy leaves with the message (only a path under Sent/)
+                            TransferManager.removeOutgoingTransfer(del_msg.transferId);
+                            deleteSentCopyOf(del_msg);
+                        }
                     }
                     sendSilentMsgDelete(friend, msg_id, selectedChannel);   // ★ A10 (#1128)
                     if (!friend.bot)
@@ -3381,7 +4372,7 @@ namespace SPIXI
                     {
                         CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), selectedChannel);   // ★ #1155 r4 m2
                         updateReactions(msg_id, selectedChannel);
-                        StreamProcessor.sendReaction(friend, msg_id, wire, selectedChannel);
+                        sendSilentReaction(friend, msg_id, wire, selectedChannel);   // ★ S9 (Damir): a like raises no push notification
                     }
                     break;
             }
@@ -3396,6 +4387,18 @@ namespace SPIXI
         private static void sendSilentMsgDelete(Friend friend, byte[] msg_id, int channel)
         {
             SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.msgDelete, msg_id, channel);
+            StreamProcessor.sendSpixiMessage(friend, spixi_message, null, null, true, true, false, false);
+        }
+
+        /* ★ S9 (Damir, A3 fix r1): SILENT REACTIONS. Core's sendReaction sends with send_push_notification TRUE
+         * (Ixian-Core CoreStreamProcessor.cs:2882-2887), so every like and every tip made the push server show a notification
+         * on the receiver's phone. The SAME msgReaction message (Core's own ReactionMessage bytes, the same channel), queued
+         * and stored on the server exactly like Core's (pending + server, remove_after_sending false), with the push flag
+         * OFF — the sendSilentMsgDelete pattern above (#1128). An offline peer still gets the reaction, silently. Every
+         * reaction this app sends goes through here (the like case and the tip commit); Core's sendReaction is called nowhere. */
+        private static void sendSilentReaction(Friend friend, byte[] msg_id, string reaction, int channel)
+        {
+            SpixiMessage spixi_message = new SpixiMessage(SpixiMessageCode.msgReaction, new ReactionMessage(msg_id, reaction).getBytes(), channel);
             StreamProcessor.sendSpixiMessage(friend, spixi_message, null, null, true, true, false, false);
         }
 
@@ -4729,9 +5732,16 @@ namespace SPIXI
                     /* ★★ #1208 (S7, V3): arg 17 `voice` — "1" when this file is a VOICE message (C#'s own name rule + the
                      * size cap + not a bot room: voiceFileArg), else "". An older shell ignores it. */
                     string fVoice = voiceFileArg(message, name);
+                    /* ★★ S9 (#1244, CONTRACT §1c — 🟡 NEW arg 18): `group` — "<gid>|<index>|<count>|<captionIdHex>" when this file
+                     * belongs to a photo group (SPhotoGroups: the peer's validated trailer, or my own send), else "". An older
+                     * shell ignores it; an older exe sends none (the row stays a single photo). */
+                    string fGroup = SPhotoGroups.get(friend.walletAddress.ToString(), Crypto.hashToString(message.id));
+                    /* ★ S9 A1 r1 (🟡 NEW arg 19): `played` — the 8-FACE rule (S9FixRules.playedArg via voicePlayedArg) for a voice
+                     * clip that arrived as a FILE: "1" / "0" for a received voice file row, "" otherwise. Older shells ignore it. */
+                    string fPlayed = voicePlayedArg(message, fVoice);
                     string fTransfer = incomingTransferArg(message, uid);   // ★ #1177: arg 15 — "live:<pct>" / "paused:<pct>" / "" (an older shell ignores it)
                     deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
-                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal, fVoice);
+                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal, fVoice, fGroup, fPlayed);
                     noteThumbCandidate(message, name, batch);   // ★ A5 #1124: AFTER the row's push — the shell must know the id first
                     lock (fileRowsShown)
                     {
@@ -4817,10 +5827,17 @@ namespace SPIXI
                 }
 
                 /* ★ S8 (#1233): a declined row (my Decline on an incoming invite, or the peer's decline of my own invite —
-                 * SAppDeclines, keyed by THIS row) reads "Declined" on both sides; it wins over Missing / Minimized. */
-                if (message.id != null && SAppDeclines.has(friend.walletAddress.ToString(), Crypto.hashToString(message.id)))
+                 * SAppDeclines, keyed by THIS row) reads "Declined" on both sides; it wins over Missing / Minimized.
+                 * ★ S9 A3 8-APP (#1247, 🟡 a NEW app_state value): a row this device JOINED (SAppJoins, onJoinApp) reads
+                 * "Joined" when no page is live — the card's one "Open again" button sends the existing ixian:joinApp.
+                 * Order: Declined > Missing > Minimized > Joined > "" (S9FixRules.appState). An older shell treats an unknown
+                 * word as the plain invite. */
                 {
-                    app_state = "Declined";
+                    string rowHex = message.id != null ? Crypto.hashToString(message.id) : "";
+                    string peerKey = friend.walletAddress.ToString();
+                    app_state = S9FixRules.appState(app_state == "Missing", app_state == "Minimized",
+                        rowHex.Length > 0 && SAppJoins.has(peerKey, rowHex),
+                        rowHex.Length > 0 && SAppDeclines.has(peerKey, rowHex));
                 }
 
                 // X1: local app-icon path → data-URI (http remote-icon URL + "img/" sentinel pass through).
@@ -4892,7 +5909,10 @@ namespace SPIXI
                 string rowVoice = voiceRowArg(message, ref rowText, ref reply_to, ref edited, ref quoteName, ref quoteText);
                 // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
                 deliveryTicks(message, out bool sSent, out bool sConfirmed, out bool sRead);
-                push(batch, prefix, Crypto.hashToString(message.id), address, nick, avatar, rowText, rowTime.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to, edited, quoteName, quoteText, rowVoice);
+                /* ★ S9 A3 8-FACE (#1247, 🟡): arg 18 `played` — "1" / "0" for a voice clip I RECEIVED (no stored flag = "0":
+                 * BLUE until played), "" otherwise (voicePlayedArg). An older shell ignores arg 18. */
+                string rowPlayed = voicePlayedArg(message, rowVoice);
+                push(batch, prefix, Crypto.hashToString(message.id), address, nick, avatar, rowText, rowTime.ToString(), sSent.ToString(), sConfirmed.ToString(), sRead.ToString(), paid.ToString(), message.errorSending.ToString(), relation, reply_to, edited, quoteName, quoteText, rowVoice, rowPlayed);
                 if (rowVoice != "")
                 {
                     noteVoiceInfo(message, batch);   // ★ #1208 V4: the waveform, decoded off this thread AFTER the row's push
@@ -5188,9 +6208,8 @@ namespace SPIXI
 
             var reactions_str = "";
             var own_reactions_str = "";
-            // ★ C6 (Session AD): the summed tip amounts (the per-sender `data` after "tip:"),
-            // pushed as a 4th, trailing argument. "" when no tip parses as a number — an
-            // older `tip:System.Byte[]` entry counts (the shell's ×N) but adds nothing.
+            // ★ C6 (Session AD) → ★ S9 A3 A-7 (#1245): the 4th, trailing argument (once the summed tip amounts) is
+            // always "" now — the COUNT rides the `tip:<n>;` token of arg 2. The slot stays so the arg positions hold.
             string tip_total_str = "";
             /* ★★ MINOR-4 (#46 loop r2) — THE LOCK THE deliveryTicks HEADER ALREADY PROMISED.
              * That header says the tick derivation "reads `reactions` under the same lock
@@ -5230,32 +6249,11 @@ namespace SPIXI
                         {
                             reactions_str += reaction.Key + ":" + reaction.Value.Count() + ";";
                         }
-                        if (reaction.Key == "tip")
-                        {
-                            IxiNumber tipTotal = 0;
-                            bool anyTip = false;
-                            foreach (var rd in reaction.Value)
-                            {
-                                if (rd == null || string.IsNullOrEmpty(rd.data))
-                                {
-                                    continue;
-                                }
-                                try
-                                {
-                                    IxiNumber a = new IxiNumber(rd.data);
-                                    if (a > (long)0)
-                                    {
-                                        tipTotal += a;
-                                        anyTip = true;
-                                    }
-                                }
-                                catch (Exception)
-                                {
-                                    // `System.Byte[]` from a pre-C6 client, or garbage — a count-only tip
-                                }
-                            }
-                            tip_total_str = anyTip ? tipTotal.ToString() : "";
-                        }
+                        /* ★ S9 A3 A-7 (#1245): a tip shows its COUNT only ("Tipped ×3"). The summed amounts used to ride arg 4
+                         * (C6) — what each TIPPER's client claimed, unverified, shown as if it were a fact. The count is the
+                         * `tip:<n>;` token above (one entry per sender — Core keeps one tip per sender per message); arg 4 is
+                         * now always "" — the shell's existing empty-total path shows "Tipped" / "Tipped ×n" (an older shell
+                         * included). The amount tokens are not read here any more. */
                         // C5: which reaction keys the local user has added (trailing arg — never reorder)
                         var own_rd = reaction.Value.Find(x => x.sender.SequenceEqual(own_address));
                         if (own_rd != null)
@@ -5451,7 +6449,8 @@ namespace SPIXI
             string voice = voiceRowArg(message, ref rowText, ref replyTo, ref edited, ref quoteName, ref quoteText);
             // ★★ L2 (#641): the group answer is DERIVED — see deliveryTicks.
             deliveryTicks(message, out bool tSent, out bool tConfirmed, out bool tRead);
-            Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), rowText, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString(), edited, replyTo, quoteName, quoteText, voice);
+            // ★ S9 A3 8-FACE (#1247, 🟡): arg 13 `played` — the SAME rule as the row push's arg 18. An older shell ignores it.
+            Utils.sendUiCommand(this, "updateMessage", Crypto.hashToString(message.id), rowText, tSent.ToString(), tConfirmed.ToString(), tRead.ToString(), paid.ToString(), message.errorSending.ToString(), edited, replyTo, quoteName, quoteText, voice, voicePlayedArg(message, voice));
         }
 
         /** ★ #1166 A-N4: `channel` = the TRANSFER's own channel (FileTransfer.channel — TransferManager passes it; an
@@ -6217,6 +7216,10 @@ namespace SPIXI
         /** V5 `voiceState(idHex, state, posMs, durMs)` — posted to the main thread; nothing for a torn-down page. */
         public void pushVoiceState(string idHex, string state, int posMs, int durMs)
         {
+            if (state == "playing")
+            {
+                storeVoicePlayed(idHex);   // ★ S9 A3 8-FACE: the clip really plays — remember it (a received clip the user tapped)
+            }
             string pos = Math.Max(0, posMs).ToString(System.Globalization.CultureInfo.InvariantCulture);
             string dur = Math.Max(0, durMs).ToString(System.Globalization.CultureInfo.InvariantCulture);
             MainThread.BeginInvokeOnMainThread(() =>
@@ -6263,6 +7266,60 @@ namespace SPIXI
             quoteName = "";
             quoteText = "";
             return VoiceCodec.rendersAsVoice(friend.bot) ? durMs.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+        }
+
+        /* ★ S9 A3 8-FACE (#1243 (4), #1247; 🟡 NEW push args, no new verb) — THE PLAYED FLAG.
+         * The existing `ixian:voiceplay:<id>` path finds the row in C#'s OWN list (onVoicePlay); a RECEIVED clip's own hex
+         * is noted there, and when C# itself pushes `voiceState … playing` for that hex (VoiceClips → pushVoiceState) the clip
+         * is stored in SVoicePlayed (peer|msgIdHex). My own clips are never noted. The note set is per page, small (a tap
+         * adds one hex; `playing` removes it) and capped. No WebView value is stored: the hex is C#'s own (ownHex). */
+        private readonly HashSet<string> voicePlayCandidates = new HashSet<string>(StringComparer.Ordinal);
+        private const int VoicePlayCandidatesCap = 64;
+
+        private void noteVoicePlayCandidate(string ownHex, bool localSender)
+        {
+            if (localSender || string.IsNullOrEmpty(ownHex))
+            {
+                return;
+            }
+            lock (voicePlayCandidates)
+            {
+                if (voicePlayCandidates.Count >= VoicePlayCandidatesCap)
+                {
+                    voicePlayCandidates.Clear();   // a burst of taps that never played: start over (the next tap notes again)
+                }
+                voicePlayCandidates.Add(ownHex);
+            }
+        }
+
+        private void storeVoicePlayed(string idHex)
+        {
+            try
+            {
+                bool candidate;
+                lock (voicePlayCandidates)
+                {
+                    candidate = voicePlayCandidates.Remove(idHex);
+                }
+                if (candidate && friend != null && SVoicePlayed.add(friend.walletAddress.ToString(), idHex))
+                {
+                    Logging.info("Voice: a received clip was stored as played");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Voice: storing the played flag failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** ★ S9 A3 8-FACE: the `played` arg (addMe / addThem arg 18, updateMessage arg 13) — S9FixRules.playedArg over the
+         *  row's voice arg (`voice` != "": an inline voice row this room renders as voice) and SVoicePlayed. */
+        private string voicePlayedArg(FriendMessage message, string voiceArg)
+        {
+            bool isVoice = voiceArg.Length > 0;
+            bool stored = isVoice && !message.localSender && message.id != null
+                && SVoicePlayed.has(friend.walletAddress.ToString(), Crypto.hashToString(message.id));
+            return S9FixRules.playedArg(isVoice, message.localSender, stored);
         }
 
         /** ★ #1208 V3: is this file row a VOICE file? C#'s own name rule (VoiceCodec.isVoiceFileName), the size cap (an unknown
@@ -6592,6 +7649,7 @@ namespace SPIXI
                 /* a new tap replaces a play still waiting for its download — the OTHER row's bubble hears `stopped` (#46 r2
                    MAJOR); a tap on THAT row re-evaluates it below (§7) */
                 clearPendingVoicePlay(ownHex);
+                noteVoicePlayCandidate(ownHex, fm.localSender);   // ★ S9 A3 8-FACE: a RECEIVED clip is stored as played on its `playing`
                 if (VoIPManager.isInitiated())
                 {
                     // §7: a tap during a call is answered — `stopped` with the clip's length (an inline peek; a file: 0)
@@ -6662,6 +7720,12 @@ namespace SPIXI
          *  checkPendingVoicePlay (updateScreen, 1 Hz): a transfer that is gone or paused → `stopped`. */
         private void startVoiceDownload(FriendMessage fm, string ownHex, int channel)
         {
+            if (fm.localSender)
+            {
+                Logging.warn("Voice: the download could not start (own row)");   // ★ S9 #46 r4: my own clip is never downloaded over
+                pushVoiceState(ownHex, "error", 0, 0);
+                return;
+            }
             if (Utils.hidesParticipants(friend))
             {
                 Logging.warn("Voice: the download could not start (blind room)");
@@ -6784,13 +7848,14 @@ namespace SPIXI
             {
                 return null;
             }
-            FriendMessage? m = channelSnapshot(channel).Find(x => x.transferId == uid);
+            // ★ S9 #46 r4: both callers follow a DOWNLOAD (a pending play) — an incoming row only
+            FriendMessage? m = channelSnapshot(channel).Find(x => !x.localSender && x.transferId == uid);
             if (m != null)
             {
                 return m;
             }
             List<FriendMessage>? deep = replyDeepCached(channel);
-            return deep?.Find(x => x.transferId == uid);
+            return deep?.Find(x => !x.localSender && x.transferId == uid);
         }
 
         /** #46 r1 B m-10: deleteMessage (local or remote) — the deleted row's clip stops, its pending download play is

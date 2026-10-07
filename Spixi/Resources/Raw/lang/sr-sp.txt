@@ -308,6 +308,8 @@ index-excerpt-payment-received = Plaćanje primljeno
 index-excerpt-contact-accepted = Kontakt prihvaćen
 index-excerpt-contact-request = Zahtev za kontakt
 index-excerpt-file = Datoteka
+index-excerpt-photo = Fotografija
+index-excerpt-photos = Fotografije: {0}
 index-excerpt-voice-call = Poziv
 index-excerpt-self = 
 index-excerpt-you = Vi
@@ -470,6 +472,10 @@ settings-backup-notice = Trebaće vam rezervna kopija i povezano geslo za vraća
 settings-backup-notice2 = - izgubite ovaj uređaj<br />- deinstalirate Spixi sa ovog uređaja<br />- izbrišete ovaj Spixi nalog<br />- izbrišete ovaj novčanik
 settings-backup-invalidpassword-title = Nevažeća šifra
 settings-backup-invalidpassword-text = Molimo unesite važeću šifru.
+settings-backup-saved-title = Da li ste sačuvali rezervnu kopiju?
+settings-backup-saved-text = Izaberite Da samo ako je datoteka rezervne kopije sada sačuvana ili poslata na sigurno mesto.
+settings-backup-saved-yes = Da
+settings-backup-saved-no = Ne
 
 ; Settings Encryption Screen
 settings-encryption-title = Šifra
@@ -686,6 +692,7 @@ global-friend-request-accepted = {0} je prihvatio/la vaš zahtev za kontakt.
 global-friend-request-connected = Sada ste povezani sa {0}.
 chat-group-added-you = {0} vas je dodao/la u ovu grupu
 chat-group-added-you-noname = Dodati ste u ovu grupu
+chat-group-you-created = Kreirali ste ovu grupu
 
 global-update-available = Nova verzija aplikacije Spixi ({0}) je dostupna. Molimo ažurirajte aplikaciju za najbolji doživljaj.
 global-modal-external-link-title = Eksterni link

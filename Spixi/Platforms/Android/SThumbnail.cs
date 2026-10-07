@@ -58,11 +58,13 @@ namespace Spixi
 
         /* ★ #1166 V-3 (#1144 / #1145 (1)): the VIEWER image — the in-app full-screen viewer shows a picture of a LOCAL file
          * (ViewerImage.dataUriOf is the only caller; it sniffs the first bytes and caps the source at 20 MB first). Mirrors
-         * makeJpeg: the decode is BOUNDED (bounds first, then a power-of-two sample so the decoded LONG side is ≤ 2 × maxEdge
-         * and never above MaxLongSide — the full bitmap of a 50 MP photo is never built); the aspect ratio is KEPT (no
+         * makeJpeg: the decode is BOUNDED (bounds first, then a power-of-two sample so the decoded LONG side is ≥ maxEdge and
+         * < 2 × maxEdge — S9 PhotoRules.decodeSample; the full bitmap of a 50 MP photo is never built); the aspect ratio is KEPT (no
          * square crop); the long edge is scaled to ≤ maxEdge; the EXIF orientation is applied here (BitmapFactory ignores
          * it — the A9 limit of the tiles is not repeated in the viewer); JPEG q82; every bitmap is disposed. Called OFF the
-         * UI thread. The path is C#'s own. Fail-soft: anything unexpected → null (the viewer keeps the thumbnail). */
+         * UI thread. The path is C#'s own. Fail-soft: anything unexpected → null (the viewer keeps the thumbnail).
+         * ★ S9 (#1244): ALSO the photo encoder of the chat's media send (maxEdge 2048 — PhotoRules.MaxEdge): Bitmap.Compress
+         * writes NO metadata (no EXIF / GPS), and the rotation is applied before the encode. */
         public static byte[]? makeViewerJpeg(string path, int maxEdge)
         {
             try
@@ -78,12 +80,10 @@ namespace Spixi
                     return null;
                 }
                 int longSide = Math.Max(bounds.OutWidth, bounds.OutHeight);
-                int decodeCap = Math.Min(maxEdge * 2, MaxLongSide);
-                int sample = 1;
-                while (longSide / sample > decodeCap)
-                {
-                    sample *= 2;
-                }
+                /* ★ S9 (#1244): the sample keeps the decoded long side ≥ maxEdge (the old cap min(2 × maxEdge, 2048) decoded a
+                 * 4000-px photo at 2000 and a 12 000-px one at 1500 — below a 2048 send / a 1600 viewer, then scaled UP). Still
+                 * bounded: the decode stays < 2 × maxEdge on the long side (PhotoRules.decodeSample, executed by csh). */
+                int sample = SPIXI.PhotoRules.decodeSample(longSide, maxEdge);
                 using Bitmap? decoded = BitmapFactory.DecodeFile(path, new BitmapFactory.Options { InSampleSize = sample });
                 if (decoded == null || decoded.Width <= 0 || decoded.Height <= 0)
                 {

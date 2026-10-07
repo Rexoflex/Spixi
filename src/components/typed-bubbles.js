@@ -422,11 +422,12 @@ export function setPaymentStatus(row, patch = {}) {
 export function createAppBubble({
   name = '',
   iconUrl = null,
-  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | canceled (B2) | in-session | ended
+  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | canceled (B2) | in-session | ended | joined (★ S9)
   direction = null,        // override — bridge knows localSender (audit)
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
+  onOpenAgain,             // ★ S9 (8-APP, #1247): the 'joined' card's ONE button (the shell: joinApp); none → falls back to onJoin
   strings = getStrings(),
 } = {}) {
   const dir = direction || (state === 'invited' ? 'sent' : 'received');
@@ -436,6 +437,7 @@ export function createAppBubble({
     : (strings.appInvite || 'App invite');
   /* ★ #996: the exact predicates of the button branches below — no button → the compact pill */
   const hasAction = state === 'invite' || state === 'invited' || state === 'in-session'
+    || (state === 'joined' && !!(onOpenAgain || onJoin))
     || (state === 'missing' && !!(onDecline || onGet));
   if (!hasAction) return appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings });
   const { row, el } = card(dir, title, timestamp, 'app', gutter);
@@ -459,6 +461,7 @@ export function createAppBubble({
     canceled: strings.canceledInvite || 'You canceled this invite',   // ★ B2 (#533 ①): the sender's terminal tombstone
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
+    joined: strings.youJoinedApp || 'You joined this app',   // ★ S9 (8-APP)
   }[state] || ''; // audit r2: unknown state rendered "undefined"
   col.append(nm, sub);
   id.append(ic, col);
@@ -487,6 +490,12 @@ export function createAppBubble({
     if (onDecline) missBtns.push(createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }));
     if (onGet) missBtns.push(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) }));
     if (missBtns.length) el.append(actionsRow(...missBtns));
+  } else if (state === 'joined') {
+    /* ★ S9 (8-APP, #1247): C# remembers the join (SAppJoins → app_state "Joined") — ONE button, no Decline: the user
+       already accepted. It reopens the app through the existing joinApp verb. */
+    el.append(actionsRow(
+      createButton({ label: strings.openAgain || 'Open again', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onOpenAgain || onJoin) }),
+    ));
   } else if (state === 'in-session') {
     // End session renders only when the caller supplies onEnd (the bridge has no
     // end-session verb today, C7 follow-up) — no dead button; Resume takes the row.
@@ -549,6 +558,7 @@ function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
     canceled: strings.canceledInvite || 'You canceled this invite',
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
+    joined: strings.youJoinedApp || 'You joined this app',   // ★ S9 (8-APP)
   }[state] || '';
   const nm = document.createElement('span');
   nm.className = 'c-tcard__app-name';

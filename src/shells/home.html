@@ -1660,6 +1660,7 @@
     // ★ Batch A (#539) A4/A5: the remove-contact sheet asks for the shared groups;
     // C# answers with `setSharedGroups(addr, name, addr, …)` (below).
     onNeedGroups: (addr) => { if (addr) bridge.send('ixian:sharedGroups:' + addr); },
+    onRowLongPress: () => { try { bridge.send('ixian:haptic:long'); } catch (e) {} },   // ★ S9 D-04: a TOUCH long-press opened the row menu (C# no-op on desktop)
     onPersist: (action, chat, detail) => {
       /* ★ #562 (Damir 2026-08-25) SUPERSEDES B1's removeFriend revoke: HIDE, don't
          destroy. Damir's repro: a revoked request's Friend record was gone, so the
@@ -2151,6 +2152,7 @@
     'typing', 'request-sent', 'request', 'request-done', 'payment', 'app-invite',
     'file', 'call', 'call-missed', 'call-declined', 'connected', 'reaction', 'text',
     'reply',   // ★ S8 (#1236): C# strips the quote and marks a reply; the row shows the BODY with a reply glyph
+    'photo',   // ★ S9 (🟡 NEW value, A1): a photo / photo group — text "Photo" / "{n} photos" / the caption; an old exe never sends it
   ]);
 
   /** raw excerpt + pushed kind → chatlist excerpt { type, text }. */
@@ -2174,6 +2176,7 @@
       if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'reply', text: 'GIF' };
       return { type: 'reply', text: canonExcerptText(decoded) };
     }
+    if (k === 'photo') return { type: 'photo', text: canonExcerptText(decoded) };   // ★ S9: a caption is PEER text → the B4 canon, like `text`
     if (k !== 'text') return { type: k, text: trimmed };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
     return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
@@ -4411,7 +4414,11 @@
       if (!ctrl) { dbg('signSendResult (no pending review)'); return; }
       walletSendCtrl = null;
       const s = String(status || '');
-      if (s === 'ok') { ctrl.done(); return; }
+      if (s === 'ok') {
+        ctrl.done();
+        try { bridge.send('ixian:haptic:success'); } catch (e) {}   // ★ S9 D-04: the payment went out (no-op on desktop, C#)
+        return;
+      }
       if (s === 'cancel') { ctrl.fail(''); return; }
       // loop MAJOR fix: an empty fail is NOT a cancel — null routes to the
       // component's default error copy instead of the silent branch.
@@ -4553,14 +4560,28 @@
    *    so real chats populate on first entry. ———————————————————————————————— */
   // Splash boot cover teardown (Batch B): short fade (reduced motion: instant),
   // transitionend + timeout fallback (the #29 morph pattern).
+  /* ★ S9 A-FLASH (🟡 NEW verb, A3): C# holds the Android splash (pre-draw listener, cap 1.5 s) until
+     this page says its boot cover is GONE — `ixian:bootDropped`, exactly once per document, when the
+     cover's fade has ENDED (transitionend on the cover; a 260 ms backstop if no transitionend comes),
+     at once when there is no cover or motion is reduced. Through the bridge (queued), never location.href. */
+  var bootDroppedSent = false;
+  function sendBootDropped() {
+    if (bootDroppedSent) return;
+    bootDroppedSent = true;
+    try { bridge.send('ixian:bootDropped'); } catch (e) {}
+  }
   function dropAppBoot() {
     var b = document.getElementById('app-boot');
-    if (!b) return;
+    if (!b) { sendBootDropped(); return; }
     var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
-    if (reduce) { b.remove(); return; }
+    if (reduce) { b.remove(); sendBootDropped(); return; }
     b.style.opacity = '0';
-    b.addEventListener('transitionend', function () { b.remove(); }, { once: true });
-    setTimeout(function () { if (b.parentNode) b.remove(); }, 400);   // > --duration-200
+    /* ★ S9 #46 r1 M5: the cover is REMOVED before bootDropped on every path — the first frame C# shows
+       after its hold must never be the cover. The backstop removes it too (it used to send at 260 ms
+       with the cover still up until 400 ms). */
+    var finish = function () { if (b.parentNode) b.remove(); sendBootDropped(); };
+    b.addEventListener('transitionend', function (e) { if (e && e.target !== b) return; finish(); });
+    setTimeout(finish, 260);                                          // backstop: the fade is --duration-200
   }
 
   function signalReady() {

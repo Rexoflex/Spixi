@@ -47,7 +47,10 @@ public static class MauiProgram
                 handlers.AddCompatibilityRenderer(typeof(WebView), typeof(Spixi.Platforms.Android.Renderers.SpixiWebviewRenderer2));
 #endif
 
-#if IOS
+#if IOS || MACCATALYST
+                // ★ A-14 (#1245, D25): the Mac gets the SAME handler — the resource allow-list + the http/https
+                // navigation block (the mini-app WebView included). Needs Platforms/iOS/iOSWebViewHandler.cs compiled
+                // for maccatalyst (Spixi.csproj target, lead) + a Mac build + walk + the BE review.
                 handlers.AddHandler(typeof(WebView), typeof(Spixi.Platforms.iOS.iOSWebViewHandler));
 #endif
 

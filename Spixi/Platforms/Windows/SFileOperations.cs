@@ -21,11 +21,13 @@ namespace Spixi
         public static async Task<Task<bool>> share(string filepath, string title)
         {
             CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            bool saved;   // ★ H-13 r1 (#1245): the caller's outcome — FileSaver's own result (a cancel is not a backup)
             try
             {
                 string fileName = Path.GetFileName(filepath);
                 using FileStream fileStream = File.OpenRead(filepath);
                 var fileSaverResult = await FileSaver.Default.SaveAsync(fileName, fileStream, cancellationTokenSource.Token);
+                saved = fileSaverResult.IsSuccessful;
                 if (!fileSaverResult.IsSuccessful)
                 {
                     await Toast.Make($"The file was not saved. Error: {fileSaverResult.Exception.Message}").Show(cancellationTokenSource.Token);
@@ -40,7 +42,7 @@ namespace Spixi
                 return Task.FromResult(false);
             }
 
-            return Task.FromResult(true);
+            return Task.FromResult(saved);
         }
 
     }

@@ -17,6 +17,11 @@
  *     el.setFailed()  — the picture could not be made: the busy state ends, the thumbnail stays. The SHELL shows the
  *                       `viewerFailed` toast (one place per shell — this component never toasts).
  *   A viewer still busy after VIEWER_WAIT_MS stops the spinner by itself (an older exe never answers) and keeps the thumbnail.
+ *   ★ S9 (#1244 G = A) items / index / onPage — a PHOTO GROUP: items = [{ src, token, alt }] in the group's order, the
+ *   viewer opens on items[index] (its src / token / alt replace the single ones) and pages with ‹ › (the foot), the
+ *   ArrowLeft / ArrowRight keys and a horizontal swipe; "2 / 7" says where it is. Each page starts the token's
+ *   loading state again (the thumbnail invisible under the spinner) and calls onPage(i, item) — the shell asks C# for
+ *   that picture (viewImage). One item (or none) = today's viewer, byte-identical.
  *   findOpenViewer(token) → the OPEN viewer opened for exactly that token, or null (a closed one is never returned,
  *   so a late push lands nowhere). Without a token the viewer is today's: no loading state, src as given.
  *
@@ -61,8 +66,14 @@ export function openMediaViewer({
   kind = 'image',
   onSave,
   token = '',
+  items = null,
+  index = 0,
+  onPage = null,
   strings = getStrings(),
 } = {}) {
+  const pages = Array.isArray(items) ? items.filter((it) => it && it.token) : [];
+  let at = pages.length > 1 ? Math.max(0, Math.min(pages.length - 1, Number(index) || 0)) : 0;
+  if (pages.length > 1) { src = pages[at].src || ''; token = pages[at].token; alt = pages[at].alt || alt; }
   const el = document.createElement('section');
   el.className = 'c-mviewer';
   el.setAttribute('role', 'dialog');
@@ -75,6 +86,7 @@ export function openMediaViewer({
   // wasn't tappable. The top bar now carries only the caption + optional Save
   // (with the top inset), and CLOSE moved to a prominent bottom-centered button
   // (below). A top bar renders only when there's something to show.
+  let capEl = null;
   if (alt || onSave) {
     const bar = document.createElement('div');
     bar.className = 'c-mviewer__bar';
@@ -88,6 +100,7 @@ export function openMediaViewer({
       const cap = document.createElement('span');
       cap.className = 'c-mviewer__caption';
       cap.textContent = alt;
+      capEl = cap;
       bar.append(cap);
     }
     if (onSave) {
@@ -124,7 +137,7 @@ export function openMediaViewer({
     raf(() => { delete img.dataset.pending; });
   };
   let fullSrc = '';
-  const thumbSrc = src || '';
+  let thumbSrc = src || '';
   /* ★ #1180 (#46 r1 m3): a picture that passes the URI shape but does not decode — back to the thumbnail, shown */
   img.addEventListener('error', () => {
     if (!fullSrc || img.getAttribute('src') !== fullSrc) return;
@@ -158,20 +171,24 @@ export function openMediaViewer({
     el.dataset.failed = '';
     if (!fullSrc) reveal();   // ★ #1180: no bigger picture → the thumbnail is better than an empty stage
   };
-  if (tok) {
-    el._viewerToken = tok;
+  const startBusy = (t) => {
+    el._viewerToken = t;
     el.setAttribute('aria-busy', 'true');
     el.dataset.loading = '';
-    const ld = document.createElement('div');
-    ld.className = 'c-mviewer__loading';
-    ld.setAttribute('aria-hidden', 'true');
-    const sp = document.createElement('span');
-    sp.className = 'c-mviewer__spinner';
-    ld.append(sp);
-    stage.append(ld);
+    if (!stage.querySelector('.c-mviewer__loading')) {
+      const ld = document.createElement('div');
+      ld.className = 'c-mviewer__loading';
+      ld.setAttribute('aria-hidden', 'true');
+      const sp = document.createElement('span');
+      sp.className = 'c-mviewer__spinner';
+      ld.append(sp);
+      stage.append(ld);
+    }
+    if (waitT) clearTimeout(waitT);
     waitT = setTimeout(() => { waitT = 0; if (el.dataset.loading !== undefined) { endBusy(); if (!fullSrc) reveal(); } }, VIEWER_WAIT_MS);
     openViewers.add(el);
-  }
+  };
+  if (tok) startBusy(tok);
   stage.addEventListener('dragstart', (e) => e.preventDefault());
 
   // #336 (Damir F5 iOS #1): prominent bottom-centered CLOSE — easy to spot + reach,
@@ -187,6 +204,59 @@ export function openMediaViewer({
   foot.append(close);
   el.append(foot);
 
+  /* ★ S9 (#1244 G = A): paging through a photo group — ‹ ✕ › in the foot, a "2 / 7" counter, ←/→ keys, a horizontal swipe */
+  let showPage = null;
+  if (pages.length > 1) {
+    const mk = (cls, glyph, label) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-mviewer__btn c-mviewer__nav ' + cls;
+      b.setAttribute('aria-label', label);
+      b.append(icon(glyph, { size: 24 }));
+      return b;
+    };
+    const prev = mk('c-mviewer__prev', 'chevron-left', strings.previousPhoto || 'Previous photo');
+    const next = mk('c-mviewer__next', 'chevron-right', strings.nextPhoto || 'Next photo');
+    const count = document.createElement('span');
+    count.className = 'c-mviewer__count';
+    count.setAttribute('aria-live', 'polite');
+    foot.prepend(prev);
+    foot.append(next);
+    foot.before(count);
+    foot.dataset.paged = '';
+    showPage = (i, quiet) => {
+      if (i < 0 || i >= pages.length) return false;
+      at = i;
+      const it = pages[at];
+      fullSrc = '';
+      thumbSrc = it.src || '';
+      img.dataset.pending = '';
+      if (thumbSrc) img.src = thumbSrc; else img.removeAttribute('src');
+      delete el.dataset.failed;
+      startBusy(String(it.token));
+      if (capEl) capEl.textContent = it.alt || '';
+      el.setAttribute('aria-label', it.alt || (strings.image || 'Image'));
+      count.textContent = (strings.photoOfCount || '{i} / {n}').split('{i}').join(String(at + 1)).split('{n}').join(String(pages.length));
+      prev.disabled = at === 0;
+      next.disabled = at === pages.length - 1;
+      /* ★ #46 M7: a disabled button drops its focus to BODY — hand it to the other arrow, else the close */
+      const ae = document.activeElement;
+      if ((ae === prev || ae === next) && ae.disabled) { const to = ae === prev ? next : prev; (to.disabled ? close : to).focus({ preventScroll: true }); }
+      if (!quiet && typeof onPage === 'function') { try { onPage(at, it); } catch (_) {} }
+      return true;
+    };
+    prev.addEventListener('click', () => showPage(at - 1));
+    next.addEventListener('click', () => showPage(at + 1));
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        showPage(at + ((e.key === 'ArrowRight') !== (document.documentElement.dir === 'rtl') ? 1 : -1));
+      }
+    });
+    showPage(at, true);
+  }
+  el.showPage = (i) => (showPage ? showPage(i) : false);
+
   // swipe-to-dismiss (Damir: intuitive close, no hunting the ✕): vertical
   // drag EITHER direction — the image rides the finger and the viewer fades;
   // past the threshold on release = dismiss, under it = spring back.
@@ -198,6 +268,8 @@ export function openMediaViewer({
   const openedAt = performance.now();
   const tapCloseReady = () => performance.now() - openedAt >= TAP_CLOSE_AFTER_MS;
   let startY = 0;
+  let startX = 0;
+  let dragX = 0;
   let dragY = null;
   let downOnImg = false;
   let lastDownAt = openedAt;   // #46 r3: the double click's FIRST press opened the viewer (the stage never saw it) — the next press within 500 ms is its second
@@ -205,6 +277,8 @@ export function openMediaViewer({
   stage.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     startY = e.clientY;
+    startX = e.clientX;
+    dragX = 0;
     dragY = 0;
     downOnImg = e.target === img;   // ★ #1180: where the press began (the capture below retargets the later events)
     const now = performance.now();
@@ -216,13 +290,24 @@ export function openMediaViewer({
   stage.addEventListener('pointermove', (e) => {
     if (dragY === null) return;
     dragY = e.clientY - startY;
+    dragX = e.clientX - startX;
+    if (showPage && Math.abs(dragX) > Math.abs(dragY)) { img.style.transform = 'translateX(' + Math.round(dragX / 3) + 'px)'; return; }   // ★ S9: a page swipe, not a dismiss
     if (Math.abs(dragY) >= TAP_PX) el.style.transition = 'none';  // ★ #1180: once the finger really MOVES, the fade must not lag it (jitter / a still press leave the open fade alone)
     img.style.transform = 'translateY(' + dragY + 'px)';
     el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dragY) / 320));
   });
   const endDrag = (e) => {
     if (dragY === null) return;
-    const past = Math.abs(dragY) > DISMISS_PX;
+    /* ★ S9: a horizontal swipe on a paged viewer turns the page (60 px, mostly sideways) */
+    if (showPage && e && e.type === 'pointerup' && Math.abs(dragX) > 60 && Math.abs(dragX) > 1.5 * Math.abs(dragY)) {
+      img.style.transition = '';
+      img.style.transform = '';
+      el.style.opacity = '';
+      dragY = null;
+      showPage(at + ((dragX < 0) !== (document.documentElement.dir === 'rtl') ? 1 : -1));
+      return;
+    }
+    const past = Math.abs(dragY) > DISMISS_PX && Math.abs(dragY) >= Math.abs(dragX);
     /* ★ #1180: a TAP on the dim stage (not on the picture) closes — like the swipe; a cancelled press never does */
     const tapOutside = !!e && e.type === 'pointerup' && Math.abs(dragY) < TAP_PX && !downOnImg && !secondOfPair && tapCloseReady();
     img.style.transition = ''; // spring-back transition returns (css)

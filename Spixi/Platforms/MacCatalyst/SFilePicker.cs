@@ -84,6 +84,47 @@ namespace Spixi
             return spixi_img_data;
         }
 
+        /* ★ S9 (#1244, CONTRACT §1b `ixian:sendmedia`): the chat's PHOTO pick on the Mac — the Finder panel with multiple
+         * selection (MAUI FilePicker.PickMultipleAsync, the image types above). Streams are the files as they are: C# decodes
+         * HEIC / PNG / … itself (SThumbnail.makeViewerJpeg, ImageIO) and re-encodes once to the #1158 rule. Items past `max`
+         * are counted (an entry with no stream) so the caller can say `tooMany`. Cancel → an empty list. */
+        public static async Task<List<SpixiImageData>> PickImagesAsync(int max)
+        {
+            List<SpixiImageData> picked = new List<SpixiImageData>();
+            IEnumerable<FileResult?>? results = await FilePicker.PickMultipleAsync(new PickOptions { FileTypes = MacPickableImages });
+            if (results == null)
+            {
+                return picked;
+            }
+            foreach (FileResult? r in results)
+            {
+                if (r == null)
+                {
+                    continue;
+                }
+                Stream? st = null;
+                if (picked.Count < max)
+                {
+                    try
+                    {
+                        st = await r.OpenReadAsync();
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("Photo pick: a picked item could not be opened (" + e.GetType().Name + ")");
+                    }
+                }
+                picked.Add(new SpixiImageData() { name = "", path = "", stream = st });
+            }
+            return picked;
+        }
+
+        /** ★ S9 (#1244): no camera capture on the Mac (the shell gets no `camera` cap there). */
+        public static Task<SpixiImageData?> CapturePhotoAsync(long cap)
+        {
+            return Task.FromResult<SpixiImageData?>(null);
+        }
+
         public static byte[] ResizeImage(byte[] image_data, int new_width, int new_height, int quality)
         {
             UIImage original_image = ImageFromByteArray(image_data);

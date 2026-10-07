@@ -85,6 +85,109 @@ namespace Spixi
             return spixi_img_data;
         }
 
+        /* ★ S9 (#1244, CONTRACT §1b `ixian:sendmedia`): the chat's PHOTO pick on Windows — images only, several at once
+         * (MAUI FilePicker.PickMultipleAsync; the WinUI picker has no selection limit, so items past `max` are counted as
+         * entries with no stream and the caller says `tooMany`). The #568 broker failure falls back to the classic Win32
+         * dialog with OFN_ALLOWMULTISELECT (PhotoRules.parseMultiSelect reads its "dir\0name\0name\0\0" buffer). The paths
+         * come from the OS dialog, never from the WebView. Cancel → an empty list. */
+        public static async Task<List<SpixiImageData>> PickImagesAsync(int max)
+        {
+            List<string> paths = new List<string>();
+            int total = 0;
+            try
+            {
+                IEnumerable<FileResult?>? results = await FilePicker.PickMultipleAsync(new PickOptions { FileTypes = FilePickerFileType.Images });
+                if (results != null)
+                {
+                    foreach (FileResult? r in results)
+                    {
+                        if (r == null || string.IsNullOrEmpty(r.FullPath))
+                        {
+                            continue;
+                        }
+                        total++;
+                        if (paths.Count < max)
+                        {
+                            paths.Add(r.FullPath);
+                        }
+                    }
+                }
+            }
+            catch (Exception pickEx) when (isPickerBrokerFailure(pickEx))
+            {
+                Logging.warn("SFilePicker: the WinUI picker failed (#568), the Win32 dialog takes over: " + pickEx.GetType().Name);
+                string? buffer = await MainThread.InvokeOnMainThreadAsync(() => showWin32OpenDialogMulti(IMAGE_FILTER));
+                List<string> all = SPIXI.PhotoRules.parseMultiSelect(buffer, 1000);
+                total = all.Count;
+                for (int i = 0; i < all.Count && i < max; i++)
+                {
+                    paths.Add(all[i]);
+                }
+            }
+            List<SpixiImageData> picked = new List<SpixiImageData>();
+            foreach (string path in paths)
+            {
+                Stream? st = null;
+                try
+                {
+                    st = File.OpenRead(path);
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("Photo pick: a picked item could not be opened (" + e.GetType().Name + ")");   // the TYPE — a message carries the path
+                }
+                picked.Add(new SpixiImageData() { name = "", path = "", stream = st });
+            }
+            for (int i = picked.Count; i < total; i++)
+            {
+                picked.Add(new SpixiImageData() { name = "", path = "", stream = null });
+            }
+            return picked;
+        }
+
+        /** ★ S9 (#1244): no camera capture on Windows (the shell gets no `camera` cap there). */
+        public static Task<SpixiImageData?> CapturePhotoAsync(long cap)
+        {
+            return Task.FromResult<SpixiImageData?>(null);
+        }
+
+        private const string IMAGE_FILTER = "Images\0*.jpg;*.jpeg;*.png;*.gif;*.bmp;*.webp;*.heic\0";
+        private const int OFN_ALLOWMULTISELECT = 0x00000200;
+
+        // ★ S9: the multi-select twin of showWin32OpenDialog — returns the WHOLE buffer (NULs included) for parseMultiSelect.
+        private static string? showWin32OpenDialogMulti(string filter)
+        {
+            IntPtr buffer = Marshal.AllocHGlobal(PATH_BUFFER_CHARS * sizeof(char));
+            try
+            {
+                Marshal.Copy(new byte[PATH_BUFFER_CHARS * sizeof(char)], 0, buffer, PATH_BUFFER_CHARS * sizeof(char));
+                OPENFILENAMEW ofn = new OPENFILENAMEW
+                {
+                    hwndOwner = mainWindowHandle(),
+                    lpstrFilter = filter,
+                    nFilterIndex = 1,
+                    lpstrFile = buffer,
+                    nMaxFile = PATH_BUFFER_CHARS,
+                    Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_ALLOWMULTISELECT
+                };
+                ofn.lStructSize = Marshal.SizeOf(ofn);
+                if (GetOpenFileNameW(ref ofn))
+                {
+                    return Marshal.PtrToStringUni(buffer, PATH_BUFFER_CHARS);
+                }
+                int error = CommDlgExtendedError();
+                if (error != 0)
+                {
+                    Logging.error("SFilePicker: the Win32 open dialog failed, CommDlgExtendedError=" + error);
+                }
+                return null;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
         public static byte[] ResizeImage(byte[] imageData, int newWidth, int newHeight, long quality)
         {
             using var originalImage = new Bitmap(new MemoryStream(imageData));

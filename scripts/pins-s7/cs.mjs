@@ -136,7 +136,7 @@ export default async function (h) {
 
   /* ———— V1: setCaps declares `voice` for an approved 1:1 / a non-blind private group only, in the ONE setCaps push ———— */
   await guard('V1 caps', async () => {
-    const add = /caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);
+    const add = /caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*caps\s*\+=\s*",media";\s*#if ANDROID \|\| IOS\s*if\s*\(\s*SFilePicker\.CameraAvailable\(\)\s*\)\s*\{\s*caps\s*\+=\s*",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);   /* ★ S9 A1 re-base: + the media / camera caps (CONTRACT §1a) */
     const one = (SCP.match(/"setCaps"/g) || []).length === 1 && (SCP.match(/",voice"/g) || []).length === 1;
     const rule = /public static bool voiceCapFor\(Friend\? f\)\s*\{\s*return f != null && !f\.bot && f\.state == FriendState\.Approved\s*&& \(f\.type == FriendType\.Normal \|\| \(f\.type == FriendType\.Group && !Utils\.hidesParticipants\(f\)\)\);\s*\}/.test(SCP);
     /* the verbs re-check it (a shell that sends without the cap gets nothing) */
@@ -178,14 +178,16 @@ export default async function (h) {
     const files = sites.filter((s) => s.kind === 'file');
     const updates = sites.filter((s) => s.kind === 'update');
     const literal = sites.filter((s) => s.kind.startsWith('literal'));
-    // push(batch, prefix, id, address, nick, avatar, text, ts, sent, confirmed, read, paid, err, relation, replyTo, edited, quoteName, quoteText, voice)
-    const rowOk = rows.length === 1 && rows.every((s) => s.a.length === 19 && s.a[6] === 'rowText' && s.a[18] === 'rowVoice');
+    // push(batch, prefix, id, address, nick, avatar, text, ts, sent, confirmed, read, paid, err, relation, replyTo, edited, quoteName, quoteText, voice, played)
+    // ★ S9 A3 re-base (8-FACE #1247): arg 18 `played` (rowPlayed) trails arg 17 voice — 19 → 20 entries
+    const rowOk = rows.length === 1 && rows.every((s) => s.a.length === 20 && s.a[6] === 'rowText' && s.a[18] === 'rowVoice' && s.a[19] === 'rowPlayed');
     // push(batch, "addFile", id, address, nick, avatar, uid, name, ts, me, confirmed, read, progress, complete, paid, sent, transfer, local, voice)
-    const fileOk = files.length === 1 && files.every((s) => s.a.length === 19 && s.a[16] === 'fTransfer' && s.a[17] === 'fLocal' && s.a[18] === 'fVoice');
-    // sendUiCommand(this, "updateMessage", id, text, sent, confirmed, read, paid, err, edited, replyTo, quoteName, quoteText, voice)
-    const updOk = updates.length === 1 && updates.every((s) => s.a.length === 14 && s.a[3] === 'rowText' && s.a[13] === 'voice');
+    const fileOk = files.length === 1 && files.every((s) => s.a.length === 21 && s.a[16] === 'fTransfer' && s.a[17] === 'fLocal' && s.a[18] === 'fVoice' && s.a[19] === 'fGroup' && s.a[20] === 'fPlayed')   /* ★ S9 A1 r1 re-base: + arg 19 fPlayed */;   /* ★ S9 A1 re-base: + arg 18 fGroup (CONTRACT §1c) */
+    // sendUiCommand(this, "updateMessage", id, text, sent, confirmed, read, paid, err, edited, replyTo, quoteName, quoteText, voice, played)
+    // ★ S9 A3 re-base (8-FACE #1247): arg 13 `played` trails arg 12 voice — 14 → 15 entries
+    const updOk = updates.length === 1 && updates.every((s) => s.a.length === 15 && s.a[3] === 'rowText' && s.a[13] === 'voice' && /^voicePlayedArg\(message,\s*voice\)$/.test(s.a[14]));
     ok(literal.length === 0 && rowOk && fileOk && updOk,
-      'V2/V3 C#: the ONE addMe / addThem builder carries 17 args (17 = rowVoice), the ONE addFile builder 17 (17 = fVoice after fTransfer, fLocal), the ONE updateMessage builder 12 (12 = voice); no literal addMe / addThem push — '
+      'V2/V3 C#: the ONE addMe / addThem builder carries 18 args (17 = rowVoice, 18 = rowPlayed — S9), the ONE addFile builder 17 (17 = fVoice after fTransfer, fLocal), the ONE updateMessage builder 13 (12 = voice, 13 = played — S9); no literal addMe / addThem push — '
       + JSON.stringify({ literal: literal.length, rows: rows.map((s) => s.f + ':' + s.a.length), files: files.map((s) => s.f + ':' + s.a.length), updates: updates.map((s) => s.f + ':' + s.a.length), rowOk, fileOk, updOk }));
   });
 
@@ -205,7 +207,7 @@ export default async function (h) {
     const insOk = after(ins, 'string rowVoice = voiceRowArg(message, ref rowText, ref reply_to, ref edited, ref quoteName, ref quoteText);', 'push(batch, prefix,');
     const updOk = after(upd, 'string voice = voiceRowArg(message, ref rowText, ref replyTo, ref edited, ref quoteName, ref quoteText);', '"updateMessage",');
     /* the waveform job follows the row push */
-    const note = /push\(batch,\s*prefix,[^;]*rowVoice\);\s*if\s*\(\s*rowVoice\s*!=\s*""\s*\)\s*\{\s*noteVoiceInfo\(message,\s*batch\);\s*\}/.test(ins);
+    const note = /push\(batch,\s*prefix,[^;]*rowVoice, rowPlayed\);\s*if\s*\(\s*rowVoice\s*!=\s*""\s*\)\s*\{\s*noteVoiceInfo\(message,\s*batch\);\s*\}/.test(ins);   // ★ S9 A3 re-base (8-FACE #1247): + arg 18 rowPlayed after rowVoice
     ok(rule && insOk && updOk && note,
       'V2 C#: voiceRowArg — an inline voice text (VoiceCodec.tryPeekInline, no decode) shows VoiceCodec.firstLine ONLY (never the base64), clears reply / edited / quote, and answers the duration (rendersAsVoice: a bot room → plain first line, ""); called in insertMessage AND updateMessage after the last rowText assignment and before the push; the waveform job is queued after the row push — '
       + JSON.stringify({ rule, insOk, updOk, note }));
@@ -319,7 +321,7 @@ export default async function (h) {
 
   /* ———— interrupts: leave · background · a call · a voice play → the recording stops and is KEPT; the clip stops ———— */
   await guard('interrupts', async () => {
-    const leave = /protected override void OnDisappearing\(\)\s*\{\s*VoiceClips\.interruptHost\(this,\s*"left"\);\s*clearPendingVoicePlay\(null\);\s*webView = null;\s*base\.OnDisappearing\(\);\s*\}/.test(SCP);
+    const leave = /protected override void OnDisappearing\(\)\s*\{\s*VoiceClips\.interruptHost\(this,\s*"left"\);\s*clearPendingVoicePlay\(null\);\s*webView = null;\s*base\.OnDisappearing\(\);\s*if \(isDisposed\)\s*\{\s*dropMediaBatch\(\);\s*\}\s*\}/.test(SCP);   /* ★ S9 A1 #46 r1 re-base (m-2): a torn-down page drops its prepared photos after the base teardown */
     const bg = /#if ANDROID \|\| IOS\s*SPIXI\.VoIP\.VoiceClips\.interruptAll\("background"\);\s*#endif/.test(bodyOf(APP, 'protected override void OnSleep()'));
     const call = (VOIP.match(/VoiceClips\.interruptAll\("call"\);/g) || []).length === 2
       && bodyOf(VOIP, 'public static void initiateCall(Friend friend)').includes('VoiceClips.interruptAll("call");')
@@ -461,7 +463,7 @@ export default async function (h) {
     const a = bodyOf(SCP, 'private void voiceAfterTransfer(string uid, int channel)');
     const shown = /if\s*\(\s*friend == null \|\| isDisposed \|\| string\.IsNullOrEmpty\(uid\) \|\| channel != selectedChannel\s*\)\s*\{\s*return;\s*\}/.test(a);
     const find = /FriendMessage\?\s*fm\s*=\s*findChannelMessageByTransfer\(channel,\s*uid\);/.test(a)
-      && /channelSnapshot\(channel\)\.Find\(x => x\.transferId == uid\)/.test(SCP) && /deep\?\.Find\(x => x\.transferId == uid\)/.test(SCP);
+      && /channelSnapshot\(channel\)\.Find\(x => !x\.localSender && x\.transferId == uid\)/.test(SCP) && /deep\?\.Find\(x => !x\.localSender && x\.transferId == uid\)/.test(SCP);   /* ★ S9 A1 #46 r4 re-base: an INCOMING row only (a peer cannot reuse my transfer id) */
     const mine = /bool mine\s*=\s*want != null && want\.uid == uid && want\.doc == thumbDoc\s*&& Interlocked\.CompareExchange\(ref pendingVoicePlay,\s*null,\s*want\) == want;/.test(a);
     const before = a.indexOf('bool mine') >= 0 && a.indexOf('bool mine') < a.indexOf('isVoiceFileRow(')
       && /if\s*\(\s*!voice \|\| idHex != want\.idHex\s*\)\s*\{\s*pushVoiceState\(want\.idHex,\s*"error",\s*0,\s*0\);/.test(a);

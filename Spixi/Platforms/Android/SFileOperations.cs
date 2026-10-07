@@ -21,7 +21,8 @@ namespace Spixi
     public class SFileOperations
     {
 
-        public static async Task share(string filepath, string title)
+        /// <summary>★ H-13 r1 (#1245): true = Share or Save was chosen, false = the action sheet was cancelled.</summary>
+        public static async Task<bool> share(string filepath, string title)
         {
             var action = await Microsoft.Maui.Controls.Application.Current!.MainPage!.DisplayActionSheet(
                             SpixiLocalization._SL("global-share-choose"),
@@ -30,14 +31,17 @@ namespace Spixi
                             SpixiLocalization._SL("global-share-sharefile"),
                             SpixiLocalization._SL("global-share-savefile"));
 
-            if (action.Equals(SpixiLocalization._SL("global-share-sharefile")))
+            if (action != null && action.Equals(SpixiLocalization._SL("global-share-sharefile")))
             {
                 shareFile(filepath, title);
+                return true;
             }
-            else if(action.Equals(SpixiLocalization._SL("global-share-savefile")))
+            else if(action != null && action.Equals(SpixiLocalization._SL("global-share-savefile")))
             {
                 saveFile(filepath, title);
+                return true;
             }
+            return false;
         }
 
         public static void shareFile(string filepath, string title)

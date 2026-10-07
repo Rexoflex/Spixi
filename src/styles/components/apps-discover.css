@@ -122,3 +122,4 @@
    later tidy-up that makes the two families agree is the regression GATE 58 exists to
    catch. */
 .c-apps-discover__cats > .c-chip { max-width: none; }
+.c-apps-discover__cats > .c-chip { flex: none; }   /* ★ S9 U-01 family: a scroller's chips keep their width (chip.css min-width:0 squeezed them; the row never scrolled) */

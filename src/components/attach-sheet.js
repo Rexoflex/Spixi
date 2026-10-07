@@ -14,9 +14,10 @@
  * openAttachTray({ composerEl, …same flags, onAction, strings }) → tray | null
  *   ★ #705: the MOBILE presentation — the grid under the composer, not over it.
  *   The sheet stays the desktop popover (M6). Same tiles, same gates, one builder.
- *   onAction(id) — 'file' | 'photo' | 'gif' | 'pay' | 'request' | 'app'
- *   (shell routes: sendfile / sendmedia / payment intent / app invite)
- *   media    — #81 flag: reveals Photo + GIF (BE image standard).
+ *   onAction(id) — 'file' | 'photo' | 'camera' | 'pay' | 'request' | 'app'
+ *   (shell routes: sendfile / sendmedia / camera / payment intent / app invite)
+ *   media    — #81 flag: reveals Photos (★ S9: C# declares `media` with the photo pipeline).
+ *   camera   — ★ S9: reveals Camera (needs media too; C# declares `camera` on Android + iOS only).
  *   apps     — gate the App-invite tile: no single chat-invite verb exists on
  *              every host (SingleChatPage has none), so the shell can hide it.
  *   payments — gate Pay + Request: 1:1 only (C# rejects them in groups/bots).
@@ -50,8 +51,11 @@ import { createSheet, openSheet, closeSheet } from './sheet.js';
 
 const ATTACH_ACTIONS = [
   { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile', flag: 'files' },
-  { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flag: 'media' },
-  { id: 'gif', glyph: 'gif', label: 'GIF', key: 'gif', flag: 'media' },
+  /* ★ S9 (#1244 P = B): Photos (the system picker, ≤ 10, verb sendmedia) + Camera (Android + iOS: C# declares the
+     `camera` capability there only, verb camera). The GIF tile is GONE (the `gif` string key stays, unused). "Photos"
+     is a NEW key (`photos`): the meaning changed from one photo to a multi-pick. */
+  { id: 'photo', glyph: 'photo', label: 'Photos', key: 'photos', flag: 'media' },
+  { id: 'camera', glyph: 'camera', label: 'Camera', key: 'camera', flag: 'camera' },
   { id: 'pay', glyph: 'arrow-up-right', label: 'Send payment', key: 'sendPayment', flag: 'payments' },
   { id: 'request', glyph: 'arrow-down-left', label: 'Request payment', key: 'requestPayment', flag: 'payments' },
   { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
@@ -70,6 +74,8 @@ export function attachTilesFor(flags) {
     apps: f.apps === undefined ? true : !!f.apps,
     payments: f.payments === undefined ? true : !!f.payments,
     files: f.files === undefined ? true : !!f.files,
+    /* ★ S9: Camera needs BOTH the media gate and its own capability — an absent flag = no tile (fails closed, like media) */
+    camera: f.camera === undefined ? false : (!!f.camera && (f.media === undefined ? false : !!f.media)),
   };
   return ATTACH_ACTIONS.filter((a) => !a.flag || enabled[a.flag]);
 }
@@ -81,8 +87,8 @@ export function hasAttachTiles(flags) { return attachTilesFor(flags).length > 0;
    surface that cannot send files says so explicitly. Legacy had no file capability in a
    blind group and the C# still refuses one there; offering the tile anyway was a control
    that reported an outcome it did not cause. */
-export function openAttachSheet({ host, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings() } = {}) {
-  const tiles = attachTilesFor({ media, apps, payments, files });
+export function openAttachSheet({ host, media = false, camera = false, apps = true, payments = true, files = true, onAction, strings = getStrings() } = {}) {
+  const tiles = attachTilesFor({ media, camera, apps, payments, files });
   /* ★★ NO TILE, NO SHEET. A sheet with no tile explains nothing and does nothing.
      The shell keeps the ⊕ hidden for the same condition, so this path is the belt.
      The caller must accept null. */
@@ -126,7 +132,10 @@ function buildAttachGrid(tiles, strings, onPick) {
     med.append(icon(a.glyph, { size: 22 }));
     const label = document.createElement('span');
     label.className = 'c-attach__label';
-    label.textContent = strings[a.key] || a.label;
+    /* ★ S9: the two new tiles spell their fallback here so extract-strings collects the keys (photos, camera) */
+    label.textContent = a.id === 'photo' ? (strings.photos || 'Photos')
+      : a.id === 'camera' ? (strings.camera || 'Camera')
+      : (strings[a.key] || a.label);
     tile.append(med, label);
     tile.addEventListener('click', () => onPick(a.id));
     grid.append(tile);
@@ -166,9 +175,9 @@ const trayState = new WeakMap();   // tray → { composerEl, closing }
    LEFT (chat.html handKeyboardToTray — the mirror of #721's handTrayToKeyboard). `instant`
    gave the tray its full slot in the same frame as the blur, but Android hides the keyboard
    100–300 ms AFTER the blur, so for that window the composer sat on keyboard + tray. */
-export function openAttachTray({ composerEl, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings(), instant = false, hold = false } = {}) {
+export function openAttachTray({ composerEl, media = false, camera = false, apps = true, payments = true, files = true, onAction, strings = getStrings(), instant = false, hold = false } = {}) {
   if (!composerEl || !composerEl.parentNode) return null;
-  const tiles = attachTilesFor({ media, apps, payments, files });
+  const tiles = attachTilesFor({ media, camera, apps, payments, files });
   if (!tiles.length) return null;
   const existing = composerEl.nextElementSibling;
   if (existing && existing.classList.contains('c-attach-tray')) {

@@ -425,6 +425,13 @@ namespace SPIXI
             {
                 onDeleteDownloads();
             }
+            else if (current_url.StartsWith("ixian:reportTranslation:", StringComparison.Ordinal))
+            {
+                /* ★ S9 A3 #1246 (🟡 NEW verb): the language note's "Report a translation problem" — a language CODE only;
+                 * C# validates it and builds the mailto itself (Utils.openTranslationReport). Not the openLink path: no
+                 * WebView-supplied link is opened. */
+                Utils.openTranslationReport(current_url.Substring("ixian:reportTranslation:".Length));
+            }
             else if (current_url.StartsWith("ixian:openLink:", StringComparison.Ordinal))
             {
                 // iOS-21/iOS-23: About + How-to link rows. Mirror of the SingleChatPage
@@ -631,7 +638,7 @@ namespace SPIXI
                    both modes. #265 is why it is not pinned to column 1 — that pin
                    covered only the DETAIL region, the hub stayed tappable, and its
                    sublevels rendered UNDERNEATH ("account unresponsive"). */
-                pushPageLoaded(new DownloadsPage());
+                pushPageLoaded(DownloadsPage.create());   // ★ S9 A3 #1173 (8): a centred dialog on desktop (#265 holds: the scrim covers the hub)
             }
             else if (current_url.Equals("ixian:loadDownloads", StringComparison.Ordinal))
             {
@@ -1592,6 +1599,8 @@ namespace SPIXI
             try { SSightingStore.clear(); } catch (Exception ex) { Logging.error("wipe: sightings threw: " + ex.GetType().Name); }   // ★ G-2: the in-process copy too
             try { SReactionFlags.clearAll(); } catch (Exception ex) { Logging.error("wipe: reaction flags threw: " + ex.GetType().Name); }   // ★ #1148 (4)
             try { SAppDeclines.clearAll(); } catch (Exception ex) { Logging.error("wipe: app declines threw: " + ex.GetType().Name); }   // ★ S8 (#1233): the in-process copy too
+            try { SAppJoins.clearAll(); SVoicePlayed.clearAll(); SPhotoGroups.clearAll(); SLocalOnlyStore.clearAll(); } catch (Exception ex) { Logging.error("wipe: app joins / voice played threw: " + ex.GetType().Name); }   // ★ S9 A3
+            try { SContacts.deleteAllSentCopies(); } catch (Exception ex) { Logging.error("wipe: sent copies threw: " + ex.GetType().Name); }   // ★ S9 #46 r1 m-3
             try { CoreMessageWriter.arrivals.clear(); } catch (Exception ex) { Logging.error("wipe: arrivals threw: " + ex.GetType().Name); }   // ★ P0 #1155
 
             // (6. the WebView spixi.* wipe ran as step 0 — see above)
@@ -1634,6 +1643,8 @@ namespace SPIXI
             SSightingStore.clear();   // ★ G-2: a sighting belongs to the account that made it
             SReactionFlags.clearAll();   // ★ #1148 (4): so does a reaction heart
             SAppDeclines.clearAll();   // ★ S8 (#1233): and a declined invite
+            SAppJoins.clearAll(); SVoicePlayed.clearAll(); SPhotoGroups.clearAll();   // ★ S9 A3 (8-APP / 8-FACE) · A1 photo groups
+            SContacts.deleteAllSentCopies();   // ★ S9 #46 r1 m-3: my durable Sent copies (no history names them any more)
             CoreMessageWriter.arrivals.clear();   // ★ P0 #1155: and every kept arrival
         }
 
@@ -1642,6 +1653,8 @@ namespace SPIXI
             FriendList.deleteEntireHistory();
             SReactionFlags.clearAll();   // #46 r1 A-M2 (#1148 (4)): every conversation is gone, so is every reaction heart
             SAppDeclines.clearAll();   // ★ S8 (#1233): every invite row is gone too
+            SAppJoins.clearAll(); SVoicePlayed.clearAll(); SPhotoGroups.clearAll();   // ★ S9 A3 (8-APP / 8-FACE) · A1 photo groups
+            SContacts.deleteAllSentCopies();   // ★ S9 #46 r1 m-3: my durable Sent copies (no history names them any more)
             CoreMessageWriter.arrivals.clear();   // ★ P0 #1155: and every kept arrival
             /* ★ #46 loop B, MAJOR-1 (the SIXTH removal path) — EVERY conversation on the
              * device is gone, so every conversation's local keys must go, and the user's own

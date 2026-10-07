@@ -306,6 +306,8 @@ index-excerpt-payment-received = 付款已接收
 index-excerpt-contact-accepted = 联系人请求已接受
 index-excerpt-contact-request = 联系人请求
 index-excerpt-file = 文件
+index-excerpt-photo = 照片
+index-excerpt-photos = {0} 张照片
 index-excerpt-voice-call = 语音通话
 index-excerpt-self = 
 index-excerpt-you = 你
@@ -457,6 +459,10 @@ settings-backup-notice = 如果发生以下情况，您需要备份文件和密�
 settings-backup-notice2 = - 您丢失了此设备<br />- 您卸载了 Spixi<br />- 您删除了此 Spixi 账户<br />- 您删除了此钱包
 settings-backup-invalidpassword-title = 无效密码
 settings-backup-invalidpassword-text = 请输入有效密码。
+settings-backup-saved-title = 您保存备份了吗？
+settings-backup-saved-text = 仅当备份文件已保存或发送到安全的位置时，才选择“是”。
+settings-backup-saved-yes = 是
+settings-backup-saved-no = 否
 
 ; Settings Encryption Screen
 settings-encryption-title = 密码
@@ -673,6 +679,7 @@ global-friend-request-accepted = {0} 已接受您的联系人请求。
 global-friend-request-connected = 你现在已与 {0} 建立联系。
 chat-group-added-you = {0} 已将您添加到此群组
 chat-group-added-you-noname = 您已被添加到此群组
+chat-group-you-created = 您创建了此群组
 
 global-update-available = Spixi 有新版本可用 ({0})。请更新以获得最佳体验。
 global-modal-external-link-title = 外部链接

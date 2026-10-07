@@ -306,6 +306,8 @@ index-excerpt-payment-received = Mokėjimas gautas
 index-excerpt-contact-accepted = Kontaktas priimtas
 index-excerpt-contact-request = Kontakto prašymas
 index-excerpt-file = Failas
+index-excerpt-photo = Nuotrauka
+index-excerpt-photos = Nuotraukos: {0}
 index-excerpt-voice-call = Balso skambutis
 index-excerpt-self = 
 index-excerpt-you = Jūs
@@ -457,6 +459,10 @@ settings-backup-notice = Ši atsarginė kopija ir su ja susietas slaptažodis bu
 settings-backup-notice2 = - prarasite šį įrenginį<br />- pašalinsite Spixi iš šio įrenginio<br />- ištrinsite šią Spixi paskyrą<br />- ištrinsite šią piniginę
 settings-backup-invalidpassword-title = Neteisingas slaptažodis
 settings-backup-invalidpassword-text = Prašome įvesti galiojantį slaptažodį.
+settings-backup-saved-title = Ar išsaugojote atsarginę kopiją?
+settings-backup-saved-text = Pasirinkite Taip tik tada, jei atsarginės kopijos failas dabar išsaugotas arba išsiųstas į saugią vietą.
+settings-backup-saved-yes = Taip
+settings-backup-saved-no = Ne
 
 ; Settings Encryption Screen
 settings-encryption-title = Slaptažodis
@@ -673,6 +679,7 @@ global-friend-request-accepted = {0} priėmė jūsų kontakto prašymą.
 global-friend-request-connected = Dabar esate susisiekę su {0}.
 chat-group-added-you = {0} pridėjo jus prie šios grupės
 chat-group-added-you-noname = Jūs buvote pridėti prie šios grupės
+chat-group-you-created = Jūs sukūrėte šią grupę
 
 global-update-available = Yra nauja Spixi versija ({0}). Atnaujinkite, kad gautumėte geriausią patirtį.
 global-modal-external-link-title = Aplankyti išorinę nuorodą

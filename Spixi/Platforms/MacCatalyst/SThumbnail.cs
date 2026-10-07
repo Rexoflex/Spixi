@@ -58,7 +58,10 @@ namespace Spixi
          * makeJpeg: ImageIO's thumbnail path is the BOUNDED decode (CGImageSource subsamples while decoding; the full bitmap
          * is never built) and it is asked for the long edge ≤ maxEdge (≤ MaxLongSide) directly; the aspect ratio is KEPT (no
          * crop); CreateThumbnailWithTransform applies the EXIF orientation; JPEG q82; every CG/UI object is disposed. Called
-         * OFF the UI thread. The path is C#'s own. Fail-soft: anything unexpected → null (the viewer keeps the thumbnail). */
+         * OFF the UI thread. The path is C#'s own. Fail-soft: anything unexpected → null (the viewer keeps the thumbnail).
+         * ★ S9 (#1244): ALSO the photo encoder of the chat's media send (maxEdge 2048 = PhotoRules.MaxEdge = MaxLongSide): the
+         * picture is a bare CGImage (no source properties), so AsJPEG writes NO EXIF / GPS; the orientation is applied.
+         */
         public static byte[]? makeViewerJpeg(string path, int maxEdge)
         {
             try
@@ -70,6 +73,12 @@ namespace Spixi
                 using NSUrl url = NSUrl.FromFilename(path);
                 using CGImageSource? src = CGImageSource.FromUrl(url);
                 if (src == null)
+                {
+                    return null;
+                }
+                // ★ S9 #46 r1 m-10: the header's size first — a source above ~100 MP is never decoded (PhotoRules.pixelsOk)
+                CGImageProperties? props = src.GetProperties(0);
+                if (props != null && !SPIXI.PhotoRules.pixelsOk(props.PixelWidth ?? 0, props.PixelHeight ?? 0))
                 {
                     return null;
                 }

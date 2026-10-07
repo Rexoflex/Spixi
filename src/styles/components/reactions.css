@@ -158,3 +158,7 @@
   color: var(--text-neutral-02);
   overflow-wrap: break-word; /* audit r3: inspecting WHO reacted is the point — wrap, never truncate */
 }
+/* ★ S9 r2 (Damir): the newest message row (data-log-end) always carries the same 20 px padding reserve, so a reaction never changes the log height (#966: padding, not margin). */
+.c-bubble-row[data-log-end] { padding-bottom: var(--spacing-20); }
+/* ★ S9: a photo-group CELL is a grid item — its pill reserve would break the grid (the group row reserves, above) */
+.c-mgrid > .c-bubble-row[data-reactions="overlap"] { padding-bottom: 0; }

@@ -93,7 +93,14 @@ namespace SPIXI
                 }
                 // our own sent file: the absolute path the picker gave C# (a bare name is the legacy rebuild of a
                 // header — never resolved relative to anything)
-                return Path.IsPathRooted(fm.filePath) && File.Exists(fm.filePath) ? fm.filePath : null;
+                if (Path.IsPathRooted(fm.filePath) && File.Exists(fm.filePath))
+                {
+                    return fm.filePath;
+                }
+                /* ★ S9 #46 r3 MAJOR: a durable Sent copy recorded under an OLDER app root (iOS moves the container on an update)
+                 * resolves to the same leaf in TODAY's Sent folder — the receivedMediaPathOf re-root, for my own copies. */
+                string? rerooted = SPIXI.PhotoRules.rerootSent(fm.filePath, Path.Combine(SPIXI.Meta.Config.spixiUserFolder, SPIXI.PhotoRules.SentFolderName));
+                return rerooted != null && File.Exists(rerooted) ? rerooted : null;
             }
             catch (Exception)
             {

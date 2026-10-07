@@ -308,6 +308,8 @@ index-excerpt-payment-received = Платёж получен
 index-excerpt-contact-accepted = Контакт принят
 index-excerpt-contact-request = Запрошен контакт
 index-excerpt-file = Файл
+index-excerpt-photo = Фото
+index-excerpt-photos = Фото: {0}
 index-excerpt-voice-call = Голосовой Вызов
 index-excerpt-self = 
 index-excerpt-you = Вы
@@ -470,6 +472,10 @@ settings-backup-notice = Эта резервная копия может быт�
 settings-backup-notice2 = - потеря устройства<br />- удаление Spixi с этого устройства<br />- удаление этого аккаунта Spixi<br />- удаление кошелька
 settings-backup-invalidpassword-title = Неправильный пароль
 settings-backup-invalidpassword-text = Введите правильный пароль.
+settings-backup-saved-title = Вы сохранили резервную копию?
+settings-backup-saved-text = Выберите «Да», только если файл резервной копии сохранён или отправлен в надёжное место.
+settings-backup-saved-yes = Да
+settings-backup-saved-no = Нет
 
 ; Settings Encryption Screen
 settings-encryption-title = Пароль
@@ -664,6 +670,7 @@ global-friend-request-accepted = {0} принял ваш запрос добав
 global-friend-request-connected = Теперь вы на связи с {0}.
 chat-group-added-you = {0} добавил(а) вас в эту группу
 chat-group-added-you-noname = Вас добавили в эту группу
+chat-group-you-created = Вы создали эту группу
 
 global-update-available = Новая версия Spixi ({0}) доступна к скачиванию. Обновите программу, для доступа к новым функциям.
 global-modal-external-link-title = Вы собираетесь перейти по внешней ссылке

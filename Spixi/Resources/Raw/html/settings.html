@@ -1390,6 +1390,39 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
 .c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
 .c-settings__row[data-row="stacked"] { min-height: var(--row-h-stacked); }   /* ★ Session J: a nav row with a sub-line (the third height; Damir's pick) */
+/* ★ S9 toggle layout B (Damir): a SWITCH row with a stacked label is a two-row grid — disc + title + switch on
+   ONE line (the switch centred on the title line, not on the whole card), the description BELOW, starting
+   under the title (disc + its gap) and running the full remaining width, under the switch column too.
+   The stack becomes `display: contents`, so its two children (.c-settings__row-top, .c-settings__row-sub)
+   are the grid items; the disc goes back into the title line's flow (the N59b absolute-centred disc stays
+   for every OTHER stacked row). A switch row WITHOUT a sub is the same one-line row as before: label | switch,
+   centred, the same 8 px gap. The DOM is unchanged, so the switch keeps its aria-label (the title) and — on the
+   three rows that carry one (read receipts, typing, hide online) — its aria-describedby → the description.
+   ★ #46 r3 n3: row-gap 8 = the switch's 44 px tap layer (::after inset -8px) ends ABOVE the description, so no
+   part of the description's first line toggles the switch (at 2 px its top ~5 px did). */
+.c-settings__row[data-row="switch"] {
+  --row-disc-w: 32px;               /* sanctioned: the .c-disc box (base.css) — the description's indent */
+  --row-disc-gap: var(--spacing-12);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--spacing-8);
+  row-gap: var(--spacing-8);       /* ≥ the tap layer's 8 px overhang below the switch box (#46 r3 n3) */
+}
+.c-settings__row[data-row="switch"] > .c-settings__switch { grid-column: 2; grid-row: 1; }
+.c-settings__row[data-row="switch"] > .c-settings__row-label { grid-column: 1; grid-row: 1; }
+.c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: contents; }
+.c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-top {
+  grid-column: 1; grid-row: 1;
+  min-width: 0;
+  gap: var(--row-disc-gap);
+}
+.c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: static; transform: none; }
+.c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub {
+  grid-column: 1 / -1; grid-row: 2;
+  margin: 0;
+  padding-inline-start: calc(var(--row-disc-w) + var(--row-disc-gap));
+}
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */
@@ -1502,6 +1535,45 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
+}
+/* ★ S9 L (#1246 L = A): the language note — a tinted card ABOVE the list, outside the
+   radiogroup; the link is a real button (verb, not a URL). On a phone the long picker's
+   frame keeps filling the tall sheet: the box passes the flex column through. */
+.c-settings__opts-box { display: flex; flex-direction: column; min-height: 0; }
+:root:not([data-desktop]) .c-sheet[data-tall] .c-settings__opts-box { flex: 1 1 auto; }
+.c-settings__opts-note {
+  flex: none;
+  margin: 0 0 var(--spacing-12);
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-4);
+  border-radius: var(--radius-12);
+  background: var(--surface-sheet-card);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-settings__opts-note-text { margin: 0 0 var(--spacing-4); }
+.c-settings__opts-note-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;                 /* sanctioned: inline text-link hit height (≥ 24 px, WCAG 2.5.8) */
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-link);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__opts-note-link:hover { color: var(--text-link-hover); }
+}
+.c-settings__opts-note-link:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: 2px;
+  border-radius: var(--radius-4, 4px);
 }
 .c-settings__opt {
   display: flex;
@@ -1885,6 +1957,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-account .c-settings__row-top { gap: var(--spacing-16); }
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
+.c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.
@@ -2820,7 +2893,7 @@ button.c-settings-howto__join:disabled {
 /* ★ #1022 (Opus r1 M2): no desaturation on the failed tile — a filter reaches the red retry badge
    too and the hover filter replaced it anyway; the red badge + the red retry line carry the state. */
 @media (hover: hover) and (pointer: fine) {
-  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(1.06); }
+  .c-fbubble:not(:disabled):hover .c-fbubble__icon { filter: brightness(0.96); }   /* ★ S9 H-16 f (#1247): darken on hover — the white label stays ≥ 4.5:1 (1.06 dropped it to 4.09:1) */
 }
 .c-fbubble:not(:disabled):active .c-fbubble__icon { filter: brightness(0.92); } /* audit: no pressed feedback */
 .c-fbubble:disabled { cursor: default; } /* progress state */
@@ -3108,6 +3181,12 @@ button.c-settings-howto__join:disabled {
 @media (prefers-reduced-motion: reduce) {
   .c-tcard[data-live-complete] .c-tcard__status,
   .c-tcard[data-live-complete] .c-tcard__status-check path { animation: none; }
+}
+
+/* ★ S9 U-03 (#1247, measured): 12 % toward black lifts the card's error badge from 4.44:1 to 5.31:1 light · 5.41:1 dark. */
+.c-tcard__badge .c-badge[data-weight="tonal"][data-type="error"] {
+  color: var(--text-error);
+  color: color-mix(in srgb, var(--text-error) 88%, #000);   /* sanctioned: U-03 — black is the mix target (12 % darker), not a paint */
 }
 
 </style><!-- ★ A3 (#1126): the Downloads rows reuse the chat's file-type tile (.c-fbubble__icon / __ext) -->
@@ -5069,7 +5148,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    a box-level opacity would cap the read tick at 0.7 too, since a child can never be
    more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
    be dimmed — the #48 rule). Received bubbles were untouched until #1041 (below). */
-.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.7; }
+/* ★ S9 U-03 (#1247, measured): 0.92 lifts the sent time from 3.30:1 to 4.53:1 light · 4.41:1 to 6.37:1 dark. */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.92; }
 /* ★ #1041 (Damir 2026-09-29, screenshot: "the incoming timestamp should be reduced opacity as well,
    it clashes with the actual message"): the RECEIVED meta row takes the same 0.7 on its children —
    one timestamp weight on both sides of the conversation. ⚠ Measured, and Damir's knowing trade (the
@@ -6521,7 +6601,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     createSettingsIgnored,           // ★ #978 (#970): Declined requests — the un-block path
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
-    settingsThemeSheet, settingsOptionSheet, createTopbar,
+    settingsThemeSheet, settingsOptionSheet, languageNote, createTopbar,
     dismissOverlay,   // ★ review MINOR-4: tear an open sheet down before a theme-flip rebuild
     openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
     createBottomNav, setNavActive, setNavBadge, attachLandscapeRail, showToast,
@@ -6800,6 +6880,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       || 'Your system language is set for Spixi, but this interface is still shown in English. Its translation is on the way.')
     : undefined);
   const langOptions = (code) => langList(code).map((l) => ({ value: l.code, label: l.label, flag: l.flag }));
+  /* ★ S9 L (#1246 L = A, #1143): the AI-translation note + "Report a translation problem" on
+   * EVERY picker for a non-English language (not for the A4 hidden fallback — its UI is English
+   * and the hint says so). 🟡 verb `ixian:reportTranslation:<code>`: C# validates the code
+   * against its language list and builds the mailto itself — the WebView never sends a URL.
+   * The code is the shell's own state.language (a pushed / picked list code), never typed text. */
+  const reportTranslation = (code) => {
+    if (/^[a-z]{2}-[a-z]{2}$/.test(String(code || ''))) bridge.send('ixian:reportTranslation:' + code);
+  };
+  const langNote = (code) => languageNote({ code, hidden: langIsHidden(code), strings, onReport: reportTranslation });
 
   /* —— theme —————————————————————————————————————————————————————————————————
    * The redesign swaps the token theme via data-theme (no page reload needed),
@@ -7432,6 +7521,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         settingsOptionSheet({
           title: strings.language || 'Language',
           hint,
+          note: langNote(state.language),      // ★ S9 L — undefined here today (hidden ⇒ no note); kept so the four pickers read the same
           options: langOptions(state.language),
           current: state.language,
           host: document.body,
@@ -7450,6 +7540,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       // and would rewrite it here too. Locales without
       // a shell dictionary stay hidden — see the LANGS/PENDING_LANGS note above.
       onLanguage: (code, ctrl) => { state.language = code; bridge.send('ixian:language:' + code); ctrl.done(); },
+      onReportTranslation: reportTranslation,  // ★ S9 L: the hub sheet's note link
 
       // app lock — ON optimistic; OFF also optimistic here (matches legacy): the frozen
       // bridge only CONFIRMS a successful OFF (setLockEnabled('False') on auth success)
@@ -7958,6 +8049,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         settingsOptionSheet({
           title: strings.language || 'Language',
           hint: langHint(state.language),      // A4: only when the fallback row is present
+          note: langNote(state.language),      // ★ S9 L: the desktop pane picker
           options: langOptions(state.language),
           current: state.language, strings, inline: true,
           // C# persists the pick and re-localizes this document IN PLACE (the

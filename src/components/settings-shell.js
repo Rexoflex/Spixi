@@ -95,11 +95,57 @@ export function backupStatusParts(status = {}, strings = getStrings()) {
   };
 }
 
+/* ★ S9 L (#1246 L = A, #1143): the language note — every non-English language is a mix of
+   community (legacy .txt) and AI (shell dictionary) text, so EVERY language picker says so at
+   its top, in the CURRENT language, with a report link. Returns the `note` arg for
+   settingsOptionSheet, or undefined when the note must not show:
+   · the current language is English (en-us) or unknown/empty;
+   · `hidden` — the A4 fallback row: that UI is still English and its hint already says so.
+   `onReport(code)` is the host's verb (`ixian:reportTranslation:<code>`, C# builds the mailto);
+   without it the note keeps its text and drops the link. The code is the language the shell
+   already holds — never user text. */
+export const ENGLISH_LANG = 'en-us';
+export function languageNote({ code, hidden = false, strings = getStrings(), onReport } = {}) {
+  const c = String(code || '');
+  if (!/^[a-z]{2}-[a-z]{2}$/.test(c) || c === ENGLISH_LANG || hidden) return undefined;
+  return {
+    text: strings.languageAiNote
+      || 'Some text in this language was translated with AI and can contain errors. Tell us if you find one.',
+    linkLabel: strings.languageReport || 'Report a translation problem',
+    onLink: typeof onReport === 'function' ? () => onReport(c) : undefined,
+  };
+}
+
+function buildOptsNote(note) {
+  const box = document.createElement('div');
+  box.className = 'c-settings__opts-note';
+  box.setAttribute('role', 'note');
+  const t = document.createElement('p');
+  t.className = 'c-settings__opts-note-text';
+  t.textContent = note.text;
+  box.append(t);
+  if (note.onLink && note.linkLabel) {
+    const a = document.createElement('button');
+    a.type = 'button';
+    a.className = 'c-settings__opts-note-link';
+    a.textContent = note.linkLabel;
+    let busy = false;                             // one verb per tap burst (a double tap = one mail draft)
+    a.addEventListener('click', () => {
+      if (busy) return;
+      busy = true;
+      setTimeout(() => { busy = false; }, 800);
+      try { note.onLink(); } catch { /* host verb */ }
+    });
+    box.append(a);
+  }
+  return box;
+}
+
 /* shared radio option sheet (language & friends) — sd-sheet grammar (#142):
    commit-per-pick, latched; spinner in the fixed status slot (#145③).
    EXPORTED: the launch welcome reuses it for its language pill (one picker
    grammar app-wide — launch premium rework, Damir 2026-07-06). */
-export function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
+export function settingsOptionSheet({ title, hint, note, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
   // #148⑥: long pickers (language) — in the SHEET the list scrolls inside a
@@ -198,7 +244,22 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
     optEls.set(o.value, opt);
     wrap.append(opt);
   }
-  if (inline) return wrap;                    // #242: a pane detail screen hosts the list
+  /* ★ S9 L: the note sits ABOVE the radiogroup, outside it (a link is not a radio, and the
+     list's scroll + indicator stay the list's own). A keyboard open still lands on the
+     CHECKED row, not on the link (overlay.js [data-autofocus]). */
+  const noteEl = note && note.text ? buildOptsNote(note) : null;
+  if (noteEl) {
+    const cur = optEls.get(current);
+    if (cur) cur.dataset.autofocus = '';
+  }
+  const withNote = (el) => {
+    if (!noteEl) return el;
+    const box = document.createElement('div');
+    box.className = 'c-settings__opts-box';
+    box.append(noteEl, el);
+    return box;
+  };
+  if (inline) return withNote(wrap);          // #242: a pane detail screen hosts the list
   let content = wrap;
   if (longList) {
     content = document.createElement('div');
@@ -206,6 +267,7 @@ export function settingsOptionSheet({ title, hint, options, current, host, strin
     content.append(wrap);
     attachScrollIndicator(content, wrap);
   }
+  content = withNote(content);
   const sheet = createSheet({ content, host, title, strings });
   if (longList) sheet.dataset.tall = '';
   openSheet(sheet);
@@ -389,6 +451,7 @@ export function createSettingsHub({
   onThemeNav,                    // (#242) optional — return true to TAKE the Theme row tap
                                  // (pane master-detail: detail screen instead of the sheet)
   onLanguageNav,                 // (#242) same for the Language row
+  onReportTranslation,           // (code) — ★ S9 L (#1246): the language note's report link (host sends ixian:reportTranslation:<code>)
   onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
   onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
   onChangePassword,              // nav → the encpass screen (#804: a sublevel in the shell; ixian:encpass is the no-cap fallback — bridge-audit-A:258)
@@ -934,6 +997,7 @@ export function createSettingsHub({
       value: langLabelFor(language),
       onClick: () => { if (onLanguageNav && onLanguageNav()) return; settingsOptionSheet({
         title: strings.language || 'Language',
+        note: languageNote({ code: language, strings, onReport: onReportTranslation }),   // ★ S9 L
         options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
         current: language, host: hostFor(), strings,
         commit: (code, ctrl) => onLanguage(code, ctrl),

@@ -20,6 +20,10 @@ namespace Spixi;
 
 public partial class App : Application
 {
+    /** ★ S9 A-FLASH C1 (#1205): true when this process booted straight into HomePage (a wallet, no lock) — the one case
+     *  whose shell sends `ixian:bootDropped`; MainActivity.startBootHold holds the first draw only then. */
+    public static bool homeIsBootRoot = false;
+
     public static bool isInForeground { get; set; } = false;
 
     public static Window appWindow { get; private set; } = null;
@@ -396,6 +400,7 @@ public partial class App : Application
                     else
                     {
                         // Show the home screen
+                        homeIsBootRoot = true;   // ★ S9 A-FLASH C1 (#1205): MainActivity may hold the first draw until home's boot cover is gone
                         MainPage = new NavigationPage(HomePage.Instance());
                     }
 
@@ -408,11 +413,13 @@ public partial class App : Application
         {
             // Already started before
             Logging.info("App: Node exists but is stopped");
-            while (IxianHandler.status == NodeStatus.stopping)
+            // ★ C-03 (#1245): a BOUNDED wait (this is the UI thread). Still stopping at the deadline → no restart
+            // now; the next resume (EnsureNodeRunning) tries again.
+            if (!AuditRules.waitWhile(() => IxianHandler.status == NodeStatus.stopping, AuditRules.NodeStopWaitMs))
             {
-                Thread.Sleep(50);
+                Logging.warn("App: the node is still stopping after the wait - not restarting now");
             }
-            if (IxianHandler.status == NodeStatus.stopped)
+            else if (IxianHandler.status == NodeStatus.stopped)
             {
                 Logging.info("App: Restarting Node");
                 Node.preStart();
@@ -424,7 +431,8 @@ public partial class App : Application
                     // screen, reached a different way. Log before it goes up, so the
                     // failure is at least explicable from ixian.log.
                     Logging.error("App: Node.start() returned false on resume — the node did not restart.");
-                    throw new Exception("Error starting Node");
+                    // ★ C-03 (#1245): no throw out of the App constructor (a crash); the next resume retries.
+                    return;
                 }
                 Node.connectToNetwork();
             }
@@ -1370,6 +1378,11 @@ public partial class App : Application
         isInForeground = false;
         CoreMessageWriter.writeArrivalsNow();   // ★ 7b (#1223 (a)): pending arrivals first, then the plain flush (every platform: a no-op when clean)
         IxianHandler.localStorage?.flush();
+        /* ★ S9 A3 #46 r2 (n1): the per-peer stores write DEFERRED (SLocalOnlyStore.setDeferred, 400 ms) — a kill right
+         * after a change (a received photo-group trailer, a played clip, a join) would lose it. Sleep is the last reliable
+         * moment on every platform: write what is pending now — ★ #46 r3: AFTER the #438 privacy shield (the snapshot is
+         * taken first, nothing delays it) and before Node.pause, beside the other flushes. A no-op when nothing is pending; never throws. */
+        try { SPIXI.Meta.SLocalOnlyStore.flush(); } catch (Exception) { }
         Node.pause();
     }
 
@@ -1444,6 +1457,38 @@ public partial class App : Application
 
     public static void EnsureNodeRunning()
     {
+        ensureNodeRunning(false);
+    }
+
+    /* ★ C-03 r1 (#46 R1, #1245): after the bounded wait gives up, ONE retry runs 1 s later on the main thread (the
+     * whole method again, so the F5-3 guards run first), only while the app is in the foreground; a retry that also
+     * gives up schedules nothing — the next resume is the next chance. */
+    private static int ensureRetryPending;   // 0/1 — at most one scheduled retry
+
+    private static void scheduleEnsureRetry()
+    {
+        if (Interlocked.CompareExchange(ref ensureRetryPending, 1, 0) != 0)
+        {
+            return;
+        }
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(1000);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                Interlocked.Exchange(ref ensureRetryPending, 0);
+                if (!isInForeground)
+                {
+                    Logging.info("EnsureNodeRunning: the retry was skipped - the app is in the background");
+                    return;
+                }
+                ensureNodeRunning(true);
+            });
+        });
+    }
+
+    private static void ensureNodeRunning(bool isRetry)
+    {
         try
         {
             /* ★ F5-3 (#553) — the restore race. The launch/account flow stops the node
@@ -1482,9 +1527,17 @@ public partial class App : Application
                 || IxianHandler.status == NodeStatus.stopping)
             {
                 Logging.info("EnsureNodeRunning: Node exists but is stopped");
-                while (IxianHandler.status == NodeStatus.stopping)
+                // ★ C-03 (#1245): a BOUNDED wait (OnResume / OnActivated / OnWindowCreated run on the UI thread).
+                // Still stopping at the deadline → no restart now; the next resume tries again. The F5-3 guards
+                // above (no wallet → return; startCounter == 0 → return) still run first, in that order.
+                if (!AuditRules.waitWhile(() => IxianHandler.status == NodeStatus.stopping, AuditRules.NodeStopWaitMs))
                 {
-                    Thread.Sleep(50);
+                    Logging.warn("EnsureNodeRunning: the node is still stopping after the wait - not restarting now");
+                    if (!isRetry)
+                    {
+                        scheduleEnsureRetry();   // ★ C-03 r1: ONE bounded retry
+                    }
+                    return;
                 }
                 if (IxianHandler.status == NodeStatus.stopped)
                 {
@@ -1498,7 +1551,7 @@ public partial class App : Application
                     // screen, reached a different way. Log before it goes up, so the
                     // failure is at least explicable from ixian.log.
                     Logging.error("App: Node.start() returned false on resume — the node did not restart.");
-                    throw new Exception("Error starting Node");
+                    return;   // ★ C-03 (#1245): log and return (the throw only reached the catch below); the next resume retries
                     }
                     Node.connectToNetwork();
                 }

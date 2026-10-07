@@ -76,6 +76,7 @@
      ⚠ Supersedes the saturation ruling above (2026-08-22) and the two #884 ② values; the
      reasoning above is kept so the reversal is one table away. Old values in the notes. */
   --ink-500:  #37393C;   /* was #253246 (#884 ②) */
+  --ink-550:  #35373A;   /* ★ S9 H-16 f (#1247): between ink-600 #2C2E31 and ink-500 #37393C — the dark IN-SHEET pressed fill. Two rules meet here: action text ≥ 4.5:1 on it (ink-500 read 4.43; this 4.58) AND pressed ≥ 1.11 past the ink-600 hover (#1037; this 1.14). Ramp-only — no --neutral-550 alias (the ink-750 pattern). */
   --ink-600:  #2C2E31;   /* was #202b3c (#884 ②) */
   --ink-700:  #232528;   /* was #19212f */
   --ink-750:  #1E2023;   /* ★ Damir pick (2026-10-03): the dark received bubble, a half step between ink-800 #1A1C1F and ink-700 #232528 (the ink-950 pattern). Ramp-only — no --neutral-750 alias. */
@@ -973,7 +974,7 @@
   --surface-card-raised: var(--neutral-700);
   --surface-sheet-card: var(--neutral-700);          /* ★ #1030: follows the sheet down one rung (was 600 on the 700 sheet, Session X) — a card LIFTS in dark, it does not outline */
   --surface-sheet-card-hover: var(--neutral-600);    /* ★ #1030: was 500 */
-  --surface-sheet-card-pressed: var(--neutral-500);  /* ★ #1030: now one visible step past hover (was equal to it) */
+  --surface-sheet-card-pressed: var(--ink-550);      /* ★ #1030: one visible step past hover (was equal to it) · ★ S9 H-16 f: 500 → the ink-550 half step — action text on it read 4.43:1 (now ≥ 4.5), still past hover */
   --surface-card-hover: var(--neutral-600);          /* ★ Session Y: 1.187:1 on the neutral-800 card after #884 ② (was 1.223 on grey-600; 700 would be 1.048 — invisible) */
   --surface-account-row-hover: #212327;      /* ★ #1080 F4: 1.09:1 on the #1A1C1F card (the card pair is 1.187) */
   --surface-select-row: rgba(118, 157, 255, 0.22);   /* ★ #1080 F14: brand-400 at 22% over the dark ground */
@@ -1044,7 +1045,7 @@
   --outline-sheet-01: var(--neutral-700);                  /* ★ #1035: the hairline on the 800 sheet (1.11 — the step it had on the 700 sheet) */
   --surface-input-sheet: var(--neutral-700);               /* ★ #1035: an input / address chip on the 800 sheet */
   --surface-interactive-hover-sheet: var(--neutral-600);   /* ★ #1035/#1036: row / text-button hover on the sheet — 600, NOT 700: 700 is the sheet-CARD tone, so a control hosted on a card (the address chip's Copy) hovered to its own colour (r2 m1) */
-  --surface-interactive-pressed-sheet: var(--neutral-500); /* ★ #1035/#1036: pressed one rung past hover */
+  --surface-interactive-pressed-sheet: var(--ink-550);    /* ★ #1035/#1036: pressed one rung past hover · ★ S9 H-16 f: half rung (ink-550) — action text ≥ 4.5:1 */
   --surface-settings-card-sheet: var(--surface-sheet-card); /* ★ #1036 (r2 n2): the settings card inside a sheet lifts like any card */
 
   /* text */

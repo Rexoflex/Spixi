@@ -8,7 +8,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Camera Usage is needed for scanning QR codes</string>
+	<string>Spixi uses the camera to scan QR codes and to take photos for chats.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Spixi uses the microphone for voice calls and to record voice messages.</string>
 	<!-- ★ B1 (office walk #1084): 1 + 2 alone run Catalyst in the iPad idiom, which scales the

@@ -211,7 +211,7 @@
     createSettingsIgnored,           // ★ #978 (#970): Declined requests — the un-block path
     createEncPassScreen, ENC_DELIM,
     attachPressFeedback,
-    settingsThemeSheet, settingsOptionSheet, createTopbar,
+    settingsThemeSheet, settingsOptionSheet, languageNote, createTopbar,
     dismissOverlay,   // ★ review MINOR-4: tear an open sheet down before a theme-flip rebuild
     openAddressSheet, closeAddressSheet,   // ★ Batch E (d) (#557): the ONE address surface — createSheet/openSheet left with the hand-built #443 explainer; close rides exitSettings (C-8, this document PARKS)
     createBottomNav, setNavActive, setNavBadge, attachLandscapeRail, showToast,
@@ -490,6 +490,15 @@
       || 'Your system language is set for Spixi, but this interface is still shown in English. Its translation is on the way.')
     : undefined);
   const langOptions = (code) => langList(code).map((l) => ({ value: l.code, label: l.label, flag: l.flag }));
+  /* ★ S9 L (#1246 L = A, #1143): the AI-translation note + "Report a translation problem" on
+   * EVERY picker for a non-English language (not for the A4 hidden fallback — its UI is English
+   * and the hint says so). 🟡 verb `ixian:reportTranslation:<code>`: C# validates the code
+   * against its language list and builds the mailto itself — the WebView never sends a URL.
+   * The code is the shell's own state.language (a pushed / picked list code), never typed text. */
+  const reportTranslation = (code) => {
+    if (/^[a-z]{2}-[a-z]{2}$/.test(String(code || ''))) bridge.send('ixian:reportTranslation:' + code);
+  };
+  const langNote = (code) => languageNote({ code, hidden: langIsHidden(code), strings, onReport: reportTranslation });
 
   /* —— theme —————————————————————————————————————————————————————————————————
    * The redesign swaps the token theme via data-theme (no page reload needed),
@@ -1122,6 +1131,7 @@
         settingsOptionSheet({
           title: strings.language || 'Language',
           hint,
+          note: langNote(state.language),      // ★ S9 L — undefined here today (hidden ⇒ no note); kept so the four pickers read the same
           options: langOptions(state.language),
           current: state.language,
           host: document.body,
@@ -1140,6 +1150,7 @@
       // and would rewrite it here too. Locales without
       // a shell dictionary stay hidden — see the LANGS/PENDING_LANGS note above.
       onLanguage: (code, ctrl) => { state.language = code; bridge.send('ixian:language:' + code); ctrl.done(); },
+      onReportTranslation: reportTranslation,  // ★ S9 L: the hub sheet's note link
 
       // app lock — ON optimistic; OFF also optimistic here (matches legacy): the frozen
       // bridge only CONFIRMS a successful OFF (setLockEnabled('False') on auth success)
@@ -1648,6 +1659,7 @@
         settingsOptionSheet({
           title: strings.language || 'Language',
           hint: langHint(state.language),      // A4: only when the fallback row is present
+          note: langNote(state.language),      // ★ S9 L: the desktop pane picker
           options: langOptions(state.language),
           current: state.language, strings, inline: true,
           // C# persists the pick and re-localizes this document IN PLACE (the

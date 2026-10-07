@@ -146,7 +146,7 @@ export default async function (h) {
       && /case "react":\s*\{\s*int index = ReactionSet\.parseIndex\(data\);\s*if \(index < 0 \|\| !ReactionSet\.isHexId\(msg_id_hex\)\)\s*\{[^}]*break;\s*\}\s*quickIndex = index;\s*\}\s*goto case "like";/.test(oc)
       && /case "like":\s*string wire = ReactionSet\.wireFor\(quickIndex\);/.test(oc)
       && /friend\.addReaction\(address, new ReactionMessage\(msg_id, wire\), selectedChannel\)/.test(like)
-      && /StreamProcessor\.sendReaction\(friend, msg_id, wire, selectedChannel\);/.test(like)
+      && /sendSilentReaction\(friend, msg_id, wire, selectedChannel\);/.test(like)   /* ★ S9 A3 r1 re-base (silent reactions): Core's push-TRUE sendReaction → the Spixi silent sender, same wire */
       && !/"like:"/.test(oc),
       'S8 R1 react verb: like = index 1; react validates hex id + index 0–5 and joins the like writer; the stored and sent text is ReactionSet.wireFor (#1232)');
   });
@@ -165,7 +165,7 @@ export default async function (h) {
   await guard('S8 A1 join accept', async () => {
     const j = bodyOf(SCP, 'public void onJoinApp(string app_id)');
     const s = bodyOf(SCP, 'private void sendJoinAccept(');
-    ok(/^\{\s*sendJoinAccept\(app_id\);/.test(j)
+    ok(/^\{\s*FriendMessage\? joinRow = findJoinRow\(app_id\);[\s\S]{0,400}?if \(!reopen\)\s*\{\s*sendJoinAccept\(app_id\);/.test(j)   /* ★ S9 A3 #46 r1 re-base (MINOR-2): Join still accepts first — except "Open again" on an already-joined row (S9FixRules.joinIsReopen) */
       && /byte\[\] sessionId = MiniAppPage\.sessionIdFor\(app_id\);/.test(s)
       && /if \(AppInviteRules\.joinSendsAccept\(app_id, newest != null, newest != null && !newest\.localSender, AppInviteRules\.wasAccepted\(peer, sessionHex\)\)\s*&& AppInviteRules\.claimAccept\(peer, sessionHex\)\)\s*\{\s*StreamProcessor\.sendAppRequestAccept\(friend, sessionId\);/.test(s)
       && /sessionId = sessionIdFor\(app_id\);/.test(stripCode(rd('Spixi/Pages/MiniApps/MiniAppPage.xaml.cs'))),
@@ -188,7 +188,9 @@ export default async function (h) {
     const ins = SCP.slice(SCP.indexOf('if (message.type == FriendMessageType.appSession)'), SCP.indexOf('push(batch, "addAppRequest"'));
     const rej = bodyOf(SP, 'public static void handleAppRequestReject(');
     const mk = bodyOf(SP, 'private static void markDeclinedByPeer(');
-    ok(/if \(message\.id != null && SAppDeclines\.has\(friend\.walletAddress\.ToString\(\), Crypto\.hashToString\(message\.id\)\)\)\s*\{\s*app_state = "Declined";/.test(ins)
+    /* ★ S9 A3 re-base (8-APP #1247): the declined read now feeds the ONE state rule S9FixRules.appState (Declined first —
+       csh S9FixTests.app_state_order), beside the new joined read. Was: `if (… SAppDeclines.has(…)) { app_state = "Declined"; }`. */
+    ok(/string rowHex = message\.id != null \? Crypto\.hashToString\(message\.id\) : "";\s*string peerKey = friend\.walletAddress\.ToString\(\);\s*app_state = S9FixRules\.appState\(app_state == "Missing", app_state == "Minimized",\s*rowHex\.Length > 0 && SAppJoins\.has\(peerKey, rowHex\),\s*rowHex\.Length > 0 && SAppDeclines\.has\(peerKey, rowHex\)\);/.test(ins)
       && before(rej, 'VoIPManager.hasSession(session_id)', 'markDeclinedByPeer(sender_address, session_id)')
       && /friend\.type != FriendType\.Normal/.test(mk)
       /* #46 r1 (C-MAJOR-3 J2/J3): the row predicate is the PURE AppInviteRules.isMyInviteForSession (csh), given the row's

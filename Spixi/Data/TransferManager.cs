@@ -31,6 +31,16 @@ namespace SPIXI
 
         public int channel = 0;
 
+        /* ★ S9 (#1244, CONTRACT §1d — 🟡 wire, BE ask): THE PHOTO-GROUP TRAILER. One pick = one group: the sender tags each
+         * file of the pick with the same group id, its index, the count and the caption message's id. Written AFTER
+         * `channel` and only for a file of a group (a plain file's header is byte-for-byte the old one). An OLD reader
+         * (0e85a4b8 FileTransfer(byte[]) and Core's FileHeaderMessage) reads sequentially and ignores the trailing bytes;
+         * this reader reads them only when bytes remain, inside its own try, and keeps them only when PhotoRules.trailerOk. */
+        public string groupId = "";        // "" = not in a group; else 16 hex
+        public int groupIndex = 0;
+        public int groupCount = 0;
+        public string captionId = "";      // "" = no caption; else the caption text message's id (hex)
+
         public FileTransfer()
         {
             uid = Guid.NewGuid().ToString("N");
@@ -78,18 +88,64 @@ namespace SPIXI
                         fileSize = reader.ReadUInt64();
 
                         int data_length = reader.ReadInt32();
-                        if (data_length > 0)
+                        /* ★ S9 #46 r1 NIT: the preview length is the PEER's — a preview above PhotoRules.MaxPreviewBytes is
+                         * skipped unread (never allocated); a length past the end of the header throws (the catch below). No
+                         * sender sets a preview (0e85a4b8 and this app write 0), so nothing real is lost. */
+                        if (PhotoRules.previewLengthOk(data_length))
                             preview = reader.ReadBytes(data_length);
+                        else if (data_length > 0)
+                        {
+                            if (m.Length - m.Position < data_length)
+                                throw new EndOfStreamException();
+                            m.Seek(data_length, SeekOrigin.Current);
+                        }
 
                         packetSize = reader.ReadInt32();
 
                         channel = reader.ReadInt32();
+
+                        if (m.Position < m.Length)
+                        {
+                            readGroupTrailer(reader);
+                        }
                     }
                 }
             }
             catch (Exception e)
             {
                 Logging.error("Exception occured while trying to construct FileTransfer from bytes: " + e);
+            }
+        }
+
+        /** ★ S9 (#1244): the optional group trailer — read in its own try (a malformed trailer never spoils the header), kept
+         *  only when valid; anything else leaves the file ungrouped. A fixed-word log, no value. */
+        private void readGroupTrailer(BinaryReader reader)
+        {
+            try
+            {
+                string gid = reader.ReadString();
+                int index = reader.ReadInt32();
+                int count = reader.ReadInt32();
+                string cap = reader.ReadString();
+                if (gid.Length == 0)
+                {
+                    return;
+                }
+                if (PhotoRules.trailerOk(gid, index, count, cap))
+                {
+                    groupId = gid;
+                    groupIndex = index;
+                    groupCount = count;
+                    captionId = cap.ToLowerInvariant();
+                }
+                else
+                {
+                    Logging.warn("File header: the group trailer was not valid, the file is shown alone");
+                }
+            }
+            catch (Exception)
+            {
+                Logging.warn("File header: the group trailer could not be read, the file is shown alone");
             }
         }
 
@@ -119,6 +175,15 @@ namespace SPIXI
                     writer.Write(packetSize);
 
                     writer.Write(channel);
+
+                    // ★ S9 (#1244): the group trailer — only for a file of a valid group (see the fields above)
+                    if (groupId.Length > 0 && PhotoRules.trailerOk(groupId, groupIndex, groupCount, captionId))
+                    {
+                        writer.Write(groupId);
+                        writer.Write(groupIndex);
+                        writer.Write(groupCount);
+                        writer.Write(captionId);
+                    }
                 }
                 return m.ToArray();
             }
@@ -430,6 +495,14 @@ namespace SPIXI
 
         public static FileTransfer prepareIncomingFileTransfer(FileTransfer transfer)
         {
+            /* ★ S9 A-9 (#1244 / #1245, CONTRACT §1f): an offer above PhotoRules.MaxFileBytes (100 MB) is refused here, before
+             * anything is created or SetLength reserves the space (acceptFile keeps a second check). The caller treats null
+             * as "not accepted" (SingleChatPage.onAcceptFile). Fixed words only. */
+            if (transfer == null || transfer.fileSize > (ulong)PhotoRules.MaxFileBytes)
+            {
+                Logging.warn("File offer refused: above the size cap");
+                return null;
+            }
             lock (incomingTransfers)
             {
                 if (incomingTransfers.Find(x => x.uid.SequenceEqual(transfer.uid)) != null)
@@ -440,7 +513,7 @@ namespace SPIXI
                 incomingTransfers.Add(transfer);
             }
 
-            Logging.info("File Transfer Size: {0} {1}", transfer.fileName, transfer.fileSize);
+            Logging.info("File Transfer Size: {0}", transfer.fileSize);   // ★ S9 A-6: the size only — the name is the peer's
 
             return transfer;
         }
@@ -664,15 +737,24 @@ namespace SPIXI
             
             if(incoming && transfer.fileName != null && transfer.fileName != "")
             {
-                string final_file_path = Path.Combine(downloadsPath, transfer.fileName);
+                /* ★ S9 A-6 (#1245, CONTRACT §1f): the stored name is the peer's name SANITIZED (PhotoRules.SafeFileName — a
+                 * plain leaf on every OS) and C# chooses the final path: Downloads/<safe name>, a collision → "<name> (n)<ext>".
+                 * The result is re-checked against the Downloads root before the move (fail-closed). */
+                string safe_name = PhotoRules.SafeFileName(transfer.fileName);
+                string final_file_path = Path.Combine(downloadsPath, safe_name);
                 int instance_num = 0;
-                while (File.Exists(final_file_path))
+                while (File.Exists(final_file_path) && instance_num < 10000)
                 {
                     instance_num++;
-                    final_file_path = Path.Combine(downloadsPath, Path.GetFileNameWithoutExtension(transfer.fileName) + "-" + instance_num.ToString() + Path.GetExtension(transfer.fileName));
+                    final_file_path = Path.Combine(downloadsPath, PhotoRules.collisionName(safe_name, instance_num));
+                }
+                if (!isInsideDownloadsRoot(Path.GetFullPath(final_file_path)) || File.Exists(final_file_path))
+                {
+                    final_file_path = Path.Combine(downloadsPath, "file-" + Guid.NewGuid().ToString("N"));
                 }
                 File.Move(transfer.filePath, final_file_path);
                 transfer.filePath = final_file_path;
+                transfer.fileName = Path.GetFileName(final_file_path);
             }
 
             transfer.completed = true;
@@ -703,7 +785,13 @@ namespace SPIXI
                 }
             }
 
-            FriendMessage fm = chat_friend.getMessages(transfer.channel).Find(x => x.transferId == uid);
+            /* ★ S9 #46 r4: the row of THIS direction only — a peer's offer that reuses MY transfer id must never complete (and
+             * re-path) my sent row, and the reverse (my Sent copy would stop being named and the sweep would delete it). */
+            FriendMessage? fm = chat_friend.getMessages(transfer.channel)?.Find(x => x.transferId == uid && x.localSender != incoming);
+            if (fm == null)
+            {
+                return;
+            }
             fm.completed = true;
             fm.filePath = transfer.filePath;
 
@@ -803,11 +891,24 @@ namespace SPIXI
                 if (transfer == null)
                     return;
 
-                Logging.info("Accepting file {0}", transfer.fileName);
+                Logging.info("Accepting file");   // ★ S9 A-6: fixed words — the name is the peer's
+
+                // ★ S9 A-9 (#1245): the belt behind prepareIncomingFileTransfer — never reserve more than the cap
+                if (transfer.fileSize > (ulong)PhotoRules.MaxFileBytes)
+                {
+                    Logging.warn("File accept refused: above the size cap");
+                    lock (incomingTransfers)
+                    {
+                        incomingTransfers.Remove(transfer);
+                    }
+                    return;
+                }
 
                 transfer.lastTimeStamp = Clock.getTimestamp();
 
-                transfer.filePath = Path.Combine(downloadsPath, transfer.fileName + "." + uid + ".ixipart");
+                // ★ S9 A-6 (#1245): the part file is C#'s own name (never the peer's name or uid in a path)
+                Directory.CreateDirectory(downloadsPath);
+                transfer.filePath = Path.Combine(downloadsPath, PhotoRules.partFileName(Guid.NewGuid().ToString("N")));
 
                 transfer.fileStream = File.Create(transfer.filePath);
                 transfer.fileStream.SetLength((long)transfer.fileSize);

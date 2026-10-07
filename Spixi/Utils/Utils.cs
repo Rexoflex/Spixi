@@ -369,10 +369,75 @@ namespace SPIXI
             }
         }
 
+        /* ★ C-01 (#1245): MAUI's NavigationStack is a live UI-thread collection. getChatPage / getChatPages run on
+         * network threads and the 2 s UI tick runs on a pool thread, so they never enumerate it directly any more:
+         * the MAIN thread copies it (navigationStackSnapshot below) and the other threads read the last copy. The copy
+         * is refreshed on every main-thread read, on every push / pop of the root NavigationPage, and once per UI tick
+         * (HomePage.OnUpdateUI reads it on the main thread); an off-thread read also queues one refresh. */
+        private static volatile Microsoft.Maui.Controls.Page[] navSnapshot = Array.Empty<Microsoft.Maui.Controls.Page>();
+        private static int navRefreshQueued;   // 0/1 — one queued main-thread refresh at a time
+        private static Microsoft.Maui.Controls.NavigationPage? navHooked;   // the root whose push/pop events refresh the copy
+
+        /// <summary>C-01: the root NavigationStack as an array copy, safe from any thread. On the main thread it is
+        /// fresh (and stored); elsewhere it is the last main-thread copy. Never throws; never null.</summary>
+        public static Microsoft.Maui.Controls.Page[] navigationStackSnapshot()
+        {
+            if (MainThread.IsMainThread)
+            {
+                return refreshNavigationSnapshot();
+            }
+            if (System.Threading.Interlocked.Exchange(ref navRefreshQueued, 1) == 0)
+            {
+                try
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        System.Threading.Interlocked.Exchange(ref navRefreshQueued, 0);
+                        refreshNavigationSnapshot();
+                    });
+                }
+                catch (Exception)
+                {
+                    System.Threading.Interlocked.Exchange(ref navRefreshQueued, 0);
+                }
+            }
+            return navSnapshot;
+        }
+
+        /// <summary>C-01: MAIN THREAD ONLY — copies the root NavigationStack into the snapshot and returns it.</summary>
+        private static Microsoft.Maui.Controls.Page[] refreshNavigationSnapshot()
+        {
+            try
+            {
+                Microsoft.Maui.Controls.Page? root = Microsoft.Maui.Controls.Application.Current?.MainPage;
+                if (root is Microsoft.Maui.Controls.NavigationPage np && !ReferenceEquals(np, navHooked))
+                {
+                    // a new root (App() sets MainPage per start) — refresh on its pushes and pops too
+                    np.Pushed += (s, e) => refreshNavigationSnapshot();
+                    np.Popped += (s, e) => refreshNavigationSnapshot();
+                    np.PoppedToRoot += (s, e) => refreshNavigationSnapshot();
+                    navHooked = np;
+                }
+                IReadOnlyList<Microsoft.Maui.Controls.Page>? stack = root?.Navigation?.NavigationStack;
+                Microsoft.Maui.Controls.Page[] copy = new Microsoft.Maui.Controls.Page[stack?.Count ?? 0];
+                for (int i = 0; i < copy.Length; i++)
+                {
+                    copy[i] = stack![i];
+                }
+                navSnapshot = copy;
+                return copy;
+            }
+            catch (Exception e)
+            {
+                Logging.warn("navigation snapshot: the copy failed (" + e.GetType().Name + ")");
+                return navSnapshot;
+            }
+        }
+
         public static SingleChatPage? getChatPage(Friend friend)
         {
             
-            foreach (var item in App.Current.MainPage.Navigation.NavigationStack)
+            foreach (var item in navigationStackSnapshot())   // ★ C-01: a main-thread copy, never the live stack
             {
                 if (item is SingleChatPage)
                 {
@@ -419,7 +484,7 @@ namespace SPIXI
         public static List<SingleChatPage> getChatPages()
         {
             List<SingleChatPage> chatPages = new();
-            foreach (var item in App.Current.MainPage.Navigation.NavigationStack)
+            foreach (var item in navigationStackSnapshot())   // ★ C-01: a main-thread copy, never the live stack
             {
                 if (item is SingleChatPage stackChat && stackChat.friend != null)
                 {
@@ -799,7 +864,11 @@ namespace SPIXI
                  * makes it an unobserved exception that no log line can see. The continuation
                  * reads the outcome, so the failure line below is reachable for the fault, for
                  * a cancellation and for a plain false result. */
-                Browser.Default.OpenAsync(target).ContinueWith(t =>
+                /* ★ S9 A3 #46 r1 (MAJOR-2): a MAIL link goes to the system LAUNCHER (the mail app). Browser.OpenAsync is an in-app
+                 * browser on iOS / Mac (SFSafariViewController: http / https only), so a mailto through it failed there —
+                 * the language report link (#1246) and the rating prompt's mail. A web link keeps the browser. The object
+                 * opened is still the one the test above ran on. */
+                (kind == ExternalTarget.MailCompose ? Launcher.Default.OpenAsync(target) : Browser.Default.OpenAsync(target)).ContinueWith(t =>
                 {
                     if (t.IsFaulted || t.IsCanceled || !t.Result)
                     {
@@ -813,6 +882,24 @@ namespace SPIXI
                 Logging.error("openExternal handoff failed: kind=" + kind + " scheme=" + target.Scheme + " " + ex.GetType().Name);
                 return false;
             }
+        }
+
+        /* ★ S9 A3 #1246 (🟡 NEW verb `ixian:reportTranslation:<langCode>`, Settings + Launch): the language note's
+         * "Report a translation problem" link. The WebView sends a LANGUAGE CODE only; C# checks it against the app's own
+         * language list (SpixiLocalization.getLanguageCodes) and builds the ONE link itself —
+         * `mailto:support@spixi.io?subject=Spixi%20translation%20problem%20%28<code>%29` (S9FixRules.translationReportMailto)
+         * — and hands it to the ONE external-open gate with the MailCompose kind (the HomePage rating-prompt path). No URL,
+         * address, subject or body ever comes from the WebView; an unknown code opens nothing. The log line carries fixed
+         * words only (never the code). */
+        public static bool openTranslationReport(string? langCode)
+        {
+            string? url = S9FixRules.translationReportMailto(langCode, SPIXI.Lang.SpixiLocalization.getLanguageCodes());
+            if (url == null)
+            {
+                Logging.warn("reportTranslation: the language code was refused");
+                return false;
+            }
+            return openExternal(url, ExternalTarget.MailCompose);
         }
 
         public static bool IsAllowedURL(string url)

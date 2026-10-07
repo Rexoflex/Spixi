@@ -154,3 +154,15 @@
 @media (prefers-reduced-motion: reduce) {
   .c-mviewer__spinner { animation: none; }
 }
+
+/* ★ S9 (#1244 G = A): a paged viewer (a photo group) — ‹ ✕ › in the foot, the "2 / 7" counter under it */
+.c-mviewer__foot[data-paged] { align-items: center; gap: var(--spacing-24); }
+.c-mviewer__nav:disabled { opacity: 0.35; cursor: default; }
+.c-mviewer__count {
+  flex: none;
+  text-align: center;
+  color: var(--text-on-scrim);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  padding-top: var(--spacing-4);
+}

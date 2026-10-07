@@ -7,7 +7,11 @@
      the history, the offline send queue and the logs stay OUT of Google / adb backups.
      The wallet, the account (Acc), the avatar and the preferences are NOT excluded:
      a restore that brings back wallet.ixi is what backups are for. No wildcards exist
-     in this format, so the log rotation is listed by name (Config.maxLogCount = 5). -->
+     in this format, so the log rotation is listed by name (Config.maxLogCount = 5).
+     ★ H-14 (#1245): localonly.json (SLocalOnlyStore — the declined-request addresses and the push
+     trace salt) never leaves the device either.
+     ★ S9 (#1244 / #1200): Spixi/Sent = the durable copies of the photos and files I sent (they could pass the
+     25 MB backup quota and stop the wallet backup) — never backed up. -->
 <full-backup-content>
     <exclude domain="file" path="Spixi/Chats" />
     <exclude domain="file" path="Spixi/MsgQueue" />
@@ -17,4 +21,7 @@
     <exclude domain="file" path="Spixi/ixian.3.log" />
     <exclude domain="file" path="Spixi/ixian.4.log" />
     <exclude domain="file" path="Spixi/ixian.5.log" />
+    <exclude domain="file" path="Spixi/localonly.json" />
+    <exclude domain="file" path="Spixi/localonly.json.tmp" />
+    <exclude domain="file" path="Spixi/Sent" />
 </full-backup-content>

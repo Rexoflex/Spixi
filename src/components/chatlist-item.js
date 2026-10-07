@@ -85,6 +85,7 @@ export function createIndicators({ count = 0, mention = false, muted = false, re
 /* —— excerpt (§5): type → optional 16px glyph + toned text parts —— */
 const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone',
+  photo: 'photo',   // ★ S9: a photo / photo group (C# excerptKind "photo") — the picture glyph where a file shows the paperclip
   /* ★ #602 (row 16): a call you TURNED DOWN is not a call you missed — it gets its own
      glyph, and both are already in the registry.
      ★★ #621 (Damir on the device, 2026-08-28): THE TWO ARE SWAPPED from #602's first

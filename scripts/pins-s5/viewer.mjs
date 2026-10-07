@@ -235,7 +235,7 @@ export default async function (h) {
       delOffUi: /System\.Threading\.Tasks\.Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*if \(!SharedItems\.deleteLocal\(item\)\)/.test(del)
         && /string json = SharedItems\.toJson\(page\.p1NoteShared\(SharedItems\.scan\(scanned\)\)\);/.test(del)   /* ★ #1194 re-base: the probe counter wraps the scan (pins-s6/probe.mjs) */ && /if \(page\.isDisposed\)\s*\{\s*return;\s*\}\s*Utils\.sendUiCommand\(page, "setSharedItems", json\);/.test(del)
         && !/File\.Delete/.test(del),
-      dlNameOnly: /string\? name = SharedItems\.downloadsNameOf\(item\);/.test(dl) && /pushPageLoaded\(new DownloadsPage\(name\)\);/.test(dl) && !/item\.path/.test(dl),
+      dlNameOnly: /string\? name = SharedItems\.downloadsNameOf\(item\);/.test(dl) && /pushPageLoaded\(DownloadsPage\.create\(name\)\);/.test(dl) && !/item\.path/.test(dl),
       /* no path, name, label or id in a push or a log of the three verbs */
       noPathInPushes: !/sendUiCommand\([^;]*(path|label|item\.id|name)\b/.test(view + del) ,
       logsTypeOrLen: [view, del, dl].every((t) => logs(t).every((l) => !/\b(path|label|name|item\.id|token\))\b/.test(l.replace(/"[^"]*"/g, '')) || /token\.Length/.test(l))),
@@ -277,7 +277,7 @@ export default async function (h) {
     const sig = /public static byte\[\]\? makeViewerJpeg\(string path, int maxEdge\)/;
     Object.assign(r, {
       allFour: [and, ios, mac, win].every((t) => sig.test(t)),
-      androidBounded: /int decodeCap = Math\.Min\(maxEdge \* 2, MaxLongSide\);\s*int sample = 1;\s*while \(longSide \/ sample > decodeCap\)/.test(and) && /InJustDecodeBounds = true/.test(and.slice(and.indexOf('makeViewerJpeg')))
+      androidBounded: /int sample = SPIXI\.PhotoRules\.decodeSample\(longSide, maxEdge\);/.test(and)   /* ★ S9 A1 re-base (#1244): the sample keeps the decode ≥ maxEdge, < 2 × maxEdge (PhotoRules.decodeSample, csh S9MediaTests) */ && /InJustDecodeBounds = true/.test(and.slice(and.indexOf('makeViewerJpeg')))
         && /applyOrientation\(m, exifOrientation\(path\)\);/.test(and) && /Compress\(Bitmap\.CompressFormat\.Jpeg!, 82, ms\)/.test(and),
       appleBounded: [ios, mac].every((t) => /MaxPixelSize = Math\.Min\(maxEdge, MaxLongSide\),/.test(t) && /CreateThumbnailWithTransform = true,/.test(t.slice(t.indexOf('makeViewerJpeg'))) && /AsJPEG\(0\.82f\)/.test(t)),
       windowsBounded: /ScaledWidth = sw,\s*ScaledHeight = sh,/.test(win.slice(win.indexOf('makeViewerAsync'))) && /SPIXI\.ViewerRules\.orientBgra\(raw, \(int\)sw, \(int\)sh, orientation, out int ow, out int oh\)/.test(win)

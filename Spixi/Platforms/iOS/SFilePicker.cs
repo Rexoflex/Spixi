@@ -1,6 +1,9 @@
 ﻿using Foundation;
 using IXICore.Meta;
 using Microsoft.Maui.Storage;
+using Microsoft.Maui.Media;
+using Microsoft.Maui.ApplicationModel;
+using System.Collections.Generic;
 using Spixi.Platform.iOS;
 using SPIXI.Interfaces;
 using System;
@@ -51,6 +54,134 @@ namespace Spixi
 
             // Return Task object
             return spixi_img_data;
+        }
+
+        /* ★ S9 (#1244, CONTRACT §1b `ixian:sendmedia`): the chat's PHOTO pick — PHPickerViewController with selectionLimit =
+         * max, images only (MAUI MediaPicker.PickPhotosAsync, Essentials MediaPicker.ios.cs PhotosAsync: PHPickerConfiguration
+         * { Filter = ImagesFilter, SelectionLimit }; PHPicker needs NO photo-library permission). Each result's stream is the
+         * item provider's data in its own format (HEIC / JPEG / PNG — no lossy AsJPEG(1) here; C# re-encodes once, to the
+         * #1158 rule). Cancel / swipe-down → an empty list. Must start on the main thread. */
+        public static async Task<List<SpixiImageData>> PickImagesAsync(int max)
+        {
+            List<SpixiImageData> picked = new List<SpixiImageData>();
+            List<FileResult>? results = await MediaPicker.Default.PickPhotosAsync(new MediaPickerOptions { SelectionLimit = max });
+            if (results == null)
+            {
+                return picked;
+            }
+            for (int i = 0; i < results.Count; i++)
+            {
+                Stream? st = null;
+                if (i < max && results[i] != null)
+                {
+                    try
+                    {
+                        st = await results[i].OpenReadAsync();
+                    }
+                    catch (Exception e)
+                    {
+                        Logging.warn("Photo pick: a picked item could not be opened (" + e.GetType().Name + ")");
+                    }
+                }
+                picked.Add(new SpixiImageData() { name = "", path = "", stream = st });
+            }
+            return picked;
+        }
+
+        /** ★ #46 r1 (shell auditor): the Camera tile only on a device that has a camera. */
+        public static bool CameraAvailable()
+        {
+            return UIImagePickerController.IsSourceTypeAvailable(UIImagePickerControllerSourceType.Camera);
+        }
+
+        /* ★ S9 (#1244, `ixian:camera`) · #46 r1 M-1: one photo from the camera with a NATIVE UIImagePickerController (camera
+         * source). MAUI's CapturePhotoAsync asks Permissions.PhotosAddOnly (MediaPicker.ios.cs PhotoAsync, the !pickExisting
+         * branch) — Info.plist has no NSPhotoLibraryAddUsageDescription, so every capture was refused — and with no options
+         * it encodes the full-size image (quality 100) on the main thread. Here: ONLY the camera permission (Permissions.Camera
+         * = AVCaptureDevice), OriginalImage taken, and the image drawn at ≤ PhotoRules.MaxEdge (orientation applied by the
+         * draw) + JPEG-encoded OFF the UI thread (q95 — the #1158 encoder re-encodes once at q82). No photo-library access,
+         * nothing saved to the library. A refusal throws PermissionException (→ `cameraDenied`). Cancel → null. */
+        public static async Task<SpixiImageData?> CapturePhotoAsync(long cap)
+        {
+            if (!CameraAvailable())
+            {
+                throw new FeatureNotSupportedException();
+            }
+            PermissionStatus status = await Permissions.CheckStatusAsync<Permissions.Camera>();
+            if (status != PermissionStatus.Granted)
+            {
+                status = await Permissions.RequestAsync<Permissions.Camera>();
+            }
+            if (status != PermissionStatus.Granted)
+            {
+                throw new PermissionException("camera");
+            }
+            TaskCompletionSource<UIImage?> tcs = new TaskCompletionSource<UIImage?>();
+            UIImagePickerController camera = new UIImagePickerController
+            {
+                SourceType = UIImagePickerControllerSourceType.Camera,
+                MediaTypes = new[] { "public.image" },
+                AllowsEditing = false,
+            };
+            camera.FinishedPickingMedia += (sender, args) =>
+            {
+                UIImage? shot = args.OriginalImage;
+                camera.DismissViewController(true, null);
+                tcs.TrySetResult(shot);
+            };
+            camera.Canceled += (sender, args) =>
+            {
+                camera.DismissViewController(true, null);
+                tcs.TrySetResult(null);
+            };
+            UIViewController? host = Microsoft.Maui.ApplicationModel.WindowStateManager.Default.GetCurrentUIViewController();   // the call MauiFilePicker.cs:50 already makes
+            if (host == null)
+            {
+                return null;
+            }
+            host.PresentViewController(camera, true, null);
+            UIImage? image = await tcs.Task;
+            if (image == null)
+            {
+                return null;
+            }
+            byte[]? jpeg = await Task.Run(() => drawBounded(image));
+            if (jpeg == null || jpeg.Length == 0)
+            {
+                return null;
+            }
+            return new SpixiImageData() { name = "", path = "", stream = new MemoryStream(jpeg, false) };
+        }
+
+        /** OFF the UI thread: draw the camera image at ≤ PhotoRules.MaxEdge px (UIGraphicsImageRenderer is thread-safe; the
+         *  draw applies the orientation) and encode JPEG q95 — no source metadata is carried. null on any failure. */
+        private static byte[]? drawBounded(UIImage image)
+        {
+            try
+            {
+                double w = image.Size.Width * image.CurrentScale;
+                double h = image.Size.Height * image.CurrentScale;
+                if (w <= 0 || h <= 0)
+                {
+                    return null;
+                }
+                double k = Math.Min(1.0, SPIXI.PhotoRules.MaxEdge / Math.Max(w, h));
+                CoreGraphics.CGSize target = new CoreGraphics.CGSize(Math.Max(1, Math.Round(w * k)), Math.Max(1, Math.Round(h * k)));
+                UIGraphicsImageRendererFormat format = new UIGraphicsImageRendererFormat { Scale = 1, Opaque = true };
+                using UIGraphicsImageRenderer renderer = new UIGraphicsImageRenderer(target, format);
+                using UIImage drawn = renderer.CreateImage((ctx) => image.Draw(new CoreGraphics.CGRect(0, 0, target.Width, target.Height)));
+                using NSData? data = drawn.AsJPEG(0.95f);
+                return data?.ToArray();
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Camera: the photo could not be drawn (" + e.GetType().Name + ")");
+                return null;
+            }
+            finally
+            {
+                image.Dispose();
+            }
         }
 
         static void OnImagePickerFinishedPickingMedia(object sender, UIImagePickerMediaPickedEventArgs args)

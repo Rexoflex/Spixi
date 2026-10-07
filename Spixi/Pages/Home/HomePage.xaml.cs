@@ -191,6 +191,13 @@ namespace SPIXI
         private const double detailMinWidth = 320;     // conversation keeps at least this
         private bool infoPaneCol2Pending = false;      // set at push, consumed at present
         private bool infoPaneCol2Open = false;         // col 2 currently expanded
+        /* ★ S9 A3 #1179 (a) (#1247): the col-2 info pane FOLLOWS a chat switch (desktop) — the address of the chat it
+         * follows (set in onChat, consumed when the new pane presents), the pane it replaces, and "present the new pane
+         * with NO column motion" (the column is already at its width). UI thread. */
+        private readonly S9FixRules.InfoPaneFollow infoPaneFollow = new S9FixRules.InfoPaneFollow();   // ★ #46 r1 (MAJOR-1): lives until pane B presents
+        private ContactDetails? infoPaneFollowFrom = null;
+        private bool infoPaneSwapNoMotion = false;
+        private int infoPaneFollowRun = 0;
         /* ★ #1166 lever 7 (#1165 (3)) — HOW THE DESKTOP INFO PANE ARRIVES. ONE TOKEN, TWO PATHS:
          *   "width" — col 2 runs 0 → pane width on the slide clock (SpixiContentPage.slideInMs / slideInEasing, 220 ms);
          *             the pane is laid out at its full width and CLIPPED by the column (the info shell never reflows);
@@ -710,6 +717,10 @@ namespace SPIXI
                 {
                     return ColumnMotion.None;
                 }
+                if (infoPaneSwapNoMotion)
+                {
+                    return ColumnMotion.None;   // ★ S9 A3 #1179 (a): a pane that follows a chat switch — no column animation
+                }
                 return infoPaneMotionMode();
             }
             if (!infoPaneCol2Open || !ReferenceEquals(cd, infoPaneCol2Page))
@@ -894,7 +905,15 @@ namespace SPIXI
                 return;
             }
 
-            if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
+            if (current_url.Equals("ixian:bootDropped", StringComparison.Ordinal))
+            {
+                /* ★ S9 A-FLASH C1 (#1205, 🟡 NEW verb, no argument): home.html's boot cover finished its fade — Android draws
+                 * the content view again (MainActivity.releaseBootHold; a no-op once released, and on every other platform). */
+#if ANDROID
+                global::Spixi.MainActivity.releaseBootHold("dropped");
+#endif
+            }
+            else if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
                 onLoaded();
             }
@@ -1209,6 +1228,12 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:backup", StringComparison.Ordinal))
             {
+                // ★ H-3 (#1245): "Back up now" on the nudge fires this verb — the reminder is stamped at THAT moment
+                // (only when the nudge was pushed this session; the push-time stamp below still covers "Not now").
+                if (System.Threading.Interlocked.Exchange(ref backupNudgeOpen, 0) == 1)
+                {
+                    Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());
+                }
                 pushPageLoaded(new BackupPage());   // load-then-move (N3, round 2)
             }
             else if (current_url.Equals("ixian:encpass", StringComparison.Ordinal))
@@ -1477,7 +1502,7 @@ namespace SPIXI
                 // HomePage — the live entry is the Account hub → SettingsPage), but
                 // aligned to the overlay presenter so DownloadsPage.onBack's
                 // popPageAsync (no longer PopModalAsync) works from EVERY presenter.
-                pushPageLoaded(new DownloadsPage());
+                pushPageLoaded(DownloadsPage.create());   // ★ S9 A3 #1173 (8): the same presentation as every Downloads entry
             }
             else if (current_url.Equals("ixian:contributors", StringComparison.Ordinal))
             {
@@ -2010,6 +2035,105 @@ namespace SPIXI
             }
         }
 
+        /* ★ S9 A3 #1179 (a) (#1247, Damir: "the desktop info pane stays open on a chat switch and reloads for the new peer").
+         * Mechanism (tree): onChat closed every ContactDetails before the new chat staged (#247), so the pane went away and the
+         * column animated shut. Now, on DESKTOP with a WIDE window, the pane pinned BESIDE the conversation (col 2,
+         * infoPaneCol2Page) stays (S9FixRules.infoPaneFollowsChat); when the new conversation PRESENTS, a new ContactDetails
+         * for the new peer is staged into the same col-2 geometry with no slide and no column motion (infoPaneSwapNoMotion)
+         * and its "chatinfo" tag-replace closes the old pane after it is on glass — the existing different-contact swap
+         * (openContactDetails). Each pane keeps its OWN WebView (#221); nothing crosses between them. A load that never
+         * presents: the old pane is closed by a backstop after the stage timeout. Col-1 / narrow / mobile: unchanged.
+         * UI thread. */
+        private bool keepInfoPaneForSwitch(Friend target)
+        {
+            ContactDetails? beside = infoPaneCol2Open ? infoPaneCol2Page : null;
+            bool paneBeside = beside != null && SpixiContentPage.getOverlayPages().Exists(p => ReferenceEquals(p, beside));
+            if (!S9FixRules.infoPaneFollowsChat(isDesktopPlatform(), rightContent.IsVisible, paneBeside))
+            {
+                endInfoPaneFollow();
+                return false;
+            }
+            infoPaneFollow.begin(target.walletAddress.ToString());
+            infoPaneFollowFrom = beside;
+            int run = ++infoPaneFollowRun;
+            ContactDetails? from = beside;
+            /* backstop: the new chat never presented, or its pane never did — close the old pane (it describes a peer whose
+             * chat is no longer the open one). 4 s chat stage + 4 s pane stage + a margin. */
+            Task.Delay(9000).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    if (run != infoPaneFollowRun || from == null)
+                    {
+                        return;
+                    }
+                    bool stillOpen = SpixiContentPage.getOverlayPages().Exists(p => ReferenceEquals(p, from));
+                    bool chatIsItsOwn = SpixiContentPage.getOverlayPages().Exists(p => p is SingleChatPage scp && scp.friend != null && scp.friend.walletAddress.ToString() == from.friendAddressString());
+                    endInfoPaneFollow();
+                    if (stillOpen && !chatIsItsOwn)
+                    {
+                        removePage(from);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("[INFOPANE] follow backstop failed: " + ex.GetType().Name);
+                }
+            }));
+            return true;
+        }
+
+        private void endInfoPaneFollow()
+        {
+            infoPaneFollow.end();
+            infoPaneFollowFrom = null;
+            infoPaneSwapNoMotion = false;
+        }
+
+        /** ★ S9 A3 #1179 (a): the new conversation is on glass — stage its info pane in place of the old one. */
+        private void followInfoPane(SingleChatPage presentedChat)
+        {
+            try
+            {
+                string? follow = presentedChat.friend?.walletAddress.ToString();
+                ContactDetails? from = infoPaneFollowFrom;
+                if (!infoPaneFollow.onChatPresented(follow))
+                {
+                    return;   // not the followed chat (or already staged) — the follow stays as it is
+                }
+                // ★ #46 r1 (MAJOR-1): the follow is NOT cleared here — it lives until pane B presents (onPanePresented), so
+                // chat A's close (the same-tag sweep, right after this present) leaves pane A on glass meanwhile.
+                bool fromOpen = from != null && SpixiContentPage.getOverlayPages().Exists(p => ReferenceEquals(p, from));
+                if (!fromOpen || from!.friendAddressString() == follow || !rightContent.IsVisible)
+                {
+                    endInfoPaneFollow();   // nothing to swap — today's rules from here
+                    return;
+                }
+                double avail = Width - mainGrid.ColumnDefinitions[0].Width.Value - detailMinWidth;
+                if (avail < infoPaneMinWidth)
+                {
+                    endInfoPaneFollow();
+                    removePage(from);   // no room beside the new chat any more — today's close
+                    return;
+                }
+                double paneW = Math.Min(infoPaneWidth, avail);
+                infoPaneCol2Pending = true;
+                infoPaneSwapNoMotion = true;
+                pushPageLoaded(new ContactDetails(presentedChat.friend, true, "2", true), 4000, "chatinfo", -1,
+                    null, new Thickness(Math.Max(0, Width - paneW), 0, 0, 0),
+                    navKey: "chatinfo:" + follow,
+                    revealDelayMs: 0, slideIn: false);
+                if (P1Perf.enabled)
+                {
+                    P1Perf.line("infopane follow w=" + (long)Math.Round(paneW));   // dev-only, fixed words + an integer
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[INFOPANE] follow failed: " + ex.GetType().Name);
+            }
+        }
+
         // #247: close any open chat-info surface. DIRECT close is safe here — unlike
         // the Account pane there is no held dirty state (nickname override / QR / money
         // actions all commit per-action through their own verbs).
@@ -2411,6 +2535,7 @@ namespace SPIXI
                     }
                     var cgm = new SpixiMessage(SpixiMessageCode.createGroup, new CreateGroupMessage(g.metaData.botInfo.randomId, groupName, contacts, new(), hideParticipantAddresses).getBytes());
                     CoreStreamProcessor.sendSpixiMessage(g, cgm);
+                    writeCreatedGroupLine(g);   // ★ S9 A3 8-GRP-ADD (#1243 (1)): the owner's {7} line — the list shows the group now
                 }
                 else
                 {
@@ -2443,6 +2568,39 @@ namespace SPIXI
             catch (Exception ex)
             {
                 Logging.error("Navigation failed: " + ex.Message);
+            }
+        }
+
+        /* ★ S9 A3 8-GRP-ADD (#1243 (1), #1247): "You created this group" — the OWNER's twin of the members' {7} line
+         * (StreamProcessor.writeAddedToGroupLine, #1231). Mechanism (walk #1243): the chats list skips a friend whose
+         * lastMessage is null (HomePage's list builders), and a group the owner just created holds no message — the members
+         * saw their group only because their {7} line gave it one. The SAME id {7} (UnreadRule.AddedToGroupLineId: no unread,
+         * no notification, no read receipt, no reply / edit — the shell draws id 07 as the system chip), the same channel 0,
+         * written only into a group with zero stored rows and no last message (S9FixRules.writesCreatedLine). Timestamp 0 =
+         * now (Core stamps the local time — this device IS the sender). The text is C#'s own string (`chat-group-you-created`,
+         * Resources/Raw/lang/*.txt), never a format. A local line: nothing is sent, an old app sees nothing new. The log
+         * names nothing. */
+        private static void writeCreatedGroupLine(Friend? group)
+        {
+            try
+            {
+                if (group == null || group.type != FriendType.Group)
+                {
+                    return;
+                }
+                List<FriendMessage>? stored = group.getMessages(0);
+                if (!S9FixRules.writesCreatedLine(true, stored?.Count ?? -1, group.metaData.lastMessage != null))
+                {
+                    return;
+                }
+                string text = S9FixRules.createdLine(SpixiLocalization._SL(S9FixRules.CreatedKey));
+                Node.addMessageWithType(new byte[] { UnreadRule.AddedToGroupLineId }, FriendMessageType.standard, group.walletAddress, 0, text, false, null, 0, false, false);
+                UIHelpers.shouldRefreshContacts = true;
+                Logging.info("createGroup: the created-group line was written");
+            }
+            catch (Exception e)
+            {
+                Logging.warn("createGroup: the created-group line failed (" + e.GetType().Name + ")");
             }
         }
 
@@ -2854,7 +3012,12 @@ namespace SPIXI
                 requestSettingsOverlayExit();
                 // #247: an open info pane belongs to the PREVIOUS conversation —
                 // close it before the new chat stages (direct close is safe).
-                closeContactDetailsOverlays();
+                // ★ S9 A3 #1179 (a): …except the desktop pane BESIDE the chat — it stays and reloads for the new peer once
+                // the new conversation presents (followInfoPane), with no column motion.
+                if (!keepInfoPaneForSwitch(friend))
+                {
+                    closeContactDetailsOverlays();
+                }
                 closeFormPaneOverlays();   // Batch C: the conversation takes the column
                 closeTxDetailOverlays();   // #263: same — a new conversation covers col 1
 
@@ -3237,6 +3400,19 @@ namespace SPIXI
                         excerpt = "🎤 " + (SpixiLocalization._SL("chat-voice-message") ?? "Voice message");
                         excerptKind = "text";
                     }
+                    /* ★ S9 A1 r1 (Damir pick, 🟡 NEW kind "photo"): a photo FILE (SharedItems.isImageName — the voice branch above
+                     * wins) → "Photo", or "{n} photos" when the row is in a stored photo group of count > 1 (SPhotoGroups). */
+                    else if (SharedItems.parseFileHeader(lastmsg.message, out string photoName, out _)
+                        && SharedItems.isImageName(photoName))
+                    {
+                        int photoCount = lastmsg.id != null
+                            ? SPhotoGroups.countOf(SPhotoGroups.get(friend.walletAddress.ToString(), Crypto.hashToString(lastmsg.id)))
+                            : 0;
+                        excerpt = photoCount > 1
+                            ? string.Format(SpixiLocalization._SL("index-excerpt-photos") ?? "{0} photos", photoCount)
+                            : (SpixiLocalization._SL("index-excerpt-photo") ?? "Photo");
+                        excerptKind = "photo";
+                    }
                 }
                 else if (lastmsg.type == FriendMessageType.reaction)
                 {
@@ -3286,6 +3462,15 @@ namespace SPIXI
                 if (s8Reply && excerptKind == "text" && lastmsg.type == FriendMessageType.standard)
                 {
                     excerptKind = "reply";
+                }
+
+                /* ★ S9 A1 r1 (Damir pick): the CAPTION text of a photo group (its id == a captionId SPhotoGroups holds for this
+                 * chat) → kind "photo" with the caption as the excerpt (the shell's photo glyph). */
+                if (excerptKind == "text" && lastmsg.type == FriendMessageType.standard && lastmsg.id != null
+                    && SPhotoGroups.isCaption(friend.walletAddress.ToString(), Crypto.hashToString(lastmsg.id),
+                        lastmsg.localSender ? SPhotoGroups.FromMe : (lastmsg.senderAddress != null ? lastmsg.senderAddress.ToString() : friend.walletAddress.ToString())))   // ★ #46 r1 M-2: only a text of the photos' OWN sender
+                {
+                    excerptKind = "photo";
                 }
 
                 /* ★ #969 (Damir, dial (d)): in a ROOM an own tail no longer bakes the
@@ -4387,8 +4572,14 @@ namespace SPIXI
             }
 
             Utils.sendUiCommand(this, "toggleAnimatedSlider", "backup-prompt");
+            /* ★ H-3 (#1245, Damir): "Not now" sends nothing, so the push-time stamp stays — it is what holds the
+             * nudge back for 30 days after a dismiss. "Back up now" (ixian:backup) stamps again at the click. */
             Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());
+            System.Threading.Interlocked.Exchange(ref backupNudgeOpen, 1);
         }
+
+        /// <summary>★ H-3 (#1245): 1 = the backup nudge was pushed and its "Back up now" has not fired yet.</summary>
+        private static int backupNudgeOpen;
 
         private void updateDebugOverlay()
         {
@@ -4820,7 +5011,20 @@ namespace SPIXI
                  * but it is noise that hides a REAL error in exactly the window where an
                  * error matters. `LastOrDefault()` returns null there, and every use of
                  * `page` below already tolerates null. */
-                Page? page = Navigation.NavigationStack.LastOrDefault();
+                /* ★ C-01 (#1245): this tick runs on Node.updateUILoop's POOL thread — the NavigationStack is read on
+                 * the MAIN thread (a copy, Utils.navigationStackSnapshot), bounded at 500 ms; a busy main thread falls
+                 * back to the last main-thread copy instead of enumerating the live list off-thread. */
+                Page[] navCopy;
+                if (MainThread.IsMainThread)
+                {
+                    navCopy = Utils.navigationStackSnapshot();
+                }
+                else
+                {
+                    Task<Page[]> navRead = MainThread.InvokeOnMainThreadAsync(() => Utils.navigationStackSnapshot());
+                    navCopy = navRead.Wait(500) ? navRead.Result : Utils.navigationStackSnapshot();
+                }
+                Page? page = navCopy.LastOrDefault();
                 if (page is not null and SpixiContentPage)
                 {
                     var scPage = (SpixiContentPage)page;
@@ -4932,7 +5136,16 @@ namespace SPIXI
                 }
                 // #247: a conversation's info pane has no life of its own — closing
                 // the chat closes it (no dirty state; commits are per-action).
-                closeContactDetailsOverlays();
+                // ★ S9 A3 #1179 (a): not while the pane is following a switch to a chat that is open (the tag-replace closes
+                // the OLD chat after the new one presented) — the new pane's own tag-replace closes the old pane.
+                string? followed = infoPaneFollow.target;
+                bool followChatOpen = followed != null
+                    && SpixiContentPage.getOverlayPages().Exists(p => p is SingleChatPage scf && scf.friend != null && scf.friend.walletAddress.ToString() == followed);
+                if (infoPaneFollow.closesPanesOnChatClose(followChatOpen))
+                {
+                    endInfoPaneFollow();
+                    closeContactDetailsOverlays();
+                }
                 // #334 iOS-64: the chat flushed its draft to localStorage on the way
                 // out, but home only re-reads drafts at a STRUCTURAL row rebuild —
                 // without this the "Draft:" excerpt lagged until the next natural
@@ -5051,6 +5264,7 @@ namespace SPIXI
                 {
                     Utils.sendUiCommand(this, "selectChat", presentedChat.friend.walletAddress.ToString());
                 }
+                followInfoPane(presentedChat);   // ★ S9 A3 #1179 (a)
                 return;
             }
             if (overlay is AppDetailsPage)
@@ -5088,6 +5302,11 @@ namespace SPIXI
             ContactDetails cd = (ContactDetails)overlay;
             bool willSlide = overlayColumnMotion(overlay, true, out _) != ColumnMotion.None;   // what revealStage was told
             infoPaneCol2Pending = false;
+            infoPaneSwapNoMotion = false;   // ★ S9 A3 #1179 (a): consumed — the swapped pane snaps to the width the column already has
+            if (infoPaneFollow.onPanePresented(cd.friendAddressString()))   // ★ #46 r1 (MAJOR-1): step (3) — the follow is done
+            {
+                infoPaneFollowFrom = null;
+            }
             if (infoPaneFitsCol2(cd, out double paneW))
             {
                 SpixiContentPage.rehomeOverlay(overlay, 2);
@@ -6378,6 +6597,7 @@ namespace SPIXI
                         SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
                         SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
                         SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
+                        SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                     }
                 }
             }

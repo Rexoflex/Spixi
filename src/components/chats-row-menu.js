@@ -801,6 +801,11 @@ export function attachChatRowMenu(row, opts = {}) {
   let startX = 0;
   let startY = 0;
   let fired = false;
+  let touchDown = false;                        // ★ S9 D-04: the last pointerdown was a FINGER (the haptic is touch-only)
+  /* ★ S9 D-04: the long-press haptic — once per opened menu, only for a touch press; the host
+     owns the verb (a component never touches the bridge). Right-click / keyboard never buzz. */
+  /* #46 r2 n3: one buzz per touch press — the flag is consumed here and cleared by any keyboard open */
+  const buzz = () => { const t = touchDown; touchDown = false; if (t && typeof opts.onLongPress === 'function') { try { opts.onLongPress(); } catch (e) { /* host */ } } };
   const press = attachTouchPressGuard(row);   // ★ #1174: the message-menu.js rule — a scrolled touch press voids contextmenu
 
   const cancel = () => {
@@ -810,6 +815,7 @@ export function attachChatRowMenu(row, opts = {}) {
 
   row.addEventListener('pointerdown', (e) => {
     fired = false;                              // any new gesture resets suppression (audit r4)
+    touchDown = e.pointerType === 'touch';
     if (e.button !== 0) return;                 // right button → contextmenu path
     // #265 (Damir ①): long-press = TOUCH-only; a held MOUSE button never pops a
     // menu on desktop (right-click does). Touch-screen desktops keep it (MINOR-7).
@@ -826,6 +832,7 @@ export function attachChatRowMenu(row, opts = {}) {
       if (press.voids()) return;   // ★ #1174 (#46 r1, F2): the document press record saw this press move / cancel / scroll
       fired = true;
       openChatRowMenu({ row, ...opts });
+      buzz();
     }, CHATMENU_LONG_PRESS_MS);
     armedRowPresses.add(cancel);
   });
@@ -847,6 +854,7 @@ export function attachChatRowMenu(row, opts = {}) {
     cancel();
     fired = true;
     openChatRowMenu({ row, ...opts });
+    buzz();                                     // Android's own long-press arrives here; a mouse right-click has touchDown false
   });
 
   /* KEYBOARD PATH TO THE CONTEXT MENU (a11y). ★ THE CONTRACT IS THE ROUTE, NOT THE LIST:
@@ -862,6 +870,7 @@ export function attachChatRowMenu(row, opts = {}) {
      a missing item as an a11y gap and re-add it — it needs a BE verb, a persisted count and
      a read receipt. Keep this text equal to the code (#647). */
   row.addEventListener('keydown', (e) => {
+    touchDown = false;                          // ★ #46 r2 n3: a key is not a finger — Shift+F10 / ContextMenu never buzz
     if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
       e.preventDefault();
       cancel();

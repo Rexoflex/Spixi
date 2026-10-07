@@ -382,7 +382,7 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
 }
 
 /* switch row — optimistic toggle w/ revert (the chat-info notifications grammar) */
-function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }) {
+function switchRow({ glyph, grad, hue, label, sub, checked, live, failText, onToggle }) {
   const section = document.createElement('div');
   section.className = 'c-settings__section';
   const row = document.createElement('div');
@@ -393,7 +393,7 @@ function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }
   const disc = document.createElement('span');
   disc.className = 'c-disc';
   disc.dataset.hue = hue;
-  disc.dataset.grad = String(discGrad(glyph));
+  disc.dataset.grad = String(grad || discGrad(glyph));   // ★ S9: `grad` keeps a row's colour when its glyph changes
   disc.append(icon(glyph, { size: 16 }));
   if (sub) {
     const top = document.createElement('span');
@@ -806,7 +806,9 @@ export function createPrivacy({
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
 
   if (onMediaAutoload) body.append(switchRow({
-    glyph: 'photo', hue: 'info',
+    // ★ S9 privacy icons = A (Damir): the row is about fetching from the sender's host. The disc keeps
+    //   the colour it had (and that the picked render showed) — the glyph hash would repaint it.
+    glyph: 'world-download', grad: discGrad('photo'), hue: 'info',
     label: strings.loadMedia || 'Load pictures and GIFs',
     // the sub says WHAT IT COSTS, because that is the whole reason the row exists
     sub: strings.loadMediaSub || 'Loading tells the sender’s host that you opened the chat',
@@ -818,7 +820,7 @@ export function createPrivacy({
   // ★ #1133: photo previews in chats (handler only with the exe's cap; data-pref = in-place echo)
   if (onPhotoPreviews) {
     const pv = switchRow({
-      glyph: 'eye', hue: 'accent',
+      glyph: 'photo', grad: discGrad('eye'), hue: 'accent',   // ★ S9 privacy icons = A (was 'eye'; colour kept)
       label: strings.photoPreviewsTitle || 'Show photo previews in chats',
       sub: strings.photoPreviewsHint || 'Photos you sent or downloaded show as a picture in the chat. Off: every photo stays a file card.',
       checked: photoPreviews, live,

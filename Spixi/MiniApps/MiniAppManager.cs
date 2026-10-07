@@ -181,52 +181,85 @@ namespace SPIXI.MiniApps
             }
         }
 
-        public string? installFromUrl(MiniApp fetchedAppInfo)
+        /* ★ C-04 (#1245): the package download is ASYNC (no `.Result`), bounded (headers ≤ 30 s, the whole download
+         * ≤ 120 s), streamed to disk with the 100 MB cap counted on the bytes actually read, https ONLY, and saved
+         * under C#'s own GUID name in Tmp (never a name derived from the URL). Log lines are fixed words + numbers. */
+        private static readonly HttpClient installClient = new HttpClient() { Timeout = TimeSpan.FromSeconds(AuditRules.MiniAppHeadersTimeoutSeconds) };
+
+        public async Task<string?> installFromUrlAsync(MiniApp fetchedAppInfo)
         {
-            // Check for contentUrl first
-            if (string.IsNullOrWhiteSpace(fetchedAppInfo.contentUrl) || !IxiUtils.IsValidUrl(fetchedAppInfo.contentUrl))
+            if (!AuditRules.isHttpsUrl(fetchedAppInfo.contentUrl) || !IxiUtils.IsValidUrl(fetchedAppInfo.contentUrl))
             {
-                Logging.error("Invalid or insecure app content URL: " + fetchedAppInfo.contentUrl);
+                Logging.error("installFromUrl: the content URL is not a valid https URL");
                 return null;
             }
 
-            string app_name = "";
-
-            string file_name = fetchedAppInfo.contentUrl.Split('/').Last();
-            string source_app_file_path = Path.Combine(tmpPath, file_name);
-            using (HttpClient client = new HttpClient())
+            string source_app_file_path = Path.Combine(tmpPath, AuditRules.packageTempName());
+            try
             {
-                try
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(AuditRules.MiniAppDownloadDeadlineSeconds));
+                using var request = new HttpRequestMessage(HttpMethod.Get, fetchedAppInfo.contentUrl);
+                request.Headers.CacheControl = new CacheControlHeaderValue() { NoCache = true, NoStore = true, MustRevalidate = true };
+                using HttpResponseMessage response = await installClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                long? declared = response.Content.Headers.ContentLength;
+                if (declared != null && declared.Value > AuditRules.MaxMiniAppPackageBytes)
                 {
-                    client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() { NoCache = true, NoStore = true, MustRevalidate = true };
-                    
-                    File.WriteAllBytes(source_app_file_path, client.GetByteArrayAsync(fetchedAppInfo.contentUrl).Result);
-                    fetchedAppInfo.contentSize = new FileInfo(source_app_file_path).Length;
-                    string file_checksum = Crypto.sha256OfFile(source_app_file_path);
-
-                    if (file_checksum != fetchedAppInfo.checksum)
-                    {
-                        throw new InvalidOperationException($"Checksum mismatch for downloaded app file. Expected {fetchedAppInfo.checksum} got {file_checksum}");
-                    }
+                    Logging.error("installFromUrl: the package is over the size cap (" + declared.Value + " bytes declared)");
+                    return null;
                 }
-                catch (Exception e)
+                long written;
+                using (Stream src = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false))
+                using (FileStream dst = new FileStream(source_app_file_path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
-                    Logging.error("Exception occured while downloading file: " + e);
-                    if (File.Exists(source_app_file_path))
-                    {
-                        File.Delete(source_app_file_path);
-                    }
+                    written = await AuditRules.copyCappedAsync(src, dst, AuditRules.MaxMiniAppPackageBytes, deadline.Token).ConfigureAwait(false);
+                }
+                if (written < 0)
+                {
+                    Logging.error("installFromUrl: the package went over the size cap while downloading");
+                    deleteQuietly(source_app_file_path);
+                    return null;
+                }
+                fetchedAppInfo.contentSize = written;
+                string file_checksum = Crypto.sha256OfFile(source_app_file_path);
+                if (file_checksum != fetchedAppInfo.checksum)
+                {
+                    Logging.error("installFromUrl: the package checksum does not match the app info");
+                    deleteQuietly(source_app_file_path);
                     return null;
                 }
             }
-
-            app_name = installFromPath(source_app_file_path, fetchedAppInfo.url);
-            if (File.Exists(source_app_file_path))
+            catch (OperationCanceledException)
             {
-                File.Delete(source_app_file_path);
+                Logging.error("installFromUrl: the download timed out");
+                deleteQuietly(source_app_file_path);
+                return null;
+            }
+            catch (Exception e)
+            {
+                Logging.error("installFromUrl: the download failed (" + e.GetType().Name + ")");
+                deleteQuietly(source_app_file_path);
+                return null;
             }
 
+            string app_name = installFromPath(source_app_file_path, fetchedAppInfo.url);
+            deleteQuietly(source_app_file_path);
             return app_name;
+        }
+
+        private static void deleteQuietly(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("installFromUrl: the temp package was not deleted (" + e.GetType().Name + ")");
+            }
         }
 
         public MiniApp? extractAppInfo(string source_path, string? url = null)

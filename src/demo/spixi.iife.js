@@ -1187,7 +1187,24 @@ function timeOpts(extra) {
   const hc = document.documentElement.dataset.hourCycle;
   const opts = Object.assign({ hour: '2-digit', minute: '2-digit' }, extra || {});
   if (hc === 'h23' || hc === 'h12') opts.hourCycle = hc;
+  /* ★ S9 A-19 (#1245): a 12-hour clock shows "9:05 AM", never "09:05 AM" — `hour: 'numeric'` ONLY when the clock in
+     force is h11 / h12 (the pushed carrier, else the locale's own cycle); a 24-hour clock keeps its 2-digit hour. A
+     caller that passes its own `hour` keeps it. */
+  if (!(extra && extra.hour) && /^h1[12]$/.test(opts.hourCycle || localeHourCycle())) opts.hour = 'numeric';
   return opts;
+}
+/* the document locale's default hour cycle ('h11' | 'h12' | 'h23' | 'h24' | ''), memoised per locale */
+let hcMemo = null;
+function localeHourCycle() {
+  const loc = docLocale() || '';
+  if (hcMemo && hcMemo.loc === loc) return hcMemo.hc;
+  let hc = '';
+  try {
+    const ro = new Intl.DateTimeFormat(loc || undefined, { hour: 'numeric' }).resolvedOptions();
+    hc = ro.hourCycle || (ro.hour12 === true ? 'h12' : (ro.hour12 === false ? 'h23' : ''));
+  } catch (e) { hc = ''; }
+  hcMemo = { loc, hc };
+  return hc;
 }
 
 /** Shared day-bucket ladder (chat list + conversation separators — single source,
@@ -2234,6 +2251,7 @@ function createIndicators({ count = 0, mention = false, muted = false, reaction 
 /* —— excerpt (§5): type → optional 16px glyph + toned text parts —— */
 const EXCERPT_GLYPHS = {
   file: 'file-isr', gif: 'gif', call: 'phone',
+  photo: 'photo',   // ★ S9: a photo / photo group (C# excerptKind "photo") — the picture glyph where a file shows the paperclip
   /* ★ #602 (row 16): a call you TURNED DOWN is not a call you missed — it gets its own
      glyph, and both are already in the registry.
      ★★ #621 (Damir on the device, 2026-08-28): THE TWO ARE SWAPPED from #602's first
@@ -7150,11 +7168,12 @@ function setPaymentStatus(row, patch = {}) {
 function createAppBubble({
   name = '',
   iconUrl = null,
-  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | canceled (B2) | in-session | ended
+  state = 'invite',        // invite (them→you) | invited (you→them) | missing | declined | canceled (B2) | in-session | ended | joined (★ S9)
   direction = null,        // override — bridge knows localSender (audit)
   timestamp = null,
   gutter = false,          // group chats: align with gutter-indented text bubbles (C8)
   onJoin, onDecline, onLaunch, onCancel, onGet, onEnd, onResume,
+  onOpenAgain,             // ★ S9 (8-APP, #1247): the 'joined' card's ONE button (the shell: joinApp); none → falls back to onJoin
   strings = getStrings(),
 } = {}) {
   const dir = direction || (state === 'invited' ? 'sent' : 'received');
@@ -7164,6 +7183,7 @@ function createAppBubble({
     : (strings.appInvite || 'App invite');
   /* ★ #996: the exact predicates of the button branches below — no button → the compact pill */
   const hasAction = state === 'invite' || state === 'invited' || state === 'in-session'
+    || (state === 'joined' && !!(onOpenAgain || onJoin))
     || (state === 'missing' && !!(onDecline || onGet));
   if (!hasAction) return appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings });
   const { row, el } = card(dir, title, timestamp, 'app', gutter);
@@ -7187,6 +7207,7 @@ function createAppBubble({
     canceled: strings.canceledInvite || 'You canceled this invite',   // ★ B2 (#533 ①): the sender's terminal tombstone
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
+    joined: strings.youJoinedApp || 'You joined this app',   // ★ S9 (8-APP)
   }[state] || ''; // audit r2: unknown state rendered "undefined"
   col.append(nm, sub);
   id.append(ic, col);
@@ -7215,6 +7236,12 @@ function createAppBubble({
     if (onDecline) missBtns.push(createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }));
     if (onGet) missBtns.push(createButton({ label: strings.getApp || 'Get app', type: 'fill', size: 32, icon: icon('download', { size: 16 }), onClick: oneShot(onGet) }));
     if (missBtns.length) el.append(actionsRow(...missBtns));
+  } else if (state === 'joined') {
+    /* ★ S9 (8-APP, #1247): C# remembers the join (SAppJoins → app_state "Joined") — ONE button, no Decline: the user
+       already accepted. It reopens the app through the existing joinApp verb. */
+    el.append(actionsRow(
+      createButton({ label: strings.openAgain || 'Open again', type: 'fill', size: 32, icon: icon('rocket', { size: 16 }), onClick: reentryGuard(onOpenAgain || onJoin) }),
+    ));
   } else if (state === 'in-session') {
     // End session renders only when the caller supplies onEnd (the bridge has no
     // end-session verb today, C7 follow-up) — no dead button; Resume takes the row.
@@ -7277,6 +7304,7 @@ function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
     canceled: strings.canceledInvite || 'You canceled this invite',
     'in-session': strings.inSession || 'In session',
     ended: strings.sessionEnded || 'Session ended',
+    joined: strings.youJoinedApp || 'You joined this app',   // ★ S9 (8-APP)
   }[state] || '';
   const nm = document.createElement('span');
   nm.className = 'c-tcard__app-name';
@@ -9359,6 +9387,78 @@ function setTileHead(row, { position = 'single', label = null, avatar = null } =
   return row;
 }
 
+/* ═══ ★★ S9 (#1244 G = A) — THE PHOTO GROUP BUBBLE: one bubble for the photos of ONE pick (C#'s group tag, addFile arg 18)
+ * — a square 2 × 2 grid with "+N" on the fourth cell (2 photos: side by side · 3: one tall + two), and the caption (the
+ * sender's text message whose id the tag names) UNDER the grid, inside the same bubble. Received: framed in the incoming
+ * ground; sent: the outgoing ground (the photo tile's own 3 px frame, #1151 — now around the whole group, 2 px between
+ * the cells). The CELLS are the shell's own photo-file rows (createImageFileBubble — every per-photo state: offer,
+ * downloading ring, complete, failed, the picture); this only lays them out.
+ * createPhotoGridBubble({ direction, count, more, total, caption, gutter, strings }) → row
+ *   count — the cells that will be shown (1–4) · more — photos past the fourth (the "+N") · total — every photo present
+ *   caption — the caption text (textContent only) or null
+ * The shell appends its cell rows into `.c-mgrid` (addPhotoGridCell) AFTER its group head, so the head lands on the
+ * group's column (the column carries `c-mbubble-anchor`, the class setTileHead looks for — it is FIRST in document order).
+ * The group carries role="group" + "{n} photos"; the "+N" is aria-hidden (the name already says how many). */
+function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false, strings = getStrings() } = {}) {
+  const row = document.createElement('div');
+  row.className = 'c-bubble-row c-mgrid-row';
+  row.dataset.direction = direction;
+  row.dataset.position = 'single';
+  if (gutter && direction === 'received') {
+    const g = document.createElement('span');
+    g.className = 'c-bubble-row__gutter';
+    row.append(g);
+  }
+  const col = document.createElement('div');
+  col.className = 'c-mbubble-anchor c-mgrid-col';
+  const box = document.createElement('div');
+  box.className = 'c-mgrid-box';
+  const grid = document.createElement('div');
+  grid.className = 'c-mgrid';
+  const n = Math.max(1, Math.min(4, Number(count) || 1));
+  grid.dataset.n = String(n);
+  grid.dataset.more = String(Math.max(0, Number(more) || 0));
+  grid.setAttribute('role', 'group');
+  const all = Math.max(n, Number(total) || 0);
+  grid.setAttribute('aria-label', all === 1 ? (strings.photoCountOne || '1 photo')
+    : (strings.photoCountMany || '{n} photos').split('{n}').join(String(all)));
+  box.append(grid);
+  if (caption != null && String(caption) !== '') {
+    const cap = document.createElement('div');
+    cap.className = 'c-mgrid__caption';
+    cap.dir = 'auto';
+    cap.textContent = String(caption);
+    box.dataset.caption = '';
+    box.append(cap);
+  }
+  col.append(box);
+  row.append(col);
+  return row;
+}
+
+/** Put one photo-file row (createImageFileBubble) into the group's grid as a cell: its own gutter, pre-accept Cancel
+ *  and fixed tile geometry go (the grid sizes the cell); `isLast` + `more` > 0 lays the "+N" over it. → the cell row */
+function addPhotoGridCell(groupRow, cellRow, { isLast = false } = {}) {
+  const grid = groupRow && groupRow.querySelector('.c-mgrid');
+  if (!grid || !cellRow) return null;
+  cellRow.classList.add('c-mgrid__cell');
+  for (const c of Array.from(cellRow.children)) {
+    if (c.classList.contains('c-bubble-row__gutter') || c.classList.contains('c-fbubble__cancel')) c.remove();
+  }
+  const tile = cellRow.querySelector('.c-mbubble');
+  if (tile) { tile.style.removeProperty('width'); tile.style.removeProperty('aspect-ratio'); }
+  const more = Number(grid.dataset.more) || 0;
+  if (isLast && more > 0 && tile) {
+    const m = document.createElement('span');
+    m.className = 'c-mgrid__more';
+    m.setAttribute('aria-hidden', 'true');
+    m.textContent = '+' + more;
+    tile.append(m);
+  }
+  grid.append(cellRow);
+  return cellRow;
+}
+
 /* ---- src/components/system-notice.js ---- */
 /**
  * c-sysnotice — in-conversation system notice (DECISIONS #86/#91, restyled
@@ -9536,9 +9636,10 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
  * openAttachTray({ composerEl, …same flags, onAction, strings }) → tray | null
  *   ★ #705: the MOBILE presentation — the grid under the composer, not over it.
  *   The sheet stays the desktop popover (M6). Same tiles, same gates, one builder.
- *   onAction(id) — 'file' | 'photo' | 'gif' | 'pay' | 'request' | 'app'
- *   (shell routes: sendfile / sendmedia / payment intent / app invite)
- *   media    — #81 flag: reveals Photo + GIF (BE image standard).
+ *   onAction(id) — 'file' | 'photo' | 'camera' | 'pay' | 'request' | 'app'
+ *   (shell routes: sendfile / sendmedia / camera / payment intent / app invite)
+ *   media    — #81 flag: reveals Photos (★ S9: C# declares `media` with the photo pipeline).
+ *   camera   — ★ S9: reveals Camera (needs media too; C# declares `camera` on Android + iOS only).
  *   apps     — gate the App-invite tile: no single chat-invite verb exists on
  *              every host (SingleChatPage has none), so the shell can hide it.
  *   payments — gate Pay + Request: 1:1 only (C# rejects them in groups/bots).
@@ -9572,8 +9673,11 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
 
 const ATTACH_ACTIONS = [
   { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile', flag: 'files' },
-  { id: 'photo', glyph: 'photo', label: 'Photo', key: 'photo', flag: 'media' },
-  { id: 'gif', glyph: 'gif', label: 'GIF', key: 'gif', flag: 'media' },
+  /* ★ S9 (#1244 P = B): Photos (the system picker, ≤ 10, verb sendmedia) + Camera (Android + iOS: C# declares the
+     `camera` capability there only, verb camera). The GIF tile is GONE (the `gif` string key stays, unused). "Photos"
+     is a NEW key (`photos`): the meaning changed from one photo to a multi-pick. */
+  { id: 'photo', glyph: 'photo', label: 'Photos', key: 'photos', flag: 'media' },
+  { id: 'camera', glyph: 'camera', label: 'Camera', key: 'camera', flag: 'camera' },
   { id: 'pay', glyph: 'arrow-up-right', label: 'Send payment', key: 'sendPayment', flag: 'payments' },
   { id: 'request', glyph: 'arrow-down-left', label: 'Request payment', key: 'requestPayment', flag: 'payments' },
   { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
@@ -9592,6 +9696,8 @@ function attachTilesFor(flags) {
     apps: f.apps === undefined ? true : !!f.apps,
     payments: f.payments === undefined ? true : !!f.payments,
     files: f.files === undefined ? true : !!f.files,
+    /* ★ S9: Camera needs BOTH the media gate and its own capability — an absent flag = no tile (fails closed, like media) */
+    camera: f.camera === undefined ? false : (!!f.camera && (f.media === undefined ? false : !!f.media)),
   };
   return ATTACH_ACTIONS.filter((a) => !a.flag || enabled[a.flag]);
 }
@@ -9603,8 +9709,8 @@ function hasAttachTiles(flags) { return attachTilesFor(flags).length > 0; }
    surface that cannot send files says so explicitly. Legacy had no file capability in a
    blind group and the C# still refuses one there; offering the tile anyway was a control
    that reported an outcome it did not cause. */
-function openAttachSheet({ host, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings() } = {}) {
-  const tiles = attachTilesFor({ media, apps, payments, files });
+function openAttachSheet({ host, media = false, camera = false, apps = true, payments = true, files = true, onAction, strings = getStrings() } = {}) {
+  const tiles = attachTilesFor({ media, camera, apps, payments, files });
   /* ★★ NO TILE, NO SHEET. A sheet with no tile explains nothing and does nothing.
      The shell keeps the ⊕ hidden for the same condition, so this path is the belt.
      The caller must accept null. */
@@ -9648,7 +9754,10 @@ function buildAttachGrid(tiles, strings, onPick) {
     med.append(icon(a.glyph, { size: 22 }));
     const label = document.createElement('span');
     label.className = 'c-attach__label';
-    label.textContent = strings[a.key] || a.label;
+    /* ★ S9: the two new tiles spell their fallback here so extract-strings collects the keys (photos, camera) */
+    label.textContent = a.id === 'photo' ? (strings.photos || 'Photos')
+      : a.id === 'camera' ? (strings.camera || 'Camera')
+      : (strings[a.key] || a.label);
     tile.append(med, label);
     tile.addEventListener('click', () => onPick(a.id));
     grid.append(tile);
@@ -9688,9 +9797,9 @@ const trayState = new WeakMap();   // tray → { composerEl, closing }
    LEFT (chat.html handKeyboardToTray — the mirror of #721's handTrayToKeyboard). `instant`
    gave the tray its full slot in the same frame as the blur, but Android hides the keyboard
    100–300 ms AFTER the blur, so for that window the composer sat on keyboard + tray. */
-function openAttachTray({ composerEl, media = false, apps = true, payments = true, files = true, onAction, strings = getStrings(), instant = false, hold = false } = {}) {
+function openAttachTray({ composerEl, media = false, camera = false, apps = true, payments = true, files = true, onAction, strings = getStrings(), instant = false, hold = false } = {}) {
   if (!composerEl || !composerEl.parentNode) return null;
-  const tiles = attachTilesFor({ media, apps, payments, files });
+  const tiles = attachTilesFor({ media, camera, apps, payments, files });
   if (!tiles.length) return null;
   const existing = composerEl.nextElementSibling;
   if (existing && existing.classList.contains('c-attach-tray')) {
@@ -10458,6 +10567,11 @@ function openMemberSheet({
  *     el.setFailed()  — the picture could not be made: the busy state ends, the thumbnail stays. The SHELL shows the
  *                       `viewerFailed` toast (one place per shell — this component never toasts).
  *   A viewer still busy after VIEWER_WAIT_MS stops the spinner by itself (an older exe never answers) and keeps the thumbnail.
+ *   ★ S9 (#1244 G = A) items / index / onPage — a PHOTO GROUP: items = [{ src, token, alt }] in the group's order, the
+ *   viewer opens on items[index] (its src / token / alt replace the single ones) and pages with ‹ › (the foot), the
+ *   ArrowLeft / ArrowRight keys and a horizontal swipe; "2 / 7" says where it is. Each page starts the token's
+ *   loading state again (the thumbnail invisible under the spinner) and calls onPage(i, item) — the shell asks C# for
+ *   that picture (viewImage). One item (or none) = today's viewer, byte-identical.
  *   findOpenViewer(token) → the OPEN viewer opened for exactly that token, or null (a closed one is never returned,
  *   so a late push lands nowhere). Without a token the viewer is today's: no loading state, src as given.
  *
@@ -10502,8 +10616,14 @@ function openMediaViewer({
   kind = 'image',
   onSave,
   token = '',
+  items = null,
+  index = 0,
+  onPage = null,
   strings = getStrings(),
 } = {}) {
+  const pages = Array.isArray(items) ? items.filter((it) => it && it.token) : [];
+  let at = pages.length > 1 ? Math.max(0, Math.min(pages.length - 1, Number(index) || 0)) : 0;
+  if (pages.length > 1) { src = pages[at].src || ''; token = pages[at].token; alt = pages[at].alt || alt; }
   const el = document.createElement('section');
   el.className = 'c-mviewer';
   el.setAttribute('role', 'dialog');
@@ -10516,6 +10636,7 @@ function openMediaViewer({
   // wasn't tappable. The top bar now carries only the caption + optional Save
   // (with the top inset), and CLOSE moved to a prominent bottom-centered button
   // (below). A top bar renders only when there's something to show.
+  let capEl = null;
   if (alt || onSave) {
     const bar = document.createElement('div');
     bar.className = 'c-mviewer__bar';
@@ -10529,6 +10650,7 @@ function openMediaViewer({
       const cap = document.createElement('span');
       cap.className = 'c-mviewer__caption';
       cap.textContent = alt;
+      capEl = cap;
       bar.append(cap);
     }
     if (onSave) {
@@ -10565,7 +10687,7 @@ function openMediaViewer({
     raf(() => { delete img.dataset.pending; });
   };
   let fullSrc = '';
-  const thumbSrc = src || '';
+  let thumbSrc = src || '';
   /* ★ #1180 (#46 r1 m3): a picture that passes the URI shape but does not decode — back to the thumbnail, shown */
   img.addEventListener('error', () => {
     if (!fullSrc || img.getAttribute('src') !== fullSrc) return;
@@ -10599,20 +10721,24 @@ function openMediaViewer({
     el.dataset.failed = '';
     if (!fullSrc) reveal();   // ★ #1180: no bigger picture → the thumbnail is better than an empty stage
   };
-  if (tok) {
-    el._viewerToken = tok;
+  const startBusy = (t) => {
+    el._viewerToken = t;
     el.setAttribute('aria-busy', 'true');
     el.dataset.loading = '';
-    const ld = document.createElement('div');
-    ld.className = 'c-mviewer__loading';
-    ld.setAttribute('aria-hidden', 'true');
-    const sp = document.createElement('span');
-    sp.className = 'c-mviewer__spinner';
-    ld.append(sp);
-    stage.append(ld);
+    if (!stage.querySelector('.c-mviewer__loading')) {
+      const ld = document.createElement('div');
+      ld.className = 'c-mviewer__loading';
+      ld.setAttribute('aria-hidden', 'true');
+      const sp = document.createElement('span');
+      sp.className = 'c-mviewer__spinner';
+      ld.append(sp);
+      stage.append(ld);
+    }
+    if (waitT) clearTimeout(waitT);
     waitT = setTimeout(() => { waitT = 0; if (el.dataset.loading !== undefined) { endBusy(); if (!fullSrc) reveal(); } }, VIEWER_WAIT_MS);
     openViewers.add(el);
-  }
+  };
+  if (tok) startBusy(tok);
   stage.addEventListener('dragstart', (e) => e.preventDefault());
 
   // #336 (Damir F5 iOS #1): prominent bottom-centered CLOSE — easy to spot + reach,
@@ -10628,6 +10754,59 @@ function openMediaViewer({
   foot.append(close);
   el.append(foot);
 
+  /* ★ S9 (#1244 G = A): paging through a photo group — ‹ ✕ › in the foot, a "2 / 7" counter, ←/→ keys, a horizontal swipe */
+  let showPage = null;
+  if (pages.length > 1) {
+    const mk = (cls, glyph, label) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-mviewer__btn c-mviewer__nav ' + cls;
+      b.setAttribute('aria-label', label);
+      b.append(icon(glyph, { size: 24 }));
+      return b;
+    };
+    const prev = mk('c-mviewer__prev', 'chevron-left', strings.previousPhoto || 'Previous photo');
+    const next = mk('c-mviewer__next', 'chevron-right', strings.nextPhoto || 'Next photo');
+    const count = document.createElement('span');
+    count.className = 'c-mviewer__count';
+    count.setAttribute('aria-live', 'polite');
+    foot.prepend(prev);
+    foot.append(next);
+    foot.before(count);
+    foot.dataset.paged = '';
+    showPage = (i, quiet) => {
+      if (i < 0 || i >= pages.length) return false;
+      at = i;
+      const it = pages[at];
+      fullSrc = '';
+      thumbSrc = it.src || '';
+      img.dataset.pending = '';
+      if (thumbSrc) img.src = thumbSrc; else img.removeAttribute('src');
+      delete el.dataset.failed;
+      startBusy(String(it.token));
+      if (capEl) capEl.textContent = it.alt || '';
+      el.setAttribute('aria-label', it.alt || (strings.image || 'Image'));
+      count.textContent = (strings.photoOfCount || '{i} / {n}').split('{i}').join(String(at + 1)).split('{n}').join(String(pages.length));
+      prev.disabled = at === 0;
+      next.disabled = at === pages.length - 1;
+      /* ★ #46 M7: a disabled button drops its focus to BODY — hand it to the other arrow, else the close */
+      const ae = document.activeElement;
+      if ((ae === prev || ae === next) && ae.disabled) { const to = ae === prev ? next : prev; (to.disabled ? close : to).focus({ preventScroll: true }); }
+      if (!quiet && typeof onPage === 'function') { try { onPage(at, it); } catch (_) {} }
+      return true;
+    };
+    prev.addEventListener('click', () => showPage(at - 1));
+    next.addEventListener('click', () => showPage(at + 1));
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        showPage(at + ((e.key === 'ArrowRight') !== (document.documentElement.dir === 'rtl') ? 1 : -1));
+      }
+    });
+    showPage(at, true);
+  }
+  el.showPage = (i) => (showPage ? showPage(i) : false);
+
   // swipe-to-dismiss (Damir: intuitive close, no hunting the ✕): vertical
   // drag EITHER direction — the image rides the finger and the viewer fades;
   // past the threshold on release = dismiss, under it = spring back.
@@ -10639,6 +10818,8 @@ function openMediaViewer({
   const openedAt = performance.now();
   const tapCloseReady = () => performance.now() - openedAt >= TAP_CLOSE_AFTER_MS;
   let startY = 0;
+  let startX = 0;
+  let dragX = 0;
   let dragY = null;
   let downOnImg = false;
   let lastDownAt = openedAt;   // #46 r3: the double click's FIRST press opened the viewer (the stage never saw it) — the next press within 500 ms is its second
@@ -10646,6 +10827,8 @@ function openMediaViewer({
   stage.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     startY = e.clientY;
+    startX = e.clientX;
+    dragX = 0;
     dragY = 0;
     downOnImg = e.target === img;   // ★ #1180: where the press began (the capture below retargets the later events)
     const now = performance.now();
@@ -10657,13 +10840,24 @@ function openMediaViewer({
   stage.addEventListener('pointermove', (e) => {
     if (dragY === null) return;
     dragY = e.clientY - startY;
+    dragX = e.clientX - startX;
+    if (showPage && Math.abs(dragX) > Math.abs(dragY)) { img.style.transform = 'translateX(' + Math.round(dragX / 3) + 'px)'; return; }   // ★ S9: a page swipe, not a dismiss
     if (Math.abs(dragY) >= TAP_PX) el.style.transition = 'none';  // ★ #1180: once the finger really MOVES, the fade must not lag it (jitter / a still press leave the open fade alone)
     img.style.transform = 'translateY(' + dragY + 'px)';
     el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dragY) / 320));
   });
   const endDrag = (e) => {
     if (dragY === null) return;
-    const past = Math.abs(dragY) > DISMISS_PX;
+    /* ★ S9: a horizontal swipe on a paged viewer turns the page (60 px, mostly sideways) */
+    if (showPage && e && e.type === 'pointerup' && Math.abs(dragX) > 60 && Math.abs(dragX) > 1.5 * Math.abs(dragY)) {
+      img.style.transition = '';
+      img.style.transform = '';
+      el.style.opacity = '';
+      dragY = null;
+      showPage(at + ((dragX < 0) !== (document.documentElement.dir === 'rtl') ? 1 : -1));
+      return;
+    }
+    const past = Math.abs(dragY) > DISMISS_PX && Math.abs(dragY) >= Math.abs(dragX);
     /* ★ #1180: a TAP on the dim stage (not on the picture) closes — like the swipe; a cancelled press never does */
     const tapOutside = !!e && e.type === 'pointerup' && Math.abs(dragY) < TAP_PX && !downOnImg && !secondOfPair && tapCloseReady();
     img.style.transition = ''; // spring-back transition returns (css)
@@ -10702,6 +10896,159 @@ function openMediaViewer({
   const sc = el.previousElementSibling;
   if (sc && sc.classList && sc.classList.contains('c-scrim')) sc.dataset.mviewer = '';
   return el;
+}
+
+/* ---- src/components/media-send-sheet.js ---- */
+/**
+ * c-msend — ★ S9 (#1244 S = C): the PHOTO PREVIEW SHEET after a pick / a camera shot / a paste. C# prepared the batch
+ * (bounded decode, rotation, ≤ 2048 px, JPEG q82, NO metadata) and pushed `mediaPicked(batchId, json)`; the shell
+ * validated every item and opens this sheet. The sheet shows the thumbnails (C#'s own ≤ 64 KB data: JPEGs — the only
+ * sink is <img src>), a ✕ per photo, the count title ("3 photos" / "1 photo"), the honest note ("Location removed ·
+ * resized"), a caption field (≤ CAPTION_MAX characters) and the Send disc.
+ *
+ * openMediaSendSheet({ host, items, strings, onSend, onCancel }) → sheet | null
+ *   items    — [{ k, thumb }] in pick order (the shell vetted them: k = "0".."9", thumb = a base64 JPEG data: URI)
+ *   onSend(keys, caption) — keys = the KEPT item keys in their order; caption = the trimmed field text ('' = none)
+ *   onCancel() — every other way out: the ✕ on the LAST photo, the scrim, Esc, Back, a closeMediaSendSheet().
+ *   Exactly ONE of onSend / onCancel runs per sheet (a latch), so C# hears one answer for one batch.
+ * closeMediaSendSheet(sheet) — the shell's own close (a peer switch, a newer batch) → onCancel.
+ */
+
+
+
+
+
+const MEDIA_CAPTION_MAX = 4096;   // C# refuses a longer caption after decode (CONTRACT §1b)
+
+function openMediaSendSheet({ host, items = [], strings = getStrings(), onSend, onCancel } = {}) {
+  const list = Array.isArray(items) ? items.filter((it) => it && it.k != null).slice(0, 10) : [];   // ★ #46 M3: a thumb-less item is a glyph tile
+  if (!list.length) return null;
+  let answered = false;
+  const answer = (fn) => { if (answered) return false; answered = true; if (fn) { try { fn(); } catch (_) {} } return true; };
+
+  const root = document.createElement('div');
+  root.className = 'c-msend';
+  const head = document.createElement('div');
+  head.className = 'c-msend__head';
+  const title = document.createElement('h2');
+  title.className = 'c-msend__title';
+  const note = document.createElement('span');
+  note.className = 'c-msend__note';
+  note.textContent = strings.photoSendNote || 'Location removed · resized';
+  head.append(title, note);
+
+  const grid = document.createElement('div');
+  grid.className = 'c-msend__grid';
+  grid.setAttribute('role', 'list');
+
+  const capRow = document.createElement('div');
+  capRow.className = 'c-msend__foot';
+  const cap = document.createElement('textarea');
+  cap.className = 'c-msend__caption';
+  cap.rows = 1;
+  cap.maxLength = MEDIA_CAPTION_MAX;
+  cap.placeholder = strings.addCaption || 'Add a caption…';
+  cap.setAttribute('aria-label', strings.caption || 'Caption');
+  cap.dataset.autofocus = '';   // a keyboard open lands in the caption (a touch open focuses the sheet itself — overlay.js, no keyboard pop)
+  const send = document.createElement('button');
+  send.type = 'button';
+  send.className = 'c-msend__send';
+  send.append(icon('send-2', { size: 22 }));
+  capRow.append(cap, send);
+  root.append(head, grid, capRow);
+
+  const kept = list.map((it) => String(it.k));
+  const sheet = createSheet({
+    content: root, host,
+    strings: { ...strings, sheet: strings.photoPreview || 'Photo preview' },
+    onDismiss: () => { answer(onCancel); },
+  });
+  sheet.classList.add('c-sheet--msend');
+  sheet.removeAttribute('aria-label');
+  title.id = overlayId('c-msend-title');
+  sheet.setAttribute('aria-labelledby', title.id);
+
+  const relabel = () => {
+    const n = kept.length;
+    title.textContent = n === 1 ? (strings.photoCountOne || '1 photo')
+      : (strings.photoCountMany || '{n} photos').split('{n}').join(String(n));
+    send.setAttribute('aria-label', n === 1 ? (strings.sendPhotoOne || 'Send 1 photo')
+      : (strings.sendPhotoMany || 'Send {n} photos').split('{n}').join(String(n)));
+    grid.dataset.count = String(n);
+    let i = 0;
+    for (const cell of grid.children) {
+      i += 1;
+      const x = cell.querySelector('.c-msend__remove');
+      if (x) x.setAttribute('aria-label', (strings.removePhotoN || 'Remove photo {n}').split('{n}').join(String(i)));
+    }
+  };
+
+  for (const it of list) {
+    const key = String(it.k);
+    const cell = document.createElement('div');
+    cell.className = 'c-msend__cell';
+    cell.setAttribute('role', 'listitem');
+    cell.dataset.k = key;
+    let img;
+    if (it.thumb) {
+      img = document.createElement('img');
+      img.className = 'c-msend__img';
+      img.alt = '';
+      img.src = String(it.thumb);   // the shell's FILE_THUMB_RE-vetted data: JPEG — the one sink
+    } else {
+      img = document.createElement('span');   // ★ #46 M3: C# made no preview — the photo glyph; the photo still goes
+      img.className = 'c-msend__img c-msend__glyph';
+      img.setAttribute('aria-hidden', 'true');
+      img.append(icon('photo', { size: 28 }));
+    }
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'c-msend__remove';
+    x.append(icon('x', { size: 16 }));
+    x.addEventListener('click', () => {
+      const at = kept.indexOf(key);
+      if (at === -1) return;
+      if (kept.length === 1) { closeSheet(sheet); return; }   // ✕ on the last photo = cancel the batch (onDismiss)
+      kept.splice(at, 1);
+      const next = cell.nextElementSibling || cell.previousElementSibling;
+      cell.remove();
+      relabel();
+      const f = next && next.querySelector('.c-msend__remove');
+      if (f) f.focus({ preventScroll: true });   // focus never falls to the body
+    });
+    cell.append(img, x);
+    grid.append(cell);
+  }
+  relabel();
+
+  /* the caption field grows with its text up to ~5 lines, then scrolls */
+  const grow = () => {
+    cap.style.height = 'auto';
+    cap.style.height = Math.min(cap.scrollHeight || 0, 120) + 'px';
+  };
+  cap.addEventListener('input', grow);
+  const doSend = () => {
+    if (!kept.length) return;
+    const text = cap.value.trim().slice(0, MEDIA_CAPTION_MAX);
+    const keys = kept.slice();
+    if (!answer(() => { if (onSend) onSend(keys, text); })) return;
+    closeSheet(sheet);
+  };
+  send.addEventListener('click', doSend);
+  cap.addEventListener('keydown', (e) => {
+    /* desktop: Enter sends, Shift+Enter is a new line (the composer's grammar); touch keyboards keep Enter = new line */
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && document.documentElement.hasAttribute('data-desktop')) {
+      e.preventDefault();
+      doSend();
+    }
+  });
+
+  openSheet(sheet);
+  return sheet;
+}
+
+function closeMediaSendSheet(sheet) {
+  if (sheet && sheet.isConnected) closeSheet(sheet);
 }
 
 /* ---- src/components/call-screen.js ---- */
@@ -12150,6 +12497,11 @@ function attachChatRowMenu(row, opts = {}) {
   let startX = 0;
   let startY = 0;
   let fired = false;
+  let touchDown = false;                        // ★ S9 D-04: the last pointerdown was a FINGER (the haptic is touch-only)
+  /* ★ S9 D-04: the long-press haptic — once per opened menu, only for a touch press; the host
+     owns the verb (a component never touches the bridge). Right-click / keyboard never buzz. */
+  /* #46 r2 n3: one buzz per touch press — the flag is consumed here and cleared by any keyboard open */
+  const buzz = () => { const t = touchDown; touchDown = false; if (t && typeof opts.onLongPress === 'function') { try { opts.onLongPress(); } catch (e) { /* host */ } } };
   const press = attachTouchPressGuard(row);   // ★ #1174: the message-menu.js rule — a scrolled touch press voids contextmenu
 
   const cancel = () => {
@@ -12159,6 +12511,7 @@ function attachChatRowMenu(row, opts = {}) {
 
   row.addEventListener('pointerdown', (e) => {
     fired = false;                              // any new gesture resets suppression (audit r4)
+    touchDown = e.pointerType === 'touch';
     if (e.button !== 0) return;                 // right button → contextmenu path
     // #265 (Damir ①): long-press = TOUCH-only; a held MOUSE button never pops a
     // menu on desktop (right-click does). Touch-screen desktops keep it (MINOR-7).
@@ -12175,6 +12528,7 @@ function attachChatRowMenu(row, opts = {}) {
       if (press.voids()) return;   // ★ #1174 (#46 r1, F2): the document press record saw this press move / cancel / scroll
       fired = true;
       openChatRowMenu({ row, ...opts });
+      buzz();
     }, CHATMENU_LONG_PRESS_MS);
     armedRowPresses.add(cancel);
   });
@@ -12196,6 +12550,7 @@ function attachChatRowMenu(row, opts = {}) {
     cancel();
     fired = true;
     openChatRowMenu({ row, ...opts });
+    buzz();                                     // Android's own long-press arrives here; a mouse right-click has touchDown false
   });
 
   /* KEYBOARD PATH TO THE CONTEXT MENU (a11y). ★ THE CONTRACT IS THE ROUTE, NOT THE LIST:
@@ -12211,6 +12566,7 @@ function attachChatRowMenu(row, opts = {}) {
      a missing item as an a11y gap and re-add it — it needs a BE verb, a persisted count and
      a read receipt. Keep this text equal to the code (#647). */
   row.addEventListener('keydown', (e) => {
+    touchDown = false;                          // ★ #46 r2 n3: a key is not a finger — Shift+F10 / ContextMenu never buzz
     if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
       e.preventDefault();
       cancel();
@@ -12663,7 +13019,7 @@ function buildChatRowNode(listEl, state, c, opts, ctx) {
     el.dataset.handshaking = ''; el.setAttribute('aria-busy', 'true');
     if (opts.rowMenu !== false) {
       attachChatRowMenu(el, {
-        chat: c, host: opts.host, strings, handshaking: true,
+        chat: c, host: opts.host, strings, handshaking: true, onLongPress: opts.onRowLongPress,
         onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
       });
     }
@@ -12672,6 +13028,7 @@ function buildChatRowNode(listEl, state, c, opts, ctx) {
   if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
     attachChatRowMenu(el, {
       chat: c, host: opts.host, strings, capabilities: caps,
+      onLongPress: opts.onRowLongPress,                // ★ S9 D-04: the host's haptic for a TOUCH long-press
       onNeedGroups: opts.onNeedGroups,                 // A4/A5: the remove-contact sheet asks C# for the shared groups
       onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
     });
@@ -25477,11 +25834,57 @@ function backupStatusParts(status = {}, strings = getStrings()) {
   };
 }
 
+/* ★ S9 L (#1246 L = A, #1143): the language note — every non-English language is a mix of
+   community (legacy .txt) and AI (shell dictionary) text, so EVERY language picker says so at
+   its top, in the CURRENT language, with a report link. Returns the `note` arg for
+   settingsOptionSheet, or undefined when the note must not show:
+   · the current language is English (en-us) or unknown/empty;
+   · `hidden` — the A4 fallback row: that UI is still English and its hint already says so.
+   `onReport(code)` is the host's verb (`ixian:reportTranslation:<code>`, C# builds the mailto);
+   without it the note keeps its text and drops the link. The code is the language the shell
+   already holds — never user text. */
+const ENGLISH_LANG = 'en-us';
+function languageNote({ code, hidden = false, strings = getStrings(), onReport } = {}) {
+  const c = String(code || '');
+  if (!/^[a-z]{2}-[a-z]{2}$/.test(c) || c === ENGLISH_LANG || hidden) return undefined;
+  return {
+    text: strings.languageAiNote
+      || 'Some text in this language was translated with AI and can contain errors. Tell us if you find one.',
+    linkLabel: strings.languageReport || 'Report a translation problem',
+    onLink: typeof onReport === 'function' ? () => onReport(c) : undefined,
+  };
+}
+
+function buildOptsNote(note) {
+  const box = document.createElement('div');
+  box.className = 'c-settings__opts-note';
+  box.setAttribute('role', 'note');
+  const t = document.createElement('p');
+  t.className = 'c-settings__opts-note-text';
+  t.textContent = note.text;
+  box.append(t);
+  if (note.onLink && note.linkLabel) {
+    const a = document.createElement('button');
+    a.type = 'button';
+    a.className = 'c-settings__opts-note-link';
+    a.textContent = note.linkLabel;
+    let busy = false;                             // one verb per tap burst (a double tap = one mail draft)
+    a.addEventListener('click', () => {
+      if (busy) return;
+      busy = true;
+      setTimeout(() => { busy = false; }, 800);
+      try { note.onLink(); } catch { /* host verb */ }
+    });
+    box.append(a);
+  }
+  return box;
+}
+
 /* shared radio option sheet (language & friends) — sd-sheet grammar (#142):
    commit-per-pick, latched; spinner in the fixed status slot (#145③).
    EXPORTED: the launch welcome reuses it for its language pill (one picker
    grammar app-wide — launch premium rework, Damir 2026-07-06). */
-function settingsOptionSheet({ title, hint, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
+function settingsOptionSheet({ title, hint, note, options, current, host, strings = getStrings(), commit, onPicked, inline = false }) {
   const wrap = document.createElement('div');
   wrap.className = 'c-settings__opts';
   // #148⑥: long pickers (language) — in the SHEET the list scrolls inside a
@@ -25580,7 +25983,22 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
     optEls.set(o.value, opt);
     wrap.append(opt);
   }
-  if (inline) return wrap;                    // #242: a pane detail screen hosts the list
+  /* ★ S9 L: the note sits ABOVE the radiogroup, outside it (a link is not a radio, and the
+     list's scroll + indicator stay the list's own). A keyboard open still lands on the
+     CHECKED row, not on the link (overlay.js [data-autofocus]). */
+  const noteEl = note && note.text ? buildOptsNote(note) : null;
+  if (noteEl) {
+    const cur = optEls.get(current);
+    if (cur) cur.dataset.autofocus = '';
+  }
+  const withNote = (el) => {
+    if (!noteEl) return el;
+    const box = document.createElement('div');
+    box.className = 'c-settings__opts-box';
+    box.append(noteEl, el);
+    return box;
+  };
+  if (inline) return withNote(wrap);          // #242: a pane detail screen hosts the list
   let content = wrap;
   if (longList) {
     content = document.createElement('div');
@@ -25588,6 +26006,7 @@ function settingsOptionSheet({ title, hint, options, current, host, strings = ge
     content.append(wrap);
     attachScrollIndicator(content, wrap);
   }
+  content = withNote(content);
   const sheet = createSheet({ content, host, title, strings });
   if (longList) sheet.dataset.tall = '';
   openSheet(sheet);
@@ -25771,6 +26190,7 @@ function createSettingsHub({
   onThemeNav,                    // (#242) optional — return true to TAKE the Theme row tap
                                  // (pane master-detail: detail screen instead of the sheet)
   onLanguageNav,                 // (#242) same for the Language row
+  onReportTranslation,           // (code) — ★ S9 L (#1246): the language note's report link (host sends ixian:reportTranslation:<code>)
   onLock,                        // (next, ctrl) — ON optimistic; OFF pending (auth)
   onPaymentAuth,                 // (next, ctrl) — #150⑤ §9; same ON/OFF asymmetry as lock
   onChangePassword,              // nav → the encpass screen (#804: a sublevel in the shell; ixian:encpass is the no-cap fallback — bridge-audit-A:258)
@@ -26316,6 +26736,7 @@ function createSettingsHub({
       value: langLabelFor(language),
       onClick: () => { if (onLanguageNav && onLanguageNav()) return; settingsOptionSheet({
         title: strings.language || 'Language',
+        note: languageNote({ code: language, strings, onReport: onReportTranslation }),   // ★ S9 L
         options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
         current: language, host: hostFor(), strings,
         commit: (code, ctrl) => onLanguage(code, ctrl),
@@ -27411,7 +27832,7 @@ function styleSwatchGroup({ options, current, ariaLabel, onPick, faceAttr = 'cha
 }
 
 /* switch row — optimistic toggle w/ revert (the chat-info notifications grammar) */
-function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }) {
+function switchRow({ glyph, grad, hue, label, sub, checked, live, failText, onToggle }) {
   const section = document.createElement('div');
   section.className = 'c-settings__section';
   const row = document.createElement('div');
@@ -27422,7 +27843,7 @@ function switchRow({ glyph, hue, label, sub, checked, live, failText, onToggle }
   const disc = document.createElement('span');
   disc.className = 'c-disc';
   disc.dataset.hue = hue;
-  disc.dataset.grad = String(discGrad(glyph));
+  disc.dataset.grad = String(grad || discGrad(glyph));   // ★ S9: `grad` keeps a row's colour when its glyph changes
   disc.append(icon(glyph, { size: 16 }));
   if (sub) {
     const top = document.createElement('span');
@@ -27835,7 +28256,9 @@ function createPrivacy({
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
 
   if (onMediaAutoload) body.append(switchRow({
-    glyph: 'photo', hue: 'info',
+    // ★ S9 privacy icons = A (Damir): the row is about fetching from the sender's host. The disc keeps
+    //   the colour it had (and that the picked render showed) — the glyph hash would repaint it.
+    glyph: 'world-download', grad: discGrad('photo'), hue: 'info',
     label: strings.loadMedia || 'Load pictures and GIFs',
     // the sub says WHAT IT COSTS, because that is the whole reason the row exists
     sub: strings.loadMediaSub || 'Loading tells the sender’s host that you opened the chat',
@@ -27847,7 +28270,7 @@ function createPrivacy({
   // ★ #1133: photo previews in chats (handler only with the exe's cap; data-pref = in-place echo)
   if (onPhotoPreviews) {
     const pv = switchRow({
-      glyph: 'eye', hue: 'accent',
+      glyph: 'photo', grad: discGrad('eye'), hue: 'accent',   // ★ S9 privacy icons = A (was 'eye'; colour kept)
       label: strings.photoPreviewsTitle || 'Show photo previews in chats',
       sub: strings.photoPreviewsHint || 'Photos you sent or downloaded show as a picture in the chat. Off: every photo stays a file card.',
       checked: photoPreviews, live,
@@ -28809,8 +29232,9 @@ function createSettingsAbout({
 
   const desc = document.createElement('p');
   desc.className = 'c-settings__note c-settings-about__desc';
-  desc.textContent = description || strings.aboutBody
-    || 'Spixi lets you chat and send IXI directly, peer to peer. Your messages are encrypted on your device and your keys never leave it.';
+  // ★ S9 A-10 (#1245, audit S-07): in-transit wording (history is not encrypted at rest), NEW key
+  desc.textContent = description || strings.aboutBody2
+    || 'Spixi lets you chat and send IXI directly, peer to peer. Your messages are end-to-end encrypted and your keys never leave your device.';
   body.append(desc);
 
   /* links card — website / network / source (degrade to text without onOpenLink) */
@@ -29287,6 +29711,12 @@ function buildWelcome(st) {
     settingsOptionSheet({
       title: strings.language || 'Language',
       hint: langHint(),                          // A4: only when the saved locale isn't offered
+      // ★ S9 L (#1246): the AI note + report link for a non-English language (not for the A4
+      // hidden row). The page reloads on a pick, so the note is always in the current language.
+      note: languageNote({
+        code: st.language, hidden: !offered.some((l) => l.code === st.language), strings,
+        onReport: opts.onReportTranslation,
+      }),
       options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
       current: st.language,
       host: hostEl(st),
@@ -29332,7 +29762,9 @@ function buildWelcome(st) {
     {
       img: base + 'step1.png',
       title: strings.slide1Title || 'Built for you. Owned by you.',
-      copy: strings.slide1Copy || 'Encrypted on your device and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
+      // ★ S9 A-10 (#1245, audit S-07): "Encrypted on your device" read as encryption AT REST
+      //   (history is not encrypted at rest, CORE-11) → in-transit wording, NEW key.
+      copy: strings.slide1Copy2 || 'End-to-end encrypted and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
     },
     {
       img: base + 'step2.png',
@@ -29685,7 +30117,7 @@ function buildCreate(st) {
   v.className = 'c-launch__view';
   v.dataset.launchView = 'create';
 
-  const pw = passwordField({ label: strings.password || 'Password', strings });               // new-password (group label carries "Wallet")
+  const pw = passwordField({ label: strings.password || 'Password', strings });               // new-password (★ S9 #1246 O = A: no group label — the field says "Password")
   const rp = passwordField({ label: strings.repeatPassword || 'Confirm password', strings });  // new-password
   const scrub = () => { pw.input.value = ''; rp.input.value = ''; pw.mask(); rp.mask(); };
   st.scrubs.push(scrub);
@@ -29737,19 +30169,22 @@ function buildCreate(st) {
   gProfile.append(avRow, nick);
   body.append(gProfile);
 
-  // — Wallet-password group: the two secrets + the length hint, under one label —
+  // — Password group: the two secrets + the hints. ★ S9 (#1246 O = A, #1139): NO group
+  //   label any more — "Wallet password" over fields that already say "Password" /
+  //   "Confirm password" read as a third, different secret. —
   const gSec = document.createElement('div');
   gSec.className = 'c-launch__group';
-  const lSec = document.createElement('p');
-  lSec.className = 'c-launch__group-label';
-  lSec.textContent = strings.createPasswordLabel || 'Wallet password';
-  gSec.append(lSec, pw.wrap, rp.wrap);
+  gSec.append(pw.wrap, rp.wrap);
   // proactive password condition (BE requires ENC_MIN) — shown UP FRONT, not
   // only as a post-submit error (Damir 2026-07-06)
   const hint = document.createElement('p');
   hint.className = 'c-launch__hint';
   hint.textContent = (strings.passwordHint || 'Use at least {n} characters.').replace('{n}', String(ENC_MIN));
-  gSec.append(hint);
+  // ★ S9 (#1246, #1139): the second hint line — how to pick one, not only how long
+  const hint2 = document.createElement('p');
+  hint2.className = 'c-launch__hint';
+  hint2.textContent = strings.passwordPhraseHint || 'Use a long phrase that is easy for you to remember.';
+  gSec.append(hint, hint2);
   body.append(gSec);
 
   const err = errLine();
@@ -29762,11 +30197,12 @@ function buildCreate(st) {
   warn.setAttribute('role', 'note');
   const warnTitle = document.createElement('p');
   warnTitle.className = 'c-launch__callout-title';
-  warnTitle.textContent = strings.createWarnTitle || 'Spixi doesn’t store your password.';
+  // ★ S9 (#1246): NEW keys — a changed meaning on the old keys would keep the old text in the drafts
+  warnTitle.textContent = strings.createWarnTitle2 || 'Write this password down';
   const warnBody = document.createElement('p');
   warnBody.className = 'c-launch__callout-body';
-  warnBody.textContent = strings.createWarnBody
-    || 'Without it and your backup file, your account and wallet can’t be recovered, not even by us.';
+  warnBody.textContent = strings.createWarnBody2
+    || 'It protects your account and wallet on this device. Nobody can reset it, not even Spixi.';
   warn.append(warnTitle, warnBody);
   body.append(warn);
   v.append(body);
@@ -29797,7 +30233,7 @@ function buildCreate(st) {
       // C# splits create:<nick>:<password> on the FIRST ':' (launch-spec §1)
       return setError(strings.nickColon || 'Nicknames can’t contain “:”.', nick);
     }
-    if (!p) return setError(strings.passwordEmpty2 || 'Choose a wallet password.', pw.input);
+    if (!p) return setError(strings.passwordEmpty3 || 'Choose a password.', pw.input);   // ★ S9 (#1246): no "wallet" (new key)
     if (p.length < ENC_MIN) {
       return setError((strings.newTooShort || 'The password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), pw.input);
     }
@@ -31307,5 +31743,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, openMediaSendSheet: openMediaSendSheet, closeMediaSendSheet: closeMediaSendSheet, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

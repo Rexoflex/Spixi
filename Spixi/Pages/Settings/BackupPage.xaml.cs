@@ -1,5 +1,6 @@
 ﻿using IXICore;
 using IXICore.Meta;
+using Microsoft.Maui.ApplicationModel;   // ★ H-13 (#1245): MainThread for the native "Did you save the backup?" alert
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
 using Microsoft.Maui.Storage;
@@ -10,6 +11,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Threading;   // ★ H-13 r1: the one pending question (CancellationTokenSource)
 using System.Threading.Tasks;
 using System.Web;
 
@@ -136,6 +138,166 @@ namespace SPIXI
             }
         }
 
+        /* ★ H-13 (#1245, Damir): a CANCELLED share used to count as a backup. Now the outcome decides where a platform
+         * reports one, and a NATIVE alert asks where it does not:
+         *   · Windows — FileSaver's own result: saved = stamp (no question), cancelled / failed = nothing;
+         *   · Android — the Share / Save action sheet: Cancel = nothing (no question); Share or Save = ask (the chooser
+         *     that follows reports nothing);
+         *   · iOS / Mac — share() returns while the sheet is still open: wait for it to close, then ask.
+         * "Yes" stamps, "No" (or a failed alert) does not. No verb, no WebView text: the strings are C#'s own
+         * (Resources/Raw/lang, with ?? fallbacks). The root page hosts it (the displaySpixiAlert rule), main thread.
+         * ★ #46 r1 (R1-B): ONE pending question at a time — a new backup cancels the previous wait / question, and
+         * BackupPage leaving the screen cancels it (cancelPendingAsk); a cancelled question asks nothing and stamps
+         * nothing. */
+        private static readonly object askGate = new object();
+        private static CancellationTokenSource? askCts;
+
+        /// <summary>★ H-13 r1: drops the pending "Did you save the backup?" wait / question (no stamp).</summary>
+        public static void cancelPendingAsk()
+        {
+            lock (askGate)
+            {
+                askCts?.Cancel();
+                askCts = null;
+            }
+        }
+
+        /// <summary>★ H-13 r1: runs the share sheet; true = saved / chosen, false = cancelled, null = no outcome known.</summary>
+        private static async Task<bool?> shareBackup(string path, string title)
+        {
+#if WINDOWS
+            return await (await SFileOperations.share(path, title));
+#elif ANDROID
+            return await SFileOperations.share(path, title);
+#else
+            await SFileOperations.share(path, title);
+            return null;
+#endif
+        }
+
+        private static async Task recordBackupIfSaved(bool? outcome)
+        {
+            if (outcome == false)
+            {
+                Logging.info("backup: the share was cancelled - no stamp");
+                return;
+            }
+#if WINDOWS
+            if (outcome == true)
+            {
+                recordBackup();   // FileSaver wrote the file — that IS the confirmation
+                return;
+            }
+#endif
+            CancellationTokenSource mine = new CancellationTokenSource();
+            lock (askGate)
+            {
+                askCts?.Cancel();
+                askCts = mine;
+            }
+            CancellationToken ct = mine.Token;
+            bool saved = false;
+            try
+            {
+                string title = SpixiLocalization._SL("settings-backup-saved-title") ?? "Did you save the backup?";
+                string text = SpixiLocalization._SL("settings-backup-saved-text") ?? "Choose Yes only if the backup file is now saved or sent somewhere safe.";
+                string yes = SpixiLocalization._SL("settings-backup-saved-yes") ?? "Yes";
+                string no = SpixiLocalization._SL("settings-backup-saved-no") ?? "No";
+#if IOS || MACCATALYST
+                await waitForAppleShareSheet(ct);
+#endif
+                ct.ThrowIfCancellationRequested();
+                saved = await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    Page? host = Application.Current?.MainPage;
+                    if (host == null || ct.IsCancellationRequested)
+                    {
+                        return false;
+                    }
+                    return await host.DisplayAlert(title, text, yes, no);
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                Logging.info("backup: the saved question was dropped - no stamp");
+                saved = false;
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("backup: the saved question failed (" + ex.GetType().Name + ")");
+            }
+            finally
+            {
+                lock (askGate)
+                {
+                    if (ReferenceEquals(askCts, mine))
+                    {
+                        askCts = null;
+                    }
+                }
+                mine.Dispose();
+            }
+            if (saved)
+            {
+                recordBackup();
+            }
+            else
+            {
+                Logging.info("backup: not confirmed as saved - no stamp");
+            }
+        }
+
+#if IOS || MACCATALYST
+        /* ★ H-13: on iOS / Mac `SFileOperations.share` returns as soon as it PRESENTS the activity sheet (it does not
+         * await its dismissal), so the question would open on top of the sheet before the user acted. Wait until no
+         * UIActivityViewController is presented any more: polled on the main thread every 300 ms, bounded at 15 min
+         * (after that the question is asked anyway). The better fix is a completion-awaiting share (reported). */
+        private static async Task waitForAppleShareSheet(CancellationToken ct)
+        {
+            await Task.Delay(500, ct);   // the sheet's present animation was not awaited by share()
+            for (int i = 0; i < 3000; i++)
+            {
+                bool open = await MainThread.InvokeOnMainThreadAsync(() => appleShareSheetOpen());
+                if (!open)
+                {
+                    return;
+                }
+                await Task.Delay(300, ct);   // ★ H-13 r1: a newer backup / the page leaving cancels the wait
+            }
+        }
+
+        private static bool appleShareSheetOpen()
+        {
+            try
+            {
+                foreach (UIKit.UIScene scene in UIKit.UIApplication.SharedApplication.ConnectedScenes)
+                {
+                    if (scene is not UIKit.UIWindowScene windowScene)
+                    {
+                        continue;
+                    }
+                    foreach (UIKit.UIWindow window in windowScene.Windows)
+                    {
+                        UIKit.UIViewController? vc = window.RootViewController;
+                        while (vc != null)
+                        {
+                            if (vc is UIKit.UIActivityViewController)
+                            {
+                                return true;
+                            }
+                            vc = vc.PresentedViewController;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("backup: the share sheet check failed (" + ex.GetType().Name + ")");
+            }
+            return false;
+        }
+#endif
+
         /// <summary>The push every backup surface renders its status from ("" = never).</summary>
         public static void pushBackupStatus(SpixiContentPage page)
         {
@@ -159,8 +321,8 @@ namespace SPIXI
                 // TODO add file header
                 string docpath = Config.spixiUserFolder;
                 string filepath = Path.Combine(docpath, Config.walletFile);
-                await SFileOperations.share(filepath, "Backup Spixi Wallet");
-                recordBackup();   // ★ S2: AFTER the sheet returned without throwing (loop m4)
+                bool? outcome = await shareBackup(filepath, "Backup Spixi Wallet");
+                await recordBackupIfSaved(outcome);   // ★ H-13: AFTER the sheet returned; the outcome or the user's "Yes"
             }
             catch (Exception ex)
             {
@@ -219,13 +381,20 @@ namespace SPIXI
                 byte[] encrypted_backup = CryptoManager.lib.encryptWithPassword(bytes_to_encrypt, password, true);
                 File.Delete(backup_file_name);
                 File.WriteAllBytes(backup_file_name, encrypted_backup);
-                await SFileOperations.share(backup_file_name, "Share Spixi Account Backup File");
-                recordBackup();   // ★ S2: AFTER the sheet returned without throwing (loop m4)
+                bool? outcome = await shareBackup(backup_file_name, "Share Spixi Account Backup File");
+                await recordBackupIfSaved(outcome);   // ★ H-13: AFTER the sheet returned; the outcome or the user's "Yes"
             }
             catch (Exception ex)
             {
                 Logging.error("Exception backing up account: " + ex.ToString());
             }
+        }
+
+        // ★ H-13 r1 (R1-B): the question belongs to this screen — leaving it drops a pending wait / question.
+        protected override void OnDisappearing()
+        {
+            cancelPendingAsk();
+            base.OnDisappearing();
         }
 
         protected override bool OnBackButtonPressed()

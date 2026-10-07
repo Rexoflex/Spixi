@@ -75,7 +75,9 @@ namespace Spixi
          * grammar), the long edge ≤ maxEdge (≤ MaxLongSide), the aspect ratio KEPT (no crop); the EXIF orientation is read
          * from the frame's System.Photo.Orientation and applied by ViewerRules.orientBgra (the decode itself IGNORES the
          * flag, as makeJpeg does — so the scaled size is unambiguous); JPEG q82; streams disposed. Called OFF the UI thread
-         * (a thread-pool caller — no sync context to deadlock). The path is C#'s own. Fail-soft: anything → null. */
+         * (a thread-pool caller — no sync context to deadlock). The path is C#'s own. Fail-soft: anything → null.
+         * ★ S9 (#1244): ALSO the photo encoder of the chat's media send (maxEdge 2048 = PhotoRules.MaxEdge = MaxLongSide):
+         * the encoder gets raw pixels (SetPixelData) and no property set but the quality, so it writes NO EXIF / GPS. */
         public static byte[]? makeViewerJpeg(string path, int maxEdge)
         {
             try

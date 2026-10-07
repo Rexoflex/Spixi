@@ -308,6 +308,8 @@ index-excerpt-payment-received = Pago recibido
 index-excerpt-contact-accepted = Contacto aceptado
 index-excerpt-contact-request = Solicitud de contacto
 index-excerpt-file = Archivo
+index-excerpt-photo = Foto
+index-excerpt-photos = {0} fotos
 index-excerpt-voice-call = Llamada de voz
 index-excerpt-self = 
 index-excerpt-you = Tú
@@ -470,6 +472,10 @@ settings-backup-notice = Necesitarás esta copia de seguridad y tu contraseña p
 settings-backup-notice2 = - Pierdes este dispositivo<br />- Desinstalas Spixi de este dispositivo<br />- Eliminas esta cuenta de Spixi<br />- Eliminas esta billetera
 settings-backup-invalidpassword-title = Contraseña inválida
 settings-backup-invalidpassword-text = Introduce una contraseña válida.
+settings-backup-saved-title = ¿Guardaste la copia de seguridad?
+settings-backup-saved-text = Elige Sí solo si el archivo de copia de seguridad ya está guardado o enviado a un lugar seguro.
+settings-backup-saved-yes = Sí
+settings-backup-saved-no = No
 
 ; Settings Encryption Screen
 settings-encryption-title = Contraseña
@@ -665,6 +671,7 @@ global-friend-request-accepted = {0} ha aceptado tu solicitud de contacto.
 global-friend-request-connected = Ahora estás conectado con {0}.
 chat-group-added-you = {0} te agregó a este grupo
 chat-group-added-you-noname = Te agregaron a este grupo
+chat-group-you-created = Creaste este grupo
 
 global-update-available = Hay una nueva versión de Spixi disponible ({0}). Actualiza para obtener la mejor experiencia.
 global-modal-external-link-title = Enlace externo

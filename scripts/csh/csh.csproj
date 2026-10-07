@@ -48,6 +48,16 @@
     <Compile Include="../../Spixi/Meta/SPrivacyPrefs.cs" />
     <!-- ★ S8 picks (#1239): the live mic level of a voice recording + its push throttle (tests: S8PicksTests.cs). -->
     <Compile Include="../../Spixi/Utils/VoiceLevel.cs" />
+    <!-- ★ S9 A1 (#1244 / #1245 A-6 / A-9): the media family's pure rules + the photo-group store (tests: S9MediaTests.cs). -->
+    <Compile Include="../../Spixi/Utils/PhotoRules.cs" />
+    <Compile Include="../../Spixi/Meta/SPhotoGroups.cs" />
+    <!-- ★ S9 V-15 (#1245, agent A2): the audit rules (C-02 typing timers · C-03 bounded wait · C-04 download · A-8 bridge parse) + the backup-excluded store (H-14) (tests: S9AuditTests.cs). -->
+    <Compile Include="../../Spixi/Utils/AuditRules.cs" />
+    <Compile Include="../../Spixi/Meta/SLocalOnlyStore.cs" />
+    <!-- ★ S9 A3 (#1243 / #1245 / #1246 / #1247): the S8 fix rows · the desktop dialog + info pane · haptics · the language report link (tests: S9FixTests.cs). -->
+    <Compile Include="../../Spixi/Utils/S9FixRules.cs" />
+    <Compile Include="../../Spixi/Meta/SAppJoins.cs" />
+    <Compile Include="../../Spixi/Meta/SVoicePlayed.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

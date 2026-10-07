@@ -69,7 +69,7 @@ import { createButton, setLoading, setSuccess } from './button.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createAvatar } from './avatar.js';
 import { passwordField, ENC_MIN } from './lock-shell.js';
-import { settingsOptionSheet } from './settings-shell.js';
+import { settingsOptionSheet, languageNote } from './settings-shell.js';
 import { LANGUAGES, createFlag } from './flags.js';
 import { slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide } from './subscreen-slide.js';
 import { LEGAL_DOCS } from './legal-docs.js';   // ★ #733: GENERATED from docs/legal at build time — the full documents
@@ -244,6 +244,12 @@ function buildWelcome(st) {
     settingsOptionSheet({
       title: strings.language || 'Language',
       hint: langHint(),                          // A4: only when the saved locale isn't offered
+      // ★ S9 L (#1246): the AI note + report link for a non-English language (not for the A4
+      // hidden row). The page reloads on a pick, so the note is always in the current language.
+      note: languageNote({
+        code: st.language, hidden: !offered.some((l) => l.code === st.language), strings,
+        onReport: opts.onReportTranslation,
+      }),
       options: languages.map((l) => ({ value: l.code, label: l.label, flag: l.flag })),
       current: st.language,
       host: hostEl(st),
@@ -289,7 +295,9 @@ function buildWelcome(st) {
     {
       img: base + 'step1.png',
       title: strings.slide1Title || 'Built for you. Owned by you.',
-      copy: strings.slide1Copy || 'Encrypted on your device and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
+      // ★ S9 A-10 (#1245, audit S-07): "Encrypted on your device" read as encryption AT REST
+      //   (history is not encrypted at rest, CORE-11) → in-transit wording, NEW key.
+      copy: strings.slide1Copy2 || 'End-to-end encrypted and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
     },
     {
       img: base + 'step2.png',
@@ -642,7 +650,7 @@ function buildCreate(st) {
   v.className = 'c-launch__view';
   v.dataset.launchView = 'create';
 
-  const pw = passwordField({ label: strings.password || 'Password', strings });               // new-password (group label carries "Wallet")
+  const pw = passwordField({ label: strings.password || 'Password', strings });               // new-password (★ S9 #1246 O = A: no group label — the field says "Password")
   const rp = passwordField({ label: strings.repeatPassword || 'Confirm password', strings });  // new-password
   const scrub = () => { pw.input.value = ''; rp.input.value = ''; pw.mask(); rp.mask(); };
   st.scrubs.push(scrub);
@@ -694,19 +702,22 @@ function buildCreate(st) {
   gProfile.append(avRow, nick);
   body.append(gProfile);
 
-  // — Wallet-password group: the two secrets + the length hint, under one label —
+  // — Password group: the two secrets + the hints. ★ S9 (#1246 O = A, #1139): NO group
+  //   label any more — "Wallet password" over fields that already say "Password" /
+  //   "Confirm password" read as a third, different secret. —
   const gSec = document.createElement('div');
   gSec.className = 'c-launch__group';
-  const lSec = document.createElement('p');
-  lSec.className = 'c-launch__group-label';
-  lSec.textContent = strings.createPasswordLabel || 'Wallet password';
-  gSec.append(lSec, pw.wrap, rp.wrap);
+  gSec.append(pw.wrap, rp.wrap);
   // proactive password condition (BE requires ENC_MIN) — shown UP FRONT, not
   // only as a post-submit error (Damir 2026-07-06)
   const hint = document.createElement('p');
   hint.className = 'c-launch__hint';
   hint.textContent = (strings.passwordHint || 'Use at least {n} characters.').replace('{n}', String(ENC_MIN));
-  gSec.append(hint);
+  // ★ S9 (#1246, #1139): the second hint line — how to pick one, not only how long
+  const hint2 = document.createElement('p');
+  hint2.className = 'c-launch__hint';
+  hint2.textContent = strings.passwordPhraseHint || 'Use a long phrase that is easy for you to remember.';
+  gSec.append(hint, hint2);
   body.append(gSec);
 
   const err = errLine();
@@ -719,11 +730,12 @@ function buildCreate(st) {
   warn.setAttribute('role', 'note');
   const warnTitle = document.createElement('p');
   warnTitle.className = 'c-launch__callout-title';
-  warnTitle.textContent = strings.createWarnTitle || 'Spixi doesn’t store your password.';
+  // ★ S9 (#1246): NEW keys — a changed meaning on the old keys would keep the old text in the drafts
+  warnTitle.textContent = strings.createWarnTitle2 || 'Write this password down';
   const warnBody = document.createElement('p');
   warnBody.className = 'c-launch__callout-body';
-  warnBody.textContent = strings.createWarnBody
-    || 'Without it and your backup file, your account and wallet can’t be recovered, not even by us.';
+  warnBody.textContent = strings.createWarnBody2
+    || 'It protects your account and wallet on this device. Nobody can reset it, not even Spixi.';
   warn.append(warnTitle, warnBody);
   body.append(warn);
   v.append(body);
@@ -754,7 +766,7 @@ function buildCreate(st) {
       // C# splits create:<nick>:<password> on the FIRST ':' (launch-spec §1)
       return setError(strings.nickColon || 'Nicknames can’t contain “:”.', nick);
     }
-    if (!p) return setError(strings.passwordEmpty2 || 'Choose a wallet password.', pw.input);
+    if (!p) return setError(strings.passwordEmpty3 || 'Choose a password.', pw.input);   // ★ S9 (#1246): no "wallet" (new key)
     if (p.length < ENC_MIN) {
       return setError((strings.newTooShort || 'The password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), pw.input);
     }

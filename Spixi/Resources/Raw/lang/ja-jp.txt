@@ -306,6 +306,8 @@ index-excerpt-payment-received = 支払いを受信しました
 index-excerpt-contact-accepted = 連絡先リクエストを承認しました
 index-excerpt-contact-request = 連絡先リクエスト
 index-excerpt-file = ファイル
+index-excerpt-photo = 写真
+index-excerpt-photos = 写真 {0} 枚
 index-excerpt-voice-call = 音声通話
 index-excerpt-self = 
 index-excerpt-you = あなた
@@ -457,6 +459,10 @@ settings-backup-notice = 次の場合に備えて、バックアップとパス�
 settings-backup-notice2 = - このデバイスを紛失した場合<br />- Spixi をアンインストールした場合<br />- Spixi アカウントを削除した場合<br />- ウォレットを削除した場合
 settings-backup-invalidpassword-title = 無効なパスワード
 settings-backup-invalidpassword-text = 有効なパスワードを入力してください。
+settings-backup-saved-title = バックアップを保存しましたか？
+settings-backup-saved-text = バックアップファイルを安全な場所に保存または送信した場合のみ「はい」を選んでください。
+settings-backup-saved-yes = はい
+settings-backup-saved-no = いいえ
 
 ; Settings Encryption Screen
 settings-encryption-title = パスワード
@@ -673,6 +679,7 @@ global-friend-request-accepted = {0} があなたの連絡先リクエストを�
 global-friend-request-connected = {0} とつながりました。
 chat-group-added-you = {0} さんがあなたをこのグループに追加しました
 chat-group-added-you-noname = このグループに追加されました
+chat-group-you-created = このグループを作成しました
 
 global-update-available = Spixi の新しいバージョン ({0}) が利用可能です。最新のエクスペリエンスのために更新してください。
 global-modal-external-link-title = 外部リンク

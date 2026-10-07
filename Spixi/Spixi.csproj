@@ -562,4 +562,12 @@
 			<None Remove="$(MicrosoftWindowsAppSDKMsixContent)\zh-TW\Microsoft.UI.Xaml.Phone.dll.mui" />
 		</ItemGroup>
 	</Target>
+	<!-- ★ S9 A-14 (#1245): the Mac uses the iOS WebView handler. MAUI removes Platforms/iOS/** from other TFMs in a
+	     target (_MauiRemovePlatformCompileItems, Microsoft.Maui.Controls.SingleProject.targets), so a static Include is
+	     undone; re-add the one file after that target, maccatalyst only. -->
+	<Target Name="SpixiMacUsesAppleWebViewHandler" AfterTargets="_MauiRemovePlatformCompileItems" Condition="$(TargetFramework.Contains('-maccatalyst'))">
+		<ItemGroup>
+			<Compile Include="Platforms\iOS\iOSWebViewHandler.cs" />
+		</ItemGroup>
+	</Target>
 </Project>

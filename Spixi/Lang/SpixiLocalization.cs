@@ -26,6 +26,13 @@ namespace SPIXI.Lang
             "sr-sp"
         };
 
+        /** ★ S9 A3 #1246: the app's language codes, read-only (Utils.openTranslationReport checks a WebView-sent code
+         *  against this list before it builds the report mail link). */
+        public static IReadOnlyList<string> getLanguageCodes()
+        {
+            return languages.AsReadOnly();
+        }
+
         private static bool loaded = false;
         private static string language = "en-us";
         private static Dictionary<string, string> localizedStrings = new Dictionary<string, string>();

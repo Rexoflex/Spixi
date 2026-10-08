@@ -163,7 +163,7 @@ function chatsEmptyState(state, strings, opts = {}) {
     // A filter/search miss is about the QUERY, not the roster → never gated.
     if (opts.zeroReady === false) return null;
     return createEmptyState({
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/chats-es.png',
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'chatsEmpty',   // ★ S11 A2 (#1263, R2-m5): the inline art's NAME — the PNG is deleted
       glyph: 'messages',                            // art blocked/missing → token glyph tile
       title: strings.chatsEmptyAll || 'No chats yet',
       body: strings.chatsEmptyBody

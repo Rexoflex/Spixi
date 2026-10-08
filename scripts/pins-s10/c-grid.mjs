@@ -1,7 +1,8 @@
 /* ==== S10 C — F2 (#1254): the photo grid on the BUILT chat.html + P3 (the two-line created line) ====
  *   · a RECEIVED group of 7 with 3 offers → "Download all (3)" under the grid; a tap → ixian:acceptfile for EACH offer in
  *     group order, once (a second tap asks nothing); the offers' first ticks re-render the bubble without the button;
- *   · the "+N" is a BUTTON: offers left → the same accepts; none → the viewer opens at the fifth photo (or the next viewable);
+ *   · ★ S11 G re-base (#1263 a = A): no "+N" any more (the mosaic shows every photo, pins-s11/g-album.mjs) — the fifth CELL
+ *     opens the viewer at the fifth photo;
  *   · the viewer's Reply → the composer replies to THE PHOTO ON SCREEN (that member's id);
  *   · DISPLAY: the reply strip / the rendered quote box of the FIRST member of a ≥ 2 group say "📷 7 photos"; a quote of
  *     another member shows that photo's name;
@@ -41,10 +42,9 @@ export default async function (h) {
     await sleep(300);
     const grp = () => K.rowOf(d, 'f0');
     const dl = () => grp() && grp().querySelector('.c-mgrid__dlall');
-    const more = () => grp() && grp().querySelector('button.c-mgrid__more');
+    const cellTile = (i) => grp() && grp().querySelectorAll('.c-mgrid__cell')[i].querySelector('.c-mbubble');
     r.button = !!dl() && dl().textContent.trim() === 'Download all (2)';
-    r.moreButton = !!more() && more().textContent === '+3' && more().getAttribute('aria-label') === 'Download all (2)'
-      && more().previousElementSibling && more().previousElementSibling.tabIndex === -1;
+    r.noMoreButton = !grp().querySelector('.c-mgrid__more') && grp().querySelectorAll('.c-mgrid__cell').length === 7;   /* ★ S11 G re-base (#1263 a): was the "+3" button (moreButton) */
     const quoteText = (id) => { const q = K.rowOf(d, id) && K.rowOf(d, id).querySelector('.c-bubble__reply'); return q ? q.textContent : ''; };
     r.quoteFirst = quoteText('q1').includes('\u{1F4F7} 7 photos') && !quoteText('q1').includes('lake0.jpg');
     r.quoteOther = quoteText('q2').includes('lake3.jpg') && !quoteText('q2').includes('photos');
@@ -58,19 +58,19 @@ export default async function (h) {
     dl().click();
     await sleep(40);
     r.acceptsInOrder = !!cell2 && acc().join() === 'ixian:acceptfile:x2,ixian:acceptfile:x5' && dl().disabled;
-    more().click();   // offers still offers (no tick yet): inside the guard nothing is asked again
+    cellTile(5).click();   // offers still offers (no tick yet): inside the guard nothing is asked again — ★ S11 G re-base: the offer cell (was the "+N")
     await sleep(40);
     r.noTwice = acc().length === 2 && !d.querySelector('.c-mviewer') && !s.sent.includes('ixian:acceptfile:x6');
     await sleep(3200);   // the guard ran out with the offers still offers → the button is back
     r.buttonBack = !!dl() && !dl().disabled;
     for (const i of OFFERS) push('updateFile', 'x' + i, '10', 'False');
     await sleep(150);
-    r.goneAfterTicks = !!grp() && !dl() && !!more() && more().getAttribute('aria-label') === 'Show all 7 photos';
-    /* "+N" with no offers → the viewer at the fifth photo (f4: the complete set is f0 f1 f3 f4) */
+    r.goneAfterTicks = !!grp() && !dl() && !grp().querySelector('.c-mgrid__foot');   /* ★ S11 G re-base: the footer goes with the button */
+    /* ★ S11 G re-base: the fifth CELL → the viewer at the fifth photo (f4: the complete set is f0 f1 f3 f4) */
     for (const im of grp().querySelectorAll('.c-mbubble__img')) if (im.getAttribute('src')) im.dispatchEvent(new W.Event('load'));
     await sleep(60);
     const before = s.sent.length;
-    more().click();
+    cellTile(4).click();
     await sleep(120);
     const v = d.querySelector('.c-mviewer');
     r.viewerAt5 = !!v && (v.querySelector('.c-mviewer__count') || {}).textContent === '4 / 4' && s.sent.slice(before).includes('ixian:viewImage:f4');
@@ -117,9 +117,10 @@ export default async function (h) {
   finally { if (s) { try { s.W.close(); } catch (_) {} s = null; } }
   if (process.env.CDBG) console.log(JSON.stringify(r));
   ok(Object.values(r).length > 8 && Object.values(r).every((x) => x === true),
-    '★★ S10 C F2 (#1254) the photo grid on the built chat shell: "Download all (n)" under a received group with offers (a gone one not counted) accepts every offer in group order once — a cell tap counts, the button comes back after the 3 s guard — and leaves on the ticks; the "+N" is a button (offers → accept, none → the viewer at the fifth photo); the viewer\'s Reply replies to the photo on screen; the index-0 member\'s quote / menu reply strip say "📷 7 photos" (a viewer Reply, another member, a group without its index 0 and a one-photo group show the name); no viewer Reply while recording — ' + JSON.stringify(r));
+    '★★ S10 C F2 (#1254) the photo grid on the built chat shell: "Download all (n)" under a received group with offers (a gone one not counted) accepts every offer in group order once — a cell tap counts, the button comes back after the 3 s guard — and leaves on the ticks; no "+N" (★ S11 G re-base: every photo a cell; the fifth cell → the viewer at the fifth photo); the viewer\'s Reply replies to the photo on screen; the index-0 member\'s quote / menu reply strip say "📷 7 photos" (a viewer Reply, another member, a group without its index 0 and a one-photo group show the name); no viewer Reply while recording — ' + JSON.stringify(r));
 
-  /* ★ #46 m-7: "+N" with nothing complete (my photos still sending) opens NOTHING — no openfile on a file not here yet */
+  /* ★ #46 m-7: a group with nothing complete (my photos still sending) opens NOTHING — no openfile on a file not here yet
+     ★ S11 G re-base (#1263 a): the fifth sending CELL is tapped (the "+N" is gone) */
   const m7 = {};
   try {
     s = await K.open({ caps: 'reply,media', rows: false });
@@ -127,7 +128,8 @@ export default async function (h) {
     s.push('messagesDone');
     s.push('onChatScreenLoaded');
     await sleep(200);
-    const mb = K.rowOf(s.d, 'p0') && K.rowOf(s.d, 'p0').querySelector('button.c-mgrid__more');
+    const cells5 = K.rowOf(s.d, 'p0') ? K.rowOf(s.d, 'p0').querySelectorAll('.c-mgrid__cell') : [];
+    const mb = cells5.length === 5 && !K.rowOf(s.d, 'p0').querySelector('.c-mgrid__more') ? cells5[4].querySelector('.c-mbubble') : null;
     const before = s.sent.length;
     if (mb) mb.click();
     await sleep(120);
@@ -136,7 +138,7 @@ export default async function (h) {
   } catch (e) { m7.err = e.message; }
   finally { if (s) { try { s.W.close(); } catch (_) {} s = null; } }
   ok(Object.values(m7).every((x) => x === true),
-    '★ S10 C #46 m-7: the "+N" of a group with no complete photo opens nothing (no ixian:openfile on a file still sending) — ' + JSON.stringify(m7));
+    '★ S10 C #46 m-7: a cell of a group with no complete photo opens nothing (no ixian:openfile on a file still sending; ★ S11 G re-base: the cell, the "+N" is gone) — ' + JSON.stringify(m7));
 
   /* P3: the created line's "\n" is a line break */
   const p = {};

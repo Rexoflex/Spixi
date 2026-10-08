@@ -24,6 +24,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
+import { illustrationFor } from './illustrations.js';   // ★ S11 B (#1262)
 import { discGrad, spreadDiscs } from './disc.js';
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createTopbar } from './topbar.js';
@@ -33,8 +34,9 @@ import { backupStatusParts } from './settings-shell.js';
 export function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
-  illustration = null,           // OPTIONAL art src (launch grammar: decorative alt="", img
-                                 // error → the token-styled shield placeholder). Damir: images/backup.png (N45).
+  illustration = null,           // OPTIONAL art: an illustrations.js NAME ('backup' — what every host passes,
+                                 // ★ S11 G3 #1263 NIT-1), a factory, else an image src (decorative alt="", img
+                                 // error → the token-styled shield placeholder); none → that placeholder.
   onBack,
   onBackup,                      // ({}, ctrl) — ixian:backupAccount (no password arg, #199)
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
@@ -72,7 +74,12 @@ export function createSettingsBackup({
       art.append(sat);
     }
   };
-  if (illustration) {
+  const inlineArt = illustrationFor(illustration);
+  if (inlineArt) {
+    // ★ S11 B (#1262): the approved backup art (round 3 — the SAME drawing as the nudge),
+    // inline in the 128 slot; the hosts pass its NAME 'backup' (★ S11 G3 #1263 NIT-1: the PNG is deleted)
+    art.append(inlineArt({ className: 'c-settings-backup__illustration' }));
+  } else if (illustration) {
     // launch/backup-nudge grammar: decorative img, fail-soft to the placeholder
     const img = document.createElement('img');
     img.className = 'c-settings-backup__illustration';

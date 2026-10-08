@@ -12,6 +12,8 @@
  * button either. Between them the field had literally no dismiss affordance: Damir's
  * "it's difficult to choose the recipient" on wallet Send, and a tip sheet whose own
  * numeric pad covered the sheet that summoned it.
+ * ★ S11 H (#1263): wallet Send and Request no longer have an amount field — they draw the in-app keypad
+ * (amount-pad.js), so no OS keyboard rises there. The tip sheet is this helper's remaining consumer.
  */
 /** Give an amount input every way out that its platform can offer.
  *  · `enterkeyhint="done"` + Enter -> blur, for the keyboards that HAVE a return key

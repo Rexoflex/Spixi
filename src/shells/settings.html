@@ -62,6 +62,7 @@
 <link rel="stylesheet" href="../styles/components/launch-shell.css"><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css"><!-- Backup sublevel in the pane (#243) -->
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- #341: c-encpass + password fields for the Change-password sublevel (#804: every form factor) -->
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
@@ -429,12 +430,14 @@
     notifEnabled: true,
     notifSenderName: false,
     notifSounds: true,
+    hintsOn: true,          // ★ S11 (#1262): seeded by setHintsOff (C# SHints)
     callRingtone: true,        // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
     notifPushProvider: true,   // ★ P2 (#708): matches the C# default (KEY_PUSH_PROVIDER = true)
     photoPreviews: true,       // ★ #1133 (A5 #1124): matches the C# default (SChatPrefs "chatPhotoPreviews" = true)
     readReceipts: true,        // ★ S8 (#1234): the C# defaults (SChatPrefs) — receipts ON, typing ON, hide-online OFF
     typingIndicators: true,
     hideOnline: false,
+    photoAutoDl: 'off',        // ★ S11 C (#1262): the C# default (SAutoDownload "photoAutoDownload" absent = off)
     /* PA1 (#525): "Confirm payments" — display state only. The C# verb persists
        IMMEDIATELY (Preferences, like theme/language) and echoes setPaymentAuth,
        so this never rides the dirty/save path (no #288 clobber class). */
@@ -550,7 +553,7 @@
    * from here, from chat.html's pre-paint script and from applyPatternPrefs alike.
    * readPatternLevel migrates the legacy fractional values. */
   const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground',
-    previewLines: 'spixi.chat.previewlines' };   // ★ S10 P4 (#1254): '1' | '2' (absent / anything else = '2'); the CONSUMER is home.html (the chats list)
+    previewLines: 'spixi.chat.previewlines' };   // ★ S10 P4 (#1254): '1' | '2' (absent / anything else = '1', ★ S11 #1261); the CONSUMER is home.html (the chats list)
   function readChatPrefs() {
     // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
     // mobile Default (1). Mirrors chat.html's pre-paint boot read so the
@@ -589,8 +592,8 @@
       // any other value falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
       if (gr === 'flat' || gr === 'gradient' || gr === 'green' || gr === 'blue') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too · ★ S8 (#1237): and the blue   // ★ #998: anything else, incl. absent/corrupt → the default above
     } catch (e) {}
-    let previewLines = '2';
-    try { if (localStorage.getItem(CHAT_PREFS.previewLines) === '1') previewLines = '1'; } catch (e) {}   // ★ S10 P4: the home.html ladder's twin
+    let previewLines = '1';   // ★ S11 (#1262): the default is 1 LINE (#1261)
+    try { if (localStorage.getItem(CHAT_PREFS.previewLines) === '2') previewLines = '2'; } catch (e) {}   // ★ S10 P4: the home.html ladder's twin
     return { pattern, textScale, patternStyle, chatGround, previewLines };
   }
 
@@ -1315,7 +1318,7 @@
     }
     /* ★ #1133: the Privacy screen also keeps its live node, so a setPhotoPreviews push with
        no tap in flight moves the switch IN PLACE (a pending tap is resolved by the latch). */
-    for (const k of ['photoPreviews', 'readReceipts', 'typingIndicators', 'hideOnline']) {   // ★ S8 (#1234): + the three privacy switches
+    for (const k of ['photoPreviews', 'readReceipts', 'typingIndicators', 'hideOnline', 'hintsOn']) {   /* ★ S11 (#1262): + hintsOn (Chat appearance) */   // ★ S8 (#1234): + the three privacy switches
       if (notifPending[k]) continue;
       const pv = (paneMode ? detailWrap : root).querySelector('[data-pref="' + k + '"] .c-settings__switch');
       if (pv && pv.getAttribute('aria-checked') !== String(state[k])) pv.setAttribute('aria-checked', String(state[k]));
@@ -1475,6 +1478,7 @@
     resolveNotif(key, false);
     const timer = setTimeout(() => { resolveNotif(key, false); }, NOTIF_ACK_MS);
     notifPending[key] = { ctrl, timer, want: !!next };
+    if (key === 'hintsOn') { bridge.send('ixian:hintsoff:' + (next ? '0' : '1')); return; }   // ★ S11 (#1262): 0/1, inverted (the verb says OFF)
     const verb = (key === 'notifEnabled') ? 'ixian:notifEnabled:'
       : (key === 'notifSenderName') ? 'ixian:notifSenderName:'
       : (key === 'notifPushProvider') ? 'ixian:notifPushProvider:'   // ★ P2 (#708)
@@ -1485,6 +1489,19 @@
       : (key === 'hideOnline') ? 'ixian:hideOnline:'
       : 'ixian:notifSounds:';
     bridge.send(verb + (next ? 'on' : 'off'));
+  }
+  /* ★ S11 C (#1262): the auto-download pick rides its own latch (a string, not a switch): optimistic in the sheet,
+     resolved by the setPhotoAutoDl echo, failed back after NOTIF_ACK_MS. The verb carries the CURRENT "Load pictures"
+     value too — C#'s mirror of this document's localStorage key (it never auto-downloads while pictures are off). */
+  let autoDlPending = null;
+  function sendAutoDl(val) {
+    bridge.send('ixian:photoAutoDl:' + val + ':' + (mediaAutoloadPref() ? '1' : '0'));
+  }
+  function latchAutoDl(val, ctrl) {
+    if (autoDlPending) { clearTimeout(autoDlPending.timer); try { autoDlPending.ctrl.fail(); } catch (e) {} }
+    const timer = setTimeout(() => { if (autoDlPending && autoDlPending.ctrl === ctrl) { autoDlPending = null; try { ctrl.fail(); } catch (e) {} } }, NOTIF_ACK_MS);
+    autoDlPending = { ctrl, timer, want: val };
+    sendAutoDl(val);
   }
   function showEncpass() { currentView = 'encpass'; renderLayout(); }      // #341 · #804: encpassInline cap, any form factor
 
@@ -1605,7 +1622,9 @@
           try {
             localStorage.setItem(MEDIA_AUTOLOAD_KEY, next ? 'on' : 'off');
             ctrl.done();
-          } catch (e) { ctrl.fail(); }
+          } catch (e) { ctrl.fail(); return; }
+          /* ★ S11 C (#1262): C#'s mirror follows the switch (photo auto-download never runs while pictures are off) */
+          if (bridge.cap('photoAutoDl')) sendAutoDl(state.photoAutoDl);
         },
         /* ★ #1133 (A5 #1124): C# holds this one (SChatPrefs.photoPreviews), so it rides the
            NOTIF-2 latch: optimistic, resolved by the setPhotoPreviews echo, failed back after
@@ -1615,6 +1634,9 @@
         onReadReceipts: (next, ctrl) => { latchNotif('readReceipts', next, ctrl); },
         onTyping: (next, ctrl) => { latchNotif('typingIndicators', next, ctrl); },
         onHideOnline: (next, ctrl) => { latchNotif('hideOnline', next, ctrl); },
+        /* ★ S11 C (#1262): Download photos automatically — Off · Wi-Fi only · Always (C#-held; no row without the cap) */
+        photoAutoDl: state.photoAutoDl,
+        onPhotoAutoDl: bridge.cap('photoAutoDl') ? (val, ctrl) => { latchAutoDl(val, ctrl); } : undefined,
       });
       /* ★ #978 (#970, Damir 2026-09-24): Declined requests — the un-block path for the app-side
          ignore list. The addresses come from THIS page's own push (C# SRequestIgnore), the tap
@@ -1650,6 +1672,8 @@
           onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
           previewLines: prefs.previewLines,
           onPreviewLines: (v) => { try { localStorage.setItem(CHAT_PREFS.previewLines, v === '1' ? '1' : '2'); } catch (e) {} },
+          hintsOn: state.hintsOn,
+          onHints: bridge.cap('hints') ? (next, ctrl) => { latchNotif('hintsOn', next, ctrl); } : undefined,   // ★ S11 (#1262)
         }));
       }
       // #242/#243: Theme/Language as pane sublevels (the hub routes here via
@@ -1683,7 +1707,7 @@
         // #245b (Damir): the ONE backup illustration everywhere — same asset the
         // create-account/onboarding tail + backup nudge use (build-shells copies
         // src/demo/images → html/images; fail-soft to the shield placeholder).
-        illustration: 'images/backup.png',
+        illustration: 'backup',   // ★ S11 A2 (#1263, R2-m5): the inline art's NAME (illustrations.js) — the PNG is deleted
         onBack: showHub,
         onBackup: (_payload, ctrl) => { bridge.send('ixian:backupAccount'); ctrl.done(); },   // ★ S2: C# pushes setLastBackup after it
         onExportWallet: (ctrl) => { bridge.send('ixian:backupWallet'); ctrl.done(); },
@@ -2085,9 +2109,20 @@
     setCallRingtone(s) { applyNotifPush('callRingtone', s); },   // ★ E-W4 (🟡 #1118): the echo half of ixian:callRingtone
     setNotifPushProvider(s) { applyNotifPush('notifPushProvider', s); },   // ★ P2 (#708): the echo half of ixian:notifPushProvider
     setPhotoPreviews(s) { applyNotifPush('photoPreviews', s); },   // ★ #1133 (🟡 new push): the onLoad seed + the echo of ixian:photoPreviews
+    setHintsOff(s) { applyNotifPush('hintsOn', boolPush(s) ? 'False' : 'True'); },   // ★ S11 (#1262, 🟡 new push): the seed + echo of ixian:hintsoff (C# sends the OFF flag)
     setReadReceipts(s) { applyNotifPush('readReceipts', s); },          // ★ S8 (#1234): seed + echo of ixian:readReceipts
     setTypingIndicators(s) { applyNotifPush('typingIndicators', s); },  // ★ S8 (#1234): seed + echo of ixian:typingIndicators
     setHideOnline(s) { applyNotifPush('hideOnline', s); },              // ★ S8 (#1234): seed + echo of ixian:hideOnline
+    /* ★ S11 C (#1262, 🟡 new push): the onLoad seed + the echo of ixian:photoAutoDl — 'off' | 'wifi' | 'always' (anything
+       else reads off). Resolves a pending pick (latchAutoDl) and moves the mounted Privacy row's value in place. */
+    setPhotoAutoDl(v) {
+      const val = (v === 'wifi' || v === 'always') ? v : 'off';
+      state.photoAutoDl = val;
+      const p = autoDlPending;
+      if (p) { autoDlPending = null; clearTimeout(p.timer); try { if (p.want === val) p.ctrl.done(); else p.ctrl.fail(); } catch (e) {} }
+      const row = (paneMode ? detailWrap : root).querySelector('[data-pref="photoAutoDl"]');
+      if (row && typeof row.setAutoDl === 'function') row.setAutoDl(val);
+    },
 
     // showRemoveAvatar('1'|'0') — onLoad:63 (only when a custom avatar exists) + onRemoveAvatar:411
     showRemoveAvatar(show) { state.hasCustomAvatar = (show === '1' || show === 'true' || show === true); scheduleRebuild(); },

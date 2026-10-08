@@ -236,7 +236,7 @@ export default async function (h) {
   await guard('#1190 C# addFile', async () => {
     const sc = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
     const last = /string fLocal\s*=\s*SharedItems\.localArgOf\(message,\s*out string fCase\);/.test(sc)
-      && /push\(batch,\s*"addFile",[^;]*fSent\.ToString\(\),\s*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed\);/.test(sc);   // ★ #1208 re-base: + arg 17 fVoice after fLocal · ★ S9 A1 re-base: + arg 18 fGroup
+      && /push\(batch,\s*"addFile",[^;]*fSent\.ToString\(\),\s*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed,\s*fSize\);/.test(sc);   // ★ #1208 re-base: + arg 17 fVoice after fLocal · ★ S9 A1 re-base: + arg 18 fGroup · ★ S11 G re-base (#1263): + arg 20 fSize (pins-s11/g-cs.mjs)
     const devLine = /if\s*\(message\.localSender\s*&&\s*SharedItems\.isImageName\(name\)\)\s*\{\s*P1Perf\.line\("filelocal sent-image "\s*\+\s*fCase\);\s*\}/.test(sc);
     const si = stripCode(rd('Spixi/Utils/SharedItems.cs'));
     const fn = si.slice(si.indexOf('public static string localArgOf('), si.indexOf('public static string localArgOf(') + 1200);
@@ -292,7 +292,7 @@ export default async function (h) {
     const sc = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
     const r = {};
     r.set = /private readonly HashSet<string> fileRowsShown = new HashSet<string>\(StringComparer\.Ordinal\);/.test(sc);
-    r.recorded = /push\(batch,\s*"addFile",[^;]*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed\);\s*noteThumbCandidate\(message, name, batch\);\s*lock \(fileRowsShown\)\s*\{\s*fileRowsShown\.Add\(Crypto\.hashToString\(message\.id\)\);\s*\}\s*if \(fileRowOnly\)\s*\{\s*return;\s*\}/.test(sc);
+    r.recorded = /push\(batch,\s*"addFile",[^;]*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed,\s*fSize\);\s*noteThumbCandidate\(message, name, batch\);\s*noteOfferPreview\(message, name, batch\);[^\n]*\n\s*lock \(fileRowsShown\)\s*\{\s*fileRowsShown\.Add\(Crypto\.hashToString\(message\.id\)\);\s*\}\s*if \(fileRowOnly\)\s*\{\s*return;\s*\}/.test(sc);   // ★ S11 G re-base (#1263): + arg 20 fSize and the offer-preview note after the thumbnail note (pins-s11/g-cs.mjs)
     const ldAt = sc.indexOf('public void loadMessages()');
     const ld = sc.slice(ldAt, sc.indexOf('lastLoadPushed = 0;', ldAt));
     r.resetOnFullLoad = /if \(!prepend\)\s*\{\s*lock \(fileRowsShown\)\s*\{\s*fileRowsShown\.Clear\(\);\s*\}\s*\}\s*$/.test(ld.trimEnd() + '\n')

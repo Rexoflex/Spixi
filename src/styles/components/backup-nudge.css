@@ -10,8 +10,9 @@
   padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
   text-align: center;
 }
-/* illustration slot (illustrations-plan #6, 3:2) — leads when present;
-   the tonal disc below is the automatic fallback (img error → disc) */
+/* illustration slot (illustrations-plan #6) — leads when present; the tonal disc below
+   is the automatic fallback (img error → disc). ★ S11 B (#1262): the shipped art is the
+   inline 240 × 240 svg (illustrations.js) — no load, so the disc is the art-less default */
 .c-backup-nudge__illo {
   width: 100%;
   max-width: 240px;

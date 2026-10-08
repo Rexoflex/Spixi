@@ -133,6 +133,9 @@ export function openMessageMenu({
   content.className = 'c-msgmenu';
 
   const act = (action, arg) => {
+    /* ★ S11 C (#1262) · ★ S11 C2 (#1263, #46 r1 R2-m1): only a quick REACTION closes it "without a field" (overlay.js
+       touchNoEditable) — Copy / Select / Tip / Delete keep today's #1065 focus; Reply / Edit focus the composer. */
+    if (action === 'react') setOverlayOpts(sheet, { closedByReaction: true });
     closeSheet(sheet);
     if (action === 'copy' && !onAction) {
       // JS-side default (§5b); shells may override via onAction
@@ -244,6 +247,10 @@ export function openMessageMenu({
   /* ★ #1065 (R.10, Damir): a long-press while typing must not drop the keyboard — the menu opens
      WITHOUT taking focus from the composer (overlay.js keepEditableFocus). */
   setOverlayOpts(sheet, { keepEditableFocus: true, blurDismiss: true });   // ★ S8 (#1235): a click in another desktop pane closes it (overlay.js)
+  /* ★ S11 C (#1262, Android: the keyboard came up after a quick reaction): opened by a long-press, this menu never
+     leaves focus in the composer when a quick REACTION closes it (overlay.js touchNoEditable; ★ S11 C2 #1263: the
+     reaction only) — a keyboard / mouse open, and every other action, keep today's focus rules. */
+  setOverlayOpts(sheet, { touchNoEditable: true });
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): on MOBILE the menu anchors to the
    * pressed message — ABOVE it when there is room, so it can never cover what it

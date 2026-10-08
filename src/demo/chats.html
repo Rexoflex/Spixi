@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
 <link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state -->
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
 <link rel="stylesheet" href="../styles/components/chats-swipe.css">
@@ -130,7 +131,7 @@
       host: phone,
       // illustrations-plan #6 — 404s until the art drops, then auto-upgrades
       // (img error → tonal shield-disc fallback, launch-shell grammar)
-      illustration: 'images/backup.png',   // Session N: the onboarding/ twin (byte-identical) is deleted
+      illustration: 'backup',   // ★ S11 A2 (#1263): the inline art's NAME (the PNG is deleted)
       onBackup: () => showToast({ text: 'ixian:backup → Backup screen (C#)', tone: 'info', host: phone }),
     }),
   });
@@ -142,7 +143,7 @@
     label: 'Rating nudge', type: 'outline', size: 32,
     onClick: () => showRatingNudge({
       host: phone,
-      illustration: 'images/onboarding/rate.png',   // N14a
+      illustration: 'rating',   // N14a → ★ S11 A2 (#1263): the inline art's NAME
 
       onRate: (a) => showToast({
         text: 'ixian:rating:' + a + ' → ' + (a === 'yes' ? 'store review' : 'support email') + ' (C#)',

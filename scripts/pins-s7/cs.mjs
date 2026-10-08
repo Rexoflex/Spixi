@@ -136,7 +136,7 @@ export default async function (h) {
 
   /* ———— V1: setCaps declares `voice` for an approved 1:1 / a non-blind private group only, in the ONE setCaps push ———— */
   await guard('V1 caps', async () => {
-    const add = /caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*caps\s*\+=\s*",media";\s*#if ANDROID \|\| IOS\s*if\s*\(\s*SFilePicker\.CameraAvailable\(\)\s*\)\s*\{\s*caps\s*\+=\s*",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);   /* ★ S9 A1 re-base: + the media / camera caps (CONTRACT §1a) */
+    const add = /caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*caps\s*\+=\s*",media";\s*caps\s*\+=\s*",savePhoto";\s*#if ANDROID \|\| IOS\s*if\s*\(\s*SFilePicker\.CameraAvailable\(\)\s*\)\s*\{\s*caps\s*\+=\s*",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);   /* ★ S9 A1 re-base: + the media / camera caps (CONTRACT §1a) */ /* ★ S11 G re-base (#1263): + caps += ",savePhoto" after media (pins-s11/g-cs.mjs) */
     const one = (SCP.match(/"setCaps"/g) || []).length === 1 && (SCP.match(/",voice"/g) || []).length === 1;
     const rule = /public static bool voiceCapFor\(Friend\? f\)\s*\{\s*return f != null && !f\.bot && f\.state == FriendState\.Approved\s*&& \(f\.type == FriendType\.Normal \|\| \(f\.type == FriendType\.Group && !Utils\.hidesParticipants\(f\)\)\);\s*\}/.test(SCP);
     /* the verbs re-check it (a shell that sends without the cap gets nothing) */
@@ -182,7 +182,7 @@ export default async function (h) {
     // ★ S9 A3 re-base (8-FACE #1247): arg 18 `played` (rowPlayed) trails arg 17 voice — 19 → 20 entries
     const rowOk = rows.length === 1 && rows.every((s) => s.a.length === 20 && s.a[6] === 'rowText' && s.a[18] === 'rowVoice' && s.a[19] === 'rowPlayed');
     // push(batch, "addFile", id, address, nick, avatar, uid, name, ts, me, confirmed, read, progress, complete, paid, sent, transfer, local, voice)
-    const fileOk = files.length === 1 && files.every((s) => s.a.length === 21 && s.a[16] === 'fTransfer' && s.a[17] === 'fLocal' && s.a[18] === 'fVoice' && s.a[19] === 'fGroup' && s.a[20] === 'fPlayed')   /* ★ S9 A1 r1 re-base: + arg 19 fPlayed */;   /* ★ S9 A1 re-base: + arg 18 fGroup (CONTRACT §1c) */
+    const fileOk = files.length === 1 && files.every((s) => s.a.length === 22 && s.a[16] === 'fTransfer' && s.a[17] === 'fLocal' && s.a[18] === 'fVoice' && s.a[19] === 'fGroup' && s.a[20] === 'fPlayed' && s.a[21] === 'fSize')   /* ★ S11 G re-base (#1263): + arg 20 fSize (pins-s11/g-cs.mjs) */   /* ★ S9 A1 r1 re-base: + arg 19 fPlayed */;   /* ★ S9 A1 re-base: + arg 18 fGroup (CONTRACT §1c) */
     // sendUiCommand(this, "updateMessage", id, text, sent, confirmed, read, paid, err, edited, replyTo, quoteName, quoteText, voice, played)
     // ★ S9 A3 re-base (8-FACE #1247): arg 13 `played` trails arg 12 voice — 14 → 15 entries
     const updOk = updates.length === 1 && updates.every((s) => s.a.length === 15 && s.a[3] === 'rowText' && s.a[13] === 'voice' && /^voicePlayedArg\(message,\s*voice\)$/.test(s.a[14]));

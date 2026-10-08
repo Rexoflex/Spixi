@@ -60,7 +60,7 @@ export default async function (h) {
     ok(/if \(isDisposed \|\| doc != thumbDoc \|\| friend != chat \|\| batch\.peer != friend\.walletAddress\.ToString\(\)\)\s*\{\s*foreach \(MediaItem it in batch\.items\)\s*\{\s*deleteOwnMediaFile\(it\.path\);\s*\}\s*return;\s*\}/.test(fin)
       && /if \(target != null && ReferenceEquals\(mediaBatch, target\) && target\.peer == batch\.peer && target\.channel == selectedChannel\)/.test(fin)
       && /int k = S10MediaRules\.nextKey\(used\);\s*if \(k < 0 \|\| shown == null\)\s*\{\s*deleteOwnMediaFile\(it\.path\);\s*if \(k < 0 && !batch\.errors\.Contains\(PhotoRules\.ErrTooMany\)\)\s*\{\s*batch\.errors\.Add\(PhotoRules\.ErrTooMany\);\s*\}\s*continue;\s*\}/.test(app)
-      && /shown\.k = k\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);\s*target\.items\.Add\(new MediaItem \{ k = k, path = it\.path \}\);\s*target\.shown\.Add\(shown\);/.test(app)
+      && /shown\.k = k\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);\s*target\.items\.Add\(new MediaItem \{ k = k, path = it\.path, preview = it\.preview \}\);\s*target\.shown\.Add\(shown\);/.test(app)   /* ★ S11 G re-base (#1263 c): the offer preview rides the append (pins-s11/g-cs.mjs) */
       && /string oldKey = it\.k\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);\s*PhotoRules\.PickedItem\? shown = batch\.shown\.Find\(x => x\.k == oldKey\);/.test(app)   /* #46 R3-7 */
       && /foreach \(MediaItem t in target\.items\)\s*\{\s*used\.Add\(t\.k\);\s*\}/.test(app) && before(app, 'used.Add(t.k);', 'S10MediaRules.nextKey(used)')
       && /Utils\.sendUiCommand\(this, "mediaPicked", target\.id, PhotoRules\.pickedJson\(target\.shown\)\);/.test(app)

@@ -31,6 +31,7 @@
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-02);
 }
+.c-wallet-send__label:focus, .c-wallet-receive__asklabel:focus { outline: none; }   /* ★ #46 r3 NIT-4: a step-1 focus target after a touch (tabIndex -1), not a control */
 
 /* —— recipient picker —— */
 .c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
@@ -110,76 +111,46 @@
 .c-wallet-send__addrfield .c-button { flex-basis: 100%; }
 .c-wallet-send__addrfield .c-wallet-send__error { flex-basis: 100%; }   /* validation sits under ITS input (Damir bug, round 3) */
 
-/* selected recipient */
-.c-wallet-send__picked {
-  display: flex; align-items: center; gap: var(--spacing-12);
-  min-height: 64px;                                     /* ★ W-j: the directory row height */
-  padding: var(--spacing-8) var(--spacing-12);
-  border-radius: var(--radius-16);
-  background: var(--surface-card);
-  box-shadow: var(--elevation-1);
+/* ★ S11 H (#1263): the step-2 chip — "To" (Send, keeps the old __picked hooks) and "From" (Request) */
+.c-wallet-send__picked, .c-wallet-receive__chip {
+  display: inline-flex; align-items: center; gap: var(--spacing-8); align-self: center;
+  max-width: 100%; min-height: var(--size-target-min); box-sizing: border-box;
+  margin: 0; padding: 0 var(--spacing-12); border: 0; border-radius: var(--radius-full);
+  background: var(--surface-card); color: var(--text-neutral-02); font: inherit; text-align: start;
 }
+button.c-wallet-send__picked, .c-wallet-receive__chip { cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { button.c-wallet-send__picked:hover, .c-wallet-receive__chip:hover { background: var(--surface-interactive-hover); } }
+button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background: var(--surface-interactive-pressed); }   /* #28 */
+.c-wallet-send__picked:focus-visible, .c-wallet-receive__chip:focus-visible { outline: var(--outline-width-2) solid var(--outline-action-default); outline-offset: 1px; }
+.c-wallet-send__chiplabel, .c-wallet-receive__chiplabel { flex: none; font-size: var(--font-size-body-sm); color: var(--text-neutral-02); }
 .c-wallet-send__pickedglyph {
-  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;   /* ★ W-j: avatar-48 slot */
-  border-radius: var(--radius-full);
+  width: var(--size-avatar-24); height: var(--size-avatar-24); flex: none; border-radius: var(--radius-full);
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--surface-action-tonal-default);
-  color: var(--icon-action-default);
+  background: var(--surface-action-tonal-default); color: var(--icon-action-default);
 }
-.c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.c-wallet-send__pickedname {                            /* ★ W-b: name over the muted truncated address */
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
+.c-wallet-send__pickedname, .c-wallet-receive__chipnames {
+  flex: 0 1 auto; min-width: 0; font-family: var(--font-secondary); font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold); color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .c-wallet-send__pickedaddr {
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-02);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 0 2 auto; min-width: 0; font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.c-wallet-send__clear {
-  flex: none;
-  width: 32px; height: 32px;                            /* visual 32; hit area below (#106) */
-  position: relative;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--icon-neutral-02);
-  cursor: pointer;
-}
-.c-wallet-send__clear::after { content: ''; position: absolute; inset: -6px; }
-@media (hover: hover) and (pointer: fine) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
-.c-wallet-send__clear:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+.c-wallet-send__chipchev, .c-wallet-receive__chipchev { flex: none; display: inline-flex; color: var(--icon-neutral-02); }
 
-/* —— amount —— */
-.c-wallet-send__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
-.c-wallet-send__amount {
-  flex: 1; min-width: 0;
-  box-sizing: border-box;
-  padding: var(--spacing-12) var(--spacing-16);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
-  color: var(--text-neutral-01);
-  font-family: var(--font-primary);
-  font-size: var(--font-size-heading-md);               /* money entry is the hero of this screen */
-  line-height: var(--line-height-heading-md);
-  font-weight: var(--font-weight-semibold);
+/* ★ S11 H (#1263) step 2: the big amount fills the free space above the keypad bar */
+.c-wallet-send__section--amount { flex: 1 0 auto; align-items: center; gap: var(--spacing-8); }
+.c-wallet-send__amountbox, .c-wallet-receive__amountbox {
+  flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--spacing-2); width: 100%; min-height: 120px; text-align: center;
 }
-.c-wallet-send__amount:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;
-  border-color: var(--outline-action-default);
-}
-.c-wallet-send__unit {
-  flex: none;
-  font-family: var(--font-primary);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-neutral-02);
-}
+.c-wallet-send__fiat, .c-wallet-receive__fiat { margin: 0; font-size: var(--font-size-body-md); color: var(--text-neutral-02); }
+.c-wallet-send__amountrow { display: flex; align-items: center; justify-content: center; gap: var(--spacing-12); }
+.c-wallet-send__over { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-8); text-align: center; }
+.c-wallet-send__over .c-wallet-send__error { font-weight: var(--font-weight-semibold); }
+.c-wallet-send__section--amount .c-wallet-send__meta { text-align: center; }
+.c-wallet-send__meta { text-align: center; }
 .c-wallet-send__meta {
   margin: 0;
   font-size: var(--font-size-body-sm);
@@ -226,3 +197,43 @@
    stretched to the pane width (an 800px amount field). Cap the content column and
    centre it — the same reading width the settings pane uses. Mobile is untouched. */
 :root[data-desktop] .c-wallet-send { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
+
+/* ★ S11 H (#1263) — amount-pad.js (Send AND Request): its rules live here — the W-h gate maps amount-pad → wallet-send */
+.c-wallet-send__actions .c-amount-pad, .c-wallet-receive__bar .c-amount-pad { margin-block-end: var(--spacing-8); }
+.c-amount { display: flex; flex-direction: column; align-items: center; color: var(--text-neutral-01); outline: none; }
+.c-amount__row {
+  display: inline-flex; align-items: center; font-family: var(--font-primary);
+  font-size: 56px; line-height: 64px;                   /* render A */
+  font-weight: var(--font-weight-semibold); letter-spacing: var(--tracking-display-lg); white-space: nowrap;
+}
+.c-amount[data-size="m"] .c-amount__row { font-size: 44px; line-height: 52px; }
+.c-amount[data-size="s"] .c-amount__row { font-size: 32px; line-height: 40px; }
+.c-amount__zero { color: var(--text-neutral-disabled); }
+.c-amount__caret {
+  display: inline-block; flex: none; width: 2px; height: 0.82em; margin-inline: 2px; border-radius: 1px;
+  background: var(--text-accent); animation: c-amount-blink 1.06s steps(1, end) infinite;
+}
+@keyframes c-amount-blink { 50% { opacity: 0; } }
+.c-amount__unit {
+  font-family: var(--font-primary); font-size: var(--font-size-label-lg); line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold); color: var(--text-neutral-02);
+}
+.c-amount[data-error] .c-amount__row { color: var(--text-error); }
+.c-amount[data-error] .c-amount__caret { background: var(--text-error); }
+.c-amount[data-shake] .c-amount__row { animation: c-amount-shake 320ms ease-in-out 1; }
+@keyframes c-amount-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .c-amount__caret, .c-amount[data-shake] .c-amount__row { animation: none; }
+}
+.c-amount-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-4); }
+.c-amount-pad__key {
+  height: clamp(48px, 8vh, 64px); display: grid; place-items: center; margin: 0; padding: 0;
+  border: 0; border-radius: var(--radius-16); background: transparent; color: var(--text-neutral-01);
+  font-family: var(--font-primary); font-size: 28px; font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums;
+  cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) { .c-amount-pad__key:hover { background: var(--surface-interactive-hover); } }
+.c-amount-pad__key:active { background: var(--surface-interactive-pressed); }   /* #28 */
+.c-amount-pad__key:focus-visible { outline: var(--outline-width-2) solid var(--outline-action-default); outline-offset: -2px; }
+.c-amount-pad__key:disabled { color: var(--text-neutral-disabled); cursor: default; }

@@ -49,8 +49,21 @@ function liveOpts(entry) { return overlayOpts.get(entry.el) || entry.opts || {};
  * any input at all (an overlay a C# push opens at boot) the old move stands. Capture phase, so a
  * handler that stops propagation cannot hide the modality. */
 let lastInput = null;   // 'pointer' | 'keyboard' | null (no input yet)
+/* ★ S11 C (#1262): WHICH pointer — 'touch' | 'mouse' | 'pen' | '' — so an overlay knows it was opened by a finger (a
+ * long-press menu). A touch's own compatibility mousedown (Android fires one after a tap) must not relabel the touch. */
+let lastPointerType = '';
+let lastTouchAt = -1e9;
 if (typeof document !== 'undefined') {
-  const onPointer = () => { lastInput = 'pointer'; };
+  const onPointer = (e) => {
+    lastInput = 'pointer';
+    if (!e) return;
+    if (e.type === 'mousedown') {
+      if (Date.now() - lastTouchAt > 1000) lastPointerType = 'mouse';
+      return;
+    }
+    lastPointerType = e.type === 'touchstart' ? 'touch' : String(e.pointerType || 'mouse');
+    if (lastPointerType === 'touch') lastTouchAt = Date.now();
+  };
   document.addEventListener('pointerdown', onPointer, true);
   document.addEventListener('touchstart', onPointer, { capture: true, passive: true });
   document.addEventListener('mousedown', onPointer, true);
@@ -199,7 +212,8 @@ export function openOverlay(el, opts) {
     document.addEventListener('focusin', onDocFocusin);
   }
   const keepEditable = !!opts.keepEditableFocus && isEditableEl(opener) && opener.isConnected;
-  stack.push({ el, scrim, opts, opener, keepEditable });
+  const touchOpen = lastInput === 'pointer' && lastPointerType === 'touch';   // ★ S11 C (#1262): opened by a finger
+  stack.push({ el, scrim, opts, opener, keepEditable, touchOpen });
   if (keepEditable) {
     el.dataset.keepEditable = '';                                  // composer.js reads it (Esc/Enter belong to the menu)
     el.addEventListener('mousedown', keepFocusDown);
@@ -258,12 +272,31 @@ export function dismissOverlay(el) {
   delete entry.scrim.dataset.open;
   delete entry.el.dataset.open;
 
+  /* ★ S11 C (#1262, Android: "the keyboard comes up after a quick reaction"): an overlay that asks for it
+   * (opts.touchNoEditable — the long-press message menu) and was opened by TOUCH never hands focus back to a TEXT
+   * field when a quick REACTION closes it: Chromium on Android raises the keyboard for a focused field on the next
+   * tap (the reaction tap itself) and on a programmatic focus. Two halves: (1) a field the menu KEPT focused (#1065)
+   * is blurred; (2) the restore below skips an editable opener.
+   * ★ S11 C2 (#1263, #46 r1 R2-m1): ONLY the reaction (opts.closedByReaction, set by message-menu.js act('react')) —
+   * Copy / Select / Tip / Delete keep today's #1065 focus (typing → long-press → Copy → paste keeps the keyboard),
+   * Reply / Edit focus the composer themselves; a scrim / Esc / back close leaves the field as it is (#1065). A
+   * keyboard or mouse open keeps today's restore (a11y). */
+  const lo = liveOpts(entry);
+  const touchRule = !!entry.touchOpen && !!lo.touchNoEditable && !!lo.closedByReaction;
+  if (touchRule && entry.keepEditable && isEditableEl(document.activeElement)) {
+    try { document.activeElement.blur(); } catch (e) {}
+  }
+
   // focus restore — only if focus is ours to move (inside the closing overlay,
   // or already dropped to body); opener gone/unfocusable → new top overlay.
   const active = document.activeElement;
   if (entry.el.contains(active) || active === document.body) {
     const opener = entry.opener;
-    if (opener && opener.isConnected && !opener.disabled && typeof opener.focus === 'function') {
+    if (touchRule && isEditableEl(opener)) {
+      if (entry.el.contains(active) && active && typeof active.blur === 'function') {
+        try { active.blur(); } catch (e) {}   // (2): focus leaves the closing menu, and lands in no field
+      }
+    } else if (opener && opener.isConnected && !opener.disabled && typeof opener.focus === 'function') {
       opener.focus({ preventScroll: true });
     } else {
       const top = stack[stack.length - 1];

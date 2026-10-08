@@ -9,7 +9,7 @@
   padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
   text-align: center;
 }
-.c-rating-nudge__illo {                          /* N14a — rate-me art (backup-nudge grammar) */
+.c-rating-nudge__illo {                          /* N14a — rate-me art (backup-nudge grammar); ★ S11 B (#1262): the inline D "Phone" svg, slot cap 240 */
   width: 100%;
   max-width: 240px;
   height: auto;

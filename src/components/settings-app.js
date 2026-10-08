@@ -34,7 +34,7 @@ import { createSearchField } from './search-field.js';
 import { settingsConfirm, settingsOptionSheet } from './settings-shell.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { fillFileName, createFileTile } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
-import { formatFileSize } from './shared-items.js';         // ★★ #1107: one size format (chat info + Downloads)
+import { formatFileSize } from './timestamp.js';            // ★★ #1107: one size format (chat info + Downloads) — ★ S11 F4 (#1263): its home is timestamp.js
 import { createAvatar, safeImageSrc } from './avatar.js';                 // ★ S10 F7 (#1254): the From sheet's sender avatars
 
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
@@ -775,7 +775,10 @@ export function createSettingsAbout({
 
   const legal = document.createElement('p');
   legal.className = 'c-settings__note c-settings-about__legal';
-  legal.textContent = strings.aboutLegal || '© Ixian. Open source, MIT licensed.';
+  /* ★ S11 A (#1262, Damir): the licence name leaves the app copy — the line is the copyright alone. A NEW key (a
+     changed meaning is a new key): `aboutLegal` (the old line that named the licence) is retired. The Source code row above
+     stays (the code stays public); the Contributors/licences credits are untouched. */
+  legal.textContent = strings.aboutLegal2 || '© Ixian';
   body.append(legal);
 
   /* ★ Session I ② — THE SEED HARNESS CARD (DEV BUILDS ONLY, Damir: "button in About").

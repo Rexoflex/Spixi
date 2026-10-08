@@ -23,11 +23,11 @@
      capability, which stays a probe (L15). Unknown/unsubstituted → no attribute. -->
 <script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
 <script>(function(){if('*SL{SpixiP1}'==='1')document.documentElement.setAttribute('data-p1','');})();</script>
-<!-- ★ S10 P4 (#1254): the chats-list excerpt lines — spixi.chat.previewlines ('1' | '2'; absent / anything else = '2'),
+<!-- ★ S10 P4 (#1254): the chats-list excerpt lines — spixi.chat.previewlines ('1' | '2'; absent / anything else = '1' — ★ S11 #1262: the default is 1 LINE, #1261),
      written by Settings → Chat appearance (settings.html CHAT_PREFS). Set BEFORE first paint, and re-read when another
      document writes it (storage) or this one comes back (visibilitychange · pageshow). Only the two literals reach the
      attribute. -->
-<script>(function(){function r(){var v='2';try{if(localStorage.getItem('spixi.chat.previewlines')==='1')v='1';}catch(e){}if(document.documentElement.dataset.previewLines!==v)document.documentElement.dataset.previewLines=v;}r();window.addEventListener('storage',function(e){if(!e||e.key===null||e.key==='spixi.chat.previewlines')r();});document.addEventListener('visibilitychange',function(){if(!document.hidden)r();});window.addEventListener('pageshow',r);})();</script>
+<script>(function(){function r(){var v='1';try{if(localStorage.getItem('spixi.chat.previewlines')==='2')v='2';}catch(e){}if(document.documentElement.dataset.previewLines!==v)document.documentElement.dataset.previewLines=v;}r();window.addEventListener('storage',function(e){if(!e||e.key===null||e.key==='spixi.chat.previewlines')r();});document.addEventListener('visibilitychange',function(){if(!document.hidden)r();});window.addEventListener('pageshow',r);})();</script>
 <!-- Desktop nav rail (spec 6e.1, #232 ④): gates on :root[data-desktop] — the #228
      platform flag set above (zero-C#; the old ?desktop=1/.is-desktop opt-in is
      superseded — C# never set __SPIXI_DESKTOP__). Browser-preview forcing only:
@@ -378,11 +378,14 @@
   inset-inline: 0;
   bottom: 0;
   height: var(--outline-width-2);
+  /* ★ S11 A (#1262, Damir's pick B "blue to violet, one strip"): the sweep blends brand blue → indigo → violet
+     (tokens.css region A). The geometry, the animation and the reduced-motion rule below are unchanged. */
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    var(--surface-action-default) 35%,
-    var(--surface-action-default) 65%,
+    var(--connecting-line-blue) 30%,
+    var(--connecting-line-indigo) 48%,
+    var(--connecting-line-violet) 66%,
     transparent 100%
   );
   background-size: 220% 100%;
@@ -557,6 +560,76 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 [data-theme="dark"] .c-topbar[data-connecting-bar] { border-bottom-color: transparent; }
 
 </style>
+<style data-src="../styles/components/seasonal.css">
+/* c-seasonal — the seasonal Chats top bar (★ S11 A, #1262; seasonal.js). Home shell only. */
+/* ⚠ the title's clip is released ONLY while it wears a season (the hat / stem reach above the mark); the M16
+   ellipsis lives on the WORD span (topbar.css), so "Connecting…" still truncates */
+.c-topbar[data-variant="root"] .c-topbar__title[data-season] { overflow: visible; }
+.c-seasonal__mark {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+.c-seasonal__mark > svg { display: block; overflow: visible; }
+.c-seasonal__hat {
+  position: absolute;
+  left: 10px;
+  top: -11px;
+  transform: rotate(14deg);
+  transform-origin: 30% 90%;
+}
+/* C1: the small pumpkin stands after the wordmark, on the text baseline (the design's dial: -4 px in, 3 px up) */
+.c-seasonal__pumpkin {
+  display: block;
+  flex: none;
+  align-self: flex-end;
+  margin-inline-start: calc(-1 * var(--spacing-4));
+  margin-bottom: 3px;
+}
+/* the theme half of the art rides CSS (a var() in an SVG attribute is not resolved; tokens.css region A) */
+.c-seasonal__flood { flood-color: var(--seasonal-shadow); flood-opacity: var(--seasonal-shadow-alpha); }
+.c-seasonal__halo { opacity: var(--seasonal-halo); }
+/* ★ S11 A2 (#1263): one rest value for both inner glows = the loop's first/last frame */
+.c-seasonal__inner { opacity: 0.35; transform-box: fill-box; transform-origin: 50% 60%; }
+/* only LIGHT moves (candle flicker, pom twinkle). ★ S11 A2 (#1263, R2-m3): ~20 s per arming (seasonal.js
+   [data-season-live], re-armed at most once per 10 min), then the last frame holds; paused while the list scrolls. */
+.c-topbar__title[data-season-live] .c-seasonal__face { animation: seasonal-candle 2.3s steps(1, end) 9 both; }
+.c-topbar__title[data-season-live] .c-seasonal__inner { animation: seasonal-inner 3.7s ease-in-out 5 both; }
+.c-topbar__title[data-season-live] .c-seasonal__halo { animation: seasonal-halo 3.7s ease-in-out 5 both; }
+.c-topbar__title[data-season-live] .c-seasonal__pom { animation: seasonal-twinkle 6s ease-in-out 3 both; transform-box: fill-box; transform-origin: center; }
+.c-topbar__title[data-season-pause] .c-seasonal__face,
+.c-topbar__title[data-season-pause] .c-seasonal__inner,
+.c-topbar__title[data-season-pause] .c-seasonal__halo,
+.c-topbar__title[data-season-pause] .c-seasonal__pom { animation-play-state: paused; }
+@keyframes seasonal-candle {
+  0% { opacity: 1; } 18% { opacity: 0.82; } 24% { opacity: 0.97; } 51% { opacity: 0.88; }
+  63% { opacity: 1; } 79% { opacity: 0.78; } 84% { opacity: 0.95; }
+}
+@keyframes seasonal-inner {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  35% { opacity: 0.6; transform: scale(1.08, 1.12); }
+  60% { opacity: 0.28; transform: scale(0.95); }
+  80% { opacity: 0.5; transform: scale(1.04); }
+}
+@keyframes seasonal-halo {
+  0%, 100% { opacity: calc(var(--seasonal-halo) * 0.8); }
+  35% { opacity: var(--seasonal-halo); }
+  60% { opacity: calc(var(--seasonal-halo) * 0.6); }
+}
+@keyframes seasonal-twinkle {
+  0%, 88%, 100% { filter: none; }
+  92% { filter: brightness(1.12) drop-shadow(0 0 1.5px #fff); }   /* sanctioned: the pom-pom's white glint is ART (the design's X1), not a theme colour */
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-topbar__title[data-season-live] .c-seasonal__face,
+  .c-topbar__title[data-season-live] .c-seasonal__inner,
+  .c-topbar__title[data-season-live] .c-seasonal__halo,
+  .c-topbar__title[data-season-live] .c-seasonal__pom { animation: none; }
+}
+
+</style><!-- ★ S11 A (#1262): the seasonal Chats logotype (seasonal.js) — this shell only -->
 <style data-src="../styles/components/bottomnav.css">
 /* c-bottomnav — mirrors Figma nav-bot / nav-item (selected = "super selected":
    tonal pill around stacked icon + label). Height: --layout-bar-bottom. */
@@ -2667,6 +2740,136 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-banner__close:active { color: var(--text-warning); }
 
 </style><!-- M16: actionable warnings (update available) -->
+<style data-src="../styles/components/glass-card.css">
+/* c-glass-card — the update notice + the hints (★ S11 A, #1262; glass-card.js). No outline: a blue / violet tint,
+   a top highlight, a soft low shadow (tokens.css region A). One entrance, then it holds; reduced motion = static. */
+
+.c-glass-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  margin: var(--spacing-8) var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-4) var(--spacing-16) var(--spacing-16);
+  border-radius: var(--radius-20);
+  background:
+    radial-gradient(120% 110% at 0% 0%, var(--glass-card-tint-blue) 0%, transparent 58%),
+    radial-gradient(110% 110% at 100% 100%, var(--glass-card-tint-violet) 0%, transparent 60%),
+    var(--glass-card-surface);
+  box-shadow: inset 0 1px 0 var(--glass-card-highlight), var(--glass-card-shadow);
+  color: var(--text-neutral-01);
+  animation: glass-card-in var(--duration-300) var(--easing-decelerate) both;
+}
+.c-glass-card[data-variant="update"] { align-items: center; }
+@keyframes glass-card-in {
+  from { opacity: 0; transform: translateY(var(--spacing-8)); }
+  to { opacity: 1; transform: none; }
+}
+/* ★ S11 A2 (#1263, R2-m2): one entrance per card lifetime (glass-card.js holdEntrance) */
+.c-glass-card[data-held] { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .c-glass-card { animation: none; }
+}
+
+.c-glass-card__art { flex: none; display: flex; }
+/* the update card's blue app-style icon (no illustration — the design's update card) */
+.c-glass-card__appicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-12);
+  background: linear-gradient(160deg, var(--glass-card-icon-from) 0%, var(--glass-card-icon-to) 100%);
+  color: var(--glass-card-icon-ink);   /* ★ S11 A2 (#1263): its own ink (not the action fill) */
+  box-shadow: 0 6px 14px -6px var(--glass-card-art-glow);
+}
+/* the hint's small art: the tip's glyph on a blue → violet tile, with a soft glow under it */
+.c-glass-card__tipart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-top: var(--spacing-4);
+  border-radius: var(--radius-16);
+  background: linear-gradient(150deg, var(--glass-card-art-from) 0%, var(--glass-card-art-to) 100%);
+  color: var(--glass-card-art-ink);    /* ★ S11 A2 (#1263): its own ink (not the action fill) */
+  box-shadow: 0 8px 18px -8px var(--glass-card-art-glow);
+}
+
+.c-glass-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+.c-glass-card__body > p { margin: 0; }
+.c-glass-card__eyebrow {
+  color: var(--glass-card-eyebrow);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-glass-card__title {
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  letter-spacing: var(--tracking-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-glass-card__text {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+}
+/* "Learn more ›" / "How to update ›" — a text link with a 44 px target (padding, not a bigger glyph) */
+.c-glass-card__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 44px;                 /* sanctioned: minimum touch target */
+  margin: calc(-1 * var(--spacing-8)) 0 calc(-1 * var(--spacing-12));
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-link);
+  font: inherit;
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-glass-card__link svg { flex: none; }
+.c-glass-card__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: minimum touch target */
+  height: 44px;
+  margin-top: calc(-1 * var(--spacing-12));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-glass-card[data-variant="update"] .c-glass-card__close { align-self: flex-start; }
+/* hover guarded per #43 (AND-18 pointer: fine) */
+@media (hover: hover) and (pointer: fine) {
+  .c-glass-card__link:hover { color: var(--text-link-hover); }
+  .c-glass-card__close:hover { background: var(--surface-interactive-hover); }
+}
+.c-glass-card__close:active { background: var(--surface-interactive-pressed); }
+
+</style><!-- ★ S11 A (#1262): the update card + the hint cards (glass-card.js) -->
 <style data-src="../styles/components/backup-nudge.css">
 /* c-backup-nudge — periodic backup prompt sheet (legacy #backup-prompt parity,
    Damir 2026-07-06). Content rides a standard c-sheet; centered stack:
@@ -2680,8 +2883,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
   text-align: center;
 }
-/* illustration slot (illustrations-plan #6, 3:2) — leads when present;
-   the tonal disc below is the automatic fallback (img error → disc) */
+/* illustration slot (illustrations-plan #6) — leads when present; the tonal disc below
+   is the automatic fallback (img error → disc). ★ S11 B (#1262): the shipped art is the
+   inline 240 × 240 svg (illustrations.js) — no load, so the disc is the art-less default */
 .c-backup-nudge__illo {
   width: 100%;
   max-width: 240px;
@@ -2735,7 +2939,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   padding: var(--spacing-8) var(--spacing-8) var(--spacing-16);
   text-align: center;
 }
-.c-rating-nudge__illo {                          /* N14a — rate-me art (backup-nudge grammar) */
+.c-rating-nudge__illo {                          /* N14a — rate-me art (backup-nudge grammar); ★ S11 B (#1262): the inline D "Phone" svg, slot cap 240 */
   width: 100%;
   max-width: 240px;
   height: auto;
@@ -2985,6 +3189,71 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root[data-desktop] .c-empty-state__illo { width: clamp(132px, 22vw, 200px); }
 
 </style><!-- shared zero state (chats · wallet · contacts · apps) — ONE link: build-shells INLINES each href, so a second one shipped a duplicate copy of the whole file -->
+<style data-src="../styles/components/illo.css">
+/* illo — ★ S11 B (#1262): motion for the inline illustration set (illustrations.js).
+   ONE entrance, then the frame holds (every animation runs once, fill both; nothing
+   loops). Reduced motion = static. Colours are tokens (--il-* / --rn-*, tokens.css);
+   per-element dials are inline custom properties in the art (--o delay, --i stagger…). */
+
+.il { display: block; overflow: visible; }
+/* ★ S11 A2 (#1263): the ground shadow's token rides CSS (a var() in the SVG attribute is not reliably resolved) */
+.il-ground { opacity: var(--il-ground-a); }
+.il-ring { animation: ilRing 1.1s cubic-bezier(.2,.7,.3,1) both; transform-box: fill-box; transform-origin: center; }
+.il-fade { animation: ilFade .9s ease-out var(--o,0s) both; }
+.il-pop { animation: ilPop .7s cubic-bezier(.3,1.35,.5,1) var(--o,0s) both; transform-box: fill-box; transform-origin: var(--to,50% 100%); }
+.il-in { animation: ilIn .8s cubic-bezier(.2,.8,.3,1) var(--o,0s) both; }
+.il-drop { animation: ilDrop .9s cubic-bezier(.35,1.25,.55,1) var(--o,0s) both; }
+.il-fly { animation: ilFly 1.1s cubic-bezier(.3,.9,.35,1) var(--o,0s) both; }
+.il-grow { animation: ilGrow .7s cubic-bezier(.3,.8,.3,1) var(--o,0s) both; transform-box: fill-box; transform-origin: center; }
+.il-draw { stroke-dasharray: var(--len) var(--len); animation: ilDraw 1s cubic-bezier(.4,0,.2,1) var(--o,0s) both; }
+.il-tw { animation: ilTw 1.6s ease-in-out calc(var(--o,1s) + var(--i) * .25s) both; transform-box: fill-box; transform-origin: center; }
+.il-dot { animation: ilDot 1.1s ease-in-out calc(var(--i) * .16s + 1.2s) 3 both; }
+.il-scan { animation: ilScan 2.2s ease-in-out var(--o,1s) both; }
+.il-glowin { animation: ilGlowIn 1.6s ease-out var(--o,0s) both; }
+.il-float { animation: ilFloat 4.6s cubic-bezier(.45,0,.55,1) calc(var(--d,0s) * -.25) both; }
+.il-rise { animation: ilRise .8s cubic-bezier(.3,1.2,.5,1) calc(var(--o,0s) + .15s) both; }
+@keyframes ilRing { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+@keyframes ilFade { from { opacity: 0; } }
+@keyframes ilPop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes ilIn { from { opacity: 0; transform: translate(var(--fx,0),var(--fy,8px)); } to { opacity: 1; transform: none; } }
+@keyframes ilDrop { 0% { opacity: 0; transform: translateY(var(--dy,-34px)); } 40% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ilFly { 0% { opacity: 0; transform: translate(var(--fx),var(--fy)) scale(.5); } 30% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ilGrow { from { opacity: 0; transform: scaleX(.1); } to { opacity: 1; transform: none; } }
+@keyframes ilDraw { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+@keyframes ilTw { 0% { opacity: 0; transform: scale(.3); } 55% { opacity: 1; transform: scale(1.2); } 100% { opacity: .9; transform: none; } }
+@keyframes ilDot { 0%, 100% { opacity: .45; } 40% { opacity: 1; } }
+@keyframes ilScan { 0% { opacity: 0; transform: translateY(calc(var(--sy) * -1)); } 15% { opacity: 1; } 55% { transform: translateY(var(--sy)); } 100% { opacity: .8; transform: none; } }
+@keyframes ilGlowIn { 0% { opacity: 0; } 60% { opacity: 1; } 100% { opacity: .85; } }
+@keyframes ilFloat { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+@keyframes ilRise { from { opacity: 0; transform: translateY(22px) scale(.92); } to { opacity: 1; transform: none; } }
+
+/* the rating art (version D "Phone", rn-once): bubbles pop in, a heart lands, hearts rise
+   beside the phone — ONCE (the design file looped the idle motions twice; "plays once and
+   holds" wins), then the frame holds. */
+.rn-illo { display: block; width: 100%; height: auto; margin-inline: auto; overflow: visible; }
+.rn-once .rn-pop { animation: rnPopIn .5s cubic-bezier(.3,.7,.4,1) calc(var(--o) + .3s) both; transform-box: fill-box; transform-origin: left bottom; }
+.rn-once .rn-rise { animation: rnRise 5.2s cubic-bezier(.3,0,.5,1) var(--o) both; }
+.rn-once .rn-float { animation: rnFloat 5.2s cubic-bezier(.45,0,.55,1) var(--d) both; }
+.rn-once .rn-beat { animation: rnBeat 2.8s cubic-bezier(.45,0,.55,1) both; transform-box: fill-box; transform-origin: 50% 60%; }
+.rn-once .rn-spin { animation: rnSpin 7s cubic-bezier(.45,0,.55,1) both; transform-box: fill-box; transform-origin: center; }
+.rn-once .rn-tw { animation: rnTw 3.2s ease-in-out calc(var(--i) * .8s) both; transform-box: fill-box; transform-origin: center; }
+@keyframes rnPopIn { from { opacity: 0; transform: translateY(6px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes rnRise { 0% { opacity: 0; transform: translate(0,0) scale(.7); } 15% { opacity: 1; } 70% { opacity: .9; } 100% { opacity: 0; transform: translate(var(--x),-84px) scale(1); } }
+@keyframes rnFloat { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+@keyframes rnBeat { 0%, 20%, 42%, 100% { transform: none; } 10% { transform: scale(1.07); } 30% { transform: scale(1.05); } }
+@keyframes rnSpin { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(8deg) scale(1.04); } }
+@keyframes rnTw { 0%, 100% { opacity: .2; transform: scale(.55); } 50% { opacity: .9; transform: none; } }
+
+/* ★ S11 A2 (#1263, R2-m2): one entrance per lifetime — once held (illustrations.js), a restart begins 60 s in the
+   past, so the `both` fill paints the END frame (animation:none would show the base styles, not the end frames) */
+.il[data-held] *, .rn-illo[data-held] * { animation-delay: -60s !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .il *, .rn-illo * { animation: none !important; }
+  .rn-rise, .rn-pop { opacity: .9; }
+}
+
+</style><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <style data-src="../styles/components/chats-shell.css">
 /* c-chats-shell — Chats flow shell scaffold: list container + empty state.
    The contact-request row is its own component (contact-request.css, step 3).
@@ -3649,14 +3918,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   align-items: center;
   justify-content: center;
 }
-.c-contacts-addsheet__art-img { width: 100%; height: 100%; object-fit: contain; }
-/* art missing/blocked → the empty-state glyph tile grammar, never a hole */
-.c-contacts-addsheet__art[data-placeholder] {
-  width: 96px; height: 96px;
-  border-radius: var(--radius-24);
-  background: var(--surface-neutral-02);
-  color: var(--text-neutral-02);
-}
+.c-contacts-addsheet__art-img { width: 100%; height: 100%; }   /* ★ S11 B (#1262): the inline art (no load → no glyph-tile fallback rule) */
 .c-contacts-addsheet__lead {
   margin: 0;
   text-align: center;
@@ -4261,7 +4523,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    not a breakpoint — desktop keeps riding :root[data-desktop] in empty-state.css. */
 .c-wallet-txlist > .c-empty-state[data-compact] { padding-block-start: var(--spacing-8); }
 .c-wallet-txlist > .c-empty-state[data-compact] .c-empty-state__illo {
-  width: clamp(104px, 32vw, 148px);
+  width: clamp(160px, 48vw, 200px);   /* ★ S11 B (#1262): the art is back and WIDER (Damir) — was clamp(104px, 32vw, 148px) */
 }
 
 /* —— tx detail sheet —— */
@@ -4660,32 +4922,16 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 @media (hover: hover) and (pointer: fine) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-receive__copy:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
 
-/* —— amount (mirrors the send entry: money is the hero) —— */
-.c-wallet-receive__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
-.c-wallet-receive__amount {
-  flex: 1; min-width: 0;
-  box-sizing: border-box;
-  padding: var(--spacing-12) var(--spacing-16);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
-  color: var(--text-neutral-01);
-  font-family: var(--font-primary);
-  font-size: var(--font-size-heading-md);
-  line-height: var(--line-height-heading-md);
-  font-weight: var(--font-weight-semibold);
+/* ★ S11 H (#1263): step 1 = who + Continue (n); step 2 = the From chip, the amount + keypad (rules in wallet-send.css) */
+.c-wallet-receive__step { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-wallet-receive__step--amount { flex: 1 0 auto; align-items: center; gap: var(--spacing-8); }
+.c-wallet-receive__addrcard {                            /* #149③: the directory card */
+  display: flex; flex-direction: column; background: var(--surface-card);
+  border-radius: var(--radius-16); padding: var(--spacing-4); box-shadow: var(--elevation-1);
 }
-.c-wallet-receive__amount:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;
-  border-color: var(--outline-action-default);
-}
-.c-wallet-receive__unit {
-  flex: none;
-  font-family: var(--font-primary);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-neutral-02);
-}
+.c-wallet-receive__stack { display: inline-flex; flex: none; }
+.c-wallet-receive__stack .c-avatar + .c-avatar { margin-inline-start: calc(-1 * var(--spacing-8)); box-shadow: 0 0 0 2px var(--surface-screen); }
+.c-wallet-receive__note { margin: 0; text-align: center; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); color: var(--text-neutral-02); }
 
 /* —— send-request-to-contact strip —— */
 .c-wallet-receive__ask { display: flex; flex-direction: column; gap: var(--spacing-12); }
@@ -4755,14 +5001,6 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
-
-/* —— #527: header row (request heading + the small "Show my address" button) —— */
-.c-wallet-receive__head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--spacing-12);
-}
-.c-wallet-receive__head .c-wallet-receive__asklabel { margin: 0; }
-.c-wallet-receive__addrbtn { flex: none; }
 
 /* —— #527 / ★ W-c: the address sheet (QR + address + copy + Share + explainer) ——
    Damir F5 2026-08-23: the desktop dialog OVERFLOWED (visible scrollbar, the chip
@@ -5125,6 +5363,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-02);
 }
+.c-wallet-send__label:focus, .c-wallet-receive__asklabel:focus { outline: none; }   /* ★ #46 r3 NIT-4: a step-1 focus target after a touch (tabIndex -1), not a control */
 
 /* —— recipient picker —— */
 .c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
@@ -5204,76 +5443,46 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-wallet-send__addrfield .c-button { flex-basis: 100%; }
 .c-wallet-send__addrfield .c-wallet-send__error { flex-basis: 100%; }   /* validation sits under ITS input (Damir bug, round 3) */
 
-/* selected recipient */
-.c-wallet-send__picked {
-  display: flex; align-items: center; gap: var(--spacing-12);
-  min-height: 64px;                                     /* ★ W-j: the directory row height */
-  padding: var(--spacing-8) var(--spacing-12);
-  border-radius: var(--radius-16);
-  background: var(--surface-card);
-  box-shadow: var(--elevation-1);
+/* ★ S11 H (#1263): the step-2 chip — "To" (Send, keeps the old __picked hooks) and "From" (Request) */
+.c-wallet-send__picked, .c-wallet-receive__chip {
+  display: inline-flex; align-items: center; gap: var(--spacing-8); align-self: center;
+  max-width: 100%; min-height: var(--size-target-min); box-sizing: border-box;
+  margin: 0; padding: 0 var(--spacing-12); border: 0; border-radius: var(--radius-full);
+  background: var(--surface-card); color: var(--text-neutral-02); font: inherit; text-align: start;
 }
+button.c-wallet-send__picked, .c-wallet-receive__chip { cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { button.c-wallet-send__picked:hover, .c-wallet-receive__chip:hover { background: var(--surface-interactive-hover); } }
+button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background: var(--surface-interactive-pressed); }   /* #28 */
+.c-wallet-send__picked:focus-visible, .c-wallet-receive__chip:focus-visible { outline: var(--outline-width-2) solid var(--outline-action-default); outline-offset: 1px; }
+.c-wallet-send__chiplabel, .c-wallet-receive__chiplabel { flex: none; font-size: var(--font-size-body-sm); color: var(--text-neutral-02); }
 .c-wallet-send__pickedglyph {
-  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;   /* ★ W-j: avatar-48 slot */
-  border-radius: var(--radius-full);
+  width: var(--size-avatar-24); height: var(--size-avatar-24); flex: none; border-radius: var(--radius-full);
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--surface-action-tonal-default);
-  color: var(--icon-action-default);
+  background: var(--surface-action-tonal-default); color: var(--icon-action-default);
 }
-.c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.c-wallet-send__pickedname {                            /* ★ W-b: name over the muted truncated address */
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
+.c-wallet-send__pickedname, .c-wallet-receive__chipnames {
+  flex: 0 1 auto; min-width: 0; font-family: var(--font-secondary); font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold); color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .c-wallet-send__pickedaddr {
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-02);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 0 2 auto; min-width: 0; font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.c-wallet-send__clear {
-  flex: none;
-  width: 32px; height: 32px;                            /* visual 32; hit area below (#106) */
-  position: relative;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--icon-neutral-02);
-  cursor: pointer;
-}
-.c-wallet-send__clear::after { content: ''; position: absolute; inset: -6px; }
-@media (hover: hover) and (pointer: fine) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
-.c-wallet-send__clear:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+.c-wallet-send__chipchev, .c-wallet-receive__chipchev { flex: none; display: inline-flex; color: var(--icon-neutral-02); }
 
-/* —— amount —— */
-.c-wallet-send__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
-.c-wallet-send__amount {
-  flex: 1; min-width: 0;
-  box-sizing: border-box;
-  padding: var(--spacing-12) var(--spacing-16);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
-  color: var(--text-neutral-01);
-  font-family: var(--font-primary);
-  font-size: var(--font-size-heading-md);               /* money entry is the hero of this screen */
-  line-height: var(--line-height-heading-md);
-  font-weight: var(--font-weight-semibold);
+/* ★ S11 H (#1263) step 2: the big amount fills the free space above the keypad bar */
+.c-wallet-send__section--amount { flex: 1 0 auto; align-items: center; gap: var(--spacing-8); }
+.c-wallet-send__amountbox, .c-wallet-receive__amountbox {
+  flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--spacing-2); width: 100%; min-height: 120px; text-align: center;
 }
-.c-wallet-send__amount:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;
-  border-color: var(--outline-action-default);
-}
-.c-wallet-send__unit {
-  flex: none;
-  font-family: var(--font-primary);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-neutral-02);
-}
+.c-wallet-send__fiat, .c-wallet-receive__fiat { margin: 0; font-size: var(--font-size-body-md); color: var(--text-neutral-02); }
+.c-wallet-send__amountrow { display: flex; align-items: center; justify-content: center; gap: var(--spacing-12); }
+.c-wallet-send__over { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-8); text-align: center; }
+.c-wallet-send__over .c-wallet-send__error { font-weight: var(--font-weight-semibold); }
+.c-wallet-send__section--amount .c-wallet-send__meta { text-align: center; }
+.c-wallet-send__meta { text-align: center; }
 .c-wallet-send__meta {
   margin: 0;
   font-size: var(--font-size-body-sm);
@@ -5320,6 +5529,46 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    stretched to the pane width (an 800px amount field). Cap the content column and
    centre it — the same reading width the settings pane uses. Mobile is untouched. */
 :root[data-desktop] .c-wallet-send { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
+
+/* ★ S11 H (#1263) — amount-pad.js (Send AND Request): its rules live here — the W-h gate maps amount-pad → wallet-send */
+.c-wallet-send__actions .c-amount-pad, .c-wallet-receive__bar .c-amount-pad { margin-block-end: var(--spacing-8); }
+.c-amount { display: flex; flex-direction: column; align-items: center; color: var(--text-neutral-01); outline: none; }
+.c-amount__row {
+  display: inline-flex; align-items: center; font-family: var(--font-primary);
+  font-size: 56px; line-height: 64px;                   /* render A */
+  font-weight: var(--font-weight-semibold); letter-spacing: var(--tracking-display-lg); white-space: nowrap;
+}
+.c-amount[data-size="m"] .c-amount__row { font-size: 44px; line-height: 52px; }
+.c-amount[data-size="s"] .c-amount__row { font-size: 32px; line-height: 40px; }
+.c-amount__zero { color: var(--text-neutral-disabled); }
+.c-amount__caret {
+  display: inline-block; flex: none; width: 2px; height: 0.82em; margin-inline: 2px; border-radius: 1px;
+  background: var(--text-accent); animation: c-amount-blink 1.06s steps(1, end) infinite;
+}
+@keyframes c-amount-blink { 50% { opacity: 0; } }
+.c-amount__unit {
+  font-family: var(--font-primary); font-size: var(--font-size-label-lg); line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold); color: var(--text-neutral-02);
+}
+.c-amount[data-error] .c-amount__row { color: var(--text-error); }
+.c-amount[data-error] .c-amount__caret { background: var(--text-error); }
+.c-amount[data-shake] .c-amount__row { animation: c-amount-shake 320ms ease-in-out 1; }
+@keyframes c-amount-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .c-amount__caret, .c-amount[data-shake] .c-amount__row { animation: none; }
+}
+.c-amount-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-4); }
+.c-amount-pad__key {
+  height: clamp(48px, 8vh, 64px); display: grid; place-items: center; margin: 0; padding: 0;
+  border: 0; border-radius: var(--radius-16); background: transparent; color: var(--text-neutral-01);
+  font-family: var(--font-primary); font-size: 28px; font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums;
+  cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) { .c-amount-pad__key:hover { background: var(--surface-interactive-hover); } }
+.c-amount-pad__key:active { background: var(--surface-interactive-pressed); }   /* #28 */
+.c-amount-pad__key:focus-visible { outline: var(--outline-width-2) solid var(--outline-action-default); outline-offset: -2px; }
+.c-amount-pad__key:disabled { color: var(--text-neutral-disabled); cursor: default; }
 
 </style><!-- Send compose/review takeover (BE-gated composeSend) -->
 <!-- apps tab (tab3, ARCHITECTURE section 5 — home shell internal view) -->
@@ -6194,6 +6443,10 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     <span id="sl-hourcycle">*SL{hourCycle}</span>
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
+    <!-- ★ S11 A (#1262): the update notice's TEMPLATE (one {0} hole in all 13 lang files) — HomePage pushes
+         String.Format(_SL("global-update-available"), v) through showWarning, so the shell recognises the notice by
+         this template's prefix + suffix in the active locale and lifts the version out of the hole (updateVersionOf). -->
+    <span id="sl-update-available">*SL{global-update-available}</span>
     <!-- ★ CH6 (Session AD): the fourteen EXCERPT-CANON carriers that used to live here
          (`sl-ex-*`, `sl-ex-self`, `sl-waiting-response`) are GONE. C# pushes the excerpt
          KIND as addChat's 11th argument (HomePage.getFriendMessageHelper), so the shell no
@@ -6287,6 +6540,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     isAddressShaped,                     // ★ #589: the ONE address-shape test (was a local 20-char regex)
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
+    attachSeasonal,                      // ★ S11 A (#1262): the seasonal Chats top bar (C1 Halloween · X1 Christmas)
+    createUpdateCard, createHintCard, parseHintsState, pickHint, updateVersionOf,   // ★ S11 A (#1262): the glass cards
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
@@ -6505,6 +6760,10 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     ],
   });
   document.getElementById('chats-topbar').append(chatsTopbarEl);
+  /* ★ S11 A (#1262): the seasonal logotype — Halloween [24 Oct, 1 Nov 03:00) and Christmas [1 Dec, 2 Jan), local
+     clock, checked now / on resume / every minute (seasonal.js). Only the Chats ROOT bar's logotype wears it: the
+     desktop bar is a plain "Chats" title with no mark (the brand mark lives on the rail), so it stays plain. */
+  attachSeasonal(chatsTopbarEl, { scroller: document.getElementById('chat-scroll') });
 
   /* —— iOS-22 (#314): dev-mode 10-tap restore (legacy countLogoClick grammar) ——
    * ZERO-C#: HomePage still dispatches ixian:enableDevMode / ixian:disableDevMode
@@ -6765,7 +7024,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   function titleStateTargets() {
     const out = [];
     const chats = chatsTopbarEl.querySelector('.c-topbar__title');
-    if (chats) out.push({ holder: chats, word: chats.querySelector('span') || chats, base: chatsTitleBase, bar: chatsTopbarEl });
+    // ★ S11 A (#1262): the WORDMARK first — a season can put art beside it, and only the word is the title text
+    if (chats) out.push({ holder: chats, word: chats.querySelector('.c-topbar__word') || chats.querySelector('span') || chats, base: chatsTitleBase, bar: chatsTopbarEl });
     try {
       const apps = appsTopbarEl.querySelector('.c-topbar__title');
       if (apps) out.push({ holder: apps, word: apps.querySelector('span') || apps, base: strings.tabApps || 'Apps', bar: appsTopbarEl });
@@ -6833,7 +7093,133 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     const slot = document.getElementById(
       navId === 'wallet' ? 'wallet-banner' : navId === 'apps' ? 'apps-banner' : 'chats-banner');
     if (slot && homeBanner.parentNode !== slot) slot.append(homeBanner);
+    cardNav = navId;
+    placeUpdateCard();               // ★ S11 A (#1262): the update card follows the visible tab too (#403's rule)
   }
+
+  /* ★★ S11 A (#1262) — THE GLASS CARDS (glass-card.js). UPDATE CARD: the update notice ONLY, still pushed through
+   * showWarning every tick and recognised by the template carrier above (no new push). No Update button; "How to
+   * update" = ★ S11 A2 (#1263) `ixian:updateHelp` (C# opens Config.updateHelpUrl), only for an exe with the
+   * `updateHelp` cap (else today's banner). × = #383 (in memory). ONE element that MOVES like the banner (#403).
+   * HINT CARDS (tips 5–9): C# stores (SHints), the shell decides (pickHint); `ixian:hint:shown|done:<id>`, only to an
+   * exe with the `hints` cap. Learn more uses EXISTING navigation only. */
+  const chatsCardSlot = document.createElement('div');
+  chatsCardSlot.className = 'chats-cards';
+  let cardNav = 'chats';
+  const UPDATE_TEMPLATES = [
+    slCarrier('sl-update-available', ''),
+    'New version of Spixi ({0}) is available. Please update for best experience.',   // the en-us template (preview / belt)
+  ].filter(Boolean);
+  let updateCard = null;
+  let dismissedUpdate = '';
+  function placeUpdateCard() {
+    if (!updateCard) return;
+    const slot = cardNav === 'wallet' ? document.getElementById('wallet-banner')
+      : cardNav === 'apps' ? document.getElementById('apps-banner') : chatsCardSlot;
+    if (slot && updateCard.parentNode !== slot) slot.prepend(updateCard);
+  }
+  function showUpdateCard(text, version) {
+    if (text === dismissedUpdate) return;                       // a waved-away notice is not resurrected by a re-push
+    if (updateCard && updateCard.dataset.version === version) return;   // the same notice, every tick: nothing to do
+    const fresh = createUpdateCard({
+      version, strings,
+      onHowTo: () => bridge.send('ixian:updateHelp'),
+      onDismiss: () => {
+        dismissedUpdate = text;
+        if (updateCard) { updateCard.remove(); updateCard = null; }
+        pumpHint();
+      },
+    });
+    if (updateCard) updateCard.replaceWith(fresh);
+    updateCard = fresh;
+    placeUpdateCard();
+    pumpHint();                                                  // never together: an open hint gives way
+  }
+
+  /* ★★ S11 A2 (#1263, R2-M1) hint timing: decide only HINT_SETTLE_MS after the first setHints (the boot's update /
+     rating pushes land first), on the visible Chats tab; send `shown` only after the card STOOD HINT_STAND_MS — a card
+     displaced earlier goes without a latch and comes back when the block clears. A queued rating blocks only if it
+     will really show. Clock = C#'s now + time since the push, re-checked on resume; a re-push merges. × / Learn more
+     before it stood still counts as seen (`shown`, then `done`). */
+  const HINT_SETTLE_MS = 4000;
+  const HINT_STAND_MS = 3000;
+  let hintsState = null;          // the validated setHints push (null = no hints: an older exe, or no push yet)
+  let hintsAt = 0;
+  let hintsSettled = false;
+  let hintSettleTimer = 0;
+  let hintCard = null;
+  let hintStandTimer = 0;
+  let hintShownId = '';           // the tip that stood (reported shown) — it stays until × / Learn more
+  function hintNow() {
+    return hintsState ? hintsState.now + Math.max(0, Date.now() - hintsAt) : Date.now();
+  }
+  function hintBlocked() {
+    try {
+      return !!updateCard || nudgeOpen !== null
+        || nudgeQueue.some((k) => k !== 'rating' || (!ratingTooEarly() && !ratingSnoozed()));
+    } catch (e) { return true; }  // the nudge queue is declared further down — before it exists, nothing shows
+  }
+  function hintOnScreen() {
+    try { return nudgeTabId === 'chats' && document.visibilityState === 'visible'; } catch (e) { return false; }
+  }
+  function dropHintCard() {
+    clearTimeout(hintStandTimer);
+    hintStandTimer = 0;
+    if (hintCard) { hintCard.remove(); hintCard = null; }
+  }
+  function hintStood(id) {
+    hintStandTimer = 0;
+    if (!hintCard || hintCard.dataset.tip !== id || hintBlocked() || !hintOnScreen()) { pumpHint(); return; }
+    hintShownId = id;
+    if (hintsState) hintsState.lastShown = hintNow();
+    bridge.send('ixian:hint:shown:' + id);
+  }
+  function hintDone(id) {
+    dropHintCard();
+    if (hintShownId !== id) {
+      if (hintsState) hintsState.lastShown = hintNow();
+      bridge.send('ixian:hint:shown:' + id);
+    }
+    hintShownId = '';
+    if (hintsState && hintsState.done.indexOf(id) < 0) hintsState.done.push(id);
+    bridge.send('ixian:hint:done:' + id);
+  }
+  // ★ S11 A2 (#1263, R3-MAJOR-2): the nav's OWN path (its click → onChange), not a copy of it
+  function goToTab(id) {
+    const item = nav.querySelector('.c-bottomnav__item[data-id="' + id + '"]');
+    if (item) item.click();
+  }
+  function hintLearnMore(target) {
+    if (target === 'backup') { bridge.send('ixian:backup'); return; }          // Settings › Backup (BackupPage)
+    if (target === 'wallet' || target === 'apps') { goToTab(target); return; }
+    if (target === 'addcontact') {                                             // the directory's own Add contact
+      openContacts('directory');
+      const add = contactsView && contactsView.el ? contactsView.el.querySelector('.c-contacts__action') : null;
+      if (add) add.click();
+    }
+  }
+  function pumpHint() {
+    if (!hintsState || hintsState.off) { dropHintCard(); return; }
+    if (hintCard) {
+      if (!hintBlocked() && hintOnScreen()) return;
+      dropHintCard();                                            // displaced: no latch
+      return;
+    }
+    if (!hintsSettled || !hintOnScreen() || hintBlocked()) return;
+    if (hintShownId && hintsState.done.indexOf(hintShownId) >= 0) hintShownId = '';
+    const id = hintShownId || pickHint(hintsState, { now: hintNow(), blocked: false });
+    if (!id) return;
+    const card = createHintCard({
+      tip: id, strings,
+      onLearnMore: (target) => { hintDone(id); hintLearnMore(target); },
+      onDismiss: () => hintDone(id),
+    });
+    if (!card) return;
+    hintCard = card;
+    chatsCardSlot.append(card);
+    if (hintShownId !== id) hintStandTimer = setTimeout(() => hintStood(id), HINT_STAND_MS);
+  }
+  document.addEventListener('visibilitychange', () => { pumpHint(); });
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
    * The FAB opens the picker takeover. Tap a row → open the 1:1 (ixian:chat).
@@ -7690,6 +8076,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     }, { passive: true });
   }
 
+  scroller.insertBefore(chatsCardSlot, list);   // ★ S11 A (#1262): the glass cards sit above the list, under the search + chips
+
   setNavBadge(nav, 'chats', navUnreadTotal());
 
   /* —— chats render pipeline ————————————————————————————————————————————————
@@ -8503,7 +8891,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
        Back (arrow / hardware / edge → 'back') slides the takeover off the wallet; a
        programmatic close (tab switch, scan hand-off) removes it at once. State first,
        pixels after — same contract as the contacts takeover. */
-    const close = (reason) => { closeAddressSheet(); if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29 · r2 n5: no sheet outlives its screen · Session H MAJOR-1: the post-remove sync is what finally reports 0
+    let walletReceiveView = null;   // ★ S11 H (#1263): the 2-step request — Back on step 2 returns to step 1
+    const close = (reason) => { if (reason === 'back' && walletReceiveView && walletReceiveView._stepBack && walletReceiveView._stepBack()) return; closeAddressSheet(); if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29 · r2 n5: no sheet outlives its screen · Session H MAJOR-1: the post-remove sync is what finally reports 0
     walletTakeoverClose = close;   // AND-29: hardware back closes this takeover
     syncHomeOverlay();   // AND-29 v2: notify C# the wallet takeover is up
     // walletStrings IS the live dict + the explorer override (slWith) — the old
@@ -8518,7 +8907,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     }));
     const body = document.createElement('div');
     body.className = 'wallet-takeover__body u-scroll';
-    body.append(createWalletReceive({
+    body.append(walletReceiveView = createWalletReceive({   // ★ S11 H (#1263): held for close('back') above
       address: addr,
       strings: walletStrings, host: document.body,
       /* F3 (#301) — Share sends the BARE ADDRESS, always (Damir, 2026-08-04 F5:
@@ -8650,6 +9039,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     over.className = 'wallet-takeover';
     walletTakeover = over;
     const close = (reason) => {
+      // ★ S11 H (#1263): the user's Back (top bar / hardware) on step 2 returns to step 1 (the compose decides; a locked or step-1 compose closes)
+      if (reason === 'back' && walletSendView && walletSendView._stepBack && walletSendView._stepBack()) return;
       if (walletSendView && walletSendView._closeReview) { try { walletSendView._closeReview(); } catch (e) {} }   // loop r1 M4: no orphan sheet
       if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove();   // ★ Session H: the user's Back slides (see mountWalletReceive) · MAJOR-1: post-remove sync reports the real 0
       walletTakeover = null; walletTakeoverClose = null;
@@ -8956,11 +9347,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     onModelChange: () => {},
     appMenu: true,    // A1: ⋮ menu (App details · Uninstall w/ confirm) now that uninstall has a verb
     // EMPTY STATE (nothing installed): illustration + headline + supporting line + a
-    // secondary "Add app" CTA. Art ships beside the shells (build-shells.mjs:260-267,
-    // the images/backup.png mechanism) — a `file://` WebView resolves a sibling file,
-    // never an external asset URL. Missing art degrades to the glyph tile.
+    // secondary "Add app" CTA. ★ S11 A2: inline art by name (illustrations.js).
 
-    emptyIllustration: 'images/apps-es.png',
+    emptyIllustration: 'appsEmpty',
     onAddApp: openAppsAdd,     // ★ Session T: in-shell, no page push (was ixian:newapp)
   };
 
@@ -9080,10 +9469,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 
   const appsHeader = createAppsHeader({
     layout: appsState.layout, strings, discover: false,
-    // Damir 2026-08-12: the banner gets the illustration, bottom-right. Sibling file
-    // beside the shell (build-shells.mjs copies src/demo/images → …/html/images), the
-    // images/backup.png mechanism — an external asset URL is what file:// refuses.
-    exploreImage: 'images/explore-banner.png',
+    // Damir 2026-08-12: the banner gets the illustration, bottom-right (★ S11 A2: inline, by name).
+    exploreImage: 'explore',
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
     onToggleLayout: (next) => {
       setAppsLayout(appsList, appsState, next, appsOpts);
@@ -9179,6 +9566,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     if (!placeholderView.hidden) setPlaceholder(navId);
     nudgeTabId = navId;
     pumpNudges();                       // a tab change can unblock a queued nudge
+    pumpHint();                         // ★ S11 A (#1262): …and a hint waits for the Chats tab
   }
 
   /* —————————————————————————————————————————————————————————————————————————
@@ -9289,12 +9677,13 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
        30-day slot is already burned at :2083 — queues behind it (audit MINOR). */
     clearTimeout(nudgePumpTimer);
     nudgePumpTimer = setTimeout(pumpNudges, 150);
+    pumpHint();                                     // ★ S11 A (#1262): a hint never stands beside a backup / rating prompt
   }
 
   function closeNudge() {
     nudgeOpen = null;
     nudgeReadyAt = Date.now() + NUDGE_GAP_MS;
-    setTimeout(pumpNudges, NUDGE_GAP_MS + 20);
+    setTimeout(() => { pumpNudges(); pumpHint(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint
   }
 
   function pumpNudges() {
@@ -9304,7 +9693,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       nudgeOpen = 'backup';
       showBackupNudge({
         host: document.body,
-        illustration: 'images/backup.png',   // ships beside the shells (build-shells.mjs:260-267)
+        illustration: 'backup',   // ★ S11 A2: the inline art's name
         strings,
         onBackup: () => {
           /* ixian:backup pushes BackupPage over home. iOS keeps this WebView's
@@ -9321,12 +9710,12 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     } else if (kind === 'rating') {
       // N80: too early is NOT a snooze — no stamp is written, so the prompt appears
       // the moment the fifth open happens rather than a week later.
-      if (ratingTooEarly()) { pumpNudges(); return; }
-      if (ratingSnoozed()) { pumpNudges(); return; }
+      if (ratingTooEarly()) { pumpNudges(); pumpHint(); return; }
+      if (ratingSnoozed()) { pumpNudges(); pumpHint(); return; }
       nudgeOpen = 'rating';
       showRatingNudge({
         host: document.body,
-        illustration: 'images/onboarding/rate.png',   // N14a — rate-me art (disc fallback on error)
+        illustration: 'rating',   // N14a → ★ S11 A2: the inline art's name
         strings,
         onRate: (a) => { closeNudge(); bridge.send('ixian:rating:' + (a === 'yes' ? 'yes' : 'no')); },
         // Light-dismiss sends NO verb (component contract, rating-nudge.js:17-19) and
@@ -10334,6 +10723,14 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       if (CONNECTIVITY_TEXTS.has(t)) { setChatsTitleState(t); return; }
       // a notice the user already waved away must not come back on a re-push
       if (t === dismissedNotice) return;
+      /* ★ S11 A (#1262): the UPDATE notice is a glass card now — recognised by its localized template, the version
+         lifted out of the {0} hole; every other warning keeps the banner below. */
+      const updVersion = updateVersionOf(t, UPDATE_TEMPLATES);
+      if (updVersion && bridge.cap('updateHelp')) {   // ★ S11 A2 (#1263, R2-m4)
+        if (lastNoticeText && updateVersionOf(lastNoticeText, UPDATE_TEMPLATES)) { lastNoticeText = ''; setWarning(homeBanner, ''); }   // a banner update notice (pushed before the caps) gives way
+        showUpdateCard(t, updVersion);
+        return;
+      }
       lastNoticeText = t;
       setWarning(homeBanner, raw);
     },
@@ -10342,6 +10739,23 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     // fromChat (:2442). Answering either way marks it done C#-side (:665); a
     // light-dismiss marks nothing, hence the local snooze in the queue.
     showRatingPrompt() { enqueueNudge('rating'); },
+    /* ★ S11 A (#1262, 🟡 NEW push, cap `hints`): the hint counters C# keeps (SHints) — firstSeen, lastShown, the done
+       ids, the off switch, C#'s now. Validated (parseHintsState); the shell picks the tip (pickHint). */
+    setHints(json) {
+      if (!bridge.capabilities || !bridge.capabilities.hints) return;   // an exe that does not handle ixian:hint:*
+      const st = parseHintsState(json);
+      if (!st) return;
+      if (hintsState) {
+        st.lastShown = Math.max(st.lastShown, hintsState.lastShown);
+        for (const d of hintsState.done) if (st.done.indexOf(d) < 0) st.done.push(d);
+      }
+      hintsState = st;
+      hintsAt = Date.now();
+      if (!hintsSettled && !hintSettleTimer) {
+        hintSettleTimer = setTimeout(() => { hintsSettled = true; pumpHint(); }, HINT_SETTLE_MS);
+      }
+      pumpHint();
+    },
 
     // A11 (#302). C# pushes toggleAnimatedSlider("backup-prompt") from
     // displayBackupReminder (HomePage.xaml.cs:2082). Take the ARGUMENT: legacy's

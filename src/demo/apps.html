@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="../styles/components/apps-details.css">
 <link rel="stylesheet" href="../styles/components/apps-discover.css">
 <link rel="stylesheet" href="../styles/components/empty-state.css">
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <style>
   body { padding: var(--spacing-24); }
   .demo-toolbar { display: flex; gap: var(--spacing-12); align-items: center; max-width: 900px; margin: 0 auto var(--spacing-32); }
@@ -163,7 +164,7 @@
     // empty state (nothing installed): art ships BESIDE the shell as images/… —
     // build-shells copies src/demo/images → Resources/Raw/html/images, so the same
     // relative ref resolves in the demo AND in the packaged AppsPage shell.
-    emptyIllustration: 'images/apps-es.png',
+    emptyIllustration: 'appsEmpty',   // ★ S11 A2 (#1263): the inline art's NAME (the PNG is deleted)
     onAddApp: () => showAdd(),
   };
 
@@ -171,10 +172,9 @@
   const recentsEl = createAppsRecents(state, opts);
   const header = createAppsHeader({
     layout: state.layout, strings, discover: false,   // discover now lives in the Add surface
-    // ⚠ was '../assets/images/discover-apps.svg' — that path does NOT exist next to the
-    // PACKAGED shell (build-shells writes this file to Resources/Raw/html/), so the
-    // banner illustration silently failed in the real app. images/… is the shipped one.
-    exploreImage: 'images/explore-banner.png',
+    // ⚠ was '../assets/images/discover-apps.svg', then images/explore-banner.png — ★ S11 A2 (#1263):
+    // the art is inline now (illustrations.js), named here; no file ships for it.
+    exploreImage: 'explore',   // ★ S11 A2 (#1263): the inline Explore art's NAME (the PNG is deleted)
     onQuery: (q) => setAppsQuery(list, state, q, opts),
     onToggleLayout: (next) => setAppsLayout(list, state, next, opts),
     onExplore: () => showAdd(),                        // Explore → Add & Discover surface

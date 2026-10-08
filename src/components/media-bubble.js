@@ -353,21 +353,47 @@ export function setTileHead(row, { position = 'single', label = null, avatar = n
 }
 
 /* ═══ ★★ S9 (#1244 G = A) — THE PHOTO GROUP BUBBLE: one bubble for the photos of ONE pick (C#'s group tag, addFile arg 18)
- * — a square 2 × 2 grid with "+N" on the fourth cell (2 photos: side by side · 3: one tall + two), and the caption (the
- * sender's text message whose id the tag names) UNDER the grid, inside the same bubble. Received: framed in the incoming
- * ground; sent: the outgoing ground (the photo tile's own 3 px frame, #1151 — now around the whole group, 2 px between
- * the cells). The CELLS are the shell's own photo-file rows (createImageFileBubble — every per-photo state: offer,
- * downloading ring, complete, failed, the picture); this only lays them out.
- * createPhotoGridBubble({ direction, count, more, total, caption, gutter, strings }) → row
- *   count — the cells that will be shown (1–4) · more — photos past the fourth (the "+N") · total — every photo present
- *   caption — the caption text (textContent only) or null
+ * and the caption (the sender's text message whose id the tag names) UNDER the photos, inside the same bubble. Received:
+ * framed in the incoming ground; sent: the outgoing ground (the photo tile's own 3 px frame, #1151 — now around the whole
+ * group, 2 px between the cells). The CELLS are the shell's own photo-file rows (createImageFileBubble — every per-photo
+ * state: offer, downloading ring, complete, failed, the picture); this only lays them out.
+ * ★★ S11 G (#1263 a = A, Telegram grammar — supersedes the S9 2 × 2 + "+N" and the S10 "+N" BUTTON): a MOSAIC of every
+ * photo up to MOSAIC_MAX (10) in rows of 1–4 (mosaicRows — the render's table: 2 = 1×2 · 3 = 1+2 · 4 = 2×2 · 5 = 2+3 ·
+ * 6 = 3+3 · 7 = 3+4 · 8 = 2+3+3 · 9 = 3+3+3 · 10 = 3+3+4), a FIXED pattern (the row heights come from the row lengths,
+ * mosaicGeometry — the picture sizes are not known for offers, so no aspect fit). Every cell keeps its own state and its
+ * own menu (the shell attaches one per cell — no button over a tile takes the right-click any more). Past MOSAIC_MAX a
+ * passive "+N" LABEL (no events) lies over the last cell. A received group with offers left gets a FOOTER under the photos
+ * (and under the caption): "Download all (n) · size" on the start side, the time on the end side (the cells' own times
+ * hide); with no footer the last cell keeps its time, as before.
+ * createPhotoGridBubble({ direction, count, more, total, caption, gutter, downloadAll, downloadAllLabel, onDownloadAll,
+ *   timestamp, strings }) → row
+ *   count — the cells that will be shown (1–10) · more — photos past them (the "+N" label) · total — every photo present
+ *   caption — the caption text (textContent only) or null · timestamp — the footer's time (ms)
  * The shell appends its cell rows into `.c-mgrid` (addPhotoGridCell) AFTER its group head, so the head lands on the
  * group's column (the column carries `c-mbubble-anchor`, the class setTileHead looks for — it is FIRST in document order).
  * The group carries role="group" + "{n} photos"; the "+N" is aria-hidden (the name already says how many).
- * ★ S10 F2 (#1254): downloadAll — n ≥ 1 → a "Download all (n)" text button under the grid (downloadAllLabel, the shell's
- *   filled template; onDownloadAll on tap — one tap, then it waits for the shell's re-render); 0 = none. */
+ * downloadAll — n ≥ 1 → the footer's "Download all" text button (downloadAllLabel, the shell's filled template;
+ *   onDownloadAll on tap — one tap, then it waits for the shell's re-render); 0 = no footer. */
+export const MOSAIC_MAX = 10;
+const MOSAIC_ROWS = { 1: [1], 2: [2], 3: [1, 2], 4: [2, 2], 5: [2, 3], 6: [3, 3], 7: [3, 4], 8: [2, 3, 3], 9: [3, 3, 3], 10: [3, 3, 4] };
+/** ★ S11 G (#1263 a): the row lengths of a mosaic of n photos (1–10; outside → clamped). */
+export function mosaicRows(n) {
+  const k = Math.max(1, Math.min(MOSAIC_MAX, Math.floor(Number(n) || 1)));
+  return MOSAIC_ROWS[k].slice();
+}
+/* the height of one row of k tiles as a fraction of the mosaic's width (the render's tiles: one = 4:3, two = 1 : 0.82,
+   three and four = square) */
+const ROW_H = { 1: 0.75, 2: 0.41, 3: 1 / 3, 4: 0.25 };
+/** ★ S11 G (#1263 a): the mosaic's geometry — the row lengths, the box's aspect ratio (width / height) and the
+ *  grid-template-rows (fr per row, proportional to each row's height). Sanctioned runtime geometry (like fitTile). */
+export function mosaicGeometry(n) {
+  const rows = mosaicRows(n);
+  const hs = rows.map((k) => ROW_H[k]);
+  const sum = hs.reduce((a, b) => a + b, 0);
+  return { rows, ratio: Math.round((1 / sum) * 1000) / 1000, template: hs.map((v) => (Math.round(v * 1000) / 1000) + 'fr').join(' ') };
+}
 export function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false,
-  downloadAll = 0, downloadAllLabel = '', onDownloadAll = null, strings = getStrings() } = {}) {
+  downloadAll = 0, downloadAllLabel = '', onDownloadAll = null, timestamp = null, strings = getStrings() } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row c-mgrid-row';
   row.dataset.direction = direction;
@@ -383,9 +409,12 @@ export function createPhotoGridBubble({ direction = 'received', count = 1, more 
   box.className = 'c-mgrid-box';
   const grid = document.createElement('div');
   grid.className = 'c-mgrid';
-  const n = Math.max(1, Math.min(4, Number(count) || 1));
+  const n = Math.max(1, Math.min(MOSAIC_MAX, Number(count) || 1));
   grid.dataset.n = String(n);
   grid.dataset.more = String(Math.max(0, Number(more) || 0));
+  const geo = mosaicGeometry(n);
+  grid.style.setProperty('--mosaic-ratio', String(geo.ratio));   // sanctioned runtime geometry (the row table above; css reads both)
+  grid.style.setProperty('--mosaic-rows', geo.template);
   grid.setAttribute('role', 'group');
   const all = Math.max(n, Number(total) || 0);
   grid.setAttribute('aria-label', all === 1 ? (strings.photoCountOne || '1 photo')
@@ -400,6 +429,8 @@ export function createPhotoGridBubble({ direction = 'received', count = 1, more 
     box.append(cap);
   }
   if (Number(downloadAll) > 0 && typeof onDownloadAll === 'function') {
+    const foot = document.createElement('div');
+    foot.className = 'c-mgrid__foot';
     const dl = document.createElement('button');
     dl.type = 'button';
     dl.className = 'c-mgrid__dlall';
@@ -409,22 +440,31 @@ export function createPhotoGridBubble({ direction = 'received', count = 1, more 
     dl.append(t);
     dl.addEventListener('click', () => {
       if (dl.disabled) return;
-      dl.disabled = true;   // one tap: the offers flip to progress on C#'s ticks and the re-render drops the button
+      dl.disabled = true;   // one tap: the offers flip to progress on C#'s ticks and the re-render drops the footer
       try { onDownloadAll(); } catch (_) {}
     });
+    foot.append(dl);
+    const d = timestamp != null ? new Date(timestamp) : null;
+    if (d && !isNaN(d)) {
+      const time = document.createElement('time');
+      time.className = 'c-mgrid__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = d.toLocaleTimeString(docLocale(), timeOpts());   // the device's 12/24-hour setting (Session I)
+      foot.append(time);
+    }
     box.dataset.dlall = '';
-    box.append(dl);
+    box.append(foot);
   }
   col.append(box);
   row.append(col);
   return row;
 }
 
-/** Put one photo-file row (createImageFileBubble) into the group's grid as a cell: its own gutter, pre-accept Cancel
- *  and fixed tile geometry go (the grid sizes the cell); `isLast` + `more` > 0 lays the "+N" over it. → the cell row
- *  ★ S10 F2 (#1254): `onMore` given → the "+N" is its own BUTTON over the cell (named `moreLabel`) and the photo tile
- *  under it leaves the tab order (the button covers it); no `onMore` = the S9 decorative overlay. */
-export function addPhotoGridCell(groupRow, cellRow, { isLast = false, onMore = null, moreLabel = '' } = {}) {
+/** Put one photo-file row (createImageFileBubble) into the group's mosaic as a cell: its own gutter, pre-accept Cancel
+ *  and fixed tile geometry go (the mosaic sizes the cell); the cell takes its row length (data-row → its column span).
+ *  `isLast` + `more` > 0 lays the passive "+N" LABEL over it (★ S11 G #1263 a: never a button — the cell's own menu and
+ *  tap stay live under it). → the cell row */
+export function addPhotoGridCell(groupRow, cellRow, { isLast = false } = {}) {
   const grid = groupRow && groupRow.querySelector('.c-mgrid');
   if (!grid || !cellRow) return null;
   cellRow.classList.add('c-mgrid__cell');
@@ -433,18 +473,14 @@ export function addPhotoGridCell(groupRow, cellRow, { isLast = false, onMore = n
   }
   const tile = cellRow.querySelector('.c-mbubble');
   if (tile) { tile.style.removeProperty('width'); tile.style.removeProperty('aspect-ratio'); }
+  /* ★ S11 G: the cell's row in the mosaic table (the i-th cell in document order) */
+  const rows = mosaicRows(Number(grid.dataset.n) || 1);
+  let i = grid.querySelectorAll(':scope > .c-mgrid__cell').length;
+  let k = rows[rows.length - 1];
+  for (const len of rows) { if (i < len) { k = len; break; } i -= len; }
+  cellRow.dataset.row = String(k);
   const more = Number(grid.dataset.more) || 0;
-  if (isLast && more > 0 && tile && typeof onMore === 'function') {
-    const m = document.createElement('button');   // a sibling of the tile (a button never nests in the tile's button)
-    m.type = 'button';
-    m.className = 'c-mgrid__more';
-    m.textContent = '+' + more;
-    if (moreLabel) m.setAttribute('aria-label', moreLabel);
-    m.addEventListener('click', (e) => { e.stopPropagation(); try { onMore(); } catch (_) {} });
-    tile.tabIndex = -1;
-    tile.setAttribute('aria-hidden', 'true');
-    tile.after(m);
-  } else if (isLast && more > 0 && tile) {
+  if (isLast && more > 0 && tile) {
     const m = document.createElement('span');
     m.className = 'c-mgrid__more';
     m.setAttribute('aria-hidden', 'true');
@@ -453,4 +489,52 @@ export function addPhotoGridCell(groupRow, cellRow, { isLast = false, onMore = n
   }
   grid.append(cellRow);
   return cellRow;
+}
+
+/* ═══ ★★ S11 G (#1258 + #1263 c = A) — THE PREVIEW IN AN OFFER. The sender (C#) fills the FileTransfer offer's `preview`
+ * with a small JPEG (≤ 8 KB, ~96 px, no metadata); the receiver's C# re-encodes it through the bounded decoder and pushes
+ * it (setOfferPreview) only while "Load pictures and GIFs" is on; the shell checks the same switch again. On a photo-file
+ * tile that is NOT on this device yet (offer · downloading · failed) it paints under the face: today's 12 px blur
+ * (.c-mbubble__preview, the one reviewed preview sink — Gate row O-13), and on an OFFER a centre ↓ disc with the size
+ * (data-pv; the file face hides). Downloading / failed keep their face on a scrim over it. The picture, once on this
+ * device, covers it (setImageFileThumb). Only a `data:image/` URI is admitted (safeImageSrc, no remote); anything else
+ * removes it (the face comes back).
+ * setTilePreview(row, uri, sizeText) → true when the tile now shows a preview. */
+export function setTilePreview(row, uri, sizeText = '') {
+  const tile = row && row.querySelector('.c-mbubble[data-file]');
+  if (!tile) return false;
+  const src = safeImageSrc(uri, { allowRemote: false });
+  let pv = tile.querySelector(':scope > .c-mbubble__preview');
+  let mark = tile.querySelector(':scope > .c-mbubble__pvmark');
+  if (!src) {
+    if (pv) pv.remove();
+    if (mark) mark.remove();
+    delete tile.dataset.pv;
+    return false;
+  }
+  if (!pv) {
+    pv = document.createElement('img');
+    pv.className = 'c-mbubble__preview';
+    pv.alt = '';
+    pv.setAttribute('aria-hidden', 'true');
+    tile.prepend(pv);
+  }
+  if (pv.getAttribute('src') !== src) pv.src = src;
+  if (!mark) {
+    mark = document.createElement('span');
+    mark.className = 'c-mbubble__pvmark';
+    mark.setAttribute('aria-hidden', 'true');
+    const disc = document.createElement('span');
+    disc.className = 'c-mbubble__pvdisc';
+    disc.append(icon('download', { size: 22 }));
+    const size = document.createElement('span');
+    size.className = 'c-mbubble__pvsize u-tabular';
+    mark.append(disc, size);
+    tile.append(mark);
+  }
+  const size = mark.querySelector('.c-mbubble__pvsize');
+  size.textContent = String(sizeText || '');
+  size.hidden = !sizeText;
+  tile.dataset.pv = '';
+  return true;
 }

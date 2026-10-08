@@ -34,7 +34,8 @@ const FILES = [
   'src/components/strings-runtime.js', // Phase 3 #3: getStrings/setStrings — window.SL default source, before every consumer
   'src/components/theme-runtime.js', // ★ N71 (#421): applyPushedTheme — the one live setTheme body, no deps (L5 retired ignorePushedTheme with its last two callers)
   'src/components/money.js',        // #143: shared money helpers — before every consumer
-  'src/components/amount-keyboard.js', // ★ #609: the amount field's keyboard dismissal — shared by wallet send/receive + the tip sheet
+  'src/components/amount-keyboard.js', // ★ #609: the amount field's keyboard dismissal — the tip sheet (★ #1263: wallet send/receive moved to amount-pad)
+  'src/components/amount-pad.js',   // ★ S11 H (#1263): the in-app amount keypad + display — before wallet-send/-receive (its consumers)
   'src/components/disc.js',         // #170: per-glyph disc gradient index (pure fn)
   'src/components/flags.js',        // ★ L15: LANGUAGES + flagSvg — no deps; BOTH language pickers read it
   'src/components/timestamp.js',
@@ -42,8 +43,10 @@ const FILES = [
   'src/components/pressable.js',        // #343 shared press feedback (no component deps)
   'src/components/chatlist-item.js',
   'src/components/button.js',
+  'src/components/illustrations.js', // ★ S11 B (#1262): the inline illustration set — no imports; before empty-state and every art consumer
   'src/components/empty-state.js', // shared zero state (chats/wallet/contacts) — needs button.js
   'src/components/topbar.js',
+  'src/components/seasonal.js',     // ★ S11 A (#1262): the seasonal Chats top bar (imports ICONS only)
   'src/components/landscape-runtime.js',   // #922: the device-orientation flag (before bottomnav, which imports it)
   'src/components/bottomnav.js',
   'src/components/chip.js',
@@ -56,6 +59,7 @@ const FILES = [
   'src/components/modal.js',
   'src/components/desktop-anchors.js', // Batch C (#256 M6): desktop overlay anchoring (no imports — pure DOM)
   'src/components/banner.js',
+  'src/components/glass-card.js',   // ★ S11 A (#1262): the update card + the hint cards (strings-runtime + icons)
   'src/components/toast.js',
   'src/components/callbar.js',
   'src/components/message-bubble.js',

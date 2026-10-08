@@ -346,11 +346,14 @@
   inset-inline: 0;
   bottom: 0;
   height: var(--outline-width-2);
+  /* ★ S11 A (#1262, Damir's pick B "blue to violet, one strip"): the sweep blends brand blue → indigo → violet
+     (tokens.css region A). The geometry, the animation and the reduced-motion rule below are unchanged. */
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    var(--surface-action-default) 35%,
-    var(--surface-action-default) 65%,
+    var(--connecting-line-blue) 30%,
+    var(--connecting-line-indigo) 48%,
+    var(--connecting-line-violet) 66%,
     transparent 100%
   );
   background-size: 220% 100%;

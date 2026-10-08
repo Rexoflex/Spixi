@@ -30,6 +30,7 @@ namespace SPIXI.Meta
         // Read-only values
         public static readonly string aboutUrl = "https://www.spixi.io";
         public static readonly string guideUrl = "https://www.spixi.io/help-center.html";
+        public static readonly string updateHelpUrl = "https://www.spixi.io/download";   // ★ S11 A2 (#1263): the update card's "How to update" (ixian:updateHelp) — one page for the stores, the APK and desktop
         public static readonly string explorerUrl = "https://explorer.ixian.io/";
         public static readonly string spixiAppsUrl = "https://apps.spixi.io/";
 

@@ -220,6 +220,11 @@ namespace SPIXI
             // ★ S8 (#1234): the three Privacy switches — this exe handles ixian:readReceipts / typingIndicators / hideOnline
             // (kept ABOVE photoPreviews: pins-s4/nav.mjs reads photoPreviews as the last cap before the dev cap)
             caps += ",readReceipts,typing,hideOnline";
+            // ★ S11 C (#1262): the Privacy "Download photos automatically" row — this exe handles ixian:photoAutoDl.
+            caps += ",photoAutoDl";
+            // ★ S11 A (#1262): the "Tips on the Chats screen" switch — this exe handles ixian:hintsoff (setHintsOff seeds it).
+            // (kept ABOVE photoPreviews: pins-s4/nav.mjs reads photoPreviews as the last cap before the dev cap)
+            caps += ",hints";
             // ★ #1133 (A5 #1124): the Privacy "Show photo previews in chats" row — this exe handles ixian:photoPreviews.
             caps += ",photoPreviews";
             /* ★ S9 (Session AD): the Developer row. The cap is granted ONLY while dev mode
@@ -241,7 +246,9 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setNotifSounds", SNotificationPrefs.inAppSounds.ToString());
             Utils.sendUiCommand(this, "setCallRingtone", SNotificationPrefs.callRingtone.ToString());   // ★ E-W4 (🟡 new push; an older shell ignores it)
             Utils.sendUiCommand(this, "setPhotoPreviews", SChatPrefs.photoPreviews.ToString());   // ★ #1133 (🟡 new push): seed the Privacy switch
+            Utils.sendUiCommand(this, "setHintsOff", SHints.off.ToString());   // ★ S11 A (#1262, 🟡 new push): seed the hints switch (True = hints OFF)
             pushPrivacySwitches();   // ★ S8 (#1234): seed the three Privacy switches
+            Utils.sendUiCommand(this, "setPhotoAutoDl", SAutoDownload.setting);   // ★ S11 C (#1262, 🟡 new push): seed the auto-download row
             if (SPushService.pushProviderSupported())
             {
                 Utils.sendUiCommand(this, "setNotifPushProvider", SNotificationPrefs.pushProviderEnabled.ToString());   // P2 (#708): seed the switch
@@ -948,6 +955,18 @@ namespace SPIXI
                 SNotificationPrefs.callRingtone = status.Equals("on", StringComparison.Ordinal);
                 Utils.sendUiCommand(this, "setCallRingtone", SNotificationPrefs.callRingtone.ToString());
             }
+            else if (current_url.StartsWith("ixian:hintsoff:", StringComparison.Ordinal))
+            {
+                /* ★ S11 A (#1262, 🟡 NEW verb): the "Tips on the Chats screen" switch — "1" = hints OFF, "0" = on, nothing
+                 * else (S11HintRules.parseOff). Store (SHints, the local-only file), echo the STORED value (the NOTIF-2
+                 * grammar), then re-push the counters to the home shell so an open hint card goes at once. */
+                if (S11HintRules.parseOff(current_url.Substring("ixian:hintsoff:".Length), out bool hintsOff))
+                {
+                    SHints.off = hintsOff;
+                }
+                Utils.sendUiCommand(this, "setHintsOff", SHints.off.ToString());
+                HomePage.InstanceOrNull()?.pushHints();
+            }
             else if (current_url.StartsWith("ixian:notifSounds:", StringComparison.Ordinal))
             {
                 string status = current_url.Substring("ixian:notifSounds:".Length);
@@ -961,6 +980,19 @@ namespace SPIXI
                 SChatPrefs.photoPreviews = status.Equals("on", StringComparison.Ordinal);
                 Utils.sendUiCommand(this, "setPhotoPreviews", SChatPrefs.photoPreviews.ToString());
                 foreach (var chat_page in Utils.getChatPages()) chat_page.onPhotoPreviewsChanged();   // ★ #46 r1 A-M1: a chat alive under Account gets no OnAppearing — tell it now (each page catches its own failure)
+            }
+            /* ★ S11 C (#1262, 🟡 new verb): `ixian:photoAutoDl:<off|wifi|always>:<0|1>` — the auto-download setting + the
+             * current "Load pictures and GIFs" value (the shell's own switch; C# keeps a mirror so it never downloads while
+             * pictures are off). Exact grammar (S11ChatRules.parseAutoDownloadVerb) or nothing is stored; then echo the
+             * STORED setting (the photoPreviews grammar). Fixed words only — nothing of it is logged. */
+            else if (current_url.StartsWith("ixian:photoAutoDl:", StringComparison.Ordinal))
+            {
+                if (S11ChatRules.parseAutoDownloadVerb(current_url.Substring("ixian:photoAutoDl:".Length), out string autoDl, out bool autoDlPictures))
+                {
+                    SAutoDownload.setting = autoDl;
+                    SAutoDownload.loadPictures = autoDlPictures;
+                }
+                Utils.sendUiCommand(this, "setPhotoAutoDl", SAutoDownload.setting);
             }
             /* ★ S8 (#1234, 🟡 new verbs): store, then echo the STORED value (the photoPreviews grammar). "on" or not-"on". */
             else if (current_url.StartsWith("ixian:readReceipts:", StringComparison.Ordinal))

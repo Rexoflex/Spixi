@@ -622,7 +622,10 @@ public class MainActivity : MauiAppCompatActivity
             Android.Net.Uri? uri = intent.Data;
             if (uri != null)
             {
-                SaveFileToUri(uri, SaveFilePath);
+                /* ★ S11 G3 (#1263 MINOR-8): the copy runs OFF the UI thread (a 20 MB photo or a backup must not stall the
+                 * frame); the path is read here, on the main thread, before the task starts. */
+                string filePath = SaveFilePath;
+                _ = Task.Run(() => SaveFileToUri(uri, filePath));
             }
         }
     }

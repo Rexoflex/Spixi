@@ -864,6 +864,36 @@
   /* outline/region */
   --outline-input: var(--neutral-300);
   --outline-focus: var(--primary-600);
+
+  /* ★ S11 A (#1262) */
+  /* the CONNECTING line (topbar.css `[data-connecting-bar]::after`, Damir's pick B "blue to violet, one strip"):
+     brand blue → indigo → violet. One set for both themes — the strip is drawn on both bars the same way. */
+  --connecting-line-blue: var(--brand-600);          /* #3050bd */
+  --connecting-line-indigo: #5b6cf0;
+  --connecting-line-violet: #9468f2;
+  /* the seasonal top bar (seasonal.js): the art's drop shadow and the lantern halo are THEME values; the
+     orange / red / white of the art itself stay literal inside the SVG (they are the art, not the theme) */
+  --seasonal-shadow: #8a3a00;
+  --seasonal-shadow-alpha: 0.22;
+  --seasonal-halo: 0;
+  /* the glass card family (glass-card.css: the update card + the hint cards, "Spixi Hint Cards"): no outline —
+     a faint blue (top-start) / violet (bottom-end) tint over the card ground, a top highlight, a soft low shadow */
+  --glass-card-surface: #fefefe;
+  --glass-card-tint-blue: #e9edff;
+  --glass-card-tint-violet: #f4ecff;
+  --glass-card-highlight: rgba(255, 255, 255, 0.9);
+  --glass-card-shadow: 0 10px 24px -14px rgba(48, 80, 189, 0.32), 0 1px 3px rgba(20, 24, 40, 0.06);
+  --glass-card-eyebrow: var(--text-accent);
+  --glass-card-icon-from: #5b8cff;                   /* the update card's blue app-style icon */
+  --glass-card-icon-to: #3050bd;
+  --glass-card-art-from: #5b7cfa;                    /* the hint art tile: blue → violet */
+  --glass-card-art-to: #9468f2;
+  --glass-card-art-glow: rgba(110, 100, 240, 0.28);
+  /* ★ S11 A2 (#1263, R3-MAJOR-2): the inks ON the two art tiles — their own roles, not --icon-neutral-on-action
+     (that ink belongs to the action fill; the consumer census refuses it on any other fill). White on the tiles'
+     stops: #5b8cff 3.16:1 → #3050bd 6.98:1 · #5b7cfa 3.68:1 → #9468f2 3.80:1 (a 24–26 px glyph — the 3:1 graphics bar). */
+  --glass-card-icon-ink: #ffffff;
+  --glass-card-art-ink: #ffffff;
 }
 
 /* ★★ L15b / Session Z — THE FLAG FONT (flags.js installFlagFont, docs/flags-on-windows-brief.md).
@@ -1158,6 +1188,22 @@
   /* outline/region */
   --outline-input: var(--neutral-600);
   --outline-focus: var(--primary-400);
+
+  /* ★ S11 A (#1262) */
+  /* the seasonal art in dark: a black shadow and a lit lantern halo (the design's dark set) */
+  --seasonal-shadow: #000000;
+  --seasonal-shadow-alpha: 0.5;
+  --seasonal-halo: 0.55;
+  /* the glass card family in dark — the same tint pair, deeper (measured off the design's dark renders) */
+  --glass-card-surface: #1b1e27;
+  --glass-card-tint-blue: #283050;
+  --glass-card-tint-violet: #2c2645;
+  --glass-card-highlight: rgba(255, 255, 255, 0.07);
+  --glass-card-shadow: 0 12px 26px -14px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --glass-card-art-glow: rgba(120, 110, 255, 0.22);
+  /* ★ S11 A2 (#1263): the same tiles in dark (the gradients are not re-dialled), so the same white ink */
+  --glass-card-icon-ink: #ffffff;
+  --glass-card-art-ink: #ffffff;
 }
 
 /* ==========================================================================
@@ -1329,6 +1375,38 @@
 
   /* balance figures: tabular numerals so digits align and don't jitter on update
      (Sora + Source Sans 3 both ship tnum). Usage: .u-tabular { font-feature-settings: "tnum" 1; } */
+
+  /* ★ S11 B (#1262) — illustration set. The inline art (illustrations.js) reads these, so
+     one drawing serves both themes; values = the design file's .t-light set. The art's
+     brand gradients stay literal inside the SVG (they are the drawing, not the theme).
+     The launch flow is pinned dark on its own subtree ([data-theme="dark"] on .c-launch),
+     so the welcome + restore art picks the dark set from there. --rn-* (the rating art)
+     are ALIASES, re-declared beside the dark set so a dark subtree resolves them dark. */
+  --il-glow: #9aa8ff;
+  --il-shadow: #3b3f9e;
+  --il-shadow-a: .16;
+  --il-ground-a: .12;
+  --il-spark: #7186ff;
+  --il-dotc: #ac90ff;
+  --il-screen: #f4f5f8;
+  --il-recv: #e3e6ee;
+  --il-recv-line: #9aa0b2;
+  --il-card: #ffffff;
+  --il-card-2: #f1f2f7;
+  --il-card-side: #cdd2e0;
+  --il-orbit: rgba(110, 92, 230, .26);
+  --il-orbit-strong: rgba(110, 92, 230, .5);
+  --il-ring-a: .9;
+  --il-ring-c: #7c6cf0;
+  --rn-glow: var(--il-glow);
+  --rn-shadow: var(--il-shadow);
+  --rn-shadow-a: var(--il-shadow-a);
+  --rn-spark: var(--il-spark);
+  --rn-dotc: var(--il-dotc);
+  --rn-screen: var(--il-screen);
+  --rn-recv: var(--il-recv);
+  --rn-recv-line: var(--il-recv-line);
+  --rn-orbit: var(--il-orbit);
 }
 
 /* Contextual region override (DECISIONS.md #20): hero screens repaint the top
@@ -1947,6 +2025,33 @@
      `transparent` from :root now, on Damir's pick made against the rendered
      comparison. Restoring dark alone = put this line back with
      rgba(255, 255, 255, 0.05); it measured 1.281:1 against the #0f1115 ground. */
+  /* ★ S11 B (#1262) — illustration set (the design file's .t-dark set; aliases re-declared
+     so --rn-* resolve against THIS scope's --il-*, not the :root light values). */
+  --il-glow: #6c63ff;
+  --il-shadow: #0b0a2a;
+  --il-shadow-a: .32;
+  --il-ground-a: .38;
+  --il-spark: #bcc8ff;
+  --il-dotc: #c7b5ff;
+  --il-screen: #15171c;
+  --il-recv: #2b2f3a;
+  --il-recv-line: #8b91a3;
+  --il-card: #262a36;
+  --il-card-2: #2a2e39;
+  --il-card-side: #15171e;
+  --il-orbit: rgba(186, 170, 255, .28);
+  --il-orbit-strong: rgba(186, 170, 255, .55);
+  --il-ring-a: .7;
+  --il-ring-c: #ffffff;
+  --rn-glow: var(--il-glow);
+  --rn-shadow: var(--il-shadow);
+  --rn-shadow-a: var(--il-shadow-a);
+  --rn-spark: var(--il-spark);
+  --rn-dotc: var(--il-dotc);
+  --rn-screen: var(--il-screen);
+  --rn-recv: var(--il-recv);
+  --rn-recv-line: var(--il-recv-line);
+  --rn-orbit: var(--il-orbit);
 }
 
 @media (prefers-reduced-motion: reduce) {

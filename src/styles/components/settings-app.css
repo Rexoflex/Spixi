@@ -17,10 +17,15 @@
 /* —— downloads —— */
 
 /* split row: open (tap target) + delete — two SIBLING buttons, never nested */
+/* ★ S11 A (#1262, Damir 23:44 screenshot: "the rows are too cramped"): clear vertical space between the Downloads
+   rows. Each row is the only child of its own `.c-settings__section`, so a sibling selector between rows can never
+   match — the space is the row's own block padding (4 above + 4 below) plus a roomier press target (8 above + 8
+   below, was 4). The 44 px targets are untouched (the Show-in-chat / delete buttons keep their fixed box). */
 .c-settings-dl__row {
   display: flex;
   align-items: center;
   gap: var(--spacing-4);
+  padding-block: var(--spacing-4);
 }
 .c-settings-dl__open {
   flex: 1;
@@ -29,7 +34,7 @@
   align-items: center;
   gap: var(--spacing-8);
   min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52, settings-row parity #149②) */
-  padding: var(--spacing-4) var(--spacing-8);
+  padding: var(--spacing-8);        /* ★ S11 A (#1262): 8 px block padding (was 4) — the rows breathe */
   border: 0;
   background: transparent;
   border-radius: var(--radius-12);

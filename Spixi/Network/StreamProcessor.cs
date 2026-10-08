@@ -49,6 +49,34 @@ namespace SPIXI
                     fm.filePath = transfer.fileName;
                     fm.fileSize = transfer.fileSize;
                     IxianHandler.localStorage.requestWriteMessages(friend.walletAddress, transfer.channel);
+                    /* ★ S11 C (#1262): Settings › Privacy "Download photos automatically" (default OFF — returns at once).
+                     * An INCOMING row only; the decision + the accept (the tap's path, main thread) live in SingleChatPage. */
+                    if (!fm.localSender)
+                    {
+                        SingleChatPage.maybeAutoDownload(friend, fm, data.channel);
+                    }
+                }
+                /* ★ S11 G (#1258): the offer's small PREVIEW (the 0e85a4b8 field our reader bounds at 64 KB) is kept only for an
+                 * INCOMING row Core stored, only when S11MediaRules.offerPreviewAccept takes it (≤ 8 KB, a JPEG by its head and its
+                 * frame header, ≤ 256 px), in the process's bounded IN-MEMORY cache (first writer wins — a replayed header cannot
+                 * swap it); an open chat is told on the main thread (it re-encodes it through the bounded decoder before the
+                 * shell sees anything — SingleChatPage.offerPreviewArrived). Never logged, never stored on disk. */
+                if (fm != null && !fm.localSender && fm.id != null && transfer.preview != null
+                    && S11MediaRules.offerPreviews.put(S11MediaRules.offerKey(sender.ToString(), Crypto.hashToString(fm.id)), transfer.preview))
+                {
+                    FriendMessage offer = fm;
+                    int offerChannel = data.channel;
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        try
+                        {
+                            Utils.getChatPage(friend)?.offerPreviewArrived(offer, offerChannel);
+                        }
+                        catch (Exception e)
+                        {
+                            Logging.warn("File header: the offer preview could not be shown (" + e.GetType().Name + ")");
+                        }
+                    });
                 }
                 /* ★ S9 (#1244, CONTRACT §1d) · #46 r1 M-2: a file of a photo GROUP (the trailer, validated by its reader) is
                  * remembered only AFTER Core stored an INCOMING row (a replayed id that names MY row — localSender — or a
@@ -152,6 +180,10 @@ namespace SPIXI
             if (friend != null)
             {
                 TransferManager.receiveFileData(data.data, sender);
+                /* ★ S11 G3 (#1263 MINOR-6): called after EVERY data packet; the one that COMPLETES an incoming transfer has removed it from the running set
+                 * by now (receiveFileData → completeFileTransfer) — a waiting automatic photo may take its slot. Returns at
+                 * once while nothing waits (one volatile read per packet); the re-admission runs on the main thread. */
+                SingleChatPage.autoDownloadSlotMaybeFree();
             }
             else
             {

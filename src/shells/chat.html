@@ -406,6 +406,15 @@
   .chat-event__chip svg { flex: none; color: var(--icon-accent); }
   /* ★ S10 P3 (#1254): the two-line group line — the "\n" is a line break, and a two-line pill is a rounded card */
   .chat-event__chip[data-lines] { white-space: pre-line; border-radius: var(--radius-16); }
+  /* ★ S11 C (#1262): title (icon inline, text size) over a smaller muted subtitle, centred */
+  .chat-event__chip--stack { flex-direction: column; gap: var(--spacing-2); }
+  .chat-event__title { display: block; }
+  .chat-event__title svg { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-inline-end: var(--spacing-4); }
+  .chat-event__sub {
+    display: block; white-space: normal;
+    color: var(--text-neutral-02);
+    font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs);
+  }
   /* attach → App-invite picker (inside a c-sheet) */
   /* ★ #1085 (office walk OV.23, Damir: "should be nicer, show apps; many apps → an entire
      screen with search"): each row = the app's own icon tile + name + publisher; more than
@@ -735,6 +744,8 @@
     openMediaStrip, MEDIA_CAPTION_MAX,   // ★ S10 P1 (#1254): the paste / attach strip (media-strip.js — the S9 sheet is gone)
     setComposerMedia,               // ★ S10 P1: the composer's strip state — Send with photos, the caption cap (composer.js)
     createPhotoGridBubble, addPhotoGridCell,   // ★ S9 (#1244 G = A): the photo group bubble (media-bubble.js)
+    MOSAIC_MAX, setTilePreview,     // ★ S11 G (#1263 a / c): the mosaic's cap · the blurred preview in an offer (media-bubble.js)
+    formatFileSize,                 // ★ S11 G (#1263 a): "Download all (n) · size" (timestamp.js since #46 r3 F4 — one size format app-wide)
     timeOpts, docLocale,            // ★ S9 a11y (#1206): the row's accessible name says its time like the bubble does (timestamp.js)
     p1Log,                          // ★ S9 (8-GROW-A): the dev-only [P1] grow line (p1.js; no-op unless <html data-p1>)
     createPaymentBubble, createCallBubble,
@@ -1663,6 +1674,26 @@
     fileThumbChars -= old.length;
   }
   const FILE_THUMB_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
+  /* ★★ S11 G (#1258 + #1263 c = A) — THE PREVIEW IN AN OFFER. `offerPreviews` = message id → the small preview C# pushed with
+   * setOfferPreview (the sender's ≤ 8 KB JPEG, RE-ENCODED by C# through its bounded decoder). Shown blurred on a RECEIVED
+   * photo tile not on this device yet, only while previews are on AND "Load pictures and GIFs" is on (mediaAutoloadOn —
+   * checked at the push AND at every render: OFF = today's file face). Outlives clearMessages like fileThumbs (C# pushes
+   * once per document), reset per peer at onChatScreenReady, bounded (OFFER_PV_KEEP × OFFER_PV_MAX characters). Never
+   * written to storage; the value only ever becomes the tile's preview <img src> (media-bubble.js setTilePreview). */
+  const offerPreviews = new Map();
+  const OFFER_PV_KEEP = 200;
+  const OFFER_PV_MAX = 11000;   // ≥ the base64 of C#'s 8 KB cap (8192 → 10 924) + the prefix
+  function storeOfferPreview(key, u) {
+    offerPreviews.delete(key);
+    offerPreviews.set(key, u);
+    while (offerPreviews.size > OFFER_PV_KEEP) offerPreviews.delete(offerPreviews.keys().next().value);
+  }
+  /* the preview a file row may paint now, or '' */
+  function offerPreviewFor(rec) {
+    if (!rec || rec.kind !== 'file' || rec.direction !== 'received' || rec.fstate === 'complete' || rec.localGone || rec.voiceFile) return '';
+    if (!photoPreviews || !isPhotoFileName(rec.name) || !mediaAutoloadOn()) return '';
+    return offerPreviews.get(String(rec.id)) || '';
+  }
   /* ★ S9 (#1244) — the photo batch's input rules (mediaPicked). ★ S10 P1 (#1254): the batch shows in the STRIP. */
   const MEDIA_BATCH_RE = /^[0-9a-f]{16}$/;   // ★ S10 #46 n-6: lower case only, as C#'s isId16
   const MEDIA_KEY_RE = /^[0-9]$/;
@@ -2896,30 +2927,28 @@
   function buildGridRow(g, position) {
     const sl = window.SL || {};
     const first = g.members[0];
-    const shown = g.members.slice(0, 4);
+    /* ★★ S11 G (#1263 a = A): the MOSAIC — every photo up to MOSAIC_MAX in the bubble, each its own cell (state + menu);
+       no "+N" button any more (S10's took the fourth cell's right-click, walk #1260) — past MOSAIC_MAX a passive label */
+    const shown = g.members.slice(0, MOSAIC_MAX);
     const more = g.members.length - shown.length;
-    /* ★ S10 F2 (#1254): "Download all (n)" while n ≥ 1 members are offers; the "+N" cell is tappable (offers → the same;
-       none → the viewer at the fifth photo). The button re-renders away on the updateFile ticks (offer → progress). */
+    /* ★ S10 F2 (#1254) · ★ S11 G: "Download all (n) · size" in the FOOTER while n ≥ 1 members are offers (the size when
+       C# told every offer's size, addFile arg 20); the footer re-renders away on the updateFile ticks (offer → progress) */
     const offers = groupOffers(g);
-    const fill = (t, n) => String(t).split('{n}').join(String(n));
     const row = createPhotoGridBubble({
       direction: first.direction, count: shown.length, more, total: g.members.length,
       caption: g.caption ? String(g.caption.text) : null,
       gutter: mode.isMulti && first.direction === 'received', strings: sl,
       downloadAll: offers.length,
-      downloadAllLabel: fill(sl.photosDownloadAll || 'Download all ({n})', offers.length),
+      downloadAllLabel: downloadAllLabel(offers),
       onDownloadAll: () => acceptGroupOffers(g),
+      timestamp: shown[shown.length - 1].ts,
     });
     tileHead(row, first, position);   // the group head BEFORE the cells (setTileHead finds the group column first)
-    const onMore = more > 0 ? () => { if (groupOffers(g).length) acceptGroupOffers(g); else openGroupAt(g, 4); } : null;
-    const moreLabel = offers.length ? fill(sl.photosDownloadAll || 'Download all ({n})', offers.length)
-      : fill(sl.photosShowAll || 'Show all {n} photos', g.members.length);
     shown.forEach((m, i) => {
-      const last = i === shown.length - 1;
-      const cell = addPhotoGridCell(row, markPausedTile(buildFileRow(m), m), { isLast: last, onMore: last ? onMore : null, moreLabel });
+      const cell = addPhotoGridCell(row, markPausedTile(buildFileRow(m), m), { isLast: i === shown.length - 1 });
       if (!cell) return;
       gridCells.set(String(m.id), cell);
-      if (isMenuableRec(m)) attachMessageMenu(cell, menuOptsFor(m, row));   // the cell's own menu; Select = the group row
+      if (isMenuableRec(m)) attachMessageMenu(cell, menuOptsFor(m, row));   // EVERY cell its own menu; Select = the group row
     });
     const capEl = row.querySelector('.c-mgrid__caption');
     if (capEl && g.caption && isMenuableRec(g.caption)) attachMessageMenu(capEl, menuOptsFor(g.caption, row));
@@ -2941,6 +2970,17 @@
     }
     return row;
   }
+  /* ★ S11 G (#1263 a): the footer's label — "Download all (n) · 1.6 MB" when C# told the size of EVERY offer (addFile arg
+     20), else today's "Download all (n)" (an older exe sends no size) */
+  function downloadAllLabel(offers) {
+    const sl = window.SL || {};
+    const n = String(offers.length);
+    const sizes = offers.map((m) => Number(m.size) || 0);
+    const total = sizes.every((b) => b > 0) ? sizes.reduce((a, b) => a + b, 0) : 0;
+    const sz = total > 0 ? formatFileSize(total) : '';
+    if (!sz) return String(sl.photosDownloadAll || 'Download all ({n})').split('{n}').join(n);
+    return String(sl.photosDownloadAllSize || 'Download all ({n}) · {size}').split('{n}').join(n).split('{size}').join(sz);
+  }
   /* ★ S10 F2 (#1254): a group's OFFERS = received members not started and not gone, in group order */
   function groupOffers(g) {
     return g.members.filter((m) => m.direction === 'received' && m.fstate === 'offer' && !m.transferStarted && !m.localGone && m.fileid);
@@ -2960,19 +3000,6 @@
   function acceptGroupOffers(g) {
     if (composerLock) return;
     for (const m of groupOffers(g)) askAccept(m);
-  }
-  /* ★ S10 F2: the "+N" with no offers left → the viewer on the group from member index `from` (the next viewable one) */
-  function openGroupAt(g, from) {
-    const items = groupViewerItems(g.members[0]);
-    if (!items) {   // ★ S10 #46 m-7: only a member ON this device opens (an offer / a transfer opens nothing)
-      const m = g.members.slice(from).concat(g.members.slice(0, from)).find((x) => x.fstate === 'complete' && !x.localGone);
-      if (m) openFileOrViewer(m);
-      return;
-    }
-    const ids = g.members.map((m) => String(m.id));
-    let at = items.findIndex((it) => ids.indexOf(String(it.token)) >= from);
-    if (at < 0) at = items.length - 1;
-    openGroupViewer(items, at);
   }
   /* the group's photos the viewer can page through: complete, previews on, a preview in hand — in the group's order */
   function groupViewerItems(rec) {
@@ -3002,7 +3029,7 @@
     }
     /* ★ A5 #1124: an image file → the media tile (same options + the preview); OFF or another file → the card */
     const photoTile = photoPreviews && isPhotoFileName(rec.name);
-    return (photoTile ? createImageFileBubble : createFileBubble)({
+    const fileRow = (photoTile ? createImageFileBubble : createFileBubble)({
       thumb: photoTile ? (fileThumbs.get(String(rec.id)) || null) : null,
       onLoad: photoTile ? () => { if (nearBottom()) pinLogEnd(); } : undefined,   // the tile grew to the picture
       onThumbError: photoTile ? () => dropFileThumb(String(rec.id)) : undefined,   // #46 r1 B-1: a picture that will not decode is forgotten
@@ -3037,6 +3064,10 @@
        * lock leaves an already-rendered Cancel inert until the next re-render
        * (accepted residual, rare path). */
     });
+    /* ★ S11 G (#1258 + #1263 c): a received photo not here yet shows the sender's preview, blurred, with ↓ + its size */
+    const pv = photoTile ? offerPreviewFor(rec) : '';
+    if (pv) setTilePreview(fileRow, pv, formatFileSize(rec.size));
+    return fileRow;
   }
 
   /* ★★ #1166 V-3 (#1165 (9)) — THE VIEWER, CHAT HALF. A tap on a photo-file tile that SHOWS its preview (previews on, the
@@ -3048,13 +3079,22 @@
    * textContent only. */
   const VIEWER_URI_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
   const VIEWER_URI_MAX = 1700000;   // ≥ the base64 of C#'s ViewerImage.MaxJpegBytes (1 200 000 → 1 600 000) + the prefix
-  /* ★ S9 (#1244) the paged group viewer · ★ S10 F2 (#1254): + Reply — to the photo ON SCREEN (startReply of that member) */
+  /* ★ S9 (#1244) the paged group viewer · ★ S10 F2 (#1254): + Reply — to the photo ON SCREEN (startReply of that member)
+     ★ S11 G (#1263 a): the viewer's toolbar = Reply (leading) · the name · Save (trailing) on EVERY viewer — a lone photo
+     too (S10 gave Reply to a paged viewer only, walk #1260: "opening the viewer there is no reply"). Save = 🟡
+     `ixian:savePhoto:<id>` behind C#'s `savePhoto` cap (an older exe: no Save button); C# finds its own file and opens the
+     platform's save UI. Forward stays out (later). */
+  const viewerReplyTo = (it) => { const m = it && model.get(String(it.token)); return m && canReplyRec(m) ? m : null; };
+  function viewerTools() {
+    return {
+      canReplyItem: (i, it) => !!viewerReplyTo(it),   // ★ S10 #46 n-3: Reply only on a photo canReplyRec allows
+      onReply: bridge.cap('reply') ? (i, it) => { const m = viewerReplyTo(it); if (m) startReply(m, { single: true }); } : null,   // n-5: THAT photo
+      onSave: bridge.cap('savePhoto') ? (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:savePhoto:' + it.token); } : undefined,
+    };
+  }
   function openGroupViewer(items, at) {
-    const replyTo = (it) => { const m = it && model.get(String(it.token)); return m && canReplyRec(m) ? m : null; };
-    openMediaViewer({ host: overlayHost, items, index: at, kind: 'image', strings: window.SL || {},
-      onPage: (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:viewImage:' + it.token); },
-      canReplyItem: (i, it) => !!replyTo(it),   // ★ S10 #46 n-3: Reply only on a photo canReplyRec allows
-      onReply: bridge.cap('reply') ? (i, it) => { const m = replyTo(it); if (m) startReply(m, { single: true }); } : null });   // n-5: THAT photo
+    openMediaViewer(Object.assign({ host: overlayHost, items, index: at, kind: 'image', strings: window.SL || {},
+      onPage: (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:viewImage:' + it.token); } }, viewerTools()));
     const it0 = items[at];
     if (it0) bridge.send('ixian:viewImage:' + it0.token);
   }
@@ -3069,7 +3109,7 @@
       openGroupViewer(items, Math.max(0, items.findIndex((it) => it.token === id)));
       return;
     }
-    openMediaViewer({ host: overlayHost, src: thumb, token: id, kind: 'image', alt: rec.name || '', strings: window.SL || {} });
+    openMediaViewer(Object.assign({ host: overlayHost, src: thumb, token: id, kind: 'image', alt: rec.name || '', strings: window.SL || {} }, viewerTools()));
     bridge.send('ixian:viewImage:' + id);
   }
 
@@ -3265,13 +3305,32 @@
     row.className = 'chat-event';
     const chip = document.createElement('div');
     chip.className = 'chat-event__chip';
+    let glyph = null;
     try {
-      if (window.SpixiIcons && window.SpixiIcons.icon) chip.append(window.SpixiIcons.icon(matched ? matched.glyph : 'heart-handshake', { size: 16 }));
+      if (window.SpixiIcons && window.SpixiIcons.icon) glyph = window.SpixiIcons.icon(matched ? matched.glyph : 'heart-handshake', { size: 16 });
     } catch (e) { /* glyph optional */ }
+    const whole = String(rec.text || '');
+    const nl = parts ? -1 : whole.indexOf('\n');
+    if (nl > 0) {
+      /* ★ S11 C (#1262): "\n" = TITLE (icon inline) + muted SUBTITLE; textContent only; the sub keeps its leading "\n"
+         (collapsed by white-space: normal), so the chip text is C#'s exact line. */
+      chip.dataset.lines = '';
+      chip.classList.add('chat-event__chip--stack');
+      const title = document.createElement('span');
+      title.className = 'chat-event__title';
+      if (glyph) title.append(glyph);
+      title.append(document.createTextNode(whole.slice(0, nl)));
+      const sub = document.createElement('span');
+      sub.className = 'chat-event__sub';
+      sub.textContent = whole.slice(nl);
+      chip.append(title, sub);
+      row.append(chip);
+      return row;
+    }
+    if (glyph) chip.append(glyph);
     const line = document.createElement('span');
     line.textContent = parts ? (parts[0] + display + parts[1]) : rec.text;
-    /* ★ S10 P3 (#1254): C#'s created line is two lines joined by "\n" (S9FixRules.createdLine) — the chip keeps the break */
-    if (!parts && /\n/.test(String(rec.text || ''))) chip.dataset.lines = '';
+    if (nl === 0) chip.dataset.lines = '';   // a leading "\n" keeps S10 P3's break
     chip.append(line);
     row.append(chip);
     return row;
@@ -5108,7 +5167,7 @@
         address: identity.address,
         avatar: identity.avatar || null,
       },
-      balance: 0,                                      // real balance rides the first quote
+      balance: null,                                    // ★ #46 r3 MINOR-2: UNKNOWN (not 0) until the first quote
       fee: null,                                       // W6: gated until a quote lands
       strings: s, host: document.body,
       /* ★ Gate row O-01. The compose asks for its own pair. `pick()` of the locked peer
@@ -5146,8 +5205,11 @@
     // out of the covered conversation; overlays (sheets/modals) stay reachable.
     // loop r1 C-4: the compose's FIRST FIELD (the amount, W-i) takes focus — not the
     // topbar Back button that `button, input` found first; containment is unchanged.
-    const firstFocus = over.querySelector('.chat-send-takeover__body input') || over.querySelector('button, input');
-    if (firstFocus) { try { firstFocus.focus(); } catch (e) {} }
+    // ★ #46 r3 MINOR-1: the VIEW names its own first focus (step 2: Review if armed, else
+    // the amount output) — the first `input` here was step 1's HIDDEN address field, so
+    // focus stayed under the cover. The Back button is only the fallback.
+    try { if (typeof chatSendView._initialFocus === 'function') chatSendView._initialFocus(); } catch (e) {}
+    if (!over.contains(document.activeElement)) { const f = over.querySelector('button, input'); if (f) { try { f.focus(); } catch (e) {} } }
     chatSendFocusin = (e) => {
       if (over.contains(e.target)) return;
       if (e.target && e.target.closest && e.target.closest('.c-sheet, .c-modal')) return;
@@ -6156,6 +6218,10 @@
         const pv = String(extra.played == null ? '' : extra.played);
         rec.played = (pv === '1' || pv === '0') ? pv : '';
       }         // ★ S9 (#1244): present = C#'s answer ("" / bad = none), absent = unchanged
+      if (extra.size !== undefined) {   // ★ S11 G (#1263 a): addFile arg 20 — a plain decimal byte count, anything else = unknown
+        const sv = String(extra.size == null ? '' : extra.size);
+        rec.size = /^[0-9]{1,15}$/.test(sv) ? Number(sv) : 0;
+      }
       if (extra.local !== undefined) {
         /* ★ #1190: re-read on every addFile; "0" also forgets a held preview (the chat-info delete re-push) */
         rec.localGone = String(extra.local) === '0';
@@ -6792,6 +6858,7 @@
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       resetLoadedMedia();                  // per-peer reset, and drop any set an older build persisted
       fileThumbs.clear(); fileThumbChars = 0;   // ★ A5 #1124: per-peer reset (C# starts its once-per-document set again at this push)
+      offerPreviews.clear();                    // ★ S11 G (#1258): the same per-peer reset for the offer previews
       avatarByAddr.clear();                // ★ #1166 P-04: per-peer reset (C# starts its once-per-document avatar set again at this push)
       heldThumbs.clear(); thumbHoldUntil = 0; liveTransfers.clear();   // ★ #1166 R3-N2 / R3-N3: per-peer reset
       resetPhotoQuiet();                   // #46 r2 R2-MAJ1: the photo quiet waits too — desktop A → B → A re-waits, no glyph-then-swap
@@ -7086,6 +7153,12 @@
       } catch (e) {}
     },
 
+    /* ★ S11 C (#1262) 10-FLASH (🟡 new push): the held Android chat asks for a fresh paint; two frames later the answer
+       is `ixian:painted` (no new verb). C# sends `window.paintAck`, so an older shell ignores it. */
+    paintAck() {
+      requestAnimationFrame(() => requestAnimationFrame(() => { bridge.send('ixian:painted'); }));
+    },
+
     hideBackButton() { dbg('hideBackButton'); },     // 2-pane: back owned by host chrome
 
     /* A3 (#302) — unread messages in OTHER chats, shown on the back button.
@@ -7262,7 +7335,10 @@
      * paused also labels it "Paused". An older exe sends 14 args (the old rule); an OLDER shell ignores arg 15. */
     /* ★ #1190: arg 16 `local` — the file on this device? "1" / "0" / "" (C# SharedItems.localArgOf; an older exe → undefined
      * = today's row; an older shell ignores it). buildFileRow draws "0". */
-    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice, group, played) {
+    /* ★ S11 G (#1263 a, 🟡 NEW arg 20): `size` — the file's size in bytes (decimal) for a RECEIVED file not on this device
+     * yet (an offer / a transfer), "" otherwise; the "Download all (n) · size" footer and the offer preview's size label.
+     * An older exe sends none (no size shown); an older shell ignores it. */
+    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice, group, played, size) {
       const status = asBool(me)
         ? statusFrom({ sent: relaySent === undefined ? 'True' : relaySent, confirmed: sent, read })
         : null;
@@ -7273,7 +7349,8 @@
         { senderNick: resolveNick(address, nick), senderAddress: address || '', status, local: local === undefined ? '' : local,
           voice,   // ★ #1208 (V3): arg 17 "1" = C# renders this file as a voice bubble; "" = a file row; absent = an old exe
           group,      // ★ S9 (#1244): arg 18 — see below
-          played });  // ★ S9 (8-FACE): arg 19 — a voice FILE I received: "1" / "0" / "" (the addThem arg 18 rule); absent = an old exe
+          played,     // ★ S9 (8-FACE): arg 19 — a voice FILE I received: "1" / "0" / "" (the addThem arg 18 rule); absent = an old exe
+          size });    // ★ S11 G: arg 20 — bytes or "" (absent = an old exe)
           /* arg 18 "<gid>|<index>|<count>|<captionIdHex>" = one photo of a pick; "" = none; absent = an old exe */
       const rec = model.get(String(id));   // the row paints on the next frame (renderLog), after this flag is set
       if (rec) rec.paused = !!(tx && tx.state === 'paused' && rec.fstate === 'progress');
@@ -7435,6 +7512,24 @@
       const row = liveRowOf(key);   // ★ S9: a grouped photo's own cell (a member past the fourth has none — nothing to patch)
       if (row) setImageFileThumb(row, u);   // a tile that shows a picture only (complete, or MY photo still sending — #46 r2 R2-1); a card ignores it
       refreshQuoteTiles(key);               // ★ 7b (#1215): the quotes of this photo show it
+    },
+
+    /* ★★ S11 G (#1258 + #1263 c, 🟡 NEW push, BE ask): setOfferPreview(<message id hex>, <data uri>) — the small preview of a
+     * RECEIVED photo offer (the sender's, re-encoded by C# through its bounded decoder). Accepted ONLY when previews are
+     * on, "Load pictures and GIFs" is on (this shell's own switch, read again here), the value is a base64 JPEG data: URI
+     * (FILE_THUMB_RE) of at most OFFER_PV_MAX characters, and the id is a RECEIVED image file row of this conversation
+     * that is not on this device yet; anything else is ignored silently. The value only ever becomes the tile's blurred
+     * preview <img src> (setTilePreview — no other sink). */
+    setOfferPreview(id, uri) {
+      const key = String(id == null ? '' : id);
+      const u = typeof uri === 'string' ? uri : '';
+      if (!photoPreviews || !mediaAutoloadOn() || !u || u.length > OFFER_PV_MAX || !FILE_THUMB_RE.test(u)) return;
+      const rec = model.get(key);
+      if (!rec || rec.kind !== 'file' || rec.direction !== 'received' || rec.fstate === 'complete' || rec.voiceFile || !isPhotoFileName(rec.name)) return;
+      if (offerPreviews.get(key) === u) return;
+      storeOfferPreview(key, u);
+      const row = liveRowOf(key);   // a grouped photo's own cell; a member with no cell has nothing to patch
+      if (row) setTilePreview(row, offerPreviewFor(rec), formatFileSize(rec.size));
     },
 
     /* ★★ S9 (#1244, 🟡 NEW push): mediaPicked validates C#'s prepared batch and answers ixian:mediaSend or ixian:mediaCancel (never a path or bytes).
@@ -8406,7 +8501,12 @@
       if (composerLock || !attachFlags().media || !clipboardHasImageType(e.clipboardData)) return;
       e.preventDefault();
       const ctx = getComposerContext(composerEl);
-      if (ctx && ctx.kind === 'edit') return;   // ★ S10 #46 m-5: a picture cannot go into an EDIT — refused (a text paste is unchanged)
+      if (ctx && ctx.kind === 'edit') {   // ★ S10 #46 m-5: a picture cannot go into an EDIT — refused (a text paste is unchanged)
+        /* ★ S11 C (#1262): the refusal says so */
+        const sl = window.SL || {};
+        try { showToast({ text: sl.editPastePhotoRefused || 'Finish editing to add photos.', host: overlayHost, strings: sl }); } catch (err) {}
+        return;
+      }
       bridge.send('ixian:pasteImage');
     });
   }

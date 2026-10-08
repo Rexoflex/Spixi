@@ -68,14 +68,17 @@ namespace Spixi
                 throw;
             }
         }
-        public static void saveFile(string filepath, string title)
+        /// <summary>★ S11 G3 (#1263 MINOR-8): `mimeType` names the document type for the system "Save as" picker (the
+        /// viewer's Save passes the photo's image MIME, S11MediaRules.imageMimeOf); every other caller keeps
+        /// application/octet-stream. Main thread (the picker); MainActivity copies the bytes off the UI thread.</summary>
+        public static void saveFile(string filepath, string title, string mimeType = "application/octet-stream")
         {
             // #334 AND-21: own save-as round-trip — no resume lock on return.
             App.noteOwnIntentRoundTrip();
             var context = MainActivity.Instance;
             Intent saveIntent = new Intent(Intent.ActionCreateDocument);
             saveIntent.AddCategory(Intent.CategoryOpenable);
-            saveIntent.SetType("application/octet-stream");
+            saveIntent.SetType(string.IsNullOrEmpty(mimeType) ? "application/octet-stream" : mimeType);
             saveIntent.PutExtra(Intent.ExtraTitle, Path.GetFileName(filepath));
             saveIntent.AddFlags(ActivityFlags.GrantWriteUriPermission);
 

@@ -21,7 +21,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { safeImageSrc } from './avatar.js';
 import { createTopbar } from './topbar.js';
-import { docLocale } from './timestamp.js';
+import { docLocale, formatFileSize } from './timestamp.js';   // ★ S11 F4 (#1263): formatFileSize lives there now
 import { createChip, setChipSelected } from './chip.js';   // ★ G-6: the kind chips
 import { createSheet, openSheet, closeSheet } from './sheet.js';   // ★ G-6: the long-press menu
 import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
@@ -104,19 +104,8 @@ export function sharedLinkHost(label) {
   } catch (e) { return ''; }
 }
 
-/** 0 → '' · 512 B · 12 KB · 3.4 MB · 1.2 GB (one decimal under 10, the locale's decimal mark; binary steps, the
- *  convention of every file manager the app sits beside). */
-export function formatFileSize(bytes) {
-  const b = Number(bytes);
-  if (!Number.isFinite(b) || b <= 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let v = b; let u = 0;
-  while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
-  let n;
-  try { n = new Intl.NumberFormat(docLocale(), { maximumFractionDigits: u === 0 || v >= 10 ? 0 : 1 }).format(v); }   // (#46 r1 B7) the locale's decimal mark
-  catch (e) { n = u === 0 ? String(Math.round(v)) : (v < 10 ? v.toFixed(1) : String(Math.round(v))); }
-  return n + ' ' + units[u];
-}
+/* ★ S11 F4 (#1263): formatFileSize moved to timestamp.js (the CSS-less locale-format module, beside docLocale) — the chat
+   shell takes it for the album size line and must not pull this family's stylesheet for a pure formatter (W-h gate). */
 
 function sharedShortDate(ts) {
   const d = new Date(Number(ts) * 1000);

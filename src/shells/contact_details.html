@@ -1056,7 +1056,7 @@
     cdSendView = createWalletSend({
       contacts: [],                                  // locked peer — no picker
       lockedRecipient: cdLockedRecipient(),
-      balance: 0,                                    // the real balance rides the first quote
+      balance: null,                                  // ★ #46 r3 MINOR-2: UNKNOWN (not 0) until the first quote
       fee: null,                                     // W6: gated until a quote lands
       strings, host: document.body,
       /* ★ Gate row O-01, the same removal as chat.html. `pick()` of the locked peer fires
@@ -1089,8 +1089,11 @@
     syncCdOverlay();                                 // hardware back closes the COVER, not the page
     // The compose's FIRST FIELD (the amount) takes focus, not the topbar Back button
     // that `button, input` finds first; containment is the #205 grammar, light.
-    const firstFocus = over.querySelector('.cd-send-takeover__body input') || over.querySelector('button, input');
-    if (firstFocus) { try { firstFocus.focus(); } catch (e) {} }
+    // ★ #46 r3 MINOR-1: the VIEW names its own first focus (step 2: Review if armed, else
+    // the amount output) — the first `input` here was step 1's HIDDEN address field, so
+    // focus stayed under the cover. The Back button is only the fallback.
+    try { if (typeof cdSendView._initialFocus === 'function') cdSendView._initialFocus(); } catch (e) {}
+    if (!over.contains(document.activeElement)) { const f = over.querySelector('button, input'); if (f) { try { f.focus(); } catch (e) {} } }
     cdSendFocusin = (e) => {
       if (over.contains(e.target)) return;
       if (e.target && e.target.closest && e.target.closest('.c-sheet, .c-modal')) return;

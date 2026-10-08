@@ -62,6 +62,14 @@
     <Compile Include="../../Spixi/Utils/S10MediaRules.cs" />
     <!-- ★ S10 agent B (#1254): F3 live photo count · F6 pre-push · F7 part-file sweep + avatar URIs (tests: S10FixTests.cs; ChatHeal + S9FixRules above). -->
     <Compile Include="../../Spixi/Utils/S10FixRules.cs" />
+    <!-- ★ S11 A (#1262): the Chats-list hint counters — the pure rules + the store over SLocalOnlyStore (tests: S11HintTests.cs). -->
+    <Compile Include="../../Spixi/Utils/S11HintRules.cs" /><Compile Include="../../Spixi/Meta/SHints.cs" />
+    <!-- ★ S11 C (#1262): the 10-FLASH hold step + dev switches + probe lines · the photo auto-download decision (tests: S11ChatTests.cs). -->
+    <Compile Include="../../Spixi/Utils/S11ChatRules.cs" />
+    <!-- ★ S11 F (#1262): the Apps tab pre-push gate · chat-page reload rule · [P1] bodies (tests: S11AppsTests.cs; PrePushGate from S10FixRules). -->
+    <Compile Include="../../Spixi/Utils/S11AppsRules.cs" />
+    <!-- ★ S11 G (#1258 + #1263): the offer preview (sender ladder · receiver rule · bounded cache · push gate) + addFile arg 20 + the Save verb (tests: S11MediaTests.cs). -->
+    <Compile Include="../../Spixi/Utils/S11MediaRules.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

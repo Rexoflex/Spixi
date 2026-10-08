@@ -1,17 +1,23 @@
 /**
  * c-empty-state — the house EMPTY STATE: illustration · headline · supporting line ·
  * one optional CTA. Deliberately surface-agnostic so Chats / Wallet / Contacts /
- * Apps all render the same shape from their own copy + their own `-es` art
- * (src/assets/images/<surface>-es.svg, shipped via src/demo/images → the shells'
- * `images/…` dir, build-shells.mjs:260-267 — the SAME mechanism as backup.png;
- * an external asset URL is what a file:// WebView refuses, a sibling file is fine).
+ * Apps all render the same shape from their own copy + their own `-es` art.
+ * ★ S11 B (#1262): that art is the INLINE illustration set now (illustrations.js —
+ * theme tokens reach it, nothing is fetched); the hosts' `images/<surface>-es.*` paths
+ * name the drawing through illustrationFor(). An unknown path keeps the sibling-file
+ * <img> below (an external asset URL is what a file:// WebView refuses).
  *
  * A missing/blocked illustration NEVER leaves a hole: the <img> onerror drops it and
  * (when `glyph` is given) draws a token-styled glyph tile instead — the c-app-icon /
  * c-launch illo precedent. Copy always carries the meaning, so the art is aria-hidden.
  *
  * createEmptyState({
- *   illustration,          // 'images/apps-es.png' — omit for the glyph-only shape
+ *   illustration,          // 'appsEmpty' — omit for the glyph-only shape.
+ *                          // ★ S11 A2 (#1263): an illustrations.js NAME (what the hosts pass),
+ *                          // a factory, or a known legacy path (chats-es / contacts-es /
+ *                          // apps-es / wallet-es) renders the
+ *                          // INLINE art (theme tokens reach it, nothing to fetch); any other
+ *                          // src keeps the <img> ladder below.
  *   glyph,                 // icon name for the fallback tile (e.g. 'apps').
  *                          // ★ F5: omit BOTH and the illustration slot is not rendered
  *                          // at all — no empty placeholder tile (the wallet zero state)
@@ -31,6 +37,7 @@
  */
 import { createButton } from './button.js';
 import { icon } from './icons.js';
+import { illustrationFor } from './illustrations.js';
 
 /* ★ iOS-61 (Damir on device 2026-08-21): "the empty-state illustration and text are not
  * preloaded — they pop in about a second late."
@@ -128,7 +135,17 @@ export function createEmptyState({
     slot.dataset.placeholder = '';
     slot.append(icon(glyph, { size: 48 }));
   };
-  if (illustration) {
+  const art = illustrationFor(illustration);
+  if (art) {
+    /* ★ S11 B (#1262): the approved set, inline — decorative like the <img> it replaces
+       (the slot is aria-hidden; the svg is aria-hidden + focusable="false" too). No load,
+       no error path, no idle warm: the drawing is in the bundle, and its gradient ids are
+       unique per call, so two empty states on one page never share a defs id. */
+    slot.append(art({ className: 'c-empty-state__illo-img' }));
+  } else if (illustration) {
+    /* ★ S11 A2 (#1263, R3-MINOR-5/6): no SHIPPED host reaches this rung (chats / contacts / apps / wallet pass a name
+       or a factory). It stays as the arbitrary-URL contract — lazy + the iOS-61 idle warm + error → glyph — all
+       pinned in smoke-test.mjs, and removing it would change createEmptyState's public behaviour for a URL. */
     const img = document.createElement('img');
     img.className = 'c-empty-state__illo-img';
     img.alt = '';

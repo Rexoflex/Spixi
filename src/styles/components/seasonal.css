@@ -1,0 +1,67 @@
+/* c-seasonal — the seasonal Chats top bar (★ S11 A, #1262; seasonal.js). Home shell only. */
+/* ⚠ the title's clip is released ONLY while it wears a season (the hat / stem reach above the mark); the M16
+   ellipsis lives on the WORD span (topbar.css), so "Connecting…" still truncates */
+.c-topbar[data-variant="root"] .c-topbar__title[data-season] { overflow: visible; }
+.c-seasonal__mark {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+.c-seasonal__mark > svg { display: block; overflow: visible; }
+.c-seasonal__hat {
+  position: absolute;
+  left: 10px;
+  top: -11px;
+  transform: rotate(14deg);
+  transform-origin: 30% 90%;
+}
+/* C1: the small pumpkin stands after the wordmark, on the text baseline (the design's dial: -4 px in, 3 px up) */
+.c-seasonal__pumpkin {
+  display: block;
+  flex: none;
+  align-self: flex-end;
+  margin-inline-start: calc(-1 * var(--spacing-4));
+  margin-bottom: 3px;
+}
+/* the theme half of the art rides CSS (a var() in an SVG attribute is not resolved; tokens.css region A) */
+.c-seasonal__flood { flood-color: var(--seasonal-shadow); flood-opacity: var(--seasonal-shadow-alpha); }
+.c-seasonal__halo { opacity: var(--seasonal-halo); }
+/* ★ S11 A2 (#1263): one rest value for both inner glows = the loop's first/last frame */
+.c-seasonal__inner { opacity: 0.35; transform-box: fill-box; transform-origin: 50% 60%; }
+/* only LIGHT moves (candle flicker, pom twinkle). ★ S11 A2 (#1263, R2-m3): ~20 s per arming (seasonal.js
+   [data-season-live], re-armed at most once per 10 min), then the last frame holds; paused while the list scrolls. */
+.c-topbar__title[data-season-live] .c-seasonal__face { animation: seasonal-candle 2.3s steps(1, end) 9 both; }
+.c-topbar__title[data-season-live] .c-seasonal__inner { animation: seasonal-inner 3.7s ease-in-out 5 both; }
+.c-topbar__title[data-season-live] .c-seasonal__halo { animation: seasonal-halo 3.7s ease-in-out 5 both; }
+.c-topbar__title[data-season-live] .c-seasonal__pom { animation: seasonal-twinkle 6s ease-in-out 3 both; transform-box: fill-box; transform-origin: center; }
+.c-topbar__title[data-season-pause] .c-seasonal__face,
+.c-topbar__title[data-season-pause] .c-seasonal__inner,
+.c-topbar__title[data-season-pause] .c-seasonal__halo,
+.c-topbar__title[data-season-pause] .c-seasonal__pom { animation-play-state: paused; }
+@keyframes seasonal-candle {
+  0% { opacity: 1; } 18% { opacity: 0.82; } 24% { opacity: 0.97; } 51% { opacity: 0.88; }
+  63% { opacity: 1; } 79% { opacity: 0.78; } 84% { opacity: 0.95; }
+}
+@keyframes seasonal-inner {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  35% { opacity: 0.6; transform: scale(1.08, 1.12); }
+  60% { opacity: 0.28; transform: scale(0.95); }
+  80% { opacity: 0.5; transform: scale(1.04); }
+}
+@keyframes seasonal-halo {
+  0%, 100% { opacity: calc(var(--seasonal-halo) * 0.8); }
+  35% { opacity: var(--seasonal-halo); }
+  60% { opacity: calc(var(--seasonal-halo) * 0.6); }
+}
+@keyframes seasonal-twinkle {
+  0%, 88%, 100% { filter: none; }
+  92% { filter: brightness(1.12) drop-shadow(0 0 1.5px #fff); }   /* sanctioned: the pom-pom's white glint is ART (the design's X1), not a theme colour */
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-topbar__title[data-season-live] .c-seasonal__face,
+  .c-topbar__title[data-season-live] .c-seasonal__inner,
+  .c-topbar__title[data-season-live] .c-seasonal__halo,
+  .c-topbar__title[data-season-live] .c-seasonal__pom { animation: none; }
+}

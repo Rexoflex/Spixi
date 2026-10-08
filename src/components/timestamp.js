@@ -144,3 +144,18 @@ export function formatLastSeen(epochSec, strings = getStrings(), now = Date.now(
   if (ageMin < 7 * 24 * 60) return strings.lastSeenRecently || 'last seen recently';
   return strings.lastSeenLongAgo || 'last seen a long time ago';
 }
+
+/** ★ S11 F4 (#1263): moved here from shared-items.js (a pure formatter; this module owns no stylesheet).
+ *  0 → '' · 512 B · 12 KB · 3.4 MB · 1.2 GB (one decimal under 10, the locale's decimal mark; binary steps, the
+ *  convention of every file manager the app sits beside). */
+export function formatFileSize(bytes) {
+  const b = Number(bytes);
+  if (!Number.isFinite(b) || b <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let v = b; let u = 0;
+  while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
+  let n;
+  try { n = new Intl.NumberFormat(docLocale(), { maximumFractionDigits: u === 0 || v >= 10 ? 0 : 1 }).format(v); }   // (#46 r1 B7) the locale's decimal mark
+  catch (e) { n = u === 0 ? String(Math.round(v)) : (v < 10 ? v.toFixed(1) : String(Math.round(v))); }
+  return n + ' ' + units[u];
+}

@@ -48,6 +48,7 @@ import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { formatTxTimestamp } from './timestamp.js';
 import { icon } from './icons.js';
 import { createEmptyState } from './empty-state.js';
+import { illoWalletEmpty } from './illustrations.js';   // ★ S11 B (#1262): the wallet zero-state art
 
 /* ————————————————————————— model (pure, DOM-free) ————————————————————————— */
 
@@ -111,7 +112,11 @@ function walletEmpty(state, strings, opts = {}) {
          glyph is only safe because createEmptyState now drops the whole slot when it has
          neither: the bare `[data-placeholder]` is a 96×96 --surface-neutral-02 square,
          so removing this line alone would have swapped an icon for an empty grey box. */
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : null,
+      /* ★ S11 B (#1262) — SUPERSEDES the #453 half above: Damir WANTS the wallet-empty art
+         back, as the new inline drawing (illustrations.js), in a WIDER slot
+         (wallet-shell.css: clamp(160px, 48vw, 200px)). The CTA and the one-line body stay.
+         F5 still holds: no glyph, so an explicit `emptyArt: null` drops the slot whole. */
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : illoWalletEmpty,
       glyph: null,
       title: strings.walletEmptyAll || 'No activity yet',
       // ONE short line: the hero leaves ~360px for this whole block, and the second

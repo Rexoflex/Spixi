@@ -102,7 +102,9 @@ export default async function (h) {
     const BUMP = 'System.Threading.Interlocked.Increment(ref txDocGen);';
     const paired = appsResets.filter((i) => hp.slice(i + 'appsPushedToShell = false;'.length).trimStart().startsWith(BUMP));
     /* ★ S10 F6 (#1254): the wallet pre-push + its [P1] probe READ the generation (once per document) — reads only */
-    const s10 = body(hp, 'private void scheduleWalletPrePush(bool fromOnLoad)') + body(hp, 'private void probeFirstWalletVisit()');
+    const s10 = body(hp, 'private void scheduleWalletPrePush(bool fromOnLoad)') + body(hp, 'private void probeFirstWalletVisit()')
+      + body(hp, 'private void scheduleAppsPrePush(bool fromOnLoad)') + body(hp, 'private void probeFirstAppsVisit(long entryT0)')   // ★ S11 F re-base (#1262): + the apps twin (reads only; pins-s11/f-wiring)
+      + body(hp, 'private void loadApps(bool forceRefresh)');   // ★ S11 A2 re-base (#1263, R1-m2): + the apps burst's two generation reads (pins-s11/f-wiring)
     const s10Reads = count(s10, /System\.Threading\.Volatile\.Read\(ref txDocGen\)/g);
     ok(appsResets.length >= 3 && paired.length === appsResets.length && hp.split(BUMP).length - 1 === appsResets.length
       && count(s10, /ref txDocGen\b/g) === s10Reads

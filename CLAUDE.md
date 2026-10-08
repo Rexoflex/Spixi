@@ -81,10 +81,11 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-07: **session 10 BUILT, UNCOMMITTED** (patch `session10-build.patch` on "Record walk #1252 (S9) and the S10 fix list", commit message `docs/commit-message-session10.txt`). S9 walked: WALK #1252 25 P · 4 F · 5 N/A. S10: the S9 fix round F1–F7 + P1 strip · P2 50 MB · P3 · P4 excerpt 2 lines (#1254–#1256); the "new added" flash = F1 (#1255).
-- Smoke BASELINE OK **5604** · CSH **299** (cloud twin). #46 **CLEAN at r4** (#1257). ⚠ C# UNCOMPILED (2 new + 11 changed C# files; handoff §0).
-- S10 committed (f3770cb4 + build fix 3963b21e, #1259) and WALKED: WALK #1260 13 P · 3 F (10-GRID, 10-FLASH, 10-HAPTIC) · 5 N/A; picks #1261 (P4 default 1 line, inline chooser, album pattern rethink, auto-download). NEXT: S11 (`docs/prompts/session-11.md`); the 10-FLASH recording is owed.
-- Open for Damir: Android 12+ splash (#1249) · cold-start main-thread stall (perf, after the freeze?) · CORE-10 capture · the old-app caption check.
-- BE asks: B-31 (S9) · B-32 (S10: mediaDrop, mediaDropped, setDownloadAvatars, VIBRATE, `.partial`, 50 MB) · CORE-10 draft · B-28, B-29, B-30, CORE-8, CORE-9.
-- v1 plan: S10 ✅ built → walk → S11 FREEZE prep. Road after: sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
-- **NEXT SESSION: read `docs/handoff-2026-10-07c.md` FIRST, then paste `docs/prompts/session-11.md`.** Next free DECISIONS number: **#1262**.
+- 2026-10-08: **session 11 BUILT, UNCOMMITTED** (patch `session11.patch` on "Record walk #1260 (S10) and the S11 plan", commit message `docs/commit-message-session11.txt`). Interview #1262 · picks #1263 (all A + send flow A) · build + review #1264.
+- S11 = 10-FLASH candidate hold + probe · no keyboard after a reaction · paste toast · photo auto-download (Privacy, Off) · seasonal top bar · violet line · MIT out · update card · hint tips 5–9 · illustrations · Downloads gap · created line · viewer zoom + paging · Apps pre-push · album mosaic A · offer preview A · P4 inline (default 1 line) · 2-step send / receive A.
+- Smoke BASELINE OK **5664** · CSH **336** (cloud twin). #46 **CLEAN at r4** (#1264). ⚠ C# UNCOMPILED (6 new + 9 changed C# files; handoff §0).
+- Walk sheet: the artifact "Spixi Session 11 Walk" (S11 rows + the S10 N/A rows). 11-FLASH decides V-26.
+- Open for Damir: tips 1–4 URLs · does spixi.io/download exist · paste on the 2-step Send · Android 12+ splash (#1249) · cold-start stall · desktop resize dark band · About B + How to use A (S12).
+- BE asks: **B-33 (S11)** · B-28 … B-32 · CORE-8/9/10.
+- v1 plan: S11 ✅ built → walk → S12 fix round + FREEZE prep. Road after: sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
+- **NEXT SESSION: read `docs/handoff-2026-10-08.md` FIRST, then paste `docs/prompts/session-12.md`.** Next free DECISIONS number: **#1265**.

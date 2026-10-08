@@ -344,11 +344,14 @@
   inset-inline: 0;
   bottom: 0;
   height: var(--outline-width-2);
+  /* ★ S11 A (#1262, Damir's pick B "blue to violet, one strip"): the sweep blends brand blue → indigo → violet
+     (tokens.css region A). The geometry, the animation and the reduced-motion rule below are unchanged. */
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    var(--surface-action-default) 35%,
-    var(--surface-action-default) 65%,
+    var(--connecting-line-blue) 30%,
+    var(--connecting-line-indigo) 48%,
+    var(--connecting-line-violet) 66%,
     transparent 100%
   );
   background-size: 220% 100%;
@@ -1490,9 +1493,8 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-account .c-disc.c-settings-about__logo > svg,
 .c-account .c-disc.c-settings-contrib__art-disc > svg { width: 32px; height: 32px; }
 
-/* ★ S10 P4 (#1254): the Chat appearance "Message preview" card is a single value row — the hub's card padding (4),
-   as the Canvas card (settings-screens.css .c-settings-appearance__groundsec, Session M #774). */
-.c-settings-appearance .c-settings__section.c-settings-appearance__previewsec { padding: var(--spacing-4); }
+/* ★ S10 P4 (#1254) → ★ S11 A2 (#1263): the "Message preview" card is an inline segmented control now (the Text size
+   grammar) — it takes the plain section padding, so the single-row padding rule that stood here is gone. */
 
 </style><!-- shared body/note grammar -->
 <style data-src="../styles/components/settings-app.css">
@@ -1515,10 +1517,15 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 /* —— downloads —— */
 
 /* split row: open (tap target) + delete — two SIBLING buttons, never nested */
+/* ★ S11 A (#1262, Damir 23:44 screenshot: "the rows are too cramped"): clear vertical space between the Downloads
+   rows. Each row is the only child of its own `.c-settings__section`, so a sibling selector between rows can never
+   match — the space is the row's own block padding (4 above + 4 below) plus a roomier press target (8 above + 8
+   below, was 4). The 44 px targets are untouched (the Show-in-chat / delete buttons keep their fixed box). */
 .c-settings-dl__row {
   display: flex;
   align-items: center;
   gap: var(--spacing-4);
+  padding-block: var(--spacing-4);
 }
 .c-settings-dl__open {
   flex: 1;
@@ -1527,7 +1534,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   align-items: center;
   gap: var(--spacing-8);
   min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52, settings-row parity #149②) */
-  padding: var(--spacing-4) var(--spacing-8);
+  padding: var(--spacing-8);        /* ★ S11 A (#1262): 8 px block padding (was 4) — the rows breathe */
   border: 0;
   background: transparent;
   border-radius: var(--radius-12);
@@ -2453,6 +2460,59 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     });
     root.replaceChildren(devEl);
     if (lastLog) setDevLog(devEl, lastLog);
+    mountFlashDev();
+  }
+
+  /* ★ S11 C (#1262) 10-FLASH probe build — the Developer switches for the chat-open hold (Android; DevPage stores them as
+     ONE C# preference, they act only while dev mode is on). Shown only after C# pushed their positions (setFlashDev — an
+     exe without the verb never does, so no dead switch). Each tap = `ixian:devflash:<name>:<0|1>` (1 = the action is
+     OFF), optimistic; C# echoes the stored positions. Default: all three ON (the candidate fix, the shipped release). */
+  let flashDev = null;   // [candidateOn, groundsAtRelease, inputAtRelease] once C# told us
+  function mountFlashDev() {
+    if (!flashDev || !devEl) return;
+    const body = devEl.querySelector('.c-settings__body');
+    if (!body) return;
+    const old = body.querySelector('.c-dev-flash');
+    if (old) old.remove();
+    const card = document.createElement('div');
+    card.className = 'c-settings__section c-dev-flash';
+    const head = document.createElement('p');
+    head.className = 'c-settings__note';
+    head.textContent = strings.devFlashTitle || 'Chat open on Android (flash probe)';
+    card.append(head);
+    const rows = [
+      ['candidate', strings.devFlashCandidate || 'Wait for the chat to paint'],
+      ['grounds', strings.devFlashGrounds || 'Paint the background at release'],
+      ['input', strings.devFlashInput || 'Make the chat touchable at release'],
+    ];
+    rows.forEach(([name, label], i) => {
+      const row = document.createElement('div');
+      row.className = 'c-settings__row c-settings__row--static';
+      row.dataset.row = 'switch';
+      const lab = document.createElement('span');
+      lab.className = 'c-settings__row-label';
+      lab.textContent = label;
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'c-settings__switch';
+      sw.setAttribute('role', 'switch');
+      sw.setAttribute('aria-label', label);
+      sw.dataset.flash = name;
+      sw.setAttribute('aria-checked', String(!!flashDev[i]));
+      const knob = document.createElement('span');
+      knob.className = 'c-settings__switch-knob';
+      sw.append(knob);
+      sw.addEventListener('click', () => {
+        const next = sw.getAttribute('aria-checked') !== 'true';
+        sw.setAttribute('aria-checked', String(next));
+        bridge.send('ixian:devflash:' + name + ':' + (next ? '0' : '1'));
+      });
+      row.append(lab, sw);
+      card.append(row);
+    });
+    const note = body.querySelector('.c-settings__note');
+    if (note && note.nextSibling) body.insertBefore(card, note.nextSibling);
+    else body.prepend(card);
   }
   buildDev();
 
@@ -2474,6 +2534,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
         if (c) bridge.capabilities[c] = true;
       });
       if (!had && bridge.cap('sendlog')) buildDev();
+    },
+    /* ★ S11 C (#1262, 🟡 new push): the flash switches' positions "c,g,i" (1 = ON) — the onLoad seed + the echo of
+       ixian:devflash. Anything but three 0/1 digits is ignored. */
+    setFlashDev(v) {
+      const m = /^([01]),([01]),([01])$/.exec(String(v || ''));
+      if (!m) return;
+      flashDev = [m[1] === '1', m[2] === '1', m[3] === '1'];
+      mountFlashDev();
     },
   };
   /* ★ L3 (#706): the iOS back signal. One level per gesture — a sheet on the shared

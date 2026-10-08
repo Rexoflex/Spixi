@@ -1,22 +1,31 @@
 /**
- * c-wallet-send — the send flow, slice 2 (spec §3, #133: ONE screen + review sheet).
+ * c-wallet-send — the send flow (spec §3, #133: compose + review sheet).
  * Replaces the legacy 3-page hop (wallet_send → send2 → sent):
  *
- * ★ W-i (Damir, screenshots 2026-08-23): AMOUNT ON TOP. Both money screens lead
- * with the amount — you decide how much first, and the number stays visible while
- * you browse. Order: amount section (input + Available + fee line + Max) → the
- * recipient section (search → "Send to an address" → the contact list; a picked
- * recipient REPLACES the list) → Review at the bottom.
+ * ★ #1263 (Damir's pick A, "Cash App / Revolut", 2026-10-08) — TWO STEPS. This
+ * reverses W-i ("amount on top", #536) and retires the #558 "Select a recipient to
+ * use Max" gate: step 2 always has a recipient.
+ *   STEP 1 — the recipient, today's picker unchanged: search → "Send to an address"
+ *     (reveal + scan) → the contact list (★ W-j: the shared c-contact-row). A pick
+ *     moves to step 2.
+ *   STEP 2 — the amount: a "To" chip (avatar, name, short #211 address; tap = back to
+ *     step 1, unless the recipient is locked #139), a big centred amount that is NOT
+ *     an input (amount-pad.js: grey 0.00, caret, IXI unit), a read-only fiat line only
+ *     when the host passes a price (`fiatPrice`; none today → no line, #1041), the
+ *     Available line + Max, the live fee line, and the keypad + ONE primary Review.
+ *     Over balance = the error colour + one line + "Use max", checked in TWO stages:
+ *     the amount against the balance at once, amount + fee once the W6 quote lands.
+ *     "Use max" and Max open the SAME confirm (#136); nothing fills silently.
+ *   The bottom bar (keypad + Review) is the shared sticky .c-money-cta.
+ *   No unit toggle, no note: the bridge carries neither (#1263).
  *
- * 1. AMOUNT — decimal-sanitized input (≤8 decimals, chain precision), Available line,
- *    Max (balance − fee, #77 truncation), live fee + total; inline insufficient error.
- *    ★ W-k: `enterkeyhint` + Enter/Next/Go → blur(), so the soft keyboard drops and
- *    the contact list under it is browsable right after typing.
- * 2. RECIPIENT — search over contacts OR a raw address input ("Send to an address"
- *    reveal) OR QR (`ixian:sendScan` via onQuickScan; the shell calls setSendAddress /
- *    setSendRecipient with the scan result). Selecting shows a recipient row with ✕.
- *    ★ W-j: the rows are the shared c-contact-row (the Contacts DIRECTORY anatomy:
- *    avatar-48 + name + truncated address + online dot) — contact-row.js.
+ * UNCHANGED BY #1263 (pinned byte-for-byte — pins-s11/h-send.mjs): every callback and
+ * payload. onQuote(address, amount) with the canonical amount (and the amount-0 Max/
+ * balance quote on a pick), the valid() gate, openPaymentReview with the canonical
+ * amount + the quoted fee, onSend(payload, ctrl) with { recipients:[{address,name}],
+ * amount, fee }, ctrl.done/fail, onDone. The shell's verbs (`ixian:feeQuery`,
+ * `ixian:signSend`, `ixian:sendScan`) and the NATIVE confirm are the shell's and C#'s.
+ *
  * 3. REVIEW = c-sheet (#26 deliberateness step): recipient · amount · fee · total +
  *    explicit Confirm (latched → loading, #29/#72④) / Cancel. onSend(payload, ctrl) —
  *    the bridge runs the real send: ctrl.done() → success morph → onDone(payload)
@@ -25,21 +34,23 @@
  *    ★ W-d: the sheet is the exported `openPaymentReview` — the chat's request-in
  *    Pay opens the SAME sheet (fee quoted live) before the native confirm.
  *
- * Numbers: user input is RAW here (the one surface where FE math is unavoidable —
- * validation + Max + total); display strings still follow #77 (truncate, never round).
- * The bridge remains the source of truth and re-validates on its side.
+ * Numbers: the amount is the keypad's canonical edit string (the one surface where FE
+ * math is unavoidable — validation + Max + total); display strings still follow #77
+ * (truncate, never round). The bridge remains the source of truth and re-validates.
  * Legacy multi-recipient stays commented out C#-side — payload is single-recipient but
  * shaped plural-ready ({ recipients: [ { address, name? } ] }).
  *
- * createWalletSend({ contacts, balance, fee, strings, host,
- *                    onQuickScan, onSend, onDone }) → view
+ * createWalletSend({ contacts, balance, fee, strings, host, lockedRecipient, fiatPrice,
+ *                    onQuickScan, onQuote, onSend, onDone }) → view
+ *   view._stepBack() — ★ #1263: the host's Back on step 2 returns to step 1 (true =
+ *   consumed); false on step 1 or for a locked recipient (the host then closes).
  * Free fns (#44): setSendAddress(el, address) — QR-scan result lands in the address path.
  *                 setSendRecipient(el, contact) — ★ W-f: programmatic contact pick (a
  *                 scanned address that IS a contact shows nickname + avatar, not raw).
  *
  * ★ W6 (#523): `fee: null` = UNKNOWN. The fee line shows a pending state, Max is
- * disabled, and Continue stays disabled until a quote lands — no invented fee, ever.
- * New opt `onQuote(address, amount)` fires (debounced, deduped) when both recipient
+ * disabled, and Review stays disabled until a quote lands — no invented fee, ever.
+ * `onQuote(address, amount)` fires (debounced, deduped) when both recipient
  * and a positive amount exist; the shell answers via the free fn
  * `setSendQuote(el, { fee, balance })`. The displayed fee stays an ESTIMATE — the
  * NATIVE confirm shows C#'s own numbers and is the authority (SECURITY.md).
@@ -55,11 +66,11 @@ import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 import { createModal, openModal } from './modal.js';
-import { setOverlayOpts, isOverlayOpen, overlayId } from './overlay.js';   // overlayId: the house id mint (F5-6 hint)
+import { setOverlayOpts, isOverlayOpen } from './overlay.js';
 import { icon } from './icons.js';
 import { createContactRow, createGlyphRow } from './contact-row.js';   // ★ W-j shared row
-import { attachAmountKeyboardDismiss } from './amount-keyboard.js';   // ★ #609: moved to a shared module — three consumers now (#143 ②)
-import { sanitizeAmount, toUnits, canonicalAmount, amountInputToCanonical, attachAmountPreEdit, groupAmountDisplay, amountCaretAfterFormat } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
+import { createAmountPad, createAmountDisplay } from './amount-pad.js';   // ★ #1263: the in-app keypad (#607/#609 closed by construction)
+import { toUnits, canonicalAmount, groupAmountDisplay, fiatLine } from './money.js';   // #143 shared money module · ★ I-6 (#360) display grouping
 
 /* fromUnits is wallet-send-only (Max display); its inverse toUnits + the
    sanitize/canonical helpers now live in money.js (#143 dedupe). */
@@ -77,28 +88,31 @@ let walletSendSeq = 0;                                     // aria-controls ids 
 export function createWalletSend({
   contacts = [], balance = 0, fee = 0, strings = getStrings(), host,
   lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
+  fiatPrice = null,         // ★ #1263: IXI → fiat, RAW decimal from C#; absent/zero → no fiat line (#1041)
   onQuickScan, onQuote, onSend, onDone,
 } = {}) {
   // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
   // the one FE surface doing money math. Pre-formatted display strings (hero-style
   // '923,852.00') are NOT valid inputs here. fee === null → unknown until a quote (#523).
+  // ★ #46 r3 MINOR-2: balance === null → UNKNOWN until the first quote carries it (the
+  // chat / contact-details Pay covers): no Available figure, no stage-1 over-balance
+  // verdict, no Review — never a false "More than your 0 IXI".
   const el = document.createElement('div');
   el.className = 'c-wallet-send';
   const addrFieldId = 'c-wallet-send-addrfield-' + (++walletSendSeq);
-  let balU = toUnits(balance);
+  let balU = (balance === null || balance === undefined || balance === '') ? null : toUnits(balance);
   let feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
-  const state = { recipient: null, amount: '', sending: false, attempt: 0, review: null };   // review = the ONE open sheet (loop r1 M4)
+  const state = { recipient: null, amount: '', sending: false, attempt: 0, review: null, step: 1 };   // review = the ONE open sheet (loop r1 M4)
   let quoteTimer = null;
   let lastQuoteKey = '';
   let quotedKey = '';                                      // the (addr:amount) pair feeU actually ANSWERS
   let maxSendU = null;                                     // C#'s solved max-sendable (amount-0 quote)
   let addrErr = false;                                     // C# rejected the picked address (quote error)
-  /* ★★ V-4: `state.amount` is the FIELD's value and it stays un-canonical, so the
-     user can still see a mid-typed `12.` or `.5`. Every boundary that leaves this
-     component takes the CANONICAL form instead. `valid()` accepted `.5` while
-     `openPaymentReview`'s own gate rejected it, so Continue was enabled and did
-     nothing, forever. The quote KEY is canonical too: C# echoes back what we sent,
-     and a key built from `.5` could never match an echo of `0.5`. */
+  /* ★★ V-4: `state.amount` is the keypad's edit string and it stays un-canonical, so the
+     user can still see a mid-typed `12.`. Every boundary that leaves this component takes
+     the CANONICAL form instead (the review's own gate is canonical-only). The quote KEY
+     is canonical too: C# echoes back what we sent, and a key built from `12.` could never
+     match an echo of `12`. */
   const canonAmount = () => canonicalAmount(state.amount || '');
   const currentKey = () => (state.recipient ? state.recipient.address + ':' + canonAmount() : '');
   function requestQuote() {
@@ -111,7 +125,7 @@ export function createWalletSend({
     if (quoteTimer) clearTimeout(quoteTimer);
     quoteTimer = setTimeout(() => {
       quoteTimer = null;
-      // loop NIT fix: re-check the AMOUNT too — a cleared field must not emit
+      // loop NIT fix: re-check the AMOUNT too — a cleared amount must not emit
       // an empty-amount query (and latch its key)
       if (!state.recipient || !state.amount || amountU() <= 0n) return;
       const k = currentKey();
@@ -121,137 +135,30 @@ export function createWalletSend({
     }, 350);
   }
 
-  /* ——— amount section (★ W-i: FIRST) ——— */
-  const amtSec = document.createElement('section');
-  amtSec.className = 'c-wallet-send__section c-wallet-send__section--amount';
-  const amtTitle = document.createElement('h2');
-  amtTitle.className = 'c-wallet-send__label';
-  amtTitle.textContent = strings.amount || 'Amount';
-  amtSec.append(amtTitle);
+  /* hidden live region (the receive screen's grammar): announces the pick. At the ROOT,
+     not inside step 1 — a region inside a hidden step announces nothing. */
+  const live = document.createElement('p');
+  live.className = 'c-wallet-send__live';
+  live.setAttribute('aria-live', 'polite');
+  el.append(live);
 
-  const amtRow = document.createElement('div');
-  amtRow.className = 'c-wallet-send__amountrow';
-  const amtInput = document.createElement('input');
-  amtInput.className = 'c-wallet-send__amount u-tabular';
-  amtInput.type = 'text';
-  amtInput.inputMode = 'decimal';
-  amtInput.placeholder = '0';
-  amtInput.setAttribute('aria-label', strings.amount || 'Amount');
-  attachAmountKeyboardDismiss(amtInput);                   // ★ W-k
-  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
-     whose separators are NOT ours, and only the REPLACED RANGE says so. */
-  const readPreEdit = attachAmountPreEdit(amtInput);
-  amtInput.addEventListener('input', (e) => {
-    // ★ I-6 (#360): the field DISPLAYS the locale's grouping as you type; the
-    // canonical '.'-decimal ungrouped value lives in state.amount and is the
-    // only thing the wire layer ever sees (#77 untouched). Caret rides the
-    // digit count, so inserted separators never displace it.
-    // Loop r1 CRITICAL-1: typing/deletion edits take the per-edit inverse
-    // (strip OUR separators unconditionally; a just-typed '.'/',' is decimal
-    // intent) — pattern-guessing on a mid-edit string mangled magnitudes.
-    const disp = amtInput.value;
-    const caret = amtInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
-    state.amount = v;
-    const shown = groupAmountDisplay(v);
-    if (shown !== disp) {
-      amtInput.value = shown;
-      const c = amountCaretAfterFormat(disp, caret, shown);
-      try { amtInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
-    }
-    sync();
-  });
-  const unit = document.createElement('span');
-  unit.className = 'c-wallet-send__unit';
-  unit.textContent = 'IXI';
-  const maxBtn = createButton({ label: strings.max || 'Max', type: 'outline', size: 32,
-    onClick: () => {
-      // sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm,
-      // safe action autofocused (APG), only then the field fills
-      // ★ round-2 MAJOR fix: the onClick fallback MUST use the SAME predicate as the
-      // maxBtn.disabled state below — `fresh` honours static-fee mode (!quoteFlow),
-      // and a mismatch left Max enabled-but-inert for every static-fee integrator.
-      const maxU = maxSendU !== null ? maxSendU
-        : ((feeU !== null && (!quoteFlow || quotedKey === currentKey())) ? balU - feeU : null);
-      if (maxU === null) return;                         // no honest ceiling yet (W6)
-      // #150⑥ grammar (Damir 2026-07-05): the Max stop wears the standing
-      // warning STRIP (error-tonal wash + alert glyph) — ADAPTED text: the
-      // fill itself is editable, it's the payment that can't be undone
-      const maxWarn = document.createElement('p');
-      maxWarn.className = 'c-wallet-send__max-warn';
-      maxWarn.append(icon('alert-square-rounded', { size: 18 }),
-        document.createTextNode(strings.paymentsCannotUndo || 'Payments cannot be undone.'));
-      openModal(createModal({
-        title: strings.maxTitle || 'Send your entire balance?',
-        body: (strings.maxBody || 'This fills in everything you have: {m} IXI after the network fee. You would be left with 0 IXI.')
-          .split('{m}').join(groupAmountDisplay(fromUnits(maxU > 0n ? maxU : 0n))),   // ★ I-6 (#360)
-        content: maxWarn,
-        role: 'alertdialog', host,
-        actions: [
-          { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-          { label: strings.maxConfirm || 'Yes, I understand', type: 'fill', onClick: () => {
-            state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots
-            amtInput.value = groupAmountDisplay(state.amount); // ★ I-6 (#360): display form in the field
-            sync();
-          } },
-        ],
-      }));
-    } });
-  amtRow.append(amtInput, unit, maxBtn);
-  amtSec.append(amtRow);
-
-  /* ★ F5-6 (#558, Damir 2026-08-25 — dial answered: option B). Max stays gated
-     until a recipient is picked (#523: Max = balance − fee, the fee needs a
-     quote, a quote needs a recipient — no invented numbers). The gate now
-     EXPLAINS itself: one quiet hint line while no recipient is set, gone the
-     moment one is. aria-describedby ties it to the disabled control. */
-  const maxHint = document.createElement('p');
-  maxHint.className = 'c-wallet-send__meta c-wallet-send__maxhint';
-  maxHint.id = overlayId('c-ws-maxhint');   // house id mint
-  maxHint.textContent = strings.maxNeedsRecipient || 'Select a recipient to use Max.';
-  amtSec.append(maxHint);
-
-  const availLine = document.createElement('p');
-  availLine.className = 'c-wallet-send__meta u-tabular';
-  const renderAvail = () => {
-    availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
-  };
-  renderAvail();
-  amtSec.append(availLine);
-
-  const feeLine = document.createElement('p');
-  feeLine.className = 'c-wallet-send__meta u-tabular';
-  feeLine.setAttribute('role', 'status');                  // the fee arriving IS the unlock signal (loop a11y)
-  amtSec.append(feeLine);
-
-  const insuff = document.createElement('p');
-  insuff.className = 'c-wallet-send__error';
-  insuff.setAttribute('role', 'alert');
-  insuff.hidden = true;
-  amtSec.append(insuff);
-  el.append(amtSec);
-
-  /* ——— recipient section (★ W-i: SECOND) ——— */
+  /* ——— STEP 1: the recipient (★ #1263: today's picker, unchanged) ——— */
   const recSec = document.createElement('section');
   recSec.className = 'c-wallet-send__section c-wallet-send__section--recipient';
   const recTitle = document.createElement('h2');
   recTitle.className = 'c-wallet-send__label';
   recTitle.textContent = strings.sendTo || 'Send to';
+  recTitle.tabIndex = -1;                                  // ★ #46 r3 NIT-4: step 1's focus target after a touch (no OS keyboard over the list)
   recSec.append(recTitle);
 
-  /* selected recipient row (hidden until picked). Loop r1 A-6: a focusable GROUP
-     with an accessible name, so a pick has a named focus target; the hidden live
-     line below announces it (the receive screen's `__live` grammar). */
-  const picked = document.createElement('div');
-  picked.className = 'c-wallet-send__picked';
-  picked.hidden = true;
-  picked.tabIndex = -1;
-  picked.setAttribute('role', 'group');
-  recSec.append(picked);
-  const live = document.createElement('p');
-  live.className = 'c-wallet-send__live';
-  live.setAttribute('aria-live', 'polite');
-  recSec.append(live);
+  /* ★ #46 r3 NIT-4: the last input modality INSIDE this view. Step 1 focuses the search
+     (which raises the OS keyboard) only for a keyboard user or on desktop; after a touch
+     tap (or the Android Back, which follows one) the heading takes focus instead. */
+  let modality = null;
+  el.addEventListener('pointerdown', (e) => { modality = e.pointerType || 'mouse'; }, true);
+  el.addEventListener('keydown', () => { modality = 'keyboard'; }, true);
+  const keyboardFocus = () => modality === 'keyboard'
+    || (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-desktop'));
 
   /* picker: search + contact rows + address reveal */
   const picker = document.createElement('div');
@@ -329,34 +236,98 @@ export function createWalletSend({
   recSec.append(picker);
   el.append(recSec);
 
-  function renderContacts(q) {
-    const needle = (q || '').trim().toLocaleLowerCase();
-    rows.textContent = '';
-    const list = contacts.filter((c) => !needle
-      || (c.name || '').toLocaleLowerCase().includes(needle)
-      || (c.address || '').toLocaleLowerCase().includes(needle))
-      .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
-    // #142 (Damir 2026-07-05c): NO caps — the #136 window forced you to know
-    // the name; the full A–Z list scrolls and search narrows. The amount
-    // section never competes: picking COLLAPSES the picker to the picked row,
-    // and until a recipient exists the amount can't be submitted anyway.
-    for (const c of list) {
-      // ★ W-j: the shared directory row (avatar-48 + name + truncated address +
-      // online dot; #255 pending badge). The surface class stays as an alias for
-      // the shells/pins; the anatomy lives in contact-row.css.
-      rows.append(createContactRow({
-        contact: c, strings, className: 'c-wallet-send__contact',
-        onClick: () => pick({ ...c, contact: true }),
-      }));
-    }
-    if (!list.length && needle) {
-      const none = document.createElement('p');
-      none.className = 'c-wallet-send__none';
-      none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
-      rows.append(none);
-    }
+  /* ——— STEP 2: the amount (★ #1263 render A) ——— */
+  const amtSec = document.createElement('section');
+  amtSec.className = 'c-wallet-send__section c-wallet-send__section--amount';
+  amtSec.hidden = true;
+
+  /* the "To" chip: avatar · name · short address (#211). A BUTTON back to step 1, or a
+     plain chip when the recipient is locked (#139 — the peer is fixed, nothing to change).
+     It keeps the old picked-row classes (__picked / __pickedname / __pickedaddr) — the
+     same facts, the same hooks. */
+  const picked = document.createElement(lockedRecipient ? 'div' : 'button');
+  picked.className = 'c-wallet-send__picked c-wallet-send__chip';
+  if (!lockedRecipient) {
+    picked.type = 'button';
+    picked.addEventListener('click', () => toStep1());
+  } else {
+    picked.setAttribute('role', 'group');
   }
+  amtSec.append(picked);
+
+  const amtBox = document.createElement('div');
+  amtBox.className = 'c-wallet-send__amountbox';
+  const amtDisplay = createAmountDisplay({ className: 'c-wallet-send__amount', strings });
+  amtDisplay.setAttribute('aria-label', strings.amount || 'Amount');
+  const fiat = document.createElement('p');
+  fiat.className = 'c-wallet-send__fiat u-tabular';
+  fiat.hidden = true;
+  amtBox.append(amtDisplay, fiat);
+  amtSec.append(amtBox);
+
+  /* sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm, safe
+     action autofocused (APG), only then the amount fills. ★ #1263: Max AND "Use max"
+     both come here — the over-balance way out never fills silently. */
+  const maxCeiling = () => (maxSendU !== null ? maxSendU
+    : ((balU !== null && feeU !== null && (!quoteFlow || quotedKey === currentKey())) ? balU - feeU : null));
+  function askMax() {
+    // ★ round-2 MAJOR fix: the onClick fallback MUST use the SAME predicate as the
+    // maxBtn.disabled state below — `fresh` honours static-fee mode (!quoteFlow),
+    // and a mismatch left Max enabled-but-inert for every static-fee integrator.
+    const maxU = maxCeiling();
+    if (maxU === null) return;                           // no honest ceiling yet (W6)
+    // #150⑥ grammar (Damir 2026-07-05): the Max stop wears the standing
+    // warning STRIP (error-tonal wash + alert glyph) — ADAPTED text: the
+    // fill itself is editable, it's the payment that can't be undone
+    const maxWarn = document.createElement('p');
+    maxWarn.className = 'c-wallet-send__max-warn';
+    maxWarn.append(icon('alert-square-rounded', { size: 18 }),
+      document.createTextNode(strings.paymentsCannotUndo || 'Payments cannot be undone.'));
+    openModal(createModal({
+      title: strings.maxTitle || 'Send your entire balance?',
+      body: (strings.maxBody || 'This fills in everything you have: {m} IXI after the network fee. You would be left with 0 IXI.')
+        .split('{m}').join(groupAmountDisplay(fromUnits(maxU > 0n ? maxU : 0n))),   // ★ I-6 (#360)
+      content: maxWarn,
+      role: 'alertdialog', host,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: strings.maxConfirm || 'Yes, I understand', type: 'fill', onClick: () => {
+          pad._set(fromUnits(maxU > 0n ? maxU : 0n));    // exact integer units — never overshoots (→ onChange → sync)
+        } },
+      ],
+    }));
+  }
+
+  const amtRow = document.createElement('div');
+  amtRow.className = 'c-wallet-send__amountrow';
+  const availLine = document.createElement('p');
+  availLine.className = 'c-wallet-send__meta u-tabular';
+  const renderAvail = () => {
+    if (balU === null) { availLine.textContent = ''; return; }   // ★ MINOR-2: unknown until the first quote
+    availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
+  };
+  renderAvail();
+  const maxBtn = createButton({ label: strings.max || 'Max', type: 'outline', size: 32, onClick: askMax });
+  amtRow.append(availLine, maxBtn);
+  amtSec.append(amtRow);
+
+  /* over balance (★ #1263): ONE line in the error colour + "Use max" (the same confirm) */
+  const overRow = document.createElement('div');
+  overRow.className = 'c-wallet-send__over';
+  overRow.hidden = true;
+  const insuff = document.createElement('p');
+  insuff.className = 'c-wallet-send__error';
+  insuff.setAttribute('role', 'alert');
+  const useMax = createButton({ label: strings.useMax || 'Use max', type: 'tonal', size: 32, onClick: askMax });
+  useMax.classList.add('c-wallet-send__usemax');
+  overRow.append(insuff, useMax);
+  amtSec.append(overRow);
+
+  const feeLine = document.createElement('p');
+  feeLine.className = 'c-wallet-send__meta c-wallet-send__fee u-tabular';
+  feeLine.setAttribute('role', 'status');                  // the fee arriving IS the unlock signal (loop a11y)
+  amtSec.append(feeLine);
+  el.append(amtSec);
 
   function pick(recipient) {
     if (!recipient || !recipient.address) return;          // loop r2 R2-4: no address, no recipient (the F2 rule, Send side)
@@ -365,74 +336,96 @@ export function createWalletSend({
     addrErr = false;                                       // a new recipient gets a fresh verdict
     maxSendU = null;
     picked.textContent = '';
-    picked.hidden = false;
-    picker.hidden = true;
-    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 48, online: !!recipient.online }));
+    const lbl = document.createElement('span');
+    lbl.className = 'c-wallet-send__chiplabel';
+    lbl.textContent = strings.moneyTo || 'To';
+    picked.append(lbl);
+    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 24, online: false }));
     else {
       const glyph = document.createElement('span');
       glyph.className = 'c-wallet-send__pickedglyph';
-      glyph.append(icon('qrcode', { size: 22 }));
+      glyph.append(icon('qrcode', { size: 16 }));
       picked.append(glyph);
     }
-    // ★ W-b: the picked stack is NAME over the MUTED TRUNCATED address (#211) —
-    // a raw-address pick titles as the truncated address with an "Address" sub.
-    // The FULL address is shown at the decision moment, on the review sheet (#99).
-    const pt = document.createElement('span');
-    pt.className = 'c-wallet-send__pickedtext';
+    // ★ W-b: name + the MUTED TRUNCATED address (#211) on one line — a raw-address pick
+    // titles as the truncated address. The FULL address is shown at the decision
+    // moment, on the review sheet (#99).
     const pn = document.createElement('span');
     pn.className = 'c-wallet-send__pickedname';
     const hasName = !!recipient.name && recipient.name !== recipient.address;
     pn.textContent = hasName ? recipient.name : truncateAddressMiddle(recipient.address, 9, 6);
-    pt.append(pn);
-    const pa = document.createElement('span');
-    pa.className = 'c-wallet-send__pickedaddr u-tabular';
-    pa.textContent = hasName ? truncateAddressMiddle(recipient.address, 9, 6) : (strings.address || 'Address');
-    pt.append(pa);
-    picked.append(pt);
-    picked.setAttribute('aria-label', (strings.sendTo || 'Send to') + ': ' + pn.textContent);
+    picked.append(pn);
+    if (hasName) {
+      const pa = document.createElement('span');
+      pa.className = 'c-wallet-send__pickedaddr u-tabular';
+      pa.textContent = truncateAddressMiddle(recipient.address, 9, 6);
+      picked.append(pa);
+    }
+    if (!lockedRecipient) {
+      const chev = document.createElement('span');
+      chev.className = 'c-wallet-send__chipchev';
+      chev.append(icon('chevron-down', { size: 16 }));
+      picked.append(chev);
+      picked.setAttribute('aria-label', (strings.changeRecipient || 'Change recipient') + ': ' + pn.textContent);
+    } else {
+      picked.setAttribute('aria-label', (strings.sendTo || 'Send to') + ': ' + pn.textContent);
+    }
     live.textContent = (strings.sendTo || 'Send to') + ': ' + pn.textContent;
     addrRow.setAttribute('aria-expanded', 'false');       // loop r1 A-5: the field is hidden with the picker
-    if (!lockedRecipient) {                              // locked = the peer is fixed, no ✕ (#139)
-      const clear = document.createElement('button');
-      clear.type = 'button';
-      clear.className = 'c-wallet-send__clear';
-      clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
-      clear.append(icon('x', { size: 18 }));
-      clear.addEventListener('click', () => {
-        state.recipient = null;
-        lastQuoteKey = '';                               // a new recipient must re-quote (W6)
-        quotedKey = '';                                  // …and the old answer is nobody's (loop MAJOR)
-        feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
-        maxSendU = null;
-        addrErr = false;
-        if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = null; }
-        picked.hidden = true;
-        picker.hidden = false;
-        live.textContent = '';
-        sync();
-        const si = picker.querySelector('input');
-        if (si) si.focus();                              // focus back into the picker (audit m2)
-      });
-      picked.append(clear);
-    }
+    addrField.hidden = true;
+    showStep(2);
     sync();
     // W6: a pick with no amount asks for the balance + the SOLVED Max ceiling
     // (amount '0' = the balance/Max quote; the per-amount fee still gates Review)
     if (onQuote && amountU() <= 0n) onQuote(recipient.address, '0');
-    // ★ W-i: the amount sits ABOVE the list now. Empty amount → the field. With an
-    // amount already typed the pick completes the form: Review takes focus when it
-    // is ARMED; on the quote flow it is still gated (no fee answers the new pair
-    // yet — loop r1 m1/A-2: focus() on a disabled button is a no-op and the focused
-    // row was just hidden, so focus fell to <body>), so the named picked GROUP takes
-    // it instead. Never back up into the field: that raises the keyboard over the button.
-    if (!state.amount) amtInput.focus();
-    else if (!cont.disabled) cont.focus();
-    else picked.focus();
+    // ★ #1263: step 2 takes focus on the amount (no keyboard rises — it is an output);
+    // an already-armed Review takes it instead (an amount carried back from step 1).
+    focusStep2();
   }
+  function focusStep2() {
+    if (!cont.disabled) cont.focus();
+    else { try { amtDisplay.focus(); } catch (e) { /* jsdom */ } }
+  }
+  function focusStep1() {
+    const si = picker.querySelector('input');
+    if (si && keyboardFocus()) si.focus();                 // focus back into the picker (audit m2) — keyboard/desktop only (NIT-4)
+    else { try { recTitle.focus(); } catch (e) { /* jsdom */ } }
+  }
+  /* ★ #46 r3 MINOR-1: the host calls this AFTER it attached the view (a locked pick runs
+     in the constructor, before the view is in the document, so its focus went nowhere and
+     the shells' "first input" was step 1's HIDDEN address field). Step 2 → Review if armed,
+     else the amount output (tabIndex -1, no keyboard); step 1 → the search (NIT-4 rule). */
+  el._initialFocus = () => (state.step === 2 ? focusStep2() : focusStep1());
   el._pick = pick;                                         // ★ W-f: setSendRecipient hook
   el._locked = !!lockedRecipient;                          // loop r1 m3: setSendRecipient refuses a locked compose
 
-  /* ——— continue ——— */
+  /* ★ #1263: back to step 1 = the old ✕ "change recipient" — the recipient and every
+     quote answer go (no stale fee for the next pick, loop MAJOR); the AMOUNT stays, so a
+     new pick lands on the number already typed. */
+  function toStep1() {
+    if (lockedRecipient) return false;
+    state.recipient = null;
+    lastQuoteKey = '';                                     // a new recipient must re-quote (W6)
+    quotedKey = '';                                        // …and the old answer is nobody's (loop MAJOR)
+    feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
+    maxSendU = null;
+    addrErr = false;
+    if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = null; }
+    live.textContent = '';
+    showStep(1);
+    sync();
+    focusStep1();
+    return true;
+  }
+  el._toStep1 = toStep1;
+  el._stepBack = () => (state.step === 2 && !(state.review && state.review.isOpen()) ? toStep1() : false);
+
+  /* ——— keypad + Review: the shared sticky money bar ——— */
+  const pad = createAmountPad({
+    display: amtDisplay, strings, decimals: 8,
+    onChange: (raw) => { state.amount = raw; sync(); },
+  });
+  el._setAmount = (v) => pad._set(v);                      // QR seeds (setSendAddress / setSendRecipient)
   const cont = createButton({
     label: strings.reviewSend || 'Review', type: 'fill', size: 56, width: 'full',
     icon: icon('arrow-up-right', { size: 20 }),
@@ -441,8 +434,21 @@ export function createWalletSend({
   cont.disabled = true;
   const contWrap = document.createElement('div');
   contWrap.className = 'c-wallet-send__actions c-money-cta';   // ★ the shared sticky money bar (base.css)
-  contWrap.append(cont);
+  contWrap.hidden = true;
+  contWrap.append(pad, cont);
   el.append(contWrap);
+
+  function showStep(n) {
+    state.step = n;
+    el.dataset.step = String(n);
+    recSec.hidden = n !== 1;
+    amtSec.hidden = n !== 2;
+    contWrap.hidden = n !== 2;
+    // desktop hardware keys drive the pad only while step 2 is on screen and no
+    // overlay (the review sheet, the Max confirm) is up
+    if (n === 2) pad._keysOn(() => state.step === 2 && !(state.review && state.review.isOpen()), { primary: () => cont });   // Enter = Review when armed (MAJOR-1)
+    else pad._keysOff();
+  }
 
   /* exact integer-unit math throughout (audit M1); EXACT strings at the money moments —
      #77 truncation is a feed-display rule, not a confirm-step rule (audit M3) */
@@ -453,33 +459,67 @@ export function createWalletSend({
   function valid() {
     if (!state.recipient || !state.amount || addrErr) return false;
     if (feeU === null) return false;                       // W6: no quote → no review, ever
+    if (balU === null) return false;                       // ★ #46 r3 MINOR-2: nor while the balance is unknown
     if (quoteFlow && quotedKey !== currentKey()) return false;   // ★ loop MAJOR: the fee must answer THIS pair
     const a = amountU();
     return a > 0n && a + feeU <= balU;
   }
+  /* ★ #1263: the read-only fiat line — only with a price C# gave, only for a nonzero
+     amount; display-only (exact units, the one #1040 fiatLine rule), never an input. */
+  const priceU = (() => {
+    const t = String(fiatPrice == null ? '' : fiatPrice).trim();
+    if (!/^\d+(\.\d+)?$/.test(t)) return null;
+    const u = toUnits(t);
+    return u > 0n ? u : null;
+  })();
+  function renderFiat(a) {
+    if (priceU === null || a <= 0n) { fiat.hidden = true; fiat.textContent = ''; return; }
+    const line = fiatLine(fromUnits((a * priceU) / 100000000n), '', fromUnits(a));
+    fiat.hidden = !line;
+    fiat.textContent = line ? (strings.fiatApprox || '≈ {f}').split('{f}').join(line) : '';
+  }
+  /* ★ #1263 over-balance, TWO stages: `stage` 1 = the amount alone is over the balance
+     (known at once, no fee needed); 2 = amount + the quoted fee is over (the W6 answer). */
+  function showOver(stage) {
+    const on = !!stage;
+    pad._error(on);
+    amtRow.hidden = on;                                     // the line + "Use max" replace Available + Max (render A)
+    if (!on) { overRow.hidden = true; insuff.textContent = ''; return; }
+    overRow.hidden = false;                                 // unhide BEFORE text → alert announces
+    insuff.hidden = false;
+    insuff.textContent = stage === 1
+      ? (strings.sendOverBalance || 'More than your {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)))
+      : (strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.');
+  }
   function sync() {
     const a = amountU();
+    renderFiat(a);
     const fresh = feeU !== null && (!quoteFlow || quotedKey === currentKey());
-    maxBtn.disabled = !state.recipient || (maxSendU === null && !fresh);
-    // F5-6 (#558 B): the hint speaks exactly while the RECIPIENT is the reason
-    maxHint.hidden = !!state.recipient;
-    if (state.recipient) maxBtn.removeAttribute('aria-describedby');
-    else maxBtn.setAttribute('aria-describedby', maxHint.id);
+    const maxOff = !state.recipient || (maxSendU === null && !fresh);
+    const maxDead = maxSendU === null && balU === null;   // ★ #46 r4 NIT-2 (S11): no ceiling and no balance → an enabled Max would do nothing
+    maxBtn.disabled = maxOff || maxDead;
+    useMax.disabled = maxOff || maxDead;
     if (addrErr) {
       // C# rejected the picked address (quote error:'address') — say it, gate it.
       feeLine.textContent = '';
+      pad._error(false);
+      amtRow.hidden = false;
+      useMax.hidden = true;
+      overRow.hidden = false;
       insuff.hidden = false;
       insuff.textContent = strings.badAddress || 'That doesn’t look like an Ixian address.';
       cont.disabled = true;
       return;
     }
+    useMax.hidden = false;
+    const over1 = balU !== null && a > 0n && a > balU;       // stage 1: no fee needed to know this (skipped while the balance is unknown, MINOR-2)
     if (!fresh) {
       // W6 pending state: the honest line, no numbers invented and no STALE ones —
       // a fee quoted for another (recipient, amount) pair never shows (loop MAJOR).
       feeLine.textContent = (a > 0n && state.recipient)
         ? (strings.feePending || 'Calculating network fee…')
-        : (strings.feeUnknown || 'The network fee shows when the recipient and amount are set.');
-      insuff.hidden = true;
+        : (strings.feeNeedsAmount || 'The network fee shows once you enter an amount.');
+      showOver(over1 ? 1 : 0);
       cont.disabled = true;
       requestQuote();
       return;
@@ -490,9 +530,7 @@ export function createWalletSend({
     // mixed convention the money.js header warns against, on one screen.
     feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI · Total {t} IXI')
       .split('{f}').join(groupAmountDisplay(fromUnits(feeU))).split('{t}').join(groupAmountDisplay(fromUnits(total)));
-    const over = a > 0n && a + feeU > balU;
-    insuff.hidden = !over;                                 // unhide BEFORE text → alert announces
-    if (over) insuff.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
+    showOver(over1 ? 1 : (balU !== null && a > 0n && a + feeU > balU) ? 2 : 0);
     cont.disabled = !valid();
   }
   sync();
@@ -503,7 +541,7 @@ export function createWalletSend({
   // legacy) apply to the current pair.
   // Loop r3 R3-2/R3-3 (the same rule as the review sheet's safeUnits): a bridge value
   // is a number ONLY as a raw canonical decimal — anything else is dropped, never thrown
-  // (a throw here stranded the compose on "Calculating…" with ✕ as the only exit) and
+  // (a throw here stranded the compose on "Calculating…" with Back as the only exit) and
   // never coerced; the recipient echo compares string-exact.
   const strictUnits = (v) => {
     const t = String(v == null ? '' : v).trim();
@@ -557,8 +595,37 @@ export function createWalletSend({
   // loop r1 M4: a compose torn down by the shell must not leave a live sheet behind it
   el._closeReview = () => { if (state.review) { state.review.close(true); state.review = null; } };
 
+  function renderContacts(q) {
+    const needle = (q || '').trim().toLocaleLowerCase();
+    rows.textContent = '';
+    const list = contacts.filter((c) => !needle
+      || (c.name || '').toLocaleLowerCase().includes(needle)
+      || (c.address || '').toLocaleLowerCase().includes(needle))
+      .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
+    // #142 (Damir 2026-07-05c): NO caps — the #136 window forced you to know
+    // the name; the full A–Z list scrolls and search narrows. ★ #1263: a pick moves
+    // to step 2, so the list never competes with the amount.
+    for (const c of list) {
+      // ★ W-j: the shared directory row (avatar-48 + name + truncated address +
+      // online dot; #255 pending badge). The surface class stays as an alias for
+      // the shells/pins; the anatomy lives in contact-row.css.
+      rows.append(createContactRow({
+        contact: c, strings, className: 'c-wallet-send__contact',
+        onClick: () => pick({ ...c, contact: true }),
+      }));
+    }
+    if (!list.length && needle) {
+      const none = document.createElement('p');
+      none.className = 'c-wallet-send__none';
+      none.setAttribute('role', 'note');
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
+      rows.append(none);
+    }
+  }
+
   renderContacts('');
-  if (lockedRecipient) pick({ ...lockedRecipient, contact: !!lockedRecipient.name });   // chat Pay: straight to the amount
+  showStep(1);
+  if (lockedRecipient) pick({ ...lockedRecipient, contact: !!lockedRecipient.name });   // chat Pay: straight to step 2
   return el;
 }
 
@@ -787,46 +854,40 @@ export function setSendAddress(el, scanned) {
   const raw = String(scanned || '');
   const parts = raw.split(':');
   const address = parts[0] || '';
-  // a scan supersedes an already-picked recipient — restore the picker first so the
-  // filled field is actually visible (audit m4)
-  const clearBtn = el.querySelector('.c-wallet-send__clear');
-  if (clearBtn) clearBtn.click();
+  // a scan supersedes an already-picked recipient — back to step 1 first so the
+  // filled field is actually visible (audit m4; ★ #1263: step 1 is the picker)
+  if (typeof el._toStep1 === 'function') el._toStep1();
   const input = el.querySelector('.c-wallet-send__addrinput');
   const field = el.querySelector('.c-wallet-send__addrfield');
   if (field) field.hidden = false;
   const addrRow = el.querySelector('.c-wallet-send__addrrow');
   if (addrRow) addrRow.setAttribute('aria-expanded', 'true');
   if (input) { input.value = address; input.focus(); }
-  if (parts[1] === 'send' && parts[2]) {
-    const amt = el.querySelector('.c-wallet-send__amount');
-    // ★ I-6 (#360): seed the field with the DISPLAY form — the input handler
-    // ungroups what it reads, and a raw canonical '1.500' (one-and-a-half with
-    // typed zeros) dropped straight into a ','-decimal locale would read as
-    // grouping (1500, a 1000× error). The display form round-trips exactly.
-    if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
-  }
+  // ★ #1263: the QR amount seeds the KEYPAD (no input to dispatch into) through
+  // pad._set → sanitizeAmount, which is NOT locale-aware: a value with a '.' keeps it
+  // as the decimal and drops every ',' (grouping); a value with only ',' takes the
+  // FIRST ',' as the decimal. So the canonical '1.500' is 1.5 in every app language
+  // (the pad's state is '.'-decimal, never a display string), and a non-canonical
+  // QR '1,500' would also read 1.5 — the legacy QR format carries the canonical form.
+  if (parts[1] === 'send' && parts[2] && typeof el._setAmount === 'function') el._setAmount(parts[2]);
   return el;
 }
 
 /** ★ W-f (Damir F5 2026-08-23): a scanned address that IS a contact picks the
- *  contact — nickname + avatar on the picked row, not the raw-address glyph. The
+ *  contact — nickname + avatar on the chip, not the raw-address glyph. The
  *  shell looks the scan up in its roster and calls this on a hit (setSendAddress
  *  on a miss). `scanned` may carry the QR tail (`:send:<amount>`) — the amount is
  *  seeded exactly as setSendAddress does. Returns false when el is not a compose. */
 export function setSendRecipient(el, contact, scanned) {
   if (!el || typeof el._pick !== 'function' || !contact || !contact.address) return false;
   if (el._locked) return false;                            // loop r1 m3: the #139 locked peer is never redirected
-  const clearBtn = el.querySelector('.c-wallet-send__clear');
-  if (clearBtn) clearBtn.click();                          // a scan supersedes the current pick
+  if (typeof el._toStep1 === 'function') el._toStep1();    // a scan supersedes the current pick
   const field = el.querySelector('.c-wallet-send__addrfield');
   if (field) field.hidden = true;
   const addrRow = el.querySelector('.c-wallet-send__addrrow');
   if (addrRow) addrRow.setAttribute('aria-expanded', 'false');   // loop r1 A-5
   const parts = String(scanned || '').split(':');
-  if (parts[1] === 'send' && parts[2]) {
-    const amt = el.querySelector('.c-wallet-send__amount');
-    if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
-  }
+  if (parts[1] === 'send' && parts[2] && typeof el._setAmount === 'function') el._setAmount(parts[2]);
   el._pick({ ...contact, contact: true });
   return true;
 }
@@ -841,16 +902,15 @@ export function setSendQuote(el, quote) {
 
 /** Inline error on the send view (shell hook parity with apps-add's setAddError). */
 export function setSendError(el, msg) {
-  // ★ W-i: the amount section (and ITS error line) now sits ABOVE the address
-  // field — target the address field's own line while the picker is OPEN; once a
-  // recipient is picked that field is hidden (loop r1 n5), so the VISIBLE amount-
-  // section line takes the message instead. Never an invisible error.
+  // ★ #1263: step 1 (the picker open) → the address field's own line; step 2 → the
+  // amount section's line, which is the visible one there. Never an invisible error.
   const picker = el && el.querySelector('.c-wallet-send__picker');
-  const err = el && ((picker && !picker.hidden) ? el.querySelector('.c-wallet-send__addrfield .c-wallet-send__error') : el.querySelector('.c-wallet-send__section--amount .c-wallet-send__error'))
+  const step1 = picker && !picker.closest('[hidden]');
+  const err = el && (step1 ? el.querySelector('.c-wallet-send__addrfield .c-wallet-send__error') : el.querySelector('.c-wallet-send__section--amount .c-wallet-send__error'))
     || (el && el.querySelector('.c-wallet-send__error'));
   if (!err) return el;
+  if (!step1) { const row = err.closest('.c-wallet-send__over'); if (row) row.hidden = !msg; }
   err.hidden = !msg;                                     // unhide BEFORE text → alert announces (audit m3)
   err.textContent = msg || '';
   return el;
 }
-

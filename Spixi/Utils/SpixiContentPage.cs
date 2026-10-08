@@ -1030,6 +1030,9 @@ namespace SPIXI
             /* ★ S10 #46 r1 M5: true while setHoldGrounds holds the grounds TRANSPARENT (main thread) — a theme sweep then leaves
              * them alone (recolourStagedGrounds); the release paints the CURRENT pageSurfaceColor anyway. */
             public bool groundsHeld = false;
+            /* ★ S11 C2 (#1263, R1-m5): bumped by every hold of this stage (main thread) — a dev-switch action deferred by an
+             * OLDER hold's release skips when a newer hold started (S11ChatRules.deferredOwns). */
+            public int holdSeq = 0;
             public volatile bool closing = false;   // ★ L8: set at the top of closeOverlay
             // W7: the inset this stage was staged with (#245 rail strip for the Account
             // peer pane; zero for every other op). Remembered so a page opened FROM this
@@ -1097,7 +1100,18 @@ namespace SPIXI
             {
                 gate.TrySetResult(true);
             }
+            /* ★ S11 C (#1262) 10-FLASH candidate: a hold waiting for THIS page's paint answer (the `paintAck` push it sent
+             * when the stage went on glass) hears it here. Null = nothing waiting (every other page, every other time). */
+            Action? ack = holdPaintAck;
+            if (ack != null)
+            {
+                try { ack(); } catch (Exception) { }
+            }
         }
+
+        /** ★ S11 C (#1262) 10-FLASH candidate: set by the Android hold (PaintHold) while it waits for this page's
+         *  `ixian:painted` answer; cleared when the hold ends. Main thread (the navigating callback + the frame loop). */
+        internal volatile Action? holdPaintAck = null;
 
         private static readonly object preloadLock = new object();
         private static PreloadOp? activePreload = null;
@@ -4592,9 +4606,33 @@ namespace SPIXI
             op.stage.Opacity = 1;
             PreloadOp held = op;
             Android.Webkit.WebView? heldView = native;
+            /* ★ S11 C (#1262) 10-FLASH (V-26). The S10 recording: the list (held) → 4 flat ground frames → 1 grey frame →
+             * the chat — the release came BEFORE the chat WebView composited (PresentHold ends on the visual-state
+             * callback + one frame, and the release paints the grounds opaque at once). CANDIDATE (default ON): the hold
+             * asks the chat shell for a fresh paint (`paintAck` → its `ixian:painted` two frames later, i.e. Chromium is
+             * producing frames for the now-visible view) and releases one frame after that answer; the grounds stay
+             * transparent until then; the 250 ms cap stays the backstop. Developer switches (DevPage, dev mode only):
+             * candidate OFF = the old path below, unchanged · skip the grounds write / the input flip at the release
+             * (each then runs FlashDeferMs later). The [P1] probe stamps every frame from the hold to 8 after the release. */
+            int flash = flashBitsNow();
+            int seq = ++op.holdSeq;   // ★ S11 C2 (#1263, R1-m5): this hold's number on the stage
+            S11FlashProbe? probe = S11FlashProbe.start(native);
+            if (!S11ChatRules.flashOn(flash, S11ChatRules.FlashCandidateOff))
+            {
+                p1HoldProbe(op);   // ★ P-1 (#1127) — TEMPORARY: the A1 probe, before the hold (the candidate path)
+                S11PaintHold.start(held, heldView, HoldCapMs, (frames, ms, why, vscSeen, ackAt, stale) =>
+                    releaseHeld(held, heldView, nbgPre, frames, ms, why, flash, true, vscSeen, ackAt, stale, seq, probe));
+                return;
+            }
             p1HoldProbe(op);   // ★ P-1 (#1127) — TEMPORARY: the A1 probe (#1123 (1): why=noview), always before the hold
             Spixi.PresentHold.start(native, HoldCapMs, (frames, ms, why) =>
             {
+                if (S11ChatRules.flashOn(flash, S11ChatRules.FlashSkipGrounds | S11ChatRules.FlashSkipInput))
+                {
+                    releaseHeld(held, heldView, nbgPre, frames, ms, why, flash, false, why == S11ChatRules.WhyVsc, -1, 0, seq, probe);   // ★ S11 C: a skip switch on the old path
+                    return;
+                }
+                probe?.released(why, frames, ms, false, why == S11ChatRules.WhyVsc, -1, 0, flash);   // ★ S11 C [P1] — TEMPORARY: the release tick
                 try
                 {
                     setHoldGrounds(held, heldView, false);
@@ -4708,6 +4746,322 @@ namespace SPIXI
             {
             }
             return S10MediaRules.argbToken(null);
+        }
+
+        /* ═══ ★ S11 C (#1262) 10-FLASH — the candidate hold, the dev switches, the [P1] probe (Android only) ═══ */
+
+        /** The Developer-screen switch bits that ACT now (0 = the shipped behaviour: candidate ON, nothing skipped).
+         *  Read once per hold (two Preferences reads); dev mode off → 0 whatever is stored. */
+        private static int flashBitsNow()
+        {
+            try
+            {
+                bool dev = Microsoft.Maui.Storage.Preferences.Default.Get("devMode", false);
+                return S11ChatRules.effectiveFlashBits(dev, dev ? Microsoft.Maui.Storage.Preferences.Default.Get(S11ChatRules.FlashPrefKey, 0) : 0);
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+
+        /** The release of a held stage with the dev switches applied: the grounds back (the #248 resize backing) and the
+         *  stage input-live (unless a close started — the A3 rule), each its own try; a SKIPPED action is not dropped, it
+         *  runs FlashDeferMs later (never a hole, never an input-dead chat). Then the same [P1] / [CDPERF] lines as the old
+         *  release. Main thread. ★ S11 C2 (#1263, R1-m5): the deferred action skips when a newer hold of the same stage
+         *  started inside the FlashDeferMs (that hold owns the grounds and the input now). */
+        private static void releaseHeld(PreloadOp held, Android.Webkit.WebView? heldView, string nbgPre, int frames, long ms, string why,
+            int flash, bool candidate, bool vscSeen, int ackAt, int staleAcks, int seq, S11FlashProbe? probe)
+        {
+            bool skipGrounds = S11ChatRules.flashOn(flash, S11ChatRules.FlashSkipGrounds);
+            bool skipInput = S11ChatRules.flashOn(flash, S11ChatRules.FlashSkipInput);
+            if (!skipGrounds)
+            {
+                try { setHoldGrounds(held, heldView, false); } catch (Exception) { }
+            }
+            if (!skipInput)
+            {
+                try { if (!held.closing) { held.stage.InputTransparent = false; } } catch (Exception) { }
+            }
+            if (skipGrounds || skipInput)
+            {
+                Task.Delay(S11ChatRules.FlashDeferMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (!S11ChatRules.deferredOwns(seq, held.holdSeq))
+                    {
+                        P1Perf.line("hold deferred skip=newer");
+                        return;
+                    }
+                    if (skipGrounds)
+                    {
+                        try { setHoldGrounds(held, heldView, false); } catch (Exception) { }
+                    }
+                    if (skipInput)
+                    {
+                        try { if (!held.closing) { held.stage.InputTransparent = false; } } catch (Exception) { }
+                    }
+                    P1Perf.line("hold deferred grounds=" + (skipGrounds ? "1" : "0") + " input=" + (skipInput ? "1" : "0"));
+                }));
+            }
+            probe?.released(why, frames, ms, candidate, vscSeen, ackAt, staleAcks, flash);
+            if (P1Perf.enabled)
+            {
+                P1Perf.line("hold release bg=" + (held.target.keepsNativeWebViewTransparent || heldView == null ? "kept" : "set"));
+                P1Perf.line("hold nbg pre=" + nbgPre + " post=" + nativeGroundToken(heldView) + " vg=" + groundTokenOf((heldView?.Parent as Android.Views.View)?.Background));
+            }
+            Logging.info("[CDPERF] chat held frames={0} ms={1} why={2}", frames, ms, why);   // ★ G-1 — TEMPORARY, retire with the set
+        }
+
+        /** ★ S11 C: the CANDIDATE hold. At start it pushes `paintAck` to the held chat (the shell answers `ixian:painted`
+         *  after two rAFs — a frame Chromium produced for the now-visible view) and counts Choreographer frames; it
+         *  releases AckFrames frame(s) after the answer (S11ChatRules.holdStep), or at the cap. ★ S11 C2 (#1263, R1-m1): an
+         *  `ixian:painted` before Choreographer frame AckMinFrames is NOT the answer (S11ChatRules.ackStep — stale, counted
+         *  on the release line as stale=, the accepted answer's frame as ackf=). The visual-state callback
+         *  is still posted, only to report vsc= on the release line. `window.paintAck` = a guarded reference: an older
+         *  shell without the handler gets executeUiCommand(undefined) → "not a function", ignored — the hold then ends at
+         *  the cap (today's worst case). Exactly once; fixed words + integers only. */
+        private sealed class S11PaintHold
+        {
+            private readonly PreloadOp op;
+            private readonly int capMs;
+            private readonly Action<int, long, string, bool, int, int> onEnd;   // frames, ms, why, vscSeen, ackAt, staleAcks
+            private readonly long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            private int frames = 0;
+            private volatile int ackAt = -1;     // the frame count when the answer arrived (-1 = not yet)
+            private int staleAcks = 0;           // ★ S11 C2: painted signals heard before AckMinFrames (not the answer)
+            private volatile bool vscSeen = false;
+            private bool ended = false;
+            private Action? ackHook = null;
+
+            private S11PaintHold(PreloadOp op, int capMs, Action<int, long, string, bool, int, int> onEnd)
+            {
+                this.op = op;
+                this.capMs = capMs;
+                this.onEnd = onEnd;
+            }
+
+            /** MAIN THREAD. A null WebView ends at once with why=noview (the grounds come back in the same frame). */
+            public static void start(PreloadOp op, Android.Webkit.WebView? view, int capMs, Action<int, long, string, bool, int, int> onEnd)
+            {
+                S11PaintHold h = new S11PaintHold(op, capMs, onEnd);
+                if (view == null)
+                {
+                    h.end("noview");
+                    return;
+                }
+                h.ackHook = h.onAck;
+                op.target.holdPaintAck = h.ackHook;
+                try
+                {
+                    Utils.sendUiCommand(op.target, "window.paintAck");
+                }
+                catch (Exception)
+                {
+                }
+                Android.Views.Choreographer.Instance?.PostFrameCallback(new S11FrameCb(h.onFrame));
+                try
+                {
+                    view.PostVisualStateCallback(1, new S11Vsc(h.onVisualState));
+                }
+                catch (Exception)
+                {
+                }
+                view.PostDelayed(() => h.end(S11ChatRules.WhyCap), capMs);
+            }
+
+            private long elapsedMs()
+            {
+                return (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000 / System.Diagnostics.Stopwatch.Frequency;
+            }
+
+            private void onAck()
+            {
+                int f = frames;
+                if (S11ChatRules.isStaleAck(ended, ackAt, f))
+                {
+                    staleAcks++;
+                }
+                ackAt = S11ChatRules.ackStep(ended, ackAt, f);
+            }
+
+            private void onVisualState()
+            {
+                vscSeen = true;
+            }
+
+            private void onFrame(long frameTimeNanos)
+            {
+                if (ended)
+                {
+                    return;
+                }
+                frames++;
+                int at = ackAt;
+                string why = S11ChatRules.holdStep(true, vscSeen, at >= 0, at >= 0 ? frames - at : 0, elapsedMs(), capMs);
+                if (why.Length > 0)
+                {
+                    end(why);
+                    return;
+                }
+                Android.Views.Choreographer.Instance?.PostFrameCallback(new S11FrameCb(onFrame));
+            }
+
+            private void end(string why)
+            {
+                if (ended)
+                {
+                    return;
+                }
+                ended = true;
+                try
+                {
+                    if (ackHook != null && ReferenceEquals(op.target.holdPaintAck, ackHook))
+                    {
+                        op.target.holdPaintAck = null;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+                try
+                {
+                    onEnd(frames, elapsedMs(), why, vscSeen, ackAt, staleAcks);
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("PaintHold end failed: " + ex.GetType().Name);
+                }
+            }
+        }
+
+        /** ★ S11 C [P1] — TEMPORARY, retire with the [P1] set (dev builds only; null otherwise). One `hold frame` line per
+         *  Choreographer frame from the hold start to ProbePostFrames frames after the release (60 frames at most): rel=
+         *  held/released, od= the window's onDraw passes (a ViewTreeObserver listener on the chat WebView's tree), dirty=
+         *  the WebView's isDirty(). No PixelCopy, no read of content. Plus the `hold release` tick line. */
+        private sealed class S11FlashProbe
+        {
+            private readonly Android.Webkit.WebView view;
+            private readonly long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            private bool released_ = false;
+            private int frames = 0;
+            private int post = 0;
+            private int draws = 0;
+            private bool done = false;
+            private Android.Views.ViewTreeObserver? vto = null;
+            private S11DrawL? listener = null;
+
+            private S11FlashProbe(Android.Webkit.WebView view)
+            {
+                this.view = view;
+            }
+
+            public static S11FlashProbe? start(Android.Webkit.WebView? view)
+            {
+                if (!P1Perf.enabled || view == null)
+                {
+                    return null;
+                }
+                S11FlashProbe p = new S11FlashProbe(view);
+                try
+                {
+                    p.vto = view.ViewTreeObserver;
+                    p.listener = new S11DrawL(() => { p.draws++; });
+                    p.vto?.AddOnDrawListener(p.listener);
+                }
+                catch (Exception)
+                {
+                }
+                Android.Views.Choreographer.Instance?.PostFrameCallback(new S11FrameCb(p.onFrame));
+                return p;
+            }
+
+            public void released(string why, int heldFrames, long ms, bool candidate, bool vscSeen, int ackAt, int staleAcks, int flash)
+            {
+                if (done)
+                {
+                    return;
+                }
+                released_ = true;
+                P1Perf.line(S11ChatRules.holdReleaseLine(why, heldFrames, ms, candidate, vscSeen, ackAt, staleAcks, flash));
+            }
+
+            private void onFrame(long frameTimeNanos)
+            {
+                if (done)
+                {
+                    return;
+                }
+                frames++;
+                bool rel = released_;
+                if (rel)
+                {
+                    post++;
+                }
+                bool dirty = false;
+                try { dirty = view.IsDirty; } catch (Exception) { }
+                long ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000 / System.Diagnostics.Stopwatch.Frequency;
+                P1Perf.line(S11ChatRules.holdFrameLine(frames, ms, rel, draws, dirty));
+                if (post >= S11ChatRules.ProbePostFrames || frames >= 60)
+                {
+                    stop();
+                    return;
+                }
+                Android.Views.Choreographer.Instance?.PostFrameCallback(new S11FrameCb(onFrame));
+            }
+
+            /* ★ S11 C2 (#1263, R1-m5): the listener was added to the VTO captured at start; when that one is dead (a floating
+             * VTO merged into the window's at attach, or a re-parent) the listener lives on the view's CURRENT observer —
+             * remove it there too (removing an absent listener is a no-op), each in its own try. */
+            private void stop()
+            {
+                done = true;
+                if (listener == null)
+                {
+                    return;
+                }
+                try
+                {
+                    if (vto != null && vto.IsAlive)
+                    {
+                        vto.RemoveOnDrawListener(listener);
+                    }
+                }
+                catch (Exception)
+                {
+                }
+                try
+                {
+                    Android.Views.ViewTreeObserver? now = view.ViewTreeObserver;
+                    if (now != null && now.IsAlive)
+                    {
+                        now.RemoveOnDrawListener(listener);
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+
+        private sealed class S11FrameCb : Java.Lang.Object, Android.Views.Choreographer.IFrameCallback
+        {
+            private readonly Action<long> a;
+            public S11FrameCb(Action<long> a) { this.a = a; }
+            public void DoFrame(long frameTimeNanos) { a(frameTimeNanos); }
+        }
+
+        private sealed class S11Vsc : Android.Webkit.WebView.VisualStateCallback
+        {
+            private readonly Action a;
+            public S11Vsc(Action a) { this.a = a; }
+            public override void OnComplete(long requestId) { a(); }
+        }
+
+        private sealed class S11DrawL : Java.Lang.Object, Android.Views.ViewTreeObserver.IOnDrawListener
+        {
+            private readonly Action a;
+            public S11DrawL(Action a) { this.a = a; }
+            public void OnDraw() { a(); }
         }
 #endif
 

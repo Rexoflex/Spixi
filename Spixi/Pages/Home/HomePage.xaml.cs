@@ -913,10 +913,38 @@ namespace SPIXI
                 global::Spixi.MainActivity.releaseBootHold("dropped");
 #endif
                 scheduleWalletPrePush(false);   // ★ S10 F6 (#1254): the wallet rows before the first Wallet tab visit
+                /* ★ S11 F (#1262): the installed apps before the first Apps tab visit. ★ S11 A2 (#1263, R1-n2): AFTER the
+                 * boot-hold release — the frame the user is waiting for goes first; the pre-push only schedules a timer. */
+                scheduleAppsPrePush(false);
             }
             else if (current_url.Equals("ixian:onload", StringComparison.Ordinal))
             {
                 onLoaded();
+            }
+            else if (current_url.Equals("ixian:updateHelp", StringComparison.Ordinal))
+            {
+                /* ★ S11 A2 (#1263, R1-M2, 🟡 NEW verb, no argument, cap `updateHelp`): the update card's "How to update".
+                 * The URL is C#'s own compile-time constant (Config.updateHelpUrl) — the ixian:about / ixian:guide
+                 * grammar — so no URL crosses the bridge and HomePage has NO openLink sink (the S11 A third branch is
+                 * deleted: the sink stays at SettingsPage + SingleChatPage). Tips 1–4 will follow the same pattern. */
+                Utils.openExternal(Config.updateHelpUrl);   // the one external-open gate (Spixi/Utils/Utils.cs)
+            }
+            else if (current_url.StartsWith("ixian:hint:", StringComparison.Ordinal))
+            {
+                /* ★ S11 A (#1262, 🟡 NEW verb): `ixian:hint:<shown|done>:<tip id>` from the Chats-list hint card. The action
+                 * and the id are validated against fixed sets (S11HintRules.parseVerb) BEFORE anything is written; a refused
+                 * verb is dropped silently — the raw input is never logged. SHints stores the counters (local-only file). */
+                if (S11HintRules.parseVerb(current_url.Substring("ixian:hint:".Length), out string hintAction, out string hintId))
+                {
+                    if (hintAction == S11HintRules.ActionShown)
+                    {
+                        SHints.markShown(SHints.nowMs());
+                    }
+                    else
+                    {
+                        SHints.markDone(hintId);
+                    }
+                }
             }
             else if (current_url.Equals("ixian:wallet", StringComparison.Ordinal))
             {
@@ -1495,7 +1523,8 @@ namespace SPIXI
                     // appsPushedToShell). Otherwise the shouldRefreshApps gate decides —
                     // an install / uninstall / icon change still re-pushes, an unchanged
                     // list costs nothing and the WebView keeps its decoded icons.
-                    loadApps(!appsPushedToShell);
+                    // ★ S11 F (#1262): the latch is read under appsPushLock now (a running pre-push).
+                    enterAppsTab();
                 }
             }
             else if (current_url.Equals("ixian:downloads", StringComparison.Ordinal))
@@ -2736,7 +2765,10 @@ namespace SPIXI
             // ★ W5 (#523): declare the money-compose capability for this build.
             // ★★ L1 (#640): there is no legacy flow behind this gate any more — the
             // shell's Send button opens the compose, or it does nothing.
-            Utils.sendUiCommand(this, "setCaps", "composeSend");
+            // ★ S11 A (#1262): + hints — this exe handles ixian:hint:* and pushes setHints (the counters, right below).
+            // ★ S11 A2 (#1263, R2-m4): + updateHelp — this exe handles ixian:updateHelp (the update card's link).
+            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp");
+            pushHints();
 
             // ★ D-20 (#357): the "Connecting…" state died with the document. warningDisplayed
             // is a C# field, so it survives every shell reload (language re-bake, theme, WebView
@@ -2768,11 +2800,27 @@ namespace SPIXI
             }
 
             checkForRating();
+            scheduleAppsPrePush(true);   // ★ S11 F (#1262): the same M4 order rule as the wallet's, below
             scheduleWalletPrePush(true);   // ★ S10 F6 #46 r1 (M4): bootDropped may have come BEFORE this onload
         }
 
         private void onNavigated(object sender, WebNavigatedEventArgs e)
         {
+        }
+
+        /* ★ S11 A (#1262, 🟡 NEW push, cap `hints`): the hint counters (SHints) → the home shell, which picks the tip.
+         * Sent from onLoaded (a fresh document — firstSeen is written there on the first load) and again by SettingsPage
+         * when the "Tips on the Chats screen" switch moves, so an open hint goes the moment hints are turned off. */
+        public void pushHints()
+        {
+            try
+            {
+                Utils.sendUiCommand(this, "setHints", SHints.pushJson(SHints.nowMs()));
+            }
+            catch (Exception e)
+            {
+                Logging.warn("hints: the push failed (" + e.GetType().Name + ")");
+            }
         }
 
 
@@ -4445,6 +4493,123 @@ namespace SPIXI
             P1Perf.line("wallet tab2 first prepushed=" + (prePushRanGen == gen ? "1" : "0") + " rows=" + rows + " ms=" + ms);
         }
 
+        /* ★ S11 F (#1262, Damir: "I have a feeling it loads when I open mini apps"): the Apps twin of the F6 wallet
+         * pre-push above. Nothing fed the installed list at boot (UIHelpers.shouldRefreshApps starts false), so the FIRST
+         * tab3 entry of a document ran loadApps(true) on the UI thread — per app an icon file read + base64
+         * (Utils.imageToDataUri) and one EvaluateJavaScript carrying that data URI, then reloadScreen() per chat page.
+         * Same pattern, own state: a second S10FixRules.PrePushGate over the SAME document generation (txDocGen — bumped
+         * exactly where appsPushedToShell resets), S11AppsRules.AppsPrePushDelayMs later (after the wallet burst), only a
+         * never-fed document while Apps is not current (S11AppsRules.appsPrePush), the SAME forced push the tab entry makes
+         * (loadApps(true) — on the pool, like the tick's loadApps(false) already runs; appsPushLock serializes it).
+         * No new push, no network: the list and icons are local files. UI thread only. */
+        private readonly S10FixRules.PrePushGate appsPrePushGate = new S10FixRules.PrePushGate();
+        private int appsPrePushDocGen = -1;
+        private int appsPrePushRanGen = -1;
+        private int appsTab3ProbeDocGen = -1;
+        private long appsBootDroppedT0 = 0;
+        private bool appsPrePushing = false;   // written and read only under appsPushLock
+
+        private void scheduleAppsPrePush(bool fromOnLoad)
+        {
+            int gen = System.Threading.Volatile.Read(ref txDocGen);
+            if (!fromOnLoad)
+            {
+                appsBootDroppedT0 = P1Perf.now();
+            }
+            if (!(fromOnLoad ? appsPrePushGate.onLoaded(gen) : appsPrePushGate.onDropped(gen)))
+            {
+                return;
+            }
+            appsPrePushDocGen = gen;
+            Task.Delay(S11AppsRules.AppsPrePushDelayMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    if (!running || gen != System.Threading.Volatile.Read(ref txDocGen) || !S11AppsRules.appsPrePush(appsPushedToShell, currentTab))
+                    {
+                        return;
+                    }
+                    appsPrePushRanGen = gen;
+                    long t0 = P1Perf.now();
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            lock (appsPushLock)
+                            {
+                                /* re-checked under the lock: a tab3 entry (or the tick) that pushed while this waited → nothing */
+                                if (gen != System.Threading.Volatile.Read(ref txDocGen) || appsPushedToShell)
+                                {
+                                    return;
+                                }
+                                appsPrePushing = true;   // read by loadApps under this same lock: no chat-page reload
+                                try
+                                {
+                                    loadApps(true);   // on the pool: the burst runs here, so its end is the probe's end
+                                }
+                                finally
+                                {
+                                    appsPrePushing = false;
+                                }
+                            }
+                            if (P1Perf.enabled)
+                            {
+                                P1Perf.line(S11AppsRules.prePushLine(installedAppCount(), P1Perf.msSince(t0)));   // TEMPORARY [P1]
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Logging.warn("apps prepush skipped (" + e.GetType().Name + ")");
+                        }
+                    });
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("apps prepush skipped (" + e.GetType().Name + ")");
+                }
+            }));
+        }
+
+        /** ★ S11 F — the tab3 entry. The latch is read INSIDE appsPushLock (Monitor is re-entrant; loadApps takes it
+         *  again): read outside, a tap during a running pre-push saw "not fed", waited for the lock and pushed the whole
+         *  list a second time. Unchanged otherwise: the first entry of a never-fed document forces, then the gate decides. */
+        private void enterAppsTab()
+        {
+            long t0 = P1Perf.now();
+            lock (appsPushLock)
+            {
+                loadApps(!appsPushedToShell);
+            }
+            probeFirstAppsVisit(t0);   // ★ S11 F — TEMPORARY [P1]
+        }
+
+        /** ★ S11 F — TEMPORARY, retire with the [P1] set: the first Apps tab visit of a document — was it pre-pushed, how
+         *  many apps, how long after bootDropped (-1 = no bootDropped for this document), what the entry cost. */
+        private void probeFirstAppsVisit(long entryT0)
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            int gen = System.Threading.Volatile.Read(ref txDocGen);
+            if (appsTab3ProbeDocGen == gen)
+            {
+                return;
+            }
+            appsTab3ProbeDocGen = gen;
+            long ms = appsPrePushDocGen == gen ? P1Perf.msSince(appsBootDroppedT0) : -1;
+            P1Perf.line(S11AppsRules.firstVisitLine(appsPrePushRanGen == gen, installedAppCount(), ms, P1Perf.msSince(entryT0)));
+        }
+
+        private static int installedAppCount()
+        {
+            var apps = Node.MiniAppManager.getInstalledApps();
+            lock (apps)
+            {
+                return apps.Count;
+            }
+        }
+
         public void loadTransactions(bool forceRefresh)
         {
             /* ★★ ROUND 2 — THIS FLUSH MUST NEVER RUN ON THE UI THREAD.
@@ -5970,7 +6135,10 @@ namespace SPIXI
                 {
                     detailContent.updateScreen();
                 }
+                bool listChanged = UIHelpers.shouldRefreshApps;   // ★ S11 F (#1262): read before the reset (the chat-page reload below)
                 UIHelpers.shouldRefreshApps = false;
+                // ★ S11 A2 (#1263, R1-m2): the document these rows are for — read BEFORE clearApps (the wallet's A-N5 rule)
+                int appsGenAtPush = System.Threading.Volatile.Read(ref txDocGen);
 
                 Utils.sendUiCommand(this, "clearApps");
 
@@ -5994,16 +6162,25 @@ namespace SPIXI
                 // actually receive it. sendMessage queues while the page is unloaded and
                 // Dispose() drops that queue — latching on a push that was queued and then
                 // discarded is what makes an empty apps tab permanent.
-                appsPushedToShell = pageLoaded;
+                // ★ S11 A2 (#1263, R1-m2): …and only if the document is still the one the burst was for. A reload during
+                // the burst (onLoaded / reload / reloadShell reset the latch and bump txDocGen) must not be re-latched by
+                // the OLD burst finishing after it — the fresh document would never be fed (walletLatchAfterBurst's rule).
+                appsPushedToShell = S11AppsRules.appsLatchAfterBurst(pageLoaded, appsGenAtPush, System.Threading.Volatile.Read(ref txDocGen));
 
                 // ★ #506③: the end of the apps burst — see the note in loadTransactions.
                 // AFTER appsPushedToShell for the same reason that latch is set here: this
                 // is the point at which every row really has been handed over.
                 Utils.sendUiCommand(this, "clearAppsDone");
 
-                foreach (var p in Utils.getChatPages())
+                /* ★ S11 F (#1262): the pre-push feeds a fresh HOME document an UNCHANGED list — the chat pages hold nothing
+                 * stale, and reloadScreen() (loadApps + loadMessages) ~2 s after boot would re-flush a chat the user may
+                 * already be reading. A changed list (an install / uninstall raised shouldRefreshApps) still reloads them. */
+                if (S11AppsRules.reloadChatPages(listChanged, appsPrePushing))
                 {
-                    p.reloadScreen();
+                    foreach (var p in Utils.getChatPages())
+                    {
+                        p.reloadScreen();
+                    }
                 }
             }
         }

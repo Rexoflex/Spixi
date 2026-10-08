@@ -346,11 +346,14 @@
   inset-inline: 0;
   bottom: 0;
   height: var(--outline-width-2);
+  /* ★ S11 A (#1262, Damir's pick B "blue to violet, one strip"): the sweep blends brand blue → indigo → violet
+     (tokens.css region A). The geometry, the animation and the reduced-motion rule below are unchanged. */
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    var(--surface-action-default) 35%,
-    var(--surface-action-default) 65%,
+    var(--connecting-line-blue) 30%,
+    var(--connecting-line-indigo) 48%,
+    var(--connecting-line-violet) 66%,
     transparent 100%
   );
   background-size: 220% 100%;
@@ -1851,9 +1854,8 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-account .c-disc.c-settings-about__logo > svg,
 .c-account .c-disc.c-settings-contrib__art-disc > svg { width: 32px; height: 32px; }
 
-/* ★ S10 P4 (#1254): the Chat appearance "Message preview" card is a single value row — the hub's card padding (4),
-   as the Canvas card (settings-screens.css .c-settings-appearance__groundsec, Session M #774). */
-.c-settings-appearance .c-settings__section.c-settings-appearance__previewsec { padding: var(--spacing-4); }
+/* ★ S10 P4 (#1254) → ★ S11 A2 (#1263): the "Message preview" card is an inline segmented control now (the Text size
+   grammar) — it takes the plain section padding, so the single-row padding rule that stood here is gone. */
 
 </style><!-- ★ #1080 F2 (#46 r1): the .c-account dials live here — without it the body class reached nothing -->
 <style data-src="../styles/components/settings-backup.css">
@@ -2108,6 +2110,71 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 }
 
 </style>
+<style data-src="../styles/components/illo.css">
+/* illo — ★ S11 B (#1262): motion for the inline illustration set (illustrations.js).
+   ONE entrance, then the frame holds (every animation runs once, fill both; nothing
+   loops). Reduced motion = static. Colours are tokens (--il-* / --rn-*, tokens.css);
+   per-element dials are inline custom properties in the art (--o delay, --i stagger…). */
+
+.il { display: block; overflow: visible; }
+/* ★ S11 A2 (#1263): the ground shadow's token rides CSS (a var() in the SVG attribute is not reliably resolved) */
+.il-ground { opacity: var(--il-ground-a); }
+.il-ring { animation: ilRing 1.1s cubic-bezier(.2,.7,.3,1) both; transform-box: fill-box; transform-origin: center; }
+.il-fade { animation: ilFade .9s ease-out var(--o,0s) both; }
+.il-pop { animation: ilPop .7s cubic-bezier(.3,1.35,.5,1) var(--o,0s) both; transform-box: fill-box; transform-origin: var(--to,50% 100%); }
+.il-in { animation: ilIn .8s cubic-bezier(.2,.8,.3,1) var(--o,0s) both; }
+.il-drop { animation: ilDrop .9s cubic-bezier(.35,1.25,.55,1) var(--o,0s) both; }
+.il-fly { animation: ilFly 1.1s cubic-bezier(.3,.9,.35,1) var(--o,0s) both; }
+.il-grow { animation: ilGrow .7s cubic-bezier(.3,.8,.3,1) var(--o,0s) both; transform-box: fill-box; transform-origin: center; }
+.il-draw { stroke-dasharray: var(--len) var(--len); animation: ilDraw 1s cubic-bezier(.4,0,.2,1) var(--o,0s) both; }
+.il-tw { animation: ilTw 1.6s ease-in-out calc(var(--o,1s) + var(--i) * .25s) both; transform-box: fill-box; transform-origin: center; }
+.il-dot { animation: ilDot 1.1s ease-in-out calc(var(--i) * .16s + 1.2s) 3 both; }
+.il-scan { animation: ilScan 2.2s ease-in-out var(--o,1s) both; }
+.il-glowin { animation: ilGlowIn 1.6s ease-out var(--o,0s) both; }
+.il-float { animation: ilFloat 4.6s cubic-bezier(.45,0,.55,1) calc(var(--d,0s) * -.25) both; }
+.il-rise { animation: ilRise .8s cubic-bezier(.3,1.2,.5,1) calc(var(--o,0s) + .15s) both; }
+@keyframes ilRing { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+@keyframes ilFade { from { opacity: 0; } }
+@keyframes ilPop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes ilIn { from { opacity: 0; transform: translate(var(--fx,0),var(--fy,8px)); } to { opacity: 1; transform: none; } }
+@keyframes ilDrop { 0% { opacity: 0; transform: translateY(var(--dy,-34px)); } 40% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ilFly { 0% { opacity: 0; transform: translate(var(--fx),var(--fy)) scale(.5); } 30% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ilGrow { from { opacity: 0; transform: scaleX(.1); } to { opacity: 1; transform: none; } }
+@keyframes ilDraw { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+@keyframes ilTw { 0% { opacity: 0; transform: scale(.3); } 55% { opacity: 1; transform: scale(1.2); } 100% { opacity: .9; transform: none; } }
+@keyframes ilDot { 0%, 100% { opacity: .45; } 40% { opacity: 1; } }
+@keyframes ilScan { 0% { opacity: 0; transform: translateY(calc(var(--sy) * -1)); } 15% { opacity: 1; } 55% { transform: translateY(var(--sy)); } 100% { opacity: .8; transform: none; } }
+@keyframes ilGlowIn { 0% { opacity: 0; } 60% { opacity: 1; } 100% { opacity: .85; } }
+@keyframes ilFloat { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+@keyframes ilRise { from { opacity: 0; transform: translateY(22px) scale(.92); } to { opacity: 1; transform: none; } }
+
+/* the rating art (version D "Phone", rn-once): bubbles pop in, a heart lands, hearts rise
+   beside the phone — ONCE (the design file looped the idle motions twice; "plays once and
+   holds" wins), then the frame holds. */
+.rn-illo { display: block; width: 100%; height: auto; margin-inline: auto; overflow: visible; }
+.rn-once .rn-pop { animation: rnPopIn .5s cubic-bezier(.3,.7,.4,1) calc(var(--o) + .3s) both; transform-box: fill-box; transform-origin: left bottom; }
+.rn-once .rn-rise { animation: rnRise 5.2s cubic-bezier(.3,0,.5,1) var(--o) both; }
+.rn-once .rn-float { animation: rnFloat 5.2s cubic-bezier(.45,0,.55,1) var(--d) both; }
+.rn-once .rn-beat { animation: rnBeat 2.8s cubic-bezier(.45,0,.55,1) both; transform-box: fill-box; transform-origin: 50% 60%; }
+.rn-once .rn-spin { animation: rnSpin 7s cubic-bezier(.45,0,.55,1) both; transform-box: fill-box; transform-origin: center; }
+.rn-once .rn-tw { animation: rnTw 3.2s ease-in-out calc(var(--i) * .8s) both; transform-box: fill-box; transform-origin: center; }
+@keyframes rnPopIn { from { opacity: 0; transform: translateY(6px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes rnRise { 0% { opacity: 0; transform: translate(0,0) scale(.7); } 15% { opacity: 1; } 70% { opacity: .9; } 100% { opacity: 0; transform: translate(var(--x),-84px) scale(1); } }
+@keyframes rnFloat { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+@keyframes rnBeat { 0%, 20%, 42%, 100% { transform: none; } 10% { transform: scale(1.07); } 30% { transform: scale(1.05); } }
+@keyframes rnSpin { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(8deg) scale(1.04); } }
+@keyframes rnTw { 0%, 100% { opacity: .2; transform: scale(.55); } 50% { opacity: .9; transform: none; } }
+
+/* ★ S11 A2 (#1263, R2-m2): one entrance per lifetime — once held (illustrations.js), a restart begins 60 s in the
+   past, so the `both` fill paints the END frame (animation:none would show the base styles, not the end frames) */
+.il[data-held] *, .rn-illo[data-held] * { animation-delay: -60s !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .il *, .rn-illo * { animation: none !important; }
+  .rn-rise, .rn-pop { opacity: .9; }
+}
+
+</style><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <style data-src="../styles/components/avatar.css">
 /* c-avatar — photo or deterministic gradient placeholder (DECISIONS.md #34, #364).
    N1 rework (supersedes #37): JS stamps the anchor INDEX (data-hue 0..11);
@@ -2374,7 +2441,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   function mountBackup() {
   root.replaceChildren(createSettingsBackup({
     status: backupStatus(),                      // ★ S2: from the push
-    illustration: 'images/backup.png',          // Damir: build-shells copies src/demo/images → …/html/images
+    illustration: 'backup',                     // ★ S11 A2 (#1263, R2-m5): the inline art's NAME (illustrations.js) — the PNG is deleted
     host: document.body,
     strings,
     onBack: () => bridge.send('ixian:back'),     // BackupPage.popPageAsync()

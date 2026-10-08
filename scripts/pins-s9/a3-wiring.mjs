@@ -279,7 +279,7 @@ export default async function (h) {
       && /released = true;\s*try\s*\{\s*parent\.RemoveView\(cover\);/.test(rel) && /"boot hold ms=" \+ \(System\.Environment\.TickCount64 - t0\) \+ " why=" \+ why/.test(rel)
       && /startBootHold\(rootView\);/.test(oc)
       && count(APP, /homeIsBootRoot = true;/g) === 1 && /homeIsBootRoot = true;\s*MainPage = new NavigationPage\(HomePage\.Instance\(\)\);/.test(APP)
-      && /if \(current_url\.Equals\("ixian:bootDropped", StringComparison\.Ordinal\)\)\s*\{\s*#if ANDROID\s*global::Spixi\.MainActivity\.releaseBootHold\("dropped"\);\s*#endif\s*scheduleWalletPrePush\(false\);\s*\}/.test(HOME),   // ★ S10 F6 (#1254): + the wallet pre-push (pins-s10/b-wiring)
+      && /if \(current_url\.Equals\("ixian:bootDropped", StringComparison\.Ordinal\)\)\s*\{\s*#if ANDROID\s*global::Spixi\.MainActivity\.releaseBootHold\("dropped"\);\s*#endif\s*scheduleWalletPrePush\(false\);\s*scheduleAppsPrePush\(false\);\s*\}/.test(HOME),   // ★ S10 F6 (#1254): + the wallet pre-push (pins-s10/b-wiring) · ★ S11 A2 re-base (#1263, R1-n2): the apps pre-push AFTER the release (pins-s11/f-wiring)
       'S9 A3 r1 A-FLASH C1: on a cold start straight into home (no lock / first run / retry), Android covers the drawing content with a native splash view until home.html (cover removed) sends ixian:bootDropped, capped at 1500 ms, once per process; [P1] boot hold ms= why=dropped|cap');
   });
 

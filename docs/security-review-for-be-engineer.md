@@ -913,3 +913,11 @@ payment, call or local system row (the receipt is still sent). **For you to judg
 | `Downloads/.partial` | incoming part files move out of the Downloads root; a one-time legacy sweep of root part files (marker `.partial/.root-swept`); a 24 h sweep of part-shaped names only, never through a reparse point; a received file whose name has the part shape gets a `_` prefix |
 | 50 MB free send cap | `PhotoRules.maxFileBytes(FileTier.Free)` = 50 MiB on send; the receiver accepts up to `MaxReceiveBytes` = 100 MiB (the largest tier) |
 | Chat WebView background | the Android chat's MAUI WebView background is no longer written around the open hold (a write reached the native WebView and re-rastered it — the "new added" flash, #1255) |
+
+## Session 11 addenda (2026-10-08, #1262–#1264) — no Ixian-Core change; ONE wire use: our sender fills the existing `FileTransfer.preview`
+Full rows: `docs/security-handover-gate.md` "Session 11". T1 row **B-33**. The questions for you:
+| Item | Ask |
+|---|---|
+| Offer preview | Our sender now fills `FileTransfer.preview` (present since 0e85a4b8, length-prefixed, an old reader skips it): ≤ 8 KB JPEG, ≤ 96 px, no metadata, photos only. Please confirm the extra ≤ 8 KB per photo header is fine for the stream, the offline storage and the push paths. The receiver bounds it (≤ 64 KB read, ≤ 8 KB accepted, SOF ≤ 256 px), re-encodes it in C# and shows it only for approved contacts with "Load pictures" on. |
+| Photo auto-download | Opt-in (Privacy, default Off): photos ≤ 10 MB from approved contacts (never bot rooms; groups only with an approved sender) are accepted without a tap through the same accept as the Download tap. Limits: ≤ 4 in flight, ≤ 50 MB per chat per 24 h. Please confirm the limits, and that the accept signal to the sender (presence-like) is acceptable when the user opted in. |
+| New verbs / pushes | `ixian:updateHelp` (C#-owned URL) · `ixian:hint:*` · `ixian:hintsoff` · `ixian:photoAutoDl` · `ixian:savePhoto` (C# resolves its own file) · `ixian:devflash` (dev only); pushes `setHints` · `setHintsOff` · `setPhotoAutoDl` · `paintAck` · `setOfferPreview` · `setFlashDev`; addFile arg 20. All exact-grammar, capability-gated, ignored by an older shell. |

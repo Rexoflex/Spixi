@@ -67,32 +67,16 @@
 @media (hover: hover) and (pointer: fine) { .c-wallet-receive__copy:hover { background: var(--surface-interactive-hover); } }
 .c-wallet-receive__copy:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
 
-/* —— amount (mirrors the send entry: money is the hero) —— */
-.c-wallet-receive__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
-.c-wallet-receive__amount {
-  flex: 1; min-width: 0;
-  box-sizing: border-box;
-  padding: var(--spacing-12) var(--spacing-16);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
-  color: var(--text-neutral-01);
-  font-family: var(--font-primary);
-  font-size: var(--font-size-heading-md);
-  line-height: var(--line-height-heading-md);
-  font-weight: var(--font-weight-semibold);
+/* ★ S11 H (#1263): step 1 = who + Continue (n); step 2 = the From chip, the amount + keypad (rules in wallet-send.css) */
+.c-wallet-receive__step { display: flex; flex-direction: column; gap: var(--spacing-16); }
+.c-wallet-receive__step--amount { flex: 1 0 auto; align-items: center; gap: var(--spacing-8); }
+.c-wallet-receive__addrcard {                            /* #149③: the directory card */
+  display: flex; flex-direction: column; background: var(--surface-card);
+  border-radius: var(--radius-16); padding: var(--spacing-4); box-shadow: var(--elevation-1);
 }
-.c-wallet-receive__amount:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;
-  border-color: var(--outline-action-default);
-}
-.c-wallet-receive__unit {
-  flex: none;
-  font-family: var(--font-primary);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-neutral-02);
-}
+.c-wallet-receive__stack { display: inline-flex; flex: none; }
+.c-wallet-receive__stack .c-avatar + .c-avatar { margin-inline-start: calc(-1 * var(--spacing-8)); box-shadow: 0 0 0 2px var(--surface-screen); }
+.c-wallet-receive__note { margin: 0; text-align: center; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); color: var(--text-neutral-02); }
 
 /* —— send-request-to-contact strip —— */
 .c-wallet-receive__ask { display: flex; flex-direction: column; gap: var(--spacing-12); }
@@ -162,14 +146,6 @@
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
-
-/* —— #527: header row (request heading + the small "Show my address" button) —— */
-.c-wallet-receive__head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--spacing-12);
-}
-.c-wallet-receive__head .c-wallet-receive__asklabel { margin: 0; }
-.c-wallet-receive__addrbtn { flex: none; }
 
 /* —— #527 / ★ W-c: the address sheet (QR + address + copy + Share + explainer) ——
    Damir F5 2026-08-23: the desktop dialog OVERFLOWED (visible scrollbar, the chip

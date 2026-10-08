@@ -686,8 +686,9 @@ console.log('wallet.html');
   ok(!!af.querySelector('.c-wallet-send__error') && !af.querySelector('.c-wallet-send__error').hidden,
     'bad-address error renders inside the address field, not below the contacts');
   send.querySelector('.c-wallet-send__contacts .c-wallet-send__contact').click();
-  const amt = send.querySelector('.c-wallet-send__amount');
-  amt.value = '12.5'; amt.dispatchEvent(new W.Event('input', { bubbles: true }));
+  /* ★ S11 H re-base (#1263): the amount is the KEYPAD now (step 2, amount-pad.js) — typed key by key, not set on an input */
+  const padType = (root, str) => { for (const ch of String(str)) root.querySelector('.c-amount-pad__key[data-key="' + (ch === '.' || ch === ',' ? 'dec' : ch) + '"]').click(); };
+  padType(send, '12.5');
   const reviewBtn = send.querySelector('.c-wallet-send__actions .c-button');
   ok(reviewBtn.disabled === false, 'recipient + valid amount → Review enabled');
   reviewBtn.click();
@@ -719,11 +720,13 @@ console.log('wallet.html');
   ok(!rec.querySelector('.c-qr'), '#527: no inline QR — the surface is request-first');
   ok(!rec.querySelector('.c-wallet-receive__reqrow') && !rec.querySelector('.c-wallet-receive__reqbox'),
     '#527: the reveal machinery is GONE — amount + contacts render open by default');
-  ok(!!rec.querySelector('.c-wallet-receive__amount') && !!rec.querySelector('.c-wallet-receive__ask'),
-    '#527: the amount input AND the contact multi-select are in the tree at rest');
+  ok(!!rec.querySelector('.c-wallet-receive__amount') && !!rec.querySelector('.c-wallet-receive__ask')
+     && rec.dataset.step === '1' && !rec.querySelector('.c-wallet-receive__ask').closest('[hidden]')
+     && !!rec.querySelector('.c-wallet-receive__amount').closest('[hidden]'),
+    '★ S11 H re-base (#1263): the contact multi-select is step 1 and on screen at rest; the amount is in the tree on the hidden step 2 (#527: no reveal machinery)');
   const addrBtn2 = rec.querySelector('.c-wallet-receive__addrbtn');
-  ok(!!addrBtn2 && addrBtn2.textContent.trim() === 'Show my address',
-    '#527: the small "Show my address" button exists');
+  ok(!!addrBtn2 && addrBtn2.querySelector('.c-contact-row__name').textContent.trim() === 'Show my address',
+    '#527: the "Show my address" control exists (★ S11 H re-base (#1263): a directory row on top of step 1, "QR for any amount" under it)');
   addrBtn2.click();
   await sleep(30);
   const addrSheet = d2.querySelector('.c-addr-sheet');
@@ -766,17 +769,18 @@ console.log('wallet.html');
     'W9: the per-row send arrow is GONE — a row can no longer fire anything');
   const rcta = rec.querySelector('.c-wallet-receive__cta');
   const rhint = ask0.querySelector('.c-wallet-receive__hint');
-  ok(!!rcta && rcta.disabled && rcta.textContent.trim() === 'Send request',
-    'W9: ONE primary CTA, disabled at rest');
-  ok(rhint.getAttribute('role') === 'status' && rhint.textContent === 'Enter an amount to send a request',
-    'W9: the rule line states the FIRST unmet condition (c-contacts__minhint grammar — same element, text swapped, never hidden: hiding it collapses its box and jumps the list under a finger)');
+  const rnext = rec.querySelector('.c-wallet-receive__next');   // ★ S11 H re-base (#1263): step 1's ONE action
+  ok(!!rcta && rcta.disabled && rcta.textContent.trim() === 'Send request' && !!rnext && rnext.disabled && rnext.textContent.trim() === 'Continue (0)',
+    'W9: ONE primary CTA, disabled at rest (★ S11 H re-base (#1263): step 1 offers only Continue (n), disabled with nobody ticked)');
+  ok(rhint.getAttribute('role') === 'status' && rhint.textContent === 'Pick at least one contact.',
+    'W9: the rule line states the FIRST unmet condition (c-contacts__minhint grammar — same element, text swapped, never hidden: hiding it collapses its box and jumps the list under a finger) — ★ S11 H re-base (#1263): step 1 asks WHO first');
   const rlive = rec.querySelector('.c-wallet-receive__live');
   gated0[0].click();
   ok(gated0[0].getAttribute('aria-checked') === 'true' && d2.querySelectorAll('.c-toast').length === 0
     && rlive.textContent === '',
     'W9: ticking a row with NO amount selects it and sends nothing — selection and sending are different axes');
-  ok(rhint.textContent === 'Enter an amount to send a request' && rcta.disabled,
-    'W9: …and the CTA stays inert with a selection but no amount');
+  ok(rhint.textContent === '1 selected' && rcta.disabled && !rnext.disabled && rnext.textContent.trim() === 'Continue (1)',
+    'W9: …and the CTA stays inert with a selection but no amount (★ S11 H re-base (#1263): the tick arms only Continue)');
   rcta.click();
   ok(d2.querySelectorAll('.c-toast').length === 0 && rlive.textContent === '',
     '★ MONEY: a click on the CTA with no valid amount sends NOTHING — an explicit guard inside the handler, not just the disabled attribute (a synthetic/programmatic click must not get a request for "" off this surface)');
@@ -784,61 +788,72 @@ console.log('wallet.html');
   ok(d2.querySelectorAll('.c-toast').length === 0 && rlive.textContent === '',
     'Enter in the contact search is inert (the #46 audit rule survives the rewrite)');
   gated0[0].click();                                       // untick — start the real flow clean
+  /* ★ S11 H re-base (#1263): the amount is step 2's KEYPAD (amount-pad.js, the module Send uses) — reached
+     through Continue, typed key by key; the decimal key is the locale's mark and the display agrees by construction. */
   const ramt = rec.querySelector('.c-wallet-receive__amount');
-  ramt.value = '12,5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  ok(ramt.value === '12.5', 'request amount follows the send sanitize rules (shared export)');
-  ramt.value = '12.'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  addrBtn2.click();                                        // reopen WITH an amount in the field
+  const rshown = () => { const n = ramt.querySelector('.c-amount__num'); return n ? n.textContent : ''; };
+  const padTypeR = (str) => { for (const ch of String(str)) rec.querySelector('.c-amount-pad__key[data-key="' + (ch === '.' || ch === ',' ? 'dec' : ch) + '"]').click(); };
+  const padClearR = () => { for (let i = 0; i < 20; i++) rec.querySelector('.c-amount-pad__key[data-key="back"]').click(); };
+  const ask = rec.querySelector('.c-wallet-receive__ask');
+  ok(rowsOf(ask).every((b) => !b.disabled) && rcta.disabled && rnext.disabled
+    && ask.querySelector('.c-wallet-receive__hint').textContent === 'Pick at least one contact.',
+    'W9: nothing arms without a pick — the rule line holds the FIRST condition (in place, no re-render) — ★ S11 H re-base (#1263): the amount cannot be typed before step 2');
+  ok(rowsOf(ask).length === 5 && !!ask.querySelector('.c-wallet-receive__none'),
+    'contact strip caps at 5 with the keep-typing note (#136 scaling)');
+  const picks = rowsOf(ask);
+  picks[0].click();
+  rnext.click();
+  ok(rec.dataset.step === '2' && !!ask.closest('[hidden]') && !ramt.closest('[hidden]')
+    && rec.querySelector('.c-wallet-receive__chip').textContent.includes('Han Solo') && rcta.disabled,
+    '★ S11 H (#1263): Continue → step 2 — the From chip names the pick, the amount + keypad are on screen, the CTA waits for an amount');
+  padTypeR('12,5');
+  ok(rshown() === '12.5', 'request amount follows the send sanitize rules (shared export) — ★ S11 H re-base (#1263): the SHARED keypad; a typed "," is the decimal mark, shown in the locale\'s');
+  ok(!rcta.disabled && rcta.textContent.trim() === 'Request 12.5 IXI (1)',
+    '★ W9 CTA COPY: amount + count on the button itself — at the moment of commitment the user sees the number they typed and how many people it goes to, without looking away');
+  rec.querySelector('.c-wallet-receive__chip').click();    // back to step 1 WITH an amount kept
+  ok(rec.dataset.step === '1', '★ S11 H (#1263): the From chip returns to step 1');
+  addrBtn2.click();                                        // reopen WITH an amount in the keypad
   await sleep(30);
   const rqr2 = d2.querySelector('.c-addr-sheet .c-qr');
   ok(!!rqr2 && rqr2.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi',
     '#303: the sheet QR NEVER encodes an amount — reopened mid-edit it is still the constant address:ixi');
   W2.Spixi.dismissTopOverlay();
   await sleep(450);
-  ramt.value = '12.5'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  const ask = rec.querySelector('.c-wallet-receive__ask');
-  ok(rowsOf(ask).every((b) => !b.disabled) && rcta.disabled
-    && ask.querySelector('.c-wallet-receive__hint').textContent === 'Pick at least one contact.',
-    'W9: a valid amount alone does not arm the CTA — the rule line moves on to the SECOND condition (in place, no re-render)');
-  ok(rowsOf(ask).length === 5 && !!ask.querySelector('.c-wallet-receive__none'),
-    'contact strip caps at 5 with the keep-typing note (#136 scaling)');
-  const picks = rowsOf(ask);
-  picks[0].click();
-  ok(!rcta.disabled && rcta.textContent.trim() === 'Request 12.5 IXI (1)',
-    '★ W9 CTA COPY: amount + count on the button itself — at the moment of commitment the user sees the number they typed and how many people it goes to, without looking away');
   picks[1].click(); picks[2].click();
-  ok(rcta.textContent.trim() === 'Request 12.5 IXI (3)'
-    && rcta.getAttribute('aria-label') === 'Request 12.5 IXI from 3 selected'
-    && ask.querySelector('.c-wallet-receive__hint').textContent === '3 selected',
-    'W9: the count is live on the CTA, its aria-label and the rule line (which becomes the count once the rule is met — the group-picker minhint behaviour)');
+  ok(ask.querySelector('.c-wallet-receive__hint').textContent === '3 selected' && rnext.textContent.trim() === 'Continue (3)',
+    'W9: the count is live on the rule line (which becomes the count once the rule is met — the group-picker minhint behaviour)');
   const askSearch = ask.querySelector('input');
   askSearch.value = 'Han'; askSearch.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  ok(rcta.textContent.trim() === 'Request 12.5 IXI (3)'
+  ok(rnext.textContent.trim() === 'Continue (3)'
     && rowsOf(ask).filter((b) => b.getAttribute('aria-checked') === 'true').length >= 1,
     'W9: the selection survives a contact-search re-render (the state-held selection replaces the state-held latch — audit M2 rule, new mechanism)');
   askSearch.value = ''; askSearch.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  ramt.value = '9'; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
+  rnext.click();
+  ok(rcta.textContent.trim() === 'Request 12.5 IXI (3)'
+    && rcta.getAttribute('aria-label') === 'Request 12.5 IXI from 3 selected',
+    'W9: the count is live on the CTA and its aria-label — and the amount typed before the trip back to step 1 is kept');
+  padClearR(); padTypeR('9');
   ok(rcta.textContent.trim() === 'Request 9 IXI (3)'
     && rowsOf(ask).filter((b) => b.getAttribute('aria-checked') === 'true').length === 3,
     'W9: editing the amount re-labels the CTA and KEEPS the selection — who you are asking is a different axis from how much (the old latch had to be killed here because a ✓ meant "sent"; a tick means nothing of the sort)');
-  /* #527: no collapse exists any more — the reveal and its state-clearing are
-     gone, so the surface is reset EXPLICITLY here for the send flow below. */
+  /* #527: no collapse exists any more — the surface is reset EXPLICITLY here for the send flow below. */
+  rec.querySelector('.c-wallet-receive__chip').click();
   for (const b of rowsOf(ask)) { if (b.getAttribute('aria-checked') === 'true') b.click(); }
-  ramt.value = ''; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));
-  ok(rowsOf(ask).every((b) => b.getAttribute('aria-checked') === 'false') && rcta.disabled,
+  padClearR();
+  ok(rowsOf(ask).every((b) => b.getAttribute('aria-checked') === 'false') && rcta.disabled && rnext.disabled,
     '#527: untick + clear disarms the CTA (selection and amount stay independent axes)');
   W2.Spixi.setRequestAmount(rec, 0.0000001);
-  ok(rec.querySelector('.c-wallet-receive__amount').value === '0.0000001',
+  ok(rshown() === '0.0000001',
     'setRequestAmount expands scientific-notation numbers (audit C1 — no 1e-7 → 17)');
-  ramt.value = ''; ramt.dispatchEvent(new W2.Event('input', { bubbles: true }));   // clean slate for the send flow
+  W2.Spixi.setRequestAmount(rec, '');                      // clean slate for the send flow
 
   /* ——— W9: the SEND, end to end. Ordered last in this frame because a clean run
      navigates away (the demo shell returns to the wallet screen, exactly what
      Damir asked for), which detaches everything asserted above. ——— */
-  rec.querySelector('.c-wallet-receive__amount').value = '2.5';
-  rec.querySelector('.c-wallet-receive__amount').dispatchEvent(new W2.Event('input', { bubbles: true }));
   const sendPicks = rowsOf(rec.querySelector('.c-wallet-receive__ask'));
   sendPicks[0].click(); sendPicks[1].click();
+  rnext.click();
+  padTypeR('2.5');
   const sendCta = rec.querySelector('.c-wallet-receive__cta');
   ok(sendCta.textContent.trim() === 'Request 2.5 IXI (2)', 'W9: two ticked, CTA armed');
   sendCta.click();
@@ -871,11 +886,11 @@ console.log('wallet.html');
       onRequestsSent: (p) => { sentText = p.text; },
     });
     d2.body.append(failing);
-    // #527: no reveal — the request surface is open at mount
-    const famt = failing.querySelector('.c-wallet-receive__amount');
-    famt.value = '3'; famt.dispatchEvent(new W2.Event('input', { bubbles: true }));
+    // ★ S11 H re-base (#1263): step 1 ticks → Continue → step 2's keypad
     const frows = rowsOf(failing);
     frows[0].click(); frows[1].click(); frows[2].click();
+    failing.querySelector('.c-wallet-receive__next').click();
+    failing.querySelector('.c-amount-pad__key[data-key="3"]').click();
     failing.querySelector('.c-wallet-receive__cta').click();
     ok(seen.join('|') === 'AAA:3|BBB:3|CCC:3',
       '★ W9 LOOP: the per-contact legacy verb is called ONCE PER PICK, in list order, with the canonical amount — no batch verb was invented (the bridge protocol is frozen)');
@@ -1003,7 +1018,7 @@ console.log('wallet.html');
     balance: 10, fee: 0.1, host: lockHost,
   });
   lockHost.append(lockedSend);
-  ok(lockedSend.querySelector('.c-wallet-send__picker').hidden === true
+  ok(!!lockedSend.querySelector('.c-wallet-send__picker').closest('[hidden]') && lockedSend.dataset.step === '2' && lockedSend.querySelector('.c-wallet-send__picked').tagName !== 'BUTTON'   /* ★ S11 H re-base (#1263): straight to step 2; the To chip is not a button */
     && !lockedSend.querySelector('.c-wallet-send__clear')
     && lockedSend.querySelector('.c-wallet-send__pickedname').textContent === 'Han Solo',
     'lockedRecipient: pre-picked, picker gone, no change affordance');
@@ -2904,7 +2919,8 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   /* ★ I-6 (#360): the import LIST grew (grouping helpers ride the same module),
      so the pin now tracks the INTENT — sanitize/canonical come from money.js —
      instead of the exact 2026-07 list. */
-  ok(/import \{[^}]*\bsanitizeAmount\b[^}]*\bcanonicalAmount\b[^}]*\} from '\.\/money\.js'/.test(recv),
+  ok(/import \{[^}]*\bcanonicalAmount\b[^}]*\} from '\.\/money\.js'/.test(recv)
+     && /import \{[^}]*\bsanitizeAmount\b[^}]*\} from '\.\/money\.js'/.test(readFileSync(join(root, 'src/components/amount-pad.js'), 'utf8')),   /* ★ S11 H re-base (#1263): the sanitizing moved into the shared keypad */
     'wallet-receive imports sanitize/canonical from money.js (#143 ②)');
   ok(/from '\.\/money\.js'/.test(tb) && !/export function formatIxiAmount/.test(tb),
     'typed-bubbles imports formatIxiAmount from money.js (no local copy — #143 ②)');
@@ -3991,7 +4007,7 @@ console.log('chats.html — periodic backup nudge (legacy #backup-prompt parity)
 
   // illustration slot: art leads, decorative; img error → disc fallback
   // (file-drop upgrade path — illustrations-plan #6, shared with the launch tail)
-  const sheet3 = W.Spixi.showBackupNudge({ host: phone, illustration: 'images/backup.png' });
+  const sheet3 = W.Spixi.showBackupNudge({ host: phone, illustration: 'images/legacy-art.png' });   /* ★ S11 B re-base (#1262): images/backup.png now NAMES the inline art (no img, no error rung — pins-s11/b-illo.mjs); an unknown path keeps the img ladder this pin exercises */
   const art3 = sheet3.querySelector('.c-backup-nudge__illo');
   const disc3 = sheet3.querySelector('.c-backup-nudge__disc');
   ok(!!art3 && art3.getAttribute('alt') === '' && disc3.hidden,
@@ -4712,8 +4728,8 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(d.querySelectorAll('.c-launch__slide').length === 4 && dots.length === 4,
     'carousel: 4 slides + 4 dots (the SHIPPED legacy tour, step1–4 reused)');
   const arts = [...d.querySelectorAll('.c-launch__slide .c-launch__illo-img')];
-  ok(arts.length === 4 && arts.every((im) => /images\/onboarding\/step[1-4]\.png$/.test(im.getAttribute('src'))),
-    'slides carry the step1–4 art as PNG (N45 byte dial: 150-195 KB vs 450-655 KB SVG; dark set — welcome is pinned dark)');
+  ok(arts.length === 4 && arts.every((im, i) => im.getAttribute('data-illo') === 'welcome' + (i + 1)),   /* ★ S11 B re-base (#1262): the step1–4 PNGs → the inline set (behaviour: pins-s11/b-launch.mjs) */
+    'slides carry the welcome 1–4 art IN ORDER (★ S11 B: the inline illustration set; was the step1–4 PNGs, N45; dark set — welcome is pinned dark)');
   ok(dots[0].getAttribute('aria-selected') === 'true', 'dot 1 selected at rest (roving tabindex)');
   dots[2].click();
   ok(dots[2].getAttribute('aria-selected') === 'true'
@@ -4733,7 +4749,7 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
      with a non-empty src, and no `.c-launch__illo` slot element exists at all. */
   {
     const illoImgs = [...d.querySelectorAll('.c-launch__illo-img')];
-    ok(illoImgs.length >= 3 && illoImgs.every((i) => (i.getAttribute('src') || '').length > 0)
+    ok(illoImgs.length >= 3 && illoImgs.every((i) => (i.getAttribute('data-illo') || '').length > 0)   /* ★ S11 B re-base (#1262): REAL art = an inline drawing now (data-illo), not an <img> src */
        && d.querySelectorAll('.c-launch__illo').length === 0,
       '★ O-10 (DOM): the welcome carousel renders ' + illoImgs.length + ' REAL illustrations, every one with a src, and NOT ONE `.c-launch__illo` placeholder slot — the old pin only said the slot was absent, which the retirement made unfalsifiable');
   }
@@ -4958,12 +4974,10 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
      .svg lost its last loader when N76 retired the onboarding tail — the join CTA lives
      in the empty state with no illustration). Both are deleted; the reachability gate
      further down (★ Session N) is what keeps a future orphan from returning. RAW reads. */
-  for (const n of ['onboarding/step1', 'onboarding/step2', 'onboarding/step3', 'onboarding/step4', 'onboarding/restore', 'onboarding/rate', 'backup']) {
-    let png = null;
-    try { png = readFileSync(join(root, 'src/demo/images/' + n + '.png')); } catch (e) { /* missing → the pin fails, the run survives */ }
-    ok(!!png && png.length > 8 && png[0] === 0x89 && png[1] === 0x50 && png.subarray(-8, -4).toString('latin1') === 'IEND',
-      'N45: onboarding art ' + n + '.png ships complete (PNG magic + IEND tail — truncated or MISSING copies fail)');
-  }
+  /* ★ S11 A2 re-base (#1263): rate + backup are DELETED too — every host names the INLINE art (pins-s11/b-delete.mjs) — so
+     the integrity loop has no file left to read; what remains true is that neither PNG ships from the source dir */
+  ok(['onboarding/rate', 'backup'].every((n) => !existsSync(join(root, 'src/demo/images/' + n + '.png'))),
+    'N45 → ★ S11 A2: the rate + backup PNGs are gone from src/demo/images (the nudges and the Backup screen draw the inline set by name)');
   ok(!existsSync(join(root, 'src/demo/images/onboarding/join-community.svg')) && !existsSync(join(root, 'src/demo/images/onboarding/backup.png')),
     '★ Session N: the two orphaned onboarding assets (join-community.svg · the backup.png twin) are DELETED at the source — build-shells copies src/demo/images verbatim, so a file here ships');
   ok(/touch-action: pan-y/.test(lcss), 'carousel owns horizontal swipe only — vertical scroll stays native');
@@ -4992,7 +5006,7 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     ok(!/\billoSlot\b/.test(ljsCode) && !/\bILLOS\b/.test(ljsCode) && !/\bILLO_G\b/.test(ljsCode)
        && !/data-placeholder|dataset\.placeholder/.test(ljsCode)
        && !/\billoSlot\b|\bILLO_G\b/.test(stripCode(bundleBuilt))
-       && /img\.className = 'c-launch__illo-img';/.test(ljsCode) && /img\.src = s\.img;/.test(ljsCode),
+       && /slide\.append\(s\.art\(\{ className: 'c-launch__illo-img' \}\)\);/.test(ljsCode),   /* ★ S11 B re-base (#1262): the producer is the inline drawing per slide (behaviour: pins-s11/b-launch.mjs) */
       '★ O-10: the launch illustration SLOT is retired — illoSlot / ILLOS / ILLO_G are gone from the component AND from the built bundle, and it writes no data-placeholder marker; the real-art <img> the carousel builds is still there, so this cannot pass on a launch screen that simply lost its art');
   }
 }
@@ -6556,7 +6570,7 @@ console.log('parity batch A (#302) — A1..A11 + W1/W2');
   ok(/RATING_SNOOZE_KEY/.test(home),
     'A5: a light-dismiss snoozes locally — the component sends no verb and C# re-pushes on EVERY chat exit, which is an endless nag without this');
   ok(/backup-nudge\.css/.test(home) && /rating-nudge\.css/.test(home), 'A5/A11: both nudge stylesheets are linked (neither was)');
-  ok(/illustration: 'images\/backup\.png'/.test(home), 'A11/N45: the shared backup art is used (PNG canon; it ships beside the shells)');
+  ok(/illustration: 'backup',/.test(home), 'A11/N45: the shared backup art is used (★ S11 A2 re-base #1263: by NAME — the inline drawing, illustrations.js)');
 
   /* —— A6: bot description —— */
   ok(/mode\.description = String\(botDescription/.test(chat) && /DESCRIPTION_MAX/.test(chat),
@@ -8595,7 +8609,7 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      picks #46 r1 fixes (MEASURED): 866 140 → 871 075 (+4 935: the live-only accent + reflush keep, the still ring after 30 s,
      the overlaid seconds-left hint track, the 40-bar fit, the reopen-from-on-screen strip) → CHAT 848 → 853; 852 would leave
      404, 853 leaves 1 428 (after the r2 / r3 lead fixes: 872 044 chars). Stated. */
-  const CHAT_KB_CEIL = 900,   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 560;
+  const CHAT_KB_CEIL = 918,   /* ★ S11 r2 (#1263): +11.6 KB = the album mosaic + offer preview + viewer Reply/Save (G, +8.6) and the amount pad for the chat Pay (H, +3) — 912.3 KB measured */   /* ★ S11 (#1262): +6.6 KB = the viewer zoom + paging track (E), the flash paintAck answer, touch-menu blur, paste toast, created-line title/subtitle (C) — 900.7 KB measured */   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 590;   /* ★ S11 r2 (#1263): +4.9 KB = the 2-step send/receive (H, +3.2) and the hint timing + held entrances (A2, +1.7) — 585.6 KB measured */   /* ★ S11 (#1262): +21.4 KB = seasonal bar + glass update/hint cards + hints wiring (A, ~16 KB) and the illo.css link + inline art hosts (B, ~5 KB) — 580.7 KB measured */
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -10454,8 +10468,8 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
     && !!es.querySelector('.c-empty-state__body').textContent.trim(),
     'APPS EMPTY: nothing installed → illustration + headline + a supporting line (not a bare one-liner)');
   const eImg = es && es.querySelector('.c-empty-state__illo-img');
-  ok(!!eImg && eImg.getAttribute('src') === 'images/apps-es.png',
-    'APPS EMPTY: the art loads as a SIBLING file (images/…) — a file:// WebView refuses an external asset URL');
+  ok(!!eImg && eImg.getAttribute('data-illo') === 'appsEmpty',   /* ★ S11 B re-base (#1262): the path names the INLINE art now — nothing is fetched (pins-s11/b-illo.mjs) */
+    'APPS EMPTY: images/apps-es.png names the inline apps art (★ S11 B) — nothing to fetch, so nothing a file:// WebView can refuse');
   const eCta = es && es.querySelector('.c-empty-state__action .c-button');
   ok(!!eCta && eCta.dataset.size === '44' && eCta.dataset.type === 'tonal',
     'APPS EMPTY: one SECONDARY (tonal) CTA at a 44px target — the empty state does not out-shout the topbar action');
@@ -10473,17 +10487,18 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
   S.renderAppsList(eList2, { apps: [], query: '', layout: 'list' }, eOpts);
   ok(!!eList2.querySelector('.c-empty-state__illo-img') && !!eList2.querySelector('.c-empty-state__action .c-button'),
     'APPS EMPTY: the empty node is cached by SHAPE — an early art-less render never pins an art-less state forever');
-  ok(/emptyIllustration: 'images\/apps-es\.png'/.test(homeSrc) && /onAddApp: openAppsAdd,/.test(homeSrc),
+  ok(/emptyIllustration: 'appsEmpty',/.test(homeSrc) && /onAddApp: openAppsAdd,/.test(homeSrc),   /* ★ S11 A2 re-base (#1263): the art by NAME */
     'APPS EMPTY: the production shell wires the art + the CTA, and the CTA is the SAME entry point as the topbar action (Session T: openAppsAdd, in-shell — was ixian:newapp, a page push). One entry, two affordances, still no new bridge verb');
-  ok(existsSync(join(root, 'Spixi/Resources/Raw/html/images/apps-es.png'))
-    && existsSync(join(root, 'Spixi/Resources/Raw/html/images/explore-banner.png')),
-    'APPS ART (N45): both PNGs ship next to the packaged shells (build-shells copies src/demo/images) — else both refs 404 on device');
+  ok(!existsSync(join(root, 'Spixi/Resources/Raw/html/images/apps-es.png'))   /* ★ S11 A2 re-base (#1263): both arts are INLINE by name — the PNGs are deleted */
+    && !existsSync(join(root, 'Spixi/Resources/Raw/html/images/explore-banner.png'))
+    && /exploreImage: 'explore',/.test(homeSrc),
+    'APPS ART (N45 → ★ S11 A2): the empty-state and Explore art are drawn INLINE by name — no PNG ships, so nothing can 404 on device');
 
   /* —— item 4: the explore banner illustration ——————————————————————————— */
   const banner = d.querySelector('.c-apps-explore');
   const bIllo = banner && banner.querySelector('.c-apps-explore__illo');
-  ok(!!bIllo && bIllo.getAttribute('src') === 'images/explore-banner.png' && bIllo.getAttribute('alt') === '',
-    'BANNER: the art is on the banner as a decorative image (alt="") — the button keeps its own accessible name');
+  ok(!!bIllo && bIllo.getAttribute('data-illo') === 'explore' && bIllo.getAttribute('aria-hidden') === 'true',   /* ★ S11 B re-base (#1262): images/explore-banner.png names the INLINE Explore art (an svg: aria-hidden, no alt; pins-s11/b-illo.mjs) */
+    'BANNER: the art is on the banner as a decorative drawing (aria-hidden) — the button keeps its own accessible name');
   ok(!!bIllo && bIllo.previousElementSibling && bIllo.previousElementSibling.classList.contains('c-apps-explore__text'),
     'BANNER: the art is a FLEX SIBLING of the copy, not an absolute overlay — text can never end up underneath it');
   const bCss = readFileSync(join(root, 'src/styles/components/apps-header.css'), 'utf8');
@@ -10544,11 +10559,13 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
   /* ★ #453 (Damir on device): the WALLET dropped its illustration. The hero owns ~300px
      above that block, so the art pushed "Show my address" toward the bottom nav and said
      nothing the headline did not. Chats and Contacts keep theirs — they have no hero. */
+  /* ★ S11 A2 re-base (#1263, R2-m5): the art is the INLINE set, named — nothing is fetched, so the file:// hazard this pin
+     guarded is gone with the files (deleted: pins-s11/b-delete.mjs) */
   for (const [surface, src, ext] of [['chats', chatsSrc, 'png'], ['contacts', contactsSrc, 'svg']]) {
-    ok(new RegExp("illustration: (?:opts\\.emptyArt !== undefined \\? opts\\.emptyArt : )?'images/" + surface + "-es\\." + ext + "'").test(src),
-      surface + ': the empty state points at the SIBLING images/' + surface + '-es.' + ext + ' (an external URL loads as a blank box under file://)');
-    ok(existsSync(join(root, 'src/demo/images', surface + '-es.' + ext)),
-      surface + '-es.' + ext + ' really ships from src/demo/images (build-shells copies it next to the shells)');
+    ok(new RegExp("illustration: (?:opts\\.emptyArt !== undefined \\? opts\\.emptyArt : )?'" + surface + "Empty',").test(src),
+      surface + ': the empty state names the INLINE ' + surface + 'Empty art (★ S11 A2) — no sibling file, nothing to load under file://');
+    ok(!existsSync(join(root, 'src/demo/images', surface + '-es.' + ext)),
+      surface + '-es.' + ext + ' is deleted from src/demo/images (★ S11 A2: nothing names it)');
   }
 
   /* (b) zero vs no-results, per surface */
@@ -10625,8 +10642,8 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
     const illo = es && es.querySelector('.c-empty-state__illo');
     const img = es && es.querySelector('.c-empty-state__illo-img');
     const cta = es && es.querySelector('.c-empty-state__action .c-button');
-    ok(!!es && illo.getAttribute('aria-hidden') === 'true' && img.getAttribute('alt') === '',
-      'chats zero state: the illustration is DECORATIVE (aria-hidden + empty alt) — the headline carries the meaning');
+    ok(!!es && illo.getAttribute('aria-hidden') === 'true' && img.getAttribute('aria-hidden') === 'true' && img.getAttribute('focusable') === 'false',   /* ★ S11 B re-base (#1262): the art is an inline svg — decorative = aria-hidden + focusable=false (an svg has no alt) */
+      'chats zero state: the illustration is DECORATIVE (aria-hidden slot + an aria-hidden, unfocusable svg — ★ S11 B) — the headline carries the meaning');
     ok(!!es.querySelector('h2.c-empty-state__title') && /No chats yet/.test(es.querySelector('h2').textContent),
       'the headline is a real heading, not styled text — screen readers land on it');
     ok(!!cta && cta.tagName === 'BUTTON' && cta.dataset.size === '44' && /Start a chat/.test(cta.textContent),
@@ -10649,8 +10666,8 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
      * vacuously against BOTH the old and the new behaviour, and every new F5 pin is a
      * source-grep, so nothing tested the DOM outcome. It now asserts what Damir actually
      * asked for: no illustration node AT ALL on the wallet zero state. */
-    ok(!!es && es.dataset.compact !== undefined && !es.querySelector('.c-empty-state__illo'),
-      '★ #453 + F5: the wallet zero state renders the COMPACT block with NO illustration AND no glyph tile — "THE ICON MUST BE REMOVED" (Damir, on device). The bare placeholder is a 96×96 --surface-neutral-02 square, so dropping the glyph alone would have left an empty grey box');
+    ok(!!es && es.dataset.compact !== undefined && !!es.querySelector('.c-empty-state__illo > svg[data-illo="walletEmpty"]') && !es.querySelector('.c-empty-state__illo[data-placeholder]'),   /* ★ S11 B re-base (#1262): Damir WANTS the wallet art back — overrides #453; still compact, still no glyph tile (behaviour: pins-s11/b-illo.mjs) */
+      '★ S11 B (#1262, overrides #453) + F5: the wallet zero state renders the COMPACT block WITH the wallet art and still no glyph tile (F5: "THE ICON MUST BE REMOVED" — the bare placeholder is a 96×96 --surface-neutral-02 square)');
     const cta = es.querySelector('.c-empty-state__action .c-button');
     cta.click();
     ok(received === 1 && /Show my address/.test(cta.textContent),
@@ -11842,7 +11859,12 @@ console.log('BUG-2 — apps push cost (static)');
   const hp = readFileSync(join(root, 'Spixi/Pages/Home/HomePage.xaml.cs'), 'utf8');
   ok(/loadApps\(!appsPushedToShell\);/.test(hp) && !/loadApps\(true\);\s*\n\s*\}\s*\n\s*\}\s*\n\s*else if \(current_url\.Equals\("ixian:downloads"/.test(hp),
     '★ BUG-2③: entering tab3 no longer FORCES clearApps + addApp×N — only the first entry into a fresh document, then the shouldRefreshApps gate decides');
-  ok(/appsPushedToShell = pageLoaded;/.test(hp) && /appsPushedToShell = false;/.test(hp),
+  /* ★ S11 F4 re-base (#1263): the latch now rides S11AppsRules.appsLatchAfterBurst(pageLoaded, genAtBurst, genNow) (A2's
+     generation rule) — pageLoaded is still the FIRST operand, and the helper is pinned to AND it (never latched unloaded). */
+  const appsRules1263 = readFileSync(join(root, 'Spixi/Utils/S11AppsRules.cs'), 'utf8');
+  const appsLatch1263 = /appsPushedToShell = S11AppsRules\.appsLatchAfterBurst\(pageLoaded, /;
+  const appsLatchRule1263 = /public static bool appsLatchAfterBurst\(bool pageLoaded, int genAtBurst, int genNow\)\s*\{\s*return pageLoaded && genAtBurst == genNow;\s*\}/.test(appsRules1263);
+  ok(appsLatch1263.test(hp) && appsLatchRule1263 && /appsPushedToShell = false;/.test(hp),
     'BUG-2③: the latch is set when the rows are pushed and reset in onLoaded — a fresh document (theme flip, language reload) is always re-fed');
   const onLoaded = hp.slice(hp.indexOf('private void onLoaded()'), hp.indexOf('setAsRoot();'));
   ok(/appsPushedToShell = false;/.test(onLoaded),
@@ -11853,7 +11875,8 @@ console.log('BUG-2 — apps push cost (static)');
   const loadAppsBody = hp.slice(hp.indexOf('private void loadApps(bool forceRefresh)'), hp.indexOf('private void onStartApp(string appId)'));
   ok(/lock \(appsPushLock\)/.test(loadAppsBody) && /private volatile bool appsPushedToShell/.test(hp) && /private readonly object appsPushLock/.test(hp),
     '★ #340 (C-MAJOR-1a): loadApps is SERIALIZED. Two callers on two threads with no marshalling — tab3 entry on the UI thread, Node.updateUILoop\'s tick via updateScreen. Interleaved, the tick\'s clearApps lands between the tap\'s addApp calls and the shell drops rows it already had; the latch then made that short list stick');
-  ok(loadAppsBody.indexOf('appsPushedToShell = pageLoaded;') > loadAppsBody.indexOf('"addApp"'),
+  ok(appsLatchRule1263 && loadAppsBody.indexOf('appsPushedToShell = S11AppsRules.appsLatchAfterBurst(pageLoaded, ') > loadAppsBody.indexOf('"addApp"')
+    && (loadAppsBody.match(/appsPushedToShell = /g) || []).length === 1,   // ★ S11 F4 re-base (#1263): the helper form; ONE latch write in the body
     '★ #340 (C-MAJOR-1b): the latch is set AFTER the addApp loop, not before — and only if this document could receive it (sendMessage queues while unloaded and Dispose() drops that queue, so latching on a discarded push is what made an empty apps tab permanent)');
   const reloadBody = hp.slice(hp.indexOf('public override void reload()'), hp.indexOf('removeDetailContent();'));
   const reloadShellBody = hp.slice(hp.indexOf('public void reloadShell()'), hp.indexOf('int gen = ++reloadShellGen;') + 400);
@@ -12134,11 +12157,12 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
   const ws360 = readFileSync(join(root, 'src/components/wallet-send.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
   const wr360 = readFileSync(join(root, 'src/components/wallet-receive.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
   const ts360 = readFileSync(join(root, 'src/components/tip-sheet.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
-  ok([ws360, wr360, ts360].every((f) => /addEventListener\('input', \(e\) => \{/.test(f) && /sanitizeAmount\(amountInputToCanonical\(disp, caret, e, undefined, !!state\.amount, readPreEdit\(\)\)\)/.test(f)),
+  ok([ts360].every((f) => /addEventListener\('input', \(e\) => \{/.test(f) && /sanitizeAmount\(amountInputToCanonical\(disp, caret, e, undefined, !!state\.amount, readPreEdit\(\)\)\)/.test(f))
+     && [ws360, wr360].every((f) => !/inputMode = 'decimal'/.test(f) && !/amountInputToCanonical/.test(f) && /createAmountPad\(\{/.test(f)),   /* ★ S11 H re-base (#1263): send + receive have NO amount input any more — the shared keypad (pins-s11/h-pad.mjs); the tip sheet keeps its input and this shape */
     '★ I-6 r2 (#360) + ★★ V-1: all three amount inputs (send, receive, tip) route through amountInputToCanonical WITH the event AND with the pre-edit snapshot. The snapshot carries the REPLACED RANGE, which is the only fact that separates a select-all paste (foreign separators) from a partial edit (ours). ⚠ This is a SHAPE pin over src/ — the BEHAVIOUR it stands for is pinned on the built bundle in the V-1 block, per V-3');
-  ok([ws360, wr360, ts360].every((f) => /const readPreEdit = attachAmountPreEdit\(/.test(f)),
+  ok([ts360].every((f) => /const readPreEdit = attachAmountPreEdit\(/.test(f)),   /* ★ S11 H re-base (#1263): the one remaining amount input (send/receive: the keypad) */
     '★★ V-1: and every one of them ATTACHES a reader. A call site that passes readPreEdit() without attaching one would not compile; a call site that attaches one and forgets to pass it would silently keep the defect, so both halves are pinned');
-  ok(/amt\.value = groupAmountDisplay\(parts\[2\]\)/.test(ws360),
+  ok((ws360.match(/el\._setAmount\(parts\[2\]\)/g) || []).length === 2 && !/amt\.value = /.test(ws360),   /* ★ S11 H re-base (#1263): the QR amount seeds the KEYPAD's canonical state — no display string to misread (behaviour: pins-s11/h-send.mjs, de-de "1.500") */
     '★ I-6 (#360): the QR-scan amount seeds the field in DISPLAY form — a raw canonical "1.500" (one-and-a-half with typed zeros) dropped into a ","-decimal locale would read as grouping: a 1000× error on a payment path');
   /* W-d (2026-08-24): the review sheet is the exported openPaymentReview — its fee
      variable is `feeU` (feeAtOpen is the compose's snapshot handed IN). Same rule. */
@@ -12371,16 +12395,15 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
   // further down) is the structural version of this list.
   for (const rel of ['images/apps-es.png', 'images/chats-es.png',
     'images/explore-banner.png', 'images/backup.png',
-    'images/onboarding/rate.png', 'images/onboarding/restore.png', 'images/onboarding/step1.png',
-    'images/onboarding/step2.png', 'images/onboarding/step3.png', 'images/onboarding/step4.png']) {
-    ok(existsSync(join(root, 'Spixi/Resources/Raw/html', rel)) && existsSync(join(root, 'src/demo', rel)),
-      'N45: ' + rel + ' ships in BOTH the source images dir (build-shells copies it) and the packaged Raw/html');
+    'images/onboarding/rate.png']) {   /* ★ S11 B re-base (#1262): restore + step1–4 left — the launch art is inline (pins-s11/b-delete.mjs) */
+    ok(!existsSync(join(root, 'Spixi/Resources/Raw/html', rel)) && !existsSync(join(root, 'src/demo', rel)),   /* ★ S11 A2 re-base (#1263): the rest left too — every host names the inline art */
+      'N45 → ★ S11 A2: ' + rel + ' is gone from BOTH the source images dir and the packaged Raw/html (the host names the inline drawing; a file left at the source would ship again)');
   }
   const n45Sweep = read('src/shells/home.html') + read('src/shells/settings.html') + read('src/shells/settings_backup.html') + read('src/components/launch-shell.js') + read('src/components/chats-shell.js') + read('src/components/wallet-shell.js') + read('src/demo/apps.html') + read('src/demo/chats.html') + read('src/demo/desktop.html');
   ok(!/images\/(?:apps-es|chats-es|wallet-es|explore-banner|backup|restore|step[1-4])\.svg'/.test(n45Sweep)
     && !/'(?:step[1-4]|restore|backup)\.svg'/.test(n45Sweep),
     'N45: no shipped reference still points at an SVG the PNG dial replaced — incl. the launch base+name concatenations the first sweep was blind to (re-review MINOR-2); contacts-es + join-community stay SVG (no PNG export exists)');
-  ok(/base \+ 'step1\.png'/.test(read('src/components/launch-shell.js')) && /base \+ 'restore\.png'/.test(read('src/components/launch-shell.js')),
+  ok(/art: illoWelcome1,/.test(read('src/components/launch-shell.js')) && /illoRestore\(\{ className: 'c-launch__hero-illo' \}\)/.test(read('src/components/launch-shell.js')),   /* ★ S11 B re-base (#1262): the carousel + restore hero draw the INLINE set (behaviour: pins-s11/b-launch.mjs) */
     'N45: the launch carousel + restore hero load the PNG canon at the SOURCE (the demo dom pin covers steps; restore had no reference pin at all — re-review MINOR-2)');
 }
 
@@ -12451,7 +12474,7 @@ console.log('N-batch — behavioural pins (N32 money · N24 render · N36 press 
 
   // —— N14a: the rating nudge carries the rate-me art (backup-nudge grammar) ——
   {
-    const sheetR = S.showRatingNudge({ host: phone, illustration: 'images/onboarding/rate.png' });
+    const sheetR = S.showRatingNudge({ host: phone, illustration: 'images/legacy-art.png' });   /* ★ S11 B re-base (#1262): images/onboarding/rate.png now NAMES the inline version D art (pins-s11/b-illo.mjs); an unknown path keeps the img ladder this pin exercises */
     const artR = sheetR.querySelector('.c-rating-nudge__illo');
     const discR = sheetR.querySelector('.c-rating-nudge__disc');
     ok(!!artR && artR.getAttribute('alt') === '' && discR.hidden,
@@ -12462,8 +12485,8 @@ console.log('N-batch — behavioural pins (N32 money · N24 render · N36 press 
     const sheetR2 = S.showRatingNudge({ host: phone });
     ok(!sheetR2.querySelector('.c-rating-nudge__illo') && !sheetR2.querySelector('.c-rating-nudge__disc').hidden,
       'N14a: no illustration opt → the pre-N14a disc look, byte-identical behaviour for demo callers');
-    ok(/illustration: 'images\/onboarding\/rate\.png'/.test(readFileSync(join(root, 'src/shells/home.html'), 'utf8')),
-      'N14a: the PRODUCTION shell passes the rate-me art to the nudge (N45 ships the file)');
+    ok(/illustration: 'rating',/.test(readFileSync(join(root, 'src/shells/home.html'), 'utf8')),   /* ★ S11 A2 re-base (#1263): by NAME */
+      'N14a: the PRODUCTION shell passes the rate-me art to the nudge (★ S11 A2: the inline version D art, by name)');
   }
 }
 
@@ -14091,7 +14114,7 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
     '★ N70 (#443): the offline→online edge is consumed only when the re-arm could ANSWER. If the first check is still in flight when the network returns, clearing the flag threw the edge away and the next answer waited a full checkVersionSeconds — one hour — which is the same "never appears" the row was opened for, just slower');
   const home443 = read4('Spixi/Resources/Raw/html/index.html');
   ok(/const RATING_MIN_OPENS = 5;/.test(home443) && /function ratingTooEarly\(\) \{ return ratingOpens < RATING_MIN_OPENS; \}/.test(home443)
-    && /if \(ratingTooEarly\(\)\) \{ pumpNudges\(\); return; \}/.test(home443),
+    && /if \(ratingTooEarly\(\)\) \{ pumpNudges\(\); pumpHint\(\); return; \}/.test(home443),   // ★ S11 F4 re-base (#1263): A2 also pumps a displaced hint — still drop + no stamp
     '★ N80 (#443, decided #424): the store-rating prompt waits for the FIFTH app open. C# offers it from the first run, which asks a user who has barely used Spixi to rate it');
   ok(/if \(last && now >= last && \(now - last\) < RATING_OPEN_DEBOUNCE_MS\) return;/.test(home443),
     '★ N80: a theme or language pick RELOADS this document, which would otherwise count as an open. A one-minute debounce separates the two, and a clock that moved backwards cannot freeze the counter forever');
@@ -17595,8 +17618,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     });
     dW.body.append(gate);
     gate.querySelector('.c-wallet-send__contacts .c-wallet-send__contact').click();
-    const gAmt = gate.querySelector('.c-wallet-send__amount');
-    gAmt.value = '5'; gAmt.dispatchEvent(new domW.window.Event('input', { bubbles: true }));
+    const gKey = (k) => gate.querySelector('.c-amount-pad__key[data-key="' + k + '"]').click();   /* ★ S11 H re-base (#1263): the amount is the keypad */
+    gKey('5');
     const gCta = gate.querySelector('.c-wallet-send__actions .c-button');
     const gMax = [...gate.querySelectorAll('.c-wallet-send__amountrow .c-button')].pop();
     ok(gCta.disabled && gMax.disabled,
@@ -17607,7 +17630,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(gCta.disabled, '★★ W6 BEHAVIOURAL (loop MAJOR): a quote echoed for ANOTHER recipient is dropped — Review stays gated');
     WW.Spixi.setSendQuote(gate, { fee: '0.005', balance: '100', address: 'GATEADDR1234567890', amount: '5' });
     ok(!gCta.disabled, 'W6 BEHAVIOURAL: the matching quote arms Review');
-    gAmt.value = '7'; gAmt.dispatchEvent(new domW.window.Event('input', { bubbles: true }));
+    gKey('back'); gKey('7');   /* ★ S11 H re-base (#1263): 5 → 7 on the keypad */
     ok(gCta.disabled, '★ W6 BEHAVIOURAL: editing the amount RE-GATES until a fresh quote answers the new pair');
     WW.Spixi.setSendQuote(gate, { error: 'address', address: 'GATEADDR1234567890' });
     const gErrVisible = [...gate.querySelectorAll('.c-wallet-send__error')].some((e) => !e.hidden && e.textContent.trim());
@@ -17629,15 +17652,15 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     });
     dS.body.append(stat);
     stat.querySelector('.c-wallet-send__contacts .c-wallet-send__contact').click();
-    const sAmt = stat.querySelector('.c-wallet-send__amount');
-    sAmt.value = '5'; sAmt.dispatchEvent(new domS.window.Event('input', { bubbles: true }));
+    const sAmt = stat.querySelector('.c-wallet-send__amount');   /* ★ S11 H re-base (#1263): the display; typed on the keypad */
+    stat.querySelector('.c-amount-pad__key[data-key="5"]').click();
     const sMax = [...stat.querySelectorAll('.c-wallet-send__amountrow .c-button')].pop();
     ok(!sMax.disabled, '★ round-2: static-fee Max is enabled');
     sMax.click();
     await sleep(20);
     const yes = [...dS.querySelectorAll('.c-modal .c-button')].find((b) => /understand/i.test(b.textContent));
     if (yes) yes.click();
-    ok(sAmt.value && sAmt.value !== '5',
+    ok(sAmt.querySelector('.c-amount__num') && sAmt.querySelector('.c-amount__num').textContent === '99.999',   /* ★ S11 H re-base (#1263): the display shows the fill */
       '★★ round-2 MAJOR: static-fee Max actually FILLS (99.999) — enabled-but-inert regression pinned');
     stat.remove();
   }
@@ -17685,7 +17708,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* loop r1 B-5(b): modules whose DOM is styled by ANOTHER file — the owner map.
        (qr.js is styled by its consumers by design — audit n1; pressable/desktop-anchors
        add attributes, not boxes; apps-menu/chats-row-menu build sheets → overlay.css.) */
-    const CSS_OWNER = { modal: 'overlay', sheet: 'overlay', 'apps-menu': 'overlay', 'chats-row-menu': 'overlay' };
+    const CSS_OWNER = { modal: 'overlay', sheet: 'overlay', 'apps-menu': 'overlay', 'chats-row-menu': 'overlay', 'amount-pad': 'wallet-send' };   /* ★ S11 H (#1263): the keypad's rules live in wallet-send.css (every money host links it) */
     const cssOf = (b) => CSS_OWNER[b] || b;
     const ownsCss = (b) => existsSync(join(xd, cssOf(b) + '.css'));
     /* per-module: the DOM symbols imported from CSS-owning modules, and the slice of
@@ -17803,7 +17826,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/href="\.\.\/styles\/components\/wallet-send\.css"/.test(chatSrc) && /href="\.\.\/styles\/components\/contact-row\.css"/.test(chatSrc),
       '★ W-a: chat.html links wallet-send.css AND contact-row.css (the in-chat Pay compose + review sheet were unstyled without them)');
     const builtChat = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
-    ok(/\.c-sendreview__row\s*\{/.test(builtChat) && /\.c-wallet-send__amount\s*\{/.test(builtChat),
+    ok(/\.c-sendreview__row\s*\{/.test(builtChat) && /\.c-amount-pad__key\s*\{/.test(builtChat),   /* ★ S11 H re-base (#1263): the amount input rule is gone — the keypad's rule (wallet-send.css) is the one the locked in-chat Pay needs */
       '★ W-a: …and the BUILT chat shell carries the .c-sendreview / .c-wallet-send rules (inlined, end to end)');
     ok(!existsSync(join(cssDir, 'modal.css')) && /^\.c-modal \{/m.test(readFileSync(join(cssDir, 'overlay.css'), 'utf8')) && /overlay\.css/.test(chatSrc),
       'W-a: there is no modal.css — .c-modal lives in overlay.css, which chat.html links (the Max confirm is styled)');
@@ -17847,16 +17870,24 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       balance: '100', fee: '0.001', strings: {}, host: d.body, onQuickScan: () => {},
     });
     d.body.append(view);
-    const sections = [...view.children];
-    ok(sections[0].classList.contains('c-wallet-send__section--amount') && !!sections[0].querySelector('.c-wallet-send__amount')
-      && sections[1].classList.contains('c-wallet-send__section--recipient')
-      && sections[sections.length - 1].classList.contains('c-wallet-send__actions'),
-      '★ W-i: AMOUNT ON TOP — the amount section is the first child, the recipient section second, Review last');
+    /* ★ S11 H re-base (#1263 SUPERSEDES W-i): TWO STEPS — the recipient is step 1 (on screen at mount), the amount
+       is step 2 (in the tree, hidden until a pick), the keypad + Review bar is last and hidden with it */
+    const sections = [...view.children].filter((c) => c.tagName !== 'P');
+    ok(view.dataset.step === '1' && sections[0].classList.contains('c-wallet-send__section--recipient') && !sections[0].hidden
+      && sections[1].classList.contains('c-wallet-send__section--amount') && sections[1].hidden && !!sections[1].querySelector('.c-wallet-send__amount')
+      && sections[sections.length - 1].classList.contains('c-wallet-send__actions') && sections[sections.length - 1].hidden,
+      '★ W-i → #1263: RECIPIENT FIRST — step 1 is the picker, the amount section second (hidden until a pick), the keypad + Review bar last');
     const amt = view.querySelector('.c-wallet-send__amount');
-    ok(amt.getAttribute('enterkeyhint') === 'done', 'W-k: the send amount input carries enterkeyhint="done"');
-    amt.focus();
-    amt.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    ok(d.activeElement !== amt, '★ W-k BEHAVIOURAL: Enter on the amount BLURS it — the soft keyboard drops and the list is browsable');
+    ok(amt.tagName === 'OUTPUT' && !amt.hasAttribute('enterkeyhint') && !view.querySelector('.c-wallet-send__section--amount input'),
+      'W-k → #1263: the send amount is an <output> driven by the in-app keypad — there is no OS keyboard to drop, so nothing carries enterkeyhint');
+    {
+      const kin = d.createElement('input'); d.body.append(kin);   // W-k's helper lives on in its remaining consumer (the tip sheet): pinned on the helper itself
+      W.Spixi.attachAmountKeyboardDismiss(kin);
+      kin.focus();
+      kin.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      ok(kin.getAttribute('enterkeyhint') === 'done' && d.activeElement !== kin, '★ W-k BEHAVIOURAL: Enter on the amount BLURS it — the soft keyboard drops and the list is browsable (★ S11 H re-base (#1263): asserted on attachAmountKeyboardDismiss, which the tip sheet still uses)');
+      kin.remove();
+    }
     const rows = [...view.querySelectorAll('.c-wallet-send__contacts .c-contact-row')];
     ok(rows.length === 3 && rows.every((r) => r.classList.contains('c-wallet-send__contact')
       && !!r.querySelector('.c-avatar[data-size="48"]') && !!r.querySelector('.c-contact-row__name') && !!r.querySelector('.c-contact-row__sub')),
@@ -17876,27 +17907,27 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     /* W-f: a scanned KNOWN address auto-picks the contact — nick + avatar, amount seeded */
     const picked = W.Spixi.setSendRecipient(view, { name: 'Ada Lovelace', address: 'ADA1234567890ABCDEFGHIJKLMNOP', online: true }, 'ADA1234567890ABCDEFGHIJKLMNOP:send:2.5');
     ok(picked === true && view.querySelector('.c-wallet-send__pickedname').textContent === 'Ada Lovelace'
-      && !!view.querySelector('.c-wallet-send__picked .c-avatar') && view.querySelector('.c-wallet-send__picker').hidden === true
-      && amt.value === '2.5' && view.querySelector('.c-wallet-send__addrfield').hidden === true,
+      && !!view.querySelector('.c-wallet-send__picked .c-avatar') && !!view.querySelector('.c-wallet-send__picker').closest('[hidden]')
+      && (amt.querySelector('.c-amount__num') || {}).textContent === '2.5' && view.querySelector('.c-wallet-send__addrfield').hidden === true,   /* ★ S11 H re-base (#1263): the picker leaves with step 1; the amount is the display */
       '★ W-f BEHAVIOURAL: setSendRecipient picks the CONTACT (nick + avatar), collapses the picker, hides the address field and seeds the QR amount');
     ok(view.querySelector('.c-wallet-send__pickedaddr').textContent === 'ADA123456…KLMNOP',
       '★ W-b: the picked stack is NAME over the muted TRUNCATED address (the full address shows on the review sheet)');
     ok(W.Spixi.setSendRecipient(d.createElement('div'), { address: 'X' }) === false, 'W-f: setSendRecipient on a non-compose returns false (the shell falls back to setSendAddress)');
-    /* a raw-address pick titles as the truncated address with an "Address" sub (W-b) */
-    view.querySelector('.c-wallet-send__clear').click();
+    /* a raw-address pick titles as the truncated address (W-b) */
+    view.querySelector('.c-wallet-send__picked').click();   /* ★ S11 H re-base (#1263): the To chip IS the change (no ✕) */
     W.Spixi.setSendAddress(view, 'RAW1234567890ABCDEFGHIJKLMNOPQ');
     ok(view.querySelector('.c-wallet-send__addrrow').getAttribute('aria-expanded') === 'true', 'W-f/W-b: a scan MISS reveals the address field and keeps the row\'s aria-expanded honest');
     [...view.querySelectorAll('.c-wallet-send__addrfield .c-button')].pop().click();
-    ok(view.querySelector('.c-wallet-send__pickedname').textContent === 'RAW123456…LMNOPQ' && view.querySelector('.c-wallet-send__pickedaddr').textContent === 'Address',
-      'W-b: a raw-address pick titles as the truncated address with the "Address" sub');
-    /* the bad-address error still lands under ITS field with the amount section above it (W-i moved the sections) */
-    view.querySelector('.c-wallet-send__clear').click();
+    ok(view.querySelector('.c-wallet-send__pickedname').textContent === 'RAW123456…LMNOPQ' && !view.querySelector('.c-wallet-send__pickedaddr') && !!view.querySelector('.c-wallet-send__picked .c-wallet-send__pickedglyph'),
+      'W-b: a raw-address pick titles as the truncated address (★ S11 H re-base (#1263): on the one-line To chip the qrcode glyph says "address" — no second "Address" word)');
+    /* the bad-address error still lands under ITS field, never in the amount section */
+    view.querySelector('.c-wallet-send__picked').click();   /* ★ S11 H re-base (#1263): back to step 1 through the chip */
     view.querySelector('.c-wallet-send__addrrow').click();
     const ai = view.querySelector('.c-wallet-send__addrinput'); ai.value = 'short';
     [...view.querySelectorAll('.c-wallet-send__addrfield .c-button')].pop().click();
     const fieldErr = view.querySelector('.c-wallet-send__addrfield .c-wallet-send__error');
     const amtErr = view.querySelector('.c-wallet-send__section--amount .c-wallet-send__error');
-    ok(!fieldErr.hidden && fieldErr.textContent.length > 0 && amtErr.hidden,
+    ok(!fieldErr.hidden && fieldErr.textContent.length > 0 && !!amtErr.closest('[hidden]'),   /* ★ S11 H re-base (#1263): the amount section's line is off screen with step 2 */
       '★ W-i regression fence: the bad-address error renders under the ADDRESS field, not in the amount section that now sits above it');
     ok(view.querySelector('.c-wallet-send__list .c-wallet-send__addrrow') && view.querySelector('.c-wallet-send__list .c-wallet-send__contacts'),
       'loop r1 m6: the address row and the contact rows share ONE card (same left edge)');
@@ -17928,7 +17959,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     d.body.append(noAddr);
     const naRow = noAddr.querySelector('.c-wallet-send__contacts .c-contact-row');
     naRow.click();
-    ok(naRow.disabled && noAddr.querySelector('.c-wallet-send__picked').hidden === true,
+    ok(naRow.disabled && !!noAddr.querySelector('.c-wallet-send__picked').closest('[hidden]') && noAddr.dataset.step === '1',   /* ★ S11 H re-base (#1263): no pick = still step 1 */
       '★ loop r2 R2-4: an address-less contact row is DISABLED on Send and can never become the recipient (no feeQuery:undefined, no blank-address review)');
     noAddr.remove();
     view.remove();
@@ -17937,25 +17968,27 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     d.body.append(locked);
     const redirected = W.Spixi.setSendRecipient(locked, { name: 'Attacker', address: 'ATTACKER1234567890ABCDEFG' }, 'ATTACKER1234567890ABCDEFG:send:500');
     W.Spixi.setSendAddress(locked, 'ATTACKER1234567890ABCDEFG');
-    ok(redirected === false && locked.querySelector('.c-wallet-send__pickedname').textContent === 'Peer' && locked.querySelector('.c-wallet-send__amount').value === '',
+    ok(redirected === false && locked.querySelector('.c-wallet-send__pickedname').textContent === 'Peer' && locked.querySelector('.c-wallet-send__amount').dataset.empty !== undefined && locked.dataset.step === '2',   /* ★ S11 H re-base (#1263): the display is empty; a locked compose stays on step 2 */
       '★ loop r1 m3: setSendRecipient AND setSendAddress refuse a lockedRecipient compose — the #139 fixed peer is never redirected');
     locked.remove();
     // A-2 (a11y): on the quote flow the pick focuses the NAMED picked group when Review is still gated
     const qf = W.Spixi.createWalletSend({ contacts: [{ name: 'Quote Flow', address: 'QF1234567890ABCDEFGHIJKL' }], balance: '100', fee: null, host: d.body, strings: {}, onQuote: () => {} });
     d.body.append(qf);
-    const qfAmt = qf.querySelector('.c-wallet-send__amount'); qfAmt.value = '3'; qfAmt.dispatchEvent(new W.Event('input', { bubbles: true }));
+    /* ★ S11 H re-base (#1263): the amount comes AFTER the pick now — the pick moves focus to step 2's named amount
+       (Review is gated by the quote), the To chip carries the name, the live line announces it */
     qf.querySelector('.c-wallet-send__contacts .c-contact-row').click();
     const qfPicked = qf.querySelector('.c-wallet-send__picked');
-    ok(d.activeElement === qfPicked && qfPicked.getAttribute('role') === 'group' && /Quote Flow/.test(qfPicked.getAttribute('aria-label') || '')
+    const qfAmt = qf.querySelector('.c-wallet-send__amount');
+    ok(d.activeElement === qfAmt && !!qfAmt.getAttribute('aria-label') && /Quote Flow/.test(qfPicked.getAttribute('aria-label') || '')
       && /Quote Flow/.test(qf.querySelector('.c-wallet-send__live').textContent),
-      '★ loop r1 A-2/A-6: with an amount typed and Review still gated by the quote, the pick focuses the NAMED picked group and the live line announces it — focus never falls to <body>');
+      '★ loop r1 A-2/A-6: with Review still gated by the quote, the pick focuses a NAMED target and the live line announces it — focus never falls to <body>');
     ok(qf.querySelector('.c-wallet-send__addrrow').getAttribute('aria-expanded') === 'false', 'loop r1 A-5: the address row\'s aria-expanded is false once the picker is hidden');
     qf.remove();
     // W-k: desktop is exempt (no soft keyboard) and an IME composition is never blurred
     d.documentElement.setAttribute('data-desktop', '');
-    const dk = W.Spixi.createWalletSend({ contacts: [], balance: 1, fee: 0.1, host: d.body, strings: {} });
+    const dk = d.createElement('div');   /* ★ S11 H re-base (#1263): pinned on the helper (send has no input; the tip sheet keeps one) */
     d.body.append(dk);
-    const dkAmt = dk.querySelector('.c-wallet-send__amount'); dkAmt.focus();
+    const dkAmt = W.Spixi.attachAmountKeyboardDismiss(dk.appendChild(d.createElement('input'))); dkAmt.focus();
     dkAmt.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     ok(d.activeElement === dkAmt, 'loop r1 A-4 (a11y): on DESKTOP Enter does NOT blur the amount — there is no soft keyboard to drop');
     d.documentElement.removeAttribute('data-desktop');
@@ -17985,10 +18018,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     ok(/until they accept/.test(recBRows[2].querySelector('.c-contact-row__sub').textContent), 'loop r1 m10: a blocked pending row says WHY on its sub-line (C9)');
     recB.remove();
     const ramt = rec.querySelector('.c-wallet-receive__amount');
-    ok(ramt.getAttribute('enterkeyhint') === 'done', 'W-k: the receive amount input carries enterkeyhint="done"');
-    ramt.focus();
-    ramt.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    ok(d.activeElement !== ramt, 'W-k BEHAVIOURAL: Enter on the receive amount blurs it too (both screens, one rule)');
+    ok(ramt.tagName === 'OUTPUT' && !ramt.hasAttribute('enterkeyhint') && !rec.querySelector('.c-wallet-receive__step--amount input'),
+      'W-k → #1263: the receive amount is the keypad\'s <output> too — no OS keyboard on either money screen (both screens, one rule)');
     /* W-c: the address sheet scrolls internally, caps the dialog, carries the explainer disc */
     rec.querySelector('.c-wallet-receive__addrbtn').click();
     await sleep(30);
@@ -18242,7 +18273,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
         '★ loop r2 R2-1: the wallet compose backstop is 125 s too — at 30 s a slow user still had the native dialog open and the real "ok" landed on nobody');
       /* ★ Session H re-base: close() gained the 'back' reason (the slide-out); the property —
          the address sheet dies FIRST, before any exit path — is unchanged. */
-      ok(/const close = \(reason\) => \{ closeAddressSheet\(\);/.test(homeS2), 'loop r2 n5: the Receive takeover closes its address sheet on the way out — no sheet outlives its screen');
+      ok(/const close = \(reason\) => \{ if \(reason === 'back' && walletReceiveView && walletReceiveView\._stepBack && walletReceiveView\._stepBack\(\)\) return; closeAddressSheet\(\);/.test(homeS2), /* ★ S11 H re-base (#1263): a Back on step 2 is a STEP, not an exit; every exit still closes the sheet first */ 'loop r2 n5: the Receive takeover closes its address sheet on the way out — no sheet outlives its screen');
     }
     const spay = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
     const scp = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
@@ -19043,10 +19074,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* — F5-6 (#558, Damir: option B) — the Max gate explains itself — */
   {
     const wsF56 = readFileSync(join(root, 'src/components/wallet-send.js'), 'utf8');
-    ok(/c-wallet-send__maxhint/.test(wsF56) && /maxNeedsRecipient \|\| 'Select a recipient to use Max\.'/.test(wsF56)
-       && /maxHint\.hidden = !!state\.recipient;/.test(wsF56)
-       && /maxBtn\.setAttribute\('aria-describedby', maxHint\.id\)/.test(wsF56),
-      '★ F5-6 (#558 B): the disabled Max carries the "Select a recipient to use Max." hint — visible exactly while the recipient is the reason, tied to the control via aria-describedby; the #523 no-invented-fee gate itself is unchanged');
+    /* ★ S11 H re-base (#1263 RETIRES the #558 gate): step 2 ALWAYS has a recipient, so the hint has no reason left —
+       gone with its key; Max lives on step 2 only (amtSec), and the #523 no-invented-fee predicate is byte-unchanged */
+    ok(!/c-wallet-send__maxhint/.test(wsF56) && !/maxNeedsRecipient/.test(wsF56)
+       && /const maxOff = !state\.recipient \|\| \(maxSendU === null && !fresh\);/.test(wsF56)
+       && /amtRow\.append\(availLine, maxBtn\);\s*amtSec\.append\(amtRow\);/.test(wsF56),
+      '★ F5-6 (#558 B) → #1263: the "Select a recipient to use Max." hint is RETIRED — Max sits on step 2, where a recipient always exists; the #523 no-invented-fee gate itself is unchanged');
   }
 }
 
@@ -19969,6 +20002,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       input.dispatchEvent(new WM.InputEvent('input', { inputType: 'insertFromPaste', data: null, bubbles: true }));
     };
 
+    /* ★ S11 H re-base (#1263): Send and Receive have NO amount field any more — the in-app keypad (amount-pad.js) is
+       the only way in, so there is no paste and no foreign separator to misread there; the V-1 PROPERTY ("the value that
+       reaches the bridge is the value the screen shows") is driven through the KEYS below, key by key, in each locale.
+       The paste gestures stay pinned on the one remaining amount field (the tip sheet). A '.' or ',' is the decimal KEY. */
+    const padKeys = (root, str) => { for (const ch of String(str)) root.querySelector('.c-amount-pad__key[data-key="' + (ch === '.' || ch === ',' ? 'dec' : ch) + '"]').click(); };
+    const padShown = (amt) => { const n = amt.querySelector('.c-amount__num'); return n ? n.textContent : ''; };
     /* ——— Wallet Send: type, gesture, Review, Confirm — read the payload ——— */
     const sendWire = async (locale, seed, gesture, text) => {
       dM.documentElement.lang = locale;
@@ -19981,9 +20020,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       dM.body.append(view);
       view.querySelector('.c-wallet-send__contacts .c-contact-row').click();
       const amt = view.querySelector('.c-wallet-send__amount');
-      for (const ch of seed) typeInto(amt, ch);
-      if (gesture === 'selectall') selectAllPaste(amt, text);
-      else if (gesture === 'caret') caretPaste(amt, text);
+      padKeys(view, seed);
+      if (gesture === 'selectall') { for (let i = 0; i < 20; i++) view.querySelector('.c-amount-pad__key[data-key="back"]').click(); padKeys(view, text); }   // "replace it": clear, then the new number
+      else if (gesture === 'caret') padKeys(view, text);                                                                                                // "add to it": the next keys
       await sleep(20);
       const cta = view.querySelector('.c-wallet-send__actions .c-button');
       const armed = !cta.disabled;
@@ -19994,7 +20033,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const confirmBtn = sheet && [...sheet.querySelectorAll('.c-sendreview__actions .c-button')].pop();
       if (confirmBtn) confirmBtn.click();
       await sleep(30);
-      const field = amt.value;
+      const field = padShown(amt);
       if (view._closeReview) view._closeReview();
       view.remove();
       await sleep(20);
@@ -20007,7 +20046,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const sEn = await sendWire('en-US', '5', 'selectall', '12,75');
     ok(sEn.wire === '12.75' && sEn.field === '12.75',
       '★★ V-1 (Wallet Send, en-US): the mirror gesture — a comma-decimal paste into a dot-decimal field is 12.75 both on screen and on the wire. It was 1275');
-    const sFr = await sendWire('fr-FR', '5', 'selectall', '1,234.56');
+    const sFr = await sendWire('fr-FR', '5', 'selectall', '1234.56');   /* ★ S11 H re-base (#1263): a keypad has no grouping key — the digits + the decimal key */
     ok(sFr.wire === '1234.56',
       '★★ V-1(b) (Wallet Send, fr-FR): a string in the OTHER convention is read in the other convention, not mangled into neither. `1,234.56` was becoming 1.23456 — a thousandfold UNDERPAYMENT, and this half fires on a paste into an EMPTY field too');
     const sCaret = await sendWire('en-US', '1234', 'caret', '5');
@@ -20035,8 +20074,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       });
       dM.body.append(qv);
       qv.querySelector('.c-wallet-send__contacts .c-contact-row').click();
-      const qa = qv.querySelector('.c-wallet-send__amount');
-      for (const ch of '.5') typeInto(qa, ch);
+      padKeys(qv, '.5');   /* ★ S11 H re-base (#1263): the decimal key on an empty amount gives 0. — the quote asks 0.5 */
       await sleep(420);
       WM.Spixi.setSendQuote(qv, { fee: '0.001', address: 'ADA1234567890ABCDEFGHIJKLMNOP', amount: asked });
       const cta = qv.querySelector('.c-wallet-send__actions .c-button');
@@ -20083,9 +20121,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       });
       dM.body.append(rec);
       rec.querySelector('.c-wallet-receive__contact').click();
-      const amt = rec.querySelector('.c-wallet-receive__amount');
-      for (const ch of seed) typeInto(amt, ch);
-      if (text) selectAllPaste(amt, text);
+      rec.querySelector('.c-wallet-receive__next').click();   /* ★ S11 H re-base (#1263): step 1 → step 2's keypad */
+      padKeys(rec, seed);
+      if (text) { for (let i = 0; i < 20; i++) rec.querySelector('.c-amount-pad__key[data-key="back"]').click(); padKeys(rec, text); }
       await sleep(20);
       rec.querySelector('.c-wallet-receive__cta').click();
       await sleep(30);
@@ -21451,7 +21489,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       for (const m of corpus.matchAll(/(?:images|img)\/[A-Za-z0-9_./-]+\.(?:png|svg|jpg|jpeg|gif|webp)/g)) refs.add(m[0]);
       // the launch shell COMPOSES its art paths: base + '<name>.png' over the 'images/onboarding/' default
       const bundle = built('spixi.bundle.js');
-      ok(/illustrationBase \|\| 'images\/onboarding\/'/.test(bundle), '★ Session N gate premise: the launch shell still composes its art from the images/onboarding/ base');
+      ok(!/illustrationBase/.test(stripCode(bundle)), '★ Session N gate premise (★ S11 B re-base, #1262): the launch shell composes NO art path any more — its art is inline, so the composed-path rung below finds nothing to add');
       for (const m of bundle.matchAll(/base \+ '([A-Za-z0-9_-]+\.png)'/g)) refs.add('images/onboarding/' + m[1]);
       // the flag files are composed from the LANGUAGES list (flags.js FLAG_BASE + code + .png)
       const flagCodes = [...bundle.matchAll(/flag:\s*'([a-z]{2})'/g)].map((m) => m[1]);
@@ -21461,7 +21499,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       for (const sn of SENTINELS) refs.delete(sn);
       const orphans = shipped.filter((f) => !refs.has(f));
       const dangling = [...refs].filter((r) => !shipped.includes(r));
-      ok(shipped.length >= 20 && refs.size >= 20, '★ Session N gate premise: the shipped image set and the reference set are both non-trivial (' + shipped.length + ' shipped · ' + refs.size + ' referenced)');
+      ok(shipped.length >= 13 && refs.size >= 13, /* ★ S11 B re-base (#1262): 20 → 19 — six launch/add-contact PNGs left with the inline set · ★ S11 A2 re-base (#1263): 19 → 13 — the last six images/ files left (hosts name the inline art); what ships is the 13 flags */ '★ Session N gate premise: the shipped image set and the reference set are both non-trivial (' + shipped.length + ' shipped · ' + refs.size + ' referenced)');
       ok(orphans.length === 0,
         '★★ Session N REACHABILITY GATE: every shipped file under images/ and img/ is referenced by exact path from a shipped html/css/js (or composed by the launch shell / the flag list). Orphans: ' + (orphans.join(',') || 'none'));
       ok(dangling.length === 0,
@@ -21473,7 +21511,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       // the source of truth for images/ is src/demo/images (build-shells copies it verbatim)
       const srcImgs = [];
       const walkSrc = (d, pre) => { for (const n of readdirSync(d)) { const q = join(d, n); if (statSync(q).isDirectory()) walkSrc(q, pre + n + '/'); else srcImgs.push(pre + n); } };
-      walkSrc(join(root, 'src/demo/images'), 'images/');
+      if (existsSync(join(root, 'src/demo/images'))) walkSrc(join(root, 'src/demo/images'), 'images/');   /* ★ S11 A2 re-base (#1263): the dir is EMPTY now — git keeps no empty dir, so a clean checkout has none (build-shells guards it with existsSync too) */
       ok(srcImgs.sort().join(',') === shipped.filter((f) => f.startsWith('images/')).sort().join(','),
         '★ Session N: src/demo/images ≡ Raw/html/images (build-shells copies verbatim — an orphan deleted only in Raw/html would come back on the next build)');
     }
@@ -21586,13 +21624,14 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const chDead = rdf('Spixi/Resources/Raw/html/chat.html');
     /* ★★ #1028 INVERTS this paired negative (#835 — inverted, not deleted): the shipped addFile handler now READS
        `sent`/`read` (and the relay flag, arg 14) into the status it renders, which is why the C# derivation is back. */
-    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice, group, played\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
+    /* ★ S11 F4 re-base (#1263): S11 G added arg 20 `size` (the offer size) — the handler still reads sent/read/relaySent */
+    ok(/addFile\(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice, group, played, size\) \{[\s\S]{0,500}?statusFrom\(\{ sent: relaySent === undefined \? 'True' : relaySent, confirmed: sent, read \}\)/.test(chDead),
       '★★ L2 (#641) PAIRED — INVERTED by #1028: the shipped addFile handler READS `sent`/`read` (+ the relay flag) into the tick it renders, so the C# derivation is back on that push (the negative this replaced said: if the shell ever reads them, the C# must come back)');
     // ★ #1198/#1199 re-base (session 6b): arg 2 is `rowText` (the body of a matched reply, else message.message)
     ok(/"updateMessage", Crypto\.hashToString\(message\.id\), rowText, tSent\.ToString\(\), tConfirmed\.ToString\(\), tRead\.ToString\(\)/.test(scp)
        && /string rowText = message\.message;/.test(scp),
       '★ L2 (#641): updateMessage pushes the DERIVED values, not the stored ones — the raw flags would re-stall the tick on every re-push');
-    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\), fTransfer, fLocal, fVoice, fGroup, fPlayed\);/.test(scp)   /* ★ #1177 re-base: + the trailing transfer arg · ★ #1208 re-base: + arg 17 fVoice · ★ S9 A1 re-base: + arg 18 fGroup */
+    ok(/"addFile"[^\n]*fConfirmed\.ToString\(\), fRead\.ToString\(\)[^\n]*fSent\.ToString\(\), fTransfer, fLocal, fVoice, fGroup, fPlayed, fSize\);/.test(scp)   /* ★ #1177 re-base: + the trailing transfer arg · ★ #1208 re-base: + arg 17 fVoice · ★ S9 A1 re-base: + arg 18 fGroup · ★ S11 G re-base (#1262/#1263): + arg 20 fSize (pins-s11/g-cs.mjs) */
        && /"addAppRequest"[^\n]*message\.confirmed\.ToString\(\), message\.read\.ToString\(\)/.test(scp),
       '★ L2 (#641) + #1028: the FILE push carries the DERIVED flags now (the card renders a tick); the APP push keeps the RAW flags — deriving values the shell throws away would be dead code with a false guarantee attached');
     /* ★★★ L2 (#649) — NO OPTIMISTIC SINGLE CHECK. Damir ruled against his own earlier
@@ -22058,7 +22097,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const recvSize = (wr.match(/label: strings\.sendRequest \|\| 'Send request',\s*\r?\n\s*type: 'fill', size: (\d+)/) || [])[1];
     ok(sendSize === '56' && recvSize === '56',
       '★★ Damir on device: the two wallet money CTAs are the SAME control — Review was 56 and Send request was 44, and L1 put them one tap apart. Got send=' + sendSize + ' receive=' + recvSize);
-    ok(/c-wallet-send__actions c-money-cta/.test(ws) && /ctaWrap\.className = 'c-money-cta';/.test(wr),
+    ok(/c-wallet-send__actions c-money-cta/.test(ws) && /ctaWrap\.className = 'c-money-cta c-wallet-receive__bar';/.test(wr),   /* ★ S11 H re-base (#1263): + the bar's own hook (the keypad rides in it) */
       '★★ and both ride ONE sticky rule. Two homes for a shared look is how these drifted in the first place');
     ok(/\.c-money-cta \{[\s\S]{0,400}?position: sticky;/.test(rdf('src/styles/base.css')),
       '★★ the rule lives in base.css — every shell links it, so neither takeover can own it and neither can drift from the other');
@@ -32038,7 +32077,7 @@ console.log('★★ handover-gate fix batch — the security pins');
       '★ gate 24: settings.html now RENDERS the Privacy screen and the hub routes to it. The screen has existed and been unreachable since it was built');
     const write = /localStorage\.setItem\(MEDIA_AUTOLOAD_KEY, next \? 'on' : 'off'\)/.test(setCode);
     ok(write, '★★ gate 24: the switch writes `off` when it is turned OFF. Invert the ternary and the row reads correctly, toggles correctly, and turns the gate ON when the user asks for it off');
-    ok(/ctrl\.done\(\)/.test(setCode) && /catch \(e\) \{ ctrl\.fail\(\); \}/.test(setCode),
+    ok(/ctrl\.done\(\)/.test(setCode) && /catch \(e\) \{ ctrl\.fail\(\);(?: return;)? \}/.test(setCode),   /* ★ S11 A2 re-base (#1263): `return;` after the fail (S11 C: the auto-download mirror below must not run on a failed write) */
       '★ gate 24: a storage failure calls ctrl.fail(), so the switch reverts instead of lying. Private mode throws on setItem');
     ok(/mediaAutoload: true,/.test(setCode) && /capabilities\.mediaAutoload/.test(stripCode(rdS('src/components/settings-shell.js'))),
       '★★ gate 24: `mediaAutoload` is declared as a FRONTEND capability and the hub gate names it. The gate still enumerates every row the screen can draw, so the hub cannot offer an EMPTY Privacy screen — which is what it would do the moment a §9 capability were pushed and this row were not counted');
@@ -34115,8 +34154,8 @@ console.log('#907: the history window counts visible messages');
     if (artImg) artImg.dispatchEvent(new w54.Event('error'));
     const gone = artImg ? !artImg.isConnected : false;
     const tile = sheet54 ? sheet54.querySelector('.c-contacts-addsheet__art[data-placeholder] svg') : null;
-    ok(src0 === 'images/add-contact.png' && existsSync(join(root, 'src/demo/images/add-contact.png')) && gone && !!tile,
-      '★ Session X: the add-contact art is the shipped PNG (the file exists in src/demo/images) and the ladder RUNS — png → glyph tile (got ' + JSON.stringify([src0, gone, !!tile]) + ')');
+    ok(!!artImg && artImg.getAttribute('data-illo') === 'addContact' && artImg.namespaceURI === 'http://www.w3.org/2000/svg' && !existsSync(join(root, 'src/demo/images/add-contact.png')) && !gone && !tile,   /* ★ S11 B re-base (#1262): the PNG + its glyph-tile ladder → the inline add-contact art (an svg has no error rung; behaviour: pins-s11/b-illo.mjs) */
+      '★ S11 B (#1262, supersedes Session X): the add-contact art is the INLINE drawing — no PNG ships, no error rung, no glyph tile (got ' + JSON.stringify([artImg && artImg.getAttribute('data-illo'), gone, !!tile]) + ')');
   }
   const panelEarly54 = !!w54.document.querySelector('.c-contacts-add');
   ok(!!addRow54 && !!sheet54 && sheet54.getAttribute('role') === 'dialog' && items54.length === 2
@@ -38568,7 +38607,7 @@ console.log('★★ #1028+ — the overnight finalization');
     const fileBr = um.slice(um.indexOf('if (message.type == FriendMessageType.fileHeader)'), um.indexOf('if (message.type != FriendMessageType.standard)'));
     const r = {
       derivedBeforePush: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*push\(batch, "addFile"/.test(cs),
-      argOrder: args.length === 19 && args[18] === 'fPlayed' &&   /* ★ S9 A1 r1 re-base: + arg 19 fPlayed */ args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()' && args[14] === 'fTransfer' && args[15] === 'fLocal' && args[16] === 'fVoice' && args[17] === 'fGroup',   /* ★ S9 A1 re-base: + arg 18 fGroup (CONTRACT §1c) */   /* ★ #1208 re-base: + arg 17 fVoice (V3) */   /* ★ #1177 re-base: + arg 15, the known incoming transfer (pins-s6/cs.mjs) · ★ #1190 re-base: + arg 16, the file on this device (pins-s6/rows.mjs) */
+      argOrder: args.length === 20 && args[18] === 'fPlayed' && args[19] === 'fSize' &&   /* ★ S9 A1 r1 re-base: + arg 19 fPlayed · ★ S11 G re-base (#1262/#1263): + arg 20 fSize (pins-s11/g-cs.mjs) */ args[8] === 'fConfirmed.ToString()' && args[9] === 'fRead.ToString()' && args[13] === 'fSent.ToString()' && args[14] === 'fTransfer' && args[15] === 'fLocal' && args[16] === 'fVoice' && args[17] === 'fGroup',   /* ★ S9 A1 re-base: + arg 18 fGroup (CONTRACT §1c) */   /* ★ #1208 re-base: + arg 17 fVoice (V3) */   /* ★ #1177 re-base: + arg 15, the known incoming transfer (pins-s6/cs.mjs) · ★ #1190 re-base: + arg 16, the file on this device (pins-s6/rows.mjs) */
       liveFlagsOnly: /deliveryTicks\(message, out bool fSent, out bool fConfirmed, out bool fRead\);\s*Utils\.sendUiCommand\(this, "updateFileTicks", Crypto\.hashToString\(message\.id\), fSent\.ToString\(\), fConfirmed\.ToString\(\), fRead\.ToString\(\)\);\s*return;/.test(fileBr)
         && !/message\.message|filePath|transferId/.test(fileBr),
       beforeTextGuard: um.indexOf('FriendMessageType.fileHeader') > -1 && um.indexOf('FriendMessageType.fileHeader') < um.indexOf('if (message.type != FriendMessageType.standard)'),
@@ -42192,6 +42231,7 @@ for (const mod of ['a1-wiring', 'a3-wiring']) await (await import(new URL('./pin
 for (const mod of ['b1-attach', 'b1-sheet', 'b1-grid', 'b1-misc', 'b1-a11y', 'b1-u03', 'b1-react']) await (await import(new URL('./pins-s9/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 B1 chat shell (b1-kit.mjs = the shared boot, not a module)
 for (const mod of ['b2-copy', 'b2-lang', 'b2-dl', 'b2-polish', 'b2-home', 'b2-f1', 'b2-toggle']) await (await import(new URL('./pins-s9/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S9 B2 other shells + copy (b2-kit.mjs = the shared boot, not a module)
 for (const mod of ['a-wiring', 'b-wiring', 'c-strip', 'c-readd', 'c-grid', 'c-toast', 'd-from', 'd-preview']) await (await import(new URL('./pins-s10/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S10 (#1254) — a = C# media/F1/F4/P2 · b = C# F3/F6/F7/P3 · c = chat shell strip/grid/toast · d = From sheet + preview lines (d-kit.mjs = a boot helper, not a module; pure rules: scripts/csh/S10MediaTests.cs, S10FixTests.cs)
+for (const mod of ['a-season', 'a-line', 'a-update', 'a-hints', 'a-copy', 'a-cs', 'b-illo', 'b-launch', 'b-motion', 'b-delete', 'c-chat', 'c-settings', 'c-wiring', 'e-zoom', 'e-page', 'f-wiring', 'f-apps', 'a-settings', 'a-held', 'g-album', 'g-offer', 'g-viewer', 'g-cs', 'h-send', 'h-receive', 'h-pad', 'h-r3']) await (await import(new URL('./pins-s11/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S11 (#1262) — a = seasonal bar / line / update card / hints / copy / C# · b = illustration set · c = chat flash probe / keyboard / paste toast / auto-download / created line · e = viewer zoom + paging · f = Apps pre-push (a-kit.mjs = a boot helper, not a module; pure rules: scripts/csh/S11HintTests.cs, S11ChatTests.cs, S11AppsTests.cs)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

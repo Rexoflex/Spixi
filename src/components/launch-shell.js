@@ -24,8 +24,8 @@
  * window-pagehide scrub also lands on createLockScreen (lock-shell.js).
  *
  * PREMIUM REWORK (Damir demo pass 2026-07-06): single full-bleed screen —
- * 4-slide autoplay carousel (LEGACY step1–4 art + copy, dark set — the
- * shipped intro.html illustrations, reused verbatim) over always-pinned
+ * 4-slide autoplay carousel (LEGACY step1–4 copy; ★ S11 B #1262: the art is the
+ * inline illustration set, dark set) over always-pinned
  * CTAs · the language pill reuses the settings sheet (settingsOptionSheet
  * #148⑥ flags — ONE picker grammar app-wide; the appearance pill left with
  * N72) · terms = fine print; the first Create/Restore
@@ -73,6 +73,7 @@ import { settingsOptionSheet, languageNote } from './settings-shell.js';
 import { LANGUAGES, createFlag } from './flags.js';
 import { slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide } from './subscreen-slide.js';
 import { LEGAL_DOCS } from './legal-docs.js';   // ★ #733: GENERATED from docs/legal at build time — the full documents
+import { illoWelcome1, illoWelcome2, illoWelcome3, illoWelcome4, illoRestore } from './illustrations.js';   // ★ S11 B (#1262): the approved set, inline
 
 const launchState = new WeakMap(); // el → st
 
@@ -290,27 +291,30 @@ function buildWelcome(st) {
   track.className = 'c-launch__track';
   car.append(track);
 
-  const base = opts.illustrationBase || 'images/onboarding/';
+  /* ★ S11 B (#1262): the four slides draw the APPROVED illustration set INLINE (Default
+     tiles: W1 round 3 · W2 round 1 · W3 round 3 · W4 round 1). The step1–4 PNGs and the
+     `illustrationBase` option are gone — the art is in the bundle, so there is no file to
+     miss and no error rung. The launch subtree is pinned dark, so --il-* resolve dark. */
   const defs = [
     {
-      img: base + 'step1.png',
+      art: illoWelcome1,
       title: strings.slide1Title || 'Built for you. Owned by you.',
       // ★ S9 A-10 (#1245, audit S-07): "Encrypted on your device" read as encryption AT REST
       //   (history is not encrypted at rest, CORE-11) → in-transit wording, NEW key.
       copy: strings.slide1Copy2 || 'End-to-end encrypted and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
     },
     {
-      img: base + 'step2.png',
+      art: illoWelcome2,
       title: strings.slide2Title || 'No phone number. No email. Just a nickname.',
       copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal. The account is yours alone.',
     },
     {
-      img: base + 'step3.png',
+      art: illoWelcome3,
       title: strings.slide3Title || 'Send money like you send a message.',
       copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and receive payments in a tap, as simple and instant as saying hello.',
     },
     {
-      img: base + 'step4.png',
+      art: illoWelcome4,
       title: strings.slide4Title || 'Mini Apps, right inside your chats.',
       copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world, all without ever leaving the conversation.',
     },
@@ -320,13 +324,10 @@ function buildWelcome(st) {
     slide.className = 'c-launch__slide';
     slide.setAttribute('role', 'group');
     slide.setAttribute('aria-label', (i + 1) + ' / ' + defs.length);
-    const img = document.createElement('img');
-    img.className = 'c-launch__illo-img';
-    img.src = s.img;
-    img.alt = '';                                // decorative — the copy carries meaning
-    img.draggable = false;
-    img.addEventListener('error', () => { img.hidden = true; }, { once: true });
-    slide.append(img);
+    // decorative (aria-hidden + focusable=false) — the copy carries meaning. Its entrance
+    // waits while the slide is aria-hidden (launch-shell.css), so each slide plays it ONCE
+    // when it first comes into view, then holds.
+    slide.append(s.art({ className: 'c-launch__illo-img' }));
     const h = document.createElement('h1');
     h.className = 'c-launch__slide-title';
     h.textContent = s.title;
@@ -843,15 +844,10 @@ function buildRestore(st) {
   //   lower"; premium round 2: the SHIPPED legacy restore illustration + a warm
   //   welcome-back line anchor the top, the form group drops toward the CTA
   //   (c-launch__lower margin-top:auto) —
-  const base = opts.illustrationBase || 'images/onboarding/';
   const hero = document.createElement('div');
   hero.className = 'c-launch__hero';
-  const heroIllo = document.createElement('img');
-  heroIllo.className = 'c-launch__hero-illo';
-  heroIllo.src = base + 'restore.png';           // legacy restore art (dark set — launch is pinned dark)
-  heroIllo.alt = '';                             // decorative — the copy carries meaning
-  heroIllo.draggable = false;
-  heroIllo.addEventListener('error', () => { heroIllo.hidden = true; }, { once: true });
+  // ★ S11 B (#1262): the approved restore art (round 3), inline, decorative — dark set (pinned)
+  const heroIllo = illoRestore({ className: 'c-launch__hero-illo' });
   const heroTitle = document.createElement('h1');   // the view's primary heading (topbar title is a nav label div)
   heroTitle.className = 'c-launch__hero-title';
   heroTitle.textContent = strings.restoreHeroTitle || 'Welcome back';

@@ -37,6 +37,7 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- c-modal (password confirm) -->
 <link rel="stylesheet" href="../styles/components/settings-shell.css"><!-- ★ #1080 F2 (#46 r1): the .c-account dials live here — without it the body class reached nothing -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css">
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
@@ -168,7 +169,7 @@
   function mountBackup() {
   root.replaceChildren(createSettingsBackup({
     status: backupStatus(),                      // ★ S2: from the push
-    illustration: 'images/backup.png',          // Damir: build-shells copies src/demo/images → …/html/images
+    illustration: 'backup',                     // ★ S11 A2 (#1263, R2-m5): the inline art's NAME (illustrations.js) — the PNG is deleted
     host: document.body,
     strings,
     onBack: () => bridge.send('ixian:back'),     // BackupPage.popPageAsync()

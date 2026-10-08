@@ -323,7 +323,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 .c-tile-col > .c-fbubble { max-width: 100%; }
 
-/* ★★ S9 (#1244 G = A): the photo group bubble is a square grid of photo-file tiles in one 3 px frame, with the caption under it. */
+/* ★★ S9 (#1244 G = A): the photo group bubble — the photo-file tiles in one 3 px frame, with the caption under them.
+   ★★ S11 G (#1263 a = A, Telegram grammar): a MOSAIC of every photo (≤ 10) in rows of 1–4. The grid is 12 columns; a
+   cell spans 12 / (its row's length) (data-row, media-bubble.js addPhotoGridCell); the box's aspect ratio and the row
+   heights come from media-bubble.js mosaicGeometry (inline — sanctioned runtime geometry), so every cell has a definite
+   size and the tiles fill it. */
 .c-mgrid-col { display: block; }
 .c-bubble-row[data-direction="sent"] .c-mgrid-col { margin-inline-start: auto; }
 .c-mgrid-box {
@@ -340,23 +344,24 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 .c-mgrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: var(--mosaic-rows, 1fr);   /* media-bubble.js mosaicGeometry: the rows in proportion to their heights */
+  aspect-ratio: var(--mosaic-ratio, 1);
   gap: 2px;
   border-radius: calc(var(--bubble-radius) - 3px);
   overflow: hidden;
 }
-.c-mgrid[data-n="1"] { grid-template-columns: 1fr; aspect-ratio: 1 / 1; }
-.c-mgrid[data-n="2"] { aspect-ratio: 2 / 1; }
-.c-mgrid[data-n="3"],
-.c-mgrid[data-n="4"] { grid-template-rows: 1fr 1fr; aspect-ratio: 1 / 1; }
-.c-mgrid[data-n="3"] > .c-mgrid__cell:first-child { grid-row: 1 / 3; }
 .c-mgrid > .c-mgrid__cell {
   display: block;
+  grid-column: span 12;
   min-width: 0;
   min-height: 0;
   margin: 0;
   padding: 0;
 }
+.c-mgrid > .c-mgrid__cell[data-row="2"] { grid-column: span 6; }
+.c-mgrid > .c-mgrid__cell[data-row="3"] { grid-column: span 4; }
+.c-mgrid > .c-mgrid__cell[data-row="4"] { grid-column: span 3; }
 .c-mgrid .c-mbubble-anchor { width: 100%; height: 100%; }
 .c-mgrid .c-mbubble,
 .c-bubble-row[data-direction="sent"] .c-mgrid .c-mbubble[data-file] {
@@ -370,13 +375,19 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   border-radius: 0;
   box-shadow: none;
 }
-/* a cell is small: the long "keep Spixi open" hint goes, the name / percentage stays */
+/* a cell is small: the long "keep Spixi open" hint goes, the name / percentage stays; the ring and the ↓ disc shrink */
 .c-mgrid .c-mbubble__hint { display: none; }
 .c-mgrid .c-mbubble__file { padding: var(--spacing-8); gap: var(--spacing-4); }
 .c-mgrid .c-mbubble__cap,
 .c-mgrid .c-mbubble__cta { font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs); }
+.c-mgrid .c-mbubble__ring { width: var(--size-target-min); height: var(--size-target-min); }
+.c-mgrid .c-mbubble__ring > .c-fbubble__icon { display: none; }   /* the ring alone reads at cell size; the % sits under it */
 .c-mgrid > .c-mgrid__cell:not(:last-child) .c-mbubble__time,
 .c-mgrid > .c-mgrid__cell:not(:last-child) .c-mbubble__stamp { display: none; }
+/* ★ S11 G: with a footer the time is the footer's — no cell carries one */
+.c-mgrid-box[data-dlall] .c-mgrid .c-mbubble__time { display: none; }
+/* ★ S11 G (#1263 a): past MOSAIC_MAX a passive "+N" LABEL over the last cell — never a button, never an event target
+   (the cell's own tap and menu stay live under it; S10's button took the right-click, walk #1260) */
 .c-mgrid__more {
   position: absolute;
   inset: 0;
@@ -384,39 +395,38 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
   background: var(--surface-scrim);
   color: var(--text-on-scrim);
-  font: inherit;
   font-size: var(--font-size-heading-xs);
   font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  pointer-events: none;
 }
-/* ★ S10 F2 (#1254): the "+N" is a button over the fourth cell now (tappable); the S9 overlay inside a tile stays inert */
-span.c-mgrid__more { pointer-events: none; }
-button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: -2px; }
-/* ★ S10 F2: "Download all (n)" — a text button under the grid of a received group while offers remain */
-.c-mgrid__dlall {
+/* ★ S11 G (#1263 a): the FOOTER under the photos (and the caption) of a received group with offers left —
+   "Download all (n) · size" on the start side, the time on the end side */
+.c-mgrid__foot {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: var(--spacing-8);
-  width: 100%;
+  padding: var(--spacing-4) var(--spacing-8) var(--spacing-2) var(--spacing-4);
+}
+.c-mgrid__dlall {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
   min-height: var(--size-target-min);
   margin: 0;
-  padding: var(--spacing-4) var(--spacing-12);
+  padding: var(--spacing-4) var(--spacing-8);
   border: 0;
-  border-radius: calc(var(--bubble-radius) - 3px);
+  border-radius: var(--radius-8);
   background: transparent;
   color: var(--text-action-default);
   font: inherit;
   font-size: var(--font-size-label-md);
   line-height: var(--line-height-label-md);
   font-weight: var(--font-weight-semibold);
+  text-align: start;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -427,6 +437,12 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
 .c-mgrid__dlall:active { background: var(--surface-action-tonal-default); }
 .c-mgrid__dlall:disabled { opacity: 0.6; cursor: default; }
 .c-mgrid__dlall:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: -2px; }
+.c-mgrid__time {
+  flex: none;
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  color: var(--text-neutral-02);
+}
 .c-mgrid__caption {
   padding: 6px 9px 4px;
   font-size: calc(var(--font-size-body-md) * var(--chat-text-scale, 1));
@@ -437,3 +453,64 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
 }
 .c-mgrid .c-mbubble__time,
 .c-mgrid .c-mbubble__stamp { z-index: 3; }
+/* ★ S11 G (#1263 a): ONE Reply affordance BESIDE the album, never on the photos. The desktop hover button is placed
+   from messageMenuTarget — for a group row that is the FIRST cell's tile, so it landed over the second photo (walk
+   #1260). On a group row the button is a plain flex item instead: after the album on a received row, before it on a
+   sent one, centred on it; the --reply-btn-x / -y geometry is not used. It takes no room the album needs (the column
+   is at most the card rail). */
+:root[data-desktop] .c-mgrid-row > .c-bubble-row__reply {
+  position: relative;
+  left: auto;
+  top: auto;
+  align-self: center;
+  flex: none;
+  margin-inline: var(--spacing-4);
+}
+.c-bubble-row[data-direction="sent"].c-mgrid-row > .c-bubble-row__reply + .c-mgrid-col { margin-inline-start: 0; }
+
+/* ★★ S11 G (#1258 + #1263 c = A): the PREVIEW in an offer (media-bubble.js setTilePreview). The blurred picture lies
+   under the face (.c-mbubble__preview keeps today's 12 px blur); an OFFER hides its file face and shows a centre ↓ disc
+   with the size; downloading / failed keep their face, on a scrim over the picture (the #46 r2 R2-1 scrim grammar). */
+.c-mbubble[data-file][data-pv] { background: var(--surface-neutral-02); }
+.c-mbubble[data-pv][data-file="offer"] .c-mbubble__file { visibility: hidden; }
+.c-mbubble__pvmark {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  color: var(--icon-on-scrim);
+  pointer-events: none;
+}
+.c-mbubble:not([data-file="offer"]) > .c-mbubble__pvmark { display: none; }
+.c-mbubble__pvdisc {
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+}
+.c-mbubble__pvsize {
+  padding: 0 var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-on-scrim);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+}
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__file {
+  z-index: 1;
+  background: var(--surface-scrim-strong);
+  color: var(--text-on-scrim);
+}
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__cta,
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__hint { color: var(--text-on-scrim); }
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__ring-track { stroke: var(--surface-wash-on-scrim-strong); }
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__ring-fill { stroke: var(--icon-on-scrim); }
+.c-mbubble[data-file][data-pv]:not([data-state="loaded"]) .c-mbubble__time { background: var(--surface-scrim); color: var(--text-on-scrim); }

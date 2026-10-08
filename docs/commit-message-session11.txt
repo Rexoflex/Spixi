@@ -1,0 +1,41 @@
+Session 11: S10 walk fixes, design set, album, send flow
+
+The S10 walk (#1260) fix round, Damir's design set and his picks
+(#1262, #1263):
+- 10-FLASH: a probe build with a candidate fix ON. On Android the open
+  hold now releases one frame after the chat shell answers a paintAck
+  push (the grounds stay transparent until then; 250 ms cap). Developer
+  switches turn the candidate off or skip one release action; [P1] hold
+  frame / release lines.
+- No keyboard after a quick reaction from a touch-opened message menu.
+- A toast when an image paste is refused during an edit.
+- Photo auto-download (Settings > Privacy, Off by default): Off, Wi-Fi
+  only or Always; photos up to 10 MB from approved contacts, never in bot
+  rooms; at most 4 at once and 50 MB per chat per day; same accept path as
+  the Download tap.
+- Chats top bar: Halloween (24 Oct - 1 Nov 03:00) and Christmas (1 Dec -
+  2 Jan) art from the local clock; the connecting line blue to violet.
+- MIT removed from the app copy ("(c) Ixian").
+- The update notice is a glass card with "How to update" (new verb
+  ixian:updateHelp, C# owns the URL).
+- Hint cards, tips 5-9 ("Did you know?"), counters in a C# local-only
+  store; a switch in Chat appearance.
+- The illustration set and the rating art as inline SVG with theme
+  tokens; unused images removed.
+- More space between the Downloads rows.
+- The group "created" line as a title and a muted subtitle.
+- Photo viewer: pinch / ctrl+wheel / double-tap zoom and a finger-follow
+  paging track; Reply and Save on every viewer.
+- The Apps list is pushed once in the background after boot.
+- Album pattern A (mosaic, a menu on every tile, Download all footer,
+  Reply beside the bubble).
+- Offer preview A: the sender fills the offer's preview field (<= 8 KB,
+  ~96 px, no metadata); the receiver shows it blurred when "Load pictures"
+  is on and the contact rule passes.
+- Message preview: an inline 1 line / 2 lines control, default 1 line.
+- Send and Receive in 2 steps: the recipient, then a big amount with an
+  in-app keypad (locale decimal mark), Use max and an over-balance line;
+  the Review sheet and the native confirm are unchanged.
+
+Review: #46 loop CLEAN at r4 (#1264). C# harness 336.
+New bridge surface for the BE engineer: B-33.

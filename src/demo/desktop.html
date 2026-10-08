@@ -46,6 +46,7 @@
 <link rel="stylesheet" href="../styles/components/txlist-item.css">
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
 <link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state -->
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/wallet-shell.css">
 <link rel="stylesheet" href="../styles/components/contact-row.css"><!-- W-j: shared money-picker row -->
 <link rel="stylesheet" href="../styles/components/wallet-send.css">
@@ -598,7 +599,7 @@
       host: frame,
       // illustrations-plan #6 — 404s until the art drops, then auto-upgrades
       // (img error → tonal shield-disc fallback, launch-shell grammar)
-      illustration: 'images/backup.png',   // Session N: the onboarding/ twin (byte-identical) is deleted
+      illustration: 'backup',   // ★ S11 A2 (#1263): the inline art's NAME (the PNG is deleted)
       onBackup: () => toast('ixian:backup → Backup screen (C#)'),
     }),
   }));
@@ -1913,7 +1914,7 @@
     arecents = createAppsRecents(ast, aopts);
     const aheader = createAppsHeader({
       layout: 'list', strings, discover: false,
-      exploreImage: '../assets/images/discover-apps.svg',
+      exploreImage: 'explore',   // ★ S11 A2 (#1263): the inline Explore art's NAME
       onQuery: (q) => { setAppsQuery(alist, ast, q, aopts); decorateAppRows(); },
       onToggleLayout: () => {},                    // toggle is display:none in the pane
       onExplore: () => dtOpenAppDetail('discover'),

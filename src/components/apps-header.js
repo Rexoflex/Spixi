@@ -9,6 +9,7 @@
 import { getStrings } from './strings-runtime.js';
 import { createSearchField } from './search-field.js';
 import { icon } from './icons.js';
+import { illustrationFor } from './illustrations.js';   // ★ S11 B (#1262)
 
 export function createAppsHeader({ layout = 'list', strings = getStrings(), discover = false, exploreImage = null, onQuery, onToggleLayout, onExplore } = {}) {
   const el = document.createElement('div');
@@ -69,7 +70,16 @@ export function createAppsHeader({ layout = 'list', strings = getStrings(), disc
   // can never end up underneath the art at a narrow width. Decorative → alt="" and
   // the banner's own aria-label carries the meaning. A missing/blocked asset simply
   // removes itself — the banner is fully functional without it.
-  if (exploreImage) {
+  const exploreArt = illustrationFor(exploreImage);
+  if (exploreArt) {
+    /* ★ S11 B (#1262): the approved Explore art (round 1), INLINE — same flex-sibling slot
+       and class, nothing to fetch (the old export was ~800 KB, hence the lazy dance below).
+       The banner is the same blue in both themes, so the art pins its own shadow/glow.
+       xMaxYMax = the img's `object-position: bottom right` when the 42 % cap narrows it. */
+    const art = exploreArt({ className: 'c-apps-explore__illo' });
+    art.setAttribute('preserveAspectRatio', 'xMaxYMax meet');
+    banner.append(art);
+  } else if (exploreImage) {
     const illo = document.createElement('img');
     illo.className = 'c-apps-explore__illo';
     illo.alt = '';

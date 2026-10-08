@@ -24,6 +24,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
+import { illustrationFor } from './illustrations.js';   // ★ S11 B (#1262)
 import { createButton } from './button.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
@@ -37,7 +38,16 @@ export function showRatingNudge({ host, illustration = '', onRate, onDismiss, st
   disc.append(icon('logo'));                     // the brand mark asks (legacy spixirounded.svg)
 
   let art = null;                                // N14a — the rate-me illustration leads; disc = fallback
-  if (illustration) {
+  const inlineArt = illustrationFor(illustration);
+  if (inlineArt) {
+    /* ★ S11 B (#1262): the approved rating art, version D "Phone" (rn-once: bubbles pop in,
+       a heart lands, hearts rise beside the phone — once, then it holds), INLINE. ★ S11 A2 (#1263):
+       the shell passes its NAME ('rating'). */
+    art = inlineArt({ className: 'c-rating-nudge__illo' });
+    disc.hidden = true;
+  } else if (illustration) {
+    /* ★ S11 A2 (#1263): no shipped host reaches this rung (they pass a name) — kept as the arbitrary-URL contract
+       with its pinned error → disc fail-soft (smoke-test.mjs N14a), the backup nudge's twin */
     art = document.createElement('img');
     art.className = 'c-rating-nudge__illo';
     art.src = illustration;

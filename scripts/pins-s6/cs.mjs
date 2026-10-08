@@ -154,7 +154,7 @@ export default async function (h) {
   /* ———— #1177 C#: addFile carries incomingTransferArg LAST; the empty-uid guard; the rule decides ———— */
   await guard('#1177 C#', async () => {
     const sc = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
-    const pushLast = /string fTransfer\s*=\s*incomingTransferArg\(message,\s*uid\);\s*deliveryTicks\([^;]*;\s*push\(batch,\s*"addFile",[^;]*fSent\.ToString\(\),\s*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed\);/.test(sc);   // ★ #1190 re-base: + arg 16 fLocal · ★ #1208 re-base: + arg 17 fVoice · ★ S9 A1 re-base: + arg 18 fGroup
+    const pushLast = /string fTransfer\s*=\s*incomingTransferArg\(message,\s*uid\);\s*deliveryTicks\([^;]*;\s*push\(batch,\s*"addFile",[^;]*fSent\.ToString\(\),\s*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed,\s*fSize\);/.test(sc);   // ★ #1190 re-base: + arg 16 fLocal · ★ #1208 re-base: + arg 17 fVoice · ★ S9 A1 re-base: + arg 18 fGroup · ★ S11 G re-base (#1263): + arg 20 fSize (pins-s11/g-cs.mjs)
     const fn = sc.slice(sc.indexOf('private static string incomingTransferArg('), sc.indexOf('private static string incomingTransferArg(') + 1200);
     const guardUid = /if\s*\(message\.localSender\s*\|\|\s*message\.completed\s*\|\|\s*string\.IsNullOrEmpty\(uid\)\)\s*\{\s*return "";\s*\}/.test(fn);
     const rule = /TransferManager\.getIncomingTransfer\(uid\)/.test(fn) && /t\.uid\s*!=\s*uid/.test(fn) && /FileRowRules\.transferStateArg\(true,\s*t\.completed,\s*true,\s*t\.fileStream\s*!=\s*null,/.test(fn) && /catch\s*\(Exception\)\s*\{\s*return "";\s*\}/.test(fn);

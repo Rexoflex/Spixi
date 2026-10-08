@@ -23,11 +23,11 @@
      capability, which stays a probe (L15). Unknown/unsubstituted → no attribute. -->
 <script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
 <script>(function(){if('*SL{SpixiP1}'==='1')document.documentElement.setAttribute('data-p1','');})();</script>
-<!-- ★ S10 P4 (#1254): the chats-list excerpt lines — spixi.chat.previewlines ('1' | '2'; absent / anything else = '2'),
+<!-- ★ S10 P4 (#1254): the chats-list excerpt lines — spixi.chat.previewlines ('1' | '2'; absent / anything else = '1' — ★ S11 #1262: the default is 1 LINE, #1261),
      written by Settings → Chat appearance (settings.html CHAT_PREFS). Set BEFORE first paint, and re-read when another
      document writes it (storage) or this one comes back (visibilitychange · pageshow). Only the two literals reach the
      attribute. -->
-<script>(function(){function r(){var v='2';try{if(localStorage.getItem('spixi.chat.previewlines')==='1')v='1';}catch(e){}if(document.documentElement.dataset.previewLines!==v)document.documentElement.dataset.previewLines=v;}r();window.addEventListener('storage',function(e){if(!e||e.key===null||e.key==='spixi.chat.previewlines')r();});document.addEventListener('visibilitychange',function(){if(!document.hidden)r();});window.addEventListener('pageshow',r);})();</script>
+<script>(function(){function r(){var v='1';try{if(localStorage.getItem('spixi.chat.previewlines')==='2')v='2';}catch(e){}if(document.documentElement.dataset.previewLines!==v)document.documentElement.dataset.previewLines=v;}r();window.addEventListener('storage',function(e){if(!e||e.key===null||e.key==='spixi.chat.previewlines')r();});document.addEventListener('visibilitychange',function(){if(!document.hidden)r();});window.addEventListener('pageshow',r);})();</script>
 <!-- Desktop nav rail (spec 6e.1, #232 ④): gates on :root[data-desktop] — the #228
      platform flag set above (zero-C#; the old ?desktop=1/.is-desktop opt-in is
      superseded — C# never set __SPIXI_DESKTOP__). Browser-preview forcing only:
@@ -66,6 +66,7 @@
 <link rel="stylesheet" href="../styles/base.css">
 <link rel="stylesheet" href="../styles/components/button.css">
 <link rel="stylesheet" href="../styles/components/topbar.css">
+<link rel="stylesheet" href="../styles/components/seasonal.css"><!-- ★ S11 A (#1262): the seasonal Chats logotype (seasonal.js) — this shell only -->
 <link rel="stylesheet" href="../styles/components/bottomnav.css">
 <link rel="stylesheet" href="../styles/components/avatar.css">
 <link rel="stylesheet" href="../styles/components/chatlist-item.css">
@@ -78,12 +79,14 @@
 <link rel="stylesheet" href="../styles/components/contact-request.css">
 <link rel="stylesheet" href="../styles/components/message-menu.css">
 <link rel="stylesheet" href="../styles/components/banner.css"><!-- M16: actionable warnings (update available) -->
+<link rel="stylesheet" href="../styles/components/glass-card.css"><!-- ★ S11 A (#1262): the update card + the hint cards (glass-card.js) -->
 <link rel="stylesheet" href="../styles/components/backup-nudge.css"><!-- A11 (#302): periodic backup reminder -->
 <link rel="stylesheet" href="../styles/components/rating-nudge.css"><!-- A5 (#302): store-rating prompt -->
 <link rel="stylesheet" href="../styles/components/scan-progress.css"><!-- #440/#443: blockchain-scan progress -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 
 <link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state (chats · wallet · contacts · apps) — ONE link: build-shells INLINES each href, so a second one shipped a duplicate copy of the whole file -->
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
 <link rel="stylesheet" href="../styles/components/chats-swipe.css">
@@ -382,6 +385,10 @@
     <span id="sl-hourcycle">*SL{hourCycle}</span>
     <span id="sl-connecting-s2">*SL{global-connecting-s2}</span>
     <span id="sl-connecting-dlt">*SL{global-connecting-dlt}</span>
+    <!-- ★ S11 A (#1262): the update notice's TEMPLATE (one {0} hole in all 13 lang files) — HomePage pushes
+         String.Format(_SL("global-update-available"), v) through showWarning, so the shell recognises the notice by
+         this template's prefix + suffix in the active locale and lifts the version out of the hole (updateVersionOf). -->
+    <span id="sl-update-available">*SL{global-update-available}</span>
     <!-- ★ CH6 (Session AD): the fourteen EXCERPT-CANON carriers that used to live here
          (`sl-ex-*`, `sl-ex-self`, `sl-waiting-response`) are GONE. C# pushes the excerpt
          KIND as addChat's 11th argument (HomePage.getFriendMessageHelper), so the shell no
@@ -475,6 +482,8 @@
     isAddressShaped,                     // ★ #589: the ONE address-shape test (was a local 20-char regex)
     createChatsHeader, attachChatsCollapse, setChatsHeaderCounts, acceptContactRequest, completeHandshake,
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
+    attachSeasonal,                      // ★ S11 A (#1262): the seasonal Chats top bar (C1 Halloween · X1 Christmas)
+    createUpdateCard, createHintCard, parseHintsState, pickHint, updateVersionOf,   // ★ S11 A (#1262): the glass cards
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
@@ -693,6 +702,10 @@
     ],
   });
   document.getElementById('chats-topbar').append(chatsTopbarEl);
+  /* ★ S11 A (#1262): the seasonal logotype — Halloween [24 Oct, 1 Nov 03:00) and Christmas [1 Dec, 2 Jan), local
+     clock, checked now / on resume / every minute (seasonal.js). Only the Chats ROOT bar's logotype wears it: the
+     desktop bar is a plain "Chats" title with no mark (the brand mark lives on the rail), so it stays plain. */
+  attachSeasonal(chatsTopbarEl, { scroller: document.getElementById('chat-scroll') });
 
   /* —— iOS-22 (#314): dev-mode 10-tap restore (legacy countLogoClick grammar) ——
    * ZERO-C#: HomePage still dispatches ixian:enableDevMode / ixian:disableDevMode
@@ -953,7 +966,8 @@
   function titleStateTargets() {
     const out = [];
     const chats = chatsTopbarEl.querySelector('.c-topbar__title');
-    if (chats) out.push({ holder: chats, word: chats.querySelector('span') || chats, base: chatsTitleBase, bar: chatsTopbarEl });
+    // ★ S11 A (#1262): the WORDMARK first — a season can put art beside it, and only the word is the title text
+    if (chats) out.push({ holder: chats, word: chats.querySelector('.c-topbar__word') || chats.querySelector('span') || chats, base: chatsTitleBase, bar: chatsTopbarEl });
     try {
       const apps = appsTopbarEl.querySelector('.c-topbar__title');
       if (apps) out.push({ holder: apps, word: apps.querySelector('span') || apps, base: strings.tabApps || 'Apps', bar: appsTopbarEl });
@@ -1021,7 +1035,133 @@
     const slot = document.getElementById(
       navId === 'wallet' ? 'wallet-banner' : navId === 'apps' ? 'apps-banner' : 'chats-banner');
     if (slot && homeBanner.parentNode !== slot) slot.append(homeBanner);
+    cardNav = navId;
+    placeUpdateCard();               // ★ S11 A (#1262): the update card follows the visible tab too (#403's rule)
   }
+
+  /* ★★ S11 A (#1262) — THE GLASS CARDS (glass-card.js). UPDATE CARD: the update notice ONLY, still pushed through
+   * showWarning every tick and recognised by the template carrier above (no new push). No Update button; "How to
+   * update" = ★ S11 A2 (#1263) `ixian:updateHelp` (C# opens Config.updateHelpUrl), only for an exe with the
+   * `updateHelp` cap (else today's banner). × = #383 (in memory). ONE element that MOVES like the banner (#403).
+   * HINT CARDS (tips 5–9): C# stores (SHints), the shell decides (pickHint); `ixian:hint:shown|done:<id>`, only to an
+   * exe with the `hints` cap. Learn more uses EXISTING navigation only. */
+  const chatsCardSlot = document.createElement('div');
+  chatsCardSlot.className = 'chats-cards';
+  let cardNav = 'chats';
+  const UPDATE_TEMPLATES = [
+    slCarrier('sl-update-available', ''),
+    'New version of Spixi ({0}) is available. Please update for best experience.',   // the en-us template (preview / belt)
+  ].filter(Boolean);
+  let updateCard = null;
+  let dismissedUpdate = '';
+  function placeUpdateCard() {
+    if (!updateCard) return;
+    const slot = cardNav === 'wallet' ? document.getElementById('wallet-banner')
+      : cardNav === 'apps' ? document.getElementById('apps-banner') : chatsCardSlot;
+    if (slot && updateCard.parentNode !== slot) slot.prepend(updateCard);
+  }
+  function showUpdateCard(text, version) {
+    if (text === dismissedUpdate) return;                       // a waved-away notice is not resurrected by a re-push
+    if (updateCard && updateCard.dataset.version === version) return;   // the same notice, every tick: nothing to do
+    const fresh = createUpdateCard({
+      version, strings,
+      onHowTo: () => bridge.send('ixian:updateHelp'),
+      onDismiss: () => {
+        dismissedUpdate = text;
+        if (updateCard) { updateCard.remove(); updateCard = null; }
+        pumpHint();
+      },
+    });
+    if (updateCard) updateCard.replaceWith(fresh);
+    updateCard = fresh;
+    placeUpdateCard();
+    pumpHint();                                                  // never together: an open hint gives way
+  }
+
+  /* ★★ S11 A2 (#1263, R2-M1) hint timing: decide only HINT_SETTLE_MS after the first setHints (the boot's update /
+     rating pushes land first), on the visible Chats tab; send `shown` only after the card STOOD HINT_STAND_MS — a card
+     displaced earlier goes without a latch and comes back when the block clears. A queued rating blocks only if it
+     will really show. Clock = C#'s now + time since the push, re-checked on resume; a re-push merges. × / Learn more
+     before it stood still counts as seen (`shown`, then `done`). */
+  const HINT_SETTLE_MS = 4000;
+  const HINT_STAND_MS = 3000;
+  let hintsState = null;          // the validated setHints push (null = no hints: an older exe, or no push yet)
+  let hintsAt = 0;
+  let hintsSettled = false;
+  let hintSettleTimer = 0;
+  let hintCard = null;
+  let hintStandTimer = 0;
+  let hintShownId = '';           // the tip that stood (reported shown) — it stays until × / Learn more
+  function hintNow() {
+    return hintsState ? hintsState.now + Math.max(0, Date.now() - hintsAt) : Date.now();
+  }
+  function hintBlocked() {
+    try {
+      return !!updateCard || nudgeOpen !== null
+        || nudgeQueue.some((k) => k !== 'rating' || (!ratingTooEarly() && !ratingSnoozed()));
+    } catch (e) { return true; }  // the nudge queue is declared further down — before it exists, nothing shows
+  }
+  function hintOnScreen() {
+    try { return nudgeTabId === 'chats' && document.visibilityState === 'visible'; } catch (e) { return false; }
+  }
+  function dropHintCard() {
+    clearTimeout(hintStandTimer);
+    hintStandTimer = 0;
+    if (hintCard) { hintCard.remove(); hintCard = null; }
+  }
+  function hintStood(id) {
+    hintStandTimer = 0;
+    if (!hintCard || hintCard.dataset.tip !== id || hintBlocked() || !hintOnScreen()) { pumpHint(); return; }
+    hintShownId = id;
+    if (hintsState) hintsState.lastShown = hintNow();
+    bridge.send('ixian:hint:shown:' + id);
+  }
+  function hintDone(id) {
+    dropHintCard();
+    if (hintShownId !== id) {
+      if (hintsState) hintsState.lastShown = hintNow();
+      bridge.send('ixian:hint:shown:' + id);
+    }
+    hintShownId = '';
+    if (hintsState && hintsState.done.indexOf(id) < 0) hintsState.done.push(id);
+    bridge.send('ixian:hint:done:' + id);
+  }
+  // ★ S11 A2 (#1263, R3-MAJOR-2): the nav's OWN path (its click → onChange), not a copy of it
+  function goToTab(id) {
+    const item = nav.querySelector('.c-bottomnav__item[data-id="' + id + '"]');
+    if (item) item.click();
+  }
+  function hintLearnMore(target) {
+    if (target === 'backup') { bridge.send('ixian:backup'); return; }          // Settings › Backup (BackupPage)
+    if (target === 'wallet' || target === 'apps') { goToTab(target); return; }
+    if (target === 'addcontact') {                                             // the directory's own Add contact
+      openContacts('directory');
+      const add = contactsView && contactsView.el ? contactsView.el.querySelector('.c-contacts__action') : null;
+      if (add) add.click();
+    }
+  }
+  function pumpHint() {
+    if (!hintsState || hintsState.off) { dropHintCard(); return; }
+    if (hintCard) {
+      if (!hintBlocked() && hintOnScreen()) return;
+      dropHintCard();                                            // displaced: no latch
+      return;
+    }
+    if (!hintsSettled || !hintOnScreen() || hintBlocked()) return;
+    if (hintShownId && hintsState.done.indexOf(hintShownId) >= 0) hintShownId = '';
+    const id = hintShownId || pickHint(hintsState, { now: hintNow(), blocked: false });
+    if (!id) return;
+    const card = createHintCard({
+      tip: id, strings,
+      onLearnMore: (target) => { hintDone(id); hintLearnMore(target); },
+      onDismiss: () => hintDone(id),
+    });
+    if (!card) return;
+    hintCard = card;
+    chatsCardSlot.append(card);
+    if (hintShownId !== id) hintStandTimer = setTimeout(() => hintStood(id), HINT_STAND_MS);
+  }
+  document.addEventListener('visibilitychange', () => { pumpHint(); });
 
   /* —— FAB → contacts picker (purpose 'start') —————————————————————————————————
    * The FAB opens the picker takeover. Tap a row → open the 1:1 (ixian:chat).
@@ -1878,6 +2018,8 @@
     }, { passive: true });
   }
 
+  scroller.insertBefore(chatsCardSlot, list);   // ★ S11 A (#1262): the glass cards sit above the list, under the search + chips
+
   setNavBadge(nav, 'chats', navUnreadTotal());
 
   /* —— chats render pipeline ————————————————————————————————————————————————
@@ -2691,7 +2833,8 @@
        Back (arrow / hardware / edge → 'back') slides the takeover off the wallet; a
        programmatic close (tab switch, scan hand-off) removes it at once. State first,
        pixels after — same contract as the contacts takeover. */
-    const close = (reason) => { closeAddressSheet(); if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29 · r2 n5: no sheet outlives its screen · Session H MAJOR-1: the post-remove sync is what finally reports 0
+    let walletReceiveView = null;   // ★ S11 H (#1263): the 2-step request — Back on step 2 returns to step 1
+    const close = (reason) => { if (reason === 'back' && walletReceiveView && walletReceiveView._stepBack && walletReceiveView._stepBack()) return; closeAddressSheet(); if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove(); walletTakeover = null; walletTakeoverClose = null; syncHomeOverlay(); };  // AND-29 · r2 n5: no sheet outlives its screen · Session H MAJOR-1: the post-remove sync is what finally reports 0
     walletTakeoverClose = close;   // AND-29: hardware back closes this takeover
     syncHomeOverlay();   // AND-29 v2: notify C# the wallet takeover is up
     // walletStrings IS the live dict + the explorer override (slWith) — the old
@@ -2706,7 +2849,7 @@
     }));
     const body = document.createElement('div');
     body.className = 'wallet-takeover__body u-scroll';
-    body.append(createWalletReceive({
+    body.append(walletReceiveView = createWalletReceive({   // ★ S11 H (#1263): held for close('back') above
       address: addr,
       strings: walletStrings, host: document.body,
       /* F3 (#301) — Share sends the BARE ADDRESS, always (Damir, 2026-08-04 F5:
@@ -2838,6 +2981,8 @@
     over.className = 'wallet-takeover';
     walletTakeover = over;
     const close = (reason) => {
+      // ★ S11 H (#1263): the user's Back (top bar / hardware) on step 2 returns to step 1 (the compose decides; a locked or step-1 compose closes)
+      if (reason === 'back' && walletSendView && walletSendView._stepBack && walletSendView._stepBack()) return;
       if (walletSendView && walletSendView._closeReview) { try { walletSendView._closeReview(); } catch (e) {} }   // loop r1 M4: no orphan sheet
       if (reason === 'back') slideSubscreenOut(document.body, over, () => { over.remove(); syncHomeOverlay(); }, { positioned: false }); else over.remove();   // ★ Session H: the user's Back slides (see mountWalletReceive) · MAJOR-1: post-remove sync reports the real 0
       walletTakeover = null; walletTakeoverClose = null;
@@ -3144,11 +3289,9 @@
     onModelChange: () => {},
     appMenu: true,    // A1: ⋮ menu (App details · Uninstall w/ confirm) now that uninstall has a verb
     // EMPTY STATE (nothing installed): illustration + headline + supporting line + a
-    // secondary "Add app" CTA. Art ships beside the shells (build-shells.mjs:260-267,
-    // the images/backup.png mechanism) — a `file://` WebView resolves a sibling file,
-    // never an external asset URL. Missing art degrades to the glyph tile.
+    // secondary "Add app" CTA. ★ S11 A2: inline art by name (illustrations.js).
 
-    emptyIllustration: 'images/apps-es.png',
+    emptyIllustration: 'appsEmpty',
     onAddApp: openAppsAdd,     // ★ Session T: in-shell, no page push (was ixian:newapp)
   };
 
@@ -3268,10 +3411,8 @@
 
   const appsHeader = createAppsHeader({
     layout: appsState.layout, strings, discover: false,
-    // Damir 2026-08-12: the banner gets the illustration, bottom-right. Sibling file
-    // beside the shell (build-shells.mjs copies src/demo/images → …/html/images), the
-    // images/backup.png mechanism — an external asset URL is what file:// refuses.
-    exploreImage: 'images/explore-banner.png',
+    // Damir 2026-08-12: the banner gets the illustration, bottom-right (★ S11 A2: inline, by name).
+    exploreImage: 'explore',
     onQuery: (q) => setAppsQuery(appsList, appsState, q, appsOpts),
     onToggleLayout: (next) => {
       setAppsLayout(appsList, appsState, next, appsOpts);
@@ -3367,6 +3508,7 @@
     if (!placeholderView.hidden) setPlaceholder(navId);
     nudgeTabId = navId;
     pumpNudges();                       // a tab change can unblock a queued nudge
+    pumpHint();                         // ★ S11 A (#1262): …and a hint waits for the Chats tab
   }
 
   /* —————————————————————————————————————————————————————————————————————————
@@ -3477,12 +3619,13 @@
        30-day slot is already burned at :2083 — queues behind it (audit MINOR). */
     clearTimeout(nudgePumpTimer);
     nudgePumpTimer = setTimeout(pumpNudges, 150);
+    pumpHint();                                     // ★ S11 A (#1262): a hint never stands beside a backup / rating prompt
   }
 
   function closeNudge() {
     nudgeOpen = null;
     nudgeReadyAt = Date.now() + NUDGE_GAP_MS;
-    setTimeout(pumpNudges, NUDGE_GAP_MS + 20);
+    setTimeout(() => { pumpNudges(); pumpHint(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint
   }
 
   function pumpNudges() {
@@ -3492,7 +3635,7 @@
       nudgeOpen = 'backup';
       showBackupNudge({
         host: document.body,
-        illustration: 'images/backup.png',   // ships beside the shells (build-shells.mjs:260-267)
+        illustration: 'backup',   // ★ S11 A2: the inline art's name
         strings,
         onBackup: () => {
           /* ixian:backup pushes BackupPage over home. iOS keeps this WebView's
@@ -3509,12 +3652,12 @@
     } else if (kind === 'rating') {
       // N80: too early is NOT a snooze — no stamp is written, so the prompt appears
       // the moment the fifth open happens rather than a week later.
-      if (ratingTooEarly()) { pumpNudges(); return; }
-      if (ratingSnoozed()) { pumpNudges(); return; }
+      if (ratingTooEarly()) { pumpNudges(); pumpHint(); return; }
+      if (ratingSnoozed()) { pumpNudges(); pumpHint(); return; }
       nudgeOpen = 'rating';
       showRatingNudge({
         host: document.body,
-        illustration: 'images/onboarding/rate.png',   // N14a — rate-me art (disc fallback on error)
+        illustration: 'rating',   // N14a → ★ S11 A2: the inline art's name
         strings,
         onRate: (a) => { closeNudge(); bridge.send('ixian:rating:' + (a === 'yes' ? 'yes' : 'no')); },
         // Light-dismiss sends NO verb (component contract, rating-nudge.js:17-19) and
@@ -4522,6 +4665,14 @@
       if (CONNECTIVITY_TEXTS.has(t)) { setChatsTitleState(t); return; }
       // a notice the user already waved away must not come back on a re-push
       if (t === dismissedNotice) return;
+      /* ★ S11 A (#1262): the UPDATE notice is a glass card now — recognised by its localized template, the version
+         lifted out of the {0} hole; every other warning keeps the banner below. */
+      const updVersion = updateVersionOf(t, UPDATE_TEMPLATES);
+      if (updVersion && bridge.cap('updateHelp')) {   // ★ S11 A2 (#1263, R2-m4)
+        if (lastNoticeText && updateVersionOf(lastNoticeText, UPDATE_TEMPLATES)) { lastNoticeText = ''; setWarning(homeBanner, ''); }   // a banner update notice (pushed before the caps) gives way
+        showUpdateCard(t, updVersion);
+        return;
+      }
       lastNoticeText = t;
       setWarning(homeBanner, raw);
     },
@@ -4530,6 +4681,23 @@
     // fromChat (:2442). Answering either way marks it done C#-side (:665); a
     // light-dismiss marks nothing, hence the local snooze in the queue.
     showRatingPrompt() { enqueueNudge('rating'); },
+    /* ★ S11 A (#1262, 🟡 NEW push, cap `hints`): the hint counters C# keeps (SHints) — firstSeen, lastShown, the done
+       ids, the off switch, C#'s now. Validated (parseHintsState); the shell picks the tip (pickHint). */
+    setHints(json) {
+      if (!bridge.capabilities || !bridge.capabilities.hints) return;   // an exe that does not handle ixian:hint:*
+      const st = parseHintsState(json);
+      if (!st) return;
+      if (hintsState) {
+        st.lastShown = Math.max(st.lastShown, hintsState.lastShown);
+        for (const d of hintsState.done) if (st.done.indexOf(d) < 0) st.done.push(d);
+      }
+      hintsState = st;
+      hintsAt = Date.now();
+      if (!hintsSettled && !hintSettleTimer) {
+        hintSettleTimer = setTimeout(() => { hintsSettled = true; pumpHint(); }, HINT_SETTLE_MS);
+      }
+      pumpHint();
+    },
 
     // A11 (#302). C# pushes toggleAnimatedSlider("backup-prompt") from
     // displayBackupReminder (HomePage.xaml.cs:2082). Take the ARGUMENT: legacy's

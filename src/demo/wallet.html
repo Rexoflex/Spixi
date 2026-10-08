@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="../styles/components/topbar.css">
 <link rel="stylesheet" href="../styles/components/wallet-hero.css">
 <link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state -->
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/wallet-shell.css">
 <link rel="stylesheet" href="../styles/components/contact-row.css"><!-- W-j: shared money-picker row -->
 <link rel="stylesheet" href="../styles/components/wallet-send.css">
@@ -168,7 +169,7 @@
   function showSend() {
     detachScroll();                                      // the send view owns the scroll container now
     statusbar.dataset.plain = '';
-    heroSlot.replaceChildren(createTopbar({ variant: 'view', title: strings.sendIxi || 'Send IXI', onBack: showHome }));
+    heroSlot.replaceChildren(createTopbar({ variant: 'view', title: strings.sendIxi || 'Send IXI', onBack: () => { if (!send._stepBack()) showHome(); } }));   // ★ S11 H (#1263): Back on step 2 = step 1
     const send = createWalletSend({
       contacts: [
         { name: 'Han Solo', address: '4kdJ2fN8w1qLxCvB7tRz9fQz' },
@@ -206,7 +207,7 @@
   function showReceive() {
     detachScroll();
     statusbar.dataset.plain = '';
-    heroSlot.replaceChildren(createTopbar({ variant: 'view', title: strings.receiveIxi || 'Receive IXI', onBack: showHome }));
+    heroSlot.replaceChildren(createTopbar({ variant: 'view', title: strings.receiveIxi || 'Receive IXI', onBack: () => { if (!receive._stepBack()) showHome(); } }));   // ★ S11 H (#1263): Back on step 2 = step 1
     const receive = createWalletReceive({
       address: '425HqzWpMkV3dTgJnS85CQen',                 // demo: own address
       contacts: [

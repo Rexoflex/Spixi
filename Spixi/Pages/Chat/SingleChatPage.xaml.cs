@@ -634,6 +634,10 @@ namespace SPIXI
             {
                 onViewImage(current_url.Substring("ixian:viewImage:".Length));   // ★ #1166 V-3: the in-app viewer (chat half)
             }
+            else if (current_url.StartsWith("ixian:savePhoto:", StringComparison.Ordinal))
+            {
+                onSavePhoto(current_url.Substring("ixian:savePhoto:".Length));   // ★ S11 G (#1263 a, 🟡 NEW verb): the viewer's Save
+            }
             else if (current_url.StartsWith("ixian:chatreply:", StringComparison.Ordinal))
             {
                 // M1 reply-to. Grammar: ixian:chatreply:<reply-id-hex>:<url-encoded text>.
@@ -1631,6 +1635,7 @@ namespace SPIXI
              * The shell ANDs them with its own canSendFile (no bot room, no blind group — onSendFile's refusal); C# refuses
              * there too (mediaAllowed). An old shell ignores both; an old exe declares neither (Photo stays hidden). */
             caps += ",media";
+            caps += ",savePhoto";   // ★ S11 G (#1263 a, 🟡 NEW cap): this exe answers ixian:savePhoto (the viewer's Save); an old shell ignores it
 #if ANDROID || IOS
             if (SFilePicker.CameraAvailable())   // ★ #46 r1 (shell auditor): a device with no camera shows no Camera tile
             {
@@ -2580,6 +2585,13 @@ namespace SPIXI
                 transfer.groupCount = opts.groupCount;
                 transfer.captionId = opts.captionId;
             }
+            /* ★ S11 G (#1258): a photo of a media send carries its small preview in the offer (the 0e85a4b8 wire field — an old
+               reader skips it, its own length prefix); only C#'s own bytes that pass the shape rule, only for an image name */
+            if (opts != null && opts.preview != null && SharedItems.isImageName(fileName)
+                && S11MediaRules.previewShapeOk(opts.preview, S11MediaRules.OfferPreviewEdges[0]))
+            {
+                transfer.preview = opts.preview;
+            }
             transfer.channel = selectedChannel;
             sendPreparedStage = 1;   // ★ #46 r1 A N4: the transfer holds the stream now
             sendPreparedUid = transfer.uid;
@@ -2640,6 +2652,7 @@ namespace SPIXI
             public int groupCount = 0;
             public string captionId = "";
             public byte[]? messageId = null;
+            public byte[]? preview = null;   // ★ S11 G (#1258): the FileTransfer offer's `preview` (a photo of a media send only)
         }
         private PreparedSend? sendPreparedNext = null;   // set by a caller right before sendPreparedFile; consumed there (main thread)
 
@@ -2647,6 +2660,7 @@ namespace SPIXI
         {
             public int k;
             public string path = "";
+            public byte[]? preview = null;   // ★ S11 G (#1258): the offer's small preview (S11MediaRules.pickOfferPreview), or none
         }
 
         private sealed class MediaBatch
@@ -2977,6 +2991,7 @@ namespace SPIXI
                         }
                         byte[]? photo = null;
                         byte[]? thumb = null;
+                        byte[]? offerPreview = null;
                         if (mediaDecodeGate.Wait(60000))
                         {
                             try
@@ -2987,6 +3002,11 @@ namespace SPIXI
                                 {
                                     File.WriteAllBytes(jpg, photo);
                                     thumb = Spixi.SThumbnail.makeViewerJpeg(jpg, PhotoRules.ThumbEdge);
+                                    /* ★ S11 G (#1258): the offer's preview — re-encoded from the DECODED pixels of this same prepared
+                                       photo (no metadata, the S9 encoder pin), ≤ 8 KB at ~96 px, a smaller rung if it does not fit,
+                                       else none (S11MediaRules.pickOfferPreview). Off the UI thread, inside the one decode gate. */
+                                    string prepared = jpg;
+                                    offerPreview = S11MediaRules.pickOfferPreview((edge) => Spixi.SThumbnail.makeViewerJpeg(prepared, edge));
                                 }
                             }
                             finally
@@ -3001,7 +3021,7 @@ namespace SPIXI
                             batch.errors.Add(PhotoRules.ErrDecode);
                             continue;
                         }
-                        batch.items.Add(new MediaItem { k = k, path = jpg });
+                        batch.items.Add(new MediaItem { k = k, path = jpg, preview = offerPreview });
                         batch.shown.Add(new PhotoRules.PickedItem
                         {
                             k = k.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -3070,7 +3090,7 @@ namespace SPIXI
                                 continue;
                             }
                             shown.k = k.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                            target.items.Add(new MediaItem { k = k, path = it.path });
+                            target.items.Add(new MediaItem { k = k, path = it.path, preview = it.preview });   // ★ S11 G: the preview rides along
                             target.shown.Add(shown);
                         }
                         Utils.sendUiCommand(this, "mediaPicked", target.id, PhotoRules.pickedJson(target.shown));
@@ -3228,6 +3248,7 @@ namespace SPIXI
              * practice); pass 2 sends the SURVIVORS with index / count over the survivors only — a receiver never waits for a
              * group member that was never sent. (A store that fails in pass 2 is the rare leftover gap.) */
             List<KeyValuePair<string, string>> kept = new List<KeyValuePair<string, string>>();   // uid → final path
+            List<byte[]?> keptPreviews = new List<byte[]?>();   // ★ S11 G (#1258): beside `kept`, index for index
             foreach (MediaItem it in chosen)
             {
                 string uid = Guid.NewGuid().ToString("N");
@@ -3254,6 +3275,7 @@ namespace SPIXI
                 try { File.SetLastWriteTimeUtc(final, DateTime.UtcNow); } catch (Exception) { }
                 probeSendPath(b.route, PhotoRules.CaseCopy);
                 kept.Add(new KeyValuePair<string, string>(uid, final));
+                keptPreviews.Add(it.preview);
             }
             int count = kept.Count;
             byte[]? captionId = caption.Length > 0 && count > 0 ? Guid.NewGuid().ToByteArray() : null;   // the same 16-byte id Core would make
@@ -3298,6 +3320,7 @@ namespace SPIXI
                         groupCount = grouped ? count : 0,
                         captionId = captionHex,
                         messageId = msgId,
+                        preview = keptPreviews[i],   // ★ S11 G (#1258)
                     };
                     fm = sendPreparedFile(PhotoRules.photoName(utc, i, count), stream, final);
                 }
@@ -3492,6 +3515,262 @@ namespace SPIXI
             {
                 TransferManager.acceptFile(senderFriend, ft.uid);
                 updateFile(ft.uid, "0", false, ft.channel);
+            }
+        }
+
+        /* ═══ ★ S11 C (#1262, Damir: Settings › Privacy "Download photos automatically", default OFF) ═══
+         * Called by StreamProcessor.handleFileHeader (a network thread) after Core stored an INCOMING offer row. Nothing
+         * runs while the setting is Off (the default). Otherwise the decision is S11ChatRules.shouldAutoDownload: a PHOTO
+         * (SharedItems.isImageName — the photo rules' extension list) · ≤ 10 MB · "Load pictures and GIFs" on (C#'s
+         * mirror, SAutoDownload.loadPictures) · Wi-Fi (or Ethernet) for "Wi-Fi only" (MAUI Connectivity) · a contact the
+         * manual path accepts AND an approved one (never a pending request, never an unknown group sender, never a room
+         * that hides its participants). The accept itself is the TAP's path: with the chat open, onAcceptFile (the very
+         * method `ixian:acceptfile:` calls — row state included); with it closed, acceptOfferClosed — onAcceptFile's own
+         * checks + the same two TransferManager calls, without the UI push (C# names every file: prepareIncomingFileTransfer
+         * + acceptFile). Main thread, like the tap. Fixed-word logs only (no name, no address, no size). */
+        internal static void maybeAutoDownload(Friend friend, FriendMessage fm, int channel)
+        {
+            try
+            {
+                if (friend == null || fm == null || fm.localSender || fm.completed || string.IsNullOrEmpty(fm.transferId))
+                {
+                    return;
+                }
+                if (SAutoDownload.setting == S11ChatRules.AutoOff)
+                {
+                    return;   // the default — nothing else is read
+                }
+                MainThread.BeginInvokeOnMainThread(() => autoDownloadNow(friend, fm, channel));
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: the automatic download check failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** Main thread: THE decision + the limit + the tap's accept path — for a new offer AND for one re-admitted from the
+         *  pending queue (★ S11 G3 #1263 MINOR-6: everything is decided again then — the setting, the network, the contact,
+         *  already here / already running). */
+        private static void autoDownloadNow(Friend friend, FriendMessage fm, int channel)
+        {
+            try
+            {
+                /* ★ #46 r4 (S11): a queued offer may wait up to 1 h — the contact may have been removed (Core's removeFriend never
+                   sets pendingDeletion) or the message deleted meanwhile. Only the LIVE friend object and a message still in its
+                   channel may download. */
+                if (!ReferenceEquals(FriendList.getFriend(friend.walletAddress), friend) || friend.getMessage(channel, fm.id) == null)
+                {
+                    return;
+                }
+                long size = fm.fileSize > (ulong)long.MaxValue ? long.MaxValue : (long)fm.fileSize;
+                bool go = S11ChatRules.shouldAutoDownload(SAutoDownload.setting, size, SharedItems.isImageName(fm.filePath ?? ""),
+                    onUnmeteredNetwork(), SAutoDownload.loadPictures, autoDownloadContactOk(friend, fm));
+                if (!go || SharedItems.localPathOf(fm) != null || TransferManager.getIncomingTransfer(fm.transferId) != null)
+                {
+                    return;
+                }
+                /* ★ S11 C2 (#1263, R1-m4): at most 4 automatic downloads at once + 50 MB per chat per 24 h (in memory).
+                   ★ S11 G3 (MINOR-6): refused by the in-flight cap ALONE → it waits in its chat's queue (re-admitted by
+                   autoDownloadPump when a slot frees); a budget refusal stays final (the tap still works). */
+                S11AutoAdmit admit = autoLedger.offer(friend.walletAddress.ToString(), fm.transferId, size, Environment.TickCount64,
+                    id => TransferManager.getIncomingTransfer(id) != null, new AutoOffer(friend, fm, channel));
+                if (admit == S11AutoAdmit.Queued)
+                {
+                    Logging.info("Media: an automatic download waits for a free slot");
+                    armAutoRecheck();
+                    return;
+                }
+                if (admit != S11AutoAdmit.Admitted)
+                {
+                    Logging.info("Media: an automatic download waits for a tap (the limit)");
+                    return;
+                }
+                SingleChatPage? page = Utils.getChatPage(friend);
+                if (page != null)
+                {
+                    page.onAcceptFile(channel, fm);
+                }
+                else
+                {
+                    acceptOfferClosed(friend, channel, fm);
+                }
+                Logging.info("Media: a photo offer is downloading automatically");
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: the automatic download failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** ★ S11 G3 (#1263 MINOR-6): a waiting offer's handle (kept in memory by the ledger only). */
+        private sealed class AutoOffer
+        {
+            public readonly Friend friend;
+            public readonly FriendMessage fm;
+            public readonly int channel;
+
+            public AutoOffer(Friend friend, FriendMessage fm, int channel)
+            {
+                this.friend = friend;
+                this.fm = fm;
+                this.channel = channel;
+            }
+        }
+
+        private static int autoPumpPosted = 0;    // 1 = a pump is already posted to the main thread
+        private static int autoRecheckArmed = 0;  // 1 = the backstop re-check timer runs
+
+        /** ★ S11 G3 (#1263 MINOR-6), ANY thread: an incoming transfer moved (StreamProcessor.handleFileData — the packet that
+         *  completes a transfer removes it from TransferManager's running set before this runs) or the backstop fired.
+         *  Nothing waits → returns at once (one volatile read: it runs per packet). Else ONE pump on the main thread. */
+        internal static void autoDownloadSlotMaybeFree()
+        {
+            if (!autoLedger.HasPending || Interlocked.Exchange(ref autoPumpPosted, 1) == 1)
+            {
+                return;
+            }
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(autoDownloadPump);
+            }
+            catch (Exception e)
+            {
+                Interlocked.Exchange(ref autoPumpPosted, 0);
+                Logging.warn("Media: the automatic download queue could not run (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** Main thread: re-admit the waiting offers that fit now (oldest first; each one decided again by autoDownloadNow);
+         *  re-arm the backstop while any still waits (a failed or stale transfer leaves no event). */
+        private static void autoDownloadPump()
+        {
+            Interlocked.Exchange(ref autoPumpPosted, 0);
+            try
+            {
+                while (autoLedger.takeReady(Environment.TickCount64, id => TransferManager.getIncomingTransfer(id) != null,
+                    out _, out _, out object? tag))
+                {
+                    if (tag is AutoOffer o)
+                    {
+                        autoDownloadNow(o.friend, o.fm, o.channel);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: the automatic download queue failed (" + e.GetType().Name + ")");
+            }
+            if (autoLedger.HasPending)
+            {
+                armAutoRecheck();
+            }
+        }
+
+        /** The backstop: while anything waits, one re-check every AutoPendingRecheckMs (never two timers at once). */
+        private static void armAutoRecheck()
+        {
+            if (Interlocked.Exchange(ref autoRecheckArmed, 1) == 1)
+            {
+                return;
+            }
+            Task.Delay(S11ChatRules.AutoPendingRecheckMs).ContinueWith(_ =>
+            {
+                Interlocked.Exchange(ref autoRecheckArmed, 0);
+                autoDownloadSlotMaybeFree();
+            });
+        }
+
+        /** ★ S11 C2 (#1263, R1-m4): the automatic downloads admitted this run (S11AutoLedger — the in-flight cap + the
+         *  per-chat budget). Main thread (maybeAutoDownload's lambda); the ledger locks anyway. */
+        private static readonly S11AutoLedger autoLedger = new S11AutoLedger();
+
+        /** ★ S11 C: the contact half of the auto-download decision — the manual path's own refusals (a room that hides its
+         *  participants; a group sender who is not a contact) plus: never a pending request (approved), never a contact
+         *  being deleted. ★ S11 C2 (#1263, R1-M1): a ROOM is `bot || type == Group` (Core's setBotMode keeps type Normal);
+         *  a bot room is never automatic. The decision is S11ChatRules.contactOkForAuto (executed in csh). */
+        private static bool autoDownloadContactOk(Friend friend, FriendMessage fm)
+        {
+            bool isRoom = friend.bot || friend.type == FriendType.Group;
+            bool senderOk = false;
+            if (isRoom && !friend.bot && fm.senderAddress != null)
+            {
+                Friend? sender = FriendList.getFriend(fm.senderAddress);
+                senderOk = sender != null && sender.approved && !sender.pendingDeletion;
+            }
+            return S11ChatRules.contactOkForAuto(isRoom, friend.bot, Utils.hidesParticipants(friend), friend.approved, friend.pendingDeletion, senderOk);
+        }
+
+        /** ★ S11 C: "Wi-Fi only" = Wi-Fi, or Ethernet (a desktop's unmetered link). MAUI Connectivity; a failure reads NOT on
+         *  Wi-Fi. ★ S11 C2 (#1263): the decision over the profile names is S11ChatRules.unmeteredProfiles (executed in csh). */
+        private static bool onUnmeteredNetwork()
+        {
+            try
+            {
+                List<string> names = new List<string>();
+                foreach (Microsoft.Maui.Networking.ConnectionProfile p in Microsoft.Maui.Networking.Connectivity.Current.ConnectionProfiles)
+                {
+                    names.Add(p.ToString());
+                }
+                return S11ChatRules.unmeteredProfiles(names);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        /** ★ S11 C: onAcceptFile's accept for a chat that is NOT open — the same checks in the same order and the same two
+         *  TransferManager calls (C# names the part file and the final file), without the page's UI push (no page). A
+         *  later open shows the running transfer through the file row's own state (incomingTransferArg). Keep it in step
+         *  with onAcceptFile above (pins-s11/c-wiring.mjs compares the two). */
+        private static void acceptOfferClosed(Friend friend, int selected_channel, FriendMessage message)
+        {
+            if (message == null || message.localSender)
+            {
+                return;
+            }
+            if (TransferManager.getIncomingTransfer(message.transferId) != null)
+            {
+                return;
+            }
+            if (message.fileSize > (ulong)PhotoRules.MaxReceiveBytes)
+            {
+                return;
+            }
+            string file_name = System.IO.Path.GetFileName(message.filePath);
+
+            var senderAddress = friend.walletAddress;
+            var senderFriend = friend;
+            if (friend.type == FriendType.Group)
+            {
+                if (Utils.hidesParticipants(friend))
+                {
+                    return;
+                }
+                senderAddress = message.senderAddress;
+                senderFriend = FriendList.getFriend(senderAddress);
+                if (senderFriend == null)
+                {
+                    return;
+                }
+            }
+
+            var ft = new FileTransfer();
+            ft.fileName = file_name;
+            ft.fileSize = message.fileSize;
+            ft.uid = message.transferId;
+            ft.channel = selected_channel;
+            ft.incoming = true;
+            ft.sender = senderAddress;
+            if (message.senderAddress != null)
+            {
+                ft.groupAddress = friend.walletAddress;
+            }
+            ft = TransferManager.prepareIncomingFileTransfer(ft);
+
+            if (ft != null)
+            {
+                TransferManager.acceptFile(senderFriend, ft.uid);
             }
         }
 
@@ -4581,6 +4860,8 @@ namespace SPIXI
             public readonly List<KeyValuePair<string, FriendMessage>> thumbs = new();
             /** ★ #1208 V4: voice rows of this burst whose waveform is queued only AFTER the batch's pushes (id → message). */
             public readonly List<KeyValuePair<string, FriendMessage>> voices = new();
+            /** ★ S11 G (#1258): offer rows of this burst whose preview is queued only AFTER the batch's pushes (id → message). */
+            public readonly List<KeyValuePair<string, FriendMessage>> offers = new();
             /** ★ #1202 (#1190 #46 r5 MINOR): the file rows of this burst + the fLocal each carried (re-checked after the pushes). */
             public readonly List<KeyValuePair<FriendMessage, string>> fileRows = new();
             /** ★ #46 r1 A MAJOR-1: the ONE reply index of this load (null = no loaded row is quote-shaped). */
@@ -5127,6 +5408,11 @@ namespace SPIXI
                 foreach (KeyValuePair<string, FriendMessage> v in batch.voices)
                 {
                     enqueueVoiceInfo(v.Key, v.Value);
+                }
+                // ★ S11 G (#1258): the burst's offer previews, now that the shell holds their rows (re-encoded off this thread)
+                foreach (KeyValuePair<string, FriendMessage> o in batch.offers)
+                {
+                    enqueueOfferPreview(o.Key);
                 }
             }
             if (zeroedUnread)
@@ -5829,10 +6115,20 @@ namespace SPIXI
                     /* ★ S9 A1 r1 (🟡 NEW arg 19): `played` — the 8-FACE rule (S9FixRules.playedArg via voicePlayedArg) for a voice
                      * clip that arrived as a FILE: "1" / "0" for a received voice file row, "" otherwise. Older shells ignore it. */
                     string fPlayed = voicePlayedArg(message, fVoice);
+                    /* ★ S11 G (#1263 a, 🟡 NEW arg 20): `size` — bytes of a RECEIVED file not on this device yet ("" otherwise): the
+                     * album's "Download all (n) · size" + the offer preview's size. Core's stored header text carries it
+                     * ("uid:name:size") when the field was not rebuilt. An older shell ignores it. */
+                    ulong fBytes = message.fileSize;
+                    if (fBytes == 0 && split.Length > 2)
+                    {
+                        ulong.TryParse(split[2], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out fBytes);
+                    }
+                    string fSize = S11MediaRules.offerSizeArg(message.localSender, message.completed, fBytes);
                     string fTransfer = incomingTransferArg(message, uid);   // ★ #1177: arg 15 — "live:<pct>" / "paused:<pct>" / "" (an older shell ignores it)
                     deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
-                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal, fVoice, fGroup, fPlayed);
+                    push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal, fVoice, fGroup, fPlayed, fSize);
                     noteThumbCandidate(message, name, batch);   // ★ A5 #1124: AFTER the row's push — the shell must know the id first
+                    noteOfferPreview(message, name, batch);     // ★ S11 G (#1258): AFTER the row's push too — an offer's preview
                     lock (fileRowsShown)
                     {
                         fileRowsShown.Add(Crypto.hashToString(message.id));   // ★ #1190 (#46 r4 M1): this document now holds this file row
@@ -6892,6 +7188,260 @@ namespace SPIXI
             }
         }
 
+        /* ═══ ★★ S11 G (#1258 + #1263 c = A) — THE PREVIEW IN A RECEIVED OFFER (🟡 NEW push `setOfferPreview(<hexMsgId>,
+         * <data uri>)`, BE ask) ═══
+         * StreamProcessor.handleFileHeader keeps the peer's preview (S11MediaRules.offerPreviewAccept: ≤ 8 KB, a JPEG by its
+         * first bytes and its frame header, ≤ 256 px) in the process's bounded IN-MEMORY cache (S11MediaRules.offerPreviews,
+         * first writer wins) and tells an open chat (offerPreviewArrived). A history load notes each offer row AFTER its
+         * addFile push (noteOfferPreview, batched like the thumbnails). Before the shell sees it, C# RE-ENCODES it through the
+         * bounded platform decoder (offerPreviewUriOfAsync: a temp file of C#'s own name → Spixi.SThumbnail.makeViewerJpeg ≤ 96 px →
+         * deleted; one decode at a time: mediaDecodeGate) — the WebView never decodes the peer's bytes. Pushed only while
+         * "Load pictures and GIFs" (the SAutoDownload mirror) AND "Show photo previews" are on, for a RECEIVED image file not
+         * on this device yet (S11MediaRules.offerPreviewPushOk), once per message per document, never to a torn-down page or
+         * an older document. The push carries the message id + the JPEG — never a path, a name or an address; logs = the
+         * exception TYPE only.
+         * ★ S11 G3 (#1263, round-3): MINOR-4 (the lead's decision 🟡) — a preview is pushed only when the CONTACT half of the
+         * auto-download rule passes (autoDownloadContactOk → S11ChatRules.contactOkForAuto, inside offerPreviewPushOk);
+         * otherwise the tile keeps today's file face. MINOR-5 — ONE process-wide serial worker drains a bounded queue
+         * (S11MediaRules.SerialQueue, OfferPreviewQueueMax) and AWAITS the decode gate (WaitAsync — no pool thread parks);
+         * every path that did not push forgets the sent-key (a later document asks again). NIT-5 — the worker's first start
+         * in the process sweeps stale `spixi-offer-<32 hex>.jpg` leaves (C#'s own names only) from the cache folder. */
+        private readonly HashSet<string> offerPreviewsSent = new HashSet<string>(StringComparer.Ordinal);   // "<doc>|<id>" — lock itself
+
+        private string offerKeyOf(string id)
+        {
+            return S11MediaRules.offerKey(friend != null ? friend.walletAddress.ToString() : "", id);
+        }
+
+        private void noteOfferPreview(FriendMessage message, string name, UiBatch? batch)
+        {
+            if (message == null || message.id == null || friend == null
+                || !S11MediaRules.offerPreviewPushOk(SAutoDownload.loadPictures, SChatPrefs.photoPreviews, message.localSender, message.completed, SharedItems.isImageName(name),
+                    autoDownloadContactOk(friend, message)))
+            {
+                return;
+            }
+            string id = Crypto.hashToString(message.id);
+            if (S11MediaRules.offerPreviews.raw(offerKeyOf(id)) == null)
+            {
+                return;   // no preview came with this offer (an old sender, a photo whose preview did not fit, a restart)
+            }
+            if (batch != null)
+            {
+                batch.offers.Add(new KeyValuePair<string, FriendMessage>(id, message));
+                return;
+            }
+            enqueueOfferPreview(id);
+        }
+
+        /** Main thread: StreamProcessor kept a preview for a LIVE offer (its addFile push already went). */
+        public void offerPreviewArrived(FriendMessage fm, int channel)
+        {
+            try
+            {
+                if (isDisposed || fm == null || channel != selectedChannel || !SharedItems.parseFileHeader(fm.message, out string name, out _))
+                {
+                    return;
+                }
+                noteOfferPreview(fm, name, null);
+            }
+            catch (Exception e)
+            {
+                Logging.warn("offer preview note failed: " + e.GetType().Name);   // a type only
+            }
+        }
+
+        /** Main thread: once per message per document; the re-encode OFF the UI thread (the one serial worker), the push
+         *  back on the main thread. */
+        private void enqueueOfferPreview(string id)
+        {
+            int doc = thumbDoc;
+            string docPrefix = doc.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|";
+            string sentKey = docPrefix + id;   // the DOCUMENT is in the key: a new document (the shell reset its map) asks again
+            lock (offerPreviewsSent)
+            {
+                if (!offerPreviewsSent.Add(sentKey))
+                {
+                    return;
+                }
+                if (offerPreviewsSent.Count > 1024)
+                {
+                    offerPreviewsSent.RemoveWhere(k => !k.StartsWith(docPrefix, StringComparison.Ordinal));   // older documents' keys go
+                }
+            }
+            OfferJob job = new OfferJob(this, doc, id, sentKey, offerKeyOf(id));
+            if (!offerJobs.enqueue(job, out bool startWorker))
+            {
+                forgetOfferPreview(sentKey);   // the queue is full — NOT sent; a later document asks again
+                return;
+            }
+            if (startWorker)
+            {
+                _ = Task.Run(() => offerPreviewWorkerAsync());
+            }
+        }
+
+        /** One re-encode request (the page, its document, the message id, the sent-key, the cache key). */
+        private sealed class OfferJob
+        {
+            public readonly SingleChatPage page;
+            public readonly int doc;
+            public readonly string id;
+            public readonly string sentKey;
+            public readonly string key;
+
+            public OfferJob(SingleChatPage page, int doc, string id, string sentKey, string key)
+            {
+                this.page = page;
+                this.doc = doc;
+                this.id = id;
+                this.sentKey = sentKey;
+                this.key = key;
+            }
+        }
+
+        private static readonly S11MediaRules.SerialQueue<OfferJob> offerJobs = new S11MediaRules.SerialQueue<OfferJob>(S11MediaRules.OfferPreviewQueueMax);
+        private static int offerTempsSwept = 0;   // 1 = this process's first worker swept the cache folder
+
+        private void forgetOfferPreview(string sentKey)
+        {
+            lock (offerPreviewsSent)
+            {
+                offerPreviewsSent.Remove(sentKey);
+            }
+        }
+
+        /** THE one worker (SerialQueue: never two at once). Each job: the awaited re-encode, then finishOfferPreview —
+         *  which pushes on the main thread or forgets the sent-key. Nothing escapes an iteration. */
+        private static async Task offerPreviewWorkerAsync()
+        {
+            if (Interlocked.Exchange(ref offerTempsSwept, 1) == 0)
+            {
+                sweepOfferTemps();   // before this process's first temp file — the worker is the only writer of these leaves
+            }
+            while (offerJobs.next(out OfferJob job))
+            {
+                string? uri = null;
+                try
+                {
+                    uri = await offerPreviewUriOfAsync(job.key).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("offer preview failed: " + e.GetType().Name);   // a type only
+                    uri = null;
+                }
+                try
+                {
+                    job.page.finishOfferPreview(job, uri);
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("offer preview post failed: " + e.GetType().Name);   // a type only
+                    job.page.forgetOfferPreview(job.sentKey);
+                }
+            }
+        }
+
+        /** No preview (a failed re-encode, the gate's timeout, an evicted entry) → forget the sent-key; else the push on the
+         *  main thread, re-checked there (page alive, same document, both switches) — not pushed → forget it too. */
+        private void finishOfferPreview(OfferJob job, string? uri)
+        {
+            if (uri == null)
+            {
+                forgetOfferPreview(job.sentKey);
+                return;
+            }
+            string answer = uri;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (isDisposed || job.doc != thumbDoc || friend == null || !SChatPrefs.photoPreviews || !SAutoDownload.loadPictures)
+                {
+                    forgetOfferPreview(job.sentKey);   // NOT sent — a later document / an ON again may ask once more
+                    return;
+                }
+                Utils.sendUiCommand(this, "setOfferPreview", job.id, answer);
+            });
+        }
+
+        /** The worker's start-up sweep (NIT-5): a crash between the temp write and its delete leaves a leaf behind; only
+         *  leaves of C#'s own exact shape (S11MediaRules.isOfferTempName) are deleted. Never throws; a type-only log. */
+        private static void sweepOfferTemps()
+        {
+            try
+            {
+                string dir = Microsoft.Maui.Storage.FileSystem.CacheDirectory;
+                foreach (string f in Directory.EnumerateFiles(dir, S11MediaRules.OfferTempPrefix + "*.jpg", SearchOption.TopDirectoryOnly))
+                {
+                    if (!S11MediaRules.isOfferTempName(Path.GetFileName(f)))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        File.Delete(f);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("offer preview sweep failed: " + e.GetType().Name);   // a type only
+            }
+        }
+
+        /** The worker (OFF the UI thread): C#'s own re-encode of a kept peer preview (cached once per key), or null. The
+         *  decode gate is AWAITED (WaitAsync, OfferPreviewGateMs); a timeout = null (the caller forgets the sent-key). */
+        private static async Task<string?> offerPreviewUriOfAsync(string key)
+        {
+            string? done = S11MediaRules.offerPreviews.encoded(key);
+            if (done != null)
+            {
+                return done;
+            }
+            byte[]? raw = S11MediaRules.offerPreviews.raw(key);
+            if (raw == null)
+            {
+                return null;
+            }
+            /* C#'s own name in the app's own cache folder (MAUI FileSystem.CacheDirectory — the folder SharedItems already reads;
+               a packaged Windows app's StorageFile reaches it), deleted below on every path */
+            string tmp = Path.Combine(Microsoft.Maui.Storage.FileSystem.CacheDirectory, S11MediaRules.offerTempName(Guid.NewGuid().ToString("N")));
+            byte[]? encoded = null;
+            bool entered = false;
+            try
+            {
+                entered = await mediaDecodeGate.WaitAsync(S11MediaRules.OfferPreviewGateMs).ConfigureAwait(false);
+                if (entered)
+                {
+                    File.WriteAllBytes(tmp, raw);
+                    encoded = Spixi.SThumbnail.makeViewerJpeg(tmp, S11MediaRules.OfferPreviewEdges[0]);   // bounded, no metadata
+                }
+            }
+            finally
+            {
+                if (entered)
+                {
+                    mediaDecodeGate.Release();
+                }
+                try
+                {
+                    File.Delete(tmp);
+                }
+                catch (Exception)
+                {
+                }
+            }
+            string? uri = S11MediaRules.offerPreviewUri(encoded);
+            if (uri != null)
+            {
+                S11MediaRules.offerPreviews.setEncoded(key, uri);
+            }
+            return uri;
+        }
+
         /* ═══ ★★ #1166 V-3 — THE MEDIA VIEWER, CHAT HALF (#1165 (9); 🟡 NEW verb `ixian:viewImage:<hexMsgId>` + NEW push
          * `viewerImage(<hexMsgId>, <data uri | "">)`, BE ask) ═══
          * A tap on a photo tile that shows its preview opens the shell's viewer on the preview at once and asks C# for a
@@ -6996,6 +7546,57 @@ namespace SPIXI
                 return;
             }
             Utils.sendUiCommand(this, "viewerImage", hexId, uri);
+        }
+
+        /* ═══ ★★ S11 G (#1263 a, 🟡 NEW verb `ixian:savePhoto:<hexMsgId>` + cap `savePhoto`, BE ask) — THE VIEWER'S SAVE ═══
+         * The WebView sends a MESSAGE ID only (S11MediaRules.parseSavePhoto — the viewImage grammar). C# finds the message in
+         * the SHOWN channel and requires what the viewer requires (a fileHeader · an image name · ON this device: completed or
+         * my own → SharedItems.localPathOf, C#'s own rule); then the platform's own save UI, the one the backup uses — Android
+         * the system "Save as" document picker (SFileOperations.saveFile), Windows the FileSaver "Save as" dialog, iOS / Mac the
+         * share sheet ("Save Image" / "Save to Files"). The USER picks where; nothing is written without that step. No push,
+         * no answer; log = the exception TYPE only.
+         * ★ S11 G3 (#1263 MINOR-8): Android gets the photo's MIME from C#'s own name (S11MediaRules.imageMimeOf — the picker
+         * names the type, not application/octet-stream) and MainActivity copies the bytes OFF the UI thread once the user
+         * picked the place (the picker itself stays on the main thread). Other platforms unchanged. */
+        private void onSavePhoto(string tail)
+        {
+            if (!S11MediaRules.parseSavePhoto(tail, out string hexId))
+            {
+                return;
+            }
+            string? path = null;
+            string name = "";
+            try
+            {
+                FriendMessage? fm = friend == null ? null : friend.getMessage(selectedChannel, Crypto.stringToHash(hexId));
+                if (fm != null && fm.type == FriendMessageType.fileHeader && (fm.completed || fm.localSender)
+                    && SharedItems.parseFileHeader(fm.message, out string n, out _) && SharedItems.isImageName(n))
+                {
+                    path = SharedItems.localPathOf(fm);   // C#'s own rule — never a WebView value
+                    name = n;
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("savePhoto lookup failed: " + e.GetType().Name);   // a type only — never the id or a path
+                path = null;
+            }
+            if (path == null)
+            {
+                return;
+            }
+            try
+            {
+#if ANDROID
+                SFileOperations.saveFile(path, name, S11MediaRules.imageMimeOf(name));   // ★ S11 G3 (#1263 MINOR-8): the image MIME
+#elif WINDOWS || IOS || MACCATALYST
+                _ = SFileOperations.share(path, name);
+#endif
+            }
+            catch (Exception e)
+            {
+                Logging.warn("savePhoto failed: " + e.GetType().Name);   // a type only
+            }
         }
 
         /* ═══ ★ S8 picks (#1239 / #1240) — two NEW pushes for the voice shell (🟡; docs/security-handover-gate.md §S8 picks) ═══

@@ -23,6 +23,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
+import { illustrationFor } from './illustrations.js';   // ★ S11 B (#1262)
 import { createButton } from './button.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
@@ -36,7 +37,16 @@ export function showBackupNudge({ host, illustration = '', onBackup, onDismiss, 
   disc.append(icon('shield-lock'));
 
   let art = null;
-  if (illustration) {
+  const inlineArt = illustrationFor(illustration);
+  if (inlineArt) {
+    /* ★ S11 B (#1262): the approved backup art (round 3) INLINE — ★ S11 A2 (#1263): the shells pass its
+       NAME ('backup'). Decorative, nothing to load, so the disc stays the art-less default only. */
+    art = inlineArt({ className: 'c-backup-nudge__illo' });
+    disc.hidden = true;
+  } else if (illustration) {
+    /* ★ S11 A2 (#1263, R3-MINOR-5/6): no SHIPPED host reaches this rung any more (they pass a name). It stays as
+       the component's documented contract for an arbitrary art URL — the error → disc fail-soft is pinned
+       (smoke-test.mjs "illustration slot: art leads") and a demo or a future host may hand it a file. */
     art = document.createElement('img');
     art.className = 'c-backup-nudge__illo';
     art.src = illustration;

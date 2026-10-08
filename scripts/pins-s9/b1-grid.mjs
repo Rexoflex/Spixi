@@ -1,6 +1,6 @@
 /* ==== S9 B1 — #1244 G = A (+ #1169): the photo GROUP bubble on the BUILT chat.html ====
  *   · 7 received photos tagged with one gid (addFile arg 18) + the caption text (id = the tag's caption id) → ONE row:
- *     a 2×2 grid (4 cells) with "+3" on the fourth, the caption under the grid in the same bubble, and the caption row and
+ *     ★ S11 G re-base (#1263 a): a MOSAIC of all seven cells (was a 2×2 with "+3"), the caption under it in the same bubble, and the caption row and
  *     the other photos gone from the log; every member id finds the bubble (rows map) — the reply quote jump target
  *   · 3 sent photos, no caption → 3 cells (one tall + two); 2 → side by side; a single tagged photo with no caption stays an
  *     ordinary tile; an OLD exe (no arg 18) → seven ordinary tiles
@@ -41,8 +41,9 @@ export default async function (h) {
     const logIds = () => [...d.querySelectorAll('#messages > [data-msgid]')].map((x) => x.dataset.msgid);
     const g1 = K.rowOf(d, 'f0');
     const grid1 = g1 && g1.querySelector('.c-mgrid');
-    r.oneBubble = !!grid1 && grid1.dataset.n === '4' && grid1.querySelectorAll(':scope > .c-mgrid__cell').length === 4
-      && (grid1.querySelector('.c-mgrid__more') || {}).textContent === '+3' && grid1.getAttribute('aria-label') === '7 photos';
+    /* ★ S11 G re-base (#1263 a = A): the MOSAIC shows all seven (rows 3 + 4), no "+N" (pins-s11/g-album.mjs) */
+    r.oneBubble = !!grid1 && grid1.dataset.n === '7' && grid1.querySelectorAll(':scope > .c-mgrid__cell').length === 7
+      && !grid1.querySelector('.c-mgrid__more') && grid1.getAttribute('aria-label') === '7 photos';
     r.caption = !!g1 && (g1.querySelector('.c-mgrid__caption') || {}).textContent === 'Photos from the lake'
       && !logIds().includes('c0ffee01') && !logIds().some((x) => /^f[1-6]$/.test(x));
     const g2 = K.rowOf(d, 'e0');
@@ -70,7 +71,7 @@ export default async function (h) {
     push('updateFile', 'x2', '60', 'False');
     await sleep(80);
     const ring2 = cells[2].querySelector('.c-mbubble__ring');
-    r.ownCell = cells.length === 4 && K.rowOf(d, 'f0') === g1b && cells[2].isConnected && cells[2].querySelector('.c-mbubble').dataset.file === 'progress'
+    r.ownCell = cells.length === 7 && K.rowOf(d, 'f0') === g1b   /* ★ S11 G re-base (#1263 a): seven cells (was the 2×2) */ && cells[2].isConnected && cells[2].querySelector('.c-mbubble').dataset.file === 'progress'
       && !!ring2 && ring2.getAttribute('aria-valuenow') === '60'
       && cells[0].querySelector('.c-mbubble').dataset.file === 'complete' && cells[1].querySelector('.c-mbubble').dataset.file === 'complete';
     /* the viewer pages through the group's COMPLETE photos (f0, f1, f3, f4, f5, f6 → 6) */

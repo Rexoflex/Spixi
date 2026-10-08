@@ -2,6 +2,7 @@
 using Microsoft.Maui.ApplicationModel.DataTransfer;   // #321: Share.RequestAsync (log share sheet)
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
+using Microsoft.Maui.Storage;                         // ★ S11 C (#1262): Preferences (the flash switches)
 using SPIXI.Meta;
 using System;
 using System.IO;
@@ -66,6 +67,26 @@ namespace SPIXI
             {
                 onBack();
             }
+            else if (current_url.StartsWith("ixian:devflash:", StringComparison.Ordinal))
+            {
+                /* ★ S11 C (#1262, 🟡 new verb, dev surface): `ixian:devflash:<candidate|grounds|input>:<0|1>` — the 10-FLASH
+                 * probe switches (1 = that action OFF). Exact grammar (S11ChatRules.applyFlashVerb) and dev mode on, or
+                 * nothing is stored; then echo the stored positions. One int preference; fixed words only. */
+                try
+                {
+                    int stored = Preferences.Default.Get(S11ChatRules.FlashPrefKey, 0);
+                    if (Preferences.Default.Get("devMode", false)
+                        && S11ChatRules.applyFlashVerb(current_url.Substring("ixian:devflash:".Length), stored, out int next))
+                    {
+                        Preferences.Default.Set(S11ChatRules.FlashPrefKey, next);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: flash switch failed: " + ex.GetType().Name);
+                }
+                pushFlashDev();
+            }
             else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
                 // allow normal navigation only for local files
@@ -86,6 +107,7 @@ namespace SPIXI
             // its screen with the Send button when the cap arrives; an old shell
             // ignores the unknown push).
             Utils.sendUiCommand(this, "setCaps", "sendlog");
+            pushFlashDev();   // ★ S11 C (#1262): the flash switches' positions
 
             string srcLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log");
             string destLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log.tmp");
@@ -112,6 +134,21 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setLog", logContents);
             // Execute timer-related functionality immediately
             updateScreen();
+        }
+
+        /** ★ S11 C (#1262, 🟡 new push): the 10-FLASH switch positions ("1,1,1" = the defaults). `window.setFlashDev` = a
+         *  guarded reference: an older dev shell without the handler ignores it (executeUiCommand: not a function). */
+        private void pushFlashDev()
+        {
+            int bits = 0;
+            try
+            {
+                bits = Preferences.Default.Get(S11ChatRules.FlashPrefKey, 0);
+            }
+            catch (Exception)
+            {
+            }
+            Utils.sendUiCommand(this, "window.setFlashDev", S11ChatRules.flashSwitchesArg(bits));
         }
 
         // #321 (R5 parity): share/save the CURRENT log. The share copy is a stable

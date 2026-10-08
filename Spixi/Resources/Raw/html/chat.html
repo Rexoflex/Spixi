@@ -420,11 +420,14 @@
   inset-inline: 0;
   bottom: 0;
   height: var(--outline-width-2);
+  /* ★ S11 A (#1262, Damir's pick B "blue to violet, one strip"): the sweep blends brand blue → indigo → violet
+     (tokens.css region A). The geometry, the animation and the reduced-motion rule below are unchanged. */
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    var(--surface-action-default) 35%,
-    var(--surface-action-default) 65%,
+    var(--connecting-line-blue) 30%,
+    var(--connecting-line-indigo) 48%,
+    var(--connecting-line-violet) 66%,
     transparent 100%
   );
   background-size: 220% 100%;
@@ -5688,7 +5691,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 .c-tile-col > .c-fbubble { max-width: 100%; }
 
-/* ★★ S9 (#1244 G = A): the photo group bubble is a square grid of photo-file tiles in one 3 px frame, with the caption under it. */
+/* ★★ S9 (#1244 G = A): the photo group bubble — the photo-file tiles in one 3 px frame, with the caption under them.
+   ★★ S11 G (#1263 a = A, Telegram grammar): a MOSAIC of every photo (≤ 10) in rows of 1–4. The grid is 12 columns; a
+   cell spans 12 / (its row's length) (data-row, media-bubble.js addPhotoGridCell); the box's aspect ratio and the row
+   heights come from media-bubble.js mosaicGeometry (inline — sanctioned runtime geometry), so every cell has a definite
+   size and the tiles fill it. */
 .c-mgrid-col { display: block; }
 .c-bubble-row[data-direction="sent"] .c-mgrid-col { margin-inline-start: auto; }
 .c-mgrid-box {
@@ -5705,23 +5712,24 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 .c-mgrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: var(--mosaic-rows, 1fr);   /* media-bubble.js mosaicGeometry: the rows in proportion to their heights */
+  aspect-ratio: var(--mosaic-ratio, 1);
   gap: 2px;
   border-radius: calc(var(--bubble-radius) - 3px);
   overflow: hidden;
 }
-.c-mgrid[data-n="1"] { grid-template-columns: 1fr; aspect-ratio: 1 / 1; }
-.c-mgrid[data-n="2"] { aspect-ratio: 2 / 1; }
-.c-mgrid[data-n="3"],
-.c-mgrid[data-n="4"] { grid-template-rows: 1fr 1fr; aspect-ratio: 1 / 1; }
-.c-mgrid[data-n="3"] > .c-mgrid__cell:first-child { grid-row: 1 / 3; }
 .c-mgrid > .c-mgrid__cell {
   display: block;
+  grid-column: span 12;
   min-width: 0;
   min-height: 0;
   margin: 0;
   padding: 0;
 }
+.c-mgrid > .c-mgrid__cell[data-row="2"] { grid-column: span 6; }
+.c-mgrid > .c-mgrid__cell[data-row="3"] { grid-column: span 4; }
+.c-mgrid > .c-mgrid__cell[data-row="4"] { grid-column: span 3; }
 .c-mgrid .c-mbubble-anchor { width: 100%; height: 100%; }
 .c-mgrid .c-mbubble,
 .c-bubble-row[data-direction="sent"] .c-mgrid .c-mbubble[data-file] {
@@ -5735,13 +5743,19 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   border-radius: 0;
   box-shadow: none;
 }
-/* a cell is small: the long "keep Spixi open" hint goes, the name / percentage stays */
+/* a cell is small: the long "keep Spixi open" hint goes, the name / percentage stays; the ring and the ↓ disc shrink */
 .c-mgrid .c-mbubble__hint { display: none; }
 .c-mgrid .c-mbubble__file { padding: var(--spacing-8); gap: var(--spacing-4); }
 .c-mgrid .c-mbubble__cap,
 .c-mgrid .c-mbubble__cta { font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs); }
+.c-mgrid .c-mbubble__ring { width: var(--size-target-min); height: var(--size-target-min); }
+.c-mgrid .c-mbubble__ring > .c-fbubble__icon { display: none; }   /* the ring alone reads at cell size; the % sits under it */
 .c-mgrid > .c-mgrid__cell:not(:last-child) .c-mbubble__time,
 .c-mgrid > .c-mgrid__cell:not(:last-child) .c-mbubble__stamp { display: none; }
+/* ★ S11 G: with a footer the time is the footer's — no cell carries one */
+.c-mgrid-box[data-dlall] .c-mgrid .c-mbubble__time { display: none; }
+/* ★ S11 G (#1263 a): past MOSAIC_MAX a passive "+N" LABEL over the last cell — never a button, never an event target
+   (the cell's own tap and menu stay live under it; S10's button took the right-click, walk #1260) */
 .c-mgrid__more {
   position: absolute;
   inset: 0;
@@ -5749,39 +5763,38 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
   background: var(--surface-scrim);
   color: var(--text-on-scrim);
-  font: inherit;
   font-size: var(--font-size-heading-xs);
   font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  pointer-events: none;
 }
-/* ★ S10 F2 (#1254): the "+N" is a button over the fourth cell now (tappable); the S9 overlay inside a tile stays inert */
-span.c-mgrid__more { pointer-events: none; }
-button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: -2px; }
-/* ★ S10 F2: "Download all (n)" — a text button under the grid of a received group while offers remain */
-.c-mgrid__dlall {
+/* ★ S11 G (#1263 a): the FOOTER under the photos (and the caption) of a received group with offers left —
+   "Download all (n) · size" on the start side, the time on the end side */
+.c-mgrid__foot {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: var(--spacing-8);
-  width: 100%;
+  padding: var(--spacing-4) var(--spacing-8) var(--spacing-2) var(--spacing-4);
+}
+.c-mgrid__dlall {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
   min-height: var(--size-target-min);
   margin: 0;
-  padding: var(--spacing-4) var(--spacing-12);
+  padding: var(--spacing-4) var(--spacing-8);
   border: 0;
-  border-radius: calc(var(--bubble-radius) - 3px);
+  border-radius: var(--radius-8);
   background: transparent;
   color: var(--text-action-default);
   font: inherit;
   font-size: var(--font-size-label-md);
   line-height: var(--line-height-label-md);
   font-weight: var(--font-weight-semibold);
+  text-align: start;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -5792,6 +5805,12 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
 .c-mgrid__dlall:active { background: var(--surface-action-tonal-default); }
 .c-mgrid__dlall:disabled { opacity: 0.6; cursor: default; }
 .c-mgrid__dlall:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: -2px; }
+.c-mgrid__time {
+  flex: none;
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  color: var(--text-neutral-02);
+}
 .c-mgrid__caption {
   padding: 6px 9px 4px;
   font-size: calc(var(--font-size-body-md) * var(--chat-text-scale, 1));
@@ -5802,6 +5821,67 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
 }
 .c-mgrid .c-mbubble__time,
 .c-mgrid .c-mbubble__stamp { z-index: 3; }
+/* ★ S11 G (#1263 a): ONE Reply affordance BESIDE the album, never on the photos. The desktop hover button is placed
+   from messageMenuTarget — for a group row that is the FIRST cell's tile, so it landed over the second photo (walk
+   #1260). On a group row the button is a plain flex item instead: after the album on a received row, before it on a
+   sent one, centred on it; the --reply-btn-x / -y geometry is not used. It takes no room the album needs (the column
+   is at most the card rail). */
+:root[data-desktop] .c-mgrid-row > .c-bubble-row__reply {
+  position: relative;
+  left: auto;
+  top: auto;
+  align-self: center;
+  flex: none;
+  margin-inline: var(--spacing-4);
+}
+.c-bubble-row[data-direction="sent"].c-mgrid-row > .c-bubble-row__reply + .c-mgrid-col { margin-inline-start: 0; }
+
+/* ★★ S11 G (#1258 + #1263 c = A): the PREVIEW in an offer (media-bubble.js setTilePreview). The blurred picture lies
+   under the face (.c-mbubble__preview keeps today's 12 px blur); an OFFER hides its file face and shows a centre ↓ disc
+   with the size; downloading / failed keep their face, on a scrim over the picture (the #46 r2 R2-1 scrim grammar). */
+.c-mbubble[data-file][data-pv] { background: var(--surface-neutral-02); }
+.c-mbubble[data-pv][data-file="offer"] .c-mbubble__file { visibility: hidden; }
+.c-mbubble__pvmark {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  color: var(--icon-on-scrim);
+  pointer-events: none;
+}
+.c-mbubble:not([data-file="offer"]) > .c-mbubble__pvmark { display: none; }
+.c-mbubble__pvdisc {
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+}
+.c-mbubble__pvsize {
+  padding: 0 var(--spacing-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-on-scrim);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+}
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__file {
+  z-index: 1;
+  background: var(--surface-scrim-strong);
+  color: var(--text-on-scrim);
+}
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__cta,
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__hint { color: var(--text-on-scrim); }
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__ring-track { stroke: var(--surface-wash-on-scrim-strong); }
+.c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__ring-fill { stroke: var(--icon-on-scrim); }
+.c-mbubble[data-file][data-pv]:not([data-state="loaded"]) .c-mbubble__time { background: var(--surface-scrim); color: var(--text-on-scrim); }
 
 </style><!-- GIF/image tiles (remote media URLs) -->
 <style data-src="../styles/components/media-viewer.css">
@@ -5908,7 +5988,7 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
   align-items: center;
   justify-content: center;
   padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
-  touch-action: none; /* the stage owns vertical gestures (swipe-to-dismiss) */
+  touch-action: none; /* the stage owns every gesture on the picture (swipe-to-dismiss · ★ S11 #1262: the page track, pinch, pan) */
 }
 .c-mviewer__img {
   max-width: 100%;
@@ -5972,6 +6052,34 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   padding-top: var(--spacing-4);
+}
+
+/* ★ S11 E (#1262): the paged viewer's TRACK (prev / current / next, moved 1:1 by media-viewer.js). The viewer clips
+   the neighbours; a zoomed picture is clipped to the stage (the bar / foot ground stays tappable, #1180). */
+.c-mviewer { overflow: hidden; }
+.c-mviewer__track { position: absolute; inset: 0; }
+.c-mviewer__track[data-settle] { transition: transform var(--duration-200) var(--easing-decelerate); }
+.c-mviewer__slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);   /* = the stage padding */
+}
+.c-mviewer__peer {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-8);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+.c-mviewer__stage[data-zoomed] { overflow: hidden; cursor: grab; }
+@media (prefers-reduced-motion: reduce) {
+  .c-mviewer__track[data-settle] { transition: none; }
 }
 
 </style>
@@ -6218,6 +6326,7 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-02);
 }
+.c-wallet-send__label:focus, .c-wallet-receive__asklabel:focus { outline: none; }   /* ★ #46 r3 NIT-4: a step-1 focus target after a touch (tabIndex -1), not a control */
 
 /* —— recipient picker —— */
 .c-wallet-send__picker { display: flex; flex-direction: column; gap: var(--spacing-12); }
@@ -6297,76 +6406,46 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
 .c-wallet-send__addrfield .c-button { flex-basis: 100%; }
 .c-wallet-send__addrfield .c-wallet-send__error { flex-basis: 100%; }   /* validation sits under ITS input (Damir bug, round 3) */
 
-/* selected recipient */
-.c-wallet-send__picked {
-  display: flex; align-items: center; gap: var(--spacing-12);
-  min-height: 64px;                                     /* ★ W-j: the directory row height */
-  padding: var(--spacing-8) var(--spacing-12);
-  border-radius: var(--radius-16);
-  background: var(--surface-card);
-  box-shadow: var(--elevation-1);
+/* ★ S11 H (#1263): the step-2 chip — "To" (Send, keeps the old __picked hooks) and "From" (Request) */
+.c-wallet-send__picked, .c-wallet-receive__chip {
+  display: inline-flex; align-items: center; gap: var(--spacing-8); align-self: center;
+  max-width: 100%; min-height: var(--size-target-min); box-sizing: border-box;
+  margin: 0; padding: 0 var(--spacing-12); border: 0; border-radius: var(--radius-full);
+  background: var(--surface-card); color: var(--text-neutral-02); font: inherit; text-align: start;
 }
+button.c-wallet-send__picked, .c-wallet-receive__chip { cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { button.c-wallet-send__picked:hover, .c-wallet-receive__chip:hover { background: var(--surface-interactive-hover); } }
+button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background: var(--surface-interactive-pressed); }   /* #28 */
+.c-wallet-send__picked:focus-visible, .c-wallet-receive__chip:focus-visible { outline: var(--outline-width-2) solid var(--outline-action-default); outline-offset: 1px; }
+.c-wallet-send__chiplabel, .c-wallet-receive__chiplabel { flex: none; font-size: var(--font-size-body-sm); color: var(--text-neutral-02); }
 .c-wallet-send__pickedglyph {
-  width: var(--size-avatar-48); height: var(--size-avatar-48); flex: none;   /* ★ W-j: avatar-48 slot */
-  border-radius: var(--radius-full);
+  width: var(--size-avatar-24); height: var(--size-avatar-24); flex: none; border-radius: var(--radius-full);
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--surface-action-tonal-default);
-  color: var(--icon-action-default);
+  background: var(--surface-action-tonal-default); color: var(--icon-action-default);
 }
-.c-wallet-send__pickedtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.c-wallet-send__pickedname {                            /* ★ W-b: name over the muted truncated address */
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
+.c-wallet-send__pickedname, .c-wallet-receive__chipnames {
+  flex: 0 1 auto; min-width: 0; font-family: var(--font-secondary); font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold); color: var(--text-neutral-01);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .c-wallet-send__pickedaddr {
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
-  color: var(--text-neutral-02);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 0 2 auto; min-width: 0; font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs);
+  color: var(--text-neutral-02); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.c-wallet-send__clear {
-  flex: none;
-  width: 32px; height: 32px;                            /* visual 32; hit area below (#106) */
-  position: relative;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--icon-neutral-02);
-  cursor: pointer;
-}
-.c-wallet-send__clear::after { content: ''; position: absolute; inset: -6px; }
-@media (hover: hover) and (pointer: fine) { .c-wallet-send__clear:hover { background: var(--surface-interactive-hover); } }
-.c-wallet-send__clear:active { background: var(--surface-interactive-pressed); }   /* #28 pressed wash */
+.c-wallet-send__chipchev, .c-wallet-receive__chipchev { flex: none; display: inline-flex; color: var(--icon-neutral-02); }
 
-/* —— amount —— */
-.c-wallet-send__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
-.c-wallet-send__amount {
-  flex: 1; min-width: 0;
-  box-sizing: border-box;
-  padding: var(--spacing-12) var(--spacing-16);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
-  color: var(--text-neutral-01);
-  font-family: var(--font-primary);
-  font-size: var(--font-size-heading-md);               /* money entry is the hero of this screen */
-  line-height: var(--line-height-heading-md);
-  font-weight: var(--font-weight-semibold);
+/* ★ S11 H (#1263) step 2: the big amount fills the free space above the keypad bar */
+.c-wallet-send__section--amount { flex: 1 0 auto; align-items: center; gap: var(--spacing-8); }
+.c-wallet-send__amountbox, .c-wallet-receive__amountbox {
+  flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--spacing-2); width: 100%; min-height: 120px; text-align: center;
 }
-.c-wallet-send__amount:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;
-  border-color: var(--outline-action-default);
-}
-.c-wallet-send__unit {
-  flex: none;
-  font-family: var(--font-primary);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-neutral-02);
-}
+.c-wallet-send__fiat, .c-wallet-receive__fiat { margin: 0; font-size: var(--font-size-body-md); color: var(--text-neutral-02); }
+.c-wallet-send__amountrow { display: flex; align-items: center; justify-content: center; gap: var(--spacing-12); }
+.c-wallet-send__over { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-8); text-align: center; }
+.c-wallet-send__over .c-wallet-send__error { font-weight: var(--font-weight-semibold); }
+.c-wallet-send__section--amount .c-wallet-send__meta { text-align: center; }
+.c-wallet-send__meta { text-align: center; }
 .c-wallet-send__meta {
   margin: 0;
   font-size: var(--font-size-body-sm);
@@ -6413,6 +6492,46 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
    stretched to the pane width (an 800px amount field). Cap the content column and
    centre it — the same reading width the settings pane uses. Mobile is untouched. */
 :root[data-desktop] .c-wallet-send { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
+
+/* ★ S11 H (#1263) — amount-pad.js (Send AND Request): its rules live here — the W-h gate maps amount-pad → wallet-send */
+.c-wallet-send__actions .c-amount-pad, .c-wallet-receive__bar .c-amount-pad { margin-block-end: var(--spacing-8); }
+.c-amount { display: flex; flex-direction: column; align-items: center; color: var(--text-neutral-01); outline: none; }
+.c-amount__row {
+  display: inline-flex; align-items: center; font-family: var(--font-primary);
+  font-size: 56px; line-height: 64px;                   /* render A */
+  font-weight: var(--font-weight-semibold); letter-spacing: var(--tracking-display-lg); white-space: nowrap;
+}
+.c-amount[data-size="m"] .c-amount__row { font-size: 44px; line-height: 52px; }
+.c-amount[data-size="s"] .c-amount__row { font-size: 32px; line-height: 40px; }
+.c-amount__zero { color: var(--text-neutral-disabled); }
+.c-amount__caret {
+  display: inline-block; flex: none; width: 2px; height: 0.82em; margin-inline: 2px; border-radius: 1px;
+  background: var(--text-accent); animation: c-amount-blink 1.06s steps(1, end) infinite;
+}
+@keyframes c-amount-blink { 50% { opacity: 0; } }
+.c-amount__unit {
+  font-family: var(--font-primary); font-size: var(--font-size-label-lg); line-height: var(--line-height-label-lg);
+  font-weight: var(--font-weight-semibold); color: var(--text-neutral-02);
+}
+.c-amount[data-error] .c-amount__row { color: var(--text-error); }
+.c-amount[data-error] .c-amount__caret { background: var(--text-error); }
+.c-amount[data-shake] .c-amount__row { animation: c-amount-shake 320ms ease-in-out 1; }
+@keyframes c-amount-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .c-amount__caret, .c-amount[data-shake] .c-amount__row { animation: none; }
+}
+.c-amount-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-4); }
+.c-amount-pad__key {
+  height: clamp(48px, 8vh, 64px); display: grid; place-items: center; margin: 0; padding: 0;
+  border: 0; border-radius: var(--radius-16); background: transparent; color: var(--text-neutral-01);
+  font-family: var(--font-primary); font-size: 28px; font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums;
+  cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) { .c-amount-pad__key:hover { background: var(--surface-interactive-hover); } }
+.c-amount-pad__key:active { background: var(--surface-interactive-pressed); }   /* #28 */
+.c-amount-pad__key:focus-visible { outline: var(--outline-width-2) solid var(--outline-action-default); outline-offset: -2px; }
+.c-amount-pad__key:disabled { color: var(--text-neutral-disabled); cursor: default; }
 
 </style>
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
@@ -6675,6 +6794,15 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
   .chat-event__chip svg { flex: none; color: var(--icon-accent); }
   /* ★ S10 P3 (#1254): the two-line group line — the "\n" is a line break, and a two-line pill is a rounded card */
   .chat-event__chip[data-lines] { white-space: pre-line; border-radius: var(--radius-16); }
+  /* ★ S11 C (#1262): title (icon inline, text size) over a smaller muted subtitle, centred */
+  .chat-event__chip--stack { flex-direction: column; gap: var(--spacing-2); }
+  .chat-event__title { display: block; }
+  .chat-event__title svg { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-inline-end: var(--spacing-4); }
+  .chat-event__sub {
+    display: block; white-space: normal;
+    color: var(--text-neutral-02);
+    font-size: var(--font-size-body-xs); line-height: var(--line-height-body-xs);
+  }
   /* attach → App-invite picker (inside a c-sheet) */
   /* ★ #1085 (office walk OV.23, Damir: "should be nicer, show apps; many apps → an entire
      screen with search"): each row = the app's own icon tile + name + publisher; more than
@@ -7005,6 +7133,8 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
     openMediaStrip, MEDIA_CAPTION_MAX,   // ★ S10 P1 (#1254): the paste / attach strip (media-strip.js — the S9 sheet is gone)
     setComposerMedia,               // ★ S10 P1: the composer's strip state — Send with photos, the caption cap (composer.js)
     createPhotoGridBubble, addPhotoGridCell,   // ★ S9 (#1244 G = A): the photo group bubble (media-bubble.js)
+    MOSAIC_MAX, setTilePreview,     // ★ S11 G (#1263 a / c): the mosaic's cap · the blurred preview in an offer (media-bubble.js)
+    formatFileSize,                 // ★ S11 G (#1263 a): "Download all (n) · size" (timestamp.js since #46 r3 F4 — one size format app-wide)
     timeOpts, docLocale,            // ★ S9 a11y (#1206): the row's accessible name says its time like the bubble does (timestamp.js)
     p1Log,                          // ★ S9 (8-GROW-A): the dev-only [P1] grow line (p1.js; no-op unless <html data-p1>)
     createPaymentBubble, createCallBubble,
@@ -7933,6 +8063,26 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
     fileThumbChars -= old.length;
   }
   const FILE_THUMB_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
+  /* ★★ S11 G (#1258 + #1263 c = A) — THE PREVIEW IN AN OFFER. `offerPreviews` = message id → the small preview C# pushed with
+   * setOfferPreview (the sender's ≤ 8 KB JPEG, RE-ENCODED by C# through its bounded decoder). Shown blurred on a RECEIVED
+   * photo tile not on this device yet, only while previews are on AND "Load pictures and GIFs" is on (mediaAutoloadOn —
+   * checked at the push AND at every render: OFF = today's file face). Outlives clearMessages like fileThumbs (C# pushes
+   * once per document), reset per peer at onChatScreenReady, bounded (OFFER_PV_KEEP × OFFER_PV_MAX characters). Never
+   * written to storage; the value only ever becomes the tile's preview <img src> (media-bubble.js setTilePreview). */
+  const offerPreviews = new Map();
+  const OFFER_PV_KEEP = 200;
+  const OFFER_PV_MAX = 11000;   // ≥ the base64 of C#'s 8 KB cap (8192 → 10 924) + the prefix
+  function storeOfferPreview(key, u) {
+    offerPreviews.delete(key);
+    offerPreviews.set(key, u);
+    while (offerPreviews.size > OFFER_PV_KEEP) offerPreviews.delete(offerPreviews.keys().next().value);
+  }
+  /* the preview a file row may paint now, or '' */
+  function offerPreviewFor(rec) {
+    if (!rec || rec.kind !== 'file' || rec.direction !== 'received' || rec.fstate === 'complete' || rec.localGone || rec.voiceFile) return '';
+    if (!photoPreviews || !isPhotoFileName(rec.name) || !mediaAutoloadOn()) return '';
+    return offerPreviews.get(String(rec.id)) || '';
+  }
   /* ★ S9 (#1244) — the photo batch's input rules (mediaPicked). ★ S10 P1 (#1254): the batch shows in the STRIP. */
   const MEDIA_BATCH_RE = /^[0-9a-f]{16}$/;   // ★ S10 #46 n-6: lower case only, as C#'s isId16
   const MEDIA_KEY_RE = /^[0-9]$/;
@@ -9166,30 +9316,28 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
   function buildGridRow(g, position) {
     const sl = window.SL || {};
     const first = g.members[0];
-    const shown = g.members.slice(0, 4);
+    /* ★★ S11 G (#1263 a = A): the MOSAIC — every photo up to MOSAIC_MAX in the bubble, each its own cell (state + menu);
+       no "+N" button any more (S10's took the fourth cell's right-click, walk #1260) — past MOSAIC_MAX a passive label */
+    const shown = g.members.slice(0, MOSAIC_MAX);
     const more = g.members.length - shown.length;
-    /* ★ S10 F2 (#1254): "Download all (n)" while n ≥ 1 members are offers; the "+N" cell is tappable (offers → the same;
-       none → the viewer at the fifth photo). The button re-renders away on the updateFile ticks (offer → progress). */
+    /* ★ S10 F2 (#1254) · ★ S11 G: "Download all (n) · size" in the FOOTER while n ≥ 1 members are offers (the size when
+       C# told every offer's size, addFile arg 20); the footer re-renders away on the updateFile ticks (offer → progress) */
     const offers = groupOffers(g);
-    const fill = (t, n) => String(t).split('{n}').join(String(n));
     const row = createPhotoGridBubble({
       direction: first.direction, count: shown.length, more, total: g.members.length,
       caption: g.caption ? String(g.caption.text) : null,
       gutter: mode.isMulti && first.direction === 'received', strings: sl,
       downloadAll: offers.length,
-      downloadAllLabel: fill(sl.photosDownloadAll || 'Download all ({n})', offers.length),
+      downloadAllLabel: downloadAllLabel(offers),
       onDownloadAll: () => acceptGroupOffers(g),
+      timestamp: shown[shown.length - 1].ts,
     });
     tileHead(row, first, position);   // the group head BEFORE the cells (setTileHead finds the group column first)
-    const onMore = more > 0 ? () => { if (groupOffers(g).length) acceptGroupOffers(g); else openGroupAt(g, 4); } : null;
-    const moreLabel = offers.length ? fill(sl.photosDownloadAll || 'Download all ({n})', offers.length)
-      : fill(sl.photosShowAll || 'Show all {n} photos', g.members.length);
     shown.forEach((m, i) => {
-      const last = i === shown.length - 1;
-      const cell = addPhotoGridCell(row, markPausedTile(buildFileRow(m), m), { isLast: last, onMore: last ? onMore : null, moreLabel });
+      const cell = addPhotoGridCell(row, markPausedTile(buildFileRow(m), m), { isLast: i === shown.length - 1 });
       if (!cell) return;
       gridCells.set(String(m.id), cell);
-      if (isMenuableRec(m)) attachMessageMenu(cell, menuOptsFor(m, row));   // the cell's own menu; Select = the group row
+      if (isMenuableRec(m)) attachMessageMenu(cell, menuOptsFor(m, row));   // EVERY cell its own menu; Select = the group row
     });
     const capEl = row.querySelector('.c-mgrid__caption');
     if (capEl && g.caption && isMenuableRec(g.caption)) attachMessageMenu(capEl, menuOptsFor(g.caption, row));
@@ -9211,6 +9359,17 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
     }
     return row;
   }
+  /* ★ S11 G (#1263 a): the footer's label — "Download all (n) · 1.6 MB" when C# told the size of EVERY offer (addFile arg
+     20), else today's "Download all (n)" (an older exe sends no size) */
+  function downloadAllLabel(offers) {
+    const sl = window.SL || {};
+    const n = String(offers.length);
+    const sizes = offers.map((m) => Number(m.size) || 0);
+    const total = sizes.every((b) => b > 0) ? sizes.reduce((a, b) => a + b, 0) : 0;
+    const sz = total > 0 ? formatFileSize(total) : '';
+    if (!sz) return String(sl.photosDownloadAll || 'Download all ({n})').split('{n}').join(n);
+    return String(sl.photosDownloadAllSize || 'Download all ({n}) · {size}').split('{n}').join(n).split('{size}').join(sz);
+  }
   /* ★ S10 F2 (#1254): a group's OFFERS = received members not started and not gone, in group order */
   function groupOffers(g) {
     return g.members.filter((m) => m.direction === 'received' && m.fstate === 'offer' && !m.transferStarted && !m.localGone && m.fileid);
@@ -9230,19 +9389,6 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
   function acceptGroupOffers(g) {
     if (composerLock) return;
     for (const m of groupOffers(g)) askAccept(m);
-  }
-  /* ★ S10 F2: the "+N" with no offers left → the viewer on the group from member index `from` (the next viewable one) */
-  function openGroupAt(g, from) {
-    const items = groupViewerItems(g.members[0]);
-    if (!items) {   // ★ S10 #46 m-7: only a member ON this device opens (an offer / a transfer opens nothing)
-      const m = g.members.slice(from).concat(g.members.slice(0, from)).find((x) => x.fstate === 'complete' && !x.localGone);
-      if (m) openFileOrViewer(m);
-      return;
-    }
-    const ids = g.members.map((m) => String(m.id));
-    let at = items.findIndex((it) => ids.indexOf(String(it.token)) >= from);
-    if (at < 0) at = items.length - 1;
-    openGroupViewer(items, at);
   }
   /* the group's photos the viewer can page through: complete, previews on, a preview in hand — in the group's order */
   function groupViewerItems(rec) {
@@ -9272,7 +9418,7 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
     }
     /* ★ A5 #1124: an image file → the media tile (same options + the preview); OFF or another file → the card */
     const photoTile = photoPreviews && isPhotoFileName(rec.name);
-    return (photoTile ? createImageFileBubble : createFileBubble)({
+    const fileRow = (photoTile ? createImageFileBubble : createFileBubble)({
       thumb: photoTile ? (fileThumbs.get(String(rec.id)) || null) : null,
       onLoad: photoTile ? () => { if (nearBottom()) pinLogEnd(); } : undefined,   // the tile grew to the picture
       onThumbError: photoTile ? () => dropFileThumb(String(rec.id)) : undefined,   // #46 r1 B-1: a picture that will not decode is forgotten
@@ -9307,6 +9453,10 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
        * lock leaves an already-rendered Cancel inert until the next re-render
        * (accepted residual, rare path). */
     });
+    /* ★ S11 G (#1258 + #1263 c): a received photo not here yet shows the sender's preview, blurred, with ↓ + its size */
+    const pv = photoTile ? offerPreviewFor(rec) : '';
+    if (pv) setTilePreview(fileRow, pv, formatFileSize(rec.size));
+    return fileRow;
   }
 
   /* ★★ #1166 V-3 (#1165 (9)) — THE VIEWER, CHAT HALF. A tap on a photo-file tile that SHOWS its preview (previews on, the
@@ -9318,13 +9468,22 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
    * textContent only. */
   const VIEWER_URI_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
   const VIEWER_URI_MAX = 1700000;   // ≥ the base64 of C#'s ViewerImage.MaxJpegBytes (1 200 000 → 1 600 000) + the prefix
-  /* ★ S9 (#1244) the paged group viewer · ★ S10 F2 (#1254): + Reply — to the photo ON SCREEN (startReply of that member) */
+  /* ★ S9 (#1244) the paged group viewer · ★ S10 F2 (#1254): + Reply — to the photo ON SCREEN (startReply of that member)
+     ★ S11 G (#1263 a): the viewer's toolbar = Reply (leading) · the name · Save (trailing) on EVERY viewer — a lone photo
+     too (S10 gave Reply to a paged viewer only, walk #1260: "opening the viewer there is no reply"). Save = 🟡
+     `ixian:savePhoto:<id>` behind C#'s `savePhoto` cap (an older exe: no Save button); C# finds its own file and opens the
+     platform's save UI. Forward stays out (later). */
+  const viewerReplyTo = (it) => { const m = it && model.get(String(it.token)); return m && canReplyRec(m) ? m : null; };
+  function viewerTools() {
+    return {
+      canReplyItem: (i, it) => !!viewerReplyTo(it),   // ★ S10 #46 n-3: Reply only on a photo canReplyRec allows
+      onReply: bridge.cap('reply') ? (i, it) => { const m = viewerReplyTo(it); if (m) startReply(m, { single: true }); } : null,   // n-5: THAT photo
+      onSave: bridge.cap('savePhoto') ? (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:savePhoto:' + it.token); } : undefined,
+    };
+  }
   function openGroupViewer(items, at) {
-    const replyTo = (it) => { const m = it && model.get(String(it.token)); return m && canReplyRec(m) ? m : null; };
-    openMediaViewer({ host: overlayHost, items, index: at, kind: 'image', strings: window.SL || {},
-      onPage: (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:viewImage:' + it.token); },
-      canReplyItem: (i, it) => !!replyTo(it),   // ★ S10 #46 n-3: Reply only on a photo canReplyRec allows
-      onReply: bridge.cap('reply') ? (i, it) => { const m = replyTo(it); if (m) startReply(m, { single: true }); } : null });   // n-5: THAT photo
+    openMediaViewer(Object.assign({ host: overlayHost, items, index: at, kind: 'image', strings: window.SL || {},
+      onPage: (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:viewImage:' + it.token); } }, viewerTools()));
     const it0 = items[at];
     if (it0) bridge.send('ixian:viewImage:' + it0.token);
   }
@@ -9339,7 +9498,7 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
       openGroupViewer(items, Math.max(0, items.findIndex((it) => it.token === id)));
       return;
     }
-    openMediaViewer({ host: overlayHost, src: thumb, token: id, kind: 'image', alt: rec.name || '', strings: window.SL || {} });
+    openMediaViewer(Object.assign({ host: overlayHost, src: thumb, token: id, kind: 'image', alt: rec.name || '', strings: window.SL || {} }, viewerTools()));
     bridge.send('ixian:viewImage:' + id);
   }
 
@@ -9535,13 +9694,32 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
     row.className = 'chat-event';
     const chip = document.createElement('div');
     chip.className = 'chat-event__chip';
+    let glyph = null;
     try {
-      if (window.SpixiIcons && window.SpixiIcons.icon) chip.append(window.SpixiIcons.icon(matched ? matched.glyph : 'heart-handshake', { size: 16 }));
+      if (window.SpixiIcons && window.SpixiIcons.icon) glyph = window.SpixiIcons.icon(matched ? matched.glyph : 'heart-handshake', { size: 16 });
     } catch (e) { /* glyph optional */ }
+    const whole = String(rec.text || '');
+    const nl = parts ? -1 : whole.indexOf('\n');
+    if (nl > 0) {
+      /* ★ S11 C (#1262): "\n" = TITLE (icon inline) + muted SUBTITLE; textContent only; the sub keeps its leading "\n"
+         (collapsed by white-space: normal), so the chip text is C#'s exact line. */
+      chip.dataset.lines = '';
+      chip.classList.add('chat-event__chip--stack');
+      const title = document.createElement('span');
+      title.className = 'chat-event__title';
+      if (glyph) title.append(glyph);
+      title.append(document.createTextNode(whole.slice(0, nl)));
+      const sub = document.createElement('span');
+      sub.className = 'chat-event__sub';
+      sub.textContent = whole.slice(nl);
+      chip.append(title, sub);
+      row.append(chip);
+      return row;
+    }
+    if (glyph) chip.append(glyph);
     const line = document.createElement('span');
     line.textContent = parts ? (parts[0] + display + parts[1]) : rec.text;
-    /* ★ S10 P3 (#1254): C#'s created line is two lines joined by "\n" (S9FixRules.createdLine) — the chip keeps the break */
-    if (!parts && /\n/.test(String(rec.text || ''))) chip.dataset.lines = '';
+    if (nl === 0) chip.dataset.lines = '';   // a leading "\n" keeps S10 P3's break
     chip.append(line);
     row.append(chip);
     return row;
@@ -11378,7 +11556,7 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
         address: identity.address,
         avatar: identity.avatar || null,
       },
-      balance: 0,                                      // real balance rides the first quote
+      balance: null,                                    // ★ #46 r3 MINOR-2: UNKNOWN (not 0) until the first quote
       fee: null,                                       // W6: gated until a quote lands
       strings: s, host: document.body,
       /* ★ Gate row O-01. The compose asks for its own pair. `pick()` of the locked peer
@@ -11416,8 +11594,11 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
     // out of the covered conversation; overlays (sheets/modals) stay reachable.
     // loop r1 C-4: the compose's FIRST FIELD (the amount, W-i) takes focus — not the
     // topbar Back button that `button, input` found first; containment is unchanged.
-    const firstFocus = over.querySelector('.chat-send-takeover__body input') || over.querySelector('button, input');
-    if (firstFocus) { try { firstFocus.focus(); } catch (e) {} }
+    // ★ #46 r3 MINOR-1: the VIEW names its own first focus (step 2: Review if armed, else
+    // the amount output) — the first `input` here was step 1's HIDDEN address field, so
+    // focus stayed under the cover. The Back button is only the fallback.
+    try { if (typeof chatSendView._initialFocus === 'function') chatSendView._initialFocus(); } catch (e) {}
+    if (!over.contains(document.activeElement)) { const f = over.querySelector('button, input'); if (f) { try { f.focus(); } catch (e) {} } }
     chatSendFocusin = (e) => {
       if (over.contains(e.target)) return;
       if (e.target && e.target.closest && e.target.closest('.c-sheet, .c-modal')) return;
@@ -12426,6 +12607,10 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
         const pv = String(extra.played == null ? '' : extra.played);
         rec.played = (pv === '1' || pv === '0') ? pv : '';
       }         // ★ S9 (#1244): present = C#'s answer ("" / bad = none), absent = unchanged
+      if (extra.size !== undefined) {   // ★ S11 G (#1263 a): addFile arg 20 — a plain decimal byte count, anything else = unknown
+        const sv = String(extra.size == null ? '' : extra.size);
+        rec.size = /^[0-9]{1,15}$/.test(sv) ? Number(sv) : 0;
+      }
       if (extra.local !== undefined) {
         /* ★ #1190: re-read on every addFile; "0" also forgets a held preview (the chat-info delete re-push) */
         rec.localGone = String(extra.local) === '0';
@@ -13062,6 +13247,7 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       resetLoadedMedia();                  // per-peer reset, and drop any set an older build persisted
       fileThumbs.clear(); fileThumbChars = 0;   // ★ A5 #1124: per-peer reset (C# starts its once-per-document set again at this push)
+      offerPreviews.clear();                    // ★ S11 G (#1258): the same per-peer reset for the offer previews
       avatarByAddr.clear();                // ★ #1166 P-04: per-peer reset (C# starts its once-per-document avatar set again at this push)
       heldThumbs.clear(); thumbHoldUntil = 0; liveTransfers.clear();   // ★ #1166 R3-N2 / R3-N3: per-peer reset
       resetPhotoQuiet();                   // #46 r2 R2-MAJ1: the photo quiet waits too — desktop A → B → A re-waits, no glyph-then-swap
@@ -13356,6 +13542,12 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
       } catch (e) {}
     },
 
+    /* ★ S11 C (#1262) 10-FLASH (🟡 new push): the held Android chat asks for a fresh paint; two frames later the answer
+       is `ixian:painted` (no new verb). C# sends `window.paintAck`, so an older shell ignores it. */
+    paintAck() {
+      requestAnimationFrame(() => requestAnimationFrame(() => { bridge.send('ixian:painted'); }));
+    },
+
     hideBackButton() { dbg('hideBackButton'); },     // 2-pane: back owned by host chrome
 
     /* A3 (#302) — unread messages in OTHER chats, shown on the back button.
@@ -13532,7 +13724,10 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
      * paused also labels it "Paused". An older exe sends 14 args (the old rule); an OLDER shell ignores arg 15. */
     /* ★ #1190: arg 16 `local` — the file on this device? "1" / "0" / "" (C# SharedItems.localArgOf; an older exe → undefined
      * = today's row; an older shell ignores it). buildFileRow draws "0". */
-    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice, group, played) {
+    /* ★ S11 G (#1263 a, 🟡 NEW arg 20): `size` — the file's size in bytes (decimal) for a RECEIVED file not on this device
+     * yet (an offer / a transfer), "" otherwise; the "Download all (n) · size" footer and the offer preview's size label.
+     * An older exe sends none (no size shown); an older shell ignores it. */
+    addFile(id, address, nick, avatar, fileid, name, time, me, sent, read, progress, complete, paid, relaySent, transfer, local, voice, group, played, size) {
       const status = asBool(me)
         ? statusFrom({ sent: relaySent === undefined ? 'True' : relaySent, confirmed: sent, read })
         : null;
@@ -13543,7 +13738,8 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
         { senderNick: resolveNick(address, nick), senderAddress: address || '', status, local: local === undefined ? '' : local,
           voice,   // ★ #1208 (V3): arg 17 "1" = C# renders this file as a voice bubble; "" = a file row; absent = an old exe
           group,      // ★ S9 (#1244): arg 18 — see below
-          played });  // ★ S9 (8-FACE): arg 19 — a voice FILE I received: "1" / "0" / "" (the addThem arg 18 rule); absent = an old exe
+          played,     // ★ S9 (8-FACE): arg 19 — a voice FILE I received: "1" / "0" / "" (the addThem arg 18 rule); absent = an old exe
+          size });    // ★ S11 G: arg 20 — bytes or "" (absent = an old exe)
           /* arg 18 "<gid>|<index>|<count>|<captionIdHex>" = one photo of a pick; "" = none; absent = an old exe */
       const rec = model.get(String(id));   // the row paints on the next frame (renderLog), after this flag is set
       if (rec) rec.paused = !!(tx && tx.state === 'paused' && rec.fstate === 'progress');
@@ -13705,6 +13901,24 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
       const row = liveRowOf(key);   // ★ S9: a grouped photo's own cell (a member past the fourth has none — nothing to patch)
       if (row) setImageFileThumb(row, u);   // a tile that shows a picture only (complete, or MY photo still sending — #46 r2 R2-1); a card ignores it
       refreshQuoteTiles(key);               // ★ 7b (#1215): the quotes of this photo show it
+    },
+
+    /* ★★ S11 G (#1258 + #1263 c, 🟡 NEW push, BE ask): setOfferPreview(<message id hex>, <data uri>) — the small preview of a
+     * RECEIVED photo offer (the sender's, re-encoded by C# through its bounded decoder). Accepted ONLY when previews are
+     * on, "Load pictures and GIFs" is on (this shell's own switch, read again here), the value is a base64 JPEG data: URI
+     * (FILE_THUMB_RE) of at most OFFER_PV_MAX characters, and the id is a RECEIVED image file row of this conversation
+     * that is not on this device yet; anything else is ignored silently. The value only ever becomes the tile's blurred
+     * preview <img src> (setTilePreview — no other sink). */
+    setOfferPreview(id, uri) {
+      const key = String(id == null ? '' : id);
+      const u = typeof uri === 'string' ? uri : '';
+      if (!photoPreviews || !mediaAutoloadOn() || !u || u.length > OFFER_PV_MAX || !FILE_THUMB_RE.test(u)) return;
+      const rec = model.get(key);
+      if (!rec || rec.kind !== 'file' || rec.direction !== 'received' || rec.fstate === 'complete' || rec.voiceFile || !isPhotoFileName(rec.name)) return;
+      if (offerPreviews.get(key) === u) return;
+      storeOfferPreview(key, u);
+      const row = liveRowOf(key);   // a grouped photo's own cell; a member with no cell has nothing to patch
+      if (row) setTilePreview(row, offerPreviewFor(rec), formatFileSize(rec.size));
     },
 
     /* ★★ S9 (#1244, 🟡 NEW push): mediaPicked validates C#'s prepared batch and answers ixian:mediaSend or ixian:mediaCancel (never a path or bytes).
@@ -14676,7 +14890,12 @@ button.c-mgrid__more:focus-visible { outline: 2px solid var(--outline-action-def
       if (composerLock || !attachFlags().media || !clipboardHasImageType(e.clipboardData)) return;
       e.preventDefault();
       const ctx = getComposerContext(composerEl);
-      if (ctx && ctx.kind === 'edit') return;   // ★ S10 #46 m-5: a picture cannot go into an EDIT — refused (a text paste is unchanged)
+      if (ctx && ctx.kind === 'edit') {   // ★ S10 #46 m-5: a picture cannot go into an EDIT — refused (a text paste is unchanged)
+        /* ★ S11 C (#1262): the refusal says so */
+        const sl = window.SL || {};
+        try { showToast({ text: sl.editPastePhotoRefused || 'Finish editing to add photos.', host: overlayHost, strings: sl }); } catch (err) {}
+        return;
+      }
       bridge.send('ixian:pasteImage');
     });
   }

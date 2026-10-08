@@ -1,0 +1,127 @@
+/* c-glass-card — the update notice + the hints (★ S11 A, #1262; glass-card.js). No outline: a blue / violet tint,
+   a top highlight, a soft low shadow (tokens.css region A). One entrance, then it holds; reduced motion = static. */
+
+.c-glass-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  margin: var(--spacing-8) var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-4) var(--spacing-16) var(--spacing-16);
+  border-radius: var(--radius-20);
+  background:
+    radial-gradient(120% 110% at 0% 0%, var(--glass-card-tint-blue) 0%, transparent 58%),
+    radial-gradient(110% 110% at 100% 100%, var(--glass-card-tint-violet) 0%, transparent 60%),
+    var(--glass-card-surface);
+  box-shadow: inset 0 1px 0 var(--glass-card-highlight), var(--glass-card-shadow);
+  color: var(--text-neutral-01);
+  animation: glass-card-in var(--duration-300) var(--easing-decelerate) both;
+}
+.c-glass-card[data-variant="update"] { align-items: center; }
+@keyframes glass-card-in {
+  from { opacity: 0; transform: translateY(var(--spacing-8)); }
+  to { opacity: 1; transform: none; }
+}
+/* ★ S11 A2 (#1263, R2-m2): one entrance per card lifetime (glass-card.js holdEntrance) */
+.c-glass-card[data-held] { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .c-glass-card { animation: none; }
+}
+
+.c-glass-card__art { flex: none; display: flex; }
+/* the update card's blue app-style icon (no illustration — the design's update card) */
+.c-glass-card__appicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-12);
+  background: linear-gradient(160deg, var(--glass-card-icon-from) 0%, var(--glass-card-icon-to) 100%);
+  color: var(--glass-card-icon-ink);   /* ★ S11 A2 (#1263): its own ink (not the action fill) */
+  box-shadow: 0 6px 14px -6px var(--glass-card-art-glow);
+}
+/* the hint's small art: the tip's glyph on a blue → violet tile, with a soft glow under it */
+.c-glass-card__tipart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-top: var(--spacing-4);
+  border-radius: var(--radius-16);
+  background: linear-gradient(150deg, var(--glass-card-art-from) 0%, var(--glass-card-art-to) 100%);
+  color: var(--glass-card-art-ink);    /* ★ S11 A2 (#1263): its own ink (not the action fill) */
+  box-shadow: 0 8px 18px -8px var(--glass-card-art-glow);
+}
+
+.c-glass-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+.c-glass-card__body > p { margin: 0; }
+.c-glass-card__eyebrow {
+  color: var(--glass-card-eyebrow);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-glass-card__title {
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  letter-spacing: var(--tracking-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-glass-card__text {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+}
+/* "Learn more ›" / "How to update ›" — a text link with a 44 px target (padding, not a bigger glyph) */
+.c-glass-card__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 44px;                 /* sanctioned: minimum touch target */
+  margin: calc(-1 * var(--spacing-8)) 0 calc(-1 * var(--spacing-12));
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-link);
+  font: inherit;
+  font-size: var(--font-size-label-md);
+  line-height: var(--line-height-label-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-glass-card__link svg { flex: none; }
+.c-glass-card__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: minimum touch target */
+  height: 44px;
+  margin-top: calc(-1 * var(--spacing-12));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-glass-card[data-variant="update"] .c-glass-card__close { align-self: flex-start; }
+/* hover guarded per #43 (AND-18 pointer: fine) */
+@media (hover: hover) and (pointer: fine) {
+  .c-glass-card__link:hover { color: var(--text-link-hover); }
+  .c-glass-card__close:hover { background: var(--surface-interactive-hover); }
+}
+.c-glass-card__close:active { background: var(--surface-interactive-pressed); }

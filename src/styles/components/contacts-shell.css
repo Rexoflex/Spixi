@@ -519,14 +519,7 @@
   align-items: center;
   justify-content: center;
 }
-.c-contacts-addsheet__art-img { width: 100%; height: 100%; object-fit: contain; }
-/* art missing/blocked → the empty-state glyph tile grammar, never a hole */
-.c-contacts-addsheet__art[data-placeholder] {
-  width: 96px; height: 96px;
-  border-radius: var(--radius-24);
-  background: var(--surface-neutral-02);
-  color: var(--text-neutral-02);
-}
+.c-contacts-addsheet__art-img { width: 100%; height: 100%; }   /* ★ S11 B (#1262): the inline art (no load → no glyph-tile fallback rule) */
 .c-contacts-addsheet__lead {
   margin: 0;
   text-align: center;

@@ -643,6 +643,8 @@ function zeroAmount(value) {
  * button either. Between them the field had literally no dismiss affordance: Damir's
  * "it's difficult to choose the recipient" on wallet Send, and a tip sheet whose own
  * numeric pad covered the sheet that summoned it.
+ * ★ S11 H (#1263): wallet Send and Request no longer have an amount field — they draw the in-app keypad
+ * (amount-pad.js), so no OS keyboard rises there. The tip sheet is this helper's remaining consumer.
  */
 /** Give an amount input every way out that its platform can offer.
  *  · `enterkeyhint="done"` + Enter -> blur, for the keyboards that HAVE a return key
@@ -717,6 +719,288 @@ function attachAmountKeyboardDismiss(input) {
     input.addEventListener('blur', () => clearInterval(sweep), { once: true });
   });
   return input;
+}
+
+/* ---- src/components/amount-pad.js ---- */
+/* amount-pad.js — the in-app amount keypad + the big amount display (★ S11 H, #1263).
+ *
+ * Damir's pick A ("Cash App / Revolut"): step 2 of Send and Request is a big centred
+ * NUMBER, not a text field, and an in-app keypad that is always visible. One module, two
+ * consumers (wallet-send, wallet-receive), because the three bugs this replaces were all
+ * the OS keyboard's and not the screen's:
+ *   · #607 — a keypad whose decimal key emitted '.' while the field formatted with ','
+ *     (or the reverse) put the caret on the wrong side of the separator: 1 , 4 → "14.",
+ *     ten times the amount. HERE THE KEY AND THE DISPLAY AGREE BY CONSTRUCTION: the
+ *     decimal key is a KEY ID ('dec'), never a character; the state is the canonical
+ *     '.'-decimal string; the display and the key label both come from localeSeps().
+ *   · #609 — the iOS decimal pad has no return key and the app removes the accessory bar,
+ *     so the field had no way out. There is no OS keyboard here, so nothing to dismiss.
+ *   · I-6/#360 caret arithmetic — there is no caret to place: digits only ever append.
+ *
+ * Rules (padApply, pure — pinned): digits append; no leading zeros ('0' then '5' → '5');
+ * one decimal mark (a second is ignored; on an empty value it gives '0.'); at most
+ * `decimals` digits after it (IXI = 8, chain precision) and at most 15 before it;
+ * backspace removes the last character ('0.' → '' so the grey placeholder returns);
+ * long-press backspace clears. The value that leaves is canonicalAmount(raw) — the same
+ * payload form every money path already uses (#77 untouched).
+ *
+ * Desktop: hardware keys drive the same padApply while the owner says the pad is live
+ * (digits; the LOCALE's decimal mark and the numpad decimal key = 'dec'; the OTHER
+ * separator is grouping and is ignored, so en "1,000.50" → 1000.5 and de "1.000" → 1000
+ * (★ #46 r3 MINOR-3); Backspace; Delete = clear). Enter when focus is NOT on a pad key
+ * or another control = the owner's primary action, only while it is enabled (★ #46 r3
+ * MAJOR-1). Never from an editable target, never with a modifier, never while a
+ * dialog/sheet holds focus. The listener is bound only while the owner's step is on
+ * screen and drops itself once the pad leaves the document.
+ * A pointer press on a key never moves focus (mousedown default prevented, ★ #46 r3
+ * MAJOR-1): otherwise Enter/Space after a click re-clicked the focused key (5 → 55) on
+ * Chromium/WebView2. Tab still reaches the keys; a keyboard-focused key keeps the normal
+ * button behaviour.
+ *
+ * Exports: padApply(raw, key, opts) · createAmountDisplay({ className, strings }) ·
+ *          setAmountDisplay(display, raw, { error }) ·
+ *          createAmountPad({ display, strings, decimals, onChange }) → element with
+ *            _value() · _set(raw) · _press(key) · _keysOn(isLive, { primary }) · _keysOff()
+ */
+
+
+
+const PAD_INT_MAX = 15;                                        // 999 trillion IXI: far past supply, never wraps
+const PAD_LONG_PRESS_MS = 550;
+
+/** ★ #1263 — one keypress applied to the canonical edit string ('.'-decimal, maybe a
+ *  trailing '.' mid-typing). key ∈ '0'…'9' · 'dec' · 'back' · 'clear'. */
+function padApply(raw, key, { decimals = 8 } = {}) {
+  const s = String(raw == null ? '' : raw);
+  if (key === 'clear') return '';
+  if (key === 'back') {
+    const t = s.slice(0, -1);
+    return t === '0' ? '' : t;                             // '0.' ← → the placeholder, not a bare 0
+  }
+  if (key === 'dec') {
+    if (decimals <= 0 || s.includes('.')) return s;        // a second mark is ignored
+    return (s === '' ? '0' : s) + '.';
+  }
+  if (!/^[0-9]$/.test(key)) return s;
+  const dot = s.indexOf('.');
+  if (dot === -1) {
+    if (s === '0') return key;                             // no leading zeros: 0 then 5 → 5 (0 then 0 → 0)
+    if (s.length >= PAD_INT_MAX) return s;
+    return s + key;
+  }
+  if (s.length - dot - 1 >= decimals) return s;            // precision reached: further digits ignored
+  return s + key;
+}
+
+/** The big amount (render A): grey placeholder "0.00" in the locale's mark, a caret, the
+ *  IXI unit. An <output> (implicit role=status, polite): a screen reader hears the value
+ *  change, never the caret. NOT an input — nothing here can raise an OS keyboard. */
+function createAmountDisplay({ className = '', strings = getStrings(), unit = 'IXI' } = {}) {
+  const out = document.createElement('output');
+  out.className = 'c-amount' + (className ? ' ' + className : '');
+  out.setAttribute('aria-live', 'polite');
+  out.setAttribute('aria-atomic', 'true');
+  out.tabIndex = -1;                                       // the step's focus target (no keyboard to raise)
+  const row = document.createElement('span');
+  row.className = 'c-amount__row u-tabular';
+  const u = document.createElement('span');
+  u.className = 'c-amount__unit';
+  u.textContent = unit;
+  out.append(row, u);
+  setAmountDisplay(out, '');
+  return out;
+}
+
+/** Re-render the display for `raw` (canonical edit form). error → the error colour
+ *  (the over-balance state); the shake plays once per entry, never on reduced motion. */
+function setAmountDisplay(display, raw, { error = false } = {}) {
+  if (!display) return display;
+  const row = display.querySelector('.c-amount__row');
+  if (!row) return display;
+  const s = String(raw == null ? '' : raw);
+  row.textContent = '';
+  const caret = document.createElement('span');
+  caret.className = 'c-amount__caret';
+  caret.setAttribute('aria-hidden', 'true');
+  if (!s) {
+    const zero = document.createElement('span');
+    zero.className = 'c-amount__zero';
+    zero.textContent = groupAmountDisplay('0.00');         // the locale's mark: 0,00 in de-de
+    row.append(caret, zero);
+    display.dataset.empty = '';
+  } else {
+    const num = document.createElement('span');
+    num.className = 'c-amount__num';
+    num.textContent = groupAmountDisplay(s);               // grouping + the locale's mark (display skin only)
+    row.append(num, caret);
+    delete display.dataset.empty;
+  }
+  const len = s.length;
+  display.dataset.size = len > 14 ? 's' : len > 10 ? 'm' : 'l';   // the type steps down, never wraps
+  const was = display.dataset.error !== undefined;
+  if (error) {
+    display.dataset.error = '';
+    if (!was) {                                            // one shake on ENTRY (CSS owns it; reduced motion = none)
+      display.removeAttribute('data-shake');
+      void display.offsetWidth;
+      display.dataset.shake = '';
+    }
+  } else {
+    delete display.dataset.error;
+    delete display.dataset.shake;
+  }
+  return display;
+}
+
+/* tabler "backspace" (stroke 1.8, currentColor) — the icon set has no backspace glyph */
+function padBackspaceGlyph() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('width', '28');
+  svg.setAttribute('height', '28');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.8');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', 'M20 6a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5-6 5-6zM12 10l4 4m0-4l-4 4');
+  svg.append(p);
+  return svg;
+}
+
+/** The 3×4 keypad (render A): 1–9, the locale's decimal mark, 0, backspace. */
+function createAmountPad({ display = null, strings = getStrings(), decimals = 8, onChange } = {}) {
+  const pad = document.createElement('div');
+  pad.className = 'c-amount-pad';
+  pad.setAttribute('role', 'group');
+  pad.setAttribute('aria-label', strings.padLabel || 'Number pad');
+  let raw = '';
+  let error = false;
+  const set = (next, { silent = false } = {}) => {
+    raw = next;
+    if (display) setAmountDisplay(display, raw, { error });
+    if (!silent && onChange) onChange(raw);
+  };
+  const press = (key) => {
+    const next = padApply(raw, key, { decimals });
+    if (next !== raw) set(next);
+  };
+
+  const mark = localeSeps().decimal;
+  const groupMark = localeSeps().group;   // ★ #46 r4 (S11): only THIS locale's real grouping character is dropped
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'dec', '0', 'back'];
+  for (const k of keys) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-amount-pad__key';
+    b.dataset.key = k;
+    if (k === 'dec') {
+      b.textContent = mark;                                // ★ the SAME source the display uses (#607 closed by construction)
+      b.setAttribute('aria-label', strings.padDecimal || 'Decimal mark');
+      if (decimals <= 0) b.disabled = true;
+    } else if (k === 'back') {
+      b.append(padBackspaceGlyph());
+      b.setAttribute('aria-label', strings.padDelete || 'Delete digit');
+    } else {
+      b.textContent = k;
+    }
+    b.addEventListener('contextmenu', (e) => e.preventDefault());   // Android long-press: no callout
+    // ★ #46 r3 MAJOR-1: a mouse/touch press never moves focus onto the key — a focused
+    // key would take the next Enter/Space as a second click (5 → 55). Click still fires.
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    if (k === 'back') {
+      let timer = 0;
+      let cleared = false;
+      const stop = () => { if (timer) { clearTimeout(timer); timer = 0; } };
+      b.addEventListener('pointerdown', () => {
+        cleared = false;
+        stop();
+        timer = setTimeout(() => { timer = 0; cleared = true; press('clear'); }, PAD_LONG_PRESS_MS);
+      });
+      b.addEventListener('pointerup', stop);
+      b.addEventListener('pointercancel', stop);
+      b.addEventListener('pointerleave', stop);
+      b.addEventListener('click', () => {
+        if (cleared) { cleared = false; return; }          // the long press already cleared — the lift is not a backspace
+        press('back');
+      });
+    } else {
+      b.addEventListener('click', () => press(k));
+    }
+    pad.append(b);
+  }
+
+  /* desktop hardware keys — bound while the owner's step is live */
+  let keyFn = null;
+  let sweep = 0;
+  const off = () => {
+    if (keyFn) document.removeEventListener('keydown', keyFn);
+    keyFn = null;
+    if (sweep) { clearInterval(sweep); sweep = 0; }
+  };
+  pad._keysOn = (isLive = () => true, { primary = null } = {}) => {
+    off();
+    keyFn = (e) => {
+      if (!pad.isConnected) { off(); return; }
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      if (!isLive()) return;
+      const t = e.target;
+      if (t && typeof t.closest === 'function'
+        && t.closest('input, textarea, select, [contenteditable], [role="dialog"], [role="alertdialog"], .c-sheet, .c-modal')) return;
+      if (e.key === 'Enter') {
+        // ★ #46 r3 MAJOR-1: a pad key or any other control keeps its own Enter (native);
+        // from the amount / the page, Enter is the owner's primary action — if enabled.
+        if (e.repeat || !t || typeof t.closest !== 'function'
+          || t.closest('button, a[href], [role="button"], [role="link"], summary')) return;
+        const p = typeof primary === 'function' ? primary() : null;
+        if (!p || p.disabled || p.hidden || p.getAttribute('aria-disabled') === 'true') return;
+        e.preventDefault();
+        p.click();
+        return;
+      }
+      let key = null;
+      if (/^[0-9]$/.test(e.key)) key = e.key;
+      else if (e.key === 'Decimal' || e.code === 'NumpadDecimal' || e.key === mark) key = 'dec';
+      else if (e.key === groupMark) return;      // ★ #46 r3 MINOR-3: the locale's grouping key (en ',' · de '.') is ignored
+      /* ★ #46 r4 MAJOR (S11): fr / ru / lt group with a (narrow) no-break space, so '.' and ',' there can only mean the
+         decimal mark — dropping them turned "2.5" into 25. Any '.' or ',' that is not this locale's grouping = the decimal key. */
+      else if (e.key === '.' || e.key === ',') key = 'dec';
+      else if (e.key === 'Backspace') key = 'back';
+      else if (e.key === 'Delete') key = 'clear';
+      if (!key) return;
+      e.preventDefault();
+      press(key);
+    };
+    document.addEventListener('keydown', keyFn);
+    sweep = setInterval(() => { if (!pad.isConnected) off(); }, 2000);   // the #609 belt: a removed pad never keeps a document listener
+  };
+  pad._keysOff = off;
+  pad._value = () => raw;
+  pad._press = press;
+  /** programmatic value (Max fill, a QR seed, setRequestAmount): sanitized to the pad's
+   *  own rules — digits, one '.', ≤ decimals — and pushed through onChange like a key. */
+  pad._set = (v, opts) => {
+    let s = sanitizeAmount(v == null ? '' : String(v));
+    const dot = s.indexOf('.');
+    let int = dot === -1 ? s : s.slice(0, dot);
+    const frac = dot === -1 ? null : s.slice(dot + 1, dot + 1 + Math.max(0, decimals));
+    int = int.replace(/^0+(?=\d)/, '');                    // ★ #46 r3 NIT-3: '00.5' → '0.5', '007' → '7'
+    if (frac !== null && int === '') int = '0';             // '.5' → '0.5'
+    if (int.length > PAD_INT_MAX) s = '';                   // ★ NIT-3: past the pad's 15-digit cap → nothing seeded (never a silently shorter number)
+    else s = frac === null ? int : (decimals > 0 ? int + '.' + frac : int);
+    set(s, opts);
+  };
+  pad._error = (on) => {
+    on = !!on;
+    if (on === error) return;
+    error = on;
+    if (display) setAmountDisplay(display, raw, { error });
+  };
+  return pad;
 }
 
 /* ---- src/components/disc.js ---- */
@@ -1301,6 +1585,21 @@ function formatLastSeen(epochSec, strings = getStrings(), now = Date.now()) {
   if (ageMin < 60) return strings.lastSeenJustNow || 'last seen just now';
   if (ageMin < 7 * 24 * 60) return strings.lastSeenRecently || 'last seen recently';
   return strings.lastSeenLongAgo || 'last seen a long time ago';
+}
+
+/** ★ S11 F4 (#1263): moved here from shared-items.js (a pure formatter; this module owns no stylesheet).
+ *  0 → '' · 512 B · 12 KB · 3.4 MB · 1.2 GB (one decimal under 10, the locale's decimal mark; binary steps, the
+ *  convention of every file manager the app sits beside). */
+function formatFileSize(bytes) {
+  const b = Number(bytes);
+  if (!Number.isFinite(b) || b <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let v = b; let u = 0;
+  while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
+  let n;
+  try { n = new Intl.NumberFormat(docLocale(), { maximumFractionDigits: u === 0 || v >= 10 ? 0 : 1 }).format(v); }   // (#46 r1 B7) the locale's decimal mark
+  catch (e) { n = u === 0 ? String(Math.round(v)) : (v < 10 ? v.toFixed(1) : String(Math.round(v))); }
+  return n + ' ' + units[u];
 }
 
 /* ---- src/components/avatar.js ---- */
@@ -2731,21 +3030,188 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
   }, duration);
 }
 
+/* ---- src/components/illustrations.js ---- */
+/**
+ * illustrations — ★ S11 B (#1262): the approved illustration set as INLINE SVG.
+ *
+ * Source: the "Spixi Illustration Set" artifact (the tile with the Default badge per
+ * screen) and the "Spixi Rating Illustration" version D "Phone". Every slot used to be an
+ * <img> on a PNG/SVG export; inline art lets the theme tokens reach the drawing
+ * (`--il-*`, tokens.css region B; the rating art reads `--rn-*`, which are aliases of
+ * `--il-*`), so one drawing serves light and dark, and the launch flow (pinned dark on
+ * its own subtree) picks the dark set from that subtree.
+ *
+ * One factory per illustration: illoWelcome1 … illoWelcome4, illoRestore, illoChatsEmpty,
+ * illoContactsEmpty, illoAddContact, illoAppsEmpty, illoExplore, illoBackup, illoRating,
+ * illoWalletEmpty — each `({ className } = {}) → SVGSVGElement`, decorative
+ * (aria-hidden="true" focusable="false"; the copy beside it carries the meaning).
+ * Gradient / filter ids are UNIQUE PER CALL: every id in the art carries `@@`, and each
+ * call replaces it with a fresh document-wide counter, so two empty states on one page
+ * never share a gradient (a shared id paints the second copy with the first one's defs —
+ * or with nothing, once the first is removed).
+ *
+ * illustrationFor(src) → the factory for a SYMBOLIC name (`'backup'`, `'rating'`, `'chatsEmpty'`,
+ * `'contactsEmpty'`, `'appsEmpty'`, `'explore'` … — the IL_ART keys; ★ S11 A2, #1263: every shipped host
+ * passes one of these now, or a factory), else for a LEGACY image path (`images/backup.png` … — kept for
+ * old callers and the demo/pin corpus; those files are deleted), or null. Null keeps the component's
+ * own fallback (its <img> ladder for an arbitrary art URL, else its glyph / disc).
+ *
+ * ★ S11 A2 (#1263, R2-m2) ONE ENTRANCE PER ELEMENT LIFETIME: a tab switch (display:none → shown) or a
+ * re-parent restarts every CSS animation, so the art used to replay its entrance. Each drawing is
+ * watched (watchEntrance): once EVERY animated piece has ended once (or 12 s after the first one
+ * started), the root gets `data-held` and illo.css pins every piece to its END frame (a large negative
+ * animation-delay with the `both` fill — NOT animation:none, whose base styles differ from the end
+ * frames: the rising hearts end invisible, the twinkles at .9). Reduced motion never animates, so
+ * nothing is watched there.
+ *
+ * Motion lives in illo.css (`il-*` entrance classes; `rn-*` for the rating art with
+ * `rn-once`): one entrance, then a held still frame; reduced motion = static.
+ * Markup is a STATIC module constant written through innerHTML on a fresh SVG element —
+ * the icons.js precedent; never user data, never a remote string.
+ */
+const IL_NS = 'http://www.w3.org/2000/svg';
+let ilSeq = 0;                                   // per document: the id suffix of each call
+
+/* The art table. vb = viewBox · cls = root classes · style = root custom-property
+   overrides (the Explore art sits on the same blue banner in both themes, so it pins its
+   own shadow/glow) · b = the body, every id written as `<name>@@`. Generated from the
+   design file (whitespace collapsed, ids re-keyed); edit the design, then regenerate. */
+const IL_ART = {
+  welcome1: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="w1Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w1Vi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><radialGradient id="w1Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="w1Ring@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><radialGradient id="w1RingF@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".16"/><stop offset=".7" stop-color="var(--il-glow)" stop-opacity=".06"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity=".1"/></radialGradient><linearGradient id="w1Glass@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DCE6FF" stop-opacity=".85"/><stop offset=".55" stop-color="#9DB6FF" stop-opacity=".55"/><stop offset="1" stop-color="#8C7CF5" stop-opacity=".5"/></linearGradient><filter id="w1Blur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="w1ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w1Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="122" rx="112" ry="100" fill="url(#w1Glow@@)"/><g class="il-ring" style="--to:50% 50%"><circle cx="120" cy="122" r="100" fill="url(#w1RingF@@)"/><circle cx="120" cy="122" r="44" fill="none" stroke="url(#w1Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="122" r="72" fill="none" stroke="url(#w1Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="122" r="100" fill="none" stroke="url(#w1Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/></g><g transform="translate(30 66) scale(1)" fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" class="il-fade" style="--o:1.1s"><rect x="-8" y="-7" width="16" height="14" rx="3.5"/><path d="M-5 4l3.5-3.5 2.5 2.5 2.5-2.5 2.5 3"/><circle cx="-2.5" cy="-2.5" r="1.4"/></g><g transform="translate(208 62) scale(1)" fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" class="il-fade" style="--o:1.1s"><rect x="-5" y="-8.5" width="10" height="17" rx="2.6"/><path d="M-1.6 5.6h3.2"/></g><g transform="translate(92 196) scale(1)" fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" class="il-fade" style="--o:1.1s"><rect x="-8" y="-8" width="16" height="16" rx="3.5"/><rect x="-4.6" y="-4.6" width="3.6" height="3.6" rx=".9"/><rect x="1" y="-4.6" width="3.6" height="3.6" rx=".9"/><rect x="-4.6" y="1" width="3.6" height="3.6" rx=".9"/><rect x="1" y="1" width="3.6" height="3.6" rx=".9"/></g><g fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.2" class="il-fade" style="--o:1.2s"><circle cx="150" cy="40" r="2.2"/><circle cx="224" cy="150" r="2.2"/></g><g class="il-grow" style="--o:.55s;--to:50% 50%"><rect x="86" y="101" width="68" height="30" rx="15.0" fill="#8FB2FF" opacity=".35" filter="url(#w1Blur@@)"/><rect x="86" y="103" width="68" height="26" rx="13.0" fill="url(#w1Glass@@)"/><path d="M90 105.6h60" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/></g><g class="il-in" style="--o:.1s;--fx:-14px"><g filter="url(#w1ShS@@)"><rect x="22" y="96" width="80" height="38" rx="19" fill="url(#w1Bl@@)"/></g><rect x="36.25" y="108.5" width="44" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="36.25" y="116" width="28" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g><g class="il-in" style="--o:.25s;--fx:14px"><g filter="url(#w1ShS@@)"><rect x="138" y="100" width="80" height="38" rx="19" fill="url(#w1Vi@@)"/></g><rect x="152.25" y="112.5" width="44" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="152.25" y="120" width="28" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g><g fill="var(--il-spark)"><g transform="translate(206 104) scale(0.7)"><use href="#w1Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(40 152) scale(0.6)"><use href="#w1Sp@@" class="il-tw" style="--i:1"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="176" cy="58" r="1.6"/><circle cx="60" cy="104" r="1.4"/></g>' },
+  welcome2: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="w2Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w2BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w2Br@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w2BrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="w2Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w2Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="w2Lc@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B9B2EC"/><stop offset=".5" stop-color="#9890DA"/><stop offset="1" stop-color="#7C72C8"/></linearGradient><linearGradient id="w2LcS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B50A8"/><stop offset="1" stop-color="#433A86"/></linearGradient><filter id="w2Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w2ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w2Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="118" rx="104" ry="92" fill="url(#w2Glow@@)"/><ellipse cx="120" cy="118" rx="100" ry="58" transform="rotate(-8 120 118)" fill="none" stroke="var(--il-orbit)" stroke-width="1.2" stroke-dasharray="1.5 7" stroke-linecap="round"/><ellipse cx="116" cy="190" rx="70" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-float"><g class="il-pop" style="--o:.1s;--to:50% 60%"><g transform="translate(40 66) rotate(-8 75 48)"><g filter="url(#w2Sh@@)"><rect x="2.5" y="3.5" width="150" height="96" rx="16" fill="url(#w2LcS@@)"/><rect x="0" y="0" width="150" height="96" rx="16" fill="url(#w2Lc@@)"/></g><rect x="0" y="0" width="150" height="96" rx="16" fill="url(#w2Gl@@)"/><rect x="0.4" y="0.4" width="149.2" height="95.2" rx="16" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width=".8"/><g filter="url(#w2ShS@@)"><circle cx="33.12" cy="37.6" r="18" fill="url(#w2BlS@@)"/><circle cx="32" cy="36" r="18" fill="url(#w2Bl@@)"/></g><circle cx="32" cy="36" r="18" fill="url(#w2Gl@@)"/><circle cx="32" cy="36" r="17.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="32" cy="32.4" r="5.4"/><path d="M22.64 47.16C22.64 39.6 26.96 38.7 32 38.7S41.36 39.6 41.36 47.16Z"/></g><rect x="60" y="26" width="64" height="5" rx="2.5" fill="#3B2F8C" opacity="0.55"/><rect x="60" y="38" width="42" height="4" rx="2.0" fill="#3B2F8C" opacity="0.38"/><rect x="18" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="31" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="44" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="57" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="70" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="83" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="96" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="109" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="122" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/></g></g></g><g class="il-float" style="--d:-1.5s"><g class="il-pop" style="--o:.7s;--to:50% 50%"><g transform="translate(160 132) rotate(10 25 25)"><g filter="url(#w2Sh@@)"><rect x="2.2" y="3" width="50" height="50" rx="13" fill="url(#w2BrS@@)"/><rect x="0" y="0" width="50" height="50" rx="13" fill="url(#w2Br@@)"/></g><rect x="0" y="0" width="50" height="50" rx="13" fill="url(#w2Gl@@)"/><rect x="0.4" y="0.4" width="49.2" height="49.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="9" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="15.4" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="15.4" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="28.2" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="15.4" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="21.8" y="21.8" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="15.4" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="28.2" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="21.8" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="9" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="28.2" y="9" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="9" y="28.2" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(50 52) scale(0.9)"><use href="#w2Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(206 64) scale(1)"><use href="#w2Sp@@" class="il-tw" style="--i:1"/></g><g transform="translate(196 198) scale(0.7)"><use href="#w2Sp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="34" cy="170" r="2"/><circle cx="214" cy="118" r="1.8"/><circle cx="150" cy="36" r="1.6"/></g>' },
+  welcome3: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="w3Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w3BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w3Vi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w3ViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="w3Li@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="w3LiS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><linearGradient id="w3Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w3Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="w3Ring@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><radialGradient id="w3RingF@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".16"/><stop offset=".7" stop-color="var(--il-glow)" stop-opacity=".06"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity=".1"/></radialGradient><linearGradient id="w3Glass@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DCE6FF" stop-opacity=".85"/><stop offset=".55" stop-color="#9DB6FF" stop-opacity=".55"/><stop offset="1" stop-color="#8C7CF5" stop-opacity=".5"/></linearGradient><radialGradient id="w3Vc@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#D9CCFF"/><stop offset=".5" stop-color="#8F7BFF"/><stop offset="1" stop-color="#5E45E0"/></radialGradient><filter id="w3Blur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="w3Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w3ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w3Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="124" rx="112" ry="100" fill="url(#w3Glow@@)"/><g class="il-ring" style="--to:50% 50%"><circle cx="120" cy="124" r="96" fill="url(#w3RingF@@)"/><circle cx="120" cy="124" r="40" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="124" r="68" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="124" r="96" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/></g><g class="il-grow" style="--o:.5s;--to:50% 50%"><rect x="94" y="112" width="62" height="24" rx="12.0" fill="#8FB2FF" opacity=".35" filter="url(#w3Blur@@)"/><rect x="94" y="114" width="62" height="20" rx="10.0" fill="url(#w3Glass@@)"/><path d="M98 116.6h54" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/><path d="M104 114h22" stroke="#fff" stroke-opacity="0.5" stroke-width="1.2" stroke-linecap="round"/><path d="M130 132h18" stroke="#fff" stroke-opacity="0.4" stroke-width="1.2" stroke-linecap="round"/></g><g class="il-in" style="--o:.1s;--fx:-14px"><g transform="translate(20 96) rotate(-4 37 28)"><g filter="url(#w3ShS@@)"><rect x="5.5" y="-6" width="62" height="40" rx="10" fill="url(#w3LiS@@)"/><rect x="4" y="-8" width="62" height="40" rx="10" fill="url(#w3Li@@)"/></g><rect x="4" y="-8" width="62" height="40" rx="10" fill="url(#w3Gl@@)"/><rect x="4.4" y="-7.6" width="61.2" height="39.2" rx="10" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g filter="url(#w3Sh@@)"><rect x="2.5" y="3.5" width="74" height="56" rx="13" fill="url(#w3ViS@@)"/><rect x="0" y="0" width="74" height="56" rx="13" fill="url(#w3Vi@@)"/></g><rect x="0" y="0" width="74" height="56" rx="13" fill="url(#w3Gl@@)"/><rect x="0.4" y="0.4" width="73.2" height="55.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g filter="url(#w3ShS@@)"><rect x="50.2" y="21" width="40" height="22" rx="11" fill="url(#w3BlS@@)"/><rect x="48" y="18" width="40" height="22" rx="11" fill="url(#w3Bl@@)"/></g><rect x="48" y="18" width="40" height="22" rx="11" fill="url(#w3Gl@@)"/><rect x="48.4" y="18.4" width="39.2" height="21.2" rx="11" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><circle cx="60" cy="29" r="4.4" fill="#fff" opacity=".95"/></g></g><g class="il-in" style="--o:.25s;--fx:14px"><g transform="translate(148 104)"><g filter="url(#w3Sh@@)"><rect x="0" y="0" width="74" height="40" rx="16" fill="url(#w3Bl@@)"/></g><rect x="12" y="13" width="42" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="12" y="20.5" width="28" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g></g><g class="il-pop" style="--o:.75s;--to:50% 50%"><g filter="url(#w3ShS@@)"><circle cx="125.4" cy="125.8" r="17" fill="#4632A8"/><circle cx="124" cy="124" r="17" fill="url(#w3Vc@@)"/></g><circle cx="124" cy="124" r="12.58" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.2"/><use href="#w3Sp@@" transform="translate(124 124) scale(1.27)" fill="#fff"/><ellipse cx="117.2" cy="116.35" rx="4.08" ry="2.04" fill="#fff" opacity=".7" transform="rotate(-35 117.2 116.35)"/></g><g fill="var(--il-spark)"><g transform="translate(200 74) scale(0.75)"><use href="#w3Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(46 170) scale(0.6)"><use href="#w3Sp@@" class="il-tw" style="--i:1"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="84" cy="62" r="1.6"/><circle cx="180" cy="180" r="1.6"/></g>' },
+  welcome4: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="w4Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w4BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w4Vi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w4ViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="w4Pk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="w4PkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="w4Nt@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-card)"/><stop offset="1" stop-color="var(--il-card-2)"/></linearGradient><linearGradient id="w4NtS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-card-side)"/><stop offset="1" stop-color="var(--il-card-side)"/></linearGradient><linearGradient id="w4Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w4Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="w4Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w4ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w4Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="116" rx="106" ry="94" fill="url(#w4Glow@@)"/><ellipse cx="120" cy="200" rx="78" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-float" style="--d:-2s"><g transform="translate(45 122)"><g filter="url(#w4Sh@@)"><rect x="2.2" y="3" width="150" height="70" rx="18" fill="url(#w4NtS@@)"/><rect x="0" y="0" width="150" height="70" rx="18" fill="url(#w4Nt@@)"/></g><rect x="0.4" y="0.4" width="149.2" height="69.2" rx="18" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width=".8"/><rect x="16" y="16" width="58" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.7"/><rect x="16" y="27" width="36" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.45"/><rect x="12" y="42" width="126" height="16" rx="8" fill="var(--il-recv)"/><rect x="22" y="48.4" width="40" height="3.2" rx="1.6" fill="var(--il-recv-line)" opacity="0.55"/><circle cx="128" cy="50" r="5" fill="url(#w4Bl@@)"/></g></g><g class="il-float" style="--d:-.4s"><g class="il-rise" style="--o:.3s"><g transform="translate(44 66) rotate(-10 24 24)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4PkS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Pk@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="9" y="17" width="30" height="16" rx="8" fill="#fff" opacity=".95"/><path d="M16 22v6M13 25h6" stroke="#D9437A" stroke-width="2.2" stroke-linecap="round"/><circle cx="30" cy="23" r="1.9" fill="#D9437A"/><circle cx="33.5" cy="27" r="1.9" fill="#D9437A"/></g></g></g><g class="il-float" style="--d:-1.1s"><g class="il-rise" style="--o:.55s"><g transform="translate(96 38)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4ViS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Vi@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><use href="#w4Sp@@" transform="translate(22 25) scale(1.9)" fill="#fff"/><use href="#w4Sp@@" transform="translate(34 13) scale(.8)" fill="#fff" opacity=".85"/></g></g></g><g class="il-float" style="--d:-1.7s"><g class="il-rise" style="--o:.8s"><g transform="translate(148 66) rotate(10 24 24)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4BlS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Bl@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="12" y="12" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="12" y="25" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="25" y="12" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="25" y="25" width="11" height="11" rx="3" fill="#fff" opacity="0.55"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(204 46) scale(1)"><use href="#w4Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 52) scale(0.8)"><use href="#w4Sp@@" class="il-tw" style="--i:1"/></g><g transform="translate(122 24) scale(0.6)"><use href="#w4Sp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="26" cy="120" r="2"/><circle cx="214" cy="126" r="1.8"/><circle cx="178" cy="206" r="1.6"/></g>' },
+  restore: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="rsBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="rsBrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="rsVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="rsViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="rsGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="rsGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="rsArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="rsSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="rsShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="rsSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="116" rx="112" ry="96" fill="url(#rsGlow@@)"/><g class="il-in" style="--o:.1s;--fx:-14px"><g transform="translate(22 72) rotate(-4 32 42)"><g filter="url(#rsSh@@)"><path d="M12 0H44L64 20V72A12 12 0 0 1 52 84H12A12 12 0 0 1 0 72V12A12 12 0 0 1 12 0Z" transform="translate(2.5 3.5)" fill="url(#rsBrS@@)"/><path d="M12 0H44L64 20V72A12 12 0 0 1 52 84H12A12 12 0 0 1 0 72V12A12 12 0 0 1 12 0Z" fill="url(#rsBr@@)"/></g><path d="M44 0V12A8 8 0 0 0 52 20H64Z" fill="#C9C4FF" opacity=".9"/><g fill="#fff"><rect x="23" y="27" width="18" height="14" rx="3.5"/></g><path d="M26.5 27v-3.4a5.5 5.5 0 0 1 11 0V27" fill="none" stroke="#fff" stroke-width="2.6"/><circle cx="32" cy="33.6" r="2" fill="#6A5BF5"/><rect x="10" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="10" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/><rect x="26" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="26" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/><rect x="42" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="42" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/></g></g><g class="il-grow" style="--o:.5s;--to:0% 50%"><g transform="translate(100 116)"><g filter="url(#rsShS@@)"><path d="M0 -4H22V-10L34 0 22 10V4H0A4 4 0 0 1 0-4Z" fill="url(#rsArc@@)"/></g><path d="M-6 -14h18" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M4 -20h10" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M-6 14h18" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M4 20h10" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/></g></g><g class="il-pop" style="--o:.8s;--to:50% 50%"><g transform="translate(184 114)"><circle cx="0" cy="0" r="35" fill="none" stroke="url(#rsArc@@)" stroke-width="3"/><g filter="url(#rsShS@@)"><circle cx="1.12" cy="1.6" r="27" fill="url(#rsViS@@)"/><circle cx="0" cy="0" r="27" fill="url(#rsVi@@)"/></g><circle cx="0" cy="0" r="27" fill="url(#rsGl@@)"/><circle cx="0" cy="0" r="26.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="0" cy="-5.4" r="8.1"/><path d="M-14.04 16.74C-14.04 5.4 -7.56 4.05 0 4.05S14.04 5.4 14.04 16.74Z"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(220 62) scale(0.7)"><use href="#rsSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(30 182) scale(0.6)"><use href="#rsSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(150 176) scale(0.5)"><use href="#rsSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="102" cy="62" r="1.6"/><circle cx="214" cy="170" r="1.4"/></g>' },
+  chatsEmpty: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="chBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><radialGradient id="chGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="chArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="chSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="chSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="104" ry="88" fill="url(#chGlow@@)"/><g class="il-pop" style="--o:.1s;--to:0% 100%"><g transform="translate(40 96)"><g filter="url(#chSh@@)"><rect x="0" y="0" width="64" height="46" rx="23" fill="url(#chBr@@)"/></g><circle cx="20" cy="23" r="3.6" fill="#fff" class="il-dot" style="--i:0"/><circle cx="32" cy="23" r="3.6" fill="#fff" class="il-dot" style="--i:1"/><circle cx="44" cy="23" r="3.6" fill="#fff" class="il-dot" style="--i:2"/></g></g><circle cx="112" cy="120" r="1.6" fill="var(--il-dotc)" class="il-fade" style="--o:.7s"/><circle cx="118" cy="120" r="1.6" fill="var(--il-dotc)" class="il-fade" style="--o:.7s"/><circle cx="124" cy="120" r="1.6" fill="var(--il-dotc)" class="il-fade" style="--o:.7s"/><circle cx="130" cy="120" r="1.6" fill="var(--il-dotc)" class="il-fade" style="--o:.7s"/><g class="il-pop" style="--o:.5s;--to:100% 100%"><g transform="translate(138 96)"><rect x="0" y="0" width="64" height="46" rx="23" fill="var(--il-glow)" fill-opacity=".1" stroke="url(#chArc@@)" stroke-width="2.2"/><circle cx="20" cy="23" r="3.4" fill="var(--il-dotc)"/><circle cx="32" cy="23" r="3.4" fill="var(--il-dotc)"/><circle cx="44" cy="23" r="3.4" fill="var(--il-dotc)"/></g></g><g fill="var(--il-spark)"><g transform="translate(66 64) scale(0.7)"><use href="#chSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(196 76) scale(0.8)"><use href="#chSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(170 170) scale(0.6)"><use href="#chSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="48" cy="166" r="1.8"/><circle cx="120" cy="62" r="1.6"/><circle cx="210" cy="136" r="1.4"/></g>' },
+  contactsEmpty: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="ctBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="ctBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="ctBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="ctBrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="ctVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="ctViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="ctGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="ctGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="ctArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="ctBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="ctSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="ctShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="ctSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="106" ry="96" fill="url(#ctGlow@@)"/><ellipse cx="120" cy="204" rx="80" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><path d="M84 140C102 126 138 124 156 108" fill="none" stroke="url(#ctArc@@)" stroke-width="1.8" stroke-dasharray="1.5 6" stroke-linecap="round" class="il-draw" style="--len:100;--o:.6s"/><g class="il-pop" style="--o:.3s"><g transform="translate(152 52) rotate(8 35 43) scale(.86)" opacity=".85"><g filter="url(#ctSh@@)"><rect width="70" height="86" rx="15" fill="var(--il-card)"/></g><rect x=".7" y=".7" width="68.6" height="84.6" rx="14.3" fill="none" stroke="url(#ctArc@@)" stroke-opacity=".9" stroke-width="1.6"/><circle cx="35" cy="31" r="20" fill="var(--il-recv)" opacity=".8"/><g filter="url(#ctShS@@)"><circle cx="36.12" cy="32.6" r="16" fill="url(#ctViS@@)"/><circle cx="35" cy="31" r="16" fill="url(#ctVi@@)"/></g><circle cx="35" cy="31" r="16" fill="url(#ctGl@@)"/><circle cx="35" cy="31" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="35" cy="27.8" r="4.8"/><path d="M26.68 40.92C26.68 34.2 30.52 33.4 35 33.4S43.32 34.2 43.32 40.92Z"/></g><rect x="15" y="58" width="40" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.8"/><rect x="21" y="68" width="28" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.5"/></g></g><g class="il-pop" style="--o:.1s"><g transform="translate(22 92) rotate(-7 35 43)"><g filter="url(#ctSh@@)"><rect width="70" height="86" rx="15" fill="var(--il-card)"/></g><rect x=".7" y=".7" width="68.6" height="84.6" rx="14.3" fill="none" stroke="url(#ctArc@@)" stroke-opacity=".9" stroke-width="1.6"/><circle cx="35" cy="31" r="20" fill="var(--il-recv)" opacity=".8"/><g filter="url(#ctShS@@)"><circle cx="36.12" cy="32.6" r="16" fill="url(#ctBlS@@)"/><circle cx="35" cy="31" r="16" fill="url(#ctBl@@)"/></g><circle cx="35" cy="31" r="16" fill="url(#ctGl@@)"/><circle cx="35" cy="31" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="35" cy="27.8" r="4.8"/><path d="M26.68 40.92C26.68 34.2 30.52 33.4 35 33.4S43.32 34.2 43.32 40.92Z"/></g><rect x="15" y="58" width="40" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.8"/><rect x="21" y="68" width="28" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.5"/></g></g><g class="il-pop" style="--o:.85s;--to:50% 50%"><g transform="translate(122 128)"><g filter="url(#ctSh@@)"><rect x="-16.8" y="-16" width="38" height="38" rx="11" fill="url(#ctBrS@@)"/><rect x="-19" y="-19" width="38" height="38" rx="11" fill="url(#ctBr@@)"/></g><rect x="-19" y="-19" width="38" height="38" rx="11" fill="url(#ctGl@@)"/><rect x="-18.6" y="-18.6" width="37.2" height="37.2" rx="11" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g transform="translate(-19 -19)"><rect x="9.0" y="9.0" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="9.0" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="16.4" y="16.4" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="9.0" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="16.4" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="16.4" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/></g><g class="il-scan" style="--sy:11px;--o:1.1s"><rect x="-15" y="-5" width="30" height="10" fill="#C9F0FF" opacity=".35" filter="url(#ctBlur@@)"/><rect x="-15" y="-1" width="30" height="2" rx="1" fill="#E6F7FF"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(62 62) scale(1)"><use href="#ctSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(214 186) scale(0.8)"><use href="#ctSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(122 38) scale(0.6)"><use href="#ctSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="30" cy="70" r="2"/><circle cx="222" cy="124" r="1.8"/><circle cx="150" cy="214" r="1.6"/></g>' },
+  addContact: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="adBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="adBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="adVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="adViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="adGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="adGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="adRing@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><linearGradient id="adArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="adBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><radialGradient id="adHalo@@" cx=".5" cy=".42" r=".55"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".0"/><stop offset=".78" stop-color="var(--il-glow)" stop-opacity=".14"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity=".0"/></radialGradient><filter id="adShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="adSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="100" ry="100" fill="url(#adGlow@@)"/><circle cx="120" cy="120" r="58" fill="url(#adHalo@@)"/><circle cx="120" cy="120" r="54" fill="none" stroke="url(#adRing@@)" stroke-width="1" opacity="var(--il-ring-a)"/><g class="il-fade" style="--o:.2s"><path d="M50 78V60a10 10 0 0 1 10-10h18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M162 50h18a10 10 0 0 1 10 10v18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M190 162v18a10 10 0 0 1-10 10h-18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M78 190H60a10 10 0 0 1-10-10v-18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></g><g class="il-pop" style="--o:.05s;--to:50% 50%"><g filter="url(#adShS@@)"><circle cx="121.12" cy="121.6" r="44" fill="url(#adBlS@@)"/><circle cx="120" cy="120" r="44" fill="url(#adBl@@)"/></g><circle cx="120" cy="120" r="44" fill="url(#adGl@@)"/><circle cx="120" cy="120" r="43.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="120" cy="112.2" r="13.2"/><path d="M97.12 148.28C97.12 129.8 107.68 127.6 120 127.6S142.88 129.8 142.88 148.28Z"/></g><circle cx="120" cy="120" r="38" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1"/><path d="M92 92a38 38 0 0 1 30-14" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="1.6" stroke-linecap="round"/></g><g class="il-pop" style="--o:.7s;--to:50% 50%"><circle cx="158" cy="158" r="19.5" fill="var(--il-screen)"/><g filter="url(#adShS@@)"><circle cx="159.12" cy="159.6" r="16" fill="url(#adViS@@)"/><circle cx="158" cy="158" r="16" fill="url(#adVi@@)"/></g><circle cx="158" cy="158" r="16" fill="url(#adGl@@)"/><circle cx="158" cy="158" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><path d="M158 151v14M151 158h14" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/></g><g class="il-scan" style="--sy:56px;--o:1s"><rect x="56" y="113" width="128" height="14" fill="var(--il-spark)" opacity=".18" filter="url(#adBlur@@)"/><rect x="58" y="119" width="124" height="2" rx="1" fill="var(--il-spark)" opacity=".85"/></g><g fill="var(--il-spark)"><g transform="translate(204 40) scale(1.1)"><use href="#adSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 204) scale(0.9)"><use href="#adSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(206 206) scale(0.6)"><use href="#adSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="36" cy="36" r="2.4"/><circle cx="120" cy="226" r="1.6"/></g>' },
+  appsEmpty: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="apBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="apBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="apVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="apViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="apPk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="apPkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="apGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="apGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="apRing@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><linearGradient id="apArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="apSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="apSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="118" rx="104" ry="96" fill="url(#apGlow@@)"/><ellipse cx="120" cy="204" rx="70" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><rect x="46" y="42" width="148" height="148" rx="30" fill="var(--il-recv)" opacity=".5"/><rect x="46.6" y="42.6" width="146.8" height="146.8" rx="29.4" fill="none" stroke="url(#apRing@@)" stroke-width="1" opacity="var(--il-ring-a)"/><rect x="62" y="122" width="52" height="52" rx="15" fill="var(--il-glow)" fill-opacity=".08" stroke="url(#apArc@@)" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 4.2"/><rect x="126" y="122" width="52" height="52" rx="15" fill="var(--il-glow)" fill-opacity=".08" stroke="url(#apArc@@)" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 4.2"/><path d="M152 140v16M144 148h16" stroke="var(--il-orbit-strong)" stroke-width="2.4" stroke-linecap="round"/><g class="il-drop" style="--o:.2s"><g transform="translate(62 58)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="52" height="52" rx="15" fill="url(#apBlS@@)"/><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apBl@@)"/></g><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="51.2" height="51.2" rx="15" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="13" y="13" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="13" y="27" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="27" y="13" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="27" y="27" width="12" height="12" rx="3.4" fill="#fff" opacity="0.55"/></g></g><g class="il-drop" style="--o:.45s"><g transform="translate(126 58)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="52" height="52" rx="15" fill="url(#apViS@@)"/><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apVi@@)"/></g><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="51.2" height="51.2" rx="15" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><use href="#apSp@@" transform="translate(26 26) scale(2.2)" fill="#fff"/><use href="#apSp@@" transform="translate(38 14) scale(.7)" fill="#fff" opacity=".8"/></g></g><g class="il-pop" style="--o:.9s;--to:50% 50%"><g transform="translate(36 112) rotate(-12 22 22)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="44" height="44" rx="13" fill="url(#apPkS@@)"/><rect x="0" y="0" width="44" height="44" rx="13" fill="url(#apPk@@)"/></g><rect x="0" y="0" width="44" height="44" rx="13" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="43.2" height="43.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="8" y="15" width="28" height="15" rx="7.5" fill="#fff" opacity=".95"/><path d="M14.5 20v5.4M11.8 22.7h5.4" stroke="#D9437A" stroke-width="2" stroke-linecap="round"/><circle cx="28" cy="21" r="1.8" fill="#D9437A"/><circle cx="31.4" cy="24.6" r="1.8" fill="#D9437A"/></g></g><g fill="var(--il-spark)"><g transform="translate(206 52) scale(1)"><use href="#apSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 64) scale(0.8)"><use href="#apSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(206 170) scale(0.65)"><use href="#apSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="30" cy="190" r="2"/><circle cx="120" cy="26" r="1.8"/><circle cx="216" cy="110" r="1.6"/></g>' },
+  explore: { vb: '0 0 132 100', cls: 'il', style: '--il-shadow:#070A3A;--il-shadow-a:.38;--il-glow:#A9B8FF;--il-spark:#fff;--il-dotc:#DCD2FF',
+    b: '<defs><linearGradient id="exVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="exViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="exLi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="exLiS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><linearGradient id="exPk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="exPkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="exGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="exGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="exBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="exSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="exSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="74" cy="72" rx="62" ry="46" fill="url(#exGlow@@)"/><ellipse cx="70" cy="98" rx="52" ry="10" fill="#fff" opacity=".12" filter="url(#exBlur@@)"/><g class="il-rise" style="--o:.2s"><g transform="translate(12 52) rotate(-14 23 23)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exPkS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exPk@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><rect x="8" y="16" width="30" height="15" rx="7.5" fill="#fff" opacity=".96"/><path d="M15 20.8v5.4M12.3 23.5h5.4" stroke="#D9437A" stroke-width="2" stroke-linecap="round"/><circle cx="29" cy="22" r="1.8" fill="#D9437A"/><circle cx="32.4" cy="25.6" r="1.8" fill="#D9437A"/></g></g><g class="il-rise" style="--o:.45s"><g transform="translate(80 48) rotate(12 23 23)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exViS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exVi@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><use href="#exSp@@" transform="translate(23 23) scale(2)" fill="#fff"/><use href="#exSp@@" transform="translate(34 12) scale(.6)" fill="#fff" opacity=".8"/></g></g><g class="il-rise" style="--o:.7s"><g transform="translate(44 30)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exLiS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exLi@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><rect x="11" y="11" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="11" y="24" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="24" y="11" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="24" y="24" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.5"/></g></g><g fill="var(--il-spark)"><g transform="translate(118 22) scale(0.9)"><use href="#exSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(20 30) scale(0.7)"><use href="#exSp@@" class="il-tw" style="--i:1"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="104" cy="8" r="1.6"/><circle cx="126" cy="60" r="1.2"/></g>' },
+  backup: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="bkBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="bkBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="bkLi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="bkLiS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><radialGradient id="bkGd@@" cx="0.38" cy="0.3" r="0.85"><stop offset="0" stop-color="#FFF3C2"/><stop offset="0.5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="bkGdS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D99530"/><stop offset="1" stop-color="#B87418"/></linearGradient><linearGradient id="bkGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="bkGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="bkBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="bkSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="bkShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="bkSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><linearGradient id="bkFr@@" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="#8E9BFF"/><stop offset=".55" stop-color="#6F74FA"/><stop offset="1" stop-color="#6153E6"/></linearGradient><linearGradient id="bkSd@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9A86F8"/><stop offset="1" stop-color="#6E55DA"/></linearGradient><linearGradient id="bkIn@@" x1="0" y1="1" x2=".2" y2="0"><stop offset="0" stop-color="#3C2DA6"/><stop offset="1" stop-color="#7A6CF2"/></linearGradient><linearGradient id="bkLd@@" x1="0" y1="1" x2=".1" y2="0"><stop offset="0" stop-color="#A99BFF"/><stop offset="1" stop-color="#D3CBFF"/></linearGradient><linearGradient id="bkTr@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#E6E2FF" stop-opacity=".55"/></linearGradient><ellipse cx="124" cy="128" rx="108" ry="98" fill="url(#bkGlow@@)"/><ellipse cx="126" cy="208" rx="62" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-pop" style="--o:.05s;--to:50% 100%"><g filter="url(#bkShS@@)"><path d="M90 120L190 124L198 80Q199 74 193 74L104 72Q97 72 96 78Z" fill="url(#bkSd@@)"/><path d="M93 117L187 122L194 82Q195 78 191 78L106 76Q101 76 100 80Z" fill="url(#bkLd@@)" opacity=".9"/></g><rect x="132" y="86" width="22" height="8" rx="3" fill="url(#bkGd@@)" opacity=".85" transform="rotate(2 143 90)"/><path d="M62 138L164 142L190 124L90 120Z" fill="url(#bkIn@@)"/><ellipse cx="126" cy="131" rx="44" ry="9" fill="#C9C0FF" opacity=".45" filter="url(#bkBlur@@)" class="il-glowin" style="--o:1.1s"/></g><rect x="91" y="96" width="10" height="34" rx="5" fill="url(#bkTr@@)" class="il-fade" style="--o:.9s"/><rect x="121" y="84" width="10" height="42" rx="5" fill="url(#bkTr@@)" class="il-fade" style="--o:.9s"/><rect x="153" y="96" width="10" height="34" rx="5" fill="url(#bkTr@@)" class="il-fade" style="--o:.9s"/><g class="il-drop" style="--o:.35s"><g transform="translate(64 94) rotate(-10 20 15)"><g filter="url(#bkShS@@)"><rect x="2.2" y="3" width="40" height="30" rx="8" fill="url(#bkLiS@@)"/><rect x="0" y="0" width="40" height="30" rx="8" fill="url(#bkLi@@)"/></g><rect x="0" y="0" width="40" height="30" rx="8" fill="url(#bkGl@@)"/><rect x="0.4" y="0.4" width="39.2" height="29.2" rx="8" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g filter="url(#bkShS@@)"><circle cx="13.12" cy="14.6" r="7" fill="url(#bkBlS@@)"/><circle cx="12" cy="13" r="7" fill="url(#bkBl@@)"/></g><circle cx="12" cy="13" r="7" fill="url(#bkGl@@)"/><circle cx="12" cy="13" r="6.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="12" cy="11.6" r="2.1"/><path d="M8.36 17.34C8.36 14.4 10.04 14.05 12 14.05S15.64 14.4 15.64 17.34Z"/></g><rect x="22" y="9" width="13" height="3" rx="1.5" fill="#8E7AD9" opacity="0.8"/><rect x="22" y="15" width="9" height="3" rx="1.5" fill="#8E7AD9" opacity="0.6"/></g></g><g class="il-drop" style="--o:.55s"><g filter="url(#bkShS@@)"><ellipse cx="127.8" cy="98.1" rx="15" ry="15" fill="url(#bkGdS@@)"/><circle cx="126" cy="96" r="15" fill="url(#bkGd@@)"/></g><circle cx="126" cy="96" r="10.8" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.05"/><circle cx="126" cy="96" r="10.8" fill="none" stroke="#C98422" stroke-opacity=".35" stroke-width="0.75" transform="translate(0.75 0.9)"/><use href="#bkSp@@" transform="translate(126 96) scale(1.02)" fill="#fff" opacity=".92"/><ellipse cx="120.3" cy="89.7" rx="3.9" ry="1.95" fill="#fff" opacity=".7" transform="rotate(-35 120.3 89.7)"/></g><g class="il-drop" style="--o:.75s"><g transform="translate(140 98) rotate(8 21 12)"><g filter="url(#bkShS@@)"><rect x="0" y="0" width="42" height="24" rx="12" fill="url(#bkBl@@)"/></g><rect x="9" y="8" width="20" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="9" y="15.5" width="13" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g></g><g class="il-pop" style="--o:.05s;--to:50% 100%"><g filter="url(#bkSh@@)"><path d="M164 142L190 124L190 182Q190 188 185 191L170 201Q166 204 166 198Z" fill="url(#bkSd@@)"/><path d="M62 138L164 142L166 198Q166 206 158 206L72 205Q64 205 64 197Z" fill="url(#bkFr@@)"/></g><path d="M62 138L164 142L190 124" fill="none" stroke="#C7C2FF" stroke-opacity=".55" stroke-width="1.2" stroke-linejoin="round"/><path d="M86 140.5L86 205M142 141.6V205.6" stroke="#5546D8" stroke-opacity=".35" stroke-width="7"/><g filter="url(#bkShS@@)"><rect x="102" y="156" width="24" height="30" rx="7" fill="url(#bkGd@@)"/></g><circle cx="114" cy="167" r="3.6" fill="#7A4A0C"/><path d="M112.2 169h3.6l1 8h-5.6Z" fill="#7A4A0C"/><ellipse cx="108" cy="160.5" rx="3.6" ry="1.6" fill="#fff" opacity=".6"/></g><g fill="var(--il-spark)"><g transform="translate(210 70) scale(0.8)"><use href="#bkSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 130) scale(0.65)"><use href="#bkSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(70 64) scale(0.55)"><use href="#bkSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="44" cy="96" r="1.8"/><circle cx="214" cy="170" r="1.6"/><circle cx="160" cy="52" r="1.4"/></g>' },
+  rating: { vb: '0 0 320 210', cls: 'rn-illo rn-once',
+    b: '<defs><linearGradient id="rnBody@@" x1="5" y1="2" x2="27" y2="31" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#A9B6FF"/><stop offset=".35" stop-color="#6F7DFF"/><stop offset=".72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><radialGradient id="rnShade@@" cx=".72" cy=".86" r=".7"><stop offset="0" stop-color="#2A1F86" stop-opacity=".38"/><stop offset="1" stop-color="#2A1F86" stop-opacity="0"/></radialGradient><linearGradient id="rnGloss@@" x1="0" y1="0" x2=".35" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".62"/><stop offset=".38" stop-color="#fff" stop-opacity=".08"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="rnSide@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><radialGradient id="rnGlow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--rn-glow)" stop-opacity=".42"/><stop offset=".55" stop-color="var(--rn-glow)" stop-opacity=".12"/><stop offset="1" stop-color="var(--rn-glow)" stop-opacity="0"/></radialGradient><radialGradient id="rnHeart@@" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#FFB3C8"/><stop offset=".45" stop-color="#FF6F96"/><stop offset="1" stop-color="#E23A6A"/></radialGradient><radialGradient id="rnStar@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#FFF1B8"/><stop offset=".5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="rnB1@@" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#9CC6FF"/><stop offset="1" stop-color="#4E86FF"/></linearGradient><linearGradient id="rnB2@@" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#F1E9FF"/><stop offset="1" stop-color="#C3ADFF"/></linearGradient><filter id="rnSh@@" x="-80%" y="-80%" width="260%" height="280%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="7" result="b"/><feOffset dy="7" in="b" result="o"/><feFlood flood-color="var(--rn-shadow)" flood-opacity="var(--rn-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="rnShS@@" x="-80%" y="-80%" width="260%" height="280%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3.2" result="b"/><feOffset dy="3.5" in="b" result="o"/><feFlood flood-color="var(--rn-shadow)" flood-opacity="var(--rn-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><clipPath id="rnClip@@"><path d="M14.1837 30.7611C12.7734 30.7611 11.3974 30.4686 10.0923 29.8903C7.56429 28.7703 5.61457 26.7131 4.602 24.0937C3.58943 21.4766 3.63286 18.6126 4.72543 16.0297C5.35172 14.5508 6.31172 13.2228 7.50943 12.1828C7.43172 10.5783 7.71972 8.95313 8.346 7.47427C9.98029 3.61141 13.7243 1.11313 17.8843 1.11313H18.2271C19.7266 1.11313 25.6557 1.11084 26.138 1.11084C26.8786 1.11084 27.4226 1.57713 27.53 1.6777C27.6351 1.77141 28.1289 2.26055 28.1289 3.15884C28.1289 3.73027 28.1243 9.39884 28.122 11.1223V11.696C28.1174 13.1268 27.8317 14.5234 27.2717 15.8468C26.6454 17.3257 25.6854 18.6537 24.4877 19.6937C24.5654 21.2983 24.2774 22.9234 23.6511 24.4023C22.0191 28.2628 18.3026 30.7611 14.1837 30.7611ZM8.06029 15.0857C7.60086 15.6617 7.22143 16.3017 6.92657 16.9943C6.08543 18.9828 6.05114 21.1863 6.83057 23.2C7.61 25.2114 9.10714 26.7931 11.0477 27.6526C12.0489 28.096 13.1049 28.32 14.1837 28.32C17.3426 28.32 20.1951 26.4023 21.45 23.4331C21.7449 22.736 21.9414 22.0114 22.0351 21.2708C20.7071 21.8811 19.2511 22.2034 17.7997 22.2034C16.3894 22.2034 15.0134 21.9108 13.7083 21.3326C12.1951 20.6628 10.8489 19.6206 9.81343 18.3223C9.05914 17.3691 8.45572 16.2583 8.06029 15.0857ZM10.058 13.3006C10.5814 15.8857 12.2934 18.0434 14.666 19.0948C15.6671 19.5383 16.7209 19.7623 17.802 19.7623C19.2649 19.7623 20.6911 19.3508 21.9391 18.5691C21.4157 15.984 19.7037 13.8263 17.3311 12.7748C16.33 12.3314 15.2763 12.1074 14.1951 12.1074C12.7323 12.1074 11.306 12.5211 10.058 13.3006ZM14.1951 9.66855C15.6054 9.66855 16.9814 9.96113 18.2866 10.5394C19.7997 11.2091 21.146 12.2491 22.1814 13.5497C22.9403 14.5028 23.5437 15.6137 23.9391 16.7886C24.3986 16.2126 24.778 15.5726 25.0729 14.88C25.5574 13.7326 25.5574 12.4206 25.5574 11.264C25.5574 10.9897 25.5574 10.6948 25.5574 10.3908V10.3543C25.5574 9.70741 25.5574 8.97598 25.5574 8.29484C25.5551 7.44684 25.5551 6.58512 25.5574 5.89255V5.83313C25.5574 5.54513 25.5574 5.28227 25.5574 5.04913V3.69598H17.9803C17.9026 3.69598 17.8591 3.69598 17.834 3.69598C17.8271 3.69598 17.818 3.69598 17.8111 3.69598H17.8066C14.6614 3.69598 11.7449 5.60227 10.5449 8.43655C10.25 9.1337 10.0534 9.85827 9.95972 10.5988C11.2877 9.98855 12.7437 9.66855 14.1951 9.66855Z" fill-rule="evenodd" clip-rule="evenodd"/></clipPath><path id="rnSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><linearGradient id="rnBez@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A4F63"/><stop offset=".5" stop-color="#2A2D3A"/><stop offset="1" stop-color="#1B1D26"/></linearGradient><linearGradient id="rnEdge@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6F7489"/><stop offset="1" stop-color="#3A3E4E"/></linearGradient><linearGradient id="rnGlass@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/></linearGradient><ellipse cx="160" cy="112" rx="112" ry="88" fill="url(#rnGlow@@)"/><ellipse cx="170" cy="192" rx="62" ry="6" fill="var(--rn-shadow)" opacity="calc(var(--rn-shadow-a) * .9)" filter="url(#rnShS@@)"/><g class="rn-float" style="--d:0s"><g transform="translate(112 18) scale(.86) matrix(.94 -.17 .1 .99 0 14)"><g filter="url(#rnSh@@)"><rect x="5" y="3" width="124" height="186" rx="22" fill="url(#rnEdge@@)"/><rect width="124" height="186" rx="22" fill="url(#rnBez@@)"/></g><rect x="5" y="5" width="114" height="176" rx="17" fill="var(--rn-screen)"/><rect x="47" y="10" width="30" height="6" rx="3" fill="#0E0F14" stroke="#3A3E4E" stroke-width=".6"/><g transform="translate(5 12)"><g class="rn-pop" style="--o:0s"><rect x="12" y="22" width="58" height="16" rx="7" fill="var(--rn-recv)"/><rect x="19" y="27" width="38" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".85"/><rect x="19" y="32" width="24" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".55"/></g><g class="rn-pop" style="--o:0.6s"><rect x="46" y="44" width="62" height="16" rx="7" fill="url(#rnB1@@)"/><rect x="53" y="49" width="42" height="2.6" rx="1.3" fill="#fff" opacity=".85"/><rect x="53" y="54" width="28" height="2.6" rx="1.3" fill="#fff" opacity=".55"/></g><g class="rn-pop" style="--o:1.2s"><rect x="12" y="66" width="46" height="16" rx="7" fill="var(--rn-recv)"/><rect x="19" y="71" width="26" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".85"/><rect x="19" y="76" width="12" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".55"/></g><g class="rn-pop" style="--o:1.8s"><rect x="30" y="88" width="78" height="26" rx="7" fill="url(#rnB1@@)"/><rect x="37" y="93" width="58" height="2.6" rx="1.3" fill="#fff" opacity=".85"/><rect x="37" y="99" width="48" height="2.6" rx="1.3" fill="#fff" opacity=".85"/><rect x="37" y="105" width="40" height="2.6" rx="1.3" fill="#fff" opacity=".6"/></g><g class="rn-pop" style="--o:2.4s"><rect x="12" y="120" width="54" height="16" rx="7" fill="var(--rn-recv)"/><rect x="19" y="125" width="34" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".85"/><rect x="19" y="130" width="20" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".55"/></g><g class="rn-pop" style="--o:2.1s"><g transform="translate(103 108)"><circle r="7" fill="var(--rn-screen)" stroke="var(--rn-recv)" stroke-width="1.2"/><g transform="scale(.26) translate(0 -14)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g></g></g></g><rect x="11" y="166" width="102" height="10" rx="5" fill="var(--rn-recv)" opacity=".8"/><rect x="5" y="5" width="114" height="176" rx="17" fill="url(#rnGlass@@)"/></g></g><g class="rn-rise" style="--o:2.7s;--x:18px"><g transform="translate(258 124) scale(0.5)"><g class="rn-beat"><g filter="url(#rnShS@@)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g><path d="M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" stroke-linecap="round"/></g></g></g><g class="rn-rise" style="--o:3.3s;--x:10px"><g transform="translate(272 118) scale(0.36)"><g class="rn-beat"><g filter="url(#rnShS@@)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g><path d="M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" stroke-linecap="round"/></g></g></g><g class="rn-rise" style="--o:3.9s;--x:22px"><g transform="translate(252 130) scale(0.4)"><g class="rn-beat"><g filter="url(#rnShS@@)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g><path d="M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" stroke-linecap="round"/></g></g></g><g class="rn-rise" style="--o:4.5s;--x:14px"><g transform="translate(266 122) scale(0.32)"><g class="rn-beat"><g filter="url(#rnShS@@)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g><path d="M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" stroke-linecap="round"/></g></g></g><g class="rn-float" style="--d:-1.8s"><g transform="translate(80 154) scale(0.75)"><g class="rn-spin"><g filter="url(#rnShS@@)"><path d="M0-13.5 4-4.8 13.4-4.1 6.3 2.2 8.5 11.6 0 6.6-8.5 11.6-6.3 2.2-13.4-4.1-4-4.8Z" fill="url(#rnStar@@)" stroke="url(#rnStar@@)" stroke-width="3.2" stroke-linejoin="round"/></g><ellipse cx="-3.2" cy="-4.2" rx="2.6" ry="1.4" fill="#fff" opacity=".65" transform="rotate(-35 -3.2 -4.2)"/></g></g></g><g fill="var(--rn-spark)"><use href="#rnSp@@" class="rn-tw" x="74" y="48" style="--i:0" transform="scale(1)"/><use href="#rnSp@@" class="rn-tw" x="262" y="40" style="--i:1" transform="scale(1)"/><use href="#rnSp@@" class="rn-tw" x="276" y="150" style="--i:2" transform="scale(1)"/></g><g fill="var(--rn-dotc)"><circle cx="96" cy="96" r="2" opacity=".7"/><circle cx="250" cy="184" r="1.8" opacity=".7"/><circle cx="206" cy="22" r="1.6" opacity=".7"/></g>' },
+  walletEmpty: { vb: '0 0 240 240', cls: 'il',
+    b: '<defs><linearGradient id="wlBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="wlBrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><radialGradient id="wlGd@@" cx="0.38" cy="0.3" r="0.85"><stop offset="0" stop-color="#FFF3C2"/><stop offset="0.5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="wlGdS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D99530"/><stop offset="1" stop-color="#B87418"/></linearGradient><linearGradient id="wlGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="wlGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="wlLc@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B9B2EC"/><stop offset=".5" stop-color="#9890DA"/><stop offset="1" stop-color="#7C72C8"/></linearGradient><linearGradient id="wlLcS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B50A8"/><stop offset="1" stop-color="#433A86"/></linearGradient><filter id="wlSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="wlShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="wlSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="108" ry="96" fill="url(#wlGlow@@)"/><ellipse cx="120" cy="120" rx="104" ry="58" transform="rotate(-10 120 120)" fill="none" stroke="var(--il-orbit)" stroke-width="1.2" stroke-dasharray="1.5 7" stroke-linecap="round"/><ellipse cx="116" cy="194" rx="80" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-pop" style="--o:.05s;--to:50% 100%"><g transform="translate(58 46) rotate(-16 66 41)" opacity=".7"><g filter="url(#wlShS@@)"><rect x="2.2" y="3" width="132" height="82" rx="15" fill="url(#wlLcS@@)"/><rect x="0" y="0" width="132" height="82" rx="15" fill="url(#wlLc@@)"/></g><rect x="0" y="0" width="132" height="82" rx="15" fill="url(#wlGl@@)"/><rect x="0.4" y="0.4" width="131.2" height="81.2" rx="15" fill="none" stroke="#fff" stroke-opacity="0.3" stroke-width=".8"/></g></g><g class="il-pop" style="--o:.2s;--to:50% 100%"><g transform="translate(36 70) rotate(-8 70 44)"><g filter="url(#wlSh@@)"><rect x="2.6" y="3.6" width="140" height="88" rx="16" fill="url(#wlBrS@@)"/><rect x="0" y="0" width="140" height="88" rx="16" fill="url(#wlBr@@)"/></g><rect x="0" y="0" width="140" height="88" rx="16" fill="url(#wlGl@@)"/><rect x="0.4" y="0.4" width="139.2" height="87.2" rx="16" fill="none" stroke="#fff" stroke-opacity="0.32" stroke-width=".8"/><rect x="16" y="18" width="24" height="18" rx="4.5" fill="url(#wlGd@@)"/><path d="M16 27h24M28 18v18M22 22.5h12M22 31.5h12" stroke="#B9791C" stroke-opacity=".45" stroke-width=".9"/><g fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.6" stroke-linecap="round"><path d="M50 21a8 8 0 0 1 0 12"/><path d="M55 18a12 12 0 0 1 0 18"/></g><rect x="16" y="56" width="62" height="4.4" rx="2.2" fill="#fff" opacity="0.85"/><rect x="16" y="68" width="38" height="3.4" rx="1.7" fill="#fff" opacity="0.55"/><rect x="88" y="68" width="30" height="3.4" rx="1.7" fill="#fff" opacity="0.4"/><g transform="translate(106 12) scale(.72)"><path d="M14.1837 30.7611C12.7734 30.7611 11.3974 30.4686 10.0923 29.8903C7.56429 28.7703 5.61457 26.7131 4.602 24.0937C3.58943 21.4766 3.63286 18.6126 4.72543 16.0297C5.35172 14.5508 6.31172 13.2228 7.50943 12.1828C7.43172 10.5783 7.71972 8.95313 8.346 7.47427C9.98029 3.61141 13.7243 1.11313 17.8843 1.11313H18.2271C19.7266 1.11313 25.6557 1.11084 26.138 1.11084C26.8786 1.11084 27.4226 1.57713 27.53 1.6777C27.6351 1.77141 28.1289 2.26055 28.1289 3.15884C28.1289 3.73027 28.1243 9.39884 28.122 11.1223V11.696C28.1174 13.1268 27.8317 14.5234 27.2717 15.8468C26.6454 17.3257 25.6854 18.6537 24.4877 19.6937C24.5654 21.2983 24.2774 22.9234 23.6511 24.4023C22.0191 28.2628 18.3026 30.7611 14.1837 30.7611ZM8.06029 15.0857C7.60086 15.6617 7.22143 16.3017 6.92657 16.9943C6.08543 18.9828 6.05114 21.1863 6.83057 23.2C7.61 25.2114 9.10714 26.7931 11.0477 27.6526C12.0489 28.096 13.1049 28.32 14.1837 28.32C17.3426 28.32 20.1951 26.4023 21.45 23.4331C21.7449 22.736 21.9414 22.0114 22.0351 21.2708C20.7071 21.8811 19.2511 22.2034 17.7997 22.2034C16.3894 22.2034 15.0134 21.9108 13.7083 21.3326C12.1951 20.6628 10.8489 19.6206 9.81343 18.3223C9.05914 17.3691 8.45572 16.2583 8.06029 15.0857ZM10.058 13.3006C10.5814 15.8857 12.2934 18.0434 14.666 19.0948C15.6671 19.5383 16.7209 19.7623 17.802 19.7623C19.2649 19.7623 20.6911 19.3508 21.9391 18.5691C21.4157 15.984 19.7037 13.8263 17.3311 12.7748C16.33 12.3314 15.2763 12.1074 14.1951 12.1074C12.7323 12.1074 11.306 12.5211 10.058 13.3006ZM14.1951 9.66855C15.6054 9.66855 16.9814 9.96113 18.2866 10.5394C19.7997 11.2091 21.146 12.2491 22.1814 13.5497C22.9403 14.5028 23.5437 15.6137 23.9391 16.7886C24.3986 16.2126 24.778 15.5726 25.0729 14.88C25.5574 13.7326 25.5574 12.4206 25.5574 11.264C25.5574 10.9897 25.5574 10.6948 25.5574 10.3908V10.3543C25.5574 9.70741 25.5574 8.97598 25.5574 8.29484C25.5551 7.44684 25.5551 6.58512 25.5574 5.89255V5.83313C25.5574 5.54513 25.5574 5.28227 25.5574 5.04913V3.69598H17.9803C17.9026 3.69598 17.8591 3.69598 17.834 3.69598C17.8271 3.69598 17.818 3.69598 17.8111 3.69598H17.8066C14.6614 3.69598 11.7449 5.60227 10.5449 8.43655C10.25 9.1337 10.0534 9.85827 9.95972 10.5988C11.2877 9.98855 12.7437 9.66855 14.1951 9.66855Z" fill="#fff" fill-rule="evenodd" opacity=".95"/><g fill="#6A5BF5"><path d="M13.7227 16.3717C14.4137 16.3717 14.9727 15.8113 14.9727 15.1217C14.9727 14.4321 14.4137 13.8717 13.7227 13.8717C13.0316 13.8717 12.4727 14.4321 12.4727 15.1217C12.4727 15.8113 13.0316 16.3717 13.7227 16.3717Z"/><path d="M19.2637 16.4083C19.2637 17.3741 18.4816 18.1583 17.5137 18.1583C16.5487 18.1583 15.7637 17.3741 15.7637 16.4083C15.7637 15.4424 16.5457 14.6583 17.5137 14.6583C18.4787 14.6611 19.2637 15.4424 19.2637 16.4083Z"/></g></g></g></g><g class="il-fly" style="--o:.6s;--fx:30px;--fy:-50px"><g filter="url(#wlShS@@)"><ellipse cx="175" cy="153.5" rx="25" ry="25" fill="url(#wlGdS@@)"/><circle cx="172" cy="150" r="25" fill="url(#wlGd@@)"/></g><circle cx="172" cy="150" r="18" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.75"/><circle cx="172" cy="150" r="18" fill="none" stroke="#C98422" stroke-opacity=".35" stroke-width="1.25" transform="translate(1.25 1.5)"/><use href="#wlSp@@" transform="translate(172 150) scale(1.7)" fill="#fff" opacity=".92"/><ellipse cx="162.5" cy="139.5" rx="6.5" ry="3.25" fill="#fff" opacity=".7" transform="rotate(-35 162.5 139.5)"/></g><g class="il-fly" style="--o:.85s;--fx:16px;--fy:-40px"><g filter="url(#wlShS@@)"><ellipse cx="207.44" cy="119.68" rx="12" ry="12" fill="url(#wlGdS@@)"/><circle cx="206" cy="118" r="12" fill="url(#wlGd@@)"/></g><circle cx="206" cy="118" r="8.64" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="0.84"/><circle cx="206" cy="118" r="8.64" fill="none" stroke="#C98422" stroke-opacity=".35" stroke-width="0.6" transform="translate(0.6 0.72)"/><use href="#wlSp@@" transform="translate(206 118) scale(0.82)" fill="#fff" opacity=".92"/><ellipse cx="201.44" cy="112.96" rx="3.12" ry="1.56" fill="#fff" opacity=".7" transform="rotate(-35 201.44 112.96)"/></g><g fill="var(--il-spark)"><g transform="translate(198 84) scale(0.9)"><use href="#wlSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(46 58) scale(0.8)"><use href="#wlSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(150 36) scale(0.6)"><use href="#wlSp@@" class="il-tw" style="--i:2"/></g><g transform="translate(214 186) scale(0.6)"><use href="#wlSp@@" class="il-tw" style="--i:3"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="34" cy="168" r="2"/><circle cx="96" cy="32" r="1.6"/><circle cx="222" cy="150" r="1.4"/></g>' },
+};
+
+function buildIllo(name, className) {
+  const a = IL_ART[name];
+  const svg = document.createElementNS(IL_NS, 'svg');
+  svg.setAttribute('viewBox', a.vb);
+  svg.setAttribute('class', a.cls + (className ? ' ' + className : ''));
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  svg.setAttribute('data-illo', name);
+  if (a.style) svg.setAttribute('style', a.style);
+  ilSeq += 1;
+  svg.innerHTML = a.b.split('@@').join('-i' + ilSeq); // static module strings only — never user data
+  watchEntrance(svg);
+  return svg;
+}
+
+/* ★ S11 A2 (#1263, R2-m2): `data-held` after the entrance — see the header. A piece animates when one of its
+   classes is an il-* / rn-* motion class (il-ground is a static class: illo.css). Counted by distinct TARGET,
+   so a cancelled run (the slot hidden mid-entrance) does not count and the replay on reveal still plays. */
+const IL_HOLD_BACKSTOP_MS = 12000;
+const animates = (n) => String(n.getAttribute && n.getAttribute('class') || '').split(/\s+/)
+  .some((c) => /^(?:il|rn)-/.test(c) && c !== 'il-ground' && c !== 'rn-illo' && c !== 'rn-once');
+function watchEntrance(svg) {
+  const pieces = new Set(Array.prototype.filter.call(svg.querySelectorAll('[class]'), animates));
+  if (!pieces.size) return;
+  const ended = new Set();
+  let backstop = 0;
+  const hold = () => {
+    if (svg.hasAttribute('data-held')) return;
+    svg.setAttribute('data-held', '');
+    clearTimeout(backstop);
+    svg.removeEventListener('animationstart', onStart);
+    svg.removeEventListener('animationend', onEnd);
+  };
+  const onStart = () => { if (!backstop) backstop = setTimeout(hold, IL_HOLD_BACKSTOP_MS); };
+  const onEnd = (e) => {
+    if (!pieces.has(e.target)) return;
+    ended.add(e.target);
+    if (ended.size >= pieces.size) hold();
+  };
+  svg.addEventListener('animationstart', onStart);
+  svg.addEventListener('animationend', onEnd);
+}
+
+function illoWelcome1(o = {}) { return buildIllo('welcome1', o.className); }
+function illoWelcome2(o = {}) { return buildIllo('welcome2', o.className); }
+function illoWelcome3(o = {}) { return buildIllo('welcome3', o.className); }
+function illoWelcome4(o = {}) { return buildIllo('welcome4', o.className); }
+function illoRestore(o = {}) { return buildIllo('restore', o.className); }
+function illoChatsEmpty(o = {}) { return buildIllo('chatsEmpty', o.className); }
+function illoContactsEmpty(o = {}) { return buildIllo('contactsEmpty', o.className); }
+function illoAddContact(o = {}) { return buildIllo('addContact', o.className); }
+function illoAppsEmpty(o = {}) { return buildIllo('appsEmpty', o.className); }
+function illoExplore(o = {}) { return buildIllo('explore', o.className); }
+function illoBackup(o = {}) { return buildIllo('backup', o.className); }
+function illoRating(o = {}) { return buildIllo('rating', o.className); }
+function illoWalletEmpty(o = {}) { return buildIllo('walletEmpty', o.className); }
+
+/* legacy file name (no folder, no extension) → factory. `discover-apps` is the demo
+   desktop's Explore art; `wallet-es` the retired wallet export (#453 → S11).
+   ★ S11 G3 (#1263 NIT-6): no shipped host passes a legacy path any more (b-delete.mjs pins that), but the table
+   STAYS on purpose: the files it names are deleted, so a legacy path that still reaches a component (a demo page,
+   the smoke/b-illo pin corpus, which pass images/backup.png · chats-es.png …) draws the right art instead of a
+   broken <img> that falls to the glyph; b-illo.mjs pins every mapping. Remove it only together with those pins. */
+const IL_LEGACY = {
+  'step1': illoWelcome1, 'step2': illoWelcome2, 'step3': illoWelcome3, 'step4': illoWelcome4,
+  'restore': illoRestore, 'chats-es': illoChatsEmpty, 'contacts-es': illoContactsEmpty,
+  'add-contact': illoAddContact, 'apps-es': illoAppsEmpty, 'explore-banner': illoExplore,
+  'discover-apps': illoExplore, 'backup': illoBackup, 'rate': illoRating, 'rate-me': illoRating,
+  'wallet-es': illoWalletEmpty,
+};
+
+/* ★ S11 A2 (#1263, R2-m5): the SYMBOLIC names hosts pass — the art table's own keys. */
+const IL_BY_NAME = {
+  welcome1: illoWelcome1, welcome2: illoWelcome2, welcome3: illoWelcome3, welcome4: illoWelcome4,
+  restore: illoRestore, chatsEmpty: illoChatsEmpty, contactsEmpty: illoContactsEmpty, addContact: illoAddContact,
+  appsEmpty: illoAppsEmpty, explore: illoExplore, backup: illoBackup, rating: illoRating, walletEmpty: illoWalletEmpty,
+};
+
+function illustrationFor(src) {
+  if (typeof src === 'function') return src;
+  if (typeof src !== 'string') return null;
+  if (Object.prototype.hasOwnProperty.call(IL_BY_NAME, src)) return IL_BY_NAME[src];
+  const m = /([A-Za-z0-9_-]+)\.(?:png|svg)$/.exec(src);
+  return (m && Object.prototype.hasOwnProperty.call(IL_LEGACY, m[1])) ? IL_LEGACY[m[1]] : null;
+}
+
 /* ---- src/components/empty-state.js ---- */
 /**
  * c-empty-state — the house EMPTY STATE: illustration · headline · supporting line ·
  * one optional CTA. Deliberately surface-agnostic so Chats / Wallet / Contacts /
- * Apps all render the same shape from their own copy + their own `-es` art
- * (src/assets/images/<surface>-es.svg, shipped via src/demo/images → the shells'
- * `images/…` dir, build-shells.mjs:260-267 — the SAME mechanism as backup.png;
- * an external asset URL is what a file:// WebView refuses, a sibling file is fine).
+ * Apps all render the same shape from their own copy + their own `-es` art.
+ * ★ S11 B (#1262): that art is the INLINE illustration set now (illustrations.js —
+ * theme tokens reach it, nothing is fetched); the hosts' `images/<surface>-es.*` paths
+ * name the drawing through illustrationFor(). An unknown path keeps the sibling-file
+ * <img> below (an external asset URL is what a file:// WebView refuses).
  *
  * A missing/blocked illustration NEVER leaves a hole: the <img> onerror drops it and
  * (when `glyph` is given) draws a token-styled glyph tile instead — the c-app-icon /
  * c-launch illo precedent. Copy always carries the meaning, so the art is aria-hidden.
  *
  * createEmptyState({
- *   illustration,          // 'images/apps-es.png' — omit for the glyph-only shape
+ *   illustration,          // 'appsEmpty' — omit for the glyph-only shape.
+ *                          // ★ S11 A2 (#1263): an illustrations.js NAME (what the hosts pass),
+ *                          // a factory, or a known legacy path (chats-es / contacts-es /
+ *                          // apps-es / wallet-es) renders the
+ *                          // INLINE art (theme tokens reach it, nothing to fetch); any other
+ *                          // src keeps the <img> ladder below.
  *   glyph,                 // icon name for the fallback tile (e.g. 'apps').
  *                          // ★ F5: omit BOTH and the illustration slot is not rendered
  *                          // at all — no empty placeholder tile (the wallet zero state)
@@ -2763,6 +3229,7 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
  *
  * setEmptyStateCopy(el, { title, body }) — free fn (#44), for a live copy swap.
  */
+
 
 
 
@@ -2862,7 +3329,17 @@ function createEmptyState({
     slot.dataset.placeholder = '';
     slot.append(icon(glyph, { size: 48 }));
   };
-  if (illustration) {
+  const art = illustrationFor(illustration);
+  if (art) {
+    /* ★ S11 B (#1262): the approved set, inline — decorative like the <img> it replaces
+       (the slot is aria-hidden; the svg is aria-hidden + focusable="false" too). No load,
+       no error path, no idle warm: the drawing is in the bundle, and its gradient ids are
+       unique per call, so two empty states on one page never share a defs id. */
+    slot.append(art({ className: 'c-empty-state__illo-img' }));
+  } else if (illustration) {
+    /* ★ S11 A2 (#1263, R3-MINOR-5/6): no SHIPPED host reaches this rung (chats / contacts / apps / wallet pass a name
+       or a factory). It stays as the arbitrary-URL contract — lazy + the iOS-61 idle warm + error → glyph — all
+       pinned in smoke-test.mjs, and removing it would change createEmptyState's public behaviour for a URL. */
     const img = document.createElement('img');
     img.className = 'c-empty-state__illo-img';
     img.alt = '';
@@ -3078,6 +3555,225 @@ function createTopbar({ variant = 'view', title = '', logo = false, identity = n
 function setTopbarSub(el, text) {
   const sub = el.querySelector('.c-topbar__sub');
   if (sub) sub.textContent = text || '';
+}
+
+/* ---- src/components/seasonal.js ---- */
+/**
+ * c-seasonal — the seasonal top bar (★ S11 A, DECISIONS #1262; design "Spixi Halloween Top Bar", Damir's picks).
+ *
+ *   seasonFor(date) → 'halloween' | 'christmas' | null      PURE, on the device's LOCAL clock:
+ *       halloween = [24 Oct 00:00, 1 Nov 03:00)   — through Halloween night, gone by morning
+ *       christmas = [1 Dec 00:00, 2 Jan 00:00)    — through New Year's Day (the window spans the year end)
+ *   applySeason(titleEl, season)   — dresses ONE logotype title (topbar.js `[data-logotype]`) for the season, or
+ *                                    restores the plain mark (season null). Idempotent.
+ *   attachSeasonal(topbarEl, { now, scroller }) → detach()
+ *       checks on attach, on resume (visibilitychange → visible) and every 60 s — no network, no storage.
+ *
+ * C1 Halloween: the mark turns into a jack-o'-lantern (`c-seasonal__jack`) and a small lit pumpkin
+ * (`c-seasonal__pumpkin`) stands AFTER the wordmark on the text baseline. X1 Christmas: a Santa hat
+ * (`c-seasonal__hat`) sits tilted on the mark's top corner; its pom-pom twinkles about every 6 s.
+ * Only light moves (candle flicker · pom twinkle), ~20 s per arming then the frame holds (★ S11 A2, #1263: re-armed at
+ * most once per 10 min, held while the list scrolls); reduced motion = static (seasonal.css).
+ *
+ * ★ The art is decorative: every SVG is aria-hidden + focusable=false, and the title keeps its text (the wordmark /
+ * the connecting state) exactly as before — the M16 title-state swap writes the WORD span, never the art.
+ * ★ Unique SVG ids per instance (a gradient id shared by two bars would paint the second from the first's defs).
+ * ★ Colours that ARE the art (orange, green, red, white) stay literal inside the SVG; the theme-dependent shadow
+ * and halo are tokens (--seasonal-shadow / --seasonal-shadow-alpha / --seasonal-halo, tokens.css region A) applied
+ * through CSS (topbar.css) — a var() inside an SVG presentation ATTRIBUTE is not resolved.
+ * ★ The markup is built from STATIC strings only (the icon registry's own grammar) — nothing from a push or a peer.
+ *
+ * Test / demo hook: `Spixi.__seasonNow = () => Date` replaces the clock read (inert unless a page sets it; no verb,
+ * no storage). The smoke pins set it on a built shell and fire `visibilitychange`.
+ */
+
+
+/** PURE — the season for a LOCAL date, or null. */
+function seasonFor(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const t = d.getTime();
+  if (!Number.isFinite(t)) return null;
+  const m = d.getMonth();        // 0 = Jan
+  const day = d.getDate();
+  const h = d.getHours();
+  if ((m === 9 && day >= 24) || (m === 10 && day === 1 && h < 3)) return 'halloween';
+  if (m === 11 || (m === 0 && day === 1)) return 'christmas';
+  return null;
+}
+
+let seasonalSeq = 0;
+const logoParts = () => {
+  const b = (ICONS.logo && ICONS.logo.b) || '';
+  return [...b.matchAll(/\sd="([^"]+)"/g)].map((m) => m[1]);   // [outer, eye, eye] — the registry's own logo paths
+};
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgFrom(markup) {
+  /* static strings only — the same sink the icon registry uses (icons.js iconFactory) */
+  const host = document.createElementNS(SVGNS, 'svg');
+  host.innerHTML = markup;
+  return host.firstElementChild;
+}
+const shadowFilter = (id, blur, dy) =>
+  '<filter id="' + id + '" x="-30%" y="-30%" width="160%" height="170%"><feGaussianBlur in="SourceAlpha" stdDeviation="' + blur + '"/>'
+  + '<feOffset dy="' + dy + '" result="o"/><feFlood class="c-seasonal__flood"/><feComposite operator="in" in2="o"/>'
+  + '<feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+
+/** The C1 lantern mark (28 px) — the logo's own outline, lit. */
+function jackMark(p) {
+  const [outer = '', eyeA = '', eyeB = ''] = logoParts();
+  return svgFrom(
+    '<svg xmlns="' + SVGNS + '" class="c-seasonal__jack" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false" overflow="visible">'
+    + '<defs><linearGradient id="' + p + 'b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB45A"/><stop offset=".5" stop-color="#F7801F"/><stop offset="1" stop-color="#C4520D"/></linearGradient>'
+    + '<radialGradient id="' + p + 'g" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#FFF6CF"/><stop offset=".55" stop-color="#FFD25A"/><stop offset="1" stop-color="#FF9A1F"/></radialGradient>'
+    + '<radialGradient id="' + p + 'h" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFC94A" stop-opacity=".85"/><stop offset="1" stop-color="#FF8A1F" stop-opacity="0"/></radialGradient></defs>'
+    + '<ellipse class="c-seasonal__inner" cx="16.6" cy="16.2" rx="7" ry="5.5" fill="url(#' + p + 'h)"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="' + outer + '" fill="url(#' + p + 'b)"/>'
+    + '<path d="M24.8 1.6c.3-1.3 1-2.3 2.2-2.9" stroke="#4A6527" stroke-width="1.6" stroke-linecap="round" fill="none"/>'
+    + '<path d="M26.2 -.4c1.2-.6 2.6-.4 3.3.4-1.1.7-2.4.7-3.3-.4z" fill="#6E9A3A"/>'
+    + '<g class="c-seasonal__face"><path fill-rule="evenodd" clip-rule="evenodd" d="' + eyeA + '" fill="url(#' + p + 'g)"/><path fill-rule="evenodd" clip-rule="evenodd" d="' + eyeB + '" fill="url(#' + p + 'g)"/></g>'
+    + '</svg>');
+}
+
+/** The C1 small pumpkin (18 px) that stands after the wordmark. */
+function pumpkin(p) {
+  return svgFrom(
+    '<svg xmlns="' + SVGNS + '" class="c-seasonal__pumpkin" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">'
+    + '<defs><radialGradient id="' + p + 'pb" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="#FFC979"/><stop offset=".42" stop-color="#F98A2A"/><stop offset="1" stop-color="#B94A0B"/></radialGradient>'
+    + '<linearGradient id="' + p + 'pl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F9A04A"/><stop offset="1" stop-color="#A9420A"/></linearGradient>'
+    + '<radialGradient id="' + p + 'pg" cx=".5" cy=".55" r=".6"><stop offset="0" stop-color="#FFF7D6"/><stop offset=".5" stop-color="#FFD866"/><stop offset="1" stop-color="#FF9A1F"/></radialGradient>'
+    + '<radialGradient id="' + p + 'ph" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFD25A" stop-opacity=".9"/><stop offset="1" stop-color="#FF8A1F" stop-opacity="0"/></radialGradient>'
+    + shadowFilter(p + 'ps', 1, 1)
+    + '<clipPath id="' + p + 'pc"><ellipse cx="12" cy="14.3" rx="9.8" ry="7.6"/></clipPath></defs>'
+    + '<ellipse class="c-seasonal__halo" cx="12" cy="15" rx="12" ry="9.5" fill="url(#' + p + 'ph)"/>'
+    + '<g filter="url(#' + p + 'ps)">'
+    + '<path d="M12.1 7c0-1.7.5-3.2 1.8-4.2" stroke="#4A6527" stroke-width="1.8" stroke-linecap="round" fill="none"/>'
+    + '<path d="M13.5 4.6c1.3-1 3.1-1 4.1-.1-1.2 1-2.9 1.2-4.1.1z" fill="#6E9A3A"/>'
+    + '<ellipse cx="7.3" cy="14.4" rx="5.4" ry="7" fill="url(#' + p + 'pl)"/>'
+    + '<ellipse cx="16.7" cy="14.4" rx="5.4" ry="7" fill="url(#' + p + 'pl)"/>'
+    + '<ellipse cx="12" cy="14.5" rx="6.3" ry="7.5" fill="url(#' + p + 'pb)"/>'
+    + '<path d="M9.4 7.8c-1 2-1 11.4 0 13.4M14.6 7.8c1 2 1 11.4 0 13.4" stroke="#9A3C08" stroke-opacity=".4" stroke-width=".6" fill="none"/>'
+    + '<g clip-path="url(#' + p + 'pc)"><ellipse class="c-seasonal__inner" cx="12" cy="15.4" rx="5.6" ry="4.4" fill="url(#' + p + 'ph)"/></g>'
+    + '<ellipse cx="9.5" cy="10.1" rx="2.1" ry="1" fill="#fff" opacity=".35" transform="rotate(-25 9.5 10.1)"/>'
+    + '<g class="c-seasonal__face"><path d="M7.7 13.5l1.8-2.4 1.1 2.6zM16.3 13.5l-1.8-2.4-1.1 2.6z" fill="url(#' + p + 'pg)"/>'
+    + '<path d="M7.5 16.2c1.2 1.6 2.7 2.3 4.5 2.3s3.3-.7 4.5-2.3l-1.2.4-.7 1-1-.9-1.6.9-1.6-.9-1 .9-.7-1z" fill="url(#' + p + 'pg)"/></g>'
+    + '</g></svg>');
+}
+
+/** The X1 Santa hat (19 × 16) that sits tilted on the mark's top corner. */
+function santaHat(p) {
+  return svgFrom(
+    '<svg xmlns="' + SVGNS + '" class="c-seasonal__hat" viewBox="0 0 24 20" width="19" height="16" aria-hidden="true" focusable="false" overflow="visible">'
+    + '<defs><linearGradient id="' + p + 'hr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5A5F"/><stop offset=".55" stop-color="#E0262F"/><stop offset="1" stop-color="#A3141D"/></linearGradient>'
+    + '<linearGradient id="' + p + 'hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#DCE2EE"/></linearGradient>'
+    + '<radialGradient id="' + p + 'hp" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#D5DCEA"/></radialGradient>'
+    + shadowFilter(p + 'hs', 0.8, 0.8) + '</defs>'
+    + '<g filter="url(#' + p + 'hs)">'
+    + '<path d="M3.5 15.5C4 9 8 3.2 14.5 2.6c3.6-.3 6.3 1.6 7.4 4.6-2.3-1.2-4.6-1-6 .4 1.6 2.5 2.1 5.5 1.9 8z" fill="url(#' + p + 'hr)"/>'
+    + '<path d="M8 6.5c2-2 4.5-3 7-2.6" stroke="#fff" stroke-opacity=".35" stroke-width="1" stroke-linecap="round" fill="none"/>'
+    + '<rect x="1.6" y="13.6" width="18.6" height="5" rx="2.5" fill="url(#' + p + 'hf)"/>'
+    + '<g class="c-seasonal__pom"><circle cx="21.6" cy="8.4" r="2.6" fill="url(#' + p + 'hp)"/></g>'
+    + '</g></svg>');
+}
+
+/* the plain logo node of each dressed title, kept while the season art stands in for it */
+const plainMarks = new WeakMap();
+
+/** Dress (or undress) ONE logotype title. Only a title topbar.js built as a logotype (`[data-logotype]`) is touched:
+ *  the desktop bar's plain "Chats" title has no mark, so it never wears the art. Returns the season applied. */
+function applySeason(titleEl, season) {
+  if (!titleEl || !titleEl.hasAttribute || !titleEl.hasAttribute('data-logotype')) return null;
+  const want = season === 'halloween' || season === 'christmas' ? season : null;
+  if ((titleEl.getAttribute('data-season') || null) === want) return want;
+  // undress: the season nodes go, the plain mark comes back in front of the wordmark
+  const keep = plainMarks.get(titleEl);
+  for (const n of Array.from(titleEl.querySelectorAll('.c-seasonal__mark, .c-seasonal__pumpkin'))) n.remove();
+  if (keep) {
+    keep.hidden = false;
+    if (keep.parentNode !== titleEl) titleEl.insertBefore(keep, titleEl.firstChild);
+  }
+  titleEl.removeAttribute('data-season');
+  if (!want) return null;
+  const logo = keep || titleEl.querySelector('.c-topbar__logo');
+  if (!logo) return null;
+  plainMarks.set(titleEl, logo);
+  const p = 'sx' + (++seasonalSeq) + '-';
+  /* the mark slot is a DIV, never a span: topbar.css gives every `.c-topbar__title > span` overflow:hidden + an
+     ellipsis (the M16 title state), which would clip the hat; and home.html's title-state swap writes a span. */
+  const wrap = document.createElement('div');
+  wrap.className = 'c-seasonal__mark';
+  wrap.setAttribute('aria-hidden', 'true');
+  if (want === 'halloween') {
+    logo.remove();
+    wrap.append(jackMark(p));
+    titleEl.insertBefore(wrap, titleEl.firstChild);
+    const word = titleEl.querySelector('.c-topbar__word');
+    const pk = pumpkin(p);
+    if (word && word.nextSibling) titleEl.insertBefore(pk, word.nextSibling);
+    else titleEl.append(pk);
+  } else {
+    titleEl.insertBefore(wrap, logo);
+    wrap.append(logo, santaHat(p));
+  }
+  titleEl.setAttribute('data-season', want);
+  return want;
+}
+
+const SEASON_CHECK_MS = 60000;
+/* ★ S11 A2 (#1263, R2-m3): the light runs ~20 s per arming (seasonal.css: finite cycles, then the frame holds) and is
+   re-armed at most once per this interval — on resume or the minute check. A NEW season arms at once. */
+const SEASON_REARM_MS = 10 * 60 * 1000;
+const SEASON_SCROLL_IDLE_MS = 200;
+
+/** Keep a top bar's logotype in season: now, on resume and once a minute. `now` overrides the clock (tests).
+ *  `scroller` (optional): the list under the bar — the light holds while it scrolls (★ S11 A2, #1263). */
+function attachSeasonal(topbarEl, { now, scroller } = {}) {
+  const title = topbarEl && topbarEl.querySelector('.c-topbar__title[data-logotype]');
+  if (!title) return () => {};
+  const read = () => {
+    try {
+      const hook = typeof window === 'object' && window.Spixi && window.Spixi.__seasonNow;   // demo / pin hook only
+      if (typeof hook === 'function') return hook();
+    } catch (e) { /* fall through to the clock */ }
+    return now ? now() : new Date();
+  };
+  /* the arming clock is the PLAIN clock (Date.now), never the season hook: a frozen demo "now" must not freeze the
+     re-arm floor, and the floor is about the device's real minutes */
+  let armedAt = 0;
+  const arm = (fresh) => {
+    if (!title.hasAttribute('data-season')) { title.removeAttribute('data-season-live'); return; }
+    const t = Date.now();
+    if (!fresh && armedAt && t - armedAt >= 0 && t - armedAt < SEASON_REARM_MS) return;
+    armedAt = t;
+    title.removeAttribute('data-season-live');
+    void title.offsetWidth;            // one style pass without the rule, so re-adding it RESTARTS the cycles
+    title.setAttribute('data-season-live', '');
+  };
+  const check = () => {
+    try {
+      const before = title.getAttribute('data-season');
+      const after = applySeason(title, seasonFor(read()));
+      arm(after !== before);
+    } catch (e) { /* art must never break the bar */ }
+  };
+  const onVis = () => { if (!document.hidden) check(); };
+  /* the light holds while the list under the bar scrolls (a passive listener; one attribute write per burst) */
+  let scrollT = 0;
+  const onScroll = () => {
+    if (!title.hasAttribute('data-season-live')) return;
+    if (!scrollT) title.setAttribute('data-season-pause', '');
+    clearTimeout(scrollT);
+    scrollT = setTimeout(() => { scrollT = 0; title.removeAttribute('data-season-pause'); }, SEASON_SCROLL_IDLE_MS);
+  };
+  check();
+  document.addEventListener('visibilitychange', onVis);
+  if (scroller && scroller.addEventListener) scroller.addEventListener('scroll', onScroll, { passive: true });
+  const timer = setInterval(check, SEASON_CHECK_MS);
+  return function detachSeasonal() {
+    clearInterval(timer);
+    clearTimeout(scrollT);
+    document.removeEventListener('visibilitychange', onVis);
+    if (scroller && scroller.removeEventListener) scroller.removeEventListener('scroll', onScroll);
+  };
 }
 
 /* ---- src/components/landscape-runtime.js ---- */
@@ -3821,8 +4517,21 @@ function liveOpts(entry) { return overlayOpts.get(entry.el) || entry.opts || {};
  * any input at all (an overlay a C# push opens at boot) the old move stands. Capture phase, so a
  * handler that stops propagation cannot hide the modality. */
 let lastInput = null;   // 'pointer' | 'keyboard' | null (no input yet)
+/* ★ S11 C (#1262): WHICH pointer — 'touch' | 'mouse' | 'pen' | '' — so an overlay knows it was opened by a finger (a
+ * long-press menu). A touch's own compatibility mousedown (Android fires one after a tap) must not relabel the touch. */
+let lastPointerType = '';
+let lastTouchAt = -1e9;
 if (typeof document !== 'undefined') {
-  const onPointer = () => { lastInput = 'pointer'; };
+  const onPointer = (e) => {
+    lastInput = 'pointer';
+    if (!e) return;
+    if (e.type === 'mousedown') {
+      if (Date.now() - lastTouchAt > 1000) lastPointerType = 'mouse';
+      return;
+    }
+    lastPointerType = e.type === 'touchstart' ? 'touch' : String(e.pointerType || 'mouse');
+    if (lastPointerType === 'touch') lastTouchAt = Date.now();
+  };
   document.addEventListener('pointerdown', onPointer, true);
   document.addEventListener('touchstart', onPointer, { capture: true, passive: true });
   document.addEventListener('mousedown', onPointer, true);
@@ -3971,7 +4680,8 @@ function openOverlay(el, opts) {
     document.addEventListener('focusin', onDocFocusin);
   }
   const keepEditable = !!opts.keepEditableFocus && isEditableEl(opener) && opener.isConnected;
-  stack.push({ el, scrim, opts, opener, keepEditable });
+  const touchOpen = lastInput === 'pointer' && lastPointerType === 'touch';   // ★ S11 C (#1262): opened by a finger
+  stack.push({ el, scrim, opts, opener, keepEditable, touchOpen });
   if (keepEditable) {
     el.dataset.keepEditable = '';                                  // composer.js reads it (Esc/Enter belong to the menu)
     el.addEventListener('mousedown', keepFocusDown);
@@ -4030,12 +4740,31 @@ function dismissOverlay(el) {
   delete entry.scrim.dataset.open;
   delete entry.el.dataset.open;
 
+  /* ★ S11 C (#1262, Android: "the keyboard comes up after a quick reaction"): an overlay that asks for it
+   * (opts.touchNoEditable — the long-press message menu) and was opened by TOUCH never hands focus back to a TEXT
+   * field when a quick REACTION closes it: Chromium on Android raises the keyboard for a focused field on the next
+   * tap (the reaction tap itself) and on a programmatic focus. Two halves: (1) a field the menu KEPT focused (#1065)
+   * is blurred; (2) the restore below skips an editable opener.
+   * ★ S11 C2 (#1263, #46 r1 R2-m1): ONLY the reaction (opts.closedByReaction, set by message-menu.js act('react')) —
+   * Copy / Select / Tip / Delete keep today's #1065 focus (typing → long-press → Copy → paste keeps the keyboard),
+   * Reply / Edit focus the composer themselves; a scrim / Esc / back close leaves the field as it is (#1065). A
+   * keyboard or mouse open keeps today's restore (a11y). */
+  const lo = liveOpts(entry);
+  const touchRule = !!entry.touchOpen && !!lo.touchNoEditable && !!lo.closedByReaction;
+  if (touchRule && entry.keepEditable && isEditableEl(document.activeElement)) {
+    try { document.activeElement.blur(); } catch (e) {}
+  }
+
   // focus restore — only if focus is ours to move (inside the closing overlay,
   // or already dropped to body); opener gone/unfocusable → new top overlay.
   const active = document.activeElement;
   if (entry.el.contains(active) || active === document.body) {
     const opener = entry.opener;
-    if (opener && opener.isConnected && !opener.disabled && typeof opener.focus === 'function') {
+    if (touchRule && isEditableEl(opener)) {
+      if (entry.el.contains(active) && active && typeof active.blur === 'function') {
+        try { active.blur(); } catch (e) {}   // (2): focus leaves the closing menu, and lands in no field
+      }
+    } else if (opener && opener.isConnected && !opener.disabled && typeof opener.focus === 'function') {
       opener.focus({ preventScroll: true });
     } else {
       const top = stack[stack.length - 1];
@@ -4638,6 +5367,255 @@ function setWarning(el, message) {
     delete el.dataset.open;
     // text stays until collapsed — clearing mid-transition would flash empty
   }
+}
+
+/* ---- src/components/glass-card.js ---- */
+/**
+ * c-glass-card — the glass card family on the Chats list (★ S11 A, DECISIONS #1262; design "Spixi Hint Cards").
+ * ONE card grammar for two jobs: the UPDATE notice (it replaces the orange c-banner for the update case ONLY —
+ * connectivity and every other warning keep their surfaces) and the quiet "Did you know?" HINTS (tips 5–9 now).
+ * Glass: no outline — a faint blue / violet tint over the card ground, a top highlight, a soft low shadow
+ * (glass-card.css; tokens.css region A). One entrance, then hold; reduced motion = static.
+ *
+ *   createGlassCard({ variant, art, eyebrow, title, text, linkLabel, onLink, onDismiss, strings }) → el
+ *   createUpdateCard({ version, onHowTo, onDismiss, strings })  → el   (blue app-style icon, NO Update button —
+ *        Spixi is installed many ways; "How to update" opens one page that covers every platform)
+ *   createHintCard({ tip, onLearnMore, onDismiss, strings })    → el   (a tip without a Learn-more target has no link)
+ *
+ * PURE rules (pinned on the built shell):
+ *   HINT_TIPS · HINT_IDS — the list, in show order; the ids are the C# whitelist (Spixi/Utils/S11HintRules.cs TipIds)
+ *   parseHintsState(json) → { firstSeen, lastShown, done:[ids], off, now } | null   (the C# `setHints` push, validated)
+ *   pickHint(state, { now, blocked }) → tip id | null
+ *       never while blocked (the update card, the backup or the rating prompt) · never with hints off ·
+ *       never in the first 3 days after setup (firstSeen) · at most one every 7 days (lastShown) ·
+ *       the FIRST tip in list order that is not done.
+ *   updateVersionOf(text, templates) → version | null
+ *       recognises the C#-localized "update available" notice (`global-update-available`, one `{0}` hole in all
+ *       13 lang files) by its template's prefix + suffix and returns what C# put in the hole — only a version-shaped
+ *       token (≤ 32 chars of [0-9A-Za-z.+-]); anything else is not an update notice.
+ *
+ * Text is text: every string lands through textContent (the version is C#'s own, re-validated above).
+ *
+ * ★ S11 A2 (#1263): ONE entrance per card lifetime (R2-m2) — after the entrance ends (animationend, or a 2.5 s
+ * backstop) the card carries `data-held` and glass-card.css drops its animation, so moving the card between the
+ * tab slots (#403) or showing its tab again never replays it. No live region (NIT): a card is INSERTED, and an
+ * inserted role=status is announced unreliably — the update card is a labelled group, a hint a labelled note.
+ */
+
+
+
+const HINT_SETUP_GRACE_MS = 3 * 24 * 60 * 60 * 1000;   // never in the first 3 days after setup
+const HINT_GAP_MS = 7 * 24 * 60 * 60 * 1000;           // at most one every 7 days
+
+/* The tips, in show order. `learn` names the in-app target the host opens with EXISTING navigation
+   (home.html hintLearnMore): backup = Settings › Backup (ixian:backup) · wallet / apps = the tab · addcontact =
+   the contacts directory's Add contact. `learn: ''` = no Learn more (tip 9).
+   ★ Tips 1–4 wait for Damir's web pages (#1262). ★ S11 A2 (#1263, R1-M2): a tip's web page is C#-OWNED, the way the
+   update card's is (`ixian:updateHelp` → Config.updateHelpUrl, HomePage): the shell sends a fixed, argument-free verb
+   per tip and C# opens its own compile-time URL through Utils.openExternal — never a URL from this document (the
+   openLink sink stays at its two pages). To enable one: uncomment its row, give it `learn: '<id>'`, add the verb +
+   the Config URL C#-side, and add its id to S11HintRules.TipIds (the C# whitelist refuses an id it does not know).
+   Their copy (the design's table):
+     { id: 'network', glyph: 'topology-star',  learn: '' },   // "Decentralized" · "Spixi runs on the Ixian network of independent nodes."
+     { id: 'e2e',     glyph: 'lock',           learn: '' },   // "End-to-end encrypted" · "Only you and the person you write to can read it."
+     { id: 'quantum', glyph: 'shield-lock',    learn: '' },   // "Ready for quantum computers" · "Current Spixi apps use post-quantum encryption."
+     { id: 'nophone', glyph: 'square-asterisk', learn: '' },  // "No phone number" · "Your account is a key on your phone."
+*/
+const HINT_TIPS = [
+  { id: 'backup', glyph: 'shield-lock', learn: 'backup' },
+  { id: 'wallet', glyph: 'wallet', learn: 'wallet' },
+  { id: 'apps', glyph: 'apps', learn: 'apps' },
+  { id: 'addcontact', glyph: 'qrcode', learn: 'addcontact' },
+  { id: 'tip', glyph: 'heart-handshake', learn: '' },
+];
+const HINT_IDS = HINT_TIPS.map((t) => t.id);
+
+/** The copy of one tip — explicit `strings.key || 'English'` lines so extract-strings sees every key. */
+function hintCopy(id, strings = getStrings()) {
+  switch (id) {
+    case 'backup': return { title: strings.hintBackupTitle || 'Your backup is your account', text: strings.hintBackupBody || 'Only your backup can restore a lost phone.' };
+    /* ★ S11 A2 (#1263, R2 copy): a group chat cannot pay — the line names a CONTACT (a new key: a changed meaning) */
+    case 'wallet': return { title: strings.hintWalletTitle || 'Money like a message', text: strings.hintWalletBody2 || 'Send IXI to a contact in a chat.' };
+    case 'apps': return { title: strings.hintAppsTitle || 'Mini apps in chats', text: strings.hintAppsBody || 'Play or work together inside a chat.' };
+    case 'addcontact': return { title: strings.hintAddContactTitle || 'Add people in person', text: strings.hintAddContactBody || 'Scan a QR code when you meet.' };
+    /* ★ S11 A2 (#1263, R2 copy): platform-neutral — a desktop opens the menu with a right-click, not a long-press */
+    case 'tip': return { title: strings.hintTipTitle || 'Say thanks with a tip', text: strings.hintTipBody2 || 'Open a message’s menu and choose Tip.' };
+    default: return null;
+  }
+}
+
+const finiteMs = (v) => {
+  const n = typeof v === 'number' ? v : (typeof v === 'string' && /^\d{1,16}$/.test(v) ? Number(v) : NaN);
+  return Number.isFinite(n) && n >= 0 ? n : NaN;
+};
+
+/** PURE — the C# `setHints` push → a validated state, or null (anything malformed is no state at all). */
+function parseHintsState(raw) {
+  let o = raw;
+  if (typeof raw === 'string') {
+    if (raw.length > 4096) return null;
+    try { o = JSON.parse(raw); } catch (e) { return null; }
+  }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const firstSeen = finiteMs(o.firstSeen);
+  const lastShown = o.lastShown == null || o.lastShown === '' ? 0 : finiteMs(o.lastShown);
+  const now = finiteMs(o.now);
+  if (Number.isNaN(firstSeen) || Number.isNaN(lastShown) || Number.isNaN(now)) return null;
+  const done = Array.isArray(o.done) ? o.done.filter((x) => HINT_IDS.includes(x)) : [];
+  return { firstSeen, lastShown, done: [...new Set(done)], off: o.off === true, now };
+}
+
+/** PURE — which tip (if any) may show now. */
+function pickHint(state, { now, blocked = false } = {}) {
+  if (!state || state.off || blocked) return null;
+  const t = Number.isFinite(now) ? now : state.now;
+  if (!Number.isFinite(t)) return null;
+  if (!(state.firstSeen > 0) || t - state.firstSeen < HINT_SETUP_GRACE_MS) return null;   // a firstSeen in the future = too early (C# clamps it)
+  if (state.lastShown > 0) {
+    const since = t - state.lastShown;
+    if (since >= 0 && since < HINT_GAP_MS) return null;   // a clock moved BACK past lastShown must not freeze hints forever
+  }
+  const done = new Set(state.done || []);
+  const tip = HINT_TIPS.find((x) => !done.has(x.id));
+  return tip ? tip.id : null;
+}
+
+const VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z.+-]{0,31}$/;
+/** PURE — the version inside a C#-localized update notice, or null when `text` is not one. */
+function updateVersionOf(text, templates = []) {
+  const t = String(text == null ? '' : text).trim();
+  if (!t || t.length > 600) return null;
+  for (const tpl of templates) {
+    const s = String(tpl == null ? '' : tpl).trim();
+    const at = s.indexOf('{0}');
+    if (at < 0 || s.indexOf('{0}', at + 3) >= 0) continue;   // exactly one hole
+    const pre = s.slice(0, at), post = s.slice(at + 3);
+    if (t.length <= pre.length + post.length || !t.startsWith(pre) || !t.endsWith(post)) continue;
+    const mid = t.slice(pre.length, t.length - post.length);
+    if (VERSION_RE.test(mid)) return mid;
+  }
+  return null;
+}
+
+/** The generic card. `art` is an element (decorative — it is hidden from assistive tech here). */
+function createGlassCard({ variant = 'hint', art = null, eyebrow = '', title = '', text = '', linkLabel = '', onLink, onDismiss, strings = getStrings() } = {}) {
+  const el = document.createElement('div');
+  el.className = 'c-glass-card';
+  el.dataset.variant = variant;
+  // ★ S11 A2 (#1263, NIT): no live region on an INSERTED node — the update card is a labelled group, a hint a note
+  el.setAttribute('role', variant === 'update' ? 'group' : 'note');
+  if (title) el.setAttribute('aria-label', title);
+  holdEntrance(el);
+
+  if (art) {
+    const a = document.createElement('div');
+    a.className = 'c-glass-card__art';
+    a.setAttribute('aria-hidden', 'true');
+    a.append(art);
+    el.append(a);
+  }
+  const body = document.createElement('div');
+  body.className = 'c-glass-card__body';
+  if (eyebrow) {
+    const e = document.createElement('p');
+    e.className = 'c-glass-card__eyebrow';
+    e.textContent = eyebrow;
+    body.append(e);
+  }
+  const ti = document.createElement('p');
+  ti.className = 'c-glass-card__title';
+  ti.textContent = title;
+  body.append(ti);
+  if (text) {
+    const tx = document.createElement('p');
+    tx.className = 'c-glass-card__text';
+    tx.textContent = text;
+    body.append(tx);
+  }
+  if (linkLabel && typeof onLink === 'function') {
+    const l = document.createElement('button');
+    l.type = 'button';
+    l.className = 'c-glass-card__link';
+    const lab = document.createElement('span');
+    lab.textContent = linkLabel;
+    l.append(lab, icon('chevron-right', { size: 16 }));
+    l.addEventListener('click', () => { try { onLink(); } catch (e) { /* the host's navigation */ } });
+    body.append(l);
+  }
+  el.append(body);
+  if (typeof onDismiss === 'function') {
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'c-glass-card__close';
+    x.setAttribute('aria-label', strings.dismiss || 'Dismiss');
+    x.append(icon('x', { size: 20 }));
+    x.addEventListener('click', () => {
+      try { x.blur(); } catch (e) {}   // #383 MINOR-1: focus leaves the control before the card goes
+      try { onDismiss(); } catch (e) { /* caller-side bookkeeping only */ }
+    });
+    el.append(x);
+  }
+  return el;
+}
+
+/* ★ S11 A2 (#1263, R2-m2): one entrance, then `data-held` (glass-card.css: animation none) — the first
+   animationend of the card's OWN entrance, or the backstop when no animation runs (reduced motion, a hidden slot). */
+const GLASS_HOLD_MS = 2500;
+function holdEntrance(el) {
+  let t = 0;
+  const hold = () => {
+    clearTimeout(t);
+    el.removeEventListener('animationend', onEnd);
+    el.setAttribute('data-held', '');
+  };
+  const onEnd = (e) => { if (e.target === el) hold(); };
+  el.addEventListener('animationend', onEnd);
+  t = setTimeout(hold, GLASS_HOLD_MS);
+}
+
+function artTile(cls, glyph, size) {
+  const t = document.createElement('span');
+  t.className = cls;
+  t.append(icon(glyph, { size }));
+  return t;
+}
+
+/** The update card: "Spixi {version} is available" · "Update it where you got Spixi." · How to update ›  · ×.
+ *  ★ S11 A2 (#1263, R2-m4): no `onHowTo` → no link (the host passes one only to an exe with the `updateHelp` verb). */
+function createUpdateCard({ version = '', onHowTo, onDismiss, strings = getStrings() } = {}) {
+  const v = VERSION_RE.test(String(version)) ? String(version) : '';
+  const card = createGlassCard({
+    variant: 'update',
+    art: artTile('c-glass-card__appicon', 'logo', 26),   // ★ S11 A2 (#1263, NIT): the app's own mark — an app icon, not a download arrow
+    title: (strings.updateCardTitle || 'Spixi {version} is available').split('{version}').join(v),
+    text: strings.updateCardBody || 'Update it where you got Spixi.',
+    linkLabel: strings.updateCardLink || 'How to update',
+    onLink: onHowTo,
+    onDismiss,
+    strings,
+  });
+  card.dataset.version = v;
+  return card;
+}
+
+/** One hint card. Unknown tip → null. */
+function createHintCard({ tip, onLearnMore, onDismiss, strings = getStrings() } = {}) {
+  const def = HINT_TIPS.find((t) => t.id === tip);
+  const copy = def && hintCopy(def.id, strings);
+  if (!copy) return null;
+  const card = createGlassCard({
+    variant: 'hint',
+    art: artTile('c-glass-card__tipart', def.glyph, 26),
+    eyebrow: strings.hintEyebrow || 'Did you know?',
+    title: copy.title,
+    text: copy.text,
+    linkLabel: def.learn ? (strings.hintLearnMore || 'Learn more') : '',
+    onLink: def.learn ? () => { if (onLearnMore) onLearnMore(def.learn); } : null,
+    onDismiss,
+    strings,
+  });
+  card.dataset.tip = def.id;
+  return card;
 }
 
 /* ---- src/components/toast.js ---- */
@@ -8636,6 +9614,9 @@ function openMessageMenu({
   content.className = 'c-msgmenu';
 
   const act = (action, arg) => {
+    /* ★ S11 C (#1262) · ★ S11 C2 (#1263, #46 r1 R2-m1): only a quick REACTION closes it "without a field" (overlay.js
+       touchNoEditable) — Copy / Select / Tip / Delete keep today's #1065 focus; Reply / Edit focus the composer. */
+    if (action === 'react') setOverlayOpts(sheet, { closedByReaction: true });
     closeSheet(sheet);
     if (action === 'copy' && !onAction) {
       // JS-side default (§5b); shells may override via onAction
@@ -8747,6 +9728,10 @@ function openMessageMenu({
   /* ★ #1065 (R.10, Damir): a long-press while typing must not drop the keyboard — the menu opens
      WITHOUT taking focus from the composer (overlay.js keepEditableFocus). */
   setOverlayOpts(sheet, { keepEditableFocus: true, blurDismiss: true });   // ★ S8 (#1235): a click in another desktop pane closes it (overlay.js)
+  /* ★ S11 C (#1262, Android: the keyboard came up after a quick reaction): opened by a long-press, this menu never
+     leaves focus in the composer when a quick REACTION closes it (overlay.js touchNoEditable; ★ S11 C2 #1263: the
+     reaction only) — a keyboard / mouse open, and every other action, keep today's focus rules. */
+  setOverlayOpts(sheet, { touchNoEditable: true });
   openSheet(sheet);
   /* ★ Batch E (a) (#557, Damir 2026-08-22): on MOBILE the menu anchors to the
    * pressed message — ABOVE it when there is room, so it can never cover what it
@@ -9443,21 +10428,47 @@ function setTileHead(row, { position = 'single', label = null, avatar = null } =
 }
 
 /* ═══ ★★ S9 (#1244 G = A) — THE PHOTO GROUP BUBBLE: one bubble for the photos of ONE pick (C#'s group tag, addFile arg 18)
- * — a square 2 × 2 grid with "+N" on the fourth cell (2 photos: side by side · 3: one tall + two), and the caption (the
- * sender's text message whose id the tag names) UNDER the grid, inside the same bubble. Received: framed in the incoming
- * ground; sent: the outgoing ground (the photo tile's own 3 px frame, #1151 — now around the whole group, 2 px between
- * the cells). The CELLS are the shell's own photo-file rows (createImageFileBubble — every per-photo state: offer,
- * downloading ring, complete, failed, the picture); this only lays them out.
- * createPhotoGridBubble({ direction, count, more, total, caption, gutter, strings }) → row
- *   count — the cells that will be shown (1–4) · more — photos past the fourth (the "+N") · total — every photo present
- *   caption — the caption text (textContent only) or null
+ * and the caption (the sender's text message whose id the tag names) UNDER the photos, inside the same bubble. Received:
+ * framed in the incoming ground; sent: the outgoing ground (the photo tile's own 3 px frame, #1151 — now around the whole
+ * group, 2 px between the cells). The CELLS are the shell's own photo-file rows (createImageFileBubble — every per-photo
+ * state: offer, downloading ring, complete, failed, the picture); this only lays them out.
+ * ★★ S11 G (#1263 a = A, Telegram grammar — supersedes the S9 2 × 2 + "+N" and the S10 "+N" BUTTON): a MOSAIC of every
+ * photo up to MOSAIC_MAX (10) in rows of 1–4 (mosaicRows — the render's table: 2 = 1×2 · 3 = 1+2 · 4 = 2×2 · 5 = 2+3 ·
+ * 6 = 3+3 · 7 = 3+4 · 8 = 2+3+3 · 9 = 3+3+3 · 10 = 3+3+4), a FIXED pattern (the row heights come from the row lengths,
+ * mosaicGeometry — the picture sizes are not known for offers, so no aspect fit). Every cell keeps its own state and its
+ * own menu (the shell attaches one per cell — no button over a tile takes the right-click any more). Past MOSAIC_MAX a
+ * passive "+N" LABEL (no events) lies over the last cell. A received group with offers left gets a FOOTER under the photos
+ * (and under the caption): "Download all (n) · size" on the start side, the time on the end side (the cells' own times
+ * hide); with no footer the last cell keeps its time, as before.
+ * createPhotoGridBubble({ direction, count, more, total, caption, gutter, downloadAll, downloadAllLabel, onDownloadAll,
+ *   timestamp, strings }) → row
+ *   count — the cells that will be shown (1–10) · more — photos past them (the "+N" label) · total — every photo present
+ *   caption — the caption text (textContent only) or null · timestamp — the footer's time (ms)
  * The shell appends its cell rows into `.c-mgrid` (addPhotoGridCell) AFTER its group head, so the head lands on the
  * group's column (the column carries `c-mbubble-anchor`, the class setTileHead looks for — it is FIRST in document order).
  * The group carries role="group" + "{n} photos"; the "+N" is aria-hidden (the name already says how many).
- * ★ S10 F2 (#1254): downloadAll — n ≥ 1 → a "Download all (n)" text button under the grid (downloadAllLabel, the shell's
- *   filled template; onDownloadAll on tap — one tap, then it waits for the shell's re-render); 0 = none. */
+ * downloadAll — n ≥ 1 → the footer's "Download all" text button (downloadAllLabel, the shell's filled template;
+ *   onDownloadAll on tap — one tap, then it waits for the shell's re-render); 0 = no footer. */
+const MOSAIC_MAX = 10;
+const MOSAIC_ROWS = { 1: [1], 2: [2], 3: [1, 2], 4: [2, 2], 5: [2, 3], 6: [3, 3], 7: [3, 4], 8: [2, 3, 3], 9: [3, 3, 3], 10: [3, 3, 4] };
+/** ★ S11 G (#1263 a): the row lengths of a mosaic of n photos (1–10; outside → clamped). */
+function mosaicRows(n) {
+  const k = Math.max(1, Math.min(MOSAIC_MAX, Math.floor(Number(n) || 1)));
+  return MOSAIC_ROWS[k].slice();
+}
+/* the height of one row of k tiles as a fraction of the mosaic's width (the render's tiles: one = 4:3, two = 1 : 0.82,
+   three and four = square) */
+const ROW_H = { 1: 0.75, 2: 0.41, 3: 1 / 3, 4: 0.25 };
+/** ★ S11 G (#1263 a): the mosaic's geometry — the row lengths, the box's aspect ratio (width / height) and the
+ *  grid-template-rows (fr per row, proportional to each row's height). Sanctioned runtime geometry (like fitTile). */
+function mosaicGeometry(n) {
+  const rows = mosaicRows(n);
+  const hs = rows.map((k) => ROW_H[k]);
+  const sum = hs.reduce((a, b) => a + b, 0);
+  return { rows, ratio: Math.round((1 / sum) * 1000) / 1000, template: hs.map((v) => (Math.round(v * 1000) / 1000) + 'fr').join(' ') };
+}
 function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false,
-  downloadAll = 0, downloadAllLabel = '', onDownloadAll = null, strings = getStrings() } = {}) {
+  downloadAll = 0, downloadAllLabel = '', onDownloadAll = null, timestamp = null, strings = getStrings() } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row c-mgrid-row';
   row.dataset.direction = direction;
@@ -9473,9 +10484,12 @@ function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, to
   box.className = 'c-mgrid-box';
   const grid = document.createElement('div');
   grid.className = 'c-mgrid';
-  const n = Math.max(1, Math.min(4, Number(count) || 1));
+  const n = Math.max(1, Math.min(MOSAIC_MAX, Number(count) || 1));
   grid.dataset.n = String(n);
   grid.dataset.more = String(Math.max(0, Number(more) || 0));
+  const geo = mosaicGeometry(n);
+  grid.style.setProperty('--mosaic-ratio', String(geo.ratio));   // sanctioned runtime geometry (the row table above; css reads both)
+  grid.style.setProperty('--mosaic-rows', geo.template);
   grid.setAttribute('role', 'group');
   const all = Math.max(n, Number(total) || 0);
   grid.setAttribute('aria-label', all === 1 ? (strings.photoCountOne || '1 photo')
@@ -9490,6 +10504,8 @@ function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, to
     box.append(cap);
   }
   if (Number(downloadAll) > 0 && typeof onDownloadAll === 'function') {
+    const foot = document.createElement('div');
+    foot.className = 'c-mgrid__foot';
     const dl = document.createElement('button');
     dl.type = 'button';
     dl.className = 'c-mgrid__dlall';
@@ -9499,22 +10515,31 @@ function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, to
     dl.append(t);
     dl.addEventListener('click', () => {
       if (dl.disabled) return;
-      dl.disabled = true;   // one tap: the offers flip to progress on C#'s ticks and the re-render drops the button
+      dl.disabled = true;   // one tap: the offers flip to progress on C#'s ticks and the re-render drops the footer
       try { onDownloadAll(); } catch (_) {}
     });
+    foot.append(dl);
+    const d = timestamp != null ? new Date(timestamp) : null;
+    if (d && !isNaN(d)) {
+      const time = document.createElement('time');
+      time.className = 'c-mgrid__time u-tabular';
+      time.setAttribute('datetime', d.toISOString());
+      time.textContent = d.toLocaleTimeString(docLocale(), timeOpts());   // the device's 12/24-hour setting (Session I)
+      foot.append(time);
+    }
     box.dataset.dlall = '';
-    box.append(dl);
+    box.append(foot);
   }
   col.append(box);
   row.append(col);
   return row;
 }
 
-/** Put one photo-file row (createImageFileBubble) into the group's grid as a cell: its own gutter, pre-accept Cancel
- *  and fixed tile geometry go (the grid sizes the cell); `isLast` + `more` > 0 lays the "+N" over it. → the cell row
- *  ★ S10 F2 (#1254): `onMore` given → the "+N" is its own BUTTON over the cell (named `moreLabel`) and the photo tile
- *  under it leaves the tab order (the button covers it); no `onMore` = the S9 decorative overlay. */
-function addPhotoGridCell(groupRow, cellRow, { isLast = false, onMore = null, moreLabel = '' } = {}) {
+/** Put one photo-file row (createImageFileBubble) into the group's mosaic as a cell: its own gutter, pre-accept Cancel
+ *  and fixed tile geometry go (the mosaic sizes the cell); the cell takes its row length (data-row → its column span).
+ *  `isLast` + `more` > 0 lays the passive "+N" LABEL over it (★ S11 G #1263 a: never a button — the cell's own menu and
+ *  tap stay live under it). → the cell row */
+function addPhotoGridCell(groupRow, cellRow, { isLast = false } = {}) {
   const grid = groupRow && groupRow.querySelector('.c-mgrid');
   if (!grid || !cellRow) return null;
   cellRow.classList.add('c-mgrid__cell');
@@ -9523,18 +10548,14 @@ function addPhotoGridCell(groupRow, cellRow, { isLast = false, onMore = null, mo
   }
   const tile = cellRow.querySelector('.c-mbubble');
   if (tile) { tile.style.removeProperty('width'); tile.style.removeProperty('aspect-ratio'); }
+  /* ★ S11 G: the cell's row in the mosaic table (the i-th cell in document order) */
+  const rows = mosaicRows(Number(grid.dataset.n) || 1);
+  let i = grid.querySelectorAll(':scope > .c-mgrid__cell').length;
+  let k = rows[rows.length - 1];
+  for (const len of rows) { if (i < len) { k = len; break; } i -= len; }
+  cellRow.dataset.row = String(k);
   const more = Number(grid.dataset.more) || 0;
-  if (isLast && more > 0 && tile && typeof onMore === 'function') {
-    const m = document.createElement('button');   // a sibling of the tile (a button never nests in the tile's button)
-    m.type = 'button';
-    m.className = 'c-mgrid__more';
-    m.textContent = '+' + more;
-    if (moreLabel) m.setAttribute('aria-label', moreLabel);
-    m.addEventListener('click', (e) => { e.stopPropagation(); try { onMore(); } catch (_) {} });
-    tile.tabIndex = -1;
-    tile.setAttribute('aria-hidden', 'true');
-    tile.after(m);
-  } else if (isLast && more > 0 && tile) {
+  if (isLast && more > 0 && tile) {
     const m = document.createElement('span');
     m.className = 'c-mgrid__more';
     m.setAttribute('aria-hidden', 'true');
@@ -9543,6 +10564,54 @@ function addPhotoGridCell(groupRow, cellRow, { isLast = false, onMore = null, mo
   }
   grid.append(cellRow);
   return cellRow;
+}
+
+/* ═══ ★★ S11 G (#1258 + #1263 c = A) — THE PREVIEW IN AN OFFER. The sender (C#) fills the FileTransfer offer's `preview`
+ * with a small JPEG (≤ 8 KB, ~96 px, no metadata); the receiver's C# re-encodes it through the bounded decoder and pushes
+ * it (setOfferPreview) only while "Load pictures and GIFs" is on; the shell checks the same switch again. On a photo-file
+ * tile that is NOT on this device yet (offer · downloading · failed) it paints under the face: today's 12 px blur
+ * (.c-mbubble__preview, the one reviewed preview sink — Gate row O-13), and on an OFFER a centre ↓ disc with the size
+ * (data-pv; the file face hides). Downloading / failed keep their face on a scrim over it. The picture, once on this
+ * device, covers it (setImageFileThumb). Only a `data:image/` URI is admitted (safeImageSrc, no remote); anything else
+ * removes it (the face comes back).
+ * setTilePreview(row, uri, sizeText) → true when the tile now shows a preview. */
+function setTilePreview(row, uri, sizeText = '') {
+  const tile = row && row.querySelector('.c-mbubble[data-file]');
+  if (!tile) return false;
+  const src = safeImageSrc(uri, { allowRemote: false });
+  let pv = tile.querySelector(':scope > .c-mbubble__preview');
+  let mark = tile.querySelector(':scope > .c-mbubble__pvmark');
+  if (!src) {
+    if (pv) pv.remove();
+    if (mark) mark.remove();
+    delete tile.dataset.pv;
+    return false;
+  }
+  if (!pv) {
+    pv = document.createElement('img');
+    pv.className = 'c-mbubble__preview';
+    pv.alt = '';
+    pv.setAttribute('aria-hidden', 'true');
+    tile.prepend(pv);
+  }
+  if (pv.getAttribute('src') !== src) pv.src = src;
+  if (!mark) {
+    mark = document.createElement('span');
+    mark.className = 'c-mbubble__pvmark';
+    mark.setAttribute('aria-hidden', 'true');
+    const disc = document.createElement('span');
+    disc.className = 'c-mbubble__pvdisc';
+    disc.append(icon('download', { size: 22 }));
+    const size = document.createElement('span');
+    size.className = 'c-mbubble__pvsize u-tabular';
+    mark.append(disc, size);
+    tile.append(mark);
+  }
+  const size = mark.querySelector('.c-mbubble__pvsize');
+  size.textContent = String(sizeText || '');
+  size.hidden = !sizeText;
+  tile.dataset.pv = '';
+  return true;
 }
 
 /* ---- src/components/system-notice.js ---- */
@@ -10636,8 +11705,8 @@ function openMemberSheet({
 /* ---- src/components/media-viewer.js ---- */
 /**
  * c-mviewer — full-screen media viewer (#86 last v1 gap): the c-mbubble
- * onOpen target. V1 = fit-to-screen + close (+ optional Save); pinch/zoom is
- * post-v1 (#86 note). Rides the overlay stack (#56): Esc, ✕ and
+ * onOpen target. V1 = fit-to-screen + close (+ optional Save); pinch/zoom was
+ * post-v1 (#86 note) — ★ S11 E (#1262) adds it (below). Rides the overlay stack (#56): Esc, ✕ and
  * swipe-to-dismiss close it (the viewer covers the scrim, so scrim-tap is
  * unreachable — freeze audit); focus contained, back-hook via
  * dismissTopOverlay.
@@ -10658,9 +11727,13 @@ function openMemberSheet({
  *   ArrowLeft / ArrowRight keys and a horizontal swipe; "2 / 7" says where it is. Each page starts the token's
  *   loading state again (the thumbnail invisible under the spinner) and calls onPage(i, item) — the shell asks C# for
  *   that picture (viewImage). One item (or none) = today's viewer, byte-identical.
- *   ★ S10 F2 (#1254) onReply(i, item) — a PAGED viewer only: a Reply button in the top bar (leading; Save keeps the
- *   trailing slot) — the viewer closes, then onReply(index, the item on screen) (the shell replies to THAT photo).
- *   canReplyItem(i, item) → false hides it on that page (#46 n-3); the glyph mirrors in RTL (#46 n-2).
+ *   ★ S10 F2 (#1254) onReply(i, item) — a Reply button in the top bar (leading; Save keeps the trailing slot) — the viewer
+ *   closes, then onReply(index, the item on screen) (the shell replies to THAT photo). canReplyItem(i, item) → false hides
+ *   it on that page (#46 n-3); the glyph mirrors in RTL (#46 n-2).
+ *   ★ S11 G (#1263 a — walk #1260 10-GRID: "opening the viewer there is no reply"): S10 offered Reply in a PAGED viewer
+ *   only (`pages.length > 1`), and the chat opened every lone photo — a 1:1 photo, or a group's only photo on this
+ *   device — as a single viewer with no onReply, so most opens had none, on every platform. Now EVERY viewer given
+ *   onReply has it; a single viewer's item = { src, token, alt } as opened. onSave(i, item) gets the item on screen too.
  *   findOpenViewer(token) → the OPEN viewer opened for exactly that token, or null (a closed one is never returned,
  *   so a late push lands nowhere). Without a token the viewer is today's: no loading state, src as given.
  *
@@ -10676,6 +11749,22 @@ function openMemberSheet({
  *     and its own scrim closes at the same 100 ms, so the transitionend removes both together.
  *   · A click / tap OUTSIDE the picture closes (the dim stage, the bar and the foot around the buttons); a press that
  *     became a swipe does not count as a click; the picture itself does not close.
+ *
+ *   ★ S11 E (#1262, Damir 23:48) — PINCH TO ZOOM + a smoother page swipe:
+ *   · ZOOM (Pointer Events): two fingers scale around their midpoint, 1×–4× with a rubber band past the limits that
+ *     settles back on release; when zoomed one finger PANS inside the picture's bounds and the page swipe + the
+ *     swipe-to-dismiss are OFF; a double tap / double click on the picture toggles 1× ↔ 2.5× at that point; ctrl + wheel
+ *     (a trackpad pinch) zooms around the pointer, a plain wheel pans a zoomed picture. Every page change resets to 1×
+ *     (a new viewer always opens at 1×). Transform-only (translate3d + scale), writes in one rAF per frame, will-change
+ *     only while a gesture runs; the stage is the one `touch-action: none` box (css).
+ *   · PAGING (a paged viewer): the "picture moves dragX / 3, then swaps" swipe became a TRACK — prev / current / next
+ *     slides side by side follow the finger 1:1; a flick (≥ 0.3 px/ms) or a drag past 35 % of the width turns the page,
+ *     anything less snaps back; resistance past the first / last photo. The ‹ › buttons and ←/→ slide the same way. The
+ *     page state commits at the release (counter, onPage, the #1180 loading state) and the track settles from where
+ *     the picture stood (motion tokens; reduced motion = instant). A neighbour slide only shows a picture this viewer
+ *     already holds — C#'s viewer-size picture for the pages next to the one on screen, or that page's thumbnail
+ *     (★ S11 G R2-m6: no longer only one #1180 had shown) — no new fetch rule; the current picture stays the one
+ *     `.c-mviewer__img`.
  */
 
 
@@ -10713,7 +11802,8 @@ function openMediaViewer({
   strings = getStrings(),
 } = {}) {
   const pages = Array.isArray(items) ? items.filter((it) => it && it.token) : [];
-  const canReply = pages.length > 1 && typeof onReply === 'function';   // ★ S10 F2
+  const canReply = typeof onReply === 'function';   // ★ S10 F2 · ★ S11 G (#1263 a): every viewer, not only a paged one
+  const single = { src, token: String(token == null ? '' : token), alt };   // ★ S11 G: a single viewer's item (Reply / Save)
   let at = pages.length > 1 ? Math.max(0, Math.min(pages.length - 1, Number(index) || 0)) : 0;
   if (pages.length > 1) { src = pages[at].src || ''; token = pages[at].token; alt = pages[at].alt || alt; }
   const el = document.createElement('section');
@@ -10730,10 +11820,11 @@ function openMediaViewer({
   // (below). A top bar renders only when there's something to show.
   let capEl = null;
   let replyBtn = null;
+  const itemNow = () => (pages.length > 1 ? pages[at] : single);   // ★ S11 G: the item on screen (a single viewer's own)
   const syncReply = () => {
     if (!replyBtn) return;
     let okR = true;
-    if (typeof canReplyItem === 'function') { try { okR = !!canReplyItem(at, pages[at]); } catch (_) { okR = false; } }
+    if (typeof canReplyItem === 'function') { try { okR = !!canReplyItem(at, itemNow()); } catch (_) { okR = false; } }
     replyBtn.hidden = !okR;
   };
   if (alt || onSave || canReply) {
@@ -10755,7 +11846,7 @@ function openMediaViewer({
       rb.append(g);
       replyBtn = rb;
       /* the viewer closes FIRST (its focus restore is synchronous), so the shell's reply strip keeps the focus it gives */
-      rb.addEventListener('click', () => { if (rb.hidden) return; const i = at; const it = pages[i]; dismissOverlay(el); try { onReply(i, it); } catch (_) {} });
+      rb.addEventListener('click', () => { if (rb.hidden) return; const i = at; const it = itemNow(); dismissOverlay(el); try { onReply(i, it); } catch (_) {} });
       bar.append(rb);
     } else if (onSave) bar.append(spacer());
     if (alt) {
@@ -10771,7 +11862,7 @@ function openMediaViewer({
       save.className = 'c-mviewer__btn';
       save.setAttribute('aria-label', strings.save || 'Save');
       save.append(icon('download', { size: 22 }));
-      save.addEventListener('click', () => onSave());
+      save.addEventListener('click', () => { try { onSave(at, itemNow()); } catch (_) {} });   // ★ S11 G: the photo on screen
       bar.append(save);
     } else if (canReply) bar.append(spacer());
     el.append(bar);
@@ -10785,7 +11876,33 @@ function openMediaViewer({
   if (token) img.dataset.pending = '';   // ★ #1180: the square-crop thumbnail stays invisible until the real picture is decoded
   img.alt = ''; // the dialog carries the accessible name
   img.draggable = false; // mouse-drag fix: native image drag hijacked the pointer stream
-  stage.append(img);
+  /* ★ S11 E (#1262): a PAGED viewer carries a TRACK — prev / current / next slides side by side, the finger moves the
+     track 1:1. The current picture stays THE `.c-mviewer__img` (one per viewer: every pin and the #1180 rules read it);
+     the neighbours are `.c-mviewer__peer` and only ever show a picture this viewer already holds (see peerSrc). One item
+     (or none) = no track: the img sits in the stage as before. */
+  let track = null;
+  const peers = [];
+  if (pages.length > 1) {
+    track = document.createElement('div');
+    track.className = 'c-mviewer__track';
+    for (const side of [-1, 0, 1]) {
+      const slide = document.createElement('div');
+      slide.className = 'c-mviewer__slide';
+      if (side === 0) slide.append(img);
+      else {
+        const p = document.createElement('img');
+        p.className = 'c-mviewer__peer';
+        p.alt = '';
+        p.draggable = false;
+        p.hidden = true;
+        slide.setAttribute('aria-hidden', 'true');
+        slide.append(p);
+        peers.push({ side, slide, img: p });
+      }
+      track.append(slide);
+    }
+    stage.append(track);
+  } else stage.append(img);
   el.append(stage);
 
   /* ★ #1166 V-3: the loading state — a subtle spinner on a scrim disc over the thumbnail (media-bubble's spinner
@@ -10800,9 +11917,17 @@ function openMediaViewer({
   };
   let fullSrc = '';
   let thumbSrc = src || '';
+  /* ★ S11 E (#1262): what a neighbour slide may show — the viewer-size picture C# already gave THIS viewer for that page
+     (kept for the pages next to the one on screen only: ≤ 3 data URIs held), else that page's own thumbnail.
+     ★ S11 G (R2-m6): the thumbnail no longer waits for #1180 to have shown it — on a first pass every neighbour slide was
+     EMPTY under the finger. The #1180 square-crop rule (keep the thumbnail invisible until the real picture lands) is
+     about the CURRENT picture only (.c-mviewer__img); a peer slide is never stretched (contain, its own size). Nothing is
+     fetched for a neighbour: no new fetch rule. */
+  const fullOf = new Map();
   /* ★ #1180 (#46 r1 m3): a picture that passes the URI shape but does not decode — back to the thumbnail, shown */
   img.addEventListener('error', () => {
     if (!fullSrc || img.getAttribute('src') !== fullSrc) return;
+    if (fullOf.get(at) === fullSrc) fullOf.delete(at);   // ★ S11 E: never offered to a neighbour slide again
     fullSrc = '';
     if (thumbSrc) img.src = thumbSrc; else img.removeAttribute('src');
     el.setFailed();
@@ -10823,6 +11948,7 @@ function openMediaViewer({
     const u = String(uri == null ? '' : uri);
     if (!VIEWER_URI_RE.test(u)) { el.setFailed(); return false; }
     fullSrc = u;   // ★ #1180: revealed at its load (+ decode), never before
+    if (track) { fullOf.set(at, u); keepNear(); }   // ★ S11 E: a neighbour slide may show it later
     img.src = u;
     delete el.dataset.failed;
     endBusy();
@@ -10852,6 +11978,82 @@ function openMediaViewer({
   };
   if (tok) startBusy(tok);
   stage.addEventListener('dragstart', (e) => e.preventDefault());
+
+  /* ★ S11 E (#1262): the zoom state of the picture on screen — scale s (1…4) and a pan (x, y) in px, written as ONE
+     transform (translate3d + scale, centre origin; no layout per frame). Every page change and the close reset it. */
+  const ZOOM_MAX = 4;
+  const ZOOM_TAP = 2.5;   // double tap / double click: 1× ↔ 2.5× at the tap point
+  const PAGE_GAP = 16;    // px between two slides (= --spacing-16; the js needs the number for the track offset)
+  const z = { s: 1, x: 0, y: 0 };
+  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f) => setTimeout(f, 16);
+  const reducedMotion = () => { try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } };
+  const rtl = () => document.documentElement.dir === 'rtl';
+  const zoomed = () => z.s > 1.001;
+  /* ★ S11 G (R3-MINOR-3): a pinch UNDER 1× (the rubber band, settling back on release) is painted too — the old test
+     (zoomed() = above 1×) wrote '' there, so a centred pinch-in showed no give at all */
+  const paintZoom = () => {
+    img.style.transform = Math.abs(z.s - 1) > 0.001 || z.x || z.y ? 'translate3d(' + z.x.toFixed(1) + 'px, ' + z.y.toFixed(1) + 'px, 0) scale(' + z.s.toFixed(3) + ')' : '';
+    if (zoomed()) stage.dataset.zoomed = ''; else delete stage.dataset.zoomed;
+  };
+  /* instant: no transition (a new page must never animate the old page's zoom away on the new picture) */
+  const resetZoom = () => {
+    if (!zoomed() && !z.x && !z.y && !img.style.transform) return;
+    z.s = 1; z.x = 0; z.y = 0;
+    img.style.transition = 'none';
+    paintZoom();
+    try { getComputedStyle(img).transform; } catch (_) {}   // commit the jump before the css transition returns
+    img.style.transition = '';
+    img.style.willChange = '';
+  };
+  /* the picture's UNTRANSFORMED box (its layout centre + size) and the stage box — read ONCE per gesture, never per frame */
+  const geo = () => {
+    const ir = img.getBoundingClientRect();
+    const sr = stage.getBoundingClientRect();
+    return { cx: ir.left + ir.width / 2 - z.x, cy: ir.top + ir.height / 2 - z.y, w: ir.width / z.s, h: ir.height / z.s,
+      l: sr.left, t: sr.top, r: sr.right, b: sr.bottom };
+  };
+  /* the pan range at scale s: a picture wider than the stage may move until an edge meets the stage edge; a narrower one
+     stays centred (0). `give` > 0 = rubber band past the range (that fraction of the overshoot shows). */
+  const bound = (v, s, c, size, lo, hi, give) => {
+    const span = size * s;
+    if (span <= hi - lo) return give ? v * give : 0;
+    const min = hi - c - span / 2;
+    const max = lo - c + span / 2;
+    const k = Math.max(min, Math.min(max, v));
+    return give ? k + (v - k) * give : k;
+  };
+  const rubberScale = (s) => (s > ZOOM_MAX ? ZOOM_MAX * Math.pow(s / ZOOM_MAX, 0.35) : s < 1 ? Math.pow(s, 0.35) : s);
+  /* scale to s1 keeping the client point (px, py) still: t1 = (p − c) − (s1 / s0)·(p − c − t0) */
+  const zoomAt = (g, s1, px, py, give) => {
+    const k = s1 / z.s;
+    const x = (px - g.cx) - k * (px - g.cx - z.x);
+    const y = (py - g.cy) - k * (py - g.cy - z.y);
+    z.s = s1;
+    z.x = bound(x, s1, g.cx, g.w, g.l, g.r, give);
+    z.y = bound(y, s1, g.cy, g.h, g.t, g.b, give);
+  };
+  /* back into range after a gesture (1…4, the pan clamped) — the img's css transition (motion tokens) carries it */
+  const settleZoom = (g, px, py) => {
+    const s1 = Math.max(1, Math.min(ZOOM_MAX, z.s));
+    if (s1 <= 1.001) { z.s = 1; z.x = 0; z.y = 0; } else zoomAt(g, s1, px, py, 0);
+    img.style.transition = '';
+    paintZoom();
+    img.style.willChange = '';   // the hint lives for the gesture only
+  };
+
+  /* ★ S11 E: the neighbour slides and the picture cache (the pages next to the one on screen only) */
+  const keepNear = () => { for (const k of [...fullOf.keys()]) if (Math.abs(k - at) > 1) fullOf.delete(k); };
+  const peerSrc = (i) => (i < 0 || i >= pages.length ? '' : fullOf.get(i) || pages[i].src || '');   // ★ S11 G (R2-m6): the known thumbnail
+  const refreshPeers = () => {
+    for (const p of peers) {
+      /* the NEXT page sits on the inline-end side: right in LTR, left in RTL (the ←/→ keys and the swipe agree) */
+      const pos = rtl() ? -p.side : p.side;
+      p.slide.style.transform = 'translate3d(calc(' + (pos < 0 ? '-100% - ' : '100% + ') + PAGE_GAP + 'px), 0, 0)';
+      const u = peerSrc(at + p.side);
+      if ((p.img.getAttribute('src') || '') !== u) { if (u) p.img.src = u; else p.img.removeAttribute('src'); }
+      p.img.hidden = !u;
+    }
+  };
 
   // #336 (Damir F5 iOS #1): prominent bottom-centered CLOSE — easy to spot + reach,
   // clear of the notch/status bar, with the home-indicator safe-area inset.
@@ -10890,12 +12092,23 @@ function openMediaViewer({
       if (i < 0 || i >= pages.length) return false;
       at = i;
       const it = pages[at];
-      fullSrc = '';
+      resetZoom();   // ★ S11 E (#1262): a new page always starts at 1×
+      /* ★ S11 E: a page whose viewer-size picture this viewer already holds (the neighbour slide showed it) takes it at
+         once — no spinner, no pending fade (the slide that moved in must not blink); onPage still runs (the shell's
+         current item) and C#'s answer lands on the same picture. Every other page = the #1180 loading state as before. */
+      const cached = fullOf.get(at) || '';
+      fullSrc = cached;
       thumbSrc = it.src || '';
-      img.dataset.pending = '';
-      if (thumbSrc) img.src = thumbSrc; else img.removeAttribute('src');
+      if (cached) { delete img.dataset.pending; img.src = cached; }
+      else {
+        img.dataset.pending = '';
+        if (thumbSrc) img.src = thumbSrc; else img.removeAttribute('src');
+      }
       delete el.dataset.failed;
-      startBusy(String(it.token));
+      if (cached) { el._viewerToken = String(it.token); openViewers.add(el); endBusy(); }
+      else startBusy(String(it.token));
+      keepNear();
+      refreshPeers();
       if (capEl) capEl.textContent = it.alt || '';
       el.setAttribute('aria-label', it.alt || (strings.image || 'Image'));
       count.textContent = (strings.photoOfCount || '{i} / {n}').split('{i}').join(String(at + 1)).split('{n}').join(String(pages.length));
@@ -10908,17 +12121,47 @@ function openMediaViewer({
       if (!quiet && typeof onPage === 'function') { try { onPage(at, it); } catch (_) {} }
       return true;
     };
-    prev.addEventListener('click', () => showPage(at - 1));
-    next.addEventListener('click', () => showPage(at + 1));
+    prev.addEventListener('click', () => turnPage(at - 1));   // ★ S11 E (#1262): the track slides (reduced motion: instant)
+    next.addEventListener('click', () => turnPage(at + 1));
     el.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault();
-        showPage(at + ((e.key === 'ArrowRight') !== (document.documentElement.dir === 'rtl') ? 1 : -1));
+        turnPage(at + ((e.key === 'ArrowRight') !== (document.documentElement.dir === 'rtl') ? 1 : -1));
       }
     });
     showPage(at, true);
   }
   el.showPage = (i) => (showPage ? showPage(i) : false);
+
+  /* ★ S11 E (#1262): the TRACK's settle — the page state commits at once (counter, onPage, the picture), and the track
+     then slides from where the old picture stood to rest: one transition on transform (motion tokens, css
+     [data-settle]); reduced motion = no slide (an instant switch). A new press stops a running settle at its end. */
+  let settleT = 0;
+  const moveTrack = (px) => { if (track) track.style.transform = px ? 'translate3d(' + px.toFixed(1) + 'px, 0, 0)' : ''; };
+  const endSettle = () => {
+    if (settleT) { clearTimeout(settleT); settleT = 0; }
+    if (track) { delete track.dataset.settle; track.style.willChange = ''; }
+  };
+  const settleTrack = (fromPx) => {
+    if (!track) return;
+    endSettle();
+    if (!fromPx || reducedMotion()) { moveTrack(0); return; }
+    moveTrack(fromPx);
+    try { getComputedStyle(track).transform; } catch (_) {}   // the start offset is committed before the transition turns on
+    track.style.willChange = 'transform';
+    track.dataset.settle = '';
+    moveTrack(0);
+    settleT = setTimeout(endSettle, 600);   // transitionend backstop (a hidden page never fires it)
+  };
+  if (track) track.addEventListener('transitionend', (e) => { if (e.target === track) endSettle(); });
+  const pageW = () => { const w = stage.getBoundingClientRect().width; return w > 0 ? w : (window.innerWidth || 0); };
+  /* turn to page i from a track offset (0 = at rest: the ‹ › buttons and the keys; a drag hands its offset over) */
+  const turnPage = (i, off = 0) => {
+    const from = at;
+    if (!showPage || !showPage(i)) { settleTrack(off); return false; }
+    settleTrack(off + (i - from) * (rtl() ? -1 : 1) * (pageW() + PAGE_GAP));   // the same picture stays under the finger
+    return true;
+  };
 
   // swipe-to-dismiss (Damir: intuitive close, no hunting the ✕): vertical
   // drag EITHER direction — the image rides the finger and the viewer fades;
@@ -10930,15 +12173,77 @@ function openMediaViewer({
   const TAP_CLOSE_AFTER_MS = 350;
   const openedAt = performance.now();
   const tapCloseReady = () => performance.now() - openedAt >= TAP_CLOSE_AFTER_MS;
+  /* ★ S11 E (#1262): the gesture model. One pointer at 1× = a tap, a PAGE drag (sideways, a paged viewer: the track
+     follows the finger 1:1) or a DISMISS drag (the #1180 swipe); one pointer when zoomed = a PAN (page swipe and
+     swipe-to-dismiss are off); two pointers = a PINCH around their midpoint. The axis locks once the press moved
+     TAP_PX. Moves only record — the writes run in ONE rAF per frame (transform / opacity only). */
+  const FLICK_PX_MS = 0.3;   // a release faster than this (the last 100 ms) turns the page
+  const PAGE_FRAC = 0.35;    // … or a drag past 35 % of the width
+  const EDGE_GIVE = 0.3;     // resistance past the first / last photo (and the pan / zoom rubber band)
+  const DOUBLE_TAP_MS = 350;
+  const DOUBLE_TAP_PX = 30;
   let startY = 0;
   let startX = 0;
   let dragX = 0;
-  let dragY = null;
+  let dragY = 0;
   let downOnImg = false;
   let lastDownAt = openedAt;   // #46 r3: the double click's FIRST press opened the viewer (the stage never saw it) — the next press within 500 ms is its second
   let secondOfPair = false;   // #46 r2 (3): the second press of a mouse double click (pointer events carry no click count)
+  const pts = new Map();   // the pointers down on the stage → { x, y }
+  let mode = '';           // '' · 'press' (not moved yet) · 'x' page drag · 'y' dismiss drag · 'pan' · 'pinch' · 'rest' (a pinch's last finger at 1×)
+  let g0 = null;           // geo() at the gesture start (one layout read)
+  let z0 = null;           // the zoom at the gesture start
+  let pinch0 = null;       // { d, mx, my } at the pinch start
+  let samples = [];        // [t, clientX] of a page drag (the flick speed)
+  let lastTap = null;      // the last tap on the picture (a double tap / double click)
+  let frameQ = false;
+  const edgeOff = (dx) => {
+    const t = at + (((dx < 0) !== rtl()) ? 1 : -1);
+    return t < 0 || t >= pages.length ? dx * EDGE_GIVE : dx;
+  };
+  const midOf = () => { const [a, b] = [...pts.values()]; return { d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; };
+  const paintDrag = () => {
+    frameQ = false;
+    if (mode === 'x') moveTrack(edgeOff(dragX));
+    else if (mode === 'y') {
+      if (Math.abs(dragY) >= TAP_PX) el.style.transition = 'none';  // ★ #1180: once the finger really MOVES, the fade must not lag it (jitter / a still press leave the open fade alone)
+      img.style.transform = 'translate3d(0, ' + dragY + 'px, 0)';
+      el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dragY) / 320));
+    } else if (mode === 'pan') {
+      z.x = bound(z0.x + dragX, z.s, g0.cx, g0.w, g0.l, g0.r, EDGE_GIVE);
+      z.y = bound(z0.y + dragY, z.s, g0.cy, g0.h, g0.t, g0.b, EDGE_GIVE);
+      paintZoom();
+    } else if (mode === 'pinch' && pts.size === 2) {
+      const m = midOf();
+      const s1 = rubberScale(z0.s * m.d / pinch0.d);
+      const k = s1 / z0.s;
+      z.s = s1;
+      z.x = bound((m.mx - g0.cx) - k * (pinch0.mx - g0.cx - z0.x), s1, g0.cx, g0.w, g0.l, g0.r, EDGE_GIVE);
+      z.y = bound((m.my - g0.cy) - k * (pinch0.my - g0.cy - z0.y), s1, g0.cy, g0.h, g0.t, g0.b, EDGE_GIVE);
+      paintZoom();
+    }
+  };
+  const queue = () => { if (!frameQ) { frameQ = true; raf(paintDrag); } };
+  /* a second finger: a running page / dismiss drag gives way (springs back), the pinch takes the picture */
+  const startPinch = () => {
+    if (mode === 'x') settleTrack(edgeOff(dragX));
+    if (mode === 'y') { el.style.transition = ''; el.style.opacity = ''; }
+    mode = 'pinch';
+    lastTap = null;
+    img.style.transition = 'none';
+    img.style.willChange = 'transform';
+    paintZoom();
+    g0 = geo();
+    z0 = { s: z.s, x: z.x, y: z.y };
+    pinch0 = midOf();
+  };
   stage.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
+    if (e.isPrimary) pts.clear();   // a new touch sequence / a mouse press: no stale pointer survives
+    if (pts.size >= 2) return;      // a third finger is ignored
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    if (pts.size === 2) { startPinch(); return; }
     startY = e.clientY;
     startX = e.clientX;
     dragX = 0;
@@ -10947,45 +12252,149 @@ function openMediaViewer({
     const now = performance.now();
     secondOfPair = now - lastDownAt < 500;
     lastDownAt = now;
-    stage.setPointerCapture(e.pointerId);
     img.style.transition = 'none'; // finger-follow must not lag
+    endSettle();
+    moveTrack(0);
+    mode = 'press';
+    samples = [[now, e.clientX]];
   });
   stage.addEventListener('pointermove', (e) => {
-    if (dragY === null) return;
+    const p = mode ? pts.get(e.pointerId) : null;
+    if (!p) return;
+    p.x = e.clientX;
+    p.y = e.clientY;
+    if (mode === 'pinch') { queue(); return; }
+    if (mode === 'rest') return;
     dragY = e.clientY - startY;
     dragX = e.clientX - startX;
-    if (showPage && Math.abs(dragX) > Math.abs(dragY)) { img.style.transform = 'translateX(' + Math.round(dragX / 3) + 'px)'; return; }   // ★ S9: a page swipe, not a dismiss
-    if (Math.abs(dragY) >= TAP_PX) el.style.transition = 'none';  // ★ #1180: once the finger really MOVES, the fade must not lag it (jitter / a still press leave the open fade alone)
-    img.style.transform = 'translateY(' + dragY + 'px)';
-    el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dragY) / 320));
+    if (mode === 'press') {
+      if (Math.hypot(dragX, dragY) < TAP_PX) return;
+      lastTap = null;
+      if (zoomed()) { mode = 'pan'; g0 = geo(); z0 = { s: z.s, x: z.x, y: z.y }; img.style.willChange = 'transform'; }
+      else if (track && Math.abs(dragX) > Math.abs(dragY)) { mode = 'x'; track.style.willChange = 'transform'; }   // ★ S9: a page swipe, not a dismiss
+      else { mode = 'y'; img.style.willChange = 'transform'; }
+    }
+    if (mode === 'x') { samples.push([performance.now(), e.clientX]); if (samples.length > 16) samples.shift(); }
+    queue();
   });
   const endDrag = (e) => {
-    if (dragY === null) return;
-    /* ★ S9: a horizontal swipe on a paged viewer turns the page (60 px, mostly sideways) */
-    if (showPage && e && e.type === 'pointerup' && Math.abs(dragX) > 60 && Math.abs(dragX) > 1.5 * Math.abs(dragY)) {
-      img.style.transition = '';
-      img.style.transform = '';
-      el.style.opacity = '';
-      dragY = null;
-      showPage(at + ((dragX < 0) !== (document.documentElement.dir === 'rtl') ? 1 : -1));
+    if (!mode || !pts.has(e.pointerId)) return;
+    if (frameQ) paintDrag();   // the last move lands before the release decides
+    const up = e.type === 'pointerup';
+    if (mode === 'pinch' || mode === 'rest') {
+      if (mode === 'pinch') { const m = midOf(); settleZoom(g0, m.mx, m.my); }   // back into 1…4 around the fingers
+      pts.delete(e.pointerId);
+      lastTap = null;
+      if (pts.size === 1 && zoomed()) {   // the finger left down keeps panning, from where it is
+        const [p] = [...pts.values()];
+        mode = 'pan'; startX = p.x; startY = p.y; dragX = 0; dragY = 0;
+        img.style.transition = 'none';
+        g0 = geo(); z0 = { s: z.s, x: z.x, y: z.y };
+      } else mode = pts.size ? 'rest' : '';
       return;
     }
-    const past = Math.abs(dragY) > DISMISS_PX && Math.abs(dragY) >= Math.abs(dragX);
-    /* ★ #1180: a TAP on the dim stage (not on the picture) closes — like the swipe; a cancelled press never does */
-    const tapOutside = !!e && e.type === 'pointerup' && Math.abs(dragY) < TAP_PX && !downOnImg && !secondOfPair && tapCloseReady();
-    img.style.transition = ''; // spring-back transition returns (css)
-    el.style.transition = '';  // ★ #1180: the viewer's own fade returns — a swipe close fades from where the finger left it
-    if (past || tapOutside) {
-      dismissOverlay(el);
-      el.style.opacity = '';   // ★ #1180: AFTER data-open went: the css close fade runs from the dragged opacity to 0
-    } else {
-      img.style.transform = '';
-      el.style.opacity = '';
+    pts.delete(e.pointerId);
+    const m = mode;
+    mode = '';
+    if (m === 'pan') { settleZoom(g0, e.clientX, e.clientY); return; }   // the rubber band settles into the pan range
+    img.style.willChange = '';
+    if (m === 'x') {
+      /* ★ S11 E: the page turns on a flick (≥ 0.3 px/ms over the last 100 ms, same direction) or past 35 % of the width;
+         otherwise (and on a cancel, and past the first / last photo) the track snaps back */
+      const now = performance.now();
+      samples.push([now, e.clientX]);
+      const win = samples.filter((s) => now - s[0] <= 100);
+      const v = win.length >= 2 ? (win[win.length - 1][1] - win[0][1]) / Math.max(1, win[win.length - 1][0] - win[0][0]) : 0;
+      const t = at + (((dragX < 0) !== rtl()) ? 1 : -1);
+      const go = up && t >= 0 && t < pages.length
+        && (Math.abs(dragX) > PAGE_FRAC * pageW() || (Math.abs(v) >= FLICK_PX_MS && Math.sign(v) === Math.sign(dragX)));
+      img.style.transition = '';
+      if (go) turnPage(t, edgeOff(dragX)); else settleTrack(edgeOff(dragX));
+      return;
     }
-    dragY = null;
+    if (m === 'press') {
+      img.style.transition = '';
+      /* ★ S11 E: a DOUBLE tap / double click on the picture toggles 1× ↔ 2.5× at that point (the img's css transition —
+         motion tokens — carries it; reduced motion = the tokens are 0 ms: instant) */
+      if (up && downOnImg) {
+        const now = performance.now();
+        if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+          lastTap = null;
+          if (zoomed()) { z.s = 1; z.x = 0; z.y = 0; } else zoomAt(geo(), ZOOM_TAP, e.clientX, e.clientY, 0);
+          paintZoom();
+          return;
+        }
+        lastTap = { t: now, x: e.clientX, y: e.clientY };
+      } else lastTap = null;
+      /* ★ #1180: a TAP on the dim stage (not on the picture) closes — like the swipe; a cancelled press never does */
+      if (up && !downOnImg && !secondOfPair && tapCloseReady()) dismissOverlay(el);
+      return;
+    }
+    if (m === 'y') {
+      const past = Math.abs(dragY) > DISMISS_PX && Math.abs(dragY) >= Math.abs(dragX);
+      img.style.transition = ''; // spring-back transition returns (css)
+      el.style.transition = '';  // ★ #1180: the viewer's own fade returns — a swipe close fades from where the finger left it
+      if (past) {
+        dismissOverlay(el);
+        el.style.opacity = '';   // ★ #1180: AFTER data-open went: the css close fade runs from the dragged opacity to 0
+      } else {
+        img.style.transform = '';
+        el.style.opacity = '';
+      }
+    }
   };
   stage.addEventListener('pointerup', endDrag);
   stage.addEventListener('pointercancel', endDrag);
+  /* ★ S11 E (#1262): Windows / Mac — ctrl + wheel (a trackpad pinch arrives as one) zooms around the pointer; a plain
+     wheel / two-finger scroll pans a zoomed picture; at 1× a plain wheel is not the viewer's. One layout read per
+     burst, the write in a rAF. */
+  let wheelG = null;
+  let wheelAt = 0;
+  let wheelQ = false;
+  let wheelT = 0;
+  stage.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !zoomed()) return;
+    e.preventDefault();
+    if (mode) return;   // a pointer gesture owns the picture
+    const now = performance.now();
+    if (!wheelG || now - wheelAt > 200) wheelG = geo();
+    wheelAt = now;
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+    img.style.transition = 'none';
+    if (e.ctrlKey) {
+      const s1 = Math.max(1, Math.min(ZOOM_MAX, z.s * Math.exp(-e.deltaY * unit * 0.01)));
+      if (s1 <= 1.001) { z.s = 1; z.x = 0; z.y = 0; } else zoomAt(wheelG, s1, e.clientX, e.clientY, 0);
+    } else {
+      z.x = bound(z.x - e.deltaX * unit, z.s, wheelG.cx, wheelG.w, wheelG.l, wheelG.r, 0);
+      z.y = bound(z.y - e.deltaY * unit, z.s, wheelG.cy, wheelG.h, wheelG.t, wheelG.b, 0);
+    }
+    if (!wheelQ) { wheelQ = true; raf(() => { wheelQ = false; paintZoom(); }); }
+    if (wheelT) clearTimeout(wheelT);
+    wheelT = setTimeout(() => { wheelT = 0; if (!mode) img.style.transition = ''; }, 200);
+  }, { passive: false });
+  /* ★ S11 E: a Mac trackpad pinch in WKWebView arrives as Safari's gesturestart / gesturechange (e.scale), not as a
+     ctrl + wheel. Taken only while NO pointer is down (iOS fires these beside the touch pointers — the pinch above owns
+     that case). Other engines never fire them. */
+  let gest = null;
+  stage.addEventListener('gesturestart', (e) => {
+    e.preventDefault();
+    if (mode || pts.size) return;
+    img.style.transition = 'none';
+    gest = { s: z.s, g: geo() };
+  });
+  stage.addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+    if (!gest || mode || pts.size) return;
+    const s1 = Math.max(1, Math.min(ZOOM_MAX, gest.s * (Number(e.scale) || 1)));
+    if (s1 <= 1.001) { z.s = 1; z.x = 0; z.y = 0; } else zoomAt(gest.g, s1, e.clientX, e.clientY, 0);
+    if (!wheelQ) { wheelQ = true; raf(() => { wheelQ = false; paintZoom(); }); }
+  });
+  stage.addEventListener('gestureend', (e) => {
+    e.preventDefault();
+    if (!gest) return;
+    gest = null;
+    img.style.transition = '';
+  });
   /* ★ #1180: a click on the viewer's own dim ground around the bar / the foot / the caption (never on a button) closes
      too — not the second click of a double click, not during the open fade (#46 r1 M2 / n2) */
   el.addEventListener('click', (e) => {
@@ -10995,7 +12404,9 @@ function openMediaViewer({
   });
 
   /* ★ #1166 V-3 (#46 r1 C-N4): every close path (✕, swipe, Esc, back) clears the wait timer and drops the viewer from
-     openViewers — a closed viewer is never found and holds nothing. */
+     openViewers — a closed viewer is never found and holds nothing. ★ S11 E (#1262): the zoom / track state lives in
+     this viewer's closure only — a zoomed picture fades out where it is (no jump to 1× inside the 100 ms close fade)
+     and every open is a NEW viewer at 1×; the settle / wheel timers only clear inline styles (harmless after close). */
   const onClosed = () => {
     if (waitT) { clearTimeout(waitT); waitT = 0; }
     openViewers.delete(el);
@@ -13018,7 +14429,7 @@ function chatsEmptyState(state, strings, opts = {}) {
     // A filter/search miss is about the QUERY, not the roster → never gated.
     if (opts.zeroReady === false) return null;
     return createEmptyState({
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'images/chats-es.png',
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : 'chatsEmpty',   // ★ S11 A2 (#1263, R2-m5): the inline art's NAME — the PNG is deleted
       glyph: 'messages',                            // art blocked/missing → token glyph tile
       title: strings.chatsEmptyAll || 'No chats yet',
       body: strings.chatsEmptyBody
@@ -14202,6 +15613,7 @@ function createAppsRecents(state, opts = {}) {
 
 
 
+
 function createAppsHeader({ layout = 'list', strings = getStrings(), discover = false, exploreImage = null, onQuery, onToggleLayout, onExplore } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-header';
@@ -14261,7 +15673,16 @@ function createAppsHeader({ layout = 'list', strings = getStrings(), discover = 
   // can never end up underneath the art at a narrow width. Decorative → alt="" and
   // the banner's own aria-label carries the meaning. A missing/blocked asset simply
   // removes itself — the banner is fully functional without it.
-  if (exploreImage) {
+  const exploreArt = illustrationFor(exploreImage);
+  if (exploreArt) {
+    /* ★ S11 B (#1262): the approved Explore art (round 1), INLINE — same flex-sibling slot
+       and class, nothing to fetch (the old export was ~800 KB, hence the lazy dance below).
+       The banner is the same blue in both themes, so the art pins its own shadow/glow.
+       xMaxYMax = the img's `object-position: bottom right` when the 42 % cap narrows it. */
+    const art = exploreArt({ className: 'c-apps-explore__illo' });
+    art.setAttribute('preserveAspectRatio', 'xMaxYMax meet');
+    banner.append(art);
+  } else if (exploreImage) {
     const illo = document.createElement('img');
     illo.className = 'c-apps-explore__illo';
     illo.alt = '';
@@ -15794,6 +17215,7 @@ function setScanProgress(el, { current, target, origin, strings = getStrings() }
 
 
 
+
 /* ————————————————————————— model (pure, DOM-free) ————————————————————————— */
 
 /** Sent = everything outgoing incl. pending/failed — the status badge carries the
@@ -15856,7 +17278,11 @@ function walletEmpty(state, strings, opts = {}) {
          glyph is only safe because createEmptyState now drops the whole slot when it has
          neither: the bare `[data-placeholder]` is a 96×96 --surface-neutral-02 square,
          so removing this line alone would have swapped an icon for an empty grey box. */
-      illustration: opts.emptyArt !== undefined ? opts.emptyArt : null,
+      /* ★ S11 B (#1262) — SUPERSEDES the #453 half above: Damir WANTS the wallet-empty art
+         back, as the new inline drawing (illustrations.js), in a WIDER slot
+         (wallet-shell.css: clamp(160px, 48vw, 200px)). The CTA and the one-line body stay.
+         F5 still holds: no glyph, so an explicit `emptyArt: null` drops the slot whole. */
+      illustration: opts.emptyArt !== undefined ? opts.emptyArt : illoWalletEmpty,
       glyph: null,
       title: strings.walletEmptyAll || 'No activity yet',
       // ONE short line: the hero leaves ~360px for this whole block, and the second
@@ -17053,24 +18479,33 @@ function createGlyphRow({ glyph = 'qrcode', label = '', className = '', onClick 
 
 /* ---- src/components/wallet-send.js ---- */
 /**
- * c-wallet-send — the send flow, slice 2 (spec §3, #133: ONE screen + review sheet).
+ * c-wallet-send — the send flow (spec §3, #133: compose + review sheet).
  * Replaces the legacy 3-page hop (wallet_send → send2 → sent):
  *
- * ★ W-i (Damir, screenshots 2026-08-23): AMOUNT ON TOP. Both money screens lead
- * with the amount — you decide how much first, and the number stays visible while
- * you browse. Order: amount section (input + Available + fee line + Max) → the
- * recipient section (search → "Send to an address" → the contact list; a picked
- * recipient REPLACES the list) → Review at the bottom.
+ * ★ #1263 (Damir's pick A, "Cash App / Revolut", 2026-10-08) — TWO STEPS. This
+ * reverses W-i ("amount on top", #536) and retires the #558 "Select a recipient to
+ * use Max" gate: step 2 always has a recipient.
+ *   STEP 1 — the recipient, today's picker unchanged: search → "Send to an address"
+ *     (reveal + scan) → the contact list (★ W-j: the shared c-contact-row). A pick
+ *     moves to step 2.
+ *   STEP 2 — the amount: a "To" chip (avatar, name, short #211 address; tap = back to
+ *     step 1, unless the recipient is locked #139), a big centred amount that is NOT
+ *     an input (amount-pad.js: grey 0.00, caret, IXI unit), a read-only fiat line only
+ *     when the host passes a price (`fiatPrice`; none today → no line, #1041), the
+ *     Available line + Max, the live fee line, and the keypad + ONE primary Review.
+ *     Over balance = the error colour + one line + "Use max", checked in TWO stages:
+ *     the amount against the balance at once, amount + fee once the W6 quote lands.
+ *     "Use max" and Max open the SAME confirm (#136); nothing fills silently.
+ *   The bottom bar (keypad + Review) is the shared sticky .c-money-cta.
+ *   No unit toggle, no note: the bridge carries neither (#1263).
  *
- * 1. AMOUNT — decimal-sanitized input (≤8 decimals, chain precision), Available line,
- *    Max (balance − fee, #77 truncation), live fee + total; inline insufficient error.
- *    ★ W-k: `enterkeyhint` + Enter/Next/Go → blur(), so the soft keyboard drops and
- *    the contact list under it is browsable right after typing.
- * 2. RECIPIENT — search over contacts OR a raw address input ("Send to an address"
- *    reveal) OR QR (`ixian:sendScan` via onQuickScan; the shell calls setSendAddress /
- *    setSendRecipient with the scan result). Selecting shows a recipient row with ✕.
- *    ★ W-j: the rows are the shared c-contact-row (the Contacts DIRECTORY anatomy:
- *    avatar-48 + name + truncated address + online dot) — contact-row.js.
+ * UNCHANGED BY #1263 (pinned byte-for-byte — pins-s11/h-send.mjs): every callback and
+ * payload. onQuote(address, amount) with the canonical amount (and the amount-0 Max/
+ * balance quote on a pick), the valid() gate, openPaymentReview with the canonical
+ * amount + the quoted fee, onSend(payload, ctrl) with { recipients:[{address,name}],
+ * amount, fee }, ctrl.done/fail, onDone. The shell's verbs (`ixian:feeQuery`,
+ * `ixian:signSend`, `ixian:sendScan`) and the NATIVE confirm are the shell's and C#'s.
+ *
  * 3. REVIEW = c-sheet (#26 deliberateness step): recipient · amount · fee · total +
  *    explicit Confirm (latched → loading, #29/#72④) / Cancel. onSend(payload, ctrl) —
  *    the bridge runs the real send: ctrl.done() → success morph → onDone(payload)
@@ -17079,21 +18514,23 @@ function createGlyphRow({ glyph = 'qrcode', label = '', className = '', onClick 
  *    ★ W-d: the sheet is the exported `openPaymentReview` — the chat's request-in
  *    Pay opens the SAME sheet (fee quoted live) before the native confirm.
  *
- * Numbers: user input is RAW here (the one surface where FE math is unavoidable —
- * validation + Max + total); display strings still follow #77 (truncate, never round).
- * The bridge remains the source of truth and re-validates on its side.
+ * Numbers: the amount is the keypad's canonical edit string (the one surface where FE
+ * math is unavoidable — validation + Max + total); display strings still follow #77
+ * (truncate, never round). The bridge remains the source of truth and re-validates.
  * Legacy multi-recipient stays commented out C#-side — payload is single-recipient but
  * shaped plural-ready ({ recipients: [ { address, name? } ] }).
  *
- * createWalletSend({ contacts, balance, fee, strings, host,
- *                    onQuickScan, onSend, onDone }) → view
+ * createWalletSend({ contacts, balance, fee, strings, host, lockedRecipient, fiatPrice,
+ *                    onQuickScan, onQuote, onSend, onDone }) → view
+ *   view._stepBack() — ★ #1263: the host's Back on step 2 returns to step 1 (true =
+ *   consumed); false on step 1 or for a locked recipient (the host then closes).
  * Free fns (#44): setSendAddress(el, address) — QR-scan result lands in the address path.
  *                 setSendRecipient(el, contact) — ★ W-f: programmatic contact pick (a
  *                 scanned address that IS a contact shows nickname + avatar, not raw).
  *
  * ★ W6 (#523): `fee: null` = UNKNOWN. The fee line shows a pending state, Max is
- * disabled, and Continue stays disabled until a quote lands — no invented fee, ever.
- * New opt `onQuote(address, amount)` fires (debounced, deduped) when both recipient
+ * disabled, and Review stays disabled until a quote lands — no invented fee, ever.
+ * `onQuote(address, amount)` fires (debounced, deduped) when both recipient
  * and a positive amount exist; the shell answers via the free fn
  * `setSendQuote(el, { fee, balance })`. The displayed fee stays an ESTIMATE — the
  * NATIVE confirm shows C#'s own numbers and is the authority (SECURITY.md).
@@ -17131,28 +18568,31 @@ let walletSendSeq = 0;                                     // aria-controls ids 
 function createWalletSend({
   contacts = [], balance = 0, fee = 0, strings = getStrings(), host,
   lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
+  fiatPrice = null,         // ★ #1263: IXI → fiat, RAW decimal from C#; absent/zero → no fiat line (#1041)
   onQuickScan, onQuote, onSend, onDone,
 } = {}) {
   // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
   // the one FE surface doing money math. Pre-formatted display strings (hero-style
   // '923,852.00') are NOT valid inputs here. fee === null → unknown until a quote (#523).
+  // ★ #46 r3 MINOR-2: balance === null → UNKNOWN until the first quote carries it (the
+  // chat / contact-details Pay covers): no Available figure, no stage-1 over-balance
+  // verdict, no Review — never a false "More than your 0 IXI".
   const el = document.createElement('div');
   el.className = 'c-wallet-send';
   const addrFieldId = 'c-wallet-send-addrfield-' + (++walletSendSeq);
-  let balU = toUnits(balance);
+  let balU = (balance === null || balance === undefined || balance === '') ? null : toUnits(balance);
   let feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
-  const state = { recipient: null, amount: '', sending: false, attempt: 0, review: null };   // review = the ONE open sheet (loop r1 M4)
+  const state = { recipient: null, amount: '', sending: false, attempt: 0, review: null, step: 1 };   // review = the ONE open sheet (loop r1 M4)
   let quoteTimer = null;
   let lastQuoteKey = '';
   let quotedKey = '';                                      // the (addr:amount) pair feeU actually ANSWERS
   let maxSendU = null;                                     // C#'s solved max-sendable (amount-0 quote)
   let addrErr = false;                                     // C# rejected the picked address (quote error)
-  /* ★★ V-4: `state.amount` is the FIELD's value and it stays un-canonical, so the
-     user can still see a mid-typed `12.` or `.5`. Every boundary that leaves this
-     component takes the CANONICAL form instead. `valid()` accepted `.5` while
-     `openPaymentReview`'s own gate rejected it, so Continue was enabled and did
-     nothing, forever. The quote KEY is canonical too: C# echoes back what we sent,
-     and a key built from `.5` could never match an echo of `0.5`. */
+  /* ★★ V-4: `state.amount` is the keypad's edit string and it stays un-canonical, so the
+     user can still see a mid-typed `12.`. Every boundary that leaves this component takes
+     the CANONICAL form instead (the review's own gate is canonical-only). The quote KEY
+     is canonical too: C# echoes back what we sent, and a key built from `12.` could never
+     match an echo of `12`. */
   const canonAmount = () => canonicalAmount(state.amount || '');
   const currentKey = () => (state.recipient ? state.recipient.address + ':' + canonAmount() : '');
   function requestQuote() {
@@ -17165,7 +18605,7 @@ function createWalletSend({
     if (quoteTimer) clearTimeout(quoteTimer);
     quoteTimer = setTimeout(() => {
       quoteTimer = null;
-      // loop NIT fix: re-check the AMOUNT too — a cleared field must not emit
+      // loop NIT fix: re-check the AMOUNT too — a cleared amount must not emit
       // an empty-amount query (and latch its key)
       if (!state.recipient || !state.amount || amountU() <= 0n) return;
       const k = currentKey();
@@ -17175,137 +18615,30 @@ function createWalletSend({
     }, 350);
   }
 
-  /* ——— amount section (★ W-i: FIRST) ——— */
-  const amtSec = document.createElement('section');
-  amtSec.className = 'c-wallet-send__section c-wallet-send__section--amount';
-  const amtTitle = document.createElement('h2');
-  amtTitle.className = 'c-wallet-send__label';
-  amtTitle.textContent = strings.amount || 'Amount';
-  amtSec.append(amtTitle);
+  /* hidden live region (the receive screen's grammar): announces the pick. At the ROOT,
+     not inside step 1 — a region inside a hidden step announces nothing. */
+  const live = document.createElement('p');
+  live.className = 'c-wallet-send__live';
+  live.setAttribute('aria-live', 'polite');
+  el.append(live);
 
-  const amtRow = document.createElement('div');
-  amtRow.className = 'c-wallet-send__amountrow';
-  const amtInput = document.createElement('input');
-  amtInput.className = 'c-wallet-send__amount u-tabular';
-  amtInput.type = 'text';
-  amtInput.inputMode = 'decimal';
-  amtInput.placeholder = '0';
-  amtInput.setAttribute('aria-label', strings.amount || 'Amount');
-  attachAmountKeyboardDismiss(amtInput);                   // ★ W-k
-  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
-     whose separators are NOT ours, and only the REPLACED RANGE says so. */
-  const readPreEdit = attachAmountPreEdit(amtInput);
-  amtInput.addEventListener('input', (e) => {
-    // ★ I-6 (#360): the field DISPLAYS the locale's grouping as you type; the
-    // canonical '.'-decimal ungrouped value lives in state.amount and is the
-    // only thing the wire layer ever sees (#77 untouched). Caret rides the
-    // digit count, so inserted separators never displace it.
-    // Loop r1 CRITICAL-1: typing/deletion edits take the per-edit inverse
-    // (strip OUR separators unconditionally; a just-typed '.'/',' is decimal
-    // intent) — pattern-guessing on a mid-edit string mangled magnitudes.
-    const disp = amtInput.value;
-    const caret = amtInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
-    state.amount = v;
-    const shown = groupAmountDisplay(v);
-    if (shown !== disp) {
-      amtInput.value = shown;
-      const c = amountCaretAfterFormat(disp, caret, shown);
-      try { amtInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
-    }
-    sync();
-  });
-  const unit = document.createElement('span');
-  unit.className = 'c-wallet-send__unit';
-  unit.textContent = 'IXI';
-  const maxBtn = createButton({ label: strings.max || 'Max', type: 'outline', size: 32,
-    onClick: () => {
-      // sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm,
-      // safe action autofocused (APG), only then the field fills
-      // ★ round-2 MAJOR fix: the onClick fallback MUST use the SAME predicate as the
-      // maxBtn.disabled state below — `fresh` honours static-fee mode (!quoteFlow),
-      // and a mismatch left Max enabled-but-inert for every static-fee integrator.
-      const maxU = maxSendU !== null ? maxSendU
-        : ((feeU !== null && (!quoteFlow || quotedKey === currentKey())) ? balU - feeU : null);
-      if (maxU === null) return;                         // no honest ceiling yet (W6)
-      // #150⑥ grammar (Damir 2026-07-05): the Max stop wears the standing
-      // warning STRIP (error-tonal wash + alert glyph) — ADAPTED text: the
-      // fill itself is editable, it's the payment that can't be undone
-      const maxWarn = document.createElement('p');
-      maxWarn.className = 'c-wallet-send__max-warn';
-      maxWarn.append(icon('alert-square-rounded', { size: 18 }),
-        document.createTextNode(strings.paymentsCannotUndo || 'Payments cannot be undone.'));
-      openModal(createModal({
-        title: strings.maxTitle || 'Send your entire balance?',
-        body: (strings.maxBody || 'This fills in everything you have: {m} IXI after the network fee. You would be left with 0 IXI.')
-          .split('{m}').join(groupAmountDisplay(fromUnits(maxU > 0n ? maxU : 0n))),   // ★ I-6 (#360)
-        content: maxWarn,
-        role: 'alertdialog', host,
-        actions: [
-          { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-          { label: strings.maxConfirm || 'Yes, I understand', type: 'fill', onClick: () => {
-            state.amount = fromUnits(maxU > 0n ? maxU : 0n);   // exact integer units — never overshoots
-            amtInput.value = groupAmountDisplay(state.amount); // ★ I-6 (#360): display form in the field
-            sync();
-          } },
-        ],
-      }));
-    } });
-  amtRow.append(amtInput, unit, maxBtn);
-  amtSec.append(amtRow);
-
-  /* ★ F5-6 (#558, Damir 2026-08-25 — dial answered: option B). Max stays gated
-     until a recipient is picked (#523: Max = balance − fee, the fee needs a
-     quote, a quote needs a recipient — no invented numbers). The gate now
-     EXPLAINS itself: one quiet hint line while no recipient is set, gone the
-     moment one is. aria-describedby ties it to the disabled control. */
-  const maxHint = document.createElement('p');
-  maxHint.className = 'c-wallet-send__meta c-wallet-send__maxhint';
-  maxHint.id = overlayId('c-ws-maxhint');   // house id mint
-  maxHint.textContent = strings.maxNeedsRecipient || 'Select a recipient to use Max.';
-  amtSec.append(maxHint);
-
-  const availLine = document.createElement('p');
-  availLine.className = 'c-wallet-send__meta u-tabular';
-  const renderAvail = () => {
-    availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
-  };
-  renderAvail();
-  amtSec.append(availLine);
-
-  const feeLine = document.createElement('p');
-  feeLine.className = 'c-wallet-send__meta u-tabular';
-  feeLine.setAttribute('role', 'status');                  // the fee arriving IS the unlock signal (loop a11y)
-  amtSec.append(feeLine);
-
-  const insuff = document.createElement('p');
-  insuff.className = 'c-wallet-send__error';
-  insuff.setAttribute('role', 'alert');
-  insuff.hidden = true;
-  amtSec.append(insuff);
-  el.append(amtSec);
-
-  /* ——— recipient section (★ W-i: SECOND) ——— */
+  /* ——— STEP 1: the recipient (★ #1263: today's picker, unchanged) ——— */
   const recSec = document.createElement('section');
   recSec.className = 'c-wallet-send__section c-wallet-send__section--recipient';
   const recTitle = document.createElement('h2');
   recTitle.className = 'c-wallet-send__label';
   recTitle.textContent = strings.sendTo || 'Send to';
+  recTitle.tabIndex = -1;                                  // ★ #46 r3 NIT-4: step 1's focus target after a touch (no OS keyboard over the list)
   recSec.append(recTitle);
 
-  /* selected recipient row (hidden until picked). Loop r1 A-6: a focusable GROUP
-     with an accessible name, so a pick has a named focus target; the hidden live
-     line below announces it (the receive screen's `__live` grammar). */
-  const picked = document.createElement('div');
-  picked.className = 'c-wallet-send__picked';
-  picked.hidden = true;
-  picked.tabIndex = -1;
-  picked.setAttribute('role', 'group');
-  recSec.append(picked);
-  const live = document.createElement('p');
-  live.className = 'c-wallet-send__live';
-  live.setAttribute('aria-live', 'polite');
-  recSec.append(live);
+  /* ★ #46 r3 NIT-4: the last input modality INSIDE this view. Step 1 focuses the search
+     (which raises the OS keyboard) only for a keyboard user or on desktop; after a touch
+     tap (or the Android Back, which follows one) the heading takes focus instead. */
+  let modality = null;
+  el.addEventListener('pointerdown', (e) => { modality = e.pointerType || 'mouse'; }, true);
+  el.addEventListener('keydown', () => { modality = 'keyboard'; }, true);
+  const keyboardFocus = () => modality === 'keyboard'
+    || (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-desktop'));
 
   /* picker: search + contact rows + address reveal */
   const picker = document.createElement('div');
@@ -17383,34 +18716,98 @@ function createWalletSend({
   recSec.append(picker);
   el.append(recSec);
 
-  function renderContacts(q) {
-    const needle = (q || '').trim().toLocaleLowerCase();
-    rows.textContent = '';
-    const list = contacts.filter((c) => !needle
-      || (c.name || '').toLocaleLowerCase().includes(needle)
-      || (c.address || '').toLocaleLowerCase().includes(needle))
-      .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
-    // #142 (Damir 2026-07-05c): NO caps — the #136 window forced you to know
-    // the name; the full A–Z list scrolls and search narrows. The amount
-    // section never competes: picking COLLAPSES the picker to the picked row,
-    // and until a recipient exists the amount can't be submitted anyway.
-    for (const c of list) {
-      // ★ W-j: the shared directory row (avatar-48 + name + truncated address +
-      // online dot; #255 pending badge). The surface class stays as an alias for
-      // the shells/pins; the anatomy lives in contact-row.css.
-      rows.append(createContactRow({
-        contact: c, strings, className: 'c-wallet-send__contact',
-        onClick: () => pick({ ...c, contact: true }),
-      }));
-    }
-    if (!list.length && needle) {
-      const none = document.createElement('p');
-      none.className = 'c-wallet-send__none';
-      none.setAttribute('role', 'note');
-      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
-      rows.append(none);
-    }
+  /* ——— STEP 2: the amount (★ #1263 render A) ——— */
+  const amtSec = document.createElement('section');
+  amtSec.className = 'c-wallet-send__section c-wallet-send__section--amount';
+  amtSec.hidden = true;
+
+  /* the "To" chip: avatar · name · short address (#211). A BUTTON back to step 1, or a
+     plain chip when the recipient is locked (#139 — the peer is fixed, nothing to change).
+     It keeps the old picked-row classes (__picked / __pickedname / __pickedaddr) — the
+     same facts, the same hooks. */
+  const picked = document.createElement(lockedRecipient ? 'div' : 'button');
+  picked.className = 'c-wallet-send__picked c-wallet-send__chip';
+  if (!lockedRecipient) {
+    picked.type = 'button';
+    picked.addEventListener('click', () => toStep1());
+  } else {
+    picked.setAttribute('role', 'group');
   }
+  amtSec.append(picked);
+
+  const amtBox = document.createElement('div');
+  amtBox.className = 'c-wallet-send__amountbox';
+  const amtDisplay = createAmountDisplay({ className: 'c-wallet-send__amount', strings });
+  amtDisplay.setAttribute('aria-label', strings.amount || 'Amount');
+  const fiat = document.createElement('p');
+  fiat.className = 'c-wallet-send__fiat u-tabular';
+  fiat.hidden = true;
+  amtBox.append(amtDisplay, fiat);
+  amtSec.append(amtBox);
+
+  /* sending EVERYTHING deserves a deliberate stop (Damir #136): explicit confirm, safe
+     action autofocused (APG), only then the amount fills. ★ #1263: Max AND "Use max"
+     both come here — the over-balance way out never fills silently. */
+  const maxCeiling = () => (maxSendU !== null ? maxSendU
+    : ((balU !== null && feeU !== null && (!quoteFlow || quotedKey === currentKey())) ? balU - feeU : null));
+  function askMax() {
+    // ★ round-2 MAJOR fix: the onClick fallback MUST use the SAME predicate as the
+    // maxBtn.disabled state below — `fresh` honours static-fee mode (!quoteFlow),
+    // and a mismatch left Max enabled-but-inert for every static-fee integrator.
+    const maxU = maxCeiling();
+    if (maxU === null) return;                           // no honest ceiling yet (W6)
+    // #150⑥ grammar (Damir 2026-07-05): the Max stop wears the standing
+    // warning STRIP (error-tonal wash + alert glyph) — ADAPTED text: the
+    // fill itself is editable, it's the payment that can't be undone
+    const maxWarn = document.createElement('p');
+    maxWarn.className = 'c-wallet-send__max-warn';
+    maxWarn.append(icon('alert-square-rounded', { size: 18 }),
+      document.createTextNode(strings.paymentsCannotUndo || 'Payments cannot be undone.'));
+    openModal(createModal({
+      title: strings.maxTitle || 'Send your entire balance?',
+      body: (strings.maxBody || 'This fills in everything you have: {m} IXI after the network fee. You would be left with 0 IXI.')
+        .split('{m}').join(groupAmountDisplay(fromUnits(maxU > 0n ? maxU : 0n))),   // ★ I-6 (#360)
+      content: maxWarn,
+      role: 'alertdialog', host,
+      actions: [
+        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
+        { label: strings.maxConfirm || 'Yes, I understand', type: 'fill', onClick: () => {
+          pad._set(fromUnits(maxU > 0n ? maxU : 0n));    // exact integer units — never overshoots (→ onChange → sync)
+        } },
+      ],
+    }));
+  }
+
+  const amtRow = document.createElement('div');
+  amtRow.className = 'c-wallet-send__amountrow';
+  const availLine = document.createElement('p');
+  availLine.className = 'c-wallet-send__meta u-tabular';
+  const renderAvail = () => {
+    if (balU === null) { availLine.textContent = ''; return; }   // ★ MINOR-2: unknown until the first quote
+    availLine.textContent = (strings.available || 'Available: {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)));   // ★ I-6 (#360)
+  };
+  renderAvail();
+  const maxBtn = createButton({ label: strings.max || 'Max', type: 'outline', size: 32, onClick: askMax });
+  amtRow.append(availLine, maxBtn);
+  amtSec.append(amtRow);
+
+  /* over balance (★ #1263): ONE line in the error colour + "Use max" (the same confirm) */
+  const overRow = document.createElement('div');
+  overRow.className = 'c-wallet-send__over';
+  overRow.hidden = true;
+  const insuff = document.createElement('p');
+  insuff.className = 'c-wallet-send__error';
+  insuff.setAttribute('role', 'alert');
+  const useMax = createButton({ label: strings.useMax || 'Use max', type: 'tonal', size: 32, onClick: askMax });
+  useMax.classList.add('c-wallet-send__usemax');
+  overRow.append(insuff, useMax);
+  amtSec.append(overRow);
+
+  const feeLine = document.createElement('p');
+  feeLine.className = 'c-wallet-send__meta c-wallet-send__fee u-tabular';
+  feeLine.setAttribute('role', 'status');                  // the fee arriving IS the unlock signal (loop a11y)
+  amtSec.append(feeLine);
+  el.append(amtSec);
 
   function pick(recipient) {
     if (!recipient || !recipient.address) return;          // loop r2 R2-4: no address, no recipient (the F2 rule, Send side)
@@ -17419,74 +18816,96 @@ function createWalletSend({
     addrErr = false;                                       // a new recipient gets a fresh verdict
     maxSendU = null;
     picked.textContent = '';
-    picked.hidden = false;
-    picker.hidden = true;
-    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 48, online: !!recipient.online }));
+    const lbl = document.createElement('span');
+    lbl.className = 'c-wallet-send__chiplabel';
+    lbl.textContent = strings.moneyTo || 'To';
+    picked.append(lbl);
+    if (recipient.contact) picked.append(createAvatar({ name: recipient.name, address: recipient.address, src: recipient.avatar || null, size: 24, online: false }));
     else {
       const glyph = document.createElement('span');
       glyph.className = 'c-wallet-send__pickedglyph';
-      glyph.append(icon('qrcode', { size: 22 }));
+      glyph.append(icon('qrcode', { size: 16 }));
       picked.append(glyph);
     }
-    // ★ W-b: the picked stack is NAME over the MUTED TRUNCATED address (#211) —
-    // a raw-address pick titles as the truncated address with an "Address" sub.
-    // The FULL address is shown at the decision moment, on the review sheet (#99).
-    const pt = document.createElement('span');
-    pt.className = 'c-wallet-send__pickedtext';
+    // ★ W-b: name + the MUTED TRUNCATED address (#211) on one line — a raw-address pick
+    // titles as the truncated address. The FULL address is shown at the decision
+    // moment, on the review sheet (#99).
     const pn = document.createElement('span');
     pn.className = 'c-wallet-send__pickedname';
     const hasName = !!recipient.name && recipient.name !== recipient.address;
     pn.textContent = hasName ? recipient.name : truncateAddressMiddle(recipient.address, 9, 6);
-    pt.append(pn);
-    const pa = document.createElement('span');
-    pa.className = 'c-wallet-send__pickedaddr u-tabular';
-    pa.textContent = hasName ? truncateAddressMiddle(recipient.address, 9, 6) : (strings.address || 'Address');
-    pt.append(pa);
-    picked.append(pt);
-    picked.setAttribute('aria-label', (strings.sendTo || 'Send to') + ': ' + pn.textContent);
+    picked.append(pn);
+    if (hasName) {
+      const pa = document.createElement('span');
+      pa.className = 'c-wallet-send__pickedaddr u-tabular';
+      pa.textContent = truncateAddressMiddle(recipient.address, 9, 6);
+      picked.append(pa);
+    }
+    if (!lockedRecipient) {
+      const chev = document.createElement('span');
+      chev.className = 'c-wallet-send__chipchev';
+      chev.append(icon('chevron-down', { size: 16 }));
+      picked.append(chev);
+      picked.setAttribute('aria-label', (strings.changeRecipient || 'Change recipient') + ': ' + pn.textContent);
+    } else {
+      picked.setAttribute('aria-label', (strings.sendTo || 'Send to') + ': ' + pn.textContent);
+    }
     live.textContent = (strings.sendTo || 'Send to') + ': ' + pn.textContent;
     addrRow.setAttribute('aria-expanded', 'false');       // loop r1 A-5: the field is hidden with the picker
-    if (!lockedRecipient) {                              // locked = the peer is fixed, no ✕ (#139)
-      const clear = document.createElement('button');
-      clear.type = 'button';
-      clear.className = 'c-wallet-send__clear';
-      clear.setAttribute('aria-label', strings.changeRecipient || 'Change recipient');
-      clear.append(icon('x', { size: 18 }));
-      clear.addEventListener('click', () => {
-        state.recipient = null;
-        lastQuoteKey = '';                               // a new recipient must re-quote (W6)
-        quotedKey = '';                                  // …and the old answer is nobody's (loop MAJOR)
-        feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
-        maxSendU = null;
-        addrErr = false;
-        if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = null; }
-        picked.hidden = true;
-        picker.hidden = false;
-        live.textContent = '';
-        sync();
-        const si = picker.querySelector('input');
-        if (si) si.focus();                              // focus back into the picker (audit m2)
-      });
-      picked.append(clear);
-    }
+    addrField.hidden = true;
+    showStep(2);
     sync();
     // W6: a pick with no amount asks for the balance + the SOLVED Max ceiling
     // (amount '0' = the balance/Max quote; the per-amount fee still gates Review)
     if (onQuote && amountU() <= 0n) onQuote(recipient.address, '0');
-    // ★ W-i: the amount sits ABOVE the list now. Empty amount → the field. With an
-    // amount already typed the pick completes the form: Review takes focus when it
-    // is ARMED; on the quote flow it is still gated (no fee answers the new pair
-    // yet — loop r1 m1/A-2: focus() on a disabled button is a no-op and the focused
-    // row was just hidden, so focus fell to <body>), so the named picked GROUP takes
-    // it instead. Never back up into the field: that raises the keyboard over the button.
-    if (!state.amount) amtInput.focus();
-    else if (!cont.disabled) cont.focus();
-    else picked.focus();
+    // ★ #1263: step 2 takes focus on the amount (no keyboard rises — it is an output);
+    // an already-armed Review takes it instead (an amount carried back from step 1).
+    focusStep2();
   }
+  function focusStep2() {
+    if (!cont.disabled) cont.focus();
+    else { try { amtDisplay.focus(); } catch (e) { /* jsdom */ } }
+  }
+  function focusStep1() {
+    const si = picker.querySelector('input');
+    if (si && keyboardFocus()) si.focus();                 // focus back into the picker (audit m2) — keyboard/desktop only (NIT-4)
+    else { try { recTitle.focus(); } catch (e) { /* jsdom */ } }
+  }
+  /* ★ #46 r3 MINOR-1: the host calls this AFTER it attached the view (a locked pick runs
+     in the constructor, before the view is in the document, so its focus went nowhere and
+     the shells' "first input" was step 1's HIDDEN address field). Step 2 → Review if armed,
+     else the amount output (tabIndex -1, no keyboard); step 1 → the search (NIT-4 rule). */
+  el._initialFocus = () => (state.step === 2 ? focusStep2() : focusStep1());
   el._pick = pick;                                         // ★ W-f: setSendRecipient hook
   el._locked = !!lockedRecipient;                          // loop r1 m3: setSendRecipient refuses a locked compose
 
-  /* ——— continue ——— */
+  /* ★ #1263: back to step 1 = the old ✕ "change recipient" — the recipient and every
+     quote answer go (no stale fee for the next pick, loop MAJOR); the AMOUNT stays, so a
+     new pick lands on the number already typed. */
+  function toStep1() {
+    if (lockedRecipient) return false;
+    state.recipient = null;
+    lastQuoteKey = '';                                     // a new recipient must re-quote (W6)
+    quotedKey = '';                                        // …and the old answer is nobody's (loop MAJOR)
+    feeU = (fee === null || fee === undefined) ? null : toUnits(fee);
+    maxSendU = null;
+    addrErr = false;
+    if (quoteTimer) { clearTimeout(quoteTimer); quoteTimer = null; }
+    live.textContent = '';
+    showStep(1);
+    sync();
+    focusStep1();
+    return true;
+  }
+  el._toStep1 = toStep1;
+  el._stepBack = () => (state.step === 2 && !(state.review && state.review.isOpen()) ? toStep1() : false);
+
+  /* ——— keypad + Review: the shared sticky money bar ——— */
+  const pad = createAmountPad({
+    display: amtDisplay, strings, decimals: 8,
+    onChange: (raw) => { state.amount = raw; sync(); },
+  });
+  el._setAmount = (v) => pad._set(v);                      // QR seeds (setSendAddress / setSendRecipient)
   const cont = createButton({
     label: strings.reviewSend || 'Review', type: 'fill', size: 56, width: 'full',
     icon: icon('arrow-up-right', { size: 20 }),
@@ -17495,8 +18914,21 @@ function createWalletSend({
   cont.disabled = true;
   const contWrap = document.createElement('div');
   contWrap.className = 'c-wallet-send__actions c-money-cta';   // ★ the shared sticky money bar (base.css)
-  contWrap.append(cont);
+  contWrap.hidden = true;
+  contWrap.append(pad, cont);
   el.append(contWrap);
+
+  function showStep(n) {
+    state.step = n;
+    el.dataset.step = String(n);
+    recSec.hidden = n !== 1;
+    amtSec.hidden = n !== 2;
+    contWrap.hidden = n !== 2;
+    // desktop hardware keys drive the pad only while step 2 is on screen and no
+    // overlay (the review sheet, the Max confirm) is up
+    if (n === 2) pad._keysOn(() => state.step === 2 && !(state.review && state.review.isOpen()), { primary: () => cont });   // Enter = Review when armed (MAJOR-1)
+    else pad._keysOff();
+  }
 
   /* exact integer-unit math throughout (audit M1); EXACT strings at the money moments —
      #77 truncation is a feed-display rule, not a confirm-step rule (audit M3) */
@@ -17507,33 +18939,67 @@ function createWalletSend({
   function valid() {
     if (!state.recipient || !state.amount || addrErr) return false;
     if (feeU === null) return false;                       // W6: no quote → no review, ever
+    if (balU === null) return false;                       // ★ #46 r3 MINOR-2: nor while the balance is unknown
     if (quoteFlow && quotedKey !== currentKey()) return false;   // ★ loop MAJOR: the fee must answer THIS pair
     const a = amountU();
     return a > 0n && a + feeU <= balU;
   }
+  /* ★ #1263: the read-only fiat line — only with a price C# gave, only for a nonzero
+     amount; display-only (exact units, the one #1040 fiatLine rule), never an input. */
+  const priceU = (() => {
+    const t = String(fiatPrice == null ? '' : fiatPrice).trim();
+    if (!/^\d+(\.\d+)?$/.test(t)) return null;
+    const u = toUnits(t);
+    return u > 0n ? u : null;
+  })();
+  function renderFiat(a) {
+    if (priceU === null || a <= 0n) { fiat.hidden = true; fiat.textContent = ''; return; }
+    const line = fiatLine(fromUnits((a * priceU) / 100000000n), '', fromUnits(a));
+    fiat.hidden = !line;
+    fiat.textContent = line ? (strings.fiatApprox || '≈ {f}').split('{f}').join(line) : '';
+  }
+  /* ★ #1263 over-balance, TWO stages: `stage` 1 = the amount alone is over the balance
+     (known at once, no fee needed); 2 = amount + the quoted fee is over (the W6 answer). */
+  function showOver(stage) {
+    const on = !!stage;
+    pad._error(on);
+    amtRow.hidden = on;                                     // the line + "Use max" replace Available + Max (render A)
+    if (!on) { overRow.hidden = true; insuff.textContent = ''; return; }
+    overRow.hidden = false;                                 // unhide BEFORE text → alert announces
+    insuff.hidden = false;
+    insuff.textContent = stage === 1
+      ? (strings.sendOverBalance || 'More than your {b} IXI').split('{b}').join(groupAmountDisplay(fromUnits(balU)))
+      : (strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.');
+  }
   function sync() {
     const a = amountU();
+    renderFiat(a);
     const fresh = feeU !== null && (!quoteFlow || quotedKey === currentKey());
-    maxBtn.disabled = !state.recipient || (maxSendU === null && !fresh);
-    // F5-6 (#558 B): the hint speaks exactly while the RECIPIENT is the reason
-    maxHint.hidden = !!state.recipient;
-    if (state.recipient) maxBtn.removeAttribute('aria-describedby');
-    else maxBtn.setAttribute('aria-describedby', maxHint.id);
+    const maxOff = !state.recipient || (maxSendU === null && !fresh);
+    const maxDead = maxSendU === null && balU === null;   // ★ #46 r4 NIT-2 (S11): no ceiling and no balance → an enabled Max would do nothing
+    maxBtn.disabled = maxOff || maxDead;
+    useMax.disabled = maxOff || maxDead;
     if (addrErr) {
       // C# rejected the picked address (quote error:'address') — say it, gate it.
       feeLine.textContent = '';
+      pad._error(false);
+      amtRow.hidden = false;
+      useMax.hidden = true;
+      overRow.hidden = false;
       insuff.hidden = false;
       insuff.textContent = strings.badAddress || 'That doesn’t look like an Ixian address.';
       cont.disabled = true;
       return;
     }
+    useMax.hidden = false;
+    const over1 = balU !== null && a > 0n && a > balU;       // stage 1: no fee needed to know this (skipped while the balance is unknown, MINOR-2)
     if (!fresh) {
       // W6 pending state: the honest line, no numbers invented and no STALE ones —
       // a fee quoted for another (recipient, amount) pair never shows (loop MAJOR).
       feeLine.textContent = (a > 0n && state.recipient)
         ? (strings.feePending || 'Calculating network fee…')
-        : (strings.feeUnknown || 'The network fee shows when the recipient and amount are set.');
-      insuff.hidden = true;
+        : (strings.feeNeedsAmount || 'The network fee shows once you enter an amount.');
+      showOver(over1 ? 1 : 0);
       cont.disabled = true;
       requestQuote();
       return;
@@ -17544,9 +19010,7 @@ function createWalletSend({
     // mixed convention the money.js header warns against, on one screen.
     feeLine.textContent = (strings.feeAndTotal || 'Network fee {f} IXI · Total {t} IXI')
       .split('{f}').join(groupAmountDisplay(fromUnits(feeU))).split('{t}').join(groupAmountDisplay(fromUnits(total)));
-    const over = a > 0n && a + feeU > balU;
-    insuff.hidden = !over;                                 // unhide BEFORE text → alert announces
-    if (over) insuff.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
+    showOver(over1 ? 1 : (balU !== null && a > 0n && a + feeU > balU) ? 2 : 0);
     cont.disabled = !valid();
   }
   sync();
@@ -17557,7 +19021,7 @@ function createWalletSend({
   // legacy) apply to the current pair.
   // Loop r3 R3-2/R3-3 (the same rule as the review sheet's safeUnits): a bridge value
   // is a number ONLY as a raw canonical decimal — anything else is dropped, never thrown
-  // (a throw here stranded the compose on "Calculating…" with ✕ as the only exit) and
+  // (a throw here stranded the compose on "Calculating…" with Back as the only exit) and
   // never coerced; the recipient echo compares string-exact.
   const strictUnits = (v) => {
     const t = String(v == null ? '' : v).trim();
@@ -17611,8 +19075,37 @@ function createWalletSend({
   // loop r1 M4: a compose torn down by the shell must not leave a live sheet behind it
   el._closeReview = () => { if (state.review) { state.review.close(true); state.review = null; } };
 
+  function renderContacts(q) {
+    const needle = (q || '').trim().toLocaleLowerCase();
+    rows.textContent = '';
+    const list = contacts.filter((c) => !needle
+      || (c.name || '').toLocaleLowerCase().includes(needle)
+      || (c.address || '').toLocaleLowerCase().includes(needle))
+      .sort((a, b) => (a.name || a.address || '').localeCompare(b.name || b.address || ''));
+    // #142 (Damir 2026-07-05c): NO caps — the #136 window forced you to know
+    // the name; the full A–Z list scrolls and search narrows. ★ #1263: a pick moves
+    // to step 2, so the list never competes with the amount.
+    for (const c of list) {
+      // ★ W-j: the shared directory row (avatar-48 + name + truncated address +
+      // online dot; #255 pending badge). The surface class stays as an alias for
+      // the shells/pins; the anatomy lives in contact-row.css.
+      rows.append(createContactRow({
+        contact: c, strings, className: 'c-wallet-send__contact',
+        onClick: () => pick({ ...c, contact: true }),
+      }));
+    }
+    if (!list.length && needle) {
+      const none = document.createElement('p');
+      none.className = 'c-wallet-send__none';
+      none.setAttribute('role', 'note');
+      none.textContent = (strings.noContactMatch || 'No contact matches “{q}”. You can paste their address instead.').split('{q}').join(q);
+      rows.append(none);
+    }
+  }
+
   renderContacts('');
-  if (lockedRecipient) pick({ ...lockedRecipient, contact: !!lockedRecipient.name });   // chat Pay: straight to the amount
+  showStep(1);
+  if (lockedRecipient) pick({ ...lockedRecipient, contact: !!lockedRecipient.name });   // chat Pay: straight to step 2
   return el;
 }
 
@@ -17841,46 +19334,40 @@ function setSendAddress(el, scanned) {
   const raw = String(scanned || '');
   const parts = raw.split(':');
   const address = parts[0] || '';
-  // a scan supersedes an already-picked recipient — restore the picker first so the
-  // filled field is actually visible (audit m4)
-  const clearBtn = el.querySelector('.c-wallet-send__clear');
-  if (clearBtn) clearBtn.click();
+  // a scan supersedes an already-picked recipient — back to step 1 first so the
+  // filled field is actually visible (audit m4; ★ #1263: step 1 is the picker)
+  if (typeof el._toStep1 === 'function') el._toStep1();
   const input = el.querySelector('.c-wallet-send__addrinput');
   const field = el.querySelector('.c-wallet-send__addrfield');
   if (field) field.hidden = false;
   const addrRow = el.querySelector('.c-wallet-send__addrrow');
   if (addrRow) addrRow.setAttribute('aria-expanded', 'true');
   if (input) { input.value = address; input.focus(); }
-  if (parts[1] === 'send' && parts[2]) {
-    const amt = el.querySelector('.c-wallet-send__amount');
-    // ★ I-6 (#360): seed the field with the DISPLAY form — the input handler
-    // ungroups what it reads, and a raw canonical '1.500' (one-and-a-half with
-    // typed zeros) dropped straight into a ','-decimal locale would read as
-    // grouping (1500, a 1000× error). The display form round-trips exactly.
-    if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
-  }
+  // ★ #1263: the QR amount seeds the KEYPAD (no input to dispatch into) through
+  // pad._set → sanitizeAmount, which is NOT locale-aware: a value with a '.' keeps it
+  // as the decimal and drops every ',' (grouping); a value with only ',' takes the
+  // FIRST ',' as the decimal. So the canonical '1.500' is 1.5 in every app language
+  // (the pad's state is '.'-decimal, never a display string), and a non-canonical
+  // QR '1,500' would also read 1.5 — the legacy QR format carries the canonical form.
+  if (parts[1] === 'send' && parts[2] && typeof el._setAmount === 'function') el._setAmount(parts[2]);
   return el;
 }
 
 /** ★ W-f (Damir F5 2026-08-23): a scanned address that IS a contact picks the
- *  contact — nickname + avatar on the picked row, not the raw-address glyph. The
+ *  contact — nickname + avatar on the chip, not the raw-address glyph. The
  *  shell looks the scan up in its roster and calls this on a hit (setSendAddress
  *  on a miss). `scanned` may carry the QR tail (`:send:<amount>`) — the amount is
  *  seeded exactly as setSendAddress does. Returns false when el is not a compose. */
 function setSendRecipient(el, contact, scanned) {
   if (!el || typeof el._pick !== 'function' || !contact || !contact.address) return false;
   if (el._locked) return false;                            // loop r1 m3: the #139 locked peer is never redirected
-  const clearBtn = el.querySelector('.c-wallet-send__clear');
-  if (clearBtn) clearBtn.click();                          // a scan supersedes the current pick
+  if (typeof el._toStep1 === 'function') el._toStep1();    // a scan supersedes the current pick
   const field = el.querySelector('.c-wallet-send__addrfield');
   if (field) field.hidden = true;
   const addrRow = el.querySelector('.c-wallet-send__addrrow');
   if (addrRow) addrRow.setAttribute('aria-expanded', 'false');   // loop r1 A-5
   const parts = String(scanned || '').split(':');
-  if (parts[1] === 'send' && parts[2]) {
-    const amt = el.querySelector('.c-wallet-send__amount');
-    if (amt) { amt.value = groupAmountDisplay(parts[2]); amt.dispatchEvent(new Event('input', { bubbles: true })); }
-  }
+  if (parts[1] === 'send' && parts[2] && typeof el._setAmount === 'function') el._setAmount(parts[2]);
   el._pick({ ...contact, contact: true });
   return true;
 }
@@ -17895,19 +19382,18 @@ function setSendQuote(el, quote) {
 
 /** Inline error on the send view (shell hook parity with apps-add's setAddError). */
 function setSendError(el, msg) {
-  // ★ W-i: the amount section (and ITS error line) now sits ABOVE the address
-  // field — target the address field's own line while the picker is OPEN; once a
-  // recipient is picked that field is hidden (loop r1 n5), so the VISIBLE amount-
-  // section line takes the message instead. Never an invisible error.
+  // ★ #1263: step 1 (the picker open) → the address field's own line; step 2 → the
+  // amount section's line, which is the visible one there. Never an invisible error.
   const picker = el && el.querySelector('.c-wallet-send__picker');
-  const err = el && ((picker && !picker.hidden) ? el.querySelector('.c-wallet-send__addrfield .c-wallet-send__error') : el.querySelector('.c-wallet-send__section--amount .c-wallet-send__error'))
+  const step1 = picker && !picker.closest('[hidden]');
+  const err = el && (step1 ? el.querySelector('.c-wallet-send__addrfield .c-wallet-send__error') : el.querySelector('.c-wallet-send__section--amount .c-wallet-send__error'))
     || (el && el.querySelector('.c-wallet-send__error'));
   if (!err) return el;
+  if (!step1) { const row = err.closest('.c-wallet-send__over'); if (row) row.hidden = !msg; }
   err.hidden = !msg;                                     // unhide BEFORE text → alert announces (audit m3)
   err.textContent = msg || '';
   return el;
 }
-
 
 /* ---- src/components/qr.js ---- */
 /**
@@ -20252,20 +21738,26 @@ function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
 
 /* ---- src/components/wallet-receive.js ---- */
 /**
- * c-wallet-receive — Receive/Request, slice 3 (spec §4, #133; shape per Damir
- * 2026-07-05: ONE progressive surface, matching the send screen's grammar).
+ * c-wallet-receive — Receive/Request (spec §4, #133; shape per Damir 2026-07-05: ONE
+ * surface, matching the send screen's grammar).
  *
- * ★ #527 SUPERSEDES the QR-first default below: the surface is REQUEST-FIRST and
- * the QR/address/copy/Share moved into `openAddressSheet` (see the block after the
- * imports). The W9 grammar below is unchanged.
- * (Historical shape, kept for context:) QR of the own address in the legacy
- * `address:ixi` format on the --surface-qr card, the FULL address in the
- * member-sheet chip pattern (#99) with an HONEST copy morph (audit m1), and
- * Share (shell duty via onShare — NO share bridge command in the legacy set).
+ * ★ #1263 (Damir's pick A, 2026-10-08) — the SAME TWO STEPS as Send, over today's
+ * request flow:
+ *   STEP 1 — who: "Show my address" (the #527 sheet, unchanged: the any-amount QR, no
+ *     amount in it, #303) on top, then the W9 multi-select (search, the shared rows, the
+ *     rule/count line) and ONE "Continue (n)".
+ *   STEP 2 — how much: a "From" chip (stacked avatars + names; tap = back to step 1),
+ *     the big amount + the keypad (amount-pad.js — the SAME module Send uses), a one-line
+ *     note ("A request is a message…"), and the W9 CTA "Request {a} IXI ({n})". No fee,
+ *     no Max, no balance gate: a request is a message, not a spend.
+ * UNCHANGED BY #1263 (pins-s11/h-receive.mjs): the send loop — onSendRequest({ contact,
+ * amount }) ONCE PER PICK, in roster order, with the CANONICAL amount; partial failure
+ * never navigates (the failures stay ticked, the CTA retries exactly the remainder);
+ * onRequestsSent({ amount, contacts, text }) only on an all-clear run. The shell's verb
+ * stays `ixian:sendrequest:<addr>:<amount>`.
  *
- * "Request an amount" (aria-expanded/-controls row, send-screen grammar): the amount
- * input follows wallet-send's sanitize rules (shared export), then a MULTI-SELECT
- * contact list and ONE primary CTA.
+ * ★ #527 SUPERSEDES the QR-first default: the QR/address/copy/Share live in
+ * `openAddressSheet` (see the block after the component).
  *
  * ★ W9 (Damir, Windows F5 2026-08-13): "when I sent a request to someone I still
  * remain in the same screen with input active and I can add more … perhaps we can
@@ -20275,36 +21767,25 @@ function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
  *     role=checkbox + aria-checked + the trailing check circle; the rule/count line
  *     under the heading is the c-contacts__minhint pattern (SAME element, same
  *     height, text swapped — it must never reflow the list under a finger).
- *   · The per-row send arrow is GONE, and with it the whole per-row latch (state
- *     .latch / [data-acted] / the ✓ morph / the [data-needs-amount] arrow gate).
- *     Selecting is not sending, so nothing on a row needs gating any more; the
- *     amount rule moved onto the CTA, which is the only thing that can send.
- *   · Double-fire protection SURVIVES, on the CTA (#72④): `state.sending` latches
- *     for the length of the loop and the CTA is disabled with it.
+ *   · Double-fire protection on the CTA (#72④): `state.sending` latches for the
+ *     length of the loop and the CTA is disabled with it.
  *   · The bridge verb stays PER CONTACT (`ixian:sendrequest:<addr>:<amount>`, one
  *     at a time) — this loops the existing verb, it does not invent a batch one.
  *     onSendRequest is called once per selected contact; returning `false` (or
- *     throwing) marks THAT recipient as not sent. PARTIAL FAILURE never navigates:
- *     the ones that went are deselected, the ones that did not stay selected, and
- *     the result line says so — so "try again" retries exactly the remainder.
+ *     throwing) marks THAT recipient as not sent.
  *   · onRequestsSent({ amount, contacts, text }) fires only on an ALL-CLEAR run;
  *     the shell toasts `text` and closes the takeover ("we return to wallet
- *     screen"). Without it the component keeps its own inline success line, so a
- *     standalone mount still confirms.
- * Amount is CANONICALIZED before it leaves ('12.'→'12', '.5'→'0.5', '007'→'7';
- * audit M1 — what leaves this surface is what a legacy parser must read).
- * ★ #303 (Damir, 2026-08-04 F5): the QR NEVER re-encodes to `address:send:amount` —
- * amount-request QRs aren't a supported flow, so the QR is constant `address:ixi`
- * and an entered amount drives ONLY the contact list (receiving/scanning
- * `address:send:` QRs from elsewhere is untouched — setSendAddress still parses it).
- * Collapsing the reveal clears the amount AND the selection (fresh state next open):
- * the visible QR must never encode an amount the user can no longer see.
+ *     screen"). Without it the component keeps its own inline success line (and
+ *     returns to step 1), so a standalone mount still confirms.
+ * Amount is CANONICALIZED before it leaves ('12.'→'12'; audit M1 — what leaves this
+ * surface is what a legacy parser must read).
  *
- * No FE money math here beyond sanitize — a request is a message, not a spend;
+ * No FE money math here beyond the keypad rules — a request is a message, not a spend;
  * the bridge re-validates when the payer acts on it.
  *
- * createWalletReceive({ address, contacts, strings, host, onShare, onSendRequest,
- *                       onRequestsSent }) → view
+ * createWalletReceive({ address, contacts, strings, host, fiatPrice, onShare,
+ *                       onSendRequest, onRequestsSent }) → view
+ *   view._stepBack() — ★ #1263: the host's Back on step 2 returns to step 1.
  * Free fn (#44): setRequestAmount(el, amount) — programmatic amount (tests/bridge);
  *   Numbers are expanded to plain decimals first (audit C1: String(1e-7) → '1e-7'
  *   would sanitize into '17' — a silent magnitude change).
@@ -20319,30 +21800,28 @@ function setQrValue(svg, text, { ecc = 'M', quiet = 4, label } = {}) {
 
 
 
+
 // F5-5 ③ (#556): the discGrad import is gone with the explainer disc — one glyph level now
 
-/* ★ #527 (Damir, 2026-08-23) — RECEIVE INVERTED. The surface is REQUEST-FIRST:
- * the amount input and the W9 contact multi-select render open by default (no
- * reveal row, no collapse machinery). The QR + full address + copy + Share moved
- * into `openAddressSheet` behind a small "Show my address" button — the SAME
- * sheet surface the Account screen folds into later (one surface, #522 scope).
- * The old `el._reqOpen` hook is gone with the reveal; `setRequestAmount` now
- * only seeds the always-visible input. */
-
-/** '0', '0.', '' → not a requestable amount (plain receive stays). */
+/** '0', '0.', '' → not a requestable amount. */
 function requestable(amount) {
   return !!amount && /[1-9]/.test(amount);
 }
 
 function createWalletReceive({
   address = '', contacts = [], strings = getStrings(), host,
+  fiatPrice = null,          // ★ #1263: IXI → fiat, RAW decimal from C#; absent/zero → no line (#1041)
   onShare, onSendRequest, onRequestsSent,
 } = {}) {
   const el = document.createElement('div');
   el.className = 'c-wallet-receive';
+  /* ★ #46 r3 NIT-4: the last input modality inside this view (toStep1's focus rule) */
+  let modality = null;
+  el.addEventListener('pointerdown', (e) => { modality = e.pointerType || 'mouse'; }, true);
+  el.addEventListener('keydown', () => { modality = 'keyboard'; }, true);
   /* W9: `selected` = the addresses ticked in the multi-select; `sending` = the
-     one-at-a-time latch that replaced the per-row one (#72④ double-fire guard). */
-  const state = { amount: '', contactQuery: '', selected: new Set(), sending: false };
+     one-at-a-time latch (#72④ double-fire guard). ★ #1263: `step` 1 = who, 2 = how much. */
+  const state = { amount: '', contactQuery: '', selected: new Set(), sending: false, step: 1, done: false };
 
   /* guard (audit m2): a receive surface without an address must not present a
      confidently scannable garbage QR */
@@ -20355,23 +21834,6 @@ function createWalletReceive({
     return el;
   }
 
-  /* ——— header row (#527): the request heading + the small "Show my address"
-   * button. The QR, the full address, copy, Share and the explainer all live in
-   * the sheet now — one surface, reused by Account later. */
-  const head = document.createElement('div');
-  head.className = 'c-wallet-receive__head';
-  const reqLabel = document.createElement('h2');
-  reqLabel.className = 'c-wallet-receive__asklabel';
-  reqLabel.textContent = strings.requestAmount || 'Request an amount';
-  const addrBtn = createButton({
-    label: strings.showMyAddress || 'Show my address', type: 'outline', size: 32,
-    icon: icon('qrcode', { size: 16 }),
-    onClick: () => openAddressSheet({ address, strings, host, onShare }),
-  });
-  addrBtn.classList.add('c-wallet-receive__addrbtn');
-  head.append(reqLabel, addrBtn);
-  el.append(head);
-
   /* hidden live region (audit m3/M3): announces the request-sent confirmation —
      not every keystroke (the caption used to be aria-live and spammed) */
   const live = document.createElement('p');
@@ -20379,88 +21841,122 @@ function createWalletReceive({
   live.setAttribute('aria-live', 'polite');
   el.append(live);
 
-  const amtRow = document.createElement('div');
-  amtRow.className = 'c-wallet-receive__amountrow';
-  const amtInput = document.createElement('input');
-  amtInput.className = 'c-wallet-receive__amount u-tabular';
-  amtInput.type = 'text';
-  amtInput.inputMode = 'decimal';                          // mobile decimal pad (#136④ parity)
-  amtInput.placeholder = '0';
-  amtInput.setAttribute('aria-label', strings.requestAmount || 'Request an amount');
-  attachAmountKeyboardDismiss(amtInput);                   // ★ W-k: Enter/Next/Go → blur (list browsable)
-  const unit = document.createElement('span');
-  unit.className = 'c-wallet-receive__unit';
-  unit.textContent = 'IXI';
-  amtRow.append(amtInput, unit);
-  el.append(amtRow);
+  /* ——— STEP 1 ——— */
+  const step1 = document.createElement('section');
+  step1.className = 'c-wallet-receive__step c-wallet-receive__step--who';
+  /* "Show my address" (#527, behaviour unchanged: the address sheet, the any-amount QR).
+     ★ #1263 render A: a directory row on top of the list, "QR for any amount" under it. */
+  const addrCard = document.createElement('div');
+  addrCard.className = 'c-wallet-receive__addrcard';
+  const addrBtn = createGlyphRow({
+    glyph: 'qrcode', label: strings.showMyAddress || 'Show my address',
+    className: 'c-wallet-receive__addrbtn',
+    onClick: () => openAddressSheet({ address, strings, host, onShare }),
+  });
+  const addrSub = document.createElement('span');
+  addrSub.className = 'c-contact-row__sub';
+  addrSub.textContent = strings.addressAnyAmount || 'QR for any amount';
+  const addrCol = addrBtn.querySelector('.c-contact-row__col');
+  if (addrCol) addrCol.append(addrSub);
+  addrCard.append(addrBtn);
+  step1.append(addrCard);
+  el.append(step1);
 
   /* contact strip — request-as-message (legacy ixian:sendrequest → chat payment
-   * bubble). ONLY rendered when onSendRequest is wired: the home wallet tab
-   * (HomePage) has NO ixian:sendrequest verb (it's a WalletReceivePage verb), so
-   * omitting the callback HIDES the strip rather than showing a dead action that
-   * would falsely confirm "sent" (audit MAJOR, Batch 6). The amount-request QR
-   * above is client-side and stays available regardless. */
-  let askBox = null;
+   * bubble). ONLY rendered when onSendRequest is wired — omitting the callback HIDES
+   * the strip (and step 2) rather than showing a dead action that would falsely
+   * confirm "sent" (audit MAJOR, Batch 6). */
   let rows = null;
   let hint = null;
   let result = null;
   let cta = null;
   let ctaLabel = null;
+  let next = null;
+  let nextLabel = null;
+  let step2 = null;
+  let chip = null;
+  let pad = null;
+  let display = null;
+  let fiat = null;
+  let ctaWrap = null;
   if (onSendRequest) {
-    askBox = document.createElement('div');
+    const askBox = document.createElement('div');
     askBox.className = 'c-wallet-receive__ask';
     // W6/W9: the list is never gated as a whole and its rows are never disabled —
-    // ticking a name is not a send, so it costs nothing before an amount exists.
-    // The rule/count line below states what is still missing (c-contacts__minhint
-    // grammar), and the CTA is the only thing that can actually fire.
+    // ticking a name is not a send. The rule/count line states what is still missing.
     const askLabel = document.createElement('h2');
     askLabel.className = 'c-wallet-receive__asklabel';
     askLabel.textContent = strings.requestFromWho || 'Who to request from';
+    askLabel.tabIndex = -1;                                // ★ #46 r3 NIT-4: step 1's focus target after a touch
     hint = document.createElement('p');
     hint.className = 'c-wallet-receive__hint';
-    // role=status (not note): the line SWAPS between the unmet rule and the live
-    // count in place, and that swap is the only feedback a SR user gets for a tick.
+    // role=status (not note): the line SWAPS between the rule and the live count in
+    // place, and that swap is the only feedback a SR user gets for a tick.
     hint.setAttribute('role', 'status');
-    hint.textContent = strings.requestNeedsAmount || 'Enter an amount to send a request';
     askBox.append(askLabel, hint);
     const search = createSearchField({
       placeholder: strings.searchContacts || 'Search contacts',
       onInput: (v) => renderContacts(v),
-      /* NO onSubmit. §W6 says "same for Enter-to-send IF the search field
-         supports it" — a permission to extend an EXISTING path, not to mint
-         one. Enter in a search box is a filter/dismiss gesture; wiring it to
-         "send to whoever is currently first" fires real money-request messages
-         at an arbitrary contact with no confirm step (an empty query sends to
-         the first contact in the roster, and a soft keyboard's Go key fires it
-         too). Sending stays the explicit CTA press below. (#46 audit) */
+      /* NO onSubmit. Enter in a search box is a filter/dismiss gesture; wiring it to
+         "send to whoever is currently first" fires real money-request messages at an
+         arbitrary contact with no confirm step. (#46 audit) */
       strings,
     });
     askBox.append(search);
     rows = document.createElement('div');
-    rows.className = 'c-wallet-receive__contacts';   // scrolls (Damir F5); NO card/.u-scroll — both added padding inside the request box
-    /* W9: an independent multi-select roster — the same container role group
-       creation's checkbox list carries (contacts-shell renders bare checkbox rows
-       for the group case; radiogroup is the app-pick single-select variant). */
+    rows.className = 'c-wallet-receive__contacts';
+    /* W9: an independent multi-select roster — the container role group creation's
+       checkbox list carries. */
     rows.setAttribute('role', 'group');
     rows.setAttribute('aria-label', strings.requestFromWho || 'Who to request from');
     askBox.append(rows);
+    step1.append(askBox);
+
+    /* ——— STEP 2 ——— */
+    step2 = document.createElement('section');
+    step2.className = 'c-wallet-receive__step c-wallet-receive__step--amount';
+    step2.hidden = true;
+    chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'c-wallet-receive__chip';
+    chip.addEventListener('click', () => toStep1());
+    step2.append(chip);
+    const amtBox = document.createElement('div');
+    amtBox.className = 'c-wallet-receive__amountbox';
+    display = createAmountDisplay({ className: 'c-wallet-receive__amount', strings });
+    display.setAttribute('aria-label', strings.requestAmount || 'Request an amount');
+    fiat = document.createElement('p');
+    fiat.className = 'c-wallet-receive__fiat u-tabular';
+    fiat.hidden = true;
+    amtBox.append(display, fiat);
+    step2.append(amtBox);
+    const note = document.createElement('p');
+    note.className = 'c-wallet-receive__note';
+    note.textContent = strings.requestIsMessage || 'A request is a message. Nothing moves until they pay.';
+    step2.append(note);
+    el.append(step2);
+
     /* W9 result line — the VISIBLE half of the send outcome (success or partial
-       failure). aria-hidden: the hidden live region above is the single announcer,
-       so a screen reader hears the outcome once, not twice. */
+       failure). aria-hidden: the hidden live region above is the single announcer.
+       At the root, above the bar: a partial failure shows it on step 2, a standalone
+       all-clear on step 1. */
     result = document.createElement('p');
     result.className = 'c-wallet-receive__result';
     result.setAttribute('aria-hidden', 'true');
     result.hidden = true;
-    askBox.append(result);
-    /* W9 CTA — ONE primary action, carrying BOTH levers it commits: the amount and
-       how many people it goes to. On a money surface the button is the last thing
-       the eye is on, so it restates the number the user typed (a mistyped amount
-       stays visible at the moment of commitment) and the count (a stray tick is
-       visible too). "(3)" keeps it one short line in every locale; the full
-       sentence lives in aria-label. */
-    /* ★ Damir on device: the Send and Receive takeovers are one tap apart since L1, and
-       their CTAs did not match. `size: 56` is wallet-send's Review — the two primary money
-       actions in the wallet are now the same control. */
+    el.append(result);
+
+    /* step 1's ONE action: Continue (n) — disabled until someone is ticked */
+    next = createButton({
+      label: strings.requestContinue || 'Continue ({n})',
+      type: 'fill', size: 56, width: 'full', disabled: true,
+      onClick: () => { if (selectedContacts().length) toStep2(); },
+    });
+    next.classList.add('c-wallet-receive__next');
+    nextLabel = next.querySelector('.c-button__label');
+    /* W9 CTA — ONE primary action carrying BOTH levers it commits: the amount and how
+       many people it goes to. "(3)" keeps it one short line in every locale; the full
+       sentence lives in aria-label. ★ size 56 = Send's Review (one money control). */
     cta = createButton({
       label: strings.sendRequest || 'Send request',
       type: 'fill', size: 56, width: 'full',
@@ -20469,24 +21965,82 @@ function createWalletReceive({
     });
     cta.classList.add('c-wallet-receive__cta');
     ctaLabel = cta.querySelector('.c-button__label');
-    el.append(askBox);                                     // #527: always visible — no reveal box
-    /* ★ the CTA gets its OWN wrapper rather than riding inside the amount box — the box
-       holds the label and the field, and sticking those to the bottom would pin the input
-       over the content instead of the action. Same wrapper Send uses, same shared rule. */
-    const ctaWrap = document.createElement('div');
-    ctaWrap.className = 'c-money-cta';
-    ctaWrap.append(cta);
+    pad = createAmountPad({
+      display, strings, decimals: 8,
+      onChange: (raw) => {
+        state.amount = raw;
+        // W9: a new amount invalidates a stale outcome line; the SELECTION survives
+        // (who you are asking is a different axis from how much).
+        if (result && !result.hidden) showResult('', 'ok');
+        sync();
+      },
+    });
+    /* the shared sticky money bar (base.css), the one Send uses */
+    ctaWrap = document.createElement('div');
+    ctaWrap.className = 'c-money-cta c-wallet-receive__bar';
+    ctaWrap.append(next, pad, cta);
     el.append(ctaWrap);
   }
 
-  /* W9: the CTA is the whole gate now. Applied IN PLACE (no re-render) so a
-   * keystroke never rebuilds 50 avatars or drops the list's scroll position —
-   * the same reason applyAmountGate existed before it. */
   function selectedContacts() {
     // filtered from the FULL roster, not the rendered rows: a selection made
     // before a search must not be silently dropped by the search that follows.
     return contacts.filter((c) => c && c.address && state.selected.has(c.address));
   }
+
+  function showStep(n) {
+    state.step = n;
+    el.dataset.step = String(n);
+    if (!step2) return;
+    step1.hidden = n !== 1;
+    step2.hidden = n !== 2;
+    next.hidden = n !== 1;
+    pad.hidden = n !== 2;
+    cta.hidden = n !== 2;
+    if (n === 2) pad._keysOn(() => state.step === 2, { primary: () => cta });   // Enter = Send request when armed (★ #46 r3 MAJOR-1)
+    else pad._keysOff();
+  }
+  function renderChip() {
+    if (!chip) return;
+    const picks = selectedContacts();
+    chip.textContent = '';
+    const lbl = document.createElement('span');
+    lbl.className = 'c-wallet-receive__chiplabel';
+    lbl.textContent = strings.moneyFrom || 'From';
+    const stack = document.createElement('span');
+    stack.className = 'c-wallet-receive__stack';
+    for (const c of picks.slice(0, 3)) stack.append(createAvatar({ name: c.name || '', address: c.address, src: c.avatar || null, size: 24 }));
+    const names = document.createElement('span');
+    names.className = 'c-wallet-receive__chipnames';
+    names.textContent = picks.map((c) => contactDisplayName(c)).join(', ');
+    const chev = document.createElement('span');
+    chev.className = 'c-wallet-receive__chipchev';
+    chev.append(icon('chevron-down', { size: 16 }));
+    chip.append(lbl, stack, names, chev);
+    chip.setAttribute('aria-label', (strings.moneyFrom || 'From') + ': ' + names.textContent);
+  }
+  function toStep2() {
+    renderChip();
+    showStep(2);
+    syncCta();
+    try { display.focus(); } catch (e) { /* jsdom */ }
+  }
+  function toStep1() {
+    if (state.step !== 2 || state.sending) return false;
+    showStep(1);
+    syncCta();
+    // ★ #46 r3 NIT-4: the search (OS keyboard) only for a keyboard user / desktop;
+    // after a touch tap or the Android Back the heading takes focus instead.
+    const si = step1.querySelector('.c-wallet-receive__ask input');
+    const kb = modality === 'keyboard' || document.documentElement.hasAttribute('data-desktop');
+    if (si && kb) si.focus();
+    else { const hd = step1.querySelector('.c-wallet-receive__asklabel'); if (hd) { try { hd.focus(); } catch (e) { /* jsdom */ } } }
+    return true;
+  }
+  /* the host's Back: step 2 → step 1. After an all-clear handed to the host
+     (onRequestsSent) the screen is leaving — Back is the host's own close then. */
+  el._stepBack = () => (state.done ? false : toStep1());
+
   function syncCta() {
     const n = state.selected.size;
     const amount = requestable(state.amount) ? canonicalAmount(state.amount) : '';
@@ -20494,10 +22048,12 @@ function createWalletReceive({
     if (hint) {
       // Damir F5 2026-07-29 (contacts-shell precedent): the line STAYS and only
       // changes what it says — hiding it collapses its box and jumps the list.
-      hint.textContent = !amount
-        ? (strings.requestNeedsAmount || 'Enter an amount to send a request')
-        : (n ? (strings.selectedCount || '{n} selected').split('{n}').join(String(n))
-          : (strings.requestPickContacts || 'Pick at least one contact.'));
+      hint.textContent = n ? (strings.selectedCount || '{n} selected').split('{n}').join(String(n))
+        : (strings.requestPickContacts || 'Pick at least one contact.');
+    }
+    if (next) {
+      next.disabled = n === 0;
+      if (nextLabel) nextLabel.textContent = (strings.requestContinue || 'Continue ({n})').split('{n}').join(String(n));
     }
     if (!cta) return;
     cta.disabled = !ready || state.sending;
@@ -20523,8 +22079,8 @@ function createWalletReceive({
   }
 
   /* W9 — the ONE send path. Loops the per-contact legacy verb; never navigates on
-   * a partial failure (see docblock). #72④ lives here now: `state.sending` latches
-   * for the loop so a double-tap (or a synthetic click) cannot re-enter it. */
+   * a partial failure (see docblock). #72④: `state.sending` latches for the loop so
+   * a double-tap (or a synthetic click) cannot re-enter it. */
   function sendRequests() {
     if (state.sending) return;                             // #72④: a request is a message — no double fire
     // Explicit guard, not just the disabled attribute: a programmatic/synthetic
@@ -20540,8 +22096,7 @@ function createWalletReceive({
     for (const c of targets) {
       let sent = true;
       // One send per contact. A throw (or an explicit `false`) means THIS
-      // recipient did not go — the rest of the loop still runs, so one bad
-      // address cannot swallow the requests queued behind it.
+      // recipient did not go — the rest of the loop still runs.
       try { sent = onSendRequest({ contact: c, amount }) !== false; }
       catch (e) { sent = false; }
       if (sent) state.selected.delete(c.address); else failed.push(c);
@@ -20550,8 +22105,9 @@ function createWalletReceive({
     const sentCount = targets.length - failed.length;
     renderContacts(state.contactQuery);                    // repaint the ticks (the sent ones cleared)
     if (failed.length) {
-      // Stay put. The failures are still ticked, so the CTA now retries exactly
-      // the remainder — and the count in its label says how many that is.
+      // Stay put (step 2). The failures are still ticked, so the CTA now retries
+      // exactly the remainder — and the chip and the count say who that is.
+      renderChip();
       showResult(sentCount
         ? (strings.requestSentPartly || 'Sent to {n}. The rest are still selected. Try again.')
           .split('{n}').join(String(sentCount))
@@ -20567,14 +22123,21 @@ function createWalletReceive({
         .split('{a}').join(groupAmountDisplay(amount)).split('{n}').join(String(sentCount));
     // All clear → the request is spent: clear the amount too, so a surface that
     // stays mounted can never re-fire the same request against a stale number.
+    if (pad) pad._set('', { silent: true });
     state.amount = '';
-    amtInput.value = '';
+    if (onRequestsSent) {
+      // "and we return to wallet screen" — the shell confirms (toast) and closes the
+      // takeover; this surface is leaving, so its Back is the host's close now.
+      state.done = true;
+      sync();
+      showResult(text, 'ok');
+      onRequestsSent({ amount, contacts: targets, text });
+      return;
+    }
+    // standalone mount: the inline line IS the confirmation; back to a fresh step 1
+    showStep(1);
     sync();
     showResult(text, 'ok');
-    // "and we return to wallet screen" — the shell confirms (toast) and closes the
-    // takeover. No onRequestsSent (standalone mount) → the inline line above IS
-    // the confirmation and the surface stays.
-    if (onRequestsSent) onRequestsSent({ amount, contacts: targets, text });
   }
 
   function renderContacts(q) {
@@ -20585,26 +22148,21 @@ function createWalletReceive({
     const list = contacts.filter((c) => !needle
       || (c.name || '').toLocaleLowerCase().includes(needle)
       || (c.address || '').toLocaleLowerCase().includes(needle));
-    // Damir F5 2026-07-29: the old 5/8 cap meant the roster visibly "cut off" and the
-    // only way to anyone else was to type. The strip scrolls now (wallet-receive.css),
-    // so the cap is purely a DOM-size guard for very large rosters — high enough that
-    // scrolling reaches everyone in practice, with the "keep typing" note below still
-    // covering the tail.
+    // Damir F5 2026-07-29: the cap is purely a DOM-size guard for very large rosters —
+    // high enough that scrolling reaches everyone in practice, with the "keep typing"
+    // note below still covering the tail.
     const cap = 50;
     for (const c of list.slice(0, cap)) {
-      /* ★ W-j: the shared c-contact-row (the Contacts DIRECTORY anatomy: avatar-48
-         with the photo (#342) + online dot, name, the #211 truncated address sub-line)
-         in its W9 CHECKBOX form — role=checkbox + aria-checked + the trailing circle
-         (contacts-shell pickerRow grammar). The surface class stays as an alias for
-         base.css / pressable.js / the pins; the anatomy lives in contact-row.css. */
+      /* ★ W-j: the shared c-contact-row in its W9 CHECKBOX form — role=checkbox +
+         aria-checked + the trailing circle (contacts-shell pickerRow grammar). */
       const b = createContactRow({
         contact: c, strings, select: 'checkbox', checked: state.selected.has(c.address),
         className: 'c-wallet-receive__contact',
       });
       if (b.disabled) { rows.append(b); continue; }        // loop r1 m4/m10: blocked rows never tick
       b.addEventListener('click', () => {
-        // A tick is not a send — no amount gate here, and no latch. Patched in
-        // place so the tapped row keeps keyboard focus (contacts-shell rule).
+        // A tick is not a send — no gate here, and no latch. Patched in place so the
+        // tapped row keeps keyboard focus (contacts-shell rule).
         const on = !state.selected.has(c.address);
         if (on) state.selected.add(c.address); else state.selected.delete(c.address);
         setContactRowChecked(b, on);
@@ -20631,41 +22189,35 @@ function createWalletReceive({
     syncCta();                                             // freshly built rows inherit the current rule/count line
   }
 
+  /* ★ #1263: the read-only fiat line — only with a price C# gave (none today). */
+  const priceU = (() => {
+    const t = String(fiatPrice == null ? '' : fiatPrice).trim();
+    if (!/^\d+(\.\d+)?$/.test(t)) return null;
+    const u = toUnits(t);
+    return u > 0n ? u : null;
+  })();
   function sync() {
-    // #527: the QR/Share honesty rules moved into the sheet (bare address, always).
-    // W6/W9: askBox is NEVER hidden by the amount — the list stays browsable and
-    // tickable; only the CTA reacts.
+    if (fiat) {
+      const a = toUnits(canonicalAmount(state.amount) || '0');
+      const line = (priceU !== null && a > 0n) ? fiatLine(requestUnitsToDecimal((a * priceU) / 100000000n), '', requestUnitsToDecimal(a)) : '';
+      fiat.hidden = !line;
+      fiat.textContent = line ? (strings.fiatApprox || '≈ {f}').split('{f}').join(line) : '';
+    }
     syncCta();
   }
+  el._setAmount = (v) => { if (pad) pad._set(v); };      // setRequestAmount's seam
 
-  /* ★★ V-1: the pre-edit snapshot. A select-all-and-paste is the one edit
-     whose separators are NOT ours, and only the REPLACED RANGE says so. */
-  const readPreEdit = attachAmountPreEdit(amtInput);
-  amtInput.addEventListener('input', (e) => {
-    // ★ I-6 (#360): locale-grouped display in the field; canonical value in
-    // state (#77 wire untouched). Caret follows the digit count. Loop r1
-    // CRITICAL-1: per-edit inverse for typing/deletion, settled heuristic
-    // only for paste/synthetic dispatches.
-    const disp = amtInput.value;
-    const caret = amtInput.selectionStart;
-    const v = sanitizeAmount(amountInputToCanonical(disp, caret, e, undefined, !!state.amount, readPreEdit()));   // ★★ V-1: the REPLACED RANGE routes (r2 MAJOR-1 still holds for a partial edit)
-    const shown = groupAmountDisplay(v);
-    if (shown !== disp) {
-      amtInput.value = shown;
-      const c = amountCaretAfterFormat(disp, caret, shown);
-      try { amtInput.setSelectionRange(c, c); } catch (e) { /* unfocused/unsupported */ }
-    }
-    state.amount = v;
-    // W9: a new amount invalidates a stale outcome line (audit M5's honesty rule,
-    // now on the result line — there is no per-row ✓ left to go stale). The
-    // SELECTION survives: who you are asking is a different axis from how much.
-    if (result && !result.hidden) showResult('', 'ok');
-    sync();
-  });
-
+  showStep(1);
   sync();
   renderContacts('');
   return el;
+}
+
+/* exact 1e-8 units → a plain decimal (display math only: the fiat line) */
+function requestUnitsToDecimal(u) {
+  const i = (u / 100000000n).toString();
+  const d = (u % 100000000n).toString().padStart(8, '0').replace(/0+$/, '');
+  return i + (d ? '.' + d : '');
 }
 
 /** ★ #527 — the ONE address surface: QR + full address + honest copy + Share +
@@ -20887,18 +22439,15 @@ function closeAddressSheet() {
 /** Free fn (#44): set the request amount programmatically (tests / bridge deep-link).
  *  Numbers are expanded to plain decimal first — String(1e-7) is '1e-7', which the
  *  shared sanitizer would strip into '17': a silent magnitude change (audit C1).
- *  #527: the input is always visible now — no reveal to open first. */
+ *  ★ #1263: it lands on the keypad (step 2 shows it; step 1 keeps it for later). */
 function setRequestAmount(el, amount) {
-  if (!el) return el;
-  const input = el.querySelector('.c-wallet-receive__amount');
-  if (!input) return el;
+  if (!el || typeof el._setAmount !== 'function') return el;
   const plain = typeof amount === 'number'
     ? amount.toFixed(8).replace(/\.?0+$/, '')              // 1e-7 → '0.0000001', 17 → '17'
     : String(amount == null ? '' : amount);
-  // ★ I-6 (#360): seed the DISPLAY form — the handler ungroups what it reads,
-  // and a raw '.'-decimal canonical in a ','-decimal locale could misread.
-  input.value = groupAmountDisplay(plain);
-  input.dispatchEvent(new Event('input', { bubbles: true }));
+  // ★ #1263: the KEYPAD takes it — its state is the canonical '.'-decimal string, so
+  // there is no display form to round-trip and no locale to misread.
+  el._setAmount(plain);
   return el;
 }
 
@@ -21829,19 +23378,8 @@ function sharedLinkHost(label) {
   } catch (e) { return ''; }
 }
 
-/** 0 → '' · 512 B · 12 KB · 3.4 MB · 1.2 GB (one decimal under 10, the locale's decimal mark; binary steps, the
- *  convention of every file manager the app sits beside). */
-function formatFileSize(bytes) {
-  const b = Number(bytes);
-  if (!Number.isFinite(b) || b <= 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let v = b; let u = 0;
-  while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
-  let n;
-  try { n = new Intl.NumberFormat(docLocale(), { maximumFractionDigits: u === 0 || v >= 10 ? 0 : 1 }).format(v); }   // (#46 r1 B7) the locale's decimal mark
-  catch (e) { n = u === 0 ? String(Math.round(v)) : (v < 10 ? v.toFixed(1) : String(Math.round(v))); }
-  return n + ' ' + units[u];
-}
+/* ★ S11 F4 (#1263): formatFileSize moved to timestamp.js (the CSS-less locale-format module, beside docLocale) — the chat
+   shell takes it for the album size line and must not pull this family's stylesheet for a pure formatter (W-h gate). */
 
 function sharedShortDate(ts) {
   const d = new Date(Number(ts) * 1000);
@@ -23495,6 +25033,7 @@ function setChatInfoPresence(el, online, lastSeen = 0, strings = getStrings()) {
 
 
 
+
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
   let used = false;
   return {
@@ -24017,7 +25556,7 @@ function createContactsPicker({
   // loadContacts flush). Illustration + copy + the SAME "Add contact" action
   // the row above offers — no new verb, just a reachable one in the blank area.
   const zero = createEmptyState({
-    illustration: 'images/contacts-es.svg',
+    illustration: 'contactsEmpty',   // ★ S11 A2 (#1263, R2-m5): the inline art's NAME — the SVG is deleted
     glyph: 'users',                                 // art blocked/missing → token glyph tile
     title: strings.noContacts || 'No contacts yet',
     body: strings.contactsEmptyBody
@@ -24701,22 +26240,11 @@ function createAddContactSheet({
   const art = document.createElement('div');
   art.className = 'c-contacts-addsheet__art';
   art.setAttribute('aria-hidden', 'true');
-  const drawGlyph = () => { art.dataset.placeholder = ''; art.append(icon('user-plus', { size: 48 })); };
-  const img = document.createElement('img');
-  img.className = 'c-contacts-addsheet__art-img';
-  img.alt = '';
-  img.draggable = false;
-  img.decoding = 'async';
-  /* ★ Session X (walk V 1.8: the PNG carries a baked background and reads wrong in dark):
-     the fix is the ASSET, not the path — Damir replaces src/demo/images/add-contact.png with a
-     TRANSPARENT export of the Figma NODE (never the asset URL, #865); build-shells copies that
-     folder verbatim beside the shells. ⚠ An SVG-first rung was tried and REVERTED the same day:
-     the Session N reachability gate requires every referenced images/ path to SHIP, and a rung
-     that points at a file the tree does not hold is exactly the dangling reference it exists
-     to catch. Handler BEFORE src (c-app-icon precedent): the PNG → the glyph tile, never a hole. */
-  img.addEventListener('error', () => { img.remove(); drawGlyph(); }, { once: true });
-  img.src = 'images/add-contact.png';
-  art.append(img);
+  /* ★ S11 B (#1262) — SUPERSEDES Session X (walk V 1.8: the PNG carried a baked background
+     and read wrong in dark). The approved add-contact art (round 1) is INLINE now: the theme
+     tokens reach it, so it is right in both themes, and there is no file to miss — the
+     add-contact.png and its png → glyph-tile ladder are gone (delete audit). */
+  art.append(illoAddContact({ className: 'c-contacts-addsheet__art-img' }));
   hero.append(art);
   const lead = document.createElement('p');
   lead.className = 'c-contacts-addsheet__lead';
@@ -27340,11 +28868,13 @@ function createSettingsDanger({
 
 
 
+
 function createSettingsBackup({
   status = {},                   // { last, dirtyCount } — same vocabulary as the hub row
   host,
-  illustration = null,           // OPTIONAL art src (launch grammar: decorative alt="", img
-                                 // error → the token-styled shield placeholder). Damir: images/backup.png (N45).
+  illustration = null,           // OPTIONAL art: an illustrations.js NAME ('backup' — what every host passes,
+                                 // ★ S11 G3 #1263 NIT-1), a factory, else an image src (decorative alt="", img
+                                 // error → the token-styled shield placeholder); none → that placeholder.
   onBack,
   onBackup,                      // ({}, ctrl) — ixian:backupAccount (no password arg, #199)
   onExportWallet,                // (ctrl) — ixian:backupWallet (Advanced)
@@ -27382,7 +28912,12 @@ function createSettingsBackup({
       art.append(sat);
     }
   };
-  if (illustration) {
+  const inlineArt = illustrationFor(illustration);
+  if (inlineArt) {
+    // ★ S11 B (#1262): the approved backup art (round 3 — the SAME drawing as the nudge),
+    // inline in the 128 slot; the hosts pass its NAME 'backup' (★ S11 G3 #1263 NIT-1: the PNG is deleted)
+    art.append(inlineArt({ className: 'c-settings-backup__illustration' }));
+  } else if (illustration) {
     // launch/backup-nudge grammar: decorative img, fail-soft to the placeholder
     const img = document.createElement('img');
     img.className = 'c-settings-backup__illustration';
@@ -28046,8 +29581,10 @@ function createChatAppearance({
   onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
   onChatGround,                  // (id) — shell sets data-chat-ground + persists (★ AUG)
   onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
-  previewLines = '2',            // ★ S10 P4 (#1254): the chat-list excerpt — '1' | '2' lines (spixi.chat.previewlines)
+  previewLines = '1',            // ★ S11 (#1262): default 1 line (#1261) · ★ S10 P4 (#1254): the chat-list excerpt — '1' | '2' lines (spixi.chat.previewlines)
   onPreviewLines,                // ('1' | '2') — shell persists; home.html reads it. No handler → no row.
+  hintsOn = true,                // ★ S11 (#1262): the "Tips on the Chats screen" switch — C# (SHints) owns the value
+  onHints,                       // (next, ctrl) — the shell's latch (ixian:hintsoff). No handler → no row (an old exe).
   strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
@@ -28314,45 +29851,42 @@ function createChatAppearance({
   /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
      does not exist, so only two are appended. A live theme flip re-renders this whole
      screen (settings.html onApplied), which is what keeps the order correct. */
-  /* ★ S10 P4 (#1254, Damir: 2B flow, default 2 lines): "Message preview" — a single value row under Text size (the
-     Canvas row's card shape) that opens the house option sheet: "1 line" / "2 lines". The chats list (home.html)
-     reads the stored value; nothing in THIS document paints a chat row. */
+  /* ★ S10 P4 (#1254) → ★ S11 A2 (#1261/#1263, R3-MAJOR-1): "Message preview" — an INLINE segmented control under
+     Text size, the SAME grammar (an h3 label over segGroup's radio pills): "1 line | 2 lines", default 1 line. It was
+     a value row that opened the option sheet — one tap more for a two-way choice, and a different grammar from the
+     control right above it. The chats list (home.html) reads the stored value; nothing in THIS document paints a row. */
   let previewSec = null;
   if (onPreviewLines) {
-    const lineOpts = [
-      { value: '1', label: strings.previewLinesOne || '1 line' },
-      { value: '2', label: strings.previewLinesTwo || '2 lines' },
-    ];
-    let linesCurrent = previewLines === '1' ? '1' : '2';
-    const lineLabel = (v) => (lineOpts.find((o) => o.value === v) || lineOpts[1]).label;
     previewSec = document.createElement('div');
     previewSec.className = 'c-settings__section c-settings-appearance__previewsec';
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'c-settings__row c-settings-appearance__preview-lines';
-    row.setAttribute('aria-haspopup', 'dialog');
-    const lab = document.createElement('span');
-    lab.className = 'c-settings__row-label';
-    lab.textContent = strings.chatPreviewLines || 'Message preview';
-    const val = document.createElement('span');
-    val.className = 'c-settings__row-value';
-    val.textContent = lineLabel(linesCurrent);
-    row.append(lab, val, icon('chevron-right', { size: 18 }));
-    row.addEventListener('click', () => settingsOptionSheet({
-      title: strings.chatPreviewLines || 'Message preview',
-      options: lineOpts, current: linesCurrent, host, strings,
-      commit: (v, ctrl) => {
-        linesCurrent = v;
-        val.textContent = lineLabel(v);
-        onPreviewLines(v);
-        ctrl.done();
-      },
-    }));
-    previewSec.append(row);
+    const pLab = document.createElement('h3');
+    pLab.className = 'c-settings__label';
+    pLab.textContent = strings.chatPreviewLines || 'Message preview';
+    const seg = segGroup({
+      options: [
+        { value: 1, label: strings.previewLinesOne || '1 line' },
+        { value: 2, label: strings.previewLinesTwo || '2 lines' },
+      ],
+      current: previewLines === '2' ? 2 : 1,   // ★ S11 (#1262): absent / anything else = 1 line
+      ariaLabel: strings.chatPreviewLines || 'Message preview',
+      onPick: (v) => onPreviewLines(v === 2 ? '2' : '1'),
+    });
+    seg.classList.add('c-settings-appearance__preview-lines');
+    previewSec.append(pLab, seg);
   }
   body.append(sizeSec, styleSec);
   if (groundSec) body.append(groundSec);
   if (previewSec) sizeSec.after(previewSec);   // ★ S10 P4: right under Text size
+  /* ★ S11 (#1262): the hint cards' off switch — under the chat-list row (Message preview), else under Text size. */
+  if (onHints) {
+    const hintsSec = switchRow({
+      glyph: 'info-circle', hue: 'accent',
+      label: strings.hintsSwitch || 'Tips on the Chats screen',
+      checked: hintsOn, onToggle: onHints,
+    });
+    hintsSec.dataset.pref = 'hintsOn';
+    (previewSec || sizeSec).after(hintsSec);
+  }
 
   // preview honors the incoming state
   preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));
@@ -28415,6 +29949,9 @@ function createPrivacy({
   onHideOnline,                  // (next, ctrl) — ★ S8 (#1234): ixian:hideOnline:on|off, resolved by the echo
   onMediaAutoload,               // (next, ctrl) — FE-only, writes localStorage
   onPhotoPreviews,               // (next, ctrl) — ★ #1133: ixian:photoPreviews:on|off, resolved by the echo
+  photoAutoDl = 'off',           // ★ S11 C (#1262): C#-held (SAutoDownload) — 'off' (default) | 'wifi' | 'always'
+  onPhotoAutoDl,                 // (value, ctrl) — ★ S11 C: ixian:photoAutoDl:<value>:<load pictures 0|1>, resolved by the echo
+  host = document.body,          // ★ S11 C: the option sheet's host
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = screenShell('c-settings-privacy', strings.privacy || 'Privacy', onBack);
@@ -28430,6 +29967,61 @@ function createPrivacy({
     failText: strings.privacyFailed || 'Couldn’t update. Try again.',
     onToggle: onMediaAutoload,
   }));
+
+  /* ★ S11 C (#1262, Damir: Privacy, default OFF): "Download photos automatically" — Off · Wi-Fi only · Always, a value
+     row (the Message-preview grammar: a stacked nav row → the house option sheet). The sub says the two limits. The
+     handler exists only with the exe's cap (the W-g rule). data-pref + setAutoDl = the in-place echo (settings.html). */
+  if (onPhotoAutoDl) {
+    const autoOpts = [
+      { value: 'off', label: strings.photoAutoDlOff || 'Off' },
+      { value: 'wifi', label: strings.photoAutoDlWifi || 'Wi-Fi only' },
+      { value: 'always', label: strings.photoAutoDlAlways || 'Always' },
+    ];
+    const autoTitle = strings.photoAutoDlTitle || 'Download photos automatically';
+    let autoCur = (photoAutoDl === 'wifi' || photoAutoDl === 'always') ? photoAutoDl : 'off';
+    const autoLabel = (v) => (autoOpts.find((o) => o.value === v) || autoOpts[0]).label;
+    const sec = document.createElement('div');
+    sec.className = 'c-settings__section';
+    sec.dataset.pref = 'photoAutoDl';
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'c-settings__row c-settings-privacy__autodl';
+    row.dataset.row = 'stacked';
+    row.setAttribute('aria-haspopup', 'dialog');
+    const lab = document.createElement('span');
+    lab.className = 'c-settings__row-label c-settings__row-label--stack';
+    const disc = document.createElement('span');
+    disc.className = 'c-disc';
+    disc.dataset.hue = 'info';
+    disc.dataset.grad = String(discGrad('download'));
+    disc.append(icon('download', { size: 16 }));
+    const top = document.createElement('span');
+    top.className = 'c-settings__row-top';
+    top.append(disc, document.createTextNode(autoTitle));
+    const sub = document.createElement('span');
+    sub.className = 'c-settings__row-sub';
+    sub.textContent = strings.photoAutoDlHint || 'Photos up to 10 MB, only while “Load pictures and GIFs” is on.';
+    lab.append(top, sub);
+    const val = document.createElement('span');
+    val.className = 'c-settings__row-value';
+    val.textContent = autoLabel(autoCur);
+    row.append(lab, val, icon('chevron-right', { size: 18 }));
+    const paintAuto = (v) => { autoCur = v; val.textContent = autoLabel(v); };
+    row.addEventListener('click', () => settingsOptionSheet({
+      title: autoTitle,
+      options: autoOpts, current: autoCur, host, strings,
+      commit: (v, ctrl) => {
+        const wrapped = {
+          done: () => { paintAuto(v); ctrl.done(); },
+          fail: (msg) => { ctrl.fail(msg); if (live) live.textContent = strings.privacyFailed || 'Couldn’t update. Try again.'; },
+        };
+        try { onPhotoAutoDl(v, wrapped); } catch (ex) { wrapped.fail(); }
+      },
+    }));
+    sec.setAutoDl = (v) => paintAuto((v === 'wifi' || v === 'always') ? v : 'off');
+    sec.append(row);
+    body.append(sec);
+  }
 
   // ★ #1133: photo previews in chats (handler only with the exe's cap; data-pref = in-place echo)
   if (onPhotoPreviews) {
@@ -29490,7 +31082,10 @@ function createSettingsAbout({
 
   const legal = document.createElement('p');
   legal.className = 'c-settings__note c-settings-about__legal';
-  legal.textContent = strings.aboutLegal || '© Ixian. Open source, MIT licensed.';
+  /* ★ S11 A (#1262, Damir): the licence name leaves the app copy — the line is the copyright alone. A NEW key (a
+     changed meaning is a new key): `aboutLegal` (the old line that named the licence) is retired. The Source code row above
+     stays (the code stays public); the Contributors/licences credits are untouched. */
+  legal.textContent = strings.aboutLegal2 || '© Ixian';
   body.append(legal);
 
   /* ★ Session I ② — THE SEED HARNESS CARD (DEV BUILDS ONLY, Damir: "button in About").
@@ -29700,8 +31295,8 @@ const LEGAL_DOCS = {
  * window-pagehide scrub also lands on createLockScreen (lock-shell.js).
  *
  * PREMIUM REWORK (Damir demo pass 2026-07-06): single full-bleed screen —
- * 4-slide autoplay carousel (LEGACY step1–4 art + copy, dark set — the
- * shipped intro.html illustrations, reused verbatim) over always-pinned
+ * 4-slide autoplay carousel (LEGACY step1–4 copy; ★ S11 B #1262: the art is the
+ * inline illustration set, dark set) over always-pinned
  * CTAs · the language pill reuses the settings sheet (settingsOptionSheet
  * #148⑥ flags — ONE picker grammar app-wide; the appearance pill left with
  * N72) · terms = fine print; the first Create/Restore
@@ -29738,6 +31333,7 @@ const LEGAL_DOCS = {
  *   showTerms · setLaunchAvatar(el, src) ← loadAvatar ·
  *   setLaunchFile(el, name) ← setUploadedFileName.
  */
+
 
 
 
@@ -29966,27 +31562,30 @@ function buildWelcome(st) {
   track.className = 'c-launch__track';
   car.append(track);
 
-  const base = opts.illustrationBase || 'images/onboarding/';
+  /* ★ S11 B (#1262): the four slides draw the APPROVED illustration set INLINE (Default
+     tiles: W1 round 3 · W2 round 1 · W3 round 3 · W4 round 1). The step1–4 PNGs and the
+     `illustrationBase` option are gone — the art is in the bundle, so there is no file to
+     miss and no error rung. The launch subtree is pinned dark, so --il-* resolve dark. */
   const defs = [
     {
-      img: base + 'step1.png',
+      art: illoWelcome1,
       title: strings.slide1Title || 'Built for you. Owned by you.',
       // ★ S9 A-10 (#1245, audit S-07): "Encrypted on your device" read as encryption AT REST
       //   (history is not encrypted at rest, CORE-11) → in-transit wording, NEW key.
       copy: strings.slide1Copy2 || 'End-to-end encrypted and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
     },
     {
-      img: base + 'step2.png',
+      art: illoWelcome2,
       title: strings.slide2Title || 'No phone number. No email. Just a nickname.',
       copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal. The account is yours alone.',
     },
     {
-      img: base + 'step3.png',
+      art: illoWelcome3,
       title: strings.slide3Title || 'Send money like you send a message.',
       copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and receive payments in a tap, as simple and instant as saying hello.',
     },
     {
-      img: base + 'step4.png',
+      art: illoWelcome4,
       title: strings.slide4Title || 'Mini Apps, right inside your chats.',
       copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world, all without ever leaving the conversation.',
     },
@@ -29996,13 +31595,10 @@ function buildWelcome(st) {
     slide.className = 'c-launch__slide';
     slide.setAttribute('role', 'group');
     slide.setAttribute('aria-label', (i + 1) + ' / ' + defs.length);
-    const img = document.createElement('img');
-    img.className = 'c-launch__illo-img';
-    img.src = s.img;
-    img.alt = '';                                // decorative — the copy carries meaning
-    img.draggable = false;
-    img.addEventListener('error', () => { img.hidden = true; }, { once: true });
-    slide.append(img);
+    // decorative (aria-hidden + focusable=false) — the copy carries meaning. Its entrance
+    // waits while the slide is aria-hidden (launch-shell.css), so each slide plays it ONCE
+    // when it first comes into view, then holds.
+    slide.append(s.art({ className: 'c-launch__illo-img' }));
     const h = document.createElement('h1');
     h.className = 'c-launch__slide-title';
     h.textContent = s.title;
@@ -30519,15 +32115,10 @@ function buildRestore(st) {
   //   lower"; premium round 2: the SHIPPED legacy restore illustration + a warm
   //   welcome-back line anchor the top, the form group drops toward the CTA
   //   (c-launch__lower margin-top:auto) —
-  const base = opts.illustrationBase || 'images/onboarding/';
   const hero = document.createElement('div');
   hero.className = 'c-launch__hero';
-  const heroIllo = document.createElement('img');
-  heroIllo.className = 'c-launch__hero-illo';
-  heroIllo.src = base + 'restore.png';           // legacy restore art (dark set — launch is pinned dark)
-  heroIllo.alt = '';                             // decorative — the copy carries meaning
-  heroIllo.draggable = false;
-  heroIllo.addEventListener('error', () => { heroIllo.hidden = true; }, { once: true });
+  // ★ S11 B (#1262): the approved restore art (round 3), inline, decorative — dark set (pinned)
+  const heroIllo = illoRestore({ className: 'c-launch__hero-illo' });
   const heroTitle = document.createElement('h1');   // the view's primary heading (topbar title is a nav label div)
   heroTitle.className = 'c-launch__hero-title';
   heroTitle.textContent = strings.restoreHeroTitle || 'Welcome back';
@@ -30876,6 +32467,7 @@ function setLaunchFile(el, name) {
 
 
 
+
 function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-backup-nudge';
@@ -30886,7 +32478,16 @@ function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings
   disc.append(icon('shield-lock'));
 
   let art = null;
-  if (illustration) {
+  const inlineArt = illustrationFor(illustration);
+  if (inlineArt) {
+    /* ★ S11 B (#1262): the approved backup art (round 3) INLINE — ★ S11 A2 (#1263): the shells pass its
+       NAME ('backup'). Decorative, nothing to load, so the disc stays the art-less default only. */
+    art = inlineArt({ className: 'c-backup-nudge__illo' });
+    disc.hidden = true;
+  } else if (illustration) {
+    /* ★ S11 A2 (#1263, R3-MINOR-5/6): no SHIPPED host reaches this rung any more (they pass a name). It stays as
+       the component's documented contract for an arbitrary art URL — the error → disc fail-soft is pinned
+       (smoke-test.mjs "illustration slot: art leads") and a demo or a future host may hand it a file. */
     art = document.createElement('img');
     art.className = 'c-backup-nudge__illo';
     art.src = illustration;
@@ -30964,6 +32565,7 @@ function showBackupNudge({ host, illustration = '', onBackup, onDismiss, strings
 
 
 
+
 function showRatingNudge({ host, illustration = '', onRate, onDismiss, strings = getStrings() } = {}) {
   const content = document.createElement('div');
   content.className = 'c-rating-nudge';
@@ -30974,7 +32576,16 @@ function showRatingNudge({ host, illustration = '', onRate, onDismiss, strings =
   disc.append(icon('logo'));                     // the brand mark asks (legacy spixirounded.svg)
 
   let art = null;                                // N14a — the rate-me illustration leads; disc = fallback
-  if (illustration) {
+  const inlineArt = illustrationFor(illustration);
+  if (inlineArt) {
+    /* ★ S11 B (#1262): the approved rating art, version D "Phone" (rn-once: bubbles pop in,
+       a heart lands, hearts rise beside the phone — once, then it holds), INLINE. ★ S11 A2 (#1263):
+       the shell passes its NAME ('rating'). */
+    art = inlineArt({ className: 'c-rating-nudge__illo' });
+    disc.hidden = true;
+  } else if (illustration) {
+    /* ★ S11 A2 (#1263): no shipped host reaches this rung (they pass a name) — kept as the arbitrary-URL contract
+       with its pinned error → disc fail-soft (smoke-test.mjs N14a), the backup nudge's twin */
     art = document.createElement('img');
     art.className = 'c-rating-nudge__illo';
     art.src = illustration;
@@ -31952,5 +33563,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, formatFileSize: formatFileSize, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, illoWalletEmpty: illoWalletEmpty, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

@@ -125,7 +125,8 @@
   max-width: 280px;
 }
 .c-launch__illo svg { display: block; width: 100%; height: auto; }
-/* legacy tour art (264×264 shipped SVGs) — capped so title+copy+CTAs always fit */
+/* tour art — ★ S11 B (#1262): the inline illustration set (226-slot design; the svg keeps
+   its viewBox ratio under height:auto) — capped so title+copy+CTAs always fit */
 .c-launch__illo-img {
   display: block;
   width: min(58vw, 232px);          /* sanctioned: art measure on the 419px frame */
@@ -135,6 +136,10 @@
   user-select: none;
   -webkit-user-drag: none;
 }
+/* ★ S11 B (#1262): a slide that is not on screen HOLDS its entrance at frame 0 — so each
+   slide plays its one entrance when it first comes into view (go() clears aria-hidden),
+   not all four at boot behind the track. Reduced motion: illo.css drops the animation. */
+.c-launch__slide[aria-hidden="true"] .il * { animation-play-state: paused; }
 .c-launch__slide-title {
   margin: 0;
   min-width: 0;
@@ -402,7 +407,7 @@
   padding: var(--spacing-24) var(--spacing-8) 0;
   text-align: center;
 }
-/* legacy restore art (164×164 shipped SVG) — sits on the gradient, dark set */
+/* restore art — ★ S11 B (#1262): the inline set (176 slot), on the gradient, dark set */
 .c-launch__hero-illo {
   display: block;
   width: min(46vw, 176px);          /* sanctioned: art measure on the 419px frame */

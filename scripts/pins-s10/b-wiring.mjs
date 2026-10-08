@@ -90,7 +90,7 @@ export default async function (h) {
     const lt = bodyOf(HOME, 'public void loadTransactions(bool forceRefresh)');
     const r = {
       /* on every platform: OUTSIDE the #if ANDROID block */
-      boot: /#endif\s*scheduleWalletPrePush\(false\);\s*\}$/.test(boot.trimEnd()) && count(HOME, /scheduleWalletPrePush\((?:true|false)\);/g) === 2,
+      boot: /#endif\s*scheduleWalletPrePush\(false\);\s*(?:scheduleAppsPrePush\(false\);\s*)?\}$/.test(boot.trimEnd()) && count(HOME, /scheduleWalletPrePush\((?:true|false)\);/g) === 2,   /* ★ S11 A2 re-base (#1263, R1-n2): the apps pre-push may follow it (pins-s11/f-wiring) */
       /* #46 r1 M4: onLoaded is the other event (last statement — after its own generation bump) */
       onload: /scheduleWalletPrePush\(true\);\s*\}$/.test(ol) && before(ol, 'Interlocked.Increment(ref txDocGen);', 'scheduleWalletPrePush(true);'),
       once: /int gen = System\.Threading\.Volatile\.Read\(ref txDocGen\);[\s\S]*?if \(!\(fromOnLoad \? prePushGate\.onLoaded\(gen\) : prePushGate\.onDropped\(gen\)\)\)\s*\{\s*return;\s*\}\s*prePushDocGen = gen;/.test(sp)

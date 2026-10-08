@@ -67,7 +67,7 @@ export default async function (h) {
 
   /* ———— M1: the caps — `media` always (the shell ANDs canSendFile), `camera` on Android + iOS only, in the ONE push ———— */
   await guard('S9 A1 M1 caps', async () => {
-    ok(/caps \+= ",voice";\s*\}\s*caps \+= ",media";\s*#if ANDROID \|\| IOS\s*if \(SFilePicker\.CameraAvailable\(\)\)\s*\{\s*caps \+= ",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this, "setCaps", caps\);/.test(SCP)
+    ok(/caps \+= ",voice";\s*\}\s*caps \+= ",media";\s*caps \+= ",savePhoto";\s*#if ANDROID \|\| IOS\s*if \(SFilePicker\.CameraAvailable\(\)\)\s*\{\s*caps \+= ",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this, "setCaps", caps\);/.test(SCP) /* ★ S11 G re-base (#1263): + caps += ",savePhoto" after media (pins-s11/g-cs.mjs) */
       && count(SCP, /",media"/g) === 1 && count(SCP, /",camera"/g) === 1 && count(SCP, /"setCaps"/g) === 1,
       'S9 A1 M1 caps: setCaps gains ",media" (every chat — the shell gates on canSendFile, C# re-checks mediaAllowed) and ",camera" under #if ANDROID || IOS only when the device has a camera (SFilePicker.CameraAvailable — #46 r1), before the ONE push (CONTRACT §1a)');
   });
@@ -264,7 +264,7 @@ export default async function (h) {
   /* ———— M16 (r1): addFile arg 19 = the 8-FACE played rule for a voice FILE ———— */
   await guard('S9 A1 M16 played arg 19', async () => {
     ok(/string fPlayed = voicePlayedArg\(message, fVoice\);/.test(SCP)
-      && /push\(batch, "addFile", [^;]*fVoice, fGroup, fPlayed\);/.test(SCP),
+      && /push\(batch, "addFile", [^;]*fVoice, fGroup, fPlayed, fSize\);/.test(SCP),   /* ★ S11 G re-base (#1263): + arg 20 fSize after played (pins-s11/g-cs.mjs) */
       'S9 A1 M16 played arg 19: a received voice FILE row carries the same "1" / "0" played flag as an inline clip (voicePlayedArg → S9FixRules.playedArg over fVoice + SVoicePlayed); "" for every other file row');
   });
 

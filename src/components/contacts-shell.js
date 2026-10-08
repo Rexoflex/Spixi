@@ -50,6 +50,7 @@ import { createChip, setChipSelected } from './chip.js';
 import { overlayId } from './overlay.js';
 import { createSheet } from './sheet.js';   // ★ #863: the add-contact chooser sheet
 import { createEmptyState } from './empty-state.js';
+import { illoAddContact } from './illustrations.js';   // ★ S11 B (#1262): the add-contact sheet art
 import { trackRowHover, snapRowHover, carryRowHover, restoreRowFocus } from './chatlist-item.js';   // ★ #1171: hover + focus across a roster re-flush
 
 function contactsCtrl(onDone, onFail) {          // one-shot (settingsCtrl grammar)
@@ -574,7 +575,7 @@ export function createContactsPicker({
   // loadContacts flush). Illustration + copy + the SAME "Add contact" action
   // the row above offers — no new verb, just a reachable one in the blank area.
   const zero = createEmptyState({
-    illustration: 'images/contacts-es.svg',
+    illustration: 'contactsEmpty',   // ★ S11 A2 (#1263, R2-m5): the inline art's NAME — the SVG is deleted
     glyph: 'users',                                 // art blocked/missing → token glyph tile
     title: strings.noContacts || 'No contacts yet',
     body: strings.contactsEmptyBody
@@ -1258,22 +1259,11 @@ export function createAddContactSheet({
   const art = document.createElement('div');
   art.className = 'c-contacts-addsheet__art';
   art.setAttribute('aria-hidden', 'true');
-  const drawGlyph = () => { art.dataset.placeholder = ''; art.append(icon('user-plus', { size: 48 })); };
-  const img = document.createElement('img');
-  img.className = 'c-contacts-addsheet__art-img';
-  img.alt = '';
-  img.draggable = false;
-  img.decoding = 'async';
-  /* ★ Session X (walk V 1.8: the PNG carries a baked background and reads wrong in dark):
-     the fix is the ASSET, not the path — Damir replaces src/demo/images/add-contact.png with a
-     TRANSPARENT export of the Figma NODE (never the asset URL, #865); build-shells copies that
-     folder verbatim beside the shells. ⚠ An SVG-first rung was tried and REVERTED the same day:
-     the Session N reachability gate requires every referenced images/ path to SHIP, and a rung
-     that points at a file the tree does not hold is exactly the dangling reference it exists
-     to catch. Handler BEFORE src (c-app-icon precedent): the PNG → the glyph tile, never a hole. */
-  img.addEventListener('error', () => { img.remove(); drawGlyph(); }, { once: true });
-  img.src = 'images/add-contact.png';
-  art.append(img);
+  /* ★ S11 B (#1262) — SUPERSEDES Session X (walk V 1.8: the PNG carried a baked background
+     and read wrong in dark). The approved add-contact art (round 1) is INLINE now: the theme
+     tokens reach it, so it is right in both themes, and there is no file to miss — the
+     add-contact.png and its png → glyph-tile ladder are gone (delete audit). */
+  art.append(illoAddContact({ className: 'c-contacts-addsheet__art-img' }));
   hero.append(art);
   const lead = document.createElement('p');
   lead.className = 'c-contacts-addsheet__lead';

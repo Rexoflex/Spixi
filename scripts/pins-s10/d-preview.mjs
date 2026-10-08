@@ -1,14 +1,15 @@
-/* ==== SESSION 10 (D) — P4 "Message preview" (#1254, Damir pick 2B, default 2 lines) ====
+/* ==== SESSION 10 (D) — P4 "Message preview" (#1254, Damir pick 2B) — ★ S11 re-base (#1261/#1263): default 1 LINE, and the
+ *      settings control is an INLINE segmented "1 line | 2 lines" (the Text size grammar), no option sheet ====
  * BUILT shells in jsdom (d-kit: in-memory localStorage installed before the head scripts):
- *   · index.html (home) reads spixi.chat.previewlines at boot → :root[data-preview-lines]: absent / invalid → '2',
- *     '1' → '1'; re-read on storage (that key, or a clear) · visibilitychange (visible) · pageshow
+ *   · index.html (home) reads spixi.chat.previewlines at boot → :root[data-preview-lines]: absent / invalid → '1'
+ *     (★ S11 re-base), '2' → '2'; re-read on storage (that key, or a clear) · visibilitychange (visible) · pageshow
  *   · '2' → the excerpt is ONE inline flow (computed: -webkit-box, clamp 2, overflow-wrap anywhere, sender + text
  *     inline, 2 lines tall, the trailing column grows with it); '1' → the single nowrap line (unchanged)
  *   · a group row reads "Han Solo: text" (a real space after the colon, outside the sender span "Han Solo:"); the
  *     glyph carries a gap in the inline flow; unread keeps the text bold
- *   · settings.html Chat appearance: a "Message preview" row under Text size shows "2 lines" by default, opens
- *     the option sheet ("1 line" / "2 lines"), a pick writes '1' | '2' and the row value follows; a stored '1'
- *     re-opens on "1 line"; an invalid stored value reads "2 lines"
+ *   · settings.html Chat appearance: ★ S11 re-base (#1261/#1263) — a "Message preview" segmented control right under
+ *     Text size (radiogroup, "1 line | 2 lines", "1 line" checked by default); a tap writes '1' | '2' and the check
+ *     follows; a stored '2' re-opens on "2 lines"; an invalid stored value reads "1 line"
  * Deliberate breaks: see the S10 D report. */
 import { dKit } from './d-kit.mjs';
 const KEY = 'spixi.chat.previewlines';
@@ -19,11 +20,11 @@ export default async function (h) {
     /* —— home: the boot read —— */
     const attrAt = async (storage) => { const s = await boot('index.html', { storage, wait: 900 }); const v = s.d.documentElement.dataset.previewLines; s.dom.window.close(); return v; };
     const boots = { absent: await attrAt({}), one: await attrAt({ [KEY]: '1' }), two: await attrAt({ [KEY]: '2' }), junk: await attrAt({ [KEY]: '3"]' }) };
-    ok(boots.absent === '2' && boots.one === '1' && boots.two === '2' && boots.junk === '2',
-      '★ S10 P4: home reads spixi.chat.previewlines at boot — absent → 2 (the default), "1" → 1, an invalid value → 2 — ' + JSON.stringify(boots));
+    ok(boots.absent === '1' && boots.one === '1' && boots.two === '2' && boots.junk === '1',   /* ★ S11 re-base (#1261/#1263): the default is 1 line */
+      '★ S10 P4 (★ S11 re-base #1261/#1263): home reads spixi.chat.previewlines at boot — absent → 1 (the default), "2" → 2, "1" → 1, an invalid value → 1 — ' + JSON.stringify(boots));
 
     /* —— home: re-read on storage / visibilitychange / pageshow, and the row CSS —— */
-    const s = await boot('index.html', { storage: {} });
+    const s = await boot('index.html', { storage: { [KEY]: '2' } });   /* ★ S11 re-base (#1261/#1263): the 2-line cases boot with the key '2' */
     const { W, d, push, ls } = s;
     const TS = String(Math.floor(Date.now() / 1000));
     const row = (a, name, ex, kind, ek, snd, unread = '0') => [a, name, TS, 'img/spixiavatar.png', 'false', ex, '', unread, kind, 'False', ek, snd];
@@ -87,10 +88,12 @@ export default async function (h) {
     ls.setItem(KEY, '1');
     W.dispatchEvent(new W.Event('pageshow')); await sleep(10);
     r.pageshow = root() === '1';
-    /* a clear (key null) re-reads → the default */
+    /* a clear (key null) re-reads → the default (★ S11 re-base: 1 line) */
+    ls.setItem(KEY, '2');
+    se(KEY); await sleep(10);
     ls.clear();
     se(null); await sleep(10);
-    r.clearDefault = root() === '2';
+    r.clearDefault = root() === '1';
     r.noErrors = s.errs.filter((e) => /ReferenceError|TypeError/.test(e)).length === 0;
     s.dom.window.close();
     ok(Object.values(r).every(Boolean),
@@ -108,7 +111,7 @@ export default async function (h) {
     sn.dom.window.close();
 
     /* —— desktop list: the same rule —— */
-    const sd = await boot('index.html', { storage: {}, desktop: true });
+    const sd = await boot('index.html', { storage: { [KEY]: '2' }, desktop: true });   /* ★ S11 re-base (#1261/#1263) */
     sd.push('clearChats');
     sd.push('addChat', ...row('g1', 'Camp', 'a long message that wraps', 'group', 'text', 'Ana'));
     sd.push('clearChatsDone');
@@ -128,36 +131,40 @@ export default async function (h) {
       await sleep(300);
       return t;
     };
+    /* ★ S11 re-base (#1261/#1263): the inline segmented control (the Text size grammar) replaced the row + sheet */
     let t = await openAppearance({});
-    const plRow = () => t.d.querySelector('.c-settings-appearance__preview-lines');
-    const val = () => ((plRow() && plRow().querySelector('.c-settings__row-value')) || {}).textContent;
+    const seg = () => t.d.querySelector('.c-settings-appearance__preview-lines');
+    const pills = () => [...((seg() && seg().querySelectorAll('.c-settings-seg__pill')) || [])];
+    const checked = () => (pills().find((p) => p.getAttribute('aria-checked') === 'true') || {}).textContent;
     const secs = [...t.d.querySelectorAll('.c-settings-appearance .c-settings__section')];
     const sizeIdx = secs.findIndex((x) => /Message text size/.test(x.textContent));
-    const plIdx = secs.findIndex((x) => x.contains(plRow()));
-    const st = { row: !!plRow() && /Message preview/.test(plRow().textContent) && val() === '2 lines', underTextSize: sizeIdx >= 0 && plIdx === sizeIdx + 1 };
-    if (plRow()) plRow().click();
-    await sleep(120);
-    const opts = [...t.d.querySelectorAll('.c-settings__opt')];
-    st.sheet = opts.map((o) => o.textContent.trim()).join('|') === '1 line|2 lines' && (opts[1] || { getAttribute() {} }).getAttribute('aria-checked') === 'true';
-    if (opts[0]) opts[0].click();
-    await sleep(450);
-    st.wrote1 = t.ls.getItem(KEY) === '1' && val() === '1 line';
-    if (plRow()) plRow().click();
-    await sleep(120);
-    const opts2 = [...t.d.querySelectorAll('.c-settings__opt')];
-    if (opts2[1]) opts2[1].click();
-    await sleep(450);
-    st.wrote2 = t.ls.getItem(KEY) === '2' && val() === '2 lines';
+    const plIdx = secs.findIndex((x) => x.contains(seg()));
+    const sizeSeg = secs[sizeIdx] && secs[sizeIdx].querySelector('.c-settings-seg');
+    const st = {
+      control: !!seg() && seg().getAttribute('role') === 'radiogroup' && seg().getAttribute('aria-label') === 'Message preview'
+        && seg().classList.contains('c-settings-seg') && !!sizeSeg && seg().className.split(' ')[0] === sizeSeg.className.split(' ')[0]
+        && /Message preview/.test(((secs[plIdx] && secs[plIdx].querySelector('.c-settings__label')) || {}).textContent),
+      pills: pills().map((p) => p.textContent).join('|') === '1 line|2 lines' && pills().every((p) => p.getAttribute('role') === 'radio'),
+      default1: checked() === '1 line',
+      underTextSize: sizeIdx >= 0 && plIdx === sizeIdx + 1,
+      noSheetRow: !t.d.querySelector('.c-settings-appearance .c-settings__row-value') || ![...t.d.querySelectorAll('.c-settings-appearance .c-settings__row')].some((x) => /Message preview/.test(x.textContent)),
+    };
+    if (pills()[1]) pills()[1].click();
+    await sleep(60);
+    st.wrote2 = t.ls.getItem(KEY) === '2' && checked() === '2 lines' && !t.d.querySelector('.c-settings__opt');
+    if (pills()[0]) pills()[0].click();
+    await sleep(60);
+    st.wrote1 = t.ls.getItem(KEY) === '1' && checked() === '1 line';
     st.noErrors = t.errs.filter((e) => /ReferenceError|TypeError/.test(e)).length === 0;
     t.dom.window.close();
-    t = await openAppearance({ [KEY]: '1' });
-    st.reopen1 = val() === '1 line';
+    t = await openAppearance({ [KEY]: '2' });
+    st.reopen2 = checked() === '2 lines';
     t.dom.window.close();
     t = await openAppearance({ [KEY]: 'x' });
-    st.invalid2 = val() === '2 lines';
+    st.invalid1 = checked() === '1 line';
     t.dom.window.close();
     ok(Object.values(st).every(Boolean),
-      '★ S10 P4: Chat appearance has a "Message preview" row right under Text size (default "2 lines"); it opens the option sheet "1 line" / "2 lines", a pick writes spixi.chat.previewlines "1" | "2" and the value follows; a stored "1" reopens on "1 line", an invalid value reads "2 lines" — ' + JSON.stringify(st));
+      '★ S10 P4 (★ S11 re-base #1261/#1263): Chat appearance has a "Message preview" INLINE segmented control right under Text size — the same radiogroup grammar, "1 line | 2 lines", "1 line" checked by default; a tap writes spixi.chat.previewlines "2" | "1" and the check follows (no sheet); a stored "2" reopens on "2 lines", an invalid value reads "1 line" — ' + JSON.stringify(st));
   } catch (e) {
     ok(false, '★ S10 D preview pins threw: ' + (e && e.stack || e));
   }

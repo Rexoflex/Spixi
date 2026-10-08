@@ -964,6 +964,5 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-account .c-disc.c-settings-about__logo > svg,
 .c-account .c-disc.c-settings-contrib__art-disc > svg { width: 32px; height: 32px; }
 
-/* ★ S10 P4 (#1254): the Chat appearance "Message preview" card is a single value row — the hub's card padding (4),
-   as the Canvas card (settings-screens.css .c-settings-appearance__groundsec, Session M #774). */
-.c-settings-appearance .c-settings__section.c-settings-appearance__previewsec { padding: var(--spacing-4); }
+/* ★ S10 P4 (#1254) → ★ S11 A2 (#1263): the "Message preview" card is an inline segmented control now (the Text size
+   grammar) — it takes the plain section padding, so the single-row padding rule that stood here is gone. */

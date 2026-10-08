@@ -138,7 +138,7 @@
    not a breakpoint — desktop keeps riding :root[data-desktop] in empty-state.css. */
 .c-wallet-txlist > .c-empty-state[data-compact] { padding-block-start: var(--spacing-8); }
 .c-wallet-txlist > .c-empty-state[data-compact] .c-empty-state__illo {
-  width: clamp(104px, 32vw, 148px);
+  width: clamp(160px, 48vw, 200px);   /* ★ S11 B (#1262): the art is back and WIDER (Damir) — was clamp(104px, 32vw, 148px) */
 }
 
 /* —— tx detail sheet —— */

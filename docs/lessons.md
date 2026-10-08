@@ -152,3 +152,7 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L102 | (corrected #1259) A binding signature is proven only by a compile: `methodmap.csv` said the enum, the net10.0-android build said `int` (CS1503). When reviewers disagree on an uncompiled overload, ask for a build before "fixing" it. | #1257 (r2), #1259 |
 | L103 | A cleanup keyed on a file-NAME shape must not cover names a peer can choose: give received files a name that can never match, and run legacy sweeps once. | #1257 (r1 M2) |
 | L104 | A hold that ends after the first frame shows any later re-raster on glass: a short chat (2 rows, 15 ms hold) is the test case for open flashes, not a long one. | #1255 |
+| L105 | A fix for one locale's number keys must be tested in a locale with a third grouping character: fr / ru / lt group with a no-break space, so '.' and ',' are both the decimal there — dropping "the other mark" turned 2.5 into 25. | #1264 (r3) |
+| L106 | A feature that acts without a tap (auto-download) ships with its limits and the room-aware contact rule (`bot \|\| Group` — a bot room is `FriendType.Normal`) in the same batch; a queued action re-checks that its objects are still live. | #1264 (r1, r3) |
+| L107 | A pin that reads the real clock breaks on a date: every date rule pins its own clock (the seasonal pin would have gone red on 24 Oct). | #1264 (r1) |
+| L108 | Run the full smoke ALONE and never touch the tree while it runs: a reader's test run on the same 2 cores crashed a built-shell boot, and a one-line edit mid-run voided a run. | #1264 |

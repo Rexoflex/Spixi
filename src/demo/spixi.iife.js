@@ -757,7 +757,19 @@ function attachAmountKeyboardDismiss(input) {
  * Chromium/WebView2. Tab still reaches the keys; a keyboard-focused key keeps the normal
  * button behaviour.
  *
- * Exports: padApply(raw, key, opts) · createAmountDisplay({ className, strings }) ·
+ * ★ S12 C (#1267) PASTE: while the same live state holds, a `paste` on the document REPLACES the amount with
+ * padPaste(clipboardData 'text/plain') — the settled-string parser (ungroupAmountInput → sanitizeAmount; in a
+ * whitespace-grouping locale '.' / ',' is the decimal mark, the r4 key rule) plus the pad's own limits,
+ * all-or-nothing: anything the pad would not hold (letters, a sign, two numbers, a leading-zero GROUP ("0,500" en),
+ * > 8 decimals, > 15 integer digits, > 64 chars) changes nothing, no toast. Same exclusions as the keys (a paste
+ * into a real field, a sheet or a dialog is theirs; a paste another listener already prevented is not ours); the
+ * listener lives and dies with the keydown one. Never navigator.clipboard (no permission prompt).
+ * WHERE IT FIRES (★ #46 r1 R2-m2): Ctrl+V on Windows / Chromium WebViews with a keyboard is verified. Cmd+V on
+ * Mac Catalyst (WKWebView may not fire `paste` on a non-editable document) and Android hardware keyboards are
+ * device-walk items. Touch long-press Paste has NO target here: the amount is an <output>, not an editable
+ * field, so the OS shows no Paste callout on it.
+ *
+ * Exports: padApply(raw, key, opts) · padPaste(text, opts) · createAmountDisplay({ className, strings }) ·
  *          setAmountDisplay(display, raw, { error }) ·
  *          createAmountPad({ display, strings, decimals, onChange }) → element with
  *            _value() · _set(raw) · _press(key) · _keysOn(isLive, { primary }) · _keysOff()
@@ -767,6 +779,7 @@ function attachAmountKeyboardDismiss(input) {
 
 const PAD_INT_MAX = 15;                                        // 999 trillion IXI: far past supply, never wraps
 const PAD_LONG_PRESS_MS = 550;
+const PAD_PASTE_MAX = 64;                                      // ★ S12 C (#1267): a longer clipboard is not an amount — refused, never cut
 
 /** ★ #1263 — one keypress applied to the canonical edit string ('.'-decimal, maybe a
  *  trailing '.' mid-typing). key ∈ '0'…'9' · 'dec' · 'back' · 'clear'. */
@@ -790,6 +803,55 @@ function padApply(raw, key, { decimals = 8 } = {}) {
   }
   if (s.length - dot - 1 >= decimals) return s;            // precision reached: further digits ignored
   return s + key;
+}
+
+/** ★ S12 C (#1267) — a PASTED string → the pad's canonical edit string, or null (= change nothing).
+ *  The settled-string inverse (ungroupAmountInput, the V-1 / #135-M2 rules, in `locale` = the app language)
+ *  then sanitizeAmount, but ALL-OR-NOTHING around them: sanitizeAmount strips what it does not know and cuts
+ *  to 8 decimals — right for a field, a silent wrong amount for a paste ("-5" → 5, "1,234,56" → 1.23456,
+ *  "12 34" → 1234, 9 decimals → cut). So: only digits, '.', ',', spaces (incl. NBSP / NNBSP / thin; no tab
+ *  or line break) and "'" — the groupers ungroup strips — and those only as 3-digit grouping ("1 234,5"),
+ *  never between two numbers; a leading-zero first group refused unless its separator is the locale's own decimal
+ *  mark and the only one (#46 r2: en "0.500" = 0.5, de "0,125" = 0.125); after the ungroup (in a whitespace-grouping
+ *  locale: the spaces stripped, '.' / ',' = the decimal, #46 r1) at most ONE separator left; ≤ `decimals`
+ *  fraction digits and ≤ 15 integer digits (the padApply limits); leading zeros dropped like _set. */
+function padPaste(text, { decimals = 8, locale } = {}) {
+  const t = String(text == null ? '' : text).trim();
+  if (!t || t.length > PAD_PASTE_MAX) return null;
+  // anything but digits and '.' / ',' only as 3-digit grouping: a letter, a sign, a line break, "12 34" (two numbers)
+  if (/[^0-9.,]/.test(t) && !/^\d{1,3}(?:[' \u00a0\u2007\u2009\u202f]\d{3})+(?:[.,]\d*)?$/.test(t)) return null;
+  /* ★ #46 r1 R2-M1: fr / ru / lt group with a (narrow) no-break space, so there '.' and ',' can only be the DECIMAL
+     mark (the r4 key rule above) — ungroupAmountInput would read fr "12.500" as 12500 and "0.500" as 500. At most
+     one of them in total ("1.234,5" there is refused); whitespace grouping still strips. */
+  const g = localeSeps(locale).group;
+  const wsGroup = g !== '.' && g !== ',';
+  /* ★ #46 r1 R2-M2: a leading-zero first group is never grouping — in the GROUP-mark reading (en "0,500", de "0.500") and "0 500",
+     "0.000.001" are refused, never read as 500 / 50 / 1; in a whitespace-grouping locale a '.' / ',' after it is
+     the decimal (fix above), so "0.500" there is 0.5. */
+  const lz = t.match(/^0\d*([.,' \u00a0\u2007\u2009\u202f])\d{3}(?!\d)/);
+  /* ★ #46 r2 m-1: the locale's OWN decimal mark after a leading zero is a plain decimal (en "0.500", de "0,125") when it
+     is the ONLY separator — only the group-mark reading ("0,500" en → 500, "0.500" de → 500) and a multi-group string
+     ("0.000.001") are refused. */
+  const ownDecimal = lz && !wsGroup && lz[1] === localeSeps(locale).decimal && new RegExp('^0\\d*\\' + lz[1] + '\\d+$').test(t);
+  if (lz && !(wsGroup && /[.,]/.test(lz[1])) && !ownDecimal) return null;
+  let u;
+  if (wsGroup) {
+    u = t.replace(/[' \u00a0\u2007\u2009\u202f]/g, '');      // a second '.' / ',' is refused by the one-separator check below
+  } else {
+    u = ungroupAmountInput(t, locale);
+  }
+  const m = u.match(/^\d*(?:[.,](\d*))?$/);
+  if (!m || !/\d/.test(u)) return null;                      // a reading ungroup could not settle ("1,234,56")
+  if (m[1] != null && m[1].length > Math.max(0, decimals)) return null;   // checked BEFORE sanitizeAmount cuts to 8
+  const s = sanitizeAmount(u);                               // the #135-M2 comma rule on the one separator left
+  const dot = s.indexOf('.');
+  let int = dot === -1 ? s : s.slice(0, dot);
+  const frac = dot === -1 ? null : s.slice(dot + 1);
+  if (frac !== null && frac.length > Math.max(0, decimals)) return null;   // belt: a value the pad would refuse
+  int = int.replace(/^0+(?=\d)/, '');
+  if (frac !== null && int === '') int = '0';
+  if (int.length > PAD_INT_MAX) return null;
+  return frac === null || decimals <= 0 ? int : int + '.' + frac;
 }
 
 /** The big amount (render A): grey placeholder "0.00" in the locale's mark, a caret, the
@@ -936,10 +998,13 @@ function createAmountPad({ display = null, strings = getStrings(), decimals = 8,
 
   /* desktop hardware keys — bound while the owner's step is live */
   let keyFn = null;
+  let pasteFn = null;
   let sweep = 0;
   const off = () => {
     if (keyFn) document.removeEventListener('keydown', keyFn);
+    if (pasteFn) document.removeEventListener('paste', pasteFn);   // ★ S12 C (#1267): one lifecycle with the keys
     keyFn = null;
+    pasteFn = null;
     if (sweep) { clearInterval(sweep); sweep = 0; }
   };
   pad._keysOn = (isLive = () => true, { primary = null } = {}) => {
@@ -976,6 +1041,22 @@ function createAmountPad({ display = null, strings = getStrings(), decimals = 8,
       press(key);
     };
     document.addEventListener('keydown', keyFn);
+    /* ★ S12 C (#1267): a paste REPLACES the amount through the same set() a key uses (display, fiat, over-balance
+       via onChange). Only the step's own paste: never into a field / sheet / dialog (the keydown exclusions). */
+    pasteFn = (e) => {
+      if (!pad.isConnected) { off(); return; }
+      if (e.defaultPrevented || !isLive()) return;            // a paste another listener took is not ours (R3-MINOR-6)
+      const t = e.target;
+      if (t && typeof t.closest === 'function'
+        && t.closest('input, textarea, select, [contenteditable], [role="dialog"], [role="alertdialog"], .c-sheet, .c-modal')) return;
+      let text = '';
+      try { text = e.clipboardData ? e.clipboardData.getData('text/plain') : ''; } catch (err) { return; }
+      const next = padPaste(text, { decimals });
+      if (next === null) return;                           // unreadable: nothing changes, no toast, the default stays
+      e.preventDefault();
+      if (next !== raw) set(next);
+    };
+    document.addEventListener('paste', pasteFn);
     sweep = setInterval(() => { if (!pad.isConnected) off(); }, 2000);   // the #609 belt: a removed pad never keeps a document listener
   };
   pad._keysOff = off;
@@ -5373,14 +5454,15 @@ function setWarning(el, message) {
 /**
  * c-glass-card — the glass card family on the Chats list (★ S11 A, DECISIONS #1262; design "Spixi Hint Cards").
  * ONE card grammar for two jobs: the UPDATE notice (it replaces the orange c-banner for the update case ONLY —
- * connectivity and every other warning keep their surfaces) and the quiet "Did you know?" HINTS (tips 5–9 now).
+ * connectivity and every other warning keep their surfaces) and the quiet "Did you know?" HINTS (tips 5–9, then 1, 3, 4).
  * Glass: no outline — a faint blue / violet tint over the card ground, a top highlight, a soft low shadow
  * (glass-card.css; tokens.css region A). One entrance, then hold; reduced motion = static.
  *
  *   createGlassCard({ variant, art, eyebrow, title, text, linkLabel, onLink, onDismiss, strings }) → el
  *   createUpdateCard({ version, onHowTo, onDismiss, strings })  → el   (blue app-style icon, NO Update button —
  *        Spixi is installed many ways; "How to update" opens one page that covers every platform)
- *   createHintCard({ tip, onLearnMore, onDismiss, strings })    → el   (a tip without a Learn-more target has no link)
+ *   createHintCard({ tip, onLearnMore, onDismiss, canLearn, strings }) → el   (a tip without a Learn-more target has no
+ *        link; ★ S12 A (#1267): nor one whose target canLearn(def) refuses — a `web:` page on an exe without `hintHelp`)
  *
  * PURE rules (pinned on the built shell):
  *   HINT_TIPS · HINT_IDS — the list, in show order; the ids are the C# whitelist (Spixi/Utils/S11HintRules.cs TipIds)
@@ -5409,17 +5491,15 @@ const HINT_GAP_MS = 7 * 24 * 60 * 60 * 1000;           // at most one every 7 da
 
 /* The tips, in show order. `learn` names the in-app target the host opens with EXISTING navigation
    (home.html hintLearnMore): backup = Settings › Backup (ixian:backup) · wallet / apps = the tab · addcontact =
-   the contacts directory's Add contact. `learn: ''` = no Learn more (tip 9).
-   ★ Tips 1–4 wait for Damir's web pages (#1262). ★ S11 A2 (#1263, R1-M2): a tip's web page is C#-OWNED, the way the
-   update card's is (`ixian:updateHelp` → Config.updateHelpUrl, HomePage): the shell sends a fixed, argument-free verb
-   per tip and C# opens its own compile-time URL through Utils.openExternal — never a URL from this document (the
-   openLink sink stays at its two pages). To enable one: uncomment its row, give it `learn: '<id>'`, add the verb +
-   the Config URL C#-side, and add its id to S11HintRules.TipIds (the C# whitelist refuses an id it does not know).
-   Their copy (the design's table):
-     { id: 'network', glyph: 'topology-star',  learn: '' },   // "Decentralized" · "Spixi runs on the Ixian network of independent nodes."
+   the contacts directory's Add contact. `learn: ''` = no Learn more (tip 9, quantum, nophone).
+   ★ S11 A2 (#1263, R1-M2): a tip's web page is C#-OWNED, the way the update card's is (`ixian:updateHelp` →
+   Config.updateHelpUrl, HomePage) — never a URL from this document (the openLink sink stays at its two pages).
+   ★ S12 A (#1267): `learn: 'web:<id>'` = that page — the shell sends the fixed verb `ixian:hintHelp:<id>` (cap
+   `hintHelp`) and C# maps the id to its own compile-time URL (S11HintRules.helpUrlFor → Config.networkHelpUrl).
+   Without the cap the card has NO Learn more (createHintCard canLearn). A new tip id must join S11HintRules.TipIds too
+   (the C# whitelist refuses an id it does not know).
+   Tip 2 is HELD (#1267) until the new site has a page:
      { id: 'e2e',     glyph: 'lock',           learn: '' },   // "End-to-end encrypted" · "Only you and the person you write to can read it."
-     { id: 'quantum', glyph: 'shield-lock',    learn: '' },   // "Ready for quantum computers" · "Current Spixi apps use post-quantum encryption."
-     { id: 'nophone', glyph: 'square-asterisk', learn: '' },  // "No phone number" · "Your account is a key on your phone."
 */
 const HINT_TIPS = [
   { id: 'backup', glyph: 'shield-lock', learn: 'backup' },
@@ -5427,6 +5507,9 @@ const HINT_TIPS = [
   { id: 'apps', glyph: 'apps', learn: 'apps' },
   { id: 'addcontact', glyph: 'qrcode', learn: 'addcontact' },
   { id: 'tip', glyph: 'heart-handshake', learn: '' },
+  { id: 'network', glyph: 'topology-star', learn: 'web:network' },   // ★ S12 A (#1267): tip 1
+  { id: 'quantum', glyph: 'shield-lock', learn: '' },                // ★ S12 A (#1267): tip 3
+  { id: 'nophone', glyph: 'square-asterisk', learn: '' },            // ★ S12 A (#1267): tip 4
 ];
 const HINT_IDS = HINT_TIPS.map((t) => t.id);
 
@@ -5440,6 +5523,11 @@ function hintCopy(id, strings = getStrings()) {
     case 'addcontact': return { title: strings.hintAddContactTitle || 'Add people in person', text: strings.hintAddContactBody || 'Scan a QR code when you meet.' };
     /* ★ S11 A2 (#1263, R2 copy): platform-neutral — a desktop opens the menu with a right-click, not a long-press */
     case 'tip': return { title: strings.hintTipTitle || 'Say thanks with a tip', text: strings.hintTipBody2 || 'Open a message’s menu and choose Tip.' };
+    /* ★ S12 A (#1267): tips 1, 3, 4 (the design's table; tip 4 never says "no servers") */
+    case 'network': return { title: strings.hintNetworkTitle || 'Decentralized', text: strings.hintNetworkBody || 'Spixi runs on the Ixian network of independent nodes.' };
+    case 'quantum': return { title: strings.hintQuantumTitle || 'Ready for quantum computers', text: strings.hintQuantumBody || 'Current Spixi apps use post-quantum encryption.' };
+    /* ★ S12 A2 (#1267, R2-m4): platform-neutral — a desktop has no phone (a changed meaning = a new key) */
+    case 'nophone': return { title: strings.hintNoPhoneTitle || 'No phone number', text: strings.hintNoPhoneBody2 || 'Your account is a key on your device.' };
     default: return null;
   }
 }
@@ -5598,19 +5686,21 @@ function createUpdateCard({ version = '', onHowTo, onDismiss, strings = getStrin
   return card;
 }
 
-/** One hint card. Unknown tip → null. */
-function createHintCard({ tip, onLearnMore, onDismiss, strings = getStrings() } = {}) {
+/** One hint card. Unknown tip → null. ★ S12 A (#1267): `canLearn(def)` — the host says whether it can open this tip's
+    Learn more (a `web:` page needs the exe's `hintHelp` cap); false = the card has no link. Default: every target. */
+function createHintCard({ tip, onLearnMore, onDismiss, canLearn = null, strings = getStrings() } = {}) {
   const def = HINT_TIPS.find((t) => t.id === tip);
   const copy = def && hintCopy(def.id, strings);
   if (!copy) return null;
+  const learn = !!def.learn && (typeof canLearn !== 'function' || canLearn(def) === true);
   const card = createGlassCard({
     variant: 'hint',
     art: artTile('c-glass-card__tipart', def.glyph, 26),
     eyebrow: strings.hintEyebrow || 'Did you know?',
     title: copy.title,
     text: copy.text,
-    linkLabel: def.learn ? (strings.hintLearnMore || 'Learn more') : '',
-    onLink: def.learn ? () => { if (onLearnMore) onLearnMore(def.learn); } : null,
+    linkLabel: learn ? (strings.hintLearnMore || 'Learn more') : '',
+    onLink: learn ? () => { if (onLearnMore) onLearnMore(def.learn); } : null,
     onDismiss,
     strings,
   });
@@ -10465,7 +10555,11 @@ function mosaicGeometry(n) {
   const rows = mosaicRows(n);
   const hs = rows.map((k) => ROW_H[k]);
   const sum = hs.reduce((a, b) => a + b, 0);
-  return { rows, ratio: Math.round((1 / sum) * 1000) / 1000, template: hs.map((v) => (Math.round(v * 1000) / 1000) + 'fr').join(' ') };
+  /* ★ S12 (Damir 20:06, a 2-photo album filled only the top 41 % of its box): CSS grid gives flex rows whose factors
+     sum to LESS THAN 1 only that fraction of the free space (css-grid-1 §12.7.1), so '0.41fr' (2 photos), '0.333fr 0.25fr'
+     (7) … left the rest of the box empty. The factors are now each row's SHARE of the height in thousandths (they sum to
+     ~1000, never < 1); the box's aspect ratio is unchanged. */
+  return { rows, ratio: Math.round((1 / sum) * 1000) / 1000, template: hs.map((v) => Math.max(1, Math.round((v / sum) * 1000)) + 'fr').join(' ') };
 }
 function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false,
   downloadAll = 0, downloadAllLabel = '', onDownloadAll = null, timestamp = null, strings = getStrings() } = {}) {
@@ -30344,6 +30438,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -30961,15 +31056,16 @@ function createSettingsContributors({
 /* Shared link renderer for About / How-to. A link OPENS via the optional
    onOpenLink callback (no bridge verb exists → the shells don't wire it; when
    absent the URL renders as SELECTABLE TEXT rather than trying to navigate the
-   WebView away). Untrusted-safe: labels/urls are curated in-code, textContent only. */
-function linkRow({ label, url, onOpenLink, strings }) {
+   WebView away). Untrusted-safe: labels/urls are curated in-code, textContent only.
+   ★ S12 B (#1267): an optional leading icon tile (`glyph` + `grad`, the hub's squircle grammar) and an
+   optional second line (`sub`); without them the row is the one it always was. */
+function linkRow({ label, url, sub, glyph, grad, onOpenLink, strings }) {
   if (onOpenLink) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-settings-links__row';
-    const lab = document.createElement('span');
-    lab.className = 'c-settings-links__label';
-    lab.textContent = label;
+    if (glyph) b.append(aboutTile(glyph, grad));
+    const lab = rowText(label, sub);
     b.append(lab, icon('external-link', { size: 18 }));   // #710: "opens outside the app" — arrow-up-right is money (#709)
     b.addEventListener('click', () => onOpenLink(url));
     return b;
@@ -30986,20 +31082,132 @@ function linkRow({ label, url, onOpenLink, strings }) {
   return wrap;
 }
 
+/* ★ S12 B (#1267) — the row parts About B and How to use A share. */
+/* the coloured icon tile: the hub's .c-disc squircle (settings-shell.css `.c-account .c-disc`), its colour picked per
+   row from the hub ramp (--disc-hub-N) so the screens match the reference rather than the hash */
+function aboutTile(glyph, grad) {
+  const t = document.createElement('span');
+  t.className = 'c-disc c-settings-links__tile';
+  t.dataset.grad = String(grad || discGrad(glyph));
+  t.setAttribute('aria-hidden', 'true');
+  t.append(icon(glyph, { size: 20 }));
+  return t;
+}
+/* the label column: a title and an optional second line */
+function rowText(label, sub) {
+  const col = document.createElement('span');
+  col.className = 'c-settings-links__text';
+  const lab = document.createElement('span');
+  lab.className = 'c-settings-links__label';
+  lab.textContent = label;
+  col.append(lab);
+  if (sub) {
+    const s = document.createElement('span');
+    s.className = 'c-settings-links__sub';
+    s.textContent = sub;
+    col.append(s);
+  }
+  return col;
+}
+/* a labelled group: "Why Spixi" over its card (the hub's section-label grammar) */
+function aboutGroup(body, title, cls) {
+  const wrap = document.createElement('section');
+  wrap.className = 'c-settings__groupwrap c-settings-about__group' + (cls ? ' ' + cls : '');
+  const h = document.createElement('h3');
+  h.className = 'c-settings__label';
+  h.textContent = title;
+  const card = document.createElement('div');
+  card.className = 'c-settings__group c-settings-links';
+  wrap.append(h, card);
+  body.append(wrap);
+  return card;
+}
+
+/* ★ S12 B (#1267): the version chip shows what C# pushes (`Config.version` = "spixi-0.9.22") without the
+   `spixi-` prefix, and only a plain version string — anything else gets NO chip rather than a strange one. */
+function aboutVersionText(version) {
+  const v = String(version == null ? '' : version).trim().replace(/^spixi-/i, '');
+  return /^[0-9A-Za-z.+-]{1,32}$/.test(v) ? v : '';
+}
+
+/* ★ S12 B (#1267) — the About hero art: the Spixi mark on a violet tile, a dashed orbit with three satellites
+   (a lock, a chat bubble, an IXI coin) and small sparkles. Inline so the --ab-* tokens (tokens.css) theme it;
+   a still drawing (no motion → nothing for reduced motion to stop). Built element by element with
+   createElementNS from the static table below — no markup string, no innerHTML (this file has none). Gradient
+   ids are unique per call. */
+const AB_NS = 'http://www.w3.org/2000/svg';
+let abSeq = 0;
+function abEl(tag, attrs, kids) {
+  const n = document.createElementNS(AB_NS, tag);
+  for (const k of Object.keys(attrs || {})) n.setAttribute(k, String(attrs[k]));
+  for (const c of kids || []) n.append(c);
+  return n;
+}
+const abStop = (o, v, a) => abEl('stop', { offset: o, style: 'stop-color:' + v + (a != null ? ';stop-opacity:' + a : '') });
+const abSpark = (x, y, r) => abEl('path', { d: `M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}Z` });
+function aboutHeroArt() {
+  abSeq += 1;
+  const id = (n) => n + '-ab' + abSeq;
+  const url = (n) => 'url(#' + id(n) + ')';
+  const lin = (n, a, b, diag) => abEl('linearGradient', { id: id(n), x1: 0, y1: 0, x2: diag ? 1 : 0, y2: 1 }, [abStop(0, a), abStop(1, b)]);
+  const svg = abEl('svg', { viewBox: '0 0 300 150', class: 'c-settings-about__art', 'aria-hidden': 'true', focusable: 'false' }, [
+    abEl('defs', {}, [
+      abEl('radialGradient', { id: id('g') }, [abStop(0, 'var(--ab-glow)'), abStop(1, 'var(--ab-glow)', 0)]),
+      lin('t', 'var(--ab-tile-a)', 'var(--ab-tile-b)', true),
+      abEl('linearGradient', { id: id('h'), x1: 0, y1: 0, x2: 0, y2: 1 }, [abStop(0, '#fff', 0.32), abStop(0.55, '#fff', 0)]),
+      lin('b', 'var(--ab-bubble-a)', 'var(--ab-bubble-b)', true),
+      lin('c', 'var(--ab-coin-a)', 'var(--ab-coin-b)', true),
+      abEl('filter', { id: id('f'), x: '-50%', y: '-50%', width: '200%', height: '200%' }, [abEl('feGaussianBlur', { stdDeviation: 7 })]),
+    ]),
+    abEl('ellipse', { cx: 150, cy: 72, rx: 120, ry: 66, fill: url('g') }),
+    abEl('ellipse', { cx: 150, cy: 136, rx: 46, ry: 5, style: 'fill:var(--ab-floor)' }),
+    abEl('ellipse', { cx: 150, cy: 84, rx: 118, ry: 34, fill: 'none', style: 'stroke:var(--ab-orbit)', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-dasharray': '0.1 6' }),
+    abEl('rect', { x: 116, y: 42, width: 68, height: 72, rx: 22, style: 'fill:var(--ab-tile-shadow)', filter: url('f') }),
+    abEl('rect', { x: 110, y: 30, width: 80, height: 80, rx: 22, fill: url('t') }),
+    abEl('rect', { x: 110, y: 30, width: 80, height: 80, rx: 22, fill: url('h') }),
+    /* the lock satellite (drawn here: the registry's outlined lock alone would cost ~2 KB of the art's 7 KB budget) */
+    abEl('circle', { cx: 58, cy: 63, r: 16, style: 'fill:var(--ab-lock-bg)' }),
+    abEl('g', { style: 'color:var(--ab-lock-ink)' }, [
+      abEl('path', { d: 'M54 61.5v-3a4 4 0 0 1 8 0v3', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round' }),
+      abEl('rect', { x: 51, y: 61, width: 14, height: 10, rx: 2.6, fill: 'currentColor' }),
+      abEl('circle', { cx: 58, cy: 66, r: 1.5, style: 'fill:var(--ab-lock-bg)' }),
+    ]),
+    /* the chat bubble with its three dots */
+    abEl('path', { d: 'M214 39a9 9 0 0 1 9 -9h24a9 9 0 0 1 9 9v8a9 9 0 0 1 -9 9h-18l-7 6v-6.6a9 9 0 0 1 -8 -8.4z', fill: url('b') }),
+    abEl('g', { fill: '#fff' }, [226, 235, 244].map((cx) => abEl('circle', { cx, cy: 43, r: 2.4 }))),
+    /* the IXI coin — the ticker is a proper noun, the same in every language */
+    abEl('circle', { cx: 244, cy: 104, r: 14, fill: url('c'), style: 'stroke:var(--ab-coin-edge)', 'stroke-width': 1.5 }),
+    abEl('text', { x: 244, y: 107.2, 'text-anchor': 'middle', 'font-size': 8.5, 'font-weight': 700, style: 'fill:var(--ab-coin-ink);font-family:var(--font-ui, sans-serif)' }, ['IXI']),
+    abEl('g', { style: 'fill:var(--ab-spark)' }, [
+      abSpark(92, 22, 5), abSpark(222, 14, 3.5), abSpark(96, 106, 4.5), abSpark(270, 74, 4),
+      abEl('circle', { cx: 34, cy: 96, r: 1.6 }), abEl('circle', { cx: 268, cy: 40, r: 1.4 }), abEl('circle', { cx: 196, cy: 126, r: 1.5 }),
+    ]),
+  ]);
+  /* the mark is the icon registry's own `logo` (one source for the Spixi mark) */
+  const mark = icon('logo', { size: 44 });
+  mark.setAttribute('x', '128'); mark.setAttribute('y', '48');
+  mark.setAttribute('class', 'c-settings-about__mark');
+  svg.append(mark);
+  return svg;
+}
+
 /**
- * About — createSettingsAbout({ appName, version, tagline, description, links,
- * onOpenLink, onBack, strings }). STATIC in-hub takeover, zero-C# (no bridge).
- * Version shows only when provided (SPIXI_ENV / §9 push — no bridge push today).
- * Links degrade to selectable text unless onOpenLink is wired.
+ * About — createSettingsAbout({ appName, version, tagline, links, onOpenLink, host, onLicences, onRate, devSeed,
+ * onBack, strings }). STATIC in-hub takeover.
+ * ★ S12 B (#1267, design "B, hero card-led"): a hero card (art · name · tagline · version chip), "Why Spixi" (three
+ * facts), "Links" (the three external rows — the SAME ixian:openLink path), "Legal and support" (Privacy · Terms as
+ * the in-app doc sheets · Licences → the host's Contributors credits · Rate Spixi, ONLY with `onRate`), "© Ixian".
+ * Optional rows (Licences, Rate) render only when the host can act on them.
  */
 function createSettingsAbout({
   appName = 'Spixi',
   version = '',
   tagline,
-  description,
   links,
   onOpenLink,                    // OPTIONAL (url) — wired since iOS-21 (ixian:openLink)
   host,                          // iOS-23: sheet host for the legal doc sheets
+  onLicences,                    // ★ S12 B (#1267): OPTIONAL — opens the Contributors credits (the host's own screen)
+  onRate,                        // ★ S12 B (#1267): OPTIONAL — settings.html passes it only with bridge.cap('rate')
   devSeed,                       // ★ Session I: OPTIONAL { onSeed, onUnseed, status } — the DEV-BUILD seed harness (see below); absent = no card
   onBack,
   strings = getStrings(),
@@ -31007,78 +31215,89 @@ function createSettingsAbout({
   const { el, body } = appScreenShell(
     'c-settings-about', strings.about || 'About', onBack);
 
-  /* hero — logo disc + app name + tagline (backup-hero / contributors art precedent) */
+  /* hero card */
   const hero = document.createElement('div');
-  hero.className = 'c-settings-about__hero';
-  const disc = document.createElement('span');
-  disc.className = 'c-disc c-settings-about__logo';
-  disc.dataset.hue = 'accent';
-  disc.dataset.grad = String(discGrad('logo'));
-  disc.append(icon('logo', { size: 32 }));
+  hero.className = 'c-settings__group c-settings-about__hero';   // the settings card (surface + shadow), restyled by its own rule
   const nameEl = document.createElement('h2');
   nameEl.className = 'c-settings-about__app-name';
   nameEl.textContent = appName;
   const tag = document.createElement('p');
   tag.className = 'c-settings-about__tagline';
-  tag.textContent = tagline || strings.aboutTagline
-    || 'Private, decentralized messaging on the Ixian network.';
-  hero.append(disc, nameEl, tag);
-  if (version) {
+  /* ★ S12 B (#1267): a NEW key — the line changed meaning (messaging AND payments) */
+  tag.textContent = tagline || strings.aboutTagline2
+    || 'Private messaging and payments on the Ixian network.';
+  hero.append(aboutHeroArt(), nameEl, tag);
+  const v = aboutVersionText(version);
+  if (v) {
     const ver = document.createElement('p');
     ver.className = 'c-settings-about__version';
-    ver.textContent = version;
+    const vl = document.createElement('span');
+    vl.textContent = strings.aboutVersion || 'Version';
+    const vn = document.createElement('span');
+    vn.className = 'c-settings-about__version-num';
+    vn.textContent = v;
+    ver.append(vl, ' ', vn);
     hero.append(ver);
   }
   body.append(hero);
 
-  const desc = document.createElement('p');
-  desc.className = 'c-settings__note c-settings-about__desc';
-  // ★ S9 A-10 (#1245, audit S-07): in-transit wording (history is not encrypted at rest), NEW key
-  desc.textContent = description || strings.aboutBody2
-    || 'Spixi lets you chat and send IXI directly, peer to peer. Your messages are end-to-end encrypted and your keys never leave your device.';
-  body.append(desc);
+  /* Why Spixi — three facts (no rows to tap). No post-quantum line, no "server" wording (#1267). */
+  const why = aboutGroup(body, strings.aboutWhy || 'Why Spixi', 'c-settings-about__why');
+  for (const f of [
+    { glyph: 'topology-star', grad: 5, title: strings.aboutWhyNetworkTitle || 'Decentralized',
+      text: strings.aboutWhyNetworkBody || 'Runs on the Ixian network, peer to peer.' },
+    { glyph: 'lock', grad: 8, title: strings.aboutWhyE2eTitle || 'End-to-end encrypted',
+      text: strings.aboutWhyE2eBody || 'Only the person you write to can read it.' },
+    /* ★ S12 B (r1 R2-m4): platform-neutral ("device", not "phone") — a NEW key, the old aboutWhyKeysTitle is retired */
+    { glyph: 'key', grad: 2, title: strings.aboutWhyKeysTitle2 || 'Your keys, your device',
+      text: strings.aboutWhyKeysBody || 'Keys are made and kept on this device.' },
+  ]) {
+    const r = document.createElement('div');
+    r.className = 'c-settings-links__row c-settings-about__fact';
+    r.append(aboutTile(f.glyph, f.grad), rowText(f.title, f.text));
+    why.append(r);
+  }
 
-  /* links card — website / network / source (degrade to text without onOpenLink) */
+  /* Links — website / network / source (degrade to text without onOpenLink). Today's three URLs, unchanged. */
   const list = links || [
-    { label: strings.aboutLinkWebsite || 'Website', url: 'https://www.spixi.io' },
-    { label: strings.aboutLinkNetwork || 'Ixian network', url: 'https://www.ixian.io' },
-    { label: strings.aboutLinkSource || 'Source code', url: 'https://github.com/ixian-platform/Spixi' },
+    { label: strings.aboutLinkWebsite || 'Website', url: 'https://www.spixi.io', glyph: 'world', grad: 8 },
+    { label: strings.aboutLinkNetwork || 'Ixian network', url: 'https://www.ixian.io', glyph: 'topology-star', grad: 5 },
+    { label: strings.aboutLinkSource || 'Source code', url: 'https://github.com/ixian-platform/Spixi', glyph: 'code', grad: 3 },
   ];
   if (list.length) {
-    const groupWrap = document.createElement('div');
-    groupWrap.className = 'c-settings__groupwrap';
-    const card = document.createElement('div');
-    card.className = 'c-settings__group c-settings-links';
+    const card = aboutGroup(body, strings.aboutLinks || 'Links');
     for (const l of list) card.append(linkRow({ ...l, onOpenLink, strings }));
-    groupWrap.append(card);
-    body.append(groupWrap);
   }
 
-  /* iOS-23 — Terms of Use + Privacy Policy were missing from About entirely.
-     They open as the SAME in-app doc sheets onboarding uses (openLegalDoc →
-     launch-shell.js), NOT as external links: app-controlled copy, works with no
-     network, and English-only by #169. Nothing here depends on onOpenLink. */
-  const docs = [
-    { label: strings.termsLink || 'Terms of Use', doc: 'terms' },
-    { label: strings.privacyLink || 'Privacy Policy', doc: 'privacy' },
-  ];
-  const docWrap = document.createElement('div');
-  docWrap.className = 'c-settings__groupwrap';
-  const docCard = document.createElement('div');
-  docCard.className = 'c-settings__group c-settings-links';
-  for (const d of docs) {
+  /* Legal and support. iOS-23: Terms + Privacy open as the SAME in-app doc sheets onboarding uses (openLegalDoc →
+     launch-shell.js), NOT as external links: app-controlled copy, works with no network, English-only by #169. */
+  const legalCard = aboutGroup(body, strings.aboutLegalSupport || 'Legal and support');
+  const navRow = (glyph, grad, label, onClick, cls) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'c-settings-links__row';
-    const lab = document.createElement('span');
-    lab.className = 'c-settings-links__label';
-    lab.textContent = d.label;
-    b.append(lab, icon('chevron-right', { size: 18 }));
-    b.addEventListener('click', () => openLegalDoc({ doc: d.doc, host, strings }));
-    docCard.append(b);
+    b.className = 'c-settings-links__row' + (cls ? ' ' + cls : '');
+    b.append(aboutTile(glyph, grad), rowText(label), icon('chevron-right', { size: 18 }));
+    b.addEventListener('click', onClick);
+    return b;
+  };
+  legalCard.append(
+    navRow('shield-lock', 1, strings.privacyLink || 'Privacy Policy', () => openLegalDoc({ doc: 'privacy', host, strings })),
+    navRow('file-text', 6, strings.termsLink || 'Terms of Use', () => openLegalDoc({ doc: 'terms', host, strings })),
+  );
+  if (onLicences) {
+    legalCard.append(navRow('heart-handshake', 2, strings.aboutLicences || 'Licenses',
+      () => { try { onLicences(); } catch { /* the row must not throw out of the screen */ } }, 'c-settings-about__licences'));
   }
-  docWrap.append(docCard);
-  body.append(docWrap);
+  /* Rate Spixi — a voluntary visit: intent only (ixian:rating:yes from the host); C# owns the store URL. */
+  if (onRate) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row c-settings-about__rate';
+    b.append(aboutTile('star', 9), rowText(strings.aboutRate || 'Rate Spixi', strings.aboutRateBody || 'Tell others what you think'),
+      icon('external-link', { size: 18 }));
+    b.addEventListener('click', () => { try { onRate(); } catch { /* the row must not throw out of the screen */ } });
+    legalCard.append(b);
+  }
 
   const legal = document.createElement('p');
   legal.className = 'c-settings__note c-settings-about__legal';
@@ -31131,10 +31350,35 @@ function createSettingsAbout({
   return el;
 }
 
+/* ★ S12 B (#1267) — How to use: which steps this device has opened. `spixi.howtoSeen` holds a JSON array of step
+   numbers 1–6 and nothing else; anything that is not exactly that reads as "none seen" (validated on read), and
+   every access is fenced (private mode / a full store throws). Not personal: six small integers. */
+const HOWTO_SEEN_KEY = 'spixi.howtoSeen';
+const HOWTO_STEPS = 6;
+function readHowToSeen(storage) {
+  try {
+    const raw = storage && storage.getItem(HOWTO_SEEN_KEY);
+    if (typeof raw !== 'string' || raw.length > 64) return [];
+    const a = JSON.parse(raw);
+    if (!Array.isArray(a) || a.length > HOWTO_STEPS) return [];
+    if (!a.every((n) => Number.isInteger(n) && n >= 1 && n <= HOWTO_STEPS)) return [];
+    return [...new Set(a)].sort((x, y) => x - y);
+  } catch { return []; }
+}
+function writeHowToSeen(storage, seen) {
+  try { if (storage) storage.setItem(HOWTO_SEEN_KEY, JSON.stringify([...seen].sort((x, y) => x - y))); } catch { /* not kept — the screen still works */ }
+}
+function howToStorage() {
+  try { return window.localStorage; } catch { return null; }
+}
+let howToSeq = 0;
+
 /**
- * How to use — createSettingsHowTo({ steps, links, onOpenLink, onBack, strings }).
- * STATIC in-hub takeover, zero-C#. Brief getting-started steps + an optional docs
- * link (degrades to text without onOpenLink).
+ * How to use — createSettingsHowTo({ steps, links, onOpenLink, onJoinCommunity, storage, onBack, strings }).
+ * STATIC in-hub takeover, zero-C#.
+ * ★ S12 B (#1267, design "A, calm expandable list"): an intro, a "{0} of 6 seen" line + bar, six rows that each open
+ * (one at a time; a button with aria-expanded over its region) to the approved illustration and two lines of text —
+ * no "Show me" in v1 — then "Need more help?": the community row (unchanged behaviour) and Help centre.
  */
 function createSettingsHowTo({
   steps,
@@ -31146,6 +31390,7 @@ function createSettingsHowTo({
      without the hook the row is not rendered, so every other caller (demo, tests) is
      unchanged. Opt-in by construction — nothing is added until it is tapped. */
   onJoinCommunity,
+  storage = howToStorage(),      // ★ S12 B: the seen-state store (localStorage); null = nothing kept
   onBack,
   strings = getStrings(),
 } = {}) {
@@ -31154,103 +31399,154 @@ function createSettingsHowTo({
 
   const intro = document.createElement('p');
   intro.className = 'c-settings__note c-settings-howto__intro';
-  intro.textContent = strings.howToIntro || 'A few basics to get you started.';
+  intro.textContent = strings.howToIntro2 || 'Six things worth knowing. Tap one to see how it works.';
   body.append(intro);
 
   const list = steps || [
-    { title: strings.howToStep1 || 'Add a contact',
-      body: strings.howToStep1Body || 'Share your address or QR from Account, or scan a friend’s. Then send a request.' },
-    { title: strings.howToStep2 || 'Start chatting',
-      body: strings.howToStep2Body || 'Open a contact to send messages, photos and files. Everything is end-to-end between your devices.' },
-    { title: strings.howToStep3 || 'Send IXI',
-      body: strings.howToStep3Body || 'Send or request IXI right inside a chat. You confirm every payment on your device.' },
-    { title: strings.howToStep4 || 'Back up your wallet',
-      body: strings.howToStep4Body || 'Save one encrypted backup file from Account → Backup. Without it and your password, nothing can be recovered.' },
+    { glyph: 'message', grad: 8, art: illoChatsEmpty, title: strings.howTo2Step1 || 'Start a chat',
+      body: strings.howTo2Step1Body || 'Tap the new-chat button on Chats and pick a contact.' },
+    { glyph: 'qrcode', grad: 1, art: illoAddContact, title: strings.howTo2Step2 || 'Add a contact by QR',
+      body: strings.howTo2Step2Body || 'Show your QR from Account, or scan a friend’s in Contacts › Add contact.' },
+    { glyph: 'wallet', grad: 4, art: illoWelcome3, title: strings.howTo2Step3 || 'Send IXI in a chat',
+      body: strings.howTo2Step3Body || 'Tap + in a chat to send or request IXI. You confirm every payment on your device.' },
+    { glyph: 'apps', grad: 5, art: illoAppsEmpty, title: strings.howTo2Step4 || 'Use mini apps',
+      body: strings.howTo2Step4Body || 'Open Apps to find mini apps you can use together in a chat.' },
+    { glyph: 'shield-lock', grad: 2, art: illoBackup, title: strings.howTo2Step5 || 'Back up your account',
+      body: strings.howTo2Step5Body || 'Save one encrypted backup file from Account › Backup. Without it and your password, nothing can be recovered.' },
+    { glyph: 'eye-off', grad: 6, art: illoWelcome1, title: strings.howTo2Step6 || 'Stay private',
+      body: strings.howTo2Step6Body || 'Your messages are end-to-end encrypted. Keep your password to yourself.' },
   ];
+  const total = list.length;
+  const seen = new Set(readHowToSeen(storage).filter((n) => n <= total));
+
+  /* progress: "2 of 6 seen" + a thin bar (the bar is decoration; the line carries the number) */
+  const prog = document.createElement('div');
+  prog.className = 'c-settings-howto__progress';
+  const progText = document.createElement('span');
+  progText.className = 'c-settings-howto__seen';
+  /* ★ S12 B (r1 R2 a11y): the count is announced when a row is opened for the first time (the badges are aria-hidden) */
+  progText.setAttribute('aria-live', 'polite');
+  progText.setAttribute('aria-atomic', 'true');
+  const bar = document.createElement('span');
+  bar.className = 'c-settings-howto__bar';
+  bar.setAttribute('aria-hidden', 'true');
+  const fill = document.createElement('span');
+  fill.className = 'c-settings-howto__bar-fill';
+  bar.append(fill);
+  prog.append(progText, bar);
+  body.append(prog);
+  const paintProgress = () => {
+    progText.textContent = (strings.howToSeen || '{0} of 6 seen').split('{0}').join(String(seen.size));
+    fill.style.inlineSize = (total ? Math.round((seen.size / total) * 100) : 0) + '%';
+  };
+  paintProgress();
+
   const groupWrap = document.createElement('div');
   groupWrap.className = 'c-settings__groupwrap';
   const card = document.createElement('div');
   card.className = 'c-settings__group c-settings-howto__steps';
-  let i = 0;
-  for (const s of list) {
-    i++;
-    const step = document.createElement('div');
-    step.className = 'c-settings-howto__step';
-    const num = document.createElement('span');
-    num.className = 'c-settings-howto__step-num';
-    num.textContent = String(i);
-    const txt = document.createElement('span');
-    txt.className = 'c-settings-howto__step-text';
-    const t = document.createElement('span');
-    t.className = 'c-settings-howto__step-title';
-    t.textContent = s.title;
-    const b = document.createElement('span');
-    b.className = 'c-settings-howto__step-body';
-    b.textContent = s.body;
-    txt.append(t, b);
-    step.append(num, txt);
-    card.append(step);
-  }
+  howToSeq += 1;
+  const items = [];
+  const setOpen = (it, open) => {
+    it.head.setAttribute('aria-expanded', String(open));
+    it.region.hidden = !open;
+    it.item.toggleAttribute('data-open', open);
+    if (open && !it.region.firstChild) {
+      /* the art is drawn when the row opens (six drawings at once is wasted work), and dropped when it closes */
+      if (typeof it.s.art === 'function') it.region.append(it.s.art({ className: 'c-settings-howto__art' }));
+      const t = document.createElement('p');
+      t.className = 'c-settings-howto__text';
+      t.textContent = it.s.body;
+      it.region.append(t);
+    } else if (!open) {
+      it.region.replaceChildren();
+    }
+  };
+  list.forEach((s, idx) => {
+    const n = idx + 1;
+    const item = document.createElement('div');
+    item.className = 'c-settings-howto__item';
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'c-settings-links__row c-settings-howto__head';
+    head.id = 'howto-h' + howToSeq + '-' + n;
+    const region = document.createElement('div');
+    region.className = 'c-settings-howto__panel';
+    region.id = 'howto-p' + howToSeq + '-' + n;
+    region.setAttribute('role', 'region');
+    region.setAttribute('aria-labelledby', head.id);
+    head.setAttribute('aria-controls', region.id);
+    const tile = document.createElement('span');
+    tile.className = 'c-settings-howto__tile';
+    tile.append(aboutTile(s.glyph || 'info-circle', s.grad));
+    const badge = document.createElement('span');
+    badge.className = 'c-settings-howto__check';
+    badge.setAttribute('aria-hidden', 'true');
+    badge.append(icon('check', { size: 10 }));
+    tile.append(badge);
+    head.append(tile, rowText(s.title), icon('chevron-down', { size: 18 }));
+    item.append(head, region);
+    card.append(item);
+    const it = { n, s, item, head, region, badge };
+    const markSeen = () => { badge.hidden = !seen.has(n); item.toggleAttribute('data-seen', seen.has(n)); };
+    it.markSeen = markSeen;
+    markSeen();
+    items.push(it);
+    setOpen(it, false);
+    head.addEventListener('click', () => {
+      const opening = head.getAttribute('aria-expanded') !== 'true';
+      for (const o of items) if (o !== it && o.head.getAttribute('aria-expanded') === 'true') setOpen(o, false);   // one open at a time
+      setOpen(it, opening);
+      if (opening && !seen.has(n)) {
+        seen.add(n);
+        writeHowToSeen(storage, seen);
+        markSeen();
+        paintProgress();
+      }
+    });
+  });
   groupWrap.append(card);
   body.append(groupWrap);
 
-  /* ★ Item 6: the community row. One-shot in the DOCUMENT (this takeover is rebuilt
-     ⚠ i18n: this is a hand-built link-row, not a createButton/createChip, so
-     scripts/i18n-overflow-audit.mjs does NOT harvest its labels — a clean overflow run
-     says nothing about them. It is safe because .c-settings-links__label sets no
-     white-space and has flex:1, so a long localized label WRAPS inside the 52px row
-     rather than clipping. Keep it that way, or teach the audit this grammar first.
-     on every open, so the latch does not persist — deliberately: the host knows
-     nothing about the roster, and the honest failure is a second request, which
-     addFriend absorbs). It reports done in place rather than through a toast, because
-     the user is looking straight at the control they pressed. */
-  if (onJoinCommunity) {
-    const jw = document.createElement('div');
-    jw.className = 'c-settings__groupwrap';
-    const jc = document.createElement('div');
-    jc.className = 'c-settings__group c-settings-links';
-    const jb = document.createElement('button');
-    jb.type = 'button';
-    jb.className = 'c-settings-links__row c-settings-howto__join';
-    const jlab = document.createElement('span');
-    jlab.className = 'c-settings-links__label';
-    jlab.textContent = strings.howToJoinCta || 'Join the Spixi community';
-    const jglyph = icon('users', { size: 18 });
-    jb.append(jlab, jglyph);
-    jb.addEventListener('click', () => {
-      if (jb.disabled) return;
-      jb.disabled = true;
-      try { onJoinCommunity(); } catch { /* the row must not throw out of the screen */ }
-      /* ★ audit MINOR: NOT "Added". FriendList.addFriend returns NULL when the address is
-         already in the list (Ixian-Core FriendList.cs:366-370), so a repeat tap adds
-         nothing — and this row is PERMANENT, aimed exactly at users who are past their
-         first contact and most likely to hold the bot already. The confirmation has to be
-         true in both cases, so it states where the chat IS rather than what just happened. */
-      jlab.textContent = strings.howToJoinDone || 'Spixi group chat is in your chats';
-      jglyph.replaceWith(icon('check', { size: 18 }));
-    });
-    jc.append(jb);
-    const note = document.createElement('p');
-    note.className = 'c-settings__note';
-    note.textContent = strings.howToJoinBody
-      || 'Adds the Spixi group chat to your chats, where you can ask questions and follow updates.';
-    jw.append(jc, note);
-    body.append(jw);
-  }
-
+  /* Need more help? — the community row (Item 6, unchanged behaviour) + Help centre (the existing guide link). */
   const linkList = links || [
     // iOS-21: the help centre, not the marketing home page — this is the
     // "how to use Spixi" destination (mirrors Config.guideUrl, Meta/Config.cs:32).
-    { label: strings.howToLearnMore || 'Learn more', url: 'https://www.spixi.io/help-center.html' },
+    { label: strings.howToHelpCentre || 'Help Center', url: 'https://www.spixi.io/help-center.html', glyph: 'world', grad: 8 },
   ];
-  if (linkList.length) {
-    const lw = document.createElement('div');
-    lw.className = 'c-settings__groupwrap';
-    const lc = document.createElement('div');
-    lc.className = 'c-settings__group c-settings-links';
-    for (const l of linkList) lc.append(linkRow({ ...l, onOpenLink, strings }));
-    lw.append(lc);
-    body.append(lw);
+  if (onJoinCommunity || linkList.length) {
+    const more = aboutGroup(body, strings.howToMoreHelp || 'Need more help?', 'c-settings-howto__more');
+    /* ★ Item 6: the community row. One-shot in the DOCUMENT (this takeover is rebuilt
+       on every open, so the latch does not persist — deliberately: the host knows
+       nothing about the roster, and the honest failure is a second request, which
+       addFriend absorbs). It reports done in place rather than through a toast, because
+       the user is looking straight at the control they pressed.
+       ★ S12 B (#1267): the row joins the "Need more help?" card with an icon tile and its explanation as the second
+       line (the same howToJoinBody copy that sat under the card); the behaviour is unchanged. */
+    if (onJoinCommunity) {
+      const jb = document.createElement('button');
+      jb.type = 'button';
+      jb.className = 'c-settings-links__row c-settings-howto__join';
+      const jtext = rowText(strings.howToJoinCta || 'Join the Spixi community',
+        strings.howToJoinBody || 'Adds the Spixi group chat to your chats, where you can ask questions and follow updates.');
+      const jlab = jtext.querySelector('.c-settings-links__label');
+      const jglyph = icon('chevron-right', { size: 18 });
+      jb.append(aboutTile('users', 5), jtext, jglyph);
+      jb.addEventListener('click', () => {
+        if (jb.disabled) return;
+        jb.disabled = true;
+        try { onJoinCommunity(); } catch { /* the row must not throw out of the screen */ }
+        /* ★ audit MINOR: NOT "Added". FriendList.addFriend returns NULL when the address is
+           already in the list (Ixian-Core FriendList.cs:366-370), so a repeat tap adds
+           nothing — and this row is PERMANENT, aimed exactly at users who are past their
+           first contact and most likely to hold the bot already. The confirmation has to be
+           true in both cases, so it states where the chat IS rather than what just happened. */
+        jlab.textContent = strings.howToJoinDone || 'Spixi group chat is in your chats';
+        jglyph.replaceWith(icon('check', { size: 18 }));
+      });
+      more.append(jb);
+    }
+    for (const l of linkList) more.append(linkRow({ ...l, onOpenLink, strings }));
   }
 
   return el;
@@ -33563,5 +33859,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, illoWalletEmpty: illoWalletEmpty, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, createSettingsAbout: createSettingsAbout, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, illoWalletEmpty: illoWalletEmpty, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

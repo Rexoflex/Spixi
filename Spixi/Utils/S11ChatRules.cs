@@ -77,6 +77,47 @@ namespace SPIXI
             return ackSeen && framesSinceAck >= AckFrames ? WhyPaint : "";
         }
 
+        /* ★ S12 E (#1266 / #1267, V-26) — THE GROUNDS WAIT FOR THE WEBVIEW'S DRAW. Walk #1266 measured the S11 candidate:
+         * every held open released on the shell's paint answer (why=paint ackf=2), yet the recording showed ONE flat frame of
+         * the page ground (#f9f9fb) between the list and the chat, lined up with the release to ±20 ms on 15 opens. The probe
+         * read: the native chat WebView was NOT dirty on any held frame and became dirty two frames AFTER the release — the
+         * shell had painted inside Chromium, but the Android view had not drawn that frame into the window, so the opaque
+         * grounds the release wrote showed alone for a frame. The fix: at the release the grounds stay transparent (the list
+         * still shows through) and come back only after the WebView's visual-state callback (the content is ready; C# then
+         * invalidates the view), a view-tree draw counted after it (OnDrawListener) and GroundAfterDrawFrames more frame(s);
+         * GroundCapMs is the backstop (never a hole). #46 r1 / r2 replaced an IsDirty reading that could not see the draw. */
+        public const string GroundWhyDrawn = "drawn";
+        public const string GroundWhyCap = "cap";
+
+        /** Frame callbacks after the first view-tree draw counted after `ready` before the grounds come back: the frame the draw happened in has
+         *  to reach the glass before an opaque ground can sit under it. */
+        public const int GroundAfterDrawFrames = 1;
+
+        /** The longest the grounds stay transparent after the release (the S11 FlashDeferMs was 400; a held open releases
+         *  at ~115–207 ms, so release + 300 ms stays under the old 250 + 400 worst case). */
+        public const int GroundCapMs = 300;
+
+        /** One Choreographer step of the grounds wait: "" = keep waiting, else why the grounds come back now. ★ #46 r1
+         *  (R1-MAJOR-2) + r2 (m-2): `ready` = the WebView's visual-state callback has completed (Chromium has the current
+         *  state for the next draw); `drawsAfterReady` = view-tree draws counted after it (OnDrawListener — the draw that
+         *  carries the content); `framesAfterDraw` = frame callbacks since the first such draw. The cap always wins. */
+        public static string groundStep(bool ready, int drawsAfterReady, int framesAfterDraw, long elapsedMs, int capMs)
+        {
+            if (elapsedMs >= capMs)
+            {
+                return GroundWhyCap;
+            }
+            return ready && drawsAfterReady > 0 && framesAfterDraw >= GroundAfterDrawFrames ? GroundWhyDrawn : "";
+        }
+
+        /** [P1] probe body: the grounds came back — why, the frames the wait counted, the ms since the release, and
+         *  whether the visual-state callback had come (rdy=1|0; a cap with rdy=0 = the WebView never confirmed). */
+        public static string groundLine(string why, int frames, long ms, bool ready)
+        {
+            string w = why == GroundWhyDrawn || why == GroundWhyCap || why == "noview" ? why : "other";
+            return "hold grounds why=" + w + " f=" + clampInt(frames) + " ms=" + clampLong(ms) + " rdy=" + (ready ? "1" : "0");
+        }
+
         /* The Developer-screen switches (DevPage, `ixian:devflash:<name>:<0|1>`), one int preference of bits.
          * DEFAULT 0 = the candidate ON and every release action at the release. They act only while dev mode is on. */
         public const int FlashCandidateOff = 1;   // the old release path (PresentHold: vsc + one frame)

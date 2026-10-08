@@ -156,3 +156,7 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L106 | A feature that acts without a tap (auto-download) ships with its limits and the room-aware contact rule (`bot \|\| Group` — a bot room is `FriendType.Normal`) in the same batch; a queued action re-checks that its objects are still live. | #1264 (r1, r3) |
 | L107 | A pin that reads the real clock breaks on a date: every date rule pins its own clock (the seasonal pin would have gone red on 24 Oct). | #1264 (r1) |
 | L108 | Run the full smoke ALONE and never touch the tree while it runs: a reader's test run on the same 2 cores crashed a built-shell boot, and a one-line edit mid-run voided a run. | #1264 |
+| L109 | CSS grid gives flexible rows whose fr factors sum BELOW 1 only that share of the free space — emit row shares that sum to ≥ 1 (the album mosaic: 2 photos filled 41 % of the box) | #1268 |
+| L110 | A forced invalidate read back through View.IsDirty proves nothing (the invalidate and the traversal that cleans it run in the same frame, after a frame callback) — wait for the WebView's visual-state callback and count real draws with an OnDrawListener | #1268 |
+| L111 | A re-base comment inserted inside an initializer line turns the rest of the line into comment text — two csh cases vanished silently; put a re-base comment on its own line | #1268 r1 R3 |
+| L112 | Before a full smoke, `pgrep -fa smoke-test` — a run still going plus a new one = an OOM kill (L108 again); and a `pkill -f <pattern>` killed the session's own shell (L94 again) | #1268 |

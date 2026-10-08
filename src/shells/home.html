@@ -484,6 +484,7 @@
     createWarningBanner, setWarning,     // M16: actionable warnings only (connectivity = title-state)
     attachSeasonal,                      // ★ S11 A (#1262): the seasonal Chats top bar (C1 Halloween · X1 Christmas)
     createUpdateCard, createHintCard, parseHintsState, pickHint, updateVersionOf,   // ★ S11 A (#1262): the glass cards
+    HINT_IDS,                            // ★ S12 A (#1267): the ixian:hintHelp: id check
     startTimestampTicker, refreshTimestamps,
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack,   // ★ L3 (#706): the iOS back signal + the one-level chain
@@ -1043,8 +1044,9 @@
    * showWarning every tick and recognised by the template carrier above (no new push). No Update button; "How to
    * update" = ★ S11 A2 (#1263) `ixian:updateHelp` (C# opens Config.updateHelpUrl), only for an exe with the
    * `updateHelp` cap (else today's banner). × = #383 (in memory). ONE element that MOVES like the banner (#403).
-   * HINT CARDS (tips 5–9): C# stores (SHints), the shell decides (pickHint); `ixian:hint:shown|done:<id>`, only to an
-   * exe with the `hints` cap. Learn more uses EXISTING navigation only. */
+   * HINT CARDS (tips 5–9, then 1, 3, 4): C# stores (SHints), the shell decides (pickHint); `ixian:hint:shown|done:<id>`,
+   * only to an exe with the `hints` cap. Learn more uses EXISTING navigation, or ★ S12 A (#1267) a C#-owned page through
+   * the fixed verb `ixian:hintHelp:<id>` (cap `hintHelp`; without it the card has no link). */
   const chatsCardSlot = document.createElement('div');
   chatsCardSlot.className = 'chats-cards';
   let cardNav = 'chats';
@@ -1131,7 +1133,17 @@
     const item = nav.querySelector('.c-bottomnav__item[data-id="' + id + '"]');
     if (item) item.click();
   }
+  /* ★ S12 A (#1267): a `web:<id>` target is a C#-owned page — only an exe with the `hintHelp` cap can open it */
+  function hintCanLearn(def) {
+    if (/^web:/.test(def.learn)) return bridge.cap('hintHelp');
+    return true;
+  }
   function hintLearnMore(target) {
+    if (/^web:/.test(target)) {                                                // the id only — C# owns the URL
+      const id = target.slice(4);
+      if (bridge.cap('hintHelp') && HINT_IDS.indexOf(id) >= 0) bridge.send('ixian:hintHelp:' + id);
+      return;
+    }
     if (target === 'backup') { bridge.send('ixian:backup'); return; }          // Settings › Backup (BackupPage)
     if (target === 'wallet' || target === 'apps') { goToTab(target); return; }
     if (target === 'addcontact') {                                             // the directory's own Add contact
@@ -1152,7 +1164,7 @@
     const id = hintShownId || pickHint(hintsState, { now: hintNow(), blocked: false });
     if (!id) return;
     const card = createHintCard({
-      tip: id, strings,
+      tip: id, strings, canLearn: hintCanLearn,
       onLearnMore: (target) => { hintDone(id); hintLearnMore(target); },
       onDismiss: () => hintDone(id),
     });

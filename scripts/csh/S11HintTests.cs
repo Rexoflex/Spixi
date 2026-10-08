@@ -24,7 +24,8 @@ public class S11HintTests
         string[] bad =
         {
             "", "shown", "shown:", ":backup", "Shown:backup", "shown:Backup", "shown:backup ", " shown:backup",
-            "shown:backup:x", "seen:backup", "done:network", "done:../../wallet.ixi", "done:tip\n", "done:wallet,apps",
+            // ★ S12 A re-base (#1267): network is a tip now; e2e is HELD — so the refused id is done:e2e
+            "shown:backup:x", "seen:backup", "done:e2e", "done:../../wallet.ixi", "done:tip\n", "done:wallet,apps",
             "shown:ｂackup", "done:" + new string('a', 40),
         };
         foreach (string b in bad)
@@ -33,6 +34,36 @@ public class S11HintTests
             Assert.AreEqual("", ra + ri, "a refused verb yields nothing: [" + b + "]");
         }
         Assert.IsFalse(S11HintRules.parseVerb(null, out _, out _), "null");
+    }
+
+    [TestMethod]
+    public void s12_tips_1_3_4_join_the_whitelist_and_tip_2_stays_held()
+    {
+        // ★ S12 A (#1267): the list = glass-card.js HINT_IDS, in show order (tips 5–9, then 1, 3, 4)
+        Assert.AreEqual("backup,wallet,apps,addcontact,tip,network,quantum,nophone", string.Join(",", S11HintRules.TipIds), "TipIds");
+        foreach (string t in new[] { "network", "quantum", "nophone" })
+        {
+            Assert.IsTrue(S11HintRules.parseVerb("shown:" + t, out _, out string x) && x == t, "shown:" + t);
+            Assert.IsTrue(S11HintRules.parseVerb("done:" + t, out _, out string y) && y == t, "done:" + t);
+        }
+        Assert.IsFalse(S11HintRules.isTipId("e2e"), "tip 2 (e2e) is HELD until the new site has a page");
+        Assert.AreEqual("network,nophone", S11HintRules.addDone("network", "nophone"), "the new ids are stored");
+        Assert.AreEqual("{\"firstSeen\":1,\"lastShown\":0,\"done\":[\"quantum\"],\"off\":false,\"now\":2}",
+            S11HintRules.pushJson(1, 0, new List<string> { "quantum", "e2e" }, false, 2), "…and pushed; e2e is not");
+    }
+
+    [TestMethod]
+    public void s12_helpUrlFor_maps_only_network_to_the_config_constant()
+    {
+        // ★ S12 A (#1267): ixian:hintHelp:<id> → C#'s own URL; exact Ordinal id — everything else is null
+        Assert.AreEqual(Config.networkHelpUrl, S11HintRules.helpUrlFor("network"), "network → Config.networkHelpUrl");
+        Assert.AreEqual("https://www.ixian.io", S11HintRules.helpUrlFor("network"), "the constant's value");
+        foreach (string b in new[] { "e2e", "quantum", "nophone", "backup", "", "network ", " network", "NETWORK", "Network",
+                                     "network:x", "network/../x", "https://www.ixian.io", "ｎetwork" })
+        {
+            Assert.IsTrue(S11HintRules.helpUrlFor(b) == null, "null: [" + b + "]");
+        }
+        Assert.IsTrue(S11HintRules.helpUrlFor(null) == null, "null id");
     }
 
     [TestMethod]
@@ -68,7 +99,8 @@ public class S11HintTests
     [TestMethod]
     public void the_done_list_holds_whitelisted_ids_once()
     {
-        CollectionEqual(new List<string> { "wallet", "backup" }, S11HintRules.parseDone("wallet,backup,wallet,network,,Backup"), "order kept, duplicates + unknown + case-changed dropped");
+        // ★ S12 A re-base (#1267): the unknown id is e2e now (network joined TipIds; tip 2 is HELD)
+        CollectionEqual(new List<string> { "wallet", "backup" }, S11HintRules.parseDone("wallet,backup,wallet,e2e,,Backup"), "order kept, duplicates + unknown + case-changed dropped");
         Assert.AreEqual("backup", S11HintRules.addDone("", "backup"), "first id");
         Assert.AreEqual("backup,tip", S11HintRules.addDone("backup", "tip"), "appended");
         Assert.AreEqual("backup", S11HintRules.addDone("backup", "backup"), "once");

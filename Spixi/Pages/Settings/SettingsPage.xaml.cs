@@ -222,6 +222,14 @@ namespace SPIXI
             caps += ",readReceipts,typing,hideOnline";
             // ★ S11 C (#1262): the Privacy "Download photos automatically" row — this exe handles ixian:photoAutoDl.
             caps += ",photoAutoDl";
+            // ★ S12 B (#1267): the About "Rate Spixi" row — this exe handles ixian:rating:yes. ONLY where a store page
+            // exists (Android, iOS): elsewhere the shell never renders the row (the W-g rule: no row that does nothing).
+            // (kept ABOVE hints: pins-s11/a-cs.mjs reads hints directly above photoPreviews, and pins-s4/nav.mjs photoPreviews last before dev)
+            if (Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.Android
+                || Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS)
+            {
+                caps += ",rate";
+            }
             // ★ S11 A (#1262): the "Tips on the Chats screen" switch — this exe handles ixian:hintsoff (setHintsOff seeds it).
             // (kept ABOVE photoPreviews: pins-s4/nav.mjs reads photoPreviews as the last cap before the dev cap)
             caps += ",hints";
@@ -431,6 +439,27 @@ namespace SPIXI
             else if (current_url.Equals("ixian:deleted", StringComparison.Ordinal))
             {
                 onDeleteDownloads();
+            }
+            /* ★ S12 B (#1267): About › Rate Spixi — the HomePage rating grammar (HomePage `ixian:rating:` branch), the
+             * "yes" half only: the store page for this platform (compile-time Config constants), through the one
+             * external-open gate. Exact match (Ordinal Equals) — no other tail is read. It does NOT write the
+             * `rating_action` preference: that is the nudge's state, and an About visit is voluntary. Other platforms
+             * open nothing (and never get the `rate` cap, so the row is not there). Nothing is logged. */
+            else if (current_url.Equals("ixian:rating:yes", StringComparison.Ordinal))
+            {
+                string? rateUrl = null;
+                if (Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.Android)
+                {
+                    rateUrl = Config.ratingAndroidUrl;
+                }
+                else if (Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.iOS)
+                {
+                    rateUrl = Config.ratingiOSUrl;
+                }
+                if (rateUrl != null)
+                {
+                    Utils.openExternal(rateUrl);
+                }
             }
             else if (current_url.StartsWith("ixian:reportTranslation:", StringComparison.Ordinal))
             {

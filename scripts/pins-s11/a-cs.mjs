@@ -31,7 +31,8 @@ export default async function (h) {
   };
   const r = {};
   const ol = branch(HP, 'private void onLoaded()');
-  r.capsThenPush = /Utils\.sendUiCommand\(this, "setCaps", "composeSend,hints,updateHelp"\);\s*pushHints\(\);/.test(ol);
+  // ★ S12 A re-base (#1267): + hintHelp at the end of the caps literal (pins-s12/a-cs.mjs pins its branch)
+  r.capsThenPush = /Utils\.sendUiCommand\(this, "setCaps", "composeSend,hints,updateHelp,hintHelp"\);\s*pushHints\(\);/.test(ol);
   r.pushBody = /Utils\.sendUiCommand\(this, "setHints", SHints\.pushJson\(SHints\.nowMs\(\)\)\);/.test(branch(HP, 'public void pushHints()'));
   const hint = branch(HP, 'current_url.StartsWith("ixian:hint:", StringComparison.Ordinal)');
   /* ★ S11 A2 (#1263, R3-MAJOR-6): the WHOLE branch body — validate, then shown → markShown(now) else markDone(id) */
@@ -41,7 +42,7 @@ export default async function (h) {
   r.noOpenLinkOnHome = !/"ixian:openLink:"/.test(HP);
   const uh = branch(HP, 'current_url.Equals("ixian:updateHelp", StringComparison.Ordinal)');
   r.updateHelpOnlyTheGate = /^\{\s*Utils\.openExternal\(Config\.updateHelpUrl\);\s*\}$/.test(uh);
-  r.urlIsAConfigConstant = /public static readonly string updateHelpUrl = "https:\/\/www\.spixi\.io\/download";/.test(rd('Spixi/Meta/Config.cs'));
+  r.urlIsAConfigConstant = /public static readonly string updateHelpUrl = "https:\/\/www\.spixi\.io\/download\.html";/.test(rd('Spixi/Meta/Config.cs'));
   const homeShell = stripCode(readFileSync(join(root, 'src/shells/home.html'), 'utf8'));
   r.shellSendsTheBareVerb = /onHowTo: \(\) => bridge\.send\('ixian:updateHelp'\),/.test(homeShell)
     && !/ixian:openLink:/.test(homeShell) && !/spixi\.io\/download/.test(homeShell);

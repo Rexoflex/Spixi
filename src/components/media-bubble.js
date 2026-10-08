@@ -390,7 +390,11 @@ export function mosaicGeometry(n) {
   const rows = mosaicRows(n);
   const hs = rows.map((k) => ROW_H[k]);
   const sum = hs.reduce((a, b) => a + b, 0);
-  return { rows, ratio: Math.round((1 / sum) * 1000) / 1000, template: hs.map((v) => (Math.round(v * 1000) / 1000) + 'fr').join(' ') };
+  /* ★ S12 (Damir 20:06, a 2-photo album filled only the top 41 % of its box): CSS grid gives flex rows whose factors
+     sum to LESS THAN 1 only that fraction of the free space (css-grid-1 §12.7.1), so '0.41fr' (2 photos), '0.333fr 0.25fr'
+     (7) … left the rest of the box empty. The factors are now each row's SHARE of the height in thousandths (they sum to
+     ~1000, never < 1); the box's aspect ratio is unchanged. */
+  return { rows, ratio: Math.round((1 / sum) * 1000) / 1000, template: hs.map((v) => Math.max(1, Math.round((v / sum) * 1000)) + 'fr').join(' ') };
 }
 export function createPhotoGridBubble({ direction = 'received', count = 1, more = 0, total = 0, caption = null, gutter = false,
   downloadAll = 0, downloadAllLabel = '', onDownloadAll = null, timestamp = null, strings = getStrings() } = {}) {

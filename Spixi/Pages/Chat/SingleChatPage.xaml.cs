@@ -7557,47 +7557,117 @@ namespace SPIXI
          * no answer; log = the exception TYPE only.
          * ★ S11 G3 (#1263 MINOR-8): Android gets the photo's MIME from C#'s own name (S11MediaRules.imageMimeOf — the picker
          * names the type, not application/octet-stream) and MainActivity copies the bytes OFF the UI thread once the user
-         * picked the place (the picker itself stays on the main thread). Other platforms unchanged. */
+         * picked the place (the picker itself stays on the main thread). Other platforms unchanged.
+         * ★ S12 D (#1266 / #1267 — Windows Save did nothing, C# logged nothing): every exit names its reason (noteSavePhoto);
+         * Windows calls SFileOperations.saveAs (share-tolerant open, FileSaver on the UI thread, a cancel without a toast)
+         * and OBSERVES its task (observeSavePhoto). Android / iOS / Mac calls unchanged. */
         private void onSavePhoto(string tail)
         {
             if (!S11MediaRules.parseSavePhoto(tail, out string hexId))
             {
+                noteSavePhoto("parse");
                 return;
             }
             string? path = null;
             string name = "";
+            string reason;
             try
             {
                 FriendMessage? fm = friend == null ? null : friend.getMessage(selectedChannel, Crypto.stringToHash(hexId));
-                if (fm != null && fm.type == FriendMessageType.fileHeader && (fm.completed || fm.localSender)
+                if (fm == null)
+                {
+                    reason = "nomsg";
+                }
+                else if (fm.type == FriendMessageType.fileHeader && (fm.completed || fm.localSender)
                     && SharedItems.parseFileHeader(fm.message, out string n, out _) && SharedItems.isImageName(n))
                 {
                     path = SharedItems.localPathOf(fm);   // C#'s own rule — never a WebView value
                     name = n;
+                    reason = "nopath";
+                }
+                else
+                {
+                    reason = "notfile";
                 }
             }
             catch (Exception e)
             {
                 Logging.warn("savePhoto lookup failed: " + e.GetType().Name);   // a type only — never the id or a path
                 path = null;
+                reason = "lookup";
             }
             if (path == null)
             {
+                noteSavePhoto(reason);
                 return;
             }
+#if WINDOWS
+            Task<string>? saving = null;
+#endif
+            string started = "start";
             try
             {
 #if ANDROID
                 SFileOperations.saveFile(path, name, S11MediaRules.imageMimeOf(name));   // ★ S11 G3 (#1263 MINOR-8): the image MIME
-#elif WINDOWS || IOS || MACCATALYST
+#elif WINDOWS
+                saving = SFileOperations.saveAs(path);   // ★ S12 D (#1266): OBSERVED below — the `_ =` discard lost every outcome
+#elif IOS || MACCATALYST
                 _ = SFileOperations.share(path, name);
 #endif
             }
             catch (Exception e)
             {
                 Logging.warn("savePhoto failed: " + e.GetType().Name);   // a type only
+                started = S11MediaRules.SaveFail;
+            }
+            noteSavePhoto(started);
+#if WINDOWS
+            if (saving != null)
+            {
+                _ = observeSavePhoto(saving);
+            }
+#endif
+        }
+
+        /* ★ S12 D (#1266 / #1267): the Save probe — ONE `[P1] savephoto r=<code>` per call (dev builds; P1Perf grammar):
+         * parse · nomsg (no such message in the SHOWN channel) · notfile (not a fileHeader / not on this device / not an image
+         * name) · nopath (localPathOf null) · lookup (an exception) · start (the platform save started) · fail (it threw at
+         * once). A fixed word only — never the id, the name or a path (S11MediaRules.savePhotoLine refuses any other code). */
+        private static void noteSavePhoto(string code)
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            string? line = S11MediaRules.savePhotoLine(code);
+            if (line != null)
+            {
+                P1Perf.line(line);
             }
         }
+
+#if WINDOWS
+        /* ★ S12 D (#1266): Windows only — the FileSaver task is OBSERVED: `savephoto r=ok|cancel|fail` once it ends; an
+         * exception logs its TYPE (never a message or a path). Never throws (it runs discarded). */
+        private static async Task observeSavePhoto(Task<string> saving)
+        {
+            string outcome;
+            try
+            {
+                outcome = await saving;
+            }
+            catch (OperationCanceledException)
+            {
+                outcome = S11MediaRules.SaveCancel;
+            }
+            catch (Exception e)
+            {
+                Logging.warn("savePhoto failed: " + e.GetType().Name);
+                outcome = S11MediaRules.SaveFail;
+            }
+            noteSavePhoto(outcome);
+        }
+#endif
 
         /* ═══ ★ S8 picks (#1239 / #1240) — two NEW pushes for the voice shell (🟡; docs/security-handover-gate.md §S8 picks) ═══
          * Kept OUTSIDE the #1208 voice section below on purpose: that section's pin (pins-s7/cs.mjs "no audio into the

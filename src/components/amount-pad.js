@@ -33,16 +33,29 @@
  * Chromium/WebView2. Tab still reaches the keys; a keyboard-focused key keeps the normal
  * button behaviour.
  *
- * Exports: padApply(raw, key, opts) · createAmountDisplay({ className, strings }) ·
+ * ★ S12 C (#1267) PASTE: while the same live state holds, a `paste` on the document REPLACES the amount with
+ * padPaste(clipboardData 'text/plain') — the settled-string parser (ungroupAmountInput → sanitizeAmount; in a
+ * whitespace-grouping locale '.' / ',' is the decimal mark, the r4 key rule) plus the pad's own limits,
+ * all-or-nothing: anything the pad would not hold (letters, a sign, two numbers, a leading-zero GROUP ("0,500" en),
+ * > 8 decimals, > 15 integer digits, > 64 chars) changes nothing, no toast. Same exclusions as the keys (a paste
+ * into a real field, a sheet or a dialog is theirs; a paste another listener already prevented is not ours); the
+ * listener lives and dies with the keydown one. Never navigator.clipboard (no permission prompt).
+ * WHERE IT FIRES (★ #46 r1 R2-m2): Ctrl+V on Windows / Chromium WebViews with a keyboard is verified. Cmd+V on
+ * Mac Catalyst (WKWebView may not fire `paste` on a non-editable document) and Android hardware keyboards are
+ * device-walk items. Touch long-press Paste has NO target here: the amount is an <output>, not an editable
+ * field, so the OS shows no Paste callout on it.
+ *
+ * Exports: padApply(raw, key, opts) · padPaste(text, opts) · createAmountDisplay({ className, strings }) ·
  *          setAmountDisplay(display, raw, { error }) ·
  *          createAmountPad({ display, strings, decimals, onChange }) → element with
  *            _value() · _set(raw) · _press(key) · _keysOn(isLive, { primary }) · _keysOff()
  */
 import { getStrings } from './strings-runtime.js';
-import { localeSeps, groupAmountDisplay, sanitizeAmount } from './money.js';
+import { localeSeps, groupAmountDisplay, sanitizeAmount, ungroupAmountInput } from './money.js';
 
 const PAD_INT_MAX = 15;                                        // 999 trillion IXI: far past supply, never wraps
 const PAD_LONG_PRESS_MS = 550;
+const PAD_PASTE_MAX = 64;                                      // ★ S12 C (#1267): a longer clipboard is not an amount — refused, never cut
 
 /** ★ #1263 — one keypress applied to the canonical edit string ('.'-decimal, maybe a
  *  trailing '.' mid-typing). key ∈ '0'…'9' · 'dec' · 'back' · 'clear'. */
@@ -66,6 +79,55 @@ export function padApply(raw, key, { decimals = 8 } = {}) {
   }
   if (s.length - dot - 1 >= decimals) return s;            // precision reached: further digits ignored
   return s + key;
+}
+
+/** ★ S12 C (#1267) — a PASTED string → the pad's canonical edit string, or null (= change nothing).
+ *  The settled-string inverse (ungroupAmountInput, the V-1 / #135-M2 rules, in `locale` = the app language)
+ *  then sanitizeAmount, but ALL-OR-NOTHING around them: sanitizeAmount strips what it does not know and cuts
+ *  to 8 decimals — right for a field, a silent wrong amount for a paste ("-5" → 5, "1,234,56" → 1.23456,
+ *  "12 34" → 1234, 9 decimals → cut). So: only digits, '.', ',', spaces (incl. NBSP / NNBSP / thin; no tab
+ *  or line break) and "'" — the groupers ungroup strips — and those only as 3-digit grouping ("1 234,5"),
+ *  never between two numbers; a leading-zero first group refused unless its separator is the locale's own decimal
+ *  mark and the only one (#46 r2: en "0.500" = 0.5, de "0,125" = 0.125); after the ungroup (in a whitespace-grouping
+ *  locale: the spaces stripped, '.' / ',' = the decimal, #46 r1) at most ONE separator left; ≤ `decimals`
+ *  fraction digits and ≤ 15 integer digits (the padApply limits); leading zeros dropped like _set. */
+export function padPaste(text, { decimals = 8, locale } = {}) {
+  const t = String(text == null ? '' : text).trim();
+  if (!t || t.length > PAD_PASTE_MAX) return null;
+  // anything but digits and '.' / ',' only as 3-digit grouping: a letter, a sign, a line break, "12 34" (two numbers)
+  if (/[^0-9.,]/.test(t) && !/^\d{1,3}(?:[' \u00a0\u2007\u2009\u202f]\d{3})+(?:[.,]\d*)?$/.test(t)) return null;
+  /* ★ #46 r1 R2-M1: fr / ru / lt group with a (narrow) no-break space, so there '.' and ',' can only be the DECIMAL
+     mark (the r4 key rule above) — ungroupAmountInput would read fr "12.500" as 12500 and "0.500" as 500. At most
+     one of them in total ("1.234,5" there is refused); whitespace grouping still strips. */
+  const g = localeSeps(locale).group;
+  const wsGroup = g !== '.' && g !== ',';
+  /* ★ #46 r1 R2-M2: a leading-zero first group is never grouping — in the GROUP-mark reading (en "0,500", de "0.500") and "0 500",
+     "0.000.001" are refused, never read as 500 / 50 / 1; in a whitespace-grouping locale a '.' / ',' after it is
+     the decimal (fix above), so "0.500" there is 0.5. */
+  const lz = t.match(/^0\d*([.,' \u00a0\u2007\u2009\u202f])\d{3}(?!\d)/);
+  /* ★ #46 r2 m-1: the locale's OWN decimal mark after a leading zero is a plain decimal (en "0.500", de "0,125") when it
+     is the ONLY separator — only the group-mark reading ("0,500" en → 500, "0.500" de → 500) and a multi-group string
+     ("0.000.001") are refused. */
+  const ownDecimal = lz && !wsGroup && lz[1] === localeSeps(locale).decimal && new RegExp('^0\\d*\\' + lz[1] + '\\d+$').test(t);
+  if (lz && !(wsGroup && /[.,]/.test(lz[1])) && !ownDecimal) return null;
+  let u;
+  if (wsGroup) {
+    u = t.replace(/[' \u00a0\u2007\u2009\u202f]/g, '');      // a second '.' / ',' is refused by the one-separator check below
+  } else {
+    u = ungroupAmountInput(t, locale);
+  }
+  const m = u.match(/^\d*(?:[.,](\d*))?$/);
+  if (!m || !/\d/.test(u)) return null;                      // a reading ungroup could not settle ("1,234,56")
+  if (m[1] != null && m[1].length > Math.max(0, decimals)) return null;   // checked BEFORE sanitizeAmount cuts to 8
+  const s = sanitizeAmount(u);                               // the #135-M2 comma rule on the one separator left
+  const dot = s.indexOf('.');
+  let int = dot === -1 ? s : s.slice(0, dot);
+  const frac = dot === -1 ? null : s.slice(dot + 1);
+  if (frac !== null && frac.length > Math.max(0, decimals)) return null;   // belt: a value the pad would refuse
+  int = int.replace(/^0+(?=\d)/, '');
+  if (frac !== null && int === '') int = '0';
+  if (int.length > PAD_INT_MAX) return null;
+  return frac === null || decimals <= 0 ? int : int + '.' + frac;
 }
 
 /** The big amount (render A): grey placeholder "0.00" in the locale's mark, a caret, the
@@ -212,10 +274,13 @@ export function createAmountPad({ display = null, strings = getStrings(), decima
 
   /* desktop hardware keys — bound while the owner's step is live */
   let keyFn = null;
+  let pasteFn = null;
   let sweep = 0;
   const off = () => {
     if (keyFn) document.removeEventListener('keydown', keyFn);
+    if (pasteFn) document.removeEventListener('paste', pasteFn);   // ★ S12 C (#1267): one lifecycle with the keys
     keyFn = null;
+    pasteFn = null;
     if (sweep) { clearInterval(sweep); sweep = 0; }
   };
   pad._keysOn = (isLive = () => true, { primary = null } = {}) => {
@@ -252,6 +317,22 @@ export function createAmountPad({ display = null, strings = getStrings(), decima
       press(key);
     };
     document.addEventListener('keydown', keyFn);
+    /* ★ S12 C (#1267): a paste REPLACES the amount through the same set() a key uses (display, fiat, over-balance
+       via onChange). Only the step's own paste: never into a field / sheet / dialog (the keydown exclusions). */
+    pasteFn = (e) => {
+      if (!pad.isConnected) { off(); return; }
+      if (e.defaultPrevented || !isLive()) return;            // a paste another listener took is not ours (R3-MINOR-6)
+      const t = e.target;
+      if (t && typeof t.closest === 'function'
+        && t.closest('input, textarea, select, [contenteditable], [role="dialog"], [role="alertdialog"], .c-sheet, .c-modal')) return;
+      let text = '';
+      try { text = e.clipboardData ? e.clipboardData.getData('text/plain') : ''; } catch (err) { return; }
+      const next = padPaste(text, { decimals });
+      if (next === null) return;                           // unreadable: nothing changes, no toast, the default stays
+      e.preventDefault();
+      if (next !== raw) set(next);
+    };
+    document.addEventListener('paste', pasteFn);
     sweep = setInterval(() => { if (!pad.isConnected) off(); }, 2000);   // the #609 belt: a removed pad never keeps a document listener
   };
   pad._keysOff = off;

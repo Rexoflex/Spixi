@@ -788,6 +788,7 @@
     return {};
   }
   let hubEl = null, currentView = 'hub';
+  let contribFromAbout = false;   // ★ S12 B (r1 R2-m1): Contributors was opened from About › Licences (see showLicences)
   let hubScrollTop = 0;   // #336 (Damir F5 #15): preserve hub scroll across takeover sublevels
 
   const masterWrap = document.createElement('div');
@@ -911,7 +912,7 @@
       if (currentView === 'notifications') detailWrap.dataset.notifSig = notifSig();
       else delete detailWrap.dataset.notifSig;
       delete root.dataset.notifSig;
-      markSelected(currentView === 'hub' ? null : currentView);
+      markSelected(selectedKey());   // ★ S12 B (r1 R2-m1): Licences keeps About selected
     } else {
       // #336 (Damir F5 #15): a takeover sublevel DETACHES the hub node, and a
       // detached scroller re-attaches at scrollTop 0 — so About/How-to/Chat
@@ -1281,7 +1282,7 @@
       // the hub column is always mounted; keep the open sublevel + its selection
       masterWrap.replaceChildren(hubEl);
       mounted = true;
-      markSelected(currentView === 'hub' ? null : currentView);
+      markSelected(selectedKey());   // ★ S12 B (r1 R2-m1): Licences keeps About selected
       // #274: the language picker is a STATELESS state-keyed builder — refresh
       // it when the pushed current differs from the one it was built with (the
       // N65 corrective setLanguage echo after a REFUSED pick, Session AD: the
@@ -1361,7 +1362,7 @@
 
   // View switches — one-liners into the mode-aware renderer (#240). showHub as a
   // screen's onBack = "detail → empty" in split mode, "takeover → hub" otherwise.
-  function showHub() { currentView = 'hub'; renderLayout(); }
+  function showHub() { contribFromAbout = false; currentView = 'hub'; renderLayout(); }
   function showDanger() { currentView = 'danger'; renderLayout(); }
   /* iOS-21 — external links from About / How-to. The WebView never navigates to
      http(s) itself (iOSWebViewHandler.DecidePolicy Cancel-blocks it, and the
@@ -1372,10 +1373,17 @@
      as dead selectable text (be-cutover S13). */
   function openExternal(url) { if (url) bridge.send('ixian:openLink:' + url); }
 
-  function showAbout() { currentView = 'about'; renderLayout(); }
+  function showAbout() { contribFromAbout = false; currentView = 'about'; renderLayout(); }
   function showHowTo() { currentView = 'howto'; renderLayout(); }
   function showChatAppearance() { currentView = 'chatappearance'; renderLayout(); }
-  function showContributors() { currentView = 'contributors'; renderLayout(); }
+  function showContributors() { contribFromAbout = false; currentView = 'contributors'; renderLayout(); }
+  /* ★ S12 B (#1267, r1 R2-m1): About › Licences opens the SAME Contributors screen, one level deeper — every back
+     path (the arrow, hardware back, the edge swipe) returns to About, and in pane mode the hub keeps About selected.
+     The hub's own Contributors row is unchanged (showContributors clears the flag; showHub / showAbout too). */
+  function showLicences() { currentView = 'contributors'; contribFromAbout = true; renderLayout(); }
+  function contributorsBack() { if (contribFromAbout) showAbout(); else showHub(); }
+  /* the hub row that reads as selected for the open view (pane mode) */
+  function selectedKey() { return currentView === 'hub' ? null : (currentView === 'contributors' && contribFromAbout ? 'about' : currentView); }
   function showTheme() { currentView = 'theme'; renderLayout(); }          // #242/#243: pane-mode sublevels (hub routes them)
   function showLanguage() { currentView = 'language'; renderLayout(); }
   /* ★★ Session Q (#804) — THE THREE SUBLEVELS THAT USED TO BE PAGES.
@@ -1553,6 +1561,11 @@
       case 'about': return createSettingsAbout({
         version: appVersion, host: document.body, strings,
         onOpenLink: openExternal,     // iOS-21
+        /* ★ S12 B (#1267): Licences → the SAME Contributors credits the hub row opens (no new page) · Rate Spixi →
+           intent only (`ixian:rating:yes`, the HomePage grammar; C# picks the store URL), and ONLY with the `rate`
+           cap — SettingsPage grants it where a store page exists (Android, iOS), so no row taps into nothing. */
+        onLicences: showLicences,   // ★ S12 B (r1 R2-m1): back returns to About
+        onRate: bridge.cap('rate') ? () => bridge.send('ixian:rating:yes') : undefined,
         /* ★ Session I ②: the DEV-BUILD seed harness card — only after C# pushed setDevSeed
            (SettingsPage, `#if SPIXI_DEV_COEXIST`). A store build never pushes it. */
         devSeed: state.devSeed ? {
@@ -1565,7 +1578,7 @@
       });
       case 'howto': return createSettingsHowTo({
         host: document.body, strings,
-        onOpenLink: openExternal,     // iOS-21 — "Learn more" → the help centre
+        onOpenLink: openExternal,     // iOS-21 — "Help centre" (★ S12 B: was "Learn more") → the help centre
         /* ★ Item 6 (#397/#400): the permanent community door. SettingsPage had no
            handler for ixian:joinBot at all (only HomePage did) — this batch gave it one
            that calls the SAME shared static, so nothing is duplicated and no second verb
@@ -1650,7 +1663,7 @@
       });
       case 'contributors': return createSettingsContributors({
         strings,
-        onBack: showHub,
+        onBack: contributorsBack,   // ★ S12 B (r1 R2-m1): → About when opened from About › Licences, else the hub
       });
       case 'chatappearance': {
         const prefs = readChatPrefs();
@@ -2395,6 +2408,7 @@
          screen still on glass. A back during the exit ABORTS the slide (instant
          finish) and is consumed — the same L8 grammar home.html carries. */
       if (root.querySelector('.c-subslide--out')) { settleSubscreenSlide(root); return; }
+      if (currentView === 'contributors' && contribFromAbout) { showAbout(); return; }   // ★ S12 B (r1 R2-m1): Licences → back to About
       if (currentView !== 'hub') showHub(); else exitSettings();
     },
 

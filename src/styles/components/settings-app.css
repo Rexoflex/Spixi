@@ -239,40 +239,60 @@
   overflow-wrap: anywhere;      /* a domain must never widen the card */
 }
 
-/* —— about —— */
+/* —— about —— ★ S12 B (#1267, design "B, hero card-led") */
+/* the hero card: it IS a settings card (`.c-settings__group` — the surface + its shadow, no outline; this rule
+   follows settings-shell.css, so the radius, padding and ground below win) with a soft violet wash at the top; every
+   colour of the art and the wash comes from the --ab-* tokens (tokens.css, per theme) */
 .c-settings-about__hero {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-8);
   text-align: center;
-  padding-block: var(--spacing-16);
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-20);
+  border-radius: var(--radius-24);
+  background: linear-gradient(180deg, var(--ab-hero-top) 0%, var(--surface-settings-card) 64%);
+  overflow: hidden;
 }
-.c-settings-about__logo {
-  width: 64px;                        /* art-slot disc (backup-hero precedent) */
-  height: 64px;
+.c-settings-about__art {
+  display: block;
+  inline-size: min(100%, 300px);
+  block-size: auto;
+  aspect-ratio: 2 / 1;
 }
+.c-settings-about__mark { color: var(--ab-mark); }
 .c-settings-about__app-name {
   margin: 0;
   font-family: var(--font-primary);
-  font-size: var(--font-size-heading-sm);
-  line-height: var(--line-height-heading-sm);
+  font-size: var(--font-size-heading-lg);
+  line-height: var(--line-height-heading-lg);
+  font-weight: var(--font-weight-bold);
   color: var(--text-neutral-01);
 }
 .c-settings-about__tagline {
   margin: 0;
-  max-width: 34ch;
+  max-width: 26ch;
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
 }
 .c-settings-about__version {
-  margin: 0;
+  margin: var(--spacing-4) 0 0;
+  padding: var(--spacing-2) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--ab-chip);
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
+  overflow-wrap: anywhere;
 }
-.c-settings-about__desc { text-align: start; }
+.c-settings-about__version-num {
+  color: var(--text-neutral-01);
+  font-weight: var(--font-weight-semibold);
+  font-feature-settings: "tnum" 1;
+}
+/* a labelled group: the label sits on the ground above its card (the hub's section-label grammar) */
+.c-settings-about__group { margin-block-start: var(--spacing-4); }
 .c-settings-about__legal {
   text-align: center;
   color: var(--text-neutral-02);
@@ -283,7 +303,7 @@
 .c-settings-links__row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
+  gap: var(--spacing-12);
   min-height: var(--row-h-nav);       /* ★ Session I canon: 48 (was 52, settings-row parity #149②) */
   width: 100%;
   padding: var(--spacing-8) var(--spacing-12);
@@ -294,6 +314,8 @@
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
 }
+.c-settings-links__row > svg:last-child { flex: none; color: var(--icon-neutral-02); }
+.c-settings-links__tile { flex: none; }
 button.c-settings-links__row {
   cursor: pointer;
   border-radius: var(--radius-12);
@@ -305,20 +327,33 @@ button.c-settings-links__row {
 }
 button.c-settings-links__row:active { background: var(--surface-interactive-pressed); }
 .c-settings-links__row--static { flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
+.c-settings-about__fact { align-items: center; }
 
-/* ★ Item 6 (#400): the How-to community row. Same link-row grammar; the leading
-   emphasis is the ACTION colour, because this row DOES something rather than
-   navigating away. Once taken it reads as done and stops responding — a disabled
-   button already leaves the tab order, so nothing extra is needed for a11y. */
-.c-settings-howto__join { color: var(--text-action-default); }
-.c-settings-howto__join .c-settings-links__label { color: inherit; }
-.c-settings-howto__join svg { color: inherit; }
+/* ★ Item 6 (#400): the How-to community row. Once taken it reads as done and stops responding — a disabled
+   button already leaves the tab order, so nothing extra is needed for a11y. ★ S12 B (#1267): the reference draws
+   the label in the row ink — the tile carries the row's colour now (was the action colour). */
 button.c-settings-howto__join:disabled {
   cursor: default;
-  color: var(--text-neutral-02);
   background: transparent;
 }
-.c-settings-links__label { flex: 1; font-weight: var(--font-weight-semibold); }
+button.c-settings-howto__join:disabled .c-settings-links__label { color: var(--text-neutral-02); }
+.c-settings-links__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.c-settings-links__label { font-weight: var(--font-weight-semibold); overflow-wrap: anywhere; }
+/* ★ S12 B (r1 R2 NIT): a label that sits straight in a row (the dev-seed rows, the static link rows) still takes the
+   free width, so the trailing chevron stays at the edge; in the tiled rows the text column carries flex: 1 */
+.c-settings-links__row > .c-settings-links__label { flex: 1; }
+.c-settings-links__sub {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  overflow-wrap: anywhere;
+}
 .c-settings-links__url {
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
@@ -328,37 +363,78 @@ button.c-settings-howto__join:disabled {
   user-select: text;
 }
 
-/* —— how to use —— */
+/* —— how to use —— ★ S12 B (#1267, design "A, calm expandable list") */
 .c-settings-howto__intro { text-align: start; }
-.c-settings-howto__steps { padding: var(--spacing-4); }
-.c-settings-howto__step {
+.c-settings-howto__progress {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--spacing-12);
-  padding: var(--spacing-12);
+  padding-inline: var(--spacing-4);
 }
-.c-settings-howto__step-num {
+.c-settings-howto__seen {
   flex: none;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.c-settings-howto__bar {
+  flex: 1;
+  min-width: 48px;
+  block-size: 4px;
+  border-radius: var(--radius-full);
+  background: var(--ab-track);
+  overflow: hidden;
+}
+.c-settings-howto__bar-fill {
+  display: block;
+  block-size: 100%;
+  inline-size: 0;
+  border-radius: inherit;
+  background: var(--ab-bar);
+  transition: inline-size var(--duration-300) var(--easing-standard);
+}
+.c-settings-howto__item { border-radius: var(--radius-12); }
+.c-settings-howto__item[data-open] { background: var(--ab-open); }   /* the open row's panel: a step lighter than the card in dark, the on-card grey in light */
+button.c-settings-howto__head > svg:last-child { transition: transform var(--duration-200) var(--easing-standard); }
+.c-settings-howto__head[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
+.c-settings-howto__item[data-open] button.c-settings-howto__head:active { background: transparent; }
+.c-settings-howto__tile { position: relative; flex: none; display: inline-flex; }
+.c-settings-howto__check {
+  position: absolute;
+  inset-inline-end: -4px;
+  inset-block-end: -4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  inline-size: 16px;
+  block-size: 16px;
   border-radius: var(--radius-full);
-  background: var(--surface-action-tonal-default);
-  color: var(--text-action-default);
-  font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-label-md);
+  background: var(--ab-seen);
+  color: var(--ab-seen-ink);
+  box-shadow: 0 0 0 2px var(--surface-settings-card);
 }
-.c-settings-howto__step-text { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
-.c-settings-howto__step-title {
+.c-settings-howto__check[hidden] { display: none; }
+.c-settings-howto__check > svg { inline-size: 10px; block-size: 10px; }
+.c-settings-howto__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 0 var(--spacing-16) var(--spacing-16);
+  text-align: center;
+}
+.c-settings-howto__panel[hidden] { display: none; }
+.c-settings-howto__art {
+  display: block;
+  inline-size: min(176px, 56%);
+  block-size: auto;
+  aspect-ratio: 1;
+}
+.c-settings-howto__text {
+  margin: 0;
+  max-width: 36ch;
   color: var(--text-neutral-01);
-  font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
-}
-.c-settings-howto__step-body {
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
 }

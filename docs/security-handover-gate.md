@@ -35,8 +35,8 @@ log line should already have asked the question.
 | Target | Size | Why it is in scope |
 |---|---|---|
 | C# vs the fork point | **50 files, ~6,900 insertions** | Everything the redesign added on the native side |
-| `ixian:` verbs the shells emit | **112** | Each is an untrusted string crossing into C#. Check validation, path and filename handling, anything reaching a filesystem op or a URL, anything near money or keys |
-| `spixi.*` localStorage keys | **16** | The shells run on `file://`, which mini-app code may share (MAJOR #4). What is in each key matters |
+| `ixian:` verbs the shells emit | **113** (S12 +1: `ixian:hintHelp`) | Each is an untrusted string crossing into C#. Check validation, path and filename handling, anything reaching a filesystem op or a URL, anything near money or keys |
+| `spixi.*` localStorage keys | **17** (16 at 2026-08-15; + `spixi.howtoSeen`, S12 #1267) | The shells run on `file://`, which mini-app code may share (MAJOR #4). What is in each key matters |
 | Changed platform / WebView / Utils files | 37 | WebView config, delegates, permissions, link handoff. Both MAJOR #6 and MAJOR #7 lived here |
 | `innerHTML` / `eval` sinks in the FE | 14 | XSS from peer-controlled content — nicknames, message text, app names, file names |
 | FE source | 317 files | The rest of the sweep surface |
@@ -280,6 +280,10 @@ before.
 **Two new `spixi.*` keys** (#443, N80): `spixi.rating.opens` (a small integer) and
 `spixi.rating.lastopen` (a timestamp). Neither is personal, so neither widens MAJOR #4 —
 which is the standing question for anything written to that partition.
+
+| Key | Value | Exposure | Verdict |
+|---|---|---|---|
+| **`spixi.howtoSeen`** (S12 #1267, Account › How to use) | a JSON array of step numbers 1–6, validated on read (anything else reads as none seen; every access try/catch — `readHowToSeen`, settings-app.js) | Benign: six small integers, not personal, never sent or logged | OURS — listed; does not widen MAJOR #4 |
 
 ---
 
@@ -1856,3 +1860,14 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | Seasonal art / illustrations (`seasonal.js`, `illustrations.js`) | `svg.innerHTML` from module-constant strings + registry paths + a numeric id suffix only (the `icons.js` precedent); no fetch; 12 images fewer ship | ours, safe |
 | 2-step send / receive (`amount-pad.js`) | no new verb or push; the payload and verbs are byte-identical to before for the same amount (pinned old vs new); the Review sheet + the NATIVE confirm unchanged; hardware keys bound only on step 2; a pointer press never focuses a pad key (#46 r2 MAJOR-1: Enter re-clicked it); only the locale's real grouping key is dropped (#46 r3 MAJOR: fr / ru lost the '.' decimal) | ours, safe |
 | New log lines | `[P1] hold frame f= ms= rel= od= dirty=` · `[P1] hold release why= frames= ms= cand= vsc= ack= ackf= stale= skip=` · `[P1] hold deferred skip=newer` · `[P1] apps prepush n= ms=` · `[P1] apps tab first prepushed= n= ms= entry=` (dev only, fixed words + integers) · `Media: an automatic download waits for a free slot / a tap (the limit)` · `offer preview … failed: <Type>` · `apps prepush skipped (<Type>)` | ours, safe |
+
+## Session 12 (#1265–#1268) — lens applied while building (agents A–D + lead; #46 r1–r3)
+| Surface | What | Verdict |
+|---|---|---|
+| `ixian:hintHelp:<id>` (NEW 🟡 verb) + cap `hintHelp` (HomePage) | the id is checked twice: the shell sends only an id from `HINT_IDS` with a `web:` target and only with the cap; C# `S11HintRules.helpUrlFor` (Ordinal, whitelist {`network`}) → `Config.networkHelpUrl` (`https://www.ixian.io`, a compile-time constant) → `Utils.openExternal`; anything else opens nothing; nothing logged. No URL from the WebView | ours, safe |
+| `ixian:rating:yes` now also on **SettingsPage** + cap `rate` (Android / iOS only) | Ordinal `Equals` (no other tail read); `Config.ratingAndroidUrl` / `ratingiOSUrl` (constants) via `Utils.openExternal`; no `rating_action` write; nothing logged | ours, safe |
+| `spixi.howtoSeen` (NEW `spixi.*` localStorage key, settings.html) | a JSON array of ints 1–6, ≤ 64 chars, validated on read (garbage = none seen), try/catch on every access; benign (no identity, no content) | ours, listed (count 17) |
+| Paste on the 2-step amount (`amount-pad.js`) | `clipboardData.getData('text/plain')` inside the user's own paste event only (never `navigator.clipboard`); all-or-nothing parser (#46 r1 M1/M2, r2 m-1); fields / sheets / dialogs excluded; no new verb — the wire is the same as for typed keys | ours, safe |
+| Windows viewer Save (`SFileOperations.saveAs`) | the source is C#'s own `localPathOf` path (the WebView sends a message id only); opened read-only with `FileShare.ReadWrite \| Delete`; the user picks the target in FileSaver; IOException / UnauthorizedAccessException → the TYPE logged | ours, safe |
+| Window root ground (Windows `App.applyWindowGround`) | the theme surface colour onto `WindowRootViewContainer.Background`; no input | ours, safe |
+| New log lines | `[P1] savephoto r=<parse\|nomsg\|notfile\|nopath\|lookup\|start\|ok\|cancel\|fail>` · `[P1] winground set=<argb8>` · `[P1] hold grounds why=<drawn\|cap\|noview> f= ms= rdy=` · `[P1] hold grounds skip=newer` (dev builds) · `share failed: <Type>` · `share toast failed: <Type>` · `window ground not applied: <Type>` · `savePhoto failed: <Type>` — fixed words, integers, 8-hex colours and exception TYPES only | ours, safe |

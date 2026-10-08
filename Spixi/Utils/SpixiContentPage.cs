@@ -416,6 +416,11 @@ namespace SPIXI
                 }
 #endif
             }
+#if WINDOWS
+            /* ★ S12 D (#1267, the desktop resize band — a candidate): the WINDOW's XAML root follows the app ground on every
+             * surface pass (the theme sweep included) — the theme-level colour, never this page's (App.applyWindowGround). */
+            global::Spixi.WinUI.App.applyWindowGround();
+#endif
 
             /* ★ F1 INSTRUMENTATION (log only), gated to the LOCK so the log is not flooded
              * — this runs on every page load and every theme sweep.
@@ -3678,6 +3683,23 @@ namespace SPIXI
                 op.parkOnLoad = parkOnLoad && overlayMode;   // C3 (#546): a non-overlay fallback cannot park — it presents
                 op.navKey = navKey;                         // ★★ V-19: the supersede dedupe key
                 op.revealDelayMs = revealDelayMs < 0 ? 0 : revealDelayMs;   // ★★ item 6
+#if ANDROID
+                /* ★ S12 E (#1267, V-26): a COLD chat open (no warm spare) had the same one flat ground frame as the held
+                 * opens (walk #1266: the first open of the recording) — it revealed its opaque stage before the native WebView
+                 * had drawn. It now takes the same hold as the warm spare (holdStageUntilDrawn → the paint answer → the
+                 * S12 grounds wait), with the spare's zero shadow so the input flip never re-parents the WebView (#1101).
+                 * ★ S12 #46 r1 (R1-MAJOR-1): ONLY a list → chat open. A chat → chat swap (a wide pane, a shared-group row,
+                 * "Send message" over an open chat) keeps today's opaque reveal: the same-tag sweep closes the old chat in
+                 * the same turn, so a held (transparent) new chat would show the list or the empty pane between the two.
+                 * And only a SingleChatPage (NIT-3: a `replaces:` push can inherit the "chat" tag). */
+                bool chatOpenNow;
+                lock (preloadLock) { chatOpenNow = overlayStack.Exists(o => o.target is SingleChatPage); }
+                if (overlayMode && tag == "chat" && target is SingleChatPage && !chatOpenNow)
+                {
+                    op.holdUntilDrawn = true;
+                    stage.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+                }
+#endif
                 /* ★★ L9 (#707, Damir 2026-08-30): "On mobile all subscreens slide. On desktop
                  * only the chat info from the actual chat slides in and out; the rest
                  * crossfades or just appears instant."
@@ -4777,7 +4799,16 @@ namespace SPIXI
             bool skipInput = S11ChatRules.flashOn(flash, S11ChatRules.FlashSkipInput);
             if (!skipGrounds)
             {
-                try { setHoldGrounds(held, heldView, false); } catch (Exception) { }
+                /* ★ S12 E (#1267, V-26): on the candidate path the grounds wait for the native WebView's own draw
+                 * (S12GroundWait); the old path (candidate off) and a null view keep the immediate write. */
+                if (candidate && heldView != null)
+                {
+                    S12GroundWait.start(held, heldView, seq);
+                }
+                else
+                {
+                    try { setHoldGrounds(held, heldView, false); } catch (Exception) { }
+                }
             }
             if (!skipInput)
             {
@@ -4810,6 +4841,145 @@ namespace SPIXI
                 P1Perf.line("hold nbg pre=" + nbgPre + " post=" + nativeGroundToken(heldView) + " vg=" + groundTokenOf((heldView?.Parent as Android.Views.View)?.Background));
             }
             Logging.info("[CDPERF] chat held frames={0} ms={1} why={2}", frames, ms, why);   // ★ G-1 — TEMPORARY, retire with the set
+        }
+
+        /** ★ S12 E (#1267, V-26): after a candidate release, the grounds come back only when the native chat WebView has
+         *  DRAWN its current content. ★ #46 r1 (R1-MAJOR-2) + r2 (m-2): a self-invalidate read through View.IsDirty proved
+         *  nothing (the forced invalidate and the traversal that cleans it run in the same frame, after our frame callback).
+         *  So: at start the wait posts the WebView's own visual-state callback (`ready` = Chromium has the current DOM
+         *  state for the NEXT draw) and registers an OnDrawListener on the view's tree (the probe's S11DrawL); when the
+         *  callback completes it invalidates the view, and only a real tree DRAW counted after `ready`, plus
+         *  GroundAfterDrawFrames frame callbacks after that draw, ends it (S11ChatRules.groundStep). GroundCapMs is the
+         *  backstop, on the frame loop AND on a timer (no frames — screen off, no Choreographer — never leaves a hole).
+         *  MAIN THREAD. Exactly once; the listener is removed at the end. A newer hold of the same stage (deferredOwns
+         *  false) owns the grounds itself, so this wait then writes nothing. The grounds come back on a close too (the
+         *  #248 backing — never a hole). The [P1] line names the path (why) and whether the callback came (rdy=). */
+        private sealed class S12GroundWait
+        {
+            private readonly PreloadOp op;
+            private readonly Android.Webkit.WebView view;
+            private readonly int seq;
+            private readonly long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            private int frames = 0;
+            private bool ready = false;
+            private int drawsAfterReady = 0;
+            private int framesAfterDraw = 0;
+            private bool ended = false;
+            private Android.Views.ViewTreeObserver? vto = null;
+            private S11DrawL? drawListener = null;
+
+            private S12GroundWait(PreloadOp op, Android.Webkit.WebView view, int seq)
+            {
+                this.op = op;
+                this.view = view;
+                this.seq = seq;
+            }
+
+            public static void start(PreloadOp op, Android.Webkit.WebView view, int seq)
+            {
+                S12GroundWait w = new S12GroundWait(op, view, seq);
+                Android.Views.Choreographer? ch = Android.Views.Choreographer.Instance;
+                if (ch == null)
+                {
+                    w.end(S11ChatRules.GroundWhyCap);
+                    return;
+                }
+                try
+                {
+                    w.vto = view.ViewTreeObserver;
+                    w.drawListener = new S11DrawL(w.onDraw);
+                    w.vto?.AddOnDrawListener(w.drawListener);
+                }
+                catch (Exception)
+                {
+                }
+                try
+                {
+                    view.PostVisualStateCallback(2, new S11Vsc(w.onReady));
+                }
+                catch (Exception)
+                {
+                }
+                try
+                {
+                    view.PostDelayed(() => w.end(S11ChatRules.GroundWhyCap), S11ChatRules.GroundCapMs);
+                }
+                catch (Exception)
+                {
+                }
+                ch.PostFrameCallback(new S11FrameCb(w.onFrame));
+            }
+
+            /** The visual-state callback (main thread): the content is ready for the next draw — make that draw happen. */
+            private void onReady()
+            {
+                if (ended || ready)
+                {
+                    return;
+                }
+                ready = true;
+                drawsAfterReady = 0;
+                framesAfterDraw = 0;
+                try { view.PostInvalidateOnAnimation(); } catch (Exception) { }
+            }
+
+            /** The view tree is about to draw (main thread): counted only after `ready`. */
+            private void onDraw()
+            {
+                if (!ended && ready)
+                {
+                    drawsAfterReady++;
+                }
+            }
+
+            private void onFrame(long frameTimeNanos)
+            {
+                if (ended)
+                {
+                    return;
+                }
+                frames++;
+                if (ready && drawsAfterReady > 0)
+                {
+                    framesAfterDraw++;
+                }
+                long ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000 / System.Diagnostics.Stopwatch.Frequency;
+                string why = S11ChatRules.groundStep(ready, drawsAfterReady, framesAfterDraw, ms, S11ChatRules.GroundCapMs);
+                if (why.Length > 0)
+                {
+                    end(why);
+                    return;
+                }
+                Android.Views.Choreographer? ch = Android.Views.Choreographer.Instance;
+                if (ch == null)
+                {
+                    end(S11ChatRules.GroundWhyCap);
+                    return;
+                }
+                ch.PostFrameCallback(new S11FrameCb(onFrame));
+            }
+
+            private void end(string why)
+            {
+                if (ended)
+                {
+                    return;
+                }
+                ended = true;
+                if (drawListener != null)
+                {
+                    try { if (vto != null && vto.IsAlive) { vto.RemoveOnDrawListener(drawListener); } } catch (Exception) { }
+                    try { Android.Views.ViewTreeObserver? now = view.ViewTreeObserver; if (now != null && now.IsAlive) { now.RemoveOnDrawListener(drawListener); } } catch (Exception) { }
+                }
+                long ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000 / System.Diagnostics.Stopwatch.Frequency;
+                if (!S11ChatRules.deferredOwns(seq, op.holdSeq))
+                {
+                    P1Perf.line("hold grounds skip=newer");
+                    return;
+                }
+                try { setHoldGrounds(op, view, false); } catch (Exception) { }
+                P1Perf.line(S11ChatRules.groundLine(why, frames, ms, ready));
+            }
         }
 
         /** ★ S11 C: the CANDIDATE hold. At start it pushes `paintAck` to the held chat (the shell answers `ixian:painted`

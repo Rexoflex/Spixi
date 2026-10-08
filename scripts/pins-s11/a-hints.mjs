@@ -30,7 +30,8 @@ export default async function (h) {
     const now = Date.UTC(2026, 9, 20, 12);
     const st = (o) => ({ firstSeen: now - 10 * DAY, lastShown: 0, done: [], off: false, now, ...o });
     const pick = (o, opt = {}) => S.pickHint(st(o), { now, ...opt });
-    p.order = JSON.stringify(S.HINT_IDS) === '["backup","wallet","apps","addcontact","tip"]';
+    /* ★ S12 A re-base (#1267): tips 1, 3, 4 follow tip 9 (network, quantum, nophone; e2e HELD) — pins-s12/a-tips.mjs */
+    p.order = JSON.stringify(S.HINT_IDS) === '["backup","wallet","apps","addcontact","tip","network","quantum","nophone"]';
     p.first = pick({}) === 'backup';
     p.grace = pick({ firstSeen: now - 3 * DAY + 1 }) === null && pick({ firstSeen: now - 3 * DAY }) === 'backup';
     p.noFirstSeen = pick({ firstSeen: 0 }) === null && pick({ firstSeen: now + DAY }) === null;
@@ -39,7 +40,7 @@ export default async function (h) {
     p.blocked = pick({}, { blocked: true }) === null;
     p.off = pick({ off: true }) === null;
     p.nextNotDone = pick({ done: ['backup', 'wallet'] }) === 'apps' && pick({ done: ['backup', 'wallet', 'apps', 'addcontact'] }) === 'tip';
-    p.allDone = pick({ done: ['backup', 'wallet', 'apps', 'addcontact', 'tip'] }) === null;
+    p.allDone = pick({ done: ['backup', 'wallet', 'apps', 'addcontact', 'tip', 'network', 'quantum', 'nophone'] }) === null;   // ★ S12 A re-base (#1267): all eight
     p.parse = JSON.stringify(S.parseHintsState('{"firstSeen":5,"lastShown":0,"done":["tip","evil","tip"],"off":true,"now":9}'))
       === '{"firstSeen":5,"lastShown":0,"done":["tip"],"off":true,"now":9}';
     p.parseBad = ['', 'x', '[]', '{"firstSeen":-1,"now":1}', '{"firstSeen":"a","now":1}', '{"firstSeen":1}', 'null']

@@ -220,9 +220,83 @@ public partial class App : MauiWinUIApplication
                     // Preferences unavailable during shutdown — size just isn't saved.
                 }
             };
+
+            applyWindowGround(nativeWindow);   // ★ S12 D (#1267): the resize band — the root's ground from the first frame
         });
 
         SpixiLocalization.addCustomString("Platform", "Xamarin-WPF");
+    }
+
+    /* ★ S12 D (#1267 — the desktop resize band, a CANDIDATE; walk row in light AND dark). While the window edge is dragged
+     * the WebView2 content lags the new size and a dark empty band shows. The window's XAML root is MAUI's
+     * WindowRootViewContainer (MAUI 10.0.71 WindowHandler.Windows.cs:16-17 sets it as Window.Content in ConnectHandler — an
+     * internal Panel that arranges every page / modal root at the full window size) and its Background is never set, so an
+     * area no page has painted yet shows what is under the XAML root. This paints that Panel with the app's ground —
+     * ThemeManager.getSurfaceColorString(), the theme-level --surface-screen (#f9fafb / #13171b) and NOT one page's colour
+     * (the AND-7 lesson: a per-page sweep must not let the last page decide a window-wide value). Called from the window
+     * mapper above (the first frame) and from SpixiContentPage.applyPageSurfaceColor (every surface pass — the theme sweep
+     * UIHelpers.pushThemeToAllPages runs it), main thread; a value already on the root is not re-set. `[P1] winground
+     * set=<argb8>` once per new value. Windows only (this file). Never throws past a TYPE in the log. */
+    private static string? windowGroundArgb = null;   // main thread: the last value painted
+
+    internal static void applyWindowGround(Microsoft.UI.Xaml.Window? only = null)
+    {
+        try
+        {
+            if (!Microsoft.Maui.ApplicationModel.MainThread.IsMainThread)
+            {
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() => applyWindowGround(only));
+                return;
+            }
+            global::Windows.UI.Color c = Microsoft.Maui.Platform.ColorExtensions.ToWindowsColor(
+                Microsoft.Maui.Graphics.Color.FromArgb(SPIXI.ThemeManager.getSurfaceColorString()));
+            bool changed = false;
+            if (only != null)
+            {
+                changed = paintWindowGround(only, c);
+            }
+            else
+            {
+                var windows = Microsoft.Maui.Controls.Application.Current?.Windows;
+                if (windows == null)
+                {
+                    return;
+                }
+                foreach (Microsoft.Maui.Controls.Window w in windows)
+                {
+                    if (w?.Handler?.PlatformView is Microsoft.UI.Xaml.Window xw && paintWindowGround(xw, c))
+                    {
+                        changed = true;
+                    }
+                }
+            }
+            string argb = c.A.ToString("x2") + c.R.ToString("x2") + c.G.ToString("x2") + c.B.ToString("x2");
+            if (changed && argb != windowGroundArgb)
+            {
+                windowGroundArgb = argb;
+                SPIXI.P1Perf.line("winground set=" + argb);
+            }
+        }
+        catch (Exception e)
+        {
+            IXICore.Meta.Logging.warn("window ground not applied: " + e.GetType().Name);
+        }
+    }
+
+    /** True when the root Panel got the colour now (false: no Panel root, or it already had it). */
+    private static bool paintWindowGround(Microsoft.UI.Xaml.Window xw, global::Windows.UI.Color c)
+    {
+        if (xw.Content is not Microsoft.UI.Xaml.Controls.Panel root)
+        {
+            return false;
+        }
+        if (root.Background is Microsoft.UI.Xaml.Media.SolidColorBrush b
+            && b.Color.A == c.A && b.Color.R == c.R && b.Color.G == c.G && b.Color.B == c.B)
+        {
+            return false;
+        }
+        root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(c);
+        return true;
     }
 
     protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();

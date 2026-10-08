@@ -120,11 +120,13 @@ export default async function (h) {
   /* SAVE */
   r.saveBranch = /else if \(current_url\.StartsWith\("ixian:savePhoto:", StringComparison\.Ordinal\)\)\s*\{\s*onSavePhoto\(current_url\.Substring\("ixian:savePhoto:"\.Length\)\);\s*\}/.test(cs);
   const sv = between(cs, 'private void onSavePhoto(string tail)', 'private const int SelfAvatarPx');
-  r.saveBody = /if \(!S11MediaRules\.parseSavePhoto\(tail, out string hexId\)\)\s*\{\s*return;/.test(sv)
+  r.saveBody = /if \(!S11MediaRules\.parseSavePhoto\(tail, out string hexId\)\)\s*\{\s*noteSavePhoto\("parse"\);\s*return;/.test(sv)   /* ★ S12 D re-base (#1267): the probe names the exit first */
     && /friend\.getMessage\(selectedChannel, Crypto\.stringToHash\(hexId\)\)/.test(sv)
     && /fm\.type == FriendMessageType\.fileHeader && \(fm\.completed \|\| fm\.localSender\)\s*&& SharedItems\.parseFileHeader\(fm\.message, out string n, out _\) && SharedItems\.isImageName\(n\)/.test(sv)
     && /path = SharedItems\.localPathOf\(fm\);/.test(sv)
-    && /#if ANDROID\s*SFileOperations\.saveFile\(path, name, S11MediaRules\.imageMimeOf\(name\)\);\s*#elif WINDOWS \|\| IOS \|\| MACCATALYST\s*_ = SFileOperations\.share\(path, name\);\s*#endif/.test(sv)
+    /* ★ S12 D re-base (#1267): Windows now calls SFileOperations.saveAs and OBSERVES the task (pins-s12/d-save.mjs pins it
+       whole); Android / iOS / Mac calls are unchanged */
+    && /#if ANDROID\s*SFileOperations\.saveFile\(path, name, S11MediaRules\.imageMimeOf\(name\)\);\s*#elif WINDOWS\s*saving = SFileOperations\.saveAs\(path\);\s*#elif IOS \|\| MACCATALYST\s*_ = SFileOperations\.share\(path, name\);\s*#endif/.test(sv)
     && (sv.match(/Logging\.\w+\(([^;]*)\);/g) || []).every((l) => /^Logging\.warn\("[^"]+" \+ e\.GetType\(\)\.Name\);$/.test(l));
   /* ★ S11 G3 (MINOR-8): Android — the MIME reaches the picker (main thread); the copy runs off the UI thread */
   const AF = stripCode(rd('Spixi/Platforms/Android/SFileOperations.cs'));

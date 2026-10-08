@@ -18,7 +18,9 @@
  *   · ★ S11 G3 (#1263 round-3): the push also needs the auto-download CONTACT rule (MINOR-4) · the re-encodes run on ONE
  *     serial worker over a bounded queue (SerialQueue, MINOR-5) · setEncoded keeps the 2 MB bound (NIT-5) · the worker's
  *     start-up sweep deletes only C#'s own temp leaves (isOfferTempName) · Android Save names the image MIME (imageMimeOf,
- *     MINOR-8). */
+ *     MINOR-8).
+ *   · ★ S12 D (#1266 / #1267): the Save probe's reason codes (savePhotoLine — a fixed word, never an id / name / path) and
+ *     the FileSaver outcome (saveOutcome: ok · cancel · fail). */
 using System;
 using System.Collections.Generic;
 
@@ -407,6 +409,37 @@ namespace SPIXI
             }
             hexId = tail;
             return true;
+        }
+
+        // —— ★ S12 D (#1266 / #1267): the Save probe — reason codes only (never an id, a name or a path) ——
+
+        /** The platform save's outcome (Windows FileSaver): saved · the user cancelled · anything else. */
+        public const string SaveOk = "ok";
+        public const string SaveCancel = "cancel";
+        public const string SaveFail = "fail";
+
+        /** Every code `[P1] savephoto r=<code>` may carry: onSavePhoto's exits (parse · nomsg · notfile · nopath · lookup),
+         *  `start` (the platform save was started), then — Windows, the observed task — ok · cancel · fail. */
+        private static readonly string[] savePhotoCodes = { "parse", "nomsg", "notfile", "nopath", "lookup", "start", SaveOk, SaveCancel, SaveFail };
+
+        /** ★ S12 D2 (#46 R1-NIT-5): the whitelist is read-only to callers (a wrapper, not the array). */
+        public static readonly IReadOnlyList<string> SavePhotoCodes = Array.AsReadOnly(savePhotoCodes);
+
+        /** FileSaverResult → a code: IsSuccessful → ok; an OperationCanceledException (the picker closed — CommunityToolkit
+         *  14.2.0 FileSaverImplementation.windows.cs throws it for a null pick) → cancel; else fail. */
+        public static string saveOutcome(bool successful, bool cancelled)
+        {
+            return successful ? SaveOk : (cancelled ? SaveCancel : SaveFail);
+        }
+
+        /** The probe line's body for a KNOWN code (Ordinal); anything else → null (nothing is logged). */
+        public static string? savePhotoLine(string? code)
+        {
+            if (code == null || Array.IndexOf(savePhotoCodes, code) < 0)
+            {
+                return null;
+            }
+            return "savephoto r=" + code;
         }
     }
 }

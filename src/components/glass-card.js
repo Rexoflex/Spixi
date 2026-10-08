@@ -1,14 +1,15 @@
 /**
  * c-glass-card — the glass card family on the Chats list (★ S11 A, DECISIONS #1262; design "Spixi Hint Cards").
  * ONE card grammar for two jobs: the UPDATE notice (it replaces the orange c-banner for the update case ONLY —
- * connectivity and every other warning keep their surfaces) and the quiet "Did you know?" HINTS (tips 5–9 now).
+ * connectivity and every other warning keep their surfaces) and the quiet "Did you know?" HINTS (tips 5–9, then 1, 3, 4).
  * Glass: no outline — a faint blue / violet tint over the card ground, a top highlight, a soft low shadow
  * (glass-card.css; tokens.css region A). One entrance, then hold; reduced motion = static.
  *
  *   createGlassCard({ variant, art, eyebrow, title, text, linkLabel, onLink, onDismiss, strings }) → el
  *   createUpdateCard({ version, onHowTo, onDismiss, strings })  → el   (blue app-style icon, NO Update button —
  *        Spixi is installed many ways; "How to update" opens one page that covers every platform)
- *   createHintCard({ tip, onLearnMore, onDismiss, strings })    → el   (a tip without a Learn-more target has no link)
+ *   createHintCard({ tip, onLearnMore, onDismiss, canLearn, strings }) → el   (a tip without a Learn-more target has no
+ *        link; ★ S12 A (#1267): nor one whose target canLearn(def) refuses — a `web:` page on an exe without `hintHelp`)
  *
  * PURE rules (pinned on the built shell):
  *   HINT_TIPS · HINT_IDS — the list, in show order; the ids are the C# whitelist (Spixi/Utils/S11HintRules.cs TipIds)
@@ -37,17 +38,15 @@ export const HINT_GAP_MS = 7 * 24 * 60 * 60 * 1000;           // at most one eve
 
 /* The tips, in show order. `learn` names the in-app target the host opens with EXISTING navigation
    (home.html hintLearnMore): backup = Settings › Backup (ixian:backup) · wallet / apps = the tab · addcontact =
-   the contacts directory's Add contact. `learn: ''` = no Learn more (tip 9).
-   ★ Tips 1–4 wait for Damir's web pages (#1262). ★ S11 A2 (#1263, R1-M2): a tip's web page is C#-OWNED, the way the
-   update card's is (`ixian:updateHelp` → Config.updateHelpUrl, HomePage): the shell sends a fixed, argument-free verb
-   per tip and C# opens its own compile-time URL through Utils.openExternal — never a URL from this document (the
-   openLink sink stays at its two pages). To enable one: uncomment its row, give it `learn: '<id>'`, add the verb +
-   the Config URL C#-side, and add its id to S11HintRules.TipIds (the C# whitelist refuses an id it does not know).
-   Their copy (the design's table):
-     { id: 'network', glyph: 'topology-star',  learn: '' },   // "Decentralized" · "Spixi runs on the Ixian network of independent nodes."
+   the contacts directory's Add contact. `learn: ''` = no Learn more (tip 9, quantum, nophone).
+   ★ S11 A2 (#1263, R1-M2): a tip's web page is C#-OWNED, the way the update card's is (`ixian:updateHelp` →
+   Config.updateHelpUrl, HomePage) — never a URL from this document (the openLink sink stays at its two pages).
+   ★ S12 A (#1267): `learn: 'web:<id>'` = that page — the shell sends the fixed verb `ixian:hintHelp:<id>` (cap
+   `hintHelp`) and C# maps the id to its own compile-time URL (S11HintRules.helpUrlFor → Config.networkHelpUrl).
+   Without the cap the card has NO Learn more (createHintCard canLearn). A new tip id must join S11HintRules.TipIds too
+   (the C# whitelist refuses an id it does not know).
+   Tip 2 is HELD (#1267) until the new site has a page:
      { id: 'e2e',     glyph: 'lock',           learn: '' },   // "End-to-end encrypted" · "Only you and the person you write to can read it."
-     { id: 'quantum', glyph: 'shield-lock',    learn: '' },   // "Ready for quantum computers" · "Current Spixi apps use post-quantum encryption."
-     { id: 'nophone', glyph: 'square-asterisk', learn: '' },  // "No phone number" · "Your account is a key on your phone."
 */
 export const HINT_TIPS = [
   { id: 'backup', glyph: 'shield-lock', learn: 'backup' },
@@ -55,6 +54,9 @@ export const HINT_TIPS = [
   { id: 'apps', glyph: 'apps', learn: 'apps' },
   { id: 'addcontact', glyph: 'qrcode', learn: 'addcontact' },
   { id: 'tip', glyph: 'heart-handshake', learn: '' },
+  { id: 'network', glyph: 'topology-star', learn: 'web:network' },   // ★ S12 A (#1267): tip 1
+  { id: 'quantum', glyph: 'shield-lock', learn: '' },                // ★ S12 A (#1267): tip 3
+  { id: 'nophone', glyph: 'square-asterisk', learn: '' },            // ★ S12 A (#1267): tip 4
 ];
 export const HINT_IDS = HINT_TIPS.map((t) => t.id);
 
@@ -68,6 +70,11 @@ export function hintCopy(id, strings = getStrings()) {
     case 'addcontact': return { title: strings.hintAddContactTitle || 'Add people in person', text: strings.hintAddContactBody || 'Scan a QR code when you meet.' };
     /* ★ S11 A2 (#1263, R2 copy): platform-neutral — a desktop opens the menu with a right-click, not a long-press */
     case 'tip': return { title: strings.hintTipTitle || 'Say thanks with a tip', text: strings.hintTipBody2 || 'Open a message’s menu and choose Tip.' };
+    /* ★ S12 A (#1267): tips 1, 3, 4 (the design's table; tip 4 never says "no servers") */
+    case 'network': return { title: strings.hintNetworkTitle || 'Decentralized', text: strings.hintNetworkBody || 'Spixi runs on the Ixian network of independent nodes.' };
+    case 'quantum': return { title: strings.hintQuantumTitle || 'Ready for quantum computers', text: strings.hintQuantumBody || 'Current Spixi apps use post-quantum encryption.' };
+    /* ★ S12 A2 (#1267, R2-m4): platform-neutral — a desktop has no phone (a changed meaning = a new key) */
+    case 'nophone': return { title: strings.hintNoPhoneTitle || 'No phone number', text: strings.hintNoPhoneBody2 || 'Your account is a key on your device.' };
     default: return null;
   }
 }
@@ -226,19 +233,21 @@ export function createUpdateCard({ version = '', onHowTo, onDismiss, strings = g
   return card;
 }
 
-/** One hint card. Unknown tip → null. */
-export function createHintCard({ tip, onLearnMore, onDismiss, strings = getStrings() } = {}) {
+/** One hint card. Unknown tip → null. ★ S12 A (#1267): `canLearn(def)` — the host says whether it can open this tip's
+    Learn more (a `web:` page needs the exe's `hintHelp` cap); false = the card has no link. Default: every target. */
+export function createHintCard({ tip, onLearnMore, onDismiss, canLearn = null, strings = getStrings() } = {}) {
   const def = HINT_TIPS.find((t) => t.id === tip);
   const copy = def && hintCopy(def.id, strings);
   if (!copy) return null;
+  const learn = !!def.learn && (typeof canLearn !== 'function' || canLearn(def) === true);
   const card = createGlassCard({
     variant: 'hint',
     art: artTile('c-glass-card__tipart', def.glyph, 26),
     eyebrow: strings.hintEyebrow || 'Did you know?',
     title: copy.title,
     text: copy.text,
-    linkLabel: def.learn ? (strings.hintLearnMore || 'Learn more') : '',
-    onLink: def.learn ? () => { if (onLearnMore) onLearnMore(def.learn); } : null,
+    linkLabel: learn ? (strings.hintLearnMore || 'Learn more') : '',
+    onLink: learn ? () => { if (onLearnMore) onLearnMore(def.learn); } : null,
     onDismiss,
     strings,
   });

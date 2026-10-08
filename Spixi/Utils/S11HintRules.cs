@@ -12,14 +12,16 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using SPIXI.Meta;
 
 namespace SPIXI
 {
     public static class S11HintRules
     {
-        /** The tip ids the home shell may report (glass-card.js HINT_IDS, tips 5–9). Tips 1–4 join when Damir's web
-         *  pages exist — add the id HERE and in HINT_TIPS together; an id this list does not know is ignored. */
-        public static readonly string[] TipIds = { "backup", "wallet", "apps", "addcontact", "tip" };
+        /** The tip ids the home shell may report (glass-card.js HINT_IDS: tips 5–9, then ★ S12 A (#1267) tips 1, 3, 4).
+         *  Tip 2 (e2e) is HELD (#1267) until the new site has a page — add an id HERE and in HINT_TIPS together; an id
+         *  this list does not know is ignored. */
+        public static readonly string[] TipIds = { "backup", "wallet", "apps", "addcontact", "tip", "network", "quantum", "nophone" };
 
         public const string ActionShown = "shown";
         public const string ActionDone = "done";
@@ -50,6 +52,15 @@ namespace SPIXI
             action = a;
             id = i;
             return true;
+        }
+
+        /** ★ S12 A (#1267): `ixian:hintHelp:<id>` → the payload after "ixian:hintHelp:" → C#'s OWN compile-time URL for
+         *  that tip's Learn more, or null. Exact (Ordinal) id match — a case change, a space, a path is null. The URL
+         *  never comes from the WebView; the id only picks one of these constants. */
+        public static string? helpUrlFor(string? id)
+        {
+            if (string.Equals(id, "network", StringComparison.Ordinal)) return Config.networkHelpUrl;
+            return null;
         }
 
         /** `ixian:hintsoff:<0|1>` → the payload after "ixian:hintsoff:". "1" = hints OFF, "0" = hints on; nothing else. */

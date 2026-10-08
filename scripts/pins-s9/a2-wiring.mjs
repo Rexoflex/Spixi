@@ -233,7 +233,11 @@ export default async function (h) {
       bothPaths: count(BP, /bool\? outcome = await shareBackup\([^;]*\);\s*await recordBackupIfSaved\(outcome\);/g) === 2,
       outcomes: /#if WINDOWS\s*return await \(await SFileOperations\.share\(path, title\)\);\s*#elif ANDROID\s*return await SFileOperations\.share\(path, title\);\s*#else\s*await SFileOperations\.share\(path, title\);\s*return null;\s*#endif/.test(shareB)
         && /^\{\s*if \(outcome == false\)\s*\{[^}]*return;\s*\}\s*#if WINDOWS\s*if \(outcome == true\)\s*\{\s*recordBackup\(\);\s*return;\s*\}\s*#endif/.test(ask),
-      winResult: /saved = fileSaverResult\.IsSuccessful;/.test(winShare) && /return Task\.FromResult\(saved\);\s*\}$/.test(winShare) && !/return Task\.FromResult\(true\);/.test(winShare),
+      /* ★ S12 D re-base (#1267): share delegates to saveAs (the Save probe needs ok · cancel · fail); the outcome is still
+         FileSaver's own — saveOutcome(IsSuccessful, …) executed in csh (S12SaveTests) — and only SaveOk is true */
+      winResult: /^\{\s*string outcome = await saveAs\(filepath\);\s*return Task\.FromResult\(outcome == S11MediaRules\.SaveOk\);\s*\}$/.test(winShare)
+        && /string outcome = S11MediaRules\.saveOutcome\(fileSaverResult\.IsSuccessful, fileSaverResult\.Exception is OperationCanceledException\);/.test(bodyOf(win, 'public static async Task<string> saveAs(string filepath)'))
+        && !/Task\.FromResult\(true\)/.test(win),
       androidResult: /shareFile\(filepath, title\);\s*return true;/.test(andShare) && /saveFile\(filepath, title\);\s*return true;\s*\}\s*return false;\s*\}$/.test(andShare),
       onePending: /lock \(askGate\)\s*\{\s*askCts\?\.Cancel\(\);\s*askCts = mine;\s*\}/.test(ask) && /ct\.ThrowIfCancellationRequested\(\);\s*saved = await MainThread/.test(ask)
         && /await Task\.Delay\(300, ct\);/.test(appleWait) && /await Task\.Delay\(500, ct\);/.test(appleWait),

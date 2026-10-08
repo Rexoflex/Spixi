@@ -1,0 +1,14 @@
+Session 12: S11 walk fixes, tips, About and How to use, paste, album rows
+
+- Record the S11 walk (#1266), Damir's answers (#1265) and the interview (#1267)
+- Update card: "How to update" opens https://www.spixi.io/download.html
+- Hint tips 1, 3, 4 after tips 5-9 (tip 2 held); ixian:hintHelp:<id> opens a C#-owned URL (network = ixian.io)
+- Account > About redesigned (hero, Why Spixi, Links, Legal and support, Licenses, Rate Spixi on Android / iOS)
+- Account > How to use Spixi: six expandable steps with the approved art and a seen count
+- Paste an amount on the 2-step Send / Request keypad (all-or-nothing parser)
+- Windows viewer Save: a reason probe, the save task observed, a share-tolerant open, no toast on cancel
+- Windows: the window root painted with the theme ground (resize band candidate)
+- Android chat open: the background stays transparent until the chat view has drawn (V-26); cold list-to-chat opens held too
+- Album mosaic: row heights fill the box for every size (2-7 and 10 photos left the box partly empty)
+- Website help brief, freeze-prep inventory, review brief with the #46 verdict (CLEAN at r3)
+- Smoke 5686 / the 2 known, CSH 344

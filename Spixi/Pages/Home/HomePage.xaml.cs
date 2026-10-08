@@ -929,6 +929,18 @@ namespace SPIXI
                  * deleted: the sink stays at SettingsPage + SingleChatPage). Tips 1–4 will follow the same pattern. */
                 Utils.openExternal(Config.updateHelpUrl);   // the one external-open gate (Spixi/Utils/Utils.cs)
             }
+            else if (current_url.StartsWith("ixian:hintHelp:", StringComparison.Ordinal))
+            {
+                /* ★ S12 A (#1267, 🟡 NEW verb, cap `hintHelp`): a hint card's web "Learn more". The id picks one of C#'s
+                 * compile-time URLs (S11HintRules.helpUrlFor, exact Ordinal match); anything else is dropped. Nothing is
+                 * logged. Placed above `ixian:hint:` for clarity — StartsWith("ixian:hint:") does NOT match "ixian:hintHelp:"
+                 * (the colon), so neither branch can see the other's verb. */
+                string? u = S11HintRules.helpUrlFor(current_url.Substring("ixian:hintHelp:".Length));
+                if (u != null)
+                {
+                    Utils.openExternal(u);   // the one external-open gate (Spixi/Utils/Utils.cs)
+                }
+            }
             else if (current_url.StartsWith("ixian:hint:", StringComparison.Ordinal))
             {
                 /* ★ S11 A (#1262, 🟡 NEW verb): `ixian:hint:<shown|done>:<tip id>` from the Chats-list hint card. The action
@@ -2767,7 +2779,8 @@ namespace SPIXI
             // shell's Send button opens the compose, or it does nothing.
             // ★ S11 A (#1262): + hints — this exe handles ixian:hint:* and pushes setHints (the counters, right below).
             // ★ S11 A2 (#1263, R2-m4): + updateHelp — this exe handles ixian:updateHelp (the update card's link).
-            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp");
+            // ★ S12 A (#1267): + hintHelp — this exe handles ixian:hintHelp:<id> (a hint card's web Learn more).
+            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp,hintHelp");
             pushHints();
 
             // ★ D-20 (#357): the "Connecting…" state died with the document. warningDisplayed

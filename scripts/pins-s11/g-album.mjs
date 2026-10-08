@@ -27,7 +27,8 @@ export default async function (h) {
     const table = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => S.mosaicRows(n).join('+')).join(' ');
     r.table = table === '1 2 1+2 2+2 2+3 3+3 3+4 2+3+3 3+3+3 3+3+4' && S.mosaicRows(0).join() === '1' && S.mosaicRows(99).join() === '3,3,4' && S.MOSAIC_MAX === 10;
     const g7 = S.mosaicGeometry(7);
-    r.geometry = g7.template === '0.333fr 0.25fr' && Math.abs(g7.ratio - 1 / (1 / 3 + 0.25)) < 0.002;
+    /* ★ S12 re-base (Damir 20:06): the row factors are each row's share in thousandths (fr < 1 in sum filled only part of the box) */
+    r.geometry = g7.template === '571fr 429fr' && Math.abs(g7.ratio - 1 / (1 / 3 + 0.25)) < 0.002;
     /* 2. seven received photos, two offers (f2, f5) with sizes, the rest complete */
     const t = (n) => String(T0 + n);
     for (let i = 0; i < 7; i++) {
@@ -43,7 +44,7 @@ export default async function (h) {
     const cells = grid ? [...grid.querySelectorAll(':scope > .c-mgrid__cell')] : [];
     r.allSeven = !!grid && grid.dataset.n === '7' && cells.length === 7 && !grid.querySelector('.c-mgrid__more') && grid.getAttribute('aria-label') === '7 photos';
     r.rows = cells.map((c) => c.dataset.row).join('') === '3334444';
-    r.gridGeometry = !!grid && grid.style.getPropertyValue('--mosaic-rows') === '0.333fr 0.25fr' && Math.abs(Number(grid.style.getPropertyValue('--mosaic-ratio')) - g7.ratio) < 0.001;
+    r.gridGeometry = !!grid && grid.style.getPropertyValue('--mosaic-rows') === '571fr 429fr' && Math.abs(Number(grid.style.getPropertyValue('--mosaic-ratio')) - g7.ratio) < 0.001;
     /* jsdom lays nothing out: the built css must turn the row length into the column span and read the geometry */
     const css = h.stripCssComments(h.readFileSync(h.join(h.root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8'));
     r.spans = /\.c-mgrid \{[^}]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\);[^}]*grid-template-rows: var\(--mosaic-rows, 1fr\);[^}]*aspect-ratio: var\(--mosaic-ratio, 1\);/.test(css)

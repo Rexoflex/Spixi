@@ -39,7 +39,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 2. **Render** any visual change on the BUILT shell, both themes; Damir picks the dials.
 3. **Pipeline:** FULL = (`generate-icons` if SVGs) → `extract-strings` → `build-locales` → `build-strings-iife` → `build-demo-bundle` → `build-shells` — **bundle BEFORE shells** (#258); shell/CSS/token-only = `build-shells`; C#-only = none. Then the `--check` gates.
 4. **Pins:** behaviour, not source text (#771/#798); **break the code on purpose — the pin must fail for exactly that reason** (mutation, #802) before you believe it.
-5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5604** (with the Ixian-Core sibling, session 10 #1257). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=299 fail=0` on the newest installed SDK (#1122, #1129, #1135, #1149, #1150, #1160, #1166, #1185, #1186, #1206, #1209, #1226, #1241, #1242, #1250, #1251, #1256).
+5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5686** (with the Ixian-Core sibling, session 12 #1268). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=344 fail=0` on the newest installed SDK (#1122, #1129, #1135, #1149, #1150, #1160, #1166, #1185, #1186, #1206, #1209, #1226, #1241, #1242, #1250, #1251, #1256).
 6. **#46 loop** (Opus, in-session) until CLEAN — after a green smoke run, before the batch leaves the machine; smoke again after the last fix; verdict written into its brief (#660).
 7. **Walk:** Damir builds — **Windows = F5, never `dotnet build`** (#663); Android Debug; **iPhone + Mac (and Android, #449): wipe `obj`/`bin` when the html changed, then a plain build, then Run — incremental builds do not repackage Raw html** (#320); the BUILD row must show something only this build has. Walk sheet → pasted results → a `WALK #N: n P · n F · n N/A` DECISIONS row; each fail = mechanism first.
 8. **Commit:** one logical unit; `docs/commit-message-<batch>.txt` (no attribution lines — ★ COMMIT RULE); Damir reviews the diff, commits and pushes; never `git add -A`. Use `git --no-optional-locks` on the mounted repo; give the PowerShell repo commands with every delivery.
@@ -81,11 +81,11 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-08: **session 11 BUILT, UNCOMMITTED** (patch `session11.patch` on "Record walk #1260 (S10) and the S11 plan", commit message `docs/commit-message-session11.txt`). Interview #1262 · picks #1263 (all A + send flow A) · build + review #1264.
-- S11 = 10-FLASH candidate hold + probe · no keyboard after a reaction · paste toast · photo auto-download (Privacy, Off) · seasonal top bar · violet line · MIT out · update card · hint tips 5–9 · illustrations · Downloads gap · created line · viewer zoom + paging · Apps pre-push · album mosaic A · offer preview A · P4 inline (default 1 line) · 2-step send / receive A.
-- Smoke BASELINE OK **5664** · CSH **336** (cloud twin). #46 **CLEAN at r4** (#1264). ⚠ C# UNCOMPILED (6 new + 9 changed C# files; handoff §0).
-- Walk sheet: the artifact "Spixi Session 11 Walk" (S11 rows + the S10 N/A rows). 11-FLASH decides V-26.
-- Open for Damir: tips 1–4 URLs · does spixi.io/download exist · paste on the 2-step Send · Android 12+ splash (#1249) · cold-start stall · desktop resize dark band · About B + How to use A (S12).
-- BE asks: **B-33 (S11)** · B-28 … B-32 · CORE-8/9/10.
-- v1 plan: S11 ✅ built → walk → S12 fix round + FREEZE prep. Road after: sweep → picks → freeze → characterization → refactor → strip → gate re-run → merge → TestFlight.
-- **NEXT SESSION: read `docs/handoff-2026-10-08.md` FIRST, then paste `docs/prompts/session-12.md`.** Next free DECISIONS number: **#1265**.
+- 2026-10-08: **session 12 BUILT, UNCOMMITTED** (patch `session12.patch` on "Session 11: S10 walk fixes, design set, album, send flow", commit message `docs/commit-message-session12.txt`). Answers #1265 · WALK #1266 (S11: 18 P · 0 F · 8 N/A) · interview #1267 · build + review #1268.
+- S12 = update link `download.html` · hint tips 1 / 3 / 4 (`ixian:hintHelp`, tip 2 held) · About B + How to use A + Rate row · paste on the 2-step amount · Windows viewer Save probe + candidate · window root ground (resize band) · V-26 grounds wait for the WebView draw (+ cold open held) · album mosaic rows fixed (2–7 + 10 photos).
+- Smoke BASELINE OK **5686** · CSH **344** (cloud twin). #46 **CLEAN at r3** (#1268). ⚠ C# UNCOMPILED (handoff §0).
+- Walk sheet: the artifact "Spixi Session 12 Walk" (S12 rows + the S11 residuals). 12-FLASH (recording, light + dark) decides V-26.
+- Freeze path (Damir, 19:02): S12 walk → S13 (fix round + introduced-vs-inherited sweep + freeze checklist) → office walk iPhone + Mac (no V row ever walked there; `docs/freeze-inventory-2026-10-08.md`) → fix round → `freeze-v1`. After: characterization → refactor → strip → gate re-run + BE pack → merge → TestFlight.
+- BE asks: **B-34 (S12)** · B-25 … B-33 · CORE-8/9/10 — one review packet at the gate stage.
+- Open for Damir: the E2E line is singular ("Only the person you write to…") · Help Center has no articles (the brief asks the new site) · S4 / S5 sweep docs before or after the tag.
+- **NEXT SESSION: read `docs/handoff-2026-10-08b.md` FIRST, then paste `docs/prompts/session-13.md`.** Next free DECISIONS number: **#1269**.

@@ -35,4 +35,5 @@ namespace Microsoft.VisualStudio.TestTools.UnitTesting {
     public static void IsTrue(bool c, string m=""){ if(!c) throw new AssertFailed(m);} public static void IsFalse(bool c, string m=""){ if(c) throw new AssertFailed(m);}
     public static void AreEqual<T>(T e, T a, string m=""){ if(!Equals(e,a)) throw new AssertFailed(m+" (expected "+e+", got "+a+")");} } }
 // ★ S9 A2 (#1245, H-14): SLocalOnlyStore's default folder reads Config.spixiUserFolder (Spixi/Meta/Config.cs:22); the harness sets SLocalOnlyStore.folder itself
-namespace SPIXI.Meta { public class Config { public static string spixiUserFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "csh-spixi"); } }
+namespace SPIXI.Meta { public class Config { public static string spixiUserFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "csh-spixi");
+  public static readonly string networkHelpUrl = "https://www.ixian.io"; } }   // ★ S12 A (#1267): S11HintRules.helpUrlFor reads it — the SAME literal as Spixi/Meta/Config.cs (pinned equal by scripts/pins-s12/a-cs.mjs)

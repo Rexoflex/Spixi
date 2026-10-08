@@ -60,9 +60,13 @@ export default async function (h) {
     const about = [...s.d.querySelectorAll('button.c-settings__row')].find((x) => /^\s*About/.test(x.textContent || ''));
     if (about) about.click();
     await sleep(250);
-    const desc = (s.d.querySelector('.c-settings-about__desc') || {}).textContent || '';
-    ok(desc === 'Spixi lets you chat and send IXI directly, peer to peer. Your messages are end-to-end encrypted and your keys never leave your device.',
-      '★ S9 A-10 (#1245): About says the messages are end-to-end encrypted (not "encrypted on your device") — ' + JSON.stringify(desc));
+    /* ★ S12 B re-base (#1267): About B has no description paragraph any more — the claim moved to the "Why Spixi"
+       fact rows. Same assertion on the new home: the E2E fact says end-to-end, and the screen never says "encrypted on
+       your device". */
+    const facts = [...s.d.querySelectorAll('.c-settings-about__fact')].map((f) => [...f.querySelectorAll('.c-settings-links__label, .c-settings-links__sub')].map((x) => x.textContent).join(' '));
+    const aboutText = (s.d.querySelector('.c-settings-about') || {}).textContent || '';
+    ok(facts.includes('End-to-end encrypted Only the person you write to can read it.') && !/encrypted on your device/i.test(aboutText),
+      '★ S9 A-10 (#1245): About says the messages are end-to-end encrypted (not "encrypted on your device") — ' + JSON.stringify(facts));
     s.dom.window.close();
   } catch (e) {
     ok(false, '★ S9 B2 copy pins threw: ' + (e && e.stack || e));

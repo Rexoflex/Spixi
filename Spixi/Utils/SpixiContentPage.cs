@@ -416,11 +416,7 @@ namespace SPIXI
                 }
 #endif
             }
-#if WINDOWS
-            /* ★ S12 D (#1267, the desktop resize band — a candidate): the WINDOW's XAML root follows the app ground on every
-             * surface pass (the theme sweep included) — the theme-level colour, never this page's (App.applyWindowGround). */
-            global::Spixi.WinUI.App.applyWindowGround();
-#endif
+            /* ★ S13 (#1275): the S12 window-root ground call is gone (it lightened the Windows title bar in light mode). */
 
             /* ★ F1 INSTRUMENTATION (log only), gated to the LOCK so the log is not flooded
              * — this runs on every page load and every theme sweep.

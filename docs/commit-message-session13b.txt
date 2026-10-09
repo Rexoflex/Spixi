@@ -1,0 +1,5 @@
+Session 13b: remove the Windows window-root ground (title bar in light mode)
+
+- The S12 window-root paint lightened the area under the Windows title bar in light mode,
+  so the white "Spixi IM" caption was invisible; it never changed the resize band (#1272)
+- applyWindowGround / paintWindowGround removed; pins-s12/d-ground now pins the removal

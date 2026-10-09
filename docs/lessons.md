@@ -163,3 +163,4 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L113 | On Android, MAUI gives a view with InputTransparent a WrapperView (NeedsContainer) — a CASCADED flip re-parents the child (detach + attach); a WebView then drops its frame and re-rasters. Pin a permanent container on the parent AND stop the cascade | #1271 |
 | L114 | Read a flash frame by frame with tiles, not by one metric: "list → ground → chat" (#1266) was really "chat → blank → chat" — the frame BEFORE the blank decides the mechanism | #1271 |
 | L115 | When four fixes in a row move the same kind of thing (background writes) and the defect stays, list every OTHER write at the same moment and read the framework source for each | #1271 |
+| L116 | Defer an "old view closes" action to the moment the NEW view's grounds come back, not to the hold's release — the release can precede the new WebView's first draw | #1277 r1 |

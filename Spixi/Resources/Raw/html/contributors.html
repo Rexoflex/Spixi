@@ -2237,18 +2237,53 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 /* —— about —— ★ S12 B (#1267, design "B, hero card-led") */
 /* the hero card: it IS a settings card (`.c-settings__group` — the surface + its shadow, no outline; this rule
-   follows settings-shell.css, so the radius, padding and ground below win) with a soft violet wash at the top; every
-   colour of the art and the wash comes from the --ab-* tokens (tokens.css, per theme) */
+   follows settings-shell.css, so the radius, padding and ground below win); every colour of the art comes from the
+   --ab-* tokens (tokens.css, per theme).
+   ★ S13 B (Damir's pick, "Banner hero"): the card wears the glass-card surface + highlight; a band in the hint-art
+   gradient runs edge to edge across its top carrying the art's orbit, satellites and sparkles (aboutHeroArt
+   { tile: false }), and the app icon overlaps the band's lower edge inside a surface-coloured ring (the "cut-out").
+   No backdrop-filter anywhere: every layer is an opaque gradient, so an old WebView paints the same card. */
 .c-settings-about__hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-8);
+  gap: var(--spacing-4);
   text-align: center;
-  padding: var(--spacing-12) var(--spacing-16) var(--spacing-20);
+  padding: 0 var(--spacing-20) var(--spacing-24);
   border-radius: var(--radius-24);
-  background: linear-gradient(180deg, var(--ab-hero-top) 0%, var(--surface-settings-card) 64%);
+  background: var(--glass-card-surface);
+  box-shadow: inset 0 1px 0 var(--glass-card-highlight), var(--glass-card-shadow);
   overflow: hidden;
+}
+.c-settings-about__band {
+  position: relative;
+  align-self: stretch;
+  flex: none;
+  margin-inline: calc(-1 * var(--spacing-20));
+  block-size: 128px;
+  overflow: hidden;
+  background:
+    radial-gradient(60% 120% at 50% 110%, var(--ab-band-shade) 0%, transparent 70%),
+    radial-gradient(80% 140% at 85% 0%, var(--ab-band-sheen) 0%, transparent 55%),
+    linear-gradient(120deg, var(--glass-card-art-from) 0%, var(--glass-card-art-to) 100%);
+  background-size: 100% 100%, 100% 100%, 130% 100%;
+  background-position: 0 0, 0 0, 50% 0;
+  background-repeat: no-repeat;
+}
+/* the art on the band: fixed-width and centred by a logical inset (calc(50% - half) from the inline START, so RTL
+   centres the same way without a mirrored transform); 320 px wide and lifted 10 px so the whole scene (top sparkle
+   to the lowest dot, ~117 of its 150 units) sits inside the 128 px band with nothing kissing either edge — at 360 px
+   and on the desktop pane alike; its orbit and sparkles re-inked white for the gradient */
+.c-settings-about__band .c-settings-about__art {
+  --ab-art-w: 320px;
+  position: absolute;
+  inset-block-start: -10px;
+  inset-inline-start: calc(50% - var(--ab-art-w) / 2);
+  inline-size: var(--ab-art-w);
+  max-inline-size: none;
+  --ab-orbit: var(--ab-band-ink);
+  --ab-spark: var(--ab-band-ink);
 }
 .c-settings-about__art {
   display: block;
@@ -2257,13 +2292,40 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   aspect-ratio: 2 / 1;
 }
 .c-settings-about__mark { color: var(--ab-mark); }
+.c-settings-about__appicon {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 84px;
+  block-size: 84px;
+  margin-block-start: -46px;
+  margin-block-end: var(--spacing-8);
+  border-radius: var(--radius-24);
+  background:
+    linear-gradient(180deg, var(--ab-icon-sheen) 0%, transparent 55%),
+    linear-gradient(150deg, var(--ab-tile-a) 0%, var(--ab-tile-b) 100%);
+  color: var(--ab-mark);
+  /* the cut-out ring in the card's own surface, a 1 px highlight hairline round it (so the ring reads as a rim, not a
+     hole, on the dark card), then the soft brand glow */
+  box-shadow: 0 0 0 5px var(--glass-card-surface), 0 0 0 6px var(--glass-card-highlight), 0 14px 26px -10px var(--ab-tile-shadow);
+}
+.c-settings-about__appicon svg { inline-size: 46px; block-size: 46px; }
 .c-settings-about__app-name {
   margin: 0;
   font-family: var(--font-primary);
-  font-size: var(--font-size-heading-lg);
-  line-height: var(--line-height-heading-lg);
+  font-size: var(--font-size-display-md);
+  line-height: var(--line-height-display-md);
+  letter-spacing: -0.6px;
   font-weight: var(--font-weight-bold);
   color: var(--text-neutral-01);
+}
+/* desktop's display-md is 44 px — too loud in a pane; the name keeps the pre-banner desktop size there */
+:root[data-desktop] .c-settings-about__app-name {
+  font-size: var(--font-size-heading-lg);
+  line-height: var(--line-height-heading-lg);
 }
 .c-settings-about__tagline {
   margin: 0;
@@ -2272,20 +2334,42 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
 }
+/* the version chip on glass (option A's chip): the card surface, a hairline brand edge, a faint glow, the number in
+   the accent ink */
 .c-settings-about__version {
-  margin: var(--spacing-4) 0 0;
-  padding: var(--spacing-2) var(--spacing-12);
+  margin: var(--spacing-12) 0 0;
+  padding: var(--spacing-4) var(--spacing-12);
   border-radius: var(--radius-full);
-  background: var(--ab-chip);
+  background: var(--glass-card-surface);
+  box-shadow: inset 0 0 0 1px var(--ab-chip-edge), 0 4px 10px -6px var(--glass-card-art-glow);
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   overflow-wrap: anywhere;
 }
 .c-settings-about__version-num {
-  color: var(--text-neutral-01);
+  color: var(--text-accent);
   font-weight: var(--font-weight-semibold);
   font-feature-settings: "tnum" 1;
+}
+/* ONE entrance (the glass-card precedent): the band's gradient drifts into place while the icon settles .92 → 1;
+   createSettingsAbout sets `data-held` after it (or its backstop), so a re-layout never replays it; reduced motion =
+   static */
+.c-settings-about__band { animation: about-band-in var(--duration-300) var(--easing-decelerate) both; }
+.c-settings-about__appicon { animation: about-icon-in var(--duration-300) var(--easing-decelerate) both; }
+@keyframes about-band-in {
+  from { background-position: 0 0, 0 0, 100% 0; }
+  to { background-position: 0 0, 0 0, 50% 0; }
+}
+@keyframes about-icon-in {
+  from { transform: scale(.92); }
+  to { transform: none; }
+}
+.c-settings-about__hero[data-held] .c-settings-about__band,
+.c-settings-about__hero[data-held] .c-settings-about__appicon { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .c-settings-about__band,
+  .c-settings-about__appicon { animation: none; }
 }
 /* a labelled group: the label sits on the ground above its card (the hub's section-label grammar) */
 .c-settings-about__group { margin-block-start: var(--spacing-4); }

@@ -744,26 +744,36 @@ function abEl(tag, attrs, kids) {
 }
 const abStop = (o, v, a) => abEl('stop', { offset: o, style: 'stop-color:' + v + (a != null ? ';stop-opacity:' + a : '') });
 const abSpark = (x, y, r) => abEl('path', { d: `M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}Z` });
-function aboutHeroArt() {
+function aboutHeroArt({ tile = true } = {}) {
   abSeq += 1;
   const id = (n) => n + '-ab' + abSeq;
   const url = (n) => 'url(#' + id(n) + ')';
   const lin = (n, a, b, diag) => abEl('linearGradient', { id: id(n), x1: 0, y1: 0, x2: diag ? 1 : 0, y2: 1 }, [abStop(0, a), abStop(1, b)]);
-  const svg = abEl('svg', { viewBox: '0 0 300 150', class: 'c-settings-about__art', 'aria-hidden': 'true', focusable: 'false' }, [
-    abEl('defs', {}, [
-      abEl('radialGradient', { id: id('g') }, [abStop(0, 'var(--ab-glow)'), abStop(1, 'var(--ab-glow)', 0)]),
-      lin('t', 'var(--ab-tile-a)', 'var(--ab-tile-b)', true),
-      abEl('linearGradient', { id: id('h'), x1: 0, y1: 0, x2: 0, y2: 1 }, [abStop(0, '#fff', 0.32), abStop(0.55, '#fff', 0)]),
-      lin('b', 'var(--ab-bubble-a)', 'var(--ab-bubble-b)', true),
-      lin('c', 'var(--ab-coin-a)', 'var(--ab-coin-b)', true),
-      abEl('filter', { id: id('f'), x: '-50%', y: '-50%', width: '200%', height: '200%' }, [abEl('feGaussianBlur', { stdDeviation: 7 })]),
-    ]),
+  /* ★ S13 B (About "Banner hero"): `tile: false` draws the scene WITHOUT its centre — no glow, floor, tile or mark —
+     for the band, where the overlapping app icon (createSettingsAbout) is the centre object instead */
+  const centre = tile ? [
     abEl('ellipse', { cx: 150, cy: 72, rx: 120, ry: 66, fill: url('g') }),
     abEl('ellipse', { cx: 150, cy: 136, rx: 46, ry: 5, style: 'fill:var(--ab-floor)' }),
-    abEl('ellipse', { cx: 150, cy: 84, rx: 118, ry: 34, fill: 'none', style: 'stroke:var(--ab-orbit)', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-dasharray': '0.1 6' }),
+  ] : [];
+  const tileRects = tile ? [
     abEl('rect', { x: 116, y: 42, width: 68, height: 72, rx: 22, style: 'fill:var(--ab-tile-shadow)', filter: url('f') }),
     abEl('rect', { x: 110, y: 30, width: 80, height: 80, rx: 22, fill: url('t') }),
     abEl('rect', { x: 110, y: 30, width: 80, height: 80, rx: 22, fill: url('h') }),
+  ] : [];
+  const svg = abEl('svg', { viewBox: '0 0 300 150', class: 'c-settings-about__art', 'aria-hidden': 'true', focusable: 'false' }, [
+    abEl('defs', {}, [
+      ...(tile ? [
+        abEl('radialGradient', { id: id('g') }, [abStop(0, 'var(--ab-glow)'), abStop(1, 'var(--ab-glow)', 0)]),
+        lin('t', 'var(--ab-tile-a)', 'var(--ab-tile-b)', true),
+        abEl('linearGradient', { id: id('h'), x1: 0, y1: 0, x2: 0, y2: 1 }, [abStop(0, '#fff', 0.32), abStop(0.55, '#fff', 0)]),
+        abEl('filter', { id: id('f'), x: '-50%', y: '-50%', width: '200%', height: '200%' }, [abEl('feGaussianBlur', { stdDeviation: 7 })]),
+      ] : []),
+      lin('b', 'var(--ab-bubble-a)', 'var(--ab-bubble-b)', true),
+      lin('c', 'var(--ab-coin-a)', 'var(--ab-coin-b)', true),
+    ]),
+    ...centre,
+    abEl('ellipse', { cx: 150, cy: 84, rx: 118, ry: 34, fill: 'none', style: 'stroke:var(--ab-orbit)', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-dasharray': '0.1 6' }),
+    ...tileRects,
     /* the lock satellite (drawn here: the registry's outlined lock alone would cost ~2 KB of the art's 7 KB budget) */
     abEl('circle', { cx: 58, cy: 63, r: 16, style: 'fill:var(--ab-lock-bg)' }),
     abEl('g', { style: 'color:var(--ab-lock-ink)' }, [
@@ -779,15 +789,33 @@ function aboutHeroArt() {
     abEl('text', { x: 244, y: 107.2, 'text-anchor': 'middle', 'font-size': 8.5, 'font-weight': 700, style: 'fill:var(--ab-coin-ink);font-family:var(--font-ui, sans-serif)' }, ['IXI']),
     abEl('g', { style: 'fill:var(--ab-spark)' }, [
       abSpark(92, 22, 5), abSpark(222, 14, 3.5), abSpark(96, 106, 4.5), abSpark(270, 74, 4),
-      abEl('circle', { cx: 34, cy: 96, r: 1.6 }), abEl('circle', { cx: 268, cy: 40, r: 1.4 }), abEl('circle', { cx: 196, cy: 126, r: 1.5 }),
+      abEl('circle', { cx: 34, cy: 96, r: 1.6 }), abEl('circle', { cx: 268, cy: 40, r: 1.4 }), abEl('circle', { cx: 196, cy: tile ? 126 : 121, r: 1.5 }),   /* on the band: lifted off its lower edge */
     ]),
   ]);
   /* the mark is the icon registry's own `logo` (one source for the Spixi mark) */
-  const mark = icon('logo', { size: 44 });
-  mark.setAttribute('x', '128'); mark.setAttribute('y', '48');
-  mark.setAttribute('class', 'c-settings-about__mark');
-  svg.append(mark);
+  if (tile) {
+    const mark = icon('logo', { size: 44 });
+    mark.setAttribute('x', '128'); mark.setAttribute('y', '48');
+    mark.setAttribute('class', 'c-settings-about__mark');
+    svg.append(mark);
+  }
   return svg;
+}
+
+/* ★ S13 B (About "Banner hero"): ONE entrance (the band's gradient drift + the app icon settling .92 → 1), then
+   `data-held` (settings-app.css: animation none) — the glass-card precedent (glass-card.js holdEntrance): the first
+   animationend of the icon's own entrance, or the backstop when no animation runs (reduced motion, a hidden pane). */
+const ABOUT_HOLD_MS = 2500;
+function holdAboutEntrance(hero, target) {
+  let t = 0;
+  const hold = () => {
+    clearTimeout(t);
+    target.removeEventListener('animationend', onEnd);
+    hero.setAttribute('data-held', '');
+  };
+  const onEnd = (e) => { if (e.target === target) hold(); };
+  target.addEventListener('animationend', onEnd);
+  t = setTimeout(hold, ABOUT_HOLD_MS);
 }
 
 /**
@@ -825,7 +853,19 @@ export function createSettingsAbout({
   /* ★ S12 B (#1267): a NEW key — the line changed meaning (messaging AND payments) */
   tag.textContent = tagline || strings.aboutTagline2
     || 'Private messaging and payments on the Ixian network.';
-  hero.append(aboutHeroArt(), nameEl, tag);
+  /* ★ S13 B (Damir's pick, "Banner hero"): a decorative band in the hint-art gradient carrying the art's orbit,
+     satellites and sparkles (the tile-less art), and the app icon — the registry's own `logo` — overlapping the band's
+     lower edge. Both are decoration (aria-hidden): the name below is the heading. */
+  const band = document.createElement('div');
+  band.className = 'c-settings-about__band';
+  band.setAttribute('aria-hidden', 'true');
+  band.append(aboutHeroArt({ tile: false }));
+  const appIcon = document.createElement('div');
+  appIcon.className = 'c-settings-about__appicon';
+  appIcon.setAttribute('aria-hidden', 'true');
+  appIcon.append(icon('logo', { size: 44 }));
+  hero.append(band, appIcon, nameEl, tag);
+  holdAboutEntrance(hero, appIcon);
   const v = aboutVersionText(version);
   if (v) {
     const ver = document.createElement('p');

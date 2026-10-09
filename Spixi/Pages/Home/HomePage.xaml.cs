@@ -5834,6 +5834,24 @@ namespace SPIXI
                 Utils.sendUiCommand(this, "homeBack");
                 return true;
             }
+#if ANDROID
+            /* ★ S13 (#1277, Damir): Back on the chats list sends Spixi to the BACKGROUND instead of finishing the activity
+             * (WhatsApp / Telegram behaviour). Finishing it destroyed MainActivity (walk recording 09:53: "MainActivity destroyed"),
+             * and the next start showed Android's stale snapshot of the last chat, then the home boot skeleton. The task stays,
+             * so the next open resumes the same activity. Fallback: the old exit if there is no activity to move. */
+            try
+            {
+                global::Android.App.Activity? act = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+                if (act != null && act.MoveTaskToBack(true))
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("back to background failed: " + ex.GetType().Name);
+            }
+#endif
             return base.OnBackButtonPressed();
         }
 

@@ -1,10 +1,10 @@
 Read CLAUDE.md, then the newest docs/handoff-*.md (FIRST — `docs/handoff-2026-10-09.md`), then DECISIONS #1269–#1274 and
-`docs/s13-flash-mechanism.md`. Next free DECISIONS number: #1275.
+`docs/s13-flash-mechanism.md`. Next free DECISIONS number: #1278 (S13 continued the same day: #1275 walk, #1276 13b, #1277 13c — handoff §7).
 This is SESSION 14 (a new chat): the S13 walk (12-FLASH fix proof), Damir's picks (About card, layer removal, 12-BAND, the OURS-OPEN
 security rows), then the office-walk prep. Already decided (do not re-open): #1269 (E2E line dropped, Help Center kept, paste kept, S4 / S5 order).
 
 ORDER:
-1. Precondition (below). Then the S13 walk: Damir pastes the "Spixi Session 13 Walk" results → `WALK #1275: n P · n F · n N/A` row.
+1. Precondition (below). Then the 13c walk: Damir pastes the "Spixi Session 13c Walk" results → a `WALK #1278: n P · n F · n N/A` row (log `android-s13c.txt`).
 2. 13-FLASH: frame scan of BOTH recordings (every frame, mid-band luma std-dev < 2.5 = blank; VIEW 8-frame tiles around every open — L114),
    line up with `android-s13.txt` by two opens; 0 blank frames on ≥ 20 opens (light + dark, warm + cold + chat → chat + back) = V-26 WALKED.
    A blank left → mechanism first (#294): which write lands in that frame (`[P1] hold frame` stamps), read the MAUI source (L115).
@@ -20,8 +20,8 @@ ORDER:
 ★ COMMIT RULE: NO `Co-Authored-By`, NO `Claude-Session`, NO session link, NO "Generated with" line in any commit message, commit-message file or PR text ·
 verify every claim in the tree (#215) · mechanism first (#294) · C# touches no risky parts · bridge protocol frozen (new verbs = 🟡 + BE ask + T1 row) ·
 security handover gate · no Ixian-Core change. ★ MAC RE-SYNC: if Damir says he is on the Mac and pulled, give the CLAUDE.md re-sync steps FIRST.
-Precondition (stop if it fails): the commit "Session 13: chat-open flash fix, E2E line, sweep pre-run, freeze prep" is in `git log` and HEAD =
-origin/redesign/frontend (find commits by message); smoke BASELINE OK 5687 / the 2 KNOWN (#136 · B3); `node scripts/run-csh.mjs` → CSH pass=344
+Precondition (stop if it fails): the commits "Session 13: …", "Session 13b: …" and "Session 13c: …" are in `git log` and HEAD =
+origin/redesign/frontend (find commits by message); smoke BASELINE OK 5688 / the 2 KNOWN (#136 · B3); `node scripts/run-csh.mjs` → CSH pass=344
 fail=0. The device shell kills a > 3 min smoke → the cloud twin (clone + Ixian-Core @097341a + ONE `npm i --no-save jsdom eslint globals tree-sitter
 tree-sitter-c-sharp` + `apt-get update` then `apt-get install -y dotnet-sdk-10.0`; ffmpeg + numpy for the recordings). ONE full smoke at a time,
 DETACHED with `setsid`, ended with `echo SMOKEDONE rc=$?`; never edit the tree while it runs. A single pin-module runner = the smoke prelude

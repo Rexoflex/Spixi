@@ -1,6 +1,6 @@
 /* ==== S12 B (#1267) — Account › About, design "B, hero card-led", EXECUTED on the BUILT settings.html (jsdom; C# pushes
  * via executeUiCommand; outgoing ixian: verbs captured) ====
- *   · hero: the inline art, "Spixi", the new tagline, a version chip "Version 0.9.22" from C#'s `spixi-0.9.22` (the prefix
+ *   · hero: the inline art (★ S13 B: tile-less, inside the aria-hidden band; the aria-hidden app icon after it), "Spixi", the new tagline, a version chip "Version 0.9.22" from C#'s `spixi-0.9.22` (the prefix
  *     stripped) — and NO chip for a malformed or empty version
  *   · "Why Spixi": three facts, no post-quantum line, no "server" wording
  *   · "Links": Website · Ixian network · Source code, each still sends ixian:openLink: with today's three URLs
@@ -34,6 +34,21 @@ export default async function (h) {
     a.hero = !!art && art.getAttribute('aria-hidden') === 'true' && art.outerHTML.length <= 7168
       && txt(hero.querySelector('.c-settings-about__app-name')) === 'Spixi'
       && txt(hero.querySelector('.c-settings-about__tagline')) === 'Private messaging and payments on the Ixian network.';
+    /* ★ S13 B (Damir's pick, "Banner hero"): the band (aria-hidden) carries the art WITHOUT its tile (no tile rects, no
+       mark — aboutHeroArt({ tile: false })); the app icon (aria-hidden, the registry's own logo) is the band's NEXT
+       sibling, overlapping its edge; the name, tagline and chip follow in that order; one entrance, then data-held */
+    const band = hero && hero.querySelector(':scope > .c-settings-about__band');
+    const appIcon = hero && hero.querySelector(':scope > .c-settings-about__appicon');
+    const kids = hero ? [...hero.children].map((c) => c.className) : [];
+    a.band = !!band && band.getAttribute('aria-hidden') === 'true' && !!art && art.parentElement === band
+      && art.querySelectorAll('rect').length === 1   /* only the lock body — the tile, its sheen and its shadow are not drawn */
+      && !art.querySelector('.c-settings-about__mark') && !art.querySelector('filter') && !!art.querySelector('text');
+    a.appIcon = !!appIcon && appIcon.getAttribute('aria-hidden') === 'true' && band.nextElementSibling === appIcon
+      && appIcon.querySelectorAll('svg').length === 1 && !appIcon.textContent.trim()
+      && JSON.stringify(kids) === JSON.stringify(['c-settings-about__band', 'c-settings-about__appicon', 'c-settings-about__app-name', 'c-settings-about__tagline', 'c-settings-about__version'])
+      && hero.querySelector('h2') === hero.querySelector('.c-settings-about__app-name');
+    /* jsdom runs no CSS animation, so this is the backstop path (reduced motion / hidden pane) — the hold still lands */
+    a.held = await (async () => { for (let i = 0; i < 70 && hero && !hero.hasAttribute('data-held'); i++) await sleep(50); return !!hero && hero.hasAttribute('data-held'); })();
     a.chip = txt(hero && hero.querySelector('.c-settings-about__version')) === 'Version 0.9.22'
       && txt(hero.querySelector('.c-settings-about__version-num')) === '0.9.22' && !/spixi-/.test(el.textContent);
     const groups = [...el.querySelectorAll('.c-settings-about__group')];
@@ -92,7 +107,7 @@ export default async function (h) {
   } catch (e) { a.err = String(e && e.stack || e).slice(0, 300); }
   finally { close(); }
   ok(Object.values(a).every((x) => x === true),
-    '★ S12 B (#1267) About B (EXECUTED, built settings.html): hero art + "Spixi" + the new tagline + "Version 0.9.22" (spixi- stripped); Why Spixi = three facts (no quantum / server); Links still send ixian:openLink: with today\'s three URLs; Legal = Privacy · Terms (doc sheet) · Licences (→ Contributors credits) · Rate Spixi (cap) → ixian:rating:yes; "© Ixian" — ' + JSON.stringify(a));
+    '★ S12 B (#1267) About B (EXECUTED, built settings.html): hero art + "Spixi" + the new tagline (★ S13 B "Banner hero": the art inside the aria-hidden band WITHOUT its tile/mark, the aria-hidden app icon right after the band, then name · tagline · chip; one entrance then data-held) + "Version 0.9.22" (spixi- stripped); Why Spixi = three facts (no quantum / server); Links still send ixian:openLink: with today\'s three URLs; Legal = Privacy · Terms (doc sheet) · Licences (→ Contributors credits) · Rate Spixi (cap) → ixian:rating:yes; "© Ixian" — ' + JSON.stringify(a));
   ok(Object.values(r).length > 0 && Object.values(r).every((x) => x === true),
     '★ S12 B (#1267) About B (EXECUTED): no `rate` cap → no Rate row; a malformed / empty version → no chip (only [0-9A-Za-z.+-]{1,32} after the spixi- strip) — ' + JSON.stringify(r));
 }

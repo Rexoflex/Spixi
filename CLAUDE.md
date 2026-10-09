@@ -81,10 +81,8 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-09: **session 13 BUILT, UNCOMMITTED** (patch `session13.patch` on "Session 12: …", commit message `docs/commit-message-session13.txt`). Rows #1269 answers · WALK #1270 (S12: 10 P · 2 F · 7 N/A) · #1271 flash · #1272 band · #1273 sweep · #1274 build.
-- ★ 12-FLASH (launch blocker) mechanism: the chat stage's CASCADED InputTransparent flip re-parented the chat WebView (MAUI Android WrapperView) → chat → blank → chat; fix = no cascade + permanent stage container on the Android chat stages (`docs/s13-flash-mechanism.md`). Recording walk owed (light + dark, 0 blank frames).
-- S13 also: the About E2E row = title only (#1269) · 12-BAND = WinUI 3 platform defect (#1272) · sweep pre-run + G-3b: 4 OURS-OPEN (`docs/security-sweep-s13.md`) · freeze docs (`docs/freeze-checklist-v1.md`, `docs/office-walk-sheet-v1.md`, release-readiness corrected) · About card A / B / C rendered (B recommended, Damir picks).
-- Smoke BASELINE OK **5687** · CSH **344** (cloud twin). Flash fix #46 r1 CLEAN. ⚠ C# UNCOMPILED (`SpixiContentPage.cs` only).
-- Walk sheet: the artifact "Spixi Session 13 Walk". Freeze path: S13 walk → S14 (picks + OURS-OPEN fixes) → office walk iPhone + Mac → fix round → `freeze-v1`.
-- BE asks: B-34 · B-25 … B-33 · CORE-8/9/10 + the S13 sweep packet — one review packet at the gate stage.
-- **NEXT SESSION: read `docs/handoff-2026-10-09.md` FIRST, then paste `docs/prompts/session-14.md`.** Next free DECISIONS number: **#1275**.
+- 2026-10-09 (later): **S13 WALKED (#1275: 8 P · 0 F · 7 N/A) — the chat-open flash is GONE (0 blank frames, light 11 + dark 13 opens) → V-26 WALKED on Android.** Committed: "Session 13: …". Then **13b** (#1276, Windows title bar: the S12 window-root paint removed) and **13c** (#1277: every Android overlay stage without input cascade · chat → chat swap held, old chat closed when the new chat's grounds come back · Back on the chats list = background · About banner B) — patches `session13b.patch` + `session13c.patch`, UNCOMMITTED until Damir applies.
+- Smoke BASELINE OK **5688** · CSH **344**. 13c #46: r1 + r2 NOT CLEAN → fixed (deferred close moved to the grounds-back moment; old chat input-dead; guarded reselect). ⚠ 13c C# UNCOMPILED.
+- Walk sheet: the artifact "Spixi Session 13c Walk" (13C-INFO, 13C-SWAP, 13C-BACK, 13C-FLASH, 13C-SUB, 13B-TITLE, W-ABOUT). Log name `android-s13c.txt`.
+- Open: the light-mode WHITE screen after chat info → group (once, not reproduced, no log) — the 13C-SWAP row decides · 12-BAND option (#1272) · the 4 OURS-OPEN security rows (#1273) · office walk iPhone + Mac → `freeze-v1`.
+- **NEXT SESSION: read `docs/handoff-2026-10-09.md` FIRST (+ DECISIONS #1275–#1277), then paste `docs/prompts/session-14.md`.** Next free DECISIONS number: **#1278**.

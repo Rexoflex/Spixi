@@ -1,0 +1,10 @@
+Session 13c: chat-info and chat-swap flashes, Back keeps the app, About banner
+
+- Record WALK #1275 (S13: 8 P, 0 F, 7 N/A; the chat-open flash gone in light and dark),
+  the title-bar row (#1276) and the interview + build (#1277)
+- Android: every overlay stage keeps a permanent container and no input cascade
+  (chat info no longer blinks while it slides in)
+- Android: a chat-to-chat switch (chat info > a shared group) is held until the new chat has drawn;
+  the old chat stays underneath, input-dead, and closes when the new chat's background comes back
+- Android: Back on the chats list moves Spixi to the background instead of closing it
+- About: the hero card is the banner design (B)

@@ -1410,7 +1410,6 @@
 
   /* ★ S12 B (#1267) — Account › About hero art + How-to progress (settings-app.js). Light set; the dark set sits
      beside the dark --il-* block. The art's tile gradient keeps the brand violet in both themes. */
-  --ab-hero-top: #efedff;
   --ab-glow: rgba(124, 108, 240, .26);
   --ab-orbit: rgba(110, 92, 230, .55);
   --ab-floor: rgba(91, 75, 240, .16);
@@ -1433,6 +1432,13 @@
   --ab-seen: #1fae4f;
   --ab-seen-ink: #ffffff;
   --ab-open: #f0f1f5;
+  /* ★ S13 B (About "Banner hero"): the band's white orbit / sparkles, its lower-edge shade, and the version chip's
+     hairline edge (the glass chip from option A) */
+  --ab-band-ink: rgba(255, 255, 255, .7);
+  --ab-band-shade: rgba(40, 30, 140, .18);
+  --ab-chip-edge: rgba(91, 75, 240, .18);
+  --ab-band-sheen: rgba(255, 255, 255, .22);   /* ★ S13 B: the band's top-right light */
+  --ab-icon-sheen: rgba(255, 255, 255, .3);    /* ★ S13 B: the app icon's top gloss */
 }
 
 /* Contextual region override (DECISIONS.md #20): hero screens repaint the top
@@ -2079,7 +2085,6 @@
   --rn-recv-line: var(--il-recv-line);
   --rn-orbit: var(--il-orbit);
   /* ★ S12 B (#1267) — the About hero art + How-to progress, dark set */
-  --ab-hero-top: #24233c;
   --ab-glow: rgba(124, 108, 240, .34);
   --ab-orbit: rgba(186, 170, 255, .5);
   --ab-floor: rgba(0, 0, 0, .45);
@@ -2102,6 +2107,12 @@
   --ab-seen: #34c463;
   --ab-seen-ink: #0f1115;
   --ab-open: #262a33;
+  /* ★ S13 B (About "Banner hero"), dark set */
+  --ab-band-ink: rgba(255, 255, 255, .55);
+  --ab-band-shade: rgba(0, 0, 0, .35);
+  --ab-chip-edge: rgba(186, 170, 255, .18);
+  --ab-band-sheen: rgba(255, 255, 255, .22);
+  --ab-icon-sheen: rgba(255, 255, 255, .3);
 }
 
 @media (prefers-reduced-motion: reduce) {

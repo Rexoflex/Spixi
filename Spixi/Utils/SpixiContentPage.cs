@@ -1028,6 +1028,13 @@ namespace SPIXI
              * drawn (PresentHold: the visual-state callback + one frame, capped); then the grounds come back and the
              * stage goes input-live. Replaces the #1101 0b(b) 0.01 pre-reveal, which ADDED blank frames (#1115). */
             public bool holdUntilDrawn = false;
+            /* ★ S13 (#1277, Damir: chat → chat info → a group "dodgy and flashy"): a HELD chat → chat swap closes the old chat(s)
+             * only at the hold's release (main thread), so the old chat stays on glass under the new one's transparent grounds
+             * until the new chat has drawn — never the list, never a ground frame. Null = not a held swap. */
+            public List<PreloadOp>? deferredStale = null;
+            /* ★ S13 (#1277, #46 r2 #2): true while a held swap keeps this (old) chat on glass input-dead — its OWN hold release
+             * must not make it input-live again under the new chat. Main thread. */
+            public bool swappedOut = false;
             /* ★ S10 #46 r1 M5: true while setHoldGrounds holds the grounds TRANSPARENT (main thread) — a theme sweep then leaves
              * them alone (recolourStagedGrounds); the release paints the CURRENT pageSurfaceColor anyway. */
             public bool groundsHeld = false;
@@ -3703,10 +3710,20 @@ namespace SPIXI
                     op.holdUntilDrawn = true;
                     stage.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
                 }
+                /* ★ S13 (#1277): a chat → chat swap is HELD too — the R1-MAJOR-1 problem (the sweep closed the old chat in the same
+                 * turn, so the transparent new chat showed the list) is solved by deferring that sweep to the release
+                 * (PreloadOp.deferredStale, closeDeferredStale). Android only, like the hold. */
+                else if (overlayMode && tag == "chat" && target is SingleChatPage && chatOpenNow)
+                {
+                    op.holdUntilDrawn = true;
+                    op.deferredStale = new List<PreloadOp>();
+                }
                 /* ★ S13 (12-FLASH): EVERY overlay chat stage (the held list → chat open AND the chat → chat swap) gets the permanent
                  * container (the zero shadow) and NO input cascade — the same pair as the warm spare (see "★ S13 (12-FLASH, launch
-                 * blocker)"): the reveal / close input flips then never re-parent the chat WebView. */
-                if (overlayMode && target is SingleChatPage)
+                 * blocker)"): the reveal / close input flips then never re-parent the chat WebView.
+                 * ★ S13 (#1277, walk recordings 09:53 / 09:54): EVERY overlay stage, not only the chat — chat info slides in and its
+                 * `liftStageInput` flip re-parented ITS WebView the same way (skeleton → the chat underneath → skeleton). */
+                if (overlayMode)
                 {
                     stage.Shadow ??= new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
                     stage.CascadeInputTransparent = false;
@@ -4371,9 +4388,23 @@ namespace SPIXI
                             {
                                 stale = overlayStack.FindAll(o => o != op && o.target != op.replaces && o.tag == op.tag);
                             }
-                            foreach (PreloadOp s in stale)
+                            if (op.deferredStale != null && op.holdUntilDrawn)
                             {
-                                closeOverlay(s);
+                                op.deferredStale.AddRange(stale);   // ★ S13 (#1277): closed when the new chat's grounds come back (closeDeferredStale)
+                                /* #46 r1 m1: the old chat stays on glass but goes input-dead, so a tap meant for the new chat never lands in
+                                 * the old conversation (its stage has the permanent container + no cascade: no re-parent). */
+                                foreach (PreloadOp s in stale)
+                                {
+                                    s.swappedOut = true;
+                                    try { s.stage.InputTransparent = true; } catch (Exception) { }
+                                }
+                            }
+                            else
+                            {
+                                foreach (PreloadOp s in stale)
+                                {
+                                    closeOverlay(s);
+                                }
                             }
                         }
 
@@ -4674,7 +4705,7 @@ namespace SPIXI
                 catch (Exception) { }
                 try
                 {
-                    if (!held.closing)
+                    if (!held.closing && !held.swappedOut)
                     {
                         held.stage.InputTransparent = false;   // (#46 r2 R2-n1) its own try: a failed restore never leaves the chat input-dead
                     }
@@ -4748,6 +4779,13 @@ namespace SPIXI
             {
                 native.SetBackgroundColor(held ? Android.Graphics.Color.Transparent
                     : Android.Graphics.Color.ParseColor(op.target.pageSurfaceColorString));
+            }
+            if (!held)
+            {
+                /* ★ S13 (#1277, #46 r1 M1): a held swap's old chat leaves right after the new chat's grounds come back — on the
+                 * candidate path that is S12GroundWait's end (the new WebView has DRAWN), on the old / immediate / deferred paths
+                 * the release itself — so nothing but a chat is ever under the new chat's transparent grounds. */
+                closeDeferredStale(op);
             }
         }
 
@@ -4824,7 +4862,7 @@ namespace SPIXI
             }
             if (!skipInput)
             {
-                try { if (!held.closing) { held.stage.InputTransparent = false; } } catch (Exception) { }
+                try { if (!held.closing && !held.swappedOut) { held.stage.InputTransparent = false; } } catch (Exception) { }
             }
             if (skipGrounds || skipInput)
             {
@@ -4841,7 +4879,7 @@ namespace SPIXI
                     }
                     if (skipInput)
                     {
-                        try { if (!held.closing) { held.stage.InputTransparent = false; } } catch (Exception) { }
+                        try { if (!held.closing && !held.swappedOut) { held.stage.InputTransparent = false; } } catch (Exception) { }
                     }
                     P1Perf.line("hold deferred grounds=" + (skipGrounds ? "1" : "0") + " input=" + (skipInput ? "1" : "0"));
                 }));
@@ -5246,6 +5284,45 @@ namespace SPIXI
             public void OnDraw() { a(); }
         }
 #endif
+
+        /** ★ S13 (#1277): close the old chat(s) a HELD swap kept on glass — once, when the new chat's grounds come back (main
+         *  thread). If the new chat started closing during the hold (the user went back), the old chat stays: it is where the
+         *  user returns to. */
+        private static void closeDeferredStale(PreloadOp held)
+        {
+            List<PreloadOp>? stale = held.deferredStale;
+            held.deferredStale = null;
+            if (stale == null || stale.Count == 0)
+            {
+                return;
+            }
+            if (held.closing)
+            {
+                /* #46 r1 m2: the user left the new chat during the hold — the old chat is where they return to: input-live again
+                 * and re-selected (the new chat's present had already selected the new row). */
+                PreloadOp back = stale[stale.Count - 1];
+                /* #46 r2 #1: only when the old chat is still open, not closing, and the TOPMOST chat (a double back, a tab sweep or a
+                 * third chat opened inside the hold must not bring it back). */
+                bool top;
+                lock (preloadLock)
+                {
+                    PreloadOp? topChat = overlayStack.FindLast(o => o.target is SingleChatPage && !o.closing);
+                    top = topChat == back && overlayStack.Contains(back);
+                }
+                if (top && !back.closing)
+                {
+                    back.swappedOut = false;
+                    try { back.stage.InputTransparent = false; } catch (Exception) { }
+                    try { back.host.onOverlayPresented(back.target); } catch (Exception ex) { Logging.warn("deferred swap reselect failed: " + ex.GetType().Name); }
+                }
+                return;
+            }
+            foreach (PreloadOp s in stale)
+            {
+                try { closeOverlay(s); } catch (Exception ex) { Logging.warn("deferred swap close failed: " + ex.GetType().Name); }
+            }
+            P1Perf.line("hold swap closed n=" + stale.Count);
+        }
 
         /** ★ G-1: true when the present was taken over by the hold (Android, holdUntilDrawn); false = reveal as before.
          *  A method, not an `#if` inside the else-if chain, so every platform parses the same chain. */

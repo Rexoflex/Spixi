@@ -1871,3 +1871,14 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | Windows viewer Save (`SFileOperations.saveAs`) | the source is C#'s own `localPathOf` path (the WebView sends a message id only); opened read-only with `FileShare.ReadWrite \| Delete`; the user picks the target in FileSaver; IOException / UnauthorizedAccessException → the TYPE logged | ours, safe |
 | Window root ground (Windows `App.applyWindowGround`) | the theme surface colour onto `WindowRootViewContainer.Background`; no input | ours, safe |
 | New log lines | `[P1] savephoto r=<parse\|nomsg\|notfile\|nopath\|lookup\|start\|ok\|cancel\|fail>` · `[P1] winground set=<argb8>` · `[P1] hold grounds why=<drawn\|cap\|noview> f= ms= rdy=` · `[P1] hold grounds skip=newer` (dev builds) · `share failed: <Type>` · `share toast failed: <Type>` · `window ground not applied: <Type>` · `savePhoto failed: <Type>` — fixed words, integers, 8-hex colours and exception TYPES only | ours, safe |
+
+## Session 13 (#1269–#1274) — the sweep pre-run + lens applied while building (2026-10-09)
+- **Sweep pre-run** over the S9–S12 delta + G-3b: `docs/security-sweep-s13.md` (#1273) — 38 OK · **4 OURS-OPEN** · 5 LEGACY · 2 UNPROVEN.
+  OURS-OPEN: About / How-to links via the generic `ixian:openLink:` on SettingsPage (fix proposal `ixian:aboutLink:<id>`, C# whitelist) ·
+  O-01 balance readable from the chat document (`ixian:feeQuery`) · O-40 password form in settings.html · the 21 carried ⛔ O-rows above.
+  UNPROVEN: §4.4 on Windows (mini-app storage partition) · 79 new `ex.Message` log lines. Each OURS row = fixed or Damir-accepted before handover.
+- **S13 build, lens applied:** the 12-FLASH fix (`SpixiContentPage.cs`: `CascadeInputTransparent = false` + the zero shadow on the Android
+  chat stages) adds no verb, key, sink, fetch or log line; touch blocking is unchanged (the stage's WrapperView); chat isolation unchanged.
+  The E2E line drop removes a string key only. Nothing for the "ours" list.
+- **Gate doc gaps found by the sweep (to fold in at the formal run, S10):** 14 of our verbs are not listed here (`uninstall:` and
+  `startappwith:` have no native confirm — no money, no path); the surface table says 17 `spixi.*` keys, the tree has ~28.

@@ -1,0 +1,11 @@
+Session 13: chat-open flash fix, E2E line, sweep pre-run, freeze prep
+
+- Record Damir's answers (#1269), the S12 walk (#1270: 10 P, 2 F, 7 N/A)
+- Android chat open: the chat stages no longer cascade InputTransparent to the chat WebView,
+  so a reveal / release / close never re-parents it (MAUI WrapperView) - the chat-blank-chat blink (#1271)
+- About > Why Spixi: the E2E row is its title alone; key aboutWhyE2eBody retired (#1269)
+- Resize band read: a WinUI 3 platform defect, not the XAML root (#1272)
+- Security sweep pre-run + G-3b proofs: docs/security-sweep-s13.md (#1273)
+- Freeze prep: release-readiness corrections, freeze checklist, office walk sheet (iPhone + Mac)
+- Flash mechanism doc: docs/s13-flash-mechanism.md
+- Smoke 5687 / the 2 known, CSH 344

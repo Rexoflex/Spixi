@@ -81,11 +81,10 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-08: **session 12 BUILT, UNCOMMITTED** (patch `session12.patch` on "Session 11: S10 walk fixes, design set, album, send flow", commit message `docs/commit-message-session12.txt`). Answers #1265 · WALK #1266 (S11: 18 P · 0 F · 8 N/A) · interview #1267 · build + review #1268.
-- S12 = update link `download.html` · hint tips 1 / 3 / 4 (`ixian:hintHelp`, tip 2 held) · About B + How to use A + Rate row · paste on the 2-step amount · Windows viewer Save probe + candidate · window root ground (resize band) · V-26 grounds wait for the WebView draw (+ cold open held) · album mosaic rows fixed (2–7 + 10 photos).
-- Smoke BASELINE OK **5686** · CSH **344** (cloud twin). #46 **CLEAN at r3** (#1268). ⚠ C# UNCOMPILED (handoff §0).
-- Walk sheet: the artifact "Spixi Session 12 Walk" (S12 rows + the S11 residuals). 12-FLASH (recording, light + dark) decides V-26.
-- Freeze path (Damir, 19:02): S12 walk → S13 (fix round + introduced-vs-inherited sweep + freeze checklist) → office walk iPhone + Mac (no V row ever walked there; `docs/freeze-inventory-2026-10-08.md`) → fix round → `freeze-v1`. After: characterization → refactor → strip → gate re-run + BE pack → merge → TestFlight.
-- BE asks: **B-34 (S12)** · B-25 … B-33 · CORE-8/9/10 — one review packet at the gate stage.
-- Open for Damir: the E2E line is singular ("Only the person you write to…") · Help Center has no articles (the brief asks the new site) · S4 / S5 sweep docs before or after the tag.
-- **NEXT SESSION: read `docs/handoff-2026-10-08b.md` FIRST, then paste `docs/prompts/session-13.md`.** Next free DECISIONS number: **#1269**.
+- 2026-10-09: **session 13 BUILT, UNCOMMITTED** (patch `session13.patch` on "Session 12: …", commit message `docs/commit-message-session13.txt`). Rows #1269 answers · WALK #1270 (S12: 10 P · 2 F · 7 N/A) · #1271 flash · #1272 band · #1273 sweep · #1274 build.
+- ★ 12-FLASH (launch blocker) mechanism: the chat stage's CASCADED InputTransparent flip re-parented the chat WebView (MAUI Android WrapperView) → chat → blank → chat; fix = no cascade + permanent stage container on the Android chat stages (`docs/s13-flash-mechanism.md`). Recording walk owed (light + dark, 0 blank frames).
+- S13 also: the About E2E row = title only (#1269) · 12-BAND = WinUI 3 platform defect (#1272) · sweep pre-run + G-3b: 4 OURS-OPEN (`docs/security-sweep-s13.md`) · freeze docs (`docs/freeze-checklist-v1.md`, `docs/office-walk-sheet-v1.md`, release-readiness corrected) · About card A / B / C rendered (B recommended, Damir picks).
+- Smoke BASELINE OK **5687** · CSH **344** (cloud twin). Flash fix #46 r1 CLEAN. ⚠ C# UNCOMPILED (`SpixiContentPage.cs` only).
+- Walk sheet: the artifact "Spixi Session 13 Walk". Freeze path: S13 walk → S14 (picks + OURS-OPEN fixes) → office walk iPhone + Mac → fix round → `freeze-v1`.
+- BE asks: B-34 · B-25 … B-33 · CORE-8/9/10 + the S13 sweep packet — one review packet at the gate stage.
+- **NEXT SESSION: read `docs/handoff-2026-10-09.md` FIRST, then paste `docs/prompts/session-14.md`.** Next free DECISIONS number: **#1275**.

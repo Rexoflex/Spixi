@@ -14,7 +14,6 @@ export const frfr = {
   aboutTagline2: "Messagerie et paiements privés sur le réseau Ixian.",
   aboutVersion: "Version",
   aboutWhy: "Pourquoi Spixi",
-  aboutWhyE2eBody: "Seule la personne à qui vous écrivez peut le lire.",
   aboutWhyE2eTitle: "Chiffré de bout en bout",
   aboutWhyKeysBody: "Les clés sont créées et conservées sur cet appareil.",
   aboutWhyKeysTitle2: "Vos clés, votre appareil",

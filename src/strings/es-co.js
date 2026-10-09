@@ -14,7 +14,6 @@ export const esco = {
   aboutTagline2: "Mensajes y pagos privados en la red Ixian.",
   aboutVersion: "Versión:",
   aboutWhy: "Por qué Spixi",
-  aboutWhyE2eBody: "Solo la persona a la que escribes puede leerlo.",
   aboutWhyE2eTitle: "Cifrado de extremo a extremo",
   aboutWhyKeysBody: "Las claves se crean y se guardan en este dispositivo.",
   aboutWhyKeysTitle2: "Tus claves, tu dispositivo",

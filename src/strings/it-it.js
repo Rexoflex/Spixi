@@ -14,7 +14,6 @@ export const itit = {
   aboutTagline2: "Messaggi e pagamenti privati sulla rete Ixian.",
   aboutVersion: "Versione:",
   aboutWhy: "Perché Spixi",
-  aboutWhyE2eBody: "Solo la persona a cui scrivi può leggerlo.",
   aboutWhyE2eTitle: "Crittografia end-to-end",
   aboutWhyKeysBody: "Le chiavi vengono create e conservate su questo dispositivo.",
   aboutWhyKeysTitle2: "Le tue chiavi, il tuo dispositivo",

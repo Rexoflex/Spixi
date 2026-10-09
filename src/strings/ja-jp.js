@@ -14,7 +14,6 @@ export const jajp = {
   aboutTagline2: "Ixian ネットワーク上のプライベートなメッセージと支払い。",
   aboutVersion: "バージョン:",
   aboutWhy: "Spixi を選ぶ理由",
-  aboutWhyE2eBody: "読めるのはメッセージの相手だけです。",
   aboutWhyE2eTitle: "エンドツーエンド暗号化",
   aboutWhyKeysBody: "鍵はこの端末で作成され、保管されます。",
   aboutWhyKeysTitle2: "あなたの鍵、あなたの端末",

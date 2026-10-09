@@ -14,7 +14,6 @@ export const ruru = {
   aboutTagline2: "Личные сообщения и платежи в сети Ixian.",
   aboutVersion: "Версия:",
   aboutWhy: "Почему Spixi",
-  aboutWhyE2eBody: "Прочитать может только тот, кому вы пишете.",
   aboutWhyE2eTitle: "Сквозное шифрование",
   aboutWhyKeysBody: "Ключи создаются и хранятся на этом устройстве.",
   aboutWhyKeysTitle2: "Ваши ключи, ваше устройство",

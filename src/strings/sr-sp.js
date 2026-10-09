@@ -14,7 +14,6 @@ export const srsp = {
   aboutTagline2: "Privatne poruke i plaćanja na Ixian mreži.",
   aboutVersion: "Verzija:",
   aboutWhy: "Zašto Spixi",
-  aboutWhyE2eBody: "Može da ga pročita samo osoba kojoj pišete.",
   aboutWhyE2eTitle: "Šifrovano s kraja na kraj",
   aboutWhyKeysBody: "Ključevi se prave i čuvaju na ovom uređaju.",
   aboutWhyKeysTitle2: "Vaši ključevi, vaš uređaj",

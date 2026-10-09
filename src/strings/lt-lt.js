@@ -14,7 +14,6 @@ export const ltlt = {
   aboutTagline2: "Privatūs pranešimai ir mokėjimai Ixian tinkle.",
   aboutVersion: "Versija:",
   aboutWhy: "Kodėl Spixi",
-  aboutWhyE2eBody: "Perskaityti gali tik tas, kam rašote.",
   aboutWhyE2eTitle: "Visapusiškai užšifruota",
   aboutWhyKeysBody: "Raktai sukuriami ir saugomi šiame įrenginyje.",
   aboutWhyKeysTitle2: "Jūsų raktai, jūsų įrenginys",

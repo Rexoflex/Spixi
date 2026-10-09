@@ -850,7 +850,6 @@
   "aboutWhyNetworkTitle": "分散型",
   "aboutWhyNetworkBody": "Ixian ネットワーク上でピアツーピアで動作します。",
   "aboutWhyE2eTitle": "エンドツーエンド暗号化",
-  "aboutWhyE2eBody": "読めるのはメッセージの相手だけです。",
   "aboutWhyKeysBody": "鍵はこの端末で作成され、保管されます。",
   "aboutLinks": "リンク",
   "aboutLegalSupport": "法的情報とサポート",

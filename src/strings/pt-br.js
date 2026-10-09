@@ -14,7 +14,6 @@ export const ptbr = {
   aboutTagline2: "Mensagens e pagamentos privados na rede Ixian.",
   aboutVersion: "Versão:",
   aboutWhy: "Por que o Spixi",
-  aboutWhyE2eBody: "Só a pessoa para quem você escreve pode ler.",
   aboutWhyE2eTitle: "Criptografia de ponta a ponta",
   aboutWhyKeysBody: "As chaves são criadas e guardadas neste aparelho.",
   aboutWhyKeysTitle2: "Suas chaves, seu aparelho",

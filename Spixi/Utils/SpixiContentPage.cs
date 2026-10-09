@@ -1821,6 +1821,14 @@ namespace SPIXI
              * revealStage flips it at the very frame of the present. A zero-size, zero-opacity shadow from birth makes the
              * container permanent (the CallPage stage's recipe), so the flip no longer detaches the WebView. Draws nothing. */
             stage.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+            /* ★ S13 (12-FLASH, launch blocker): the zero shadow keeps the STAGE's container, but CascadeInputTransparent = true
+             * still flipped the chat WEBVIEW's own InputTransparent at every reveal / release / close — and on Android MAUI gives a
+             * view with InputTransparent a WrapperView (ViewExtensions.NeedsContainer), so each flip RE-PARENTED the WebView
+             * (WrapperView.RemoveContainer: RemoveView + AddView = detach + attach): Chromium dropped its frame and re-rastered =
+             * the chat → blank → chat blink of walks #1255 / #1266 / #1270. No cascade: the stage's permanent WrapperView alone
+             * blocks touch while it is input-dead (WrapperView.DispatchTouchEvent returns false), the WebView's flag never changes.
+             * Mechanism: docs/s13-flash-mechanism.md. */
+            stage.CascadeInputTransparent = false;
 #endif
             try
             {
@@ -3698,6 +3706,14 @@ namespace SPIXI
                 {
                     op.holdUntilDrawn = true;
                     stage.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+                }
+                /* ★ S13 (12-FLASH): EVERY overlay chat stage (the held list → chat open AND the chat → chat swap) gets the permanent
+                 * container (the zero shadow) and NO input cascade — the same pair as the warm spare (see "★ S13 (12-FLASH, launch
+                 * blocker)"): the reveal / close input flips then never re-parent the chat WebView. */
+                if (overlayMode && target is SingleChatPage)
+                {
+                    stage.Shadow ??= new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+                    stage.CascadeInputTransparent = false;
                 }
 #endif
                 /* ★★ L9 (#707, Damir 2026-08-30): "On mobile all subscreens slide. On desktop

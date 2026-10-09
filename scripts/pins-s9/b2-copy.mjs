@@ -65,7 +65,7 @@ export default async function (h) {
        your device". */
     const facts = [...s.d.querySelectorAll('.c-settings-about__fact')].map((f) => [...f.querySelectorAll('.c-settings-links__label, .c-settings-links__sub')].map((x) => x.textContent).join(' '));
     const aboutText = (s.d.querySelector('.c-settings-about') || {}).textContent || '';
-    ok(facts.includes('End-to-end encrypted Only the person you write to can read it.') && !/encrypted on your device/i.test(aboutText),
+    ok(facts.includes('End-to-end encrypted') && !/encrypted on your device/i.test(aboutText),   /* ★ S13 re-base (#1269 (1)): the E2E row = its title alone (the singular line dropped) */
       '★ S9 A-10 (#1245): About says the messages are end-to-end encrypted (not "encrypted on your device") — ' + JSON.stringify(facts));
     s.dom.window.close();
   } catch (e) {

@@ -46,7 +46,7 @@ export const HINT_GAP_MS = 7 * 24 * 60 * 60 * 1000;           // at most one eve
    Without the cap the card has NO Learn more (createHintCard canLearn). A new tip id must join S11HintRules.TipIds too
    (the C# whitelist refuses an id it does not know).
    Tip 2 is HELD (#1267) until the new site has a page:
-     { id: 'e2e',     glyph: 'lock',           learn: '' },   // "End-to-end encrypted" · "Only you and the person you write to can read it."
+     { id: 'e2e',     glyph: 'lock',           learn: '' },   // "End-to-end encrypted" · body: none yet (#1269: the "person you write to" line is dropped; HELD)
 */
 export const HINT_TIPS = [
   { id: 'backup', glyph: 'shield-lock', learn: 'backup' },

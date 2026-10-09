@@ -14,7 +14,6 @@ export const dede = {
   aboutTagline2: "Private Nachrichten und Zahlungen im Ixian-Netzwerk.",
   aboutVersion: "Version",
   aboutWhy: "Warum Spixi",
-  aboutWhyE2eBody: "Nur die Person, der du schreibst, kann es lesen.",
   aboutWhyE2eTitle: "Ende-zu-Ende-verschlüsselt",
   aboutWhyKeysBody: "Schlüssel werden auf diesem Gerät erzeugt und bleiben dort.",
   aboutWhyKeysTitle2: "Deine Schlüssel, dein Gerät",

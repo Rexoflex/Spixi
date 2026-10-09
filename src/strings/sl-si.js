@@ -14,7 +14,6 @@ export const slsi = {
   aboutTagline2: "Zasebna sporočila in plačila v omrežju Ixian.",
   aboutVersion: "Verzija:",
   aboutWhy: "Zakaj Spixi",
-  aboutWhyE2eBody: "Prebere ga lahko samo oseba, ki ji pišete.",
   aboutWhyE2eTitle: "Šifrirano od konca do konca",
   aboutWhyKeysBody: "Ključi se ustvarijo in hranijo v tej napravi.",
   aboutWhyKeysTitle2: "Vaši ključi, vaša naprava",

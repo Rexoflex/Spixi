@@ -52,7 +52,7 @@ export default async function (h) {
   const at = SCP.indexOf('op.revealDelayMs = revealDelayMs < 0 ? 0 : revealDelayMs;');
   const tail = at >= 0 ? SCP.slice(at, at + 900) : '';
   const c = {
-    cold: /op\.revealDelayMs = revealDelayMs < 0 \? 0 : revealDelayMs;\s*#if ANDROID\s*bool chatOpenNow;\s*lock \(preloadLock\) \{ chatOpenNow = overlayStack\.Exists\(o => o\.target is SingleChatPage\); \}\s*if \(overlayMode && tag == "chat" && target is SingleChatPage && !chatOpenNow\)\s*\{\s*op\.holdUntilDrawn = true;\s*stage\.Shadow = new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*\}\s*#endif/.test(tail),
+    cold: /op\.revealDelayMs = revealDelayMs < 0 \? 0 : revealDelayMs;\s*#if ANDROID\s*bool chatOpenNow;\s*lock \(preloadLock\) \{ chatOpenNow = overlayStack\.Exists\(o => o\.target is SingleChatPage\); \}\s*if \(overlayMode && tag == "chat" && target is SingleChatPage && !chatOpenNow\)\s*\{\s*op\.holdUntilDrawn = true;\s*stage\.Shadow = new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*\}\s*if \(overlayMode && target is SingleChatPage\)/.test(tail),   /* ★ S13 re-base (12-FLASH): every overlay chat stage's no-cascade block follows (pinned in pins-s13/a-cascade.mjs) */
     onlyTwoSetters: (SCP.match(/op\.holdUntilDrawn = true;/g) || []).length === 2,
   };
   ok(Object.values(c).every((x) => x === true),

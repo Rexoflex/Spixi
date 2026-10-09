@@ -40,7 +40,8 @@ export default async function (h) {
     a.groups = groups.map((g) => txt(g.querySelector('.c-settings__label'))).join('|') === 'Why Spixi|Links|Legal and support';
     const facts = [...el.querySelectorAll('.c-settings-about__fact')];
     a.why = facts.length === 3 && facts.map((f) => txt(f.querySelector('.c-settings-links__label'))).join('|') === 'Decentralized|End-to-end encrypted|Your keys, your device'
-      && facts.map((f) => txt(f.querySelector('.c-settings-links__sub'))).join('|') === 'Runs on the Ixian network, peer to peer.|Only the person you write to can read it.|Keys are made and kept on this device.'
+      && facts.map((f) => txt(f.querySelector('.c-settings-links__sub'))).join('|') === 'Runs on the Ixian network, peer to peer.||Keys are made and kept on this device.'   /* ★ S13 re-base (#1269 (1)): the E2E row = its title alone (no sub element, txt(null) → '') */
+      && !/person you write to/i.test(el.textContent)
       && facts.every((f) => f.tagName !== 'BUTTON' && !!f.querySelector('.c-disc'))
       && !/quantum|server/i.test(el.textContent);
     const linkRows = groups[1] ? [...groups[1].querySelectorAll('button.c-settings-links__row')] : [];

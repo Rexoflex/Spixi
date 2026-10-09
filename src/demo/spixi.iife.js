@@ -5499,7 +5499,7 @@ const HINT_GAP_MS = 7 * 24 * 60 * 60 * 1000;           // at most one every 7 da
    Without the cap the card has NO Learn more (createHintCard canLearn). A new tip id must join S11HintRules.TipIds too
    (the C# whitelist refuses an id it does not know).
    Tip 2 is HELD (#1267) until the new site has a page:
-     { id: 'e2e',     glyph: 'lock',           learn: '' },   // "End-to-end encrypted" · "Only you and the person you write to can read it."
+     { id: 'e2e',     glyph: 'lock',           learn: '' },   // "End-to-end encrypted" · body: none yet (#1269: the "person you write to" line is dropped; HELD)
 */
 const HINT_TIPS = [
   { id: 'backup', glyph: 'shield-lock', learn: 'backup' },
@@ -31246,8 +31246,9 @@ function createSettingsAbout({
   for (const f of [
     { glyph: 'topology-star', grad: 5, title: strings.aboutWhyNetworkTitle || 'Decentralized',
       text: strings.aboutWhyNetworkBody || 'Runs on the Ixian network, peer to peer.' },
-    { glyph: 'lock', grad: 8, title: strings.aboutWhyE2eTitle || 'End-to-end encrypted',
-      text: strings.aboutWhyE2eBody || 'Only the person you write to can read it.' },
+    /* ★ S13 (#1269 (1), Damir): the E2E row is the title alone — the old second line ("Only the person you write to…",
+       singular, wrong for groups and bot rooms) is DROPPED and its key retired; no neutral line (the row reads clean). */
+    { glyph: 'lock', grad: 8, title: strings.aboutWhyE2eTitle || 'End-to-end encrypted' },
     /* ★ S12 B (r1 R2-m4): platform-neutral ("device", not "phone") — a NEW key, the old aboutWhyKeysTitle is retired */
     { glyph: 'key', grad: 2, title: strings.aboutWhyKeysTitle2 || 'Your keys, your device',
       text: strings.aboutWhyKeysBody || 'Keys are made and kept on this device.' },

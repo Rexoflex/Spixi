@@ -14,7 +14,6 @@ export const idid = {
   aboutTagline2: "Pesan dan pembayaran pribadi di jaringan Ixian.",
   aboutVersion: "Versi:",
   aboutWhy: "Mengapa Spixi",
-  aboutWhyE2eBody: "Hanya orang yang Anda kirimi pesan yang dapat membacanya.",
   aboutWhyE2eTitle: "Terenkripsi end-to-end",
   aboutWhyKeysBody: "Kunci dibuat dan disimpan di perangkat ini.",
   aboutWhyKeysTitle2: "Kunci Anda, perangkat Anda",

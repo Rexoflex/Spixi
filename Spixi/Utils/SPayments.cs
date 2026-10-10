@@ -167,6 +167,14 @@ namespace SPIXI
             return SpixiLocalization._SL("wallet-error-balance-title");
         }
 
+        /* ★ S15 (#1294 (b), Damir 2026-10-10): the TIP's over-balance line. S14 dropped the r4 sentence (it carried the
+         * balance) and with it the hint that the FEE counts too; this restores the hint with NO number. One new string
+         * (en-us; the #564 `??` fallback for the languages that do not carry it yet). */
+        public static string insufficientTipText()
+        {
+            return SpixiLocalization._SL("wallet-error-balance-fee-text") ?? "The amount plus the network fee is more than your available balance.";
+        }
+
         public static void handleFeeQuery(SpixiContentPage page, string payload)
         {
             try

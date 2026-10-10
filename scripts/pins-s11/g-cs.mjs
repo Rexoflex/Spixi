@@ -46,10 +46,13 @@ export default async function (h) {
   const between = (t, a, b) => { const i = t.indexOf(a); const j = i < 0 ? -1 : t.indexOf(b, i + a.length); return i < 0 || j < 0 ? '' : t.slice(i, j); };
   const r = {};
   /* SENDER */
-  const prep = between(cs, 'private static void prepareBatch(', 'private void finishPick(');
-  r.senderMake = /if \(mediaDecodeGate\.Wait\(60000\)\)\s*\{\s*try\s*\{[^]*?thumb = Spixi\.SThumbnail\.makeViewerJpeg\(jpg, PhotoRules\.ThumbEdge\);\s*string prepared = jpg;\s*offerPreview = S11MediaRules\.pickOfferPreview\(\(edge\) => Spixi\.SThumbnail\.makeViewerJpeg\(prepared, edge\)\);\s*\}\s*\}\s*finally\s*\{\s*mediaDecodeGate\.Release\(\);/.test(prep)
-    && /batch\.items\.Add\(new MediaItem \{ k = k, path = jpg, preview = offerPreview \}\);/.test(prep);
-  r.senderCarry = /target\.items\.Add\(new MediaItem \{ k = k, path = it\.path, preview = it\.preview \}\);/.test(cs)
+  /* ★ S15 F re-base (#1302, Damir 2026-10-10): prepareOne makes the preview inside the one decode gate — on Android from the
+     oriented bitmap already in memory (the makeViewerJpeg `derive` hook: the same no-metadata encoder), elsewhere from the
+     prepared jpg as before; the MediaItem carries it, photoReady adds that item to the open batch (no finishPick append) */
+  const prep = between(cs, 'private static MediaItem? prepareOne(', 'private bool prepAlive(');
+  r.senderMake = /if \(mediaDecodeGate\.Wait\(60000\)\)\s*\{\s*try\s*\{\s*#if ANDROID[^]*?photo = Spixi\.SThumbnail\.makeViewerJpeg\(src, PhotoRules\.MaxEdge, \(scaled\) =>\s*\{\s*thumb = scaled\(PhotoRules\.ThumbEdge\);\s*offerPreview = S11MediaRules\.pickOfferPreview\(scaled\);\s*\}\);[^]*?#else[^]*?thumb = Spixi\.SThumbnail\.makeViewerJpeg\(jpg, PhotoRules\.ThumbEdge\);\s*string prepared = jpg;\s*offerPreview = S11MediaRules\.pickOfferPreview\(\(edge\) => Spixi\.SThumbnail\.makeViewerJpeg\(prepared, edge\)\);\s*\}\s*#endif\s*\}\s*finally\s*\{\s*mediaDecodeGate\.Release\(\);/.test(prep)
+    && /return new MediaItem \{ k = -1, path = jpg, preview = offerPreview \};/.test(prep);
+  r.senderCarry = /if \(item != null\)\s*\{\s*item\.k = k;\s*live\.items\.Add\(item\);\s*added = true;\s*\}/.test(cs)
     && /kept\.Add\(new KeyValuePair<string, string>\(uid, final\)\);\s*keptPreviews\.Add\(it\.preview\);/.test(cs)
     && /messageId = msgId,\s*preview = keptPreviews\[i\],\s*\};/.test(cs);
   const spf = between(cs, 'private FriendMessage? sendPreparedFile(', 'private sealed class PreparedSend');

@@ -7097,6 +7097,8 @@ function createComposer({
   const textLen = () => input.value.trim().length;
   /* ★ S10 P1 (#1254): while the media strip holds photos the text is the CAPTION — its own (smaller) cap wins */
   const mediaN = () => (composerMedia.get(el) || { n: 0 }).n;
+  /* ★ S15 F (#1302, Damir 2026-10-10): a strip tile is still being prepared by C# → Send is blocked (disabled + aria-busy) */
+  const mediaBusy = () => !!(composerMedia.get(el) || {}).busy;
   const capMax = () => {
     const m = composerMedia.get(el);
     return m && m.n > 0 && m.maxLength > 0 ? (maxLength > 0 ? Math.min(maxLength, m.maxLength) : m.maxLength) : maxLength;
@@ -7126,6 +7128,7 @@ function createComposer({
   };
 
   const syncAction = () => {
+    action.removeAttribute('aria-busy');   // ★ S15 F: only the strip's send branch below sets it
     /* ★ #1208 (S7): while the RECORDING BAR is up (C# pushed voiceRec recording / stopped) the trailing disc is
        "Send voice message" — the same 44 disc in the same place, so the bar swap moves nothing. It wins over every
        other mode: the bar hides the field, so neither a draft nor a reply / edit context can be sent from here. */
@@ -7167,7 +7170,8 @@ function createComposer({
     } else {
       sendIcon();
       action.dataset.mode = 'send';
-      action.disabled = (!hasText() && !mediaN()) || overLimit();   // ★ S10 P1: ≥ 1 photo in the strip sends with no text
+      action.disabled = (!hasText() && !mediaN()) || overLimit() || mediaBusy();   // ★ S10 P1: ≥ 1 photo in the strip sends with no text
+      if (mediaBusy()) action.setAttribute('aria-busy', 'true');   // ★ S15 F: photos still preparing
       action.setAttribute('aria-label', strings.send || 'Send');
     }
   };
@@ -7189,6 +7193,7 @@ function createComposer({
     // funnel through here, so this one return covers them.
     /* ★ S10 P1: a CAPTION over the strip's cap (MEDIA_CAPTION_MAX) bails the same way, with the shell's caption toast */
     const media = composerMedia.get(el);
+    if (media && media.n > 0 && media.busy) return;   // ★ S15 F: Enter while a photo is still preparing — nothing (the caption stays)
     if (media && media.n > 0 && media.maxLength > 0 && text.length > media.maxLength) {
       const cb = media.onTooLong || onTooLong;
       if (cb) { try { cb(text.length, media.maxLength); } catch (_) {} }
@@ -7656,11 +7661,12 @@ const VOICE_REC_MAX_MS = 30000;        // ★ #1208 (1): 30 s total — the same
    an empty field; the text is the caption: `maxLength` caps it (over it = no send, `onTooLong(len, max)` — the shell's
    caption toast). n = 0 → today's composer. */
 const composerMedia = new WeakMap();   // composer el → { n, maxLength, onTooLong }
-/** setComposerMedia(el, n, { maxLength, onTooLong }) — the shell's strip state (0 = no strip). */
-function setComposerMedia(el, n, { maxLength = 0, onTooLong = null } = {}) {
+/** setComposerMedia(el, n, { maxLength, onTooLong, busy }) — the shell's strip state (0 = no strip). ★ S15 F (#1302):
+ *  busy = a tile is still being prepared → Send disabled + aria-busy, Enter sends nothing. */
+function setComposerMedia(el, n, { maxLength = 0, onTooLong = null, busy = false } = {}) {
   if (!el) return;
   const c = Math.max(0, Number(n) || 0);
-  if (c) composerMedia.set(el, { n: c, maxLength: Number(maxLength) || 0, onTooLong });
+  if (c) composerMedia.set(el, { n: c, maxLength: Number(maxLength) || 0, onTooLong, busy: !!busy });
   else composerMedia.delete(el);
   resyncComposer(el);
 }
@@ -12542,9 +12548,13 @@ function openMediaViewer({
  *   onRemove(k) — a ✕ on a tile while ≥ 2 remain (the shell sends ixian:mediaDrop:<id>:<k>)
  *   onAdd()     — the "+" tile (the shell opens the photo picker: ixian:sendmedia)
  *   onEmpty()   — the ✕ on the LAST tile: the shell cancels the batch (ixian:mediaCancel, never a mediaDrop) and closes
- * ctrl = { el, setItems(items), keys(), count(), close() }
+ * ctrl = { el, setItems(items), keys(), count(), pending(), close() }
  *   setItems — REPLACE the tiles with this list (C#'s same-batch push after an append); keys() — the keys in strip order;
  *   close()  — the strip leaves the DOM (idempotent; the SHELL answers C# — this component sends nothing).
+ * ★ S15 F (#1302, Damir 2026-10-10: tiles at once): an item may be `pending` (C# picked it, the decode is still running) →
+ *   a neutral loading tile (the A8 skeleton grammar: a still wash with a slow pulse, still under reduced motion) that keeps
+ *   its ✕; the strip is aria-busy while any tile is pending; ctrl.pending() = how many are. setItems is KEYED: a tile whose
+ *   key stays keeps its node (only its picture is swapped when it turns ready) — an update push never re-creates the row.
  * Sinks: the thumb is set as an <img> src PROPERTY (the shell's FILE_THUMB_RE-vetted data: JPEG); every label is
  * textContent / setAttribute.
  */
@@ -12578,6 +12588,10 @@ function openMediaStrip({ host, items = [], strings = getStrings(), onRemove, on
 
   const relabel = () => {
     const n = list.length;
+    const busy = list.some((o) => o.pending);
+    if (busy) el.setAttribute('aria-busy', 'true'); else el.removeAttribute('aria-busy');   // ★ S15 F
+    /* ★ S15 #46 r1 m-4: the shell ignores "+" while a photo is being prepared — say so (dimmed, aria-disabled; it stays focusable) */
+    if (busy) add.setAttribute('aria-disabled', 'true'); else add.removeAttribute('aria-disabled');
     el.setAttribute('aria-label', n === 1 ? (strings.photoCountOne || '1 photo') : fill(strings.photoCountMany || '{n} photos', n));
     count.textContent = fill(strings.photoStripCount || '{n} of 10', n);
     el.dataset.count = String(n);
@@ -12590,13 +12604,14 @@ function openMediaStrip({ host, items = [], strings = getStrings(), onRemove, on
     }
   };
 
-  const tileFor = (it) => {
-    const key = String(it.k);
-    const tile = document.createElement('div');
-    tile.className = 'c-mstrip__tile';
-    tile.dataset.k = key;
+  /* the tile's picture: the thumb, the glyph (no preview) or ★ S15 F the pending wash */
+  const picFor = (it) => {
     let pic;
-    if (it.thumb) {
+    if (it.pending) {
+      pic = document.createElement('span');
+      pic.className = 'c-mstrip__img c-mstrip__pending';
+      pic.setAttribute('aria-hidden', 'true');
+    } else if (it.thumb) {
       pic = document.createElement('img');
       pic.className = 'c-mstrip__img';
       pic.alt = '';
@@ -12608,6 +12623,15 @@ function openMediaStrip({ host, items = [], strings = getStrings(), onRemove, on
       pic.setAttribute('aria-hidden', 'true');
       pic.append(icon('photo', { size: 24 }));
     }
+    return pic;
+  };
+  const tileFor = (it) => {
+    const key = String(it.k);
+    const tile = document.createElement('div');
+    tile.className = 'c-mstrip__tile';
+    tile.dataset.k = key;
+    if (it.pending) tile.dataset.pending = '';
+    const pic = picFor(it);
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'c-mstrip__remove';
@@ -12618,6 +12642,7 @@ function openMediaStrip({ host, items = [], strings = getStrings(), onRemove, on
       if (at === -1) return;
       if (list.length === 1) { if (onEmpty) { try { onEmpty(); } catch (_) {} } return; }   // the last ✕ = cancel the batch
       list.splice(at, 1);
+      tiles.delete(key);
       const next = tile.nextElementSibling && tile.nextElementSibling.classList.contains('c-mstrip__tile')
         ? tile.nextElementSibling : tile.previousElementSibling;
       tile.remove();
@@ -12627,7 +12652,23 @@ function openMediaStrip({ host, items = [], strings = getStrings(), onRemove, on
       if (onRemove) { try { onRemove(key); } catch (_) {} }
     });
     tile.append(pic, x);
+    tiles.set(key, { tile, pic, thumb: it.thumb, pending: !!it.pending });
     return tile;
+  };
+  /* ★ S15 F: keyed — the same key keeps its node; a changed picture (pending → ready, a new thumb) is swapped in place */
+  const tiles = new Map();   // key → { tile, pic, thumb, pending }
+  const tileOf = (it) => {
+    const had = tiles.get(it.k);
+    if (!had) return tileFor(it);
+    if (had.thumb !== it.thumb || had.pending !== !!it.pending) {
+      const pic = picFor(it);
+      had.pic.replaceWith(pic);
+      had.pic = pic;
+      had.thumb = it.thumb;
+      had.pending = !!it.pending;
+      if (it.pending) had.tile.dataset.pending = ''; else delete had.tile.dataset.pending;
+    }
+    return had.tile;
   };
 
   /* ★ S10 #46 m-3: a re-render keeps the keyboard where it was — on the same key's ✕, else on "+" */
@@ -12649,8 +12690,14 @@ function openMediaStrip({ host, items = [], strings = getStrings(), onRemove, on
     const fk = focusedKey();
     const grew = Array.isArray(next) && next.length > list.length;
     list = (Array.isArray(next) ? next : []).filter((it) => it && it.k != null).slice(0, MEDIA_STRIP_MAX)
-      .map((it) => ({ k: String(it.k), thumb: it.thumb ? String(it.thumb) : '' }));
-    row.replaceChildren(...list.map(tileFor), add, count);
+      .map((it) => ({ k: String(it.k), thumb: it.pending ? '' : (it.thumb ? String(it.thumb) : ''), pending: !!it.pending }));
+    const keep = new Set(list.map((o) => o.k));
+    for (const k of [...tiles.keys()]) if (!keep.has(k)) tiles.delete(k);
+    const nodes = list.map(tileOf);
+    /* only a changed ORDER re-inserts (an update push that fills tiles in place moves nothing — focus stays put) */
+    const now = [...row.children];
+    const same = now.length === nodes.length + 2 && nodes.every((n, i) => now[i] === n) && now[nodes.length] === add && now[nodes.length + 1] === count;
+    if (!same) row.replaceChildren(...nodes, add, count);
     relabel();
     restoreFocus(fk);
     if (grew) {   // an append shows its new tiles (and the "+") — the inline END (RTL scrolls negative)
@@ -12665,6 +12712,7 @@ function openMediaStrip({ host, items = [], strings = getStrings(), onRemove, on
     setItems,
     keys: () => list.map((o) => o.k),
     count: () => list.length,
+    pending: () => list.filter((o) => o.pending).length,   // ★ S15 F: tiles still being prepared (the shell blocks Send)
     close: () => { if (closed) return; closed = true; el.remove(); },
   };
 }
@@ -33246,12 +33294,14 @@ function installExecuteUiCommand(win) {
       // which previously dropped the WHOLE command (e.g. setBalance's nick is
       // null before the profile loads → the balance push vanished). Treat
       // null/undefined as an empty string so the rest of the args still deliver.
-      // PERF (Damir F5 2026-08-13): an argument that is ALREADY a `data:` URI arrives
-      // VERBATIM — Utils.sendUiCommand skips the base64 re-encode for it, because
-      // re-encoding an already-base64 240 KB icon inflated it to 320 KB on every push
-      // and cost a full atob on this side. Unambiguous: ':' is outside the base64
-      // alphabet, so a real base64 payload can never start with "data:". Everything
-      // else keeps the base64 contract exactly as before.
+      // A leading `data:` passes through undecoded. ★ S15 (O-11, #1293): C# no longer
+      // sends one — Utils.sendUiCommand base64-encodes EVERY argument again (the #340 raw
+      // data-URI fast path is removed), and ':' is outside the base64 alphabet, so no
+      // C# argument can take this branch. It stays because a strict decode here would
+      // buy nothing — the JS-literal risk was on the C# side, where the value was
+      // composed, and that path is gone — while dropping it would turn a raw data: URI
+      // from any other caller (the suite's push helpers use one) into a failed atob that
+      // loses the whole command.
       for (let i = 1; i < arguments.length; i++) {
         const a = arguments[i];
         if (a == null) { args.push(''); continue; }

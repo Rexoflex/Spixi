@@ -1,0 +1,14 @@
+Session 15: restore all-or-nothing, security rows, send rise, photo strip, backup prefs
+
+- Restore: RestoreMoves checks every target first, parks stale ones, moves all, rolls back on
+  any failure; the account wipe removes the restore's own files; the real own avatar is backed
+  up as own_avatar.jpg (the stale root avatar.jpg is ignored) (#1297)
+- Android backup and device transfer exclude the preferences (plaintext walletpass) and the
+  restore stash; a restored phone asks for the password once (#1300)
+- Security rows O-04 O-06 O-08 O-09 O-11 O-19 O-27 O-29 O-30 O-31 and the O-35 store-release
+  gate (#1303)
+- My sent bubble rises from the composer, the rows on screen move up with it (#1301)
+- Photo strip opens at once with placeholder tiles; Android decodes each photo once (#1302)
+- Tip over balance: a number-free fee line (#1306)
+- Walk #1296 recorded; header-sync, memory and white-screen findings recorded (#1304, #1305)
+- #46 loop r1-r2 CLEAN (#1307); pins-s15 + C# harness S15 tests

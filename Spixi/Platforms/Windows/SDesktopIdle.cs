@@ -68,6 +68,10 @@ namespace Spixi
 
         private static bool running = false;
 
+        /// ★ S15 #46 r1 MINOR-3: the current unknown-idle streak has had its one lock
+        /// (S15SecRules.idleLockDue owns every read and write of it).
+        private static bool unknownSpent = false;
+
         /// <summary>Configured idle window. A Preference so it can be changed without a
         /// rebuild; a Settings row can write the same key when one is designed.</summary>
         public static TimeSpan idleWindow()
@@ -89,29 +93,28 @@ namespace Spixi
         }
 
         /// <summary>Time since the last input event anywhere in this Windows session.
-        /// TimeSpan.Zero when the call fails, which fails SAFE: no idle, no lock.</summary>
+        /// ★ S15 (O-30, #1293): when the call fails (a false return or a throw) the idle is
+        /// UNKNOWN, and an unknown idle fails CLOSED for the lock: S15SecRules.IdleUnknown
+        /// satisfies every idle window, so the lock may engage. The old TimeSpan.Zero
+        /// "failed safe" for the user's convenience — for a LOCK that direction fails OPEN.</summary>
         public static TimeSpan idleFor()
         {
             try
             {
                 LASTINPUTINFO info = new LASTINPUTINFO();
                 info.cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>();
-                if (!GetLastInputInfo(ref info))
-                {
-                    return TimeSpan.Zero;
-                }
+                bool read = GetLastInputInfo(ref info);
                 /* ⚠ BOTH are 32-bit tick counts and BOTH wrap at ~49.7 days. The unchecked
-                 * subtraction is what makes the wrap harmless: on either side of it the
-                 * difference is still correct. Casting to long first — the obvious
-                 * version — would report ~49 days of idle once every 49 days and lock the
-                 * app for no reason. */
+                 * subtraction (S15SecRules.idleFromTicks, executed in the C# harness) is
+                 * what makes the wrap harmless: on either side of it the difference is
+                 * still correct. Casting to long first — the obvious version — would report
+                 * ~49 days of idle once every 49 days and lock the app for no reason. */
                 uint now = unchecked((uint)Environment.TickCount);
-                uint delta = unchecked(now - info.dwTime);
-                return TimeSpan.FromMilliseconds(delta);
+                return SPIXI.S15SecRules.idleFromTicks(read, now, info.dwTime);
             }
             catch (Exception)
             {
-                return TimeSpan.Zero;
+                return SPIXI.S15SecRules.IdleUnknown;   // ★ S15 (O-30): fails CLOSED for the lock
             }
         }
 
@@ -147,16 +150,15 @@ namespace Spixi
                      * suspended VM — and that absence is exactly the "I walked away" this
                      * is looking for.
                      * ⚠ A clock moved BACKWARDS gives a negative gap and must never
-                     * satisfy the window; the same guard ownIntentFresh() already carries. */
-                    bool slept = gap.TotalSeconds >= 0 && gap >= window;
-                    bool untouched = idle >= window;
-                    if (!slept && !untouched)
-                    {
-                        continue;
-                    }
-
+                     * satisfy the window; the same guard ownIntentFresh() already carries.
+                     * ★ S15 #46 r1 MINOR-3: the whole decision (both legs, the lock gates,
+                     * and ONE lock per unknown-idle streak — a GetLastInputInfo that keeps
+                     * failing no longer relocks every poll) is S15SecRules.idleLockDue,
+                     * executed in the C# harness; this loop only reads its inputs. */
                     App app = Microsoft.Maui.Controls.Application.Current as App;
-                    if (app == null || !app.isLockEnabled() || app.isAppLockActive)
+                    bool slept = SPIXI.S15SecRules.sleptLeg(gap, window);
+                    if (!SPIXI.S15SecRules.idleLockDue(idle, gap, window,
+                            app != null && app.isLockEnabled(), app != null && app.isAppLockActive, ref unknownSpent))
                     {
                         continue;
                     }

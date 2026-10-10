@@ -7,8 +7,10 @@
 	  for an APNs device token and OneSignal had no subscription to address. Push has
 	  therefore never worked on any iOS device build of the redesign.
 
-	  `development` pairs with an iOS App Development profile. A distribution/TestFlight
-	  build needs `production` here — see the IsPublish PropertyGroup in Spixi.csproj.
+	  `development` pairs with an iOS App Development profile. ★ S15 (O-31, #1293): this
+	  file is the DEBUG one; a Release build signs with Entitlements.Release.plist
+	  (`production`, for TestFlight / the App Store) — Spixi.csproj picks by Configuration.
+	  Keep the two files identical except for aps-environment (pinned).
 
 	  #919/#915 (Session AC): com.apple.security.application-groups IS ADDED NOW — the
 	  Notification Service Extension (Spixi-PushService, referenced from Spixi.csproj since

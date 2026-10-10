@@ -61,28 +61,10 @@ namespace SPIXI
 
         private string? loadedHtmlFileName = null;
 
-        // #340 audit (A-MAJOR-1/2): may Utils.sendUiCommand hand this page a "data:…;base64,…"
-        // argument VERBATIM instead of base64-encoding it for transport? True for every
-        // page that loaded a Raw/html document — since Session N (legacy purge) every such
-        // document is a redesigned shell: 17 decode through src/bridge/native.js and pass a
-        // leading "data:" straight through, and the ONE bundle-less shell (empty_detail.html,
-        // its own hand-rolled dispatcher) keeps a non-base64 value verbatim from its atob
-        // catch — receives no data-URI today, and the smoke suite pins that exception by
-        // name. Still FAILS CLOSED for the one case
-        // left: MiniAppPage never calls loadPage (it points the WebView at the mini-app's
-        // own entry point), so loadedHtmlFileName stays null here and the frozen
-        // base64-per-argument SDK contract is preserved without MiniAppPage having to know
-        // this rule exists. A page that is pushed to before loadPage runs is also null →
-        // encoded, which is the pre-#339 behaviour.
-        // (The legacy branch — "js/spixi.js's unguarded atob would THROW on the ':'" —
-        // left with the four legacy pages and hasLegacyPageChrome.)
-        public bool supportsRawDataUriArgs
-        {
-            get
-            {
-                return loadedHtmlFileName != null;
-            }
-        }
+        /* ★ S15 (O-11, #1293): `supportsRawDataUriArgs` is GONE. It was the receiver gate of Utils.sendUiCommand's raw
+         * data-URI fast path (#340: true for every loadPage'd shell, false for MiniAppPage's third-party document), and
+         * that fast path is removed — every argument is base64 again, for every page — so nothing read it any more.
+         * Reversal: git restore this property + the raw_data_uri_ok ternary and isTransportSafeDataUri in Utils.cs. */
 
         /* ★ Session N (legacy purge): `rethemesByPush` (N71, #421) is GONE. It answered
          * "does this page re-theme from a `setTheme` push, or only from a regenerate?",
@@ -7123,6 +7105,7 @@ namespace SPIXI
                 SAppDeclines.clear(existing.walletAddress?.ToString());   // ★ S8 r4
                 SPeerLocalStores.forget(existing.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 CoreMessageWriter.arrivals.forgetAddress(existing.walletAddress.ToString());   // ★ P0 #1155: the re-added contact starts with no kept arrival
+                SNotificationPrefs.forgetContact(existing.walletAddress?.ToString());   // ★ S15 (O-06, #1293): the re-added contact starts unmuted
                 UIHelpers.shouldRefreshContacts = true;
                 existing = null;
             }

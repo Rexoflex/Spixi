@@ -12,6 +12,7 @@
         <exclude domain="file" path="Documents/Spixi/Sent" />
         <exclude domain="file" path="Documents/Spixi/tmp" />
         <exclude domain="file" path="Documents/Spixi/tmp_zip" />
+        <exclude domain="file" path="Documents/Spixi/tmp_restore_prev" />
         <exclude domain="file" path="Documents/Spixi/headers" />
         <exclude domain="file" path="Documents/Spixi/testnet-headers" />
         <exclude domain="file" path="Documents/Spixi/activity" />
@@ -29,6 +30,7 @@
         <exclude domain="file" path="Documents/Spixi/localonly.json" />
         <exclude domain="file" path="Documents/Spixi/localonly.json.tmp" />
         <exclude domain="root" path="app_webview" />
+        <exclude domain="sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="Documents/Spixi/Chats" />
@@ -38,6 +40,7 @@
         <exclude domain="file" path="Documents/Spixi/Sent" />
         <exclude domain="file" path="Documents/Spixi/tmp" />
         <exclude domain="file" path="Documents/Spixi/tmp_zip" />
+        <exclude domain="file" path="Documents/Spixi/tmp_restore_prev" />
         <exclude domain="file" path="Documents/Spixi/headers" />
         <exclude domain="file" path="Documents/Spixi/testnet-headers" />
         <exclude domain="file" path="Documents/Spixi/activity" />
@@ -55,5 +58,6 @@
         <exclude domain="file" path="Documents/Spixi/localonly.json" />
         <exclude domain="file" path="Documents/Spixi/localonly.json.tmp" />
         <exclude domain="root" path="app_webview" />
+        <exclude domain="sharedpref" path="." />
     </device-transfer>
 </data-extraction-rules>

@@ -36,6 +36,15 @@
   -webkit-user-drag: none;
 }
 .c-mstrip__glyph { display: flex; align-items: center; justify-content: center; color: var(--text-neutral-02); }
+/* ★ S15 F (#1302, Damir 2026-10-10: tiles at once): a photo C# is still preparing — the A8 skeleton grammar (chat-info.css:
+   the neutral wash, a slow opacity pulse, STILL under reduced motion); the tile keeps its place and its ✕, so the swap to the
+   thumb is a picture change and nothing moves. */
+.c-mstrip__pending {
+  background: var(--surface-neutral-04);
+  animation: c-mstrip-pending 1.4s var(--easing-standard) infinite;
+}
+@keyframes c-mstrip-pending { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .c-mstrip__pending { animation: none; } }
 /* the ✕: a 22 px disc in the tile's corner inside a 44 px target (★ S10 #46 n-1: was 36) */
 .c-mstrip__remove {
   position: absolute;
@@ -94,9 +103,11 @@
 }
 .c-mstrip__add::after { transform: rotate(90deg); }
 @media (hover: hover) and (pointer: fine) {
-  .c-mstrip__add:hover { background: var(--surface-action-tonal-default); }
+  .c-mstrip__add:not([aria-disabled="true"]):hover { background: var(--surface-action-tonal-default); }
 }
-.c-mstrip__add:active { background: var(--surface-action-tonal-default); }
+.c-mstrip__add:not([aria-disabled="true"]):active { background: var(--surface-action-tonal-default); }
+/* ★ S15 #46 r1 m-4: "+" while a tile is still pending — the shell ignores it, so it reads disabled (no hover / press wash) */
+.c-mstrip__add[aria-disabled="true"] { opacity: var(--opacity-disabled); cursor: default; }
 .c-mstrip__add:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: 2px; }
 .c-mstrip__count {
   flex: none;

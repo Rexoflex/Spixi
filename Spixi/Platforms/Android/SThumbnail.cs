@@ -67,6 +67,17 @@ namespace Spixi
          * writes NO metadata (no EXIF / GPS), and the rotation is applied before the encode. */
         public static byte[]? makeViewerJpeg(string path, int maxEdge)
         {
+            return makeViewerJpeg(path, maxEdge, null);
+        }
+
+        /* ★ S15 F (#1302, Damir 2026-10-10: "fewer decodes"): the same encode, plus `derive` — called once, after the
+         * picture is encoded, with an encoder `scaled(edge)` that makes a JPEG of THIS oriented bitmap with its long edge
+         * ≤ edge (same q82, a fresh bitmap → no metadata, every bitmap disposed). The media send makes its 320 strip thumb
+         * and the S11 offer preview ladder from it — no second / third full decode of the prepared jpg. `scaled` is valid
+         * only inside `derive` (the bitmap is disposed after it); it returns null on any failure, and a `derive` that
+         * throws never fails the picture. */
+        public static byte[]? makeViewerJpeg(string path, int maxEdge, Action<Func<int, byte[]?>>? derive)
+        {
             try
             {
                 if (maxEdge <= 0)
@@ -84,31 +95,115 @@ namespace Spixi
                  * 4000-px photo at 2000 and a 12 000-px one at 1500 — below a 2048 send / a 1600 viewer, then scaled UP). Still
                  * bounded: the decode stays < 2 × maxEdge on the long side (PhotoRules.decodeSample, executed by csh). */
                 int sample = SPIXI.PhotoRules.decodeSample(longSide, maxEdge);
-                using Bitmap? decoded = BitmapFactory.DecodeFile(path, new BitmapFactory.Options { InSampleSize = sample });
-                if (decoded == null || decoded.Width <= 0 || decoded.Height <= 0)
+                /* ★ S15 #46 r1 NIT-4: NOT a `using` — the full decoded bitmap is released as soon as `oriented` exists (below),
+                 * so `derive` never runs while both are alive; the finally covers every early return. */
+                Bitmap? decoded = BitmapFactory.DecodeFile(path, new BitmapFactory.Options { InSampleSize = sample });
+                try
                 {
-                    return null;
+                    if (decoded == null || decoded.Width <= 0 || decoded.Height <= 0)
+                    {
+                        return null;
+                    }
+                    int dw = decoded.Width;
+                    int dh = decoded.Height;
+                    double scale = Math.Min(1.0, (double)maxEdge / Math.Max(dw, dh));
+                    int tw = Math.Max(1, (int)Math.Round(dw * scale));
+                    int th = Math.Max(1, (int)Math.Round(dh * scale));
+                    using Matrix m = new Matrix();
+                    m.PostScale((float)tw / dw, (float)th / dh);
+                    applyOrientation(m, exifOrientation(path));
+                    // CreateBitmap maps the whole bitmap through the matrix and re-anchors the result at (0, 0)
+                    using Bitmap oriented = Bitmap.CreateBitmap(decoded, 0, 0, dw, dh, m, true);
+                    using MemoryStream ms = new MemoryStream();
+                    if (!oriented.Compress(Bitmap.CompressFormat.Jpeg!, 82, ms))
+                    {
+                        return null;
+                    }
+                    byte[] picture = ms.ToArray();
+                    /* ★ S15 #46 r1 NIT-4: drop the decode before `derive` scales from `oriented`. ⚠ Bitmap.createBitmap answers
+                     * the SOURCE itself for an immutable bitmap, the whole rect and an identity matrix (no scale, EXIF normal) —
+                     * then `oriented` IS `decoded` (the same peer; Java.Lang.Object.Equals asks the JVM, and Bitmap keeps
+                     * Object's identity equals) and must stay alive (the finally disposes it after `derive`). Otherwise
+                     * nothing else holds `decoded`: Recycle frees its pixels now, not at the next GC. */
+                    if (!ReferenceEquals(oriented, decoded) && !oriented.Equals(decoded))   // the peer, then the Java object
+                    {
+                        decoded.Recycle();
+                        decoded.Dispose();
+                        decoded = null;
+                    }
+                    if (derive != null)
+                    {
+                        try
+                        {
+                            derive((edge) => scaledJpeg(oriented, edge));
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                    return picture;
                 }
-                int dw = decoded.Width;
-                int dh = decoded.Height;
-                double scale = Math.Min(1.0, (double)maxEdge / Math.Max(dw, dh));
-                int tw = Math.Max(1, (int)Math.Round(dw * scale));
-                int th = Math.Max(1, (int)Math.Round(dh * scale));
-                using Matrix m = new Matrix();
-                m.PostScale((float)tw / dw, (float)th / dh);
-                applyOrientation(m, exifOrientation(path));
-                // CreateBitmap maps the whole bitmap through the matrix and re-anchors the result at (0, 0)
-                using Bitmap oriented = Bitmap.CreateBitmap(decoded, 0, 0, dw, dh, m, true);
-                using MemoryStream ms = new MemoryStream();
-                if (!oriented.Compress(Bitmap.CompressFormat.Jpeg!, 82, ms))
+                finally
                 {
-                    return null;
+                    decoded?.Dispose();
                 }
-                return ms.ToArray();
             }
             catch (Exception)
             {
                 return null;
+            }
+        }
+
+        /** ★ S15 F (#1302): a JPEG q82 of `bmp` with its long edge ≤ edge (the aspect kept; never scaled up). A large step
+         *  halves first (each halving a filtered 2:1 — the old path's power-of-two decode sample, so a 2048 → 320 thumb does
+         *  not alias), then one filtered scale to the target size. Every intermediate bitmap is disposed; null on failure. */
+        private static byte[]? scaledJpeg(Bitmap bmp, int edge)
+        {
+            Bitmap? cur = null;
+            try
+            {
+                if (edge <= 0 || bmp.Width <= 0 || bmp.Height <= 0)
+                {
+                    return null;
+                }
+                int w = bmp.Width;
+                int h = bmp.Height;
+                double scale = Math.Min(1.0, (double)edge / Math.Max(w, h));
+                int tw = Math.Max(1, (int)Math.Round(w * scale));
+                int th = Math.Max(1, (int)Math.Round(h * scale));
+                Bitmap src = bmp;
+                while (src.Width / 2 >= tw && src.Height / 2 >= th)   // the last step is < 2:1, as the old decode sample left it
+                {
+                    Bitmap half = Bitmap.CreateScaledBitmap(src, Math.Max(1, src.Width / 2), Math.Max(1, src.Height / 2), true)!;
+                    cur?.Dispose();   // the previous halving (never `bmp`)
+                    cur = half;
+                    src = half;
+                }
+                // already the target size → encode it as it is (never a CreateScaledBitmap that may answer `src` itself)
+                bool own = src.Width != tw || src.Height != th;
+                Bitmap target = own ? Bitmap.CreateScaledBitmap(src, tw, th, true)! : src;
+                using MemoryStream ms = new MemoryStream();
+                bool ok;
+                try
+                {
+                    ok = target.Compress(Bitmap.CompressFormat.Jpeg!, 82, ms);
+                }
+                finally
+                {
+                    if (own)
+                    {
+                        target.Dispose();
+                    }
+                }
+                return ok ? ms.ToArray() : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+            finally
+            {
+                cur?.Dispose();
             }
         }
 

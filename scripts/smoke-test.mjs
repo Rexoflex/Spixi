@@ -7243,8 +7243,8 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '#321: DevPage declares the cap at onLoad and dispatches ixian:sendlog');
   ok(/string shareLogPath = Path\.Combine\(Config\.spixiUserFolder, "spixi-log\.txt"\);/.test(devCs)
     && /Share\.RequestAsync\(new ShareFileRequest/.test(devCs)
-    && /#if WINDOWS[\s\S]{0,700}?Downloads[\s\S]{0,400}?#else/.test(devCs),
-    '#321 §3: C# NAMES every path itself (no WebView-supplied filename), mobile shares via the OS sheet, Windows saves to Downloads (Damir desktop dial)');
+    && /#if WINDOWS[\s\S]{0,900}?await Spixi\.SFileOperations\.saveAs\(shareLogPath\);\s*#else/.test(devCs),   /* ★ S15 re-base (O-19): Windows asks for the destination (FileSaver "Save as" via SFileOperations.saveAs), never a silent copy into Downloads — pins-s15/b-native.mjs */
+    '#321 §3: C# NAMES every path itself (no WebView-supplied filename), mobile shares via the OS sheet, Windows saves through the "Save as" dialog (Damir desktop dial; S15 O-19)');
   ok(/renderDevHud = \(info\) => \{/.test(homeSh2)
     && /new DOMParser\(\)\.parseFromString\(String\(info \|\| ''\), 'text\/html'\)/.test(homeSh2)
     && /cell\.textContent = a\.textContent;/.test(homeSh2)
@@ -8609,7 +8609,7 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      picks #46 r1 fixes (MEASURED): 866 140 → 871 075 (+4 935: the live-only accent + reflush keep, the still ring after 30 s,
      the overlaid seconds-left hint track, the 40-bar fit, the reopen-from-on-screen strip) → CHAT 848 → 853; 852 would leave
      404, 853 leaves 1 428 (after the r2 / r3 lead fixes: 872 044 chars). Stated. */
-  const CHAT_KB_CEIL = 918,   /* ★ S11 r2 (#1263): +11.6 KB = the album mosaic + offer preview + viewer Reply/Save (G, +8.6) and the amount pad for the chat Pay (H, +3) — 912.3 KB measured */   /* ★ S11 (#1262): +6.6 KB = the viewer zoom + paging track (E), the flash paintAck answer, touch-menu blur, paste toast, created-line title/subtitle (C) — 900.7 KB measured */   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 590;   /* ★ S11 r2 (#1263): +4.9 KB = the 2-step send/receive (H, +3.2) and the hint timing + held entrances (A2, +1.7) — 585.6 KB measured */   /* ★ S11 (#1262): +21.4 KB = seasonal bar + glass update/hint cards + hints wiring (A, ~16 KB) and the illo.css link + inline art hosts (B, ~5 KB) — 580.7 KB measured */
+  const CHAT_KB_CEIL = 924,   /* ★ S15 (#1301 · #1302 · O-09): +5.3 KB = the send entrance (E) + the pending strip tiles and the composer busy gate (F) + the DOM-built missing-asset panel (O-09) — 918.1 KB measured */   /* ★ S11 r2 (#1263): +11.6 KB = the album mosaic + offer preview + viewer Reply/Save (G, +8.6) and the amount pad for the chat Pay (H, +3) — 912.3 KB measured */   /* ★ S11 (#1262): +6.6 KB = the viewer zoom + paging track (E), the flash paintAck answer, touch-menu blur, paste toast, created-line title/subtitle (C) — 900.7 KB measured */   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 590;   /* ★ S11 r2 (#1263): +4.9 KB = the 2-step send/receive (H, +3.2) and the hint timing + held entrances (A2, +1.7) — 585.6 KB measured */   /* ★ S11 (#1262): +21.4 KB = seasonal bar + glass update/hint cards + hints wiring (A, ~16 KB) and the illo.css link + inline art hosts (B, ~5 KB) — 580.7 KB measured */
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -11531,8 +11531,10 @@ console.log('BUG-1b / BUG-2 — built home shell, real bridge pushes');
     W.__smokeSink = (a, b2) => { got = [a, b2]; };
     const dataUri = 'data:image/png;base64,AAECAwQF=';
     W.executeUiCommand(W.__smokeSink, dataUri, b64('Đamir ✓ 你好'));
+    /* ★ S15 re-base (O-11, #1293): message only — C# base64-encodes every argument again, so this raw call is the suite's
+       own; the dispatcher's passthrough is kept (src/bridge/native.js) and no C# argument can reach it. */
     ok(got && got[0] === dataUri,
-      'BUG-2①: an already-base64 data: URI arrives VERBATIM — C# no longer re-encodes a 240 KB icon to 320 KB, and the shell no longer atob()s it back');
+      'BUG-2① → ★ S15 O-11: a raw data: URI handed to the dispatcher still arrives VERBATIM (the native.js passthrough is kept; C# itself now base64-encodes every argument, so it never sends one)');
     ok(got && got[1] === 'Đamir ✓ 你好',
       'BUG-2②: every OTHER argument keeps the base64 contract, unicode intact (the fast decode must not change one byte)');
 
@@ -11811,10 +11813,13 @@ console.log('BUG-3 — built home shell, the exact scenario that bit Damir');
 console.log('BUG-2 — apps push cost (static)');
 {
   const utils = readFileSync(join(root, 'Spixi/Utils/Utils.cs'), 'utf8');
-  ok(/\(raw_data_uri_ok && isTransportSafeDataUri\(arg\)\) \? arg : escapeHtmlParameter\(arg\)/.test(utils),
-    'BUG-2①: sendUiCommand emits a transport-safe data: URI verbatim (240 KB stays 240 KB) and base64-encodes everything else');
-  ok(/bool raw_data_uri_ok = contentPage != null && contentPage\.supportsRawDataUriArgs;/.test(utils),
-    '★ #340 (A-MAJOR-1/2): the fast path is gated on the RECEIVER, not on the shape of the value. The whitelist alone assumed every receiver runs native.js — two do not');
+  /* ★ S15 re-base (O-11, #1293): the #340 raw data-URI fast path is REMOVED — sendUiCommand base64-encodes every argument
+     again (the baseline contract) and both gates went with it. Was: the raw ternary, then the receiver gate. Full pins in
+     scripts/pins-s15/c-transport.mjs. */
+  ok(/sb\.Append\("'" \+ escapeHtmlParameter\(arg\) \+ "'"\);/.test(utils) && !/\? arg : escapeHtmlParameter\(arg\)/.test(stripCode(utils)),
+    'BUG-2① → ★ S15 O-11: sendUiCommand base64-encodes EVERY argument, a data: URI included (the cost — 4/3 on a data: URI — is stated in #1293)');
+  ok(!/\b(?:raw_data_uri_ok|supportsRawDataUriArgs)\b/.test(stripCode(utils)),
+    '★ #340 (A-MAJOR-1/2) → ★ S15 O-11: no receiver gate is left, because there is no raw path left to gate');
   const scpRaw = readFileSync(join(root, 'Spixi/Utils/SpixiContentPage.cs'), 'utf8');
   /* ★ Session N (legacy purge): the legacy half of this gate is retired WITH its
      members — the last four Raw/html documents that decoded through js/spixi.js's
@@ -11822,10 +11827,12 @@ console.log('BUG-2 — apps push cost (static)');
      fail-closed leg (the null loadedHtmlFileName of a mini-app page, pinned just below)
      and must not grow a third condition back silently: the body is pinned to exactly
      the null test. stripCode first — the docblock quotes the retired expression. */
-  ok(/public bool supportsRawDataUriArgs\s*\{\s*get\s*\{\s*return loadedHtmlFileName != null;\s*\}\s*\}/.test(stripCode(scpRaw))
+  /* ★ S15 re-base (O-11, #1293): supportsRawDataUriArgs is DELETED with the fast path it gated (nothing else read it).
+     Was: its body pinned to exactly `return loadedHtmlFileName != null;`. The legacy-decoder half stays pinned. */
+  ok(!/\bsupportsRawDataUriArgs\b/.test(stripCode(scpRaw))
     && !/hasLegacyPageChrome/.test(stripCode(scpRaw))
     && !existsSync(join(root, 'Spixi/Resources/Raw/html/js/spixi.js')),
-    '★ #340 (A-MAJOR-1) after Session N: the gate is `loadedHtmlFileName != null` and nothing else — every loadPage-able document now runs native.js, the legacy atob decoders (js/spixi.js) are deleted, and the mini-app leg below still fails closed');
+    '★ #340 (A-MAJOR-1) after Session N → ★ S15 O-11: the receiver gate supportsRawDataUriArgs is gone with the raw path, and the legacy atob decoders (js/spixi.js) stay deleted');
   /* #340 r2 (reviewer catch): this pin used to grep SpixiContentPage.cs for the COMMENT
    * saying MiniAppPage never calls loadPage — mutation-dead, it could not fail for any
    * code change. The invariant lives in MiniAppPage.xaml.cs, so assert it THERE. It is
@@ -11841,12 +11848,15 @@ console.log('BUG-2 — apps push cost (static)');
   const miniApp = readFileSync(join(root, 'Spixi/Pages/MiniApps/MiniAppPage.xaml.cs'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   ok(!/\bloadPage\s*\(/.test(miniApp) && /_webView = webView;/.test(miniApp),
-    '★ #340 (A-MAJOR-2): MiniAppPage still bypasses loadPage, so loadedHtmlFileName stays null and the data-URI gate fails CLOSED for mini-app WebViews — the base64-per-argument SDK contract is frozen and its decoder ships outside this repo');
+    /* ★ S15 re-base (O-11, #1293): message only — the data-URI gate is gone (every argument is base64 for every page);
+       the bypass still keeps loadedHtmlFileName null, which hasGeneratedContent and the named-shell rules rest on. */
+    '★ #340 (A-MAJOR-2) → ★ S15 O-11: MiniAppPage still bypasses loadPage, so loadedHtmlFileName stays null for mini-app WebViews (hasGeneratedContent and the named-shell rules rest on it); the base64-per-argument SDK contract now holds for every page, with no gate');
   ok(/public static string escapeHtmlParameter\(string str\)\s*\{\s*return Convert\.ToBase64String\(Encoding\.UTF8\.GetBytes\(str\)\);/.test(utils),
     'BUG-2①: escapeHtmlParameter itself is UNCHANGED — the escaping contract for every other caller is untouched');
-  const gate = utils.slice(utils.indexOf('private static bool isTransportSafeDataUri'), utils.indexOf('public static void sendUiCommand'));
-  ok(/;base64,/.test(gate) && /c != '\+' && c != '\/' && c != '=' && c != ';' && c != ',' && c != '\.' && c != '-'/.test(gate),
-    'BUG-2①: the bypass is a WHITELIST — the value lands in a single-quoted JS literal, so a quote/backslash/newline (a raw path, a chat message starting with "data:") falls back to the encoded path');
+  /* ★ S15 re-base (O-11, #1293): the whitelist is DELETED with the bypass it guarded. Was: the isTransportSafeDataUri
+     character set pinned (the O-11 row asked for that pin; Damir chose removal instead). */
+  ok(!/\bisTransportSafeDataUri\b/.test(stripCode(utils)),
+    'BUG-2① → ★ S15 O-11: no value whitelist is left — nothing reaches the single-quoted JS literal unencoded, so there is no character set to keep narrow');
 
   const nat = readFileSync(join(root, 'src/bridge/native.js'), 'utf8');
   ok(!/Uint8Array\.from\(bin, \(c\)/.test(nat) && /bin\.charCodeAt\(j\)/.test(nat),
@@ -16360,9 +16370,9 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     '★ #505: idle is read through raw user32, not a new NuGet package. Microsoft.Win32.SystemEvents is a package on .NET Core and this container cannot verify a reference — #495: an unverifiable name puts a one-word typo between Damir and a green build');
   ok(!/Microsoft\.Win32\.SystemEvents/.test(csproj),
     '#505: and no such package was added to the csproj');
-  ok(/uint delta = unchecked\(now - info\.dwTime\);/.test(idleNC),
+  ok(/return SPIXI\.S15SecRules\.idleFromTicks\(read, now, info\.dwTime\);/.test(idleNC) && /uint delta = unchecked\(nowTick - lastInputTick\);/.test(readFileSync(join(root, 'Spixi/Utils/S15SecRules.cs'), 'utf8')),   /* ★ S15 re-base (O-30): the unchecked subtraction moved into S15SecRules.idleFromTicks (executed in scripts/csh/S15SecTests.cs, wrap case included) */
     '★ #505: the tick subtraction is UNCHECKED. Both values are 32-bit counters that wrap at ~49.7 days; the obvious long-cast version would report 49 days of idle once every 49 days and lock the app for no reason');
-  ok(/gap\.TotalSeconds >= 0 && gap >= window/.test(idleNC),
+  ok(/bool slept = SPIXI\.S15SecRules\.sleptLeg\(gap, window\);/.test(idleNC) && /return gap >= TimeSpan\.Zero && gap >= window;/.test(readFileSync(join(root, 'Spixi/Utils/S15SecRules.cs'), 'utf8')),   /* ★ S15 #46 r1 re-base (MINOR-3): the wall-clock leg moved into S15SecRules.sleptLeg (executed in scripts/csh/S15SecTests.cs) */
     '★ #505: the WALL CLOCK is the second leg — GetTickCount does not advance while a machine sleeps, so a laptop closed for two hours wakes reporting almost no idle. The >= 0 half rejects a clock moved BACKWARDS, the same guard ownIntentFresh() carries');
   ok(/DEFAULT_IDLE_MINUTES = 10/.test(idleNC),
     '★ #505: 10 minutes (Damir 2026-08-22: "10 min idle default only on desktops")');
@@ -19240,11 +19250,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★ #565: backup zip entries use FORWARD slashes explicitly (APPNOTE 4.4.17) — Path.Combine wrote backslashes on Windows, and a PC-made backup extracted as garbage names on Android (silent wallet-only restore)');
   ok(lp565.includes("if (strayName.IndexOf('") && lp565.includes("strayName.Replace('"),
     '★ #565: the restore REHOMES backslash-named stray files — old Windows-made backups restore fully instead of degrading');
-  ok(/if \(Directory\.Exists\(accDest\)\)\s*\{\s*Directory\.Delete\(accDest, true\);/.test(lp565)
-     && /if \(Directory\.Exists\(accSrc\)\)/.test(lp565)
+  /* ★ S15 (#1297): the Acc move now lives in RestoreMoves (Utils/RestoreMoves.cs, executed against a real folder in
+     scripts/csh/S15RestoreTests.cs): a missing source is skipped, an existing target is parked, never a bare Delete. */
+  const rm565 = readFileSync(join(root, 'Spixi/Utils/RestoreMoves.cs'), 'utf8');
+  ok(/src = Path\.Combine\(tmpDir, "Acc"\), dst = Path\.Combine\(userFolder, "Acc"\), dir = true/.test(rm565)
+     && /if \(!present\(it\.src\)\) continue;/.test(rm565)
+     && /RestoreMoves\.apply\(moves, /.test(lp565)
      && /the backup carries NO Acc tree/.test(lp565)
-     && !/^\s*Directory\.Delete\(Path\.Combine\(Config\.spixiUserFolder, "Acc"\), true\);/m.test(lp565),
-    '★ #565: exists-guards on the Acc delete/move — a missing folder (post-wipe, fresh install, Acc-less backup) can no longer throw into the silent wallet-only catch; the Acc-less case logs itself');
+     && !/Directory\.Delete\(Path\.Combine\(Config\.spixiUserFolder, "Acc"\), true\);/.test(lp565)
+     && !/accDest|accSrc/.test(lp565),
+    '★ #565 (S15 #1297 re-base): the Acc move is guarded — a missing Acc (post-wipe, fresh install, Acc-less backup) is skipped by RestoreMoves, an existing one is parked and rolled back on failure, never a bare Delete; the Acc-less case logs itself');
 }
 
 /* ★ #567 — bot leave = ONE grammar (Damir: "mitigate", C10 logcat root cause).
@@ -42249,6 +42264,7 @@ for (const mod of ['a-season', 'a-line', 'a-update', 'a-hints', 'a-copy', 'a-cs'
 for (const mod of ['a-tips', 'a-cs', 'a-guards', 'b-about', 'b-howto', 'b-cs', 'b-r1', 'c-paste', 'd-save', 'd-ground', 'e-hold', 'e-mosaic']) await (await import(new URL('./pins-s12/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S12 (#1267) — a = hint tips 1/3/4 + ixian:hintHelp · b = About B + How to use A + the rate row · c = paste on the 2-step amount · d = Windows viewer Save probe + candidate, the window ground · e = V-26 grounds wait + the cold chat hold (pure rules: scripts/csh/S11HintTests.cs, S12SaveTests.cs, S12HoldTests.cs)
 for (const mod of ['a-cascade', 'b-swap']) await (await import(new URL('./pins-s13/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S13 (12-FLASH, launch blocker) — a = no input cascade on the Android chat stages (the WebView is never re-parented; docs/s13-flash-mechanism.md)
 for (const mod of ['a1-backup-back', 'a2-container-ride', 'b-settings', 'c-balance-text', 'd-backup-about', 'e-wallet']) await (await import(new URL('./pins-s14/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S14 (#1279–#1286) — a1 = Android back callback + backup rules on the runtime path · a2 = overlay container (Clip) + chat info rides the swap · b = landtab one verb + aboutLink whitelist · c = no balance in a WebView failure text
+for (const mod of ['a-restore', 'b-native', 'c-sinks', 'c-transport', 'd-build', 'e-send-enter', 'f-strip']) await (await import(new URL('./pins-s15/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S15 — a = the restore all-or-nothing + wipe + real avatar (#1297)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

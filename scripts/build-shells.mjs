@@ -493,13 +493,18 @@ for (const key of keys) {
      #345 false alarm came from an UNCONDITIONAL `!window.Spixi` probe; per-asset gating
      is what prevents it, and it prevents it here too, because empty_detail simply gets
      no bundle probe. */
+  /* ★ S15 (O-09, #1293): the panel is built with DOM APIs and textContent, never an HTML sink. It used to be
+     `document.documentElement.innerHTML = '<pre …>'` — the only HTML sink in all 18 built shells that no source file
+     carried, so a source-only sweep could not see it (the O-08 sweep reads the built shells too and allows zero here).
+     Same result on screen: the document's children go, one body holding one <pre> with the same style and words. */
   if (guards.length) html = html.replace(/<\/body>/i,
     '<script>(function(){var m=[' + guards.join(',') + '].filter(Boolean);if(!m.length)return;'
     + 'console.error("SPIXI: shared asset did not load: "+m.join(", "));'
-    + 'document.documentElement.innerHTML='
-    + '\'<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">'
-    + 'Spixi could not load: \'+m.join(", ")+\'\\n\\nThe shell and its shared assets must sit in the '
-    + 'SAME folder.\\nRe-run: node scripts/build-shells.mjs</pre>\';})();</script>\n</body>');
+    + 'var r=document.documentElement,b=document.createElement("body"),p=document.createElement("pre");'
+    + 'p.style.cssText="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b";'
+    + 'p.textContent="Spixi could not load: "+m.join(", ")+"\\n\\nThe shell and its shared assets must sit in the '
+    + 'SAME folder.\\nRe-run: node scripts/build-shells.mjs";'
+    + 'while(r.firstChild)r.removeChild(r.firstChild);b.appendChild(p);r.appendChild(b);})();</script>\n</body>');
   const outPath = join(OUT_DIR, s.out);
   writeFileSync(outPath, html);
   n++;

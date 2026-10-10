@@ -451,3 +451,10 @@ The three real conventions of that section (lines 257–259) stay in `CLAUDE.md`
 - Open: auto-download in the background + Samsung stutter (logs owed, #1292) · memory peak 782 MB (#1295) · walletpass in backups, tip fee hint, hold tap fall-through (#1294) · office walk iPhone + Mac → `freeze-v1`.
 - NEXT SESSION: read `docs/handoff-2026-10-09b.md` FIRST (+ DECISIONS #1278–#1295), then paste `docs/prompts/session-15.md`.** Next free DECISIONS number: **#1296**.
 
+## 2026-10-10 — Session 15 (#1296–#1308)
+WALK #1296 (S14) 11 P · 0 F · 2 N/A; the S14-RESTORE defect (a half restore from a root avatar.jpg no wipe deleted) → RestoreMoves all-or-nothing +
+the wipe takes the restore's files + the real avatar as `own_avatar.jpg` (#1297); sharedpref + the stash out of the Android backup, L8 → S16 (#1300);
+the send rise from the composer, v1 fade rejected (#1301); strip tiles at once + one decode per photo (#1302); the 10 security rows + the O-35 gate
+(#1303); slow opens after a restore = the 4-hour legacy header catch-up → BE asks (#1304); memory peak + white screen open (#1305); picks (#1306);
+#46 r1 → r2 CLEAN (#1307); office walk sheet §5 (#1308). Smoke 5730 · CSH 378. Built in the cloud twin; the context was reset twice mid-session
+(the twin's git log carried the state) and the container restarted once (a smoke re-run).

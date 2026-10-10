@@ -206,7 +206,8 @@ namespace SPIXI
                 if (friend == null) { missing++; continue; }
                 try
                 {
-                    if (FriendList.removeFriend(friend)) removed++; else refused++;
+                    // ★ S15 (O-06, #1293): a seeded contact muted during a measure run leaves no mute key behind
+                    if (FriendList.removeFriend(friend)) { removed++; SPIXI.Meta.SNotificationPrefs.forgetContact(friend.walletAddress.ToString()); } else refused++;
                 }
                 catch (Exception e)
                 {

@@ -1657,6 +1657,20 @@ namespace SPIXI
             // Directory.Delete throwing on one open file must not skip the friend list.
             try { IxianHandler.localStorage.deleteAllAvatars(); } catch (Exception ex) { Logging.error("wipe: avatars threw: " + ex); }
             try { IxianHandler.localStorage.deleteAccountFile(); } catch (Exception ex) { Logging.error("wipe: account file threw: " + ex); }
+            /* ★ S15 (#1297): the files the RESTORE writes outside Core's own folders. The S14 walk's half restore came from
+             * a root `avatar.jpg` that only a restore ever wrote (legacy path, baseline 0e85a4b8) and that no wipe deleted;
+             * the next restore then threw IO_FileExists on it. Gone with the account now, with the restore's scratch
+             * (the decrypted extraction folder, the staged envelope, the parked stale targets) and the Acc root (the
+             * per-contact folders of contacts no longer in FriendList — e.g. a half restore — survive deleteAccounts).
+             * Each its own try (the loop r1 MINOR-2 rule); a type-only log (paths carry the address). */
+            foreach (string stale in new[] { "avatar.jpg", Config.walletFile + ".tmp", Config.walletFile + ".tmp.zip" })
+            {
+                try { string sp = Path.Combine(Config.spixiUserFolder, stale); if (File.Exists(sp)) { File.Delete(sp); } } catch (Exception ex) { Logging.error("wipe: restore leftover threw: " + ex.GetType().Name); }
+            }
+            foreach (string staleDir in new[] { "tmp_zip", LaunchPage.RestoreStashFolder })
+            {
+                try { string sd = Path.Combine(Config.spixiUserFolder, staleDir); if (Directory.Exists(sd)) { Directory.Delete(sd, true); } } catch (Exception ex) { Logging.error("wipe: restore scratch threw: " + ex.GetType().Name); }
+            }
             try { IxianHandler.localStorage.deleteAllDownloads(); } catch (Exception ex) { Logging.error("wipe: downloads threw: " + ex); }
             /* ★ #585 rider (Damir): "wiping the account leaves the mini app installed, and
              * a create or restore inherits it." Step 1 stops the manager (Node.stop calls
@@ -1668,6 +1682,7 @@ namespace SPIXI
             try { FriendList.deleteEntireHistory(); } catch (Exception ex) { Logging.error("wipe: history threw: " + ex); }
             try { FriendList.deleteAccounts(); } catch (Exception ex) { Logging.error("wipe: accounts threw: " + ex); }
             try { FriendList.clear(); } catch (Exception ex) { Logging.error("wipe: friend list threw: " + ex); }
+            try { string accRoot = Path.Combine(Config.spixiUserFolder, "Acc"); if (Directory.Exists(accRoot)) { Directory.Delete(accRoot, true); } } catch (Exception ex) { Logging.error("wipe: Acc root threw: " + ex.GetType().Name); }   // ★ S15 (#1297)
 #if IOS
             // #919: the extension's roster copy goes with the account — AFTER FriendList.clear(), so a
             // syncLater() task that passed the isRunning gate before step 1 finds an EMPTY roster if it

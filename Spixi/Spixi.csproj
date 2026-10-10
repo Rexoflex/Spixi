@@ -130,6 +130,16 @@
 		     FAIL the build by design - that failure is the gate working, not a defect.
 		     Use an App Development profile made for com.ixilabs.spixi with Push ticked. -->
 		<CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
+		<!-- ★ S15 (O-31, #1293): aps-environment follows the build configuration. Debug keeps
+		     Entitlements.plist (aps-environment development - the App Development profile);
+		     a STORE Release takes Entitlements.Release.plist (production - what a TestFlight / App Store
+		     build must carry, release-readiness G-9a). The two files differ ONLY in that value
+		     (pinned: scripts/pins-s15/d-build.mjs). Configuration is set before this body is read
+		     (SDK props), so the condition sees the real value.
+		     ★ Only a STORE build (Release + -p:SpixiStoreRelease=true, the O-35 gate) takes production: a plain
+		     Release DEVICE build signed with the Development profile (the #807 walk shape) keeps development,
+		     so walk builds still sign. -->
+		<CodesignEntitlements Condition="'$(Configuration)' == 'Release' And '$(SpixiStoreRelease)' == 'true'">Platforms/iOS/Entitlements.Release.plist</CodesignEntitlements>
 	</PropertyGroup>
 	<PropertyGroup Condition="$(TargetFramework.Contains('-ios'))">
 		<UseInterpreter>true</UseInterpreter>
@@ -405,6 +415,22 @@
 			<UserProperties XamarinHotReloadWrongLinkerErrorInfoBarSpixiHideInfoBar="True" />
 		</VisualStudio>
 	</ProjectExtensions>
+	<!-- ★ S15 (O-35, #1293) — THE STORE-RELEASE GATE. Damir: the store build must have SpixiDevCoexist
+	     OFF. That property (above, #732) compiles in SPIXI_DEV_COEXIST: the seed harness, its two
+	     ixian:devseed / devunseed verbs and the WebView-console-to-log forwarder (O-22). A store build
+	     says so with -p:SpixiStoreRelease=true (docs/freeze-checklist-v1.md, row O-35); this target then
+	     REFUSES the build when the configuration is not Release, when SpixiDevCoexist is true, or when
+	     SPIXI_DEV_COEXIST reached DefineConstants by any other road. Evaluated at target time, after
+	     every PropertyGroup. Defined BEFORE SpixiStripReleaseHtml so it runs first on the same hook
+	     (BeforeTargets run in file order) and a refused build never starts the strip. Without
+	     SpixiStoreRelease nothing changes: a dev Release test build may still opt in to SpixiDevCoexist.
+	     Pinned: scripts/pins-s15/d-build.mjs. -->
+	<Target Name="SpixiStoreReleaseGate" BeforeTargets="PrepareForBuild" Condition="'$(SpixiStoreRelease)' == 'true'">
+		<Error Condition="'$(Configuration)' != 'Release'" Text="Spixi store-release gate (O-35): SpixiStoreRelease=true needs Configuration=Release, this build is $(Configuration). Build the store package with -c Release." />
+		<Error Condition="'$(SpixiDevCoexist)' == 'true'" Text="Spixi store-release gate (O-35): SpixiDevCoexist=true in a store build. It compiles in the dev seed harness, its verbs and the WebView console forwarder. Remove -p:SpixiDevCoexist=true." />
+		<Error Condition="$(DefineConstants.Contains('SPIXI_DEV_COEXIST'))" Text="Spixi store-release gate (O-35): SPIXI_DEV_COEXIST is in DefineConstants in a store build. Remove it." />
+		<Message Importance="high" Text="Spixi store-release gate (O-35): passed - Release, SpixiDevCoexist off, no SPIXI_DEV_COEXIST." />
+	</Target>
 	<!-- Fix for https://github.com/microsoft/WindowsAppSDK/issues/3843 -->
 	<!-- ★ Session N — THE RELEASE PACKAGING STRIP (scripts/strip-release.mjs; DECISIONS: the
 	     comment-strip fork). Release only. The committed Raw/html stays readable and every

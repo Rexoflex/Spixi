@@ -124,6 +124,16 @@ namespace SPIXI
         private void onLoad()
         {
             Utils.sendUiCommand(this, "setVersion", Config.version);
+            /* ★ S15 (O-04, #1293): no wallet file on this device = no live account, so every spixi.* key in the shared
+             * WebView store is a leftover (an old wipe, a half restore) that a create or restore would inherit. Clear it
+             * HERE, at the launch page's own load — long before any create / restore navigates away (a push queued just
+             * before goHome could die with this page's WebView), and never on a failed restore's account, because a
+             * failed restore leaves no wallet either. The retry view and LockPage's "change" path keep their store: a
+             * wallet file exists there (the store belongs to that live account). The existing push, no new verb. */
+            if (!File.Exists(Path.Combine(Config.spixiUserFolder, Config.walletFile)))   // Node.checkForExistingWallet's own test, without its error log line
+            {
+                Utils.sendUiCommand(this, "wipeLocalState");
+            }
             if(!acceptedTerms)
             {
                 Utils.sendUiCommand(this, "showTerms");
@@ -561,6 +571,10 @@ namespace SPIXI
 
                     if (Node.generateWallet(pass))
                     {
+                        /* ★ S15 #46 r1 (R2 m-2): a NEW wallet has no live store. onLoad's O-04 push runs only when no wallet
+                         * file exists, so the retry view → welcome → Create over a stale wallet file kept the old spixi.*
+                         * keys; clear them here, before the navigation is posted (the same queue, so it runs first). */
+                        Utils.sendUiCommand(this, "wipeLocalState");
                         IxianHandler.localStorage.nickname = nick;
                         IxianHandler.localStorage.writeAccountFile();
 
@@ -757,6 +771,10 @@ namespace SPIXI
 
         /* #565 residual: the three ways a restore can end. `NotAnAccountBackup` is the
          * only one that may fall through to the bare-wallet path. */
+        /* ★ S15 (#1297): where RestoreMoves parks stale targets during a restore; deleted on success and on rollback,
+         * and by the account wipe (SettingsPage.wipeEverything) — it can only hold this device's own stale account files. */
+        internal const string RestoreStashFolder = "tmp_restore_prev";
+
         private enum RestoreOutcome
         {
             NotAnAccountBackup,
@@ -871,7 +889,8 @@ namespace SPIXI
                  * comes from the archive, and ixian.log is a file the user shares from
                  * Account -> Developer (the #385 NIT-3 rule).
                  * A real Windows-made backup is unaffected. BackupPage writes exactly
-                 * "Acc/<address>/<file>", "account.ixi", "avatar.jpg" and "wallet.ixi", the
+                 * "Acc/<address>/<file>", "account.ixi", "own_avatar.jpg" (★ S15 #46 r1; a legacy backup: "avatar.jpg",
+                 * never read now) and "wallet.ixi", the
                  * address is base58 and the file names are account.ixi, meta.ixi,
                  * contacts.dat, groups.dat and channels.dat - every segment is a plain
                  * relative name. */
@@ -928,36 +947,55 @@ namespace SPIXI
                      * error a second time, from the wrong layer. */
                     return RestoreOutcome.FailedReported;
                 }
-                /* ★ #565: exists-guards. Directory.Delete THROWS on a missing folder, and
-                 * the delete-account wipe (or a fresh install) can leave no Acc — the throw
-                 * fell into the catch below and silently degraded the restore to
-                 * wallet-only (no contacts). Same guard on the zip side: a backup with no
-                 * Acc tree must not throw here (the header already proved the format). */
-                string accDest = Path.Combine(Config.spixiUserFolder, "Acc");
-                string accSrc = Path.Combine(tmpDirectory, "Acc");
-                if (Directory.Exists(accSrc))
-                {
-                    if (Directory.Exists(accDest))
-                    {
-                        Directory.Delete(accDest, true);
-                    }
-                    Directory.Move(accSrc, accDest);
-                }
-                else
+                /* ★★ S15 (#1297) — ALL OR NOTHING. The S14 walk (android-s14.txt 13:09:42): with the CORRECT password the
+                 * old sequence replaced Acc, moved account.ixi, then threw IO_FileExists on avatar.jpg (a leftover no wipe
+                 * ever deleted) → a HALF restore; every retry then threw on account.ixi and showed the "free space" alert.
+                 * RestoreMoves (Utils/RestoreMoves.cs, executed in scripts/csh/S15RestoreTests.cs) checks every target first,
+                 * parks stale non-wallet targets (no wallet is loaded on this path — the W14 guard in onNavigating), moves
+                 * all, and rolls everything back on any failure. An existing wallet target is a CONFLICT: nothing is
+                 * touched and the user gets the "account already on this device" text, never "free space".
+                 * The own avatar goes where the app READS it (Core getOwnAvatarPath(false) = html/Avatars/avatar.jpg), not
+                 * the user-folder root that only a restore ever wrote (legacy, baseline 0e85a4b8 — Damir 2026-10-10 picked
+                 * the full fix; BackupPage packs the real avatar now). The #565 Acc exists-guards are inside the plan:
+                 * a backup with no Acc tree restores the rest.
+                 * ★ S15 #46 r1 (MINOR-1): only the new "own_avatar.jpg" entry becomes the own avatar; a legacy backup's
+                 * "avatar.jpg" is ignored (pre-S15 behaviour: never shown). (NIT-1) a slot the backup does not fill is
+                 * still cleared, so the restored account inherits nothing. (NIT-5) RestoreMoves' all-or-nothing ends at
+                 * Done: applyRestorePrefs and loadWallet below run AFTER that boundary and are not rolled back by it — a
+                 * throw there lands in the catch with restoreCommitted false and reports Failed with the files in place. */
+                if (!Directory.Exists(Path.Combine(tmpDirectory, "Acc")))
                 {
                     Logging.warn("restoreAccountFile: the backup carries NO Acc tree - contacts cannot restore from it");
                 }
-//                Directory.Delete(Path.Combine(Config.spixiUserFolder, "Chats"), true);
-//                Directory.Move(Path.Combine(tmpDirectory, "Chats"), Path.Combine(Config.spixiUserFolder, "Chats"));
-                if (File.Exists(Path.Combine(tmpDirectory, "account.ixi")))
+                var moves = RestoreMoves.plan(tmpDirectory, Config.spixiUserFolder,
+                    IxianHandler.localStorage.getOwnAvatarPath(false), Config.walletFile);
+                var moveResult = RestoreMoves.apply(moves, Path.Combine(Config.spixiUserFolder, RestoreStashFolder), out string? moveFail);
+                if (moveResult != RestoreMoves.Result.Done)
                 {
-                    File.Move(Path.Combine(tmpDirectory, "account.ixi"), Path.Combine(Config.spixiUserFolder, "account.ixi"));
+                    try { if (Directory.Exists(tmpDirectory)) { Directory.Delete(tmpDirectory, true); } } catch (Exception) { }
+                    if (moveResult == RestoreMoves.Result.WalletConflict)
+                    {
+                        Logging.warn("restoreAccountFile: a wallet file is already in place - nothing was moved");
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                        displaySpixiAlert(SpixiLocalization._SL("intro-restore-walletexists-title") ?? "Account already on this device",
+                            SpixiLocalization._SL("intro-restore-walletexists-text") ?? "An account already exists on this device. To use it, restart Spixi. To restore a different account: restart Spixi, open Account, tap Delete wallet, then open Restore again.",
+                            SpixiLocalization._SL("global-dialog-ok") ?? "OK");
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                        Utils.sendUiCommand(this, "removeLoadingOverlay");
+                        return RestoreOutcome.FailedReported;
+                    }
+                    // a genuine IO failure, rolled back: the device is as it was; the type only (paths carry the address)
+                    if (moveFail != null && moveFail.StartsWith(RestoreMoves.RollbackIncomplete, StringComparison.Ordinal))
+                    {
+                        // ★ S15 #46 r2 (M-1): never claim "rolled back" when it was not — the stash is kept (RestoreMoves)
+                        Logging.warn("restoreAccountFile: the moves failed and the rollback is INCOMPLETE (" + moveFail + ")");
+                    }
+                    else
+                    {
+                        Logging.warn("restoreAccountFile: the moves failed and were rolled back (" + moveFail + ")");
+                    }
+                    return RestoreOutcome.Failed;
                 }
-                if (File.Exists(Path.Combine(tmpDirectory, "avatar.jpg")))
-                {
-                    File.Move(Path.Combine(tmpDirectory, "avatar.jpg"), Path.Combine(Config.spixiUserFolder, "avatar.jpg"));
-                }
-                File.Move(Path.Combine(tmpDirectory, "wallet.ixi"), Path.Combine(Config.spixiUserFolder, "wallet.ixi"));
 
                 applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
                 Node.loadWallet();

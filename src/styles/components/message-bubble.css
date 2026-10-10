@@ -590,6 +590,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   from { opacity: 0; transform: translateY(var(--spacing-8)); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* ★ S15 E (#1301): the DEMO plays this entrance; the real chat shell uses the WhatsApp-style rise (chat.html c-send-rise, E v2) — reduced motion: none */
+@media (prefers-reduced-motion: reduce) {
+  .c-bubble-row--in { animation: none; }
+}
 
 /* —— date separator —— */
 .c-datesep {

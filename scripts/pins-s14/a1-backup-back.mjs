@@ -45,7 +45,7 @@ export default async function (h) {
   const excluded = (rules, abs) => rules.some((r) => {
     const base = DOMAIN_ROOT[r.domain];
     if (!base) return false;
-    const p = base + '/' + r.path.replace(/^\/+|\/+$/g, '');
+    const p = r.path === '.' ? base : base + '/' + r.path.replace(/^\/+|\/+$/g, '');   // ★ S15 (#1300): "." = the whole domain
     return abs === p || abs.startsWith(p + '/');
   });
 
@@ -77,6 +77,8 @@ export default async function (h) {
   const localOnly = (los.match(/public const string FILE_NAME = "([^"]+)";/) || [])[1];
   const localOnlyTmp = /string tmp = p \+ "\.tmp";/.test(los) ? localOnly + '.tmp' : null;
   const tmpZip = (stripCode(rd('Spixi/Pages/Launch/LaunchPage.xaml.cs')).match(/string tmpDirectory = Path\.Combine\(Config\.spixiUserFolder, "(\w+)"\);/) || [])[1];
+  // ★ S15 (#1297): the restore's park folder for stale targets (RestoreMoves) — transient account files, never backed up
+  const restoreStash = (stripCode(rd('Spixi/Pages/Launch/LaunchPage.xaml.cs')).match(/internal const string RestoreStashFolder = "(\w+)";/) || [])[1];
   const logCopies = [...new Set(['Spixi/Pages/Home/HomePage.xaml.cs', 'Spixi/Pages/Dev/DevPage.xaml.cs']
     .flatMap((f) => [...stripCode(rd(f)).matchAll(/Path\.Combine\(Config\.spixiUserFolder, "([^"]+\.(?:tmp|zip|txt))"\)/g)].map((m) => m[1])))];
 
@@ -95,17 +97,18 @@ export default async function (h) {
     }
   }
 
-  const dirs = [...lsFolders, lsTmp, queue, downloads, voice, sent, tmpZip, ...cfgFolders];
+  const dirs = [...lsFolders, lsTmp, queue, downloads, voice, sent, tmpZip, restoreStash, ...cfgFolders];
   const fileNames = [...rollNames, ...logCopies, localOnly, localOnlyTmp];
   const sensitive = [
     ...dirs.map((d) => USER + '/' + d + '/x/item.bin'),
     ...dirs.map((d) => USER + '/' + d),
     ...fileNames.map((f) => USER + '/' + f),
     PKG_DATA + '/app_webview/Default/Local Storage/leveldb/000003.log',   // chat drafts (spixi.* keys, plaintext)
+    PKG_DATA + '/shared_prefs/com.ixilabs.spixi.dev_preferences.xml',   // ★ S15 (#1300, Damir): the plaintext walletpass (L8) never leaves the phone
   ];
   const kept = [
     USER + '/' + walletFile, USER + '/Acc/1/0.dat', USER + '/' + avatars + '/a.jpg', USER + '/account.ixi', USER + '/avatar.jpg',
-    ...peerNames.map((p) => USER + '/' + p), PKG_DATA + '/shared_prefs/com.ixilabs.spixi.dev_preferences.xml',
+    ...peerNames.map((p) => USER + '/' + p),
   ];
   const all = Object.values(lists);
   const key = (r) => r.domain + ':' + r.path;
@@ -113,7 +116,7 @@ export default async function (h) {
   const leaked = kept.filter((p) => all.some((l) => excluded(l, p))).map((p) => p.slice(PKG_DATA.length));
   const b = {
     namesRead: !!spixiName && coreThere && lsFolders.includes('Chats') && lsFolders.includes('Downloads') && !!lsTmp && !!queue && !!voice
-      && !!sent && !!downloads && !!localOnly && !!localOnlyTmp && !!tmpZip && cfgFolders.length === 4 && logCopies.length >= 3
+      && !!sent && !!downloads && !!localOnly && !!localOnlyTmp && !!tmpZip && !!restoreStash && cfgFolders.length === 4 && logCopies.length >= 3
       && !!walletFile && avatars === 'html/Avatars' && peerNames.length === 2 && maxLogCount > 0 && rollNames.size === maxLogCount + 1,
     logAgrees: LOG_SEEN.startsWith(USER + '/' + queue + '/'),
     matcherReal: !excluded([{ domain: 'file', path: 'Spixi/Chats' }], USER + '/Chats/x') && excluded([{ domain: 'file', path: 'Spixi/Chats' }], FILES + '/Spixi/Chats/x'),

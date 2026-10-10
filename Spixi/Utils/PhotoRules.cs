@@ -822,6 +822,9 @@ namespace SPIXI
             public int h;
             public long kb;
             public string kind = "photo";
+            /* ★ S15 F (#1302, Damir 2026-10-10): a PLACEHOLDER tile — the photo is picked but not prepared yet (tiles at once);
+               pickedJson writes `"pending":"1"` for it and nothing for a ready photo (a ready list is byte-identical to S14). */
+            public bool pending = false;
         }
 
         private static void appendJsonString(StringBuilder sb, string s)
@@ -880,6 +883,10 @@ namespace SPIXI
                 appendJsonString(sb, Math.Max(0, it.kb).ToString(CultureInfo.InvariantCulture));
                 sb.Append(",\"kind\":");
                 appendJsonString(sb, "photo");   // v1: photos only (#1244 — no video in the picker)
+                if (it.pending)
+                {
+                    sb.Append(",\"pending\":\"1\"");   // ★ S15 F (#1302, Damir 2026-10-10): 🟡 the one new item field — a placeholder tile
+                }
                 sb.Append('}');
                 n++;
             }

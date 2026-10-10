@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  ★ S15 (O-31, #1293): the RELEASE entitlements. Spixi.csproj signs a Release build with
+	  this file and a Debug build with Entitlements.plist. The ONLY difference is
+	  aps-environment: `production` here pairs with a distribution profile (TestFlight /
+	  App Store, release-readiness G-9a); `development` there pairs with the App Development
+	  profile. Every other key must stay equal to Entitlements.plist (pinned in
+	  scripts/pins-s15/d-build.mjs), including the App Group the Notification Service
+	  Extension shares (#919/#915).
+	-->
+	<key>aps-environment</key>
+	<string>production</string>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.ixilabs.spixi</string>
+	</array>
+</dict>
+</plist>

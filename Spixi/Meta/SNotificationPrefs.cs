@@ -269,6 +269,24 @@ namespace SPIXI.Meta
         }
 
         /// <summary>
+        /// ★ S15 (O-06, #1293): the contact is REMOVED — its per-contact mute key (muteKey embeds the peer's wallet
+        /// address in a native preference name) leaves with it. Called from every APP-SIDE site that removes a friend
+        /// (SContacts removeContact / leaveGroup, the two pendingDeletion re-add heals, the two decline-request paths, the
+        /// dev unseed).
+        /// ★ S15 #46 r1: NOT every removal. ⚠ RESIDUAL — removals inside Ixian-Core (a bot's leaveConfirmed, a group
+        /// owner's handleLeave, the Payment-friends path) call FriendList.removeFriend with no app hook, so their mute key
+        /// stays until an un-mute or a full Preferences.Clear(). Recorded in the gate doc, not fixed here (no Core edit).
+        /// A re-added contact therefore starts UNMUTED (Damir accepted it: #1293, the gate doc's O-04 / O-06 "how much to
+        /// forget" note row). The same removal
+        /// setContactMuted(false) does — one code path, its catch and its #919 push-extension resync included. Safe on a
+        /// null/empty address. NOT for a history delete: the contact stays, and so does its mute.
+        /// </summary>
+        public static void forgetContact(string? address)
+        {
+            setContactMuted(address, false);
+        }
+
+        /// <summary>
         /// ★ THE ONE PREDICATE the fire site asks. True = show a notification for this
         /// friend. Order: the global master, then the shared group/bot mute, then the
         /// local 1:1 mute.

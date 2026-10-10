@@ -146,7 +146,8 @@ export default async function (h) {
     textHasNoNumber: /return SpixiLocalization\._SL\("wallet-error-balance-title"\);/.test(insuf) && !/Format|balance|Balance\(|\+/.test(insuf.replace('wallet-error-balance-title', '')),
     signSendUses: /if \(amount \+ fee > availableBalance\)\s*\{\s*Utils\.sendUiCommand\(page, "signSendResult", "fail", insufficientText\(\)\);\s*return;/.test(sp),
     payRequestUses: /if \(amount \+ fee > availableBalance\)\s*\{\s*Utils\.sendUiCommand\(page, "payRequestResult", msgIdHex, "fail", insufficientText\(\)\);\s*return;/.test(sp),
-    tipUses: (scp.match(/sendTipResult\(false, SPayments\.insufficientText\(\)\);/g) || []).length === 2,
+    tipUses: (scp.match(/sendTipResult\(false, SPayments\.insufficientTipText\(\)\);/g) || []).length === 2,   /* ★ S15 re-base (#1294 (b)): the tip's own number-free fee line */
+    tipTextNoNumber: (() => { const t = body(sp, 'public static string insufficientTipText()'); return /return SpixiLocalization\._SL\("wallet-error-balance-fee-text"\) \?\? "[^"{}0-9]+";/.test(t) && !/Format|balance\b|Balance\(|\{\d\}/.test(t.replace(/"[^"]*"/g, '')); })(),
   };
   ok(Object.values(r).every((x) => x === true),
     '★ S14 (#1286): no balance (or a number derived from it) reaches a WebView in a RESULT TEXT — signSend / payRequest / the tip answer over-balance with SPayments.insufficientText() (the existing "Insufficient Balance" key); a taint walk from the balance reads (through locals, `foreach` bindings, methods that return a tainted value, and class-level FIELDS / PROPERTIES — a field or property that receives a tainted value anywhere in a file, or by its initializer, is a source in every method of that file) to every sendUiCommand / sendTipResult / push / batch.* in SPayments, SingleChatPage and ContactDetails finds only the two accepted sinks (O-01 setSendQuote in SPayments, the C2 addPaymentRequest bit in SingleChatPage) — ' + JSON.stringify({ ...r, leaks }));

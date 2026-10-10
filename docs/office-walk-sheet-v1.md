@@ -104,4 +104,26 @@ for V-0. Test data: a chat with > 200 messages, a group you own, a photo with GP
 | P-1b | I | 1) Build with `UseInterpreter` true, time 5 opens. 2) Build false, repeat. | Numbers for both; BE answers why it is set. | | `Spixi.csproj:135` |
 | D-5 | I | 1) Run Instruments 30 min with normal use. | No kill; no unbounded memory growth. | | or schedule it |
 
-**Result line for DECISIONS:** `WALK #n (office, S13 build, iPhone + Mac): n P · n F · n N/A`.
+## 5 · S14 / S15 rows (S15 build) — Android (A) · Windows (W) · iPhone (I) · Mac (M)
+
+Refreshed S15 (2026-10-10, DECISIONS #1296–#1308). Walk these on the S15 build (the first compile of the S15 C#: 20+ files).
+Android = the new phone (Android 16) unless the row says old Moto. Logs: Android `android-s15w.txt` (`adb logcat -d -v time`), Windows the newest `Documents\Spixi` log.
+
+| ID | Pl | Steps | Expected | P/F/N/A | Note |
+|---|---|---|---|---|---|
+| S15-BUILD | A W I M | 1) Wipe `obj` / `bin`. 2) Plain build. 3) Open a chat, send "hi". | Build succeeds (first compile of S15 C#); the sent bubble RISES from the composer (S15-RISE). | | paste any error file:line |
+| S15-RESTORE | A | 1) Make a Spixi backup (Account › Backup). 2) Delete account. 3) Create an account. 4) Delete account. 5) Restore the backup, WRONG password. 6) Restore, right password. | 5: password error, nothing changed. 6: the account restores with contacts and YOUR avatar; no "free space" alert. | | the S14 half-restore sequence (#1297) |
+| S15-RESTORE-B | A | 1) With an account on the phone, Lock › "change" (forgot password) › Restore the backup. | "Account already on this device"; nothing changed; the old account still opens. | | WalletConflict |
+| S15-GBACKUP | A | 1) `adb shell bmgr backupnow com.ixilabs.spixi.dev`. 2) `adb shell dumpsys backup \| findstr spixi`. 3) Optional: a new-phone restore. | The backup runs; after a restore the app asks the password ONCE (retry screen); settings start fresh; no chats. | | #1300 (sharedpref out) |
+| S15-RISE | A W I M | 1) Send 3 texts, one reply, 3 photos from the strip. 2) Scroll up, send one. 3) Turn reduce motion on, send one. | Each new bubble rises from the composer, the older ones move up with it, no fade; scrolled up / reduce motion: no movement; history loads never move. | | #1301 — record the screen on A |
+| S15-STRIP | A I | 1) Pick 5 photos, tap Next. 2) Before the previews fill, try Send and "+". 3) ✕ one tile while it loads. 4) Wait, then Send. | The strip opens AT ONCE with 5 tiles; previews fill one by one; Send and "+" wait; the ✕ removes the tile; 4 photos send. Paste `[P1] media prepare`. | | #1302 |
+| S15-WHITE | A | 1) Open a chat. 2) Lock 30 s, unlock. 3) Repeat with Account › Developer › container Shadow, then None. 4) Set Clip back. | No white chat surface after unlock (any mode). If white: note the mode, tap once, save logcat at once. | | #1305 (2) — Clip suspect |
+| S15-PSS | A | 1) Run the PSS loop (handoff §4). 2) Open 3 chats · pick + send 5 photos · album + viewer · chat info, noting the time of each. | Find the action that makes the jump to > 600 MB (#1295 / #1305). | | paste pss-timeline.txt |
+| S15-TIP | A W | 1) Tip more than your balance in a chat. | "The amount plus the network fee is more than your available balance." — no number. | | #1306 |
+| S15-LOG | W | 1) Account › Developer (dev mode ON) › Send log. 2) Turn dev mode off, try again (if the row still shows). | A save dialog asks where; nothing written silently to Downloads; with dev mode off nothing happens. | | O-19 |
+| S15-LOCKWIN | A | 1) Lock on, pick a photo (own picker), come back within 60 s. 2) Repeat, come back after 90 s. | 60 s: no lock. 90 s: the lock shows. | | O-29 |
+| S15-LANG | A W | 1) Light theme. 2) Account › Language. 3) Screenshot the sheet with the scroll bar visible. | A light scroll indicator. If dark: send the screenshot (no fix before it). | | #1306 |
+| S15-UNREAD | A | 1) With the old Moto off the account, leave the phone 30 min. 2) Look at the unread counts. | No count rises without a new message. | | #1298 recheck |
+| S14-OLD | A (old Moto) | 1) Back from every subscreen (Android ≤ 15). 2) Account → each tab. | Back = one level; the tab lands right. | | the S14 rows not walked |
+
+**Result line for DECISIONS:** `WALK #n (office, S15 build, iPhone + Mac + the §5 rows on Android / Windows): n P · n F · n N/A`.

@@ -1330,6 +1330,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   from { opacity: 0; transform: translateY(var(--spacing-8)); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* ★ S15 E (#1301): the DEMO plays this entrance; the real chat shell uses the WhatsApp-style rise (chat.html c-send-rise, E v2) — reduced motion: none */
+@media (prefers-reduced-motion: reduce) {
+  .c-bubble-row--in { animation: none; }
+}
 
 /* —— date separator —— */
 .c-datesep {
@@ -6122,6 +6126,15 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   -webkit-user-drag: none;
 }
 .c-mstrip__glyph { display: flex; align-items: center; justify-content: center; color: var(--text-neutral-02); }
+/* ★ S15 F (#1302, Damir 2026-10-10: tiles at once): a photo C# is still preparing — the A8 skeleton grammar (chat-info.css:
+   the neutral wash, a slow opacity pulse, STILL under reduced motion); the tile keeps its place and its ✕, so the swap to the
+   thumb is a picture change and nothing moves. */
+.c-mstrip__pending {
+  background: var(--surface-neutral-04);
+  animation: c-mstrip-pending 1.4s var(--easing-standard) infinite;
+}
+@keyframes c-mstrip-pending { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .c-mstrip__pending { animation: none; } }
 /* the ✕: a 22 px disc in the tile's corner inside a 44 px target (★ S10 #46 n-1: was 36) */
 .c-mstrip__remove {
   position: absolute;
@@ -6180,9 +6193,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 .c-mstrip__add::after { transform: rotate(90deg); }
 @media (hover: hover) and (pointer: fine) {
-  .c-mstrip__add:hover { background: var(--surface-action-tonal-default); }
+  .c-mstrip__add:not([aria-disabled="true"]):hover { background: var(--surface-action-tonal-default); }
 }
-.c-mstrip__add:active { background: var(--surface-action-tonal-default); }
+.c-mstrip__add:not([aria-disabled="true"]):active { background: var(--surface-action-tonal-default); }
+/* ★ S15 #46 r1 m-4: "+" while a tile is still pending — the shell ignores it, so it reads disabled (no hover / press wash) */
+.c-mstrip__add[aria-disabled="true"] { opacity: var(--opacity-disabled); cursor: default; }
 .c-mstrip__add:focus-visible { outline: 2px solid var(--outline-action-default); outline-offset: 2px; }
 .c-mstrip__count {
   flex: none;
@@ -6997,6 +7012,17 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
      1 px blue ring, so the blue never touches my blue bubble (1.17:1 in light). B-m3 the lit row raises the sent card's
      edge (#993, the selected row's --outline-card-sent) and the ring KEEPS that edge (--jump-keep) instead of replacing it.
      B-M1 the static (reduced-motion) ring outranks every per-kind box-shadow, the photo tile's (0,4,0) included. */
+  /* ★ S15 E v2 (#1301, Damir "like WhatsApp, from the composer"): my send's rise — the rows on screen start --rise-h
+     (the height the new row added, measured) lower and slide to their places; the --rise-delay replays a re-render.
+     A jump pulse keeps its own animation. No fade. Reduced motion: none (the arming is off too). */
+  @keyframes c-send-rise { from { transform: translateY(var(--rise-h, 0px)); } to { transform: none; } }
+  #messages[data-rise] > [data-rise-row]:not([data-mention-pulse]) {
+    animation: c-send-rise var(--duration-200) var(--easing-decelerate) both;
+    animation-delay: var(--rise-delay, 0ms);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #messages[data-rise] > [data-rise-row]:not([data-mention-pulse]) { animation: none; }   /* ★ S15 #46 r1 n-1: the same specificity as the rule it cancels */
+  }
   .c-bubble-row[data-mention-pulse] { border-radius: var(--radius-12); --outline-card-sent: var(--outline-card-sent-selected); animation: chat-jump-band var(--duration-highlight) var(--easing-standard) var(--jump-delay, 0ms) 1; }
   .c-bubble-row[data-mention-pulse] .c-bubble, .c-bubble-row[data-mention-pulse] .c-fbubble,
   .c-bubble-row[data-mention-pulse] .c-mbubble, .c-bubble-row[data-mention-pulse] .c-tcard { animation: chat-jump-ring var(--duration-highlight) var(--easing-standard) var(--jump-delay, 0ms) 1; }
@@ -8089,6 +8115,11 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   const MEDIA_JSON_MAX = 10 * (FILE_THUMB_MAX + 200);
   const MEDIA_ERROR_TONE = { tooBig: 'error', decode: 'error', clipboardEmpty: '', cameraDenied: '', storageDenied: '', tooMany: '', fileTooBig: 'error', fileTooBigIn: 'error' };
   let mediaStrip = null;   // ★ S10 P1 (#1254): { id, ctrl, sigs, dropped } — the open strip (one batch at a time)
+  const MEDIA_PENDING_SIG = '\u0000pending';   // ★ S15 F (#1302): a placeholder's sig — never a real item's (those join 4 fields with '|')
+  /* ★ S15 F (#1302): the composer's strip state — the count, the caption cap, and Send blocked while a tile is pending */
+  function syncStripComposer(ms) {
+    if (composerEl && ms && ms.ctrl) setComposerMedia(composerEl, ms.ctrl.count(), { ...mediaCaptionCap, busy: ms.ctrl.pending() > 0 });
+  }
   /* ★ S10 #46 m-1: the ids of batches this document ENDED (sent / cancelled) — a late mediaPicked for one is ignored */
   const endedBatches = [];
   const MEDIA_ENDED_KEEP = 8;
@@ -8113,6 +8144,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
          data: JPEG (a remote URL, another type, too long) is NEVER loaded — the photo stays, as the glyph tile */
       const ok = !!thumb && thumb.length <= FILE_THUMB_MAX && FILE_THUMB_RE.test(thumb);
       seen.add(k);
+      /* ★ S15 F (#1302, Damir 2026-10-10: tiles at once; 🟡 the one new item field): "pending":"1" = C# picked the photo and
+         is still preparing it → a loading tile, no thumb, its own sig (MEDIA_PENDING_SIG) */
+      if (it.pending === '1') { out.push({ k, thumb: '', pending: true, sig: MEDIA_PENDING_SIG }); continue; }
       /* sig = the item as C# described it — a same-id push repeating a just-dropped key with the same sig is stale (m-2) */
       out.push({ k, thumb: ok ? thumb : '', sig: [thumb, it.w, it.h, it.kb].map((x) => String(x == null ? '' : x)).join('|') });
     }
@@ -8168,9 +8202,11 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   function sendMediaStrip(text) {
     const ms = mediaStrip;
     if (!ms) return;
+    if (ms.ctrl.pending() > 0) return;   // ★ S15 F (#1302): never while a photo is still being prepared (the disc is disabled too)
     const ks = ms.ctrl.keys().filter((k) => MEDIA_KEY_RE.test(k));
     if (!ks.length) { endMediaStrip(true); return; }
     bridge.send('ixian:mediaSend:' + ms.id + ':' + ks.join(',') + ':' + b64url(text));
+    armSendEnter(true);   // ★ S15 E v2 (#1301): the photos rise too (one by one, inside the window)
     endMediaStrip(false);
   }
   /** setFileThumb's store (the bounded map above). */
@@ -11970,9 +12006,78 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    * Call the coalesced `renderLog()` from handlers; `renderLogNow()` is the
    * synchronous rebuild (also used for the first paint). */
   const TICK_REPLAY_MS = 300;   // ★ #1028 → B10 (#1084): the fade window (message-bubble.css c-tick-in/out, --duration-300)
+  /* ★ S15 E v2 (#1301, Damir 15:53 "a moving effect like WhatsApp, moving in from the direction of the composer"):
+     MY send RISES. The log is pinned to its end, so a new row at the bottom pushes the whole list up by its height h in
+     one frame. The rise animates that push instead: the rows on screen (and the h px above it, so the top edge never
+     opens a gap) start h px LOWER and slide to their places — the new bubble comes up from the composer edge, the older
+     ones move up with it. No fade. Measured, not guessed: h = the scrollHeight the render added, so a text bubble, a
+     reply, a photo grid or a new date chip all rise by exactly what they take.
+     WHEN: only the first NEW sent row after MY composer send (onSend arms, the first match consumes: another device's
+     row rises at most once) — or every new sent row inside the strip send's window (photos land one by one) — never in
+     a load (bursting · loadPhase · prependBatch · enterQuietUntil = the N53 re-flush window, closed early by
+     messagesDone), never when the user is scrolled up (the push is not on screen), never when the added height is more
+     than a screen. A re-render inside the 200 ms re-marks the rows with a NEGATIVE delay (continue, not restart).
+     Reduced motion: never armed (and the CSS has its own animation:none). */
+  const ENTER_FX_MS = 200;               // --duration-200 (the c-send-rise rule below)
+  const SEND_ENTER_WINDOW_MS = 3000;     // send → C#'s addMe (a slow Android round trip)
+  let sendEnterUntil = 0;
+  let sendEnterMulti = false;            // the strip's send: every photo row inside the window rises
+  let enterQuietUntil = 0;
+  let risePending = false;               // a taken send row: the next render measures its height
+  let riseH = 0;
+  let riseAt = 0;
+  let riseClear = 0;
+  const enterReduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function armSendEnter(multi) {
+    sendEnterUntil = enterReduced() ? 0 : performance.now() + SEND_ENTER_WINDOW_MS;
+    sendEnterMulti = !!multi && sendEnterUntil > 0;
+  }
+  function disarmSendEnter() { sendEnterUntil = 0; sendEnterMulti = false; risePending = false; riseOff(); }   // ★ S15 #46 r1 m-3: a re-flush / peer switch never slides the new log
+  function takeSendEnter(existing, rec) {
+    if (existing || !rec || rec.direction !== 'sent' || rec.eventChip) return false;
+    if (bursting || loadPhase || prependBatch) return false;
+    const now = performance.now();
+    if (now < enterQuietUntil || !(now < sendEnterUntil)) return false;
+    if (!sendEnterMulti) sendEnterUntil = 0;   // consumed: one send, one rise
+    return true;
+  }
+  function riseOff() {
+    riseAt = 0; riseH = 0;
+    if (riseClear) { clearTimeout(riseClear); riseClear = 0; }
+    box.removeAttribute('data-rise');
+    box.style.removeProperty('--rise-h');
+    box.style.removeProperty('--rise-delay');
+    for (const n of box.querySelectorAll(':scope > [data-rise-row]')) n.removeAttribute('data-rise-row');
+  }
+  /* mark the rows on screen + the h px above it (rows are rebuilt by every render, so this runs after each swap) */
+  function markRise() {
+    const e = performance.now() - riseAt;
+    if (e >= ENTER_FX_MS) { riseOff(); return; }
+    box.style.setProperty('--rise-h', riseH + 'px');
+    box.style.setProperty('--rise-delay', -Math.round(e) + 'ms');
+    box.setAttribute('data-rise', '');
+    const top = box.getBoundingClientRect().top - riseH;
+    for (let n = box.lastElementChild; n; n = n.previousElementSibling) {
+      if (n.getBoundingClientRect().bottom < top) break;
+      n.setAttribute('data-rise-row', '');
+    }
+    if (!riseClear) riseClear = setTimeout(() => { riseClear = 0; riseOff(); }, ENTER_FX_MS + 60);
+  }
+  /* ★ S15 #46 r1 m-1: the px the rows still sit low at time e of a rise — --easing-decelerate is cubic-bezier(0, 0, 0, 1),
+     so x(t) = t³ and y(t) = 3t² − 2t³: t = ∛(e / 200), done = 3t² − 2t³ */
+  function riseLeft(h, e) {
+    if (!(e < ENTER_FX_MS)) return 0;
+    const t = Math.cbrt(Math.max(0, e) / ENTER_FX_MS);
+    return h * (1 - (3 * t * t - 2 * t * t * t));
+  }
   function renderLogNow() {
     invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
+    /* ★ S15 #46 r1 m-1: a running rise translates the rows DOWN, and a transform grows scrollHeight — so nearBottom() and the
+       riseFromH base would read the inflated box (no re-pin, the rows jump). Take the rise off FIRST; keep what is left of it. */
+    const riseWas = riseAt ? { h: riseH, at: riseAt } : null;
+    if (riseWas) riseOff();
     const scrollWasAtBottom = nearBottom();
+    const riseFromH = risePending ? box.scrollHeight : -1;   // ★ S15 E v2 (#1301): the height before this row
     // Build the whole log into a DETACHED fragment, then swap it in with ONE
     // replaceChildren — the live #messages box is NEVER momentarily empty, so a
     // paint can't catch a blank log mid-rebuild (Damir 2026-07-07 flicker). Also
@@ -12049,6 +12154,20 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     if (prependAnchor && restorePrependAnchor()) olderAnchorId = null;   // ★ #1166 B2: a prepend keeps the first visible row in place (before the 1.5-screen bottom pin)
     else if (scrollWasAtBottom) pinLogEnd();   // #46 r1: the reply hold wins
     else applyOlderAnchor();               // A1: hold the reading position across a load-more re-flush
+    /* ★ S15 E v2 (#1301): my send's row is in — rise by the height it added, only when the log is pinned at its end (a prepend /
+       reply hold leaves it unpinned: no rise) */
+    if (riseFromH >= 0) {
+      risePending = false;
+      const h = box.scrollHeight - riseFromH;
+      if (!prependAnchor && scrollWasAtBottom && nearBottom() && h > 0 && h <= box.clientHeight) {
+        /* ★ S15 #46 r1 m-1: a send during a rise starts from where the rows are on screen now: h + what is left */
+        riseH = h + (riseWas ? riseLeft(riseWas.h, performance.now() - riseWas.at) : 0);
+        riseAt = performance.now();
+      }
+    }
+    /* ★ S15 #46 r1 m-1: a render that is not a new rise CONTINUES the running one (same h, same start → the negative delay) */
+    if (!riseAt && riseWas && performance.now() - riseWas.at < ENTER_FX_MS) { riseH = riseWas.h; riseAt = riseWas.at; }
+    if (riseAt) markRise();
     firstRenderDone = true;                 // boot spinner is now gone
     if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
     // Multi-select: every row node above is BRAND NEW, so the selection (kept by
@@ -12551,6 +12670,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     noteArrival(existing, rec);   // N53: count a live arrival while scrolled up (pre-render read)
 
     if (!existing) {
+      if (takeSendEnter(existing, rec)) risePending = true;   // ★ S15 E v2 (#1301): my send's row rises (measured at its render)
       renderLog();  // new row → re-render so grouping + date separators are correct
       return;
     }
@@ -12976,6 +13096,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       }
 
       stlFlushQuietUntil = Date.now() + 5000;   // #376 loop B-1: open the N53 quiet window (see noteArrival)
+      enterQuietUntil = performance.now() + 5000;   // ★ S15 E (#1301): the same window for my send's entrance;
+      disarmSendEnter();                             // a re-flush re-creates my rows — none is the new one
       batchSeen = false;                        // ★ Session P: a new burst, transport not yet known
       logDirty = true;                          // ★ Session P: a wipe IS a model change awaiting a paint — an EMPTY re-flush on the OLD transport (no messagesDone) must still repaint at onChatScreenLoaded (#46 auditor B)
 
@@ -13047,6 +13169,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       /* ★ #1166 B2: a PREPEND answer (load-more, a widening jump) has no clearMessages — its end-of-history flag rides
          here (same strict test); the full load sends no argument and keeps what clearMessages set. */
       const prependAnswer = showMore !== undefined && showMore !== null && String(showMore) !== '';
+      if (!prependAnswer) enterQuietUntil = 0;   // ★ S15 E (#1301): the load is DONE — a send after it enters
       if (prependAnswer) {
         showOlder = (String(showMore) === 'true');
         olderAnchorId = null;               // the re-flush anchor is for the OLD transport's answer only
@@ -13242,6 +13365,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       identity.address = address || '';
       identity.avatar = null;              // per-peer reset (desktop reparent); setAvatar (onLoad) re-sets it
       hideTyping();                        // ★ #1080 F17 (#46 r1): peer A's typing line must not open peer B's topbar (pre-warmed spare)
+      disarmSendEnter();                   // ★ S15 E (#1301): a send to peer A never animates peer B's row
       if (!identity.name) renderTopbar();
       maybeRestoreDraft();                 // address known → bring back any saved draft (CH7)
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
@@ -13944,14 +14068,16 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
         for (const dk of [...ms0.dropped.keys()]) if (!pushedKeys.has(dk)) ms0.dropped.delete(dk);
         items = items.filter((it) => {
           if (!ms0.dropped.has(it.k)) return true;
-          if (ms0.dropped.get(it.k) === it.sig) return false;
+          /* ★ S15 F (#1302): a key ✕-ed while PENDING stays hidden whatever C# says next (the photo it was preparing may be
+             pushed READY before C# reads the drop) — until a push without the key or mediaDropped (C# discarded it) */
+          if (ms0.dropped.get(it.k) === it.sig || ms0.dropped.get(it.k) === MEDIA_PENDING_SIG) return false;
           ms0.dropped.delete(it.k);
           return true;
         });
         if (!items.length) return;
         for (const it of items) ms0.sigs.set(it.k, it.sig);
         ms0.ctrl.setItems(items);
-        setComposerMedia(composerEl, ms0.ctrl.count(), mediaCaptionCap);
+        syncStripComposer(ms0);   // ★ S15 F: Send is enabled again only when no tile is pending (the final push)
         return;
       }
       closeMediaSheetIfOpen();   // a newer batch: the older one is answered with mediaCancel
@@ -13965,16 +14091,17 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
         host: slot, items, strings: window.SL || {},
         onRemove: (k) => {
           if (mediaStrip !== ms || !MEDIA_KEY_RE.test(k)) return;
-          ms.dropped.set(k, ms.sigs.get(k) || '');   // m-2
+          ms.dropped.set(k, ms.sigs.get(k) || '');   // m-2 (★ S15 F: a pending tile's sig = MEDIA_PENDING_SIG)
           bridge.send('ixian:mediaDrop:' + bid + ':' + k);
-          setComposerMedia(composerEl, ms.ctrl.count(), mediaCaptionCap);
+          syncStripComposer(ms);
         },
-        onAdd: () => { if (mediaStrip === ms && !composerLock && attachFlags().media) bridge.send('ixian:sendmedia'); },
+        /* ★ S15 F: no "+" pick while photos are still being prepared (C# refuses a second pick then — mediaBusy) */
+        onAdd: () => { if (mediaStrip === ms && !composerLock && attachFlags().media && !ms.ctrl.pending()) bridge.send('ixian:sendmedia'); },
         onEmpty: () => { if (mediaStrip === ms) { endMediaStrip(true); focusComposerInput(); } },   // m-3: focus lands in the field
       });
       if (!ms.ctrl) { rememberEndedBatch(bid); bridge.send('ixian:mediaCancel:' + bid); return; }
       mediaStrip = ms;
-      setComposerMedia(composerEl, ms.ctrl.count(), mediaCaptionCap);
+      syncStripComposer(ms);   // ★ S15 F: a batch of placeholders opens with Send disabled
       syncChatOverlay();
     },
     /* ★ S10 #46 r3 (🟡 NEW push): mediaDropped(batchId, k) — C# removed that photo; its stale-push filter (m-2) is forgotten,
@@ -14839,6 +14966,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
         bridge.send('ixian:chat:' + encodeURIComponent(text));
         if (ctx) setComposerContext(composerEl, null);
       }
+      armSendEnter();   // ★ S15 E v2 (#1301): C#'s row for THIS send rises (not an edit; the strip arms its own)
       clearDraft();                                   // sent → drop the saved draft (CH7)
       // composer already clears its own field on send; this is belt-and-braces.
     },
@@ -15718,6 +15846,6 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>
-<script>(function(){var m=[!window.SpixiIcons&&"spixi.icons.js",!window.SpixiStrings&&"spixi.strings.js",!window.Spixi&&"spixi.bundle.js",!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css",!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"].filter(Boolean);if(!m.length)return;console.error("SPIXI: shared asset did not load: "+m.join(", "));document.documentElement.innerHTML='<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">Spixi could not load: '+m.join(", ")+'\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs</pre>';})();</script>
+<script>(function(){var m=[!window.SpixiIcons&&"spixi.icons.js",!window.SpixiStrings&&"spixi.strings.js",!window.Spixi&&"spixi.bundle.js",!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css",!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"].filter(Boolean);if(!m.length)return;console.error("SPIXI: shared asset did not load: "+m.join(", "));var r=document.documentElement,b=document.createElement("body"),p=document.createElement("pre");p.style.cssText="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b";p.textContent="Spixi could not load: "+m.join(", ")+"\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs";while(r.firstChild)r.removeChild(r.firstChild);b.appendChild(p);r.appendChild(b);})();</script>
 </body>
 </html>

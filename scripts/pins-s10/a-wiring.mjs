@@ -44,28 +44,37 @@ export default async function (h) {
       && /int free = target != null \? PhotoRules\.MaxBatch - target\.items\.Count : PhotoRules\.MaxBatch;\s*if \(free <= 0\)\s*\{\s*Utils\.sendUiCommand\(this, "mediaError", PhotoRules\.ErrTooMany\);\s*return;\s*\}/.test(pick)
       && before(pick, 'if (free <= 0)', 'SFilePicker.PickImagesAsync(') && before(pick, 'if (free <= 0)', 'CapturePhotoAsync(') && before(pick, 'if (free <= 0)', 'SClipboardImage.readAsync(')
       && /picks = await SFilePicker\.PickImagesAsync\(free\) \?\? new List<SpixiImageData>\(\);/.test(pick)
-      && !/dropMediaBatch\(/.test(pick)
-      && /MediaBatch batch = new MediaBatch\s*\{\s*id = batchId,\s*peer = friend\.walletAddress\.ToString\(\),\s*channel = selectedChannel,\s*route = route,\s*\};/.test(pick)   /* #46 R3-10 */
-      && /int take = Math\.Min\(picks\.Count, free\);\s*if \(picks\.Count > free\)\s*\{\s*batch\.errors\.Add\(PhotoRules\.ErrTooMany\);\s*\}/.test(pick)
-      && /_ = Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*prepareBatch\(batch, picks, take\);\s*\}[\s\S]*?onMain\(\(\) => finishPick\(batch, target, doc, chat\)\);\s*\}\);/.test(pick)
-      && /for \(int k = 0; k < take && k < picks\.Count && k < PhotoRules\.MaxBatch; k\+\+\)/.test(bodyOf(SCP, 'private static void prepareBatch(MediaBatch batch, List<SpixiImageData> picks, int take)'))
+      /* ★ S15 F re-base (#1302, Damir 2026-10-10: tiles at once): the append target / new batch is chosen in onPickPhotos
+         (keys reserved up front, placeholders pushed before the decode — pins-s15/f-strip.mjs); dropMediaBatch runs ONLY
+         when there is no open batch of this chat + channel to append to (a stale other-channel one, as finishPick did) */
+      && count(pick, /dropMediaBatch\(/g) === 1
+      && /if \(target != null\)\s*\{\s*live = target;\s*\}\s*else\s*\{\s*dropMediaBatch\(\);\s*live = new MediaBatch\s*\{\s*id = batchId,\s*peer = friend\.walletAddress\.ToString\(\),\s*channel = selectedChannel,\s*route = route,\s*\};\s*\}/.test(pick)   /* #46 R3-10 */
+      && /keys = S15MediaRules\.reserveKeys\(S15MediaRules\.keysOf\(live\.shown\), Math\.Min\(picks\.Count, free\)\),/.test(pick)
+      && /if \(picks\.Count > job\.keys\.Count\)\s*\{\s*job\.errors\.Add\(PhotoRules\.ErrTooMany\);\s*\}/.test(pick)
+      && /_ = Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*prepareBatch\(job, picks, [\s\S]*?\);\s*\}[\s\S]*?onMain\(\(\) => finishPick\(live, job, doc, chat\)\);\s*\}\);/.test(pick)
+      && /for \(int i = 0; i < job\.keys\.Count && i < picks\.Count && i < PhotoRules\.MaxBatch; i\+\+\)/.test(bodyOf(SCP, 'private static void prepareBatch(PrepJob job, List<SpixiImageData> picks, Action<int, MediaItem?, PhotoRules.PickedItem?> ready)'))
       && /public int count = PhotoRules\.MaxBatch;/.test(bodyOf(SCP, 'private sealed class MediaBatch')) && !/count = Math\.Min\(picks\.Count/.test(SCP),
       'S10 A P1: a pick while this chat + channel has an open batch appends — the picker asks for the FREE slots only (camera / paste = 1), a full batch pushes mediaError tooMany and opens no picker, extras → tooMany; a new pick NEVER drops the open batch; every batch counts 10 key slots');
   });
 
   /* ———— P1-c: finishPick appends with the smallest free key and pushes the FULL list under the target's id ———— */
   await guard('S10 A P1 finishPick append', async () => {
-    const fin = bodyOf(SCP, 'private void finishPick(MediaBatch batch, MediaBatch? target, int doc, Friend chat)');
-    const app = fin.slice(fin.indexOf('if (target != null && ReferenceEquals(mediaBatch, target)'), fin.indexOf('else\n', fin.indexOf('"mediaPicked", target.id')));
-    ok(/if \(isDisposed \|\| doc != thumbDoc \|\| friend != chat \|\| batch\.peer != friend\.walletAddress\.ToString\(\)\)\s*\{\s*foreach \(MediaItem it in batch\.items\)\s*\{\s*deleteOwnMediaFile\(it\.path\);\s*\}\s*return;\s*\}/.test(fin)
-      && /if \(target != null && ReferenceEquals\(mediaBatch, target\) && target\.peer == batch\.peer && target\.channel == selectedChannel\)/.test(fin)
-      && /int k = S10MediaRules\.nextKey\(used\);\s*if \(k < 0 \|\| shown == null\)\s*\{\s*deleteOwnMediaFile\(it\.path\);\s*if \(k < 0 && !batch\.errors\.Contains\(PhotoRules\.ErrTooMany\)\)\s*\{\s*batch\.errors\.Add\(PhotoRules\.ErrTooMany\);\s*\}\s*continue;\s*\}/.test(app)
-      && /shown\.k = k\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);\s*target\.items\.Add\(new MediaItem \{ k = k, path = it\.path, preview = it\.preview \}\);\s*target\.shown\.Add\(shown\);/.test(app)   /* ★ S11 G re-base (#1263 c): the offer preview rides the append (pins-s11/g-cs.mjs) */
-      && /string oldKey = it\.k\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);\s*PhotoRules\.PickedItem\? shown = batch\.shown\.Find\(x => x\.k == oldKey\);/.test(app)   /* #46 R3-7 */
-      && /foreach \(MediaItem t in target\.items\)\s*\{\s*used\.Add\(t\.k\);\s*\}/.test(app) && before(app, 'used.Add(t.k);', 'S10MediaRules.nextKey(used)')
-      && /Utils\.sendUiCommand\(this, "mediaPicked", target\.id, PhotoRules\.pickedJson\(target\.shown\)\);/.test(app)
-      && /else\s*\{\s*dropMediaBatch\(\);\s*mediaBatch = batch;\s*Utils\.sendUiCommand\(this, "mediaPicked", batch\.id, PhotoRules\.pickedJson\(batch\.shown\)\);\s*\}/.test(fin)
-      && count(SCP, /"mediaPicked"/g) === 2 && count(SCP, /finishPick\(/g) === 2 && count(SCP, /prepareBatch\(/g) === 2
+    /* ★ S15 F re-base (#1302, Damir 2026-10-10: tiles at once): the append moved from finishPick to onPickPhotos — the
+       target is re-checked after the picker (still the open batch of this chat + channel, else a new batch), each photo's
+       key is reserved up front (S15MediaRules.reserveKeys = S10MediaRules.nextKey over the ready AND pending keys, none free
+       → tooMany; csh S15MediaTests), the preview rides MediaItem → live.items (photoReady), and every push carries the
+       batch id + its FULL list (pickedJson(live.shown)) — the early push, each update, finishPick's final one */
+    const pick = bodyOf(SCP, 'private async Task onPickPhotos(string route)');
+    const fin = bodyOf(SCP, 'private void finishPick(MediaBatch live, PrepJob job, int doc, Friend chat)');
+    const rdy = bodyOf(SCP, 'private void photoReady(MediaBatch live, PrepJob job, int i, MediaItem? item, PhotoRules.PickedItem? shown, int doc, Friend chat)');
+    const one = bodyOf(SCP, 'private static MediaItem? prepareOne(PrepJob job, SpixiImageData p, int i, string dir, out PhotoRules.PickedItem? shown)');
+    ok(/if \(isDisposed \|\| doc != thumbDoc \|\| friend != chat \|\| live\.peer != friend\.walletAddress\.ToString\(\)\)\s*\{\s*return;\s*\}/.test(fin)
+      && /if \(target != null && \(!ReferenceEquals\(mediaBatch, target\) \|\| target\.peer != friend\.walletAddress\.ToString\(\) \|\| target\.channel != selectedChannel\)\)\s*\{\s*target = null;\s*\}/.test(pick)
+      && /return new MediaItem \{ k = -1, path = jpg, preview = offerPreview \};/.test(one)   /* ★ S11 G: the offer preview rides along */
+      && /if \(item != null\)\s*\{\s*item\.k = k;\s*live\.items\.Add\(item\);\s*added = true;\s*\}/.test(rdy)
+      && /if \(!prepAlive\(live, job, doc, chat\) \|\| !S15MediaRules\.applyReady\(live\.shown, k, item != null \? shown : null\)\)\s*\{\s*if \(item != null\)\s*\{\s*deleteOwnMediaFile\(item\.path\);\s*\}\s*return;\s*\}/.test(rdy)   /* ★ S15 #46 r1 M3: a gone target / a refused photo — its file goes */
+      && count(SCP, /Utils\.sendUiCommand\(this, "mediaPicked", live\.id, PhotoRules\.pickedJson\(live\.shown\)\);/g) === 3
+      && count(SCP, /"mediaPicked"/g) === 3 && count(SCP, /finishPick\(/g) === 2 && count(SCP, /prepareBatch\(/g) === 2
       && /Interlocked\.Exchange\(ref mediaBusy, 0\);/.test(fin),
       'S10 A P1: finishPick appends to the batch the pick was aimed at only while it is STILL the open batch of this chat + channel — each new photo takes S10MediaRules.nextKey (none free → its file goes + tooMany) and mediaPicked carries the target id + its FULL list; a target that is gone → the new photos become the open batch');
   });
@@ -76,9 +85,11 @@ export default async function (h) {
     ok(/if \(!S10MediaRules\.parseDrop\(payload, out string batchId, out int k\)\)\s*\{\s*Logging\.warn\("ixian:mediaDrop: malformed"\);\s*return;\s*\}/.test(md)
       && before(md, 'S10MediaRules.parseDrop(', 'mediaBatch')
       && /MediaBatch\? b = mediaBatch;\s*if \(b == null \|\| !string\.Equals\(b\.id, batchId, StringComparison\.Ordinal\)\)\s*\{\s*Logging\.warn\("ixian:mediaDrop: no such batch"\);\s*return;\s*\}/.test(md)
-      && /MediaItem\? it = b\.items\.Find\(x => x\.k == k\);\s*if \(it == null\)\s*\{\s*Logging\.warn\("ixian:mediaDrop: no such photo"\);\s*return;\s*\}/.test(md)
-      && /string key = k\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);\s*b\.items\.Remove\(it\);\s*b\.shown\.RemoveAll\(x => x\.k == key\);\s*deleteOwnMediaFile\(it\.path\);\s*Utils\.sendUiCommand\(this, \"mediaDropped\", b\.id, key\);/.test(md)   /* #46 R3-6 · #46 r3: the drop is confirmed with C#'s own id + key, last */
-      && count(md, /sendUiCommand/g) === 1 && !/dropMediaBatch|payload\)\s*\+|\+ payload|\+ batchId|sendUiCommand\([^)]*batchId/.test(md)
+      /* ★ S15 F re-base (#1302): `key` is made first; a key with no prepared photo may be a PENDING placeholder (its ✕ —
+         dropPending + job.skip, confirmed with the same mediaDropped; pins-s15/f-strip.mjs) — else the same warn */
+      && /string key = k\.ToString\(System\.Globalization\.CultureInfo\.InvariantCulture\);\s*MediaItem\? it = b\.items\.Find\(x => x\.k == k\);\s*if \(it == null\)\s*\{\s*if \(b\.job != null && S15MediaRules\.dropPending\(b\.shown, k\)\)\s*\{[^}]*\}\s*Logging\.warn\("ixian:mediaDrop: no such photo"\);\s*return;\s*\}/.test(md)
+      && /b\.items\.Remove\(it\);\s*b\.shown\.RemoveAll\(x => x\.k == key\);\s*deleteOwnMediaFile\(it\.path\);\s*Utils\.sendUiCommand\(this, \"mediaDropped\", b\.id, key\);/.test(md)   /* #46 R3-6 · #46 r3: the drop is confirmed with C#'s own id + key, last */
+      && count(md, /sendUiCommand/g) === 2 && count(md, /Utils\.sendUiCommand\(this, "mediaDropped", b\.id, key\);/g) === 2 && !/dropMediaBatch|payload\)\s*\+|\+ payload|\+ batchId|sendUiCommand\([^)]*batchId/.test(md)
       && count(md, /Logging\.warn\("[^"]*"\);/g) === 3 && count(md, /Logging\./g) === 3,
       'S10 A P1: ixian:mediaDrop is parsed (exact 16-hex id + one digit) before anything is looked up; only the open batch with that id loses the item with that key — its entry + its C#-recorded file (deleteOwnMediaFile: Sent/ only); unknown → one fixed-word warn; the drop is confirmed with mediaDropped(C#\'s own id, key) (#46 r3)');
   });
@@ -153,7 +164,7 @@ export default async function (h) {
   await guard('S10 A r1 mediaSend skip', async () => {
     const ms = bodyOf(SCP, 'private void onMediaSend(string payload)');
     ok(/foreach \(int k in keys\)\s*\{\s*MediaItem\? it = b\.items\.Find\(x => x\.k == k\);\s*if \(it != null\)\s*\{\s*chosen\.Add\(it\);\s*\}\s*\}\s*if \(chosen\.Count == 0\)\s*\{\s*Logging\.warn\("ixian:mediaSend: no key is a prepared photo"\);\s*dropMediaBatch\(\);\s*return;\s*\}/.test(ms)
-      && /mediaBatch = null;\s*deleteBatchFiles\(b, keys\);\s*sendMediaBatch\(b, chosen, caption\);/.test(ms),
+      && /mediaBatch = null;\s*if \(b\.job != null\)\s*\{\s*b\.job\.abandoned = true;\s*\}\s*deleteBatchFiles\(b, keys\);\s*sendMediaBatch\(b, chosen, caption\);/.test(ms),   /* ★ S15 F re-base (#1302): a send ends the prepare too */
       'S10 A #46 r1 M1: a mediaSend key that is not (any more) a prepared photo is skipped — the photos that ARE there are sent; only a send that names none of them is refused and drops the batch');
   });
 

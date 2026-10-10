@@ -97,18 +97,29 @@ export default async function (h) {
   /* ———— M4: decode / encode OFF the UI thread; the pushes ON it, only for this document / chat ———— */
   await guard('S9 A1 M4 threads', async () => {
     const pick = bodyOf(SCP, 'private async Task onPickPhotos(string route)');
-    /* ★ S10 P1 re-base (#1254, agent A): finishPick gains the append TARGET, prepareBatch the `take` bound; mediaPicked is
-       pushed from TWO places inside finishPick (the append under the target's id · a new batch) — pins-s10/a-wiring.mjs */
-    const fin = bodyOf(SCP, 'private void finishPick(MediaBatch batch, MediaBatch? target, int doc, Friend chat)');
-    const prep = bodyOf(SCP, 'private static void prepareBatch(MediaBatch batch, List<SpixiImageData> picks, int take)');
-    ok(/_ = Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*prepareBatch\(batch, picks, take\);\s*\}[\s\S]*?onMain\(\(\) => finishPick\(batch, target, doc, chat\)\);\s*\}\);/.test(pick)
+    /* ★ S10 P1 re-base (#1254, agent A): finishPick gains the append TARGET, prepareBatch the `take` bound.
+       ★ S15 F re-base (#1302, Damir 2026-10-10: tiles at once): the decode is still OFF the UI thread (Task.Run), one at a
+       time (mediaDecodeGate) — but mediaPicked now goes from THREE main-thread places: the early push of placeholders in
+       onPickPhotos (before Task.Run), photoReady (each photo, posted with onMain) and finishPick (the final list); the
+       worker pushes nothing; a torn-down page / older document / other chat gets nothing (prepAlive; its files go with
+       the batch — dropMediaBatch — or are discarded in photoReady). On Android the 320 thumb comes from the bitmap in
+       memory (pins-s15/f-strip.mjs); elsewhere from the prepared jpg as before. */
+    const fin = bodyOf(SCP, 'private void finishPick(MediaBatch live, PrepJob job, int doc, Friend chat)');
+    const prep = bodyOf(SCP, 'private static void prepareBatch(PrepJob job, List<SpixiImageData> picks, Action<int, MediaItem?, PhotoRules.PickedItem?> ready)');
+    const one = bodyOf(SCP, 'private static MediaItem? prepareOne(PrepJob job, SpixiImageData p, int i, string dir, out PhotoRules.PickedItem? shown)');
+    const rdy = bodyOf(SCP, 'private void photoReady(MediaBatch live, PrepJob job, int i, MediaItem? item, PhotoRules.PickedItem? shown, int doc, Friend chat)');
+    const alive = bodyOf(SCP, 'private bool prepAlive(MediaBatch live, PrepJob job, int doc, Friend chat)');
+    ok(/_ = Task\.Run\(\(\) =>\s*\{\s*try\s*\{\s*prepareBatch\(job, picks, \(i, item, shown\) => onMain\(\(\) => photoReady\(live, job, i, item, shown, doc, chat\)\)\);\s*\}[\s\S]*?onMain\(\(\) => finishPick\(live, job, doc, chat\)\);\s*\}\);/.test(pick)
       && count(SCP, /prepareBatch\(/g) === 2 && count(SCP, /finishPick\(/g) === 2
-      && /if \(isDisposed \|\| doc != thumbDoc \|\| friend != chat \|\| batch\.peer != friend\.walletAddress\.ToString\(\)\)\s*\{\s*foreach \(MediaItem it in batch\.items\)\s*\{\s*deleteOwnMediaFile\(it\.path\);\s*\}\s*return;\s*\}/.test(fin)
-      && count(SCP, /"mediaPicked"/g) === 2 && count(fin, /"mediaPicked"/g) === 2 && /Utils\.sendUiCommand\(this, "mediaPicked", batch\.id, PhotoRules\.pickedJson\(batch\.shown\)\);/.test(fin)
-      && /mediaDecodeGate\.Wait\(60000\)/.test(prep) && /Spixi\.SThumbnail\.makeViewerJpeg\(src, PhotoRules\.MaxEdge\)/.test(prep)
-      && /Spixi\.SThumbnail\.makeViewerJpeg\(jpg, PhotoRules\.ThumbEdge\)/.test(prep)
+      && /if \(isDisposed \|\| doc != thumbDoc \|\| friend != chat \|\| live\.peer != friend\.walletAddress\.ToString\(\)\)\s*\{\s*return;\s*\}/.test(fin)
+      && /return !isDisposed && doc == thumbDoc && friend == chat && friend != null && live\.peer == friend\.walletAddress\.ToString\(\)\s*&& ReferenceEquals\(mediaBatch, live\) && ReferenceEquals\(live\.job, job\);/.test(alive)
+      && /if \(!prepAlive\(live, job, doc, chat\) \|\| !S15MediaRules\.applyReady\(live\.shown, k, item != null \? shown : null\)\)\s*\{\s*if \(item != null\)\s*\{\s*deleteOwnMediaFile\(item\.path\);\s*\}\s*return;\s*\}/.test(rdy)   /* ★ S15 #46 r1 M3: a dead batch's prepared file is deleted */
+      && count(SCP, /"mediaPicked"/g) === 3 && count(fin, /"mediaPicked"/g) === 1 && count(rdy, /"mediaPicked"/g) === 1 && count(pick, /"mediaPicked"/g) === 1
+      && !/sendUiCommand/.test(prep + one)
+      && /mediaDecodeGate\.Wait\(60000\)/.test(one) && /Spixi\.SThumbnail\.makeViewerJpeg\(src, PhotoRules\.MaxEdge, \(scaled\) =>/.test(one) && /Spixi\.SThumbnail\.makeViewerJpeg\(src, PhotoRules\.MaxEdge\);/.test(one)
+      && /Spixi\.SThumbnail\.makeViewerJpeg\(jpg, PhotoRules\.ThumbEdge\)/.test(one)
       && /Interlocked\.Exchange\(ref mediaBusy, 0\);/.test(fin) && /if \(Interlocked\.Exchange\(ref mediaBusy, 1\) != 0\)/.test(pick),
-      'S9 A1 M4 threads: prepareBatch (the bounded copy, the sniff, the 2048 / q82 encode and the 320 thumb — one decode at a time in the process) runs in Task.Run; mediaPicked is pushed only from finishPick on the main thread, never for a torn-down page, an older document or another chat (their files go); one pick at a time per page');
+      'S9 A1 M4 threads: prepareBatch (the bounded copy, the sniff, the 2048 / q82 encode and the 320 thumb — one decode at a time in the process) runs in Task.Run; mediaPicked is pushed only on the main thread (★ S15 F: the early placeholders, each photoReady, finishPick), never for a torn-down page, an older document or another chat (their files go); one pick at a time per page');
   });
 
   /* ———— M5: mediaSend acts only on THIS page's open batch, keys of prepared items; the group is recorded before the store ———— */
@@ -274,12 +285,12 @@ export default async function (h) {
     const drop = bodyOf(SCP, 'private void dropMediaBatch()');
     const ms = bodyOf(SCP, 'private void onMediaSend(string payload)');
     const del = bodyOf(SCP, 'private static void deleteBatchFiles(MediaBatch b, ICollection<int>? keep)');
-    ok(/MediaBatch\? b = mediaBatch;\s*mediaBatch = null;\s*if \(b == null\)\s*\{\s*return;\s*\}\s*deleteBatchFiles\(b, null\);/.test(drop)
+    ok(/MediaBatch\? b = mediaBatch;\s*mediaBatch = null;\s*if \(b == null\)\s*\{\s*return;\s*\}\s*if \(b\.job != null\)\s*\{\s*b\.job\.abandoned = true;\s*\}\s*deleteBatchFiles\(b, null\);/.test(drop)   /* ★ S15 F re-base (#1302): the prepare in flight is abandoned too */
       && /foreach \(string path in PhotoRules\.pathsToDelete\(items, keep\)\)\s*\{\s*deleteOwnMediaFile\(path\);\s*\}/.test(del)
       && /dropMediaBatch\(\);/.test(bodyOf(SCP, 'private void onLoad()'))
       && /base\.OnDisappearing\(\);\s*if \(isDisposed\)\s*\{\s*dropMediaBatch\(\);\s*\}/.test(bodyOf(SCP, 'protected override void OnDisappearing()'))
       && count(ms, /dropMediaBatch\(\);/g) === 4 && /if \(b\.channel != selectedChannel\)/.test(ms)
-      && /mediaBatch = null;\s*deleteBatchFiles\(b, keys\);\s*sendMediaBatch\(b, chosen, caption\);/.test(ms),
+      && /mediaBatch = null;\s*if \(b\.job != null\)\s*\{\s*b\.job\.abandoned = true;\s*\}\s*deleteBatchFiles\(b, keys\);\s*sendMediaBatch\(b, chosen, caption\);/.test(ms),
       'S9 A1 M17 batch drops: dropMediaBatch deletes every prepared file (PhotoRules.pathsToDelete, csh); a new document, a torn-down page (after the base teardown), a refused mediaSend (malformed, another channel, an unprepared key, a chat that refuses media) drop the batch; a send deletes only the removed ones');
   });
 
@@ -313,10 +324,14 @@ export default async function (h) {
   await guard('S9 A1 M20 no metadata', async () => {
     const thumbs = ['Android', 'iOS', 'MacCatalyst', 'Windows'].map((o) => stripCode(rd('Spixi/Platforms/' + o + '/SThumbnail.cs')));
     const [and, ios, mac, win] = thumbs;
-    const av = bodyOf(and, 'public static byte[]? makeViewerJpeg(string path, int maxEdge)');
+    /* ★ S15 F re-base (#1302): the 2-argument form delegates to the one with the `derive` hook; scaledJpeg (the thumb / preview
+       from the bitmap in memory) also compresses a FRESH bitmap — pins-s15/f-strip.mjs */
+    const av = bodyOf(and, 'public static byte[]? makeViewerJpeg(string path, int maxEdge, Action<Func<int, byte[]?>>? derive)');
+    const sj = bodyOf(and, 'private static byte[]? scaledJpeg(Bitmap bmp, int edge)');
     const wv = bodyOf(win, 'private static async Task<byte[]?> makeViewerAsync(string path, int maxEdge)');
     ok(/using Bitmap oriented = Bitmap\.CreateBitmap\(decoded, 0, 0, dw, dh, m, true\);\s*using MemoryStream ms = new MemoryStream\(\);\s*if \(!oriented\.Compress\(/.test(av)
       && !/SetAttribute|SaveAttributes/.test(and)
+      && /Bitmap target = own \? Bitmap\.CreateScaledBitmap\(src, tw, th, true\)! : src;/.test(sj) && /ok = target\.Compress\(Bitmap\.CompressFormat\.Jpeg!, 82, ms\);/.test(sj)
       && [ios, mac].every((t) => { const v = bodyOf(t, 'public static byte[]? makeViewerJpeg(string path, int maxEdge)');
         return /CreateThumbnailFromImageAlways = true,/.test(v) && /using UIImage image = new UIImage\(picture\);\s*using NSData\? data = image\.AsJPEG\(0\.82f\);/.test(v) && !/CGImageDestination/.test(t); })
       && /ExifOrientationMode\.IgnoreExifOrientation/.test(wv) && /BitmapEncoder\.CreateAsync\(BitmapEncoder\.JpegEncoderId, output, props\)/.test(wv)

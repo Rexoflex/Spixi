@@ -59,8 +59,9 @@ namespace SPIXI
             {
                 // #321 (R5 parity, Damir 2026-08-10): legacy dev mode could SEND the
                 // log. Mobile/Catalyst = OS share sheet with the file attached;
-                // Windows = save to Downloads (Damir's desktop dial). C# names every
-                // path itself — nothing WebView-supplied touches the filesystem (§3).
+                // Windows = a "Save as" dialog (★ S15 O-19: was a silent write into
+                // Downloads). C# names every path itself — nothing WebView-supplied
+                // touches the filesystem (§3). ★ S15 O-19: refused unless dev mode is on.
                 onSendLog();
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal))
@@ -199,17 +200,24 @@ namespace SPIXI
         {
             try
             {
+                /* ★ S15 (O-19, #1293): the log leaves the device ONLY from dev mode. `ixian:dev` opens this page with no
+                 * dev-mode test and the ten-tap gate lives in the home shell, so C# asks its own record of that gate — the
+                 * "devMode" preference HomePage writes on ixian:enableDevMode / ixian:disableDevMode — before any copy. */
+                if (!S15SecRules.devLogExportAllowed(Preferences.Default.Get("devMode", false)))
+                {
+                    Logging.warn("DevPage: sendlog refused, dev mode is off");
+                    return;
+                }
                 string srcLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log");
                 string shareLogPath = Path.Combine(Config.spixiUserFolder, "spixi-log.txt");
                 File.Copy(srcLogPath, shareLogPath, true);
 #if WINDOWS
-                // Desktop dial (Damir 2026-08-10): SAVE, not share — timestamped into
-                // the user's Downloads, confirmed with a native alert.
-                string downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-                Directory.CreateDirectory(downloads);
-                string dest = Path.Combine(downloads, "spixi-log-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt");
-                File.Copy(shareLogPath, dest, true);
-                displaySpixiAlert("Log saved", dest, "OK");   // dev surface = English-only (#301 precedent)
+                /* Desktop dial (Damir 2026-08-10): SAVE, not share. ★ S15 (O-19, #1293): the user picks the destination in
+                 * the FileSaver "Save as" dialog — the app's one Windows save helper (SFileOperations.saveAs: share-tolerant
+                 * open, the dialog on the UI thread; the backup and the photo Save use it) — never a silent copy into
+                 * Downloads. Saved = the dialog was the confirmation (the backup's precedent); a cancel says nothing; a
+                 * failure keeps saveAs's own toast and type-only warn. */
+                await Spixi.SFileOperations.saveAs(shareLogPath);
 #else
                 await Share.RequestAsync(new ShareFileRequest
                 {

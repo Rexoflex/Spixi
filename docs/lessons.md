@@ -169,3 +169,7 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L119 | Two `ixian:` sends in one user action are two navigations; on a busy browser main thread the later one supersedes the earlier — one user action = ONE verb (carry the extra data in it), and check what a blur commits before the tap's own send | #1284, #46 r1 MAJ-1 |
 | L120 | `<TargetSdkVersion>` in the csproj is ignored by .NET Android — read the MERGED manifest (`obj/…/AndroidManifest.xml`) before reasoning about API-level behaviour (target 36 = predictive back on Android 16) | #1280 |
 | L121 | Removing a live DOM node and inserting it again (`replaceChildren(node)`) restarts every CSS animation inside it — settle a slide by removing the OTHER nodes | #1287 |
+| L122 | A file only ONE code path writes is a stale orphan: before a restore writes it, ask who reads it and who deletes it (the root avatar.jpg). | #1297 | — |
+| L123 | A transform counts toward scrollHeight: take a running animation off before you measure the layout it moves. | #1307 | — |
+| L124 | A range assert ("between 50 and 80") lets a wrong formula pass — freeze the clock and assert the exact value. | #1307 | — |
+| L125 | After a context reset, read the twin's `git log` and the scratch folder before acting: the work may already be done. | S15 | — |

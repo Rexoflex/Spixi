@@ -99,6 +99,8 @@ export function createComposer({
   const textLen = () => input.value.trim().length;
   /* ★ S10 P1 (#1254): while the media strip holds photos the text is the CAPTION — its own (smaller) cap wins */
   const mediaN = () => (composerMedia.get(el) || { n: 0 }).n;
+  /* ★ S15 F (#1302, Damir 2026-10-10): a strip tile is still being prepared by C# → Send is blocked (disabled + aria-busy) */
+  const mediaBusy = () => !!(composerMedia.get(el) || {}).busy;
   const capMax = () => {
     const m = composerMedia.get(el);
     return m && m.n > 0 && m.maxLength > 0 ? (maxLength > 0 ? Math.min(maxLength, m.maxLength) : m.maxLength) : maxLength;
@@ -128,6 +130,7 @@ export function createComposer({
   };
 
   const syncAction = () => {
+    action.removeAttribute('aria-busy');   // ★ S15 F: only the strip's send branch below sets it
     /* ★ #1208 (S7): while the RECORDING BAR is up (C# pushed voiceRec recording / stopped) the trailing disc is
        "Send voice message" — the same 44 disc in the same place, so the bar swap moves nothing. It wins over every
        other mode: the bar hides the field, so neither a draft nor a reply / edit context can be sent from here. */
@@ -169,7 +172,8 @@ export function createComposer({
     } else {
       sendIcon();
       action.dataset.mode = 'send';
-      action.disabled = (!hasText() && !mediaN()) || overLimit();   // ★ S10 P1: ≥ 1 photo in the strip sends with no text
+      action.disabled = (!hasText() && !mediaN()) || overLimit() || mediaBusy();   // ★ S10 P1: ≥ 1 photo in the strip sends with no text
+      if (mediaBusy()) action.setAttribute('aria-busy', 'true');   // ★ S15 F: photos still preparing
       action.setAttribute('aria-label', strings.send || 'Send');
     }
   };
@@ -191,6 +195,7 @@ export function createComposer({
     // funnel through here, so this one return covers them.
     /* ★ S10 P1: a CAPTION over the strip's cap (MEDIA_CAPTION_MAX) bails the same way, with the shell's caption toast */
     const media = composerMedia.get(el);
+    if (media && media.n > 0 && media.busy) return;   // ★ S15 F: Enter while a photo is still preparing — nothing (the caption stays)
     if (media && media.n > 0 && media.maxLength > 0 && text.length > media.maxLength) {
       const cb = media.onTooLong || onTooLong;
       if (cb) { try { cb(text.length, media.maxLength); } catch (_) {} }
@@ -658,11 +663,12 @@ const VOICE_REC_MAX_MS = 30000;        // ★ #1208 (1): 30 s total — the same
    an empty field; the text is the caption: `maxLength` caps it (over it = no send, `onTooLong(len, max)` — the shell's
    caption toast). n = 0 → today's composer. */
 const composerMedia = new WeakMap();   // composer el → { n, maxLength, onTooLong }
-/** setComposerMedia(el, n, { maxLength, onTooLong }) — the shell's strip state (0 = no strip). */
-export function setComposerMedia(el, n, { maxLength = 0, onTooLong = null } = {}) {
+/** setComposerMedia(el, n, { maxLength, onTooLong, busy }) — the shell's strip state (0 = no strip). ★ S15 F (#1302):
+ *  busy = a tile is still being prepared → Send disabled + aria-busy, Enter sends nothing. */
+export function setComposerMedia(el, n, { maxLength = 0, onTooLong = null, busy = false } = {}) {
   if (!el) return;
   const c = Math.max(0, Number(n) || 0);
-  if (c) composerMedia.set(el, { n: c, maxLength: Number(maxLength) || 0, onTooLong });
+  if (c) composerMedia.set(el, { n: c, maxLength: Number(maxLength) || 0, onTooLong, busy: !!busy });
   else composerMedia.delete(el);
   resyncComposer(el);
 }

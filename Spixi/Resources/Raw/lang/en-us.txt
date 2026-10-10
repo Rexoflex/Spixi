@@ -625,6 +625,7 @@ wallet-error-amount-text = Please enter a valid amount.
 wallet-error-amountdecimal-text = Please enter the correct decimal amount.
 wallet-error-balance-title = Insufficient Balance
 wallet-error-balance-text = Balance is too low for this transaction. Total cost of the transaction is {0}, while current balance is {1}.
+wallet-error-balance-fee-text = The amount plus the network fee is more than your available balance.
 
 ; Onboarding join official bot
 onboarding-bot-title = Be part of Spixi’s journey

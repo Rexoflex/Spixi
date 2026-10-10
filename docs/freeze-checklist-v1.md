@@ -49,6 +49,7 @@ gates that sit before it). Damir ticks each box; the tag (G-1t) is set only when
 | [ ] | OURS-OPEN 3 | O-40: password form in `settings.html` (second host, parked WebView) | OPEN (#1273) | us + Damir | fix, or Damir's accept row |
 | [ ] | OURS-OPEN 4 | 21 carried ⛔ O-rows | OPEN — `docs/security-handover-gate.md:1165-1189` | us + Damir | each fixed, accepted, or moved to BE (A-5) — may run after the tag, before handover |
 | [ ] | UNPROVEN | §4.4 Windows mini-app storage partition · 79 new `ex.Message` log lines | UNPROVEN (#1273) | us + Damir | Windows dev-tools line (A-4, `0\|null`) · log-line read: no secret / address in a message |
+| [ ] | O-35 | Every STORE build passes `-p:SpixiStoreRelease=true` — e.g. `dotnet publish Spixi/Spixi.csproj -f net10.0-android -c Release -p:SpixiStoreRelease=true` (same flag for `-f net10.0-ios` / Windows); never `-p:SpixiDevCoexist=true` | gate BUILT S15 — target `SpixiStoreReleaseGate` in `Spixi/Spixi.csproj` refuses Debug, `SpixiDevCoexist=true` or `SPIXI_DEV_COEXIST` (#1293) | Damir (each store build) | the build log shows `Spixi store-release gate (O-35): passed` |
 | [ ] | G-3b | `file:line` proof per SECURITY.md invariant | DONE S13 — `docs/security-sweep-s13.md` Part 2 (#1269 (4)) | us | — |
 | [ ] | G-3e | Every T2 "blocks S5 / S6" row decided | CLOSED S13 from the inventory (#1269 (4)); H-5 · H-20 · H-22 (R-01) stay open as T2 rows | Damir | — |
 | [ ] | G-3a / G-3c | Architecture map + refactor inventory | MOVED after `freeze-v1` (#1269 (4)) | us → Damir | runs in S7, before the S8 picks |

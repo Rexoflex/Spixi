@@ -476,3 +476,16 @@ _to_delete_*
 /twin*.tar.gz
 # session scratch runners (isolated pin slices, render/measure harnesses) — never tracked (#337 debris class)
 scripts/_*.tmp.mjs
+# ★ S15 (O-27, #1293) — DEVICE CAPTURES AND SESSION OUTPUT NEVER ENTER GIT. A 64 MB system-wide
+# logcat (device fingerprint + other apps' activity), memory dumps, a repro script and the
+# session-delivery folder were committed (security-handover-gate O-27). Root-anchored, so
+# docs/ and scripts/ stay tracked. Damir untracks the existing copies with `git rm --cached`
+# (the files stay on disk). Pinned: scripts/pins-s15/d-build.mjs.
+/crash-logcat.txt
+/*logcat*.txt
+/mem-chats.txt
+/mem-seed01.txt
+/mem-*.txt
+/f5repro.mjs
+/README-FIRST.txt
+/Claude outputs/

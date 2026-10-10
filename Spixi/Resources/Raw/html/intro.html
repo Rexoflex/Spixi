@@ -3400,7 +3400,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    *   ★ S9 (#1246, 🟡 NEW): reportTranslation:<langCode> (the language note's link)
    * Pushes: setVersion · showTerms · showOnboardingSection · loadAvatar ·
    *   setUploadedFileName · showPasswordError · removeLoadingOverlay ·
-   *   setLaunchView.
+   *   setLaunchView · ★ S15 (O-04): wipeLocalState (the existing settings push, no new verb).
    *
    * Contract source of truth: Spixi/Pages/Launch/LaunchPage.xaml.cs.
    * Spec: docs/launch-spec.md.
@@ -3564,6 +3564,22 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     setVersion: (v) => setLaunchVersion(el, v),
     showTerms: () => { termsRequired = true; },      // arm the one-shot ixian:accept
     showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs
+    /* ★ S15 (O-04, #1293): a launch with NO wallet file on the device starts from a clean WebView store. C# pushes this
+       from LaunchPage.onLoad ONLY when no wallet file exists, so every spixi.* key it meets belongs to an
+       account that no longer exists (an old wipe, a half restore, a cleared wallet) and a create or restore can never
+       inherit it. Same sweep as settings.html wipeLocalState (the spixi.* keys + the QR scanner's cache); the store is
+       ONE for every Spixi shell (no platform gives a shell its own), so clearing here clears it for all. Never a push
+       when a wallet file exists (the retry view, LockPage's "change" path): that store belongs to a live account. */
+    wipeLocalState() {
+      try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('spixi.') || k === 'HTML5_QRCODE_DATA')) keys.push(k);
+        }
+        for (const k of keys) { try { localStorage.removeItem(k); } catch (e) { /* one key must not stop the sweep */ } }
+      } catch (e) { /* storage unavailable — nothing to wipe */ }
+    },
     // ★ N75: C# view router (hardware back, and the retry lockout falling back to
     // welcome). setLaunchView ignores an unknown or unchanged view.
     setLaunchView: (v) => setLaunchViewOf(el, String(v || '')),
@@ -3722,6 +3738,6 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   if (document.readyState === 'complete') signalReady();
   else window.addEventListener('load', signalReady, { once: true });
 </script>
-<script>(function(){var m=[!window.SpixiIcons&&"spixi.icons.js",!window.SpixiStrings&&"spixi.strings.js",!window.Spixi&&"spixi.bundle.js",!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css",!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"].filter(Boolean);if(!m.length)return;console.error("SPIXI: shared asset did not load: "+m.join(", "));document.documentElement.innerHTML='<pre style="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b">Spixi could not load: '+m.join(", ")+'\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs</pre>';})();</script>
+<script>(function(){var m=[!window.SpixiIcons&&"spixi.icons.js",!window.SpixiStrings&&"spixi.strings.js",!window.Spixi&&"spixi.bundle.js",!getComputedStyle(document.documentElement).getPropertyValue("--spacing-16").trim()&&"spixi.tokens.css",!getComputedStyle(document.documentElement).getPropertyValue("--spixi-base-css").trim()&&"spixi.base.css"].filter(Boolean);if(!m.length)return;console.error("SPIXI: shared asset did not load: "+m.join(", "));var r=document.documentElement,b=document.createElement("body"),p=document.createElement("pre");p.style.cssText="margin:0;padding:24px;font:13px/1.5 monospace;color:#f66;background:#13171b";p.textContent="Spixi could not load: "+m.join(", ")+"\n\nThe shell and its shared assets must sit in the SAME folder.\nRe-run: node scripts/build-shells.mjs";while(r.firstChild)r.removeChild(r.firstChild);b.appendChild(p);r.appendChild(b);})();</script>
 </body>
 </html>

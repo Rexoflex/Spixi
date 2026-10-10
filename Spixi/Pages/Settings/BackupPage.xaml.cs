@@ -364,9 +364,16 @@ namespace SPIXI
                     {
                         archive.CreateEntryFromFile(Path.Combine(Config.spixiUserFolder, "account.ixi"), "account.ixi");
                     }
-                    if (File.Exists(Path.Combine(Config.spixiUserFolder, "avatar.jpg")))
+                    /* ★ S15 (#1297, Damir 2026-10-10): the REAL own avatar. The legacy line packed <user>/avatar.jpg (the root),
+                     * a path only a restore ever wrote and nothing ever read — so a backup carried a stale avatar or none.
+                     * The app's own avatar is Core's getOwnAvatarPath(false) (= html/Avatars/avatar.jpg).
+                     * ★ S15 #46 r1 (MINOR-1): under a NEW entry name, RestoreMoves.OwnAvatarEntry ("own_avatar.jpg"), the only
+                     * entry the restore puts back there. A legacy backup's "avatar.jpg" entry is the stale root file (a removed
+                     * avatar, another account's) — the restore ignores it, as before S15, so it is never served to peers. */
+                    string ownAvatar = IxianHandler.localStorage.getOwnAvatarPath(false);
+                    if (File.Exists(ownAvatar))
                     {
-                        archive.CreateEntryFromFile(Path.Combine(Config.spixiUserFolder, "avatar.jpg"), "avatar.jpg");
+                        archive.CreateEntryFromFile(ownAvatar, RestoreMoves.OwnAvatarEntry);
                     }
                     archive.CreateEntryFromFile(Path.Combine(Config.spixiUserFolder, Config.walletFile), "wallet.ixi");
                 }

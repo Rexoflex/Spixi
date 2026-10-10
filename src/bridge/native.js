@@ -227,12 +227,14 @@ export function installExecuteUiCommand(win) {
       // which previously dropped the WHOLE command (e.g. setBalance's nick is
       // null before the profile loads → the balance push vanished). Treat
       // null/undefined as an empty string so the rest of the args still deliver.
-      // PERF (Damir F5 2026-08-13): an argument that is ALREADY a `data:` URI arrives
-      // VERBATIM — Utils.sendUiCommand skips the base64 re-encode for it, because
-      // re-encoding an already-base64 240 KB icon inflated it to 320 KB on every push
-      // and cost a full atob on this side. Unambiguous: ':' is outside the base64
-      // alphabet, so a real base64 payload can never start with "data:". Everything
-      // else keeps the base64 contract exactly as before.
+      // A leading `data:` passes through undecoded. ★ S15 (O-11, #1293): C# no longer
+      // sends one — Utils.sendUiCommand base64-encodes EVERY argument again (the #340 raw
+      // data-URI fast path is removed), and ':' is outside the base64 alphabet, so no
+      // C# argument can take this branch. It stays because a strict decode here would
+      // buy nothing — the JS-literal risk was on the C# side, where the value was
+      // composed, and that path is gone — while dropping it would turn a raw data: URI
+      // from any other caller (the suite's push helpers use one) into a failed atob that
+      // loses the whole command.
       for (let i = 1; i < arguments.length; i++) {
         const a = arguments[i];
         if (a == null) { args.push(''); continue; }

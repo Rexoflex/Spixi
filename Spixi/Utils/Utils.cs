@@ -282,58 +282,14 @@ namespace SPIXI
             return $"{(bytes / 1024.0 / 1024.0):0.##} MB";
         }
 
-        // PERF (Damir F5 2026-08-13, apps tab "always reloads some images"): imageToDataUri
-        // already produces a base64 payload ("data:image/png;base64,…"), and escapeHtmlParameter
-        // base64-encoded it a SECOND time for transport — a 240 KB app icon / avatar became
-        // 320 KB on EVERY push, and the shell paid a full atob to get back to the string C#
-        // started from. A data: URI is transport-safe on its own (RFC 2397 alphabet, no quote /
-        // backslash / newline), so sendUiCommand emits it verbatim and the shell dispatcher
-        // passes it straight through (src/bridge/native.js — ':' can never occur in base64, so
-        // "data:" is an unambiguous marker). escapeHtmlParameter itself is UNCHANGED: every
-        // other argument, and every other caller, keeps the base64 contract exactly as before.
-        //
-        // The whitelist below is the SAFETY GATE, not a convenience: the value is dropped into
-        // a single-quoted JS literal, so anything that could break out of it (quote, backslash,
-        // CR/LF, U+2028/9, backtick, ${) must fall back to the encoded path. Note imageToDataUri
-        // passes a RAW PATH through untouched when the file can't be read, and any string
-        // argument (a chat message, a nickname) can legitimately begin with "data:" — every one
-        // of those either fails the whitelist and gets encoded, or is character-for-character
-        // round-trip identical, which is all the contract requires.
-        //
-        // #340 audit (A-MAJOR-1/2) — THE WHITELIST IS NOT ENOUGH ON ITS OWN. The passthrough
-        // is only correct where the RECEIVER was taught it, and "round-trip identical" above
-        // silently assumed every receiver runs src/bridge/native.js. One still does not
-        // (a second class — the legacy Raw/html pages decoding with js/spixi.js's unguarded
-        // atob, where a peer-chosen nickname of "data:;base64,x" THREW on the ':' and
-        // dropped the whole push — is gone: Session N deleted the last four of them):
-        //   · MiniAppPage points its WebView at the app's own entry point; its SDK decoder
-        //     ships inside third-party app packages and can never be re-generated. The
-        //     documented contract there is base64-per-argument, frozen.
-        // So the fast path is now gated on the TARGET PAGE (contentPage.supportsRawDataUriArgs,
-        // which fails CLOSED), not on the shape of the value. The whitelist stays as the
-        // second gate: receiver-allowed AND value-safe.
-        private static bool isTransportSafeDataUri(string arg)
-        {
-            if (!arg.StartsWith("data:", StringComparison.Ordinal)
-                || arg.IndexOf(";base64,", StringComparison.Ordinal) < 0)
-            {
-                return false;
-            }
-            for (int i = 5; i < arg.Length; i++)
-            {
-                char c = arg[i];
-                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
-                {
-                    continue;
-                }
-                if (c != '+' && c != '/' && c != '=' && c != ';' && c != ',' && c != '.' && c != '-')
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
+        // ★ S15 (O-11, #1293): EVERY argument is base64-encoded (escapeHtmlParameter), the baseline contract. The #340
+        // fast path that emitted a "data:…;base64,…" argument VERBATIM inside the single-quoted JS literal (to spare a
+        // 240 KB icon the second base64 pass) is removed with its two gates — the receiver gate (supportsRawDataUriArgs)
+        // and the value whitelist (isTransportSafeDataUri). No exposure was found in it, but it was ours (introduced at
+        // #340), so it goes: a value C# did not encode can no longer reach a JS literal from here. The cost is stated:
+        // a data: URI argument (avatar, app icon, file thumb) travels 4/3 larger again and the shell pays one atob.
+        // src/bridge/native.js still passes a leading "data:" through, but nothing in C# can reach that branch now —
+        // this is the only composer of executeUiCommand, and the base64 alphabet has no ':'.
         public static void sendUiCommand(SpixiContentPage contentPage, string command, params string[] arguments)
         {
             try
@@ -341,16 +297,12 @@ namespace SPIXI
                 string cmd_str = "executeUiCommand(" + command;
                 StringBuilder sb = new StringBuilder(cmd_str);
 
-                // #340: receiver gate FIRST — see isTransportSafeDataUri's header. Mini-app
-                // WebViews (never loadPage'd) keep the base64 contract unconditionally.
-                bool raw_data_uri_ok = contentPage != null && contentPage.supportsRawDataUriArgs;
-
                 foreach (string arg in arguments)
                 {
                     if (arg != null)
                     {
                         sb.Append(",");
-                        sb.Append("'" + ((raw_data_uri_ok && isTransportSafeDataUri(arg)) ? arg : escapeHtmlParameter(arg)) + "'");
+                        sb.Append("'" + escapeHtmlParameter(arg) + "'");
                     }
                     else
                     {

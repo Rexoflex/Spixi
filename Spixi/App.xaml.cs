@@ -509,9 +509,11 @@ public partial class App : Application
     // before selecting a file", Damir's Android walk). A picker round-trip is a
     // continuous in-app flow: the NEXT resume within a bounded window skips the
     // lock. One-shot (consumed on EVERY resume, matched or not — a stranded
-    // stamp can never suppress a later real background) + time-bounded 5 min
-    // (loop MINOR-4 tightened from 10: a phone left sitting in the picker is
-    // grabbable lock-free for the window; privacy posture #232). Launch sites
+    // stamp can never suppress a later real background) + time-bounded
+    // (loop MINOR-4 tightened 10 → 5 min; ★ S15 (O-29, #1293): 5 min → ~60 s,
+    // S15SecRules.OwnIntentWindowSeconds — a phone left sitting in the picker is
+    // grabbable lock-free for the window, and the round trip it exists for takes
+    // seconds; privacy posture #232). Launch sites
     // clear the stamp when the intent THROWS (the stranded-stamp path). Known
     // benign residual: an OS permission dialog between stamp and picker can
     // consume the stamp early → that round-trip locks like before.
@@ -528,7 +530,7 @@ public partial class App : Application
     {
         TimeSpan age = DateTime.Now - ownIntentStamp;
         ownIntentStamp = DateTime.MinValue;
-        return age.TotalSeconds >= 0 && age.TotalMinutes < 5;
+        return S15SecRules.ownIntentWithinWindow(age);   // ★ S15 (O-29, #1293): one named window, ~60 s
     }
 
     /* ★ #454 — PRESENT THE LOCK ON THE WAY OUT, NOT ON THE WAY BACK.
@@ -574,7 +576,7 @@ public partial class App : Application
     private static bool ownIntentFresh()
     {
         TimeSpan age = DateTime.Now - ownIntentStamp;
-        return age.TotalSeconds >= 0 && age.TotalMinutes < 5;
+        return S15SecRules.ownIntentWithinWindow(age);   // ★ S15 (O-29): the SAME window as the consume
     }
 
     /** Called from the platform pause hook. Safe to call when nothing should happen. */

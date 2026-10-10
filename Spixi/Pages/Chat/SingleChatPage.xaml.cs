@@ -991,6 +991,7 @@ namespace SPIXI
                     SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
                     SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                     SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+                    SNotificationPrefs.forgetContact(friend.walletAddress.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
                 }
 
                 /* ★ #46 loop B, MAJOR-1 — THE RECORD IS GONE, SO SAY SO.
@@ -2673,6 +2674,21 @@ namespace SPIXI
             public List<MediaItem> items = new List<MediaItem>();
             public List<PhotoRules.PickedItem> shown = new List<PhotoRules.PickedItem>();
             public List<string> errors = new List<string>();
+            public PrepJob? job = null;   // ★ S15 F (#1302, Damir 2026-10-10): the prepare in flight for this batch (its placeholders), or none
+        }
+
+        /* ★ S15 F (#1302, Damir 2026-10-10: "both"): ONE prepare in flight (mediaBusy). The strip shows a placeholder per
+         * picked photo at once; the worker fills them one by one. `keys` are reserved on the main thread BEFORE the worker
+         * starts; `skip` (a pending tile's ✕) and `abandoned` (the batch ended) are the only fields both threads touch. */
+        private sealed class PrepJob
+        {
+            public string id = "";                                  // names only the pending FILES (pending-<id>-<i>)
+            public List<int> keys = new List<int>();                // pick i → its reserved strip key (main thread, before the worker)
+            public List<string> errors = new List<string>();        // the worker's; read on the main thread after it ended
+            public volatile bool abandoned = false;                 // the batch ended (send / cancel / new document) → the rest is skipped
+            public readonly ConcurrentDictionary<int, byte> skip = new ConcurrentDictionary<int, byte>();   // keys ✕-ed while pending
+            public long t0 = 0;                                     // P1Perf.now() at the first push
+            public long firstMs = -1;                               // ms to the first ready photo (worker), -1 = none
         }
 
         private MediaBatch? mediaBatch = null;   // the ONE open batch of this page (main thread)
@@ -2902,36 +2918,66 @@ namespace SPIXI
                     disposePicks(picks, 0);
                     return;
                 }
-                /* ★ S10 P1: the new photos are prepared into a TEMP batch `add` (its own id names only the pending FILES —
-                 * MediaItem.path carries the path, so a key ≠ the file index is fine); finishPick appends it to `target` or
-                 * makes it the open batch. Extras past the free slots → tooMany (prepareBatch disposes them). */
+                /* ★ S15 F (#1302, Damir 2026-10-10: "both" — tiles at once): the strip opens NOW, before any decode. On the main
+                 * thread: the append target is re-checked (the strip may have ended while the picker was up), each photo
+                 * gets its strip key up front (S15MediaRules.reserveKeys — the smallest free ones beside the batch's ready
+                 * AND pending keys; none left → tooMany), a PLACEHOLDER per key goes into the batch's list, the batch is
+                 * the open one (mediaBatch) BEFORE the first push — so a ✕ / cancel on a placeholder finds it — and
+                 * mediaPicked pushes the list. The worker then fills the placeholders one by one (photoReady) and
+                 * finishPick pushes the final list. The pending FILES are named by the job's own id (pending-<id>-<i>);
+                 * MediaItem.path carries the path, so a key ≠ the file index is fine (S10 P1). */
+                if (target != null && (!ReferenceEquals(mediaBatch, target) || target.peer != friend.walletAddress.ToString() || target.channel != selectedChannel))
+                {
+                    target = null;
+                }
                 string batchId = PhotoRules.idFromBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8));
-                MediaBatch batch = new MediaBatch
+                MediaBatch live;
+                if (target != null)
+                {
+                    live = target;   // ★ S10 P1: append to the open batch of this chat + channel
+                }
+                else
+                {
+                    dropMediaBatch();   // ★ S10 P1: only a stale other-channel batch is replaced here (the shell cancels it too)
+                    live = new MediaBatch
+                    {
+                        id = batchId,
+                        peer = friend.walletAddress.ToString(),
+                        channel = selectedChannel,
+                        route = route,
+                    };
+                }
+                PrepJob job = new PrepJob
                 {
                     id = batchId,
-                    peer = friend.walletAddress.ToString(),
-                    channel = selectedChannel,
-                    route = route,
+                    keys = S15MediaRules.reserveKeys(S15MediaRules.keysOf(live.shown), Math.Min(picks.Count, free)),
+                    t0 = P1Perf.now(),
                 };
-                int take = Math.Min(picks.Count, free);
-                if (picks.Count > free)
+                if (picks.Count > job.keys.Count)
                 {
-                    batch.errors.Add(PhotoRules.ErrTooMany);
+                    job.errors.Add(PhotoRules.ErrTooMany);
                 }
+                foreach (int k in job.keys)
+                {
+                    live.shown.Add(S15MediaRules.placeholder(k));
+                }
+                live.job = job;
+                mediaBatch = live;
                 int doc = thumbDoc;
                 Friend chat = friend;
                 handedOver = true;
+                Utils.sendUiCommand(this, "mediaPicked", live.id, PhotoRules.pickedJson(live.shown));   // ★ S15 F: the tiles at once
                 _ = Task.Run(() =>
                 {
                     try
                     {
-                        prepareBatch(batch, picks, take);
+                        prepareBatch(job, picks, (i, item, shown) => onMain(() => photoReady(live, job, i, item, shown, doc, chat)));
                     }
                     catch (Exception e)
                     {
                         Logging.warn("Media: the photos could not be prepared (" + e.GetType().Name + ")");
                     }
-                    onMain(() => finishPick(batch, target, doc, chat));
+                    onMain(() => finishPick(live, job, doc, chat));
                 });
             }
             catch (Exception e)
@@ -2955,155 +3001,212 @@ namespace SPIXI
             }
         }
 
-        /** OFF the UI thread: the first `take` picked images → C#'s own Sent/pending-<batch>-<k>.jpg (the #1158 rule) + the
-         *  strip thumbnail. */
-        private static void prepareBatch(MediaBatch batch, List<SpixiImageData> picks, int take)
+        /** OFF the UI thread: the picked images, one at a time, → C#'s own Sent/pending-<job>-<i>.jpg (the #1158 rule) + the
+         *  strip thumbnail. ★ S15 F (#1302, Damir 2026-10-10): each photo is handed to `ready` (pick index, the item + its
+         *  strip entry, or nulls when it failed) as soon as it is done — the caller posts it to the main thread. A key whose
+         *  tile was ✕-ed while pending (job.skip) is never read; a batch that ended (job.abandoned) stops the loop. */
+        private static void prepareBatch(PrepJob job, List<SpixiImageData> picks, Action<int, MediaItem?, PhotoRules.PickedItem?> ready)
         {
             try
             {
                 string dir = sentFolder();
                 ensureSentFolder(dir);
-                for (int k = 0; k < take && k < picks.Count && k < PhotoRules.MaxBatch; k++)
+                for (int i = 0; i < job.keys.Count && i < picks.Count && i < PhotoRules.MaxBatch; i++)
                 {
-                    SpixiImageData p = picks[k];
-                    string? srcLeaf = PhotoRules.pendingFileName(batch.id, k, ".src");
-                    string? jpgLeaf = PhotoRules.pendingFileName(batch.id, k, ".jpg");
-                    if (p == null || p.stream == null || srcLeaf == null || jpgLeaf == null)
+                    if (job.abandoned)
                     {
-                        batch.errors.Add(PhotoRules.ErrDecode);
-                        continue;
+                        break;
                     }
-                    string src = Path.Combine(dir, srcLeaf);
-                    string jpg = Path.Combine(dir, jpgLeaf);
-                    try
+                    SpixiImageData p = picks[i];
+                    if (job.skip.ContainsKey(job.keys[i]))
                     {
-                        long got = PhotoRules.copyBounded(p.stream, src, PhotoRules.SourceMax, out _);
-                        if (got < 0)
-                        {
-                            batch.errors.Add(PhotoRules.ErrTooBig);
-                            continue;
-                        }
-                        if (got == 0 || !ImageSniff.looksLikeImage(SharedItems.readHead(src)))
-                        {
-                            deleteOwnMediaFile(src);
-                            batch.errors.Add(PhotoRules.ErrDecode);
-                            continue;
-                        }
-                        byte[]? photo = null;
-                        byte[]? thumb = null;
-                        byte[]? offerPreview = null;
-                        if (mediaDecodeGate.Wait(60000))
-                        {
-                            try
-                            {
-                                photo = Spixi.SThumbnail.makeViewerJpeg(src, PhotoRules.MaxEdge);
-                                deleteOwnMediaFile(src);
-                                if (photo != null && PhotoRules.jpegSize(photo, out _, out _))
-                                {
-                                    File.WriteAllBytes(jpg, photo);
-                                    thumb = Spixi.SThumbnail.makeViewerJpeg(jpg, PhotoRules.ThumbEdge);
-                                    /* ★ S11 G (#1258): the offer's preview — re-encoded from the DECODED pixels of this same prepared
-                                       photo (no metadata, the S9 encoder pin), ≤ 8 KB at ~96 px, a smaller rung if it does not fit,
-                                       else none (S11MediaRules.pickOfferPreview). Off the UI thread, inside the one decode gate. */
-                                    string prepared = jpg;
-                                    offerPreview = S11MediaRules.pickOfferPreview((edge) => Spixi.SThumbnail.makeViewerJpeg(prepared, edge));
-                                }
-                            }
-                            finally
-                            {
-                                mediaDecodeGate.Release();
-                            }
-                        }
-                        deleteOwnMediaFile(src);
-                        if (photo == null || !PhotoRules.jpegSize(photo, out int w, out int h) || !File.Exists(jpg))
-                        {
-                            deleteOwnMediaFile(jpg);
-                            batch.errors.Add(PhotoRules.ErrDecode);
-                            continue;
-                        }
-                        batch.items.Add(new MediaItem { k = k, path = jpg, preview = offerPreview });
-                        batch.shown.Add(new PhotoRules.PickedItem
-                        {
-                            k = k.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                            thumb = thumb != null && PhotoRules.thumbOk(thumb.Length) ? "data:image/jpeg;base64," + Convert.ToBase64String(thumb) : "",
-                            w = w,
-                            h = h,
-                            kb = PhotoRules.kbOf(photo.Length),
-                        });
+                        try { p?.stream?.Dispose(); } catch (Exception) { }
+                        continue;   // ✕-ed while pending: never copied, never decoded
                     }
-                    catch (Exception e)
+                    MediaItem? item = prepareOne(job, p, i, dir, out PhotoRules.PickedItem? shown);
+                    if (item != null && job.firstMs < 0)
                     {
-                        Logging.warn("Media: a photo could not be prepared (" + e.GetType().Name + ")");
-                        deleteOwnMediaFile(src);
-                        deleteOwnMediaFile(jpg);
-                        batch.errors.Add(PhotoRules.ErrDecode);
+                        job.firstMs = P1Perf.msSince(job.t0);
                     }
-                    finally
-                    {
-                        try { p.stream?.Dispose(); } catch (Exception) { }
-                    }
+                    ready(i, item, shown);
                 }
             }
             finally
             {
-                disposePicks(picks, 0);   // the extras past MaxBatch (and any left open) — a second Dispose is harmless
+                disposePicks(picks, 0);   // the extras past the reserved keys (and any left open) — a second Dispose is harmless
             }
         }
 
-        /** Main thread: the new photos are ready — append them to `target` when it is still the open batch of this chat +
-         *  channel (each takes the smallest free key; none left → that file goes + tooMany), else they become the open batch;
-         *  push the FULL list (mediaPicked) and tell each distinct error once (mediaError). A torn-down page / an older
-         *  document / another chat gets nothing and its files go. */
-        private void finishPick(MediaBatch batch, MediaBatch? target, int doc, Friend chat)
+        /** OFF the UI thread: ONE picked image → its prepared file + strip entry, or null (the error code is in job.errors). */
+        private static MediaItem? prepareOne(PrepJob job, SpixiImageData p, int i, string dir, out PhotoRules.PickedItem? shown)
         {
+            shown = null;
+            string? srcLeaf = PhotoRules.pendingFileName(job.id, i, ".src");
+            string? jpgLeaf = PhotoRules.pendingFileName(job.id, i, ".jpg");
+            if (p == null || p.stream == null || srcLeaf == null || jpgLeaf == null)
+            {
+                job.errors.Add(PhotoRules.ErrDecode);
+                return null;
+            }
+            string src = Path.Combine(dir, srcLeaf);
+            string jpg = Path.Combine(dir, jpgLeaf);
             try
             {
-                if (isDisposed || doc != thumbDoc || friend != chat || batch.peer != friend.walletAddress.ToString())
+                long got = PhotoRules.copyBounded(p.stream, src, PhotoRules.SourceMax, out _);
+                if (got < 0)
                 {
-                    foreach (MediaItem it in batch.items)
+                    job.errors.Add(PhotoRules.ErrTooBig);
+                    return null;
+                }
+                if (got == 0 || !ImageSniff.looksLikeImage(SharedItems.readHead(src)))
+                {
+                    deleteOwnMediaFile(src);
+                    job.errors.Add(PhotoRules.ErrDecode);
+                    return null;
+                }
+                byte[]? photo = null;
+                byte[]? thumb = null;
+                byte[]? offerPreview = null;
+                if (mediaDecodeGate.Wait(60000))
+                {
+                    try
                     {
-                        deleteOwnMediaFile(it.path);
+#if ANDROID
+                        /* ★ S15 F (#1302, Damir 2026-10-10): ONE decode per photo on Android — the 320 strip thumb and the
+                           offer preview ladder (S11 G) are scaled from the oriented ≤ 2048 bitmap still in memory (the
+                           `derive` hook of makeViewerJpeg: same encoder, q82, no metadata), not re-decoded from the jpg. */
+                        photo = Spixi.SThumbnail.makeViewerJpeg(src, PhotoRules.MaxEdge, (scaled) =>
+                        {
+                            thumb = scaled(PhotoRules.ThumbEdge);
+                            offerPreview = S11MediaRules.pickOfferPreview(scaled);
+                        });
+                        deleteOwnMediaFile(src);
+                        if (photo != null && PhotoRules.jpegSize(photo, out _, out _))
+                        {
+                            File.WriteAllBytes(jpg, photo);
+                        }
+#else
+                        photo = Spixi.SThumbnail.makeViewerJpeg(src, PhotoRules.MaxEdge);
+                        deleteOwnMediaFile(src);
+                        if (photo != null && PhotoRules.jpegSize(photo, out _, out _))
+                        {
+                            File.WriteAllBytes(jpg, photo);
+                            thumb = Spixi.SThumbnail.makeViewerJpeg(jpg, PhotoRules.ThumbEdge);
+                            /* ★ S11 G (#1258): the offer's preview — re-encoded from the DECODED pixels of this same prepared
+                               photo (no metadata, the S9 encoder pin), ≤ 8 KB at ~96 px, a smaller rung if it does not fit,
+                               else none (S11MediaRules.pickOfferPreview). Off the UI thread, inside the one decode gate. */
+                            string prepared = jpg;
+                            offerPreview = S11MediaRules.pickOfferPreview((edge) => Spixi.SThumbnail.makeViewerJpeg(prepared, edge));
+                        }
+#endif
+                    }
+                    finally
+                    {
+                        mediaDecodeGate.Release();
+                    }
+                }
+                deleteOwnMediaFile(src);
+                if (photo == null || !PhotoRules.jpegSize(photo, out int w, out int h) || !File.Exists(jpg))
+                {
+                    deleteOwnMediaFile(jpg);
+                    job.errors.Add(PhotoRules.ErrDecode);
+                    return null;
+                }
+                shown = new PhotoRules.PickedItem
+                {
+                    k = "",   // set on the main thread from the reserved key (S15MediaRules.applyReady)
+                    thumb = thumb != null && PhotoRules.thumbOk(thumb.Length) ? "data:image/jpeg;base64," + Convert.ToBase64String(thumb) : "",
+                    w = w,
+                    h = h,
+                    kb = PhotoRules.kbOf(photo.Length),
+                };
+                return new MediaItem { k = -1, path = jpg, preview = offerPreview };
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: a photo could not be prepared (" + e.GetType().Name + ")");
+                deleteOwnMediaFile(src);
+                deleteOwnMediaFile(jpg);
+                job.errors.Add(PhotoRules.ErrDecode);
+                shown = null;
+                return null;
+            }
+            finally
+            {
+                try { p.stream?.Dispose(); } catch (Exception) { }
+            }
+        }
+
+        /** ★ S15 F (#1302, Damir 2026-10-10): is `live` still the open batch of this page / document / chat, with `job` its
+         *  prepare? Main thread. */
+        private bool prepAlive(MediaBatch live, PrepJob job, int doc, Friend chat)
+        {
+            return !isDisposed && doc == thumbDoc && friend == chat && friend != null && live.peer == friend.walletAddress.ToString()
+                && ReferenceEquals(mediaBatch, live) && ReferenceEquals(live.job, job);
+        }
+
+        /** ★ S15 F (#1302, Damir 2026-10-10): main thread — pick i is prepared (item ≠ null) or failed (null). Its placeholder
+         *  is replaced in place (or removed); when the batch ended or the tile was ✕-ed while pending the prepared file is
+         *  DISCARDED (never shown again). While placeholders remain, the list is pushed (the update); the last one is
+         *  finishPick's final push. */
+        private void photoReady(MediaBatch live, PrepJob job, int i, MediaItem? item, PhotoRules.PickedItem? shown, int doc, Friend chat)
+        {
+            bool added = false;
+            try
+            {
+                int k = job.keys[i];
+                if (!prepAlive(live, job, doc, chat) || !S15MediaRules.applyReady(live.shown, k, item != null ? shown : null))
+                {
+                    if (item != null)
+                    {
+                        deleteOwnMediaFile(item.path);
                     }
                     return;
                 }
-                if (batch.items.Count > 0)
+                if (item != null)
                 {
-                    if (target != null && ReferenceEquals(mediaBatch, target) && target.peer == batch.peer && target.channel == selectedChannel)
-                    {
-                        foreach (MediaItem it in batch.items)
-                        {
-                            string oldKey = it.k.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                            PhotoRules.PickedItem? shown = batch.shown.Find(x => x.k == oldKey);
-                            List<int> used = new List<int>(target.items.Count);
-                            foreach (MediaItem t in target.items)
-                            {
-                                used.Add(t.k);
-                            }
-                            int k = S10MediaRules.nextKey(used);
-                            if (k < 0 || shown == null)
-                            {
-                                deleteOwnMediaFile(it.path);
-                                if (k < 0 && !batch.errors.Contains(PhotoRules.ErrTooMany))
-                                {
-                                    batch.errors.Add(PhotoRules.ErrTooMany);
-                                }
-                                continue;
-                            }
-                            shown.k = k.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                            target.items.Add(new MediaItem { k = k, path = it.path, preview = it.preview });   // ★ S11 G: the preview rides along
-                            target.shown.Add(shown);
-                        }
-                        Utils.sendUiCommand(this, "mediaPicked", target.id, PhotoRules.pickedJson(target.shown));
-                    }
-                    else
-                    {
-                        dropMediaBatch();   // ★ S10 P1: the append target is gone (sent / cancelled) — only a stale other-channel batch is replaced here (the shell cancels it too)
-                        mediaBatch = batch;
-                        Utils.sendUiCommand(this, "mediaPicked", batch.id, PhotoRules.pickedJson(batch.shown));
-                    }
+                    item.k = k;
+                    live.items.Add(item);   // ★ S11 G: the preview rides along
+                    added = true;
+                }
+                if (S15MediaRules.pendingCount(live.shown) > 0)
+                {
+                    Utils.sendUiCommand(this, "mediaPicked", live.id, PhotoRules.pickedJson(live.shown));   // the per-photo update
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("Media: a picked photo could not be shown (" + e.GetType().Name + ")");
+                if (item != null && !added)   // an item in the batch keeps its file (the batch's own exits delete it)
+                {
+                    deleteOwnMediaFile(item.path);
+                }
+            }
+        }
+
+        /** Main thread: the prepare ended — every placeholder the worker never reached goes; while the batch is still open
+         *  push the FULL list (mediaPicked — the final push, no placeholder in it); tell each distinct error once
+         *  (mediaError). A torn-down page / an older document / another chat gets nothing (its files went with the batch). */
+        private void finishPick(MediaBatch live, PrepJob job, int doc, Friend chat)
+        {
+            try
+            {
+                if (P1Perf.enabled)
+                {
+                    P1Perf.line(S15MediaRules.prepareLine(job.keys.Count, P1Perf.msSince(job.t0), job.firstMs));   // ★ S15 F: fixed words + integers
+                }
+                if (isDisposed || doc != thumbDoc || friend != chat || live.peer != friend.walletAddress.ToString())
+                {
+                    return;
+                }
+                if (ReferenceEquals(mediaBatch, live) && ReferenceEquals(live.job, job))
+                {
+                    S15MediaRules.dropAllPending(live.shown);
+                    live.job = null;
+                    Utils.sendUiCommand(this, "mediaPicked", live.id, PhotoRules.pickedJson(live.shown));
                 }
                 List<string> told = new List<string>();
-                foreach (string code in batch.errors)
+                foreach (string code in job.errors)
                 {
                     if (!told.Contains(code))
                     {
@@ -3130,6 +3233,10 @@ namespace SPIXI
             if (b == null)
             {
                 return;
+            }
+            if (b.job != null)
+            {
+                b.job.abandoned = true;   // ★ S15 F (#1302, Damir 2026-10-10): the worker skips the rest; a photo it finishes is discarded (photoReady)
             }
             deleteBatchFiles(b, null);
         }
@@ -3175,13 +3282,22 @@ namespace SPIXI
                 Logging.warn("ixian:mediaDrop: no such batch");
                 return;
             }
+            string key = k.ToString(System.Globalization.CultureInfo.InvariantCulture);
             MediaItem? it = b.items.Find(x => x.k == k);
             if (it == null)
             {
+                /* ★ S15 F (#1302, Damir 2026-10-10): a PLACEHOLDER's ✕ — the photo is still being prepared. Its placeholder
+                 * goes and the worker skips the key (job.skip); a photo already in the decode finds no placeholder in
+                 * photoReady and is discarded — a dropped key never comes back. Confirmed like any drop (mediaDropped). */
+                if (b.job != null && S15MediaRules.dropPending(b.shown, k))
+                {
+                    b.job.skip.TryAdd(k, 0);
+                    Utils.sendUiCommand(this, "mediaDropped", b.id, key);
+                    return;
+                }
                 Logging.warn("ixian:mediaDrop: no such photo");
                 return;
             }
-            string key = k.ToString(System.Globalization.CultureInfo.InvariantCulture);
             b.items.Remove(it);
             b.shown.RemoveAll(x => x.k == key);
             deleteOwnMediaFile(it.path);
@@ -3237,6 +3353,10 @@ namespace SPIXI
                 return;
             }
             mediaBatch = null;   // consumed
+            if (b.job != null)
+            {
+                b.job.abandoned = true;   // ★ S15 F (#1302, Damir 2026-10-10): a send while a photo is pending (the shell blocks it) — the rest is discarded
+            }
             deleteBatchFiles(b, keys);   // ★ S10 N4: every prepared photo the send does not name (a strip ✕ already deleted its own)
             sendMediaBatch(b, chosen, caption);
         }
@@ -4407,7 +4527,7 @@ namespace SPIXI
                         // ★ I-7 (Damir): INLINE; C# composes the text, the shell renders it.
                         // ★ S14 (#1286): the text carries NO balance (the r4 "total vs balance"
                         // sentence did — a tip of a huge amount read the balance in one call).
-                        sendTipResult(false, SPayments.insufficientText());
+                        sendTipResult(false, SPayments.insufficientTipText());
                         return;
                     }
                     var relayNodeAddresses = prepTx.relayNodeAddresses;
@@ -4422,7 +4542,7 @@ namespace SPIXI
                     // Ixian-Core's behaviour, not ours, and #215 says do not assume it.
                     if (tx.amount + tx.fee > balance)
                     {
-                        sendTipResult(false, SPayments.insufficientText());   // ★ S14 (#1286): no balance in the text
+                        sendTipResult(false, SPayments.insufficientTipText());   // ★ S14 (#1286): no balance in the text
                     }
                     else
                     {

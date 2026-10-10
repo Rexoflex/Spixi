@@ -118,6 +118,7 @@ namespace SPIXI
                 SAppDeclines.clear(group.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                 SPeerLocalStores.forget(group.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 scheduleSentSweep();   // ★ S9 #46 r1 m-3: my Sent copies the left room named go too
+                SNotificationPrefs.forgetContact(group.walletAddress?.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
             }
             UIHelpers.shouldRefreshContacts = true;
             return removed;
@@ -173,6 +174,7 @@ namespace SPIXI
                 SAppDeclines.clear(friend.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                 SPeerLocalStores.forget(friend.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 scheduleSentSweep();   // ★ S9 #46 r1 m-3: my Sent copies this history named go too
+                SNotificationPrefs.forgetContact(friend.walletAddress?.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
                 return "ok";
             }
             blockers = sharedGroups(friend);

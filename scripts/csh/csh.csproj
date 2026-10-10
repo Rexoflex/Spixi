@@ -70,6 +70,9 @@
     <Compile Include="../../Spixi/Utils/S11AppsRules.cs" />
     <!-- ★ S11 G (#1258 + #1263): the offer preview (sender ladder · receiver rule · bounded cache · push gate) + addFile arg 20 + the Save verb (tests: S11MediaTests.cs). -->
     <Compile Include="../../Spixi/Utils/S11MediaRules.cs" />
+    <Compile Include="../../Spixi/Utils/RestoreMoves.cs" />   <!-- ★ S15 (#1297): the restore moves, all or nothing -->
+    <Compile Include="../../Spixi/Utils/S15SecRules.cs" />   <!-- ★ S15 (#1293): O-19 / O-29 / O-30 pure rules (tests: S15SecTests.cs) -->
+    <Compile Include="../../Spixi/Utils/S15MediaRules.cs" />   <!-- ★ S15 F (#1302): tiles at once — placeholders, key reservation, the per-photo update, the dropped-key filter (tests: S15MediaTests.cs) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

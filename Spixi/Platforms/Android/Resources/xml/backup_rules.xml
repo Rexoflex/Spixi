@@ -8,12 +8,15 @@
      Excluded (plaintext or user content, or rebuildable): chat history (Chats, CORE-11 - a backup taken before a delete keeps
      the deleted text), the offline send queue (MsgQueue), received files (Downloads), my sent voice clips (Voice) and the
      durable copies of my sent photos/files (Sent, #1244 - they could pass the 25 MB quota and stop the wallet backup),
-     transfer + restore scratch (tmp, tmp_zip), block headers and the activity DB (headers / activity + testnet-*, Config.cs),
+     transfer + restore scratch (tmp, tmp_zip, tmp_restore_prev — S15 #1297), block headers and the activity DB (headers / activity + testnet-*, Config.cs),
      the log and its rotation (Logging.cs rolls to ixian.0..ixian.4 at Config.maxLogCount = 5; .5 is a margin) plus the log
      copies made for sharing (ixian.log.tmp, spixi.log.zip, spixi-log.txt), and localonly.json (H-14 #1245: the declined-
      request addresses and the push trace salt).
      domain="root" app_webview = the WebView storage: chat drafts are plaintext spixi.* localStorage keys.
-     KEPT (what a backup is for): wallet.ixi, Acc, the avatars (html/Avatars), peers.ixi, the preferences (sharedpref).
+     KEPT (what a backup is for): wallet.ixi, Acc, the avatars (html/Avatars), peers.ixi.
+     ★ S15 (#1300, Damir): the preferences (sharedpref) are EXCLUDED - they hold the PLAINTEXT walletpass (legacy L8), so a
+     backup carried the wallet AND its password. After a restore the app opens the existing retry screen and asks for the
+     password once (App.xaml.cs: loadWallet false → LaunchPage("retry")); settings (theme, lock, notifications) start fresh.
      No wildcards exist in this format, so the log files are listed by name. -->
 <full-backup-content>
     <exclude domain="file" path="Documents/Spixi/Chats" />
@@ -23,6 +26,7 @@
     <exclude domain="file" path="Documents/Spixi/Sent" />
     <exclude domain="file" path="Documents/Spixi/tmp" />
     <exclude domain="file" path="Documents/Spixi/tmp_zip" />
+    <exclude domain="file" path="Documents/Spixi/tmp_restore_prev" />
     <exclude domain="file" path="Documents/Spixi/headers" />
     <exclude domain="file" path="Documents/Spixi/testnet-headers" />
     <exclude domain="file" path="Documents/Spixi/activity" />
@@ -40,4 +44,5 @@
     <exclude domain="file" path="Documents/Spixi/localonly.json" />
     <exclude domain="file" path="Documents/Spixi/localonly.json.tmp" />
     <exclude domain="root" path="app_webview" />
+    <exclude domain="sharedpref" path="." />
 </full-backup-content>

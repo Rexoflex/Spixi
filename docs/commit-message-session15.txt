@@ -11,4 +11,6 @@ Session 15: restore all-or-nothing, security rows, send rise, photo strip, backu
 - Photo strip opens at once with placeholder tiles; Android decodes each photo once (#1302)
 - Tip over balance: a number-free fee line (#1306)
 - Walk #1296 recorded; header-sync, memory and white-screen findings recorded (#1304, #1305)
+- Walk #1309 (S15 build, Android + Windows) recorded; the performance track and the road to
+  release (#1310); open findings (#1311); the BE review model (#1312)
 - #46 loop r1-r2 CLEAN (#1307); pins-s15 + C# harness S15 tests

@@ -458,3 +458,5 @@ the send rise from the composer, v1 fade rejected (#1301); strip tiles at once +
 (#1303); slow opens after a restore = the 4-hour legacy header catch-up → BE asks (#1304); memory peak + white screen open (#1305); picks (#1306);
 #46 r1 → r2 CLEAN (#1307); office walk sheet §5 (#1308). Smoke 5730 · CSH 378. Built in the cloud twin; the context was reset twice mid-session
 (the twin's git log carried the state) and the container restarted once (a smoke re-run).
+
+2026-10-10 (late) — WALK #1309 (S15 build, Android + Windows): 16 P · 1 F (S15-LANG = the native indicator, no defect) · 1 N/A; iPhone + Mac owed (tag `s15-walk`). #1310 the performance track (feature complete; goal; parallel perf research; native chat = v1.1/v2 question; full-code #46 loops at high effort after the freeze; Windows installer). #1311 open: wrong theme on System (Android), RESTORE-B copy, the unfinished-sent-file re-arm.

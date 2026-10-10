@@ -1,5 +1,5 @@
-Read CLAUDE.md, then the newest docs/handoff-*.md (FIRST — `docs/handoff-2026-10-10.md`), then DECISIONS #1296–#1308 and the
-"Session 15" section of `docs/security-handover-gate.md`. Next free DECISIONS number: #1309.
+Read CLAUDE.md, then the newest docs/handoff-*.md (FIRST — `docs/handoff-2026-10-10.md`), then DECISIONS #1296–#1312 and the
+"Session 15" section of `docs/security-handover-gate.md`. Next free DECISIONS number: #1313.
 This is SESSION 16 (a new chat): record the S15 + office walk, the fix round, the L8 unit (walletpass → SecureStorage), then the freeze steps.
 Already decided (do not re-open): #1297 restore design (RestoreMoves, `own_avatar.jpg`) · #1300 sharedpref out of the backup, L8 = S16 own unit ·
 #1301 the rise (200 ms decelerate, no fade, from the composer) · #1302 strip placeholders + Send gate · #1303 the 10 rows as built (O-11 always encode,
@@ -8,7 +8,7 @@ O-31 production only for a store build) · #1306 picks (dev switch stays until S
 ## 0 · Rules and precondition
 `git --no-optional-locks` on the mounted repo · chat replies in ASD-STE100 (#931) · PowerShell copy-paste blocks with every delivery ·
 ★ COMMIT RULE: NO `Co-Authored-By`, NO `Claude-Session`, NO session link, NO "Generated with" line in any commit message, commit-message file or PR text ·
-verify every claim in the tree (#215) · mechanism first (#294) · C# touches no risky parts · bridge protocol frozen (new verbs = 🟡 + BE ask + T1 row) ·
+verify every claim in the tree (#215) · mechanism first (#294) · C# touches no risky parts · bridge protocol frozen — ★ #1312: our-code changes are built behind a FLAG (old path kept), a security-only #46 at high effort, a review packet + 🟡 gate row each; BE reviews in ONE sitting at handover; Ixian-Core stays BE-only ·
 security handover gate · no Ixian-Core change · never commit or push from the cloud (Damir applies the patch). ★ MAC RE-SYNC: if Damir says he is on the
 Mac and pulled, give the CLAUDE.md re-sync steps FIRST.
 Precondition (stop if it fails): `git log` has "Session 15: restore all-or-nothing, security rows, send rise, photo strip, backup prefs" on top of
@@ -32,7 +32,9 @@ We know it worked when:
   - L8: walletpass in SecureStorage with verify-then-remove migration, the retry screen on a lost key, pins + csh + a 4-platform walk row, BE sign-off asked  (B-5, #1300)
 
 ## Work items
-1. Record the walk (paste + logs `android-s15w.txt`, Windows log, iPhone / Mac logs). Each F → mechanism first.
+1. Android + Windows are RECORDED (#1309). Record the iPhone + Mac walk (built from the tag `s15-walk`; §0–§4 + the I / M legs of §5). Each F → mechanism first.
+   Merge the perf research's ranked list (`claude/session-16-perf-prompt.md`, #1310) with this session's items — Damir picks; optimization = one kind of change per batch.
+   #1311: (a) the wrong theme on "System" (Android) — mechanism from a log first · (b) RESTORE-B copy / flow ("use a different wallet") · (c) the unfinished-sent-file re-arm once per transfer id.
 2. The L8 unit (#1300 / #909 plan in `docs/security-review-for-be-engineer.md` §A1): SecureStorage is ASYNC and `Node.loadWallet` reads walletpass at
    cold start (App.xaml.cs:362-383) — design the read path first (interview); write → read back → compare → only then remove; a missing / unreadable
    key = `LaunchPage("retry")`, never a plaintext fallback; iOS Keychain survives an uninstall (stale value on reinstall); Android Keystore is lost on a

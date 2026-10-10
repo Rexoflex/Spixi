@@ -4409,6 +4409,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
               opacity var(--duration-300) var(--easing-standard),
               padding-block var(--duration-300) var(--easing-standard);
 }
+/* ★ S14 (#1289): no transactions at all → the tools are [hidden] (wallet-shell.js walletLedgerEmpty); the sync
+   row then takes over the tools' top gap so it does not butt against the hero. */
+.c-wallet-tools[hidden] + .c-scanprog { padding-block-start: var(--spacing-12); }
 .c-wallet-tools[data-hidden] {
   max-height: 0;
   opacity: 0;
@@ -4498,6 +4501,11 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 
 /* —— tx list + empty —— */
 .c-wallet-txlist { display: flex; flex-direction: column; }
+/* ★ S14 (#1291): ONE inset for the wallet column — the row stays full-bleed (hover / selected wash),
+   its content (direction disc · amount) starts and ends on the same --spacing-16 as the search pill,
+   the chips row (.c-wallet-tools) and the sync row (.c-scanprog). Was spacing-12 (txlist-item.css):
+   4px off on both sides. Logical, so RTL mirrors it. */
+.c-wallet-txlist > .c-txlist-item { padding-inline: var(--spacing-16); }
 
 /* just-sent flash (#136): one ~2s wash pulse guiding the eye to the fresh row.
    Raw 2s duration sanctioned like the #117 handshaking pulse (no token this long);
@@ -4525,6 +4533,26 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-wallet-txlist > .c-empty-state[data-compact] .c-empty-state__illo {
   width: clamp(160px, 48vw, 200px);   /* ★ S11 B (#1262): the art is back and WIDER (Damir) — was clamp(104px, 32vw, 148px) */
 }
+
+/* ★ S14 (#1289 follow-up): the empty-ledger "Missing a transaction?" text link under the zero-state line
+   (the chips-row pill is hidden with the chips). A quiet text action: body-sm, action ink, no fill; the
+   ::after grows the hit area to 44 without moving the copy. */
+.c-wallet-misstx-link {
+  position: relative;
+  margin: 0;
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-wallet-misstx-link::after { content: ''; position: absolute; inset: -8px 0; }   /* 28 + 2×8 = 44 */
+@media (hover: hover) and (pointer: fine) { .c-wallet-misstx-link:hover { text-decoration: underline; } }
 
 /* —— tx detail sheet —— */
 /* ★★ #1040 (Damir 2026-09-29, "more premium or clear"): the RECEIPT layout. Identity,
@@ -6551,7 +6579,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     mountContacts,                       // Track D: contacts picker/directory takeover
     // wallet (tab2)
     createWalletHero, setWalletBalance, setBalanceHidden,
-    createWalletTxList, renderWalletTxList, setWalletQuery,
+    createWalletTxList, renderWalletTxList, setWalletQuery, walletLedgerEmpty,   // ★ S14 (#1289)
     createWalletFilters, createSearchField, attachWalletScroll,
     createScanProgress, scanProgressState,
     setScanProgress: applyScanProgress,   // #440/#443 — aliased: the bridge handler below
@@ -8775,6 +8803,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
        degrade on an exe that does not send setScanProgress: the sheet shows NO status
        card (#1072) and adds no false claim. */
     scan: () => scanState,
+    /* ★ S14 (#1289 follow-up): the empty-ledger "Missing a transaction?" link — shown exactly when the chips-row
+       pill would be (syncMissTxPill), i.e. the scan has ended and the wallet is not provably new. */
+    missTxLink: () => missTxPillWanted(),
     /* ★ #589 (Damir F5 2026-08-26): the zero-state CTA reads "Show my address", so
        it OPENS THE ADDRESS. It used to open the whole Receive takeover — a screen
        with a request-an-amount field and a contact strip — which is a different
@@ -9168,6 +9199,11 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     onFilter: (id) => { walletChipPick = { id, at: Date.now() }; bridge.send('ixian:filter:' + id); },   // home.js:54 → C# filterTransactions; B-4 pick
   });
   walletTools.append(walletSearch, walletFilters);
+  /* ★ S14 (#1289): NO transactions at all → no search pill, no chips (the zero state sits under the hero,
+     above the bottom nav). renderWalletTxList keeps it in step on every render; a filter / search that
+     finds nothing is NOT this state (the tools stay — they are how the user gets back). */
+  walletOpts.toolsEl = walletTools;
+  walletTools.hidden = walletLedgerEmpty(walletState);
 
   /* ★ #440/#443/#452 (Damir, variant A on a render): the scan is a SLIM ROW at the top
      of the transaction list, and tapping it opens the "Missing a transaction?" sheet —
@@ -9194,8 +9230,12 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     const pill = walletFilters.querySelector('.c-wallet-misstx');
     // #456: on a wallet with provably nothing to find, neither entry point applies —
     // see scanIsMoot. Otherwise the two alternate, one at a time (#452).
-    if (pill) pill.hidden = scanIsMoot() ? true : !scanProgress.hidden;
+    if (pill) pill.hidden = !missTxPillWanted();
+    // ★ S14 (#1289 follow-up): the empty-ledger link in the zero state follows the same rule
+    const link = walletList.querySelector('.c-wallet-misstx-link');
+    if (link) link.hidden = !missTxPillWanted();
   }
+  function missTxPillWanted() { return scanIsMoot() ? false : scanProgress.hidden; }
 
   /* ★ #456 (Damir): "a fresh wallet should show the EMPTY STATE, not 'Checking for
      your transactions'". The honest condition is not "the scan is at 0%" — a restored

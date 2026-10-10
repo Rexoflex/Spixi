@@ -949,5 +949,10 @@
   "howToMoreHelp": "Нужна помощь?",
   "howToHelpCentre": "Справочный центр",
   "hintNoPhoneBody2": "Ваш аккаунт является ключом на вашем устройстве.",
-  "aboutWhyKeysTitle2": "Ваши ключи, ваше устройство"
+  "aboutWhyKeysTitle2": "Ваши ключи, ваше устройство",
+  "devContainerTitle": "Overlay container (Android)",
+  "devContainerClip": "Clip",
+  "devContainerShadow": "Shadow (13c)",
+  "devContainerNone": "None (no input flip during the slide)",
+  "devContainerOn": "On"
 }

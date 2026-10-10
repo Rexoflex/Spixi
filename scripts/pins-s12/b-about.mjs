@@ -3,7 +3,7 @@
  *   · hero: the inline art (★ S13 B: tile-less, inside the aria-hidden band; the aria-hidden app icon after it), "Spixi", the new tagline, a version chip "Version 0.9.22" from C#'s `spixi-0.9.22` (the prefix
  *     stripped) — and NO chip for a malformed or empty version
  *   · "Why Spixi": three facts, no post-quantum line, no "server" wording
- *   · "Links": Website · Ixian network · Source code, each still sends ixian:openLink: with today's three URLs
+ *   · "Links": Website · Ixian network · Source code, each sends ixian:aboutLink:<id> (★ S14 #1285; was ixian:openLink:<url>)
  *   · "Legal and support": Privacy · Terms (the in-app doc sheets) · Licences → the existing Contributors credits ·
  *     Rate Spixi ONLY with the `rate` cap, sending exactly ixian:rating:yes
  *   · footer "© Ixian"
@@ -41,8 +41,10 @@ export default async function (h) {
     const appIcon = hero && hero.querySelector(':scope > .c-settings-about__appicon');
     const kids = hero ? [...hero.children].map((c) => c.className) : [];
     a.band = !!band && band.getAttribute('aria-hidden') === 'true' && !!art && art.parentElement === band
-      && art.querySelectorAll('rect').length === 1   /* only the lock body — the tile, its sheen and its shadow are not drawn */
-      && !art.querySelector('.c-settings-about__mark') && !art.querySelector('filter') && !!art.querySelector('text');
+      && art.querySelectorAll('rect').length === 0   /* ★ S14 re-base (#1279): no tile rects, and the lock body is gone */
+      && !art.querySelector('.c-settings-about__mark') && !art.querySelector('filter')
+      && !art.querySelector('text')   /* ★ S14 (#1279): the IXI coin label is gone */
+      && art.querySelectorAll('radialGradient').length === 2;   /* ★ S14 (#1279): the heart + the gold star (the rating art's gradients) */
     a.appIcon = !!appIcon && appIcon.getAttribute('aria-hidden') === 'true' && band.nextElementSibling === appIcon
       && appIcon.querySelectorAll('svg').length === 1 && !appIcon.textContent.trim()
       && JSON.stringify(kids) === JSON.stringify(['c-settings-about__band', 'c-settings-about__appicon', 'c-settings-about__app-name', 'c-settings-about__tagline', 'c-settings-about__version'])
@@ -64,7 +66,7 @@ export default async function (h) {
     linkRows.forEach((b) => b.click());
     await sleep(50);
     a.links = linkRows.map((b) => txt(b)).join('|') === 'Website|Ixian network|Source code'
-      && JSON.stringify(s.sent.slice(b0)) === JSON.stringify(['ixian:openLink:https://www.spixi.io', 'ixian:openLink:https://www.ixian.io', 'ixian:openLink:https://github.com/ixian-platform/Spixi']);
+      && JSON.stringify(s.sent.slice(b0)) === JSON.stringify(['ixian:aboutLink:website', 'ixian:aboutLink:network', 'ixian:aboutLink:source']);   /* ★ S14 re-base (#1285): fixed ids, C# owns the URLs */
     const legalRows = groups[2] ? [...groups[2].querySelectorAll('button.c-settings-links__row')] : [];
     a.legalRows = legalRows.map((b) => txt(b.querySelector('.c-settings-links__label'))).join('|') === 'Privacy Policy|Terms of Use|Licenses|Rate Spixi';
     a.footer = txt(el.querySelector('.c-settings-about__legal')) === '© Ixian';
@@ -87,7 +89,7 @@ export default async function (h) {
     const b3 = s.sent.length;
     if (lic) lic.click();
     await sleep(300);
-    a.licences = !!lic && !!s.d.querySelector('.c-settings-contrib .c-settings-contrib__credits') && s.sent.slice(b3).every((c) => !/^ixian:(openLink|rating)/.test(c));
+    a.licences = !!lic && !!s.d.querySelector('.c-settings-contrib .c-settings-contrib__credits') && s.sent.slice(b3).every((c) => !/^ixian:(openLink|aboutLink|rating)/.test(c));
     a.noErr = K.noErr(s.errs);
     close();
 
@@ -107,7 +109,7 @@ export default async function (h) {
   } catch (e) { a.err = String(e && e.stack || e).slice(0, 300); }
   finally { close(); }
   ok(Object.values(a).every((x) => x === true),
-    '★ S12 B (#1267) About B (EXECUTED, built settings.html): hero art + "Spixi" + the new tagline (★ S13 B "Banner hero": the art inside the aria-hidden band WITHOUT its tile/mark, the aria-hidden app icon right after the band, then name · tagline · chip; one entrance then data-held) + "Version 0.9.22" (spixi- stripped); Why Spixi = three facts (no quantum / server); Links still send ixian:openLink: with today\'s three URLs; Legal = Privacy · Terms (doc sheet) · Licences (→ Contributors credits) · Rate Spixi (cap) → ixian:rating:yes; "© Ixian" — ' + JSON.stringify(a));
+    '★ S12 B (#1267) About B (EXECUTED, built settings.html): hero art + "Spixi" + the new tagline (★ S13 B "Banner hero": the art inside the aria-hidden band WITHOUT its tile/mark, the aria-hidden app icon right after the band, then name · tagline · chip; one entrance then data-held) + "Version 0.9.22" (spixi- stripped); Why Spixi = three facts (no quantum / server); Links send ixian:aboutLink:<id> (★ S14 #1285); Legal = Privacy · Terms (doc sheet) · Licences (→ Contributors credits) · Rate Spixi (cap) → ixian:rating:yes; "© Ixian" — ' + JSON.stringify(a));
   ok(Object.values(r).length > 0 && Object.values(r).every((x) => x === true),
     '★ S12 B (#1267) About B (EXECUTED): no `rate` cap → no Rate row; a malformed / empty version → no chip (only [0-9A-Za-z.+-]{1,32} after the spixi- strip) — ' + JSON.stringify(r));
 }

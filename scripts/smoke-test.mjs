@@ -7227,7 +7227,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   /* ⚠ #601 widened the window: onRepresented gained the peer-tab scroll reset and its
      rationale. The window is a proximity heuristic, not the property — keep it generous
      enough that a comment cannot fail the pin, and let the ORDER clauses do the work. */
-  ok(/exitSettings\((?:'handoff')?\);[\s\S]{0,700}?setNavActive\(nav, 'account'\);/.test(settingsSh)   /* ★ #1133 lever 10: the tab exit is exitSettings('handoff') */
+  ok(/exitSettings\((?:'handoff'(?:, id)?)?\);[\s\S]{0,700}?setNavActive\(nav, 'account'\);/.test(settingsSh)   /* ★ #1133 lever 10: the tab exit is exitSettings('handoff') · ★ S14 re-base (#1284): + the tab id (ONE verb) */
     && /onRepresented\(\) \{[\s\S]{0,4200}?setNavActive\(nav, 'account'\);/.test(settingsSh),
     '#320: the peer nav highlight snaps back to Account after an exit tap AND on re-present — bottomnav auto-selects the tapped item before onChange, so the page PARKED with the wrong tab lit (Damir: Denarnica highlighted on the Account screen)');
 
@@ -9507,7 +9507,7 @@ console.log('#341 — Change password renders inside the Account pane');
      ⚠ stripCode, so no comment can satisfy any of these on its own. */
   {
     const exitCode = stripCode(shEnc);
-    const exitFn = exitCode.slice(exitCode.indexOf('function exitSettings(reason) {'), exitCode.indexOf('function commitSave()'));
+    const exitFn = exitCode.slice(exitCode.indexOf('function exitSettings(reason, tabId) {'), exitCode.indexOf('function commitSave()'));
     const relAt = exitFn.indexOf('releaseEncpass();');
     const sendAt = exitFn.indexOf('bridge.send(');
     ok(exitFn.length > 200 && /exiting = true;/.test(exitFn) && relAt > 0 && sendAt > relAt
@@ -12186,14 +12186,24 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
     'I-6 r2 (#360, loop r1 MINOR-8): the bot cost bar — the one other C#-composed amount — goes through the same formatter; a 0.005 IXI room rendered "0.00500000 IXI" directly above the alerts #360 fixed');
   const scp360 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
   const spay360 = readFileSync(join(root, 'Spixi/Utils/SPayments.cs'), 'utf8');
-  const rawBalanceFmt = /String\.Format\(SpixiLocalization\._SL\("wallet-error-balance-text"\), (?!Utils\.amountToLocalizedDisplayString)/;
+  /* ★ S14 #46 r3 (MINOR-4): BOTH format arguments of the sentence go through the C# mirror — the {0} cost AND the {1}
+   * balance (the old negative lookahead read only the FIRST argument, so the bot-cost alert's balance could go raw). */
+  const ARG360 = 'Utils\\.amountToLocalizedDisplayString\\([^()]*(?:\\([^()]*\\)[^()]*)*\\)';
+  const fmtBoth = new RegExp('String\\.Format\\(SpixiLocalization\\._SL\\("wallet-error-balance-text"\\), ' + ARG360 + ', ' + ARG360 + '\\)', 'g');
+  const scp360c = stripCode(scp360), spay360c = stripCode(spay360);
   /* ★★ REBASED by decision 4: WalletContactRequestPage was one of the two files this
-   * pin read, and it is DELETED. Its money sentences moved into SPayments, which is
-   * where the remaining sites live — so the rule is unchanged and the pin follows it. */
-  ok(!rawBalanceFmt.test(scp360) && !rawBalanceFmt.test(spay360)
-    && (scp360.match(/Utils\.amountToLocalizedDisplayString\(/g) || []).length >= 6
-    && (spay360.match(/Utils\.amountToLocalizedDisplayString\(/g) || []).length >= 4,
-    '★ I-6 (#360): every wallet-error-balance-text composition passes BOTH amounts through the C# mirror — no site ships a raw IxiNumber.ToString() into the sentence (Damir\'s repro: "333333333.03000000")');
+   * pin read, and it is DELETED. Its money sentences moved into SPayments. ★ S14 re-base (#1286): SPayments composes the
+   * sentence NOWHERE any more (its over-balance TEXTS lost their numbers — no balance to a WebView,
+   * pins-s14/c-balance-text.mjs), so SPayments is pinned at ZERO sites; the ONE remaining site is the native bot-cost alert
+   * in SingleChatPage (exact counts: 1 sentence, both arguments formatted; 3 formatter calls = the alert's two + the cost bar). */
+  const r360 = {
+    scpSites: (scp360c.match(/"wallet-error-balance-text"/g) || []).length,
+    scpBoth: (scp360c.match(fmtBoth) || []).length,
+    scpFmt: (scp360c.match(/Utils\.amountToLocalizedDisplayString\(/g) || []).length,
+    spaySites: (spay360c.match(/"wallet-error-balance-text"/g) || []).length,
+  };
+  ok(r360.scpSites === 1 && r360.scpBoth === 1 && r360.scpFmt === 3 && r360.spaySites === 0,
+    '★ I-6 (#360): every wallet-error-balance-text composition passes BOTH amounts (the cost {0} AND the balance {1}) through the C# mirror — no site ships a raw IxiNumber.ToString() into the sentence (Damir\'s repro: "333333333.03000000"); the one site left is the native bot-cost alert (SingleChatPage), SPayments has none (S14 #1286) — ' + JSON.stringify(r360));
 }
 
 
@@ -14140,7 +14150,7 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
 
   /* —— N42 + the Account address explainer ——————————————————————————————— */
   const set443 = read4('Spixi/Resources/Raw/html/settings.html');
-  ok(/bridge\.send\('ixian:landtab:contacts'\);/.test(set443) && !/spixi\.landtab/.test(stripCode(set443)),   // CODE — the retirement note names the key (#771)
+  ok(/exitSettings\('handoff', 'contacts'\);/.test(set443) && !/spixi\.landtab/.test(stripCode(set443)),   /* ★ S14 re-base (#1284): exitSettings sends the ONE verb ixian:landtab:contacts (behaviour: pins-s14/b-settings.mjs) */   // CODE — the retirement note names the key (#771)
     '★ N42 (#443) → S11 (Session AD): Contacts is reachable from Account — and now over a VERB (`ixian:landtab:contacts` → SettingsPage → HomePage.landOnTab → the landOnTab push), the C# route the old row said did not exist; the localStorage hand-off spelling is gone');
   ok(/if \(id === 'contacts'\) \{/.test(home443) && /openContacts\('directory', '', \{ returnTo: 'account' \}\);/.test(home443),   // C4 (#547): …and Back returns to Account
     '★ N42 (#443): home consumes the hand-off, lands on Chats and opens the directory takeover');
@@ -18383,7 +18393,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     '★ A4/A5 C#: sharedGroups() is Core\'s isFriendInGroup predicate with the result KEPT (name/address pairs) — the same groups removeFriend refuses on');
   ok(/if \(leaveSharedGroups\)[\s\S]{0,900}?leaveGroup\(g\);[\s\S]{0,500}?if \(FriendList\.removeFriend\(friend\)\)/.test(scA),
     '★ A5 C#: leave=1 leaves EVERY shared group FIRST, then removes — one verb, Core\'s order, no race between two location.href sends');
-  ok(/current_url\.Equals\("ixian:sharedGroups", StringComparison\.Ordinal\)/.test(cdA) && /StartsWith\("ixian:openChat:", StringComparison\.Ordinal\)/.test(cdA) && /if \(FriendList\.getFriend\(targetAddr\) != null\)/.test(cdA),
+  ok(/current_url\.Equals\("ixian:sharedGroups", StringComparison\.Ordinal\)/.test(cdA) && /StartsWith\("ixian:openChat:", StringComparison\.Ordinal\)/.test(cdA) && /Friend\? targetFriend = FriendList\.getFriend\(targetAddr\);\s*if \(targetFriend != null\)/.test(cdA),   /* ★ S14 re-base (#1283): the known friend is kept for the chat-info ride (pins-s14/a2-container-ride.mjs) */
     'A4 C#: ContactDetails answers ixian:sharedGroups and routes ixian:openChat:<addr> only to a KNOWN friend');
 
   /* A5/A7 — the remove-contact SHEET + the checkbox grammar, executed */
@@ -25252,7 +25262,7 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
   }
   const set = nc(rdF('src/shells/settings.html'));
   ok(/settleSubscreenSlide\(root\);/.test(set) && /if \(currentView === 'hub' \|\| paneMode\) document\.body\.toggleAttribute\('data-subview', currentView !== 'hub'\);/.test(set)
-     && /if \(currentView !== 'hub' && leaving === hubEl\) \{\s*slideSubscreenIn\(root, buildScreen\(currentView\), \(\) => \{\s*root\.replaceChildren\(root\.lastElementChild\);\s*document\.body\.toggleAttribute\('data-subview', true\);/.test(set)
+     && /if \(currentView !== 'hub' && leaving === hubEl\) \{\s*slideSubscreenIn\(root, buildScreen\(currentView\), \(\) => \{\s*const scr = root\.lastElementChild;\s*for \(const c of Array\.from\(root\.children\)\) if \(c !== scr\) c\.remove\(\);\s*document\.body\.toggleAttribute\('data-subview', true\);/.test(set)   /* ★ S14 (#1287) re-base: the covered views detach AROUND the screen (a re-insert restarted its CSS animations) */
      && /else if \(currentView === 'hub' && leaving && leaving !== hubEl && root\.childElementCount === 1\) \{\s*root\.insertBefore\(hubEl, leaving\);\s*slideSubscreenOut\(root, leaving, \(\) => \{ leaving\.remove\(\); \}\);/.test(set)
      && /slideSubscreenIn, slideSubscreenOut, settleSubscreenSlide,/.test(set),
     '★★ Session H [settings]: hub → sublevel lifts the new screen over the STILL-MOUNTED hub and detaches it after the slide (data-subview flips at the end, so the nav does not vanish under a moving screen); sublevel → hub re-mounts the hub UNDER the leaving screen first; every render settles an in-flight slide; the pane branch is untouched');
@@ -25428,11 +25438,12 @@ console.log('Session I ②: [PAINTDIAG] retired · the L14 cover handshake');
   ok(gone.every(Boolean),
     '★ Session I ② [PAINTDIAG] RETIRED AS A SET: no cover/backsend emit, no ixian:paintdiag handler, no account-closed stamp, no re-present stamp — in source AND the built home shell. Got ' + JSON.stringify(gone));
   /* THE HANDSHAKE — every leg present, in source and in the built shells */
-  ok(/exitSettings\('handoff'\)/.test(stripCode(settings)) && /exitSettings\('handoff'\)/.test(stripCode(builtSettings))
-     && /reason === 'handoff' \? 'ixian:handoff' : 'ixian:back'/.test(settings) && /function exitSettings\(reason\)/.test(settings),
+  ok(/exitSettings\('handoff', 'contacts'\)/.test(stripCode(settings)) && /exitSettings\('handoff', 'contacts'\)/.test(stripCode(builtSettings))   /* ★ S14 re-base (#1284): + the tab id */
+     && /reason === 'handoff' \? 'ixian:handoff' : 'ixian:back'/.test(settings) && /function exitSettings\(reason, tabId\)/.test(settings),
     '★ L14 handshake ①: settings.html onContacts leaves with ixian:handoff (the ONE route that writes the contacts hand-off); a TAB exit takes the same handshake since #1133 lever 10 (pinned in pins-s4/nav.mjs); every other exit still sends ixian:back; a dirty exit still saves');
   ok(/\|\| current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\)/.test(stripCode(sp))
-     && /if \(current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\)\s*\{\s*popOnCoverPainted\(\);/.test(stripCode(sp)),
+     && /exitCleanup\(current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\);/.test(stripCode(sp))   /* ★ S14 re-base (#1284): the body moved into exitCleanup */
+     && /private void exitCleanup\(bool deferPop\)\s*\{[\s\S]*?if \(deferPop\)\s*\{\s*popOnCoverPainted\(\);/.test(stripCode(sp)),
     '★ L14 handshake ②: SettingsPage dispatches ixian:handoff with Equals into the SAME cleanup branch as ixian:back (avatar-tmp · resetLanguage · closeSublevelOverlays) and defers the pop through popOnCoverPainted()');
   ok(/protected void popOnCoverPainted\(\)/.test(scp) && /public static void coverPainted\(\)/.test(scp)
      && /private const int CoverWaitBackstopMs = 400;/.test(scp) && /private const int CoverPaintedFreshMs = 600;/.test(scp)
@@ -26566,11 +26577,11 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
        && deadMs > 0 && slideMs > 0 && deadMs < slideMs / 4
        && /var stage = op\.stage;\s*_ = liftStageInput\(op\);\s*try/.test(slide)
        && (scpNC.match(/_ = liftStageInput\(op\);/g) || []).length === 1
-       && /await Task\.Delay\(SlideInputDeadMs\);\s*MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*try \{ if \(!op\.closing\) \{ op\.stage\.InputTransparent = false; \} \} catch \(Exception\) \{ \}\s*\}\);/.test(lift)
+       && /await Task\.Delay\(SlideInputDeadMs\);\s*MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*try \{ if \(!op\.closing && !op\.swappedOut\) \{ op\.stage\.InputTransparent = false; \} \} catch \(Exception\) \{ \}\s*\}\);/.test(lift)   /* ★ S14 #46 fix r1 re-base (R1 NIT-2): a swapped-out stage (a #1283 rider) stays dead (pins-s14/a2-container-ride.mjs slideSwapped) */
        /* ④ AND THE BELT STAYS: the `finally`, so an aborted or faulted animation — or a
              starved timer — still leaves a tappable page, behind !op.closing so the exit
              owns a stage it is tearing down */
-       && /if \(!op\.closing\)\s*\{\s*try \{ stage\.TranslationX = 0; stage\.Opacity = 1; \} catch \(Exception\) \{ \}\s*try \{ stage\.InputTransparent = false; \} catch \(Exception\) \{ \}\s*\}/.test(slide)
+       && /if \(!op\.closing\)\s*\{\s*try \{ stage\.TranslationX = 0; stage\.Opacity = 1; \} catch \(Exception\) \{ \}\s*if \(!op\.swappedOut\)\s*\{\s*try \{ stage\.InputTransparent = false; \} catch \(Exception\) \{ \}\s*\}\s*\}/.test(slide)   /* ★ S14 #46 fix r1 re-base (R1 NIT-2): the belt skips a swapped-out stage only */
        && /finally[\s\S]{0,400}?try \{ stage\.InputTransparent = false; \} catch \(Exception\) \{ \}/.test(slide),
       '★★ #46 A3 (⑤) + r2 R2-2: the stage is input-DEAD before the first entry frame on BOTH reveal paths (fresh present + parked re-present, ' + deadThenReveal + '/2) and input-LIVE again after SlideInputDeadMs = ' + deadMs + ' ms — not after the ' + slideMs + ' ms animation. Session I\'s hybrid entry starts the stage at 40% travel with Opacity 0, and this file\'s own easing keeps opacity under 3% for only 15.3 ms; round 1 cleared the block in slideStageIn\'s `finally` instead, i.e. ten to twenty times later, so a tap on the Add-contact name field at ~250 ms — stage at 99.0% opacity, 0.41% of its travel from home — was discarded when it used to be delivered. ALL FOUR IN ONE PIN: the `= true`, the no-slide branch\'s immediate clear, the ' + deadMs + ' ms lift, and the `finally` BELT behind it. The belt is not redundant — a starved timer or a dropped main-thread post would otherwise leave a permanently untappable page, which is strictly worse than the tap this prevents');
 
@@ -28616,8 +28627,8 @@ console.log('★★ Session P — the pre-warm + the batch transport');
     /* the op's PRESENTATION fields (auditor C: #800 claims them, nothing asserted them) */
     ok(/op\.overlayMode = true;/.test(w.body) && /op\.column = column;/.test(w.body) && /op\.revealDelayMs = 0;/.test(w.body) && /op\.slideIn = false;/.test(w.body)
       && /placeStage\(stage, hostGrid, column\);/.test(w.body) && !/parkOnLoad/.test(w.body) && !/modalMode/.test(w.body) && !/parkOnClose/.test(w.body)
-      && count(w.body, /\bop\.\w+ = /g) === 6 && /#if ANDROID\s*op\.holdUntilDrawn = true;/.test(w.body) && count(w.body, /PreloadOp op = new PreloadOp\(this, target, stage, targetContent, hostGrid\);/g) === 1,   /* ★ #1101 0b(b) re-base: + an Android-only present flag — since G-1 (session 2) holdUntilDrawn */
-      '★★ Session P L1·4 presentation (auditor C + #802 reviewer): the spare op is built for the SAME present a fresh chat takes — overlayMode true (never the PushAsync fallback), the caller\'s column, revealDelayMs 0 (the chat presents on its own painted signal), slideIn false (#735①), it is placed in its column at WARM time so the attach does not resize the WebView, the op is built as `new PreloadOp(this, target, stage, targetContent, hostGrid)` (#802 r10: `host` = THIS page, the value pushSpareChat\'s host clause compares — a swapped argument refused every tap `why=host`) and those are the ONLY five `op.<field> =` writes — never parkOnLoad / modalMode / parkOnClose / replaces / abandoned / stageMargin (a parkOnLoad spare would be PARKED into the Account slot at present, a `replaces` would close an unrelated pane, `abandoned` disposes the page — the tap shows nothing; #802 r3 enumerated the PreloadOp fields)');
+      && count(w.body, /\bop\.\w+ = /g) === 7 && /op\.containerWord = applyStageContainer\(stage, true\);/.test(w.body) && /#if ANDROID\s*op\.holdUntilDrawn = true;/.test(w.body) && count(w.body, /PreloadOp op = new PreloadOp\(this, target, stage, targetContent, hostGrid\);/g) === 1,   /* ★ #1101 0b(b) re-base: + an Android-only present flag — since G-1 (session 2) holdUntilDrawn · ★ S14 (#1282) re-base: + op.containerWord = applyStageContainer(stage, true) (the 7th write, pinned by name) */
+      '★★ Session P L1·4 presentation (auditor C + #802 reviewer): the spare op is built for the SAME present a fresh chat takes — overlayMode true (never the PushAsync fallback), the caller\'s column, revealDelayMs 0 (the chat presents on its own painted signal), slideIn false (#735①), it is placed in its column at WARM time so the attach does not resize the WebView, the op is built as `new PreloadOp(this, target, stage, targetContent, hostGrid)` (#802 r10: `host` = THIS page, the value pushSpareChat\'s host clause compares — a swapped argument refused every tap `why=host`) and those are the ONLY seven `op.<field> =` writes (overlayMode · tag · column · revealDelayMs · slideIn · the Android-only holdUntilDrawn · containerWord — the count is exact) — never parkOnLoad / modalMode / parkOnClose / replaces / abandoned / stageMargin (a parkOnLoad spare would be PARKED into the Account slot at present, a `replaces` would close an unrelated pane, `abandoned` disposes the page — the tap shows nothing; #802 r3 enumerated the PreloadOp fields)');
     /* the warm-side GUARDS + the timeout (auditor C: the docblock was their only record) */
     const gate = w.body.slice(0, w.body.indexOf('SingleChatPage target;'));
     ok(gate.length > 0 && /spareChatOp != null\) refused = "exists";/.test(gate) && /modalOverlayOp != null\) refused = "lock";/.test(gate)
@@ -31474,7 +31485,7 @@ console.log('★★ handover-gate fix batch — the security pins');
       .map((f) => rel16(f));
     const covered = new Set(results.map((r) => r.name.split(':')[0]));
     const uncovered = verbFiles.filter((rel) => !covered.has(rel.split('/').pop().replace('.xaml.cs', '')));
-    ok(verbFiles.length >= 2 && results.length >= verbFiles.length && uncovered.length === 0
+    ok(verbFiles.length >= 1 && results.length >= verbFiles.length && uncovered.length === 0   /* ★ S14 re-base (#1285): SettingsPage's openLink branch is DELETED (ixian:aboutLink:<id>), SingleChatPage's stays */
       && results.every((r) => r.slice.length > 100),   // a sanity net on the brace match, not a
                                                        // shape test: the branch is small now that
                                                        // it only forwards to the gate
@@ -31505,7 +31516,7 @@ console.log('★★ handover-gate fix batch — the security pins');
     ];
     for (const [why, test] of props) {
       const bad = results.filter((r) => !test(r.slice)).map((r) => r.name);
-      ok(results.length >= 2 && bad.length === 0, '★★ gate 16 (every openLink dispatch): ' + why + '. Failing: ' + (bad.join(', ') || 'none'));
+      ok(results.length >= 1 && bad.length === 0, '★★ gate 16 (every openLink dispatch): ' + why + '. Failing: ' + (bad.join(', ') || 'none'));
     }
 
     /* ══ ① THE BRANCH CALLS ONLY THE GATE. THIS IS THE PROPERTY THAT CARRIES THE
@@ -31599,7 +31610,7 @@ console.log('★★ handover-gate fix batch — the security pins');
     for (const r of results) {
       for (const c of callsIn16(r.slice)) if (!OPENLINK_OK.has(c)) badCalls.push(r.name + ' → ' + c + '(');
     }
-    ok(results.length >= 2 && badCalls.length === 0,
+    ok(results.length >= 1 && results.some((r) => /SingleChatPage/.test(r.name)) && !results.some((r) => /SettingsPage/.test(r.name)) && badCalls.length === 0,   /* ★ S14 (#1285) re-base: SettingsPage's openLink dispatch is DELETED (aboutLink whitelist) — the census must find SingleChatPage's and must NOT find a Settings one */
       '★★ gate 16 ① THE BRANCH CALLS ONLY THE GATE — every `ixian:openLink:` dispatch: the branch is parsed and EVERY invocation in it must be one of ' + [...OPENLINK_OK].join('( · ') + '(. A POSITIVE property, because three rounds proved a negative one loses the next spelling: r3 lost `if(`, r4 lost `var ob = Browser.Default`, r5 lost `SFileOperations.open(link)` — which on Windows is Process.Start(UseShellExecute=true), the browser — and that mutation re-opened security MAJOR #3 with the whole suite green. A new OS-open spelling fails HERE by being a call that is not the gate, and so does reflection. Subjects come from the same census above, so a third page inherits this. Calls that are not the gate: ' + (badCalls.join(', ') || 'none'));
 
     /* the iOS hand-off block, climbed by the SAME walk */
@@ -31640,7 +31651,7 @@ console.log('★★ handover-gate fix batch — the security pins');
       const body = nav16.body.slice(nav16.body.indexOf('{') + 1).trimStart();
       if (!body.startsWith('string current_url = HttpUtility.UrlDecode(e.Url);')) navFirst.push(f.split('/').pop());
     }
-    ok(decodeHosts.length >= 2 && navFirst.length === 0,
+    ok(decodeHosts.length >= 1 && decodeHosts.some((h) => /SingleChatPage/.test(h)) && navFirst.length === 0,   /* ★ S14 (#1285) re-base: one openLink host left (SingleChatPage) */
       '★★ gate 16 THE TRANSPORT: in every page that owns an openLink dispatch, `string current_url = HttpUtility.UrlDecode(e.Url);` is still the FIRST statement of onNavigating — the asymmetry the branch documents is the real shape, and the gate\'s userinfo refusal is what makes it safe. Pages whose handler no longer opens with the decode: ' + (navFirst.join(', ') || 'none'));
     /* the reason IsAllowedURL must stay out of the sink, asserted at its own source so
        nobody "harmonises" the two gates later */
@@ -36064,15 +36075,18 @@ console.log('#912: backup exclusions, the html copy skip, and the start clock');
     const mq = pm.match(/string storagePath = "(\w+)";/);
     if (mc && mq) { coreChats = mc[1]; coreQueue = mq[1]; coreRead = true; }
   }
-  const must = ['file:Spixi/' + coreChats, 'file:Spixi/' + coreQueue, 'file:Spixi/ixian.log'];
-  const logRotation = legacy.filter((e) => /^file:Spixi\/ixian\.\d\.log$/.test(e)).length;
+  /* ★ S14 (#1281) RE-BASED: Personal = files/Documents on .NET 10 Android, so the rules read "Documents/Spixi/…"; the
+     rotation is ixian.0..ixian.5 (Logging rolls to .0 first); headers / activity are now EXCLUDED (Damir 2026-10-09).
+     The behavioural runtime-path pin is scripts/pins-s14/a1-backup-back.mjs — this one pinned TEXT, not the runtime path. */
+  const must = ['file:Documents/Spixi/' + coreChats, 'file:Documents/Spixi/' + coreQueue, 'file:Documents/Spixi/ixian.log'];
+  const logRotation = legacy.filter((e) => /^file:Documents\/Spixi\/ixian\.\d\.log$/.test(e)).length;
   ok(legacy.length >= 3 && same(legacy, cloud) && same(legacy, transfer)
-     && must.every((e) => legacy.includes(e)) && logRotation === 5
-     && !legacy.some((e) => /wallet|\/Acc$|\.ixi$|html|headers|activity/.test(e))
+     && must.every((e) => legacy.includes(e)) && logRotation === 6
+     && !legacy.some((e) => /wallet|\/Acc$|\.ixi$|html/.test(e))
      && /android:allowBackup="true"/.test(manifest)
      && /android:fullBackupContent="@xml\/backup_rules"/.test(manifest)
      && /android:dataExtractionRules="@xml\/data_extraction_rules"/.test(manifest),
-    '★ #912 ① (APP-1): Android system backup EXCLUDES the plaintext chat history, the offline send queue and the six log files, in all three rule lists (≤11 · 12+ cloud · 12+ transfer), which are byte-identical; the wallet, the account, the avatar and the preferences are NOT excluded (a restore that brings back wallet.ixi is what a backup is for); the manifest keeps allowBackup=true and references BOTH files. Folder names ' + (coreRead ? 'READ from the Ixian-Core sibling' : 'assumed (no Ixian-Core sibling beside the repo)') + ': ' + coreChats + ' · ' + coreQueue + '. Got legacy=' + legacy.length + ' cloud=' + cloud.length + ' transfer=' + transfer.length + ' rotation=' + logRotation);
+    '★ #912 ① (APP-1): Android system backup EXCLUDES the plaintext chat history, the offline send queue and the log files (ixian.log + ixian.0..5, under Documents/Spixi/ — S14 #1281), in all three rule lists (≤11 · 12+ cloud · 12+ transfer), which are byte-identical; the wallet, the account, the avatar and the preferences are NOT excluded (a restore that brings back wallet.ixi is what a backup is for); the manifest keeps allowBackup=true and references BOTH files. Folder names ' + (coreRead ? 'READ from the Ixian-Core sibling' : 'assumed (no Ixian-Core sibling beside the repo)') + ': ' + coreChats + ' · ' + coreQueue + '. Got legacy=' + legacy.length + ' cloud=' + cloud.length + ' transfer=' + transfer.length + ' rotation=' + logRotation);
 
   const ad = stripCode(rd912('Spixi/Platforms/iOS/AppDelegate.cs'));
   const mb912 = (src, sig) => { const i = src.indexOf(sig); if (i < 0) return ''; let d = 0; for (let k = src.indexOf('{', i); k >= 0 && k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); } return ''; };
@@ -36913,7 +36927,7 @@ console.log('★ Session AD — the ours/his cutover rows: batch 1 (CH6 · C1/C2
   const landM = methodAD(hpAD, 'public void landOnTab(string id)');
   ok(landM.length > 0 && /LAND_TAB_IDS/.test(landM) && /sendUiCommand\(this, "landOnTab", id\)/.test(landM)
      && /"chats", "wallet", "apps", "contacts"/.test(hpAD)
-     && /HomePage\.InstanceOrNull\(\)\?\.landOnTab\(current_url\.Substring\("ixian:landtab:"\.Length\)\)/.test(setPAD)
+     && /HomePage\.InstanceOrNull\(\)\?\.landOnTab\(landId\);/.test(setPAD)   /* ★ S14 re-base (#1284): the id is the text before the first ':' (pins-s14/b-settings.mjs) */
      && !/spixi\.landtab|LANDTAB_KEY|consumeLandTab|landtabprobe/.test(homeAD + stripCode(rdAD('src/shells/settings.html')) + hpAD + setPAD)
      && /function landOnTabNow\(id\)/.test(homeAD) && /landOnTab\(id\) \{ landOnTabNow\(id\); \}/.test(homeAD),
     '★ S11: SettingsPage forwards ixian:landtab:<id> → HomePage.landOnTab (a fixed id set, refused otherwise) → the landOnTab push → the shell\'s landOnTabNow — and NO landtab storage key, consumer or probe survives in any of the four files');
@@ -40812,7 +40826,7 @@ console.log('#1101–#1107 — session 1');
     const cb = hold.slice(hold.indexOf('PresentHold.start('));
     const r = {
       field: /public bool holdUntilDrawn = false;/.test(sc),
-      androidOnly: /#if ANDROID\s*op\.holdUntilDrawn = true;\s*stage\.Shadow = new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*stage\.CascadeInputTransparent = false;\s*#endif/.test(warm),   /* ★ S13 re-base (12-FLASH): the no-cascade line joins the Android block (pinned in pins-s13/a-cascade.mjs) */
+      androidOnly: /#if ANDROID\s*op\.holdUntilDrawn = true;\s*op\.containerWord = applyStageContainer\(stage, true\);\s*stage\.CascadeInputTransparent = false;\s*#endif/.test(warm),   /* ★ S14 re-base (#1282): the permanent container = applyStageContainer (clip by default; pins-s14/a2-container-ride.mjs) */   /* ★ S13 re-base (12-FLASH): the no-cascade line joins the Android block (pinned in pins-s13/a-cascade.mjs) */
       remap: /hostGrid\.Children\.Add\(stage\);\s*#if ANDROID\s*stage\.Handler\?\.UpdateValue\(nameof\(IView\.Opacity\)\);\s*#endif/.test(warm),
       /* the #1101 0.01 pre-reveal is GONE (#1115: it ADDED blank frames) */
       no001: !/Opacity = 0\.01/.test(sc) && !/PreRevealFramesMs/.test(sc) && !/preRevealFrames/.test(sc),
@@ -42234,6 +42248,7 @@ for (const mod of ['a-wiring', 'b-wiring', 'c-strip', 'c-readd', 'c-grid', 'c-to
 for (const mod of ['a-season', 'a-line', 'a-update', 'a-hints', 'a-copy', 'a-cs', 'b-illo', 'b-launch', 'b-motion', 'b-delete', 'c-chat', 'c-settings', 'c-wiring', 'e-zoom', 'e-page', 'f-wiring', 'f-apps', 'a-settings', 'a-held', 'g-album', 'g-offer', 'g-viewer', 'g-cs', 'h-send', 'h-receive', 'h-pad', 'h-r3']) await (await import(new URL('./pins-s11/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S11 (#1262) — a = seasonal bar / line / update card / hints / copy / C# · b = illustration set · c = chat flash probe / keyboard / paste toast / auto-download / created line · e = viewer zoom + paging · f = Apps pre-push (a-kit.mjs = a boot helper, not a module; pure rules: scripts/csh/S11HintTests.cs, S11ChatTests.cs, S11AppsTests.cs)
 for (const mod of ['a-tips', 'a-cs', 'a-guards', 'b-about', 'b-howto', 'b-cs', 'b-r1', 'c-paste', 'd-save', 'd-ground', 'e-hold', 'e-mosaic']) await (await import(new URL('./pins-s12/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S12 (#1267) — a = hint tips 1/3/4 + ixian:hintHelp · b = About B + How to use A + the rate row · c = paste on the 2-step amount · d = Windows viewer Save probe + candidate, the window ground · e = V-26 grounds wait + the cold chat hold (pure rules: scripts/csh/S11HintTests.cs, S12SaveTests.cs, S12HoldTests.cs)
 for (const mod of ['a-cascade', 'b-swap']) await (await import(new URL('./pins-s13/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S13 (12-FLASH, launch blocker) — a = no input cascade on the Android chat stages (the WebView is never re-parented; docs/s13-flash-mechanism.md)
+for (const mod of ['a1-backup-back', 'a2-container-ride', 'b-settings', 'c-balance-text', 'd-backup-about', 'e-wallet']) await (await import(new URL('./pins-s14/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S14 (#1279–#1286) — a1 = Android back callback + backup rules on the runtime path · a2 = overlay container (Clip) + chat info rides the swap · b = landtab one verb + aboutLink whitelist · c = no balance in a WebView failure text
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

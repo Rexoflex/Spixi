@@ -337,11 +337,101 @@ public class MainActivity : MauiAppCompatActivity
         }
     }
 
+    /* ★ S14 (#1280): ONE back path on every Android version.
+     * Android 16 + targetSdk 36 = predictive back: the system asks the OnBackPressedDispatcher, never Activity.OnBackPressed.
+     * MAUI 10.0.71 MauiAppCompatActivity enables its own callback only while Window.CanConsumeBackNavigation (a modal or a
+     * nav stack > 1). Our overlays live on HomePage, so that callback was disabled, the system default ran and the task went
+     * home (log android-s14-backswipe.txt: TYPE_RETURN_TO_HOME, no app code ran).
+     * Fix: this callback is ALWAYS enabled and runs MAUI's own pipeline (the AndroidLifecycle.OnBackPressed delegates =
+     * Window.BackButtonClicked → page.OnBackButtonPressed, what MauiAppCompatActivity.HandleBackNavigation runs). Not handled →
+     * MoveTaskToBack (13c #1277), never Finish. LifecycleEventServiceExtensions.InvokeLifecycleEvents is internal, so the public
+     * ILifecycleEventService.InvokeEvents with the same key (typeof(TDelegate).Name = "OnBackPressed") is used.
+     * ⚠ The price: an always-enabled callback means no system back-to-home preview animation on the chats list. */
+    private sealed class SpixiBackCallback : AndroidX.Activity.OnBackPressedCallback
+    {
+        private readonly MainActivity activity;
+        private bool running = false;   // re-entrancy guard: a handler that re-dispatches back must not recurse
+
+        public SpixiBackCallback(MainActivity a) : base(true)
+        {
+            activity = a;
+        }
+
+        public override void HandleOnBackPressed()
+        {
+            if (running)
+            {
+                return;
+            }
+            running = true;
+            try
+            {
+                bool handled = false;
+                var life = IPlatformApplication.Current?.Services?.GetService(typeof(Microsoft.Maui.LifecycleEvents.ILifecycleEventService))
+                    as Microsoft.Maui.LifecycleEvents.ILifecycleEventService;
+                if (life != null)
+                {
+                    Microsoft.Maui.LifecycleEvents.LifecycleEventServiceExtensions.InvokeEvents<Microsoft.Maui.LifecycleEvents.AndroidLifecycle.OnBackPressed>(
+                        life, nameof(Microsoft.Maui.LifecycleEvents.AndroidLifecycle.OnBackPressed), del => handled = del(activity) || handled);
+                }
+                string route = "handled";
+                if (!handled)
+                {
+                    route = "background";
+                    if (!activity.MoveTaskToBack(true))
+                    {
+                        /* #46 fix r1 (R1 NIT-5): the task did not move (refused) → the framework default, so back is never a no-op
+                         * on the Launch root: this callback steps aside for ONE dispatch (the dispatcher then runs the
+                         * ComponentActivity fallback = Activity.onBackPressed; MAUI's callback is disabled here — nothing consumed
+                         * the back), and is enabled again before this returns. The only Enabled write in this file. */
+                        route = "default";
+                        Enabled = false;
+                        try
+                        {
+                            activity.OnBackPressedDispatcher.OnBackPressed();
+                        }
+                        finally
+                        {
+                            Enabled = true;
+                        }
+                    }
+                }
+                if (SPIXI.P1Perf.enabled)
+                {
+                    SPIXI.P1Perf.line("back route=" + route);   // dev-only, fixed words: handled | background | default
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("back route failed: " + e.GetType().Name);
+            }
+            finally
+            {
+                running = false;
+            }
+        }
+    }
+
+    /* ★ S14 (#1280): the legacy key path (Android ≤ 15, no predictive back) lands here. MAUI's override would run
+     * HandleBackNavigation and then base → the dispatcher → our callback = the handlers twice. Route it to the dispatcher
+     * only, so every back goes through SpixiBackCallback exactly once. */
+    [Obsolete]
+#pragma warning disable 809
+    public override void OnBackPressed()
+#pragma warning restore 809
+    {
+        OnBackPressedDispatcher.OnBackPressed();
+    }
+
     protected override void OnCreate(Bundle? bundle)
     {
         Instance = this;
 
         base.OnCreate(bundle);
+
+        // ★ S14 (#1280): our back callback, added AFTER MAUI's (base.OnCreate) so the dispatcher asks it first. See SpixiBackCallback.
+        // No managed field: the dispatcher holds the Java callback, and the Android GC bridge keeps its managed peer alive with it.
+        OnBackPressedDispatcher.AddCallback(this, new SpixiBackCallback(this));
 
 #if DEBUG
         // #334: make the app's WebViews visible to chrome://inspect (Debug builds

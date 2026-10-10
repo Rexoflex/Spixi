@@ -1078,6 +1078,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
               opacity var(--duration-300) var(--easing-standard),
               padding-block var(--duration-300) var(--easing-standard);
 }
+/* ★ S14 (#1289): no transactions at all → the tools are [hidden] (wallet-shell.js walletLedgerEmpty); the sync
+   row then takes over the tools' top gap so it does not butt against the hero. */
+.c-wallet-tools[hidden] + .c-scanprog { padding-block-start: var(--spacing-12); }
 .c-wallet-tools[data-hidden] {
   max-height: 0;
   opacity: 0;
@@ -1167,6 +1170,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 /* —— tx list + empty —— */
 .c-wallet-txlist { display: flex; flex-direction: column; }
+/* ★ S14 (#1291): ONE inset for the wallet column — the row stays full-bleed (hover / selected wash),
+   its content (direction disc · amount) starts and ends on the same --spacing-16 as the search pill,
+   the chips row (.c-wallet-tools) and the sync row (.c-scanprog). Was spacing-12 (txlist-item.css):
+   4px off on both sides. Logical, so RTL mirrors it. */
+.c-wallet-txlist > .c-txlist-item { padding-inline: var(--spacing-16); }
 
 /* just-sent flash (#136): one ~2s wash pulse guiding the eye to the fresh row.
    Raw 2s duration sanctioned like the #117 handshaking pulse (no token this long);
@@ -1194,6 +1202,26 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-wallet-txlist > .c-empty-state[data-compact] .c-empty-state__illo {
   width: clamp(160px, 48vw, 200px);   /* ★ S11 B (#1262): the art is back and WIDER (Damir) — was clamp(104px, 32vw, 148px) */
 }
+
+/* ★ S14 (#1289 follow-up): the empty-ledger "Missing a transaction?" text link under the zero-state line
+   (the chips-row pill is hidden with the chips). A quiet text action: body-sm, action ink, no fill; the
+   ::after grows the hit area to 44 without moving the copy. */
+.c-wallet-misstx-link {
+  position: relative;
+  margin: 0;
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-wallet-misstx-link::after { content: ''; position: absolute; inset: -8px 0; }   /* 28 + 2×8 = 44 */
+@media (hover: hover) and (pointer: fine) { .c-wallet-misstx-link:hover { text-decoration: underline; } }
 
 /* —— tx detail sheet —— */
 /* ★★ #1040 (Damir 2026-09-29, "more premium or clear"): the RECEIPT layout. Identity,

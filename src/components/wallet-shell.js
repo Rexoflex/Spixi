@@ -80,6 +80,14 @@ export function orderedTxs(state) {
     .filter((t) => txMatchesQuery(t, state.query));
 }
 
+/** ★ S14 (#1289): NO transactions at all — the ledger is empty, not a filter/search miss (those keep
+ *  their tools + the plain "no results" note). The search pill and the chips have nothing to act on
+ *  here and pushed the zero state below the fold. Gate-independent: the blank load beat hides them
+ *  too, so neither an empty nor a full wallet sees the row jump when the burst lands. */
+export function walletLedgerEmpty(state) {
+  return !(state.txs || []).some(Boolean) && !(state.query || '').trim() && (state.filter || 'all') === 'all';
+}
+
 /* ————————————————————————————— tx list ————————————————————————————— */
 
 /** TRUE zero state (no ledger at all) vs NO RESULTS (Sent/Received or a search
@@ -100,7 +108,7 @@ function walletEmpty(state, strings, opts = {}) {
   const f = state.filter || 'all';
   if (!q && f === 'all') {
     if (opts.zeroReady === false) return null;      // ★ load window — say nothing yet
-    return createEmptyState({
+    const es = createEmptyState({
       /* ★ #453 (Damir on device): NO illustration on the wallet zero state. The hero
          already owns ~300px above this block, so the art pushed the one action that
          matters — "Show my address" — toward the bottom nav, and it said nothing the
@@ -133,6 +141,25 @@ function walletEmpty(state, strings, opts = {}) {
       // the house answer for an in-list state (the contacts picker rides it too).
       compact: true,
     });
+    /* ★ S14 (#1289 follow-up): the chips row (and its "Missing a transaction?" pill) is hidden on an empty
+       ledger, so the zero state carries the entry as a small text link under its line. The host decides when
+       (opts.missTxLink() — home: the pill's own rule, i.e. the scan has ended and the wallet is not provably
+       new; the sync row is the entry while it shows) and re-syncs `hidden` on every scan push. Same sheet,
+       same string key as the pill. No opts.missTxLink → no link (demos). */
+    if (typeof opts.missTxLink === 'function') {
+      const link = document.createElement('button');
+      link.type = 'button';
+      link.className = 'c-wallet-misstx-link';
+      link.textContent = strings.missingTx || 'Missing a transaction?';
+      link.hidden = !opts.missTxLink();
+      link.addEventListener('click', () => openMissingTxSheet({
+        host: opts.host, strings, onExplorer: opts.onExplorer,
+        scan: typeof opts.scan === 'function' ? opts.scan() : opts.scan,
+      }));
+      const body = es.querySelector('.c-empty-state__body');
+      if (body) body.after(link); else es.append(link);
+    }
+    return es;
   }
   const el = document.createElement('div');
   el.className = 'c-wallet-empty';
@@ -176,6 +203,7 @@ export function renderWalletTxList(listEl, state, opts = {}) {
     const emptyEl = walletEmpty(state, strings, opts);
     if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
   }
+  if (opts.toolsEl) opts.toolsEl.hidden = walletLedgerEmpty(state);   // ★ S14 (#1289): every render funnel (push, search, chip)
   restoreRowFocus(listEl, hoverSnap);
   return listEl;
 }

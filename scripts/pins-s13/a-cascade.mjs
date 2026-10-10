@@ -20,9 +20,9 @@ export default async function (h) {
   const spareAt = SCP.indexOf('stage.CascadeInputTransparent = false;', SCP.indexOf('public bool warmSpareChat('));
   const rel = SCP.slice(SCP.indexOf('private static void releaseHeld('), SCP.indexOf('private sealed class S12GroundWait'));
   const r = {
-    spare: /op\.holdUntilDrawn = true;\s*stage\.Shadow = new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*stage\.CascadeInputTransparent = false;\s*#endif/.test(warm),
+    spare: /op\.holdUntilDrawn = true;\s*op\.containerWord = applyStageContainer\(stage, true\);\s*stage\.CascadeInputTransparent = false;\s*#endif/.test(warm),   /* ★ S14 re-base (#1282): the permanent container = applyStageContainer (a clip by default; pins-s14/a2-container-ride.mjs) */
     spareAndroid: insideAndroid(spareAt),
-    cold: /^if \(overlayMode\)\s*\{\s*stage\.Shadow \?\?= new Microsoft\.Maui\.Controls\.Shadow \{ Brush = Brush\.Black, Opacity = 0f, Radius = 0, Offset = new Point\(0, 0\) \};\s*stage\.CascadeInputTransparent = false;\s*\}\s*#endif/.test(coldTail),
+    cold: /^if \(overlayMode\)\s*\{\s*op\.containerWord = applyStageContainer\(stage, S11ChatRules\.stageNeedsInputFlip\(op\.holdUntilDrawn, op\.parkOnClose \|\| op\.parkOnLoad, op\.slideIn\)\);\s*op\.inputFixed = op\.containerWord == "none";\s*stage\.CascadeInputTransparent = false;\s*\}/.test(coldTail),   /* ★ S14 re-base (#1282): applyStageContainer; the ride-along hook (#1283) follows before #endif */
     coldAndroid: insideAndroid(coldAt),
     coldAfterHold: coldAt > SCP.indexOf('if (overlayMode && tag == "chat" && target is SingleChatPage && !chatOpenNow)'),
     exactlyTwo: (SCP.match(/stage\.CascadeInputTransparent = false;/g) || []).length === 2,

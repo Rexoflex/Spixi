@@ -614,9 +614,20 @@ namespace SPIXI
                 {
                     string target = current_url.Substring("ixian:openChat:".Length).Trim();
                     Address targetAddr = new Address(target);
-                    if (FriendList.getFriend(targetAddr) != null)
+                    Friend? targetFriend = FriendList.getFriend(targetAddr);
+                    if (targetFriend != null)
                     {
-                        popPageAsync();
+                        /* ★ S14 (#1283, Damir 13C-SWAP): Android, full screen, a chat open under this info → chat info RIDES the held
+                         * swap: not closed now, the group chat is presented above it (held until drawn), and chat info + the old
+                         * chat close together when the group's grounds come back. Every other case (desktop, iOS, wide, the
+                         * target chat already open, a navigation in flight) → the old way: close first, then open. The ride
+                         * itself falls back to that close on any path that does not take the held swap (SpixiContentPage.rideAlong). */
+                        bool rides = Utils.getChatPage(targetFriend) == null
+                            && SpixiContentPage.rideNextChatSwap(this, "chat:" + targetFriend.walletAddress.ToString());
+                        if (!rides)
+                        {
+                            popPageAsync();
+                        }
                         HomePage.Instance()?.onChat(targetAddr, null);
                     }
                 }

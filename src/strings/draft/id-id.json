@@ -873,5 +873,10 @@
   "howToMoreHelp": "Butuh bantuan lain?",
   "howToHelpCentre": "Pusat bantuan",
   "hintNoPhoneBody2": "Akun Anda adalah kunci di perangkat Anda.",
-  "aboutWhyKeysTitle2": "Kunci Anda, perangkat Anda"
+  "aboutWhyKeysTitle2": "Kunci Anda, perangkat Anda",
+  "devContainerTitle": "Overlay container (Android)",
+  "devContainerClip": "Clip",
+  "devContainerShadow": "Shadow (13c)",
+  "devContainerNone": "None (no input flip during the slide)",
+  "devContainerOn": "On"
 }

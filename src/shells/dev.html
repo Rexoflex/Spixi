@@ -138,6 +138,7 @@
     root.replaceChildren(devEl);
     if (lastLog) setDevLog(devEl, lastLog);
     mountFlashDev();
+    mountContainerDev();   // ★ S14 (#1282): also when no flash positions came yet
   }
 
   /* ★ S11 C (#1262) 10-FLASH probe build — the Developer switches for the chat-open hold (Android; DevPage stores them as
@@ -187,8 +188,67 @@
       row.append(lab, sw);
       card.append(row);
     });
-    const note = body.querySelector('.c-settings__note');
+    const note = body.querySelector(':scope > .c-settings__note');   // ★ S14 (#1282): the body's own note, never a card's title
     if (note && note.nextSibling) body.insertBefore(card, note.nextSibling);
+    else body.prepend(card);
+    mountContainerDev();
+  }
+
+  /* ★ S14 (#1282) — the overlay-container probe (Android; C# pushes setContainerDev only there, so no dead row). One of three:
+     clip (default) · shadow (the 13c zero shadow) · none (no container, no input flip on a non-held overlay). A tap sends
+     `ixian:devflash:container:<word>`, optimistic; C# echoes the stored word. */
+  let containerDev = null;   // 'clip' | 'shadow' | 'none' once C# told us
+  function mountContainerDev() {
+    if (!containerDev || !devEl) return;
+    const body = devEl.querySelector('.c-settings__body');
+    if (!body) return;
+    const old = body.querySelector('.c-dev-container');
+    if (old) old.remove();
+    const card = document.createElement('div');
+    card.className = 'c-settings__section c-dev-container';
+    card.setAttribute('role', 'radiogroup');
+    const head = document.createElement('p');
+    head.className = 'c-settings__note';
+    head.textContent = strings.devContainerTitle || 'Overlay container (Android)';
+    card.setAttribute('aria-label', head.textContent);
+    card.append(head);
+    const opts = [
+      ['clip', strings.devContainerClip || 'Clip'],
+      ['shadow', strings.devContainerShadow || 'Shadow (13c)'],
+      ['none', strings.devContainerNone || 'None (no input flip during the slide)'],
+    ];
+    const paint = () => {
+      card.querySelectorAll('[data-container]').forEach((b) => {
+        const on = b.dataset.container === containerDev;
+        b.setAttribute('aria-checked', String(on));
+        const v = b.querySelector('.c-settings__row-value');
+        if (v) v.textContent = on ? (strings.devContainerOn || 'On') : '';
+      });
+    };
+    opts.forEach(([word, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings__row';
+      b.setAttribute('role', 'radio');
+      b.dataset.container = word;
+      const lab = document.createElement('span');
+      lab.className = 'c-settings__row-label';
+      lab.textContent = label;
+      const val = document.createElement('span');
+      val.className = 'c-settings__row-value';
+      b.append(lab, val);
+      b.addEventListener('click', () => {
+        if (containerDev === word) return;
+        containerDev = word;
+        paint();
+        bridge.send('ixian:devflash:container:' + word);
+      });
+      card.append(b);
+    });
+    paint();
+    const after = body.querySelector(':scope > .c-dev-flash') || body.querySelector(':scope > .c-settings__note');
+    if (after && after.nextSibling) body.insertBefore(card, after.nextSibling);
+    else if (after) body.append(card);
     else body.prepend(card);
   }
   buildDev();
@@ -219,6 +279,13 @@
       if (!m) return;
       flashDev = [m[1] === '1', m[2] === '1', m[3] === '1'];
       mountFlashDev();
+    },
+    /* ★ S14 (#1282): the overlay-container word (clip | shadow | none); anything else is ignored. */
+    setContainerDev(v) {
+      const w = String(v || '');
+      if (w !== 'clip' && w !== 'shadow' && w !== 'none') return;
+      containerDev = w;
+      mountContainerDev();
     },
   };
   /* ★ L3 (#706): the iOS back signal. One level per gesture — a sheet on the shared

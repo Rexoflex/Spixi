@@ -157,6 +157,16 @@ namespace SPIXI
             }
         }
 
+        /* ★ S14 (#1286): the over-balance answer pushed to a WebView. It must carry NO
+         * balance and no number derived from it: `ixian:signSend:<peer>:<huge>` (or a tip)
+         * would otherwise read the exact balance with one call, before any native confirm.
+         * The existing title key ("Insufficient Balance") — no new string. Native alerts
+         * (displaySpixiAlert) may still name both numbers: the user sees those, a script does not. */
+        public static string insufficientText()
+        {
+            return SpixiLocalization._SL("wallet-error-balance-title");
+        }
+
         public static void handleFeeQuery(SpixiContentPage page, string payload)
         {
             try
@@ -315,10 +325,7 @@ namespace SPIXI
                 IxiNumber availableBalance = Node.getAvailableBalance();
                 if (amount + fee > availableBalance)
                 {
-                    string body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"),
-                        Utils.amountToLocalizedDisplayString(amount + fee),
-                        Utils.amountToLocalizedDisplayString(availableBalance));
-                    Utils.sendUiCommand(page, "signSendResult", "fail", body);
+                    Utils.sendUiCommand(page, "signSendResult", "fail", insufficientText());   // ★ S14 (#1286): no balance in the text
                     return;
                 }
 
@@ -402,10 +409,7 @@ namespace SPIXI
                 IxiNumber availableBalance = Node.getAvailableBalance();
                 if (amount + fee > availableBalance)
                 {
-                    string body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"),
-                        Utils.amountToLocalizedDisplayString(amount + fee),
-                        Utils.amountToLocalizedDisplayString(availableBalance));
-                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "fail", body);
+                    Utils.sendUiCommand(page, "payRequestResult", msgIdHex, "fail", insufficientText());   // ★ S14 (#1286): no balance in the text
                     return;
                 }
 

@@ -190,7 +190,7 @@ export default async function (h) {
 
   /* ———— #1246: the report link — a CODE in, C#\'s own mailto out, through the one gate (MailCompose) ———— */
   await guard('S9 A3 report translation', async () => {
-    const sb = SET.slice(SET.indexOf('else if (current_url.StartsWith("ixian:reportTranslation:", StringComparison.Ordinal))'), SET.indexOf('else if (current_url.StartsWith("ixian:openLink:", StringComparison.Ordinal))'));
+    const sb = SET.slice(SET.indexOf('else if (current_url.StartsWith("ixian:reportTranslation:", StringComparison.Ordinal))'), SET.indexOf('else if (current_url.StartsWith("ixian:aboutLink:", StringComparison.Ordinal))'));   /* ★ S14 re-base (#1285): the next branch is aboutLink (openLink deleted) */
     const lb = bodyOf(LAUNCH, 'else if (verb.StartsWith("ixian:reportTranslation:", StringComparison.Ordinal))');
     const fn = bodyOf(UT, 'public static bool openTranslationReport(string? langCode)');
     ok(sb.length > 0 && /^else if \(current_url\.StartsWith\("ixian:reportTranslation:", StringComparison\.Ordinal\)\)\s*\{\s*Utils\.openTranslationReport\(current_url\.Substring\("ixian:reportTranslation:"\.Length\)\);\s*\}\s*$/.test(sb.trim())

@@ -270,7 +270,7 @@ export default async function (h) {
       fileName: /public const string FILE_NAME = "localonly\.json";/.test(LOS) && /public static Func<string> folder = \(\) => Config\.spixiUserFolder;/.test(LOS),
       appleExcluded: /#if IOS \|\| MACCATALYST\s*try\s*\{\s*using NSUrl url = NSUrl\.FromFilename\(p\);\s*if \(!url\.SetResource\(NSUrl\.IsExcludedFromBackupKey, NSNumber\.FromBoolean\(true\), out NSError err\)/.test(LOS)
         && /File\.Move\(tmp, p, true\);\s*excludeFromBackup\(p\);/.test(LOS),
-      androidExcluded: lists.every((l) => l.includes('file:Spixi/localonly.json') && l.includes('file:Spixi/localonly.json.tmp')),
+      androidExcluded: lists.every((l) => l.includes('file:Documents/Spixi/localonly.json') && l.includes('file:Documents/Spixi/localonly.json.tmp')),   /* ★ S14 (#1281) re-based: Personal = files/Documents */
     };
     ok(Object.values(r).every(Boolean),
       '★ S9 H-14 (#1245, #984): the declined-request addresses (ignored_requests) and the push trace salt live in SLocalOnlyStore — <spixiUserFolder>/localonly.json, moved out of the backed-up Preferences on first read — which every Android backup list (≤11 · 12+ cloud · 12+ transfer) excludes and which iOS / Mac mark IsExcludedFromBackup on every write — ' + JSON.stringify(r));

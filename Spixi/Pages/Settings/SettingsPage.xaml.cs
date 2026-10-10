@@ -2,7 +2,7 @@
 using IXICore.Meta;
 using IXICore.Network;
 using IXICore.Streaming;
-using Microsoft.Maui.ApplicationModel;    // iOS-21: Browser.Default (SingleChatPage:21 precedent)
+using Microsoft.Maui.ApplicationModel;    // MainThread (★ S14 #46 r1 NIT-9: Browser.Default left with the openLink branch, #1285)
 using Microsoft.Maui.ApplicationModel.DataTransfer;   // #455 G5: Share.RequestAsync (HomePage:10 precedent)
 using System.Collections.Generic;
 using Microsoft.Maui.Controls;
@@ -15,7 +15,7 @@ using SPIXI.Meta;
 using System;
 using System.IO;
 using System.Linq;                 // ★ #593: NavigationStack is IReadOnlyList<Page>, whose Contains is Enumerable's — and this project sets <ImplicitUsings>disable</ImplicitUsings>, so it must be imported by hand (47 other files already do)
-using System.Net;                 // ⚠ sweep A-7: the openLink branch no longer decodes. WebUtility was this file's only System.Net user. The import stays until a build can prove it is safe to delete.
+using System.Net;                 // ⚠ sweep A-7: the openLink branch no longer decodes (★ S14 #1285: the branch is gone). WebUtility was this file's only System.Net user. The import stays until a build can prove it is safe to delete.
 using System.Threading.Tasks;
 using System.Web;
 
@@ -137,6 +137,7 @@ namespace SPIXI
             // value latch must reset or the unread badge stays silently absent until
             // the count CHANGES.
             lastPushedUnread = -1;
+            exitLatchTick = 0;   // ★ S14 #46 r1 (MIN-1): a fresh document may exit again
 
             // Unit 2 (#240): tell the shell it is pane-hosted BEFORE the data burst —
             // all onLoad pushes coalesce ahead of the overlay present, so the pane
@@ -363,36 +364,44 @@ namespace SPIXI
                     Logging.warn("ixian:dev refused: developer mode is off");
                 }
             }
-            /* ★ S11 (Session AD): the land-on-tab hand-off is a VERB now — see
-             * HomePage.landOnTab. The shell sends it right before its exit verb (back /
-             * save / handoff), so the home shell switches while still covered. */
+            /* ★ S11 (Session AD): the land-on-tab hand-off is a VERB — see HomePage.landOnTab.
+             * ★ S14 (#1284): ONE verb = land AND the hand-off exit. The shell used to send
+             * `ixian:landtab:<id>` then `ixian:handoff` (or `apply:` + `handoff`) one macrotask apart;
+             * on the new phone the FIRST navigation never reached this handler (a later renderer
+             * navigation superseded it while the browser main thread was busy) and the pane closed on
+             * the 400 ms backstop without landing. Grammar: `ixian:landtab:<id>` (clean) or
+             * `ixian:landtab:<id>:<nick>` (dirty) — id = the text before the FIRST ':' after the prefix,
+             * the rest (may itself hold ':') = the nick, persisted through the apply path. An id outside
+             * HomePage's fixed set is refused THERE (logged "other") and the exit still runs, so the user
+             * is never stuck on Account. Order = the old three verbs': land, apply, hand-off. */
             else if (current_url.StartsWith("ixian:landtab:", StringComparison.Ordinal))
             {
-                HomePage.InstanceOrNull()?.landOnTab(current_url.Substring("ixian:landtab:".Length));
+                if (claimExit())   // ★ S14 #46 r1 (MIN-1): one exit per present
+                {
+                    string landRest = current_url.Substring("ixian:landtab:".Length);
+                    int landSep = landRest.IndexOf(':');
+                    string landId = landSep < 0 ? landRest : landRest.Substring(0, landSep);
+                    HomePage.InstanceOrNull()?.landOnTab(landId);
+                    if (landSep >= 0)
+                    {
+                        saveSettingsCore(landRest.Substring(landSep + 1));   // ★ S14 (#1284): the dirty half = onApplySettings
+                    }
+                    exitCleanup(true);
+                }
             }
             else if (current_url.Equals("ixian:back", StringComparison.Ordinal)
                 || current_url.Equals("ixian:handoff", StringComparison.Ordinal))
             {
-                var source_file_path = Path.Combine(IxianHandler.localStorage.avatarsPath, "avatar-tmp.jpg");
-                // Delete the temporary avatar image
-                if (File.Exists(source_file_path))
-                {
-                    File.Delete(source_file_path);
-                }
-                resetLanguage();
-                closeSublevelOverlays();   // W7
                 /* ★ Session I — L14 cover handshake: `ixian:handoff` is the Account → Contacts
-                 * route (settings.html wrote the spixi.landtab hand-off and is leaving). Same
-                 * cleanup as ixian:back, but the pop waits for home.html's painted cover
-                 * (SpixiContentPage.popOnCoverPainted — 400 ms backstop), so the chat list
-                 * never shows through the gap [PAINTDIAG] measured (#731: 56/88 ms). */
-                if (current_url.Equals("ixian:handoff", StringComparison.Ordinal))
+                 * route. Same cleanup as ixian:back, but the pop waits for home.html's painted
+                 * cover (SpixiContentPage.popOnCoverPainted — 400 ms backstop), so the chat list
+                 * never shows through the gap [PAINTDIAG] measured (#731: 56/88 ms).
+                 * ★ S14 (#1284): the body lives in exitCleanup, shared with ixian:landtab:. A current
+                 * shell no longer sends ixian:handoff (landtab carries it, cap or no cap — #46 r1
+                 * MIN-1); the branch stays for an older shell. */
+                if (claimExit())   // ★ S14 #46 r1 (MIN-1)
                 {
-                    popOnCoverPainted();
-                }
-                else
-                {
-                    popPageAsync();
+                    exitCleanup(current_url.Equals("ixian:handoff", StringComparison.Ordinal));
                 }
             }
             else if (current_url.Equals("ixian:error", StringComparison.Ordinal))
@@ -468,51 +477,22 @@ namespace SPIXI
                  * WebView-supplied link is opened. */
                 Utils.openTranslationReport(current_url.Substring("ixian:reportTranslation:".Length));
             }
-            else if (current_url.StartsWith("ixian:openLink:", StringComparison.Ordinal))
+            /* ★ S14 (#1285): About / How-to link rows send a FIXED id, never a URL — security OURS-OPEN row 16
+             * (docs/security-sweep-s13.md). The old `ixian:openLink:<url>` branch took the URL from the WebView
+             * (only through the Utils.openExternal gate, but any script in this document could open any https
+             * page); it is GONE from this page. C# owns the URLs (Config constants, aboutLinkUrl); an unknown id
+             * is logged as a fixed word and ignored. Same sink as before: the one external-open gate. */
+            else if (current_url.StartsWith("ixian:aboutLink:", StringComparison.Ordinal))
             {
-                // iOS-21/iOS-23: About + How-to link rows. Mirror of the SingleChatPage
-                // handler (SingleChatPage.xaml.cs:334) so external links behave the same
-                // on every surface: the WebView NEVER navigates to http(s) itself (iOS
-                // Cancel-blocks it in iOSWebViewHandler.DecidePolicy) — the OS browser
-                // opens it. URLs are curated in-code by settings-app.js, not user input.
-                // Terms/Privacy do NOT come through here: they open as in-app doc sheets.
-                string link = current_url.Substring("ixian:openLink:".Length);
-                if (!link.Contains("://"))
+                string? aboutUrl = aboutLinkUrl(current_url.Substring("ixian:aboutLink:".Length));
+                if (aboutUrl == null)
                 {
-                    link = "http://" + link;
+                    Logging.warn("aboutLink: unknown id (other) — ignored");
                 }
-
-                /* ★★ HANDOVER SWEEP A-7 / F3 — THE SAME TWO CHANGES THE CHAT SINK GOT.
-                 * This branch mirrors SingleChatPage's ixian:openLink: handler: no decode
-                 * here, and one shared fail-closed gate for the hand-off.
-                 *
-                 * ⚠ THE DECODE IS GONE. It ran WebUtility.HtmlDecode between the string
-                 * the app had and the string it opened, which is the security MAJOR #3
-                 * shape: what is checked and what is opened must be one value. `link` is
-                 * now that one value — parsed once, tested once, opened.
-                 * Nothing legitimate loses a decode: the four reachable links are
-                 * compile-time https constants in src/components/settings-app.js (the
-                 * About and How-to rows), and none carries an HTML entity.
-                 *
-                 * ⚠ THE FIRST FIX ALSO CLAIMED THE TRANSPORT PAIR ROUND-TRIPS EXACTLY, AND
-                 * IT DOES NOT (#46 loop A, MAJOR-1). onNavigating UrlDecodes EVERY %XX on
-                 * its first line, while the WebView never re-encodes a '%' that was already
-                 * in the string. A caller that put a "%40" in the link therefore reaches
-                 * this sink with an '@'. No reachable link on this page can do that today —
-                 * all four are compile-time constants — but the shared gate below refuses a
-                 * non-empty Uri.UserInfo on every caller, so this page cannot lose the rule.
-                 *
-                 * ★ THE RULE IS NOT WRITTEN OUT HERE ANY MORE, and that is the fix.
-                 * This branch and the chat branch each carried their own copy of the scheme
-                 * allow-list and the userinfo refusal, and "the two must not drift" was
-                 * enforced only by a pin over both copies. A #46 loop defeated that pin
-                 * three rounds running (r2 MAJOR-1 · r3 MAJOR-1/-2/-3): a control-flow
-                 * property of duplicated code cannot be proven by reading text.
-                 * `Utils.openExternal` (Spixi/Utils/Utils.cs) holds the rule ONCE now, and
-                 * it is the only method in the tree that may call the browser sink. There
-                 * is nothing left here to drift. Read openExternal's own comment for what
-                 * it enforces and for what is NOT established. */
-                Utils.openExternal(link);
+                else
+                {
+                    Utils.openExternal(aboutUrl);
+                }
             }
             else if (current_url.Equals("ixian:encpass", StringComparison.Ordinal))
             {
@@ -791,7 +771,10 @@ namespace SPIXI
                 // NICKNAME containing "ixian:save:" sent via ixian:apply: hit this branch
                 // first (self-injection → an unexpected page pop).
                 string nick = current_url.Substring("ixian:save:".Length);
-                onSaveSettings(nick);
+                if (claimExit())   // ★ S14 #46 r1 (MIN-1): save-and-pop is an exit too
+                {
+                    onSaveSettings(nick);
+                }
             }
             else if (current_url.StartsWith("ixian:apply:", StringComparison.Ordinal))
             {
@@ -1149,6 +1132,19 @@ namespace SPIXI
 
 
 
+        /* ★ S14 (#1285): the aboutLink id map — FIXED, compile-time. Ordinal (C# string switch). Anything else = null. */
+        internal static string? aboutLinkUrl(string id)
+        {
+            switch (id)
+            {
+                case "website": return Config.aboutUrl;
+                case "network": return Config.aboutNetworkUrl;
+                case "source": return Config.sourceCodeUrl;
+                case "help": return Config.guideUrl;
+                default: return null;
+            }
+        }
+
         public void onSaveSettings(string nick)
         {
             saveSettingsCore(nick);
@@ -1208,6 +1204,49 @@ namespace SPIXI
             if (staging is EncryptionPassword || staging is BackupPage || staging is DownloadsPage)
             {
                 staging.popPageAsync();   // staging slot → cancels the preload
+            }
+        }
+
+        /* ★ S14 #46 r1 (MIN-1): the per-present EXIT LATCH. The first exit verb (landtab / back / handoff /
+         * save) runs the cleanup + pop; a later one in the same present is ignored with a fixed-word warn —
+         * a second verb ran exitCleanup twice (avatar-tmp deleted before a save → the pick lost; popPageAsync
+         * raced the cover pop). Reset by onLoad and onRepresentedNative (this page PARKS and is re-presented).
+         * Time-bound below the shell's pane self-heal (settings.html EXIT_HEAL_MS 2500): a pane whose exit
+         * did NOT pop re-sends after 2.5 s and must be heard. UI thread only (onNavigating). */
+        private long exitLatchTick = 0;
+        private const int ExitLatchMs = 2000;
+        private bool claimExit()
+        {
+            long now = Environment.TickCount64;
+            if (exitLatchTick != 0 && now - exitLatchTick < ExitLatchMs)
+            {
+                Logging.warn("Settings exit: a second exit verb in one present (other) — ignored");
+                return false;
+            }
+            exitLatchTick = now;
+            return true;
+        }
+
+        /* ★ S14 (#1284): the Account exit cleanup — ixian:back, ixian:handoff and ixian:landtab: run it.
+         * Drop avatar-tmp, revert an unsaved language pick, sweep the sublevels (W7), then pop:
+         * `deferPop` = the L14 cover handshake (popOnCoverPainted, 400 ms backstop), else at once. */
+        private void exitCleanup(bool deferPop)
+        {
+            var source_file_path = Path.Combine(IxianHandler.localStorage.avatarsPath, "avatar-tmp.jpg");
+            // Delete the temporary avatar image
+            if (File.Exists(source_file_path))
+            {
+                File.Delete(source_file_path);
+            }
+            resetLanguage();
+            closeSublevelOverlays();   // W7
+            if (deferPop)
+            {
+                popOnCoverPainted();
+            }
+            else
+            {
+                popPageAsync();
             }
         }
 
@@ -1288,6 +1327,7 @@ namespace SPIXI
         protected internal override void onRepresentedNative()
         {
             BackupPage.pushBackupStatus(this);
+            exitLatchTick = 0;   // ★ S14 #46 r1 (MIN-1): a re-presented Account may exit again
             pushIgnoredRequests();   // ★ #983 (review r1, MINOR-5): a decline made while Account was parked
             // ★ S9 (loop m6): dev mode is toggled on the HOME shell; a parked Account keeps
             // the caps of its onLoad. Re-grant the `dev` cap on every re-present so the row

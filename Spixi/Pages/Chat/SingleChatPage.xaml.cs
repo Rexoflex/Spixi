@@ -4403,28 +4403,11 @@ namespace SPIXI
                         // itself (check_balance defaults true, Node.cs:936-946), so this
                         // branch IS the insufficient-funds case in practice — and
                         // "Invalid Amount" told a user with 5 IXI trying to tip 50 that
-                        // their amount was malformed. Reuse the balance wording, which
-                        // exists for exactly this and names both numbers.
-                        // ★ review r4: {0} is "Total cost of the transaction", NOT the
-                        // amount. Passing the bare amount produced "cost is 10, balance
-                        // is 10" for a user with exactly 10 IXI — two identical numbers
-                        // under "Insufficient Balance", and a retry loop, because the
-                        // shortfall is the FEE. calculateTransactionFee re-prepares with
-                        // check_balance:false and returns exactly that delta (Node.cs:870).
-                        IxiNumber tip_total = amount;
-                        try
-                        {
-                            tip_total = amount + Node.calculateTransactionFee(IxianHandler.getWalletStorage().getPrimaryAddress(), sender_address, amount);
-                        }
-                        catch (Exception fee_ex)
-                        {
-                            Logging.warn("Could not compute the tip fee for the balance message: " + fee_ex);
-                        }
-                        // ★ I-6 (#360): amounts in composed sentences render in the app language
-                        string short_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), Utils.amountToLocalizedDisplayString(tip_total), Utils.amountToLocalizedDisplayString(IxianHandler.getWalletBalance(IxianHandler.getWalletStorage().getPrimaryAddress())));
-                        // ★ I-7 (Damir): INLINE. C# composes the sentence — it owns the
-                        // numbers — and the shell only renders it.
-                        sendTipResult(false, short_body);
+                        // their amount was malformed.
+                        // ★ I-7 (Damir): INLINE; C# composes the text, the shell renders it.
+                        // ★ S14 (#1286): the text carries NO balance (the r4 "total vs balance"
+                        // sentence did — a tip of a huge amount read the balance in one call).
+                        sendTipResult(false, SPayments.insufficientText());
                         return;
                     }
                     var relayNodeAddresses = prepTx.relayNodeAddresses;
@@ -4439,9 +4422,7 @@ namespace SPIXI
                     // Ixian-Core's behaviour, not ours, and #215 says do not assume it.
                     if (tx.amount + tx.fee > balance)
                     {
-                        // ★ I-6 (#360): amounts in composed sentences render in the app language
-                        string alert_body = String.Format(SpixiLocalization._SL("wallet-error-balance-text"), Utils.amountToLocalizedDisplayString(tx.amount + tx.fee), Utils.amountToLocalizedDisplayString(balance));
-                        sendTipResult(false, alert_body);
+                        sendTipResult(false, SPayments.insufficientText());   // ★ S14 (#1286): no balance in the text
                     }
                     else
                     {

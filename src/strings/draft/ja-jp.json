@@ -873,5 +873,10 @@
   "howToMoreHelp": "ほかにお困りですか？",
   "howToHelpCentre": "ヘルプセンター",
   "hintNoPhoneBody2": "あなたのアカウントは、デバイスの中の鍵です。",
-  "aboutWhyKeysTitle2": "あなたの鍵、あなたの端末"
+  "aboutWhyKeysTitle2": "あなたの鍵、あなたの端末",
+  "devContainerTitle": "Overlay container (Android)",
+  "devContainerClip": "Clip",
+  "devContainerShadow": "Shadow (13c)",
+  "devContainerNone": "None (no input flip during the slide)",
+  "devContainerOn": "On"
 }

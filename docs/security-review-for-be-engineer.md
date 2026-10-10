@@ -289,6 +289,8 @@ What to check hardest:
 | **C12** `attachData`/`attachClipboard` (WebView base64 → C# temp file → send) | Medium | C# names the temp file itself (never a WebView name → overwrite/traversal); cap payload size (DoS); validate MIME. New "WebView writes a file" ingress — no money, but new surface. |
 | **CH3** delete + history/media wipe verbs | Medium | Auth-gate consistently (§9.1: `deleteh` is not LockPage-gated like account/wallet deletion). |
 | **S13** promote `openLink` to global | Low | Keep the URL validated; minor phishing vector from chat. |
+| **🟡 `ixian:aboutLink:<id>`** (SettingsPage, S14 #1285) — NEW verb, REPLACES SettingsPage's `ixian:openLink:<url>` (deleted) | Low (a reduction) | The WebView sends a fixed id only (website · network · source · help); C# maps it to its own `Config` constant (`SettingsPage.aboutLinkUrl`) and opens it through `Utils.openExternal`; unknown id → fixed-word warn + ignore. Android / Windows: the Account document has no other way to choose a URL. iOS: the pre-existing anchor hand-off stays (`Spixi/Platforms/iOS/iOSWebViewHandler.cs:112-167` — a main-frame `LinkActivated` http(s) navigation from a trusted host goes to `Utils.openExternal`; a script-clicked anchor may count). Approve the verb; nothing else to insist on. |
+| **`ixian:landtab:<id>[:<nick>]`** (SettingsPage, S14 #1284) — the S11 verb, grammar WIDENED | Low | ONE navigation now does land (`HomePage.landOnTab`, fixed id set) + the hand-off exit (the `ixian:handoff` cleanup) + optional nick save (the `ixian:apply:` path, `saveSettingsCore`). id = text before the first `:`; the nick (may hold `:`) is never logged. An unknown id still exits (no land). The shell sends this ONE verb with or without the `settingsApply` cap; a nick committed (`ixian:apply:`) < 1 s before an exit rides the exit again (`landtab:<id>:<nick>` / `save:<nick>`; `saveSettingsCore` broadcasts only a changed nick). SettingsPage runs ONE exit per present (`claimExit`, 2 s window, reset on load / re-present; a later exit verb = fixed-word warn). ⚠ Pre-existing: the nick round-trip is lossy (`HttpUtility.UrlDecode` of the whole URL, `SettingsPage.xaml.cs:319` — `+` → space), as for `apply:` / `save:`. |
 
 Pre-existing wallet/security bugs (NOT caused by our C#; high value for a security-conscious BE):
 - **L6** restore mutates state (wipes onboarding/lock flags, overwrites stored `walletpass`) BEFORE verifying the password → wrong password = lockout + data loss. Verify-then-mutate.
@@ -442,6 +444,12 @@ an NSUserDefaults plist on iOS. The wallet password is written to it under `wall
 
 Read back at **`Spixi/Meta/Node.cs:410`** (`Node.loadWallet`) and
 **`Spixi/Pages/Settings/BackupPage.xaml.cs:151`**.
+
+★ **S14 (#1281, #46 r1 MIN-4): an Android system backup carries this password.** The backup rules KEEP
+`sharedpref` (the preferences) next to `wallet.ixi`, so every backup holds the wallet AND its plaintext
+password. The plaintext is yours (above); keeping it in the backup is a deliberate keep — Damir decides
+(exclude sharedpref, or the SecureStorage move below). Write sites today: `LaunchPage.xaml.cs:589`, `:703`,
+`:1049` · `SettingsPage.xaml.cs:608` · `EncryptionPassword.xaml.cs:88` (the table above has the 2026-08-31 lines).
 
 ★ **There is no `SecureStorage` anywhere in the tree** — verified by sweep, zero matches
 in `Spixi/**/*.cs`.

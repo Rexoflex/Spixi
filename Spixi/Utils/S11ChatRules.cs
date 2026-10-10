@@ -187,6 +187,115 @@ namespace SPIXI
                 + (flashOn(bits, FlashSkipInput) ? "0" : "1");
         }
 
+        // —— ★ S14 (#1282): the Developer "Overlay container" switch (Android) — its own int preference, the flash bits untouched ——
+
+        /** What gives an Android overlay stage its permanent WrapperView. CLIP (default) = a huge RectangleGeometry clip (no
+         *  shadow → no software shadow draw); SHADOW = the 13c zero shadow (a SOLID shadow paint → PlatformWrapperView draws
+         *  the subtree into an ALPHA_8 bitmap on every invalidate; UpdateOpacity invalidates on every fade step); NONE = no
+         *  container and the stage's input is never flipped (non-held overlays only — a held chat keeps the clip). */
+        public const int ContainerClip = 0;
+        public const int ContainerShadow = 1;
+        public const int ContainerNone = 2;
+
+        /** The Preferences key of the mode (an int; absent = 0 = clip). Cleared by the wipe (Preferences.Default.Clear). */
+        public const string ContainerPrefKey = "devOverlayContainer";
+
+        /** `ixian:devflash:container:<clip|shadow|none>` — the tail after the last ':' must be one of the three words exactly. */
+        public static bool parseContainerVerb(string? tail, out int mode)
+        {
+            mode = ContainerClip;
+            switch (tail)
+            {
+                case "clip": mode = ContainerClip; return true;
+                case "shadow": mode = ContainerShadow; return true;
+                case "none": mode = ContainerNone; return true;
+                default: return false;
+            }
+        }
+
+        /** The mode that ACTS: clip unless dev mode is on and a known non-default mode is stored. */
+        public static int effectiveContainer(bool devMode, int stored)
+        {
+            return devMode && (stored == ContainerShadow || stored == ContainerNone) ? stored : ContainerClip;
+        }
+
+        /** The fixed word of a stored mode (the dev screen's push and the [P1] line); anything unknown reads clip. */
+        public static string containerWord(int mode)
+        {
+            return mode == ContainerShadow ? "shadow" : mode == ContainerNone ? "none" : "clip";
+        }
+
+        /** The container one stage gets: NONE only for a stage that needs no input flip (a held chat — and a parking stage,
+         *  hidden input-dead at Opacity 0 — keep the clip, the hold needs an input-dead permanent container). */
+        /** #46 fix r1 (R1 MINOR-1/-2): what needs the input flip (so never None): a held / parking stage, any stage that does
+         *  NOT slide in (None probes only the slide-in present), and nothing else. A None-mode chat info is refused as a
+         *  rider instead (SpixiContentPage.rideNextChatSwap) — it keeps probing the chat-info slide. */
+        public static bool stageNeedsInputFlip(bool held, bool parks, bool slidesIn)
+        {
+            return held || parks || !slidesIn;
+        }
+
+        public static int containerFor(int mode, bool needsInputFlip)
+        {
+            if (mode == ContainerShadow)
+            {
+                return ContainerShadow;
+            }
+            return mode == ContainerNone && !needsInputFlip ? ContainerNone : ContainerClip;
+        }
+
+        /** The clip rectangle's half side in DIPs: RectangleGeometry.AppendPath ignores the bounds Clip.PathForBounds is given,
+         *  so the path is this fixed rect (× density on Android) — far beyond any screen, any slide translation included. */
+        public const double ContainerClipHalf = 100000;
+
+        // —— ★ S14 (#1283): chat info rides the chat → group swap (SpixiContentPage.rideAlong) — the two decisions ——
+
+        /** A staging chat push owns the armed ride only when it is the held chat → chat swap of the full-screen layout
+         *  (`qualifies`), nothing owns it yet, and it carries the armed navigation key (an ordinal, non-null match). */
+        public static bool rideOwns(bool qualifies, bool ownerSet, string? pushNavKey, string? armedNavKey)
+        {
+            return qualifies && !ownerSet && pushNavKey != null && armedNavKey != null
+                && string.Equals(pushNavKey, armedNavKey, StringComparison.Ordinal);
+        }
+
+        /** The rider's end when the swap settles: restore (input-live, on top) only when the new chat is CLOSING (the user backed
+         *  out during the hold), the rider is still open, and the topmost open chat sits BELOW it in the overlay stack (it covers
+         *  the chat it describes again). Every other case closes it. Indexes are overlay-stack positions, -1 = none. */
+        public static bool riderRestores(bool heldClosing, bool riderOpen, int riderIndex, int topChatIndex)
+        {
+            return heldClosing && riderOpen && riderIndex >= 0 && topChatIndex >= 0 && topChatIndex < riderIndex;
+        }
+
+        /** #46 fix r1 (R3 MAJOR-1): the rider's end as an EFFECTS list (bits) — settleRider applies every bit it gets, in this
+         *  order: clear swappedOut · stage input-live · clear the hook · close (instant). Restore = the first two (it covers the
+         *  chat it describes again, tappable); close = hook cleared + closed; a rider already closing / gone = hook cleared only. */
+        public const int RiderFxClearSwapped = 1;
+        public const int RiderFxInputLive = 2;
+        public const int RiderFxClearHook = 4;
+        public const int RiderFxClose = 8;
+
+        public static int riderEffects(bool heldClosing, bool riderOpen, int riderIndex, int topChatIndex)
+        {
+            if (riderRestores(heldClosing, riderOpen, riderIndex, topChatIndex))
+            {
+                return RiderFxClearSwapped | RiderFxInputLive;
+            }
+            return riderOpen ? RiderFxClearHook | RiderFxClose : RiderFxClearHook;
+        }
+
+        public static bool fxHas(int fx, int bit)
+        {
+            return (fx & bit) != 0;
+        }
+
+        /** #46 fix r1 (R1 MINOR-4): the ride's timers. The short timeout drops only an UNOWNED ride (onChat never staged a
+         *  push); once a staging push owns it, the owner's outcomes end it (present → takeRide, cancel / fallback →
+         *  rideCancelled) and only the long backstop — past the chat push's own 4 s load timeout — may still drop it. */
+        public static bool rideTimeoutDrops(bool owned, bool backstop)
+        {
+            return backstop || !owned;
+        }
+
         /** [P1] probe body (P1Perf grammar: ≤ 16 tokens of [a-z0-9_.=-]{1,40}): one frame of the hold window.
          *  rel = 0 while held, 1 after the release · od = the window's onDraw passes since the hold began ·
          *  dirty = the native WebView's isDirty() at this frame. */

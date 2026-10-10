@@ -493,7 +493,7 @@
     mountContacts,                       // Track D: contacts picker/directory takeover
     // wallet (tab2)
     createWalletHero, setWalletBalance, setBalanceHidden,
-    createWalletTxList, renderWalletTxList, setWalletQuery,
+    createWalletTxList, renderWalletTxList, setWalletQuery, walletLedgerEmpty,   // ★ S14 (#1289)
     createWalletFilters, createSearchField, attachWalletScroll,
     createScanProgress, scanProgressState,
     setScanProgress: applyScanProgress,   // #440/#443 — aliased: the bridge handler below
@@ -2717,6 +2717,9 @@
        degrade on an exe that does not send setScanProgress: the sheet shows NO status
        card (#1072) and adds no false claim. */
     scan: () => scanState,
+    /* ★ S14 (#1289 follow-up): the empty-ledger "Missing a transaction?" link — shown exactly when the chips-row
+       pill would be (syncMissTxPill), i.e. the scan has ended and the wallet is not provably new. */
+    missTxLink: () => missTxPillWanted(),
     /* ★ #589 (Damir F5 2026-08-26): the zero-state CTA reads "Show my address", so
        it OPENS THE ADDRESS. It used to open the whole Receive takeover — a screen
        with a request-an-amount field and a contact strip — which is a different
@@ -3110,6 +3113,11 @@
     onFilter: (id) => { walletChipPick = { id, at: Date.now() }; bridge.send('ixian:filter:' + id); },   // home.js:54 → C# filterTransactions; B-4 pick
   });
   walletTools.append(walletSearch, walletFilters);
+  /* ★ S14 (#1289): NO transactions at all → no search pill, no chips (the zero state sits under the hero,
+     above the bottom nav). renderWalletTxList keeps it in step on every render; a filter / search that
+     finds nothing is NOT this state (the tools stay — they are how the user gets back). */
+  walletOpts.toolsEl = walletTools;
+  walletTools.hidden = walletLedgerEmpty(walletState);
 
   /* ★ #440/#443/#452 (Damir, variant A on a render): the scan is a SLIM ROW at the top
      of the transaction list, and tapping it opens the "Missing a transaction?" sheet —
@@ -3136,8 +3144,12 @@
     const pill = walletFilters.querySelector('.c-wallet-misstx');
     // #456: on a wallet with provably nothing to find, neither entry point applies —
     // see scanIsMoot. Otherwise the two alternate, one at a time (#452).
-    if (pill) pill.hidden = scanIsMoot() ? true : !scanProgress.hidden;
+    if (pill) pill.hidden = !missTxPillWanted();
+    // ★ S14 (#1289 follow-up): the empty-ledger link in the zero state follows the same rule
+    const link = walletList.querySelector('.c-wallet-misstx-link');
+    if (link) link.hidden = !missTxPillWanted();
   }
+  function missTxPillWanted() { return scanIsMoot() ? false : scanProgress.hidden; }
 
   /* ★ #456 (Damir): "a fresh wallet should show the EMPTY STATE, not 'Checking for
      your transactions'". The honest condition is not "the scan is at 0%" — a restored

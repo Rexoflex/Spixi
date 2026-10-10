@@ -653,12 +653,13 @@ export function createSettingsContributors({
 }
 
 /* Shared link renderer for About / How-to. A link OPENS via the optional
-   onOpenLink callback (no bridge verb exists → the shells don't wire it; when
+   onOpenLink(url, id) callback (★ S14 #1285: settings.html sends the fixed `id` as
+   `ixian:aboutLink:<id>` — C# owns the URL; `url` is for display / the demo); when
    absent the URL renders as SELECTABLE TEXT rather than trying to navigate the
    WebView away). Untrusted-safe: labels/urls are curated in-code, textContent only.
    ★ S12 B (#1267): an optional leading icon tile (`glyph` + `grad`, the hub's squircle grammar) and an
    optional second line (`sub`); without them the row is the one it always was. */
-function linkRow({ label, url, sub, glyph, grad, onOpenLink, strings }) {
+function linkRow({ id, label, url, sub, glyph, grad, onOpenLink, strings }) {
   if (onOpenLink) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -666,7 +667,7 @@ function linkRow({ label, url, sub, glyph, grad, onOpenLink, strings }) {
     if (glyph) b.append(aboutTile(glyph, grad));
     const lab = rowText(label, sub);
     b.append(lab, icon('external-link', { size: 18 }));   // #710: "opens outside the app" — arrow-up-right is money (#709)
-    b.addEventListener('click', () => onOpenLink(url));
+    b.addEventListener('click', () => onOpenLink(url, id));
     return b;
   }
   const wrap = document.createElement('div');
@@ -730,7 +731,9 @@ export function aboutVersionText(version) {
 }
 
 /* ★ S12 B (#1267) — the About hero art: the Spixi mark on a violet tile, a dashed orbit with three satellites
-   (a lock, a chat bubble, an IXI coin) and small sparkles. Inline so the --ab-* tokens (tokens.css) theme it;
+   (★ S14 (#1279, Damir 12:24): a heart, a chat bubble and a gold star — the heart and star are the rating art's
+   own (illustrations.js `rating`: rnHeart / rnStar gradients, white gloss), the lock and IXI coin retired) and small
+   sparkles. Inline so the --ab-* tokens (tokens.css) theme it;
    a still drawing (no motion → nothing for reduced motion to stop). Built element by element with
    createElementNS from the static table below — no markup string, no innerHTML (this file has none). Gradient
    ids are unique per call. */
@@ -743,6 +746,8 @@ function abEl(tag, attrs, kids) {
   return n;
 }
 const abStop = (o, v, a) => abEl('stop', { offset: o, style: 'stop-color:' + v + (a != null ? ';stop-opacity:' + a : '') });
+const AB_HEART = 'M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18-6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z';   /* illustrations.js `rating` */
+const AB_STAR = 'M0-13.5 4-4.8 13.4-4.1 6.3 2.2 8.5 11.6 0 6.6-8.5 11.6-6.3 2.2-13.4-4.1-4-4.8Z';
 const abSpark = (x, y, r) => abEl('path', { d: `M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}Z` });
 function aboutHeroArt({ tile = true } = {}) {
   abSeq += 1;
@@ -769,24 +774,29 @@ function aboutHeroArt({ tile = true } = {}) {
         abEl('filter', { id: id('f'), x: '-50%', y: '-50%', width: '200%', height: '200%' }, [abEl('feGaussianBlur', { stdDeviation: 7 })]),
       ] : []),
       lin('b', 'var(--ab-bubble-a)', 'var(--ab-bubble-b)', true),
-      lin('c', 'var(--ab-coin-a)', 'var(--ab-coin-b)', true),
+      /* the rating art's literal stops (they read on the band in both themes, so no tokens; ★ S14 #1288: their offset
+         shades are navy now, was violet, for the blue band) */
+      abEl('radialGradient', { id: id('hr'), cx: 0.35, cy: 0.3, r: 0.85 }, [abStop(0, '#FFB3C8'), abStop(0.45, '#FF6F96'), abStop(1, '#E23A6A')]),
+      abEl('radialGradient', { id: id('st'), cx: 0.38, cy: 0.3, r: 0.85 }, [abStop(0, '#FFF1B8'), abStop(0.5, '#FFD15C'), abStop(1, '#F2A93B')]),
     ]),
     ...centre,
     abEl('ellipse', { cx: 150, cy: 84, rx: 118, ry: 34, fill: 'none', style: 'stroke:var(--ab-orbit)', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-dasharray': '0.1 6' }),
     ...tileRects,
-    /* the lock satellite (drawn here: the registry's outlined lock alone would cost ~2 KB of the art's 7 KB budget) */
-    abEl('circle', { cx: 58, cy: 63, r: 16, style: 'fill:var(--ab-lock-bg)' }),
-    abEl('g', { style: 'color:var(--ab-lock-ink)' }, [
-      abEl('path', { d: 'M54 61.5v-3a4 4 0 0 1 8 0v3', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round' }),
-      abEl('rect', { x: 51, y: 61, width: 14, height: 10, rx: 2.6, fill: 'currentColor' }),
-      abEl('circle', { cx: 58, cy: 66, r: 1.5, style: 'fill:var(--ab-lock-bg)' }),
+    /* the heart (the rating art's path, scaled): a soft offset shade under it instead of a blur filter, then the gloss */
+    abEl('g', { transform: 'translate(58 50.5) scale(0.84)' }, [
+      abEl('path', { d: AB_HEART, transform: 'translate(0 2.6)', fill: '#0d2f6b', 'fill-opacity': 0.26 }),
+      abEl('path', { d: AB_HEART, fill: url('hr') }),
+      abEl('path', { d: 'M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1', fill: 'none', stroke: '#fff', 'stroke-opacity': 0.7, 'stroke-width': 2.4, 'stroke-linecap': 'round' }),
     ]),
     /* the chat bubble with its three dots */
     abEl('path', { d: 'M214 39a9 9 0 0 1 9 -9h24a9 9 0 0 1 9 9v8a9 9 0 0 1 -9 9h-18l-7 6v-6.6a9 9 0 0 1 -8 -8.4z', fill: url('b') }),
-    abEl('g', { fill: '#fff' }, [226, 235, 244].map((cx) => abEl('circle', { cx, cy: 43, r: 2.4 }))),
-    /* the IXI coin — the ticker is a proper noun, the same in every language */
-    abEl('circle', { cx: 244, cy: 104, r: 14, fill: url('c'), style: 'stroke:var(--ab-coin-edge)', 'stroke-width': 1.5 }),
-    abEl('text', { x: 244, y: 107.2, 'text-anchor': 'middle', 'font-size': 8.5, 'font-weight': 700, style: 'fill:var(--ab-coin-ink);font-family:var(--font-ui, sans-serif)' }, ['IXI']),
+    abEl('g', { style: 'fill:var(--ab-bubble-dot)' }, [226, 235, 244].map((cx) => abEl('circle', { cx, cy: 43, r: 2.4 }))),   /* ★ S14 (#1288): blue dots in the now-white bubble */
+    /* the gold star (the rating art's), its shade and its small highlight */
+    abEl('g', { transform: 'translate(244 104)' }, [
+      abEl('path', { d: AB_STAR, transform: 'translate(0 2.4)', fill: '#0d2f6b', stroke: '#0d2f6b', 'fill-opacity': 0.26, 'stroke-opacity': 0.26, 'stroke-width': 3.2, 'stroke-linejoin': 'round' }),
+      abEl('path', { d: AB_STAR, fill: url('st'), stroke: url('st'), 'stroke-width': 3.2, 'stroke-linejoin': 'round' }),
+      abEl('ellipse', { cx: -3.2, cy: -4.2, rx: 2.6, ry: 1.4, fill: '#fff', opacity: 0.65, transform: 'rotate(-35 -3.2 -4.2)' }),
+    ]),
     abEl('g', { style: 'fill:var(--ab-spark)' }, [
       abSpark(92, 22, 5), abSpark(222, 14, 3.5), abSpark(96, 106, 4.5), abSpark(270, 74, 4),
       abEl('circle', { cx: 34, cy: 96, r: 1.6 }), abEl('circle', { cx: 268, cy: 40, r: 1.4 }), abEl('circle', { cx: 196, cy: tile ? 126 : 121, r: 1.5 }),   /* on the band: lifted off its lower edge */
@@ -822,7 +832,7 @@ function holdAboutEntrance(hero, target) {
  * About — createSettingsAbout({ appName, version, tagline, links, onOpenLink, host, onLicences, onRate, devSeed,
  * onBack, strings }). STATIC in-hub takeover.
  * ★ S12 B (#1267, design "B, hero card-led"): a hero card (art · name · tagline · version chip), "Why Spixi" (three
- * facts), "Links" (the three external rows — the SAME ixian:openLink path), "Legal and support" (Privacy · Terms as
+ * facts), "Links" (the three external rows — ★ S14 #1285: ixian:aboutLink:<id>), "Legal and support" (Privacy · Terms as
  * the in-app doc sheets · Licences → the host's Contributors credits · Rate Spixi, ONLY with `onRate`), "© Ixian".
  * Optional rows (Licences, Rate) render only when the host can act on them.
  */
@@ -831,7 +841,7 @@ export function createSettingsAbout({
   version = '',
   tagline,
   links,
-  onOpenLink,                    // OPTIONAL (url) — wired since iOS-21 (ixian:openLink)
+  onOpenLink,                    // OPTIONAL (url, id) — wired since iOS-21; ★ S14 (#1285): the shell sends the id (ixian:aboutLink:<id>)
   host,                          // iOS-23: sheet host for the legal doc sheets
   onLicences,                    // ★ S12 B (#1267): OPTIONAL — opens the Contributors credits (the host's own screen)
   onRate,                        // ★ S12 B (#1267): OPTIONAL — settings.html passes it only with bridge.cap('rate')
@@ -898,11 +908,13 @@ export function createSettingsAbout({
     why.append(r);
   }
 
-  /* Links — website / network / source (degrade to text without onOpenLink). Today's three URLs, unchanged. */
+  /* Links — website / network / source (degrade to text without onOpenLink). Today's three URLs, unchanged.
+     ★ S14 (#1285): each row carries a FIXED id — the verb sends the id, C# maps it to its own Config URL
+     (SettingsPage.aboutLinkUrl: website → aboutUrl · network → aboutNetworkUrl · source → sourceCodeUrl). */
   const list = links || [
-    { label: strings.aboutLinkWebsite || 'Website', url: 'https://www.spixi.io', glyph: 'world', grad: 8 },
-    { label: strings.aboutLinkNetwork || 'Ixian network', url: 'https://www.ixian.io', glyph: 'topology-star', grad: 5 },
-    { label: strings.aboutLinkSource || 'Source code', url: 'https://github.com/ixian-platform/Spixi', glyph: 'code', grad: 3 },
+    { id: 'website', label: strings.aboutLinkWebsite || 'Website', url: 'https://www.spixi.io', glyph: 'world', grad: 8 },
+    { id: 'network', label: strings.aboutLinkNetwork || 'Ixian network', url: 'https://www.ixian.io', glyph: 'topology-star', grad: 5 },
+    { id: 'source', label: strings.aboutLinkSource || 'Source code', url: 'https://github.com/ixian-platform/Spixi', glyph: 'code', grad: 3 },
   ];
   if (list.length) {
     const card = aboutGroup(body, strings.aboutLinks || 'Links');
@@ -1151,8 +1163,8 @@ export function createSettingsHowTo({
   /* Need more help? — the community row (Item 6, unchanged behaviour) + Help centre (the existing guide link). */
   const linkList = links || [
     // iOS-21: the help centre, not the marketing home page — this is the
-    // "how to use Spixi" destination (mirrors Config.guideUrl, Meta/Config.cs:32).
-    { label: strings.howToHelpCentre || 'Help Center', url: 'https://www.spixi.io/help-center.html', glyph: 'world', grad: 8 },
+    // "how to use Spixi" destination (mirrors Config.guideUrl, Meta/Config.cs:32). ★ S14 (#1285): id 'help' → Config.guideUrl.
+    { id: 'help', label: strings.howToHelpCentre || 'Help Center', url: 'https://www.spixi.io/help-center.html', glyph: 'world', grad: 8 },
   ];
   if (onJoinCommunity || linkList.length) {
     const more = aboutGroup(body, strings.howToMoreHelp || 'Need more help?', 'c-settings-howto__more');

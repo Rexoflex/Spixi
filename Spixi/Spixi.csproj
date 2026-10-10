@@ -138,6 +138,9 @@
 		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
 		<RuntimeIdentifiers>android-arm64;android-arm</RuntimeIdentifiers>
 		<AndroidUseLatestPlatformSdk>true</AndroidUseLatestPlatformSdk>
+		<!-- ★ S14 (#1280): this property is IGNORED - the merged manifest says targetSdkVersion 36 (it comes from the
+		     platform, AndroidUseLatestPlatformSdk). So Android 16 runs predictive back for us; MainActivity's back callback
+		     is built for that. Left unchanged on purpose; do not read 35 as the real target. -->
 		<TargetSdkVersion>35</TargetSdkVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition="$(TargetFramework.Contains('-windows'))">

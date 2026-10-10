@@ -872,5 +872,10 @@
   "howToMoreHelp": "Reikia daugiau pagalbos?",
   "howToHelpCentre": "Pagalbos centras",
   "hintNoPhoneBody2": "Jūsų paskyra yra raktas jūsų įrenginyje.",
-  "aboutWhyKeysTitle2": "Jūsų raktai, jūsų įrenginys"
+  "aboutWhyKeysTitle2": "Jūsų raktai, jūsų įrenginys",
+  "devContainerTitle": "Overlay container (Android)",
+  "devContainerClip": "Clip",
+  "devContainerShadow": "Shadow (13c)",
+  "devContainerNone": "None (no input flip during the slide)",
+  "devContainerOn": "On"
 }

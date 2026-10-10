@@ -254,11 +254,11 @@ export default async function (h) {
   await guard('S9 A1 M15 Sent backups', async () => {
     const xs = ['backup_rules', 'data_extraction_rules'].map((n) => rd('Spixi/Platforms/Android/Resources/xml/' + n + '.xml').replace(/<!--[\s\S]*?-->/g, ''));
     const ens = bodyOf(SCP, 'private static void ensureSentFolder(string dir)');
-    ok((xs[0].match(/<exclude domain="file" path="Spixi\/Sent" \/>/g) || []).length === 1
-      && (xs[1].match(/<exclude domain="file" path="Spixi\/Sent" \/>/g) || []).length === 2
+    ok((xs[0].match(/<exclude domain="file" path="Documents\/Spixi\/Sent" \/>/g) || []).length === 1
+      && (xs[1].match(/<exclude domain="file" path="Documents\/Spixi\/Sent" \/>/g) || []).length === 2
       && /Directory\.CreateDirectory\(dir\);\s*#if IOS \|\| MACCATALYST[\s\S]*url\.SetResource\(Foundation\.NSUrl\.IsExcludedFromBackupKey, Foundation\.NSNumber\.FromBoolean\(true\)/.test(ens)
       && count(SCP, /ensureSentFolder\(dir\);/g) === 2 && !/Directory\.CreateDirectory\(dir\);/.test(REG.replace(ens, '')),
-      'S9 A1 M15 Sent backups: Spixi/Sent is excluded in the Android backup rules (≤ 11 and both 12+ lists — files dir = SpecialFolder.Personal = Config.spixiUserFolder\'s parent) and the iOS / Mac Sent folder is IsExcludedFromBackup wherever C# creates it');
+      'S9 A1 M15 Sent backups: Documents/Spixi/Sent is excluded in the Android backup rules (≤ 11 and both 12+ lists — ★ S14 #1281 re-based: files dir/Documents = SpecialFolder.Personal = Config.spixiUserFolder\'s parent) and the iOS / Mac Sent folder is IsExcludedFromBackup wherever C# creates it');
   });
 
   /* ———— M16 (r1): addFile arg 19 = the 8-FACE played rule for a voice FILE ———— */

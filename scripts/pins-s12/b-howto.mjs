@@ -3,7 +3,7 @@
  *     shows its S11 art (data-illo) and its text; no "Show me" button
  *   · seen state: "{0} of 6 seen" + a bar; opening a row marks it seen (check badge) and writes localStorage
  *     `spixi.howtoSeen` as a JSON array of 1–6; a garbage value reads as 0 seen
- *   · "Need more help?": the community row (sends ixian:joinBot once) and Help centre (ixian:openLink: the help centre)
+ *   · "Need more help?": the community row (sends ixian:joinBot once) and Help centre (★ S14 #1285: ixian:aboutLink:help)
  * Deliberate breaks: see the S12 B report. */
 import { aKit } from '../pins-s11/a-kit.mjs';
 export default async function (h) {
@@ -59,7 +59,7 @@ export default async function (h) {
     if (help) help.click();
     await sleep(50);
     a.more = txt(more && more.querySelector('.c-settings__label')) === 'Need more help?' && !!join && !!help
-      && JSON.stringify(s.sent.slice(b0)) === JSON.stringify(['ixian:joinBot', 'ixian:openLink:https://www.spixi.io/help-center.html']);
+      && JSON.stringify(s.sent.slice(b0)) === JSON.stringify(['ixian:joinBot', 'ixian:aboutLink:help']);   /* ★ S14 re-base (#1285): a fixed id, C# owns the URL */
     a.noErr = K.noErr(s.errs);
     close();
 

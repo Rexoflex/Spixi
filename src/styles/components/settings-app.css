@@ -244,7 +244,7 @@
    follows settings-shell.css, so the radius, padding and ground below win); every colour of the art comes from the
    --ab-* tokens (tokens.css, per theme).
    ★ S13 B (Damir's pick, "Banner hero"): the card wears the glass-card surface + highlight; a band in the hint-art
-   gradient runs edge to edge across its top carrying the art's orbit, satellites and sparkles (aboutHeroArt
+   gradient (★ S14 #1288: now the launcher-blue --ab-band-* pair) runs edge to edge across its top carrying the art's orbit, satellites and sparkles (aboutHeroArt
    { tile: false }), and the app icon overlaps the band's lower edge inside a surface-coloured ring (the "cut-out").
    No backdrop-filter anywhere: every layer is an opaque gradient, so an old WebView paints the same card. */
 .c-settings-about__hero {
@@ -270,7 +270,7 @@
   background:
     radial-gradient(60% 120% at 50% 110%, var(--ab-band-shade) 0%, transparent 70%),
     radial-gradient(80% 140% at 85% 0%, var(--ab-band-sheen) 0%, transparent 55%),
-    linear-gradient(120deg, var(--glass-card-art-from) 0%, var(--glass-card-art-to) 100%);
+    linear-gradient(120deg, var(--ab-band-from) 0%, var(--ab-band-to) 100%);   /* ★ S14 (#1288): launcher blue, was the hint-art violet */
   background-size: 100% 100%, 100% 100%, 130% 100%;
   background-position: 0 0, 0 0, 50% 0;
   background-repeat: no-repeat;
@@ -308,9 +308,12 @@
   margin-block-start: -46px;
   margin-block-end: var(--spacing-8);
   border-radius: var(--radius-24);
+  /* ★ S14 (#1288): the REAL launcher ground (appicon.svg, Damir's #689 CSS layered the same way: the radial from the
+     top-right corner over #0076E1); no gloss — the launcher icon has none. Physical corner on purpose: an icon does
+     not mirror in RTL */
   background:
-    linear-gradient(180deg, var(--ab-icon-sheen) 0%, transparent 55%),
-    linear-gradient(150deg, var(--ab-tile-a) 0%, var(--ab-tile-b) 100%);
+    radial-gradient(141.42% 141.42% at 100% 0%, var(--ab-icon-light) 13.13%, var(--ab-icon-deep) 100%),
+    var(--ab-icon-ground);
   color: var(--ab-mark);
   /* the cut-out ring in the card's own surface, a 1 px highlight hairline round it (so the ring reads as a rim, not a
      hole, on the dark card), then the soft brand glow */
@@ -338,14 +341,12 @@
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
 }
-/* the version chip on glass (option A's chip): the card surface, a hairline brand edge, a faint glow, the number in
-   the accent ink */
+/* the version chip: ★ S14 (#1288, Damir) a FILLED chip — no edge, no glow; the number in the accent ink */
 .c-settings-about__version {
   margin: var(--spacing-12) 0 0;
   padding: var(--spacing-4) var(--spacing-12);
   border-radius: var(--radius-full);
-  background: var(--glass-card-surface);
-  box-shadow: inset 0 0 0 1px var(--ab-chip-edge), 0 4px 10px -6px var(--glass-card-art-glow);
+  background: var(--ab-chip);
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);

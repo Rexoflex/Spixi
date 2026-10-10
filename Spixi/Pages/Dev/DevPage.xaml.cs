@@ -67,6 +67,29 @@ namespace SPIXI
             {
                 onBack();
             }
+            else if (current_url.StartsWith("ixian:devflash:container:", StringComparison.Ordinal))
+            {
+                /* ★ S14 (#1282, dev surface, the devflash verb's own tail): `ixian:devflash:container:<clip|shadow|none>` — the
+                 * Android overlay-stage container probe. One of three fixed words (S11ChatRules.parseContainerVerb) and dev mode
+                 * on, or nothing is stored; then echo. Its own int preference; the flash bits are untouched.
+                 * #46 fix r1 (R1 MINOR-1/-2) — what None does, for the walk sheet: it acts ONLY on an overlay that slides in (chat
+                 * info, the mobile subscreens); every other stage keeps the clip. ⚠ Probe-only hazard: a None stage is input-live
+                 * while it stages invisibly and while it closes (a tap can land on it), and a None chat info does not ride the
+                 * chat → group swap (it closes first, the pre-#1283 way). Leave the switch on Clip outside a measure run. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false)
+                        && S11ChatRules.parseContainerVerb(current_url.Substring("ixian:devflash:container:".Length), out int mode))
+                    {
+                        Preferences.Default.Set(S11ChatRules.ContainerPrefKey, mode);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: container switch failed: " + ex.GetType().Name);
+                }
+                pushContainerDev();
+            }
             else if (current_url.StartsWith("ixian:devflash:", StringComparison.Ordinal))
             {
                 /* ★ S11 C (#1262, 🟡 new verb, dev surface): `ixian:devflash:<candidate|grounds|input>:<0|1>` — the 10-FLASH
@@ -108,6 +131,7 @@ namespace SPIXI
             // ignores the unknown push).
             Utils.sendUiCommand(this, "setCaps", "sendlog");
             pushFlashDev();   // ★ S11 C (#1262): the flash switches' positions
+            pushContainerDev();   // ★ S14 (#1282): the overlay-container probe (Android only)
 
             string srcLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log");
             string destLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log.tmp");
@@ -149,6 +173,23 @@ namespace SPIXI
             {
             }
             Utils.sendUiCommand(this, "window.setFlashDev", S11ChatRules.flashSwitchesArg(bits));
+        }
+
+        /** ★ S14 (#1282): the overlay-container mode as a fixed word (clip | shadow | none). Android only — it acts nowhere
+         *  else, so no other platform shows the row (the "no dead switch" rule). Guarded reference like setFlashDev. */
+        private void pushContainerDev()
+        {
+#if ANDROID
+            int mode = 0;
+            try
+            {
+                mode = Preferences.Default.Get(S11ChatRules.ContainerPrefKey, 0);
+            }
+            catch (Exception)
+            {
+            }
+            Utils.sendUiCommand(this, "window.setContainerDev", S11ChatRules.containerWord(mode));
+#endif
         }
 
         // #321 (R5 parity): share/save the CURRENT log. The share copy is a stable

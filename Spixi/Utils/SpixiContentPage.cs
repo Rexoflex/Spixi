@@ -1035,6 +1035,19 @@ namespace SPIXI
             /* ★ S13 (#1277, #46 r2 #2): true while a held swap keeps this (old) chat on glass input-dead — its OWN hold release
              * must not make it input-live again under the new chat. Main thread. */
             public bool swappedOut = false;
+            /* ★ S14 (#1282): the Developer "Overlay container: None" mode — this stage was born input-LIVE with no container and
+             * its InputTransparent is never flipped (a flip would add / remove the WrapperView = re-parent the WebView). Android,
+             * dev mode, non-held, non-parking overlays only. Main thread. */
+            public bool inputFixed = false;
+            public string containerWord = "";   // ★ S14 (#1282): clip | shadow | none (Android overlay stages), "" elsewhere — the [P1] present line
+            /* ★ S14 (#1283): on a HELD chat → chat swap, the chat info that RIDES it — stays on glass (input-dead, swappedOut)
+             * above the old chat and closes with it, instantly, when the new chat's grounds come back (settleRider). Taken
+             * (nulled) by the one settle; `riderHook` keeps the reference for the close-hook bracket (closeOverlay). */
+            public PreloadOp? rider = null;
+            public PreloadOp? riderHook = null;
+            /* ★ S14 (#1283): true on the rider while THIS op's onOverlayClosed runs — HomePage's "a closed chat closes its info
+             * panes" (closeContactDetailsOverlays → removePage) then leaves the rider to settleRider. Main thread. */
+            public bool keepThroughHook = false;
             /* ★ S10 #46 r1 M5: true while setHoldGrounds holds the grounds TRANSPARENT (main thread) — a theme sweep then leaves
              * them alone (recolourStagedGrounds); the release paints the CURRENT pageSurfaceColor anyway. */
             public bool groundsHeld = false;
@@ -1822,8 +1835,9 @@ namespace SPIXI
             /* ★ #1101 0b(b), the second candidate cause: the #1095 mechanism (MAUI ViewExtensions.NeedsContainer) — a view
              * whose InputTransparent flips gets a WrapperView container added / removed, which RE-PARENTS the WebView inside;
              * revealStage flips it at the very frame of the present. A zero-size, zero-opacity shadow from birth makes the
-             * container permanent (the CallPage stage's recipe), so the flip no longer detaches the WebView. Draws nothing. */
-            stage.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+             * container permanent (the CallPage stage's recipe), so the flip no longer detaches the WebView. Draws nothing.
+             * ★ S14 (#1282): the permanent container is now a CLIP, not the zero shadow — see applyStageContainer. */
+            op.containerWord = applyStageContainer(stage, true);
             /* ★ S13 (12-FLASH, launch blocker): the zero shadow keeps the STAGE's container, but CascadeInputTransparent = true
              * still flipped the chat WEBVIEW's own InputTransparent at every reveal / release / close — and on Android MAUI gives a
              * view with InputTransparent a WrapperView (ViewExtensions.NeedsContainer), so each flip RE-PARENTED the WebView
@@ -1992,6 +2006,10 @@ namespace SPIXI
                 else if (preloadPending || (activePreload != null && !activePreload.parkOnLoad))
                 {
                     why = SPARE_WHY_STAGING;
+                }
+                else if (rideAlong != null)
+                {
+                    why = SPARE_WHY_ORDER;   // ★ S14 (#1283): a chat-info ride needs the new stage appended LAST (the cold path)
                 }
                 else if (overlayHost != this || op.host != this
                     || (Application.Current?.MainPage as NavigationPage)?.Navigation.NavigationStack.LastOrDefault() != this)
@@ -2792,7 +2810,8 @@ namespace SPIXI
                             System.Threading.Interlocked.Increment(ref slideOutInFlight);
                             try
                             {
-                                op.stage.InputTransparent = true;
+                                // ★ S14 (#1282): a None-mode stage (inputFixed) is never flipped
+                                if (!op.inputFixed) op.stage.InputTransparent = true;
                                 double w = op.stage.Width > 0
                                     ? op.stage.Width
                                     : (op.host.Width > 0 ? op.host.Width : 500);
@@ -2853,7 +2872,8 @@ namespace SPIXI
                         // down a WebView2's composition surface in the same frame it is
                         // still visible briefly flashes the reveal on WinUI.
                         op.stage.Opacity = 0;
-                        op.stage.InputTransparent = true;
+                        // ★ S14 (#1282): a None-mode stage (inputFixed) is never flipped
+                        if (!op.inputFixed) op.stage.InputTransparent = true;
                         /* ★ #1132 lever 11: the 100 ms is the WinUI half of #229b and stays there; Android only needs the
                          * hide on glass before the teardown — one frame (OpenPerfRules.closeHideWaitMs). iOS / Mac: 100, unchanged. */
                         await Task.Delay(OpenPerfRules.closeHideWaitMs(
@@ -2877,6 +2897,11 @@ namespace SPIXI
                 // to the page that is visible again, BEFORE the host's own close hook runs
                 // (that hook may navigate, and a navigation repaints on its own anyway).
                 repaintSystemBars(visibleSurfacePage(host));
+                PreloadOp? hookRider = op.riderHook;   // ★ S14 (#1283): a held swap's chat info survives this chat's "close its info panes" hook
+                if (hookRider != null)
+                {
+                    hookRider.keepThroughHook = true;
+                }
                 try
                 {
                     host?.onOverlayClosed(op.target);
@@ -2884,6 +2909,10 @@ namespace SPIXI
                 catch (Exception ex)
                 {
                     Logging.error("onOverlayClosed failed: " + ex);
+                }
+                if (hookRider != null)
+                {
+                    hookRider.keepThroughHook = false;
                 }
             });
         }
@@ -3707,8 +3736,7 @@ namespace SPIXI
                 lock (preloadLock) { chatOpenNow = overlayStack.Exists(o => o.target is SingleChatPage); }
                 if (overlayMode && tag == "chat" && target is SingleChatPage && !chatOpenNow)
                 {
-                    op.holdUntilDrawn = true;
-                    stage.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+                    op.holdUntilDrawn = true;   // ★ S14 (#1282): its permanent container comes from applyStageContainer below
                 }
                 /* ★ S13 (#1277): a chat → chat swap is HELD too — the R1-MAJOR-1 problem (the sweep closed the old chat in the same
                  * turn, so the transparent new chat showed the list) is solved by deferring that sweep to the release
@@ -3723,10 +3751,12 @@ namespace SPIXI
                  * blocker)"): the reveal / close input flips then never re-parent the chat WebView.
                  * ★ S13 (#1277, walk recordings 09:53 / 09:54): EVERY overlay stage, not only the chat — chat info slides in and its
                  * `liftStageInput` flip re-parented ITS WebView the same way (skeleton → the chat underneath → skeleton). */
-                if (overlayMode)
+                /* ★ S14 (#1282): the permanent container (applyStageContainer) is applied below, once op.slideIn is known. */
+                /* ★ S14 (#1283): a pending chat-info ride-along is owned by THIS push only when it is the held chat → chat swap of the
+                 * full-screen layout; any other chat push drops it (chat info then closes the old way). */
+                if (target is SingleChatPage)
                 {
-                    stage.Shadow ??= new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
-                    stage.CascadeInputTransparent = false;
+                    rideStaged(op, op.deferredStale != null && column < 0);
                 }
 #endif
                 /* ★★ L9 (#707, Damir 2026-08-30): "On mobile all subscreens slide. On desktop
@@ -3774,6 +3804,20 @@ namespace SPIXI
                         }
                     }
                 }
+#if ANDROID
+                /* ★ S14 (#1282): the permanent container is a CLIP now (applyStageContainer — the zero shadow made PlatformWrapperView
+                 * software-draw the whole stage on every fade step); held / parking stages always keep one (the input flip).
+                 * #46 fix r1 (R1 MINOR-1): the Developer "None" applies ONLY to a stage that slides in (the case it probes); every
+                 * other stage keeps the clip. ⚠ Dev-only hazard, accepted for the probe: a None stage is born input-live, so while
+                 * it stages (Opacity 0) and while it closes it is hit-testable — a tap there lands on the invisible / leaving page.
+                 * Applied before hostGrid.Children.Add (no handler yet). */
+                if (overlayMode)
+                {
+                    op.containerWord = applyStageContainer(stage, S11ChatRules.stageNeedsInputFlip(op.holdUntilDrawn, op.parkOnClose || op.parkOnLoad, op.slideIn));
+                    op.inputFixed = op.containerWord == "none";
+                    stage.CascadeInputTransparent = false;
+                }
+#endif
 
                 try
                 {
@@ -3816,6 +3860,7 @@ namespace SPIXI
                     }
                     catch { }
                     try { target.Content = targetContent; } catch { }
+                    rideCancelled(op);   // #46 fix r1 (R1 MINOR-4): an owned ride never outlives its owner's staging → chat info closes the old way
                     presentPlain(target);
                     return;
                 }
@@ -4001,7 +4046,8 @@ namespace SPIXI
             }
             string kind = P1Perf.kind(op.target);
             P1Perf.line("open " + kind + " present ms=" + P1Perf.msSince(op.p1Start)
-                + " overlay=" + (overlay ? "1" : "0") + " slide=" + (overlay && op.slideIn ? "1" : "0"));
+                + " overlay=" + (overlay ? "1" : "0") + " slide=" + (overlay && op.slideIn ? "1" : "0")
+                + (op.containerWord.Length > 0 ? " container=" + op.containerWord : ""));   // ★ S14 (#1282): clip | shadow | none (fixed words)
             P1Perf.framesAfter("open-" + kind);
             if (op.p1FromSpare)
             {
@@ -4336,7 +4382,8 @@ namespace SPIXI
                          * overlay is permanently input-DEAD, which is a worse bug than the one
                          * this fixes. (r3 R3-6: "BOTH later clears" was the count before r2
                          * R2-2 added `liftStageInput`; there are three now.) */
-                        op.stage.InputTransparent = true;
+                        // ★ S14 (#1282): a None-mode stage (inputFixed) is never flipped
+                        if (!op.inputFixed) op.stage.InputTransparent = true;
                         /* ★★ Item 6 (Damir): SLIDE IN from the trailing edge — revealStage
                          * (shared with the parked re-present since L9, #707) — which is now
                          * also what makes the stage input-live again. */
@@ -4406,6 +4453,7 @@ namespace SPIXI
                                     closeOverlay(s);
                                 }
                             }
+                            takeRide(op, stale);   // ★ S14 (#1283): the chat info riding this swap stays on glass until the deferred close (a no-op without an owned ride)
                         }
 
                         // Chained navigation: close/remove the page this one replaces —
@@ -4514,6 +4562,10 @@ namespace SPIXI
                             activePreload = null;
                         }
                     }
+                    /* #46 fix r1 (R1 MINOR-4): every present outcome of a ride OWNER that did not reach takeRide (abandoned, the
+                     * push fallback, an exception before the sweep) drops the ride → chat info closes the old way. After takeRide
+                     * the slot is empty: a no-op. */
+                    rideCancelled(op);
                 }
             });
         }
@@ -4835,6 +4887,47 @@ namespace SPIXI
             {
                 return 0;
             }
+        }
+
+        /* ★ S14 (#1282) — THE OVERLAY STAGE'S PERMANENT CONTAINER (MAUI 10.0.71 source). Since #1101 / 13c every Android overlay
+         * stage carried a zero shadow (Brush.Black, Opacity 0) to keep its WrapperView. But a SolidPaint shadow is paint type SOLID
+         * (≠ NONE), so PlatformWrapperView.dispatchDraw draws a shadow; the stage's background is a ColorDrawable, not a
+         * PlatformShadowDrawable → drawShadowViaDispatchDraw, which after every invalidate() software-draws the whole subtree
+         * (the WebView included) into an ALPHA_8 bitmap. The chat-info slide fades: each Opacity step → ViewExtensions.UpdateOpacity
+         * → wrapperView.ScheduleInvalidate() (only when Shadow != null) → that software draw on EVERY frame (open-contactdetails
+         * S12 drop 0 max 11–22 → S13c drop 2–7 max 44–77). A CLIP keeps the same container (NeedsContainer: Clip != null) with no
+         * shadow: ClipChanged → SetHasClip only; UpdateOpacity does not invalidate (Shadow null); dispatchDraw clips to the cached
+         * path (GetClipPath rebuilds it only on a size change) — no per-frame software work. The geometry never cuts content:
+         * RectangleGeometry.AppendPath ignores the bounds PathForBounds gets, so the path is this fixed rect, ±1e5 DIPs.
+         * Developer switch (dev mode, Android): Shadow = the 13c recipe · None = no container and no input flip, for a stage that
+         * needs no flip only (needsInputFlip false); a held / parking stage keeps the clip. Main thread, before the stage gets its
+         * handler. Returns the fixed word for the [P1] present line. */
+        private static string applyStageContainer(ContentView stage, bool needsInputFlip)
+        {
+            int mode = S11ChatRules.ContainerClip;
+            try
+            {
+                bool dev = Microsoft.Maui.Storage.Preferences.Default.Get("devMode", false);
+                mode = S11ChatRules.effectiveContainer(dev, dev ? Microsoft.Maui.Storage.Preferences.Default.Get(S11ChatRules.ContainerPrefKey, 0) : 0);
+            }
+            catch (Exception)
+            {
+            }
+            int pick = S11ChatRules.containerFor(mode, needsInputFlip);
+            if (pick == S11ChatRules.ContainerShadow)
+            {
+                stage.Shadow ??= new Microsoft.Maui.Controls.Shadow { Brush = Brush.Black, Opacity = 0f, Radius = 0, Offset = new Point(0, 0) };
+            }
+            else if (pick == S11ChatRules.ContainerNone)
+            {
+                stage.InputTransparent = false;   // born input-live: no container is ever needed, nothing ever flips (PreloadOp.inputFixed)
+            }
+            else
+            {
+                double h = S11ChatRules.ContainerClipHalf;
+                stage.Clip ??= new Microsoft.Maui.Controls.Shapes.RectangleGeometry(new Microsoft.Maui.Graphics.Rect(-h, -h, 2 * h, 2 * h));
+            }
+            return S11ChatRules.containerWord(pick);
         }
 
         /** The release of a held stage with the dev switches applied: the grounds back (the #248 resize backing) and the
@@ -5285,11 +5378,270 @@ namespace SPIXI
         }
 #endif
 
+        /* ═══ ★ S14 (#1283, Damir 13C-SWAP) — CHAT INFO RIDES THE CHAT → GROUP SWAP (Android, full screen) ═══
+         * Before: chat → chat info → a shared group closed chat info first (it slid out over the OLD chat) and then opened the group
+         * (the held swap of #1277) — the old chat showed in between. Now chat info stays on glass until the group chat has DRAWN:
+         *   ARM   ContactDetails' `ixian:openChat:` → rideNextChatSwap (info = the top overlay, full screen, a live chat under it,
+         *         no navigation in flight) instead of popPageAsync; a one-shot `rideAlong` with a 2 s timeout.
+         *   KEEP  HomePage.onChat closes every ContactDetails before it opens a chat (closeContactDetailsOverlays → removePage):
+         *         the FIRST removePage of the armed info is skipped (rideKeeps); a second one closes it as usual.
+         *   COLD  pushSpareChat refuses while a ride is armed (`order`): the warm spare's stage may sit BEFORE chat info in the
+         *         grid and would draw under it; the cold path appends the new stage LAST (on top). Children are never reordered
+         *         (a Remove / Insert re-parents the WebView = the 12-FLASH blink).
+         *   OWN   pushPageLoaded's staging (rideStaged): only the held chat → chat swap (deferredStale) of the armed navKey with
+         *         column < 0 owns the ride; any other chat push drops it.
+         *   TAKE  the present's deferred sweep (takeRide): the info becomes the swap's `rider` — swappedOut, input-dead, on glass
+         *         above the old chat, below the new (transparent-grounds) chat.
+         *   SETTLE closeDeferredStale (the new chat's grounds are back = S12GroundWait saw the WebView draw) → settleRider: the
+         *         rider closes INSTANTLY (no slide), before the old chat (so the old chat's onOverlayClosed finds no info pane).
+         *         Back during the hold (the new chat closing): the rider is restored input-live on top when the topmost open
+         *         chat is still below it (the old chat, restored by the #1277 r2 rule), else closed. A 3 s backstop settles a
+         *         rider whose grounds never came back.
+         *   DROP  every path that does not reach TAKE (timeout · another chat push · a cancelled / superseded staging · the info
+         *         or the old chat gone) → the old close (closeOverlay(info, slideOut: true) = popPageAsync), once: a closing or
+         *         removed info is never closed again. No path leaves chat info stranded.
+         * The new chat's own close hook (HomePage.onOverlayClosed: "a closed chat closes its info panes") runs with the rider
+         * bracketed by `keepThroughHook`, so backing out of the new chat does not close the info the user returns to.
+         * Fixed-word [P1] lines (dev only): ride armed | keep why= | take | drop why= | back why= | closed why=. Main thread. */
+        private sealed class RideAlong
+        {
+            public readonly PreloadOp info;
+            public readonly string navKey;
+            public bool skipUsed = false;
+            public PreloadOp? owner = null;
+
+            public RideAlong(PreloadOp info, string navKey)
+            {
+                this.info = info;
+                this.navKey = navKey;
+            }
+        }
+
+        private static RideAlong? rideAlong = null;   // under preloadLock
+        private const int RideTimeoutMs = 2000;          // unowned: onChat never staged a push
+        private const int RideOwnedBackstopMs = 5000;    // owned: past the chat push's own 4 s load timeout (HomePage.onChat)
+        private const int RideSettleBackstopMs = 3000;
+
+        /** ★ S14 (#1283): arm the ride for `info` (a ContactDetails overlay) and the chat push keyed `navKey`. True = armed: the
+         *  caller must NOT close the info (the ride closes it, or falls back to that close). False = close it the old way. */
+        public static bool rideNextChatSwap(SpixiContentPage info, string navKey)
+        {
+#if ANDROID
+            RideAlong ride;
+            lock (preloadLock)
+            {
+                PreloadOp? op = overlayStack.Find(o => o.target == info);
+                int at = op == null ? -1 : overlayStack.IndexOf(op);
+                PreloadOp? chatUnder = at > 0 ? overlayStack.GetRange(0, at).FindLast(o => o.target is SingleChatPage && !o.closing) : null;
+                /* #46 fix r1 (R1 MINOR-2): a None-mode info (inputFixed: no container) is refused — the rider must go input-dead
+                 * during the hold, and an input flip without a container re-parents its WebView. */
+                if (op == null || op.closing || op.swappedOut || op.inputFixed || !op.overlayMode || op.column >= 0 || at != overlayStack.Count - 1
+                    || chatUnder == null || chatUnder.swappedOut || chatUnder.column >= 0
+                    || modalOverlayOp != null || preloadPending || (activePreload != null && !activePreload.parkOnLoad)
+                    || rideAlong != null)
+                {
+                    P1Perf.line("ride refused");
+                    return false;
+                }
+                ride = new RideAlong(op, navKey);
+                rideAlong = ride;
+            }
+            P1Perf.line("ride armed");
+            Task.Delay(RideTimeoutMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() => rideTimedOut(ride, false)));
+            Task.Delay(RideOwnedBackstopMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() => rideTimedOut(ride, true)));
+            return true;
+#else
+            return false;
+#endif
+        }
+
+        /** ★ S14 (#1283): drop the ride `only` (null = whichever is armed) — chat info closes the old way, unless it is already
+         *  closing / gone. Idempotent: the slot is taken under the lock, a taken ride is never dropped. */
+        private static void dropRide(RideAlong? only, string why)
+        {
+            RideAlong? r;
+            bool open;
+            lock (preloadLock)
+            {
+                r = rideAlong;
+                if (r == null || (only != null && r != only))
+                {
+                    return;
+                }
+                rideAlong = null;
+                open = overlayStack.Contains(r.info) && !r.info.closing;
+            }
+            P1Perf.line("ride drop why=" + why);
+            if (open)
+            {
+                closeOverlay(r.info, true);   // = popPageAsync on the info (the back-initiated slide-out)
+            }
+        }
+
+        /** #46 fix r1 (R1 MINOR-4): a ride timer fired. The 2 s timeout drops only an UNOWNED ride; an owned one is ended by its
+         *  owner (takeRide / rideCancelled) and only the backstop may still drop it (S11ChatRules.rideTimeoutDrops). */
+        private static void rideTimedOut(RideAlong ride, bool backstop)
+        {
+            bool drops;
+            lock (preloadLock)
+            {
+                drops = rideAlong == ride && S11ChatRules.rideTimeoutDrops(ride.owner != null, backstop);
+            }
+            if (drops)
+            {
+                dropRide(ride, backstop ? "backstop" : "timeout");
+            }
+        }
+
+        /** ★ S14 (#1283): removePage on the armed info, once (HomePage.onChat's closeContactDetailsOverlays), or on a rider while
+         *  the swap's own close hook runs → kept. */
+        private static bool rideKeeps(PreloadOp op)
+        {
+            if (op.keepThroughHook)
+            {
+                P1Perf.line("ride keep why=hook");
+                return true;
+            }
+            lock (preloadLock)
+            {
+                RideAlong? r = rideAlong;
+                if (r == null || r.info != op || r.skipUsed || r.owner != null)
+                {
+                    return false;
+                }
+                r.skipUsed = true;
+            }
+            P1Perf.line("ride keep why=chat");
+            return true;
+        }
+
+        /** ★ S14 (#1283): a chat push is staging (Android, pushPageLoaded). `qualifies` = it is a held chat → chat swap in the
+         *  full-screen layout. Owns the armed ride when it also carries the armed navKey; otherwise the ride drops. */
+        private static void rideStaged(PreloadOp op, bool qualifies)
+        {
+            RideAlong? r;
+            bool own;
+            lock (preloadLock)
+            {
+                r = rideAlong;
+                if (r == null)
+                {
+                    return;
+                }
+                own = S11ChatRules.rideOwns(qualifies, r.owner != null, op.navKey, r.navKey);
+                if (own)
+                {
+                    r.owner = op;
+                }
+            }
+            if (!own)
+            {
+                dropRide(r, "path");
+            }
+        }
+
+        /** ★ S14 (#1283): the owner's staging was cancelled (superseded, abandoned) → the ride drops. */
+        private static void rideCancelled(PreloadOp op)
+        {
+            RideAlong? r;
+            lock (preloadLock)
+            {
+                r = rideAlong;
+                if (r == null || r.owner != op)
+                {
+                    return;
+                }
+            }
+            dropRide(r, "cancel");
+        }
+
+        /** ★ S14 (#1283): the held swap `op` presents and has deferred `stale` (the old chat) — the owned ride's info becomes its
+         *  rider: on glass, input-dead (swappedOut), closed with the old chat by settleRider. Main thread. */
+        private static void takeRide(PreloadOp op, List<PreloadOp> stale)
+        {
+            RideAlong? r;
+            bool ok;
+            lock (preloadLock)
+            {
+                r = rideAlong;
+                if (r == null || r.owner != op)
+                {
+                    return;
+                }
+                rideAlong = null;
+                ok = op.deferredStale != null && stale.Count > 0 && overlayStack.Contains(r.info) && !r.info.closing;
+            }
+            if (!ok)
+            {
+                bool open;
+                lock (preloadLock) { open = overlayStack.Contains(r.info) && !r.info.closing; }
+                P1Perf.line("ride drop why=gone");
+                if (open)
+                {
+                    closeOverlay(r.info, true);
+                }
+                return;
+            }
+            PreloadOp rider = r.info;
+            op.rider = rider;
+            op.riderHook = rider;
+            rider.swappedOut = true;
+            try { rider.stage.InputTransparent = true; } catch (Exception) { }   // permanent container (a None-mode info never rides) + no cascade: no re-parent
+            P1Perf.line("ride take");
+            Task.Delay(RideSettleBackstopMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() => settleRider(op, "backstop")));
+        }
+
+        /** ★ S14 (#1283): the rider's end, once (held.rider is taken under the lock). The swap completed → close it instantly.
+         *  The new chat is closing (back during the hold) → restore it, input-live, when the topmost open chat is still below it
+         *  (it covers the chat it describes again); otherwise close it. A rider already closing / gone is left alone. */
+        private static void settleRider(PreloadOp held, string why)
+        {
+            PreloadOp? rider;
+            int fx;
+            lock (preloadLock)
+            {
+                rider = held.rider;
+                held.rider = null;
+                if (rider == null)
+                {
+                    return;
+                }
+                fx = S11ChatRules.riderEffects(held.closing, overlayStack.Contains(rider) && !rider.closing, overlayStack.IndexOf(rider),
+                    overlayStack.FindLastIndex(o => o.target is SingleChatPage && !o.closing));
+            }
+            /* #46 fix r1 (R3 MAJOR-1): the decision AND its effects are the pure rule (CSH S14OverlayTests); every bit applied. */
+            if (S11ChatRules.fxHas(fx, S11ChatRules.RiderFxClearSwapped))
+            {
+                rider.swappedOut = false;
+            }
+            if (S11ChatRules.fxHas(fx, S11ChatRules.RiderFxInputLive))
+            {
+                try { rider.stage.InputTransparent = false; } catch (Exception) { }
+            }
+            if (S11ChatRules.fxHas(fx, S11ChatRules.RiderFxClearHook))
+            {
+                held.riderHook = null;
+            }
+            if (S11ChatRules.fxHas(fx, S11ChatRules.RiderFxClose))
+            {
+                closeOverlay(rider);   // instant (no slide), together with the old chat
+            }
+            if (S11ChatRules.fxHas(fx, S11ChatRules.RiderFxInputLive))
+            {
+                P1Perf.line("ride back why=" + why);
+            }
+            else
+            {
+                P1Perf.line("ride closed why=" + why);
+            }
+        }
+
         /** ★ S13 (#1277): close the old chat(s) a HELD swap kept on glass — once, when the new chat's grounds come back (main
          *  thread). If the new chat started closing during the hold (the user went back), the old chat stays: it is where the
          *  user returns to. */
         private static void closeDeferredStale(PreloadOp held)
         {
+            settleRider(held, "deferred");   // ★ S14 (#1283): the chat info that rode this swap — first, before the old chat closes
             List<PreloadOp>? stale = held.deferredStale;
             held.deferredStale = null;
             if (stale == null || stale.Count == 0)
@@ -5404,7 +5756,7 @@ namespace SPIXI
                 await Task.Delay(SlideInputDeadMs);
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    try { if (!op.closing) { op.stage.InputTransparent = false; } } catch (Exception) { }
+                    try { if (!op.closing && !op.swappedOut) { op.stage.InputTransparent = false; } } catch (Exception) { }   // #46 fix r1 (R1 NIT-2): a swapped-out stage (a rider) stays input-dead
                 });
             }
             catch (Exception) { }
@@ -5447,7 +5799,10 @@ namespace SPIXI
                      * aborted BY the exit is about to be torn down and the exit owns its flags.
                      * REVERSAL: delete this line and a faulted or starved entry leaves the
                      * overlay input-dead for ever. */
-                    try { stage.InputTransparent = false; } catch (Exception) { }
+                    if (!op.swappedOut)   // #46 fix r1 (R1 NIT-2): a stage taken as a rider inside the slide stays input-dead
+                    {
+                        try { stage.InputTransparent = false; } catch (Exception) { }
+                    }
                 }
             }
         }
@@ -5458,6 +5813,7 @@ namespace SPIXI
             {
                 return;
             }
+            rideCancelled(op);   // ★ S14 (#1283): a cancelled ride owner → chat info closes the old way
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 try
@@ -6670,6 +7026,10 @@ namespace SPIXI
                 }
                 if (overlayOp != null)
                 {
+                    if (rideKeeps(overlayOp))
+                    {
+                        return;   // ★ S14 (#1283): chat info rides the chat → group swap (its close is the ride's)
+                    }
                     closeOverlay(overlayOp);
                     return;
                 }

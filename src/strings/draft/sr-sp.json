@@ -949,5 +949,10 @@
   "howToMoreHelp": "Treba vam još pomoći?",
   "howToHelpCentre": "Centar za pomoć",
   "hintNoPhoneBody2": "Vaš nalog je ključ na vašem uređaju.",
-  "aboutWhyKeysTitle2": "Vaši ključevi, vaš uređaj"
+  "aboutWhyKeysTitle2": "Vaši ključevi, vaš uređaj",
+  "devContainerTitle": "Overlay container (Android)",
+  "devContainerClip": "Clip",
+  "devContainerShadow": "Shadow (13c)",
+  "devContainerNone": "None (no input flip during the slide)",
+  "devContainerOn": "On"
 }

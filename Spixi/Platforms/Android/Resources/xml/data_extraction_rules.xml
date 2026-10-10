@@ -1,32 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- #912 (APP-1) — Android 12+ (android:dataExtractionRules). Same list as
-     backup_rules.xml, once for cloud backup and once for device-to-device transfer;
-     see that file for the why. Keep the three lists identical. -->
+<!-- #912 (APP-1) - Android 12+ (android:dataExtractionRules). Same list as backup_rules.xml, once for cloud backup and
+     once for device-to-device transfer; see that file for the why. Keep the three lists identical.
+     ★ S14 (#1281): every path starts "Documents/Spixi/" - SpecialFolder.Personal is files/Documents on .NET 10 Android,
+     so the S13 "Spixi/..." rules matched nothing. -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="file" path="Spixi/Chats" />
-        <exclude domain="file" path="Spixi/MsgQueue" />
-        <exclude domain="file" path="Spixi/ixian.log" />
-        <exclude domain="file" path="Spixi/ixian.1.log" />
-        <exclude domain="file" path="Spixi/ixian.2.log" />
-        <exclude domain="file" path="Spixi/ixian.3.log" />
-        <exclude domain="file" path="Spixi/ixian.4.log" />
-        <exclude domain="file" path="Spixi/ixian.5.log" />
-        <exclude domain="file" path="Spixi/localonly.json" />
-        <exclude domain="file" path="Spixi/localonly.json.tmp" />
-        <exclude domain="file" path="Spixi/Sent" />
+        <exclude domain="file" path="Documents/Spixi/Chats" />
+        <exclude domain="file" path="Documents/Spixi/MsgQueue" />
+        <exclude domain="file" path="Documents/Spixi/Downloads" />
+        <exclude domain="file" path="Documents/Spixi/Voice" />
+        <exclude domain="file" path="Documents/Spixi/Sent" />
+        <exclude domain="file" path="Documents/Spixi/tmp" />
+        <exclude domain="file" path="Documents/Spixi/tmp_zip" />
+        <exclude domain="file" path="Documents/Spixi/headers" />
+        <exclude domain="file" path="Documents/Spixi/testnet-headers" />
+        <exclude domain="file" path="Documents/Spixi/activity" />
+        <exclude domain="file" path="Documents/Spixi/testnet-activity" />
+        <exclude domain="file" path="Documents/Spixi/ixian.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.0.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.1.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.2.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.3.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.4.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.5.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.log.tmp" />
+        <exclude domain="file" path="Documents/Spixi/spixi.log.zip" />
+        <exclude domain="file" path="Documents/Spixi/spixi-log.txt" />
+        <exclude domain="file" path="Documents/Spixi/localonly.json" />
+        <exclude domain="file" path="Documents/Spixi/localonly.json.tmp" />
+        <exclude domain="root" path="app_webview" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="file" path="Spixi/Chats" />
-        <exclude domain="file" path="Spixi/MsgQueue" />
-        <exclude domain="file" path="Spixi/ixian.log" />
-        <exclude domain="file" path="Spixi/ixian.1.log" />
-        <exclude domain="file" path="Spixi/ixian.2.log" />
-        <exclude domain="file" path="Spixi/ixian.3.log" />
-        <exclude domain="file" path="Spixi/ixian.4.log" />
-        <exclude domain="file" path="Spixi/ixian.5.log" />
-        <exclude domain="file" path="Spixi/localonly.json" />
-        <exclude domain="file" path="Spixi/localonly.json.tmp" />
-        <exclude domain="file" path="Spixi/Sent" />
+        <exclude domain="file" path="Documents/Spixi/Chats" />
+        <exclude domain="file" path="Documents/Spixi/MsgQueue" />
+        <exclude domain="file" path="Documents/Spixi/Downloads" />
+        <exclude domain="file" path="Documents/Spixi/Voice" />
+        <exclude domain="file" path="Documents/Spixi/Sent" />
+        <exclude domain="file" path="Documents/Spixi/tmp" />
+        <exclude domain="file" path="Documents/Spixi/tmp_zip" />
+        <exclude domain="file" path="Documents/Spixi/headers" />
+        <exclude domain="file" path="Documents/Spixi/testnet-headers" />
+        <exclude domain="file" path="Documents/Spixi/activity" />
+        <exclude domain="file" path="Documents/Spixi/testnet-activity" />
+        <exclude domain="file" path="Documents/Spixi/ixian.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.0.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.1.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.2.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.3.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.4.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.5.log" />
+        <exclude domain="file" path="Documents/Spixi/ixian.log.tmp" />
+        <exclude domain="file" path="Documents/Spixi/spixi.log.zip" />
+        <exclude domain="file" path="Documents/Spixi/spixi-log.txt" />
+        <exclude domain="file" path="Documents/Spixi/localonly.json" />
+        <exclude domain="file" path="Documents/Spixi/localonly.json.tmp" />
+        <exclude domain="root" path="app_webview" />
     </device-transfer>
 </data-extraction-rules>

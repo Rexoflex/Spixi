@@ -1409,24 +1409,18 @@
   --rn-orbit: var(--il-orbit);
 
   /* ★ S12 B (#1267) — Account › About hero art + How-to progress (settings-app.js). Light set; the dark set sits
-     beside the dark --il-* block. The art's tile gradient keeps the brand violet in both themes. */
+     beside the dark --il-* block. ★ S14 (#1288): the tile is the launcher blue now (was the brand violet). */
   --ab-glow: rgba(124, 108, 240, .26);
   --ab-orbit: rgba(110, 92, 230, .55);
   --ab-floor: rgba(91, 75, 240, .16);
-  --ab-tile-a: #9a8bff;
-  --ab-tile-b: #5a49ee;
-  --ab-tile-shadow: rgba(91, 75, 240, .55);
+  --ab-tile-a: #2287e7;   /* ★ S14 (#1288): the launcher ground's two corners (appicon.svg composited), was violet */
+  --ab-tile-b: #076ac6;
+  --ab-tile-shadow: rgba(0, 92, 190, .5);
   --ab-mark: #ffffff;
-  --ab-lock-bg: #e3dafe;
-  --ab-lock-ink: #7457ef;
-  --ab-bubble-a: #74b0ff;
-  --ab-bubble-b: #3c7bf5;
-  --ab-coin-a: #ffdc73;
-  --ab-coin-b: #f4b21c;
-  --ab-coin-edge: #e39b06;
-  --ab-coin-ink: #6a4700;
+  --ab-bubble-a: #ffffff;   /* ★ S14 (#1288): white on the blue band, was blue */
+  --ab-bubble-b: #e2edfc;
   --ab-spark: #8a7af5;
-  --ab-chip: #f1f2f6;
+  --ab-chip: #e8f0fb;       /* ★ S14 (#1288): the version chip's FILL (no edge) — a faint launcher-blue tint */
   --ab-track: #e3e5ec;
   --ab-bar: #7c6cf0;
   --ab-seen: #1fae4f;
@@ -1435,10 +1429,18 @@
   /* ★ S13 B (About "Banner hero"): the band's white orbit / sparkles, its lower-edge shade, and the version chip's
      hairline edge (the glass chip from option A) */
   --ab-band-ink: rgba(255, 255, 255, .7);
-  --ab-band-shade: rgba(40, 30, 140, .18);
-  --ab-chip-edge: rgba(91, 75, 240, .18);
+  --ab-band-shade: rgba(8, 48, 120, .16);      /* ★ S14 (#1288): navy, was violet */
   --ab-band-sheen: rgba(255, 255, 255, .22);   /* ★ S13 B: the band's top-right light */
-  --ab-icon-sheen: rgba(255, 255, 255, .3);    /* ★ S13 B: the app icon's top gloss */
+  /* ★ S14 (#1288): the band moves from the hint-art violet to a SOFTER blue of the launcher's family, so the icon
+     tile (its own deeper #0076E1) still stands off it; the chat bubble on it goes white (a blue bubble would sink) */
+  --ab-band-from: #9ccbff;
+  --ab-band-to: #4f97f0;
+  --ab-bubble-dot: #0076e1;
+  /* ★ S14 (#1288): the app icon tile = the REAL launcher ground (Spixi/Resources/AppIcon/appicon.svg: #0076E1 + the
+     #689 radial from the top-right corner) — one icon, so ONE set for both themes (the dark block does not override) */
+  --ab-icon-ground: #0076e1;
+  --ab-icon-light: rgba(75, 156, 239, .45);
+  --ab-icon-deep: rgba(34, 58, 89, .2);
 }
 
 /* Contextual region override (DECISIONS.md #20): hero screens repaint the top
@@ -2088,20 +2090,14 @@
   --ab-glow: rgba(124, 108, 240, .34);
   --ab-orbit: rgba(186, 170, 255, .5);
   --ab-floor: rgba(0, 0, 0, .45);
-  --ab-tile-a: #9a8bff;
-  --ab-tile-b: #5a49ee;
-  --ab-tile-shadow: rgba(20, 14, 90, .85);
+  --ab-tile-a: #2287e7;   /* ★ S14 (#1288): the launcher ground, as the light set */
+  --ab-tile-b: #076ac6;
+  --ab-tile-shadow: rgba(0, 16, 50, .85);
   --ab-mark: #ffffff;
-  --ab-lock-bg: #cfc3ff;
-  --ab-lock-ink: #5a3fd8;
-  --ab-bubble-a: #74b0ff;
-  --ab-bubble-b: #3c7bf5;
-  --ab-coin-a: #ffdc73;
-  --ab-coin-b: #f4b21c;
-  --ab-coin-edge: #c98a05;
-  --ab-coin-ink: #5a3c00;
+  --ab-bubble-a: #f4f8ff;   /* ★ S14 (#1288) */
+  --ab-bubble-b: #d6e4fa;
   --ab-spark: #b9adff;
-  --ab-chip: #0f1115;
+  --ab-chip: #252c3a;       /* ★ S14 (#1288): the version chip's FILL on the #1b1e27 card */
   --ab-track: #2a2e39;
   --ab-bar: #8f80ff;
   --ab-seen: #34c463;
@@ -2110,9 +2106,10 @@
   /* ★ S13 B (About "Banner hero"), dark set */
   --ab-band-ink: rgba(255, 255, 255, .55);
   --ab-band-shade: rgba(0, 0, 0, .35);
-  --ab-chip-edge: rgba(186, 170, 255, .18);
-  --ab-band-sheen: rgba(255, 255, 255, .22);
-  --ab-icon-sheen: rgba(255, 255, 255, .3);
+  --ab-band-sheen: rgba(255, 255, 255, .16);
+  --ab-band-from: #24509e;   /* ★ S14 (#1288): a deeper launcher-family blue under the brighter #0076E1 tile */
+  --ab-band-to: #173a7c;
+  --ab-bubble-dot: #0a62c4;
 }
 
 @media (prefers-reduced-motion: reduce) {

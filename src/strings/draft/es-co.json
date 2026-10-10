@@ -949,5 +949,10 @@
   "howToMoreHelp": "¿Necesitas más ayuda?",
   "howToHelpCentre": "Centro de ayuda",
   "hintNoPhoneBody2": "Tu cuenta es una clave en tu dispositivo.",
-  "aboutWhyKeysTitle2": "Tus claves, tu dispositivo"
+  "aboutWhyKeysTitle2": "Tus claves, tu dispositivo",
+  "devContainerTitle": "Overlay container (Android)",
+  "devContainerClip": "Clip",
+  "devContainerShadow": "Shadow (13c)",
+  "devContainerNone": "None (no input flip during the slide)",
+  "devContainerOn": "On"
 }

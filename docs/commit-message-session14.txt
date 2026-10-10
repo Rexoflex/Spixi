@@ -1,0 +1,18 @@
+Session 14: back on Android 16, backup paths, chat info stutter and swap, tab hand-off, About, wallet
+
+- Record WALK #1278 (13b + 13c: 8 P, 0 F) and Damir's new-phone findings
+- Android 16 (target 36, predictive back): an always-enabled back callback routes every back
+  press to the app's back handlers; the app goes to the background only from the chats list
+- Privacy: the Android backup rules now use the runtime path (files/Documents/Spixi/...), so chat
+  history, the send queue, logs, downloads, voice notes, chain data and WebView storage stay out
+  of cloud backup and device transfer
+- Android: overlay stages keep a Clip container instead of a zero shadow (the chat-info slide no
+  longer software-draws its WebView on every frame); Developer switch Clip / Shadow / None
+- Android: chat info stays on screen until the group chat opened from it has drawn
+- Account: a tab tap is one bridge verb (land + save + exit), with a per-present exit latch in C#
+- About: links go through an id whitelist (aboutLink); new banner colours (launcher-blue icon tile,
+  blue band, filled version chip); heart and gold star art
+- No wallet balance in any failure text sent to a WebView
+- Account subscreens no longer replay their art after the slide
+- Wallet: empty state without search and chips, new peer-to-peer art, aligned row insets,
+  "Missing a transaction?" link

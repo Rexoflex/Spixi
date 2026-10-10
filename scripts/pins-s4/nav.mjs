@@ -57,13 +57,13 @@ export default async function (h) {
     const b = navBtn('wallet');
     if (b) b.click();
     const out = sent.slice(before);
-    ok(!!b && out[0] === 'ixian:landtab:wallet' && out[1] === 'ixian:handoff' && out.length === 2,
-      '★ #1133 lever 10 (EXECUTED, built settings shell): a peer-nav TAB tap from Account sends `ixian:landtab:<id>` and then `ixian:handoff` — never `ixian:back` — so SettingsPage holds the pop for home\'s painted tab (popOnCoverPainted) instead of uncovering the old tab — sent ' + JSON.stringify(out));
+    ok(!!b && out[0] === 'ixian:landtab:wallet' && out.length === 1,   /* ★ S14 re-base (#1284): ONE verb = land + the hand-off (pinned in pins-s14/b-settings.mjs) */
+      '★ #1133 lever 10 (EXECUTED, built settings shell): a peer-nav TAB tap from Account sends `ixian:landtab:<id>` — the hand-off exit rides it (★ S14 #1284), never `ixian:back` — so SettingsPage holds the pop for home\'s painted tab (popOnCoverPainted) instead of uncovering the old tab — sent ' + JSON.stringify(out));
     /* a second tap while the exit is in flight emits nothing (the exitSent latch) */
     const before2 = sent.length;
     const c = navBtn('apps');
     if (c) c.click();
-    ok(!!c && sent.slice(before2).filter((v) => /^ixian:(back|handoff|save:|apply:)/.test(v)).length === 0,
+    ok(!!c && sent.slice(before2).filter((v) => /^ixian:(back|handoff|save:|apply:|landtab:)/.test(v)).length === 0,   /* ★ S14 re-base (#1284): landtab IS the exit verb now */
       '★ #1133 lever 10 (EXECUTED): a second tab tap during the hand-off sends no second exit verb (exitSent latch) — sent ' + JSON.stringify(sent.slice(before2)));
     ok(errs.length === 0, '★ #1133 lever 10: the settings shell ran the tab hand-off without a page error — ' + errs.join(' | '));
     try { dom.window.close(); } catch (e) {}
@@ -82,12 +82,12 @@ export default async function (h) {
     const b = W.document.querySelector('#settings-nav .c-bottomnav__item[data-id="chats"]');
     if (b) b.click();
     const out = sent.slice(before);
-    ok(!!lock && !!b && out.join('|') === 'ixian:landtab:chats|ixian:apply:Damir|ixian:handoff',
-      '★ #1133 lever 10 (EXECUTED): a DIRTY tab hand-off persists with `ixian:apply:` (save WITHOUT the pop) and still leaves with `ixian:handoff` — the popping `ixian:save:` would have skipped the cover — sent ' + JSON.stringify(out));
+    ok(!!lock && !!b && out.join('|') === 'ixian:landtab:chats:Damir',   /* ★ S14 re-base (#1284): the nick rides the ONE verb (C#: the apply path, then the hand-off) */
+      '★ #1133 lever 10 (EXECUTED): a DIRTY tab hand-off persists WITHOUT the pop (★ S14: `ixian:landtab:<id>:<nick>` = the apply path) and still leaves on the hand-off — the popping `ixian:save:` would have skipped the cover — sent ' + JSON.stringify(out));
     try { dom.window.close(); } catch (e) {}
   }
   {
-    /* an exe without settingsApply: a dirty hand-off keeps today's save-and-pop */
+    /* an exe without settingsApply: a dirty hand-off — since S14 #46 r1 the same one verb */
     const { W, push, sent, dom } = await boot('settings.html');
     push('setCaps', 'backupInline,downloadsInline,encpass,encpassInline,globalNotifications');
     push('setNickname', 'Damir');
@@ -100,8 +100,8 @@ export default async function (h) {
     const b = W.document.querySelector('#settings-nav .c-bottomnav__item[data-id="wallet"]');
     if (b) b.click();
     const out = sent.slice(before);
-    ok(!!lock && !!b && out.join('|') === 'ixian:landtab:wallet|ixian:save:Damir',
-      '★ #1133 lever 10 (EXECUTED): on an exe WITHOUT the settingsApply cap a dirty hand-off still saves with the popping `ixian:save:` (no apply verb the exe cannot dispatch) — sent ' + JSON.stringify(out));
+    ok(!!lock && !!b && out.join('|') === 'ixian:landtab:wallet:Damir',   /* ★ S14 #46 r1 (MIN-1) re-base: the ONE verb with or without the cap (the second send ran the exit twice) */
+      '★ #1133 lever 10 (EXECUTED) → ★ S14 #46 r1: on an exe WITHOUT the settingsApply cap a dirty hand-off sends the SAME one verb `ixian:landtab:<id>:<nick>` (every exe that ships this html dispatches it) — sent ' + JSON.stringify(out));
     try { dom.window.close(); } catch (e) {}
   }
   {
@@ -154,8 +154,10 @@ export default async function (h) {
     const sp = stripCode(rd('Spixi/Pages/Settings/SettingsPage.xaml.cs'));
     const scp = stripCode(rd('Spixi/Utils/SpixiContentPage.cs'));
     const pop = scp.slice(scp.indexOf('protected void popOnCoverPainted()'), scp.indexOf('public static void coverPainted()'));
-    ok(/if \(current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\)\s*\{\s*popOnCoverPainted\(\);/.test(sp)
-       && /StartsWith\("ixian:landtab:", StringComparison\.Ordinal\)\)\s*\{\s*HomePage\.InstanceOrNull\(\)\?\.landOnTab\(/.test(sp)
+    /* ★ S14 re-base (#1284): the cleanup moved into exitCleanup(deferPop); handoff and landtab both defer · ★ S14 #46 r1 re-base: + the claimExit latch wraps the body (pins-s14/b-settings.mjs) */
+    ok(/exitCleanup\(current_url\.Equals\("ixian:handoff", StringComparison\.Ordinal\)\);/.test(sp)
+       && /private void exitCleanup\(bool deferPop\)\s*\{[\s\S]*?if \(deferPop\)\s*\{\s*popOnCoverPainted\(\);/.test(sp)
+       && /StartsWith\("ixian:landtab:", StringComparison\.Ordinal\)\)\s*\{[\s\S]{0,450}?HomePage\.InstanceOrNull\(\)\?\.landOnTab\(landId\);[\s\S]{0,200}?exitCleanup\(true\);/.test(sp)
        && /await Task\.Delay\(CoverWaitBackstopMs\);\s*releaseCoverWaiter\(seq, "backstop"\);/.test(pop) && /private const int CoverWaitBackstopMs = 400;/.test(scp),
       '★ #1133 lever 10 (SOURCE — MAUI-only): SettingsPage forwards landtab to HomePage, `ixian:handoff` holds the pop in popOnCoverPainted, and the 400 ms backstop releases it when no `coverpainted` arrives — the fallback that keeps a tab hand-off from stranding Account');
   }

@@ -623,6 +623,10 @@
   // W2 (#348) review MAJOR-4: the OUTBOUND-verb latch. Distinct from `exiting`, which
   // only gates painting and self-heals. This one is one-shot for the document's life.
   let exitSent = false;
+  /* ★ S14 #46 r1 (MAJ-1): when the last `ixian:apply:` went out — exitSettings carries the nick when
+     an apply is this recent (a blur-commit right before the exiting tap). */
+  let lastApplyAt = 0;
+  const APPLY_CARRY_MS = 1000;
   /* ★ W2 (#348) — THE LATCH HAD NO RESET PATH ON DESKTOP, and it freezes the whole
      document, not just one control: `exiting` makes renderLayout bail (:577) and
      scheduleRebuild bail (:839), so nothing repaints and the last painted frame — a
@@ -682,8 +686,13 @@
      grammar). A DIRTY exit still saves-and-pops at once (`ixian:save:` is unchanged):
      the save is the binding action and the rarer path — except a dirty HAND-OFF, which
      since #1133 lever 10 saves with `ixian:apply:` and keeps the handshake (below).
-     ★ #1133 lever 10: the peer-nav TAB taps are hand-offs now too, not only Contacts. */
-  function exitSettings(reason) {
+     ★ #1133 lever 10: the peer-nav TAB taps are hand-offs now too, not only Contacts.
+     ★ S14 (#1284): `tabId` (a tab tap, Contacts) makes the exit ONE verb — `ixian:landtab:<id>`
+     (clean) or `ixian:landtab:<id>:<nick>` (dirty): SettingsPage lands, applies the nick and runs
+     the hand-off cleanup from that ONE navigation. Two navigations one macrotask apart lost the
+     FIRST on the new phone (no `landtab recv`; the pane closed on the backstop without landing).
+     ★ S14 #46 r1 (MIN-1): the cap no longer matters for a tab exit — the one verb always (below). */
+  function exitSettings(reason, tabId) {
     if (exitSent) return;          // the verb gate — never healed
     exitSent = true;
     exiting = true;
@@ -715,18 +724,25 @@
     // (the wallet-receive rule) — and THIS document parks, so a stranded sheet
     // would still be there on the next visit. Safe when nothing is open.
     try { closeAddressSheet(); } catch (e) {}
-    const dirty = state.dirtyNick || state.dirtyAvatar || state.dirtyLock;
-    /* ★ #1133 lever 10: a DIRTY hand-off keeps the handshake. `ixian:save:` pops at once
-       (onSaveSettings), so it is split: `ixian:apply:` persists the same things WITHOUT the
-       pop (onApplySettings → saveSettingsCore, the S14 verb), then `ixian:handoff` runs the
-       back cleanup (avatar-tmp is already promoted) and holds the pop for the cover. The
-       outbox serialises the two. An exe without the settingsApply cap keeps save-and-pop. */
-    if (dirty && reason === 'handoff' && bridge.cap('settingsApply')) {
-      bridge.send('ixian:apply:' + state.name);
-      state.dirtyNick = false; state.dirtyAvatar = false; state.dirtyLock = false;
-      bridge.send('ixian:handoff');
+    /* ★ S14 #46 r1 (MAJ-1): an open nick editor BLURS before the tap that exits — the blur commits
+       (autoSave → `ixian:apply:<nick>`, dirty cleared) and this exit follows one macrotask later, so
+       the apply is exactly the FIRST navigation #1284 loses. An apply sent within APPLY_CARRY_MS
+       therefore counts as dirty: the exit verb carries the nick again (saveSettingsCore is
+       idempotent — it broadcasts only on a CHANGED nick, applyAvatar no-ops without avatar-tmp). */
+    const dirty = state.dirtyNick || state.dirtyAvatar || state.dirtyLock
+      || (lastApplyAt > 0 && Date.now() - lastApplyAt < APPLY_CARRY_MS);
+    lastApplyAt = 0;
+    /* ★ #1133 lever 10: a DIRTY hand-off keeps the handshake (`ixian:save:` would pop at once).
+       ★ S14 (#1284): the old `apply:` + `handoff` split rides the ONE landtab verb — the nick after
+       the id's ':' is persisted by the apply path (saveSettingsCore), then the hand-off runs.
+       ★ S14 #46 r1 (MIN-1): with OR without the settingsApply cap — the C# of every exe that ships
+       this html understands the verb; the old second send (`handoff` / `save:`) ran the exit twice. */
+    if (tabId) {
+      bridge.send('ixian:landtab:' + tabId + (dirty ? ':' + state.name : ''));
+      if (dirty) { state.dirtyNick = false; state.dirtyAvatar = false; state.dirtyLock = false; }
       return;
     }
+    // no tab (hardware / edge back, the rail): save-and-pop when dirty, else the plain exit
     bridge.send(dirty ? 'ixian:save:' + state.name : (reason === 'handoff' ? 'ixian:handoff' : 'ixian:back'));
   }
   // Explicit Save (topbar check): persist + pop, exactly ONCE, with NO success morph —
@@ -739,6 +755,7 @@
     // today, so we fall through to the frozen-bridge persist-and-pop below.
     if (bridge.cap('settingsApply')) {
       bridge.send('ixian:apply:' + state.name);
+      lastApplyAt = Date.now();   // ★ S14 #46 r1 (MAJ-1): an exit within APPLY_CARRY_MS carries the nick again
       state.dirtyNick = false; state.dirtyAvatar = false; state.dirtyLock = false;
       if (hubEl && hubEl.showSaved) hubEl.showSaved();
       // let the "Saved" morph play, then the clean hub hides Save again
@@ -943,7 +960,11 @@
         const leaving = root.firstElementChild;
         if (currentView !== 'hub' && leaving === hubEl) {
           slideSubscreenIn(root, buildScreen(currentView), () => {
-            root.replaceChildren(root.lastElementChild);        // the screen; the hub detaches now
+            /* ★ S14 (#1287): detach the covered views AROUND the screen — never re-insert it.
+               replaceChildren(screen) removed + re-appended the live screen, which restarts every
+               CSS animation inside it: the art's entrance replayed from 0 at the slide end (the flash). */
+            const scr = root.lastElementChild;
+            for (const c of Array.from(root.children)) if (c !== scr) c.remove();   // the hub detaches now
             document.body.toggleAttribute('data-subview', true);
           });
         } else if (currentView === 'hub' && leaving && leaving !== hubEl && root.childElementCount === 1) {
@@ -1064,8 +1085,7 @@
          localStorage key + storage-event + focus/visibility fallbacks + the 15 s
          guard it replaced are gone). A fixed keyword, no user data. */
       onContacts: () => {
-        bridge.send('ixian:landtab:contacts');
-        exitSettings('handoff');   // ★ Session I: the pane closes ON the painted cover, not before it
+        exitSettings('handoff', 'contacts');   // ★ Session I: the pane closes ON the painted cover · ★ S14 (#1284): ONE verb, ixian:landtab:contacts
       },
 
       /* ★ #443, refolded by ★ Batch E (d) (#557): "What is this address?" opens the
@@ -1365,13 +1385,13 @@
   function showHub() { contribFromAbout = false; currentView = 'hub'; renderLayout(); }
   function showDanger() { currentView = 'danger'; renderLayout(); }
   /* iOS-21 — external links from About / How-to. The WebView never navigates to
-     http(s) itself (iOSWebViewHandler.DecidePolicy Cancel-blocks it, and the
-     Windows/legacy flows all route through Browser.OpenAsync); the sanctioned
-     path is the ixian:openLink verb SingleChatPage already implements (:334),
-     now mirrored on SettingsPage. URLs here are curated in-code, never user
-     input (settings-app.js linkRow). Before this, About/How-to links rendered
-     as dead selectable text (be-cutover S13). */
-  function openExternal(url) { if (url) bridge.send('ixian:openLink:' + url); }
+     http(s) itself (iOSWebViewHandler.DecidePolicy Cancel-blocks it).
+     ★ S14 (#1285, security OURS-OPEN row 16): the verb carries a FIXED id, never a URL —
+     `ixian:aboutLink:<id>`; SettingsPage.aboutLinkUrl maps it to a Config constant and opens it
+     through Utils.openExternal. The `url` argument (display / demo) is NOT sent. An id outside the
+     set sends nothing. */
+  const ABOUT_LINK_IDS = ['website', 'network', 'source', 'help'];
+  function openAboutLink(url, id) { if (ABOUT_LINK_IDS.indexOf(id) >= 0) bridge.send('ixian:aboutLink:' + id); }
 
   function showAbout() { contribFromAbout = false; currentView = 'about'; renderLayout(); }
   function showHowTo() { currentView = 'howto'; renderLayout(); }
@@ -1534,7 +1554,8 @@
    *   C# re-runs onLoad → the hub rebuilds; a wallet delete tears the page down.
    * · about — static, zero-C#; version from the setVersion push (S4). No bridge
    *   verb opens a URL from the WebView → links render as selectable text
-   *   (onOpenLink deliberately omitted, be-cutover S13).
+   *   (onOpenLink deliberately omitted, be-cutover S13). ★ S14 (#1285): superseded —
+   *   the rows send a fixed id (`ixian:aboutLink:<id>`, openAboutLink).
    * · howto — static, zero-C#.
    * · contributors — static component data (#240 un-gated; no verb needed).
    * · chatappearance — FE-only (6e.2 / #147): live preview + presets; persists to
@@ -1560,7 +1581,7 @@
       });
       case 'about': return createSettingsAbout({
         version: appVersion, host: document.body, strings,
-        onOpenLink: openExternal,     // iOS-21
+        onOpenLink: openAboutLink,     // iOS-21 · ★ S14 (#1285): a fixed id, not the URL
         /* ★ S12 B (#1267): Licences → the SAME Contributors credits the hub row opens (no new page) · Rate Spixi →
            intent only (`ixian:rating:yes`, the HomePage grammar; C# picks the store URL), and ONLY with the `rate`
            cap — SettingsPage grants it where a store page exists (Android, iOS), so no row taps into nothing. */
@@ -1578,7 +1599,7 @@
       });
       case 'howto': return createSettingsHowTo({
         host: document.body, strings,
-        onOpenLink: openExternal,     // iOS-21 — "Help centre" (★ S12 B: was "Learn more") → the help centre
+        onOpenLink: openAboutLink,     // iOS-21 · ★ S14 (#1285): id 'help' — "Help centre" (★ S12 B: was "Learn more") → the help centre
         /* ★ Item 6 (#397/#400): the permanent community door. SettingsPage had no
            handler for ixian:joinBot at all (only HomePage did) — this batch gave it one
            that calls the SAME shared static, so nothing is duplicated and no second verb
@@ -2423,6 +2444,7 @@
     onRepresented() {
       exiting = false;
       exitSent = false;            // W2: a re-presented document may exit again
+      lastApplyAt = 0;             // ★ S14 #46 r1 (MAJ-1): the parking exit already carried it
       rebuildQueued = false;
       clearTimeout(exitHeal);      // W2: the re-present IS the reset; drop any pending heal
       // #46 r2 MAJOR-1: reconcile the dirty machinery with what the PARKING EXIT
@@ -2515,8 +2537,7 @@
          `ixian:coverpainted` (landOnTabNow, 2nd rAF after showView), 400 ms backstop. */
       onChange: (id) => {
         if (id === 'account') return;
-        bridge.send('ixian:landtab:' + id);
-        exitSettings('handoff');
+        exitSettings('handoff', id);   // ★ S14 (#1284): ONE verb — ixian:landtab:<id>[:<nick>] = land + hand-off
         // #320 (Damir F5 of #315): bottomnav moves the highlight on tap BEFORE
         // onChange runs — the exit-tap left e.g. Wallet selected, the page PARKED
         // in that state, and the warm re-present showed Account with the wrong tab

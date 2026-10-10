@@ -1744,7 +1744,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
    follows settings-shell.css, so the radius, padding and ground below win); every colour of the art comes from the
    --ab-* tokens (tokens.css, per theme).
    ★ S13 B (Damir's pick, "Banner hero"): the card wears the glass-card surface + highlight; a band in the hint-art
-   gradient runs edge to edge across its top carrying the art's orbit, satellites and sparkles (aboutHeroArt
+   gradient (★ S14 #1288: now the launcher-blue --ab-band-* pair) runs edge to edge across its top carrying the art's orbit, satellites and sparkles (aboutHeroArt
    { tile: false }), and the app icon overlaps the band's lower edge inside a surface-coloured ring (the "cut-out").
    No backdrop-filter anywhere: every layer is an opaque gradient, so an old WebView paints the same card. */
 .c-settings-about__hero {
@@ -1770,7 +1770,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   background:
     radial-gradient(60% 120% at 50% 110%, var(--ab-band-shade) 0%, transparent 70%),
     radial-gradient(80% 140% at 85% 0%, var(--ab-band-sheen) 0%, transparent 55%),
-    linear-gradient(120deg, var(--glass-card-art-from) 0%, var(--glass-card-art-to) 100%);
+    linear-gradient(120deg, var(--ab-band-from) 0%, var(--ab-band-to) 100%);   /* ★ S14 (#1288): launcher blue, was the hint-art violet */
   background-size: 100% 100%, 100% 100%, 130% 100%;
   background-position: 0 0, 0 0, 50% 0;
   background-repeat: no-repeat;
@@ -1808,9 +1808,12 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   margin-block-start: -46px;
   margin-block-end: var(--spacing-8);
   border-radius: var(--radius-24);
+  /* ★ S14 (#1288): the REAL launcher ground (appicon.svg, Damir's #689 CSS layered the same way: the radial from the
+     top-right corner over #0076E1); no gloss — the launcher icon has none. Physical corner on purpose: an icon does
+     not mirror in RTL */
   background:
-    linear-gradient(180deg, var(--ab-icon-sheen) 0%, transparent 55%),
-    linear-gradient(150deg, var(--ab-tile-a) 0%, var(--ab-tile-b) 100%);
+    radial-gradient(141.42% 141.42% at 100% 0%, var(--ab-icon-light) 13.13%, var(--ab-icon-deep) 100%),
+    var(--ab-icon-ground);
   color: var(--ab-mark);
   /* the cut-out ring in the card's own surface, a 1 px highlight hairline round it (so the ring reads as a rim, not a
      hole, on the dark card), then the soft brand glow */
@@ -1838,14 +1841,12 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
 }
-/* the version chip on glass (option A's chip): the card surface, a hairline brand edge, a faint glow, the number in
-   the accent ink */
+/* the version chip: ★ S14 (#1288, Damir) a FILLED chip — no edge, no glow; the number in the accent ink */
 .c-settings-about__version {
   margin: var(--spacing-12) 0 0;
   padding: var(--spacing-4) var(--spacing-12);
   border-radius: var(--radius-full);
-  background: var(--glass-card-surface);
-  box-shadow: inset 0 0 0 1px var(--ab-chip-edge), 0 4px 10px -6px var(--glass-card-art-glow);
+  background: var(--ab-chip);
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
@@ -2621,6 +2622,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     root.replaceChildren(devEl);
     if (lastLog) setDevLog(devEl, lastLog);
     mountFlashDev();
+    mountContainerDev();   // ★ S14 (#1282): also when no flash positions came yet
   }
 
   /* ★ S11 C (#1262) 10-FLASH probe build — the Developer switches for the chat-open hold (Android; DevPage stores them as
@@ -2670,8 +2672,67 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       row.append(lab, sw);
       card.append(row);
     });
-    const note = body.querySelector('.c-settings__note');
+    const note = body.querySelector(':scope > .c-settings__note');   // ★ S14 (#1282): the body's own note, never a card's title
     if (note && note.nextSibling) body.insertBefore(card, note.nextSibling);
+    else body.prepend(card);
+    mountContainerDev();
+  }
+
+  /* ★ S14 (#1282) — the overlay-container probe (Android; C# pushes setContainerDev only there, so no dead row). One of three:
+     clip (default) · shadow (the 13c zero shadow) · none (no container, no input flip on a non-held overlay). A tap sends
+     `ixian:devflash:container:<word>`, optimistic; C# echoes the stored word. */
+  let containerDev = null;   // 'clip' | 'shadow' | 'none' once C# told us
+  function mountContainerDev() {
+    if (!containerDev || !devEl) return;
+    const body = devEl.querySelector('.c-settings__body');
+    if (!body) return;
+    const old = body.querySelector('.c-dev-container');
+    if (old) old.remove();
+    const card = document.createElement('div');
+    card.className = 'c-settings__section c-dev-container';
+    card.setAttribute('role', 'radiogroup');
+    const head = document.createElement('p');
+    head.className = 'c-settings__note';
+    head.textContent = strings.devContainerTitle || 'Overlay container (Android)';
+    card.setAttribute('aria-label', head.textContent);
+    card.append(head);
+    const opts = [
+      ['clip', strings.devContainerClip || 'Clip'],
+      ['shadow', strings.devContainerShadow || 'Shadow (13c)'],
+      ['none', strings.devContainerNone || 'None (no input flip during the slide)'],
+    ];
+    const paint = () => {
+      card.querySelectorAll('[data-container]').forEach((b) => {
+        const on = b.dataset.container === containerDev;
+        b.setAttribute('aria-checked', String(on));
+        const v = b.querySelector('.c-settings__row-value');
+        if (v) v.textContent = on ? (strings.devContainerOn || 'On') : '';
+      });
+    };
+    opts.forEach(([word, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings__row';
+      b.setAttribute('role', 'radio');
+      b.dataset.container = word;
+      const lab = document.createElement('span');
+      lab.className = 'c-settings__row-label';
+      lab.textContent = label;
+      const val = document.createElement('span');
+      val.className = 'c-settings__row-value';
+      b.append(lab, val);
+      b.addEventListener('click', () => {
+        if (containerDev === word) return;
+        containerDev = word;
+        paint();
+        bridge.send('ixian:devflash:container:' + word);
+      });
+      card.append(b);
+    });
+    paint();
+    const after = body.querySelector(':scope > .c-dev-flash') || body.querySelector(':scope > .c-settings__note');
+    if (after && after.nextSibling) body.insertBefore(card, after.nextSibling);
+    else if (after) body.append(card);
     else body.prepend(card);
   }
   buildDev();
@@ -2702,6 +2763,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       if (!m) return;
       flashDev = [m[1] === '1', m[2] === '1', m[3] === '1'];
       mountFlashDev();
+    },
+    /* ★ S14 (#1282): the overlay-container word (clip | shadow | none); anything else is ignored. */
+    setContainerDev(v) {
+      const w = String(v || '');
+      if (w !== 'clip' && w !== 'shadow' && w !== 'none') return;
+      containerDev = w;
+      mountContainerDev();
     },
   };
   /* ★ L3 (#706): the iOS back signal. One level per gesture — a sheet on the shared

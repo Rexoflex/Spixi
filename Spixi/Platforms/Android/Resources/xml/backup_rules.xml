@@ -1,27 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- #912 (APP-1) — Android 11 and below (android:fullBackupContent). Android 12+ reads
-     data_extraction_rules.xml instead; the two lists MUST stay identical.
-     `file` = the app's files dir = Environment.SpecialFolder.Personal, so "Spixi/…"
-     is Config.spixiUserFolder. Chat history is plaintext on disk (be-cutover CORE-11)
-     and a system backup taken before a delete keeps the deleted text for good — so
-     the history, the offline send queue and the logs stay OUT of Google / adb backups.
-     The wallet, the account (Acc), the avatar and the preferences are NOT excluded:
-     a restore that brings back wallet.ixi is what backups are for. No wildcards exist
-     in this format, so the log rotation is listed by name (Config.maxLogCount = 5).
-     ★ H-14 (#1245): localonly.json (SLocalOnlyStore — the declined-request addresses and the push
-     trace salt) never leaves the device either.
-     ★ S9 (#1244 / #1200): Spixi/Sent = the durable copies of the photos and files I sent (they could pass the
-     25 MB backup quota and stop the wallet backup) — never backed up. -->
+<!-- #912 (APP-1) - Android 11 and below (android:fullBackupContent). Android 12+ reads
+     data_extraction_rules.xml instead; the THREE lists (here, cloud-backup, device-transfer) MUST stay identical.
+     ★ S14 (#1281): domain="file" paths are relative to getFilesDir(), and on .NET 10 Android
+     Environment.SpecialFolder.Personal = getFilesDir()/Documents (log: /data/user/0/com.ixilabs.spixi.dev/files/Documents/
+     Spixi/MsgQueue/...). So Config.spixiUserFolder = files/Documents/Spixi, and every S13 rule ("Spixi/...") named a path
+     that does not exist: NOTHING was excluded. Every rule now starts "Documents/Spixi/".
+     Excluded (plaintext or user content, or rebuildable): chat history (Chats, CORE-11 - a backup taken before a delete keeps
+     the deleted text), the offline send queue (MsgQueue), received files (Downloads), my sent voice clips (Voice) and the
+     durable copies of my sent photos/files (Sent, #1244 - they could pass the 25 MB quota and stop the wallet backup),
+     transfer + restore scratch (tmp, tmp_zip), block headers and the activity DB (headers / activity + testnet-*, Config.cs),
+     the log and its rotation (Logging.cs rolls to ixian.0..ixian.4 at Config.maxLogCount = 5; .5 is a margin) plus the log
+     copies made for sharing (ixian.log.tmp, spixi.log.zip, spixi-log.txt), and localonly.json (H-14 #1245: the declined-
+     request addresses and the push trace salt).
+     domain="root" app_webview = the WebView storage: chat drafts are plaintext spixi.* localStorage keys.
+     KEPT (what a backup is for): wallet.ixi, Acc, the avatars (html/Avatars), peers.ixi, the preferences (sharedpref).
+     No wildcards exist in this format, so the log files are listed by name. -->
 <full-backup-content>
-    <exclude domain="file" path="Spixi/Chats" />
-    <exclude domain="file" path="Spixi/MsgQueue" />
-    <exclude domain="file" path="Spixi/ixian.log" />
-    <exclude domain="file" path="Spixi/ixian.1.log" />
-    <exclude domain="file" path="Spixi/ixian.2.log" />
-    <exclude domain="file" path="Spixi/ixian.3.log" />
-    <exclude domain="file" path="Spixi/ixian.4.log" />
-    <exclude domain="file" path="Spixi/ixian.5.log" />
-    <exclude domain="file" path="Spixi/localonly.json" />
-    <exclude domain="file" path="Spixi/localonly.json.tmp" />
-    <exclude domain="file" path="Spixi/Sent" />
+    <exclude domain="file" path="Documents/Spixi/Chats" />
+    <exclude domain="file" path="Documents/Spixi/MsgQueue" />
+    <exclude domain="file" path="Documents/Spixi/Downloads" />
+    <exclude domain="file" path="Documents/Spixi/Voice" />
+    <exclude domain="file" path="Documents/Spixi/Sent" />
+    <exclude domain="file" path="Documents/Spixi/tmp" />
+    <exclude domain="file" path="Documents/Spixi/tmp_zip" />
+    <exclude domain="file" path="Documents/Spixi/headers" />
+    <exclude domain="file" path="Documents/Spixi/testnet-headers" />
+    <exclude domain="file" path="Documents/Spixi/activity" />
+    <exclude domain="file" path="Documents/Spixi/testnet-activity" />
+    <exclude domain="file" path="Documents/Spixi/ixian.log" />
+    <exclude domain="file" path="Documents/Spixi/ixian.0.log" />
+    <exclude domain="file" path="Documents/Spixi/ixian.1.log" />
+    <exclude domain="file" path="Documents/Spixi/ixian.2.log" />
+    <exclude domain="file" path="Documents/Spixi/ixian.3.log" />
+    <exclude domain="file" path="Documents/Spixi/ixian.4.log" />
+    <exclude domain="file" path="Documents/Spixi/ixian.5.log" />
+    <exclude domain="file" path="Documents/Spixi/ixian.log.tmp" />
+    <exclude domain="file" path="Documents/Spixi/spixi.log.zip" />
+    <exclude domain="file" path="Documents/Spixi/spixi-log.txt" />
+    <exclude domain="file" path="Documents/Spixi/localonly.json" />
+    <exclude domain="file" path="Documents/Spixi/localonly.json.tmp" />
+    <exclude domain="root" path="app_webview" />
 </full-backup-content>

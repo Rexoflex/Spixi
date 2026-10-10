@@ -872,5 +872,10 @@
   "howToMoreHelp": "需要更多帮助？",
   "howToHelpCentre": "帮助中心",
   "hintNoPhoneBody2": "您的账户是您设备上的一把密钥。",
-  "aboutWhyKeysTitle2": "你的密钥，你的设备"
+  "aboutWhyKeysTitle2": "你的密钥，你的设备",
+  "devContainerTitle": "Overlay container (Android)",
+  "devContainerClip": "Clip",
+  "devContainerShadow": "Shadow (13c)",
+  "devContainerNone": "None (no input flip during the slide)",
+  "devContainerOn": "On"
 }

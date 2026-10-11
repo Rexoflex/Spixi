@@ -1,0 +1,159 @@
+<title>Spixi Desktop Directions</title>
+<meta name="description" content="Spixi desktop discovery: three directions (Deck, Office, Stage), Windows 11 and macOS 27, real tokens.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style id="spixi-tokens">
+/* src/styles/tokens.css — inlined by build-render.mjs; the frames read ONLY these tokens */
+{{TOKENS}}
+</style>
+<style>
+@font-face { font-family: "Sora"; src: url(data:font/woff2;base64,{{SORA}}) format("woff2"); font-weight: 100 800; font-display: swap; }
+{{PAGECSS}}
+{{KITCSS}}
+</style>
+<script>document.documentElement.setAttribute('data-desktop', '');</script>
+
+<main class="page">
+  <header>
+    <p class="kicker">Spixi · desktop discovery · v1.1+ track · render only, nothing built</p>
+    <h1>Desktop, designed as desktop</h1>
+    <p class="lede">v1 ships desktop as the mobile shells in a split frame. These are three directions for a desktop that is designed as desktop, for personal power users and for Spixi for business. Every frame is drawn with the real <code>tokens.css</code> and the real icon set, at three window sizes, in both themes, with Windows 11 and macOS 27 chrome.</p>
+    <div class="facts">
+      <span class="fact"><b>Tokens</b> src/styles/tokens.css · {{TOKSIZE}}</span>
+      <span class="fact"><b>Icons</b> src/components/icons.js · 101 + {{EXTRAN}} render-only</span>
+      <span class="fact"><b>Chat</b> always its own WebView, own process</span>
+      <span class="fact"><b>Money</b> the native confirm stays</span>
+      <span class="fact"><b>Data</b> all names and amounts are fictional</span>
+    </div>
+    <div class="legend">
+      <span><b>X-ray</b> (switch in the bar) shows where each region runs:</span>
+      <span class="lg-shell"><i></i>shell WebView · trusted process</span>
+      <span class="lg-chat"><i></i>chat process · untrusted content</span>
+      <span class="lg-apps"><i></i>apps process · third-party code</span>
+      <span class="lg-native"><i></i>native · C#</span>
+    </div>
+  </header>
+
+  <section class="block" aria-labelledby="ov-h">
+    <h2 id="ov-h">Three directions</h2>
+    <p class="muted" style="margin:0;max-width:72ch">The same rule under all three: anything that renders peer content lives in the chat process; anything that shows money lives in the trusted shell; they meet only in C#. The directions differ in what the desktop is for.</p>
+    <div class="ov">
+      <article class="ovc">
+        <div class="ovc__h"><span class="ovc__k">A</span><span class="ovc__n">Deck</span></div>
+        <figure class="fr" data-autofr data-d="A" data-v="main" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"></figure>
+        <p><b>For the power user.</b> Keyboard first. A palette for everything, native tabs and split groups, chat + info + files side by side, pop-out windows, drag and drop, tray and toasts.</p>
+        <a href="#a" data-goto="A">Open A · Deck →</a>
+      </article>
+      <article class="ovc">
+        <div class="ovc__h"><span class="ovc__k">B</span><span class="ovc__n">Office</span></div>
+        <figure class="fr" data-autofr data-d="B" data-v="main" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"></figure>
+        <p><b>For Spixi for business.</b> A team inbox with owners and states, contacts as a directory, the wallet as a ledger, and a tools dock where mini-apps and agents work beside the chat.</p>
+        <a href="#b" data-goto="B">Open B · Office →</a>
+      </article>
+      <article class="ovc">
+        <div class="ovc__h"><span class="ovc__k">C</span><span class="ovc__n">Stage</span></div>
+        <figure class="fr" data-autofr data-d="C" data-v="main" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"></figure>
+        <p><b>My pick of a new idea.</b> The chat stays a narrow column. The thing you do together (a game, a lease PDF, an agent report, a payment request) opens large beside it, in its own sandbox.</p>
+        <a href="#c" data-goto="C">Open C · Stage →</a>
+      </article>
+    </div>
+  </section>
+
+  <section class="block" id="np" aria-labelledby="np-h">
+    <h2 id="np-h">Desktop, not a mobile port</h2>
+    <p class="muted" style="margin:0;max-width:76ch">How a 2026 desktop app shows a chat list and a wallet, on Windows 11 and on macOS 27. All three directions use these patterns. First, today's v1 (the real <code>src/demo/desktop.html</code>): it works, but it is the phone layout in a wider window.</p>
+    <div class="today">
+      <figure><img alt="Today's v1 desktop demo: the phone chat list and conversation in a split frame" src="data:image/webp;base64,{{V1A}}"><figcaption><b>v1 today, chats.</b> Phone rows (48 px avatars, two lines, full-bleed tint), one list, no sections, no hover actions, no multi-select. The chat column is a phone screen, stretched.</figcaption></figure>
+      <figure><img alt="Today's v1 desktop demo: the phone wallet hero above a transaction list" src="data:image/webp;base64,{{V1B}}"><figcaption><b>v1 today, wallet.</b> The phone hero card and a transaction list in the list pane. One number, no columns, no chart, no filters, no export; details open one at a time.</figcaption></figure>
+    </div>
+    <ol class="rules">
+      <li><b>The sidebar is a source list.</b> Sections (Pinned, Agents, Chats) that fold, counts on the right, rounded inset selection. Not a phone list with a tint.</li>
+      <li><b>Density follows the pointer.</b> 36–40 px avatars and two lines by default, one-line compact rows as an option. Type stays at the #228 desktop step.</li>
+      <li><b>Hover shows actions.</b> Pin, mute, pop out and more appear on the row under the pointer; the right click menu has the rest.</li>
+      <li><b>Select many.</b> Ctrl-click and Shift-click select rows; one bar acts on all of them.</li>
+      <li><b>Search is in the window chrome.</b> Windows: the title bar search box (WinUI TitleBar). macOS: the toolbar and a scope bar. Both open the same palette.</li>
+      <li><b>The wallet is a workspace.</b> Balance and a 30-day chart on top, activity as a table with columns, filters and export, the selected payment in an inspector. No hero card.</li>
+      <li><b>Details open in an inspector,</b> beside the list, not by pushing a new screen. The list keeps its place.</li>
+      <li><b>Platform chrome is native.</b> Windows: Mica ground, a content layer with an 8 px corner, caption buttons. macOS: edge-to-edge glass sidebar, traffic lights, unified toolbar, capsule controls.</li>
+    </ol>
+    <div class="npbar" id="np-bar" style="margin-top:28px"><span class="npbar__t">Desktop chat list and wallet at 1440 × 900</span><span class="seg"><button type="button" data-npt="light" aria-pressed="true">Light</button><button type="button" data-npt="dark" aria-pressed="false">Dark</button></span><button type="button" class="tgl" data-xray-toggle aria-pressed="false">X-ray</button></div>
+    <div class="np">
+      <figure class="fr fr--np" data-autofr data-v="np" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"><figcaption><b>Chat list · Windows 11</b>Rail on Mica, list on the content layer, sections, two-line rows with 40 px avatars, a hover row with actions, the title bar search, a SelectorBar for the filters.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="np" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="mac" tabindex="0"><figcaption><b>Chat list · macOS 27</b>Glass sidebar with Spixi's places and pinned people, the list as its own column with a scope bar, a unified toolbar with capsule buttons.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="np" data-i="2" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"><figcaption><b>Wallet · Windows 11</b>Balance with the 30-day change, a balance chart drawn to scale, activity as a sortable table, the selected payment in the inspector, Send · Request · Receive in the command bar.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="np" data-i="3" data-w="1440" data-h="900" data-t="light" data-os="mac" tabindex="0"><figcaption><b>Wallet · macOS 27</b>The same workspace in Mac grammar: the wallet places in the sidebar, the toolbar actions as capsules, the inspector on the right.</figcaption></figure>
+    </div>
+  </section>
+
+  <div id="tabs-anchor"></div>
+  <nav class="tabsbar" aria-label="Directions">
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="A" aria-selected="true"><b>A</b>Deck</button>
+      <button type="button" role="tab" data-tab="B" aria-selected="false"><b>B</b>Office</button>
+      <button type="button" role="tab" data-tab="C" aria-selected="false"><b>C</b>Stage</button>
+      <button type="button" role="tab" data-tab="compare" aria-selected="false">Compare · foundation · pick</button>
+    </div>
+    <div class="tabsbar__end"><button type="button" class="tgl" data-xray-toggle aria-pressed="false">X-ray</button></div>
+  </nav>
+
+  <section class="tabpanel" id="panel-A" role="tabpanel">
+    <div class="dirhead">
+      <div><h2><span>A</span> · Deck</h2>
+        <p><b>Who:</b> the person who lives in Spixi all day and has twenty chats open in their head. <b>What changes:</b> Spixi works like a code editor or a mail client. Everything is a key away, several chats are open at once, and the app keeps running in the tray.</p>
+        <p class="muted">Signature: the palette. It finds chats, people, messages, files and actions, and it runs actions (<code>&gt;send 25 jonas</code>), but every money action still ends in the native confirm.</p></div>
+      <ul class="moves">
+        <li><b>Palette</b> <span class="kk"><span class="k">Ctrl</span><span class="k">K</span></span> — chats, messages, files, actions; Quick Look on <span class="k">Space</span></li>
+        <li><b>Native tabs and split groups</b> — <span class="kk"><span class="k">Ctrl</span><span class="k">\</span></span> splits; each group keeps its own tabs</li>
+        <li><b>Chat + info + files side by side</b> — info is its own WebView, stripped of amounts</li>
+        <li><b>Pop-out windows, drag and drop, tray and toasts</b> — all native, all through C#</li>
+      </ul>
+    </div>
+    <div id="dir-A"></div>
+    <div class="card prose">{{MD:PROPOSAL-A-deck.md}}</div>
+  </section>
+
+  <section class="tabpanel" id="panel-B" role="tabpanel" hidden>
+    <div class="dirhead">
+      <div><h2><span>B</span> · Office</h2>
+        <p><b>Who:</b> a team that talks to customers, suppliers, drivers and agents, and pays and gets paid in IXI. <b>What changes:</b> the chat list becomes a shared inbox with an owner and a state for each conversation, contacts become a directory, and the wallet becomes a ledger.</p>
+        <p class="muted">It grows from the Spixi for Business concept renders ("Waiting on you", Treasury, agents, field devices) into the working screens a team uses all day.</p></div>
+      <ul class="moves">
+        <li><b>Team inbox</b> — Mine · Team · Unassigned, owners, waiting time, labels, team notes</li>
+        <li><b>Directory</b> — people, organisations and agents as a table; files across every conversation</li>
+        <li><b>Ledger</b> — the wallet as columns: reference, amount, fee, balance, status; requests to pay; CSV export</li>
+        <li><b>Tools dock</b> — customer card, mini-apps and agents beside the chat; approvals are native</li>
+      </ul>
+    </div>
+    <div id="dir-B"></div>
+    <div class="card prose">{{MD:PROPOSAL-B-office.md}}</div>
+  </section>
+
+  <section class="tabpanel" id="panel-C" role="tabpanel" hidden>
+    <div class="dirhead">
+      <div><h2><span>C</span> · Stage</h2>
+        <p><b>Who:</b> anyone who uses Spixi to do something with someone: play, sign a lease, read an agent's report, settle a bill. <b>What changes:</b> a conversation gets a stage. Whatever is shared in the chat (an app session, a file, a payment request, an agent artifact) opens large beside it, and the chat stays a narrow column.</p>
+        <p class="muted">Why it is the strongest new idea I found: it gives the desktop a job the phone cannot do. Mini-apps get a real screen, files and agent artifacts get a real viewer, and the payment request is an object you read before the native confirm.</p></div>
+      <ul class="moves">
+        <li><b>Stage</b> — one sandboxed WebView per object, a provenance bar on each</li>
+        <li><b>Shelf</b> — every object shared in a conversation, or across all of them</li>
+        <li><b>People strip</b> — the list folds to avatars while the stage is open</li>
+        <li><b>Live objects</b> — a game or a whiteboard shows who is on it right now</li>
+      </ul>
+    </div>
+    <div id="dir-C"></div>
+    <div class="card prose">{{MD:PROPOSAL-C-stage.md}}</div>
+  </section>
+
+  <section class="tabpanel prose" id="panel-compare" role="tabpanel" hidden>
+    {{MD:COMPARE.md}}
+  </section>
+
+  <footer class="foot">
+    Built by <code>docs/renders/desktop/build-render.mjs</code> from <code>parts/</code>, <code>src/styles/tokens.css</code>, <code>src/components/icons.js</code> and the Sora face. Windows 11 and macOS 27 chrome are drawn to show the platform grammar; the native dialogs, toasts and tray copy the OS look on purpose. The frames use the system UI face (as the app does), so they show Segoe UI on Windows and SF on a Mac. Sources for the platform notes are in COMPARE.md.
+  </footer>
+</main>
+<script>
+window.SPX_ICONS = {{ICONS}};
+{{SCRIPTS}}
+</script>

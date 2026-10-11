@@ -12,8 +12,9 @@ O-31 production only for a store build) · #1306 picks (dev switch stays until S
 verify every claim in the tree (#215) · mechanism first (#294) · C# touches no risky parts · bridge protocol frozen — ★ #1312: our-code changes are built behind a FLAG (old path kept), a security-only #46 at high effort, a review packet + 🟡 gate row each; BE reviews in ONE sitting at handover; Ixian-Core stays BE-only ·
 security handover gate · no Ixian-Core change · never commit or push from the cloud (Damir applies the patch). ★ MAC RE-SYNC: if Damir says he is on the
 Mac and pulled, give the CLAUDE.md re-sync steps FIRST.
-Precondition (stop if it fails): `git log` has "Session 15: restore all-or-nothing, security rows, send rise, photo strip, backup prefs" on top of
-"Session 14: …", HEAD = origin/redesign/frontend, and Damir ran the O-27 `git rm --cached` (handoff §3); smoke BASELINE OK 5730 / the 2 KNOWN
+Precondition (stop if it fails): `git log` has, newest first, "BE review pack follow-up: DECISIONS #1313, Session 16 work item 6" ·
+"BE review pack: … (#1320)" · "Session 15 addendum: …" · "Session 15: restore all-or-nothing, security rows, send rise, photo strip, backup prefs" ·
+"Session 14: …" (the two review-pack commits are docs only), HEAD = origin/redesign/frontend, and Damir ran the O-27 `git rm --cached` (handoff §3); smoke BASELINE OK 5730 / the 2 KNOWN
 (#136 · B3); `node scripts/run-csh.mjs` → CSH pass=378 fail=0. Cloud twin: tar of the PC tree + Ixian-Core @097341a (sibling) + ONE
 `npm i --no-save jsdom eslint globals tree-sitter tree-sitter-c-sharp` + `apt-get update` then `apt-get install -y dotnet-sdk-10.0` (+ ffmpeg, numpy).
 ONE full smoke at a time, DETACHED with `setsid`, ended with `echo SMOKEDONE rc=$?`; never edit the tree while it runs; no other agent may run node
@@ -54,6 +55,11 @@ We know it worked when:
 ## Reverse interview (R)
 Before any build: read the code the scope touches. Ask "is this worth doing at all?" for every item not in "Already decided", then clickable
 questions, a few per round. Do not start until Damir says "go".
+★ REASONING SWITCH (Damir, 2026-10-11): this session STARTS on Max reasoning — the reading, the mechanisms, the L8 read-path design
+(async SecureStorage at cold start · iOS Keychain survives an uninstall · Android Keystore is lost on a restore · write → read back → compare →
+only then remove · a lost key = the retry screen, never a plaintext fallback) and the interview all happen before "go". The build, the #46 loop
+and the export run on High. So: when you stop for Damir's "go", end that message with this line on its own:
+">>> Set reasoning to High now, then type go."
 
 ## Generate, then grade (G)
 Real design choices: three options, renders on the BUILT shell, both themes. Code: every gate in docs/process.md §G2; pins that pass the

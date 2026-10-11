@@ -55,11 +55,15 @@ We know it worked when:
 ## Reverse interview (R)
 Before any build: read the code the scope touches. Ask "is this worth doing at all?" for every item not in "Already decided", then clickable
 questions, a few per round. Do not start until Damir says "go".
-★ REASONING SWITCH (Damir, 2026-10-11): this session STARTS on Max reasoning — the reading, the mechanisms, the L8 read-path design
-(async SecureStorage at cold start · iOS Keychain survives an uninstall · Android Keystore is lost on a restore · write → read back → compare →
-only then remove · a lost key = the retry screen, never a plaintext fallback) and the interview all happen before "go". The build, the #46 loop
-and the export run on High. So: when you stop for Damir's "go", end that message with this line on its own:
-">>> Set reasoning to High now, then type go."
+★ REASONING SWITCHES (Damir, 2026-10-11) — Damir changes the level only when you STOP and wait for him, so print the line each time:
+  1. START on Extra high: the reading, the mechanisms, the L8 read-path design (async SecureStorage at cold start · iOS Keychain survives an
+     uninstall · Android Keystore is lost on a restore · write → read back → compare → only then remove · a lost key = the retry screen, never a
+     plaintext fallback) and the interview — all before "go".
+  2. When you stop for "go", end that message with: ">>> Set reasoning to High now, then type go." (the build, the F1–F5 / F8 fixes, L8,
+     MAJOR #9, the security-only #46 loop).
+  3. When you stop to hand the build over for the walk (after #46 CLEAN), end that message with: ">>> Set reasoning to Medium now (walk
+     recording + export). If a walk row FAILS, set High again before you paste it — a fail needs its mechanism first (#294)."
+  Any later stop that needs a new mechanism or a security decision: print ">>> Set reasoning to High now." first.
 
 ## Generate, then grade (G)
 Real design choices: three options, renders on the BUILT shell, both themes. Code: every gate in docs/process.md §G2; pins that pass the

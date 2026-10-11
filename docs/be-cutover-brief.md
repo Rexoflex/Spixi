@@ -1,5 +1,7 @@
 # BE cutover brief — deferred C# asks
 
+> ★ 2026-10-11 (#1320): **for the BE review, read `docs/be-review-pack/README.md` first** (Core asks: `docs/be-review-pack/core-asks.md`). Where this doc and a packet disagree, the packet is current (checked at 387ca78b).
+
 *The running list of C#/bridge changes intentionally deferred while we wire the redesigned frontend to the FROZEN bridge (zero C# change). Strategy (Damir, 2026-07-07): max out the zero-C# surface → get the whole app working + tested → then ONE focused BE pass against a working app. Nothing here blocks the frontend; each item is an enhancement to raise fidelity or unlock an inline action.*
 
 *Add rows as we hit them; this becomes the BE work order. Sources cited file:line. Related: `docs/chat-batch2-spec.md`, DECISIONS #179.*

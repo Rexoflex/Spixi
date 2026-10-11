@@ -1,0 +1,18 @@
+BE review pack: every C# and bridge change since the fork, in one sitting (#1320)
+
+docs/be-review-pack/: README (how to read, the trust model, review order,
+the table of all packets, 8 flags found while condensing) + 23 one-page
+packets P01-P23 by change group, HIGH first + core-asks.md +
+legacy-not-ours.md. Condensed from the security review, the cutover
+brief, the handover gate and the BE-ask rows (#1312 (6)); every file:line
+checked at 387ca78b; every new ixian: verb and C# -> JS push since
+0e85a4b8 is in a packet. Fresh-reader review: all packets pass.
+
+Flags (not fixed, docs only): F1 ixian:change still unlocks an app lock
+in C#; F2 a navigation can supersede a staging lock; F3 voicerec:start
+and F4 pasteImage have no C# gesture gate; F5 home declineRequest removes
+any friend; F6 legacy ixian:sendLog bypasses the dev-mode gate; F7
+appAccept from chat answers a call; F8 two log lines.
+
+Also: DECISIONS #1320, pointer lines at the top of the security review,
+the cutover brief and the gate, handoff-2026-10-11, status log, CLAUDE.md.

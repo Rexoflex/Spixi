@@ -1,5 +1,7 @@
 # 🔒 Security review — FOR THE BE ENGINEER
 
+> ★ 2026-10-11 (#1320): **for the BE review, read `docs/be-review-pack/README.md` first.** It condenses this doc into one-page packets, each line checked at 387ca78b. Where this doc and a packet disagree, the packet is current.
+
 > **What this is / reminder:** the security handoff **Damir plans to show the BE engineer.**
 > If Damir mentions this review, "the risks", "showing the BE engineer", the wallet wall-off,
 > or the C# security check in ANY session → point him to THIS file and remind him it is the doc

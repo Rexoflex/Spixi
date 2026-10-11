@@ -1,5 +1,7 @@
 # ★ SECURITY HANDOVER GATE — the redesign must introduce nothing
 
+> ★ 2026-10-11 (#1312 (3) → #1320): the BE **review packets** live in `docs/be-review-pack/` (README + P01–P23 + Core asks + legacy). A new change under #1312 adds its packet there (P24 onward) and keeps its 🟡 row here. The pack's flags F1–F8 are open rows of this gate (F1–F5, F8 ours → fix before handover; F6, F7 legacy questions).
+
 **Set by Damir, 2026-08-15.** Referenced as a ground rule in `CLAUDE.md`, so it carries
 into every session.
 

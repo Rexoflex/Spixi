@@ -500,3 +500,19 @@
 .mac-dock__i { width: 52px; height: 52px; border-radius: 13px; display: grid; place-items: center; color: #fff; position: relative; }
 .mac-dock__b { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #ff3b30; color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
 .mac-dock__run { position: absolute; bottom: -6px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--nat-ink2); }
+
+/* ---------- v1 additions page (today vs v1 + the four low-risk changes) */
+.v1-tb-today { height: 32px; flex: none; display: flex; align-items: center; background: var(--nat-foot); color: var(--nat-ink); font-size: 12px; }
+.v1-tb-today .dk-tb__win span { width: 46px; height: 32px; display: grid; place-items: center; color: var(--nat-ink); }
+.dk .v1-tb { background: var(--surface-screen); border-bottom: 1px solid var(--outline-neutral-02); }
+.v1-search.on { border-color: var(--outline-focus); box-shadow: 0 0 0 1px var(--outline-focus); background: var(--surface-neutral-01); }
+.dk .v1-rail { background: var(--surface-screen); border-inline-end: 1px solid var(--outline-neutral-03); gap: var(--spacing-24); padding-block: var(--spacing-16); }
+.v1-logo { color: var(--text-logotype); height: 36px; display: grid; place-items: center; }
+.v1-lights { height: 22px; display: flex; align-items: center; margin-top: -2px; margin-bottom: 6px; }
+.v1-list .dk-cr { padding-block: 8px; }
+.v1-today .dk-cr { margin: 0; border-radius: 0; padding-inline: 16px 12px; }
+.v1-macband { height: 28px; flex: none; display: flex; align-items: center; padding-left: 14px; background: var(--surface-screen); border-bottom: 1px solid var(--outline-neutral-01); }
+.v1-banner { display: flex; align-items: flex-start; margin-bottom: 8px; background: var(--surface-warning-inverse); color: var(--text-warning); font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); flex: none; }
+.v1-banner__in { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--spacing-8); padding: var(--spacing-8) var(--spacing-16); }
+.v1-banner__in svg { flex: none; color: var(--icon-warning); }
+.v1-banner__x { flex: none; min-width: 44px; align-self: stretch; padding: 0 var(--spacing-8); display: inline-flex; align-items: center; justify-content: center; color: var(--icon-warning); }

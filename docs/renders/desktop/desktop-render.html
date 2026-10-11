@@ -2904,6 +2904,22 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--l
 .mac-dock__b { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #ff3b30; color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
 .mac-dock__run { position: absolute; bottom: -6px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--nat-ink2); }
 
+/* ---------- v1 additions page (today vs v1 + the four low-risk changes) */
+.v1-tb-today { height: 32px; flex: none; display: flex; align-items: center; background: var(--nat-foot); color: var(--nat-ink); font-size: 12px; }
+.v1-tb-today .dk-tb__win span { width: 46px; height: 32px; display: grid; place-items: center; color: var(--nat-ink); }
+.dk .v1-tb { background: var(--surface-screen); border-bottom: 1px solid var(--outline-neutral-02); }
+.v1-search.on { border-color: var(--outline-focus); box-shadow: 0 0 0 1px var(--outline-focus); background: var(--surface-neutral-01); }
+.dk .v1-rail { background: var(--surface-screen); border-inline-end: 1px solid var(--outline-neutral-03); gap: var(--spacing-24); padding-block: var(--spacing-16); }
+.v1-logo { color: var(--text-logotype); height: 36px; display: grid; place-items: center; }
+.v1-lights { height: 22px; display: flex; align-items: center; margin-top: -2px; margin-bottom: 6px; }
+.v1-list .dk-cr { padding-block: 8px; }
+.v1-today .dk-cr { margin: 0; border-radius: 0; padding-inline: 16px 12px; }
+.v1-macband { height: 28px; flex: none; display: flex; align-items: center; padding-left: 14px; background: var(--surface-screen); border-bottom: 1px solid var(--outline-neutral-01); }
+.v1-banner { display: flex; align-items: flex-start; margin-bottom: 8px; background: var(--surface-warning-inverse); color: var(--text-warning); font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); flex: none; }
+.v1-banner__in { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--spacing-8); padding: var(--spacing-8) var(--spacing-16); }
+.v1-banner__in svg { flex: none; color: var(--icon-warning); }
+.v1-banner__x { flex: none; min-width: 44px; align-self: stretch; padding: 0 var(--spacing-8); display: inline-flex; align-items: center; justify-content: center; color: var(--icon-warning); }
+
 </style>
 <script>document.documentElement.setAttribute('data-desktop', '');</script>
 
@@ -3492,7 +3508,7 @@ var K = (function () {
       (r.icon ? ic(r.icon, 15) : '') + '<span class="ell">' + esc(r.ex) + '</span>';
     var tick = r.st === 'read' ? '<span style="color:var(--icon-tick-read)">' + ic('checks', 16) + '</span>' : r.st === 'delivered' ? '<span style="color:var(--icon-neutral-03)">' + ic('checks', 16) + '</span>' : '';
     var right;
-    if (hover) right = '<span class="dk-cr__acts">' + ic('pin', 16) + ic('bell-off', 16) + ic('popout', 16) + ic('dots', 16) + '</span>';
+    if (hover) right = '<span class="dk-cr__acts">' + (o.hoverActs || ['pin', 'bell-off', 'popout', 'dots']).map(function (n) { return ic(n, 16); }).join('') + '</span>';
     else if (compact) right = '<span class="dk-cr__t">' + tick + esc(r.t) + '</span>' + (r.u ? '<span class="dk-ind' + (r.muted ? ' dk-ind--mute' : '') + '">' + r.u + '</span>' : '');
     else right = '<span class="dk-cr__t">' + tick + esc(r.t) + '</span>' + (r.u ? '<span class="dk-ind' + (r.muted ? ' dk-ind--mute' : '') + '">' + r.u + '</span>' : (r.pin ? '<span class="ic" style="color:var(--icon-neutral-03)">' + ic('pinned', 14) + '</span>' : '<span style="height:20px"></span>'));
     var sel = o.multi ? '<span class="dk-chk' + (o.multi.indexOf(r.p) >= 0 ? ' on' : '') + '">' + (o.multi.indexOf(r.p) >= 0 ? ic('check', 14) : '') + '</span>' : '';
@@ -4688,7 +4704,8 @@ var R = window.R || (window.R = {});
 
   function specOf(box) {
     var d = box.dataset;
-    return { d: d.d, v: d.v, w: +d.w, h: +d.h, t: d.t || 'light', os: d.os || 'win', i: d.i != null ? +d.i : null, f: d.f != null ? +d.f : null, s: d.s != null ? +d.s : null };
+    var c = d.crop ? d.crop.split(',').map(Number) : null;   /* crop = x,y,w,h in frame px (detail views) */
+    return { d: d.d, v: d.v, w: +d.w, h: +d.h, t: d.t || 'light', os: d.os || 'win', i: d.i != null ? +d.i : null, f: d.f != null ? +d.f : null, s: d.s != null ? +d.s : null, crop: c };
   }
   function buildFrame(sp) {
     var ctx = { w: sp.w, h: sp.h, t: sp.t, os: sp.os };
@@ -4698,6 +4715,7 @@ var R = window.R || (window.R = {});
       else if (sp.v === 'state') html = R[sp.d].states[sp.i].build(ctx);
       else if (sp.v === 'flow') html = R[sp.d].flows[sp.f].steps[sp.s].build(ctx);
       else if (sp.v === 'np') html = R.N.items[sp.i].build(ctx);
+      else if (sp.v === 'v1') html = R.V1.items[sp.i].build(ctx);
     } catch (e) { html = '<div style="padding:40px;font:16px monospace;color:red">Render error: ' + K.esc(e.message) + '</div>'; console.error(e); }
     var el = document.createElement('div');
     el.className = 'dk';
@@ -4714,6 +4732,12 @@ var R = window.R || (window.R = {});
     if (!el) return;
     var sp = specOf(box);
     var inner = box.querySelector(':scope > .fr__in');
+    if (sp.crop) {
+      var cs = inner.clientWidth / sp.crop[2];
+      el.style.transform = 'scale(' + cs + ') translate(' + (-sp.crop[0]) + 'px,' + (-sp.crop[1]) + 'px)';
+      el._s = cs;
+      return;
+    }
     var s = inner.clientWidth / sp.w;
     el.style.transform = 'scale(' + s + ')';
     el._s = s;
@@ -4722,7 +4746,7 @@ var R = window.R || (window.R = {});
     var sp = specOf(box);
     var inner = box.querySelector(':scope > .fr__in');
     if (!inner) { inner = document.createElement('div'); inner.className = 'fr__in'; box.insertBefore(inner, box.firstChild); }
-    inner.style.aspectRatio = sp.w + ' / ' + sp.h;
+    inner.style.aspectRatio = sp.crop ? sp.crop[2] + ' / ' + sp.crop[3] : sp.w + ' / ' + sp.h;
     inner.innerHTML = '';
     var el = buildFrame(sp);
     inner.appendChild(el);
@@ -4773,7 +4797,7 @@ var R = window.R || (window.R = {});
     var sp = specOf(box);
     var inner = document.createElement('div');
     inner.className = 'fr__in';
-    inner.style.aspectRatio = sp.w + ' / ' + sp.h;
+    inner.style.aspectRatio = sp.crop ? sp.crop[2] + ' / ' + sp.crop[3] : sp.w + ' / ' + sp.h;
     box.insertBefore(inner, box.firstChild);
     if (io) io.observe(box); else mount(box);
   }
@@ -4969,7 +4993,7 @@ var R = window.R || (window.R = {});
     document.querySelectorAll('[data-xray-toggle]').forEach(function (b) { if (!b.closest('.viewer__bar') && !b.closest('.lb')) b.addEventListener('click', function () { setXray(!xrayOn); }); });
     var hash = (location.hash || '').replace('#', '').toUpperCase();
     var start = ['A', 'B', 'C', 'COMPARE'].indexOf(hash) >= 0 ? (hash === 'COMPARE' ? 'compare' : hash) : lsGet('tab', 'A');
-    selectTab(start);
+    if (document.querySelector('.tabs')) selectTab(start);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

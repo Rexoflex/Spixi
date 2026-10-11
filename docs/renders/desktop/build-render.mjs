@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-/* build-render.mjs — builds desktop-render.html (one self-contained page) from parts/ + the tree.
+/* build-render.mjs — builds desktop-render.html and v1-additions.html (self-contained pages) from parts/ + the tree.
    Reads: ../../../src/styles/tokens.css (the real tokens, inlined as-is)
           ../../../src/components/icons.js (the real icon set)
           ../../../src/assets/fonts/sora-latin-wght-normal.woff2 (the wordmark face)
           img/*.webp (the v1 screenshots) and the *.md docs in this folder (rendered as HTML).
    Run from the repo root:  node docs/renders/desktop/build-render.mjs
-   No dependency outside Node. Writes only docs/renders/desktop/desktop-render.html. */
+   No dependency outside Node. Writes only docs/renders/desktop/desktop-render.html and v1-additions.html. */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -68,25 +68,32 @@ function md(src) {
   return out;
 }
 
-let page = rd(join(here, 'parts/page.html'));
-const scripts = ['data.js', 'kit.js', 'np.js', 'dir-a.js', 'dir-b.js', 'dir-c.js', 'page.js']
-  .filter((f) => existsSync(join(here, 'parts', f))).map((f) => '/* ---- parts/' + f + ' */\n' + rd(join(here, 'parts', f))).join('\n');
-const fill = {
-  TOKENS: tokens,
-  TOKSIZE: Math.round(tokens.length / 1024) + ' KB',
-  SORA: sora,
-  PAGECSS: rd(join(here, 'parts/page.css')),
-  KITCSS: rd(join(here, 'parts/kit.css')),
-  EXTRAN: String(extraN),
-  V1A: b64(join(here, 'img/v1-chats.webp')),
-  V1B: b64(join(here, 'img/v1-wallet.webp')),
-  ICONS: JSON.stringify(ICONS),
-  SCRIPTS: scripts.replace(/<\/script/gi, '<\\/script')
-};
-page = page.replace(/\{\{MD:([\w.-]+)\}\}/g, (m, f) => existsSync(join(here, f)) ? md(rd(join(here, f))) : '<p class="muted">(' + f + ' is missing)</p>');
-page = page.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in fill ? fill[k] : m));
-/* the repo copy is a full document (opens from disk in standards mode); --artifact prints the body-only form */
-const doc = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' + page + '\n</html>\n';
-writeFileSync(join(here, 'desktop-render.html'), doc);
-if (process.argv.includes('--artifact')) writeFileSync(process.argv[process.argv.indexOf('--artifact') + 1], page);
-console.log('desktop-render.html · ' + Math.round(page.length / 1024) + ' KB · icons ' + Object.keys(ICONS).length + ' + ' + extraN + ' extras');
+const PAGES = [
+  { tpl: 'parts/page.html', out: 'desktop-render.html', flag: '--artifact', scripts: ['data.js', 'kit.js', 'np.js', 'dir-a.js', 'dir-b.js', 'dir-c.js', 'page.js'] },
+  { tpl: 'parts/v1-page.html', out: 'v1-additions.html', flag: '--artifact-v1', scripts: ['data.js', 'kit.js', 'v1.js', 'page.js'] }
+];
+for (const P of PAGES) {
+  let page = rd(join(here, P.tpl));
+  const scripts = P.scripts.filter((f) => existsSync(join(here, 'parts', f))).map((f) => '/* ---- parts/' + f + ' */\n' + rd(join(here, 'parts', f))).join('\n');
+  const fill = {
+    TOKENS: tokens,
+    TOKSIZE: Math.round(tokens.length / 1024) + ' KB',
+    SORA: sora,
+    PAGECSS: rd(join(here, 'parts/page.css')),
+    KITCSS: rd(join(here, 'parts/kit.css')),
+    EXTRAN: String(extraN),
+    V1A: b64(join(here, 'img/v1-chats.webp')),
+    V1B: b64(join(here, 'img/v1-wallet.webp')),
+    ICONS: JSON.stringify(ICONS),
+    SCRIPTS: scripts.replace(/<\/script/gi, '<\\/script')
+  };
+  page = page.replace(/\{\{MD:([\w.-]+)\}\}/g, (m, f) => existsSync(join(here, f)) ? md(rd(join(here, f))) : '<p class="muted">(' + f + ' is missing)</p>');
+  page = page.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in fill ? fill[k] : m));
+  /* the repo copy is a full document (opens from disk in standards mode); --artifact / --artifact-v1 <path> print the body-only form */
+  const doc = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' + page + '\n</html>\n';
+  writeFileSync(join(here, P.out), doc);
+  const ai = process.argv.indexOf(P.flag);
+  if (ai > 0 && process.argv[ai + 1]) writeFileSync(process.argv[ai + 1], page);
+  console.log(P.out + ' · ' + Math.round(page.length / 1024) + ' KB');
+}
+console.log('icons ' + Object.keys(ICONS).length + ' + ' + extraN + ' extras');

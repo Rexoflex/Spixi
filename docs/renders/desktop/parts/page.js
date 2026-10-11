@@ -11,7 +11,8 @@
 
   function specOf(box) {
     var d = box.dataset;
-    return { d: d.d, v: d.v, w: +d.w, h: +d.h, t: d.t || 'light', os: d.os || 'win', i: d.i != null ? +d.i : null, f: d.f != null ? +d.f : null, s: d.s != null ? +d.s : null };
+    var c = d.crop ? d.crop.split(',').map(Number) : null;   /* crop = x,y,w,h in frame px (detail views) */
+    return { d: d.d, v: d.v, w: +d.w, h: +d.h, t: d.t || 'light', os: d.os || 'win', i: d.i != null ? +d.i : null, f: d.f != null ? +d.f : null, s: d.s != null ? +d.s : null, crop: c };
   }
   function buildFrame(sp) {
     var ctx = { w: sp.w, h: sp.h, t: sp.t, os: sp.os };
@@ -21,6 +22,7 @@
       else if (sp.v === 'state') html = R[sp.d].states[sp.i].build(ctx);
       else if (sp.v === 'flow') html = R[sp.d].flows[sp.f].steps[sp.s].build(ctx);
       else if (sp.v === 'np') html = R.N.items[sp.i].build(ctx);
+      else if (sp.v === 'v1') html = R.V1.items[sp.i].build(ctx);
     } catch (e) { html = '<div style="padding:40px;font:16px monospace;color:red">Render error: ' + K.esc(e.message) + '</div>'; console.error(e); }
     var el = document.createElement('div');
     el.className = 'dk';
@@ -37,6 +39,12 @@
     if (!el) return;
     var sp = specOf(box);
     var inner = box.querySelector(':scope > .fr__in');
+    if (sp.crop) {
+      var cs = inner.clientWidth / sp.crop[2];
+      el.style.transform = 'scale(' + cs + ') translate(' + (-sp.crop[0]) + 'px,' + (-sp.crop[1]) + 'px)';
+      el._s = cs;
+      return;
+    }
     var s = inner.clientWidth / sp.w;
     el.style.transform = 'scale(' + s + ')';
     el._s = s;
@@ -45,7 +53,7 @@
     var sp = specOf(box);
     var inner = box.querySelector(':scope > .fr__in');
     if (!inner) { inner = document.createElement('div'); inner.className = 'fr__in'; box.insertBefore(inner, box.firstChild); }
-    inner.style.aspectRatio = sp.w + ' / ' + sp.h;
+    inner.style.aspectRatio = sp.crop ? sp.crop[2] + ' / ' + sp.crop[3] : sp.w + ' / ' + sp.h;
     inner.innerHTML = '';
     var el = buildFrame(sp);
     inner.appendChild(el);
@@ -96,7 +104,7 @@
     var sp = specOf(box);
     var inner = document.createElement('div');
     inner.className = 'fr__in';
-    inner.style.aspectRatio = sp.w + ' / ' + sp.h;
+    inner.style.aspectRatio = sp.crop ? sp.crop[2] + ' / ' + sp.crop[3] : sp.w + ' / ' + sp.h;
     box.insertBefore(inner, box.firstChild);
     if (io) io.observe(box); else mount(box);
   }
@@ -292,7 +300,7 @@
     document.querySelectorAll('[data-xray-toggle]').forEach(function (b) { if (!b.closest('.viewer__bar') && !b.closest('.lb')) b.addEventListener('click', function () { setXray(!xrayOn); }); });
     var hash = (location.hash || '').replace('#', '').toUpperCase();
     var start = ['A', 'B', 'C', 'COMPARE'].indexOf(hash) >= 0 ? (hash === 'COMPARE' ? 'compare' : hash) : lsGet('tab', 'A');
-    selectTab(start);
+    if (document.querySelector('.tabs')) selectTab(start);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -1,0 +1,134 @@
+<title>Spixi v1 Desktop Additions</title>
+<meta name="description" content="Spixi v1 desktop: four low-risk additions, today next to v1 +, Windows 11 and macOS, light and dark, real tokens.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style id="spixi-tokens">
+/* src/styles/tokens.css — inlined by build-render.mjs; the frames read ONLY these tokens */
+{{TOKENS}}
+</style>
+<style>
+@font-face { font-family: "Sora"; src: url(data:font/woff2;base64,{{SORA}}) format("woff2"); font-weight: 100 800; font-display: swap; }
+{{PAGECSS}}
+{{KITCSS}}
+/* v1 page only */
+.v1bar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: 12px 0 10px; margin: 28px 0 0; border-bottom: 1px solid var(--line); }
+.v1bar .npbar { margin: 0; }
+.add { margin-top: 56px; scroll-margin-top: 70px; }
+.add__h { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.add__h h2 { margin: 0; }
+.add__n { font: 700 13px/1 var(--body); color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 5px 8px; }
+.add__meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.add__meta span { font: 500 12px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; }
+.add__meta b { color: var(--ink); font-weight: 600; }
+.add p.sum { margin: 10px 0 0; max-width: 78ch; }
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; margin-top: 20px; }
+.g4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px 18px; margin-top: 20px; align-items: start; }
+@media (max-width: 1100px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .g4 { grid-template-columns: 1fr; } }
+.np figcaption .tag, .stack figcaption .tag, .g4 figcaption .tag { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: .02em; text-transform: uppercase; padding: 4px 6px; border-radius: 4px; margin-right: 6px; vertical-align: 1px; }
+.tag--now { background: var(--line); color: var(--muted); }
+.tag--new { background: var(--accent-soft); color: var(--accent); }
+.stack figcaption, .g4 figcaption { font: 13px/1.5 var(--body); color: var(--muted); margin-top: 10px; }
+.stack figcaption b, .g4 figcaption b { color: var(--ink); font-weight: 600; }
+.toc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 22px 0 0; padding: 0; list-style: none; }
+@media (max-width: 900px) { .toc { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .toc { grid-template-columns: 1fr; } }
+.toc a { display: block; height: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); text-decoration: none; font-size: 14px; line-height: 1.45; }
+.toc a:hover { border-color: var(--accent); }
+.toc a b { display: block; font-weight: 600; margin-bottom: 2px; }
+.toc a span { color: var(--muted); font-size: 13px; }
+.toc a i { font: 500 12px/1 var(--mono); font-style: normal; color: var(--accent); display: block; margin-bottom: 8px; }
+</style>
+<script>document.documentElement.setAttribute('data-desktop', '');</script>
+
+<main class="page">
+  <header>
+    <p class="kicker">Spixi · desktop · v1 additions · render only, nothing built</p>
+    <h1>What v1 desktop can add now</h1>
+    <p class="lede">Four small changes that make v1 desktop feel less like a phone port, without new risk. Each frame pair shows today's v1 desktop and the same window with the change. The frames are drawn with the real <code>tokens.css</code> and the real icon set, at 1440 × 900, with Windows 11 and macOS chrome. Use the bar to switch light and dark.</p>
+    <div class="facts">
+      <span class="fact"><b>Page verbs</b> none new</span>
+      <span class="fact"><b>Money path</b> not touched</span>
+      <span class="fact"><b>WebViews</b> none new, chat stays isolated</span>
+      <span class="fact"><b>Effort</b> 3–4 sessions in total</span>
+      <span class="fact"><b>Data</b> fictional</span>
+    </div>
+    <ul class="toc">
+      <li><a href="#add-1"><i>1 · Windows · ~1 session</i><b>Native title bar</b><span>Icon, name and a search box in the window bar; one new C# push.</span></a></li>
+      <li><a href="#add-2"><i>2 · macOS · 0.5–1 session</i><b>Use the title strip</b><span>The headers move up into the empty band; CSS only.</span></a></li>
+      <li><a href="#add-3"><i>3 · both · ~1 session</i><b>Chat list polish</b><span>Pinned and Chats sections, inset rows, hover actions.</span></a></li>
+      <li><a href="#add-4"><i>4 · both · 0.5–1 session</i><b>Second-device warning</b><span>The existing banner, when the account is live on another device.</span></a></li>
+    </ul>
+  </header>
+
+  <div class="v1bar">
+    <div class="npbar" id="np-bar"><span class="npbar__t">Theme for all frames</span><span class="seg"><button type="button" data-npt="light" aria-pressed="true">Light</button><button type="button" data-npt="dark" aria-pressed="false">Dark</button></span><button type="button" class="tgl" data-xray-toggle aria-pressed="false">X-ray</button><span class="muted" style="font-size:13px">Click a frame to open it full size.</span></div>
+  </div>
+
+  <section class="add" id="add-0" aria-labelledby="ov-h">
+    <div class="add__h"><h2 id="ov-h">Today, and v1 with all four</h2></div>
+    <p class="sum muted">The whole window, before and after. The chat area does not change: it stays in its own WebView, with the same header, bubbles and composer.</p>
+    <div class="np">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"><figcaption><b><span class="tag tag--now">Today</span>Windows 11</b>The default window title bar, the logo in the rail, the search field in the list, one flat list of full-width rows.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>Windows 11</b>Spixi's own title bar with the search box, Pinned and Chats sections, inset rounded rows.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="mac" tabindex="0"><figcaption><b><span class="tag tag--now">Today</span>macOS</b>An empty title strip across the window (the shells pad below it), the logo in the rail, one flat list.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="mac" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>macOS</b>The window buttons on the rail, the list and chat headers in the strip, the same list polish as Windows.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="add" id="add-1" aria-labelledby="a1-h">
+    <div class="add__h"><span class="add__n">1</span><h2 id="a1-h">Native title bar · Windows</h2></div>
+    <div class="add__meta"><span><b>How</b> MAUI Window.TitleBar</span><span><b>Bridge</b> 1 new push: setChatFilter(text)</span><span><b>Page verbs</b> none</span><span><b>Effort</b> ~1 session</span></div>
+    <p class="sum">The bar shows the Spixi icon and name and a centred "Search chats" box. The box is a native field; typing pushes the text to the home shell, which runs the filter it has today. <code>Ctrl K</code> focuses it from anywhere, also from inside the chat. The colours come from the tokens, so the bar follows light and dark. The list's own search field goes away on Windows.</p>
+    <div class="stack">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,230" tabindex="0"><figcaption><span class="tag tag--now">Today</span>The default title bar in system colours; the search field sits in the list.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,230" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Spixi's title bar: icon, name, the search box with <code>Ctrl K</code>, the caption buttons. The logo leaves the rail.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="4" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,300" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Typing "mi" in the bar filters the list in the shell, as the list field does today.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="add" id="add-2" aria-labelledby="a2-h">
+    <div class="add__h"><span class="add__n">2</span><h2 id="a2-h">Use the title strip · macOS</h2></div>
+    <div class="add__meta"><span><b>How</b> CSS in home.html and chat.html</span><span><b>Bridge</b> none (the --safe-top push exists)</span><span><b>Check first</b> drag and clicks in the strip</span><span><b>Effort</b> 0.5–1 session</span></div>
+    <p class="sum">Today every shell pads below the title strip, so an empty band runs across the top of the window. With the change, the window buttons sit at the top of the rail and the list and chat headers sit in the band, as Mail and Messages do. The list keeps its own search field (Mac pattern). Before the work, check on a Mac that the window still drags from the band and that a click on an HTML button in the band reaches the page.</p>
+    <div class="stack">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,1440,230" tabindex="0"><figcaption><span class="tag tag--now">Today</span>The empty strip with the window buttons; the headers start below it.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,1440,230" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>The window buttons on the rail; "Chats" and the chat header in the strip. The window gets 28 px of height back.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="add" id="add-3" aria-labelledby="a3-h">
+    <div class="add__h"><span class="add__n">3</span><h2 id="a3-h">Chat list polish · both</h2></div>
+    <div class="add__meta"><span><b>How</b> chatlist-item.css under :root[data-desktop] + the chats list</span><span><b>Bridge</b> none (row-menu actions)</span><span><b>Page verbs</b> none</span><span><b>Effort</b> ~1 session</span></div>
+    <p class="sum">"Pinned" and "Chats" headers with counts, which fold. Rounded, inset shapes for the selected and the hovered row. On hover, four buttons on the row: pin, mute, chat info and more. They call the same actions as the row menu, so no new verb. The mobile list does not change.</p>
+    <div class="g4">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,32,480,700" tabindex="0"><figcaption><span class="tag tag--now">Today</span>One flat list, full-width rows.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="2" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,40,480,700" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Sections and a hover row with pin, mute, info, more.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="5" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,40,480,700" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Pinned folded; the fold is kept per device.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="2" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,480,700" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>The same on macOS, with the list's own search field.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="add" id="add-4" aria-labelledby="a4-h">
+    <div class="add__h"><span class="add__n">4</span><h2 id="a4-h">Second-device warning · both</h2></div>
+    <div class="add__meta"><span><b>How</b> C# reads our own presence entries</span><span><b>Bridge</b> none (existing showWarning)</span><span><b>Also on</b> mobile</span><span><b>Effort</b> 0.5–1 session</span></div>
+    <p class="sum">When the same account is live on another device, new messages can go to that device instead of this one. C# sees this in our own presence entries (one per device) and shows the existing home banner with a fixed text. The user can close it. It goes away when the other device is quiet for some minutes. This is the v1 step from the multi-device note; real multi-device sync stays a Core topic.</p>
+    <div class="np">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="3" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,40,960,440" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>Windows 11</b>The banner above the list, under the title bar.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="3" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,960,440" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>macOS</b>The same banner under the list header in the strip.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="add" id="spec">
+    <div class="card prose">{{MD:V1-ADDITIONS.md}}</div>
+  </section>
+
+  <footer class="foot">
+    Built by <code>docs/renders/desktop/build-render.mjs</code> from <code>parts/v1.js</code>, <code>parts/v1-page.html</code>, <code>V1-ADDITIONS.md</code>, <code>src/styles/tokens.css</code> and <code>src/components/icons.js</code>. "Today" is drawn with the same kit as "v1 +", so the only differences in a pair are the additions; it is close to the shipped v1 desktop but not a screenshot. The window chrome copies the OS look on purpose. The three v1.1 directions are in <code>desktop-render.html</code>.
+  </footer>
+</main>
+<script>
+window.SPX_ICONS = {{ICONS}};
+{{SCRIPTS}}
+</script>

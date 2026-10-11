@@ -167,7 +167,7 @@ var K = (function () {
       (r.icon ? ic(r.icon, 15) : '') + '<span class="ell">' + esc(r.ex) + '</span>';
     var tick = r.st === 'read' ? '<span style="color:var(--icon-tick-read)">' + ic('checks', 16) + '</span>' : r.st === 'delivered' ? '<span style="color:var(--icon-neutral-03)">' + ic('checks', 16) + '</span>' : '';
     var right;
-    if (hover) right = '<span class="dk-cr__acts">' + ic('pin', 16) + ic('bell-off', 16) + ic('popout', 16) + ic('dots', 16) + '</span>';
+    if (hover) right = '<span class="dk-cr__acts">' + (o.hoverActs || ['pin', 'bell-off', 'popout', 'dots']).map(function (n) { return ic(n, 16); }).join('') + '</span>';
     else if (compact) right = '<span class="dk-cr__t">' + tick + esc(r.t) + '</span>' + (r.u ? '<span class="dk-ind' + (r.muted ? ' dk-ind--mute' : '') + '">' + r.u + '</span>' : '');
     else right = '<span class="dk-cr__t">' + tick + esc(r.t) + '</span>' + (r.u ? '<span class="dk-ind' + (r.muted ? ' dk-ind--mute' : '') + '">' + r.u + '</span>' : (r.pin ? '<span class="ic" style="color:var(--icon-neutral-03)">' + ic('pinned', 14) + '</span>' : '<span style="height:20px"></span>'));
     var sel = o.multi ? '<span class="dk-chk' + (o.multi.indexOf(r.p) >= 0 ? ' on' : '') + '">' + (o.multi.indexOf(r.p) >= 0 ? ic('check', 14) : '') + '</span>' : '';

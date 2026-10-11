@@ -1,0 +1,6 @@
+BE review pack follow-up: DECISIONS #1313, Session 16 work item 6
+
+DECISIONS #1313 (Damir's "legacy MAJOR #8 / #9 now ours", recorded in the
+Session 15 status but missing from the file) written in before #1320.
+docs/prompts/session-16.md: next free number #1321, work item 6 = the
+review pack flags F1-F5 + F8 and MAJOR #9. Handoff and CLAUDE.md updated.

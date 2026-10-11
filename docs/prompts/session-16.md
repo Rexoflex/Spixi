@@ -1,5 +1,6 @@
 Read CLAUDE.md, then the newest docs/handoff-*.md (FIRST — `docs/handoff-2026-10-10.md`), then DECISIONS #1296–#1312 and the
-"Session 15" section of `docs/security-handover-gate.md`. Next free DECISIONS number: #1313.
+"Session 15" section of `docs/security-handover-gate.md`, then `docs/handoff-2026-10-11.md` + DECISIONS #1313 and #1320 (the BE review pack).
+Next free DECISIONS number: #1321 (#1314–#1319 are kept for the perf research rows).
 This is SESSION 16 (a new chat): record the S15 + office walk, the fix round, the L8 unit (walletpass → SecureStorage), then the freeze steps.
 Already decided (do not re-open): #1297 restore design (RestoreMoves, `own_avatar.jpg`) · #1300 sharedpref out of the backup, L8 = S16 own unit ·
 #1301 the rise (200 ms decelerate, no fade, from the composer) · #1302 strip placeholders + Send gate · #1303 the 10 rows as built (O-11 always encode,
@@ -41,8 +42,14 @@ We know it worked when:
    new phone (the retry screen, #1300 already sends the user there); Windows unpackaged SecureStorage unverified → measure. Every write site:
    LaunchPage (create, restore, proceed), SettingsPage change-password, EncryptionPassword, BackupPage read. Own #46.
 3. After the walk (Damir picked): the wallet sync strip (#1304, one string, from `setScanProgress`) · the hold-tap fall-through (#1294 (c)).
-4. BE asks out: #1304 (baked height / fast sync / pause), #1298, #1302 `pending`, the S14 verbs.
+4. BE asks out: #1304 (baked height / fast sync / pause), #1298, #1302 `pending`, the S14 verbs — all collected in `docs/be-review-pack/core-asks.md` and the packets.
 5. Freeze prep: C-1 (`maxLogCount = 1` + marker), the C-2 retire set, the container dev switch (only if S15-WHITE closed), G-1 / G-1t.
+6. The BE review pack flags (`docs/be-review-pack/README.md`, #1320; fixes proposed in `docs/handoff-2026-10-11.md` §2). OURS — fix before handover,
+   each behind #1312's rules, each fix updates its packet + the README row: F1 LockPage refuses `ixian:change` when `appLockMode`, and
+   `App.onUnlock` releases only on `e.Value == true` · F2 first a pin that stages a lock and supersedes it, then `pushPageLoaded` refuses while
+   `isLockStaging()` · F3 / F4 Damir picks: a C# foreground + recent-input gate for `voicerec:start` and `pasteImage`, or accept + correct the gate
+   text · F5 home `onDeclineRequest` acts on incoming requests only (state test) · F8 type-only logs in DownloadsPage + the `mutechat` line.
+   Also MAJOR #9 (#1313). F6 (`ixian:sendLog`) and F7 (`appAccept`) are BE questions — no change.
 
 ## Reverse interview (R)
 Before any build: read the code the scope touches. Ask "is this worth doing at all?" for every item not in "Already decided", then clickable

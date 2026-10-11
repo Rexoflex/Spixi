@@ -1,0 +1,173 @@
+<title>Spixi Art Direction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* A director's review deck. Layout: one wide column — the mark, the research, then three direction "spreads"
+   (a live card on the left, the scene grid on the right, the rules below), then the comparison. */
+:root {
+  --bg: #f4f3fa; --panel: #ffffff; --ink: #14152b; --muted: #61667f; --line: #e1e2ee; --accent: #3050bd; --accent-ink: #ffffff; --pink: #e83f92;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; --body: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --mono: "Geist Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0e0f1c; --panel: #161829; --ink: #eceefa; --muted: #9ba1bb; --line: #272a42; --accent: #8ea3ff; --accent-ink: #0e0f1c; --pink: #ff6fb1; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0e0f1c; --panel: #161829; --ink: #eceefa; --muted: #9ba1bb; --line: #272a42; --accent: #8ea3ff; --accent-ink: #0e0f1c; --pink: #ff6fb1; color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font: 15.5px/1.55 var(--body); }
+.page { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 80px; }
+.kicker { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+h1 { font: 800 clamp(34px, 6vw, 68px)/.98 var(--display); letter-spacing: -.035em; margin: 0 0 18px; max-width: 16ch; text-wrap: balance; }
+.lede { font-size: 17px; color: var(--muted); max-width: 64ch; margin: 0 0 8px; }
+h2 { font: 700 clamp(26px, 3.4vw, 40px)/1.05 var(--display); letter-spacing: -.025em; margin: 0; text-wrap: balance; }
+h3 { font: 700 18px/1.2 var(--display); margin: 0 0 6px; }
+section { margin-top: 64px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px; align-items: center; }
+@media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+.markbox { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; }
+.mark { width: 100%; height: auto; display: block; }
+.mark__lens { fill: var(--accent); opacity: 0; animation: mkIn .8s ease 1.4s forwards; }
+.mark__l { fill: none; stroke: var(--ink); stroke-width: 8; stroke-linejoin: round; stroke-dasharray: 1 2; stroke-dashoffset: 1.0001; animation: mkDraw 1.2s cubic-bezier(.6, 0, .2, 1) .2s forwards; }
+.mark__l--2 { animation-delay: .6s; }
+.mark__d { fill: var(--bg); opacity: 0; transform-box: fill-box; transform-origin: center; animation: mkPop .5s cubic-bezier(.3, 1.5, .5, 1) 1.9s forwards; }
+.mark__d--2 { animation-delay: 2.05s; }
+.mark__lab { font: 500 11px var(--mono); fill: var(--muted); opacity: 0; animation: mkIn .6s ease 2.4s forwards; }
+.mark__lab path { fill: none; stroke: var(--muted); stroke-width: 1; }
+@keyframes mkDraw { to { stroke-dashoffset: 0; } } @keyframes mkIn { to { opacity: 1; } } @keyframes mkPop { from { transform: scale(.2); } to { opacity: 1; transform: none; } }
+.insight p { margin: 12px 0 0; max-width: 56ch; }
+.insight b { color: var(--accent); font-weight: 600; }
+.research { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin-top: 20px; }
+.finding { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.finding b { display: block; font-weight: 600; margin-bottom: 4px; }
+.finding p { margin: 0; color: var(--muted); font-size: 14px; }
+.finding a { color: var(--accent); font-size: 12.5px; font-family: var(--mono); text-decoration: none; display: inline-block; margin-top: 6px; overflow-wrap: anywhere; }
+.finding a:hover { text-decoration: underline; }
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 0; margin-top: 48px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+@media (max-width: 700px) { .controls { position: static; } }
+.controls > span { font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.themeseg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--panel); }
+.themeseg button, .pgbtn { border: 0; background: transparent; color: var(--ink); font: 500 13px var(--body); padding: 8px 14px; cursor: pointer; }
+.themeseg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.pgbtn { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+button:focus-visible, .mc:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* a direction spread */
+.dir { border-top: 1px solid var(--line); padding-top: 40px; }
+.dir__head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 22px; align-items: baseline; margin-bottom: 26px; }
+.dir__n { font: 800 clamp(48px, 7vw, 96px)/.85 var(--display); letter-spacing: -.05em; color: var(--accent); grid-row: span 2; }
+.dir__line { font-size: 17px; color: var(--muted); margin: 6px 0 0; max-width: 62ch; }
+.spread { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 960px) { .spread { grid-template-columns: 1fr; justify-items: center; } .spread > .grid { width: 100%; } }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.sg { margin: 0; min-width: 0; }
+.sg__box { aspect-ratio: 400 / 240; max-width: 100%; border-radius: 12px; overflow: hidden; }
+.sg figcaption { font: 500 11.5px var(--mono); color: var(--muted); margin-top: 6px; }
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; margin-top: 22px; }
+.rule { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.rule small { display: block; font: 500 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.rule p { margin: 0; font-size: 13.5px; color: var(--muted); }
+.sw { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; } .sw i { width: 24px; height: 24px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--line); }
+
+/* the card mock (stands in for the What's new spotlight) */
+.mc { width: 340px; max-width: 100%; border-radius: 28px; overflow: hidden; touch-action: pan-y; cursor: grab; user-select: none;
+  background: var(--mc-card); color: var(--mc-ink); box-shadow: 0 30px 60px -30px rgba(10, 12, 40, .55), 0 0 0 1px var(--line); }
+.mc.ad { --mc-card: #ffffff; --mc-ink: #14152b; --mc-muted: #5d6280; --mc-dot: #d6d9ea; --mc-accent: #3050bd; }
+.mc.ad[data-t="dark"] { --mc-card: #1c1f36; --mc-ink: #eef0ff; --mc-muted: #a9aecb; --mc-dot: #3a3f66; --mc-accent: #5b74ff; }
+.mc__art { aspect-ratio: 400 / 240; }
+.mc__text { padding: 18px 22px 4px; text-align: center; min-height: 148px; }
+.mc__text--in > * { animation: mcIn .4s cubic-bezier(.2, .8, .2, 1) both; } .mc__text--in > *:nth-child(2) { animation-delay: .05s; } .mc__text--in > *:nth-child(3) { animation-delay: .1s; }
+@keyframes mcIn { from { opacity: 0; transform: translateY(8px); } }
+.mc__eyebrow { margin: 0 0 6px; font: 600 12.5px var(--body); color: var(--mc-accent); }
+.mc__title { margin: 0 0 6px; font: 700 20px/1.2 var(--body); color: var(--mc-ink); }
+.mc__body { margin: 0; font-size: 15px; line-height: 1.45; color: var(--mc-muted); }
+.mc__foot { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 12px 20px 20px; }
+.mc__dots { display: flex; gap: 6px; } .mc__dot { width: 8px; height: 8px; border-radius: 4px; border: 0; padding: 0; background: var(--mc-dot); cursor: pointer; transition: width .2s, background-color .2s; }
+.mc__dot[aria-selected="true"] { width: 22px; background: var(--mc-accent); }
+.mc__btn { width: 100%; min-height: 52px; border: 0; border-radius: 999px; background: #3050bd; color: #fff; font: 600 16px var(--body); cursor: pointer; }
+.mc__hint { font: 500 11.5px var(--mono); color: var(--muted); margin-top: 10px; text-align: center; }
+.prop { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 8px 22px 22px; margin-top: 20px; }
+.prop h1 { font: 700 24px var(--display); margin: 18px 0 10px; max-width: none; } .prop h2 { font: 700 19px var(--display); margin: 26px 0 8px; }
+.prop .tw { overflow-x: auto; } .prop table { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 760px; }
+.prop th, .prop td { border-bottom: 1px solid var(--line); padding: 8px 12px 8px 0; text-align: left; vertical-align: top; } .prop th { color: var(--muted); font-weight: 600; }
+.prop li, .prop p { max-width: 80ch; } .prop strong { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .mark *, .mc__text--in > * { animation: none !important; opacity: 1 !important; stroke-dashoffset: 0 !important; } }
+/*@DIR_CSS@*/
+</style>
+
+<div class="page">
+  <p class="kicker">Spixi · art direction · round 1</p>
+  <h1>Three ways to give Spixi a face</h1>
+  <p class="lede">Three illustration and motion languages to replace the glossy tiles. Each one grows from the same place, the Spixi mark, and each one is drawn here in the What’s new spotlight, in light and dark, with real copy.</p>
+
+  <section class="split insight">
+    <div class="markbox"><div id="mark"></div></div>
+    <div>
+      <p class="kicker">The insight</p>
+      <h2>The logo already tells the story.</h2>
+      <p>A <b>circle</b> and a <b>speech bubble</b> overlap. The <b>lens</b> between them is the only place they share, and <b>two dots</b> sit inside it. Two people, and the private space between them. No server, no audience.</p>
+      <p>So every direction below keeps that grammar: two shapes, one shared lens, two dots. It makes the art unmistakably Spixi, and it turns the product promise into a picture.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">What the best work does now</p>
+    <h2>Research, in six lines</h2>
+    <div class="research">
+      <div class="finding"><b>Layered, not flat</b><p>2-D shapes with soft depth, light-based dimension and parallax replace both flat clip-art and heavy 3-D.</p><a href="https://www.tangence.com/blog/?p=1093" target="_blank" rel="noopener">tangence.com · motion trends 2026</a></div>
+      <div class="finding"><b>Imperfect and human</b><p>Grain, paper, uneven lines and collage movement push back against sterile, AI-smooth visuals.</p><a href="https://www.agoodson.com/illustration-industry-trends-shaping-advertising-editorial-and-branding-in-2026/" target="_blank" rel="noopener">agoodson.com · illustration 2026</a></div>
+      <div class="finding"><b>Glass and light</b><p>Apple’s Liquid Glass made refraction, specular rims and chromatic edges the new premium baseline.</p><a href="https://strv.com/blog/liquid-glass-and-the-future-of-design" target="_blank" rel="noopener">strv.com · Liquid Glass</a></div>
+      <div class="finding"><b>Character carries tone</b><p>Duolingo’s Duo shows a range of emotion; the motion itself is the brand voice.</p><a href="https://keplerdesign.substack.com/p/duolingo" target="_blank" rel="noopener">keplerdesign · inside Duolingo</a></div>
+      <div class="finding"><b>Print is back</b><p>Riso grain, halftone and restricted palettes read as crafted and collectable.</p><a href="https://fireart.studio/blog/illustration-trends/" target="_blank" rel="noopener">fireart.studio · illustration trends</a></div>
+      <div class="finding"><b>Light, fast, opt-in loops</b><p>Monzo keeps illustration loops slow (3–6 s), opt-in, and static under reduced motion; files tested on low-end phones.</p><a href="https://www.webdesignhot.com/api/design-md/monzo.md" target="_blank" rel="noopener">Monzo design notes</a></div>
+    </div>
+  </section>
+
+  <div class="controls" role="group" aria-label="Art controls">
+    <span>Art theme</span>
+    <div class="themeseg"><button type="button" data-v="light">Light</button><button type="button" data-v="dark">Dark</button></div>
+    <button class="pgbtn" id="replay" type="button">Replay all</button>
+    <label class="chk"><input type="checkbox" id="rm"> Reduced motion</label>
+  </div>
+
+  <section class="dir">
+    <div class="dir__head"><div class="dir__n">01</div><h2>Lens · glass and light</h2><p class="dir__line">The world is frosted glass. Only where the two shapes overlap is it sharp: you can read it only together. Light pools under the lens, a glint runs the rim.</p></div>
+    <div class="spread"><div><div id="card-lens"></div><p class="mc__hint">Swipe, tap the dots or Next</p></div><div class="grid" id="grid-lens"></div></div>
+    <div class="rules">
+      <div class="rule"><small>Material</small><p>Frosted glass over a living aurora; specular rims lit from the top left; a pink / cyan chromatic fringe only on the lens edge.</p></div>
+      <div class="rule"><small>Depth</small><p>Three planes: aurora · glass · floating glass pebbles in front. A caustic of focused light on the ground.</p></div>
+      <div class="rule"><small>Motion</small><p>Glass slides in, the lens comes into focus (1 s), a glint sweeps the rim every 6 s, the caustic breathes.</p></div>
+      <div class="rule"><small>Palette</small><p>The launch aurora: violet, sapphire, magenta, cyan.</p><div class="sw"><i style="background:#5b46f0"></i><i style="background:#2f63ff"></i><i style="background:#c03f93"></i><i style="background:#1fb3ff"></i><i style="background:#0b0a26"></i><i style="background:#e9ecff"></i></div></div>
+    </div>
+  </section>
+
+  <section class="dir">
+    <div class="dir__head"><div class="dir__n">02</div><h2>Press · two inks, one overlap</h2><p class="dir__line">Risograph print: a pink and a blue ink. Where the two shapes overlap, the inks print a third colour by themselves, the Spixi violet. Grain, halftone, stamps that land in four frames.</p></div>
+    <div class="spread"><div><div id="card-press"></div><p class="mc__hint">Swipe, tap the dots or Next</p></div><div class="grid" id="grid-press"></div></div>
+    <div class="rules">
+      <div class="rule"><small>Material</small><p>Cream paper (ink-black paper in dark), two inks with rough edges, halftone shading, a registration mark.</p></div>
+      <div class="rule"><small>Depth</small><p>Overprint instead of shadow: layers stack as ink, multiply in light and screen in dark.</p></div>
+      <div class="rule"><small>Motion</small><p>Stop-motion: stamps land in 4 steps, hand-drawn lines “boil” at 8 fps. No easing curves at all.</p></div>
+      <div class="rule"><small>Palette</small><p>Riso blue (≈ brand indigo), fluorescent pink, and the violet they make together.</p><div class="sw"><i style="background:#2f52c9"></i><i style="background:#ff4fa3"></i><i style="background:#7a2f9e"></i><i style="background:#f4efe4"></i><i style="background:#17161f"></i></div></div>
+    </div>
+  </section>
+
+  <section class="dir">
+    <div class="dir__head"><div class="dir__n">03</div><h2>Spark · the mark is alive</h2><p class="dir__line">The two dots are eyes. The logo drops in, squashes, blinks and looks at you (move your pointer). It hums for voice, closes its eyes for privacy, and winks.</p></div>
+    <div class="spread"><div><div id="card-spark"></div><p class="mc__hint">Move the pointer over the page</p></div><div class="grid" id="grid-spark"></div></div>
+    <div class="rules">
+      <div class="rule"><small>Material</small><p>Soft clay tubes with a gloss line, a lit face in the lens, a touch of blush. Friendly, never cute-overload.</p></div>
+      <div class="rule"><small>Depth</small><p>Character · floating chips · glow and contact shadow. The character always stands on the ground.</p></div>
+      <div class="rule"><small>Motion</small><p>Animation principles: anticipation, squash and stretch, overshoot. The eyes follow the finger and the swipe.</p></div>
+      <div class="rule"><small>Palette</small><p>Brand indigo tubes, a near-white face, ink eyes, pink blush only.</p><div class="sw"><i style="background:#3d5ce0"></i><i style="background:#8aa2ff"></i><i style="background:#f7f5ff"></i><i style="background:#151a45"></i><i style="background:#ff8fbf"></i></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="prop"><!--@AD_MD@--></div>
+  </section>
+</div>
+
+<script>
+/*@DIR_JS@*/
+/*@PAGE_JS@*/
+</script>

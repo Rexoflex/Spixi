@@ -1,0 +1,40 @@
+<title>Spixi Downloads and Contributors</title>
+<style>
+:root { --pg-bg: #f4f5f8; --pg-panel: #fff; --pg-fg: #15171c; --pg-muted: #5b6270; --pg-line: #dfe2e9; --pg-bezel: #1b1e24;
+  --pg-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --pg-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c; --pg-bezel: #000; color-scheme: dark; } }
+:root[data-theme="dark"] { --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c; --pg-bezel: #000; color-scheme: dark; }
+body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font: 15px/1.5 var(--pg-sans); }
+.page { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { margin: 0 0 6px; font-size: 26px; } .lede, p.sub { margin: 0 0 18px; color: var(--pg-muted); max-width: 82ch; }
+h2.sec { margin: 36px 0 6px; font-size: 19px; }
+.cap { font: 500 12px/1 var(--pg-mono); color: var(--pg-muted); text-align: center; margin-top: 8px; }
+.prop { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 8px 20px 20px; }
+.prop h1 { font-size: 20px; margin: 14px 0 6px; } .prop .tw { overflow-x: auto; } .prop table { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 560px; }
+.prop th, .prop td { border-bottom: 1px solid var(--pg-line); padding: 6px 10px 6px 0; text-align: left; vertical-align: top; }
+.prop code { font: 12.5px/1.4 var(--pg-mono); background: rgba(48,80,189,.1); padding: 1px 4px; border-radius: 4px; }
+.sx { --dc-a: #6f7dff; --dc-b: #a35cff; --dc-c: #ff7ab6; }
+.sx[data-sxt="dark"] { --dc-a: #2c3fa8; --dc-b: #5a2aa8; --dc-c: #8a2a6e; }
+.dc-drift { animation: dcDrift 16s ease-in-out infinite alternate; } @keyframes dcDrift { to { transform: translate(14px, -8px); } }
+.dc-float { animation: dcFloat 6s ease-in-out 1s infinite alternate; } @keyframes dcFloat { to { transform: translateY(-5px); } }
+.dc-tw { animation: dcTw 3.4s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.6s); } @keyframes dcTw { from { opacity: .2; } to { opacity: .95; } }
+@media (max-width: 420px) { .ph { transform: scale(.86); transform-origin: top center; margin-bottom: -110px; } }
+/*@TOKENS@*/
+/*@DC_CSS@*/
+</style>
+<div class="page">
+  <h1>Spixi Downloads and Contributors</h1>
+  <p class="lede">Both screens premium, live in light and dark. Downloads: tap “Select” (or right-click / long-press a file) to pick files; the filters work. Contributors: tap a name.</p>
+  <h2 class="sec">Downloads</h2>
+  <p class="sub">A summary card with the total and a storage bar by kind, filter chips, files grouped by day with each day’s size, photos as a real thumbnail grid (stand-in pictures here), other files as rows with a coloured type tile, and a select mode with a floating action bar. The per-row chat and trash icons are gone: actions live in select mode.</p>
+  <div class="dcs" id="dl"></div>
+  <h2 class="sec">Contributors</h2>
+  <p class="sub">The About header’s grammar in a warmer key: a full-bleed violet-to-pink band with a glass heart (the handshake etched), a “Thank you” title, name chips with a coloured initial that pop in one by one and throw a small sparkle when tapped, and the credits as rows with a type tile and a licence pill. The full credit text stays visible (the CC-BY licence asks for it).</p>
+  <div class="dcs" id="ct"></div>
+  <h2 class="sec">Notes</h2>
+  <div class="prop"><!--@DC_MD@--></div>
+</div>
+<script>
+/*@DC_DATA@*/
+/*@DC_JS@*/
+</script>

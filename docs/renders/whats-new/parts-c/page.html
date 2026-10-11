@@ -1,0 +1,167 @@
+<title>Spixi Thread</title>
+<style>
+/* Review page for THREAD, a proposed illustration + motion language, shown in the What's new spotlight. Layout: one working column — controls, the live stage
+   (light + dark side by side), the art sheet, the About entry, the fit check, then the plan.
+   Page chrome tokens below; everything inside a device frame uses the real Spixi tokens (scoped to .sx). */
+:root {
+  --pg-bg: #f4f5f8; --pg-panel: #ffffff; --pg-fg: #15171c; --pg-muted: #5b6270; --pg-line: #dfe2e9;
+  --pg-accent: #3050bd; --pg-accent-ink: #ffffff; --pg-ok: #1d7a5c; --pg-bad: #b12525; --pg-bezel: #1b1e24;
+  --pg-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --pg-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c;
+  --pg-accent: #8ea3ff; --pg-accent-ink: #0f1218; --pg-ok: #4fc79c; --pg-bad: #f1786e; --pg-bezel: #000000; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c;
+  --pg-accent: #8ea3ff; --pg-accent-ink: #0f1218; --pg-ok: #4fc79c; --pg-bad: #f1786e; --pg-bezel: #000000; color-scheme: dark; }
+body { background: var(--pg-bg); color: var(--pg-fg); font: 15px/1.5 var(--pg-sans); }
+.page { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 64px; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 6px; }
+h1 { margin: 0; font-size: 26px; line-height: 1.2; letter-spacing: -.02em; }
+.lede { margin: 0 0 20px; color: var(--pg-muted); max-width: 72ch; }
+.tag { font: 600 11px/1 var(--pg-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--pg-accent); border: 1px solid currentColor; border-radius: 4px; padding: 4px 6px; }
+h2.sec { margin: 40px 0 6px; font-size: 19px; letter-spacing: -.01em; }
+p.sub { margin: 0 0 16px; color: var(--pg-muted); max-width: 80ch; }
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+  padding: 10px 12px; margin: 0 -12px 14px; background: color-mix(in srgb, var(--pg-bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--pg-line); }
+.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl > span { font: 600 11px/1 var(--pg-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--pg-muted); }
+.segs { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--pg-line); border-radius: 8px; overflow: hidden; background: var(--pg-panel); }
+.seg { border: 0; background: transparent; color: var(--pg-fg); font: 500 13px/1 var(--pg-sans); padding: 8px 10px; cursor: pointer; }
+.seg + .seg { border-left: 1px solid var(--pg-line); }
+.seg[aria-pressed="true"] { background: var(--pg-accent); color: var(--pg-accent-ink); }
+.seg:focus-visible, .pgbtn:focus-visible { outline: 2px solid var(--pg-accent); outline-offset: 2px; }
+.pgbtn { border: 1px solid var(--pg-line); background: var(--pg-panel); color: var(--pg-fg); border-radius: 8px; font: 500 13px/1 var(--pg-sans); padding: 8px 12px; cursor: pointer; }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.setnote { margin: 0 0 14px; padding: 10px 12px; border-left: 3px solid var(--pg-accent); background: var(--pg-panel); border-radius: 0 8px 8px 0; color: var(--pg-fg); max-width: 90ch; font-size: 14px; }
+@media (max-width: 700px) { .controls { position: static; } }
+#stage { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+#stage[data-width="desktop"] { flex-direction: column; align-items: stretch; }
+.stagefig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; }
+.stagefig figcaption { font: 500 12px/1 var(--pg-mono); color: var(--pg-muted); }
+#compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 20px; }
+.cmpcol { min-width: 0; background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 14px; }
+.cmph { margin: 0 0 12px; font-size: 15px; }
+.cmppair { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.stresswrap { overflow-x: auto; border: 1px solid var(--pg-line); border-radius: 12px; background: var(--pg-panel); padding: 12px; }
+.stressgrid { display: grid; gap: 12px; align-items: start; min-width: 860px; }
+.sg-h { font: 600 12px/1.2 var(--pg-mono); color: var(--pg-muted); text-align: center; }
+.sg-rowh { font-weight: 600; align-self: center; }
+.sg-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.chipline { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.chip { font: 600 10.5px/1 var(--pg-mono); padding: 4px 6px; border-radius: 4px; border: 1px solid currentColor; }
+.chip.ok { color: var(--pg-ok); } .chip.bad { color: var(--pg-bad); }
+.stresssum { margin: 10px 0 0; font-weight: 600; } .stresssum.ok { color: var(--pg-ok); } .stresssum.bad { color: var(--pg-bad); }
+table.ratio { border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+table.ratio td, table.ratio th { padding: 4px 10px; border-bottom: 1px solid var(--pg-line); text-align: left; font-variant-numeric: tabular-nums; }
+.prop { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 8px 20px 20px; }
+.prop h1 { font-size: 20px; margin: 14px 0 6px; }
+.prop h2 { font-size: 16px; margin: 22px 0 8px; }
+.prop p, .prop li { max-width: 92ch; }
+.prop .tw { overflow-x: auto; }
+.prop table { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 560px; }
+.prop th, .prop td { border-bottom: 1px solid var(--pg-line); padding: 6px 10px 6px 0; text-align: left; vertical-align: top; }
+.prop th { color: var(--pg-muted); font-weight: 600; }
+.prop code { font: 12.5px/1.4 var(--pg-mono); background: color-mix(in srgb, var(--pg-accent) 10%, transparent); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+#toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 99; max-width: calc(100% - 32px);
+  background: var(--pg-fg); color: var(--pg-bg); padding: 10px 14px; border-radius: 10px; font: 500 13px/1.4 var(--pg-mono); }
+.stagefig__dev { display: flex; justify-content: center; }
+#sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 18px; }
+.artcard { margin: 0; min-width: 0; background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 14px; overflow: hidden; }
+.artbox { position: relative; aspect-ratio: 400 / 240; max-width: 100%; overflow: hidden; background: #120e3a; }
+.artbox--hero { aspect-ratio: 400 / 300; }
+.artbox__fg { position: absolute; left: 0; right: 0; top: 4%; height: 84%; }
+.artcard figcaption { padding: 12px 14px 14px; }
+.artcard__h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.artcard p { margin: 4px 0 0; font-size: 13.5px; color: var(--pg-muted); }
+#about { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+.stressrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.sg-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sg-h { font: 600 12px/1.2 var(--pg-mono); color: var(--pg-muted); text-align: center; }
+#thscenes, #thslots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 18px; }
+.thcard { margin: 0; min-width: 0; background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 14px; overflow: hidden; }
+.thcard figcaption { padding: 12px 14px 14px; } .thcard figcaption p { margin: 4px 0 0; font-size: 13.5px; color: var(--pg-muted); }
+.thpair { display: grid; grid-template-columns: 1fr 1fr; }
+.thpanel { position: relative; aspect-ratio: 400 / 240; max-width: 100%; overflow: hidden; }
+.thpanel--sq { aspect-ratio: 1; }
+.thpanel .wnL { position: absolute; inset: 0; width: 100%; height: 100%; }
+#thbefore { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 18px; }
+.thpano { overflow-x: auto; border: 1px solid var(--pg-line); border-radius: 14px; background: var(--pg-panel); }
+.thpano__row { display: flex; width: max-content; }
+.thpanel--pano { width: 300px; flex: none; }
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 14px; }
+.rule { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 14px 16px; }
+.rule b { display: block; font-size: 14.5px; margin-bottom: 4px; } .rule p { margin: 0; font-size: 13.5px; color: var(--pg-muted); }
+.rule .n { font: 600 11px/1 var(--pg-mono); color: var(--pg-accent); letter-spacing: .06em; margin-bottom: 8px; display: block; }
+.sw { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; } .sw i { width: 30px; height: 30px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--pg-line); }
+.thpage .sp[data-onhero] .sp__foot .c-button[data-type="fill"] { background: #fff; color: #3050bd; }
+.thpage .sp:not([data-onhero]) .sp__x { background: var(--surface-interactive-hover, rgba(27,29,51,.08)); color: var(--icon-action-default, var(--text-neutral-01)); }
+.thpage .sp__slide:not([data-hero]) .sp__art::after { display: none; }
+/* ===== Spixi tokens (scoped: :root → .sx, data-theme → data-sxt) ===== */
+/*@TOKENS@*/
+/*@COMPONENT_CSS@*/
+/*@ART_CSS@*/
+/*@RENDER_CSS@*/
+/*@THREAD_CSS@*/
+</style>
+
+<div class="page thpage">
+  <header class="top"><h1>Spixi Thread</h1><span class="tag">illustration + motion language · proposal</span></header>
+  <p class="lede">Spixi has no server in the middle: a message goes along one direct line from you to them. Thread makes that line the whole illustration language. Every drawing is one ink line with two flat colour planes printed slightly off-register, and a single spark that travels the line. It replaces the glossy tiles everywhere, in light and dark.</p>
+
+  <div class="controls" role="group" aria-label="Render controls">
+    <div class="ctl"><span>Locale</span><div class="segs" id="c-loc"></div></div>
+    <div class="ctl"><span>Width</span><div class="segs" id="c-w"></div></div>
+    <div class="ctl"><button class="pgbtn" id="replay" type="button">Replay entrance</button>
+      <label class="chk"><input type="checkbox" id="rm"> Reduced motion</label></div>
+  </div>
+
+  <div id="stage"></div>
+  <p class="sub" style="margin-top:12px">Swipe the card slowly: the thread leaves one scene and enters the next at the same height, so the six scenes read as one line. No parallax on purpose.</p>
+
+  <h2 class="sec">The language · five rules</h2>
+  <div class="rules">
+    <div class="rule"><span class="n">01 · LINE</span><b>One ink line draws everything</b><p>2.2 u, round caps and joins, the theme ink. No fills of its own. It enters every scene at the left edge and leaves at the right edge at the same height.</p></div>
+    <div class="rule"><span class="n">02 · PLANES</span><b>Two flat planes, off-register</b><p>A soft tint and one brand accent, printed 6 u right and down from the line, like a two-colour print. No gradients, gloss, glow or shadow.</p>
+      <div class="sw"><i style="background:#cdd6ff"></i><i style="background:#3050bd"></i><i style="background:#f2f4fe"></i><i style="background:#1b1d33"></i><i style="background:#2c3577"></i><i style="background:#8ea3ff"></i><i style="background:#141833"></i></div></div>
+    <div class="rule"><span class="n">03 · SPARK</span><b>One spark travels the line</b><p>The message on its way: a 4 u dot runs the thread every 5 s (0.2 Hz). The only loop in the language; it waits while the card is off screen.</p></div>
+    <div class="rule"><span class="n">04 · GROUND</span><b>A tinted panel on a dot grid</b><p>The network, quietly: a 14 u dot grid at 9 % on a brand-tinted ground. The full-bleed hero inverts onto brand indigo with a white line.</p></div>
+    <div class="rule"><span class="n">05 · MOTION</span><b>Draw, settle, pop, hold</b><p>The line draws itself (0.5–1.2 s), the planes slide 6 u into their offset, small nodes pop, then the frame holds. Reduced motion shows the end frame without the spark.</p></div>
+  </div>
+
+  <h2 class="sec">The six scenes · light and dark</h2>
+  <div id="thscenes"></div>
+
+  <h2 class="sec">One thread across the whole story</h2>
+  <p class="sub">The six panels side by side, end frames. The line never breaks. Scroll sideways.</p>
+  <div class="thpano" id="thpano"></div>
+
+  <h2 class="sec">The same language on today’s slots</h2>
+  <p class="sub">To replace the glossy set, every slot follows the same five rules. Three examples:</p>
+  <div id="thslots"></div>
+
+  <h2 class="sec">Before and after</h2>
+  <div id="thbefore"></div>
+
+  <h2 class="sec">About › What’s new</h2>
+  <div id="about"></div>
+
+  <h2 class="sec">Fit check · 320 × 568</h2>
+  <div class="stresswrap"><div id="stress"></div></div>
+  <p class="stresssum" id="stresssum"></p>
+
+  <h2 class="sec">Why Thread, and what it costs</h2>
+  <div class="prop"><!--@THREAD_MD@--></div>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+/*@DATA@*/
+/*@ART_JS@*/
+/*@THREAD_JS@*/
+window.WN_PROVIDER = TH_ART; window.WN_DEPTH = { bg: 0, fg: 0 };
+/*@RENDER_JS@*/
+/*@EXTRA_JS@*/
+</script>

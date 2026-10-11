@@ -1,0 +1,125 @@
+/* SPIXI ILLUSTRATION KIT — theme values for the improved original set + the full-bleed About header. */
+.sx, .kx { /* light: one soft ground with a pink / violet / blue halo */
+  --k-base-a: #f3efff; --k-base-b: #e2dcfd; --k-halo1: #9a7aff; --k-halo2: #ff8ec6; --k-halo3: #6c9fff; --k-halo-op: .92;
+  --k-shadow: #33259a; --k-shadow-a: .34; --k-star: #9d8cff; --k-spark: #7a5cff; --k-deco: #8f7fe0; --k-deco2: #7d95f0;
+  --k-chip: #3050bd; --k-chip-ink: #3050bd; --k-disc-a: #ffffff; --k-disc-b: #f1ecff; --k-disc-side: #cfc5f7; --k-disc-rim: .95; --k-ring: #9c8ff0;
+  --k-hdr-ink: #14152b; --k-hdr-muted: #555b7a;
+}
+.sx[data-sxt="dark"], .sx [data-sxt="dark"], .kx[data-sxt="dark"] { /* dark: the per-scene aurora hues (the fallbacks in the art) */
+  --k-base-a: initial; --k-base-b: initial; --k-halo1: #5b46f0; --k-halo2: #c03f93; --k-halo3: #2f63ff; --k-halo-op: .42;
+  --k-shadow: #070a3a; --k-shadow-a: .5; --k-star: #ffffff; --k-spark: #ffffff; --k-deco: initial; --k-deco2: initial;
+  --k-chip: initial; --k-chip-ink: initial; --k-disc-a: #2c3070; --k-disc-b: #1a1d4a; --k-disc-side: #10123a; --k-disc-rim: .3; --k-ring: #b9b2ff;
+  --k-hdr-ink: #ffffff; --k-hdr-muted: rgba(255, 255, 255, .78);
+}
+
+/* the What's new hero card on a LIGHT ground: ink text, not white */
+.kitpage .sx:not([data-sxt="dark"]) .sp__slide[data-hero] .wt-title { color: var(--text-neutral-01); }
+.kitpage .sx:not([data-sxt="dark"]) .sp__slide[data-hero] .wt-body { color: var(--text-neutral-02); }
+.kitpage .sx:not([data-sxt="dark"]) .sp__slide[data-hero] .wt-eyebrow { color: var(--text-action-default); }
+.kitpage .sx:not([data-sxt="dark"]) .sp[data-onhero] .wt-dot { background: rgba(48, 40, 140, .24); }
+.kitpage .sx:not([data-sxt="dark"]) .sp[data-onhero] .wt-dot[aria-selected="true"] { background: var(--surface-action-default); }
+.kitpage .sx:not([data-sxt="dark"]) .sp__x { background: rgba(27, 29, 51, .06); color: var(--icon-action-default, var(--text-neutral-01)); }
+.kitpage .sp__slide:not([data-hero]) .sp__art::after { display: none; }
+
+/* ---------- About: today's About, the band grown into a full-bleed header ----------
+   The band keeps its --ab-band-* pair (tokens.css); the kit adds a deep third stop, three light fields and a sheen.
+   The app icon is today's (the launcher ground + the registry logo), its cut-out ring now in the screen ground. */
+.sx, .kx { --ab-band-deep: #1556c6; --ab-field-a: #8fd2ff; --ab-field-b: #7fb0ff; --ab-field-c: #2f86ff; --ab-sheen-op: .45; --ab-scrim: rgba(8, 30, 90, .28); }
+/* light: the full-bleed header is deeper than today's small band (that one sat inside a white card): white bar ink
+   needs the ground at ≥ 4.5 : 1 under "About" and the status bar */
+.about__hdr { --ab-band-from: #3f8ff7; --ab-band-to: #2a74e6; }
+.sx[data-sxt="dark"], .sx [data-sxt="dark"], .kx[data-sxt="dark"] { --ab-band-deep: #0f2a5e; --ab-field-a: #3f7fe0; --ab-field-b: #3f5fe0; --ab-field-c: #1d5fd0; --ab-sheen-op: .35; --ab-scrim: rgba(0, 0, 0, .25); }
+.sx[data-sxt="dark"] .about__hdr, .sx [data-sxt="dark"] .about__hdr { --ab-band-from: #24509e; --ab-band-to: #173a7c; }
+.about--hero .about__top b { font-size: 22px; font-weight: 700; text-shadow: 0 1px 2px rgba(0, 20, 70, .25); }
+.about--hero { background: var(--surface-settings-ground, var(--surface-screen)); }
+.about__hdr { position: absolute; left: 0; right: 0; top: 0; height: 234px; overflow: hidden; }
+.about__hdr .wnL { position: absolute; inset: 0; width: 100%; height: 100%; }
+.about--hero .home__status, .about--hero .about__top { position: relative; z-index: 2; background: transparent; color: #fff; }
+.about--hero .about__top .ico, .about--hero .about__top b { color: #fff; }
+.about__hdrtext { position: relative; z-index: 2; margin-top: 108px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 0 24px; }
+.about__appicon { width: 84px; height: 84px; border-radius: 24px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; color: var(--ab-mark, #fff);
+  background: radial-gradient(141.42% 141.42% at 100% 0%, var(--ab-icon-light) 13.13%, var(--ab-icon-deep) 100%), var(--ab-icon-ground);
+  box-shadow: 0 0 0 5px var(--surface-settings-ground, var(--surface-screen)), 0 14px 26px -10px var(--ab-tile-shadow); }
+.about__appicon .ico { width: 46px; height: 46px; }
+.about--hero .about__name { font-family: var(--font-primary, var(--font-display)); font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.6px; color: var(--text-neutral-01); }
+.about--hero .about__tag { color: var(--text-neutral-02); font-size: var(--font-size-body-md, 15px); max-width: 26ch; }
+.about__chip { margin-top: 10px; padding: 4px 12px; border-radius: 999px; background: var(--ab-chip); color: var(--text-neutral-02); font-size: var(--font-size-body-sm, 13px); }
+.about__chip b { color: var(--text-accent); font-weight: 600; font-feature-settings: "tnum" 1; }
+.about--hero .about__card { position: relative; z-index: 2; margin-top: 20px; }
+.about--hero .about__rico { border-radius: 50%; color: #fff; box-shadow: 0 6px 12px -6px rgba(48, 60, 160, .55); }
+.about__rico--a { background: linear-gradient(150deg, #9ccbff, #2f7be3); }
+.about__rico--b { background: linear-gradient(150deg, #7dc4ff, #3d6cf0); }
+.about__rico--c { background: linear-gradient(150deg, #ffb3c8, #e23a6a); }
+.about__rico--d { background: linear-gradient(150deg, #8aa2ff, #3050bd); }
+
+/* ---------- the calm chest: ease-out only, no overshoot, one entrance then hold; reduced motion = end frame ---------- */
+.ch .ch-in { animation: chIn .7s cubic-bezier(.2,.7,.2,1) var(--o,0s) both; }
+.ch .ch-lid { transform-box: fill-box; transform-origin: 50% 100%; animation: chLid 1s cubic-bezier(.25,.8,.25,1) .35s both; }
+.ch .ch-rise { animation: chRise .9s cubic-bezier(.2,.7,.2,1) var(--o,0s) both; }
+.ch .ch-float { animation: chFloat var(--d,7s) ease-in-out 2.2s infinite alternate; }
+@keyframes chIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes chLid { from { transform: scaleY(.3); } to { transform: none; } }
+@keyframes chRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes chFloat { to { transform: translateY(-3px); } }
+.rm .ch, .rm .ch *, .rm .chold, .rm .chold * { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .ch, .ch * { animation: none !important; } }
+
+/* the What's new card in LIGHT: the contrast kick — the art zone stays saturated, the text zone turns to a clean
+   near-white wash, so the scene pops and the copy reads at full contrast (fades out with the aurora on card 2+) */
+.kitpage .sx:not([data-sxt="dark"]) .sp__aurora::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to bottom, transparent 46%, rgba(252, 251, 255, .8) 64%, rgba(252, 251, 255, .95) 100%); }
+
+/* ---------- the About art directions: motion ---------- */
+.ab-sway { transform-box: view-box; transform-origin: 200px 240px; animation: abSway var(--d, 40s) ease-in-out infinite alternate; }
+@keyframes abSway { from { transform: rotate(calc(var(--a) * -1)); } to { transform: rotate(var(--a)); } }
+.ab-pulse { stroke-dasharray: 6 100; stroke-dashoffset: 106; opacity: 0; animation: abPulse var(--d, 8s) ease-in var(--o, 1s) infinite; }
+@keyframes abPulse { 0% { stroke-dashoffset: 106; opacity: 0; } 8% { opacity: .9; } 30% { stroke-dashoffset: 0; opacity: .9; } 34%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+.rm .ab-sway, .rm .ab-pulse { animation: none !important; } .rm .ab-pulse { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .ab-sway, .ab-pulse { animation: none !important; } .ab-pulse { opacity: 0; } }
+
+/* ---------- CLEAN BLUE (proposed; 14:04 / 14:05 / 14:15): one clean gradient per theme, blue with a violet turn
+   for personality, the scene's own glow turned down; the illustration sits in its own panel and the text on the
+   sheet — a clear split, on every card including card 1 ---------- */
+:root[data-pal="blue"] .sx, :root[data-pal="blue"] .kx {
+  --k-base-a: #4f86ff; --k-base-b: #a35cff; --k-halo-op: 0; --k-star: rgba(255, 255, 255, .85); --k-spark: #ffffff;
+  --k-shadow: #2a1478; --k-shadow-a: .38; --k-ring: #e3dcff; --k-deco: #ffffff; --k-deco2: #ffffff; }
+:root[data-pal="blue"] .sx[data-sxt="dark"], :root[data-pal="blue"] .sx [data-sxt="dark"], :root[data-pal="blue"] .kx[data-sxt="dark"] {
+  --k-base-a: #2c5fd8; --k-base-b: #6a2fc8; --k-halo-op: 0; --k-star: #ffffff; --k-spark: #ffffff; --k-ring: #d6d0ff;
+  --k-shadow: #050522; --k-shadow-a: .55; --k-deco: initial; --k-deco2: initial; }
+:root[data-pal="blue"] .k-blob, :root[data-pal="blue"] .k-halo { display: none; }
+:root[data-pal="blue"] .k-glow { opacity: .06; }
+:root[data-pal="blue"] .sx[data-sxt="dark"] .k-glow, :root[data-pal="blue"] .sx [data-sxt="dark"] .k-glow, :root[data-pal="blue"] .kx[data-sxt="dark"] .k-glow { opacity: .1; }
+:root[data-pal="blue"] .kitpage .sp__aurora { clip-path: inset(0 0 calc(100% - var(--art-h, 220px)) 0); }
+:root[data-pal="blue"] .kitpage .sp__aurora::after { display: none !important; }
+:root[data-pal="blue"] .kitpage .sp__slide .sp__art::after { display: none; }
+:root[data-pal="blue"] .kitpage .sx[data-sxt="dark"] .sp__slide .sp__art::after { background: rgba(255, 255, 255, .14); }
+:root[data-pal="blue"] .kitpage .sp__slide[data-hero] .wt-title { color: var(--text-neutral-01); }
+:root[data-pal="blue"] .kitpage .sp__slide[data-hero] .wt-body { color: var(--text-neutral-02); }
+:root[data-pal="blue"] .kitpage .sp__slide[data-hero] .wt-eyebrow { color: var(--text-action-default); }
+:root[data-pal="blue"] .kitpage .sp[data-onhero] .wt-dot { background: rgba(20, 30, 90, .2); }
+:root[data-pal="blue"] .kitpage .sx[data-sxt="dark"] .sp[data-onhero] .wt-dot { background: rgba(255, 255, 255, .22); }
+:root[data-pal="blue"] .kitpage .sp[data-onhero] .wt-dot[aria-selected="true"] { background: var(--surface-action-default); }
+:root[data-pal="blue"] .kitpage .sp__x { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* ---------- DARK: the card stands off the screen (Damir 14:04: "blends in") ---------- */
+.kitpage .sx[data-sxt="dark"] .wt { background: rgba(2, 4, 12, .74); }
+.kitpage .sx[data-sxt="dark"] .sp { box-shadow: 0 30px 70px -18px rgba(0, 0, 0, .85), 0 0 90px -30px rgba(70, 120, 255, .45); }
+.kitpage .sx[data-sxt="dark"] .sp::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 6;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 0 0 1px rgba(255, 255, 255, .08); }
+/* the art zone and the text zone read as two parts: the text zone goes deep under the art */
+:root:not([data-pal="blue"]) .kitpage .sx[data-sxt="dark"] .sp__aurora::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to bottom, transparent 44%, rgba(4, 8, 26, .5) 62%, rgba(4, 8, 26, .72) 100%); }
+.kitpage .sx[data-sxt="dark"] .sp__slide:not([data-hero]) .sp__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }
+
+/* ---------- the directions gallery ---------- */
+#abdirs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 18px; }
+.abd { margin: 0; background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 14px; overflow: hidden; min-width: 0; }
+.abd__pair { display: grid; grid-template-columns: 1fr 1fr; }
+.abd__p { position: relative; aspect-ratio: 400 / 330; overflow: hidden; background: var(--surface-settings-ground, var(--surface-screen)); }
+.abd__h { position: absolute; left: 0; right: 0; top: 0; height: 72.7%; overflow: hidden; }
+.abd__h .wnL { position: absolute; inset: 0; width: 100%; height: 100%; }
+.abd__i { position: absolute; left: 50%; top: 72.7%; width: 21%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 28%; display: flex; align-items: center; justify-content: center; color: #fff;
+  background: radial-gradient(141.42% 141.42% at 100% 0%, var(--ab-icon-light) 13.13%, var(--ab-icon-deep) 100%), var(--ab-icon-ground);
+  box-shadow: 0 0 0 4px var(--surface-settings-ground, var(--surface-screen)), 0 10px 20px -8px var(--ab-tile-shadow); }
+.abd__i .ico { width: 55%; height: 55%; }
+.abd figcaption { padding: 10px 14px 12px; } .abd figcaption p { margin: 4px 0 0; font-size: 13.5px; color: var(--pg-muted); }

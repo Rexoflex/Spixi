@@ -1,0 +1,183 @@
+<title>Spixi Illustration Kit</title>
+<style>
+/* Review page for the Spixi illustration kit (the original set, improved), shown across the app. Layout: one working column — controls, the live stage
+   (light + dark side by side), the art sheet, the About entry, the fit check, then the plan.
+   Page chrome tokens below; everything inside a device frame uses the real Spixi tokens (scoped to .sx). */
+:root {
+  --pg-bg: #f4f5f8; --pg-panel: #ffffff; --pg-fg: #15171c; --pg-muted: #5b6270; --pg-line: #dfe2e9;
+  --pg-accent: #3050bd; --pg-accent-ink: #ffffff; --pg-ok: #1d7a5c; --pg-bad: #b12525; --pg-bezel: #1b1e24;
+  --pg-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --pg-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c;
+  --pg-accent: #8ea3ff; --pg-accent-ink: #0f1218; --pg-ok: #4fc79c; --pg-bad: #f1786e; --pg-bezel: #000000; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c;
+  --pg-accent: #8ea3ff; --pg-accent-ink: #0f1218; --pg-ok: #4fc79c; --pg-bad: #f1786e; --pg-bezel: #000000; color-scheme: dark; }
+body { background: var(--pg-bg); color: var(--pg-fg); font: 15px/1.5 var(--pg-sans); }
+.page { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 64px; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 6px; }
+h1 { margin: 0; font-size: 26px; line-height: 1.2; letter-spacing: -.02em; }
+.lede { margin: 0 0 20px; color: var(--pg-muted); max-width: 72ch; }
+.tag { font: 600 11px/1 var(--pg-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--pg-accent); border: 1px solid currentColor; border-radius: 4px; padding: 4px 6px; }
+h2.sec { margin: 40px 0 6px; font-size: 19px; letter-spacing: -.01em; }
+p.sub { margin: 0 0 16px; color: var(--pg-muted); max-width: 80ch; }
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+  padding: 10px 12px; margin: 0 -12px 14px; background: color-mix(in srgb, var(--pg-bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--pg-line); }
+.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl > span { font: 600 11px/1 var(--pg-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--pg-muted); }
+.segs { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--pg-line); border-radius: 8px; overflow: hidden; background: var(--pg-panel); }
+.seg { border: 0; background: transparent; color: var(--pg-fg); font: 500 13px/1 var(--pg-sans); padding: 8px 10px; cursor: pointer; }
+.seg + .seg { border-left: 1px solid var(--pg-line); }
+.seg[aria-pressed="true"] { background: var(--pg-accent); color: var(--pg-accent-ink); }
+.seg:focus-visible, .pgbtn:focus-visible { outline: 2px solid var(--pg-accent); outline-offset: 2px; }
+.pgbtn { border: 1px solid var(--pg-line); background: var(--pg-panel); color: var(--pg-fg); border-radius: 8px; font: 500 13px/1 var(--pg-sans); padding: 8px 12px; cursor: pointer; }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.setnote { margin: 0 0 14px; padding: 10px 12px; border-left: 3px solid var(--pg-accent); background: var(--pg-panel); border-radius: 0 8px 8px 0; color: var(--pg-fg); max-width: 90ch; font-size: 14px; }
+@media (max-width: 700px) { .controls { position: static; } }
+#stage { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+#stage[data-width="desktop"] { flex-direction: column; align-items: stretch; }
+.stagefig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; }
+.stagefig figcaption { font: 500 12px/1 var(--pg-mono); color: var(--pg-muted); }
+#compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 20px; }
+.cmpcol { min-width: 0; background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 14px; }
+.cmph { margin: 0 0 12px; font-size: 15px; }
+.cmppair { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.stresswrap { overflow-x: auto; border: 1px solid var(--pg-line); border-radius: 12px; background: var(--pg-panel); padding: 12px; }
+.stressgrid { display: grid; gap: 12px; align-items: start; min-width: 860px; }
+.sg-h { font: 600 12px/1.2 var(--pg-mono); color: var(--pg-muted); text-align: center; }
+.sg-rowh { font-weight: 600; align-self: center; }
+.sg-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.chipline { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.chip { font: 600 10.5px/1 var(--pg-mono); padding: 4px 6px; border-radius: 4px; border: 1px solid currentColor; }
+.chip.ok { color: var(--pg-ok); } .chip.bad { color: var(--pg-bad); }
+.stresssum { margin: 10px 0 0; font-weight: 600; } .stresssum.ok { color: var(--pg-ok); } .stresssum.bad { color: var(--pg-bad); }
+table.ratio { border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+table.ratio td, table.ratio th { padding: 4px 10px; border-bottom: 1px solid var(--pg-line); text-align: left; font-variant-numeric: tabular-nums; }
+.prop { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 8px 20px 20px; }
+.prop h1 { font-size: 20px; margin: 14px 0 6px; }
+.prop h2 { font-size: 16px; margin: 22px 0 8px; }
+.prop p, .prop li { max-width: 92ch; }
+.prop .tw { overflow-x: auto; }
+.prop table { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 560px; }
+.prop th, .prop td { border-bottom: 1px solid var(--pg-line); padding: 6px 10px 6px 0; text-align: left; vertical-align: top; }
+.prop th { color: var(--pg-muted); font-weight: 600; }
+.prop code { font: 12.5px/1.4 var(--pg-mono); background: color-mix(in srgb, var(--pg-accent) 10%, transparent); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+#toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 99; max-width: calc(100% - 32px);
+  background: var(--pg-fg); color: var(--pg-bg); padding: 10px 14px; border-radius: 10px; font: 500 13px/1.4 var(--pg-mono); }
+.stagefig__dev { display: flex; justify-content: center; }
+#sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 18px; }
+.artcard { margin: 0; min-width: 0; background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 14px; overflow: hidden; }
+.artbox { position: relative; aspect-ratio: 400 / 240; max-width: 100%; overflow: hidden; background: #120e3a; }
+.artbox--hero { aspect-ratio: 400 / 300; }
+.artbox__fg { position: absolute; left: 0; right: 0; top: 4%; height: 84%; }
+.artcard figcaption { padding: 12px 14px 14px; }
+.artcard__h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.artcard p { margin: 4px 0 0; font-size: 13.5px; color: var(--pg-muted); }
+#about { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+.stressrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.sg-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sg-h { font: 600 12px/1.2 var(--pg-mono); color: var(--pg-muted); text-align: center; }
+#chests { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 18px; }
+.chrow { margin: 0; background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 14px; overflow: hidden; min-width: 0; }
+.chrow figcaption { padding: 10px 14px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13.5px; color: var(--pg-muted); }
+.chpair { display: grid; grid-template-columns: 1fr 1fr; }
+.chcell { position: relative; background: var(--surface-sheet, var(--surface-screen)); padding: 10px 6px 26px; display: flex; justify-content: center; min-width: 0; }
+.chcell svg { width: 100%; max-width: 240px; height: auto; }
+.chcell > span { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 600 11px/1 var(--pg-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-neutral-02); }
+#nudges { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+.nd { width: 340px; max-width: 100%; height: 640px; border-radius: 34px; border: 8px solid var(--pg-bezel); overflow: hidden; position: relative; background: var(--surface-screen); font-family: var(--font-body, system-ui); }
+.nd__ghost { position: absolute; inset: 0; padding: 60px 16px; display: flex; flex-direction: column; gap: 14px; }
+.nd__ghost i { display: block; height: 52px; border-radius: 14px; background: var(--surface-card, rgba(127,127,127,.12)); }
+.nd__scrim { position: absolute; inset: 0; background: var(--surface-scrim, rgba(0,0,0,.4)); }
+.nd__sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface-sheet); border-radius: 26px 26px 0 0; padding: 8px 20px 22px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.nd__grab { width: 36px; height: 4px; border-radius: 2px; background: var(--surface-neutral-03); margin-bottom: 4px; }
+.nd__art { width: 200px; height: 200px; margin: 2px 0 0; }
+.nd__art svg { width: 100%; height: 100%; }
+.nd__t { margin: 4px 0 6px; font: 700 20px/1.25 var(--font-display, system-ui); color: var(--text-neutral-01); letter-spacing: -.01em; }
+.nd__b { margin: 0 0 8px; font-size: 14.5px; line-height: 1.45; color: var(--text-neutral-02); }
+.nd__n { margin: 0 0 16px; font-size: 13px; line-height: 1.4; color: var(--text-neutral-02); }
+.nd__cta { width: 100%; border: 0; border-radius: 999px; padding: 14px; font: 600 15px/1 var(--font-body, system-ui); background: var(--surface-action-default); color: var(--text-neutral-on-action, #fff); }
+.nd__skip { margin-top: 8px; border: 0; background: transparent; padding: 10px; font: 600 15px/1 var(--font-body, system-ui); color: var(--text-action-default); }
+#kitsheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 18px; }
+.kcard { margin: 0; min-width: 0; background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 14px; overflow: hidden; }
+.kcard figcaption { padding: 12px 14px 14px; } .kcard figcaption p { margin: 4px 0 0; font-size: 13.5px; color: var(--pg-muted); }
+.kpair { display: grid; grid-template-columns: 1fr 1fr; }
+.kpanel { position: relative; aspect-ratio: 400 / 240; max-width: 100%; overflow: hidden; }
+.kpanel--tall { aspect-ratio: 400 / 300; }
+.kpanel .wnL { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; margin-top: 8px; }
+.up { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 12px 14px; }
+.up b { display: block; font-size: 14px; margin-bottom: 3px; } .up p { margin: 0; font-size: 13.5px; color: var(--pg-muted); }
+.up .n { font: 600 11px/1 var(--pg-mono); color: var(--pg-accent); letter-spacing: .06em; display: block; margin-bottom: 7px; }
+/* ===== Spixi tokens (scoped: :root → .sx, data-theme → data-sxt) ===== */
+/*@TOKENS@*/
+/*@COMPONENT_CSS@*/
+/*@ART_CSS@*/
+/*@RENDER_CSS@*/
+/*@KIT_CSS@*/
+</style>
+
+<div class="page kitpage">
+  <header class="top"><h1>Spixi Illustration Kit</h1><span class="tag">the original, improved · render</span></header>
+  <p class="lede">The approved glossy set stays the family. It gets five upgrades and one composition that repeats everywhere, so What’s new, About, the nudges and the empty states read as one app.</p>
+  <div class="ups">
+    <div class="up"><span class="n">01 · GROUND</span><b>Theme-native</b><p>Light gets a soft white ground with a pink, violet and blue halo. Dark keeps the aurora. No more dark panels in light mode.</p></div>
+    <div class="up"><span class="n">02 · ABOUT</span><b>Full-bleed header</b><p>Today’s About, unchanged: the app icon with the Spixi logo, the heart, the bubble, the star. Only the band grows into a full-bleed, layered background.</p></div>
+    <div class="up"><span class="n">03 · CHEST</span><b>The backup chest, calm and clean</b><p>Today’s chest, not a treasure chest. Rounded corners, clean edges, soft light, a quiet motion. No ornaments.</p></div>
+    <div class="up"><span class="n">04 · LIGHT</span><b>Soft, lifted shadows</b><p>Shadows and decoration come from theme values: violet-tinted and light on light, deep on dark.</p></div>
+  </div>
+
+  <div class="controls" role="group" aria-label="Render controls" style="margin-top:24px">
+    <div class="ctl"><span>Locale</span><div class="segs" id="c-loc"></div></div>
+    <div class="ctl"><span>Width</span><div class="segs" id="c-w"></div></div>
+    <div class="ctl"><span>Carousel ground</span><div class="segs" id="c-pal"><button class="seg" type="button" data-v="blue">Clean blue</button><button class="seg" type="button" data-v="">Today’s violet</button></div></div>
+    <div class="ctl"><span>About art</span><div class="segs" id="c-ab"><button class="seg" type="button" data-v="aboutRings">Rings</button><button class="seg" type="button" data-v="aboutMesh">Mesh</button><button class="seg" type="button" data-v="aboutWaves">Waves</button><button class="seg" type="button" data-v="aboutGlass">Glass</button><button class="seg" type="button" data-v="about">Today</button></div></div>
+    <div class="ctl"><button class="pgbtn" id="replay" type="button">Replay entrance</button>
+      <label class="chk"><input type="checkbox" id="rm"> Reduced motion</label></div>
+  </div>
+
+  <h2 class="sec">About · full-bleed header</h2>
+  <p class="sub">Today’s About, with the band grown into a full-bleed header under the status bar and the top bar. The logo, the app icon, the heart, the bubble, the star and the text do not change. The new part is the background: the launcher-blue band in layers — a deeper third stop, three soft light fields that drift slowly, a sheen from the top right, and quiet rings that open round the icon. Tap “What’s new” to open the card.</p>
+  <div id="about"></div>
+
+  <h2 class="sec">About · art directions</h2>
+  <p class="sub">Four new layers for the same ground and the same app icon, next to today’s heart, bubble and star. Pick one with “About art” at the top to see it in the full screen above.</p>
+  <div id="abdirs"></div>
+
+  <h2 class="sec">What’s new · the spotlight</h2>
+  <p class="sub">The carousel as you approved it. Card 1 is the original hero (the phone and four glossy chips); cards 2–6 are the original scenes. “Clean blue” (proposed) puts them on one clean gradient per theme — no halo, no drifting colour fields, no wash — and moves the violets to the launcher-blue family, with one violet kept as an accent. “Today’s violet” is the round-2 ground, for comparison. In dark, the card now stands off the screen: a deeper scrim, a light rim, a soft glow, and a deep text zone under the art.</p>
+  <div id="stage"></div>
+
+  <h2 class="sec">Backup · the chest, redrawn</h2>
+  <p class="sub">Left: the chest in the app today. Right: the same chest, calm and clean. No new ornaments. The quality is in the finish: every corner rounded, a lid with thickness and an inside face, rim light on the top edges, a polished edge where the front meets the side, soft shade at the base, and today’s gold lock with a bevel. The motion is quiet: the box settles, the lid eases open with no bounce, the three things a backup keeps (your identity, your wallet, your chats) rise one by one, then it holds. Same 240 × 240 box, same <code>--il-*</code> tokens, so it drops into the slot unchanged.</p>
+  <div id="chests"></div>
+
+  <h2 class="sec">Backup nudge · in the sheet</h2>
+  <p class="sub">The redrawn chest in the real nudge, with the real strings.</p>
+  <div id="nudges"></div>
+
+  <h2 class="sec">The kit across the app · light and dark</h2>
+  <div id="kitsheet"></div>
+
+  <h2 class="sec">Fit check · 320 × 568</h2>
+  <div class="stresswrap"><div id="stress"></div></div>
+  <p class="stresssum" id="stresssum"></p>
+
+  <h2 class="sec">Notes</h2>
+  <div class="prop"><!--@KIT_MD@--></div>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+/*@DATA@*/
+/*@KIT_JS@*/
+window.WN_PROVIDER = KIT; window.WN_DEPTH = { bg: -0.42, fg: 0.16 }; window.WN_ABOUT_HERO = true;
+(function () { let pal = 'blue', ab = 'aboutGlass';
+  try { const a = localStorage.getItem('kit-pal'), b = localStorage.getItem('kit-ab'); if (a != null) pal = a; if (b) ab = b; } catch (e) { /* storage may be blocked */ }
+  if (pal) document.documentElement.dataset.pal = pal; window.WN_ABOUT_VAR = ab; })();
+/*@RENDER_JS@*/
+/*@SHEET_JS@*/
+</script>

@@ -1,0 +1,102 @@
+What's new renders: A, B, Thread, art direction round 1 and the illustration kit
+
+docs/renders/whats-new/ only. No src/, Spixi/, DECISIONS or doc change.
+
+Plan v2 (Damir 12:32 / 12:45): no tour on a new account or a restore (the
+welcome carousel already ran); one What's new set, shown once after the
+update and any time from Account > About > What's new; six cards on what is
+new against the store app (redesign, react/reply/edit, voice, photos and
+albums, privacy switches, mini apps), each tied to a walked readiness row.
+
+- whats-new-render.html: direction A. A full-bleed aurora spotlight card,
+  six new illustrated scenes (parts/art.js, art/*.svg) with a looping
+  background and a once-only foreground, parallax on swipe, the aurora
+  collapses into the panel; About entry; 320 x 568 fit check; the plan.
+- whats-new-b-render.html: direction B. Full-height story sheet, timed
+  segments, the real features played on token-built app surfaces with a
+  ghost finger; no art.
+- PROPOSAL.md (plan v2), COMPARE.md (A vs B), copy.json (en-us drafts),
+  build-render.mjs builds both pages and the six SVGs from the tree.
+
+- thread-render.html + THREAD.md + parts-c/: THREAD, a proposed new
+  illustration and motion language (Damir 12:57): one ink line that enters
+  and leaves every scene at the same height, two flat off-register planes,
+  one travelling spark; theme-native; the six What's new scenes, a panorama
+  that joins them into one line, three existing slots redrawn, before/after.
+  parts/render.js takes the art language as a parameter (no change for A).
+
+- art-direction.html + ART-DIRECTION.md + parts-d/: art direction round 1
+  (Damir 13:12). The insight: the logo is a circle and a speech bubble that
+  overlap; the lens between them holds two dots. Three languages grown from
+  it: LENS (liquid glass, chromatic lens edge, caustic, glass pebbles),
+  PRESS (two riso inks that overprint the violet, grain, stop-motion stamps)
+  and SPARK (the mark is alive: the dots are eyes that blink, follow the
+  pointer, hum, close for privacy). Each in a swipeable card, three moments,
+  light and dark, with rules, palette, WebView cost and a recommendation.
+
+- kit-render.html + KIT.md + parts-e/: the illustration kit (Damir 13:28:
+  the original set, improved, across the app). The glossy grammar stays;
+  light gets a soft halo ground, dark keeps the aurora. Round 2 (Damir
+  13:39 / 13:46): no disc cluster; the carousel as approved (card 1 is the
+  original hero); the About screen keeps today's content (the logo, the
+  app icon, the band art, the text) and its band grows into a layered
+  full-bleed header, light and dark (13:50); the backup chest is today's
+  chest, calm and clean (rounded corners, rim light, a lid with an inside
+  face, a quiet motion, no ornaments; front and side are one body), shown today vs redrawn and in the
+  real nudge sheet. Rounds 3-4 (14:04-14:15): a CLEAN BLUE carousel
+  ground with a violet turn (proposed; today's violet on a switch), the
+  illustration in its own panel on every card, quieter glows, the dark
+  card stands off the screen, and four new About art directions (Rings,
+  Mesh, Waves, Glass with meaning) next to today's. Round 5 (14:27):
+  vivid blue-to-violet panels with rich multi-hue walls in every scene,
+  less white gloss, a violet phone UI. Round 6 (14:38): the mic disc blue
+  again with a minimal glow; Glass without a padlock, a pill bubble.
+
+- appearance-render.html + APPEARANCE.md + parts-f/: a premium Chat
+  appearance screen (Damir 14:27), live in light and dark: preview + text
+  size, canvas themes (today's four + Aurora, Dusk, Ocean), background
+  (None, Contours, Waves), bubble colour, bubble corners, theme, message
+  preview lines, tips. Today's strings; the new ones are drafts. The new
+  canvases and Waves are additions: today's four canvases, Contours and
+  the default stay (Damir 15:09). Every bubble colour has a dark step
+  one step deeper, and every light colour keeps white text >= 4.6:1
+  (Damir 15:15). Today's received-bubble glass edge stays (15:16).
+  Aurora = a real aurora, teal-blue-violet with a deep blue bubble, and
+  the canvas names Mist, Iris, Spixi, Meadow, Aurora, Dusk, Ocean
+  (picked 15:55). Fix in parts/art.css: background loops were paused
+  everywhere (every scene SVG is aria-hidden); now only off-screen slides
+  pause. The build reads the current chest from
+  src/components/illustrations.js (read only). parts/render.js gains the
+  header option (off by default; A and Thread are unchanged).
+
+- set-render.html + SET.md + parts-g/: the rest of the set against the
+  locked direction (Damir 14:48): Welcome 1-4 as A (today, the art on the
+  launch ground) and B (the art on the carousel's panel with a quiet
+  wall), and the 13 drawings today vs less shine (the gloss at half), the
+  backup slot with the calm chest.
+
+- deletedata-render.html + parts-h/: the Delete data screen's three
+  identical trash icons (Damir 15:30) vs A (the thing: messages,
+  download, user-circle; in the registry today) and B (the action:
+  message-x, folder-x, user-x; three new exports), light and dark.
+  PICKED (Damir 15:34): A.
+
+- downloads-contributors-render.html + DC.md + parts-i/: Downloads
+  (summary card with a storage bar, filter chips, day groups, a photo
+  thumbnail grid, select mode with a floating bar) and Contributors (a
+  warm full-bleed band with a glass heart, name chips with initials that
+  pop in and sparkle on tap, credits with type tiles and licence pills;
+  the full credit text stays), light and dark (Damir 15:34).
+
+- moments-render.html + MOMENTS.md + parts-j/: seven one-time "moment
+  sheets" (Damir 17:12, round 2 17:36): the AI translation notice in the
+  new language, the photo auto-download offer (Wi-Fi only / Always /
+  Not now), a file from an offline sender, the first IXI with no backup,
+  the microphone before the system dialog, a mini app on its first open
+  and the first payment; one rule set, light and dark. "Request sent"
+  and "Disappearing messages" were dropped. Not confirmed yet.
+
+LOCKED (Damir 14:45): the round-6 carousel (clean blue), About with the
+Glass art, and the Chat appearance screen. PICKED (Damir 14:55) for the
+rest of the set: Welcome A (no change), less shine, the calm chest.
+Nothing is built.

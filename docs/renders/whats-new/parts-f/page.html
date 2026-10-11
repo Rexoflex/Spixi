@@ -1,0 +1,37 @@
+<title>Spixi Chat Appearance</title>
+<style>
+:root { --pg-bg: #f4f5f8; --pg-panel: #fff; --pg-fg: #15171c; --pg-muted: #5b6270; --pg-line: #dfe2e9; --pg-accent: #3050bd; --pg-bezel: #1b1e24;
+  --pg-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --pg-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c; --pg-accent: #8ea3ff; --pg-bezel: #000; color-scheme: dark; } }
+:root[data-theme="dark"] { --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c; --pg-accent: #8ea3ff; --pg-bezel: #000; color-scheme: dark; }
+body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font: 15px/1.5 var(--pg-sans); }
+.page { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -.02em; }
+.lede { margin: 0 0 22px; color: var(--pg-muted); max-width: 78ch; }
+#apstage { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
+.stagefig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 100%; }
+.stagefig figcaption { font: 500 12px/1 var(--pg-mono); color: var(--pg-muted); }
+@media (max-width: 420px) { .ap { transform: scale(.86); transform-origin: top center; margin-bottom: -110px; } }
+h2.sec { margin: 40px 0 8px; font-size: 19px; }
+.prop { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 8px 20px 20px; }
+.prop h1 { font-size: 20px; margin: 14px 0 6px; } .prop h2 { font-size: 16px; margin: 22px 0 8px; }
+.prop .tw { overflow-x: auto; } .prop table { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 560px; }
+.prop th, .prop td { border-bottom: 1px solid var(--pg-line); padding: 6px 10px 6px 0; text-align: left; vertical-align: top; }
+.prop code { font: 12.5px/1.4 var(--pg-mono); background: color-mix(in srgb, var(--pg-accent) 10%, transparent); padding: 1px 4px; border-radius: 4px; }
+/*@TOKENS@*/
+/*@APPEAR_CSS@*/
+</style>
+<div class="page">
+  <h1>Spixi Chat Appearance</h1>
+  <p class="lede">A premium Chat appearance screen, live. Every control works and both phones follow it: the text size, the canvas, the background pattern, the bubble colour and corners repaint the preview at once. The Theme row switches each phone on its own. Controls marked NEW are proposals; the rest are today’s settings with today’s strings.</p>
+  <div id="apstage"></div>
+  <h2 class="sec">Aurora · three takes</h2>
+  <p class="lede">Damir 15:51: does Aurora look too much like Viber? Yes — mostly the violet sent bubble on a violet ground. A keeps the ground and changes the bubble; B makes it a real aurora. <b>Picked (15:55): B</b> — the screen above now shows it.</p>
+  <div id="aucmp"></div>
+  <h2 class="sec">Notes</h2>
+  <div class="prop"><!--@AP_MD@--></div>
+</div>
+<script>
+/*@AP_DATA@*/
+/*@APPEAR_JS@*/
+</script>

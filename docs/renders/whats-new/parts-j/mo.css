@@ -1,0 +1,69 @@
+/* SPIXI · MOMENT SHEETS — render only. App surfaces = Spixi tokens (.sx); the art panel = the What's new panel values. */
+.pair { display: flex; flex-wrap: wrap; gap: 24px; }
+.pw { flex: none; max-width: 100%; }
+.ph { position: relative; width: 340px; height: 700px; max-width: 100%; border-radius: 42px; border: 9px solid var(--pg-bezel); overflow: hidden;
+  background: var(--surface-settings-ground); color: var(--text-neutral-01); font-family: var(--font-primary, system-ui); box-shadow: 0 30px 60px -32px rgba(20, 20, 60, .45); }
+.ph * { box-sizing: border-box; }
+.ico { display: inline-flex; width: 22px; height: 22px; flex: none; } .ico svg { width: 100%; height: 100%; }
+.st { height: 28px; padding: 7px 24px 0; display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; }
+
+/* the screen underneath (dimmed by the scrim) */
+.scr { position: absolute; inset: 28px 0 0; display: flex; flex-direction: column; }
+.cx-top { height: 54px; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--surface-topbar, transparent); flex: none; }
+.cx-top b { flex: 1; font-size: 18px; }
+.cx-av { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(160deg, #6aa8ff, #2160c2); color: #fff; display: grid; place-items: center; font-weight: 700; }
+.cx-msgs { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; gap: 8px; padding: 12px 12px 16px; }
+.cb { border-radius: 20px; } .cb--in { align-self: flex-start; background: var(--surface-bubble-received); color: var(--text-bubble-received); }
+.cb--out { align-self: flex-end; background: var(--surface-bubble-sent); }
+.cb--photo { width: 64%; height: 150px; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+.cb--photo i { flex: 1; border-radius: 15px; background: linear-gradient(170deg, #ffb26b, #ff6f91 55%, #845ec2); }
+.cb--photo span, .cb--file small, .cb--app small { font-size: 12px; color: var(--text-bubble-received-meta, var(--text-neutral-02)); padding: 0 6px 2px; }
+.cb--file, .cb--app { display: flex; gap: 10px; align-items: center; padding: 10px 14px 10px 10px; font-size: 14px; font-weight: 600; width: 74%; }
+.cb--file span, .cb--app span { display: flex; flex-direction: column; min-width: 0; } .cb--file small, .cb--app small { padding: 0; font-weight: 400; }
+.cb--file > .ico { width: 36px; height: 36px; padding: 7px; border-radius: 11px; color: #fff; background: linear-gradient(160deg, #ff8a80, #d63c3c); }
+.cb--app i { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; background: linear-gradient(160deg, #ff9ad5, #a35cff); }
+.cx-sys { align-self: center; font-size: 13px; color: var(--text-neutral-02); background: var(--surface-chat-chip, var(--surface-card)); padding: 6px 12px; border-radius: 14px; }
+.cx-comp { display: flex; align-items: center; gap: 10px; padding: 8px 12px 18px; color: var(--text-neutral-02); flex: none; }
+.cx-pill { flex: 1; height: 42px; border-radius: 21px; background: var(--surface-composer-pill, var(--surface-card)); display: flex; align-items: center; padding: 0 16px; font-size: 15px; }
+.cx-pill--wait { justify-content: center; font-size: 13.5px; }
+.cx-card { margin: 6px 14px; background: var(--surface-settings-card, var(--surface-card)); border-radius: 20px; overflow: hidden; }
+.cx-row { display: flex; align-items: center; gap: 12px; padding: 15px 16px; font-size: 16px; } .cx-row + .cx-row { border-top: 1px solid var(--outline-sheet-01, rgba(127,127,127,.14)); }
+.cx-row span { flex: 1; } .cx-on { color: var(--text-action-default); } .cx-row b { color: #1a9c6c; }
+.cx-in { flex: none !important; transform: rotate(-45deg); color: #1a9c6c; }
+.cx-bal { margin: 10px 14px; padding: 18px; border-radius: 22px; background: linear-gradient(150deg, #3f8ff7, #2a74e6); color: #fff; display: flex; flex-direction: column; gap: 2px; }
+.cx-bal strong { font-size: 30px; } .cx-bal small, .cx-bal span { opacity: .85; font-size: 13px; }
+.scrim { position: absolute; inset: 0; background: var(--surface-scrim, rgba(17, 18, 19, .6)); animation: moFade .3s ease both; }
+
+/* THE SHEET — today's c-sheet ground + the c-backup-nudge stack, with the art in its own panel */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface-sheet); border-radius: 28px 28px 0 0; padding: 8px 16px 26px;
+  display: flex; flex-direction: column; align-items: center; text-align: center; box-shadow: 0 -12px 30px -18px rgba(0,0,0,.35); animation: moUp .42s cubic-bezier(.2, .8, .2, 1) both; }
+.sx[data-sxt="dark"] .sheet { box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 -12px 30px -18px rgba(0,0,0,.6); }
+.grab { width: 36px; height: 4px; border-radius: 2px; background: var(--outline-sheet-01, rgba(127,127,127,.3)); margin-bottom: 10px; }
+.panel { --mo-a: #4f86ff; --mo-b: #a35cff; position: relative; width: 100%; height: 150px; border-radius: 22px; overflow: hidden;
+  background: linear-gradient(135deg, var(--mo-a), var(--mo-b)); box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 12px 26px -18px rgba(40, 50, 160, .6); }
+.sx[data-sxt="dark"] .panel { --mo-a: #2c5fd8; --mo-b: #6a2fc8; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1), inset 0 1px 0 rgba(255,255,255,.18), 0 0 30px -10px rgba(110, 90, 255, .45); }
+.sheet--caps .panel { height: 120px; }
+.sheet--caps h3 { margin-top: 12px; }
+.mo-art { display: block; width: 100%; height: 100%; }
+.sheet h3 { margin: 16px 0 6px; font-size: 21px; line-height: 1.25; font-weight: 700; letter-spacing: -.2px; color: var(--text-neutral-01); }
+.sheet p { margin: 0 0 18px; max-width: 290px; font-size: 15px; line-height: 1.45; color: var(--text-neutral-02); }
+.btns { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.btns .c-button[data-type="text"] { margin-top: -4px; }
+.caps { width: 100%; margin: 4px 0 12px; background: var(--surface-sheet-card); border-radius: 18px; text-align: left; }
+.cap { display: flex; gap: 12px; align-items: center; padding: 8px 14px; } .cap + .cap { border-top: 1px solid var(--outline-sheet-01, rgba(127,127,127,.14)); }
+.cap i { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: linear-gradient(160deg, #8fb0ff, #3a6ce0); flex: none; }
+.cap i .ico { width: 18px; height: 18px; } .cap span { display: flex; flex-direction: column; } .cap b { font-size: 14.5px; } .cap small { font-size: 12.5px; color: var(--text-neutral-02); line-height: 1.35; }
+
+/* motion: the sheet rises, the art enters once, then a slow float; reduced motion = still */
+.mo-in { animation: moIn .7s cubic-bezier(.2, .75, .2, 1) both; animation-delay: calc(var(--o, 0s) + .25s); }
+.mo-float { animation: moFloat var(--d, 14s) ease-in-out 1.2s infinite alternate; }
+.mo-tw { animation: moTw 3.2s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.7s); }
+@keyframes moUp { from { transform: translateY(100%); } }
+@keyframes moFade { from { opacity: 0; } }
+@keyframes moIn { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+@keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
+@keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .scrim, .mo-in, .mo-float, .mo-tw { animation: none !important; } }
+.mo-ring { stroke-dashoffset: 100; animation: moRing 1.6s cubic-bezier(.4, 0, .2, 1) .9s forwards; }
+@keyframes moRing { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .mo-ring { stroke-dashoffset: 0; } }

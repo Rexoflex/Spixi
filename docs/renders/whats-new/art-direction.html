@@ -1,0 +1,529 @@
+<title>Spixi Art Direction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* A director's review deck. Layout: one wide column — the mark, the research, then three direction "spreads"
+   (a live card on the left, the scene grid on the right, the rules below), then the comparison. */
+:root {
+  --bg: #f4f3fa; --panel: #ffffff; --ink: #14152b; --muted: #61667f; --line: #e1e2ee; --accent: #3050bd; --accent-ink: #ffffff; --pink: #e83f92;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; --body: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --mono: "Geist Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0e0f1c; --panel: #161829; --ink: #eceefa; --muted: #9ba1bb; --line: #272a42; --accent: #8ea3ff; --accent-ink: #0e0f1c; --pink: #ff6fb1; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0e0f1c; --panel: #161829; --ink: #eceefa; --muted: #9ba1bb; --line: #272a42; --accent: #8ea3ff; --accent-ink: #0e0f1c; --pink: #ff6fb1; color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font: 15.5px/1.55 var(--body); }
+.page { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 80px; }
+.kicker { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+h1 { font: 800 clamp(34px, 6vw, 68px)/.98 var(--display); letter-spacing: -.035em; margin: 0 0 18px; max-width: 16ch; text-wrap: balance; }
+.lede { font-size: 17px; color: var(--muted); max-width: 64ch; margin: 0 0 8px; }
+h2 { font: 700 clamp(26px, 3.4vw, 40px)/1.05 var(--display); letter-spacing: -.025em; margin: 0; text-wrap: balance; }
+h3 { font: 700 18px/1.2 var(--display); margin: 0 0 6px; }
+section { margin-top: 64px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px; align-items: center; }
+@media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+.markbox { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; }
+.mark { width: 100%; height: auto; display: block; }
+.mark__lens { fill: var(--accent); opacity: 0; animation: mkIn .8s ease 1.4s forwards; }
+.mark__l { fill: none; stroke: var(--ink); stroke-width: 8; stroke-linejoin: round; stroke-dasharray: 1 2; stroke-dashoffset: 1.0001; animation: mkDraw 1.2s cubic-bezier(.6, 0, .2, 1) .2s forwards; }
+.mark__l--2 { animation-delay: .6s; }
+.mark__d { fill: var(--bg); opacity: 0; transform-box: fill-box; transform-origin: center; animation: mkPop .5s cubic-bezier(.3, 1.5, .5, 1) 1.9s forwards; }
+.mark__d--2 { animation-delay: 2.05s; }
+.mark__lab { font: 500 11px var(--mono); fill: var(--muted); opacity: 0; animation: mkIn .6s ease 2.4s forwards; }
+.mark__lab path { fill: none; stroke: var(--muted); stroke-width: 1; }
+@keyframes mkDraw { to { stroke-dashoffset: 0; } } @keyframes mkIn { to { opacity: 1; } } @keyframes mkPop { from { transform: scale(.2); } to { opacity: 1; transform: none; } }
+.insight p { margin: 12px 0 0; max-width: 56ch; }
+.insight b { color: var(--accent); font-weight: 600; }
+.research { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin-top: 20px; }
+.finding { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.finding b { display: block; font-weight: 600; margin-bottom: 4px; }
+.finding p { margin: 0; color: var(--muted); font-size: 14px; }
+.finding a { color: var(--accent); font-size: 12.5px; font-family: var(--mono); text-decoration: none; display: inline-block; margin-top: 6px; overflow-wrap: anywhere; }
+.finding a:hover { text-decoration: underline; }
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 0; margin-top: 48px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+@media (max-width: 700px) { .controls { position: static; } }
+.controls > span { font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.themeseg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--panel); }
+.themeseg button, .pgbtn { border: 0; background: transparent; color: var(--ink); font: 500 13px var(--body); padding: 8px 14px; cursor: pointer; }
+.themeseg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.pgbtn { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+button:focus-visible, .mc:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* a direction spread */
+.dir { border-top: 1px solid var(--line); padding-top: 40px; }
+.dir__head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 22px; align-items: baseline; margin-bottom: 26px; }
+.dir__n { font: 800 clamp(48px, 7vw, 96px)/.85 var(--display); letter-spacing: -.05em; color: var(--accent); grid-row: span 2; }
+.dir__line { font-size: 17px; color: var(--muted); margin: 6px 0 0; max-width: 62ch; }
+.spread { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 960px) { .spread { grid-template-columns: 1fr; justify-items: center; } .spread > .grid { width: 100%; } }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.sg { margin: 0; min-width: 0; }
+.sg__box { aspect-ratio: 400 / 240; max-width: 100%; border-radius: 12px; overflow: hidden; }
+.sg figcaption { font: 500 11.5px var(--mono); color: var(--muted); margin-top: 6px; }
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; margin-top: 22px; }
+.rule { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.rule small { display: block; font: 500 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.rule p { margin: 0; font-size: 13.5px; color: var(--muted); }
+.sw { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; } .sw i { width: 24px; height: 24px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--line); }
+
+/* the card mock (stands in for the What's new spotlight) */
+.mc { width: 340px; max-width: 100%; border-radius: 28px; overflow: hidden; touch-action: pan-y; cursor: grab; user-select: none;
+  background: var(--mc-card); color: var(--mc-ink); box-shadow: 0 30px 60px -30px rgba(10, 12, 40, .55), 0 0 0 1px var(--line); }
+.mc.ad { --mc-card: #ffffff; --mc-ink: #14152b; --mc-muted: #5d6280; --mc-dot: #d6d9ea; --mc-accent: #3050bd; }
+.mc.ad[data-t="dark"] { --mc-card: #1c1f36; --mc-ink: #eef0ff; --mc-muted: #a9aecb; --mc-dot: #3a3f66; --mc-accent: #5b74ff; }
+.mc__art { aspect-ratio: 400 / 240; }
+.mc__text { padding: 18px 22px 4px; text-align: center; min-height: 148px; }
+.mc__text--in > * { animation: mcIn .4s cubic-bezier(.2, .8, .2, 1) both; } .mc__text--in > *:nth-child(2) { animation-delay: .05s; } .mc__text--in > *:nth-child(3) { animation-delay: .1s; }
+@keyframes mcIn { from { opacity: 0; transform: translateY(8px); } }
+.mc__eyebrow { margin: 0 0 6px; font: 600 12.5px var(--body); color: var(--mc-accent); }
+.mc__title { margin: 0 0 6px; font: 700 20px/1.2 var(--body); color: var(--mc-ink); }
+.mc__body { margin: 0; font-size: 15px; line-height: 1.45; color: var(--mc-muted); }
+.mc__foot { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 12px 20px 20px; }
+.mc__dots { display: flex; gap: 6px; } .mc__dot { width: 8px; height: 8px; border-radius: 4px; border: 0; padding: 0; background: var(--mc-dot); cursor: pointer; transition: width .2s, background-color .2s; }
+.mc__dot[aria-selected="true"] { width: 22px; background: var(--mc-accent); }
+.mc__btn { width: 100%; min-height: 52px; border: 0; border-radius: 999px; background: #3050bd; color: #fff; font: 600 16px var(--body); cursor: pointer; }
+.mc__hint { font: 500 11.5px var(--mono); color: var(--muted); margin-top: 10px; text-align: center; }
+.prop { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 8px 22px 22px; margin-top: 20px; }
+.prop h1 { font: 700 24px var(--display); margin: 18px 0 10px; max-width: none; } .prop h2 { font: 700 19px var(--display); margin: 26px 0 8px; }
+.prop .tw { overflow-x: auto; } .prop table { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 760px; }
+.prop th, .prop td { border-bottom: 1px solid var(--line); padding: 8px 12px 8px 0; text-align: left; vertical-align: top; } .prop th { color: var(--muted); font-weight: 600; }
+.prop li, .prop p { max-width: 80ch; } .prop strong { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .mark *, .mc__text--in > * { animation: none !important; opacity: 1 !important; stroke-dashoffset: 0 !important; } }
+/* SPIXI ART DIRECTION — theme values + motion for LENS · PRESS · SPARK (render only). */
+.ad { /* light */
+  --ln-ground: #e9ecff; --ln-b1: #9fb2ff; --ln-b2: #c9b6ff; --ln-b3: #ffc4e1; --ln-b4: #8fd6ff;
+  --ln-frost: rgba(255, 255, 255, .42); --ln-lens: rgba(255, 255, 255, .06); --ln-rim: #ffffff; --ln-rim2: #5b4fd6; --ln-dot: #2f4fc6; --ln-ink: #3050bd; --ln-on: #22b07d; --ln-shadow: #4a3fa8;
+  --pr-paper: #f4efe4; --pr-blue: #2f52c9; --pr-pink: #ff4fa3; --pr-line: #1f2a66; --pr-blend: multiply;
+  --sk-ground: #eef0ff; --sk-glow: #c3cbff; --sk-shadow: #2a2f7a; --sk-tube-hi: #8aa2ff; --sk-tube: #3d5ce0; --sk-tube-lo: #2338a8; --sk-gloss: #ffffff;
+  --sk-face: #f7f5ff; --sk-eye: #151a45; --sk-blush: #ff8fbf; --sk-chip: #ffffff; --sk-chip2: #dfe4ff; --sk-chip-ink: #3050bd; --sk-tog-off: #d5d9ee;
+}
+.ad[data-t="dark"] {
+  --ln-ground: #0b0a26; --ln-b1: #5b46f0; --ln-b2: #2f63ff; --ln-b3: #c03f93; --ln-b4: #1fb3ff;
+  --ln-frost: rgba(190, 200, 255, .10); --ln-lens: rgba(255, 255, 255, .04); --ln-rim: #ffffff; --ln-rim2: #8f7bff; --ln-dot: #ffffff; --ln-ink: #b8c6ff; --ln-on: #47e0a6; --ln-shadow: #000000;
+  --pr-paper: #17161f; --pr-blue: #5d7bff; --pr-pink: #ff5cad; --pr-line: #f1e9dc; --pr-blend: screen;
+  --sk-ground: #12143a; --sk-glow: #3b3fb0; --sk-shadow: #000000; --sk-tube-hi: #9eb2ff; --sk-tube: #5672ff; --sk-tube-lo: #2c3fbf; --sk-gloss: #ffffff;
+  --sk-face: #20245a; --sk-eye: #f4f5ff; --sk-blush: #ff6fae; --sk-chip: #262b6a; --sk-chip2: #343a8a; --sk-chip-ink: #c9d3ff; --sk-tog-off: #2c3060;
+}
+.ad-svg { display: block; width: 100%; height: 100%; }
+
+/* ---------- shared loops ---------- */
+.ad-drift { animation: adDrift var(--d, 16s) ease-in-out infinite alternate; }
+@keyframes adDrift { to { transform: translate(var(--dx), var(--dy)); } }
+.ad-bob { animation: adBob var(--d, 4s) ease-in-out 1.8s infinite alternate; }
+@keyframes adBob { to { transform: translateY(-5px); } }
+.ad-bar { transform-box: fill-box; transform-origin: center; animation: adBar 2.4s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.15s); }
+@keyframes adBar { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
+.ad-paused .ad-loop, .ad-paused .pr-boil path, .ad-paused .sk-lid { animation-play-state: paused !important; }
+
+/* ---------- LENS ---------- */
+.ad-glass { opacity: 0; animation: lnGlass 1.1s cubic-bezier(.2, .8, .2, 1) var(--o) forwards; }
+@keyframes lnGlass { from { opacity: 0; transform: translateX(var(--from)) scale(.96); } to { opacity: 1; transform: none; } }
+.ad-focus { opacity: 0; transform-box: view-box; transform-origin: 205px 128px; animation: lnFocus 1s cubic-bezier(.2, .8, .2, 1) var(--o) forwards; }
+@keyframes lnFocus { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
+.ad-frostin { opacity: 0; animation: lnFrost 1.2s ease var(--o) forwards; }
+@keyframes lnFrost { to { opacity: 1; } }
+
+.ad-pulse { transform-box: fill-box; transform-origin: center; animation: adPulse 3.4s ease-in-out 2s infinite alternate; }
+@keyframes adPulse { to { transform: scale(1.15, 1.25); opacity: .75; } }
+
+/* ---------- PRESS ---------- */
+.pr-ink { mix-blend-mode: var(--pr-blend); }
+.pr-grain { mix-blend-mode: var(--pr-blend); opacity: .55; pointer-events: none; }
+.pr-stamp { opacity: 0; transform-box: fill-box; transform-origin: center; animation: prStamp .42s steps(4, end) var(--o) forwards; }
+@keyframes prStamp { 0% { opacity: 0; transform: scale(1.4) rotate(var(--rot, -4deg)); } 50% { opacity: 1; transform: scale(.94) rotate(var(--rot, -4deg)); } 100% { opacity: 1; transform: rotate(var(--rot, 0deg)); } }
+.pr-late { opacity: 0; animation: prLate .01s steps(1) var(--o) forwards; }
+@keyframes prLate { to { opacity: 1; } }
+.pr-boil path { opacity: 0; animation: prBoil .36s linear infinite; }
+@keyframes prBoil { 0%, 33% { opacity: 1; } 33.4%, 100% { opacity: 0; } }
+
+/* ---------- SPARK ---------- */
+.sk-char { transform-box: view-box; transform-origin: 210px 214px; animation: skDrop .9s cubic-bezier(.3, 1, .4, 1) .1s both; }
+@keyframes skDrop { 0% { transform: translateY(-150px) scale(.9, 1.1); } 55% { transform: translateY(0) scale(1.14, .82); } 72% { transform: translateY(-10px) scale(.96, 1.05); } 100% { transform: none; } }
+.sk-body { transform-box: view-box; transform-origin: 210px 214px; animation: skBreathe 3.2s ease-in-out 1.2s infinite alternate; }
+@keyframes skBreathe { to { transform: scale(1.025, .985); } }
+.sk-shadow { transform-box: fill-box; transform-origin: center; animation: skShadow .9s cubic-bezier(.3, 1, .4, 1) .1s both; }
+@keyframes skShadow { 0% { transform: scale(.3); opacity: .2; } 55% { transform: scale(1.15); opacity: 1; } 100% { transform: none; } }
+.sk-pupil { transform: translate(var(--ex, 0px), var(--ey, 0px)); transition: transform .18s cubic-bezier(.3, 1.3, .5, 1); }
+.sk-lid { transform-box: fill-box; transform-origin: center; animation: skBlink 4.6s ease-in-out 1.6s infinite; }
+@keyframes skBlink { 0%, 92%, 100% { transform: none; } 95% { transform: scaleY(.08); } }
+.sk-happy, .sk-calm { opacity: 0; }
+/* voice: eyes squint happy, body hums */
+.sk-voice .sk-lid { animation: skOut .2s ease .9s forwards; }
+.sk-voice .sk-happy { animation: skIn .2s ease .95s forwards; }
+.sk-voice .sk-body { animation: skHum .5s ease-in-out 1s 8 alternate; }
+@keyframes skHum { to { transform: translateY(-4px) scale(1.03, .97); } }
+.sk-ring { stroke: var(--sk-tube); opacity: 0; transform-box: fill-box; transform-origin: 0 50%; animation: skRing 1.6s ease-out var(--o) 3; }
+@keyframes skRing { 0% { opacity: 0; transform: scale(.6); } 25% { opacity: .9; } 100% { opacity: 0; transform: scale(1.35); } }
+/* privacy: eyes close calmly as the switches go off, then one eye winks open */
+.sk-privacy .sk-lid { animation: skOut .25s ease 2.3s forwards; }
+.sk-privacy .sk-calm { animation: skIn .25s ease 2.35s forwards; }
+.sk-privacy .sk-eye[style*="--k:1"] .sk-lid { animation: skOut .25s ease 2.3s forwards, skIn .2s ease 3.6s forwards; }
+.sk-privacy .sk-eye[style*="--k:1"] .sk-calm { animation: skIn .25s ease 2.35s forwards, skOut .2s ease 3.6s forwards; }
+@keyframes skOut { to { opacity: 0; } }
+@keyframes skIn { to { opacity: 1; } }
+.sk-togon { animation: skOut .3s ease var(--o) forwards; }
+.sk-knob { animation: skKnob .4s cubic-bezier(.3, 1.4, .5, 1) var(--o) forwards; }
+@keyframes skKnob { to { transform: translateX(-22px); } }
+.sk-chip { opacity: 0; transform-box: fill-box; transform-origin: center; animation: skChip .55s cubic-bezier(.3, 1.5, .5, 1) var(--o) forwards; }
+@keyframes skChip { from { opacity: 0; transform: scale(.3) rotate(-20deg); } to { opacity: 1; transform: none; } }
+
+/* ---------- reduced motion: the end frame ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ad-svg, .ad-svg * { animation: none !important; transition: none !important; }
+  .ad-glass, .ad-focus, .pr-stamp, .pr-late, .sk-chip { opacity: 1; }
+  .pr-boil path:first-child { opacity: 1; }
+  .sk-voice .sk-lid { opacity: 0; } .sk-voice .sk-happy { opacity: 1; }
+  .sk-privacy .sk-togon { opacity: 0; } .sk-privacy .sk-knob { transform: translateX(-22px); }
+  .ad-frostin { opacity: 1; }
+}
+.rm .ad-svg, .rm .ad-svg * { animation: none !important; transition: none !important; }
+.rm .ad-glass, .rm .ad-focus, .rm .pr-stamp, .rm .pr-late, .rm .sk-chip, .rm .ad-frostin { opacity: 1; }
+.rm .pr-boil path:first-child { opacity: 1; }
+.rm .sk-voice .sk-lid { opacity: 0; } .rm .sk-voice .sk-happy { opacity: 1; }
+.rm .sk-privacy .sk-togon { opacity: 0; } .rm .sk-privacy .sk-knob { transform: translateX(-22px); }
+
+</style>
+
+<div class="page">
+  <p class="kicker">Spixi · art direction · round 1</p>
+  <h1>Three ways to give Spixi a face</h1>
+  <p class="lede">Three illustration and motion languages to replace the glossy tiles. Each one grows from the same place, the Spixi mark, and each one is drawn here in the What’s new spotlight, in light and dark, with real copy.</p>
+
+  <section class="split insight">
+    <div class="markbox"><div id="mark"></div></div>
+    <div>
+      <p class="kicker">The insight</p>
+      <h2>The logo already tells the story.</h2>
+      <p>A <b>circle</b> and a <b>speech bubble</b> overlap. The <b>lens</b> between them is the only place they share, and <b>two dots</b> sit inside it. Two people, and the private space between them. No server, no audience.</p>
+      <p>So every direction below keeps that grammar: two shapes, one shared lens, two dots. It makes the art unmistakably Spixi, and it turns the product promise into a picture.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">What the best work does now</p>
+    <h2>Research, in six lines</h2>
+    <div class="research">
+      <div class="finding"><b>Layered, not flat</b><p>2-D shapes with soft depth, light-based dimension and parallax replace both flat clip-art and heavy 3-D.</p><a href="https://www.tangence.com/blog/?p=1093" target="_blank" rel="noopener">tangence.com · motion trends 2026</a></div>
+      <div class="finding"><b>Imperfect and human</b><p>Grain, paper, uneven lines and collage movement push back against sterile, AI-smooth visuals.</p><a href="https://www.agoodson.com/illustration-industry-trends-shaping-advertising-editorial-and-branding-in-2026/" target="_blank" rel="noopener">agoodson.com · illustration 2026</a></div>
+      <div class="finding"><b>Glass and light</b><p>Apple’s Liquid Glass made refraction, specular rims and chromatic edges the new premium baseline.</p><a href="https://strv.com/blog/liquid-glass-and-the-future-of-design" target="_blank" rel="noopener">strv.com · Liquid Glass</a></div>
+      <div class="finding"><b>Character carries tone</b><p>Duolingo’s Duo shows a range of emotion; the motion itself is the brand voice.</p><a href="https://keplerdesign.substack.com/p/duolingo" target="_blank" rel="noopener">keplerdesign · inside Duolingo</a></div>
+      <div class="finding"><b>Print is back</b><p>Riso grain, halftone and restricted palettes read as crafted and collectable.</p><a href="https://fireart.studio/blog/illustration-trends/" target="_blank" rel="noopener">fireart.studio · illustration trends</a></div>
+      <div class="finding"><b>Light, fast, opt-in loops</b><p>Monzo keeps illustration loops slow (3–6 s), opt-in, and static under reduced motion; files tested on low-end phones.</p><a href="https://www.webdesignhot.com/api/design-md/monzo.md" target="_blank" rel="noopener">Monzo design notes</a></div>
+    </div>
+  </section>
+
+  <div class="controls" role="group" aria-label="Art controls">
+    <span>Art theme</span>
+    <div class="themeseg"><button type="button" data-v="light">Light</button><button type="button" data-v="dark">Dark</button></div>
+    <button class="pgbtn" id="replay" type="button">Replay all</button>
+    <label class="chk"><input type="checkbox" id="rm"> Reduced motion</label>
+  </div>
+
+  <section class="dir">
+    <div class="dir__head"><div class="dir__n">01</div><h2>Lens · glass and light</h2><p class="dir__line">The world is frosted glass. Only where the two shapes overlap is it sharp: you can read it only together. Light pools under the lens, a glint runs the rim.</p></div>
+    <div class="spread"><div><div id="card-lens"></div><p class="mc__hint">Swipe, tap the dots or Next</p></div><div class="grid" id="grid-lens"></div></div>
+    <div class="rules">
+      <div class="rule"><small>Material</small><p>Frosted glass over a living aurora; specular rims lit from the top left; a pink / cyan chromatic fringe only on the lens edge.</p></div>
+      <div class="rule"><small>Depth</small><p>Three planes: aurora · glass · floating glass pebbles in front. A caustic of focused light on the ground.</p></div>
+      <div class="rule"><small>Motion</small><p>Glass slides in, the lens comes into focus (1 s), a glint sweeps the rim every 6 s, the caustic breathes.</p></div>
+      <div class="rule"><small>Palette</small><p>The launch aurora: violet, sapphire, magenta, cyan.</p><div class="sw"><i style="background:#5b46f0"></i><i style="background:#2f63ff"></i><i style="background:#c03f93"></i><i style="background:#1fb3ff"></i><i style="background:#0b0a26"></i><i style="background:#e9ecff"></i></div></div>
+    </div>
+  </section>
+
+  <section class="dir">
+    <div class="dir__head"><div class="dir__n">02</div><h2>Press · two inks, one overlap</h2><p class="dir__line">Risograph print: a pink and a blue ink. Where the two shapes overlap, the inks print a third colour by themselves, the Spixi violet. Grain, halftone, stamps that land in four frames.</p></div>
+    <div class="spread"><div><div id="card-press"></div><p class="mc__hint">Swipe, tap the dots or Next</p></div><div class="grid" id="grid-press"></div></div>
+    <div class="rules">
+      <div class="rule"><small>Material</small><p>Cream paper (ink-black paper in dark), two inks with rough edges, halftone shading, a registration mark.</p></div>
+      <div class="rule"><small>Depth</small><p>Overprint instead of shadow: layers stack as ink, multiply in light and screen in dark.</p></div>
+      <div class="rule"><small>Motion</small><p>Stop-motion: stamps land in 4 steps, hand-drawn lines “boil” at 8 fps. No easing curves at all.</p></div>
+      <div class="rule"><small>Palette</small><p>Riso blue (≈ brand indigo), fluorescent pink, and the violet they make together.</p><div class="sw"><i style="background:#2f52c9"></i><i style="background:#ff4fa3"></i><i style="background:#7a2f9e"></i><i style="background:#f4efe4"></i><i style="background:#17161f"></i></div></div>
+    </div>
+  </section>
+
+  <section class="dir">
+    <div class="dir__head"><div class="dir__n">03</div><h2>Spark · the mark is alive</h2><p class="dir__line">The two dots are eyes. The logo drops in, squashes, blinks and looks at you (move your pointer). It hums for voice, closes its eyes for privacy, and winks.</p></div>
+    <div class="spread"><div><div id="card-spark"></div><p class="mc__hint">Move the pointer over the page</p></div><div class="grid" id="grid-spark"></div></div>
+    <div class="rules">
+      <div class="rule"><small>Material</small><p>Soft clay tubes with a gloss line, a lit face in the lens, a touch of blush. Friendly, never cute-overload.</p></div>
+      <div class="rule"><small>Depth</small><p>Character · floating chips · glow and contact shadow. The character always stands on the ground.</p></div>
+      <div class="rule"><small>Motion</small><p>Animation principles: anticipation, squash and stretch, overshoot. The eyes follow the finger and the swipe.</p></div>
+      <div class="rule"><small>Palette</small><p>Brand indigo tubes, a near-white face, ink eyes, pink blush only.</p><div class="sw"><i style="background:#3d5ce0"></i><i style="background:#8aa2ff"></i><i style="background:#f7f5ff"></i><i style="background:#151a45"></i><i style="background:#ff8fbf"></i></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="prop"><h1>The three, side by side</h1>
+<div class="tw"><table><thead><tr><th></th><th>Lens</th><th>Press</th><th>Spark</th></tr></thead><tbody><tr><td>The feeling</td><td>premium, calm, a little magic</td><td>human, crafted, collectable</td><td>warm, funny, alive</td></tr><tr><td>Built from the mark</td><td>the overlap is the only clear place</td><td>the overlap prints its own colour</td><td>the two dots are eyes</td></tr><tr><td>Material</td><td>liquid glass, specular rims, a chromatic fringe, a caustic</td><td>two riso inks, overprint, halftone, paper grain</td><td>soft clay tubes with gloss, a lit face, blush</td></tr><tr><td>Signature motion</td><td>the lens comes into focus; a glint runs the rim; light pools under it</td><td>stamps land in 4 frames; lines "boil" at 8 fps</td><td>drop, squash, blink, look at you, hum, wink</td></tr><tr><td>Light and dark</td><td>both, from tokens (aurora tints)</td><td>cream paper and ink-black paper (multiply ↔ screen)</td><td>both, from tokens</td></tr><tr><td>Next to the indigo UI</td><td>the closest fit; extends the launch aurora</td><td>the boldest contrast; it brings a new pink</td><td>fits; the character IS the logo</td></tr><tr><td>Against incumbents</td><td>Apple-grade polish; nobody in messaging owns "glass you can only see through together"</td><td>nobody in finance or messaging prints; very memorable</td><td>Duolingo-level personality without a separate mascot to maintain</td></tr><tr><td>Risk</td><td>can drift into "another glass trend"</td><td>can read as playful for a wallet; a second brand colour to govern</td><td>overuse; needs an expression guide and taste</td></tr><tr><td>WebView cost</td><td>highest: 3–4 copies of the aurora per glass, static blur filters; drift off on low-end devices</td><td>low after one change: the grain filter becomes a pre-rendered noise tile; stop-motion is cheap</td><td>lowest: gradients, strokes, transforms; ~20 lines of JS for the eyes</td></tr><tr><td>Effort to adopt</td><td>~2 sessions (system + the 14 drawings)</td><td>~2 sessions</td><td>~1.5 sessions + an expression sheet (8 expressions)</td></tr></tbody></table></div>
+<h2>My recommendation, as director</h2>
+<p><strong>Spark for personality, lit with Lens.</strong> The character is the logo itself: it needs no mascot introduction, it carries emotion (blink, wink, hum, close the eyes for privacy), and it scales to every empty state and nudge for nothing. Use Lens light (the aurora, the rim glint, the caustic) only on the big moments: the hero card of What's new, the launch flow and the backup success. Press is the bravest of the three, and I would keep it for marketing (store screenshots, the website, social), where a second ink is an asset, not a governance cost.</p>
+<h2>If you pick</h2>
+<ol><li>One expression sheet for the chosen direction (idle · look · blink · happy · calm · wink · surprised · sleepy), light + dark.</li><li>The six What's new scenes in it, inside the spotlight card, with the fit check.</li><li>Then the 14 existing drawings, in the order: welcome 1–4 → empty states → backup / rating.</li></ol></div>
+  </section>
+</div>
+
+<script>
+/* SPIXI ART DIRECTION — three illustration + motion languages grown from the logo (render only).
+   The mark: a CIRCLE and a speech-bubble LEAF (one sharp corner) overlap; the LENS between them holds TWO DOTS.
+   Read: two people · the private space they share · the two of you in it. Every direction keeps that grammar.
+     LENS  — liquid glass + light: the world is frosted; only where the two shapes overlap is it sharp.
+     PRESS — riso print: two inks overprint; the overlap prints a third colour by itself. Grain, stop-motion.
+     SPARK — the mark is alive: the two dots are eyes; it blinks, looks at you, hums, keeps a secret.
+   Static strings only; themed colours ride CSS custom properties (style=, never attributes). */
+const AD = (function () {
+  'use strict';
+  let seq = 0;
+  const f = (n) => Math.round(n * 10) / 10;
+  const U = () => '-' + (++seq).toString(36);
+  const leaf = (x, y, w, h, R) => 'M' + (x + R) + ' ' + y + 'H' + (x + w) + 'V' + (y + h - R) + 'A' + R + ' ' + R + ' 0 0 1 ' + (x + w - R) + ' ' + (y + h)
+    + 'H' + (x + R) + 'A' + R + ' ' + R + ' 0 0 1 ' + x + ' ' + (y + h - R) + 'V' + (y + R) + 'A' + R + ' ' + R + ' 0 0 1 ' + (x + R) + ' ' + y + 'Z';
+  const circ = (cx, cy, r) => 'M' + (cx - r) + ' ' + cy + 'a' + r + ' ' + r + ' 0 1 0 ' + 2 * r + ' 0a' + r + ' ' + r + ' 0 1 0 ' + -2 * r + ' 0Z';
+  const svg = (cls, body, vb) => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + (vb || '0 0 400 240') + '" class="ad-svg ' + cls + '" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">' + body + '</svg>';
+  /* the mark's geometry, shared by all three (circle bottom-left, leaf top-right, as in the logo) */
+  const M = { cx: 168, cy: 148, r: 66, lx: 176, ly: 40, lw: 128, lh: 128, R: 64 };
+  const LEAF = leaf(M.lx, M.ly, M.lw, M.lh, M.R), CIRC = circ(M.cx, M.cy, M.r);
+  const EYE1 = { x: 196, y: 120, r: 6 }, EYE2 = { x: 214, y: 134, r: 8.5 };   // the logo's two dots, in the lens
+
+  /* ======================================================================= LENS */
+  function lens(kind) {
+    const u = U();
+    const blobs = [['--ln-b1', 90, 70, 150, 26, 18, 16], ['--ln-b2', 320, 60, 140, -30, 24, 19], ['--ln-b3', 250, 230, 170, -20, -26, 23], ['--ln-b4', 40, 230, 120, 24, -18, 21]];
+    const grad = (id, v, a0) => '<radialGradient id="' + id + u + '" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(' + v + ');stop-opacity:' + a0 + '"/><stop offset=".6" style="stop-color:var(' + v + ');stop-opacity:' + a0 * .35 + '"/><stop offset="1" style="stop-color:var(' + v + ');stop-opacity:0"/></radialGradient>';
+    const defs = '<defs>' + blobs.map(([v], k) => grad('g' + k, v, 1) + grad('s' + k, v, .75)).join('')
+      + '<clipPath id="cc' + u + '"><path d="' + CIRC + '"/></clipPath><clipPath id="cl' + u + '"><path d="' + LEAF + '"/></clipPath>'
+      + '<linearGradient id="rim' + u + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--ln-rim);stop-opacity:1"/><stop offset=".45" style="stop-color:var(--ln-rim);stop-opacity:.08"/><stop offset=".8" style="stop-color:var(--ln-rim);stop-opacity:.05"/><stop offset="1" style="stop-color:var(--ln-rim2);stop-opacity:.8"/></linearGradient>'
+      + '<radialGradient id="ca' + u + '" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".25" style="stop-color:var(--ln-b2);stop-opacity:.8"/><stop offset="1" style="stop-color:var(--ln-b1);stop-opacity:0"/></radialGradient>'
+      + '<filter id="gw' + u + '" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter>'
+      + '<linearGradient id="gl' + u + '" x1="0" y1="0" x2="1" y2=".3"><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".95"/><stop offset=".65" stop-color="#fff" stop-opacity="0"/>'
+      + '<animateTransform attributeName="gradientTransform" type="translate" values="-1.2 0;1.2 0;1.2 0" keyTimes="0;.35;1" dur="6s" begin="1.4s" repeatCount="indefinite"/></linearGradient>'
+      + '<radialGradient id="dot' + u + '" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(--ln-dot)"/><stop offset=".55" style="stop-color:var(--ln-dot)"/><stop offset="1" style="stop-color:var(--ln-dot);stop-opacity:0"/></radialGradient>'
+      + '<filter id="fz' + u + '" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter>'
+      + '<radialGradient id="sh' + u + '" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(--ln-shadow);stop-opacity:.55"/><stop offset="1" style="stop-color:var(--ln-shadow);stop-opacity:0"/></radialGradient>'
+      + '</defs>';
+    const aur = (soft) => '<rect width="400" height="240" style="fill:var(--ln-ground)"/>' + blobs.map(([v, x, y, r, dx, dy, d], k) =>
+      '<g class="ad-drift ad-loop" style="--dx:' + dx + 'px;--dy:' + dy + 'px;--d:' + d + 's"><circle cx="' + x + '" cy="' + y + '" r="' + (soft ? r * 1.3 : r) + '" fill="url(#' + (soft ? 's' : 'g') + k + u + ')"/></g>').join('');
+    /* the content seen through the glass (sharp in the lens, frosted elsewhere) */
+    let content = '', contentFront = '';
+    if (kind === 'hero') {
+      content = '<circle cx="' + EYE1.x + '" cy="' + EYE1.y + '" r="' + (EYE1.r + 7) + '" fill="url(#dot' + u + ')" opacity=".55"/><circle cx="' + EYE2.x + '" cy="' + EYE2.y + '" r="' + (EYE2.r + 9) + '" fill="url(#dot' + u + ')" opacity=".55"/>'
+        + '<circle cx="' + EYE1.x + '" cy="' + EYE1.y + '" r="' + EYE1.r + '" style="fill:var(--ln-dot)"/><circle cx="' + EYE2.x + '" cy="' + EYE2.y + '" r="' + EYE2.r + '" style="fill:var(--ln-dot)"/>';
+    } else if (kind === 'voice') {
+      for (let i = 0; i < 40; i++) {
+        const h = 16 + Math.round(64 * Math.abs(Math.sin(i * .5) * Math.cos(i * .17)));
+        content += '<rect class="ad-bar ad-loop" style="--i:' + i + ';fill:var(--ln-ink)" x="' + f(14 + i * 9.4) + '" y="' + f(128 - h / 2) + '" width="4.4" height="' + h + '" rx="2.2"/>';
+      }
+    } else {
+      // privacy: what the others would see — read ticks · typing · online — sit under the glass
+      content = '<g style="stroke:var(--ln-ink);fill:none;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round"><path d="M126 150l7 7 13 -14M140 157l13 -14"/></g>'
+        + '<g style="fill:var(--ln-ink)"><circle cx="196" cy="128" r="4.5"/><circle cx="208" cy="128" r="4.5"/><circle cx="220" cy="128" r="4.5"/></g>'
+        + '<circle cx="262" cy="86" r="9" style="fill:var(--ln-on)"/><circle cx="262" cy="86" r="14" fill="none" style="stroke:var(--ln-on)" stroke-width="2" opacity=".5"/>';
+    }
+    const lcx = 205, lcy = 128;
+    const glass = (clip, d, o, from) => '<g class="ad-glass" style="--o:' + o + 's;--from:' + from + '">'
+      + '<g clip-path="url(#' + clip + u + ')">' + aur(true) + '<g filter="url(#fz' + u + ')" opacity=".75">' + content + '</g><rect width="400" height="240" style="fill:var(--ln-frost)"/></g>'
+      + '<path d="' + d + '" fill="none" stroke="url(#rim' + u + ')" stroke-width="6" opacity=".45" filter="url(#gw' + u + ')"/>'
+      + '<path d="' + d + '" fill="none" stroke="url(#rim' + u + ')" stroke-width="1.8"/>'
+      + '<path d="' + d + '" fill="none" stroke="url(#gl' + u + ')" stroke-width="2.2" opacity=".85"/></g>';
+    const lensBody = '<g clip-path="url(#cc' + u + ')"><g clip-path="url(#cl' + u + ')"><g class="ad-focus' + (kind === 'privacy' ? ' ad-frostover' : '') + '" style="--o:.9s">'
+      + '<g transform="translate(' + lcx + ' ' + lcy + ') scale(1.22) translate(' + -lcx + ' ' + -lcy + ')">' + aur(false) + content + '</g>'
+      + '<rect width="400" height="240" style="fill:var(--ln-lens)"/></g>'
+      + (kind === 'privacy' ? '<g class="ad-frostin" style="--o:2.1s">' + aur(true) + '<g filter="url(#fz' + u + ')" opacity=".75">' + content + '</g><rect width="400" height="240" style="fill:var(--ln-frost)"/></g>' : '') + '</g></g>';
+    /* where the two shapes meet, the glass bends light: a chromatic fringe on the lens edge, a caustic on the ground */
+    const fringe = '<g class="ad-focus" style="--o:1.1s"><g clip-path="url(#cl' + u + ')"><path d="' + CIRC + '" fill="none" stroke="#ff5fb0" stroke-width="2" opacity=".75" transform="translate(1.6 .6)" style="mix-blend-mode:screen"/><path d="' + CIRC + '" fill="none" stroke="#4fc3ff" stroke-width="2" opacity=".75" transform="translate(-1.6 -.6)" style="mix-blend-mode:screen"/></g>'
+      + '<g clip-path="url(#cc' + u + ')"><path d="' + LEAF + '" fill="none" stroke="#ff5fb0" stroke-width="2" opacity=".75" transform="translate(1.6 .6)" style="mix-blend-mode:screen"/><path d="' + LEAF + '" fill="none" stroke="#4fc3ff" stroke-width="2" opacity=".75" transform="translate(-1.6 -.6)" style="mix-blend-mode:screen"/></g></g>';
+    const caustic = '<g class="ad-focus" style="--o:1.3s"><g class="ad-pulse ad-loop"><ellipse cx="214" cy="214" rx="46" ry="9" fill="url(#ca' + u + ')"/></g></g>';
+    const pebble = (cx, cy, r, o, d) => { const pd = circ(cx, cy, r); return '<g class="ad-glass" style="--o:' + o + 's;--from:0px"><g class="ad-bob ad-loop" style="--d:' + d + 's"><clipPath id="pb' + cx + u + '"><path d="' + pd + '"/></clipPath>'
+      + '<g clip-path="url(#pb' + cx + u + ')">' + aur(true) + '<rect width="400" height="240" style="fill:var(--ln-frost)"/></g><path d="' + pd + '" fill="none" stroke="url(#rim' + u + ')" stroke-width="1.6"/></g></g>'; };
+    const body = defs + aur(false) + contentFront
+      + '<ellipse cx="214" cy="216" rx="128" ry="15" fill="url(#sh' + u + ')"/>' + caustic
+      + (kind === 'voice' ? content : '')
+      + '<g transform="translate(205 128) scale(1.14) translate(-205 -128)">' + glass('cc', CIRC, .1, '-26px') + glass('cl', LEAF, .3, '26px') + lensBody + fringe + '</g>'
+      + pebble(70, 62, 15, 1.5, 5.2) + pebble(352, 182, 10, 1.7, 4.4) + pebble(334, 40, 6, 1.9, 6);
+    return svg('ad-lens', body);
+  }
+
+  /* ======================================================================= PRESS */
+  function rnd(seed) { let s = seed; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
+  function boilPath(pts, amp, seed, closed) {
+    const r = rnd(seed); const p = pts.map(([x, y]) => [x + (r() - .5) * amp, y + (r() - .5) * amp]);
+    let d = 'M' + f(p[0][0]) + ' ' + f(p[0][1]);
+    for (let i = 1; i < p.length; i++) { const [x0, y0] = p[i - 1], [x1, y1] = p[i]; d += 'Q' + f(x0) + ' ' + f(y0) + ' ' + f((x0 + x1) / 2) + ' ' + f((y0 + y1) / 2); }
+    const L = p[p.length - 1]; d += 'T' + f(L[0]) + ' ' + f(L[1]);
+    return d + (closed ? 'Z' : '');
+  }
+  /* three hand-drawn takes of one line, swapped every 120 ms — the "boil" of stop-motion */
+  const boil = (pts, amp, seed, style, closed) => '<g class="pr-boil">' + [0, 1, 2].map((k) => '<path d="' + boilPath(pts, amp, seed + k * 17, closed) + '" style="' + style + ';animation-delay:' + (-k * .12) + 's"/>').join('') + '</g>';
+  function press(kind) {
+    const u = U();
+    const defs = '<defs>'
+      + '<filter id="gr' + u + '" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="4" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .5  0 0 0 0 .45  0 0 0 0 .4  0 0 0 .9 -.3"/></filter>'
+      + '<filter id="ro' + u + '" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="1" seed="7"/><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>'
+      + '<pattern id="ht' + u + '" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="2.5" cy="2.5" r="1.25" style="fill:var(--pr-blue)"/></pattern>'
+      + '<pattern id="hp' + u + '" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-15)"><circle cx="2.5" cy="2.5" r="1.4" style="fill:var(--pr-pink)"/></pattern>'
+      + '<clipPath id="pc' + u + '"><path d="' + CIRC + '"/></clipPath><clipPath id="pl' + u + '"><path d="' + LEAF + '"/></clipPath>'
+      + '</defs>';
+    const paper = '<rect width="400" height="240" style="fill:var(--pr-paper)"/>';
+    const grain = '<rect width="400" height="240" filter="url(#gr' + u + ')" class="pr-grain"/>';
+    const ink = (c) => 'class="pr-ink" style="fill:var(--pr-' + c + ')" filter="url(#ro' + u + ')"';
+    const stamp = (inner, o, extra) => '<g class="pr-stamp" style="--o:' + o + 's' + (extra || '') + '">' + inner + '</g>';
+    const line = 'fill:none;stroke:var(--pr-line);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round';
+    let body = '';
+    if (kind === 'hero') {
+      body = stamp('<path d="' + CIRC + '" ' + ink('pink') + '/><g clip-path="url(#pc' + u + ')"><rect x="96" y="160" width="150" height="60" fill="url(#ht' + u + ')" class="pr-ink"/></g>', .15, ';transform:translate(2px,1px)')
+        + stamp('<path d="' + LEAF + '" ' + ink('blue') + '/><g clip-path="url(#pl' + u + ')"><rect x="240" y="36" width="80" height="60" fill="url(#hp' + u + ')" class="pr-ink"/></g>', .55)
+        + stamp('<circle cx="' + EYE1.x + '" cy="' + EYE1.y + '" r="' + EYE1.r + '" style="fill:var(--pr-paper)"/><circle cx="' + EYE2.x + '" cy="' + EYE2.y + '" r="' + EYE2.r + '" style="fill:var(--pr-paper)"/>', 1.0)
+        + '<g class="pr-late" style="--o:1.3s">' + boil([[322, 46], [334, 34], [350, 30]], 2.4, 3, line) + boil([[330, 62], [348, 58], [362, 52]], 2.4, 9, line)
+        + boil([[60, 70], [66, 58], [60, 46], [72, 40]], 2.2, 5, line) + boil([[86, 202], [100, 212], [118, 210], [128, 222]], 2.2, 11, line) + '</g>';
+    } else if (kind === 'voice') {
+      let pts = []; for (let x = 120; x <= 360; x += 8) { const t = (x - 120) / 240; pts.push([x, 132 + Math.sin(x * .11) * 34 * Math.sin(t * Math.PI) * (.6 + .4 * Math.sin(x * .05))]); }
+      body = stamp('<circle cx="96" cy="128" r="46" ' + ink('pink') + '/><circle cx="96" cy="128" r="46" fill="url(#ht' + u + ')" class="pr-ink" opacity=".9" clip-path="url(#pc' + u + ')"/>', .15)
+        + stamp('<path d="' + leaf(70, 98, 52, 60, 26) + '" ' + ink('blue') + '/>', .45)
+        + '<g class="pr-late" style="--o:.8s">' + boil(pts, 3.4, 21, 'fill:none;stroke:var(--pr-blue);stroke-width:7;stroke-linecap:round;mix-blend-mode:var(--pr-blend)') + '</g>'
+        + '<g class="pr-late" style="--o:1.5s">' + boil([[150, 60], [160, 50], [174, 48]], 2, 2, line) + boil([[150, 200], [160, 210], [174, 212]], 2, 6, line) + boil([[372, 120], [380, 132], [372, 144]], 2, 8, line) + '</g>';
+    } else {
+      const ic = ['M-9 0l5 5 9 -10M1 5l9 -10', 'M-8 0h.01M0 0h.01M8 0h.01', null];
+      [[110, 'blue'], [200, 'blue'], [290, 'blue']].forEach(([cx, c], k) => {
+        body += stamp('<circle cx="' + cx + '" cy="126" r="34" ' + ink(c) + '/><g transform="translate(' + cx + ' 126)">' + (ic[k] ? '<path d="' + ic[k] + '" style="fill:none;stroke:var(--pr-paper);stroke-width:' + (k === 1 ? 7 : 4.2) + ';stroke-linecap:round;stroke-linejoin:round"/>' : '<circle r="9" style="fill:var(--pr-paper)"/>') + '</g>', .1 + k * .2)
+          + stamp('<path d="M' + (cx - 46) + ' 112h92l-4 28h-92z" ' + ink('pink') + '/>', 1.3 + k * .45, ';--rot:' + (k % 2 ? 6 : -5) + 'deg');
+      });
+      body += '<g class="pr-late" style="--o:2.8s">' + boil([[60, 196], [120, 204], [200, 198], [280, 206], [340, 198]], 2.4, 31, line) + '</g>';
+    }
+    const reg = '<g class="pr-late" style="--o:.05s;fill:none;stroke:var(--pr-line);stroke-width:1" opacity=".55"><circle cx="378" cy="222" r="6"/><path d="M366 222h24M378 210v24"/></g>';
+    return svg('ad-press', defs + paper + body + reg + grain);
+  }
+
+  /* ======================================================================= SPARK */
+  function spark(kind) {
+    const u = U();
+    const defs = '<defs><linearGradient id="tb' + u + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--sk-tube-hi)"/><stop offset=".55" style="stop-color:var(--sk-tube)"/><stop offset="1" style="stop-color:var(--sk-tube-lo)"/></linearGradient>'
+      + '<clipPath id="kc' + u + '"><path d="' + CIRC + '"/></clipPath><clipPath id="kl' + u + '"><path d="' + LEAF + '"/></clipPath>'
+      + '<radialGradient id="ks' + u + '" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(--sk-shadow);stop-opacity:.5"/><stop offset="1" style="stop-color:var(--sk-shadow);stop-opacity:0"/></radialGradient>'
+      + '<radialGradient id="kg' + u + '" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(--sk-glow);stop-opacity:.55"/><stop offset="1" style="stop-color:var(--sk-glow);stop-opacity:0"/></radialGradient></defs>';
+    const tube = (d) => '<path d="' + d + '" fill="none" stroke="url(#tb' + u + ')" stroke-width="20" stroke-linejoin="round"/>'
+      + '<path d="' + d + '" fill="none" style="stroke:var(--sk-gloss)" stroke-width="4" stroke-linecap="round" stroke-dasharray="40 260" stroke-dashoffset="-20" transform="translate(-3 -4)" opacity=".7"/>';
+    const eye = (e, k) => '<g class="sk-eye" style="--k:' + k + '"><g class="sk-lid"><ellipse cx="' + e.x + '" cy="' + e.y + '" rx="' + e.r * 1.05 + '" ry="' + e.r * 1.2 + '" style="fill:var(--sk-eye)"/>'
+      + '<g class="sk-pupil"><circle cx="' + f(e.x + e.r * .35) + '" cy="' + f(e.y - e.r * .4) + '" r="' + f(e.r * .32) + '" fill="#fff"/></g></g>'
+      + '<path class="sk-happy" d="M' + f(e.x - e.r) + ' ' + f(e.y + 1) + 'q' + e.r + ' ' + -e.r * 1.4 + ' ' + 2 * e.r + ' 0" fill="none" style="stroke:var(--sk-eye)" stroke-width="3.2" stroke-linecap="round"/>'
+      + '<path class="sk-calm" d="M' + f(e.x - e.r) + ' ' + f(e.y - 1) + 'q' + e.r + ' ' + e.r * 1.2 + ' ' + 2 * e.r + ' 0" fill="none" style="stroke:var(--sk-eye)" stroke-width="3.2" stroke-linecap="round"/></g>';
+    const face = '<g clip-path="url(#kc' + u + ')"><path d="' + LEAF + '" style="fill:var(--sk-face)"/></g>'
+      + '<circle cx="186" cy="146" r="5" style="fill:var(--sk-blush)" opacity=".55"/><circle cx="230" cy="152" r="5" style="fill:var(--sk-blush)" opacity=".55"/>'
+      + eye(EYE1, 0) + eye(EYE2, 1);
+    const char = '<g class="sk-char sk-' + kind + '"><g class="sk-body">' + tube(CIRC) + tube(LEAF) + face + '</g></g>';
+    const ground = '<rect width="400" height="240" style="fill:var(--sk-ground)"/><circle cx="210" cy="118" r="130" fill="url(#kg' + u + ')"/>'
+      + '<ellipse class="sk-shadow" cx="210" cy="222" rx="96" ry="10" fill="url(#ks' + u + ')"/>';
+    const chip = (x, y, d, o, c) => '<g transform="translate(' + x + ' ' + y + ')"><g class="sk-chip" style="--o:' + o + 's"><g class="ad-bob ad-loop" style="--d:' + (3.6 + o) + 's"><rect x="-17" y="-17" width="34" height="34" rx="11" style="fill:var(--sk-' + (c || 'chip') + ')"/>'
+      + '<path d="' + d + '" fill="none" style="stroke:var(--sk-chip-ink)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g></g></g>';
+    let extra = '';
+    if (kind === 'hero') {
+      extra = chip(62, 70, 'M-2 -7l-6 6 6 6M-8 -1h9a6 6 0 0 1 6 6v3', 1.3) + chip(346, 82, 'M-4 -8h8v10a4 4 0 0 1 -8 0zM-7 1a7 7 0 0 0 14 0M0 8v3', 1.45, 'chip2')
+        + chip(78, 190, 'M-8 -6h16v12h-16zM-8 3l5 -4 4 3 3 -2 4 3', 1.6, 'chip2') + chip(352, 196, 'M0 6C-10 -1 -6 -9 0 -4C6 -9 10 -1 0 6Z', 1.75);
+    } else if (kind === 'voice') {
+      extra = [0, 1, 2].map((k) => { const r = 22 + k * 16; return '<g transform="translate(318 58)"><path class="sk-ring" style="--o:' + (1 + k * .45) + 's" d="M' + f(r * Math.cos(-.75)) + ' ' + f(r * Math.sin(-.75)) + 'A' + r + ' ' + r + ' 0 0 1 ' + f(r * Math.cos(.75)) + ' ' + f(r * Math.sin(.75)) + '" fill="none" stroke-width="5" stroke-linecap="round"/></g>'; }).join('')
+        + '<g class="sk-notes">' + chip(352, 164, 'M-3 6a3 3 0 1 1 0 -.1V-7l8 -2v11', 1.7, 'chip2') + '</g>';
+    } else {
+      extra = [0, 1, 2].map((k) => '<g transform="translate(' + (64 + k * 0) + ' ' + (78 + k * 44) + ')"><rect x="-24" y="-13" width="48" height="26" rx="13" style="fill:var(--sk-tog-off)"/>'
+        + '<rect class="sk-togon" style="--o:' + (1.0 + k * .55) + 's;fill:var(--sk-tube)" x="-24" y="-13" width="48" height="26" rx="13"/>'
+        + '<g class="sk-knob" style="--o:' + (1.0 + k * .55) + 's"><circle cx="11" r="9.5" fill="#fff"/></g></g>').join('');
+    }
+    return svg('ad-spark', defs + ground + extra + char);
+  }
+
+  return { lens, press, spark, geometry: { LEAF, CIRC } };
+})();
+
+/* SPIXI ART DIRECTION — page wiring: the card mocks (swipe / dots / Next), the scene grids, the Spark eyes that
+   follow the pointer, the theme switch for the art, replay. Render only. */
+(function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+  const COPY = [
+    { k: 'hero', eyebrow: 'New in Spixi 1.0', title: 'Meet the new Spixi', body: 'Redesigned from top to bottom, with new ways to talk. Your chats, contacts and wallet are all still here.' },
+    { k: 'voice', title: 'Voice messages', body: 'Record a message instead of typing it. Contacts on an older Spixi get it as an audio file.' },
+    { k: 'privacy', title: 'Your privacy, your switches', body: 'Hide read receipts, typing and your online status. You find all three in Settings › Privacy.' },
+  ];
+  const DIRS = ['lens', 'press', 'spark'];
+  let artTheme = 'light';
+  try { artTheme = localStorage.getItem('ad-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) { /* storage may be blocked */ }
+
+  /* ---------- the card mock ---------- */
+  function card(dir, host) {
+    host.innerHTML = '';
+    const root = el('div', 'mc ad'); root.dataset.t = artTheme; root.dataset.dir = dir;
+    const art = el('div', 'mc__art'); const txt = el('div', 'mc__text');
+    const foot = el('div', 'mc__foot'); const dots = el('div', 'mc__dots'); dots.setAttribute('role', 'tablist');
+    const next = el('button', 'mc__btn', 'Next'); next.type = 'button';
+    let i = 0;
+    const dotEls = COPY.map((c, k) => { const b = el('button', 'mc__dot'); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-label', (k + 1) + ' / 3'); b.addEventListener('click', () => go(k)); dots.append(b); return b; });
+    foot.append(dots, next);
+    root.append(art, txt, foot); host.append(root);
+    function go(k) {
+      i = Math.max(0, Math.min(COPY.length - 1, k));
+      const c = COPY[i];
+      art.innerHTML = AD[dir](c.k);
+      txt.innerHTML = '';
+      if (c.eyebrow) txt.append(el('p', 'mc__eyebrow', c.eyebrow));
+      txt.append(el('h3', 'mc__title', c.title), el('p', 'mc__body', c.body));
+      txt.classList.remove('mc__text--in'); void txt.offsetWidth; txt.classList.add('mc__text--in');
+      dotEls.forEach((d, n) => d.setAttribute('aria-selected', String(n === i)));
+      next.textContent = i === COPY.length - 1 ? 'Got it' : 'Next';
+      root.dataset.hero = i === 0 ? '1' : '0';
+    }
+    next.addEventListener('click', () => go(i < COPY.length - 1 ? i + 1 : 0));
+    let x0 = null;
+    root.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; x0 = e.clientX; });
+    root.addEventListener('pointerup', (e) => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1)); });
+    root.tabIndex = 0;
+    root.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') go(i + 1); if (e.key === 'ArrowLeft') go(i - 1); });
+    go(0);
+  }
+
+  /* ---------- the scene grid: three moments × two themes ---------- */
+  function grid(dir, host) {
+    host.innerHTML = '';
+    ['light', 'dark'].forEach((t) => COPY.forEach((c) => {
+      const cell = el('figure', 'sg ad'); cell.dataset.t = t;
+      const box = el('div', 'sg__box'); box.innerHTML = AD[dir](c.k);
+      const cap = el('figcaption', '', c.title + ' · ' + t);
+      cell.append(box, cap); host.append(cell);
+    }));
+  }
+
+  /* ---------- the logo insight: the mark draws itself, the lens lights, the dots appear ---------- */
+  function insight() {
+    const g = AD.geometry;
+    $('#mark').innerHTML = '<svg viewBox="86 10 256 226" class="mark" aria-hidden="true"><defs><clipPath id="mkc"><path d="' + g.CIRC + '"/></clipPath></defs>'
+      + '<g clip-path="url(#mkc)"><path class="mark__lens" d="' + g.LEAF + '"/></g>'
+      + '<path class="mark__l" pathLength="1" d="' + g.CIRC + '"/><path class="mark__l mark__l--2" pathLength="1" d="' + g.LEAF + '"/>'
+      + '<circle class="mark__d" cx="196" cy="120" r="6"/><circle class="mark__d mark__d--2" cx="214" cy="134" r="8.5"/>'
+      + '<g class="mark__lab"><text x="104" y="222">you</text><text x="300" y="26">them</text><text x="236" y="190">your space</text><path d="M232 186L214 160"/></g></svg>';
+  }
+
+  /* ---------- Spark: the eyes look at the pointer (and at the swipe) ---------- */
+  let raf = 0, px = 0, py = 0;
+  function look() {
+    raf = 0;
+    $$('.ad-spark').forEach((s) => {
+      const r = s.getBoundingClientRect(); if (!r.width || r.bottom < 0 || r.top > innerHeight) return;
+      const k = r.width / 400, cx = r.left + 205 * k, cy = r.top + 128 * k * (r.height / (240 * k));
+      const dx = px - cx, dy = py - cy, d = Math.hypot(dx, dy) || 1, m = Math.min(1, d / 260);
+      s.style.setProperty('--ex', (dx / d * 3.2 * m).toFixed(2) + 'px'); s.style.setProperty('--ey', (dy / d * 3.2 * m).toFixed(2) + 'px');
+    });
+  }
+  addEventListener('pointermove', (e) => { px = e.clientX; py = e.clientY; if (!raf) raf = requestAnimationFrame(look); }, { passive: true });
+
+  /* ---------- page ---------- */
+  function renderAll() {
+    DIRS.forEach((d) => { card(d, $('#card-' + d)); grid(d, $('#grid-' + d)); });
+    $$('.themeseg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === artTheme)));
+  }
+  $$('.themeseg button').forEach((b) => b.addEventListener('click', () => { artTheme = b.dataset.v; try { localStorage.setItem('ad-theme', artTheme); } catch (e) { /* */ } renderAll(); }));
+  $('#replay').addEventListener('click', renderAll);
+  $('#rm').addEventListener('change', (e) => { document.documentElement.classList.toggle('rm', e.target.checked); renderAll(); });
+  insight(); renderAll();
+})();
+
+</script>

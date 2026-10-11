@@ -1,0 +1,44 @@
+<title>Spixi Illustration Set</title>
+<style>
+:root { --pg-bg: #f4f5f8; --pg-panel: #fff; --pg-fg: #15171c; --pg-muted: #5b6270; --pg-line: #dfe2e9; --pg-accent: #3050bd; --pg-bezel: #1b1e24;
+  --pg-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --pg-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c; --pg-accent: #8ea3ff; --pg-bezel: #000; color-scheme: dark; } }
+:root[data-theme="dark"] { --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c; --pg-accent: #8ea3ff; --pg-bezel: #000; color-scheme: dark; }
+body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font: 15px/1.5 var(--pg-sans); }
+.page { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -.02em; }
+h2.sec { margin: 40px 0 6px; font-size: 19px; }
+p.sub, .lede { margin: 0 0 16px; color: var(--pg-muted); max-width: 82ch; }
+.prop { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 8px 20px 20px; }
+.prop h1 { font-size: 20px; margin: 14px 0 6px; } .prop h2 { font-size: 16px; margin: 22px 0 8px; }
+.prop .tw { overflow-x: auto; } .prop table { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 560px; }
+.prop th, .prop td { border-bottom: 1px solid var(--pg-line); padding: 6px 10px 6px 0; text-align: left; vertical-align: top; }
+.prop code { font: 12.5px/1.4 var(--pg-mono); background: color-mix(in srgb, var(--pg-accent) 10%, transparent); padding: 1px 4px; border-radius: 4px; }
+@media (max-width: 420px) { .wl { transform: scale(.9); transform-origin: top center; margin-bottom: -70px; } }
+/*@TOKENS@*/
+/*@ILLO_CSS@*/
+/*@ART_CSS@*/
+/*@KIT_CSS@*/
+/*@SET_CSS@*/
+</style>
+<div class="page">
+  <h1>Spixi Illustration Set</h1>
+  <p class="lede">The rest of Spixi’s illustrations against the locked direction. Welcome 1–4 in two versions, and the 13 drawings with less shine (the backup slot with the calm chest). <b>Picked (14:55): Welcome A · less shine · the calm chest.</b></p>
+
+  <h2 class="sec">Welcome 1–4 · A or B</h2>
+  <p class="sub">The launch flow is pinned dark, so both are dark. A is today: the art straight on the launch ground. B puts the same art on a rounded panel in the locked carousel’s blue-to-violet, with white sparkles and a quiet wall that names the slide (bubbles, ID cards, coins, app tiles). Swipe or tap a dot; both phones move together.</p>
+  <div id="welc"></div>
+
+  <h2 class="sec">The set · today and with less shine</h2>
+  <p class="sub">Every drawing’s gloss sheet at half strength (the white sheen top left), nothing else changed. The backup slot shows the calm chest.</p>
+  <div class="segs" id="c-th"><button class="seg" type="button" data-v="light">Light</button><button class="seg" type="button" data-v="dark">Dark</button></div>
+  <div id="setgrid"></div>
+
+  <h2 class="sec">Notes</h2>
+  <div class="prop"><!--@SET_MD@--></div>
+</div>
+<script>
+/*@SET_DATA@*/
+/*@KIT_JS@*/
+/*@SET_JS@*/
+</script>

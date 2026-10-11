@@ -1,0 +1,42 @@
+/* SPIXI · THE ILLUSTRATION SET, ALIGNED — render only. */
+/* ---- welcome phones ---- */
+.wl, .wl * { box-sizing: border-box; }
+#welc { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
+.wl { position: relative; width: 340px; height: 720px; border-radius: 42px; border: 9px solid var(--pg-bezel); overflow: hidden; background: var(--gradient-launch); color: var(--text-neutral-01);
+  display: flex; flex-direction: column; align-items: center; padding: 34px 22px 18px; font-family: var(--font-primary, system-ui); box-shadow: 0 30px 60px -30px rgba(20, 20, 60, .5); }
+.wl__top { width: 100%; display: flex; justify-content: space-between; }
+.wl__pill { padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .1); font-size: 13px; color: #fff; }
+.wl__logo { margin: 14px 0 4px; color: var(--icon-brand-logo, #fff); } .wl__logo .ico { width: 40px; height: 40px; display: block; }
+.wl__car { flex: 1; width: 100%; overflow: hidden; }
+.wl__track { display: flex; height: 100%; transition: transform .3s cubic-bezier(.2, .7, .2, 1); }
+.wl__slide { flex: 0 0 100%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 0 4px; }
+.wl__art { width: 232px; max-width: 100%; } .wl__art svg { display: block; width: 100%; height: auto; }
+.wl__slide h3 { margin: 6px 0 0; font-family: var(--font-display, inherit); font-size: 20px; font-weight: 600; color: #fff; }
+.wl__slide p { margin: 0; font-size: 14px; line-height: 1.45; color: rgba(255, 255, 255, .72); }
+.wl__dots { display: flex; gap: 8px; padding: 10px 0; }
+.wl__dot { width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; background: rgba(255, 255, 255, .24); cursor: pointer; }
+.wl__dot[aria-selected="true"] { background: var(--icon-accent, #8ea3ff); }
+.wl__cta { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.wl__cta button { height: 52px; border-radius: 999px; font: 600 16px/1 var(--font-primary, system-ui); cursor: pointer; }
+.wl__cta .p { border: 0; background: var(--surface-action-default); color: #fff; }
+.wl__cta .o { border: 1.5px solid rgba(255, 255, 255, .5); background: transparent; color: #fff; }
+/* option B: the art on a rounded coloured panel — the What's new panel, quieter */
+.wl--b .wl__art { position: relative; width: 100%; max-width: 280px; aspect-ratio: 296 / 250; border-radius: 28px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(255, 255, 255, .08), 0 24px 50px -24px rgba(40, 20, 140, .8); }
+.wl--b .wl__art .wnL { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wl--b .wl__art > svg.il { position: relative; width: 78%; height: auto; }
+.wl--b .wl__slide { gap: 10px; }
+.wl__cap { font: 600 12px/1 var(--pg-mono); color: var(--pg-muted); text-align: center; margin-top: 10px; }
+
+/* ---- the set, today vs less shine ---- */
+.segs { display: inline-flex; border: 1px solid var(--pg-line); border-radius: 8px; overflow: hidden; background: var(--pg-panel); }
+.seg { border: 0; background: transparent; color: var(--pg-fg); font: 500 13px/1 var(--pg-sans); padding: 8px 12px; cursor: pointer; }
+.seg + .seg { border-left: 1px solid var(--pg-line); } .seg[aria-pressed="true"] { background: var(--pg-accent); color: #fff; }
+#setgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; margin-top: 14px; }
+.sg { margin: 0; border: 1px solid var(--pg-line); border-radius: 14px; overflow: hidden; background: var(--pg-panel); }
+.sg__pair { display: grid; grid-template-columns: 1fr 1fr; }
+.sg__c { position: relative; background: var(--surface-screen); padding: 8px 4px 24px; display: flex; justify-content: center; }
+.sg__c svg { width: 100%; max-width: 140px; height: auto; aspect-ratio: 1; }
+.sg__c > span { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font: 600 10px/1 var(--pg-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-neutral-02); }
+.sg figcaption { padding: 8px 12px 10px; font-size: 13px; color: var(--pg-muted); }
+.sg figcaption b { color: var(--pg-fg); }

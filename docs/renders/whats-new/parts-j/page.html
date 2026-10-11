@@ -1,0 +1,38 @@
+<title>Spixi Moment Sheets</title>
+<style>
+:root { --pg-bg: #f4f5f8; --pg-panel: #fff; --pg-fg: #15171c; --pg-muted: #5b6270; --pg-line: #dfe2e9; --pg-bezel: #1b1e24;
+  --pg-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --pg-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c; --pg-bezel: #000; color-scheme: dark; } }
+:root[data-theme="dark"] { --pg-bg: #0f1218; --pg-panel: #171b23; --pg-fg: #e8eaf0; --pg-muted: #9aa2b1; --pg-line: #2a303c; --pg-bezel: #000; color-scheme: dark; }
+body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font: 15px/1.5 var(--pg-sans); }
+.page { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { margin: 0 0 6px; font-size: 26px; } .lede { margin: 0 0 14px; color: var(--pg-muted); max-width: 82ch; }
+.bar { display: flex; gap: 10px; margin: 0 0 20px; } .bar button { font: 600 14px/1 var(--pg-sans); padding: 10px 16px; border-radius: 20px; border: 1px solid var(--pg-line); background: var(--pg-panel); color: var(--pg-fg); cursor: pointer; }
+.mo { margin: 34px 0 0; } .mo h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 4px; font-size: 19px; }
+.num { width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 14px; color: #fff; background: linear-gradient(135deg, #4f86ff, #a35cff); }
+.tag { font: 600 12px/1 var(--pg-sans); font-style: normal; padding: 5px 9px; border-radius: 10px; background: rgba(79, 134, 255, .14); color: #2f5fd0; }
+.tag--s { background: rgba(31, 180, 136, .15); color: #13805f; }
+:root[data-theme="dark"] .tag { color: #9fbcff; } :root[data-theme="dark"] .tag--s { color: #7fe0bd; }
+.when { margin: 0 0 14px; color: var(--pg-muted); max-width: 82ch; }
+.pcap { font: 500 12px/1 var(--pg-mono); color: var(--pg-muted); text-align: center; margin-top: 8px; }
+.prop { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 12px; padding: 8px 20px 20px; margin-top: 44px; }
+.prop h1 { font-size: 20px; margin: 14px 0 6px; } .prop h2 { font-size: 16px; margin: 18px 0 6px; } .prop .tw { overflow-x: auto; }
+.prop table { border-collapse: collapse; font-size: 13.5px; width: 100%; min-width: 620px; }
+.prop th, .prop td { border-bottom: 1px solid var(--pg-line); padding: 6px 10px 6px 0; text-align: left; vertical-align: top; }
+.prop code { font: 12.5px/1.4 var(--pg-mono); background: rgba(48,80,189,.1); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+@media (max-width: 420px) { .ph { width: 100% !important; } }
+/*@TOKENS@*/
+/*@BUTTON_CSS@*/
+/*@MO_CSS@*/
+</style>
+<div class="page">
+  <h1>Spixi Moment Sheets</h1>
+  <p class="lede">Nine one-time sheets that teach a fact at the moment it matters. Each one comes from a user action, shows once, and never stops what the user started. Same sheet as today’s backup nudge; the art sits in its own panel, in the glass style of the About header.</p>
+  <div class="bar"><button id="replay" type="button">Replay the art</button></div>
+  <div id="moments"></div>
+  <div class="prop"><!--@MO_MD@--></div>
+</div>
+<script>
+/*@MO_DATA@*/
+/*@MO_JS@*/
+</script>

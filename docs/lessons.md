@@ -173,3 +173,7 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L123 | A transform counts toward scrollHeight: take a running animation off before you measure the layout it moves. | #1307 | — |
 | L124 | A range assert ("between 50 and 80") lets a wrong formula pass — freeze the clock and assert the exact value. | #1307 | — |
 | L125 | After a context reset, read the twin's `git log` and the scratch folder before acting: the work may already be done. | S15 | — |
+| L126 | The same defect class found twice by the #46 loop → change the design, not the patch: three rounds patched marker SPELLINGS; an identity registry ended it. | #1325 | — |
+| L127 | "Is this view on screen?" read from the page stack is a guess: a desktop pane can be "open" while a narrow window hides its column — read the layout state in the same turn. | #1325 | — |
+| L128 | Android loads every shell through LoadDataWithBaseURL(…, null), so WebView.Url is about:blank — never key a permission on the document URL. | #1325 | — |
+| L129 | MAUI SecureStorage on unpackaged Windows awaits DPAPI on the caller's context: wrap every call in Task.Run + a bounded wait. | #1323 | — |

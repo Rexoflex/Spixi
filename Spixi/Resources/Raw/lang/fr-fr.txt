@@ -377,7 +377,7 @@ intro-new-walleterror-text = Une erreur est survenue lors de la création de vot
 intro-new-walletexists-title = Le compte existe déjà
 intro-new-walletexists-text = Un compte existe déjà sur cet appareil, il est donc impossible d’en créer un nouveau ici. Redémarrez Spixi pour continuer avec le compte existant.
 intro-restore-walletexists-title = Un compte est déjà sur cet appareil
-intro-restore-walletexists-text = Un compte existe déjà sur cet appareil. Pour l’utiliser, redémarrez Spixi. Pour restaurer un autre compte : redémarrez Spixi, ouvrez Compte, appuyez sur Supprimer le portefeuille, puis ouvrez à nouveau Restaurer le compte.
+intro-restore-walletexists-text = Un compte existe déjà sur cet appareil. Pour l’utiliser, redémarrez Spixi. Pour restaurer un autre compte : redémarrez Spixi, ouvrez Compte › Supprimer les données… › Supprimer définitivement le compte, puis ouvrez à nouveau Restaurer le compte.
 
 ; Intro Restore Screen
 intro-restore-title = Restaurer le compte
@@ -472,6 +472,8 @@ settings-backup-notice = Vous aurez besoin de cette sauvegarde et de votre mot d
 settings-backup-notice2 = - Vous perdez cet appareil<br />- Vous désinstallez Spixi de cet appareil<br />- Vous supprimez ce compte Spixi<br />- Vous supprimez ce portefeuille
 settings-backup-invalidpassword-title = Mot de passe invalide
 settings-backup-invalidpassword-text = Entrez un mot de passe valide.
+settings-backup-refused-title = Sauvegarde non effectuée
+settings-backup-refused-text = Spixi n'a pas pu lire votre mot de passe enregistré, aucune sauvegarde n'a donc été effectuée. Redémarrez Spixi, saisissez votre mot de passe si demandé, puis relancez la sauvegarde.
 settings-backup-saved-title = Avez-vous enregistré la sauvegarde ?
 settings-backup-saved-text = Choisissez Oui uniquement si le fichier de sauvegarde est maintenant enregistré ou envoyé en lieu sûr.
 settings-backup-saved-yes = Oui

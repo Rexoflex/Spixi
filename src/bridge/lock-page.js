@@ -3,7 +3,8 @@
  * Grammar (bridge-audit-A.md §11, bridge-audit-B.md §3 — FROZEN):
  *   lock.html      → ixian:unlock:<password> (raw, colons pass through — C#
  *                    Splits on the prefix) · ixian:change (confirm mode =
- *                    cancel/authSucceeded(false); lock mode = push LaunchPage)
+ *                    cancel/authSucceeded(false); ★ S16 #46 r1: C# REFUSES it
+ *                    on every other lock — the cold-start hatch sends nothing)
  *                    · ixian:onload re-emit = biometric retry (LockPage.onLoad
  *                    relaunches Plugin.Fingerprint — §9 flag stands).
  *                    C#→JS: setJustConfirm("True") only.
@@ -51,7 +52,6 @@ export function mountLockPage({ host, bridge, strings, mode, biometrics } = {}) 
     onBiometricRetry() {
       br.send('ixian:onload');                   // deliberate re-emit (bypasses ready-latch by design)
     },
-    onUseAnotherWallet() { br.send('ixian:change'); },  // lock mode → LaunchPage
     onCancel() { br.send('ixian:change'); },            // confirm mode → authSucceeded(false)
   });
 

@@ -49,10 +49,43 @@ public class SpixiWebChromeClient : WebChromeClient
             _renderer = null;
 
     }
+    /* ★ S16 (#1313 MAJOR #9, P07): no more grant-all (it handed the camera AND the microphone to every WebView, the
+     * mini-app and chat included). One pure rule, SPIXI.S16SecRules.captureRefusal: VIDEO capture only, only for the
+     * WebView marked as the QR scan page in C# (ScanPage.xaml; a host this code cannot identify, or the mini-app, is
+     * untrusted), never from an http(s) origin. ★ #46 r1 (R1-M1): the marker, not the document — on Android every
+     * shell's WebView.Url is "about:blank" (LoadDataWithBaseURL), and a file name proves nothing. Anything else is
+     * denied, and a throw denies too. The log carries the fixed reason word only. */
     [TargetApi(Value = 21)]
     public override void OnPermissionRequest(PermissionRequest? request)
     {
-        request.Grant(request.GetResources());
+        if (request == null)
+        {
+            return;
+        }
+        string? refusal;
+        try
+        {
+            var element = _renderer?.Element;
+            refusal = SPIXI.S16SecRules.captureRefusal(element != null, element?.ClassId, request.GetResources(), request.Origin?.Scheme, element != null && SPIXI.ScanPage.isScanWebView(element));
+        }
+        catch (Exception)
+        {
+            refusal = "gate-error";
+        }
+        try
+        {
+            if (refusal == null)
+            {
+                request.Grant(new string[] { PermissionRequest.ResourceVideoCapture });
+                return;
+            }
+            IXICore.Meta.Logging.warn("WebView capture DENIED reason=" + refusal);
+            request.Deny();
+        }
+        catch (Exception)
+        {
+            try { request.Deny(); } catch (Exception) { }
+        }
     }
 
 #if SPIXI_DEV_COEXIST

@@ -172,7 +172,7 @@ namespace SPIXI
                     }
                     catch (Exception ex)
                     {
-                        Logging.warn("Exception while opening a download: " + ex);
+                        Logging.warn("Exception while opening a download: " + ex.GetType().Name);   // ★ S16 (#1320 F8): the type — the message can carry the path
                     }
                 }
             }
@@ -190,7 +190,7 @@ namespace SPIXI
                     }
                     catch (Exception ex)
                     {
-                        Logging.warn("Exception while deleting a download: " + ex);
+                        Logging.warn("Exception while deleting a download: " + ex.GetType().Name);   // ★ S16 (#1320 F8): the type only
                     }
                 }
                 // Q1 review (#266/#267 loop): refresh UNCONDITIONALLY — a rejected name or a
@@ -232,7 +232,7 @@ namespace SPIXI
                 }
                 catch (Exception ex)
                 {
-                    Logging.warn("Could not unescape a download file name: " + ex);
+                    Logging.warn("Could not unescape a download file name: " + ex.GetType().Name);   // ★ S16 (#1320 F8): the type — the message can carry the name
                 }
             }
             return decoded_url.Substring(prefix.Length);

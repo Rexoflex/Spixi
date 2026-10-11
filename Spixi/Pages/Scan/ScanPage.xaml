@@ -9,7 +9,10 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="1*" />
             </Grid.RowDefinitions>
-            <WebView x:Name="webView" Navigating="onNavigating" Navigated="onNavigated" VerticalOptions="Fill" HorizontalOptions="Fill"/>
+            <!-- ★ S16 #46 r1 (#1313 MAJOR #9, R1-M1): ClassId="scan" = the ONE WebView Android may give the camera
+                 (WebViewRenderer.OnPermissionRequest → S16SecRules.captureRefusal). Set here in XAML: no document can
+                 change it. -->
+            <WebView x:Name="webView" ClassId="scan" Navigating="onNavigating" Navigated="onNavigated" VerticalOptions="Fill" HorizontalOptions="Fill"/>
         </Grid>
     </ContentPage.Content>
 </d:SpixiContentPage>

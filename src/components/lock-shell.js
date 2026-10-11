@@ -11,7 +11,7 @@
  * boundary. NO logging of any kind in this file (smoke-guarded).
  *
  * createLockScreen({ mode = 'unlock', biometrics = false, onUnlock,
- *                    onBiometricRetry, onUseAnotherWallet, onCancel, strings })
+ *                    onBiometricRetry, onCancel, strings })
  *   onUnlock(password, ctrl) — NO-CALLBACK CONTRACT (spec §3): C# answers a
  *     WRONG password with a NATIVE alert only. ctrl.done() = keep latched +
  *     "Unlocked" morph (C# is replacing the page) · ctrl.fail(msg) = inline
@@ -19,8 +19,8 @@
  *     silent auto-release (value kept — the native alert already spoke).
  *   onBiometricRetry() — re-emit ixian:onload (LockPage.onLoad relaunches
  *     Plugin.Fingerprint); button hidden unless biometrics (WinUI hosts: false).
- *   onUseAnotherWallet() — AFTER the confirm modal → ixian:change (lock mode:
- *     C# pushes LaunchPage). Unlock mode only.
+ *   (★ S16 (#1311 (b), #46 r2 n5): no onUseAnotherWallet — the hatch's sheet explains the way
+ *     (delete this account first) and closes; LockPage refuses a cold-start ixian:change.)
  *   onCancel() — confirm mode Cancel → ixian:change (authSucceeded(false)).
  *   Free fn: setLockMode(el, 'unlock'|'confirm')  (setJustConfirm mirror).
  *
@@ -135,7 +135,7 @@ function lockSync(st) {
 
 export function createLockScreen({
   mode = 'unlock', biometrics = false, onUnlock, onBiometricRetry,
-  onUseAnotherWallet, onCancel, strings = getStrings(),
+  onCancel, strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
   el.className = 'c-lock';                       // NO topbar — there is no back from lock
@@ -208,31 +208,31 @@ export function createLockScreen({
   const tail = document.createElement('div');
   tail.className = 'c-lock__tail';
 
-  // unlock mode: quiet escape hatch (Damir pick: link + confirm modal;
-  // C# LaunchPage stays the real boundary — the FE modal is deliberateness #146③)
+  // unlock mode: quiet escape hatch (Damir pick: link + sheet).
+  /* ★ S16 (#1311 (b), Damir picked RESTORE-B): the sheet SAYS THE WAY and closes. "Go to setup" led nowhere — setup
+     refuses a second account (#1297: by design nothing clears a wallet), so a user who forgot the password reached a
+     dead end. The one action closes the sheet; no verb is sent (the cold-start
+     ixian:change leg is refused in C#, #46 r1). Nothing leaves this screen, so nothing to scrub. */
   const hatch = document.createElement('button');
   hatch.type = 'button';
   hatch.className = 'c-lock__hatch';
   hatch.textContent = strings.otherWallet || 'Use a different wallet…';
   hatch.addEventListener('click', () => {
-    openModal(createModal({                      // #160b: createModal doesn't self-mount
-      title: strings.otherWalletTitle || 'Use a different wallet?',
-      body: strings.otherWalletBody
-        || 'You’ll leave this screen and go to setup to create or restore another wallet. Your current wallet stays encrypted on this device.',
+    /* ★ #1311 (b) option 2 (Damir's pick from renders): a statement title and TWO paragraphs — the way when you can
+       unlock, then the way when you cannot (per platform). The body stays ONE text node (textContent, the modal's
+       aria-describedby); the paragraph break is the \n\n, rendered by white-space: pre-line on this sheet only. */
+    const way = createModal({                    // #160b: createModal doesn't self-mount
+      title: strings.otherWalletWayTitle || 'One account per device',
+      body: strings.otherWalletWayBody
+        || 'Spixi already has an account on this device. To use another one, delete this account first: unlock Spixi, then Account › Delete data… › Delete account.\n\nForgot the password? Remove Spixi’s data from this device: Android: clear Spixi’s storage in Settings; iPhone: delete the app; Windows or Mac: delete the Spixi folder in Documents. Without your backup file and password, this account cannot be recovered.',
       role: 'alertdialog',
       host: el.closest('.demo-phone') || undefined,
       actions: [
-        { label: strings.cancel || 'Cancel', type: 'text', autofocus: true },
-        {
-          label: strings.otherWalletCta || 'Go to setup', type: 'fill', intent: 'destructive',
-          onClick: () => {
-            input.value = '';                    // SECURITY §5: scrub before leaving
-            pwField.mask();
-            try { if (onUseAnotherWallet) onUseAnotherWallet(); } catch { /* nav — nothing to wedge */ }
-          },
-        },
+        { label: strings.ok || 'OK', type: 'fill', autofocus: true },   // closes the sheet — never navigates
       ],
-    }));
+    });
+    way.classList.add('c-lock__way');
+    openModal(way);
   });
   tail.append(hatch);
 

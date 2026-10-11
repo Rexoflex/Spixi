@@ -35,7 +35,7 @@ export default async function (h) {
   };
   const restore = body(LP, 'private RestoreOutcome restoreAccountFile(string source_path, string pass)');
   const wipe = body(SP, 'private void wipeEverything()');
-  const backup = body(BP, 'public static async Task backupAccount()');
+  const backup = body(BP, 'public static async Task<bool> backupAccount()');   /* ★ S16 #46 r1 re-base (R2 MAJOR-1): it returns the refusal outcome */
   const conflictAt = restore.indexOf('if (moveResult == RestoreMoves.Result.WalletConflict)');
   const conflict = conflictAt >= 0 ? body(restore.slice(conflictAt), 'if (moveResult == RestoreMoves.Result.WalletConflict)') : '';
   const w = {

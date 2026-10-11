@@ -129,3 +129,31 @@ Android = the new phone (Android 16) unless the row says old Moto. Logs: Android
 **WALK 2026-10-10 (Android + Windows, §5): 16 P · 1 F · 1 N/A — iPhone + Mac (§0–§4 and the I / M legs of §5) NOT walked yet → walk them on the tag `s15-walk` (#1310).**
 
 **Result line for DECISIONS:** `WALK #n (office, S15 build, iPhone + Mac + the §5 rows on Android / Windows): n P · n F · n N/A`.
+## 6 · S16 rows (S16 build) — Android (A) · Windows (W) · iPhone (I) · Mac (M)
+
+Added S16 (2026-10-11, DECISIONS #1321–#1326). The S16 C# is UNCOMPILED (first compile = S16-BUILD). Walk on the S16 build; keep §0–§5 for the office leg.
+Logs: Android `android-s16.txt` (`adb logcat -d -v time`), Windows the newest `Documents\Spixi` log, iPhone / Mac the Xcode console. Grep the logs for `[L8]`, `[FLAGS]`, `[THEME]`, `refused`, `DENIED`.
+Before S16-L8-MIG: keep the S15 account on each device (do NOT wipe) — the first S16 start is the migration.
+
+| ID | Pl | Steps | Expected | P/F/N/A | Note |
+|---|---|---|---|---|---|
+| S16-BUILD | A W I M | 1) Wipe `obj` / `bin`. 2) Plain build (Windows = F5). 3) Open the app. | Build succeeds (first compile of the S16 C#: 20+ files, 5 new). Log has one `[FLAGS] securepass=1 mediagate=1`. | | paste any error file:line |
+| S16-L8-MIG | A W I M | 1) Start S16 over the S15 account (no wipe). 2) Note: password asked? 3) Close fully, start again. | 1: no password asked; log `[L8] store=secure … migrated=1`. 3: no password; `read=hit migrated=0`. ⚠ Mac: `migrated=0` + `migrate kept plaintext (…)` = no keychain access → note it (#1323 risk). | | #1323 |
+| S16-L8-NEW | A I M | 1) Account › Delete data… › Delete account. 2) Create a new account. 3) Close fully, start again. | 3: no password asked; `[L8] … read=hit`. ⚠ Mac: a retry screen here = SecureStorage unusable on the Mac → F (mechanism: keychain entitlement). | | #1323 |
+| S16-L8-CHANGE | A W | 1) Account › change password. 2) Close fully, start again. 3) Account › Backup → share. | 2: no password asked. 3: the backup file is made (share sheet / save dialog). | | P24 |
+| S16-L8-RETRY | A | 1) On the retry screen (e.g. after S16-L8-NEW on a device that asks), type a WRONG password, then the right one. 2) Restart. | Wrong: error, nothing stored. Right: Home. 2: no password asked. | | proceed verifies first |
+| S16-L8-FLAG | A | 1) Dev mode ON › Developer › "Wallet password in secure storage" OFF. 2) Restart. 3) Switch ON, restart. | 2: `[FLAGS] securepass=0`, `[L8] store=legacy`, no password asked. 3: `migrated=1`, no password asked. | | reverse copy |
+| S16-F1 | W | 1) Turn the app lock on, let the idle lock show. 2) F12 on the lock (DevTools) → Console: `location.href='ixian:change'`. | The lock stays; log `LockPage: ixian:change refused (no Cancel on this lock)`. | | #1322 F1 |
+| S16-F2 | W | 1) Set the idle lock to 1 min. 2) Open a chat, F12 → Console: `setInterval(()=>location.href='ixian:details',300)`. 3) Wait for the idle lock. | The lock presents and stays; log may show `pushPageLoaded: lock staging - dropped …`. Reload the chat after. | | #1322 F2 |
+| S16-F3 | A W | 1) Record + send a voice note in a chat (normal use). 2) Phone: open chat info; `chrome://inspect` → the chat WebView console: `location.href='ixian:voicerec:start'`. 3) Windows: narrow the window below 700 with chat info open, same command in the chat's DevTools. | 1 works. 2 + 3: no recording; log `Voice: recording refused (hidden)`. | | #1322 F3 · r2/r3 |
+| S16-F4 | W M | 1) Copy a screenshot, Ctrl/Cmd+V in a shown chat. 2) Minimize the window, run `location.href='ixian:pasteImage'` from the chat's DevTools (W). | 1: the preview sheet opens. 2: nothing; log `Media: paste refused (background)`. | | #1322 F4 |
+| S16-F5 | A | 1) Receive a contact request; Decline it on Home. | The request goes; an approved contact is never removed by Decline. | | #1322 F5 |
+| S16-M9 | A | 1) Home › Scan (quick scan) → camera. 2) Add contact › scan. 3) Open a mini-app that asks for the camera (if any). | 1 + 2: the camera opens and scans. 3: refused; log `WebView capture DENIED reason=…`. | | #1313 · must not break the QR scan |
+| S16-RESTOREB | A | 1) Lock on, restart → the cold-start lock. 2) Tap "Use a different wallet…". | Sheet "One account per device", two paragraphs, OK closes it; nothing navigates. | | #1324 (b) |
+| S16-THEME | A | 1) Appearance = System. 2) Flip the phone's dark mode with Spixi open, then with Spixi in the background, then resume. | The right theme each time. Save the log either way (`[THEME] event / push / resume / gen-stale` lines). If wrong: screenshot + the time. | | #1311 (a) mechanism |
+| S16-REARM | W | 1) Use Windows 30 min with the chats that logged the 1 436 lines in S15. | "…prepare file transfer for an unfinished sent file" at most once per file (S15: 1 436 lines in 3.5 h). | | #1324 (c) |
+| S16-HOLD | A | 1) On the chats list, tap a chat and at once tap another row (during the ~250 ms open). | The second tap does not open the other chat. | | #1294 (c) · Clickable on MAUI unproven |
+| S16-STRIP | A | 1) After a restore (or any catch-up), open Wallet. 2) Wait 5+ min. | Row "Checking for your transactions · n%" + "Spixi may feel slower until this is done"; after 5 min "About N hr left · …". | | #1304 pick A |
+| S16-PSS | A | 1) Run the PSS loop (handoff-2026-10-10 §4) with BOTH PIDs (perf research §6: `adb shell ps -A \| findstr "spixi sandboxed"`, `dumpsys meminfo <pid>` each). 2) Same script: 3 chat opens · chat info ×3 · 5 photos · viewer. | Numbers for the perf track (no pass bar). Paste the timeline. | | #1310 measure first |
+
+**Result line for DECISIONS:** `WALK #n (S16 build, A / W / I / M): n P · n F · n N/A` (+ the office §0–§5 rows if walked on this build).

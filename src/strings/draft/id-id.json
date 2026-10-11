@@ -101,6 +101,8 @@
   "capx_Storage": "Dapat menyimpan data di perangkat Anda sehingga aplikasi mengingat berbagai hal di antara sesi.",
   "capx_TransactionSigning": "Dapat meminta Anda menyetujui pembayaran IXI. Anda selalu mengonfirmasi setiap pembayaran sendiri.",
   "categories": "Kategori",
+  "chainScanSlow": "Spixi mungkin terasa lebih lambat sampai ini selesai",
+  "chainScanSlowEta": "Sekitar {t} lagi · Spixi mungkin terasa lebih lambat sampai ini selesai",
   "chainScanStarting": "Memulai pemeriksaan",
   "chainScanTitle": "Mencari transaksi Anda",
   "changePhoto": "Ganti foto",
@@ -386,7 +388,8 @@
   "otherWallet": "Gunakan dompet lain…",
   "otherWalletBody": "Anda akan meninggalkan layar ini dan menuju penyiapan untuk membuat atau memulihkan dompet lain. Dompet Anda saat ini tetap terenkripsi di perangkat ini.",
   "otherWalletCta": "Ke penyiapan",
-  "otherWalletTitle": "Gunakan dompet lain?",
+  "otherWalletWayBody": "Spixi sudah memiliki akun di perangkat ini. Untuk memakai akun lain, hapus dulu akun ini: buka kunci Spixi, lalu Akun › Hapus data… › Hapus akun saya.\n\nLupa kata sandi? Hapus data Spixi dari perangkat ini: Android: kosongkan penyimpanan Spixi di Pengaturan; iPhone: hapus aplikasinya; Windows atau Mac: hapus folder Spixi di Dokumen. Tanpa file cadangan dan kata sandi, akun ini tidak dapat dipulihkan.",
+  "otherWalletWayTitle": "Satu akun per perangkat",
   "ownAddressNote": "Ini adalah alamat Anda sendiri.",
   "owner": "Pemilik",
   "padDecimal": "Tanda desimal",
@@ -878,5 +881,8 @@
   "devContainerClip": "Clip",
   "devContainerShadow": "Shadow (13c)",
   "devContainerNone": "None (no input flip during the slide)",
-  "devContainerOn": "On"
+  "devContainerOn": "On",
+  "devFlagsTitle": "Release flags (a change acts after a restart)",
+  "devFlagsSecurePass": "Wallet password in secure storage",
+  "devFlagsMediaGate": "Voice and paste only in the open chat"
 }

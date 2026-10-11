@@ -377,7 +377,7 @@ intro-new-walleterror-text = Beim Erstellen deines Kontos ist etwas schiefgelauf
 intro-new-walletexists-title = Konto existiert bereits
 intro-new-walletexists-text = Auf diesem Gerät existiert bereits ein Konto, daher kann hier kein neues erstellt werden. Starte Spixi neu, um das bestehende Konto zu verwenden.
 intro-restore-walletexists-title = Konto ist bereits auf diesem Gerät
-intro-restore-walletexists-text = Auf diesem Gerät existiert bereits ein Konto. Um es zu verwenden, starte Spixi neu. Um ein anderes Konto wiederherzustellen: starte Spixi neu, öffne Konto, tippe auf Wallet löschen und öffne dann erneut Konto wiederherstellen.
+intro-restore-walletexists-text = Auf diesem Gerät existiert bereits ein Konto. Um es zu verwenden, starte Spixi neu. Um ein anderes Konto wiederherzustellen: starte Spixi neu, öffne Konto › Daten löschen… › Konto löschen und öffne dann erneut Konto wiederherstellen.
 
 ; Intro Restore Screen
 intro-restore-title = Konto wiederherstellen
@@ -472,6 +472,8 @@ settings-backup-notice = Dieses Backup und das damit verknüpfte Passwort werden
 settings-backup-notice2 = - dieses Gerät verlierst<br />- Spixi von diesem Gerät deinstallierst<br />- dieses Spixi Konto löscht<br />- diese Wallet löschst
 settings-backup-invalidpassword-title = Ungültiges Passwort
 settings-backup-invalidpassword-text = Bitte gib ein gültiges Passwort ein.
+settings-backup-refused-title = Keine Sicherung erstellt
+settings-backup-refused-text = Spixi konnte dein gespeichertes Passwort nicht lesen, daher wurde keine Sicherung erstellt. Starte Spixi neu, gib dein Passwort ein, falls danach gefragt wird, und sichere dann erneut.
 settings-backup-saved-title = Hast du die Sicherung gespeichert?
 settings-backup-saved-text = Wähle Ja nur, wenn die Sicherungsdatei jetzt an einem sicheren Ort gespeichert oder dorthin gesendet ist.
 settings-backup-saved-yes = Ja

@@ -4111,17 +4111,19 @@ console.log('settings.html — lock shell (Phase 1 #4)');
   await sleep(900);
   ok(!d.querySelector('.demo-lock'), 'unlock success closes the takeover (mock page replacement)');
 
-  // —— escape hatch: confirm modal → ixian:change ——
+  // —— escape hatch: the sheet says the way and closes (★ S16 #1311 (b); was: confirm modal → ixian:change) ——
   toolbarBtn('Lock now').click();
   const lock2 = d.querySelector('.demo-lock .c-lock');
   lock2.querySelector('.c-lock__hatch').click();
   const hatchModal = d.querySelector('.c-modal');
-  ok(!!hatchModal && hatchModal.textContent.includes('different wallet'),
+  ok(!!hatchModal && hatchModal.textContent.includes('One account per device'),   // ★ S16 option 2 re-base: the sheet's title (was 'Use a different wallet?')
     'escape hatch opens a confirm modal first (Damir pick — deliberateness, C# stays the boundary)');
   const modalBtns = [...hatchModal.querySelectorAll('.c-modal__actions .c-button')];
-  modalBtns[modalBtns.length - 1].click();        // Go to setup
+  modalBtns[modalBtns.length - 1].click();        // ★ S16 (#1311 (b)): OK — the sheet says the way and closes
   await sleep(500);
-  ok(!d.querySelector('.demo-lock'), 'confirming the hatch fires ixian:change and leaves the lock screen');
+  ok(modalBtns.length === 1 && !W.Spixi.isOverlayOpen(hatchModal) && !!d.querySelector('.demo-lock'),
+    '★ S16 (#1311 (b)): the hatch sheet\'s one action CLOSES it and the lock stays — no ixian:change, no setup (it was a dead end, #1297)');
+  d.querySelector('.demo-lock')?.remove();        // the demo's own close (panel.remove), so the sequence below starts clean
 
   // —— confirm-action mode (setJustConfirm) ——
   toolbarBtn('Confirm action').click();
@@ -4696,8 +4698,8 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     '#160: --gradient-lock token defined (code-only, fixed both themes) and consumed by .c-lock');
   ok(/dataset\.theme = 'dark'/.test(ljs),
     '#160: lock screen pins its subtree dark in JS (the #20 override precedent)');
-  ok(/openModal\(createModal\(/.test(ljs),
-    '#160b: the hatch modal is OPENED, not just created (createModal does not self-mount — Damir smoke-crash class)');
+  ok(/openModal\(createModal\(/.test(ljs) || /const (\w+) = createModal\(\{[\s\S]*?\n\s*openModal\(\1\);/.test(ljs),
+    '#160b: the hatch modal is OPENED, not just created (createModal does not self-mount — Damir smoke-crash class; ★ S16 re-base: the RESTORE-B sheet is built into a const for its class, then opened)');
   ok(/c-lock__brand/.test(ljs) && /c-lock__spacer/.test(lcss) && /flex: 1\.2 1 0/.test(lcss),
     '#160b: brand/form/spacer/tail zones present — action cluster rides the lower half');
   ok(/\.demo-lock \{ position: absolute; inset: 0;/.test(setHtml)
@@ -9552,8 +9554,8 @@ console.log('#341 — Change password renders inside the Account pane');
 
   ok(!/Logging\.error\([^)]*current_url/.test(spEnc) && !/Logging\.error\([^)]*current_url/.test(encPage),
     '★ #341: neither catch logs the URL — only the exception object (the create-path shape in LaunchPage)');
-  ok(/Preferences\.Default\.Set\("walletpass", split_url\[2\]\);/.test(spBranch)
-    && /Preferences\.Default\.Set\("walletpass", split_url\[2\]\);/.test(epBranch),
+  ok(/WalletPassStore\.write\(split_url\[2\]\);/.test(spBranch)   /* ★ S16 L8 re-base (#1312): the password follows through the store */
+    && /WalletPassStore\.write\(split_url\[2\]\);/.test(epBranch),
     '★ #341 audit MAJOR-2 (BOTH routes, PRE-EXISTING data loss): the cached walletpass preference follows the wallet. Node.loadWallet reads it at every cold start (Node.cs:248-256), so without this the next launch cannot open the wallet and drops the user on the retry view; and BackupPage.xaml.cs:144 encrypts the backup archive with it, so a backup taken in between needs one password for the archive and another for the wallet inside it — unrestorable');
   ok(/split_url\.Length == 3 && split_url\[2\]\.Length >= 10/.test(spEnc),
     '#341 audit MINOR-3: C# refuses an empty or short new password on its own. The inline route removed the separate EncryptionPassword page, so the settings shell would otherwise be the ONLY validator of a wallet re-encryption');
@@ -9607,8 +9609,8 @@ console.log('#341 — Change password renders inside the Account pane');
   ok(/:root\[data-desktop\] body:not\(\[data-pane\]\) \.c-encpass__footer \{[\s\S]{0,200}?padding-inline: max\(/.test(encCss)
     && !/:root\[data-desktop\] \.c-encpass__footer \{[\s\S]{0,260}?padding-inline: max\(/.test(encCss),
     '#341 review MINOR-5: the FOOTER carries the same rail as the body, so it needed the same scoping. Fixing only the body left the CTA row with a content box of about 152px on a 1128px detail region');
-  ok(/writeWallet\(split_url\[2\]\);[\s\S]*?isValidPassword\(split_url\[2\]\)[\s\S]*?Preferences\.Default\.Set\("walletpass"/.test(spBranch)
-    && /writeWallet\(split_url\[2\]\);[\s\S]*?isValidPassword\(split_url\[2\]\)[\s\S]*?Preferences\.Default\.Set\("walletpass"/.test(epBranch),
+  ok(/writeWallet\(split_url\[2\]\);[\s\S]*?isValidPassword\(split_url\[2\]\)[\s\S]*?WalletPassStore\.write\(split_url\[2\]\)/.test(spBranch)   /* ★ S16 L8 re-base (#1312) */
+    && /writeWallet\(split_url\[2\]\);[\s\S]*?isValidPassword\(split_url\[2\]\)[\s\S]*?WalletPassStore\.write\(split_url\[2\]\)/.test(epBranch),
     '★ #341 review MAJOR-1: the write is CONFIRMED before the cached password follows it. writeWallet is called as a statement everywhere in this repo, so a failure reported by RETURN VALUE would pass the try/catch unseen — and with the preference already moved, the next cold start could not open the wallet. Asking the storage whether the NEW password opens it needs no knowledge of the return type (Ixian-Core is outside this repo)');
   ok(/const ENC_MIN = (\d+);/.exec(readFileSync(join(root, 'src/components/lock-shell.js'), 'utf8'))[1] === '10'
     && /split_url\[2\]\.Length >= 10/.test(spEnc) && /split_url\[2\]\.Length >= 10/.test(encPage),
@@ -30529,6 +30531,13 @@ console.log('★★ handover-gate fix batch — the security pins');
           const t = stripCode(readFileSync(join(dir, ent.name), 'utf8'));
           const rel = join(dir, ent.name).slice(root.length + 1).replace(/\\/g, '/');
           for (const m of t.matchAll(/ClassId\s*=\s*"([^"]*)"/g)) hits.push({ rel, kind: 'assign', val: m[1] });
+          /* ★ S16 #46 r2 re-base (m2): a C# assignment with ANY right-hand side (a constant, S16SecRules.ScanMarker, a
+             variable) or through ClassIdProperty is a forge path the literal walk could not see — each one is a hit with
+             no allowed value, so it lands in `wrong`. The markers are XAML-only. */
+          if (/\.cs$/.test(ent.name)) {
+            for (const m of t.matchAll(/\bClassId\s*=(?!=)\s*(?!")/g)) hits.push({ rel, kind: 'assign', val: '<C# expression>' });
+            for (const m of t.matchAll(/ClassIdProperty/g)) hits.push({ rel, kind: 'assign', val: '<ClassIdProperty>' });
+          }
           for (const m of t.matchAll(/ClassId,\s*"([^"]*)"/g)) hits.push({ rel, kind: 'compare', val: m[1] });
           for (const m of t.matchAll(/ClassId\s*(?:==|!=)\s*"([^"]*)"/g)) hits.push({ rel, kind: 'compare', val: m[1] });
         }
@@ -30536,10 +30545,15 @@ console.log('★★ handover-gate fix batch — the security pins');
     };
     walkAll(join(root, 'Spixi'));
     const files = [...new Set(hits.map((h) => h.rel))].sort();
-    const wrong = hits.filter((h) => h.val !== wanted);
-    ok(hits.length >= 3 && files.length >= 3 && wrong.length === 0,
+    /* ★ S16 #46 r1 re-base (#1313 MAJOR #9, R1-M1): ONE second marker, "scan", is ASSIGNED in exactly one place —
+       Spixi/Pages/Scan/ScanPage.xaml — and compared by no literal (the Android capture rule reads it through
+       S16SecRules.ScanMarker). Every other ClassId literal is still "miniapp"; a "scan" anywhere else is wrong. */
+    const SCAN_MARK = 'scan', SCAN_HOME = 'Spixi/Pages/Scan/ScanPage.xaml';
+    const scanHits = hits.filter((h) => h.val === SCAN_MARK);
+    const wrong = hits.filter((h) => h.val !== wanted && !(h.val === SCAN_MARK && h.kind === 'assign' && h.rel === SCAN_HOME));
+    ok(hits.length >= 3 && files.length >= 3 && wrong.length === 0 && scanHits.length === 1 && scanHits[0].rel === SCAN_HOME && scanHits[0].kind === 'assign',
       '★★ gate 8 THE MARKER CONTRACT, walked out of the tree: every ClassId literal in Spixi/ is "' + wanted + '" — ' + hits.length + ' uses across ' + files.length + ' files (' + files.join(', ') + '). Android drops DomStorage and the console forward on it, iOS now gates the camera, the browser handoff and the storage jar on it. Change the spelling in ANY one of them and the contract splits silently, which is exactly how it split before. Wrong: ' + (wrong.map((w) => w.rel + '="' + w.val + '"').join(' · ') || 'none'));
-    const assigns = hits.filter((h) => h.kind === 'assign');
+    const assigns = hits.filter((h) => h.kind === 'assign' && h.val === wanted);   // ★ S16 #46 r1 re-base: the "miniapp" assigns (the scan marker is pinned above)
     ok(assigns.length === 1 && /MiniAppPage\.xaml$/.test(assigns[0].rel),
       '★ gate 8: the marker is ASSIGNED in exactly one place — ' + (assigns[0] ? assigns[0].rel : 'nowhere') + ' — and nowhere in C#. Publisher code cannot shed it and cannot forge it onto a shell, and that is the whole reason the marker can carry a privilege decision');
   }
@@ -38328,7 +38342,11 @@ console.log('★★ #1028+ — the overnight finalization');
     const readAt = scpPick.indexOf('SClipboardImage.readAsync(');
     r.imageReadOnlyOnPaste = imageReaders.every((f) => readers.includes(f))
       && pasteCalls.length === 1 && pasteCalls[0][0] === 'Spixi/Pages/Chat/SingleChatPage.xaml.cs' && pasteCalls[0][1] === 1
-      && pasteAt > 0 && readAt > pasteAt && readAt - pasteAt < 200
+      && pasteAt > 0 && readAt > pasteAt
+      /* ★ S16 #46 r1 re-base (#1320 F4): the 200-char window held the read right under the route; the F4 media gate now
+         sits between them. Not widened — EXACTLY the gate block (assign the refusal · if refused, log + return) and nothing
+         else may stand between the route and the read. */
+      && /^else if \(route == PhotoRules\.RoutePaste\)\s*\{\s*string\? pasteRefusal = mediaInputRefusal\(\);\s*if \(pasteRefusal != null\)\s*\{[^{}]*return;\s*\}\s*byte\[\]\? bytes = await $/.test(scpPick.slice(pasteAt, readAt))
       && /current_url\.Equals\("ixian:pasteImage", StringComparison\.Ordinal\)\)\s*\{\s*#pragma warning disable CS4014\s*onPickPhotos\(PhotoRules\.RoutePaste\);/.test(scpPick)
       && (scpPick.match(/PhotoRules\.RoutePaste/g) || []).length === 2;
     /* ⓘ CONTENT reads only: a PRESENCE check (HasStrings — the #993 M5 add-contact diagnostic, ContactNewPage) reads
@@ -42265,6 +42283,7 @@ for (const mod of ['a-tips', 'a-cs', 'a-guards', 'b-about', 'b-howto', 'b-cs', '
 for (const mod of ['a-cascade', 'b-swap']) await (await import(new URL('./pins-s13/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S13 (12-FLASH, launch blocker) — a = no input cascade on the Android chat stages (the WebView is never re-parented; docs/s13-flash-mechanism.md)
 for (const mod of ['a1-backup-back', 'a2-container-ride', 'b-settings', 'c-balance-text', 'd-backup-about', 'e-wallet']) await (await import(new URL('./pins-s14/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S14 (#1279–#1286) — a1 = Android back callback + backup rules on the runtime path · a2 = overlay container (Clip) + chat info rides the swap · b = landtab one verb + aboutLink whitelist · c = no balance in a WebView failure text
 for (const mod of ['a-restore', 'b-native', 'c-sinks', 'c-transport', 'd-build', 'e-send-enter', 'f-strip']) await (await import(new URL('./pins-s15/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S15 — a = the restore all-or-nothing + wipe + real avatar (#1297)
+for (const mod of ['a-sec', 'b-l8', 'c-fix']) await (await import(new URL('./pins-s16/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S16 — a = the security batch (#1320 F1–F5 / F8, #1313 MAJOR #9) · b = L8 walletpass → SecureStorage (#1300) · c = #1311 (a)(b)(c) + the hold shield (#1294 (c))
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

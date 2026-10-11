@@ -377,7 +377,7 @@ intro-new-walleterror-text = Nešto je pošlo po zlu pri kreiranju vašeg naloga
 intro-new-walletexists-title = Nalog već postoji
 intro-new-walletexists-text = Na ovom uređaju već postoji nalog, pa ovde nije moguće kreirati novi. Ponovo pokrenite Spixi da nastavite sa postojećim nalogom.
 intro-restore-walletexists-title = Nalog već postoji na ovom uređaju
-intro-restore-walletexists-text = Na ovom uređaju već postoji nalog. Da biste ga koristili, ponovo pokrenite Spixi. Da biste vratili drugi nalog: ponovo pokrenite Spixi, otvorite Nalog, dodirnite Izbriši novčanik, a zatim ponovo otvorite Vrati nalog.
+intro-restore-walletexists-text = Na ovom uređaju već postoji nalog. Da biste ga koristili, ponovo pokrenite Spixi. Da biste vratili drugi nalog: ponovo pokrenite Spixi, otvorite Nalog › Izbriši podatke… › Trajno izbriši nalog, a zatim ponovo otvorite Vrati nalog.
 
 ; Intro Restore Screen
 intro-restore-title = Vrati nalog
@@ -472,6 +472,8 @@ settings-backup-notice = Trebaće vam rezervna kopija i povezano geslo za vraća
 settings-backup-notice2 = - izgubite ovaj uređaj<br />- deinstalirate Spixi sa ovog uređaja<br />- izbrišete ovaj Spixi nalog<br />- izbrišete ovaj novčanik
 settings-backup-invalidpassword-title = Nevažeća šifra
 settings-backup-invalidpassword-text = Molimo unesite važeću šifru.
+settings-backup-refused-title = Rezervna kopija nije napravljena
+settings-backup-refused-text = Spixi nije mogao da pročita sačuvanu šifru, pa rezervna kopija nije napravljena. Ponovo pokrenite Spixi, unesite šifru ako se zatraži, pa ponovo napravite rezervnu kopiju.
 settings-backup-saved-title = Da li ste sačuvali rezervnu kopiju?
 settings-backup-saved-text = Izaberite Da samo ako je datoteka rezervne kopije sada sačuvana ili poslata na sigurno mesto.
 settings-backup-saved-yes = Da

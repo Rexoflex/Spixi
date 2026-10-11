@@ -543,7 +543,17 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnResume();
         applyRecentsPrivacy();   // #461: keep it in step with the lock preference
-
+        /* ★ S16 (#1311 (a)): the [THEME] resume line — a flip while backgrounded shows here as req ≠ baked or cfg ≠ req, with
+         * or without a later `[THEME] event`. Enum names + fixed words only. */
+        try
+        {
+            Logging.info("[THEME] resume req=" + Microsoft.Maui.Controls.Application.Current?.RequestedTheme
+                + " baked=" + S16FixRules.themeWord(SpixiLocalization.getLocalizedString("SpixiThemeName"))
+                + " " + S16FixRules.androidCfgWords(this));
+        }
+        catch (Exception)
+        {
+        }
     }
 
     /* ★ F3 — the lock's deferred auth is released HERE, from OnPostResume, and through a

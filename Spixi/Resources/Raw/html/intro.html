@@ -1390,6 +1390,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   min-width: 240px;
 }
 
+/* ★ #1311 (b) option 2: the "One account per device" sheet's body is two paragraphs in ONE text node (\n\n) — the
+   modal mounts on body, outside .c-lock, so the hook is the sheet's own class. */
+.c-lock__way .c-modal__body { white-space: pre-line; }
+
 </style><!-- passwordField (c-lock__field) grammar (launch-spec §5) -->
 <style data-src="../styles/components/settings-shell.css">
 /* c-settings — Account hub + danger screen (docs/settings-shell-spec.md,

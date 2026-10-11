@@ -370,10 +370,6 @@
         toast('ixian:onload re-emitted → Plugin.Fingerprint retry (mock: success)');
         setTimeout(close, 800);
       },
-      onUseAnotherWallet: () => {                 // ixian:change in lock mode → LaunchPage
-        toast('ixian:change → LaunchPage (create/restore another wallet) — mock');
-        close();
-      },
       onCancel: () => {                           // ixian:change in confirm mode → authSucceeded(false)
         toast('ixian:change → authSucceeded(false) — action canceled (mock)');
         close();

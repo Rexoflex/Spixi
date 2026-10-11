@@ -101,6 +101,8 @@
   "capx_Storage": "Gali išsaugoti duomenis jūsų įrenginyje, kad prisimintų informaciją tarp sesijų.",
   "capx_TransactionSigning": "Gali prašyti patvirtinti IXI mokėjimus. Kiekvieną iš jų visada patvirtinate patys.",
   "categories": "Kategorijos",
+  "chainScanSlow": "Kol tai baigsis, Spixi gali veikti lėčiau",
+  "chainScanSlowEta": "Liko apie {t} · kol tai baigsis, Spixi gali veikti lėčiau",
   "chainScanStarting": "Pradedama patikra",
   "chainScanTitle": "Ieškoma jūsų operacijų",
   "changePhoto": "Keisti nuotrauką",
@@ -386,7 +388,8 @@
   "otherWallet": "Naudoti kitą piniginę…",
   "otherWalletBody": "Paliksite šį ekraną ir pereisite į sąranką, kur galėsite sukurti ar atkurti kitą piniginę. Dabartinė piniginė lieka užšifruota šiame įrenginyje.",
   "otherWalletCta": "Eiti į sąranką",
-  "otherWalletTitle": "Naudoti kitą piniginę?",
+  "otherWalletWayBody": "Šiame įrenginyje Spixi jau turi paskyrą. Norėdami naudoti kitą, pirmiausia ištrinkite šią paskyrą: atrakinkite Spixi, tada Paskyra › Ištrinti duomenis… › Ištrinti paskyrą.\n\nPamiršote slaptažodį? Pašalinkite Spixi duomenis iš šio įrenginio: Android: išvalykite Spixi saugyklą nustatymuose; iPhone: ištrinkite programą; Windows ar Mac: ištrinkite aplanką Spixi aplanke „Dokumentai“. Be atsarginės kopijos failo ir slaptažodžio šios paskyros atkurti nepavyks.",
+  "otherWalletWayTitle": "Viena paskyra viename įrenginyje",
   "ownAddressNote": "Tai jūsų paties adresas.",
   "owner": "Savininkas",
   "padDecimal": "Dešimtainis skyriklis",
@@ -877,5 +880,8 @@
   "devContainerClip": "Clip",
   "devContainerShadow": "Shadow (13c)",
   "devContainerNone": "None (no input flip during the slide)",
-  "devContainerOn": "On"
+  "devContainerOn": "On",
+  "devFlagsTitle": "Release flags (a change acts after a restart)",
+  "devFlagsSecurePass": "Wallet password in secure storage",
+  "devFlagsMediaGate": "Voice and paste only in the open chat"
 }

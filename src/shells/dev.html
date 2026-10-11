@@ -139,6 +139,7 @@
     if (lastLog) setDevLog(devEl, lastLog);
     mountFlashDev();
     mountContainerDev();   // ★ S14 (#1282): also when no flash positions came yet
+    mountFlagsDev();   // ★ S16 (#1312)
   }
 
   /* ★ S11 C (#1262) 10-FLASH probe build — the Developer switches for the chat-open hold (Android; DevPage stores them as
@@ -251,6 +252,59 @@
     else if (after) body.append(card);
     else body.prepend(card);
   }
+
+  /* ★ S16 (#1312 rule 1) — the release-flag switches (SpixiFlags; every platform). C# pushes the STORED values
+     (setFlagsDev "<securepass 0|1>,<mediagate 0|1>", 1 = the S16 path ON); an exe without the verb never does, so no dead
+     row. A tap sends `ixian:devflash:<securepass|mediagate>:<1|0>`, optimistic; C# echoes. C# reads the flags once per
+     start, so the card says a change acts after a restart. */
+  let flagsDev = null;   // [securePassOn, mediaGateOn] once C# told us
+  function mountFlagsDev() {
+    if (!flagsDev || !devEl) return;
+    const body = devEl.querySelector('.c-settings__body');
+    if (!body) return;
+    const old = body.querySelector('.c-dev-flags');
+    if (old) old.remove();
+    const card = document.createElement('div');
+    card.className = 'c-settings__section c-dev-flags';
+    const head = document.createElement('p');
+    head.className = 'c-settings__note';
+    head.textContent = strings.devFlagsTitle || 'Release flags (a change acts after a restart)';
+    card.append(head);
+    const rows = [
+      ['securepass', strings.devFlagsSecurePass || 'Wallet password in secure storage'],
+      ['mediagate', strings.devFlagsMediaGate || 'Voice and paste only in the open chat'],
+    ];
+    rows.forEach(([name, label], i) => {
+      const row = document.createElement('div');
+      row.className = 'c-settings__row c-settings__row--static';
+      row.dataset.row = 'switch';
+      const lab = document.createElement('span');
+      lab.className = 'c-settings__row-label';
+      lab.textContent = label;
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'c-settings__switch';
+      sw.setAttribute('role', 'switch');
+      sw.setAttribute('aria-label', label);
+      sw.dataset.flag = name;
+      sw.setAttribute('aria-checked', String(!!flagsDev[i]));
+      const knob = document.createElement('span');
+      knob.className = 'c-settings__switch-knob';
+      sw.append(knob);
+      sw.addEventListener('click', () => {
+        const next = sw.getAttribute('aria-checked') !== 'true';
+        sw.setAttribute('aria-checked', String(next));
+        bridge.send('ixian:devflash:' + name + ':' + (next ? '1' : '0'));
+      });
+      row.append(lab, sw);
+      card.append(row);
+    });
+    const after = body.querySelector(':scope > .c-dev-container') || body.querySelector(':scope > .c-dev-flash')
+      || body.querySelector(':scope > .c-settings__note');
+    if (after && after.nextSibling) body.insertBefore(card, after.nextSibling);
+    else if (after) body.append(card);
+    else body.prepend(card);
+  }
   buildDev();
 
   const handlers = {
@@ -286,6 +340,13 @@
       if (w !== 'clip' && w !== 'shadow' && w !== 'none') return;
       containerDev = w;
       mountContainerDev();
+    },
+    /* ★ S16 (#1312, 🟡 new push): the stored flag switches "s,m" (1 = ON); anything but two 0/1 digits is ignored. */
+    setFlagsDev(v) {
+      const m = /^([01]),([01])$/.exec(String(v || ''));
+      if (!m) return;
+      flagsDev = [m[1] === '1', m[2] === '1'];
+      mountFlagsDev();
     },
   };
   /* ★ L3 (#706): the iOS back signal. One level per gesture — a sheet on the shared

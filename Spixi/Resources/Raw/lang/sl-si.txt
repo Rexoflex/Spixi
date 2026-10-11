@@ -377,7 +377,7 @@ intro-new-walleterror-text = Pri ustvarjanju računa je šlo nekaj narobe. Posku
 intro-new-walletexists-title = Račun že obstaja
 intro-new-walletexists-text = Na tej napravi račun že obstaja, zato tukaj ni mogoče ustvariti novega. Znova zaženite Spixi, da nadaljujete z obstoječim računom.
 intro-restore-walletexists-title = Račun je že na tej napravi
-intro-restore-walletexists-text = Na tej napravi račun že obstaja. Če ga želite uporabiti, znova zaženite Spixi. Če želite obnoviti drug račun: znova zaženite Spixi, odprite Račun, tapnite Izbriši denarnico in nato znova odprite Obnovi račun.
+intro-restore-walletexists-text = Na tej napravi račun že obstaja. Če ga želite uporabiti, znova zaženite Spixi. Če želite obnoviti drug račun: znova zaženite Spixi, odprite Račun › Izbriši podatke… › Trajno izbriši račun in nato znova odprite Obnovi račun.
 
 ; Intro Restore Screen
 intro-restore-title = Obnovi račun
@@ -472,6 +472,8 @@ settings-backup-notice = To varnostno kopijo in povezano geslo boste potrebovali
 settings-backup-notice2 = - izgubite to napravo<br />- odstranite aplikacijo Spixi s te naprave<br />- izbrišete ta račun Spixi<br />- izbrišete to denarnico
 settings-backup-invalidpassword-title = Neveljavno geslo
 settings-backup-invalidpassword-text = Prosimo, vnesite veljavno geslo.
+settings-backup-refused-title = Varnostna kopija ni bila ustvarjena
+settings-backup-refused-text = Spixi ni mogel prebrati shranjenega gesla, zato varnostna kopija ni bila ustvarjena. Znova zaženite Spixi, vnesite geslo, če ga zahteva, nato pa znova ustvarite varnostno kopijo.
 settings-backup-saved-title = Ste shranili varnostno kopijo?
 settings-backup-saved-text = Izberite Da samo, če je datoteka varnostne kopije zdaj shranjena ali poslana na varno mesto.
 settings-backup-saved-yes = Da

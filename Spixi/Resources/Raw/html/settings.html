@@ -4938,6 +4938,10 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
   min-width: 240px;
 }
 
+/* ★ #1311 (b) option 2: the "One account per device" sheet's body is two paragraphs in ONE text node (\n\n) — the
+   modal mounts on body, outside .c-lock, so the hook is the sheet's own class. */
+.c-lock__way .c-modal__body { white-space: pre-line; }
+
 </style><!-- #341: c-encpass + password fields for the Change-password sublevel (#804: every form factor) -->
 <style data-src="../styles/components/message-bubble.css">
 /* c-bubble — chat message bubble (Figma 11288:4442 · DECISIONS #63 grouping,

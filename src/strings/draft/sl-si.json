@@ -116,6 +116,8 @@
   "capx_Storage": "Lahko shranjuje podatke v vašo napravo, da si stvari zapomni med sejami.",
   "capx_TransactionSigning": "Lahko vas prosi za odobritev plačil IXI. Vsako plačilo vedno potrdite sami.",
   "categories": "Kategorije",
+  "chainScanSlow": "Spixi je lahko počasnejši, dokler se to ne konča",
+  "chainScanSlowEta": "Še približno {t} · Spixi je lahko počasnejši, dokler se to ne konča",
   "chainScanStarting": "Zaganjanje preverjanja",
   "chainScanTitle": "Iskanje vaših transakcij",
   "changePassword": "Spremeni geslo denarnice",
@@ -434,7 +436,8 @@
   "otherWallet": "Uporabi drugo denarnico…",
   "otherWalletBody": "Ta zaslon boste zapustili in odšli na nastavitev za ustvarjanje ali obnovitev druge denarnice. Vaša trenutna denarnica ostane šifrirana na tej napravi.",
   "otherWalletCta": "V nastavitev",
-  "otherWalletTitle": "Uporabim drugo denarnico?",
+  "otherWalletWayBody": "Spixi na tej napravi že ima račun. Če želite uporabiti drugega, najprej izbrišite ta račun: odklenite Spixi, nato Račun › Izbriši podatke… › Trajno izbriši račun.\n\nSte pozabili geslo? Odstranite podatke aplikacije Spixi s te naprave: Android: počistite shrambo aplikacije Spixi v Nastavitvah; iPhone: izbrišite aplikacijo; Windows ali Mac: izbrišite mapo Spixi v mapi Dokumenti. Brez datoteke varnostne kopije in gesla tega računa ni mogoče obnoviti.",
+  "otherWalletWayTitle": "En račun na napravo",
   "ownAddressNote": "To je vaš lastni naslov.",
   "owner": "Lastnik",
   "padDecimal": "Decimalno ločilo",
@@ -955,5 +958,8 @@
   "devContainerClip": "Clip",
   "devContainerShadow": "Shadow (13c)",
   "devContainerNone": "None (no input flip during the slide)",
-  "devContainerOn": "On"
+  "devContainerOn": "On",
+  "devFlagsTitle": "Release flags (a change acts after a restart)",
+  "devFlagsSecurePass": "Wallet password in secure storage",
+  "devFlagsMediaGate": "Voice and paste only in the open chat"
 }

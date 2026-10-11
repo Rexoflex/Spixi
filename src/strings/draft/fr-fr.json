@@ -116,6 +116,8 @@
   "capx_Storage": "Peut enregistrer des données sur votre appareil pour se souvenir de vos informations d'une session à l'autre.",
   "capx_TransactionSigning": "Peut vous demander d'approuver des paiements IXI. Vous confirmez toujours chacun d'eux vous-même.",
   "categories": "Catégories",
+  "chainScanSlow": "Spixi peut être plus lent jusqu’à la fin",
+  "chainScanSlowEta": "Encore environ {t} · Spixi peut être plus lent jusqu’à la fin",
   "chainScanStarting": "Démarrage de la vérification",
   "chainScanTitle": "Recherche de vos transactions",
   "changePassword": "Modifier le mot de passe du portefeuille",
@@ -434,7 +436,8 @@
   "otherWallet": "Utiliser un autre portefeuille…",
   "otherWalletBody": "Vous quitterez cet écran et irez à la configuration pour créer ou restaurer un autre portefeuille. Votre portefeuille actuel reste chiffré sur cet appareil.",
   "otherWalletCta": "Configurer",
-  "otherWalletTitle": "Utiliser un autre portefeuille ?",
+  "otherWalletWayBody": "Spixi a déjà un compte sur cet appareil. Pour en utiliser un autre, supprimez d’abord ce compte : déverrouillez Spixi, puis Compte › Supprimer les données… › Supprimer définitivement le compte.\n\nMot de passe oublié ? Supprimez les données de Spixi de cet appareil : Android : videz le stockage de Spixi dans les Paramètres ; iPhone : supprimez l’app ; Windows ou Mac : supprimez le dossier Spixi dans Documents. Sans votre fichier de sauvegarde et votre mot de passe, ce compte ne peut pas être récupéré.",
+  "otherWalletWayTitle": "Un compte par appareil",
   "ownAddressNote": "Il s’agit de votre propre adresse.",
   "owner": "Propriétaire",
   "padDecimal": "Séparateur décimal",
@@ -954,5 +957,8 @@
   "devContainerClip": "Clip",
   "devContainerShadow": "Shadow (13c)",
   "devContainerNone": "None (no input flip during the slide)",
-  "devContainerOn": "On"
+  "devContainerOn": "On",
+  "devFlagsTitle": "Release flags (a change acts after a restart)",
+  "devFlagsSecurePass": "Wallet password in secure storage",
+  "devFlagsMediaGate": "Voice and paste only in the open chat"
 }

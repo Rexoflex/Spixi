@@ -116,6 +116,8 @@
   "capx_Storage": "Može čuvati podatke na vašem uređaju kako bi pamtila stvari između sesija.",
   "capx_TransactionSigning": "Može zatražiti da odobrite IXI uplate. Svaku uvek sami potvrđujete.",
   "categories": "Kategorije",
+  "chainScanSlow": "Spixi može raditi sporije dok se ovo ne završi",
+  "chainScanSlowEta": "Još oko {t} · Spixi može raditi sporije dok se ovo ne završi",
   "chainScanStarting": "Pokretanje provere",
   "chainScanTitle": "Traženje vaših transakcija",
   "changePassword": "Promeni lozinku novčanika",
@@ -434,7 +436,8 @@
   "otherWallet": "Koristi drugi novčanik…",
   "otherWalletBody": "Napustićete ovaj ekran i preći na podešavanje da biste kreirali ili vratili drugi novčanik. Vaš trenutni novčanik ostaje šifrovan na ovom uređaju.",
   "otherWalletCta": "Podešavanje",
-  "otherWalletTitle": "Koristiti drugi novčanik?",
+  "otherWalletWayBody": "Spixi već ima nalog na ovom uređaju. Da biste koristili drugi, prvo izbrišite ovaj nalog: otključajte Spixi, pa Nalog › Izbriši podatke… › Trajno izbriši nalog.\n\nZaboravili ste lozinku? Uklonite podatke aplikacije Spixi sa ovog uređaja: Android: obrišite skladište aplikacije Spixi u Podešavanjima; iPhone: izbrišite aplikaciju; Windows ili Mac: izbrišite fasciklu Spixi u fascikli Dokumenti. Bez datoteke rezervne kopije i lozinke ovaj nalog se ne može vratiti.",
+  "otherWalletWayTitle": "Jedan nalog po uređaju",
   "ownAddressNote": "Ovo je vaša sopstvena adresa.",
   "owner": "Vlasnik",
   "padDecimal": "Decimalni separator",
@@ -954,5 +957,8 @@
   "devContainerClip": "Clip",
   "devContainerShadow": "Shadow (13c)",
   "devContainerNone": "None (no input flip during the slide)",
-  "devContainerOn": "On"
+  "devContainerOn": "On",
+  "devFlagsTitle": "Release flags (a change acts after a restart)",
+  "devFlagsSecurePass": "Wallet password in secure storage",
+  "devFlagsMediaGate": "Voice and paste only in the open chat"
 }

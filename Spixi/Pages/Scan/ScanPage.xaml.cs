@@ -13,9 +13,21 @@ public partial class ScanPage : SpixiContentPage
 
     private bool allowScanning = true;
 
+    /* ★ S16 #46 r4 (m1, #1313 MAJOR #9): the ONE WebView Android may give the camera, by IDENTITY — registered here, in the
+     * only constructor, right after InitializeComponent built it. WebViewRenderer.OnPermissionRequest grants VIDEO only when
+     * the requesting element IS this object AND carries the "scan" marker, so a marker forged on another WebView (any
+     * spelling) is refused. The newest ScanPage wins: an older one under it (a double tap) is refused the camera. Weak: a closed scan page does not stay alive through this field. Main thread only. */
+    private static WeakReference<WebView>? scanWebView;
+
+    internal static bool isScanWebView(object? view)
+    {
+        return view != null && scanWebView != null && scanWebView.TryGetTarget(out WebView? w) && ReferenceEquals(w, view);
+    }
+
     public ScanPage()
 	{
 		InitializeComponent();
+        scanWebView = new WeakReference<WebView>(webView);
         NavigationPage.SetHasNavigationBar(this, false);
 
         loadPage(webView, "scan.html");
@@ -72,9 +84,20 @@ public partial class ScanPage : SpixiContentPage
         }
         else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))
         {
+#if ANDROID
+            /* ★ S16 #46 r2 (n1, #1313 MAJOR #9): Android gives the camera to THIS WebView (its "scan" marker), whatever it
+             * shows. Android loads the shell through LoadDataWithBaseURL (no navigation event, a reload too) and the shell
+             * navigates only to ixian: verbs (html5-qrcode navigates nowhere), so a file: navigation here is never ours —
+             * e.g. a local download. Refused. (iOS / Mac / Windows load the shell AS a file: navigation and grant the
+             * camera by their own rule, so they keep the old branch.) */
+            IXICore.Meta.Logging.warn("ScanPage: a file navigation was refused");
+            e.Cancel = true;
+            return;
+#else
             // allow normal navigation only for local files
             e.Cancel = false;
             return;
+#endif
         }
         e.Cancel = true;
 

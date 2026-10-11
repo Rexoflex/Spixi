@@ -90,8 +90,22 @@ namespace SPIXI
 
         private async void onBackupAccount()
         {
-            await backupAccount();
+            if (!await backupAccount())
+            {
+                alertBackupRefused(this);   // ★ S16 #46 r1 (R2 MAJOR-1)
+            }
             pushBackupStatus(this);   // ★ S2
+        }
+
+        /** ★ S16 #46 r1 (R2 MAJOR-1): the shells morph "Backed up" optimistically (no completion push exists, and none is
+         *  added) — a REFUSED backup (no stored password that opens the wallet) says so natively. Both callers
+         *  (onBackupAccount here, SettingsPage's ixian:backupAccount) call this on a false return. The status line stays
+         *  honest by itself: nothing is recorded, so setLastBackup re-pushes the old stamp. */
+        public static void alertBackupRefused(SpixiContentPage page)
+        {
+            _ = page.displaySpixiAlert(SpixiLocalization._SL("settings-backup-refused-title") ?? "Backup not made",
+                SpixiLocalization._SL("settings-backup-refused-text") ?? "Spixi could not read your saved password, so no backup was made. Restart Spixi, enter your password if asked, then back up again.",
+                SpixiLocalization._SL("global-dialog-ok") ?? "OK");
         }
 
         /* #243: the two backup operations are SELF-CONTAINED (no page state; C#
@@ -330,10 +344,23 @@ namespace SPIXI
             }
         }
 
-        public static async Task backupAccount()
+        /** false = REFUSED (no stored password that opens the wallet — nothing written, the caller alerts); true = it went
+         *  ahead (a later failure is logged here, as before). */
+        public static async Task<bool> backupAccount()
         {
             try
             {
+                /* ★ S16 L8 (#1312, P03): the archive is encrypted with the STORED password — read it FIRST (off the UI
+                 * thread; the store bounds its own wait) and refuse unless it opens this wallet. Legacy read the plaintext
+                 * preference with a "" default and encrypted with whatever came back: a missing or stale value made a
+                 * backup nobody can open. Refusing before the zip is built also leaves no unencrypted archive behind. */
+                string? password = await Task.Run(() => WalletPassStore.read());
+                if (string.IsNullOrEmpty(password) || !IxianHandler.getWalletStorage().isValidPassword(password))
+                {
+                    Logging.error("Backup refused: no stored password that opens the wallet.");
+                    return false;
+                }
+
                 // TODO add file header
                 string backup_file_name = Path.Combine(Config.spixiUserFolder, "spixi.account.backup.ixi");
                 if (File.Exists(backup_file_name))
@@ -378,7 +405,6 @@ namespace SPIXI
                     archive.CreateEntryFromFile(Path.Combine(Config.spixiUserFolder, Config.walletFile), "wallet.ixi");
                 }
 
-                string password = Preferences.Default.Get("walletpass","").ToString();
                 byte[] backup_file_bytes = File.ReadAllBytes(backup_file_name);
                 byte[] header = UTF8Encoding.UTF8.GetBytes("SPIXIACCB1");
                 byte[] bytes_to_encrypt = new byte[header.Length + backup_file_bytes.Length];
@@ -395,6 +421,7 @@ namespace SPIXI
             {
                 Logging.error("Exception backing up account: " + ex.ToString());
             }
+            return true;
         }
 
         // ★ H-13 r1 (R1-B): the question belongs to this screen — leaving it drops a pending wait / question.

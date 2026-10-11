@@ -810,6 +810,10 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   min-width: 240px;
 }
 
+/* ★ #1311 (b) option 2: the "One account per device" sheet's body is two paragraphs in ONE text node (\n\n) — the
+   modal mounts on body, outside .c-lock, so the hook is the sheet's own class. */
+.c-lock__way .c-modal__body { white-space: pre-line; }
+
 </style><!-- c-encpass + password fields -->
 <style data-src="../styles/components/overlay.css">
 /* Overlay layer: scrim + c-sheet + c-modal (docs/overlays-spec.md, DECISIONS #56).

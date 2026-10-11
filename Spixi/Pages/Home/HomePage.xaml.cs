@@ -700,6 +700,15 @@ namespace SPIXI
             return infoPaneCol2Open && ReferenceEquals(cd, infoPaneCol2Page);
         }
 
+        /* ★ S16 #46 r3 (M1): the F3/F4 media gate's "beside" — the col-2 pane counts as beside the chat only while the right
+         * column is SHOWN. A narrowed window (< 700, OnPageSizeChanged) hides rightContent and relays both pinned stages to
+         * column 0, where the info pane covers the chat, but infoPaneCol2Open stays set on purpose (re-widening restores the
+         * pane) — so isInfoPaneBeside alone would call a covering pane "beside". isInfoPaneBeside itself stays (showInChat). */
+        public bool isInfoPaneBesideNow(ContactDetails cd)
+        {
+            return rightContent.IsVisible && isInfoPaneBeside(cd);
+        }
+
         /* ★ #1166 lever 7: SpixiContentPage asks how the col-2 pane moves. Entering: only the pane that is about to be
          * pinned to col 2 (infoPaneCol2Pending + the same fit test onOverlayPresented runs). Leaving: only the pane that
          * owns the open column. Everything else = None (today's slide). */
@@ -1339,7 +1348,7 @@ namespace SPIXI
                         bool mute = verb.Equals("on", StringComparison.OrdinalIgnoreCase);
                         if (!mute && !verb.Equals("off", StringComparison.OrdinalIgnoreCase))
                         {
-                            Logging.warn("ixian:mutechat: unrecognised state '" + verb + "' — treating as unmute");
+                            Logging.warn("ixian:mutechat: unrecognised state (len=" + verb.Length + ") — treating as unmute");   // ★ S16 (#1320 F8): the length, never the token
                         }
                         mf = FriendList.getFriend(new Address(muteAddr));
                         if (mf != null)
@@ -1802,6 +1811,10 @@ namespace SPIXI
             else if (current_url.StartsWith("ixian:disableDevMode", StringComparison.Ordinal))
             {
                 Preferences.Default.Set("devMode", false);
+                // ★ S16 #46 r1 (R2 NIT-2): leaving dev mode drops the SpixiFlags switches, so a later dev-mode-on cannot
+                // silently revive a stored 0 (they act only with dev mode on — S16PassRules.effectiveFlag).
+                Preferences.Default.Remove(SpixiFlags.SecureWalletPassKey);
+                Preferences.Default.Remove(SpixiFlags.MediaInputGateKey);
                 devMode = false;
                 SpixiLocalization.addCustomString("devMode", "false");
                 SpixiContentPage.dropSpareChat("devmode");   // ★ Session P: same
@@ -6937,31 +6950,47 @@ namespace SPIXI
                      * finds the address already listed; a REFUSED removal takes it back off. */
                     bool declinedIncoming = friend.type == FriendType.Normal && !friend.bot
                         && friend.state != FriendState.RequestSent && friend.state != FriendState.Approved;
-                    string declinedAddr = friend.walletAddress.ToString();
-                    CoreMessageWriter.arrivals.forgetAddress(declinedAddr);   // ★ P0 #1155: a declined request gets nothing put back
-                    bool listed = declinedIncoming && SRequestIgnore.add(declinedAddr);
-                    bool removed = false;
-                    try
+                    /* ★ S16 (#1320 F5): the decline REMOVES exactly what the request CARD shows — the card's own predicate
+                     * (loadChats / updateChat: `!friend.approved && lastMessage is their requestAdd`). ★ #46 r1 (R1-n5): no
+                     * stricter, so a bot or payment-type card's Decline works; the ignore list keeps its own test above. An
+                     * approved contact or my own request is refused: nothing removed, the list re-flushes (a stale card goes),
+                     * the status stays "fail". The warn names no verb (the gate-5 walk reads an "ixian:" literal as a head). */
+                    var declineLast = friend.metaData.lastMessage;
+                    if (!S16SecRules.declineAllowed(friend.approved,
+                        declineLast != null && declineLast.type == FriendMessageType.requestAdd,
+                        declineLast != null && declineLast.localSender))
                     {
-                        removed = FriendList.removeFriend(friend);
-                    }
-                    finally
-                    {
-                        // ★ #985 (r3 MINOR-2): a refused OR a throwing removal takes it back off
-                        if (!removed && listed) SRequestIgnore.remove(declinedAddr);
-                        // R2-3: a REFUSED removal re-flushes too, so the request card comes back —
-                        // ★ #986 (r4 NIT-6): and a THROWING one (it used to skip this line)
+                        Logging.warn("declineRequest refused: not an incoming request");
                         UIHelpers.shouldRefreshContacts = true;
                     }
-                    if (removed)
+                    else
                     {
-                        status = "ok";
-                        SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
-                        SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
-                        SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
-                        SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
-                        SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
-                        SNotificationPrefs.forgetContact(friend.walletAddress.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
+                        string declinedAddr = friend.walletAddress.ToString();
+                        CoreMessageWriter.arrivals.forgetAddress(declinedAddr);   // ★ P0 #1155: a declined request gets nothing put back
+                        bool listed = declinedIncoming && SRequestIgnore.add(declinedAddr);
+                        bool removed = false;
+                        try
+                        {
+                            removed = FriendList.removeFriend(friend);
+                        }
+                        finally
+                        {
+                            // ★ #985 (r3 MINOR-2): a refused OR a throwing removal takes it back off
+                            if (!removed && listed) SRequestIgnore.remove(declinedAddr);
+                            // R2-3: a REFUSED removal re-flushes too, so the request card comes back —
+                            // ★ #986 (r4 NIT-6): and a THROWING one (it used to skip this line)
+                            UIHelpers.shouldRefreshContacts = true;
+                        }
+                        if (removed)
+                        {
+                            status = "ok";
+                            SChatPrefs.setFavorite(friend.walletAddress.ToString(), false);   // CH4: the preference leaves with the record
+                            SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
+                            SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
+                            SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
+                            SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+                            SNotificationPrefs.forgetContact(friend.walletAddress.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
+                        }
                     }
                 }
             }

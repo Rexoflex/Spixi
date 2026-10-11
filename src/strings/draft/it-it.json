@@ -105,6 +105,8 @@
   "capx_Storage": "Può salvare dati sul tuo dispositivo per ricordare le cose tra una sessione e l'altra.",
   "capx_TransactionSigning": "Può chiederti di approvare pagamenti IXI. Sei sempre tu a confermare ognuno di essi.",
   "categories": "Categorie",
+  "chainScanSlow": "Spixi potrebbe essere più lento fino al termine",
+  "chainScanSlowEta": "Circa {t} rimanenti · Spixi potrebbe essere più lento fino al termine",
   "chainScanStarting": "Avvio del controllo",
   "chainScanTitle": "Ricerca delle tue transazioni",
   "changePhoto": "Cambia foto",
@@ -393,7 +395,8 @@
   "otherWallet": "Usa un altro portafoglio…",
   "otherWalletBody": "Lascerai questa schermata e andrai alla configurazione per creare o ripristinare un altro portafoglio. Il tuo portafoglio attuale resta criptato su questo dispositivo.",
   "otherWalletCta": "Vai al setup",
-  "otherWalletTitle": "Usare un altro portafoglio?",
+  "otherWalletWayBody": "Spixi ha già un account su questo dispositivo. Per usarne un altro, elimina prima questo account: sblocca Spixi, poi Account › Elimina dati… › Elimina Account.\n\nPassword dimenticata? Rimuovi i dati di Spixi da questo dispositivo: Android: cancella la memoria di Spixi in Impostazioni; iPhone: elimina l’app; Windows o Mac: elimina la cartella Spixi in Documenti. Senza il file di backup e la password, questo account non può essere recuperato.",
+  "otherWalletWayTitle": "Un account per dispositivo",
   "ownAddressNote": "Questo è il tuo indirizzo.",
   "owner": "Proprietario",
   "padDecimal": "Separatore decimale",
@@ -885,5 +888,8 @@
   "devContainerClip": "Clip",
   "devContainerShadow": "Shadow (13c)",
   "devContainerNone": "None (no input flip during the slide)",
-  "devContainerOn": "On"
+  "devContainerOn": "On",
+  "devFlagsTitle": "Release flags (a change acts after a restart)",
+  "devFlagsSecurePass": "Wallet password in secure storage",
+  "devFlagsMediaGate": "Voice and paste only in the open chat"
 }

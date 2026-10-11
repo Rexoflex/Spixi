@@ -24,9 +24,10 @@ namespace SPIXI
          * one of these, see below. They are justConfirm pages so that they pop a modal
          * instead of rewriting the navigation stack, and confirm mode renders Cancel,
          * which fires authSucceeded(false) → App.onUnlock → UNLOCKED, with no password.
-         * appLockMode suppresses both exits. The COLD-START lock deliberately keeps its
-         * "use a different wallet" hatch: that route leads to setup, never into the app,
-         * and it is the only way back for someone who has forgotten the password. */
+         * appLockMode suppresses both exits. The COLD-START lock keeps its "use a different
+         * wallet" hatch, but since ★ S16 (#1311 (b), RESTORE-B) its sheet only explains the
+         * way (Settings › Delete account / clear the app data) and sends no verb; C# refuses
+         * `ixian:change` on every lock that has no Cancel (#46 r1, S16SecRules.changeLeg). */
         private bool appLockMode = false;
         public event EventHandler<SPIXI.EventArgs<bool>> authSucceeded;
         public event EventHandler<SPIXI.EventArgs<bool>> authWithPassword;
@@ -448,27 +449,27 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:change", StringComparison.Ordinal))
             {
-                /* ★★ #46 loop W-4.6 on #507: both legs below end this page. Stop the
+                /* ★ S16 (#1320 F1): only a Settings authorise lock (confirm mode, not an app lock) has a Cancel. An APP lock
+                 * has no way past it in C# either — the shell draws no Cancel (#458), but a script in lock.html (Windows
+                 * DevTools) could still send the verb. ★ #46 r1 (R1-n6): the cold-start lock's old leg (push LaunchPage) has
+                 * no sender since RESTORE-B (#1311 (b)) and is refused too. Refused FIRST; e.Cancel stays true. */
+                if (S16SecRules.changeLeg(justConfirmAction, appLockMode) == S16SecRules.ChangeLeg.Refuse)
+                {
+                    Logging.warn("LockPage: ixian:change refused (no Cancel on this lock)");
+                    return;
+                }
+                /* ★★ #46 loop W-4.6 on #507: the Cancel leg below ends this page. Stop the
                  * blank-UI watchdog first. */
                 lockClosing = true;
                 repairGeneration++;
-                if (justConfirmAction)
+                if (authSucceeded != null)
                 {
-                    if (authSucceeded != null)
-                    {
-                        authSucceeded(this, new SPIXI.EventArgs<bool>(false));
-                    }
-                    // #230: shown-in-place lock closes via the overlay path.
-                    if (!closeModalOverlay(this))
-                    {
-                        popOwnModal("cancel");
-                    }
+                    authSucceeded(this, new SPIXI.EventArgs<bool>(false));
                 }
-                else
+                // #230: shown-in-place lock closes via the overlay path.
+                if (!closeModalOverlay(this))
                 {
-                    // Show the launch screen
-                    Navigation.PushAsync(new SPIXI.LaunchPage(), Config.defaultXamarinAnimations);
-                    removePage(this);
+                    popOwnModal("cancel");
                 }
             }
             else if (current_url.Trim().StartsWith("file:", StringComparison.OrdinalIgnoreCase))

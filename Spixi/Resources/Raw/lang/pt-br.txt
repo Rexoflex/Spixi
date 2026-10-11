@@ -377,7 +377,7 @@ intro-new-walleterror-text = Algo deu errado ao criar sua conta. Tente novamente
 intro-new-walletexists-title = A conta já existe
 intro-new-walletexists-text = Já existe uma conta neste dispositivo, então não é possível criar uma nova aqui. Reinicie o Spixi para continuar com a conta existente.
 intro-restore-walletexists-title = A conta já está neste dispositivo
-intro-restore-walletexists-text = Já existe uma conta neste dispositivo. Para usá-la, reinicie o Spixi. Para restaurar outra conta: reinicie o Spixi, abra Conta, toque em Excluir carteira e abra Restaurar conta novamente.
+intro-restore-walletexists-text = Já existe uma conta neste dispositivo. Para usá-la, reinicie o Spixi. Para restaurar outra conta: reinicie o Spixi, abra Conta › Excluir dados… › Excluir conta permanentemente e abra Restaurar conta novamente.
 
 ; Intro Restore Screen
 intro-restore-title = Restaurar conta
@@ -472,6 +472,8 @@ settings-backup-notice = Você precisará deste backup e da senha para restaurar
 settings-backup-notice2 = - Você perca este dispositivo<br />- Você desinstale o Spixi deste dispositivo<br />- Você exclua esta conta Spixi<br />- Você exclua esta carteira
 settings-backup-invalidpassword-title = Senha inválida
 settings-backup-invalidpassword-text = Digite uma senha válida.
+settings-backup-refused-title = Backup não feito
+settings-backup-refused-text = O Spixi não conseguiu ler sua senha salva, então nenhum backup foi feito. Reinicie o Spixi, digite sua senha se ela for pedida e faça o backup de novo.
 settings-backup-saved-title = Você salvou o backup?
 settings-backup-saved-text = Escolha Sim somente se o arquivo de backup já estiver salvo ou enviado para um lugar seguro.
 settings-backup-saved-yes = Sim

@@ -81,10 +81,10 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-10: **S15 BUILT, UNCOMMITTED — patch `Claude outputs/session15.patch`** (#1296–#1308): WALK #1296 (S14 11 P · 0 F · 2 N/A) · restore all-or-nothing (RestoreMoves; wipe takes the restore's files; real avatar as `own_avatar.jpg`, #1297) · sharedpref out of the Android backup, L8 SecureStorage = S16 (#1300) · send rise from the composer (#1301) · strip tiles at once + one decode per photo (#1302) · security O-04 O-06 O-08 O-09 O-11 O-19 O-27 O-29 O-30 O-31 + O-35 gate (#1303) · tip fee line (#1306).
-- Smoke BASELINE OK **5730** · CSH **378**. #46: r1 4 MAJOR → fixed; r2 0 MAJOR → fixed, CLEAN (#1307). ⚠ S15 C# UNCOMPILED (21 files + 3 new, handoff §0).
-- Open: slow opens after a restore = the 4-hour legacy header catch-up → BE asks + a wallet sync strip after the walk (#1304) · memory peak 854 MB + the white screen after unlock (#1305, walk rows) · the light-mode scroll bar (screenshot) · hold-tap fall-through (after the walk).
-- Walk: `docs/office-walk-sheet-v1.md` §0–§5 (iPhone + Mac + the 14 S15 rows on A / W); the artifact "Spixi Office Walk v1". Damir runs the O-27 `git rm --cached` (handoff §3).
-- WALK #1309 (A + W): 16 P · 1 F (native indicator, no defect) · 1 N/A; iPhone + Mac owed on the tag `s15-walk`. #1310: feature complete; perf research running (`claude/session-16-perf-prompt.md`). #1311 open.
-- 2026-10-11: **BE review pack `docs/be-review-pack/` (#1320, docs only)** — README + P01–P23 + Core asks + legacy; 8 flags F1–F8 (F1: `ixian:change` still unlocks an app lock in C#) → fix the ours ones before handover (`docs/handoff-2026-10-11.md` §2). #1313 (Damir's, MAJOR #8 / #9 now ours) written in; perf rows = #1314–#1319.
-- **NEXT SESSION: read `docs/handoff-2026-10-10.md` FIRST (§7 too; + DECISIONS #1296–#1312), then `docs/handoff-2026-10-11.md`, then paste `docs/prompts/session-16.md` (work item 6 = the F1–F5 / F8 fixes).** Next free DECISIONS number: **#1321**.
+- 2026-10-11: **S16 BUILT, UNCOMMITTED — patch `Claude outputs/_transfer/session16.patch`, applied to the PC tree** (#1321–#1326): security F1 F2 F3/F4 F5 F8 + MAJOR #9 (#1322) · L8 walletpass → SecureStorage behind `SecureWalletPass` (#1323, P24) · F3/F4 gate behind `MediaInputGate` (P25) · `[THEME]` lines, RESTORE-B sheet, re-arm once per id, Android hold shield, wallet sync strip A (#1324).
+- Smoke BASELINE OK **5756** · CSH **423**. Security-only #46 r1 → r5 CLEAN (#1325). ⚠ S16 C# UNCOMPILED (20 files + 5 new, handoff §0).
+- Walk: `docs/office-walk-sheet-v1.md` **§6** (18 S16 rows, A / W / I / M) + the office §0–§5 still owed. Mac L8 is a measured risk (no keychain entitlement).
+- Parallel: S17-early (design work) uses DECISIONS #1331–#1350 + packet P26, rebases on the S16 patch (#1326); desktop Hello = P27 if picked.
+- Deferred by Damir: the perf levers (after the S16 walk; research `claude/session-16-perf-research.md`) and freeze prep (after perf).
+- Open BE questions: P24 (retry view on a read failure; the flag-OFF path) · P13/P25 (call verbs outside the mic gate) · P09 (`removecontact` without a native confirm).
+- **NEXT SESSION: read `docs/handoff-2026-10-11b.md` FIRST, then paste `docs/prompts/session-16b.md` (record the S16 walk, the fix round).** Next free DECISIONS number: **#1327**.

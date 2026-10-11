@@ -1036,6 +1036,10 @@ namespace SPIXI
             /* ★ S11 C2 (#1263, R1-m5): bumped by every hold of this stage (main thread) — a dev-switch action deferred by an
              * OLDER hold's release skips when a newer hold started (S11ChatRules.deferredOwns). */
             public int holdSeq = 0;
+            /* ★ S16 (#1294 (c)): while a hold keeps this stage input-dead, a transparent input-consuming sibling just under it in
+             * hostGrid (Android) — a tap in the ~250 ms no longer falls through to the chats list. Removed where the stage goes
+             * input-live, on close, on swap-out, and by a backstop timer (dropHoldShield). Main thread. */
+            public View? holdShield = null;
             public volatile bool closing = false;   // ★ L8: set at the top of closeOverlay
             // W7: the inset this stage was staged with (#245 rail strip for the Account
             // peer pane; zero for every other op). Remembered so a page opened FROM this
@@ -1165,7 +1169,9 @@ namespace SPIXI
          * kills the idle lock and the call surface together. Every exit from
          * `pushModalLoaded` clears the flag; the age check is the belt behind that. */
         private static bool lockPreloadPending = false;
-        private static DateTime lockPreloadPendingAt = DateTime.MinValue;
+        // ★ S16 #46 r1 (R1-n1): MONOTONIC — Environment.TickCount64 (ms) at the reservation; a wall-clock jump (DST, NTP,
+        // a user clock change) can no longer shorten or stretch the staging window. Read only as an age, here and in pushPageLoaded.
+        private static long lockPreloadPendingAt = 0;
         private const double LOCK_PRELOAD_PENDING_MAX_SECONDS = 5;
 
         /* ————— Overlay navigation (round 3, DECISIONS #225) ——————————————————
@@ -2332,7 +2338,7 @@ namespace SPIXI
                  * ownIntentFresh() carries. */
                 if (lockPreloadPending)
                 {
-                    double age = (DateTime.Now - lockPreloadPendingAt).TotalSeconds;
+                    double age = (Environment.TickCount64 - lockPreloadPendingAt) / 1000.0;   // ★ S16 #46 r1: monotonic
                     return age >= 0 && age <= LOCK_PRELOAD_PENDING_MAX_SECONDS;
                 }
                 return false;
@@ -2680,6 +2686,7 @@ namespace SPIXI
             MainThread.BeginInvokeOnMainThread(async () =>
             {
                 string p1Kind = p1CloseStart(op, parked, slideOut);   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
+                dropHoldShield(op);   // ★ S16 (#1294 (c)): a close during the hold takes the shield with it
                 if (evicted != null)
                 {
                     try
@@ -3580,6 +3587,17 @@ namespace SPIXI
                     try { target.Dispose(); } catch { }
                     return;
                 }
+                /* ★ S16 (#1320 F2): nor while a lock is still STAGING (≤ 1.2 s, the desktop idle lock) — the supersede
+                 * below would cancel the lock (#629). Dropped like the #230 case. The age is the lock's reservation stamp
+                 * (pushModalLoaded sets lockPreloadPendingAt, monotonic ms; no second lock can reserve while one stages); past
+                 * 5 s a stuck stage no longer blocks navigation, and cancelPreload still never cancels a lock. */
+                if (S16SecRules.overlayRefused(isLockStaging(), Environment.TickCount64 - lockPreloadPendingAt))
+                {
+                    warmPending = false; warmClaimRequested = false;
+                    Logging.warn("pushPageLoaded: lock staging - dropped " + target.GetType().Name);
+                    try { target.Dispose(); } catch { }
+                    return;
+                }
                 if (preloadPending || activePreload != null)
                 {
                     if (parkOnLoad)
@@ -3884,7 +3902,7 @@ namespace SPIXI
                 /* ★★ #46 loop MAJOR-3 on #507: the lock is RESERVED from here, one whole
                  * dispatcher turn before `activePreload` exists. Every exit below clears it. */
                 lockPreloadPending = target is LockPage;
-                lockPreloadPendingAt = DateTime.Now;
+                lockPreloadPendingAt = Environment.TickCount64;
             }
 
             MainThread.BeginInvokeOnMainThread(() =>
@@ -4426,6 +4444,7 @@ namespace SPIXI
                                 {
                                     s.swappedOut = true;
                                     try { s.stage.InputTransparent = true; } catch (Exception) { }
+                                    dropHoldShield(s);   // ★ S16 (#1294 (c)): swapped out — the new chat's own shield covers the hold
                                 }
                             }
                             else
@@ -4702,6 +4721,7 @@ namespace SPIXI
             try { native = nativeWebViewOf(op.target._webView); } catch (Exception) { }   // ★ #1132 lever 1 (A1): the renderer's .Control — the direct cast was null on every open (why=noview)
             string nbgPre = P1Perf.enabled ? nativeGroundToken(native) : "none";   // ★ S10 F1 [P1] — TEMPORARY: the native base at hold start
             setHoldGrounds(op, native, true);
+            addHoldShield(op);   // ★ S16 (#1294 (c)): BEFORE the stage shows — taps during the hold land on the shield, not the list
             op.stage.Opacity = 1;
             PreloadOp held = op;
             Android.Webkit.WebView? heldView = native;
@@ -4745,6 +4765,7 @@ namespace SPIXI
                     }
                 }
                 catch (Exception) { }
+                dropHoldShieldFor(held, seq);   // ★ S16 (#1294 (c)): the hold is over — the stage takes the taps (or is closing / swapped out)
                 if (P1Perf.enabled)
                 {
                     // ★ S9 A-FLASH C2 — TEMPORARY, retire with the [P1] set: did the release touch the native WebView base?
@@ -4821,6 +4842,82 @@ namespace SPIXI
                  * the release itself — so nothing but a chat is ever under the new chat's transparent grounds. */
                 closeDeferredStale(op);
             }
+        }
+
+        /* ★ S16 (#1294 (c), Android): THE HOLD-TAP SHIELD. During the hold the stage is input-dead (no cascade, the permanent
+         * container) and transparent, so a tap went THROUGH to the chats list under it (a second chat opened). An empty MAUI
+         * ContentView does not consume a touch on Android; its platform view does once it is Clickable. The shield is a
+         * transparent sibling inserted just UNDER the held stage in hostGrid (same column / row / span / margin), so a live
+         * stage still takes every tap first; excluded from accessibility. hostGrid's own InputTransparent is never touched.
+         * Removed at the release (dropHoldShieldFor), on close (closeOverlay), on swap-out, and by the backstop. */
+        private const int HoldShieldBackstopMs = 1500;   // > HoldCapMs + S11ChatRules.FlashDeferMs: only a lost release reaches it
+
+        private static void addHoldShield(PreloadOp op)
+        {
+            if (op.holdShield != null)
+            {
+                return;   // a newer hold of the same stage keeps the one shield; its own release drops it
+            }
+            try
+            {
+                int at = op.hostGrid.Children.IndexOf(op.stage);
+                if (at < 0)
+                {
+                    return;
+                }
+                ContentView shield = new ContentView
+                {
+                    BackgroundColor = Colors.Transparent,
+                    InputTransparent = false,
+                    Margin = op.stage.Margin,
+                };
+                Grid.SetColumn(shield, Grid.GetColumn(op.stage));
+                Grid.SetColumnSpan(shield, Grid.GetColumnSpan(op.stage));
+                Grid.SetRow(shield, Grid.GetRow(op.stage));
+                Grid.SetRowSpan(shield, Grid.GetRowSpan(op.stage));
+                shield.HandlerChanged += (s, e) =>
+                {
+                    try
+                    {
+                        if (shield.Handler?.PlatformView is Android.Views.View v)
+                        {
+                            v.Clickable = true;   // consumes the tap (the boot cover's recipe, MainActivity)
+                            v.Focusable = false;
+                            v.ImportantForAccessibility = Android.Views.ImportantForAccessibility.NoHideDescendants;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                };
+                op.holdShield = shield;
+                op.hostGrid.Children.Insert(at, shield);   // UNDER the stage: index `at` pushes the stage one up
+                View placed = shield;
+                Task.Delay(HoldShieldBackstopMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (op.holdShield == placed)
+                    {
+                        Logging.warn("hold shield: backstop removal");
+                        dropHoldShield(op);
+                    }
+                }));
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("hold shield failed (" + ex.GetType().Name + ")");
+                dropHoldShield(op);
+            }
+        }
+
+        /** ★ S16 (#1294 (c)): the release's drop — only for the hold that owns the stage now (S11ChatRules.deferredOwns: a newer
+         *  hold of the same stage keeps the shield). Main thread. */
+        private static void dropHoldShieldFor(PreloadOp op, int seq)
+        {
+            if (!S11ChatRules.deferredOwns(seq, op.holdSeq))
+            {
+                return;
+            }
+            dropHoldShield(op);
         }
 
         /** ★ S10 F1 [P1] — TEMPORARY, retire with the set: the native WebView's Background as 8 lowercase hex (a ColorDrawable),
@@ -4938,6 +5035,7 @@ namespace SPIXI
             if (!skipInput)
             {
                 try { if (!held.closing && !held.swappedOut) { held.stage.InputTransparent = false; } } catch (Exception) { }
+                dropHoldShieldFor(held, seq);   // ★ S16 (#1294 (c)): input-live now — the shield goes with the hold
             }
             if (skipGrounds || skipInput)
             {
@@ -4955,6 +5053,7 @@ namespace SPIXI
                     if (skipInput)
                     {
                         try { if (!held.closing && !held.swappedOut) { held.stage.InputTransparent = false; } } catch (Exception) { }
+                        dropHoldShieldFor(held, seq);   // ★ S16 (#1294 (c)): the deferred input-live — the shield goes with it
                     }
                     P1Perf.line("hold deferred grounds=" + (skipGrounds ? "1" : "0") + " input=" + (skipInput ? "1" : "0"));
                 }));
@@ -5359,6 +5458,39 @@ namespace SPIXI
             public void OnDraw() { a(); }
         }
 #endif
+
+        /** ★ S16 (#1294 (c)): remove the hold-tap shield (addHoldShield, Android) — idempotent, every platform compiles it (the
+         *  close and swap-out sites are shared code; elsewhere holdShield is always null). Main thread. */
+        private static void dropHoldShield(PreloadOp op)
+        {
+            View? shield = op.holdShield;
+            if (shield == null)
+            {
+                return;
+            }
+            try
+            {
+                op.hostGrid.Children.Remove(shield);
+            }
+            catch (Exception)
+            {
+                /* ★ S16 #46 r1 (R3 n1): a failed Remove (a disposed host handler) must not leave a Clickable view eating every
+                 * tap in that column — the shield goes inert where it stands. */
+                try { shield.InputTransparent = true; shield.IsVisible = false; } catch (Exception) { }
+#if ANDROID
+                try
+                {
+                    if (shield.Handler?.PlatformView is Android.Views.View v)
+                    {
+                        v.Clickable = false;
+                        v.Visibility = Android.Views.ViewStates.Gone;
+                    }
+                }
+                catch (Exception) { }
+#endif
+            }
+            op.holdShield = null;   // only after the Remove (or the inert fallback) — the field never forgets a live shield
+        }
 
         /* ═══ ★ S14 (#1283, Damir 13C-SWAP) — CHAT INFO RIDES THE CHAT → GROUP SWAP (Android, full screen) ═══
          * Before: chat → chat info → a shared group closed chat info first (it slid out over the OLD chat) and then opened the group
@@ -5791,6 +5923,13 @@ namespace SPIXI
 
         private static void cancelPreload(PreloadOp op)
         {
+            /* ★ S16 (#1320 F2) backstop: a staging LOCK is never cancelled — it presents on its own path (ready or
+             * timeout, presentPreload), whatever superseded it. */
+            if (op.modalMode && op.target is LockPage)
+            {
+                Logging.warn("cancelPreload: a staging lock is not cancelled");
+                return;
+            }
             if (!op.tryFinish())
             {
                 return;
@@ -5897,6 +6036,20 @@ namespace SPIXI
 
         public WebViewSource generatePage(string html_file_name)
         {
+            /* ★ S16 (#1311 (a)): a document generated while the baked *SL{SpixiThemeName} disagrees with the live theme starts in
+             * the wrong theme (the "System shows the wrong theme" candidate). Logged only then; fixed words only. */
+            try
+            {
+                string baked = S16FixRules.themeWord(SpixiLocalization.getLocalizedString("SpixiThemeName"));
+                string live = S16FixRules.themeWord(ThemeManager.getResolvedAppearanceName());
+                if (S16FixRules.genStale(baked, live))
+                {
+                    Logging.info("[THEME] gen-stale baked=" + baked + " live=" + live);
+                }
+            }
+            catch (Exception)
+            {
+            }
             int version = SpixiLocalization.getDictionaryVersion();
             if (OperatingSystem.IsAndroid())
             {

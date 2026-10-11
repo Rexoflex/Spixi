@@ -1,6 +1,6 @@
 # ★ SECURITY HANDOVER GATE — the redesign must introduce nothing
 
-> ★ 2026-10-11 (#1312 (3) → #1320): the BE **review packets** live in `docs/be-review-pack/` (README + P01–P23 + Core asks + legacy). A new change under #1312 adds its packet there (P24 onward) and keeps its 🟡 row here. The pack's flags F1–F8 are open rows of this gate (F1–F5, F8 ours → fix before handover; F6, F7 legacy questions).
+> ★ 2026-10-11 (#1312 (3) → #1320): the BE **review packets** live in `docs/be-review-pack/` (README + P01–P23 + Core asks + legacy). A new change under #1312 adds its packet there (P24 onward) and keeps its 🟡 row here. The pack's flags F1–F8: F1–F5 and F8 (ours) are FIXED in Session 16 (#1322, section at the end; the home `removecontact` native confirm stays a decision owed, P09); F6, F7 stay legacy questions for BE. Session 16 added P24 (L8) and P25 (the media gate).
 
 **Set by Damir, 2026-08-15.** Referenced as a ground rule in `CLAUDE.md`, so it carries
 into every session.
@@ -1752,7 +1752,7 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | Voice FILE written by C# | `<spixiUserFolder>/Voice/voice-yyyyMMdd-HHmmss.ogg` — C#'s own name and folder, CreateNew, ≤ 262 144 B, deleted again when the send fails before the store; never a WebView-supplied name or path | ours, safe (folder not cleaned — #1210 (8)) |
 | `ixian:voicerec:start\|cancel\|send`, `ixian:voiceplay:<hex>` (NEW 🟡 verbs) | exact strings; the hex follows `parseMessageIdHex`; C# looks the id up in ITS list; a voice file not on the device starts the same accept the user taps (only for a voice-pattern row, pinned) | ours, safe — B-30 |
 | Pushes `voiceRec` · `voiceState` · `voiceInfo`, args addMe / addThem 17, updateMessage 12, addFile 17, setCaps `voice` | state words, integers, hex ids, a CSV of 40 ints 0–100; arg 5 of a voice row = the first line only; no audio, path or name crosses into the WebView; textContent only | ours, safe — B-30 |
-| Microphone | recorded only after a tap; OS permission (Info.plist text now names voice messages); stops on leave / background (phones) / call | ours, safe |
+| Microphone | ★ S16 (#1322, F3 → P25): no tap check exists — a C# STATE gate (flag MediaInputGate: foreground, this chat on screen and not covered, no lock) on voicerec:start / :send; OS permission (Info.plist text now names voice messages); stops on leave / background (phones) / call | ours, safe |
 | Logs | fixed words + exception type names; no id, text, path, address | ours, safe |
 | Inherited: `handleAppProtocols` | stores an unbounded list from any known contact; Core persists with byte-sized counts | legacy — BE (#1210 (10), B-30) |
 
@@ -1941,3 +1941,38 @@ outside the 100-message cache (`0e85a4b8` `TransferManager.cs:582`, today `:~707
 | Log lines: `restoreAccountFile: the moves failed and were rolled back (<Type>)` · `… the rollback is INCOMPLETE (RollbackIncomplete/<Type>)` · `… a wallet file is already in place - nothing was moved` · `Media: a picked photo could not be shown (<Type>)` · `[P1] media prepare n= ms= first=` · `wipe: restore leftover / scratch / Acc root threw: <Type>` | fixed words, type names, integers | ours, safe |
 | New string `wallet-error-balance-fee-text` (tip, #1306) | no number, no format argument | ours, safe |
 | E v2 rise (#1301) | CSS + a measured px value on the log box; no verb, key, sink | ours, safe |
+
+## Session 16 (#1321–#1325) — the security batch, L8 and everything else S16 introduced (2026-10-11, #46 r1–r3)
+
+Packets: P01, P05, P07, P09–P12, P21 updated; NEW P24 (L8) and P25 (the media gate). Flags only for L8 and F3/F4 (#1321). Verdict of the security-only #46: #1325.
+
+**The fixed flag rows (#1322):**
+
+| row | shipped mechanism | pin |
+|---|---|---|
+| F1 | `LockPage` refuses `ixian:change` as the branch's FIRST statement on every lock with no Cancel (`S16SecRules.changeLeg`; `LockPage.xaml.cs:456`); `App.onUnlock` releases only on `EventArgs<bool>(true)` (`App.xaml.cs:496`). The cold-start lock's LaunchPage leg is gone: the RESTORE-B sheet only explains the way and sends no verb (#1324). | `pins-s16/a-sec.mjs` F1 · csh `S16SecTests` change / unlock |
+| F2 | `pushPageLoaded` drops a navigation while a lock stages (< 5 s, monotonic `TickCount64`; `SpixiContentPage.cs:3594`); `cancelPreload` never cancels a staging LockPage (`:5928`). Recorded: past 5 s a supersede orphans the lock op. | a-sec F2 · csh `overlay_refused_while_the_lock_stages` |
+| F3 / F4 | flag `MediaInputGate` (default ON): `voicerec:start`, `voicerec:send` and the paste read refused unless foreground + no lock (latched / in place / staging) + this chat on screen (10 primitives; chat info covers unless `HomePage.isInfoPaneBesideNow`); an app lock stops a recording. Open: the call verbs (P13). | a-sec F3, F4 · csh `media_input_gate_*` |
+| F5 | home `declineRequest` removes only what the request card shows (`S16SecRules.declineAllowed` = the card predicate). Open: home `removecontact` has no native confirm — decision owed (P09). | a-sec F5 · csh `decline_removes_exactly_what_the_request_card_shows` |
+| F8 | DownloadsPage (3) and SettingsPage (wipe downloads, unescape) log `ex.GetType().Name`; mutechat logs `len=`. | a-sec F8 |
+| MAJOR #9 (Android, #1313) | `OnPermissionRequest` → `S16SecRules.captureRefusal`: VIDEO only, only the `ClassId="scan"` WebView (ScanPage.xaml) that is also the object ScanPage registered by identity (#46 r4), never an http(s) origin; else Deny (a throw denies). ScanPage refuses `file:` on Android. Recorded: iOS `isScanDocument` is name-only (outside the Android-only dial, reach unproven, P07). | a-sec MAJOR #9 (exactly 2 XAML `ClassId` tokens: "miniapp", "scan"; no C# assignment) · csh `capture_*` |
+
+**Everything else S16 introduced (lens applied while building):**
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| SecureStorage key `walletpass` (#1323) | own container; iOS / Mac `AfterFirstUnlockThisDeviceOnly`; cleared by the wipe and a no-wallet start; flag ON never writes the plaintext pref | ours, closes legacy L8 · 🟡 BE (P24) |
+| Pref keys `flagSecureWalletPass` · `flagMediaInputGate` (int, absent = 1) | written only by DevPage with dev mode on; a 0 acts only with dev mode on; removed by `disableDevMode` and the wipe | ours, safe |
+| Verbs `ixian:devflash:securepass:<0\|1>` · `ixian:devflash:mediagate:<0\|1>` | DevPage only, exact tail, dev mode; act at the next start | ours, safe (a home script can enable dev mode, legacy, but cannot tap DevPage) |
+| Push `window.setFlagsDev` `<0\|1>,<0\|1>` | C# → dev.html; the shell ignores anything else | ours, safe · 🟡 |
+| Gated verbs `voicerec:start` · `voicerec:send` · `pasteImage`; refused `ixian:change` on a lock with no Cancel | no grammar change | ours, narrows |
+| Removed sender: lock shell `onUseAnotherWallet` (`ixian:change` from the cold-start sheet) | the sheet only closes | ours, narrows |
+| ScanPage `file:` navigation refusal (Android) + `ClassId="scan"` in XAML | the camera follows the scan WebView, so it never shows a local document | ours, safe |
+| BackupPage refusal + native alert; strings `settings-backup-refused-title/-text` (13 `.txt`) | no new push; no number, no argument | ours, safe |
+| Strings: `intro-restore-walletexists-text` (names Account › Delete data… › Delete account), `otherWalletWay*` sheet, `devFlags*` | text only | ours, safe |
+| Hold shield (Android, #1294 (c)) | a transparent native view, not focusable, hidden from accessibility; no verb | ours, safe |
+| Re-arm ledgers (#1311 (c)) | in memory, cleared at the transfer manager's stop; no id in a log line | ours, safe |
+| Log lines: `[FLAGS] securepass=<0\|1> mediagate=<0\|1>` · `[FLAGS] read failed (<Type>)` · `[L8] store=<secure\|legacy> read=<hit\|miss\|timeout\|error> ms=<int> migrated=<0\|1>` · `[L8] migrate kept plaintext (<word>)` · `[L8] reverse copy kept secure (mismatch)` · `[L8] write failed (<word>)` · `[L8] prefetch / cold start read / read / clear failed (<Type>)` · `[L8] secure read threw (<word>)` · `[L8] secure remove timeout / threw / failed (<word>)` · `Backup refused: no stored password that opens the wallet.` | fixed words, enum words, ints, type names (`S16PassRules.safeWord`); never the value or its length | ours, safe |
+| Log lines: `onUnlock: not a verified unlock - the lock stays` · `LockPage: ixian:change refused (no Cancel on this lock)` · `pushPageLoaded: lock staging - dropped <Type>` · `cancelPreload: a staging lock is not cancelled` · `Voice: recording refused (<word>)` · `Voice: send refused (<word>)` · `Media: paste refused (<word>)` · `declineRequest refused: not an incoming request` · `WebView capture DENIED reason=<word>` · `ScanPage: a file navigation was refused` · `DevPage: flag switch failed: <Type>` | fixed words, refusal constants, type names | ours, safe (the DENIED line is not rate-limited, recorded) |
+| Log lines: `[THEME] event arg= req= pick= baked= fg= <cfg>` · `[THEME] push name= pages=` · `[THEME] resume req= baked= <cfg>` · `[THEME] gen-stale baked= live=` · `hold shield: backstop removal` · `hold shield failed (<Type>)` · `Error occured while trying to prepare file transfer for an unfinished sent file (<Type>)` (once per id) | enum names, theme words, 0/1, ints, type names | ours, safe |
+| Changed lines (F8): `Exception while opening / deleting a download: <Type>` · `Could not unescape a download file name: <Type>` (×2) · `wipe: downloads threw: <Type>` · `ixian:mutechat: unrecognised state (len=<int>)` | the type or a length, never the name, path or token | ours, fixed |

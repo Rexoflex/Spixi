@@ -73,6 +73,10 @@
     <Compile Include="../../Spixi/Utils/RestoreMoves.cs" />   <!-- ★ S15 (#1297): the restore moves, all or nothing -->
     <Compile Include="../../Spixi/Utils/S15SecRules.cs" />   <!-- ★ S15 (#1293): O-19 / O-29 / O-30 pure rules (tests: S15SecTests.cs) -->
     <Compile Include="../../Spixi/Utils/S15MediaRules.cs" />   <!-- ★ S15 F (#1302): tiles at once — placeholders, key reservation, the per-photo update, the dropped-key filter (tests: S15MediaTests.cs) -->
+    <Compile Include="../../Spixi/Utils/S16PassRules.cs" />   <!-- ★ S16 a-l8 (#1312, L8): the walletpass store's flags, sources, verify rule + decision core (tests: S16PassTests.cs) -->
+    <Compile Include="../../Spixi/Utils/SpixiFlags.cs" /><Compile Include="../../Spixi/Meta/WalletPassStore.cs" />   <!-- ★ S16 #46 r1 (R4 MAJOR-4): the REAL walletpass shell, run end to end over StubsS16.cs (tests: S16StoreTests.cs) -->
+    <Compile Include="../../Spixi/Utils/S16SecRules.cs" /><Compile Include="../../Spixi/Utils/GenericEventArgs.cs" />   <!-- ★ S16 a-sec (#1320 F1–F5, #1313 MAJOR #9): the security batch's pure rules + SPIXI.EventArgs<T> (tests: S16SecTests.cs) -->
+    <Compile Include="../../Spixi/Utils/S16FixRules.cs" />   <!-- ★ S16 (#1311 (a)/(c)): the [THEME] words + the once-per-id re-arm (tests: S16FixTests.cs) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

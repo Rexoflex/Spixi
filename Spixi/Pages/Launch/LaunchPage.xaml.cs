@@ -326,7 +326,7 @@ namespace SPIXI
                      * dangerous door had become zero doors. This one names the
                      * path out (findings §D-7, correct regardless of D-6). */
                     displaySpixiAlert(SpixiLocalization._SL("intro-restore-walletexists-title") ?? "Account already on this device",
-                        SpixiLocalization._SL("intro-restore-walletexists-text") ?? "An account already exists on this device. To use it, restart Spixi. To restore a different account: restart Spixi, open Account, tap Delete wallet, then open Restore again.",
+                        SpixiLocalization._SL("intro-restore-walletexists-text") ?? "An account already exists on this device. To use it, restart Spixi. To restore a different account: restart Spixi, open Account › Delete data… › Delete account, then open Restore again.",
                         SpixiLocalization._SL("global-dialog-ok") ?? "OK");
                     e.Cancel = true;
                     Utils.sendUiCommand(this, "removeLoadingOverlay");
@@ -599,8 +599,10 @@ namespace SPIXI
                          * way for this to degrade on an upgraded install. */
                         Preferences.Default.Set("walletCreatedHere", "1");
 
-                        // TODO: encrypt the password
-                        Preferences.Default.Set("walletpass", pass);
+                        /* ★ S16 L8 (#1312, #909): the new wallet's password, through the store (secure + verified with the
+                         * flag on, never plaintext; the legacy Set with it off). A false return is logged inside; the create
+                         * goes on and the next cold start asks the password once (the retry view). */
+                        WalletPassStore.write(pass);
 
                         // Prepare the balances list
                         List<Address> address_list = IxianHandler.getWalletStorage().getMyAddresses();
@@ -692,8 +694,9 @@ namespace SPIXI
         }
 
         /* ★ A-13 (#1245): the restore's preference writes, run ONLY after the wallet verified (both restore paths call
-         * this right before Node.loadWallet, which reads "walletpass"). A wrong-password restore used to clear
-         * `lockenabled` and overwrite `walletpass` before any check; now it leaves every preference untouched. */
+         * this right before Node.loadWallet(pass) — ★ S16: which opens with the verified password, not a stored one). A
+         * wrong-password restore used to clear `lockenabled` and overwrite the stored password before any check; now it
+         * leaves every preference and the store untouched. */
         private static void applyRestorePrefs(string pass)
         {
             Preferences.Default.Remove("lockenabled");
@@ -714,7 +717,8 @@ namespace SPIXI
              * earlier create on the same device. */
             Preferences.Default.Remove("walletCreatedHere");
 
-            Preferences.Default.Set("walletpass", pass);
+            // ★ S16 L8 (#1312): through the store (verified secure write with the flag on); a false return is logged inside.
+            WalletPassStore.write(pass);
         }
 
         // Attempt to restore the wallet
@@ -978,7 +982,7 @@ namespace SPIXI
                         Logging.warn("restoreAccountFile: a wallet file is already in place - nothing was moved");
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                         displaySpixiAlert(SpixiLocalization._SL("intro-restore-walletexists-title") ?? "Account already on this device",
-                            SpixiLocalization._SL("intro-restore-walletexists-text") ?? "An account already exists on this device. To use it, restart Spixi. To restore a different account: restart Spixi, open Account, tap Delete wallet, then open Restore again.",
+                            SpixiLocalization._SL("intro-restore-walletexists-text") ?? "An account already exists on this device. To use it, restart Spixi. To restore a different account: restart Spixi, open Account › Delete data… › Delete account, then open Restore again.",
                             SpixiLocalization._SL("global-dialog-ok") ?? "OK");
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                         Utils.sendUiCommand(this, "removeLoadingOverlay");
@@ -998,7 +1002,7 @@ namespace SPIXI
                 }
 
                 applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
-                Node.loadWallet();
+                Node.loadWallet(pass);   // ★ S16 L8: the password verifyWallet accepted — the open never depends on the store's round trip
                 restoreCommitted = true;          // round-2 MINOR-2: past this line the account IS restored
                 Directory.Delete(tmpDirectory, true);
                 File.Delete(source_path);
@@ -1075,7 +1079,7 @@ namespace SPIXI
             {
                 File.Move(source_path, target_filepath);
                 applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
-                Node.loadWallet();
+                Node.loadWallet(pass);   // ★ S16 L8: the verified password (as the account restore above)
             }
             goHome();
             return true;
@@ -1083,10 +1087,9 @@ namespace SPIXI
 
         private void proceed(string pass)
         {
-            // TODO: encrypt the password
-            Preferences.Default.Set("walletpass", pass);
-
-            bool wallet_decrypted = Node.loadWallet();
+            /* ★ S16 L8 (P03, #909): VERIFY FIRST. Legacy stored the typed password before the check, so a wrong one stayed on
+             * disk. The given-password overload opens the wallet; only a password that opened it is stored (below). */
+            bool wallet_decrypted = Node.loadWallet(pass);
 
             if (wallet_decrypted == false)
             {
@@ -1110,6 +1113,7 @@ namespace SPIXI
                 return;
             }
 
+            WalletPassStore.write(pass);   // ★ S16 L8: opened the wallet above; a false return is logged inside (the next cold start asks again)
             goHome();
         }
 

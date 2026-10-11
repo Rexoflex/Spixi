@@ -2892,6 +2892,14 @@ namespace SPIXI
                 }
                 else if (route == PhotoRules.RoutePaste)
                 {
+                    /* ★ S16 (#1320 F4): the gate runs BEFORE the clipboard read (still on the main thread — no await yet on
+                     * this route). A refusal is silent: nothing read, nothing pushed. */
+                    string? pasteRefusal = mediaInputRefusal();
+                    if (pasteRefusal != null)
+                    {
+                        Logging.warn("Media: paste refused (" + pasteRefusal + ")");
+                        return;
+                    }
                     byte[]? bytes = await SClipboardImage.readAsync(PhotoRules.SourceMax);
                     if (ReferenceEquals(bytes, SClipboardImage.TooBig))
                     {
@@ -8214,6 +8222,45 @@ namespace SPIXI
 
         /* ---- V7: the recorder verbs (main thread — the Navigating handler) ---- */
 
+        /** ★ S16 (#1320 F3/F4, Damir a1; flag SpixiFlags.MediaInputGate): the voice recorder and the paste verb act only for the chat
+         *  on screen, in the foreground, with no lock. null = go on, else a fixed word. Flag off = no refusal. Main thread.
+         *  ★ #46 r1 (R1-M2, R4-3): each primitive is read here and S16SecRules.mediaInputRefusal combines them (executed in
+         *  csh). "On screen" adds presentPreload's canShowInPlace test to isShownChat: no modal, and — for an overlay chat —
+         *  the overlay host is the top of the navigation stack (a mini-app, Wallet Send or Scan pushed over Home covers the
+         *  chat while it is still the top overlay). No navigation page = fail closed (modalOpen). ★ #46 r2 (M1): a chat-info
+         *  page on top COVERS the chat unless it is the desktop column-2 pane beside it (HomePage.isInfoPaneBesideNow: the right
+         *  column is shown — a narrowed window stacks the pane over the chat, #46 r3 M1); no
+         *  homePage (every phone chat) = covers — isShownChat itself stays the 1 Hz tick's rule. */
+        private string? mediaInputRefusal()
+        {
+            Microsoft.Maui.Controls.INavigation? rootNav = (Microsoft.Maui.Controls.Application.Current?.MainPage as Microsoft.Maui.Controls.NavigationPage)?.Navigation;
+            return S16SecRules.mediaInputRefusal(
+                gateOn: SpixiFlags.MediaInputGate,
+                foreground: App.isInForeground,
+                appLock: Microsoft.Maui.Controls.Application.Current is App app && app.isAppLockActive,
+                inPlaceLock: SpixiContentPage.hasModalOverlay(),
+                lockStaging: SpixiContentPage.isLockStaging(),
+                chatOnTop: isShownChat(),
+                infoCovers: SpixiContentPage.getTopOverlay() is ContactDetails cd && !(homePage != null && homePage.isInfoPaneBesideNow(cd)),
+                viaOverlay: SpixiContentPage.getTopOverlay() != null,
+                hostIsNavTop: rootNav != null && rootNav.NavigationStack.LastOrDefault() == SpixiContentPage.getOverlayHost(),
+                modalOpen: rootNav == null || rootNav.ModalStack.Count > 0);
+        }
+
+        /** ★ S16 #46 r1 (R1-n4): a refused recorder verb answers with the state as it is NOW — this chat recording →
+         *  `recording`, a kept clip → `stopped`, else `idle` (the input, no toast). It takes nothing from the recorder. */
+        private void pushVoiceRecAsItIs()
+        {
+            int recNow = VoiceClips.recordingMs(this);
+            if (recNow >= 0)
+            {
+                pushVoiceRec("recording", recNow);
+                return;
+            }
+            int keptNow = VoiceClips.keptMs(voiceChatKey);
+            pushVoiceRec(keptNow > 0 ? "stopped" : "idle", keptNow);
+        }
+
         private void onVoiceRecStart()
         {
             try
@@ -8222,6 +8269,15 @@ namespace SPIXI
                 {
                     Logging.warn("Voice: recording refused (notAllowed)");
                     pushVoiceRec("error", 0);
+                    return;
+                }
+                /* ★ S16 (#1320 F3): the gate runs BEFORE startRecording (and its OS permission request). A refusal is
+                 * silent: the state as it is now (pushVoiceRecAsItIs). */
+                string? why = mediaInputRefusal();
+                if (why != null)
+                {
+                    Logging.warn("Voice: recording refused (" + why + ")");
+                    pushVoiceRecAsItIs();
                     return;
                 }
                 switch (VoiceClips.startRecording(this))
@@ -8283,6 +8339,16 @@ namespace SPIXI
             bool stored = false;
             try
             {
+                /* ★ S16 #46 r1 (R1-M2): the same gate as `start`, BEFORE takeForSend — a covered / background / locked chat
+                 * sends nothing. Safe for the clip: a refusal TAKES nothing (a running recording keeps running, a kept clip
+                 * stays kept) and answers with the state as it is; the shell's ➤ wait ends on its own timer. */
+                string? why = mediaInputRefusal();
+                if (why != null)
+                {
+                    Logging.warn("Voice: send refused (" + why + ")");
+                    pushVoiceRecAsItIs();
+                    return;
+                }
                 packets = VoiceClips.takeForSend(this);
                 if (packets == null)
                 {

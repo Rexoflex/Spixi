@@ -595,8 +595,8 @@ namespace SPIXI
                             }
                             else
                             {
-                            // ★ #341 audit MAJOR-2 — the wallet password is ALSO cached as a
-                            // preference, and Node.loadWallet reads it at every cold start
+                            // ★ #341 audit MAJOR-2 — the wallet password is ALSO cached (★ S16: in
+                            // WalletPassStore, not a plain preference), and Node.loadWallet reads it at every cold start
                             // (Node.cs:248-256). Re-encrypting the wallet without updating it
                             // means the next launch opens the wallet with the OLD password,
                             // fails, and drops the user on the retry view — "my account is
@@ -605,7 +605,14 @@ namespace SPIXI
                             // needs one password for the archive and another for the wallet
                             // inside it: unrestorable. Create/restore/retry all set it
                             // (the create/restore/retry paths, all in LaunchPage since N75).
-                            Preferences.Default.Set("walletpass", split_url[2]);
+                            /* ★ S16 L8 (#1312): through the store, AFTER the isValidPassword(new) check above. A store
+                             * failure here still answers "1": the wallet IS re-encrypted with the new password, so "2" /
+                             * "not changed" would be false and a retry would fail on the old password. The failure is
+                             * logged (inside write). ★ #46 r1 NIT-3: a failed set may leave the OLD value in the secure
+                             * store, or the timed-out set may still land later; either way the next cold start opens with
+                             * the new password (it landed) or shows the retry view, which asks the NEW password and stores
+                             * it — never a lockout. A differing plaintext copy is removed (WalletPassStore.write). */
+                            WalletPassStore.write(split_url[2]);
                             encResult = "1";
                             }
                         }
@@ -788,7 +795,15 @@ namespace SPIXI
                 // #243 (S15): the Backup SUBLEVEL inside the Account pane — same
                 // self-contained operation BackupPage runs (static; C# names all
                 // paths, the verb is a bare trigger). ★ S2: the status is pushed after it.
-                runBackupThenPush(BackupPage.backupAccount);
+                // ★ S16 #46 r1 (R2 MAJOR-1): a refused backup (no stored password that opens the wallet) alerts natively —
+                // the shell's "Backed up" morph is optimistic.
+                runBackupThenPush(async () =>
+                {
+                    if (!await BackupPage.backupAccount())
+                    {
+                        BackupPage.alertBackupRefused(this);
+                    }
+                });
             }
             else if (current_url.Equals("ixian:backupWallet", StringComparison.Ordinal))
             {
@@ -1671,7 +1686,7 @@ namespace SPIXI
             {
                 try { string sd = Path.Combine(Config.spixiUserFolder, staleDir); if (Directory.Exists(sd)) { Directory.Delete(sd, true); } } catch (Exception ex) { Logging.error("wipe: restore scratch threw: " + ex.GetType().Name); }
             }
-            try { IxianHandler.localStorage.deleteAllDownloads(); } catch (Exception ex) { Logging.error("wipe: downloads threw: " + ex); }
+            try { IxianHandler.localStorage.deleteAllDownloads(); } catch (Exception ex) { Logging.error("wipe: downloads threw: " + ex.GetType().Name); }   // ★ S16 #46 r1 (R1-n3): the type — an IOException carries the path (a peer file name)
             /* ★ #585 rider (Damir): "wiping the account leaves the mini app installed, and
              * a create or restore inherits it." Step 1 stops the manager (Node.stop calls
              * MiniAppManager.stop) but nothing ever DELETED the installed apps, so they
@@ -1711,6 +1726,7 @@ namespace SPIXI
 
             // 5. every native preference — a fresh-install state
             try { Preferences.Default.Clear(); } catch (Exception ex) { Logging.error("wipe: preferences threw: " + ex); }
+            WalletPassStore.clear();   // ★ S16 L8: the secure store is its own container — Clear() above does not reach it (never throws)
             try { SRequestIgnore.clear(); } catch (Exception ex) { Logging.error("wipe: ignore list threw: " + ex.GetType().Name); }   // ★ #978: the in-process copy too
             try { SSightingStore.clear(); } catch (Exception ex) { Logging.error("wipe: sightings threw: " + ex.GetType().Name); }   // ★ G-2: the in-process copy too
             try { SReactionFlags.clearAll(); } catch (Exception ex) { Logging.error("wipe: reaction flags threw: " + ex.GetType().Name); }   // ★ #1148 (4)
@@ -1831,7 +1847,7 @@ namespace SPIXI
                 }
                 catch (Exception ex)
                 {
-                    Logging.warn("Could not unescape a download file name: " + ex);
+                    Logging.warn("Could not unescape a download file name: " + ex.GetType().Name);   // ★ S16 #46 r1 (R1-n3): the type — the message can carry the name
                 }
             }
             return decoded_url.Substring(prefix.Length);

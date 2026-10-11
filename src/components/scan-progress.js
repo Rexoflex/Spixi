@@ -34,6 +34,7 @@
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
+import { docLocale } from './timestamp.js';
 
 /** Parse a bridge number arg: '' / null / NaN / negative -> 0, meaning UNKNOWN. */
 function num(v) {
@@ -133,6 +134,16 @@ export function createScanProgress({ strings = getStrings(), onOpen } = {}) {
   text.setAttribute('aria-live', 'polite');
   text.textContent = strings.chainScanTitle || 'Checking for your transactions';
 
+  /* ★ #1304 (Damir picked A): a SECOND line under the title while scanning — the cost of the catch-up, said once and
+     plainly ("Spixi may feel slower …"), with an ETA when one is credible. OUTSIDE the live region on purpose: the ETA
+     moves every few minutes and must not be re-announced; it is read with the row. Wraps, never ellipsised. */
+  const col = document.createElement('span');
+  col.className = 'c-scanprog__col';
+  const sub = document.createElement('span');
+  sub.className = 'c-scanprog__sub';
+  sub.hidden = true;
+  col.append(text, sub);
+
   const pct = document.createElement('span');
   pct.className = 'c-scanprog__pct u-tabular';
   pct.setAttribute('role', 'progressbar');
@@ -145,10 +156,74 @@ export function createScanProgress({ strings = getStrings(), onOpen } = {}) {
   chev.setAttribute('aria-hidden', 'true');
   chev.append(icon('chevron-right', { size: 16 }));
 
-  btn.append(ring, text, pct, chev);
+  btn.append(ring, col, pct, chev);
   el.append(btn);
-  el._parts = { btn, ring, text, pct };
+  el._parts = { btn, ring, text, pct, sub };
+  el._eta = null;
   return el;
+}
+
+/* ————— #1304: the ETA ————————————————————————————————————————————————————————————
+ * Headers arrive ~250 per 2–3 s WITH GAPS, so a rate over seconds lies. The rate is taken over a SLIDING WINDOW of at
+ * least ETA_WINDOW_MS: the oldest kept sample is the newest one that is still ≥ that old. No ETA until the window spans
+ * it and the rate is positive; none under ETA_MIN_MS (just the slow line). ≥ 1 h → whole hours, rounded; < 1 h → minutes
+ * rounded UP to 5. Units through Intl (the document language, docLocale) with a fixed fallback. */
+export const ETA_WINDOW_MS = 5 * 60 * 1000;
+const ETA_MIN_MS = 5 * 60 * 1000;
+/* A target that only creeps (new blocks while we catch up, ~2 a minute) is the same catch-up; one that goes BACK or jumps
+   further than this is a new one, and so is a new origin. */
+const ETA_TARGET_JUMP = 1000;
+
+function unitText(n, unit) {
+  try {
+    return new Intl.NumberFormat(docLocale(), { style: 'unit', unit, unitDisplay: 'short' }).format(n);
+  } catch {
+    return n + (unit === 'hour' ? ' h' : ' min');
+  }
+}
+
+/** The ETA text for `ms` left, or '' when none is shown (under five minutes). Exported for the pins. */
+export function formatScanEta(ms) {
+  if (!(ms >= ETA_MIN_MS) || !Number.isFinite(ms)) return '';
+  const min = ms / 60000;
+  if (min < 60) {
+    const m5 = Math.ceil(min / 5) * 5;
+    if (m5 < 60) return unitText(m5, 'minute');
+  }
+  return unitText(Math.max(1, Math.round(min / 60)), 'hour');
+}
+
+/** Record one scanning frame and return the ms left, or null when not credible yet. Samples live on the element. */
+function etaSample(el, cur, tgt, org) {
+  const now = Date.now();
+  let e = el._eta;
+  if (!e || e.org !== org || tgt < e.tgt || tgt - e.tgt > ETA_TARGET_JUMP) {
+    e = el._eta = { org, tgt, samples: [] };   // a new catch-up: the old rate says nothing about it
+  }
+  e.tgt = tgt;
+  const s = e.samples;
+  s.push([now, cur]);
+  while (s.length > 1 && now - s[1][0] >= ETA_WINDOW_MS) s.shift();
+  const [t0, c0] = s[0];
+  const elapsed = now - t0;
+  if (elapsed < ETA_WINDOW_MS || cur <= c0) return null;
+  const rate = (cur - c0) / elapsed;            // blocks per ms
+  return (tgt - cur) / rate;
+}
+
+function setSlowLine(el, msLeft, strings) {
+  const sub = el._parts && el._parts.sub;
+  if (!sub) return;
+  if (msLeft === undefined) {                   // not scanning: no second line
+    sub.hidden = true;
+    sub.textContent = '';
+    return;
+  }
+  const t = msLeft === null ? '' : formatScanEta(msLeft);
+  sub.textContent = t
+    ? (strings.chainScanSlowEta || 'About {t} left · Spixi may feel slower until this is done').split('{t}').join(t)
+    : (strings.chainScanSlow || 'Spixi may feel slower until this is done');
+  sub.hidden = false;
 }
 
 /** The row's own reading, for anything that must agree with it (the sheet). */
@@ -219,6 +294,8 @@ export function setScanProgress(el, { current, target, origin, strings = getStri
       delete el.dataset.state;
       delete el.dataset.percent;
       delete el.dataset.wasScanning;   // ★ genuinely caught up — the latch goes with the row
+      el._eta = null;
+      setSlowLine(el, undefined, strings);
       return el;
     }
   }
@@ -248,6 +325,7 @@ export function setScanProgress(el, { current, target, origin, strings = getStri
     text.textContent = strings.chainScanStarting || 'Starting the check';
     pct.textContent = '';
     pct.removeAttribute('aria-valuenow');
+    setSlowLine(el, undefined, strings);         // #1304: indeterminate = no second line (the samples stay)
     return el;
   }
 
@@ -267,5 +345,6 @@ export function setScanProgress(el, { current, target, origin, strings = getStri
   text.textContent = strings.chainScanTitle || 'Checking for your transactions';
   pct.textContent = p + '%';
   pct.setAttribute('aria-valuenow', String(p));
+  setSlowLine(el, etaSample(el, cur, tgt, org), strings);
   return el;
 }

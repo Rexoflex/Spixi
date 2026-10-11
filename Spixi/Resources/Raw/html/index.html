@@ -3041,8 +3041,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   .c-scanprog__row:hover { background: var(--surface-interactive-hover); }
 }
 .c-scanprog__row:active { background: var(--surface-interactive-pressed); }
-.c-scanprog__text {
+/* #1304 (A): title + the slow line stack in one column beside the ring; the row grows to two lines while scanning */
+.c-scanprog__col {
   flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.c-scanprog__text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3050,6 +3056,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
+}
+.c-scanprog__sub {
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  overflow-wrap: anywhere;          /* wraps, never an ellipsis */
 }
 .c-scanprog__pct {
   flex: none;

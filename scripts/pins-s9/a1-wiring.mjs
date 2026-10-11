@@ -238,7 +238,7 @@ export default async function (h) {
   await guard('S9 A1 M13 fixed-word logs', async () => {
     const lines = [...REG.matchAll(/Logging\.(?:info|warn|error|trace)\(([^;]*)\);/g)].map((m) => m[1]);
     const bad = lines.filter((a) => {
-      const rest = a.replace(/"(?:[^"\\]|\\.)*"/g, '').replace(/\+\s*e\.GetType\(\)\.Name\s*\+?/g, '').replace(/\+\s*deleted\s*\+/g, '').replace(/[\s()+]/g, '');
+      const rest = a.replace(/"(?:[^"\\]|\\.)*"/g, '').replace(/\+\s*e\.GetType\(\)\.Name\s*\+?/g, '').replace(/\+\s*deleted\s*\+/g, '').replace(/\+\s*pasteRefusal\s*\+/g, '').replace(/[\s()+]/g, '');   /* ★ S16 a-sec re-base (#1320 F4): + the paste gate's reason — a FIXED word from S16SecRules.mediaInputRefusal (locked / background / hidden; executed in S16SecTests) */
       return rest !== '';
     });
     const tmLogs = [...TM.matchAll(/Logging\.(?:info|warn)\("(?:File offer refused|File accept refused|Accepting file|File header)[^;]*;/g)].map((m) => m[0]);
@@ -403,7 +403,7 @@ export default async function (h) {
       && /private void startVoiceDownload\(FriendMessage fm, string ownHex, int channel\)\s*\{\s*if \(fm\.localSender\)\s*\{[^}]*return;\s*\}/.test(SCP)
       && /if \(!File\.Exists\(path\)\)\s*\{\s*string\? rerooted = PhotoRules\.rerootSent\(path, Path\.Combine\(Config\.spixiUserFolder, PhotoRules\.SentFolderName\)\);\s*if \(rerooted != null && File\.Exists\(rerooted\)\)\s*\{\s*path = rerooted;\s*\}/.test(CB)
       && /new FileStream\(path, FileMode\.Open, FileAccess\.Read, FileShare\.Read\);\s*var ft = TransferManager\.prepareFileTransfer\(t_file_name, fs, path, friendMessage\.transferId\);/.test(CB)
-      && logs.length === 2 && logs.every((a) => a.replace(/"(?:[^"\\]|\\.)*"/g, '').replace(/\+\s*e\.GetType\(\)\.Name\s*\+/g, '').replace(/[\s()+]/g, '') === ''),
+      && logs.length === 3 && logs.every((a) => a.replace(/"(?:[^"\\]|\\.)*"/g, '').replace(/\+\s*e\.GetType\(\)\.Name\s*\+/g, '').replace(/[\s()+]/g, '') === ''),
       'S9 A1 M24 transfer direction: completion / accept / download / "fully received" lookups match the transfer\'s OWN direction (a peer offer reusing my transfer id never completes or re-paths my sent row — the Sent sweep keeps my copy); onAcceptFile and startVoiceDownload refuse my own row; the startup re-arm re-roots my Sent copy into today\'s folder; its logs are fixed words + an exception type');
   });
 }

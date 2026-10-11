@@ -487,6 +487,7 @@ namespace SPIXI
              * Drop it here — the ONE home both theme paths share — and the next warm
              * rebuilds it in the new theme. The #315 lesson, applied before it can recur. */
             SpixiContentPage.dropSpareChat("theme");
+            int pushed = 0;   // ★ S16 (#1311 (a)): the [THEME] push line's count
             foreach (SpixiContentPage page in getLiveShellPages(true))
             {
                 try
@@ -503,6 +504,7 @@ namespace SPIXI
                      * reloaded here because nothing here reloads any more. Reversal: git
                      * restore this branch + SpixiContentPage.rethemesByPush. */
                     Utils.sendUiCommand(page, "setTheme", themeName);
+                    pushed++;
                     /* ★ #46 audit: the NATIVE backing has to move with the shell. reload()
                      * ran applyPageSurfaceColor on the way through; a push does not, and
                      * pageSurfaceColor is baked at loadPage time. Left stale it is visible
@@ -550,6 +552,7 @@ namespace SPIXI
                 try { SpixiContentPage.repaintSystemBarsFor(null); }
                 catch (Exception ex) { Logging.warn("pushThemeToAllPages (bars): " + ex.Message); }
             });
+            Logging.info("[THEME] push name=" + S16FixRules.themeWord(themeName) + " pages=" + pushed);   // ★ S16 (#1311 (a)): fixed word + an integer
         }
 
         // Reload the webview contents on all pages in the navigation stack

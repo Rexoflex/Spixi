@@ -1,7 +1,7 @@
 ﻿using IXICore.Meta;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Xaml;
-using Microsoft.Maui.Storage;     // #341 audit MAJOR-2: Preferences["walletpass"] must follow the wallet
+using Microsoft.Maui.Storage;     // #341 audit MAJOR-2 (★ S16 L8: the password now follows the wallet through WalletPassStore)
 using SPIXI.Lang;
 using System;
 using System.Web;
@@ -85,7 +85,9 @@ namespace SPIXI
                         // cached password follows it. See the SettingsPage twin for why.
                         if (IxianHandler.getWalletStorage().isValidPassword(split_url[2]))
                         {
-                            Preferences.Default.Set("walletpass", split_url[2]);
+                            // ★ S16 L8 (#1312): through the store. A store failure still counts as changed — the wallet IS
+                            // re-encrypted (see the SettingsPage twin); logged inside, the retry view asks once at the next start.
+                            WalletPassStore.write(split_url[2]);
                             pass_changed = true;
                         }
                         else

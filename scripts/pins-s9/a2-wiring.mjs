@@ -174,7 +174,7 @@ export default async function (h) {
       if (iv < 0) return false;
       const [fo, fc] = blockAt(b, b.indexOf('{', iv));
       const failBlock = fc > 0 ? b.slice(fo, fc) : '';
-      const a = b.indexOf('applyRestorePrefs(pass);'), l = b.indexOf('Node.loadWallet();', a);
+      const a = b.indexOf('applyRestorePrefs(pass);'), l = b.indexOf('Node.loadWallet(pass);', a);   /* ★ S16 L8 re-base (#1312): the restore opens with the verified password */
       const [eo, ec] = a >= 0 ? enclosing(b, a) : [-1, -1];
       const own = eo >= 0 && ec > 0 ? flat(b.slice(eo, ec)) : 'return false;';
       const catches = [...b.matchAll(/catch\s*(\([^)]*\))?\s*\{/g)].map((m) => { const [o, c] = blockAt(b, m.index + m[0].length - 1); return c > 0 ? b.slice(o, c) : ''; });
@@ -185,7 +185,7 @@ export default async function (h) {
     const r = {
       onRestoreWritesNothing: onR.length > 0 && !/Preferences\.Default\./.test(onR),
       prefsBody: /Preferences\.Default\.Remove\("lockenabled"\);/.test(prefs) && /Preferences\.Default\.Set\("backupReminderTimestamp", Clock\.getTimestamp\(\)\.ToString\(\)\);/.test(prefs)
-        && /Preferences\.Default\.Remove\("walletCreatedHere"\);/.test(prefs) && /Preferences\.Default\.Set\("walletpass", pass\);\s*\}$/.test(prefs),
+        && /Preferences\.Default\.Remove\("walletCreatedHere"\);/.test(prefs) && /WalletPassStore\.write\(pass\);\s*\}$/.test(prefs)   /* ★ S16 L8 re-base (#1312): the password goes through the store */,
       accountAfterVerify: after(acc),
       walletAfterVerify: after(wal),
       noTypo: !/waletpass/.test(LP),

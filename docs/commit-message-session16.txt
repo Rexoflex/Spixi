@@ -1,0 +1,32 @@
+Session 16: security fixes F1-F5 F8 + MAJOR #9, L8 walletpass in SecureStorage, #1311
+
+- F1: LockPage refuses ixian:change on every lock without a Cancel;
+  App.onUnlock releases only on EventArgs<bool>(true); the cold-start
+  ToLaunch leg and onUseAnotherWallet removed (#1322)
+- F2: pushPageLoaded drops a navigation while a lock stages (< 5 s,
+  monotonic); cancelPreload never cancels a staging LockPage
+- F3/F4 (flag MediaInputGate): voicerec:start / :send and the paste read
+  only for a chat on screen, not covered, in front, with no lock; an app
+  lock stops a running recording
+- F5: home declineRequest removes only the request card's own case
+- F8: type-only logs in DownloadsPage / SettingsPage, mutechat logs a length
+- MAJOR #9 (Android): camera = VIDEO only, only the ScanPage WebView
+  (ClassId "scan" + identity), never http(s); the scan WebView refuses
+  file: navigations (#1313)
+- L8 (flag SecureWalletPass, #1323): walletpass in SecureStorage; prefetch +
+  bounded cold read; verify-then-remove migration; a lost key = the retry
+  view, never plaintext; iOS/Mac ThisDeviceOnly; wipe + no-wallet clear;
+  proceed and restore verify before they store; Backup refuses + alerts
+  when the stored password is unreadable; dev toggles (dev mode only)
+- #1311: [THEME] diagnostic lines; RESTORE-B sheet "One account per
+  device"; the 13 walletexists texts fixed; the unfinished-sent-file re-arm
+  once per transfer id (#1324)
+- Android hold shield: taps during the hold no longer fall through
+- Wallet sync strip (pick A): "About {t} left - Spixi may feel slower
+  until this is done" under the scan row (#1304)
+- Tests: csh S16Sec/Pass/Fix/Store tests (CSH 423), pins-s16 a/b/c;
+  re-based gate 8, #1028, s9 a1/a2, s11 c-wiring, s13 b-swap, s15 a-restore
+- Security-only #46 r1-r5 CLEAN (#1325); packets P24, P25 new, P01 P03 P05
+  P07 P09 P10 P11 P12 P21 + README updated; gate Session 16 section
+- DECISIONS #1321-#1326, walk sheet section 6, handoff 2026-10-11b,
+  prompt session-16b

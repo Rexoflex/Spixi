@@ -494,6 +494,8 @@ namespace SPIXI
                 }
                 outgoingTransfers.Clear();
             }
+            rearmClaims.clear();   // ★ S16 (#1311 (c)): a restarted manager may re-arm every unfinished sent file once again
+            rearmLogged.clear();
 
             resetIncomingTransfers();
         }
@@ -789,6 +791,39 @@ namespace SPIXI
             return TransferManager.sendFileData(friend, uid, 0);
         }
 
+
+        /* ★ S16 (#1311 (c)): the unfinished-sent-file re-arm (SpixiLocalStorageCallbacks) runs ONCE per transfer id per session —
+         * it ran on every message load and re-opened / re-failed the same file (1 436 error lines in 3.5 h). claimRearm is true
+         * only the first time for an id; hasOutgoing is the EXACT id under the list lock (getOutgoingTransfer below is a
+         * substring match, unlocked). The claims clear with the outgoing list at the manager's stop cleanup (onUpdate). */
+        private static readonly S16FixRules.RearmLedger rearmClaims = new S16FixRules.RearmLedger();
+
+        public static bool claimRearm(string uid)
+        {
+            return rearmClaims.claim(uid);
+        }
+
+        /* ★ S16 #46 r1 (R3 m1): a re-arm that failed — the claim is KEPT only when the source is gone (a retry cannot help) and
+         * released on any other failure (the next message load tries again); true = write the error line (once per id, the
+         * second ledger). S16FixRules.rearmFailure. */
+        private static readonly S16FixRules.RearmLedger rearmLogged = new S16FixRules.RearmLedger();
+
+        public static bool rearmFailed(string uid, Exception e)
+        {
+            return S16FixRules.rearmFailure(uid, e, rearmClaims, rearmLogged);
+        }
+
+        public static bool hasOutgoing(string uid)
+        {
+            if (string.IsNullOrEmpty(uid))
+            {
+                return false;
+            }
+            lock (outgoingTransfers)
+            {
+                return outgoingTransfers.Exists(x => x.uid == uid);
+            }
+        }
 
         public static FileTransfer? getOutgoingTransfer(string uid)
         {

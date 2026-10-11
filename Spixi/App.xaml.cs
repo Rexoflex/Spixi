@@ -241,6 +241,13 @@ public partial class App : Application
                 Logging.info("copyResources: {0} copied, {1} unchanged", htmlCopied, htmlUnchanged);
             }
 
+            // ★ S16 (#1312 rule 1): the flags, read ONCE, first thing after the logger; then the L8 secure read starts so
+            // it overlaps the rest of the start (Node.loadWallet below waits for it, bounded). ★ #46 r1 MINOR-4: only when
+            // a wallet file exists (the Node.checkForExistingWallet path, without its error line) — a fresh install never
+            // builds the secure store here.
+            SpixiFlags.init();
+            WalletPassStore.prefetch(File.Exists(Path.Combine(Config.spixiUserFolder, Config.walletFile)));
+
             // Init fatal exception handlers
             AppDomain.CurrentDomain.UnhandledException += CurrentDomainOnUnhandledException;
             TaskScheduler.UnobservedTaskException += TaskSchedulerOnUnobservedTaskException;
@@ -322,6 +329,24 @@ public partial class App : Application
                 //     changes nothing the user should see — a full reloadAllPages
                 //     there would be pure flicker (the #242 round-2 lesson). Explicit
                 //     picks keep owning their own live re-theme in SettingsPage.
+                /* ★ S16 (#1311 (a)): the [THEME] mechanism line, BEFORE the "System" gate — every event, so a log shows whether
+                 * the OS flip reached the app, in which state, and what the next page will bake. Enum names + fixed words only. */
+                try
+                {
+                    string cfg;
+#if ANDROID
+                    cfg = SPIXI.S16FixRules.androidCfgWords(Microsoft.Maui.ApplicationModel.Platform.CurrentActivity);
+#else
+                    cfg = SPIXI.S16FixRules.cfgWords(null, null);
+#endif
+                    Logging.info("[THEME] event arg=" + a.RequestedTheme + " req=" + Current.RequestedTheme
+                        + " pick=" + (int)ThemeManager.getActiveAppearance()
+                        + " baked=" + SPIXI.S16FixRules.themeWord(SpixiLocalization.getLocalizedString("SpixiThemeName"))
+                        + " fg=" + SPIXI.S16FixRules.bit(isInForeground) + " " + cfg);
+                }
+                catch (Exception)
+                {
+                }
                 if (ThemeManager.getActiveAppearance() != ThemeAppearance.automatic)
                     return;
                 ThemeManager.changeAppearance(ThemeAppearance.automatic);
@@ -363,6 +388,10 @@ public partial class App : Application
 
             if (!wallet_found)
             {
+                // ★ S16 L8: no wallet file → no stored password may outlive it (the iOS Keychain survives an uninstall).
+                // ★ #46 r1 MINOR-4: wait = false — the UI thread does not wait on the secure remove; every later secure
+                // call (a create's write) awaits it first (WalletPassStore.pendingClear).
+                WalletPassStore.clear(wait: false);
                 // Wallet not found, go to initial launch page
                 MainPage = new NavigationPage(new LaunchPage());
             }
@@ -462,6 +491,13 @@ public partial class App : Application
 
     public void onUnlock(object sender, EventArgs e)
     {
+        /* ★ S16 (#1320 F1): only a TRUE authSucceeded releases the lock. A false one (a confirm lock's Cancel) used to
+         * unlock with no password; LockPage now refuses `ixian:change` on an app lock, and this is the second wall. */
+        if (!S16SecRules.unlockReleases(e))
+        {
+            Logging.error("onUnlock: not a verified unlock - the lock stays");
+            return;
+        }
         isLockScreenActive = false;
         unlockedDate = DateTime.Now;
         /* ★ #438 break-my-verdict MAJOR-2: AUTH IS THE DEFINITIVE RELEASE. Background
@@ -647,6 +683,7 @@ public partial class App : Application
 
             isLockScreenActive = true;
             OfflinePushMessages.resetCooldown();
+            SPIXI.VoIP.VoiceClips.interruptAll("lock");   // ★ S16 (#1320 F3): a running voice recording stops (kept) when the app lock goes up
             /* #272: the lock outranks the call surface, and it must not be possible for
              * a ring to sit above it. onUnlock / the grace dismissal both re-arm
              * refreshAppRequests, so a call that survives gets its ring or bar back. */
@@ -851,6 +888,7 @@ public partial class App : Application
         // Show the lock screen
         isLockScreenActive = true;
         OfflinePushMessages.resetCooldown();
+        SPIXI.VoIP.VoiceClips.interruptAll("lock");   // ★ S16 (#1320 F3): a running voice recording stops (kept) when the app lock goes up
         // ★ Q4-③ review (MAJOR-1/2): the lock ALWAYS wins over the call surface.
         // A RING presented via CallPage's modal fallback (a legacy page was on top)
         // sits on the ModalStack — the lock would then be pushed ABOVE it, and the

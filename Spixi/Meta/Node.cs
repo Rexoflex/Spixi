@@ -404,15 +404,22 @@ namespace SPIXI.Meta
             return true;
         }
 
+        /* ★ S16 L8 (#1312, #909): the stored password comes from WalletPassStore (SecureStorage behind the
+         * SecureWalletPass flag; the legacy plaintext preference with the flag off). No value → false → the caller
+         * shows the retry view; never a plaintext fallback on the secure leg. */
         static public bool loadWallet()
         {
-            if (Preferences.Default.ContainsKey("walletpass") == false)
+            if (!WalletPassStore.readForColdStart(out string? password) || password == null)
                 return false;
 
-            // TODO: decrypt the password
-            string password = Preferences.Default.Get("walletpass", "").ToString();
+            return loadWallet(password);
+        }
 
-
+        /* ★ S16 L8 (P03): the same body with a GIVEN password — the retry view verifies the typed password with this
+         * BEFORE it is stored (legacy cached it first, so a wrong one stayed on disk); the restore paths pass the
+         * password their verifyWallet just accepted. */
+        static public bool loadWallet(string password)
+        {
             WalletStorage walletStorage = new WalletStorage(Path.Combine(Config.spixiUserFolder, Config.walletFile));
             if (walletStorage.readWallet(password))
             {

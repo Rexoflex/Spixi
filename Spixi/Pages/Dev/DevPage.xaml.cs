@@ -68,6 +68,28 @@ namespace SPIXI
             {
                 onBack();
             }
+            else if (current_url.StartsWith("ixian:devflash:securepass:", StringComparison.Ordinal)
+                || current_url.StartsWith("ixian:devflash:mediagate:", StringComparison.Ordinal))
+            {
+                /* ★ S16 (#1312 rule 1, dev surface, the devflash verb's own tail): `ixian:devflash:<securepass|mediagate>:<0|1>`
+                 * — the SpixiFlags switches (1 = the S16 path ON, the default). Exactly "0" or "1" and dev mode on, or nothing
+                 * is stored; then echo. SpixiFlags reads them ONCE per start, so a change acts at the NEXT start. */
+                bool secure = current_url.StartsWith("ixian:devflash:securepass:", StringComparison.Ordinal);
+                string prefix = secure ? "ixian:devflash:securepass:" : "ixian:devflash:mediagate:";
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false)
+                        && S16PassRules.parseFlagTail(current_url.Substring(prefix.Length), out int value))
+                    {
+                        Preferences.Default.Set(secure ? SpixiFlags.SecureWalletPassKey : SpixiFlags.MediaInputGateKey, value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: flag switch failed: " + ex.GetType().Name);
+                }
+                pushFlagsDev();
+            }
             else if (current_url.StartsWith("ixian:devflash:container:", StringComparison.Ordinal))
             {
                 /* ★ S14 (#1282, dev surface, the devflash verb's own tail): `ixian:devflash:container:<clip|shadow|none>` — the
@@ -133,6 +155,7 @@ namespace SPIXI
             Utils.sendUiCommand(this, "setCaps", "sendlog");
             pushFlashDev();   // ★ S11 C (#1262): the flash switches' positions
             pushContainerDev();   // ★ S14 (#1282): the overlay-container probe (Android only)
+            pushFlagsDev();   // ★ S16 (#1312): the SpixiFlags switches (stored values; they act at the next start)
 
             string srcLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log");
             string destLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log.tmp");
@@ -191,6 +214,22 @@ namespace SPIXI
             }
             Utils.sendUiCommand(this, "window.setContainerDev", S11ChatRules.containerWord(mode));
 #endif
+        }
+
+        /** ★ S16 (#1312, 🟡 new push): the STORED SpixiFlags switches "<securepass 0|1>,<mediagate 0|1>" (absent = 1). What
+         *  acts in THIS run is SpixiFlags (read at start); the row says a change acts after a restart. Guarded reference. */
+        private void pushFlagsDev()
+        {
+            int sp = 1, mg = 1;
+            try
+            {
+                sp = Preferences.Default.Get(SpixiFlags.SecureWalletPassKey, 1);
+                mg = Preferences.Default.Get(SpixiFlags.MediaInputGateKey, 1);
+            }
+            catch (Exception)
+            {
+            }
+            Utils.sendUiCommand(this, "window.setFlagsDev", (sp == 0 ? "0" : "1") + "," + (mg == 0 ? "0" : "1"));
         }
 
         // #321 (R5 parity): share/save the CURRENT log. The share copy is a stable

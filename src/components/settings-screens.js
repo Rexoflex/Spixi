@@ -23,7 +23,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
-import { settingsOptionSheet, THEME_OPTIONS } from './settings-shell.js';   // the Privacy screen's photo auto-download picker (★ S11 A2: Message preview left it for the inline control)
+import { settingsOptionSheet, createThemePicker, radioArrows } from './settings-shell.js';   // the Privacy screen's photo auto-download picker; ★ #1353 THE theme picker + the shared radio keyboard
 /* ★ Session M (#774): the Colour control is a VALUE ROW that opens the house option sheet,
    not a third tile pair — see createChatAppearance. The direction is safe and already
    travelled: build-demo-bundle.mjs orders settings-shell BEFORE settings-screens, and
@@ -150,8 +150,12 @@ export function patternLevelVar(level, boost) {
      removing it would mean re-deriving it per theme (the --border-bubble-received
      precedent) — but nothing selects it any more. A stored 2 folds to 1 upstream. */
   const tok = '--chat-pattern-alpha-1';
+  /* ★ #1351 (Damir 2026-10-12: "reduce the opacity of background patterns by 20 % in all cases"): a boosted swatch is
+     capped by --chat-pattern-tile-max (absent = 1, the old implicit opacity clamp). On light Aurora alpha × boost is
+     above 1 (0.192 × 6 = 1.15), so the clamp swallowed every alpha step there and the tiles never got lighter; that
+     ground caps its tiles at 0.8 (= 20 % under the 1 they showed), every other ground keeps 1. */
   return boost && boost !== 1
-    ? 'calc(var(' + tok + ') * ' + boost + ')'
+    ? 'min(var(--chat-pattern-tile-max, 1), calc(var(' + tok + ') * ' + boost + '))'
     : 'var(' + tok + ')';
 }
 
@@ -508,26 +512,7 @@ export const TEXT_SIZE_PX = { min: 12, max: 22, base: 16 };
    each ground rule (root + descendant) sets the sent colour, its card and its meta ink, so a tile never inherits another
    canvas's colour and "Auto" is simply no data-chat-sent. */
 
-/* ★ #1035 → ★ S17 C (#46 r1 M1): ONE radio-group keyboard for every picture group on this screen (canvas tiles, theme phones,
-   chat-list tiles) — arrows move AND select, Home / End, wrap, RTL mirrored. Only the checked option is in the tab order. */
-function radioArrows(group) {
-  group.addEventListener('keydown', (e) => {
-    const kids = [...group.children];
-    const i = kids.indexOf(e.target);
-    if (i < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
-    const rtl = (group.closest('[dir]') || document.documentElement).getAttribute('dir') === 'rtl';
-    const fwd = rtl ? 'ArrowLeft' : 'ArrowRight', back = rtl ? 'ArrowRight' : 'ArrowLeft';
-    let n = -1;
-    if (e.key === fwd || e.key === 'ArrowDown') n = (i + 1) % kids.length;
-    else if (e.key === back || e.key === 'ArrowUp') n = (i - 1 + kids.length) % kids.length;
-    else if (e.key === 'Home') n = 0;
-    else if (e.key === 'End') n = kids.length - 1;
-    if (n < 0) return;
-    e.preventDefault();
-    kids[n].focus();
-    kids[n].click();
-  });
-}
+/* ★ #1353: radioArrows (the one radio-group keyboard) moved to settings-shell.js — imported above */
 
 export function createChatAppearance({
   patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1), not an alpha
@@ -763,44 +748,18 @@ export function createChatAppearance({
 
   /* ── (4) theme (only when the host can commit one) ── */
   let c4 = null;
-  let themeBtns = [];
-  let themeCurrent = theme;
+  let themePick = null;
   if (onTheme) {
     c4 = card('c-settings-appearance__card--theme');
     const tId = 'c-settings-theme-label';
-    const g = document.createElement('div');
-    g.className = 'c-settings-appearance__themes';
-    g.setAttribute('role', 'radiogroup');
-    g.setAttribute('aria-labelledby', tId);
-    themeBtns = THEME_OPTIONS.map((o) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'c-settings-appearance__theme';
-      b.dataset.value = String(o.value);
-      b.setAttribute('role', 'radio');
-      const ph = document.createElement('span');
-      ph.className = 'c-settings-appearance__phone';
-      ph.setAttribute('aria-hidden', 'true');
-      ph.dataset.mode = o.value === 2 ? 'dark' : o.value === 1 ? 'light' : 'system';
-      for (const k of ['bar', 'r', 's']) { const i = document.createElement('i'); i.className = 'c-settings-appearance__phone-' + k; ph.append(i); }
-      const t = document.createElement('span');
-      t.className = 'c-settings-appearance__theme-name';
-      t.textContent = (strings[o.key] || o.label);
-      /* ★ S17 C (Damir 20:21): no radio under the phone (no other screen uses one) — the picked tile takes the blue rim
-         and a white check in a blue disc on its corner (pickMark, the same mark as the chat-list tiles) */
-      ph.append(pickMark());
-      b.append(ph, t);
-      b.addEventListener('click', () => {
-        if (String(themeCurrent) === String(o.value)) return;
-        themeCurrent = o.value;
-        paint();
-        try { onTheme(o.value, { done() {}, fail() {} }); } catch { /* a commit failure must not break the screen */ }
-      });
-      g.append(b);
-      return b;
+    /* ★ #1353 (Damir 12:57, picked A): THE theme picker — the same component as Account › Theme (createThemePicker,
+       settings-shell.js): portrait mini chats, System on the diagonal, the rim + corner check. The commit is the hub's
+       (onTheme → applyTheme + ixian:appearance), so a pick here and a pick in the sheet are one path. */
+    themePick = createThemePicker({
+      current: theme, strings, labelledBy: tId,
+      commit: (v, ctrl) => { onTheme(v, ctrl); if (onTheme.length < 2) ctrl.done(); },   // a host that takes no ctrl = done at once (the old optimistic move)
     });
-    radioArrows(g);   // #46 r1 M1: the keyboard reaches every phone
-    c4.append(label((strings.theme || 'Theme'), tId), g);
+    c4.append(label((strings.theme || 'Theme'), tId), themePick);
   }
 
   /* ── (5) the chat list + tips ── */
@@ -897,11 +856,6 @@ export function createChatAppearance({
       b.tabIndex = on ? 0 : -1;
       /* Auto = the canvas's OWN colour (its ground rule, through the group's data-chat-ground) — never the pick */
       setSent(b.firstElementChild, b.dataset.value === 'auto' ? '' : b.dataset.value);
-    }
-    for (const b of themeBtns) {
-      const on = String(themeCurrent) === b.dataset.value;
-      b.setAttribute('aria-checked', String(on));
-      b.tabIndex = on ? 0 : -1;
     }
     for (const b of lineBtns) {
       const on = b.dataset.value === linesCurrent;

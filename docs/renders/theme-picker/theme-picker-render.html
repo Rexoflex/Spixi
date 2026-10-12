@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spixi Theme Picker</title>
+<style>
+/* Page chrome (the artifact around the phones) */
+:root{--pg:#eef0f3;--pg-card:#fff;--pg-ink:#131415;--pg-ink2:#5b6470;--pg-line:#e1e5ea;--pg-acc:#3050bd;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--pg:#0b0c0e;--pg-card:#16181b;--pg-ink:#e8ecee;--pg-ink2:#9aa0a6;--pg-line:#26292d;--pg-acc:#98b5fc;color-scheme:dark}}
+:root[data-theme="dark"]{--pg:#0b0c0e;--pg-card:#16181b;--pg-ink:#e8ecee;--pg-ink2:#9aa0a6;--pg-line:#26292d;--pg-acc:#98b5fc;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pg);color:var(--pg-ink);font:15px/1.5 "Inter Tight",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:24px;margin:0 0 4px;letter-spacing:-.01em}
+.lead{color:var(--pg-ink2);margin:0 0 18px;max-width:72ch}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
+.tabs button{font:600 14px inherit;font-family:inherit;border:1px solid var(--pg-line);background:var(--pg-card);color:var(--pg-ink);border-radius:999px;padding:8px 16px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--pg-acc);border-color:var(--pg-acc);color:var(--pg)}
+.opt{display:none}.opt.on{display:block}
+.opt h2{font-size:19px;margin:0 0 4px}
+.opt p.what{margin:0 0 14px;color:var(--pg-ink2);max-width:80ch}
+.phones{display:flex;gap:18px;flex-wrap:wrap}
+.cap{font:600 12px inherit;font-family:inherit;color:var(--pg-ink2);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px}
+.rec{display:inline-block;font:700 11px inherit;font-family:inherit;letter-spacing:.06em;text-transform:uppercase;color:var(--pg-acc);border:1px solid var(--pg-acc);border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:2px}
+
+/* —— the phone (fixed per-theme paints = the app's real tokens) —— */
+.ph{--ground:#f3f5f7;--card:#fff;--sheet:#f9fafb;--ink:#131415;--ink2:#4f5664;--line:#e8ecee;--acc:#3050bd;--acc-ink:#3050bd;--scrim:rgba(17,18,19,.6);
+  width:300px;height:640px;border-radius:34px;overflow:hidden;position:relative;background:var(--ground);color:var(--ink);
+  box-shadow:0 0 0 8px #1c1d20,0 18px 40px rgba(0,0,0,.25);font:14px/1.35 Roboto,system-ui,sans-serif;flex:none}
+.ph.dk{--ground:#0f1113;--card:#1a1c1f;--sheet:#1a1c1f;--ink:#e8ecee;--ink2:#bbbec4;--line:#26292d;--acc-ink:#769dff}
+.sb{height:30px;display:flex;justify-content:space-between;align-items:center;padding:0 22px;font-size:12px;color:var(--ink2)}
+.tb{height:46px;display:flex;align-items:center;gap:14px;padding:0 18px;font-weight:700;font-size:19px}
+.tb .bk{font-size:20px;font-weight:400}
+/* the hub behind the sheet */
+.hub{padding:6px 12px}
+.hub .hero{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0 14px}
+.hub .av{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#7aa7ff,#a77bff)}
+.hub .nm{width:110px;height:12px;border-radius:6px;background:var(--line)}
+.grp{background:var(--card);border-radius:16px;padding:4px 0;margin:0 0 10px}
+.rw{display:flex;align-items:center;gap:12px;padding:10px 12px}
+.rw .d{width:26px;height:26px;border-radius:8px;flex:none}
+.rw .t{flex:1;height:9px;border-radius:5px;background:var(--line);max-width:120px}
+.lbl{font-size:12px;font-weight:600;color:var(--ink2);margin:6px 6px 6px}
+.scrim{position:absolute;inset:0;background:var(--scrim)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--sheet);border-radius:24px 24px 0 0;padding:10px 16px 26px}
+.grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px}
+.ph.dk .grab{background:#3a3d42}
+.sheet h3{margin:0;font-size:20px;font-weight:700}
+.sheet .sub{margin:4px 0 16px;color:var(--ink2);font-size:13px}
+.home{position:absolute;left:50%;bottom:7px;width:110px;height:4px;border-radius:2px;background:var(--ink2);opacity:.5;transform:translateX(-50%)}
+/* the Chat appearance screen around the card */
+.ca{padding:8px 12px}
+.ca .card{background:var(--card);border-radius:22px;padding:14px 14px 16px;margin-bottom:12px}
+.ca .card h4{margin:0 0 12px;color:var(--acc-ink);font-size:15px;font-weight:700}
+.ca .ghost{height:120px}
+.ca .ghost i{display:block;height:10px;border-radius:5px;background:var(--line);margin:10px 0;width:60%}
+
+/* —— SHARED selection grammar (all three) —— */
+.pick{position:absolute;z-index:2;top:7px;inset-inline-end:7px;width:22px;height:22px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;
+  box-shadow:0 0 0 2px var(--card),0 2px 6px rgba(10,20,60,.25)}
+.sheet .pick{box-shadow:0 0 0 2px var(--sheet),0 2px 6px rgba(10,20,60,.25)}
+.pick svg{width:13px;height:13px}
+
+/* —— A · mini chat phones —— */
+.A{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.A .tile{display:flex;flex-direction:column;align-items:center;gap:8px;border:0;background:none;padding:0;color:var(--ink);font:inherit;font-size:13px}
+.mini{position:relative;width:100%;aspect-ratio:3/4.1;border-radius:14px;overflow:hidden}
+.mini .face{position:absolute;inset:0;padding:0}
+.face.l{--f:#f3f5f7;--fb:#ffffff;--fl:#dde2e9;--fs:#2160c2;background:var(--f)}
+.face.d{--f:#0f1113;--fb:#1e2023;--fl:#2a2d31;--fs:#1a4a96;background:var(--f)}
+.face .hd{height:15%;background:var(--fb);display:flex;align-items:center;gap:4px;padding:0 6px}
+.face .hd b{width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#7aa7ff,#a77bff)}
+.face .hd i{width:34%;height:5px;border-radius:3px;background:var(--fl)}
+.face .r,.face .s{position:absolute;height:13px;border-radius:7px}
+.face .r,.face .s{height:10%}
+.face .r{left:7px;top:23%;width:52%;background:var(--fb);box-shadow:0 0 0 .5px rgba(0,0,0,.06)}
+.face .r2{top:37%;width:38%}
+.face .s{right:7px;top:53%;width:50%;background:var(--fs)}
+.face .s2{top:67%;width:34%}
+.face .cp{position:absolute;left:6px;right:6px;bottom:5%;height:10%;border-radius:7px;background:var(--fb)}
+.face.d.split{clip-path:polygon(100% 0,100% 100%,0 100%)}
+.mini::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(0,0,0,.14);pointer-events:none;z-index:1}
+.ph.dk .mini::after{box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.A .tile[aria-checked="true"] .mini{box-shadow:0 0 0 2.5px var(--card),0 0 0 4.5px var(--acc)}
+.sheet .A .tile[aria-checked="true"] .mini{box-shadow:0 0 0 2.5px var(--sheet),0 0 0 4.5px var(--acc)}
+.A .nm2{font-weight:500}
+.A .tile[aria-checked="true"] .nm2{color:var(--acc-ink);font-weight:700}
+.A .hint{font-size:11.5px;color:var(--ink2);margin-top:-6px;text-align:center}
+
+/* —— B · mini Spixi (the Chats list) —— */
+.B{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.B .tile{display:flex;flex-direction:column;align-items:center;gap:8px;border:0;background:none;padding:0;color:var(--ink);font:inherit;font-size:13px}
+.face .ttl{position:absolute;left:7px;top:8px;width:40%;height:7px;border-radius:4px;background:var(--fl)}
+.face .row{position:absolute;left:7px;right:7px;height:13%;display:flex;align-items:center;gap:5px}
+.face .row b{height:100%;aspect-ratio:1;border-radius:50%;flex:none}
+.face .row i{height:5px;border-radius:3px;background:var(--fl);flex:1}
+.face .row i.sh{flex:.55}
+.face .nav{position:absolute;left:0;right:0;bottom:0;height:15%;background:var(--fb);display:flex;justify-content:space-around;align-items:center}
+.face .nav i{width:9px;height:9px;border-radius:3px;background:var(--fl)}
+.face .nav i.on{width:20px;border-radius:5px;background:var(--fs)}
+.B .tile[aria-checked="true"] .mini{box-shadow:0 0 0 2.5px var(--card),0 0 0 4.5px var(--acc)}
+.sheet .B .tile[aria-checked="true"] .mini{box-shadow:0 0 0 2.5px var(--sheet),0 0 0 4.5px var(--acc)}
+.B .tile[aria-checked="true"] .nm2{color:var(--acc-ink);font-weight:700}
+.B .glyph{position:absolute;z-index:2;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;display:grid;place-items:center;background:var(--card);color:var(--ink2);box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.sheet .B .glyph{background:var(--sheet)}
+.B .glyph svg{width:15px;height:15px}
+
+/* —— C · rows with a mini phone and a description —— */
+.C{display:flex;flex-direction:column;gap:8px}
+.C .tile{display:flex;align-items:center;gap:14px;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:10px 14px 10px 10px;color:var(--ink);font:inherit;text-align:start}
+.sheet .C .tile{background:var(--card)}
+.C .mini{width:52px;aspect-ratio:3/4.1;flex:none;border-radius:10px}
+.C .tx{flex:1;min-width:0}
+.C .tx b{display:block;font-size:15px}
+.C .tx span{display:block;font-size:12.5px;color:var(--ink2)}
+.C .ck{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center}
+.C .tile[aria-checked="true"]{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+.C .tile[aria-checked="true"] .ck{background:var(--acc);border-color:var(--acc);color:#fff}
+.C .ck svg{width:13px;height:13px;opacity:0}.C .tile[aria-checked="true"] .ck svg{opacity:1}
+.note{font-size:13px;color:var(--pg-ink2);margin:14px 0 0;max-width:80ch}
+.cmp{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Theme picker — one picker in both places</h1>
+  <p class="lead">Damir 12:57: improve the theme picker a little, make it the same in Account › Theme and in Chat appearance › Theme, and make the sheet taller (it sits too low today). Three directions. Each shows the Account sheet and the Chat appearance card, light and dark. All three share one selection mark: a blue rim and a white check in a blue disc, the mark already used on Chat appearance. Pick one.</p>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div id="opts"></div>
+  <h2 style="font-size:19px;margin:34px 0 4px">Today (for comparison)</h2>
+  <p class="what" style="color:var(--pg-ink2);margin:0 0 12px">Two different pickers: 64 px "line" tiles with a diagonal System and a check beside the label (sheet), and 96 px mini chats with a vertical System and a corner check (Chat appearance).</p>
+  <div class="cmp" id="today"></div>
+</div>
+<script>
+const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg>';
+const AUTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M12 7v4"/><path d="M10 18h4"/></svg>';
+const MODES = [['system','System','Follows your phone'],['light','Light','Always light'],['dark','Dark','Always dark']];
+const chatFace = (c, extra='') => `<span class="face ${c} ${extra}"><span class="hd"><b></b><i></i></span><i class="r"></i><i class="r r2"></i><i class="s"></i><i class="s s2"></i><i class="cp"></i></span>`;
+const listFace = (c, extra='') => `<span class="face ${c} ${extra}"><i class="ttl"></i>` + [22,38,54,70].map((y,k)=>`<span class="row" style="top:${y}%"><b style="background:${['#4f8cff','#b56cf2','#2fbf71','#ff8a3d'][k]}"></b><i></i><i class="sh"></i></span>`).join('') + `<span class="nav"><i class="on"></i><i></i><i></i><i></i></span></span>`;
+const mini = (mode, faceFn) => mode === 'system' ? `<span class="mini">${faceFn('l')}${faceFn('d','split')}` : `<span class="mini">${faceFn(mode === 'dark' ? 'd' : 'l')}`;
+const OPTS = {
+  A: { name: 'A · Mini chats, taller', rec: true,
+    what: 'Chat appearance\'s mini phones, grown to a portrait phone (3 : 4) with a header, two received bubbles, two sent bubbles and a composer. System is a DIAGONAL split, so both halves show a real chat. The sheet gets a one-line explanation and the larger tiles, so it stands about 40 % taller.',
+    tiles: (sel) => `<div class="A" role="radiogroup">` + MODES.map(([m,n]) => `<button class="tile" role="radio" aria-checked="${m===sel}">${mini(m, chatFace)}${m===sel?`<span class="pick">${CHECK}</span>`:''}</span><span class="nm2">${n}</span></button>`).join('') + `</div>` },
+  B: { name: 'B · Mini Spixi screen',
+    what: 'Each tile is a tiny Chats list (title, four rows with coloured avatars, the bottom bar with the active tab), so the tile says "the whole app", not "a chat". A small sun / moon / phone mark in the middle names the mode at a glance. Same rim and check.',
+    tiles: (sel) => `<div class="B" role="radiogroup">` + MODES.map(([m,n]) => `<button class="tile" role="radio" aria-checked="${m===sel}">${mini(m, listFace)}<span class="glyph">${m==='system'?AUTO:m==='light'?SUN:MOON}</span>${m===sel?`<span class="pick">${CHECK}</span>`:''}</span><span class="nm2">${n}</span></button>`).join('') + `</div>` },
+  C: { name: 'C · Three rows with a description',
+    what: 'A list instead of tiles: each row has a small mini chat, the name, and a short line that says what it does ("Follows your phone"). Easiest to read and naturally tall in the sheet, but it costs the most height on Chat appearance.',
+    tiles: (sel) => `<div class="C" role="radiogroup">` + MODES.map(([m,n,d]) => `<button class="tile" role="radio" aria-checked="${m===sel}">${mini(m, chatFace)}</span><span class="tx"><b>${n}</b><span>${d}</span></span><span class="ck">${CHECK}</span></button>`).join('') + `</div>` },
+};
+const hubBehind = () => `<div class="sb"><span>12:56</span><span>5G ▲ 61%</span></div><div class="tb">Account</div><div class="hub"><div class="hero"><span class="av"></span><span class="nm"></span></div><div class="grp"><div class="rw"><span class="d" style="background:#2f80ed"></span><span class="t"></span></div></div><div class="lbl">Preferences</div><div class="grp">` + ['#e8890c','#9b59f0','#20a35a','#e0405e'].map(c=>`<div class="rw"><span class="d" style="background:${c}"></span><span class="t"></span></div>`).join('') + `</div></div><div class="scrim"></div>`;
+const sheetPhone = (o, dk) => `<div class="ph ${dk?'dk':''}">${hubBehind()}<div class="sheet"><div class="grab"></div><h3>Theme</h3><p class="sub">System follows your phone's light or dark setting.</p>${o.tiles('system')}</div><span class="home"></span></div>`;
+const caPhone = (o, dk) => `<div class="ph ${dk?'dk':''}"><div class="sb"><span>12:56</span><span>5G ▲ 61%</span></div><div class="tb"><span class="bk">←</span>Chat appearance</div><div class="ca"><div class="card ghost"><i></i><i style="width:80%"></i><i style="width:45%"></i></div><div class="card"><h4>Theme</h4>${o.tiles('system')}</div><div class="card ghost" style="height:150px"><i></i><i style="width:70%"></i></div></div><span class="home"></span></div>`;
+const tabs = document.getElementById('tabs'), host = document.getElementById('opts');
+let first = true;
+for (const [k, o] of Object.entries(OPTS)) {
+  const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role','tab'); b.textContent = o.name; b.dataset.k = k; b.setAttribute('aria-selected', String(first)); tabs.append(b);
+  const sec = document.createElement('section'); sec.className = 'opt' + (first ? ' on' : ''); sec.dataset.k = k;
+  sec.innerHTML = `<h2>${o.name}${o.rec?'<span class="rec">Recommended</span>':''}</h2><p class="what">${o.what}</p><div class="phones">` +
+    [['Account › Theme sheet · light', sheetPhone(o,false)], ['Account › Theme sheet · dark', sheetPhone(o,true)], ['Chat appearance · light', caPhone(o,false)], ['Chat appearance · dark', caPhone(o,true)]].map(([c,h]) => `<div><p class="cap">${c}</p>${h}</div>`).join('') + `</div>`;
+  host.append(sec); first = false;
+}
+tabs.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; for (const x of tabs.children) x.setAttribute('aria-selected', String(x === b)); for (const s of host.children) s.classList.toggle('on', s.dataset.k === b.dataset.k); });
+// today
+const todaySheet = (dk) => `<div class="ph ${dk?'dk':''}">${hubBehind()}<div class="sheet" style="padding-bottom:40px"><div class="grab"></div><h3 style="margin-bottom:12px">Theme</h3><div style="display:flex;gap:8px">` + MODES.map(([m,n],i) => `<div style="flex:1;border:1px solid ${i===0?'var(--acc)':'var(--line)'};border-radius:12px;padding:8px"><div style="height:64px;border-radius:8px;background:${m==='dark'?'#131415':'#f9fafb'};border:1px solid var(--line);position:relative;overflow:hidden">${m==='system'?'<div style="position:absolute;inset:0;background:#131415;clip-path:polygon(100% 0,100% 100%,35% 100%)"></div>':''}</div><div style="display:flex;justify-content:space-between;margin-top:8px;font-weight:600;font-size:13px"><span>${n}</span>${i===0?'<span style="color:#1f7a45">✓</span>':''}</div></div>`).join('') + `</div></div><span class="home"></span></div>`;
+document.getElementById('today').innerHTML = `<div><p class="cap">Sheet today · light</p>${todaySheet(false)}</div><div><p class="cap">Sheet today · dark</p>${todaySheet(true)}</div>`;
+</script>
+</body>
+</html>

@@ -582,8 +582,8 @@
   height: 6px;
   margin: -3px;
   pointer-events: none;
+  border-radius: 50%;   /* ★ #1357: a round dot (the four-point star read as the AI mark) — the set's bokeh dot */
   background: var(--dc-spk-0);
-  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
   animation: ct-spark .7s ease-out forwards;
 }
 .c-settings-contrib__spark[data-tone="1"] { background: var(--dc-spk-1); }

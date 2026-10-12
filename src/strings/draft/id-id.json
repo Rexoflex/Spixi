@@ -586,6 +586,7 @@
   "textSizeCustom": "Ukuran kustom ({0}%), diatur dengan mencubit di obrolan. Pilih ukuran untuk menggantinya.",
   "textXL": "XL",
   "theme": "Tema",
+  "themeLead": "Sistem mengikuti pengaturan terang atau gelap perangkat Anda.",
   "themeFailed": "Tidak dapat mengganti tema.",
   "themeSystem": "Sistem",
   "thisApp": "aplikasi ini",

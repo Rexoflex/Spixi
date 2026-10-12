@@ -585,6 +585,7 @@
   "textSizeCustom": "Pasirinktinis dydis ({0} %), nustatytas suimant pokalbyje. Pasirinkite dydį, kad jį pakeistumėte.",
   "textXL": "XL",
   "theme": "Tema",
+  "themeLead": "Sistemos tema seka jūsų įrenginio šviesų ar tamsų nustatymą.",
   "themeFailed": "Nepavyko pakeisti temos.",
   "themeSystem": "Sistemos",
   "thisApp": "šią programėlę",

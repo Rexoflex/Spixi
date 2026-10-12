@@ -585,6 +585,7 @@
   "textSizeCustom": "自定义大小（{0}%），在聊天中双指缩放设置。选择一个大小即可替换。",
   "textXL": "XL",
   "theme": "主题",
+  "themeLead": "跟随系统会使用设备的浅色或深色设置。",
   "themeFailed": "无法更改主题。",
   "themeSystem": "跟随系统",
   "thisApp": "此应用",

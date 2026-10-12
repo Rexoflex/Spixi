@@ -320,7 +320,7 @@
   .dt-frame .c-settings-backup__adv-box .c-button { width: auto; }
 
   /* ⑪ lifted theme tiles keep their sheet spacing in the pane */
-  .dt-cap .c-settings__themes { padding: var(--spacing-16); }
+  .dt-cap .c-theme-sheet { padding: var(--spacing-16); }   /* ★ #1353 */
 
   /* ═══════════ 2026-07-06d refinement (Damir round 2, spec §6d) ═══════════ */
 
@@ -1480,7 +1480,7 @@
           if (themeRowEl) themeRowEl.querySelector('.c-settings__row-value').textContent = strings[o.key] || o.label;
         },
       });
-      const tiles = sheet.querySelector('.c-settings__themes');
+      const tiles = sheet.querySelector('.c-theme-sheet');   // ★ #1353: the lead + THE picker
       closeSheet(sheet);
       dtDetailView(settingsDetail, { title: strings.theme || 'Theme', onBack: dtSettingsBack, content: tiles });
       return;

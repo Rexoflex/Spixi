@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi Address Sheet</title>
+<!--
+  Spixi redesign · "Your Ixian address" sheet (Account › tap the address / QR in the header).
+  Today (faithful redraw) + two premium directions, each in light and dark, plus one state frame.
+  The QR is REAL: the payload the app encodes (address + ":ixi", wallet-receive.js openAddressSheet),
+  encoded with the app's own vendored encoder (src/components/qr.js, ECC M, 4-module quiet zone),
+  pre-computed into the path below. Version 5 · 37 × 37 modules · viewBox 45 × 45.
+  Self-contained: no external scripts, no external styles.
+-->
+<style>
+/* ---------- page chrome ---------- */
+:root {
+  --pg-bg: #f3f5f7; --pg-panel: #ffffff; --pg-fg: #131415; --pg-muted: #4f5664; --pg-line: #dde2e9; --pg-bezel: #16181b;
+  --pg-accent: #3050bd; --pg-tag: rgba(48, 80, 189, .10); --pg-ok: #007030; --pg-warn: #8a5a00;
+  --pg-sans: "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pg-mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pg-bg: #0f1113; --pg-panel: #1a1c1f; --pg-fg: #e8ecee; --pg-muted: #bbbec4; --pg-line: #2a2d31; --pg-bezel: #000;
+    --pg-accent: #98b5fc; --pg-tag: rgba(118, 157, 255, .14); --pg-ok: #69b67a; --pg-warn: #e0b45c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: #0f1113; --pg-panel: #1a1c1f; --pg-fg: #e8ecee; --pg-muted: #bbbec4; --pg-line: #2a2d31; --pg-bezel: #000;
+  --pg-accent: #98b5fc; --pg-tag: rgba(118, 157, 255, .14); --pg-ok: #69b67a; --pg-warn: #e0b45c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font: 15px/1.55 var(--pg-sans); }
+.page { max-width: 1240px; margin: 0 auto; padding: 28px 16px 72px; }
+h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.2; letter-spacing: -.4px; }
+.lede { margin: 0 0 8px; color: var(--pg-muted); max-width: 78ch; }
+.lede b { color: var(--pg-fg); font-weight: 600; }
+.themebar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 0; font-size: 13px; color: var(--pg-muted); }
+.themebar .segs { display: inline-flex; border: 1px solid var(--pg-line); border-radius: 999px; padding: 2px; background: var(--pg-panel); }
+.themebar button { font: 600 13px/1 var(--pg-sans); border: 0; background: transparent; color: var(--pg-muted); padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+.themebar button[aria-pressed="true"] { background: var(--pg-accent); color: var(--pg-panel); }
+section.dir { margin-top: 44px; }
+.dirhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-bottom: 4px; }
+.tag { font: 700 11px/1 var(--pg-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--pg-accent); background: var(--pg-tag); padding: 6px 8px; border-radius: 6px; }
+h2 { margin: 0; font-size: 22px; line-height: 1.25; letter-spacing: -.2px; }
+.sub { margin: 4px 0 20px; color: var(--pg-muted); max-width: 80ch; }
+.row { display: flex; flex-wrap: wrap; gap: 28px 24px; justify-content: center; }
+.slot { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.cap { font: 500 12px/1.3 var(--pg-mono); color: var(--pg-muted); text-align: center; max-width: 360px; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; margin-top: 26px; }
+.panel { background: var(--pg-panel); border: 1px solid var(--pg-line); border-radius: 16px; padding: 16px 20px 18px; min-width: 0; }
+.panel h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: var(--pg-muted); }
+.panel ul { margin: 0; padding-left: 18px; }
+.panel li { margin: 6px 0; }
+.panel li b { font-weight: 600; }
+.panel code { font: 12.5px/1.4 var(--pg-mono); background: var(--pg-tag); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.risk { display: inline-block; font: 700 11px/1 var(--pg-mono); padding: 4px 7px; border-radius: 6px; margin-left: 6px; vertical-align: 2px; }
+.risk--low { color: var(--pg-ok); background: color-mix(in srgb, var(--pg-ok) 14%, transparent); }
+.risk--mid { color: var(--pg-warn); background: color-mix(in srgb, var(--pg-warn) 16%, transparent); }
+.tablewrap { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
+table.cmp { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+.cmp th, .cmp td { text-align: left; vertical-align: top; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--pg-line); }
+.cmp thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--pg-muted); }
+.cmp tbody th { font-weight: 600; white-space: nowrap; }
+.rec { margin-top: 44px; border: 1px solid color-mix(in srgb, var(--pg-accent) 40%, var(--pg-line)); }
+.rec p { margin: 6px 0; }
+.qrnote code, .lede code { font-family: var(--pg-mono); font-size: 13px; overflow-wrap: anywhere; }
+.qrnote { margin-top: 18px; font-size: 13px; color: var(--pg-muted); max-width: 90ch; }
+
+/* ---------- phone frame ---------- */
+.ph { position: relative; width: 376px; height: 796px; flex: none; border: 8px solid var(--pg-bezel); border-radius: 46px; overflow: hidden;
+  background: var(--ground); color: var(--t1); font-family: var(--font); box-shadow: 0 30px 60px -32px rgba(20, 24, 60, .45);
+  -webkit-font-smoothing: antialiased; }
+@media (max-width: 420px) { .ph { zoom: .85; } }
+@media (max-width: 340px) { .ph { zoom: .76; } }
+
+/* phone tokens — the real Spixi values (src/styles/tokens.css) */
+.sx { --font: "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --qr-plate: #ffffff; --on-qr: #131415; --fill: #3050bd; --on-fill: #ffffff; --scrim: rgba(17, 18, 19, .6); }
+.sx[data-sxt="light"] {
+  --ground: #f3f5f7; --sheet: #f9fafb; --card: #ffffff; --t1: #131415; --t2: #4f5664; --t3: #6b7280;
+  --action-ink: #3050bd; --tonal: rgba(48, 80, 189, .09); --tonal-ink: #3050bd; --line: #e8ecee; --plate-line: #e3e7ec;
+  --box: #eceff2; --info-ink: #233a85; --safe-bg: rgba(0, 112, 48, .14); --safe-line: #91c69b; --ok: #007030; --ok-bg: rgba(0, 112, 48, .10);
+  --handle: #c9ced6; --card-shadow: 0 1px 2px rgba(17, 18, 19, .05), 0 12px 32px -14px rgba(36, 44, 90, .22);
+  --row: #ffffff;
+  /* A — the illustration kit's light ground with its pink / violet / blue halo */
+  --k-base-a: #f3efff; --k-base-b: #e2dcfd; --k-halo1: #9a7aff; --k-halo2: #ff8ec6; --k-halo3: #6c9fff; --k-spark: #ffffff;
+  /* B — the About band (tokens --ab-band-from/to) + the kit's deep third stop */
+  --ab-from: #3f8ff7; --ab-to: #2a74e6; --ab-deep: #1556c6; --ab-fa: #8fd2ff; --ab-fb: #7fb0ff; --ab-fc: #2f86ff; --ab-sheen: .45;
+}
+.sx[data-sxt="dark"] {
+  --ground: #0f1113; --sheet: #1a1c1f; --card: #232528; --t1: #e8ecee; --t2: #bbbec4; --t3: #9aa0a8;
+  --action-ink: #98b5fc; --tonal: rgba(118, 157, 255, .14); --tonal-ink: #b7c9f4; --line: #2a2d31; --plate-line: transparent;
+  --box: #232528; --info-ink: #98b5fc; --safe-bg: rgba(105, 182, 122, .10); --safe-line: rgba(105, 182, 122, .38); --ok: #69b67a; --ok-bg: rgba(105, 182, 122, .14);
+  --handle: #3a3e44; --card-shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 16px 36px -16px rgba(0, 0, 0, .7);
+  --row: #1a1c1f;
+  --k-base-a: #1d1a3d; --k-base-b: #14122c; --k-halo1: #5b46f0; --k-halo2: #c03f93; --k-halo3: #2f63ff; --k-spark: #ffffff;
+  --ab-from: #24509e; --ab-to: #173a7c; --ab-deep: #0f2a5e; --ab-fa: #3f7fe0; --ab-fb: #3f5fe0; --ab-fc: #1d5fd0; --ab-sheen: .35;
+}
+.ph svg.ico { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.qr { display: block; width: 100%; height: auto; shape-rendering: crispEdges; }
+.qr path { fill: var(--on-qr); }
+
+/* the Account screen behind the sheet */
+.sb { position: absolute; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 22px; font-size: 13px; font-weight: 600; letter-spacing: .01em; }
+.acct__title { position: absolute; top: 54px; left: 20px; font-size: 24px; font-weight: 700; letter-spacing: -.3px; }
+.av { border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 650; letter-spacing: .02em;
+  background: radial-gradient(120% 120% at 20% 10%, #ffd08a 0%, #f08a5d 45%, #c8436f 100%); }
+.acct__av { position: absolute; top: 108px; left: 50%; margin-left: -44px; width: 88px; height: 88px; font-size: 30px; }
+.acct__name { position: absolute; top: 210px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 20px; font-weight: 650; }
+.acct__name .ico { color: var(--action-ink); width: 18px; height: 18px; }
+.acct__list { position: absolute; top: 262px; left: 16px; right: 16px; background: var(--row); border-radius: 18px; }
+.acct__list div { height: 54px; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 16px; font-size: 15px; }
+.acct__list div:last-child { border-bottom: 0; }
+.scrim { position: absolute; inset: 0; background: var(--scrim); }
+.home { position: absolute; bottom: 8px; left: 50%; width: 124px; height: 4px; margin-left: -62px; border-radius: 2px; background: var(--t1); opacity: .32; z-index: 5; }
+
+/* the sheet */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--sheet); border-radius: 28px 28px 0 0; overflow: hidden;
+  box-shadow: 0 -8px 30px -12px rgba(0, 0, 0, .35); }
+.handle { position: absolute; top: 8px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--handle); z-index: 3; }
+.x { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--t2); z-index: 3; padding: 0; }
+.stitle { margin: 0; padding: 22px 60px 0 20px; font-size: 18px; line-height: 24px; font-weight: 650; letter-spacing: -.2px; }
+
+/* ---------- TODAY (faithful redraw of Damir's screenshot) ---------- */
+.v-today .sheet { top: 186px; }
+.t-body { padding: 0 14px; }
+.t-info { margin-top: 22px; background: var(--box); border-radius: 16px; padding: 10px 14px 10px 10px; display: grid; grid-template-columns: 28px 1fr; gap: 8px;
+  font-size: 13px; line-height: 1.5; color: var(--t2); }
+.t-info .ico { color: var(--info-ink); margin-top: 1px; }
+.t-qrwrap { display: flex; justify-content: center; padding: 22px 0 16px; }
+.t-qrcard { width: 180px; border-radius: 16px; background: var(--qr-plate); box-shadow: 0 1px 2px rgba(17, 18, 19, .06), 0 1px 3px rgba(17, 18, 19, .1); overflow: hidden; }
+.t-cap { margin: 0; text-align: center; font-size: 14.5px; font-weight: 600; }
+.t-addr { margin-top: 12px; background: var(--box); border-radius: 16px; padding: 10px 6px 10px 14px; display: grid; grid-template-columns: 1fr 40px 40px; align-items: center; gap: 2px; }
+.t-addr span { font-size: 13.5px; line-height: 1.5; word-break: break-all; letter-spacing: .01em; }
+.t-addr button { width: 40px; height: 40px; border: 0; background: none; color: var(--action-ink); display: flex; align-items: center; justify-content: center; padding: 0; }
+.t-safe { margin-top: 14px; background: var(--safe-bg); border: 1px solid var(--safe-line); border-radius: 16px; padding: 10px 14px 10px 10px;
+  display: grid; grid-template-columns: 28px 1fr; gap: 8px; font-size: 13.5px; line-height: 1.5; }
+.t-safe .ico { color: var(--ok); width: 17px; height: 17px; margin: 2px 0 0 2px; }
+
+/* ---------- A · IDENTITY CARD ---------- */
+.v-a .sheet { top: 112px; }
+.a-card { position: relative; margin: 16px 16px 0; background: var(--card); border-radius: 26px; box-shadow: var(--card-shadow); overflow: hidden; text-align: center; padding-bottom: 14px; }
+.a-band { position: relative; height: 62px; overflow: hidden;
+  background:
+    radial-gradient(60% 140% at 12% 0%, color-mix(in srgb, var(--k-halo1) 85%, transparent) 0%, transparent 70%),
+    radial-gradient(55% 150% at 92% 10%, color-mix(in srgb, var(--k-halo2) 80%, transparent) 0%, transparent 70%),
+    radial-gradient(70% 120% at 55% 120%, color-mix(in srgb, var(--k-halo3) 75%, transparent) 0%, transparent 70%),
+    linear-gradient(180deg, var(--k-base-a), var(--k-base-b)); }
+.sx[data-sxt="dark"] .a-band { filter: saturate(1.05); }
+.a-band::after { content: ""; position: absolute; inset: 0; background: linear-gradient(200deg, rgba(255, 255, 255, .35), transparent 45%); }
+.a-band svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.a-av { position: relative; z-index: 2; width: 64px; height: 64px; margin: -32px auto 0; font-size: 22px;
+  box-shadow: 0 0 0 4px var(--card), 0 10px 18px -8px rgba(60, 40, 140, .45); }
+.a-name { margin: 8px 0 0; font-size: 19px; line-height: 24px; font-weight: 700; letter-spacing: -.3px; }
+.a-sub { margin: 2px 0 0; font-size: 13.5px; line-height: 18px; color: var(--t2); }
+.a-plate { width: 196px; margin: 12px auto 0; background: var(--qr-plate); border-radius: 18px; box-shadow: 0 0 0 1px var(--plate-line); overflow: hidden; }
+.chunks { display: grid; grid-template-columns: repeat(5, auto); justify-content: center; gap: 2px 10px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.chunks span { color: var(--t2); }
+.chunks span.k { color: var(--t1); font-weight: 700; }
+.a-addr { margin-top: 12px; font-size: 13.5px; line-height: 19px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 12px; border: 0; border-radius: 999px; background: var(--tonal); color: var(--tonal-ink);
+  font: 600 14px/1 var(--font); cursor: pointer; transition: background .2s, color .2s; }
+.pill .ico { width: 17px; height: 17px; }
+.pill[data-state="ok"] { background: var(--ok-bg); color: var(--ok); }
+.a-copy { margin-top: 10px; }
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border: 0; border-radius: 999px; font: 600 16px/1 var(--font); cursor: pointer; }
+.btn .ico { width: 20px; height: 20px; }
+.btn--fill { background: var(--fill); color: var(--on-fill); box-shadow: 0 8px 18px -10px rgba(48, 80, 189, .8); }
+.btn--tonal { background: var(--tonal); color: var(--tonal-ink); }
+.btn[data-state="ok"] { background: var(--ok-bg); color: var(--ok); }
+.a-share { margin: 14px 16px 0; }
+.safe { display: flex; justify-content: center; align-items: center; gap: 6px; margin: 0; font-size: 12.5px; line-height: 16px; color: var(--t2); }
+.safe .ico { width: 15px; height: 15px; color: var(--ok); }
+.a-safe { margin-top: 12px; }
+
+/* ---------- B · GLASS HERO (full height) ---------- */
+.v-b .sheet { top: 50px; }
+.v-b .handle { background: rgba(255, 255, 255, .55); }
+.b-hero { position: relative; height: 252px; overflow: hidden; color: #fff;
+  background: linear-gradient(168deg, var(--ab-from) 0%, var(--ab-to) 52%, var(--ab-deep) 100%); }
+.b-field { position: absolute; border-radius: 50%; filter: blur(26px); opacity: .7; }
+.b-field--a { width: 170px; height: 150px; left: -40px; top: -30px; background: var(--ab-fa); }
+.b-field--b { width: 190px; height: 160px; right: -60px; top: 40px; background: var(--ab-fb); opacity: .55; }
+.b-field--c { width: 220px; height: 140px; left: 70px; bottom: -70px; background: var(--ab-fc); opacity: .6; }
+.b-hero::before { content: ""; position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(90% 70% at 100% 0%, rgba(255, 255, 255, var(--ab-sheen)) 0%, transparent 60%); }
+.b-hero::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(8, 30, 90, .30) 0%, rgba(8, 30, 90, .16) 45%, transparent 70%); }
+.b-rings { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+.b-x { background: rgba(255, 255, 255, .18); color: #fff; width: 36px; height: 36px; top: 14px; right: 14px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
+.b-id { position: absolute; z-index: 2; top: 26px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.b-av { width: 52px; height: 52px; font-size: 18px; box-shadow: 0 0 0 3px rgba(255, 255, 255, .6), 0 8px 18px -6px rgba(0, 20, 70, .5); }
+.b-name { margin: 9px 0 0; font-size: 20px; line-height: 24px; font-weight: 700; letter-spacing: -.3px; text-shadow: 0 1px 2px rgba(0, 20, 70, .3); }
+.b-sub { margin: 2px 0 0; font-size: 13.5px; line-height: 18px; color: rgba(255, 255, 255, .92); text-shadow: 0 1px 2px rgba(0, 20, 70, .3); }
+.b-plate { position: absolute; z-index: 4; top: 152px; left: 50%; width: 248px; margin-left: -124px; padding: 8px; background: var(--qr-plate); border-radius: 28px;
+  box-shadow: 0 26px 44px -20px rgba(8, 26, 80, .55), 0 2px 6px rgba(8, 26, 80, .10); }
+.sx[data-sxt="dark"] .b-plate { box-shadow: 0 26px 50px -18px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 255, 255, .06); }
+.b-plate .qr { border-radius: 20px; }
+.b-body { position: absolute; top: 420px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 16px; }
+.b-short { font-family: var(--mono); font-size: 16px; line-height: 22px; letter-spacing: .01em; display: flex; gap: 8px; align-items: center; }
+.b-short .k { color: var(--t1); font-weight: 700; }
+.b-short .dots { color: var(--t3); letter-spacing: .1em; }
+.b-full { font-size: 14.5px; line-height: 21px; }
+.link { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; height: 32px; padding: 0 8px; border: 0; background: none; color: var(--action-ink);
+  font: 600 14px/1 var(--font); cursor: pointer; border-radius: 8px; }
+.link .ico { width: 16px; height: 16px; }
+.b-req { margin-top: 14px; display: flex; align-items: center; gap: 12px; width: 100%; height: 56px; padding: 0 14px 0 12px; border: 0; border-radius: 16px;
+  background: var(--card); color: var(--t1); font: 600 15px/1 var(--font); text-align: left; box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+.sx[data-sxt="light"] .b-req { box-shadow: 0 1px 2px rgba(17, 18, 19, .05), 0 0 0 1px var(--line); }
+.b-req .disc { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; flex: none;
+  background: linear-gradient(150deg, #8aa2ff, #3050bd); box-shadow: 0 6px 12px -6px rgba(48, 60, 160, .55); }
+.b-req .disc .ico { width: 17px; height: 17px; }
+.b-req .grow { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.b-req small { font-weight: 400; font-size: 12.5px; color: var(--t2); }
+.b-req > .ico { color: var(--t3); width: 18px; height: 18px; }
+.b-dock { position: absolute; left: 16px; right: 16px; bottom: 26px; display: flex; flex-direction: column; gap: 12px; }
+.b-actions { display: flex; gap: 10px; }
+.b-actions .btn--tonal { flex: 1; }
+.b-actions .btn--fill { flex: 1.35; }
+
+/* small motion: the copy morph only. Reduced motion = no transition. */
+@media (prefers-reduced-motion: reduce) { .pill, .btn { transition: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>Spixi Address Sheet</h1>
+  <p class="lede">The <b>“Your Ixian address”</b> sheet, opened from Account by tapping the address or QR in the header. Damir: it “seems a bit out of place with our premium app feel”. Today’s sheet is a stack of four boxes (grey info, white QR, grey address, green safety) with three tints and two icon-only actions. Below: a faithful redraw of today, then two premium directions, each in light and dark, plus one frame showing the state that matters (copy feedback, full address).</p>
+  <p class="lede">The code in every frame is a <b>real, scannable QR</b> of the payload the app encodes today (<code>address + ":ixi"</code>), built with the app’s own encoder. Taps work: Copy shows its confirmation, “Show all” opens the full address.</p>
+  <div class="themebar">Page theme
+    <span class="segs" role="group" aria-label="Page theme">
+      <button type="button" data-t="" aria-pressed="true">System</button><button type="button" data-t="light" aria-pressed="false">Light</button><button type="button" data-t="dark" aria-pressed="false">Dark</button>
+    </span>
+  </div>
+
+  <!-- TODAY -->
+  <section class="dir" id="today">
+    <div class="dirhead"><span class="tag">Today</span><h2>The stack of boxes</h2></div>
+    <p class="sub">A faithful redraw of the screenshot, for comparison. Copy stays close to the shipped strings.</p>
+    <div class="row" data-build="today"></div>
+    <div class="notes">
+      <div class="panel"><h3>Why it reads as out of place</h3><ul>
+        <li><b>Four boxes, three tints.</b> Grey info, white QR, grey address, green safety. Every part has the same weight, so nothing reads as the hero.</li>
+        <li><b>Two paragraphs of explanation</b> (5 lines) for a screen whose job is “show the code”.</li>
+        <li><b>The address is unverifiable at a glance:</b> 65 characters wrapped by width (3 ragged lines), no grouping.</li>
+        <li><b>No primary action.</b> Share and Copy are two 18 px icons with no label; nothing says whose code this is.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- A -->
+  <section class="dir" id="a">
+    <div class="dirhead"><span class="tag">Direction A</span><h2>Identity card</h2></div>
+    <p class="sub">Same sheet, same height class as today. Everything sits on one premium card: a soft band in the illustration kit’s halo colours, your avatar cut into it, your name, the code on a white plate, and the address in five-character groups with Copy right under it. Share is the one filled button.</p>
+    <div class="row" data-build="a"></div>
+    <div class="notes">
+      <div class="panel"><h3>What changed and why</h3><ul>
+        <li><b>One card instead of four boxes.</b> The band, the avatar ring and the white plate give it depth; the rest of the sheet is quiet. Reads like the About header and the What’s new card.</li>
+        <li><b>Identity on the code.</b> Avatar and name tell the person scanning whose code it is (and tell you that you opened your own).</li>
+        <li><b>A verifiable address.</b> 13 groups of 5 in monospace, 3 tidy rows. The first and last group are bold: the two people actually compare.</li>
+        <li><b>Share is the primary action</b> (full-width, labelled). Copy is a labelled pill next to the value it copies, and it confirms in place: “Copied” with a green check for 1.4 s, announced to screen readers.</li>
+        <li><b>Explanation and safety are one line each.</b> “Scan to add me or send me IXI.” under the name; “Safe to share. It can’t open your wallet.” at the foot, no box.</li>
+      </ul></div>
+      <div class="panel"><h3>Cost and risk <span class="risk risk--low">LOW · ~1 day</span></h3><ul>
+        <li><b>wallet-receive.js · <code>openAddressSheet</code> only:</b> the two <code>explainRow</code> blocks, the caption and the <code>addrRow</code> chip are replaced by one card node. <code>createQrSvg</code>, <code>copyText</code>, the <code>copyMorph</code> timing and the live region are kept as they are.</li>
+        <li><b>Two new optional params, no bridge verb:</b> <code>{ name, avatar }</code> from the caller (Account already shows both in its header; the wallet Receive caller would pass the same profile). <code>createAvatar</code> is already imported. Share uses the existing <code>onShare</code> → <code>ixian:share</code>.</li>
+        <li><b>Peer subject keeps its fences:</b> the contact’s avatar and name, Copy only (no Share, the <code>!peer</code> fence), no safety line.</li>
+        <li><b>Strings:</b> 2 new keys (card sub line, short safety line); <code>copy</code>, <code>txCopied</code>, <code>shareAddress</code> exist. The band is CSS only.</li>
+        <li><b>Risk:</b> the smoke pins on <code>.c-addr-sheet__info</code> ×2, <code>__explain--safe</code> and <code>__sharebtn</code> must move to the new classes. #575 retired a full-width <i>outline</i> Share as “a too-short bar”; this one is the filled primary, which needs Damir’s OK.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="dir" id="b">
+    <div class="dirhead"><span class="tag">Direction B</span><h2>Glass hero</h2></div>
+    <p class="sub">A full-height sheet in the About header family: the launcher-blue band with its light fields, sheen and rings, your avatar and name in white, and the code floating on a white plate across the band’s edge. The address is shown as start … end with “Show all”. Copy and Share are docked at the bottom, in thumb reach.</p>
+    <div class="row" data-build="b"></div>
+    <div class="notes">
+      <div class="panel"><h3>What changed and why</h3><ul>
+        <li><b>The code is the hero, literally.</b> The largest code of the three (232 px), on a white plate that floats over the band, with the About rings opening round it. Made to be held up and scanned.</li>
+        <li><b>Short address by default, full on demand.</b> <code>4JsLS mAF4y ··· g5yYb ncdFa</code> is what people check; “Show all” opens the 13 groups of 5 in place.</li>
+        <li><b>Docked action pair.</b> Copy (tonal) and Share (filled, primary), the bottom-bar grammar of the wallet. Copy morphs to “Copied ✓”.</li>
+        <li><b>Request an amount</b> as one quiet row: it opens the wallet’s existing Receive flow (pick contacts, then the keypad). Leave it out if Account should stay single-purpose.</li>
+        <li><b>The safety line sits above the buttons</b>, right where the decision to share is made, as one line.</li>
+      </ul></div>
+      <div class="panel"><h3>Cost and risk <span class="risk risk--mid">MEDIUM · ~2–3 days</span></h3><ul>
+        <li><b>Sheet chrome changes.</b> <code>createSheet</code> paints its own handle and <code>c-sheet__title</code>; the hero needs them white over the band (a <code>c-sheet--hero</code> modifier, or the title moved into the hero with <code>aria-labelledby</code> kept). That touches <code>sheet.js</code>/overlay CSS, which every sheet shares.</li>
+        <li><b>New layout in <code>openAddressSheet</code>:</b> hero node (CSS art, reuses <code>--ab-band-from/to</code>), the short/full address toggle (<code>aria-expanded</code>), and a sticky docked bar inside the <code>.c-addr-sheet</code> scroller.</li>
+        <li><b>Request an amount</b> needs an <code>onRequest</code> callback from the host to route to Wallet › Receive and <code>closeAddressSheet()</code>. No bridge verb; it reuses <code>ixian:sendrequest</code> where it already lives.</li>
+        <li><b>Desktop dialog</b> needs its own hero proportions; dark band contrast must be re-checked (white text on <code>#24509e</code> passes, on the light <code>#3f8ff7</code> top it needs the scrim shown here).</li>
+        <li><b>Risk:</b> the same smoke pins as A, plus the near-full height rule (#575/#598) and the shared sheet chrome.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="dir" id="compare">
+    <div class="dirhead"><span class="tag">At a glance</span><h2>Today, A and B</h2></div>
+    <div class="tablewrap">
+      <table class="cmp">
+        <thead><tr><th></th><th>Today</th><th>A · Identity card</th><th>B · Glass hero</th></tr></thead>
+        <tbody>
+          <tr><th>The code</th><td>180 px, white card</td><td>196 px, white plate on the card</td><td>232 px, floating white plate</td></tr>
+          <tr><th>Whose code</th><td>Not shown</td><td>Avatar + name on the card</td><td>Avatar + name in the hero</td></tr>
+          <tr><th>Address</th><td>65 chars, wrapped by width</td><td>13 groups of 5, ends bold</td><td>Start ··· end, “Show all” for 13 groups</td></tr>
+          <tr><th>Primary action</th><td>None (two icons)</td><td>Share, full-width</td><td>Share, docked with Copy</td></tr>
+          <tr><th>Copy feedback</th><td>Icon turns to a check</td><td>Pill: “Copied” + check</td><td>Button: “Copied” + check</td></tr>
+          <tr><th>Explanation</th><td>Grey box, 3 lines</td><td>One line under the name</td><td>One line under the name</td></tr>
+          <tr><th>Safety line</th><td>Green box, 2 lines</td><td>One line at the foot</td><td>One line above the buttons</td></tr>
+          <tr><th>Height</th><td>Near-full</td><td>Near-full (same rule)</td><td>Full, below the status bar</td></tr>
+          <tr><th>Build</th><td>–</td><td>One function + CSS, ~1 day</td><td>Function + shared sheet chrome, ~2–3 days</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="panel rec">
+    <h3>Recommendation</h3>
+    <p><b>Build A now.</b> It answers “out of place” with the smallest change: one card in the app’s premium language, the code as the hero, identity on it, a checkable address and one obvious action. It stays inside <code>openAddressSheet</code>, keeps the peer fences, and needs no change to the shared sheet.</p>
+    <p><b>Keep B’s “start ··· end + Show all”</b> as the fallback if the full grid ever feels heavy in long locales, and B as a later “show my code” full-screen mode if people use it to be scanned in person.</p>
+  </div>
+  <p class="qrnote">QR: payload <code>4JsLSmAF4yp3j1T5gcrAkiFF2fYJSe4XM7rJBngtPmPUw2kL5AXKvvwg5yYbncdFa:ixi</code>, encoded with the app’s vendored qrcode-generator (src/components/qr.js, error correction M), version 5, 37 × 37 modules, 4-module quiet zone. Modules are always <code>#131415</code> on white, in both themes, and are never tinted. Base58 has no 0, O, I or l, so the monospace face is there for column alignment, not to tell look-alike characters apart.</p>
+</main>
+
+<script>
+(() => {
+  const ADDR = '4JsLSmAF4yp3j1T5gcrAkiFF2fYJSe4XM7rJBngtPmPUw2kL5AXKvvwg5yYbncdFa';
+  const QR_D = 'M4 4h7v1h-7zM14 4h3v1h-3zM22 4h1v1h-1zM24 4h4v1h-4zM30 4h3v1h-3zM34 4h7v1h-7zM4 5h1v1h-1zM10 5h1v1h-1zM13 5h2v1h-2zM16 5h3v1h-3zM21 5h1v1h-1zM23 5h1v1h-1zM30 5h3v1h-3zM34 5h1v1h-1zM40 5h1v1h-1zM4 6h1v1h-1zM6 6h3v1h-3zM10 6h1v1h-1zM12 6h2v1h-2zM15 6h2v1h-2zM18 6h3v1h-3zM23 6h3v1h-3zM28 6h1v1h-1zM30 6h2v1h-2zM34 6h1v1h-1zM36 6h3v1h-3zM40 6h1v1h-1zM4 7h1v1h-1zM6 7h3v1h-3zM10 7h1v1h-1zM12 7h2v1h-2zM17 7h1v1h-1zM19 7h1v1h-1zM21 7h1v1h-1zM23 7h2v1h-2zM26 7h2v1h-2zM29 7h2v1h-2zM32 7h1v1h-1zM34 7h1v1h-1zM36 7h3v1h-3zM40 7h1v1h-1zM4 8h1v1h-1zM6 8h3v1h-3zM10 8h1v1h-1zM12 8h2v1h-2zM16 8h1v1h-1zM18 8h2v1h-2zM23 8h1v1h-1zM27 8h3v1h-3zM34 8h1v1h-1zM36 8h3v1h-3zM40 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM12 9h2v1h-2zM15 9h2v1h-2zM18 9h2v1h-2zM22 9h1v1h-1zM24 9h2v1h-2zM28 9h1v1h-1zM31 9h1v1h-1zM34 9h1v1h-1zM40 9h1v1h-1zM4 10h7v1h-7zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h1v1h-1zM28 10h1v1h-1zM30 10h1v1h-1zM32 10h1v1h-1zM34 10h7v1h-7zM12 11h1v1h-1zM14 11h1v1h-1zM16 11h2v1h-2zM19 11h1v1h-1zM24 11h2v1h-2zM27 11h1v1h-1zM30 11h3v1h-3zM4 12h1v1h-1zM6 12h5v1h-5zM13 12h1v1h-1zM15 12h3v1h-3zM19 12h1v1h-1zM22 12h3v1h-3zM26 12h1v1h-1zM28 12h5v1h-5zM34 12h5v1h-5zM5 13h3v1h-3zM11 13h1v1h-1zM13 13h1v1h-1zM16 13h5v1h-5zM25 13h1v1h-1zM27 13h1v1h-1zM32 13h1v1h-1zM34 13h2v1h-2zM39 13h1v1h-1zM4 14h1v1h-1zM6 14h2v1h-2zM9 14h2v1h-2zM12 14h4v1h-4zM17 14h2v1h-2zM21 14h2v1h-2zM24 14h1v1h-1zM26 14h1v1h-1zM28 14h7v1h-7zM38 14h3v1h-3zM5 15h1v1h-1zM7 15h3v1h-3zM11 15h1v1h-1zM13 15h1v1h-1zM16 15h2v1h-2zM20 15h1v1h-1zM22 15h1v1h-1zM25 15h1v1h-1zM27 15h2v1h-2zM30 15h3v1h-3zM34 15h1v1h-1zM36 15h2v1h-2zM4 16h3v1h-3zM8 16h1v1h-1zM10 16h1v1h-1zM14 16h2v1h-2zM25 16h12v1h-12zM38 16h1v1h-1zM4 17h2v1h-2zM7 17h2v1h-2zM17 17h1v1h-1zM20 17h3v1h-3zM24 17h1v1h-1zM26 17h1v1h-1zM31 17h3v1h-3zM37 17h1v1h-1zM39 17h1v1h-1zM4 18h4v1h-4zM9 18h2v1h-2zM13 18h3v1h-3zM17 18h1v1h-1zM19 18h1v1h-1zM21 18h1v1h-1zM25 18h1v1h-1zM28 18h2v1h-2zM31 18h2v1h-2zM36 18h1v1h-1zM38 18h3v1h-3zM6 19h2v1h-2zM12 19h1v1h-1zM14 19h3v1h-3zM19 19h1v1h-1zM21 19h2v1h-2zM25 19h3v1h-3zM31 19h1v1h-1zM33 19h1v1h-1zM35 19h1v1h-1zM39 19h2v1h-2zM4 20h1v1h-1zM6 20h2v1h-2zM10 20h1v1h-1zM13 20h2v1h-2zM18 20h3v1h-3zM23 20h1v1h-1zM25 20h1v1h-1zM29 20h7v1h-7zM37 20h1v1h-1zM39 20h2v1h-2zM5 21h1v1h-1zM8 21h2v1h-2zM12 21h1v1h-1zM15 21h3v1h-3zM19 21h1v1h-1zM21 21h2v1h-2zM24 21h1v1h-1zM27 21h2v1h-2zM33 21h1v1h-1zM35 21h1v1h-1zM37 21h1v1h-1zM40 21h1v1h-1zM5 22h1v1h-1zM8 22h5v1h-5zM15 22h2v1h-2zM19 22h5v1h-5zM25 22h1v1h-1zM29 22h1v1h-1zM31 22h2v1h-2zM35 22h1v1h-1zM37 22h4v1h-4zM4 23h3v1h-3zM13 23h2v1h-2zM17 23h1v1h-1zM19 23h1v1h-1zM22 23h5v1h-5zM28 23h1v1h-1zM30 23h1v1h-1zM32 23h3v1h-3zM40 23h1v1h-1zM4 24h1v1h-1zM6 24h1v1h-1zM8 24h3v1h-3zM13 24h4v1h-4zM19 24h2v1h-2zM23 24h4v1h-4zM28 24h7v1h-7zM37 24h4v1h-4zM6 25h3v1h-3zM12 25h1v1h-1zM14 25h2v1h-2zM17 25h1v1h-1zM19 25h2v1h-2zM22 25h1v1h-1zM24 25h1v1h-1zM29 25h2v1h-2zM33 25h1v1h-1zM35 25h1v1h-1zM38 25h3v1h-3zM6 26h1v1h-1zM8 26h1v1h-1zM10 26h1v1h-1zM12 26h1v1h-1zM15 26h1v1h-1zM18 26h2v1h-2zM22 26h1v1h-1zM26 26h1v1h-1zM29 26h3v1h-3zM33 26h3v1h-3zM37 26h1v1h-1zM39 26h2v1h-2zM4 27h2v1h-2zM8 27h1v1h-1zM11 27h1v1h-1zM13 27h1v1h-1zM15 27h1v1h-1zM18 27h3v1h-3zM24 27h1v1h-1zM28 27h1v1h-1zM40 27h1v1h-1zM10 28h1v1h-1zM13 28h2v1h-2zM16 28h4v1h-4zM22 28h1v1h-1zM24 28h7v1h-7zM33 28h2v1h-2zM40 28h1v1h-1zM4 29h3v1h-3zM9 29h1v1h-1zM11 29h1v1h-1zM18 29h3v1h-3zM27 29h1v1h-1zM32 29h2v1h-2zM35 29h1v1h-1zM37 29h3v1h-3zM4 30h1v1h-1zM6 30h1v1h-1zM9 30h2v1h-2zM12 30h1v1h-1zM14 30h1v1h-1zM21 30h2v1h-2zM24 30h1v1h-1zM28 30h2v1h-2zM31 30h2v1h-2zM34 30h2v1h-2zM38 30h1v1h-1zM40 30h1v1h-1zM4 31h1v1h-1zM6 31h3v1h-3zM12 31h1v1h-1zM14 31h1v1h-1zM16 31h1v1h-1zM20 31h1v1h-1zM22 31h1v1h-1zM25 31h1v1h-1zM27 31h1v1h-1zM32 31h1v1h-1zM34 31h2v1h-2zM39 31h2v1h-2zM4 32h1v1h-1zM10 32h1v1h-1zM12 32h2v1h-2zM16 32h3v1h-3zM20 32h2v1h-2zM24 32h3v1h-3zM28 32h1v1h-1zM30 32h8v1h-8zM39 32h2v1h-2zM12 33h2v1h-2zM17 33h1v1h-1zM20 33h4v1h-4zM25 33h3v1h-3zM31 33h2v1h-2zM36 33h2v1h-2zM39 33h2v1h-2zM4 34h7v1h-7zM14 34h1v1h-1zM16 34h6v1h-6zM24 34h2v1h-2zM29 34h1v1h-1zM32 34h1v1h-1zM34 34h1v1h-1zM36 34h1v1h-1zM38 34h3v1h-3zM4 35h1v1h-1zM10 35h1v1h-1zM12 35h1v1h-1zM16 35h3v1h-3zM20 35h3v1h-3zM24 35h5v1h-5zM30 35h1v1h-1zM32 35h1v1h-1zM36 35h1v1h-1zM39 35h2v1h-2zM4 36h1v1h-1zM6 36h3v1h-3zM10 36h1v1h-1zM12 36h1v1h-1zM18 36h3v1h-3zM25 36h1v1h-1zM27 36h13v1h-13zM4 37h1v1h-1zM6 37h3v1h-3zM10 37h1v1h-1zM12 37h2v1h-2zM16 37h2v1h-2zM19 37h1v1h-1zM21 37h2v1h-2zM24 37h3v1h-3zM32 37h1v1h-1zM34 37h1v1h-1zM38 37h1v1h-1zM40 37h1v1h-1zM4 38h1v1h-1zM6 38h3v1h-3zM10 38h1v1h-1zM12 38h2v1h-2zM15 38h1v1h-1zM19 38h3v1h-3zM23 38h1v1h-1zM28 38h1v1h-1zM31 38h1v1h-1zM33 38h1v1h-1zM35 38h1v1h-1zM37 38h1v1h-1zM39 38h2v1h-2zM4 39h1v1h-1zM10 39h1v1h-1zM13 39h1v1h-1zM15 39h3v1h-3zM19 39h1v1h-1zM22 39h5v1h-5zM30 39h1v1h-1zM32 39h4v1h-4zM37 39h1v1h-1zM40 39h1v1h-1zM4 40h7v1h-7zM12 40h2v1h-2zM19 40h1v1h-1zM21 40h1v1h-1zM23 40h1v1h-1zM26 40h1v1h-1zM28 40h3v1h-3zM35 40h2v1h-2zM38 40h3v1h-3z';
+  const groups = ADDR.match(/.{1,5}/g);   // 13 groups of 5
+  const P = {
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+    share: '<path d="M13 4v4C6.4 9 4 14.8 3 20c0 .2 5.4-6 10-6v4l8-7-8-7Z"/>',
+    shield: '<path d="M12 3a12 12 0 0 0 8.5 3A12 12 0 0 1 12 21 12 12 0 0 1 3.5 6 12 12 0 0 0 12 3Z"/><path d="m9 12 2 2 4-4"/>',
+    check: '<path d="m5 12 5 5L20 7"/>',
+    down: '<path d="m6 9 6 6 6-6"/>',
+    up: '<path d="m6 15 6-6 6 6"/>',
+    right: '<path d="m9 6 6 6-6 6"/>',
+    pencil: '<path d="M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16v4M13.5 6.5l4 4"/>',
+    req: '<path d="M17 7 7 17M16 17H7V8"/>',
+  };
+  const ico = (n) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+  const qr = (label) => `<svg class="qr" viewBox="0 0 45 45" role="img" aria-label="${label}"><rect width="45" height="45" fill="#fff"/><path d="${QR_D}"/></svg>`;
+  const chunks = (cls) => `<div class="chunks ${cls}" aria-label="${ADDR}">${groups.map((g, i) =>
+      `<span${i === 0 || i === groups.length - 1 ? ' class="k"' : ''}>${g}</span>`).join('')}</div>`;
+
+  const account = () => `
+    <div class="sb"><span>14:09</span><span>5G · 49%</span></div>
+    <div class="acct__title">Account</div>
+    <div class="av acct__av" aria-hidden="true">ST</div>
+    <div class="acct__name">Shang Tsung ${ico('pencil')}</div>
+    <div class="acct__list"><div>Profile</div><div>Notifications</div><div>Privacy and security</div><div>Appearance</div><div>Backup</div></div>
+    <div class="scrim"></div>`;
+
+  const today = () => `
+    <section class="sheet" role="dialog" aria-label="Your Ixian address">
+      <span class="handle"></span>
+      <button class="x" type="button" aria-label="Close">${ico('x')}</button>
+      <h3 class="stitle">Your Ixian address</h3>
+      <div class="t-body">
+        <div class="t-info">${ico('info')}<span>This is your address on the Ixian network. Share it, or let someone scan the code, and they can add you as a contact or send you IXI.</span></div>
+        <div class="t-qrwrap"><div class="t-qrcard">${qr('QR code: your Ixian address')}</div></div>
+        <p class="t-cap">Scan to send IXI to this address</p>
+        <div class="t-addr"><span>${ADDR}</span><button type="button" aria-label="Copy, Your address">${ico('copy')}</button><button type="button" aria-label="Share address">${ico('share')}</button></div>
+        <div class="t-safe">${ico('shield')}<span>Sharing it is safe: it never gives anyone access to your wallet.</span></div>
+      </div>
+    </section>`;
+
+  /* dots only — no four-point sparkles (Damir 14:13: the sparkle reads as the Gemini mark; docs/renders/sparkle-swap) */
+  const sparkles = `<svg viewBox="0 0 328 62" preserveAspectRatio="none" aria-hidden="true">
+      <g fill="var(--k-spark)">
+        <circle cx="44" cy="20" r="2.4" opacity=".85"/>
+        <circle cx="282" cy="34" r="2" opacity=".8"/>
+        <circle cx="96" cy="44" r="1.6" opacity=".7"/><circle cx="238" cy="14" r="1.8" opacity=".75"/>
+        <circle cx="20" cy="40" r="1.2" opacity=".6"/><circle cx="306" cy="12" r="1.2" opacity=".6"/>
+      </g>
+      <g fill="none" stroke="var(--k-spark)" stroke-opacity=".35"><circle cx="164" cy="64" r="44"/><circle cx="164" cy="64" r="62" stroke-opacity=".2"/></g>
+    </svg>`;
+
+  const a = (state) => `
+    <section class="sheet" role="dialog" aria-label="Your Ixian address">
+      <span class="handle"></span>
+      <button class="x" type="button" aria-label="Close">${ico('x')}</button>
+      <h3 class="stitle">Your Ixian address</h3>
+      <div class="a-card">
+        <div class="a-band">${sparkles}</div>
+        <div class="av a-av" aria-hidden="true">ST</div>
+        <p class="a-name">Shang Tsung</p>
+        <p class="a-sub">Scan to add me or send me IXI.</p>
+        <div class="a-plate">${qr('QR code: your Ixian address')}</div>
+        ${chunks('a-addr')}
+        <button class="pill a-copy" type="button" data-copy${state === 'copied' ? ' data-state="ok"' : ''}>${state === 'copied' ? ico('check') + 'Copied' : ico('copy') + 'Copy'}</button>
+      </div>
+      <button class="btn btn--fill a-share" type="button" style="width:calc(100% - 32px)">${ico('share')}Share address</button>
+      <p class="safe a-safe">${ico('shield')}Safe to share. It can’t open your wallet.</p>
+    </section>`;
+
+  const rings = `<svg class="b-rings" viewBox="0 0 360 252" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g fill="none" stroke="#fff"><circle cx="180" cy="280" r="150" stroke-opacity=".16"/><circle cx="180" cy="280" r="196" stroke-opacity=".11"/><circle cx="180" cy="280" r="246" stroke-opacity=".07"/></g>
+      <g fill="#fff"><circle cx="54" cy="75" r="2.2" opacity=".75"/><circle cx="300" cy="118" r="1.8" opacity=".7"/><circle cx="34" cy="150" r="1.4" opacity=".55"/><circle cx="318" cy="68" r="1.8" opacity=".65"/></g>
+    </svg>`;
+
+  const b = (state) => {
+    const full = state === 'full';
+    const addr = full
+      ? `${chunks('b-full')}<button class="link" type="button" data-more aria-expanded="true">Show less ${ico('up')}</button>`
+      : `<div class="b-short" aria-label="${ADDR}"><span class="k">${groups[0]}</span><span>${groups[1]}</span><span class="dots">···</span><span>${groups[11]}</span><span class="k">${groups[12]}</span></div>
+         <button class="link" type="button" data-more aria-expanded="false">Show all ${ico('down')}</button>`;
+    const copied = state === 'full';
+    return `
+    <section class="sheet" role="dialog" aria-label="Your Ixian address">
+      <div class="b-hero">
+        <span class="b-field b-field--a"></span><span class="b-field b-field--b"></span><span class="b-field b-field--c"></span>
+        ${rings}
+        <span class="handle"></span>
+        <button class="x b-x" type="button" aria-label="Close">${ico('x')}</button>
+        <div class="b-id">
+          <div class="av b-av" aria-hidden="true">ST</div>
+          <p class="b-name">Shang Tsung</p>
+          <p class="b-sub">Your Ixian address</p>
+        </div>
+      </div>
+      <div class="b-plate">${qr('QR code: your Ixian address')}</div>
+      <div class="b-body" data-addr>${addr}
+        <button class="b-req" type="button"><span class="disc">${ico('req')}</span><span class="grow">Request an amount<small>Ask a contact for IXI</small></span>${ico('right')}</button>
+      </div>
+      <div class="b-dock">
+        <p class="safe">${ico('shield')}Safe to share. It can’t open your wallet.</p>
+        <div class="b-actions">
+          <button class="btn btn--tonal" type="button" data-copy${copied ? ' data-state="ok"' : ''}>${copied ? ico('check') + 'Copied' : ico('copy') + 'Copy'}</button>
+          <button class="btn btn--fill" type="button">${ico('share')}Share</button>
+        </div>
+      </div>
+    </section>`;
+  };
+
+  const V = { today, a, b };
+  const phone = (v, theme, state) => `<div class="ph sx v-${v}" data-sxt="${theme}">${account()}${V[v](state)}<span class="home"></span></div>`;
+  const slot = (v, theme, state, cap) => `<figure class="slot" style="margin:0" data-v="${v}" data-theme-name="${theme}"${state ? ` data-state="${state}"` : ''}>${phone(v, theme, state)}<figcaption class="cap">${cap}</figcaption></figure>`;
+
+  const plan = {
+    today: [['light', '', 'Today · light'], ['dark', '', 'Today · dark']],
+    a: [['light', '', 'A · light'], ['dark', '', 'A · dark'], ['light', 'copied', 'A · state: Copy tapped → “Copied” (1.4 s, announced)']],
+    b: [['light', '', 'B · light'], ['dark', '', 'B · dark'], ['dark', 'full', 'B · state: “Show all” open, Copy tapped']],
+  };
+  document.querySelectorAll('[data-build]').forEach((row) => {
+    const v = row.dataset.build;
+    row.innerHTML = plan[v].map(([t, s, c]) => slot(v, t, s, c)).join('');
+  });
+
+  /* interactions: the copy morph (1.4 s, latest tap wins) and Show all / Show less in B */
+  document.addEventListener('click', (e) => {
+    const c = e.target.closest('[data-copy]');
+    if (c) {
+      try { navigator.clipboard && navigator.clipboard.writeText(ADDR).catch(() => {}); } catch (err) {}
+      c.dataset.state = 'ok'; c.innerHTML = ico('check') + 'Copied';
+      clearTimeout(c._t);
+      c._t = setTimeout(() => { delete c.dataset.state; c.innerHTML = ico('copy') + 'Copy'; }, 1400);
+      return;
+    }
+    const m = e.target.closest('[data-more]');
+    if (m) {
+      const fig = m.closest('.slot');
+      const ph = fig.querySelector('.ph');
+      const open = m.getAttribute('aria-expanded') !== 'true';
+      const tmp = document.createElement('div');
+      tmp.innerHTML = phone('b', ph.dataset.sxt, open ? 'full' : '');
+      const fresh = tmp.firstElementChild.querySelector('[data-addr]');
+      ph.querySelector('[data-addr]').replaceWith(fresh);
+      return;
+    }
+    const t = e.target.closest('.themebar button');
+    if (t) {
+      try { if (t.dataset.t) document.documentElement.dataset.theme = t.dataset.t; else delete document.documentElement.dataset.theme; } catch (err) {}
+      document.querySelectorAll('.themebar button').forEach((x) => x.setAttribute('aria-pressed', String(x === t)));
+    }
+  });
+})();
+</script>
+</body>
+</html>

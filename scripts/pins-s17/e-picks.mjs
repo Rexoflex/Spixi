@@ -18,17 +18,18 @@ export default async function (h) {
     const S = W.Spixi;
     const ap = S.createChatAppearance({ isDesktop: false, onTheme() {}, onPreviewLines() {}, theme: 0, previewLines: '1' });
     d.body.append(ap);
-    const themes = [...ap.querySelectorAll('.c-settings-appearance__theme')];
+    const themes = [...ap.querySelectorAll('.c-settings-appearance__card--theme .c-theme-pick__tile')];   // ★ #1353: THE shared picker
     const lines = [...ap.querySelectorAll('.c-settings-appearance__line')];
     const mark = (b) => b.querySelector('.c-settings-appearance__pick[aria-hidden="true"] svg');
     const css = readFileSync(join(root, 'Spixi/Resources/Raw/html/settings.html'), 'utf8');
     const T = {
       noRadio: themes.length === 3 && !ap.querySelector('.c-settings-appearance__radio'),
-      themeMarks: themes.every((b) => !!mark(b) && !!b.querySelector('.c-settings-appearance__phone > .c-settings-appearance__pick')),
+      themeMarks: themes.every((b) => !!b.querySelector('.c-theme-pick__mini > .c-theme-pick__check svg') && !!b.closest('[aria-hidden="true"]') === false && b.querySelector('.c-theme-pick__mini').getAttribute('aria-hidden') === 'true'),
       lineMarks: lines.length === 2 && lines.every((b) => !!mark(b)),
       checkedOne: themes.filter((b) => b.getAttribute('aria-checked') === 'true').length === 1,
-      css: /\.c-settings-appearance__theme\[aria-checked="true"\] \.c-settings-appearance__pick,\s*\.c-settings-appearance__line\[aria-checked="true"\] \.c-settings-appearance__pick \{\s*opacity: 1;/.test(css)
-        && /\.c-settings-appearance__pick \{[^}]*opacity: 0;/.test(css) && !/\.c-settings-appearance__radio/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')),
+      css: /\.c-settings-appearance__line\[aria-checked="true"\] \.c-settings-appearance__pick \{\s*opacity: 1;/.test(css)
+        && /\.c-theme-pick__tile\[aria-checked='true'\] \.c-theme-pick__check \{\s*opacity: 1;/.test(css) && /\.c-theme-pick__check \{[^}]*opacity: 0;/.test(css)
+        && /\.c-settings-appearance__pick \{[^}]*opacity: 0;/.test(css) && !/\.c-settings-appearance__radio/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')),   // ★ #1353 RE-BASE: the theme phones are THE shared picker (its own check)
     };
     ok(Object.values(T).every(Boolean),
       '★ S17 C (Damir 20:21): the appearance tiles say "picked" ONE way — no radio under the theme phones; a check in a blue disc on every theme phone and Message preview card, shown only on the checked one (the rim kept) — ' + JSON.stringify(T));

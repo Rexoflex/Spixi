@@ -659,6 +659,7 @@
   "textSizeCustom": "Tamanho personalizado ({0}%), definido com gesto de pinça em uma conversa. Escolha um tamanho para substituí-lo.",
   "textXL": "GG",
   "theme": "Tema",
+  "themeLead": "Sistema segue a configuração clara ou escura do seu dispositivo.",
   "themeFailed": "Não foi possível alterar o tema.",
   "themeSystem": "Sistema",
   "thisApp": "este app",

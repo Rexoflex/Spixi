@@ -20,9 +20,13 @@
   --subslide-from: 40%;                              /* LTR: from the trailing (right) edge, 40% travel */
 }
 html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
-.c-subslide--viewport { position: fixed; inset: 0; }        /* covers the whole page, bars included — the settled layout of a sublevel */
+/* ★ S17 walk fix (#1351, Damir 11:20 video): the layer's position is DOUBLE-CLASS (0,2,0). A screen root that positions
+   itself with one class in a later sheet (S17's `.c-settings-dl` / `.c-settings-about--hdr` / `.c-settings-contrib--hdr
+   { position: relative }` in settings-app.css) tied at (0,1,0) and WON by load order: the sliding layer fell back into
+   the page flow under the still-mounted hub (About drew from y = 413 under the "App" header) until the slide settled. */
+.c-subslide.c-subslide--viewport { position: fixed; inset: 0; }        /* covers the whole page, bars included — the settled layout of a sublevel */
 .c-subslide-host { position: relative; }
-.c-subslide--host { position: absolute; inset: 0; }          /* inside one host (the launch views) */
+.c-subslide.c-subslide--host { position: absolute; inset: 0; }          /* inside one host (the launch views) */
 
 /* the exit's tap shield (review MINOR-3) — transparent, above the pointer-dead dying
    layer, gone at animationend/backstop. z-30 = the same plane as the layer it guards. */

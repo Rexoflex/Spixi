@@ -112,7 +112,7 @@ export default async function (h) {
     const el = d.querySelector('.c-settings-appearance');
     const r = {};
     const key = (target, k2) => target.dispatchEvent(new W.KeyboardEvent('keydown', { key: k2, bubbles: true }));
-    const themes = el ? [...el.querySelectorAll('.c-settings-appearance__theme')] : [];
+    const themes = el ? [...el.querySelectorAll('.c-settings-appearance__card--theme .c-theme-pick__tile')] : [];
     const tChecked = () => { const b = themes.find((x) => x.getAttribute('aria-checked') === 'true'); return b ? b.dataset.value : null; };
     const t0 = tChecked();
     const n0 = sent.length;

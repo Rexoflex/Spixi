@@ -186,3 +186,16 @@
 .c-splitpaste__dismiss::after { content: ''; position: absolute; inset: -6px; }   /* 44px hit (#106) */
 @media (hover: hover) and (pointer: fine) { .c-splitpaste__dismiss:hover { background: var(--surface-interactive-hover); } }
 .c-splitpaste__dismiss:active { background: var(--surface-interactive-pressed); }
+
+/* ★★ #1355 (Damir 13:38 "selected tint and check should be in line with it"): the selected row's wash and its check disc
+   take the canvas colour (the tick stays white — ≥ 4.5 : 1 on every sent colour). Scoped to the chat's rows. */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  [data-selecting] .c-bubble-row {
+    --surface-select-check: var(--chat-accent);
+    --surface-select-row: var(--chat-accent-band);
+  }
+  /* #46 r1 m1: the check disc keeps a ≥ 3 : 1 EDGE against the canvas — a deeper ring in light, the lifted ink in dark (the
+     deep dark steps fell to 1.3–2.1 against the dark canvases); the white tick stays on the accent fill (≥ 4.5). */
+  [data-selecting] .c-bubble-row[data-selected]::before { box-shadow: inset 0 0 0 var(--outline-width-2) color-mix(in srgb, var(--chat-accent) 75%, #000000); }   /* sanctioned: a deeper ring of the accent */
+  [data-theme='dark'] [data-selecting] .c-bubble-row[data-selected]::before { box-shadow: inset 0 0 0 var(--outline-width-2) var(--chat-accent-ink); }
+}

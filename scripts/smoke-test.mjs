@@ -1649,13 +1649,19 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
        && !!d.querySelector('.c-addr-sheet__explainicon'),
       '★ #1007 (was #575): the header QR button opens the SHARED address sheet — legacy address:ixi encoding, the folded explainer riding along (one surface, no drift)');
     /* N86 ②'s protection MOVED here with the chip: copy and Share are always
-       reachable on the sheet, and Share is now an icon beside Copy, not a bar. */
+       reachable on the sheet. ★ #1358 RE-BASE (Damir 14:54, Direction A): the address group keeps the FULL value + the
+       labelled Copy pill; Share left the chip and is the sheet's primary act — the full-width FILLED button directly under
+       the identity card (not #575's outline bar, which is what that pin retired). */
     const sheetChip = d.querySelector('.c-addr-sheet__addr');
+    const shareB = d.querySelector('.c-addr-sheet > .c-addr-sheet__sharebtn');
     ok(!!sheetChip
        && (sheetChip.querySelector('.c-wallet-receive__addrvalue') || {}).textContent === '425HqzWpMkV3dTgJnS85CQen'
        && !!sheetChip.querySelector('.c-wallet-receive__copy')
-       && !!sheetChip.querySelector('.c-addr-sheet__sharebtn'),
-      '★ #575: the FULL address, Copy and Share all live on the chip — Share is an icon beside Copy, not a full-width bar');
+       && !sheetChip.querySelector('.c-addr-sheet__sharebtn')
+       && !!shareB && shareB.dataset.type === 'fill' && shareB.dataset.width === 'full'
+       && !!d.querySelector('.c-addr-sheet > .c-addr-sheet__card')
+       && (d.querySelector('.c-addr-sheet > .c-addr-sheet__card').compareDocumentPosition(shareB) & 4) === 4,
+      '★ #575 → #1358: the FULL address and Copy live in the address group; Share is the full-width FILLED action directly under the card');
     ok(!d.querySelector('.c-addr-sheet__share'),
       '★ #575: and the old full-width Share row is gone (it "reads as a too-short bar")');
     /* ★ #589 REBASE. #575's property was "every glyph in the gutter, both paragraphs
@@ -1886,20 +1892,20 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     .find((r) => r.textContent.includes('Theme'));
   themeRow.click();
   await sleep(50);
-  const tiles = [...d.querySelectorAll('.c-settings__theme')];
+  const tiles = [...d.querySelectorAll('.c-theme-pick__tile')];   /* ★ #1353 RE-BASE: THE shared picker (createThemePicker) */
   ok(tiles.length === 3 && tiles[0].getAttribute('aria-checked') === 'true'
     && tiles.map((t) => t.dataset.mode).join('+') === 'system+light+dark',
     'theme sheet: 3 PREVIEW TILES (system/light/dark), current checked (#147)');
-  ok(tiles.every((t) => !!t.querySelector('.c-settings__theme-art')),
-    'every tile carries a mini-screen preview (fixed --preview-* paints)');
+  ok(tiles.every((t) => !!t.querySelector('.c-theme-pick__mini .c-theme-pick__face')) && !!tiles[0].querySelector('.c-theme-pick__face[data-face="dark"]') && !!d.querySelector('.c-sheet--theme .c-theme-sheet__lead'),
+    'every tile carries a mini-chat preview (fixed --preview-* paints); System carries both faces; ★ #1353 the sheet explains System in one line');
   tiles[1].click();                           // Light
   tiles[2].click();                           // in-flight: must not fire
   ok(themeCalls === 1 && themeVal === 1, 'picking Light commits index 1 ONCE (latched)');
-  ok(!!tiles[1].querySelector('.c-settings__opt-status .c-button__spinner'),
+  ok(!!tiles[1].querySelector('.c-theme-pick__status .c-button__spinner'),
     'spinner lands in the tile status slot (#145③ grammar)');
   themeCtrl.done();
   /* #148②: the sheet STAYS OPEN — trying themes must not cost a reopen */
-  ok(!!d.querySelector('.c-settings__themes')
+  ok(!!d.querySelector('.c-theme-pick')
     && tiles[1].getAttribute('aria-checked') === 'true'
     && tiles[0].getAttribute('aria-checked') === 'false',
     'ctrl.done keeps the sheet OPEN and moves the check (#148② — keep trying themes)');
@@ -1910,7 +1916,7 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   themeCtrl.done();
   key(d, 'Escape');
   await sleep(500);
-  ok(!d.querySelector('.c-settings__themes'), 'user dismisses the theme sheet when done');
+  ok(!d.querySelector('.c-theme-pick'), 'user dismisses the theme sheet when done');
 
   /* lock: ON optimistic; OFF pending until the LockPage auth resolves (#146⑦) */
   const sw = hub.querySelector('.c-settings__switch');
@@ -2600,7 +2606,7 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   ok(/--preview-light-surface:/.test(tok) && /--preview-dark-surface:/.test(tok)
     && /--chat-text-scale: 1/.test(tok),
     'theme-preview fixed pairs + --chat-text-scale default live in tokens.css (#147)');
-  ok(/\.c-settings__theme-art \{[^}]*background: var\(--preview-light-surface\)/.test(setCss),
+  ok(/\.c-theme-pick__face \{[^}]*--pf-bg: var\(--preview-light-surface\)/.test(setCss) && /\.c-theme-pick__face\[data-face='dark'\] \{[^}]*--pf-bg: var\(--preview-dark-surface\)/.test(setCss),   /* ★ #1353 RE-BASE: the shared picker's faces */
     'theme tiles paint with the FIXED preview pair — a preview shows its OWN mode (#137 --surface-qr precedent)');
   const bkCss = readFileSync(join(root, 'src/styles/components/settings-backup.css'), 'utf8');
   ok(/\.c-settings-backup__adv-box \{[^}]*max-height: 0/.test(bkCss)
@@ -5180,10 +5186,10 @@ console.log('desktop.html — split-view shells (Phase 2 batch, docs/desktop-spl
 
   // —— 06c ⑪: theme = PREVIEW TILES in the detail pane, commit live ——
   hubRow('Theme').click();
-  ok(!!shell('pane-detail', 'account').querySelector('.c-settings__themes'),
+  ok(!!shell('pane-detail', 'account').querySelector('.c-theme-pick'),   /* ★ #1353 RE-BASE */
     'Theme row renders the preview tiles in the DETAIL pane, not a sheet (06c ⑪)');
   ok(frameSheets().length === 0, 'no theme sheet ever hits the frame stack');
-  [...shell('pane-detail', 'account').querySelectorAll('.c-settings__theme')]
+  [...shell('pane-detail', 'account').querySelectorAll('.c-theme-pick__tile')]
     .find((t) => t.dataset.mode === 'light').click();
   await sleep(700);
   ok(d.documentElement.dataset.theme === 'light', 'picking Light commits live (tiles stay — #148②)');
@@ -7646,12 +7652,12 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   /* ★ Session I re-base (#735③, sheet 4): the LIGHT ink is the brand magenta #83058E now (was #061663, AUG) — same 6%; the AUG reasoning below is the superseded ruling. */
   /* ★ Session J re-base (#744/A14, Damir 2026-09-02: "Light mode pattern: 051C8E at 6% opacity") — the k2 magenta #83058E is the superseded ruling, kept in the comment of the token. */
   /* ★★ #1002 RE-BASE (D-09): the light ink is the Mist slate #2A3140 (through --chat-pattern-ink-mist) @ 4.5% — the Session J line below is the superseded ruling. */
-  ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) && /--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(lightN81) && /--chat-pattern-alpha-1: 0\.128;/.test(lightN81)   /* ★ S17 C v3 RE-BASE (Damir 21:57): −20 %, 0.16 → 0.128. ★ #1058 (Damir, ladder): 0.075 → 0.16; ★ #1039 (walk OV.16): 0.06 → 0.075; #1029 (walk P.8): 0.045 → 0.06 */
+  ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) && /--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(lightN81) && /--chat-pattern-alpha-1: 0\.1024;/.test(lightN81)   /* ★ #1351 RE-BASE (S17 walk, Damir 2026-10-12): −20 % again, 0.128 → 0.1024. ★ S17 C v3 RE-BASE (Damir 21:57): −20 %, 0.16 → 0.128. ★ #1058 (Damir, ladder): 0.075 → 0.16; ★ #1039 (walk OV.16): 0.06 → 0.075; #1029 (walk P.8): 0.045 → 0.06 */
     && /--chat-pattern-alpha-2: 0\.2;/.test(lightN81),   /* ★ #1058: Strong 0.1 → 0.2, stays above alpha-1 */
     '★★ #1058: LIGHT pattern = #2A3140 @ 16% on Mist, Strong 20% (Damir picked from the contours ladder: "light barely visible" at 7.5%). Superseded: ★★ #1039: LIGHT pattern = #2A3140 @ 7.5% on Mist (walk OV.16: "need stronger" at 6%). Superseded: ★★ #1029: LIGHT pattern = #2A3140 @ 6% on Mist (walk P.8: "almost invisible" at 4.5%). Superseded: ★★ #1002: LIGHT pattern = #2A3140 @ 4.5% on Mist (Damir 2026-09-28). Superseded: ★★★ Session J: LIGHT pattern = #051C8E @ 6% (Damir 2026-09-02). Superseded: Session I k2 #83058E @ 6%. Superseded before that: AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
   // ★ #711 re-based (Damir on device, 2026-08-30): 0.05 → 0.03 — "reduce dark by 2%". The ink stays white; the 0.05 reasoning below is kept as the superseded ruling.
   /* ★ Session J re-base (#758, Damir 2026-09-03): dark ink #C6CFFD @ 4% — the white @ 3% below is the superseded ruling. */
-  ok(/--chat-pattern-ink: #C6CFFD;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.104;/.test(darkN81)   /* ★ S17 C v3 RE-BASE (Damir 21:57): −20 %, 0.13 → 0.104. ★ #1058 (Damir, ladder): 0.04 → 0.13 */
+  ok(/--chat-pattern-ink: #C6CFFD;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.0832;/.test(darkN81)   /* ★ #1351 RE-BASE (S17 walk, Damir 2026-10-12): −20 % again, 0.104 → 0.0832. ★ S17 C v3 RE-BASE (Damir 21:57): −20 %, 0.13 → 0.104. ★ #1058 (Damir, ladder): 0.04 → 0.13 */
     && /--chat-pattern-alpha-2: 0\.18;/.test(darkN81),   /* ★ #1058: Strong 0.1 → 0.18, stays above alpha-1 */
     '★★ #1058: DARK pattern = #C6CFFD @ 13%, Strong 18% (Damir: "dark almost invisible" at 4%). Superseded: ★★★ AUG TILE (Damir 2026-08-30) → #711: DARK pattern = rgba(255,255,255,0.03) (was 0.05 until his device call the same evening). ⚠⚠ THIS PIN IS A REVERSAL AND IT IS PINNED AS ONE. The 2026-07-03 ruling in tokens.css says the pattern is "theme-colored, not white (white isn\'t premium, Damir)", and dark has carried a tinted ink ever since. Damir reversed it on 2026-08-30. ★ The measurement is the reassurance: white @ .05 reads ΔL* +5.64 against the #701 canvas where #bbd0ff @ .065 read +5.89 — the STRENGTH is unchanged within 4%, so what moved is the HUE, not the visibility. The superseded reasoning is kept verbatim because a ruling that quietly disappears is how it gets fixed back: E1: DARK pattern = rgba(187,208,255,0.065) at Default, 0.1 at Strong — its OWN hue, not light\'s. MEASURED trade-off behind the value: a bluer ink is a darker ink, so #bbd0ff buys C* 3.37 → 5.29 for 1.2 L*, while #8fb3ee bought 6.04 for 2.3 L* and was rejected on that arithmetic. Supersedes #f0f4ff / 0.045');
   ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) !== /--chat-pattern-ink-mist: #2A3140;/.test(darkN81)
@@ -7790,9 +7796,10 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
        ground (and must not — a second source for the flip is the drift this role removes). */
     const tokZ = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const tokZdark = tokZ.split('[data-theme="dark"] {')[1].split('\n}')[0];
-    ok(/--surface-notice-card: #0c1a4a;/.test(tokZdark)
-       && !/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background/.test(noticeNC),
-      '★ N82(c) → #884 ③: the dark notice card is the deepened #0c1a4a — the dark value of --surface-notice-card, painted by the token and by NO component rule (84% saturation, and still DARKER than the grey-800 it replaces) — Damir asked to go further after seeing the first #141c33 render');
+    ok(/--surface-notice-card: var\(--ink-750\);/.test(tokZdark)   /* ★ #1354 RE-BASE (Damir 13:14): the NEUTRAL dark card (#1E2023) */
+       && !/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background/.test(noticeNC)
+       && /\.c-sysnotice__medallion \{[^}]*background: var\(--surface-bubble-sent\);[^}]*color: var\(--text-bubble-sent\);/.test(noticeNC),
+      '★ #1354 (Damir 13:14, "more neutral so it fits into each theme"): the dark notice card is NEUTRAL (--ink-750 #1E2023, the dark received bubble step) and its medallion wears the canvas SENT colour with the sent ink — Superseded: N82(c) → #884 ③: the dark notice card is the deepened #0c1a4a — the dark value of --surface-notice-card, painted by the token and by NO component rule (84% saturation, and still DARKER than the grey-800 it replaces) — Damir asked to go further after seeing the first #141c33 render');
     /* ★ Session J REVERSES the edge pin, on Damir's ruling (2026-09-02, both screenshots: "notice
        no border, white with elevation or dark midnight blue … with some elevation as well —
        because now it looks the same"). The EDGE is gone in both themes; --elevation-2 carries
@@ -8139,7 +8146,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
   };
   const boostOf = (f) => {
     if (!f) return NaN;
-    const m = /^calc\(var\(--chat-pattern-alpha-1\) \* ([\d.]+)\)$/.exec(f.style.getPropertyValue('--chat-pattern-opacity'));
+    const m = /^min\(var\(--chat-pattern-tile-max, 1\), calc\(var\(--chat-pattern-alpha-1\) \* ([\d.]+)\)\)$/.exec(   /* ★ #1351: the boost is capped by the ground's tile max */f.style.getPropertyValue('--chat-pattern-opacity'));
     return m ? parseFloat(m[1]) : NaN;
   };
   /* ★★ #835 RETIRED — THE PER-STYLE BOOST RELATION. It asserted that the doodles tile is
@@ -8152,7 +8159,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
      and is untouched. `faceOf`/`boostOf` stay: the boost format is still asserted there. */
   ok(bgFaces.length === 3 && !!faceOf('none')   /* ★ S17 C RE-BASE: three tiles */ && faceOf('none').style.getPropertyValue('--chat-pattern-opacity') === '0'
     && styleTiles.filter((b) => b.dataset.value !== 'none')
-      .every((b) => /^calc\(var\(--chat-pattern-alpha-1\) \* [\d.]+\)$/.test(b.querySelector('.c-settings-swatch__canvas').style.getPropertyValue('--chat-pattern-opacity'))),
+      .every((b) => /^min\(var\(--chat-pattern-tile-max, 1\), calc\(var\(--chat-pattern-alpha-1\) \* [\d.]+\)\)$/.test(b.querySelector('.c-settings-swatch__canvas').style.getPropertyValue('--chat-pattern-opacity'))),
     '★ N81 (closes #239 ⓐ), rebased by #774: every PATTERN tile assigns the per-theme ALPHA VAR so the swatch resolves under the same theme as the chat (the boost is the swatch-legibility dial, PATTERN_SWATCH_BOOST — not a second scale), and the None tile assigns a literal 0, the one honest answer for "no pattern"');
   /* ★★★ AUG GROUND (Damir 2026-08-30) — the light-only canvas toggle, pinned on BOTH
      sides of the theme because "renders in light" and "is absent in dark" are two
@@ -8633,7 +8640,7 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      picks #46 r1 fixes (MEASURED): 866 140 → 871 075 (+4 935: the live-only accent + reflush keep, the still ring after 30 s,
      the overlaid seconds-left hint track, the 40-bar fit, the reopen-from-on-screen strip) → CHAT 848 → 853; 852 would leave
      404, 853 leaves 1 428 (after the r2 / r3 lead fixes: 872 044 chars). Stated. */
-  const CHAT_KB_CEIL = 951,   /* ★ S17 F #46 r3 (MINOR-3): +11.8 KB = illo.css linked so the moment art moves in the chat (it rendered static) — 949.4 KB measured (a perf-track candidate: only the mo-* rules are needed here) */   /* ★ S17 A + F (#1338 · #1340): +12.4 KB = the shared bundle carries whats-new.js + moment-sheet.js (the card, the seven sheets, the ask / answer client) and the chat's moment wiring (mic · autodl · offline · app · pay · tip) + moment-sheet.css + illo.css (the moment art's motion, #46 r3) — 937.6 KB measured; index.html +20.2 KB = the same bundle + the home wiring + whats-new.css + moment-sheet.css → INDEX 597 → 618 (615.8 KB measured) */   /* ★ S17 (#1334 · #1336): +2.0 KB = the chat-appearance ladders (two new keys, three new grounds, the rings) in the head script and readPatternPrefs, and the S17 tokens (--dl-* / --dc-* / --wn-* / --ch-*) — 924.4 KB measured; index.html +6.1 KB = the S17 motion block of illo.css (What's new scenes, About glass, Moments, the heart) + the same tokens → INDEX 590 → 597 (595.6 KB measured) */   /* ★ S15 (#1301 · #1302 · O-09): +5.3 KB = the send entrance (E) + the pending strip tiles and the composer busy gate (F) + the DOM-built missing-asset panel (O-09) — 918.1 KB measured */   /* ★ S11 r2 (#1263): +11.6 KB = the album mosaic + offer preview + viewer Reply/Save (G, +8.6) and the amount pad for the chat Pay (H, +3) — 912.3 KB measured */   /* ★ S11 (#1262): +6.6 KB = the viewer zoom + paging track (E), the flash paintAck answer, touch-menu blur, paste toast, created-line title/subtitle (C) — 900.7 KB measured */   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 618;   /* ★ S11 r2 (#1263): +4.9 KB = the 2-step send/receive (H, +3.2) and the hint timing + held entrances (A2, +1.7) — 585.6 KB measured */   /* ★ S11 (#1262): +21.4 KB = seasonal bar + glass update/hint cards + hints wiring (A, ~16 KB) and the illo.css link + inline art hosts (B, ~5 KB) — 580.7 KB measured */
+  const CHAT_KB_CEIL = 955,   /* ★ #1357 + #1358 (MEASURED): 974 499 → 975 991 chars (+1 492: the shared bundle's address card in wallet-receive + the rocket / bokeh art) = 953.1 KB → 955; index.html 630 807 → 637 974 chars (+7 167 since 052aac6b: the one theme picker + the address card CSS / JS + the rocket / 78 bokeh dots in the art tables) = 623.0 KB → INDEX 618 → 625. Stated. */   /* ★ #1354 + #1355 (MEASURED): 972 145 → 974 499 chars (+2 354: the neutral notice + the guarded chat-accent remaps in composer / attach / voice / select + the accent tokens) = 951.7 KB → 951 → 953; 952 would leave 0.3 KB. Stated. */   /* ★ S17 F #46 r3 (MINOR-3): +11.8 KB = illo.css linked so the moment art moves in the chat (it rendered static) — 949.4 KB measured (a perf-track candidate: only the mo-* rules are needed here) */   /* ★ S17 A + F (#1338 · #1340): +12.4 KB = the shared bundle carries whats-new.js + moment-sheet.js (the card, the seven sheets, the ask / answer client) and the chat's moment wiring (mic · autodl · offline · app · pay · tip) + moment-sheet.css + illo.css (the moment art's motion, #46 r3) — 937.6 KB measured; index.html +20.2 KB = the same bundle + the home wiring + whats-new.css + moment-sheet.css → INDEX 597 → 618 (615.8 KB measured) */   /* ★ S17 (#1334 · #1336): +2.0 KB = the chat-appearance ladders (two new keys, three new grounds, the rings) in the head script and readPatternPrefs, and the S17 tokens (--dl-* / --dc-* / --wn-* / --ch-*) — 924.4 KB measured; index.html +6.1 KB = the S17 motion block of illo.css (What's new scenes, About glass, Moments, the heart) + the same tokens → INDEX 590 → 597 (595.6 KB measured) */   /* ★ S15 (#1301 · #1302 · O-09): +5.3 KB = the send entrance (E) + the pending strip tiles and the composer busy gate (F) + the DOM-built missing-asset panel (O-09) — 918.1 KB measured */   /* ★ S11 r2 (#1263): +11.6 KB = the album mosaic + offer preview + viewer Reply/Save (G, +8.6) and the amount pad for the chat Pay (H, +3) — 912.3 KB measured */   /* ★ S11 (#1262): +6.6 KB = the viewer zoom + paging track (E), the flash paintAck answer, touch-menu blur, paste toast, created-line title/subtitle (C) — 900.7 KB measured */   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */ INDEX_KB_CEIL = 625;   /* ★ S11 r2 (#1263): +4.9 KB = the 2-step send/receive (H, +3.2) and the hint timing + held entrances (A2, +1.7) — 585.6 KB measured */   /* ★ S11 (#1262): +21.4 KB = seasonal bar + glass update/hint cards + hints wiring (A, ~16 KB) and the illo.css link + inline art hosts (B, ~5 KB) — 580.7 KB measured */
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -10280,8 +10287,8 @@ console.log('multi-select entry gestures · counted confirm · attach sheet titl
       '★ #705: open state is REPORTED, not inferred — aria-expanded on the ⊕ (it reads as ✕ through that attribute), data-tray-open on the bar (the safe-area pad moves to the tray), data-open on the tray (the rise)');
     ok(W.Spixi.openAttachTray({ composerEl: comp, media: true, strings: W.SL || {} }) === tray,
       '#705: a second open while the tray is up is a no-op that returns the SAME tray — the ⊕ toggles, it never stacks');
-    tray.querySelector('.c-attach__tile').click();
-    ok(picked === 'file' && !W.Spixi.isAttachTrayOpen(comp) && attachBtn.getAttribute('aria-expanded') === 'false' && !comp.hasAttribute('data-tray-open'),
+    tray.querySelector('.c-attach__tile').click();   /* ★ #1355 RE-BASE: the first tile is Photos now (Photos · Camera · File / App invite · Pay · Request) */
+    ok(picked === 'photo' && !W.Spixi.isAttachTrayOpen(comp) && attachBtn.getAttribute('aria-expanded') === 'false' && !comp.hasAttribute('data-tray-open'),
       '★ #705: a tile tap fires its action AND closes the tray (aria-expanded false, the bar takes its pad back) — the tray never outlives the choice');
     await sleep(400);
     ok(comp.nextElementSibling !== tray && !D.querySelector('#composer-direct .c-attach-tray'),
@@ -19790,15 +19797,21 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
   /* —— #575: the address row is the ONE entry, and the sheet is the ONE surface —— */
   {
     const wr = read('src/components/wallet-receive.js');
-    ok(/className = 'c-wallet-receive__copy c-addr-sheet__sharebtn'/.test(wr)
-       && /addrRow\.append\(share\);/.test(wr)
+    /* ★ #1358 RE-BASE (Damir 14:54, Direction A): Share left the chip — it is the sheet's primary act, the full-width FILLED
+       button under the identity card (the retired #575 thing was an OUTLINE bar for a secondary action); the address row
+       holds the short group, the full value and the Copy pill, nothing else. */
+    ok(/share\.classList\.add\('c-addr-sheet__sharebtn'\);\s*content\.append\(share\);/.test(wr)
+       && /type: 'fill', size: 56, width: 'full'/.test(wr)
+       && /addrRow\.append\(shortBtn, addrValue, copy\);/.test(wr)
+       && !/addrRow\.append\([^)]*share/.test(wr)
        && !/c-addr-sheet__share'/.test(wr),
-      '★ #575: Share is built as an icon control ON the chip; the full-width outline row is gone');
+      '★ #575 → #1358: Share is the full-width filled action under the card (not on the chip, not the old outline row); the address row is short group + full value + Copy');
     /* ★ #589 REBASE: one grid of four became two blocks of two, each beside what it
        explains. The property is that ONE builder makes both, so the glyph-gutter
        grammar cannot drift apart between them. */
     ok(/const explainRow = \(\{ glyph, size, text, variant = '' \}\) => \{/.test(wr)
-       && (wr.match(/content\.append\(explainRow\(\{/g) || []).length === 2
+       /* ★ #1358: the info line moved INSIDE the identity card (idCard.append), the safety line stays on content — still the one builder, twice */
+       && (wr.match(/(?:content|idCard)\.append\(explainRow\(\{/g) || []).length === 2
        && /wrap\.append\(g, line\);/.test(wr),
       '★ #589 (was #575): both explainer blocks come from ONE builder — glyph in the gutter, copy beside it — so the info block above the QR and the safety line below the address cannot drift apart');
     ok(/dismiss\.addEventListener\('click', \(\) => \{ try \{ closeSheet\(sheet\); \} catch \(e\) \{\} \}\);/.test(wr),
@@ -22417,12 +22430,12 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const BLIND = { media: false, apps: true, payments: false, files: false };
       ok(ids(BOT) === '' && AS.hasAttachTiles(BOT) === false,
         '★★★ #46 loop EXECUTED (findings-C MAJOR-2): a BOT room yields ZERO tiles. Every flag is false there, so all six are filtered out. The Spixi community bot is the first chat many users have, because N76 made joining it a chat-list empty-state CTA. Got: ' + JSON.stringify(ids(BOT)));
-      ok(ids(ONE) === 'file,pay,request,app' && AS.hasAttachTiles(ONE) === true,
-        '★★★ #46 loop EXECUTED: a 1:1 chat yields file, pay, request and app — in that order. Photo and GIF stay behind the media flag (#81). Got: ' + JSON.stringify(ids(ONE)));
+      ok(ids(ONE) === 'file,app,pay,request' && AS.hasAttachTiles(ONE) === true,   /* ★ #1355 RE-BASE (Damir 13:41): the money tiles last */
+        '★★★ #46 loop EXECUTED: a 1:1 chat yields file, app, pay and request — in that order (#1355: the two payment tiles last). Photo and GIF stay behind the media flag (#81). Got: ' + JSON.stringify(ids(ONE)));
       /* ★ THE DEFAULTS, EXECUTED. Every existing caller passes a PARTIAL flag object, so
          an absent flag must take the signature's own default. A text pin on the default
          line cannot see whether the predicate really reads it. */
-      ok(ids({}) === 'file,pay,request,app' && ids({ files: false }) === 'pay,request,app',
+      ok(ids({}) === 'file,app,pay,request' && ids({ files: false }) === 'app,pay,request',   /* ★ #1355 RE-BASE: the order */
         '★★★ #46 loop EXECUTED: an ABSENT flag takes the default — attachTilesFor({}) still yields file, pay, request and app, and only a caller that says `files: false` loses the tile. Every existing caller passes a partial object, so a default that stopped being read would silently strip tiles from surfaces nobody edited. Got: ' + JSON.stringify([ids({}), ids({ files: false })]));
       ok(ids(GROUP) === 'file,app' && ids(BLIND) === 'app',
         '★★★ #46 loop EXECUTED: a NORMAL private group keeps Send file and a BLIND group loses it — legacy parity, and C#\'s own refusal mirrored. Money stays out of both. Got: ' + JSON.stringify([ids(GROUP), ids(BLIND)]));
@@ -22473,10 +22486,10 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       const BOT = { media: false, apps: false, payments: false, files: false };
       ok(aa > 0 && ta > 0 && ha > 0 && bIds !== null
          && bIds(BOT) === '' && bHas(BOT) === false
-         && bIds({ media: false, apps: true, payments: true, files: true }) === 'file,pay,request,app'
+         && bIds({ media: false, apps: true, payments: true, files: true }) === 'file,app,pay,request'   /* ★ #1355 RE-BASE: the order */
          && bIds({ media: false, apps: true, payments: false, files: true }) === 'file,app'
          && bIds({ media: false, apps: true, payments: false, files: false }) === 'app'
-         && bIds({}) === 'file,pay,request,app',
+         && bIds({}) === 'file,app,pay,request',
         '★★★ #46 loop EXECUTED, ON THE SHIPPED BUNDLE: the predicate lifted out of spixi.bundle.js gives the SAME four answers as the source module — bot room empty, 1:1 four tiles, normal group keeps Send file, blind group loses it, absent flags take the defaults. The WebView loads the bundle, not the module, so this is the copy that decides what a user sees. Got: ' + JSON.stringify(bIds === null ? 'could not lift' : [bIds(BOT), bIds({})]));
       /* ★ AND THE TWO SYMBOLS ARE EXPORTED. The shell destructures them from window.Spixi.
          A function that exists in the bundle but is not on the export object is undefined
@@ -25237,7 +25250,7 @@ console.log('Session H: the in-shell subscreen slide · the icon wiring');
      && /@media \(prefers-reduced-motion: reduce\) \{\s*\.c-subslide--in, \.c-subslide--out \{ animation: none; \}\s*\}/.test(css)
      && /const name = getComputedStyle\(el\)\.animationName;\s*return !!name && name !== 'none';/.test(comp),
     '★ Session H (#704/#718): desktop and reduced-motion get NO slide — decided by the stylesheet (animation: none) and read back by the JS (grantsMotion), never derived twice');
-  ok(/\.c-subslide--viewport \{ position: fixed; inset: 0; \}/.test(css) && /\.c-subslide--host \{ position: absolute; inset: 0; \}/.test(css)
+  ok(/\.c-subslide\.c-subslide--viewport \{ position: fixed; inset: 0; \}/.test(css) && /\.c-subslide\.c-subslide--host \{ position: absolute; inset: 0; \}/.test(css)   /* ★ #1351: double class — a screen root's own one-class position must never win the tie (pins-s17/g-slide-layer) */
      && /\.c-subslide-host \{ position: relative; \}/.test(css) && /background: var\(--subslide-ground, var\(--surface-screen\)\);/.test(css)
      && /html\[dir="rtl"\] \.c-subslide \{ --subslide-from: -40%; \}/.test(css)   // ★ Session I hybrid: 40% travel
      && /timer = setTimeout\(finish, ms \* 2\);/.test(comp) && /export function settleSubscreenSlide\(host\)/.test(comp),
@@ -26105,7 +26118,7 @@ console.log('Session I ③: the premium pass token batch');
      light gradient is the BRAND GRADIENT (#CCD0EC → #D0C9EB → #D5C3EB, 180°) with its own ink
      #3A2F66. Superseded: Session J #E4EAF3 · #051C8E @ 6% · the 289° #94D2E3 → #ADAEE8 wash. */
   ok(val('chat-canvas-base', light) === '#ECEEF1' && val('chat-pattern-ink-mist', light) === '#2A3140'
-     && val('chat-pattern-ink', light) === 'var(--chat-pattern-ink-mist)' && val('chat-pattern-alpha-1', light) === '0.128'   /* ★ S17 C v3 RE-BASE (21:57): −20 %. ★ #1058 (ladder): 0.075 → 0.16; ★ #1039 (walk OV.16): 0.06 → 0.075; ★ #1029 (walk P.8): 0.045 → 0.06; dark untouched */
+     && val('chat-pattern-ink', light) === 'var(--chat-pattern-ink-mist)' && val('chat-pattern-alpha-1', light) === '0.1024'   /* ★ #1351 RE-BASE (S17 walk): −20 % again. ★ S17 C v3 RE-BASE (21:57): −20 %. ★ #1058 (ladder): 0.075 → 0.16; ★ #1039 (walk OV.16): 0.06 → 0.075; ★ #1029 (walk P.8): 0.045 → 0.06; dark untouched */
      && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\],\s*:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='gradient'\] \{[^}]*--gradient-chat: linear-gradient\(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%\), var\(--chat-canvas-base\);\s*--chat-pattern-ink: #3A2F66;/.test(tok)
      && /:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='flat'\] \{[^}]*--chat-pattern-ink: var\(--chat-pattern-ink-mist\);/.test(tok),
     '★★ #1002 (was 4 → Session J) + #1029: light canvas MIST #ECEEF1 · ink #2A3140 @ 6% (#1029 P.8, was 4.5%) · the gradient option is the BRAND gradient with its own ink #3A2F66, and a FLAT descendant resets the ink so the brand ink never cascades into the flat tile. Superseded: #E4EAF3 · #051C8E @ 6% · the 289° wash');
@@ -27684,7 +27697,7 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       'src/styles/components/scroll-latest.css .c-scroll-latest__badge → --surface-error',
       'src/shells/chat.html <style> .chat-mention-fab__badge → --surface-error',
       'src/styles/components/button.css .c-button[data-success] → --surface-success',
-      'src/styles/components/system-notice.css .c-sysnotice__medallion → --surface-accent',
+      /* ★ #1354: the notice medallion LEFT the census — it fills with the canvas sent colour (--surface-bubble-sent) and inks with the sent bubble's own --text-bubble-sent */
       'src/styles/components/chats-swipe.css .c-swipe__action[data-action="mute"] → --surface-neutral-inverse-01',
     ];
     const censusMissing = CENSUS_EXPECT.filter((e) => !fillRows.includes(e));
@@ -38160,14 +38173,29 @@ console.log('★★ #1001–#1010 — the premium polish round');
       '★★ #1017: the disc palette is the avatar palette — slots 1–11 are avatar pairs 1–11 (read from avatar.css), 180° like the avatars, red (pair 0) stays reserved for destructive, no stale slot 12–14, and the white glyph carries the avatar shadow. Per slot: ' + JSON.stringify(pairs));
     /* #1017 ② neighbours never share a colour — executed on the REAL hub */
     const hubHost = d.createElement('div'); d.body.append(hubHost);
-    const hub = S.createSettingsHub({ nickname: 'Ana', address: 'x', onChatAppearance() {}, onLanguage() {}, onTheme() {}, onBackup() {}, onDanger() {}, onContributors() {}, onAbout() {}, onHowTo() {}, onDownloads() {}, onContacts() {}, strings: {} });
+    const hub = S.createSettingsHub({ nickname: 'Ana', address: 'x', onChatAppearance() {}, onLanguage() {}, onTheme() {}, onBackup() {}, onDanger() {}, onContributors() {}, onAbout() {}, onHowTo() {}, onDownloads() {}, onContacts() {}, strings: {}, capabilities: { downloads: true, contributors: true } });   /* ★ #1352: the two gated App rows present, so all four pins are on the hub */
     hubHost.append(hub);
-    const seq = [...hub.querySelectorAll('.c-disc')].filter((x) => x.dataset.hue !== 'error' && x.dataset.grad).map((x) => x.dataset.grad);
+    const walkedD = [...hub.querySelectorAll('.c-disc')].filter((x) => x.dataset.hue !== 'error' && x.dataset.grad);
+    const seq = walkedD.map((x) => x.dataset.grad);
     const adjSame = seq.filter((g, i) => i && g === seq[i - 1]).length;
-    ok(seq.length >= 6 && adjSame === 0 && seq.join() === S.DISC_SEQUENCE.concat(S.DISC_SEQUENCE).slice(0, seq.length).join()
+    /* ★ #1352 RE-BASE (Damir 2026-10-12 12:24): How to use / About / Downloads / Contributors PIN their slot (2 / 7 / 4 / 9 —
+       About and Contributors wear their header's colour, swapped with How to use and Downloads); a pinned disc still takes
+       its turn, so every UNPINNED disc keeps the sequence slot it had, and no neighbours share a colour */
+    const pinsOk = ['howto:2', 'about:7', 'downloads:4', 'contributors:9'].every((kv) => { const [k, g] = kv.split(':'); const r = hub.querySelector('[data-setting-key="' + k + '"] .c-disc'); return r && r.dataset.grad === g && r.dataset.gradPin === g; });
+    const expect = S.DISC_SEQUENCE.concat(S.DISC_SEQUENCE).slice(0, seq.length);
+    const unpinnedOk = walkedD.every((x, i) => x.dataset.gradPin || x.dataset.grad === String(expect[i]) || (i && seq[i - 1] === String(expect[i])) || seq[i + 1] === String(expect[i]));
+    ok(seq.length >= 6 && adjSame === 0 && pinsOk && unpinnedOk
        && new Set(S.DISC_SEQUENCE).size === 11 && S.DISC_SEQUENCE.every((g) => g >= 1 && g <= 11),
-      '★★ #1017: on the Account hub no two neighbouring discs share a colour — they walk the hue-hopping sequence (all eleven slots before any repeats). Got ' + seq.join(','));
+      '★★ #1017: on the Account hub no two neighbouring discs share a colour — they walk the hue-hopping sequence (all eleven slots before any repeats); ★ #1352: How to use 2 · About 7 · Downloads 4 · Contributors 9 are pinned and keep their turn. Got ' + seq.join(','));
     hubHost.remove();
+    /* ★ #1352: a walked disc never lands on a PINNED neighbour's colour (the row order differs by platform) — synthetic:
+       the first walked slot is 7 and its pinned neighbour is 7, so it must move */
+    const syn = d.createElement('div');
+    const mkD = (pin) => { const x = d.createElement('span'); x.className = 'c-disc'; x.dataset.hue = 'info'; x.dataset.grad = String(pin || 1); if (pin) x.dataset.gradPin = String(pin); syn.append(x); return x; };
+    const sa = mkD(0), sb = mkD(7), sc = mkD(0);
+    S.spreadDiscs(syn);
+    ok(sb.dataset.grad === '7' && sa.dataset.grad !== '7' && sc.dataset.grad !== '7' && sc.dataset.grad === String(S.DISC_SEQUENCE[2]),
+      '★ #1352: spreadDiscs keeps a pinned disc, counts its turn, and moves a walked neighbour that would share its colour — got ' + [sa, sb, sc].map((x) => x.dataset.grad).join(','));
     /* #1022 (Opus r1 M1): the Backup "what's inside" grid also spreads its discs — four distinct colours */
     const bk = S.createSettingsBackup({ onBack() {}, onBackup() {}, strings: {} });
     const bkSeq = [...bk.querySelectorAll('.c-settings-backup__inside-tile .c-disc')].map((x) => x.dataset.grad);
@@ -38789,9 +38817,10 @@ console.log('★★ #1028+ — the overnight finalization');
     const d1 = Number(resolveTok('dark', '--chat-pattern-alpha-1'));
     const dDark = Lstar(mix(resolveTok('dark', '--chat-canvas-base'), resolveTok('dark', '--chat-pattern-ink'), d1)) - Lstar(resolveTok('dark', '--chat-canvas-base'));
     const strongAbove = ['light', 'dark'].every((t) => Number(resolveTok(t, '--chat-pattern-alpha-2')) > Number(resolveTok(t, '--chat-pattern-alpha-1')));
-    /* ★ S17 C v3 RE-BASE (Damir 21:57, "pattern opacity −20 %"): light 0.128 / dark 0.104 — ΔL* 8.52 / 7.07 / 9.32 measured; the
-       floors follow his pick one step down (8 / 7 / 9) so a further drop still fails */
-    ok(a1 === 0.128 && d1 === 0.104 && dMist >= 8 && dGrad >= 7 && dDark >= 9 && strongAbove,
+    /* ★ #1351 RE-BASE (S17 walk, Damir 2026-10-12 11:20, "reduce the opacity of background patterns by 20 % in all cases"):
+       light 0.1024 / dark 0.0832 — ΔL* 6.74 / 5.64 / 7.32 measured; the floors follow his pick one step down (6 / 5 / 7).
+       ★ S17 C v3 RE-BASE (Damir 21:57): light 0.128 / dark 0.104 — ΔL* 8.52 / 7.07 / 9.32, floors 8 / 7 / 9 (superseded) */
+    ok(a1 === 0.1024 && d1 === 0.0832 && dMist >= 6 && dGrad >= 5 && dDark >= 7 && strongAbove,
       '★ #1058 + #1039 (walk OV.16) + #1029 (walk P.8): the pattern alpha is light ' + a1 + ' / dark ' + d1 + ' — the ink separates by ΔL* ' + dMist.toFixed(2) + ' on Mist, ' + dGrad.toFixed(2) + ' on the brand gradient and ' + dDark.toFixed(2) + ' on the dark canvas (was 4.97 / 4.19 / 2.80 at 0.075 / 0.04); Strong stays above the default in both themes: ' + strongAbove);
   }
   {
@@ -38806,7 +38835,7 @@ console.log('★★ #1028+ — the overnight finalization');
          && /:root\[data-theme='dark'\] \[data-chat-ground='flat'\] \{\s*--gradient-chat: var\(--chat-canvas-base\);\s*--surface-bubble-sent: #1A4A96;/.test(tk66)   /* ★ S17 C v3: + the flat tile's own bubble (no other canvas's colour leaks into it) */
          && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\]/.test(tk66)
          /* #46 r1 (C MINOR-1): the notice card gets its edge back on the dark gradient; (C MINOR-3) the failed badge keeps the loud red */
-         && /:root\[data-theme='dark'\]\[data-chat-ground='gradient'\] \.c-sysnotice__card,\s*:root\[data-theme='dark'\] \[data-chat-ground='gradient'\] \.c-sysnotice__card \{\s*box-shadow: var\(--elevation-2\), inset 0 0 0 1px rgba\(118, 157, 255, 0\.28\);/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8')))
+         && !/:root\[data-theme='dark'\](?:\[data-chat-ground='gradient'\]| \[data-chat-ground='gradient'\]) \.c-sysnotice__card/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8')))   /* ★ #1354: the #1066 DARK hairline RETIRED with the neutral card (the light white-card rule stays) */
          && /\.c-fbubble\[data-state="failed"\] \.c-fbubble__badge \{ background: var\(--error-600\);/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/typed-bubbles.css'), 'utf8'))),
         '★★ #1066 (Damir, picked B): the DARK brand gradient — blue-violet #151B36 → #11142A → the #0C0E10 midnight ground — on the root (the chat) and on a descendant (the settings preview + dot), with the flat descendant reset so the Solid dot never inherits it; the light rule is untouched');
     }
@@ -42341,7 +42370,7 @@ for (const mod of ['a-cascade', 'b-swap']) await (await import(new URL('./pins-s
 for (const mod of ['a1-backup-back', 'a2-container-ride', 'b-settings', 'c-balance-text', 'd-backup-about', 'e-wallet']) await (await import(new URL('./pins-s14/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S14 (#1279–#1286) — a1 = Android back callback + backup rules on the runtime path · a2 = overlay container (Clip) + chat info rides the swap · b = landtab one verb + aboutLink whitelist · c = no balance in a WebView failure text
 for (const mod of ['a-restore', 'b-native', 'c-sinks', 'c-transport', 'd-build', 'e-send-enter', 'f-strip']) await (await import(new URL('./pins-s15/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S15 — a = the restore all-or-nothing + wipe + real avatar (#1297)
 for (const mod of ['a-sec', 'b-l8', 'c-fix']) await (await import(new URL('./pins-s16/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S16 — a = the security batch (#1320 F1–F5 / F8, #1313 MAJOR #9) · b = L8 walletpass → SecureStorage (#1300) · c = #1311 (a)(b)(c) + the hold shield (#1294 (c))
-for (const mod of ['d-set', 'b-about', 'c-appearance', 'e-downloads', 'e-picks', 'a-whatsnew', 'f-moments', 'f-moments2']) await (await import(new URL('./pins-s17/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S17 (#1331–#1350) — d = the illustration set · b = About · c = Chat appearance · e = settings screens · a = What's new · f = Moment sheets
+for (const mod of ['d-set', 'b-about', 'c-appearance', 'e-downloads', 'e-picks', 'a-whatsnew', 'f-moments', 'f-moments2', 'g-slide-layer', 'h-theme-picker', 'i-chat-accent', 'j-danger-align', 'k-sparkle-swap', 'l-address-card']) await (await import(new URL('./pins-s17/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S17 (#1331–#1350) — d = the illustration set · b = About · c = Chat appearance · e = settings screens · a = What's new · f = Moment sheets · g = the slide layer out of the flow (#1351)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

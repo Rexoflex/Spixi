@@ -498,7 +498,14 @@ let addrSheetLive = null;                                  // loop fix: a double
  * rather than re-wording it into something true but pointless.
  * `title` lets the caller name whose address it is; everything else is identical, which
  * is the point — one address surface, one set of rules (#527). */
-export function openAddressSheet({ address = '', strings = getStrings(), host, onShare, subject = 'self', title = '' } = {}) {
+/* ★★ #1358 (Damir 2026-10-12 14:54, Direction A of the render "Spixi Address Sheet", docs/renders/address-sheet/):
+ * the four boxes become ONE identity CARD — a soft band, the avatar + name when the caller knows them (Account), the one-line
+ * explainer under it (no box), the QR on its white plate, and the address as ONE start…end group (Damir: "grouped in 1, not
+ * many groups like credit cards") with a labelled Copy; Share is the one full-width filled action under the card; the safety
+ * line is one quiet line at the foot. Tapping the short address shows it in full (the copy-failure copy says "select the
+ * address text instead", which needs the full text on screen). No new string, no new verb; the peer fences are unchanged
+ * (no Share, no safety line). `name` / `avatar` are optional: Wallet › Receive and the contact page pass none. */
+export function openAddressSheet({ address = '', strings = getStrings(), host, onShare, subject = 'self', title = '', name = '', avatar = null } = {}) {
   const peer = subject === 'peer';
   // audit m2 holds for the EXPORT too: no address, no confidently scannable garbage QR
   if (!String(address).trim()) return null;
@@ -522,6 +529,26 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
              : (strings.addressInfoTitle || 'Your Ixian address'));
   content.setAttribute('aria-label', sheetTitle);
   const qrValue = address + ':ixi';                        // legacy receive format (wallet_request parity)
+  /* ★ #1358: the identity card holds the explainer, the QR and the address; Share and the safety line sit under it */
+  const idCard = document.createElement('div');
+  idCard.className = 'c-addr-sheet__card';
+  const band = document.createElement('div');
+  band.className = 'c-addr-sheet__band';
+  band.setAttribute('aria-hidden', 'true');
+  idCard.append(band);
+  const who = String(name || '').trim();
+  if (who || avatar) {
+    idCard.dataset.who = '';
+    const av = createAvatar({ src: avatar, name: who, address, size: 64 });
+    av.classList.add('c-addr-sheet__avatar');
+    av.setAttribute('aria-hidden', 'true');
+    const nm = document.createElement('p');
+    nm.className = 'c-addr-sheet__name';
+    nm.textContent = who;
+    idCard.append(av);
+    if (who) idCard.append(nm);
+  }
+  content.append(idCard);
 
   /* ★★ #589 (Damir F5 2026-08-26) — HIS ORDER, not a re-interview:
    *   the info block ABOVE the QR · the address row · the safety line BELOW it.
@@ -550,7 +577,7 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
     return wrap;
   };
 
-  content.append(explainRow({
+  idCard.append(explainRow({
     glyph: 'info-circle', size: 20,
     text: peer
       ? (strings.peerAddressBody
@@ -573,12 +600,8 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
       : (strings.qrReceiveLabel || 'QR code: your Ixian address'),
   }));
   qrWrap.append(card);
-  content.append(qrWrap);
-
-  const caption = document.createElement('p');
-  caption.className = 'c-wallet-receive__caption c-addr-sheet__caption';
-  caption.textContent = strings.receiveCaption || 'Scan to send IXI to this address';   // true for both subjects
-  content.append(caption);
+  idCard.append(qrWrap);
+  /* ★ #1358: the caption under the QR is gone — the explainer line under the name already says what the code does */
 
   /* full address + honest copy morph (#99 chip pattern; audit m1/m6 rules kept) */
   /* ⚠ review MINOR-6: the retired hub chip announced copy success and failure through
@@ -597,6 +620,26 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
   const addrValue = document.createElement('span');
   addrValue.className = 'c-wallet-receive__addrvalue u-tabular';
   addrValue.textContent = address;
+  /* ★ #1358: ONE start…end group (8 + 8). The full value stays in the DOM (screen readers read it; it is what a pin and a
+     selection see); a tap on the short form shows it in full, a second tap folds it again. */
+  const addrS = String(address);
+  const shortBtn = document.createElement('button');
+  shortBtn.type = 'button';
+  shortBtn.className = 'c-addr-sheet__short u-tabular';
+  shortBtn.setAttribute('aria-expanded', 'false');
+  shortBtn.setAttribute('aria-label', addrS);
+  shortBtn.textContent = addrS.length > 20 ? addrS.slice(0, 8) + ' … ' + addrS.slice(-8) : addrS;
+  shortBtn.addEventListener('click', () => {
+    const full = !addrRow.hasAttribute('data-full');
+    addrRow.toggleAttribute('data-full', full);
+    shortBtn.setAttribute('aria-expanded', String(full));
+  });
+  addrValue.addEventListener('click', () => {   // the full value folds back on a tap (a selection drag is not a click)
+    if (!addrRow.hasAttribute('data-full') || String(window.getSelection && window.getSelection()).length) return;
+    addrRow.removeAttribute('data-full');
+    shortBtn.setAttribute('aria-expanded', 'false');
+    shortBtn.focus();
+  });
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = 'c-wallet-receive__copy';
@@ -604,18 +647,21 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
     ? (strings.copyAddress || 'Copy address')
     : (strings.copy || 'Copy') + ', ' + (strings.yourAddress || 'Your address');
   copy.setAttribute('aria-label', copyIdle);
-  copy.append(icon('copy', { size: 18 }));
+  /* ★ #1358: a LABELLED pill ("Copy" → "Copied"), the morph keeps the glyph + the live region */
+  const copyText1 = (t) => { const x = document.createElement('span'); x.className = 'c-addr-sheet__copytext'; x.textContent = t; return x; };
+  copy.classList.add('c-addr-sheet__copy');
+  copy.append(icon('copy', { size: 18 }), copyText1(strings.copy || 'Copy'));
   let copyTimer = null;
   const copyMorph = (glyph, label) => {
     copy.textContent = '';
-    copy.append(icon(glyph, { size: 18 }));
+    copy.append(icon(glyph, { size: 18 }), copyText1(glyph === 'check' ? label : (strings.copy || 'Copy')));
     copy.setAttribute('aria-label', label);
     live.textContent = label;                            // review MINOR-6: announce it
     copy.dataset.state = glyph === 'check' ? 'ok' : 'fail';
     if (copyTimer) clearTimeout(copyTimer);                // overlapping clicks: latest wins (audit m6)
     copyTimer = setTimeout(() => {
       copy.textContent = '';
-      copy.append(icon('copy', { size: 18 }));
+      copy.append(icon('copy', { size: 18 }), copyText1(strings.copy || 'Copy'));
       copy.setAttribute('aria-label', copyIdle);
       delete copy.dataset.state;
       copyTimer = null;
@@ -634,21 +680,24 @@ export function openAddressSheet({ address = '', strings = getStrings(), host, o
    * same kind of act on the same value, so they sit together on the chip.
    * ⚠ Its own <button>, not createButton: the chip's controls are 40px icon
    * squares (wallet-receive.css), and a 44px c-button would break that row. */
-  addrRow.append(addrValue, copy);
+  addrRow.append(shortBtn, addrValue, copy);
   /* ⚠ `!peer` is a COMPONENT-LEVEL fence, not a caller's discipline (round-2 review).
      `ixian:share` shares the USER'S OWN primary address (HomePage:908-913), so a Share
      control on someone else's address would send the wrong one. The shell already
      declines to pass a handler; this makes a future caller unable to reintroduce it. */
+  idCard.append(addrRow);
+  /* ★ #1358 (Direction A, Damir 14:54 "build A"): Share is the ONE filled, full-width action, under the card. This reverses
+     #575's "Share is an icon beside Copy" (that row was a full-width OUTLINE bar for a secondary action; here Share is the
+     primary act of the sheet, and Copy keeps its labelled pill beside the value it copies). */
   if (onShare && !peer) {
-    const share = document.createElement('button');
-    share.type = 'button';
-    share.className = 'c-wallet-receive__copy c-addr-sheet__sharebtn';
-    share.setAttribute('aria-label', strings.shareAddress || 'Share address');
-    share.append(icon('share-3', { size: 18 }));
-    share.addEventListener('click', () => onShare({ address, amount: null, value: qrValue }));
-    addrRow.append(share);
+    const share = createButton({
+      label: strings.shareAddress || 'Share address', type: 'fill', size: 56, width: 'full',
+      icon: icon('share-3', { size: 20 }),
+      onClick: () => onShare({ address, amount: null, value: qrValue }),
+    });
+    share.classList.add('c-addr-sheet__sharebtn');
+    content.append(share);
   }
-  content.append(addrRow);
 
   /* the safety line, DIRECTLY under the address block it is about (#589). Same
      glyph-gutter grammar as the info block above the QR; the shield keeps its

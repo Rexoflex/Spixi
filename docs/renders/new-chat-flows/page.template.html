@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi New Chat Flows</title>
+<style>
+/* ===================== page chrome (not the app) ===================== */
+:root {
+  --pg-bg: #eef1f4;
+  --pg-surface: #ffffff;
+  --pg-ink: #131415;
+  --pg-ink-2: #4f5664;
+  --pg-line: #dde2e9;
+  --pg-accent: #3050bd;
+  --pg-rec: #0b6b2e;
+  --pg-rec-bg: #e4f4ea;
+  --pg-rec-line: #9fd4b1;
+  --pg-warn: #8a4b00;
+  --pg-warn-bg: #fdf0dc;
+  --pg-code-bg: #e6eaef;
+  --pg-bezel: #16181b;
+  --pg-shadow: 0 18px 40px -18px rgba(17, 18, 19, .35);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pg-bg: #0a0b0d;
+    --pg-surface: #15171a;
+    --pg-ink: #e8ecee;
+    --pg-ink-2: #bbbec4;
+    --pg-line: #2c2e31;
+    --pg-accent: #98b5fc;
+    --pg-rec: #7fd39a;
+    --pg-rec-bg: #10241a;
+    --pg-rec-line: #2b5a3c;
+    --pg-warn: #f2c27a;
+    --pg-warn-bg: #2a1f0e;
+    --pg-code-bg: #1f2226;
+    --pg-bezel: #2a2d31;
+    --pg-shadow: 0 18px 40px -18px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: #0a0b0d;
+  --pg-surface: #15171a;
+  --pg-ink: #e8ecee;
+  --pg-ink-2: #bbbec4;
+  --pg-line: #2c2e31;
+  --pg-accent: #98b5fc;
+  --pg-rec: #7fd39a;
+  --pg-rec-bg: #10241a;
+  --pg-rec-line: #2b5a3c;
+  --pg-warn: #f2c27a;
+  --pg-warn-bg: #2a1f0e;
+  --pg-code-bg: #1f2226;
+  --pg-bezel: #2a2d31;
+  --pg-shadow: 0 18px 40px -18px rgba(0, 0, 0, .8);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--pg-bg);
+  color: var(--pg-ink);
+  font: 15px/1.5 Roboto, Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+.wrap { max-width: 1660px; margin: 0 auto; padding: 32px 16px 64px; }
+.eyebrow { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--pg-ink-2); font-weight: 600; }
+h1 { margin: 0 0 8px; font-size: 32px; line-height: 1.15; letter-spacing: -.5px; }
+h2 { margin: 0 0 6px; font-size: 22px; line-height: 1.25; }
+h3 { margin: 20px 0 6px; font-size: 16px; }
+p { margin: 0 0 10px; max-width: 76ch; }
+.intro { color: var(--pg-ink-2); }
+code { font: 12.5px/1.4 "DejaVu Sans Mono", ui-monospace, monospace; background: var(--pg-code-bg); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+.topline { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.seg { display: inline-flex; padding: 4px; border-radius: 12px; background: var(--pg-surface); border: 1px solid var(--pg-line); }
+.seg button { border: 0; background: transparent; color: var(--pg-ink-2); font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--pg-accent); color: var(--pg-bg); }
+.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; padding: 0; list-style: none; }
+.toc a { display: inline-block; padding: 6px 12px; border-radius: 999px; background: var(--pg-surface); border: 1px solid var(--pg-line); color: var(--pg-ink); text-decoration: none; font-size: 14px; }
+
+.rec { border: 1px solid var(--pg-rec-line); background: var(--pg-rec-bg); border-radius: 18px; padding: 18px 20px; margin: 0 0 36px; }
+.rec .eyebrow { color: var(--pg-rec); }
+.rec p { margin: 0 0 6px; max-width: none; font-size: 16px; }
+.rec p b { color: var(--pg-rec); }
+.rec ul { margin: 4px 0 8px; padding-inline-start: 22px; }
+.rec li { margin: 0 0 4px; }
+
+.flow { margin: 0 0 56px; padding-top: 8px; border-top: 2px solid var(--pg-line); }
+.flow > h2 { font-size: 26px; margin-top: 18px; }
+section.sec { margin: 0 0 40px; }
+.sec-head { margin-bottom: 14px; }
+.tag { display: inline-block; vertical-align: middle; margin-inline-start: 8px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.tag.rec-t { background: var(--pg-rec-bg); color: var(--pg-rec); border: 1px solid var(--pg-rec-line); }
+.tag.alt-t { background: var(--pg-code-bg); color: var(--pg-ink-2); }
+.tag.now-t { background: var(--pg-warn-bg); color: var(--pg-warn); }
+
+.frames { display: flex; flex-wrap: wrap; gap: 28px 24px; margin: 18px 0 18px; padding: 4px; }
+.fg { margin: 0; }
+.fg figcaption { margin-top: 10px; font-size: 13px; color: var(--pg-ink-2); text-align: center; max-width: 376px; }
+.fg figcaption b { color: var(--pg-ink); font-weight: 600; }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; }
+.note { background: var(--pg-surface); border: 1px solid var(--pg-line); border-radius: 16px; padding: 16px 18px; min-width: 0; }
+.note h3 { margin-top: 0; }
+.note ul { margin: 0; padding-inline-start: 20px; }
+.note li { margin: 0 0 7px; }
+.note li:last-child { margin-bottom: 0; }
+
+.tbl { overflow-x: auto; border: 1px solid var(--pg-line); border-radius: 14px; background: var(--pg-surface); margin-bottom: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: start; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--pg-line); }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--pg-ink-2); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+footer { margin-top: 40px; font-size: 13px; color: var(--pg-ink-2); }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ===================== the app (resolved tokens of src/styles/tokens.css) ===================== */
+.t-light {
+  --surface-screen: #f9fafb; --surface-card: #edf0f2; --surface-input: #edf0f2; --surface-input-on-card: #ffffff;
+  --elevation-1: 0 1px 2px rgba(17, 18, 19, 0.06), 0 1px 3px rgba(17, 18, 19, 0.1);
+  --elevation-3: 0 8px 16px rgba(17, 18, 19, 0.12), 0 12px 32px rgba(17, 18, 19, 0.14);
+  --surface-settings-ground: #f3f5f7; --surface-settings-card: #ffffff; --surface-input-on-settings-card: #edf0f2;
+  --elevation-settings-card: 0 1px 2px rgba(17, 18, 19, 0.03), 0 1px 3px rgba(17, 18, 19, 0.05);
+  --outline-neutral-01: #e8ecee; --outline-neutral-02: #dde2e9; --outline-neutral-03: #c7cbd1; --outline-neutral-04: #bbbec4; --outline-on-card: #dde2e9;
+  --text-neutral-01: #131415; --text-neutral-02: #4f5664; --icon-neutral-01: #131415; --icon-neutral-02: #4f5664;
+  --icon-action-default: #3050bd; --text-action-default: #3050bd; --surface-action-default: #3050bd; --outline-action-default: #3050bd; --text-neutral-on-action: #f9fafb;
+  --surface-action-tonal-default: #c9d5ed; --surface-action-disabled: #dde2e9; --text-neutral-on-disabled: #6a717c;
+  --text-error: #b12525; --icon-success: #007030;
+  --surface-neutral-01: #f9fafb; --surface-neutral-04: #dde2e9;
+  --surface-sheet: #f9fafb; --surface-sheet-card: #edf0f2; --surface-sheet-card-pressed: #dde2e9;
+  --disc-primary-bg: #c9d5ed; --disc-primary-ink: #3050bd;
+  --switch-track-off: #dde2e9; --switch-knob: #f9fafb;
+  --topbar-line: #e8ecee; --scrim: rgba(17, 18, 19, 0.35);
+  --il-glow: #9aa8ff; --il-shadow: #3b3f9e; --il-shadow-a: .16; --il-spark: #7186ff; --il-dotc: #ac90ff; --il-screen: #f4f5f8; --il-ring-a: .9; --il-ring-c: #7c6cf0;
+  /* #1358 identity card (wallet-receive.css .c-addr-sheet__card / __band, light) */
+  --idc-bg: #ffffff; --idc-bg-sheet: #ffffff; --idc-glass: rgba(255, 255, 255, .72); --fx-sh-bg: #ffffff;
+  --band: radial-gradient(60% 140% at 12% 0%, rgba(154, 122, 255, .85) 0%, transparent 70%), radial-gradient(55% 150% at 92% 10%, rgba(255, 142, 198, .80) 0%, transparent 70%), radial-gradient(70% 120% at 55% 120%, rgba(108, 159, 255, .75) 0%, transparent 70%), linear-gradient(180deg, #F3EFFF, #E2DCFD);
+  --kb-bg: #e3e6ea; --kb-key: #ffffff; --kb-key-2: #c9ced6; --kb-ink: #131415; --kb-chip: #ffffff;
+  color-scheme: light;
+}
+.t-dark {
+  --surface-screen: #0F1113; --surface-card: #1A1C1F; --surface-input: #1A1C1F; --surface-input-on-card: #0F1113;
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elevation-3: 0 8px 20px rgba(0, 0, 0, 0.6);
+  --surface-settings-ground: #0F1113; --surface-settings-card: #1A1C1F; --surface-input-on-settings-card: #0F1113;
+  --elevation-settings-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --outline-neutral-01: #1A1C1F; --outline-neutral-02: #232528; --outline-neutral-03: #2C2E31; --outline-neutral-04: #37393C; --outline-on-card: #2C2E31;
+  --text-neutral-01: #e8ecee; --text-neutral-02: #bbbec4; --icon-neutral-01: #e8ecee; --icon-neutral-02: #bbbec4;
+  --icon-action-default: #769dff; --text-action-default: #769dff; --surface-action-default: #3050bd; --outline-action-default: #769dff; --text-neutral-on-action: #f9fafb;
+  --surface-action-tonal-default: #192853; --surface-action-disabled: #232528; --text-neutral-on-disabled: #bbbec4;
+  --text-error: #f49c92; --icon-success: #69b67a;
+  --surface-neutral-01: #0F1113; --surface-neutral-04: #2C2E31;
+  --surface-sheet: #1A1C1F; --surface-sheet-card: #232528; --surface-sheet-card-pressed: #35373A;
+  --disc-primary-bg: #0d1324; --disc-primary-ink: #98b5fc;
+  --switch-track-off: #232528; --switch-knob: #e8ecee;
+  --topbar-line: #232528; --scrim: rgba(17, 18, 19, 0.7);
+  --il-glow: #6c63ff; --il-shadow: #0b0a2a; --il-shadow-a: .32; --il-spark: #bcc8ff; --il-dotc: #c7b5ff; --il-screen: #15171c; --il-ring-a: .7; --il-ring-c: #ffffff;
+  --idc-bg: #1A1C1F; --idc-bg-sheet: #232528; --idc-glass: rgba(15, 17, 19, .55); --fx-sh-bg: #0F1113;
+  --band: radial-gradient(60% 140% at 12% 0%, rgba(91, 70, 240, .85) 0%, transparent 70%), radial-gradient(55% 150% at 92% 10%, rgba(192, 63, 147, .80) 0%, transparent 70%), radial-gradient(70% 120% at 55% 120%, rgba(47, 99, 255, .75) 0%, transparent 70%), linear-gradient(180deg, #1D1A3D, #14122C);
+  --kb-bg: #1d1f22; --kb-key: #3a3d42; --kb-key-2: #2a2d31; --kb-ink: #e8ecee; --kb-chip: #2a2d31;
+  color-scheme: dark;
+}
+/* theme-STABLE (both blocks): disc pairs + shade (base.css .c-disc, today) and the hub discs (tokens.css --disc-hub-*) */
+.ph {
+  --disc-shade: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15));
+  --disc-grad-7: linear-gradient(180deg, #2CB1FF 0%, #3480EC 100%);
+  --disc-grad-8: linear-gradient(180deg, #909CFF 0%, #8A68E3 100%);
+  --disc-hub-7: linear-gradient(180deg, #35B0FF 0%, #007DFF 100%);
+  --disc-hub-8: linear-gradient(180deg, #A29BFF 0%, #785AFF 100%);
+  position: relative;
+  width: 360px; height: 780px;
+  flex: none;
+  border-radius: 44px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--surface-screen);
+  color: var(--text-neutral-01);
+  font-family: Roboto, Inter, system-ui, sans-serif;
+  font-size: 16px; line-height: 24px;
+  box-shadow: 0 0 0 8px var(--pg-bezel), var(--pg-shadow);
+  margin: 8px;
+}
+.ph .ic { display: block; flex: none; }
+:where(.ph) p { margin: 0; max-width: none; }
+.sb { flex: none; height: 36px; padding: 10px 26px 0; display: flex; justify-content: space-between; font-size: 13px; line-height: 18px; font-weight: 500; background: var(--surface-screen); }
+.sb-r { display: inline-flex; align-items: center; gap: 4px; }
+.sig { display: inline-block; width: 0; height: 0; border-left: 10px solid transparent; border-bottom: 10px solid currentColor; }
+.tb { flex: none; height: 56px; display: flex; align-items: center; gap: 8px; padding-inline: 8px; border-bottom: 1px solid var(--topbar-line); background: var(--surface-screen); }
+.tb-back { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--icon-neutral-01); }
+.tb-title { font-size: 20px; line-height: 24px; font-weight: 600; letter-spacing: -.5px; }
+.bd { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 30px; }   /* 30: the gesture bar zone */
+.bd > * { flex: none; }
+.bd-scr { background: var(--surface-screen); }
+.bd-g { background: var(--surface-settings-ground); }
+.hi { position: absolute; left: 50%; bottom: 8px; width: 120px; height: 4px; margin-left: -60px; border-radius: 2px; background: var(--text-neutral-01); opacity: .55; z-index: 9; }
+/* the sticky footer (.c-contacts__footer) */
+.ft { flex: none; padding: 12px 16px 30px; border-top: 1px solid var(--outline-neutral-01); background: var(--surface-screen); }
+.ft-g { background: var(--surface-settings-ground); }
+.has-kb .ft { padding-bottom: 12px; }
+.has-kb .bd { padding-bottom: 16px; }
+
+/* atoms */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.btn-fill { background: var(--surface-action-default); color: var(--text-neutral-on-action); }
+.btn.is-dis { background: var(--surface-action-disabled); color: var(--text-neutral-on-disabled); }
+.btn-56 { height: 56px; width: 100%; font-size: 16px; }
+.btn-o32 { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--outline-action-default); border-radius: 999px; color: var(--text-action-default); font-size: 14px; font-weight: 600; }
+.spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-top-color: transparent; opacity: .9; transform: rotate(35deg); }
+.caret { display: inline-block; width: 2px; height: 20px; background: var(--outline-action-default); margin-inline: 1px; vertical-align: middle; }
+.is-dim { opacity: .4; }
+.cg { display: flex; flex-direction: column; background: var(--surface-card); border-radius: 16px; padding: 4px; box-shadow: var(--elevation-1); }
+.card { background: var(--surface-settings-card); box-shadow: var(--elevation-settings-card); border-radius: 16px; }
+.col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.nm { min-width: 0; font-size: 16px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub { min-width: 0; font-size: 14px; line-height: 20px; color: var(--text-neutral-02); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-w { white-space: normal; }
+.av { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 600; letter-spacing: 0; background: linear-gradient(180deg, var(--av1), var(--av2)); text-shadow: 0 1px 1px rgba(0, 0, 0, .25); line-height: 1; }
+.av .ic { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .2)); }
+.dsc { flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: var(--disc-shade), var(--dg); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16); }
+.dsc .ic { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .25)); }
+.dsc.hub { background: var(--dg); }
+.dsc.hub .ic { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .18)); }
+.g-7 { --dg: var(--disc-grad-7); }
+.g-8 { --dg: var(--disc-grad-8); }
+.hub-7 { --dg: var(--disc-hub-7); }
+.hub-8 { --dg: var(--disc-hub-8); }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border: 1px solid var(--outline-neutral-04); border-radius: 16px; background: var(--surface-neutral-01); color: var(--text-neutral-01); font-size: 14px; line-height: 20px; font-weight: 500; white-space: nowrap; max-width: 100%; min-width: 0; }
+.chip.is-on { background: var(--surface-action-tonal-default); border-color: var(--outline-action-default); color: var(--text-action-default); }
+.sw { flex: none; position: relative; width: 48px; height: 28px; border: 1px solid var(--outline-neutral-01); border-radius: 999px; background: var(--switch-track-off); }
+.sw i { position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: var(--switch-knob); box-shadow: var(--elevation-1); }
+.card .sw { border-color: var(--outline-neutral-02); }   /* directions: the settings switch's border (settings-shell.css), not the local -01 copy */
+.sw.is-on { background: var(--surface-action-default); border-color: var(--surface-action-default); }
+.sw.is-on i { transform: translateX(20px); }
+.ph-t { color: var(--text-neutral-02); display: inline-flex; align-items: center; }
+.ln { display: flex; gap: 6px; align-items: flex-start; font-size: 14px; line-height: 20px; }
+.ln-ok { color: var(--text-neutral-02); }
+.ln-ok .ic { color: var(--icon-success); margin-top: 2px; }
+.ln-bad { color: var(--text-error); }
+.ln-bad .ic { margin-inline-start: -2px; }
+.ln-rule { color: var(--text-neutral-02); }
+.ln-rule .ic { color: var(--icon-neutral-02); margin-top: 1px; }
+.cap { display: flex; gap: 10px; align-items: flex-start; margin: 0 4px; color: var(--text-neutral-02); font-size: 14px; line-height: 20px; }
+.cap .ic { color: var(--icon-neutral-02); margin-top: 1px; }
+.lab { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text-neutral-02); }
+
+/* ---- 1 TODAY: contacts-shell.css add-contact as shipped ---- */
+.t1-note { color: var(--text-neutral-02); font-size: 14px; line-height: 20px; padding-inline: 4px; }
+.t1-group { padding: 12px; gap: 8px; }
+.t1-field { display: flex; gap: 8px; }
+.t1-input { flex: 1; min-width: 0; display: flex; align-items: center; padding: 12px 16px; border: 1px solid var(--outline-neutral-02); border-radius: 12px; background: var(--surface-input-on-card); font-size: 16px; line-height: 20px; white-space: nowrap; overflow: hidden; }
+.t1-input.is-focus { outline: 2px solid var(--outline-action-default); outline-offset: 1px; border-color: var(--outline-action-default); }
+.t1-val { overflow: hidden; }
+.t1-ph { color: var(--text-neutral-02); display: inline-flex; align-items: center; }
+.t1-scan { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--outline-neutral-02); border-radius: 12px; color: var(--icon-action-default); }
+.t1-valid { display: flex; align-items: center; gap: 4px; color: var(--text-neutral-02); font-size: 14px; line-height: 20px; }
+.t1-valid .ok { color: var(--icon-success); }
+.t1-err { font-size: 14px; line-height: 20px; color: var(--text-error); }
+.t1-known { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.t1-known p { color: var(--text-neutral-02); font-size: 14px; line-height: 20px; }
+
+/* ---- 1 A / B: the field in a settings card ---- */
+.a1-card { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+.fx { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 4px 0 14px; border-radius: 12px; background: var(--surface-input-on-settings-card); border: 1px solid transparent; font-size: 16px; min-width: 0; }
+.fx.is-focus { border: 2px solid var(--outline-action-default); padding: 0 3px 0 13px; }
+.fx.is-bad { border: 2px solid var(--text-error); padding: 0 3px 0 13px; }
+.fx-val { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; letter-spacing: .01em; }
+.fx-ph { flex: 1; min-width: 0; color: var(--text-neutral-02); display: inline-flex; align-items: center; white-space: nowrap; }
+.fx-ok { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--icon-success); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.t-dark .fx-ok { color: #0F1113; }
+.fx-sep { flex: none; width: 1px; height: 24px; background: var(--outline-on-card); }
+.fx-btn { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--icon-action-default); }
+.paste { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--surface-action-tonal-default); color: var(--text-action-default); font-size: 14px; font-weight: 600; }
+.a1-known { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-input-on-settings-card); }
+.a1-known-t { flex: 1; min-width: 0; font-size: 14px; line-height: 20px; }
+.a1-known-b { color: var(--text-action-default); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.bd-col { gap: 16px; }
+
+/* the identity card (#1358 grammar: card, halo band, avatar cut into it, start … end) */
+.idc { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 16px 18px; border-radius: 24px; background: var(--idc-bg); box-shadow: var(--elevation-1); overflow: hidden; text-align: center; }
+.idc-sheet { --idc-bg: var(--idc-bg-sheet); margin-top: 4px; }
+.idc-band { display: block; align-self: stretch; margin-inline: -16px; height: 62px; background: var(--band); }
+.idc-av { margin-top: -44px; box-shadow: 0 0 0 4px var(--idc-bg), 0 10px 18px -8px rgba(60, 40, 140, .45); }
+.t-dark .idc-av { box-shadow: 0 0 0 4px var(--idc-bg), 0 10px 18px -8px rgba(0, 0, 0, .6); }
+.idc-edit { position: absolute; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 11px 0 9px; border-radius: 999px; background: var(--idc-glass); color: var(--text-neutral-01); font-size: 13px; font-weight: 600; }
+.idc-name { margin-top: -2px; font-size: 20px; line-height: 26px; font-weight: 700; }
+.idc-addr { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Roboto Mono", "DejaVu Sans Mono", monospace; font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: .02em; }
+.idc-line { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; line-height: 20px; color: var(--text-neutral-02); }
+.idc-ok .ic { color: var(--icon-success); }
+
+/* ---- 2: the New chat picker under the sheet (createContactsPicker, purpose 'start') ---- */
+.pk-act { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 4px 8px; }
+.pk-act + .pk-act { border-top: 1px solid var(--outline-on-card); }
+.srch { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; border-radius: 999px; background: var(--surface-input); color: var(--text-neutral-02); }
+.chips { display: flex; gap: 8px; }
+.pk-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px; }
+/* the sheet (overlay.css .c-sheet + contacts-shell.css .c-contacts-addsheet) */
+.ov { position: absolute; left: 0; right: 0; top: 36px; bottom: 0; display: flex; flex-direction: column; justify-content: flex-end; z-index: 5; }
+.ov-kb { bottom: 268px; }
+.scrim { position: absolute; inset: 0; background: var(--scrim); }
+.sh { position: relative; background: var(--surface-sheet); border-radius: 24px 24px 0 0; box-shadow: var(--elevation-3); padding: 8px 16px 34px; }
+.ov-kb .sh { padding-bottom: 16px; }
+.sh-h { display: block; width: 32px; height: 4px; margin: 0 auto 8px; border-radius: 999px; background: var(--outline-neutral-03); }
+.sh-t { margin-bottom: 12px; text-align: center; font-size: 20px; line-height: 24px; font-weight: 600; letter-spacing: -.5px; }
+.sh-hero { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 0 12px; margin-bottom: 24px; }
+.il-art { display: block; overflow: visible; }
+.sh-lead { text-align: center; font-size: 16px; line-height: 24px; }
+.its { display: flex; flex-direction: column; gap: 8px; }
+.it { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border-radius: 12px; background: var(--surface-sheet-card); box-shadow: var(--elevation-1); }
+.med { position: relative; flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--surface-neutral-04); color: var(--text-neutral-01); display: inline-flex; align-items: center; justify-content: center; }
+.med-in { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; }
+.it-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.it-l { font-size: 16px; line-height: 24px; font-weight: 600; }
+.it-h { font-size: 14px; line-height: 20px; color: var(--text-neutral-02); }
+/* A */
+.it-a { align-items: center; }
+.med-hub { background: var(--dg); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16); }
+.med-hub .ic { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .18)); }
+.it-chev { color: var(--icon-neutral-02); }
+.it.is-press { background: var(--surface-sheet-card-pressed); box-shadow: none; }
+/* B */
+.sh-hero-b { gap: 12px; margin-bottom: 16px; }
+.sh-lead-b { font-size: 14px; line-height: 20px; color: var(--text-neutral-02); }
+.sh-field { margin-bottom: 12px; }
+.fx-sh { background: var(--fx-sh-bg); border-color: var(--outline-neutral-02); padding-right: 10px; }
+.fx-sh.is-focus { padding-right: 9px; }
+.sh-rows { display: flex; flex-direction: column; padding: 4px; border-radius: 12px; background: var(--surface-sheet-card); box-shadow: var(--elevation-1); }
+.rw { position: relative; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px; }
+.rw + .rw::before { content: ""; position: absolute; top: 0; left: 56px; right: 12px; height: 1px; background: var(--outline-on-card); }
+.rw-l { flex: 1; min-width: 0; }
+.rw-end { color: var(--icon-neutral-02); }
+.cap-sh { margin: 12px 4px 16px; }
+
+/* ---- 3 TODAY: contacts-shell.css group setup as shipped ---- */
+.t3-hero { align-items: center; gap: 8px; padding: 16px; }
+.t3-av { flex: none; width: 80px; height: 80px; border-radius: 50%; background: var(--disc-primary-bg); color: var(--disc-primary-ink); display: inline-flex; align-items: center; justify-content: center; }
+.t3-hint { color: var(--text-neutral-02); font-size: 14px; line-height: 20px; }
+.t3-name { align-self: stretch; display: flex; justify-content: center; align-items: center; padding: 12px 16px; border: 1px solid var(--outline-neutral-02); border-radius: 12px; background: var(--surface-input-on-card); font-size: 16px; line-height: 20px; }
+.t3-name.is-focus { outline: 2px solid var(--outline-action-default); outline-offset: 1px; border-color: var(--outline-action-default); }
+.t3-mem { padding: 12px; gap: 8px; }
+.t3-head { font-size: 14px; line-height: 20px; letter-spacing: -.5px; font-weight: 600; color: var(--text-neutral-02); }
+.t3-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.t3-brow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px; }
+/* A */
+.a3-hero { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 16px 16px; }
+.a3-av, .b3-av { position: relative; flex: none; width: 88px; height: 88px; border-radius: 50%; background: var(--disc-primary-bg); color: var(--disc-primary-ink); display: inline-flex; align-items: center; justify-content: center; }
+.ph-img { width: 100%; height: 100%; border-radius: 50%; display: block; }
+.a3-badge { position: absolute; right: -2px; bottom: -2px; width: 30px; height: 30px; border-radius: 50%; background: var(--surface-action-default); color: #fff; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px var(--surface-settings-card); }
+.a3-photo { color: var(--text-action-default); font-size: 14px; line-height: 20px; font-weight: 600; }
+.a3-name { align-self: stretch; display: flex; justify-content: center; align-items: center; height: 52px; border-radius: 12px; background: var(--surface-input-on-settings-card); border: 1px solid transparent; font-size: 17px; }
+.a3-name.is-focus, .b3-name.is-focus { border: 2px solid var(--outline-action-default); }
+.a3-mem { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; }
+.a3-head { display: flex; justify-content: space-between; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text-neutral-02); }
+.a3-count { font-weight: 500; font-variant-numeric: tabular-nums; }
+.a3-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-av { padding: 3px 8px 3px 3px; gap: 6px; }
+.chip-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.chip-x { color: var(--icon-neutral-02); }
+.a3-blind { padding: 4px; }
+/* B */
+.b3-hero { gap: 12px; padding-bottom: 18px; }
+.b3-av { margin-top: -48px; box-shadow: 0 0 0 4px var(--idc-bg), 0 10px 18px -8px rgba(60, 40, 140, .45); }
+.t-dark .b3-av { box-shadow: 0 0 0 4px var(--idc-bg), 0 10px 18px -8px rgba(0, 0, 0, .6); }
+.b3-av .a3-badge { box-shadow: 0 0 0 3px var(--idc-bg); }
+.b3-name { align-self: stretch; display: flex; justify-content: center; align-items: center; height: 50px; border-radius: 12px; background: var(--surface-input-on-settings-card); border: 1px solid transparent; font-size: 20px; font-weight: 600; letter-spacing: -.3px; }
+.sec-lab { display: flex; justify-content: space-between; margin: 4px 4px -8px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text-neutral-02); }
+.b3-mem { display: flex; flex-direction: column; padding: 4px; }
+.b3-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 4px 8px 12px; }
+.b3-row + .b3-row::before { content: ""; position: absolute; top: 0; left: 64px; right: 12px; height: 1px; background: var(--outline-on-card); }
+.b3-add-l { color: var(--text-action-default); font-weight: 600; }
+.b3-x { flex: none; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--icon-neutral-02); }
+.b3-rule { margin: -6px 4px 0; }
+
+/* keyboard (illustrative — the OS draws it) */
+.kb { flex: none; height: 268px; background: var(--kb-bg); padding: 6px 4px 22px; display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 6; }
+.kb-strip { height: 38px; display: flex; align-items: center; padding-inline: 8px; }
+.kb-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 12px; border-radius: 999px; background: var(--kb-chip); color: var(--kb-ink); font-size: 13px; line-height: 18px; box-shadow: 0 1px 1px rgba(0, 0, 0, .12); }
+.kb-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-row { display: flex; gap: 5px; justify-content: center; }
+.kb-r2 { padding-inline: 16px; }
+.kb-k { flex: 1; height: 40px; border-radius: 6px; background: var(--kb-key); color: var(--kb-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 17px; box-shadow: 0 1px 0 rgba(0, 0, 0, .18); }
+.kb-w { flex: 1.5; background: var(--kb-key-2); }
+.kb-w2 { flex: 1.6; background: var(--kb-key-2); font-size: 14px; }
+.kb-sp { flex: 5; }
+.kb-go { background: var(--surface-action-default); color: #fff; }
+
+@media (max-width: 440px) {
+  .wrap { padding-top: 22px; }
+  h1 { font-size: 26px; }
+  .frames { gap: 20px 0; justify-content: center; }
+  .ph { zoom: .86; }
+}
+</style>
+</head>
+<body>
+<!--@@SPRITE@@-->
+<div class="wrap">
+
+<div class="topline">
+  <div>
+    <p class="eyebrow">Spixi · New chat · design render · 2026-10-12</p>
+    <h1>Add contact and New group</h1>
+    <p class="intro">Damir sent three screens (15:42): the Add contact screen, the Add contact sheet and New group. Below, for each: what the code really does, today redrawn faithfully at 360 px, and two directions in light and dark with the states that matter. Colours are the real tokens of <code>src/styles/tokens.css</code>; glyphs are <code>src/components/icons.js</code>; the sheet art is <code>IL_ART.addContact</code> as it ships (round twinkle dots, no four-point sparkle); directions use the Account hub discs (<code>--disc-hub-7</code> blue, <code>--disc-hub-8</code> violet) and the #1358 identity card. Nothing here is built.</p>
+  </div>
+  <div class="seg" role="group" aria-label="Page theme">
+    <button type="button" data-t="auto" aria-pressed="true">Auto</button>
+    <button type="button" data-t="light" aria-pressed="false">Light page</button>
+    <button type="button" data-t="dark" aria-pressed="false">Dark page</button>
+  </div>
+</div>
+
+<ul class="toc">
+  <li><a href="#s1">1 · Add contact screen</a></li>
+  <li><a href="#s2">2 · Add contact sheet</a></li>
+  <li><a href="#s3">3 · New group</a></li>
+  <li><a href="#strings">Strings</a></li>
+</ul>
+
+<div class="rec">
+  <p class="eyebrow">Recommendation</p>
+  <p><b>Polish all three, rebuild none of them yet: 1·A + 2·A + 3·A, about 7 to 9 hours, no new bridge verb, no C#.</b></p>
+  <ul>
+    <li><b>Add contact screen → A “Polish in place”.</b> One word for the address, the field marks its own error, “already a contact” says who. B’s person card (start … end, like the card on their phone) is the better end state; keep it for later.</li>
+    <li><b>Add contact sheet → keep.</b> It does its job (Damir’s #863). A only gives the two tiles the hub colours, so they look like the tappable row that opened the sheet.</li>
+    <li><b>New group → A.</b> It fixes the one real defect: with one member left, Create still works and the error lands under the group name. A also makes the photo look tappable and puts faces on the member chips.</li>
+    <li><b>One decision first: “Spixi address” or “Ixian address”.</b> The sheet says Spixi, the screen it opens says Ixian. These renders use “Spixi address” on the contact flow (see <a href="#strings">Strings</a>).</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 1 ============================================================ -->
+<div class="flow" id="s1">
+<h2>1 · Add contact screen</h2>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>What the screen really does</h3>
+    <p><code>createAddContact</code> in <code>src/components/contacts-shell.js:667</code>, styled by <code>src/styles/components/contacts-shell.css:262</code>. On a phone it is the page <b>after</b> the sheet: <code>openAddContact</code> → sheet → “Enter or paste” → <code>mountAddContact</code> (<code>src/bridge/contacts-page.js:241</code>) with the field focused. “Scan QR code” mounts the same screen and opens the scanner over it. With a desktop pane, Add contact skips the sheet and opens <code>ContactNewPage</code> (<code>contact_new.html</code>, the same component).</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Piece</th><th>Code</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td>Field</td><td>placeholder <code>ixianAddress</code></td><td>One-line text input. A pasted address (48–65 characters) shows only its start; the end is cut off.</td></tr>
+      <tr><td>Scan button</td><td><code>.c-contacts-add__scan</code></td><td><code>ixian:contactscan</code> → <code>addScanResult</code> → <code>setAddContactAddress</code> fills the field.</td></tr>
+      <tr><td>Live check</td><td><code>ixian:checkAddress</code></td><td>250 ms after typing; C# only CONFIRMS (✓ line), it is silent on a bad address.</td></tr>
+      <tr><td>Local gate</td><td><code>looksLikeAddress</code> :663</td><td>20–128 characters, no whitespace, on Send. Else <code>badAddress</code> as plain red text; the field itself does not change.</td></tr>
+      <tr><td>Known address</td><td><code>setAddContactKnown</code></td><td>“{name} is already in your contacts.” + outline “View contact”; Send is disabled.</td></tr>
+      <tr><td>Send request</td><td><code>ixian:request:&lt;addr&gt;</code></td><td>Spinner, field disabled; <code>addRequestResult</code> → “Request sent” morph → back to the picker.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="sec">
+  <div class="sec-head"><h3>Today <span class="tag now-t">shipped</span></h3></div>
+  <div class="frames"><!--@@S1_TODAY@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What is wrong</h3><ul>
+      <li><b>Two words for one thing.</b> The sheet that opened this screen says “Spixi address”; this screen says “Ixian address” four times (lead, placeholder, ✓ line, error).</li>
+      <li><b>You cannot check what you pasted.</b> The field shows the first 30 characters; the end is gone. The other person’s address card (#1358) shows start … end, so the two cannot be compared.</li>
+      <li><b>The error is a quiet line.</b> The field keeps its normal border. A common cause has no help: someone copied the shortened form (“4Fq8ZtkR…Q7Vyz5Ma”) from a chat.</li>
+      <li><b>“Already a contact” is a disabled button</b> plus a grey line and a small outline button. The way forward is the smallest thing on the screen.</li>
+      <li><b>Old card language.</b> A grey card on a near-white screen, next to the white-on-grey cards of Account, About and the address sheet.</li>
+    </ul></div>
+    <div class="note"><h3>What is not wrong</h3><ul>
+      <li>The empty lower half is where the keyboard sits; the field is focused when the screen opens.</li>
+      <li>The wiring is sound and stays in both directions: the CO4 stale-answer guard, the #435 known-address panel, the in-flight latch, the scan → fill path, the inline errors.</li>
+      <li>The scan button on the field is the right fallback after the sheet: a person who chose “Enter” can still scan.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>A · Polish in place <span class="tag rec-t">Recommended</span></h3>
+    <p>Same screen, same order, same verbs. The field becomes a labelled settings-card field with the scan button inside it; every state is said by the field and by one line under it.</p>
+  </div>
+  <div class="frames"><!--@@S1_A@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What changes and why</h3><ul>
+      <li><b>One word:</b> “Spixi address” on the label, the placeholder, the ✓ line and the error, as on the sheet.</li>
+      <li><b>The field says its state:</b> a green ✓ inside the field when C# confirms; a 2 px red border and an alert glyph when it is bad.</li>
+      <li><b>Already a contact:</b> their avatar, the sentence, and “View contact” in one row inside the card.</li>
+      <li><b>The lead becomes a caption</b> under the card (info glyph), the same place as the Add app caption.</li>
+      <li><b>Paste needs nothing new:</b> Gboard and the iOS keyboard already offer the copied text when the field has focus (first frame).</li>
+    </ul></div>
+    <div class="note"><h3>Build cost: about 3 to 4 h</h3><ul>
+      <li><code>contacts-shell.css</code> add-contact block: settings ground, white card, the field look, the in-field scan button, the ✓ and the error border (about 60 lines). Tokens: <code>--surface-settings-ground/-card</code>, <code>--surface-input-on-settings-card</code>, <code>--icon-success</code>, <code>--text-error</code>.</li>
+      <li><code>contacts-shell.js createAddContact</code>: a label element; <code>data-invalid</code> on the field in <code>setError</code>; <code>data-valid</code> when the ✓ shows; a 32 px <code>createAvatar</code> in the known panel (the address is in <code>info.address</code>). The pinned selectors (<code>.c-contacts-add__input</code>, <code>__scan</code>, <code>__submit</code>) keep working.</li>
+      <li>Strings (the term): placeholder and label → existing <code>contactSpixiAddress</code>; value edits to <code>addContactNote</code> and <code>validAddress</code>; one NEW key <code>addContactBadAddress</code> (<code>badAddress</code> stays for Wallet › Send). Full strings pipeline.</li>
+      <li>No new verb, no C#. Two pins: the error marks the field; the known panel shows the avatar.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>B · The person card <span class="tag alt-t">Later</span></h3>
+    <p>A valid address turns into the #1358 identity card: halo band, their identity colour, the address as start … end (8 + 8), the same form the other phone shows. The button follows the state.</p>
+  </div>
+  <div class="frames"><!--@@S1_B@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What changes and why</h3><ul>
+      <li><b>You can check before you send.</b> “4Fq8ZtkR … Q7Vyz5Ma” on your screen and the same groups on their card. The caption says so (shield glyph).</li>
+      <li><b>Edit</b> on the band opens the field again. The scanned path lands here too, so a scan is reviewed the same way.</li>
+      <li><b>Already a contact:</b> their name and colour on the card, and the main button becomes “View contact” instead of a disabled Send.</li>
+      <li><b>The shortened-copy error names its cause</b> (the value has “…” in it), so the person knows to copy the whole address.</li>
+      <li><b>Validation moves to the paste:</b> the local gate runs on input, and Send waits until there is a valid address (today it runs on Send).</li>
+      <li><b>Paste chip in the field:</b> optional. It needs a NEW bridge verb (C# reads the clipboard; iOS shows a paste prompt) and a security-gate row. The keyboard chip of A does the same job for free. I would leave it out.</li>
+    </ul></div>
+    <div class="note"><h3>Build cost: about 7 to 9 h (+2 h with Paste)</h3><ul>
+      <li><code>createAddContact</code>: a preview block built on <code>createAvatar</code> and the #1358 start … end rule (<code>wallet-receive.js</code> :631 — lift it into a shared helper so both stay 8 + 8); Edit restores the field; the known state swaps the CTA to <code>onViewContact</code>.</li>
+      <li><code>contacts-shell.css</code>: the card reuses the <code>.c-addr-sheet__band</code> values (move them to two tokens so there is one source).</li>
+      <li>NEW strings: <code>addContactCompare</code>, <code>addressShortened</code> (+ <code>paste</code> if the chip ships). Full strings pipeline. 4 to 5 pins.</li>
+      <li>C#: none without Paste. With Paste: a read verb (<code>Clipboard.Default.GetTextAsync</code>, 128-character cap, pushed back through <code>setAddress</code>), a BE review packet, a gate row.</li>
+    </ul></div>
+  </div>
+</section>
+</div>
+
+<!-- ============================================================ 2 ============================================================ -->
+<div class="flow" id="s2">
+<h2>2 · Add contact sheet</h2>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>What the sheet really does</h3>
+    <p><code>createAddContactSheet</code> in <code>contacts-shell.js:1249</code>, styled at <code>contacts-shell.css:496–594</code>, opened by <code>openAddContact</code> (<code>contacts-page.js:263</code>) from the New chat picker’s “Add contact” row and from the Contacts directory. Damir asked for it (#863: “sheet rather than screen, since UX is not good in screen”). “Scan QR code” mounts the screen of section 1 and sends <code>ixian:contactscan</code>; “Enter or paste” mounts it with the field focused. Zero C#.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-head"><h3>Today <span class="tag now-t">shipped</span></h3></div>
+  <div class="frames"><!--@@S2_TODAY@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What is wrong (small)</h3><ul>
+      <li><b>Grey tiles under a coloured entry.</b> The row that opened the sheet has a blue disc; the two choices have grey medallions with black glyphs, and no chevron, so they read as info cards more than as buttons.</li>
+      <li><b>The words change on the next screen</b> (“Spixi address” → “Ixian address”). Fixed on the screen side in 1·A.</li>
+      <li><b>The lead says what the two cards say.</b> Acceptable: it is the one line under the art.</li>
+      <li><b>The example in the hint</b> (“42Spox…M3rci98”) is a shortened address. It shows the format that 1·B’s error catches. Harmless; worth a look if the hint is ever edited.</li>
+    </ul></div>
+    <div class="note"><h3>Should it go straight to the field?</h3><ul>
+      <li>The screen and the sheet are not two entries to the same job: on a phone they are two steps (sheet, then screen). The only double is the scan button on the screen, which is a correct fallback.</li>
+      <li>Putting the field in the sheet (B) saves one step for the “paste” path. It costs a second implementation of the form inside a sheet, and the scan path still needs the screen. For a task done a few times per user, that is a lot of code for one tap.</li>
+      <li><b>Verdict: keep the sheet.</b> A is a light polish.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>A · Keep, colour the choices <span class="tag rec-t">Recommended</span></h3>
+    <p>Same sheet, same copy, same art, same height. The medallions take the hub palette (violet scan, blue pencil) and a white glyph.</p>
+  </div>
+  <div class="frames"><!--@@S2_A@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What changes and why</h3><ul>
+      <li>The two choices look like buttons, in the same colour language as the Account hub and the row that opened the sheet.</li>
+      <li><b>No chevrons:</b> tried, and dropped. A trailing chevron takes 26 px from the text column, “Enter or paste a Spixi address” wraps to two lines and the sheet grows by a line. The coloured tile is enough of a tap cue.</li>
+      <li>Hover and pressed keep today’s sheet-card pair (Session X); only the medallion’s tonal hover is dropped (the hub fill stays).</li>
+    </ul></div>
+    <div class="note"><h3>Build cost: about 1 h</h3><ul>
+      <li><code>contacts-shell.css</code> only: <code>.c-contacts-addsheet__medallion</code> takes <code>--disc-hub-8</code> / <code>--disc-hub-7</code> by the item’s existing <code>[data-kind]</code>, a white glyph and <code>--disc-hub-glyph-lift</code>; the hover rule keeps the fill.</li>
+      <li>No JS, no strings, no verb, no C#. Pipeline: build-shells. One pin (the two medallions differ and are not the neutral tile).</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>B · Type it in the sheet <span class="tag alt-t">Alternative</span></h3>
+    <p>The sheet holds the field; Scan and “Show my address” become rows. A valid address shows the person card of 1·B, and Send request is in the sheet.</p>
+  </div>
+  <div class="frames"><!--@@S2_B@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What changes and why</h3><ul>
+      <li><b>One surface for the paste path:</b> tap the field, the sheet rides the keyboard (<code>--kb-inset</code>, already wired for mobile sheets), paste, send.</li>
+      <li><b>“Show my address”</b> covers the other half of meeting in person: they scan you. It opens the existing #1358 sheet (<code>openAddressSheet</code>), after this one closes. Existing string <code>showMyAddress</code>.</li>
+      <li><b>Trade-offs:</b> two copies of the form logic unless it is refactored into one builder; the scan result still needs the screen; the sheet gets tall when the person card shows.</li>
+    </ul></div>
+    <div class="note"><h3>Build cost: about 8 to 10 h</h3><ul>
+      <li><code>contacts-shell.js</code>: lift the field, validation and send logic of <code>createAddContact</code> into a shared builder; the sheet uses it.</li>
+      <li><code>contacts-page.js</code>: the four C# answers (<code>addValidAddress</code>, <code>addKnownAddress</code>, <code>addRequestResult</code>, <code>addScanResult</code>) route to the sheet when it is open.</li>
+      <li>Strings: none new for the sheet itself (+ the 1·B keys if the person card ships). No verb, no C#. The GATE 54 pins of #863 change.</li>
+    </ul></div>
+  </div>
+</section>
+</div>
+
+<!-- ============================================================ 3 ============================================================ -->
+<div class="flow" id="s3">
+<h2>3 · New group</h2>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>What the screen really does</h3>
+    <p><code>createGroupSetup</code> in <code>contacts-shell.js:949</code>, styled at <code>contacts-shell.css:338–400</code>, opened by <code>openGroupSetup</code> (<code>contacts-page.js:164</code>) only when 2 to 10 people are picked. The avatar is 80 px in the source (the screenshot read about 112 px; the redraw follows the source).</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Piece</th><th>Code</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td>Photo</td><td><code>.c-contacts-group__avatar</code></td><td>Tap → <code>ixian:groupavatar</code> → native picker → <code>loadGroupAvatar</code> fills the circle. “Set group photo” under it is plain text, not a control.</td></tr>
+      <tr><td>Name</td><td><code>.c-contacts-group__name</code></td><td>Centred input. Return = Done (#977), never Create. Errors: empty, “:|”.</td></tr>
+      <tr><td>Members</td><td><code>renderMembers</code> :1057</td><td><code>members · n</code> (lowercase key <code>members</code>). Each chip is ONE dismiss target: a tap anywhere on “Air ×” removes Air. No undo, no way to add except Back.</td></tr>
+      <tr><td>Create</td><td>:1073 · contacts-page.js:180</td><td>Disabled only at 0 members. With 1 member it stays enabled; the host fails it with <code>groupNeedsTwo</code>, shown by <code>setNameError</code> <b>under the group name</b>.</td></tr>
+      <tr><td>Blind</td><td>switch</td><td><code>ixian:creategroup:&lt;1|0&gt;&lt;name&gt;:|a|b…</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="sec">
+  <div class="sec-head"><h3>Today <span class="tag now-t">shipped</span></h3></div>
+  <div class="frames"><!--@@S3_TODAY@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What is wrong</h3><ul>
+      <li><b>A dead end with one member.</b> Remove one of two chips: Create still looks ready; a tap shows “Select at least 2 people…” under the NAME field, far from the members. The way to add someone back (the top-bar arrow) is not said.</li>
+      <li><b>The whole chip is the × target.</b> A tap meant to look at “Air” removes Air.</li>
+      <li><b>No faces.</b> Text-only chips; two “Marko” contacts are the same chip.</li>
+      <li><b>The photo does not look tappable:</b> a pale circle and grey text, no camera badge.</li>
+      <li><b>“members · 2”</b> in lowercase, while Members is title-case everywhere else (chat info).</li>
+    </ul></div>
+    <div class="note"><h3>What is not wrong</h3><ul>
+      <li><b>The big empty gap</b> under Blind group is the keyboard’s space while naming (third frame), and the sticky Create is lifted by <code>--kb-inset</code> (#993). It only looks empty with the keyboard down. A real fix for it is content (B), not a smaller button.</li>
+      <li>Blind group: the copy and the switch are clear.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>A · Polish in place <span class="tag rec-t">Recommended</span></h3>
+    <p>Same three cards on the settings ground. The photo gets a camera badge and an action label; chips get faces and a separate ×; the members card states the rule.</p>
+  </div>
+  <div class="frames"><!--@@S3_A@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What changes and why</h3><ul>
+      <li><b>Create waits below 2</b> and the rule line sits in the members card (existing <code>groupNeedsTwo</code>). The error-under-the-name case goes away.</li>
+      <li><b>“Members” + “2 / 10”</b> (existing <code>membersTitle</code>, <code>groupCounter</code>), the same counter the picker shows; at 10 the line is <code>groupLimitNote</code>.</li>
+      <li><b>Chips with a 24 px avatar</b> and a muted ×. Today’s chip.js makes the whole chip the dismiss target (#50); A keeps that and only adds the face. If you want the × to be the only target, that is a chip.js change (+1 h, all dismissible chips).</li>
+      <li><b>Photo:</b> 88 px, camera badge, “Set group photo” in action ink; after a pick, a pencil badge and “Change group photo” (existing key).</li>
+      <li>Blind group wears the hub violet; its switch takes the settings switch’s border (<code>--outline-neutral-02</code>; the local copy in contacts-shell.css drifted to <code>-01</code>, which is the card’s own colour in dark).</li>
+    </ul></div>
+    <div class="note"><h3>Build cost: about 3 to 4 h</h3><ul>
+      <li><code>contacts-shell.js createGroupSetup</code>: <code>createBtn.disabled = list.length &lt; 2</code> + the rule line; header from <code>membersTitle</code> + <code>groupCounter</code>; <code>createAvatar</code> 24 prepended to each chip; badge element on the avatar; hint text swaps after <code>setGroupAvatar</code>.</li>
+      <li><code>contacts-shell.css</code> group block (about 50 lines) + <code>chip.css</code>: a <code>.c-chip &gt; .c-avatar</code> rule (3 px inset).</li>
+      <li>No new string, no verb, no C#. Pins: 1 member → Create disabled + rule line; the counter; the avatar in the chip. Pipeline: build-demo-bundle → build-shells.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-head">
+    <h3>B · Group card and member rows <span class="tag alt-t">Alternative</span></h3>
+    <p>The hero becomes the #1358 identity card for the group. Members become rows with an explicit remove button and an “Add people” row first.</p>
+  </div>
+  <div class="frames"><!--@@S3_B@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What changes and why</h3><ul>
+      <li><b>Add people is on the screen.</b> It does what Back does today (the picker keeps the selection, contacts-page.js:172), so it costs no new logic.</li>
+      <li><b>Remove is a 40 px × on the row</b> (aria “Remove from group”, existing key) — a tap on the name does nothing.</li>
+      <li><b>Each member shows the short address</b> (9 … 6, the picker’s own rule), so two people with one name differ.</li>
+      <li><b>The gap fills with content</b> as the group grows; at 5 members the body scrolls under the sticky Create.</li>
+      <li>Trade-off: a second card language for the hero (the band) on a form screen; more height per member than a chip.</li>
+    </ul></div>
+    <div class="note"><h3>Build cost: about 6 to 7 h</h3><ul>
+      <li><code>createGroupSetup</code>: rows in place of chips (avatar 40, name, short address, remove button), the Add people row (calls <code>onBack</code>), the band hero, the rule line.</li>
+      <li><code>contacts-shell.css</code>: about 90 lines; band from the #1358 values.</li>
+      <li>NEW string <code>groupAddMembers</code> (“Add people”). Full strings pipeline. No verb, no C#. 4 pins.</li>
+    </ul></div>
+  </div>
+</section>
+</div>
+
+<!-- ============================================================ strings ============================================================ -->
+<section class="sec" id="strings">
+  <div class="sec-head">
+    <h2>Strings</h2>
+    <p><b>The term.</b> The app uses both words for the same address: “Spixi address” 6 times (onboarding, the Contacts empty state, the contact page, this sheet) and “Ixian address” 8 times (this screen, the address sheet title, Wallet › Send, QR labels). Two ways out:</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Option</th><th>What changes</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Contact flow says “Spixi address” (rendered here)</td><td>Placeholder + label → existing <code>contactSpixiAddress</code>; values of <code>addContactNote</code> and <code>validAddress</code> (contacts only); NEW <code>addContactBadAddress</code>. Wallet and QR surfaces keep “Ixian address” (an IXI surface).</td><td>1 new key, 2 value edits × 13 locales</td></tr>
+      <tr><td>Everything says “Ixian address”</td><td>Values of <code>addContactSheetLead</code>, <code>addContactEnterLabel</code>, <code>addContactEnterHint</code>, <code>contactsEmptyBody</code>, <code>contactSpixiAddress</code>, <code>slide2Copy</code>.</td><td>0 new keys, 6 value edits × 13 locales</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tbl"><table>
+    <thead><tr><th>New key</th><th>English</th><th>Needed by</th></tr></thead>
+    <tbody>
+      <tr><td><code>addContactBadAddress</code></td><td>That doesn’t look like a Spixi address.</td><td>1·A, 1·B (only with the “Spixi” option)</td></tr>
+      <tr><td><code>addContactCompare</code></td><td>Check that the start and the end match the address on their screen.</td><td>1·B, 2·B</td></tr>
+      <tr><td><code>addressShortened</code></td><td>This address is shortened. Copy the whole address and paste it again.</td><td>1·B</td></tr>
+      <tr><td><code>paste</code></td><td>Paste</td><td>1·B, 2·B, only with the optional Paste chip (+ a new bridge verb)</td></tr>
+      <tr><td><code>groupAddMembers</code></td><td>Add people</td><td>3·B</td></tr>
+    </tbody>
+  </table></div>
+  <p>Existing keys reused by the directions: <code>contactSpixiAddress</code>, <code>viewContact</code>, <code>alreadyContactNamed</code>, <code>edit</code>, <code>showMyAddress</code>, <code>membersTitle</code>, <code>groupCounter</code>, <code>groupNeedsTwo</code>, <code>groupLimitNote</code>, <code>changeGroupPhoto</code>, <code>removeFromGroup</code>.</p>
+</section>
+
+<footer>
+  Built by <code>docs/renders/new-chat-flows/build-new-chat-flows.mjs</code> from <code>page.template.html</code>. It reads <code>src/components/icons.js</code>, <code>IL_ART.addContact</code> (<code>src/components/illustrations.js</code>), <code>identityIndex</code> (<code>src/components/avatar.js</code>) and <code>discGrad</code> (<code>src/components/disc.js</code>) and never writes <code>src/</code>. Token values resolved from <code>src/styles/tokens.css</code> on 2026-10-12 (light = <code>:root</code>, dark = <code>[data-theme="dark"]</code>); the band values are <code>wallet-receive.css</code> #1358. Status bar, keyboard, names, addresses and the group photo are illustrative.
+</footer>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var btns = document.querySelectorAll('.seg button');
+  function set(t) {
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', String(btns[i].getAttribute('data-t') === t));
+    try { localStorage.setItem('spixi-new-chat-flows-theme', t); } catch (e) {}
+  }
+  for (var i = 0; i < btns.length; i++) btns[i].addEventListener('click', function () { set(this.getAttribute('data-t')); });
+  var saved = null;
+  try { saved = localStorage.getItem('spixi-new-chat-flows-theme'); } catch (e) {}
+  if (saved === 'light' || saved === 'dark') set(saved);
+})();
+</script>
+</body>
+</html>

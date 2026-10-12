@@ -1729,6 +1729,20 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 
 .c-bubble-row[data-direction="sent"] .c-voice__badge { border-color: var(--surface-bubble-sent); background: var(--text-bubble-sent); color: var(--surface-bubble-sent); }
 
+/* ★★ #1355: the voice message — the received play disc and the "not yet played" mic badge take the canvas colour; the
+   SENT bubble's unplayed bars are a quiet step of its own colour (they were the fixed --primary-500, blue on a pink bubble). */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-voice {
+    --surface-action-default: var(--chat-accent);
+    --icon-action-default: var(--chat-accent-ink);
+  }
+  .c-bubble-row[data-direction="sent"] .c-voice__bar { background: color-mix(in srgb, var(--text-bubble-sent) 25%, var(--surface-bubble-sent)); }   /* #46 r1 m2: 25 % (was 42 %) — played vs unplayed ≥ 3.12 : 1 on every sent colour, both themes */
+  /* #46 r1 m3: in LIGHT the unread badge is the accent 15 % deeper — ≥ 4 : 1 against the played grey disc on every sent colour
+     (the plain accent fell to 2.96 on Ocean / Dusk / orange; the #46 picks r2 MINOR-3 rule exists to make "not yet played" stand out) */
+  :root:not([data-theme="dark"]) .c-bubble-row[data-direction="received"] .c-voice__who[data-tone="accent"] .c-voice__badge { background: color-mix(in srgb, var(--chat-accent) 85%, #000000); }   /* sanctioned: a deeper step of the accent */
+  .c-bubble-row[data-direction="sent"] .c-voice__bar[data-played] { background: var(--text-bubble-sent); }
+}
+
 </style>
 <style data-src="../styles/components/composer.css">
 /* c-composer — chat input bar (DECISIONS #64). Field pill mirrors Figma input;
@@ -2264,6 +2278,26 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   overflow: hidden;
   clip-path: inset(50%);
   margin: 0;
+}
+
+/* ★★ #1355: the composer is the chat's own side — its action tokens read the canvas colour (tokens.css --chat-accent*):
+   the send / mic disc, the ⊕ / × glyph and its open disc, the reply / edit context glyph, the quote bar, the recording
+   wave (newest strongest). Inside the color-mix guard: without it, today's action blue. */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-composer {
+    --surface-action-default: var(--chat-accent);
+    --surface-action-hover: color-mix(in srgb, var(--chat-accent), #000000 12%);   /* sanctioned: a pressed / hover step of the accent */
+    --surface-action-pressed: color-mix(in srgb, var(--chat-accent), #000000 22%);   /* sanctioned: the pressed step of the accent */
+    --icon-action-default: var(--chat-accent-ink);
+    --text-action-default: var(--chat-accent-ink);   /* #46 r1 m4: the reply / edit title + the caret follow the quote bar beside them */
+    --icon-action-hover: var(--chat-accent-ink);
+    --surface-action-tonal-default: var(--chat-accent-tonal);
+  }
+  :root .c-composer__rec, [data-theme] .c-composer__rec {
+    --rec-wave-new: var(--chat-accent-ink);
+    --rec-wave-mid: color-mix(in srgb, var(--chat-accent-ink) 72%, var(--surface-composer-pill));   /* #46 r1 N3: opaque tiers over the pill (no opacity — the stacking gate) */
+    --rec-wave-old: color-mix(in srgb, var(--chat-accent-ink) 42%, var(--surface-composer-pill));
+  }
 }
 
 </style>
@@ -4314,6 +4348,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 @media (hover: hover) and (pointer: fine) { .c-splitpaste__dismiss:hover { background: var(--surface-interactive-hover); } }
 .c-splitpaste__dismiss:active { background: var(--surface-interactive-pressed); }
 
+/* ★★ #1355 (Damir 13:38 "selected tint and check should be in line with it"): the selected row's wash and its check disc
+   take the canvas colour (the tick stays white — ≥ 4.5 : 1 on every sent colour). Scoped to the chat's rows. */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  [data-selecting] .c-bubble-row {
+    --surface-select-check: var(--chat-accent);
+    --surface-select-row: var(--chat-accent-band);
+  }
+  /* #46 r1 m1: the check disc keeps a ≥ 3 : 1 EDGE against the canvas — a deeper ring in light, the lifted ink in dark (the
+     deep dark steps fell to 1.3–2.1 against the dark canvases); the white tick stays on the accent fill (≥ 4.5). */
+  [data-selecting] .c-bubble-row[data-selected]::before { box-shadow: inset 0 0 0 var(--outline-width-2) color-mix(in srgb, var(--chat-accent) 75%, #000000); }   /* sanctioned: a deeper ring of the accent */
+  [data-theme='dark'] [data-selecting] .c-bubble-row[data-selected]::before { box-shadow: inset 0 0 0 var(--outline-width-2) var(--chat-accent-ink); }
+}
+
 </style><!-- multi-select: check circles + selection topbar -->
 <style data-src="../styles/components/system-notice.css">
 /* c-sysnotice — secure-chat notice (#86/#91; recolored #264, Damir spec:
@@ -4428,11 +4475,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-accent);
-  /* badge solid-ink convention (#54). ★ #46 r2 C1: the fill is --surface-accent, NOT the
-     action blue — in dark it is --accent-300 #98b5fc, where the old on-action white glyph
-     measured 1.94:1. --icon-neutral-on-accent = 9.09:1 dark / 6.68:1 light. Fill unchanged. */
-  color: var(--icon-neutral-on-accent);
+  /* ★ #1354 (Damir 13:14, "fits into each theme"): the medallion takes the canvas's SENT colour — the canvas's own Auto
+     or the picked bubble colour (both set --surface-bubble-sent on the same targets as the ground) — with the sent
+     bubble's own white ink (≥ 4.5 : 1 on every sent colour in both themes, the S17 C pin). Superseded: --surface-accent
+     + --icon-neutral-on-accent (#46 r2 C1: 9.09 : 1 dark / 6.68 : 1 light). */
+  background: var(--surface-bubble-sent);
+  color: var(--text-bubble-sent);
   margin-bottom: var(--spacing-4);
 }
 .c-sysnotice__title {
@@ -4503,16 +4551,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 /* ★ #1066 #46 r1 (C MINOR-1): on the DARK brand gradient the #0c1a4a card is the gradient's own hue and
    value (1.02:1 at the top stop) — only the shadow separated it. A soft blue hairline brings the edge
    back on that ground only (the Session J edge, softened .35 → .28). */
-:root[data-theme='dark'][data-chat-ground='gradient'] .c-sysnotice__card,
-:root[data-theme='dark'] [data-chat-ground='gradient'] .c-sysnotice__card {
-  box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);   /* sanctioned: the Session J notice edge (rgba(118,157,255,.35), E1b/N82(c)) softened for the one ground where the card and canvas share hue — a one-surface hairline, no semantic role carries it */
-}
+/* ★ #1354: RETIRED — the neutral #1E2023 card no longer shares the dark brand gradient's hue, so the blue hairline that
+   separated the old #0c1a4a midnight from it is gone (the elevation separates a neutral card from every canvas). */
 /* ★ S8 (#1237): the DARK BLUE ground (DB1 Azure) is the second ground that shares the #0c1a4a card's hue (1.03:1 at the
    top stop #0D2238) — the same soft hairline. The dark GREEN (DG1) does not need it: the card's blue separates by hue. */
-:root[data-theme='dark'][data-chat-ground='blue'] .c-sysnotice__card,
-:root[data-theme='dark'] [data-chat-ground='blue'] .c-sysnotice__card {
-  box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);   /* sanctioned: the #1066 notice hairline above, for the second same-hue dark ground */
-}
+/* ★ #1354: RETIRED with the gradient one above (the neutral card shares no canvas's hue). */
 
 
 /* ★★ AUG GROUND (Damir 2026-08-30): the card FOLLOWS the canvas choice.
@@ -4648,6 +4691,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-composer[data-tray-open] { padding-block-end: var(--spacing-8); }
 @media (prefers-reduced-motion: reduce) {
   .c-attach-tray { transition: none; }
+}
+
+/* ★★ #1355: the attach tray / sheet discs + glyphs take the canvas colour (tokens.css --chat-accent*). */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-attach {
+    --surface-action-tonal-default: var(--chat-accent-tonal);
+    --surface-action-tonal-hover: var(--chat-accent-tonal-hover);
+    --icon-action-default: var(--chat-accent-ink);
+  }
 }
 
 </style>

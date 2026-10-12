@@ -149,20 +149,22 @@ export default async function (h) {
     const rootAlpha = tok('--chat-pattern-alpha-1');
     R2.setAttribute('data-chat-ground', 'aurora');
     const tFlat = tile('flat'), tIris = tile('gradient'), tAur = tile('aurora');
-    /* v3 (21:57): the pattern alpha −20 % — light 0.128 (Aurora 0.24), dark 0.104 */
-    const resets = { light: tv(tFlat, '--chat-pattern-alpha-1') === rootAlpha && tv(tIris, '--chat-pattern-alpha-1') === rootAlpha && tv(tAur, '--chat-pattern-alpha-1') === '0.24' && tok('--chat-pattern-alpha-1') === '0.24' && rootAlpha === '0.128'
+    /* v3 (21:57): the pattern alpha −20 % — light 0.128 (Aurora 0.24), dark 0.104. ★ #1351 (S17 walk, Damir 2026-10-12): −20 % again —
+       light 0.1024 (Aurora 0.192), dark 0.0832 */
+    const resets = { light: tv(tFlat, '--chat-pattern-alpha-1') === rootAlpha && tv(tIris, '--chat-pattern-alpha-1') === rootAlpha && tv(tAur, '--chat-pattern-alpha-1') === '0.192' && tok('--chat-pattern-alpha-1') === '0.192' && rootAlpha === '0.1024'
+      && tv(tAur, '--chat-pattern-tile-max') === '0.8' && tv(tFlat, '--chat-pattern-tile-max') === '1' && tv(tIris, '--chat-pattern-tile-max') === '1'   /* ★ #1351: only light Aurora caps its Background tiles (alpha × boost > 1 hid every step there) */
       && tv(tFlat, '--surface-bubble-sent').toLowerCase() === '#2160c2' && tv(tIris, '--surface-bubble-sent').toLowerCase() === '#6145d6' };
     R2.setAttribute('data-theme', 'dark'); R2.setAttribute('data-chat-ground', 'green');
     resets.dark = tv(tFlat, '--chat-pattern-ink') === '#C6CFFD' && tv(tIris, '--chat-pattern-ink') === '#C6CFFD' && tok('--chat-pattern-ink') === '#BFE8CB'   // the root keeps the dark Meadow ink
       && tv(tFlat, '--surface-bubble-sent').toLowerCase() === '#1a4a96' && tv(tIris, '--surface-bubble-sent').toLowerCase() === '#4b31b7'   // no Meadow green leaks into a tile
-      && tok('--chat-pattern-alpha-1') === '0.104';
+      && tok('--chat-pattern-alpha-1') === '0.0832';
     R2.removeAttribute('data-theme');
     close(s);
     ok(def, '★ S17 C (#1334): DEFAULT UNCHANGED — a chat with no stored key paints Mist (flat) + the waves pattern at level 1, no bubble-colour attribute, no radius override (an update changes nobody\'s chat)');
     ok(head && live && live2 && live3, '★ S17 C (#1334): the NEW keys ride the chat ladders — the head script paints a stored aurora / rings / pink / 10 px / 0.75 BEFORE first paint; the live re-resolve follows a change; an unknown colour = Auto, corners clamp to 4–22, an unknown ground = flat, a removed corners key = the token default — ' + JSON.stringify({ head, live, live2, live3 }));
     ok(contrast && darker && auto, '★ S17 C (#1334): white text ≥ 4.5 : 1 on EVERY sent colour (6 picks + the new canvases\' own) in BOTH themes, each dark step DARKER than its light value, the gradient + card tint follow; Auto = EACH canvas its OWN flat colour (values v3 21:50) — ' + JSON.stringify({ pairs, autoGot }));
     ok(meta && metaSwap, '★ S17 C (values v3 §2–3): the sent META ink (time + ticks) holds ≥ 4.5 : 1 on every sent colour in both themes — #f9fafb on light violet / teal / pink / orange and the Meadow / Dusk / Ocean Auto (today\'s #e9ecf3 fails or sits too close there), today\'s ink everywhere else — ' + JSON.stringify(metaPairs));
-    ok(resets.light && resets.dark, '★ S17 C (values v3 §1, §7): the preview tiles inherit nothing from another canvas — under a light Aurora root the Mist / Iris tiles keep the :root pattern strength (−20 %: 0.128, Aurora alone 0.24) and their own bubble; under a dark Meadow root (0.104) the Mist / Iris tiles keep the periwinkle ink and their own bubble — ' + JSON.stringify(resets));
+    ok(resets.light && resets.dark, '★ S17 C (values v3 §1, §7): the preview tiles inherit nothing from another canvas — under a light Aurora root the Mist / Iris tiles keep the :root pattern strength (#1351 −20 % again: 0.1024, Aurora alone 0.192) and their own bubble; under a dark Meadow root (0.0832) the Mist / Iris tiles keep the periwinkle ink and their own bubble — ' + JSON.stringify(resets));
     ok(today && edge, '★ S17 C (values v3 §1): the LIGHT grounds of Iris / Meadow / Spixi stay exactly today\'s; every DARK canvas has its v3 full-coverage ground + ink (no canvas-base stop inside the gradient — Mist alone is the plain ground); the received glass edge tokens are untouched (dark 4.5 % hairline + 4 % top light, none in light) — ' + JSON.stringify({ todayGot, gapGot, chip, edgeL, topL, edgeD, topD }));
     ok(radius, '★ S17 C (#1334, values file §4): no stored corners = today\'s 18 / 4 / 4 tokens; a stored r sets --bubble-radius = r and BOTH small corners = max(2, round(r × 0.22)) inline (asserted in the ladder clause: 10 → 2, 18 → 4)');
   } catch (e) { ok(false, '★ S17 C chat threw: ' + e.message); }
@@ -251,7 +253,7 @@ export default async function (h) {
     r.textSize = ls.getItem('spixi.chat.textscale') === '1.25' && prev.style.getPropertyValue('--chat-text-scale') === '1.25';
     /* the theme card: the hub's commit */
     const b0 = s.sent.length;
-    tap('.c-settings-appearance__theme', '2');
+    tap('.c-settings-appearance__card--theme .c-theme-pick__tile', '2');   // ★ #1353: THE shared picker
     await sleep(30);
     r.theme = s.sent.slice(b0).indexOf('ixian:appearance:2') >= 0;
     close(s);

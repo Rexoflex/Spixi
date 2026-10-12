@@ -659,6 +659,7 @@
   "textSizeCustom": "Taille personnalisée ({0} %), réglée en pinçant dans une discussion. Choisissez une taille pour la remplacer.",
   "textXL": "XL",
   "theme": "Thème",
+  "themeLead": "Système suit le réglage clair ou sombre de votre appareil.",
   "themeFailed": "Impossible de changer le thème.",
   "themeSystem": "Système",
   "thisApp": "cette app",

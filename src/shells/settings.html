@@ -147,7 +147,7 @@
      Desktop pane only; the phone keeps its bars (one screen at a time, nothing to match). */
   body[data-pane] .c-topbar { background: var(--surface-settings-ground); }
   body[data-pane] .sd-detail .c-topbar[data-variant="view"] { border-bottom-color: transparent; }
-  body[data-pane] .c-settings__themes { padding: var(--spacing-16); }
+  body[data-pane] .c-theme-sheet { padding: var(--spacing-16); }   /* ★ #1353: the lead + THE picker (was .c-settings__themes) */
   body[data-pane] .c-settings__opts { padding: var(--spacing-16); }
   body[data-pane] .c-settings-backup__hero > .c-settings-backup__cta { width: auto; min-width: 240px; margin-inline: auto; }
   body[data-pane] .c-settings-backup__adv-box .c-button { width: auto; }
@@ -1134,6 +1134,7 @@
       onAddressInfo: () => {
         openAddressSheet({
           address: state.address, strings, host: document.body,
+          name: state.name, avatar: state.avatarSrc,   // ★ #1358: the identity card — the same sheet from both doors
           onShare: isDesktop ? undefined : shareAddress,   // W9: desktop has no distinct share
         });
       },

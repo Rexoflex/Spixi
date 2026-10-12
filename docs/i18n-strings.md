@@ -1096,11 +1096,11 @@ Summary: **1053** keys · **153** map to a legacy id · **900** new · legacy di
 | `typingIndicators` | Typing indicators | label | short |  | — |
 | `typingIndicatorsHint` | When off, others don’t see when you type, and you don’t see when they type. | label | long |  | — |
 
-## settings-shell.js (59)
+## settings-shell.js (60)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
-| `aboutSub` | Links and legal | label | short |  | — |
+| `aboutSub` | Links and legal | text | short |  | — |
 | `account` | Account | title/label/text | short |  | — |
 | `addressInfoTitle` | Your Ixian address | label/text | short |  | — |
 | `addressWhatIsThis` | What is this? | text | short |  | — |
@@ -1138,7 +1138,7 @@ Summary: **1053** keys · **153** map to a legacy id · **900** new · legacy di
 | `deleteDownloadsTitle` | Delete downloads? | title | short |  | — |
 | `deleteHistorySub` | Messages go from this device. Contacts keep theirs. | text | medium |  | — |
 | `freeUpSpace` | Free up space | text | short |  | — |
-| `howToUseSub` | Chats, payments and apps | label | medium |  | — |
+| `howToUseSub` | Chats, payments and apps | text | medium |  | — |
 | `languageFailed` | Couldn’t change the language. | error | medium |  | — |
 | `languageReport` | Report a translation problem | error | medium |  | — |
 | `lockFailed` | Couldn’t turn on the app lock. | error | medium |  | — |
@@ -1156,6 +1156,7 @@ Summary: **1053** keys · **153** map to a legacy id · **900** new · legacy di
 | `showQr` | Show QR | text | short |  | — |
 | `themeDark` | Dark | label | short |  | `settings-account-appearance-dark` |
 | `themeFailed` | Couldn’t change the theme. | error | medium |  | — |
+| `themeLead` | System follows your device’s light or dark setting. | text | medium |  | — |
 | `themeLight` | Light | label | short |  | `settings-account-appearance-light` |
 | `themeSystem` | System | label | short |  | — |
 | `unblock` | Unblock | label/aria | short |  | — |
@@ -1294,7 +1295,7 @@ Summary: **1053** keys · **153** map to a legacy id · **900** new · legacy di
 | `hideBalance` | Hide balance | aria | short |  | — |
 | `receive` | Receive | label | short |  | `contact-details-receive` |
 
-## wallet-receive.js (28)
+## wallet-receive.js (27)
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
@@ -1311,7 +1312,6 @@ Summary: **1053** keys · **153** map to a legacy id · **900** new · legacy di
 | `peerAddressTitle` | Ixian address | text | short |  | — |
 | `peerQrLabel` | QR code: this contact’s Ixian address | label | medium |  | — |
 | `qrReceiveLabel` | QR code: your Ixian address | text | medium |  | — |
-| `receiveCaption` | Scan to send IXI to this address | text | medium |  | — |
 | `requestAmount` | Request an amount | aria | short |  | — |
 | `requestContinue` | Continue ({n}) | label | short | {n} | `apps-removing-app-continue` |
 | `requestCta` | Request {a} IXI ({n}) | label | medium | {a} {n} | `index-new-request` |
@@ -1322,7 +1322,7 @@ Summary: **1053** keys · **153** map to a legacy id · **900** new · legacy di
 | `requestSentPartly` | Sent to {n}. The rest are still selected. Try again. | text | medium | {n} | — |
 | `requestSentTo` | Request for {a} IXI sent to {name} | error | medium | {a} {name} | — |
 | `requestSentToMany` | Request for {a} IXI sent to {n} contacts | text | medium | {a} {n} | — |
-| `shareAddress` | Share address | aria | short |  | — |
+| `shareAddress` | Share address | label | short |  | — |
 | `showMyAddress` | Show my address | label | short |  | — |
 | `txCopied` | Copied | error/aria | short |  | — |
 | `yourAddress` | Your address | text | short |  | — |

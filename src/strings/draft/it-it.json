@@ -593,6 +593,7 @@
   "textSizeCustom": "Dimensione personalizzata ({0}%), impostata con il pinch in una chat. Scegli una dimensione per sostituirla.",
   "textXL": "XL",
   "theme": "Tema",
+  "themeLead": "Sistema segue l’impostazione chiara o scura del tuo dispositivo.",
   "themeFailed": "Impossibile cambiare il tema.",
   "themeSystem": "Sistema",
   "thisApp": "questa app",

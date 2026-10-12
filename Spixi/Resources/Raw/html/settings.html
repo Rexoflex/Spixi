@@ -1660,81 +1660,143 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   font-weight: var(--font-weight-regular);
 }
 
-/* —— theme sheet: VISUAL PREVIEW TILES (#147) —— */
-.c-settings__themes {
-  display: flex;
-  gap: var(--spacing-8);
+/* —— ★ #1353 THE theme picker (createThemePicker; Damir 12:57, picked A on docs/renders/theme-picker) ——
+   ONE picker for Account › Theme (sheet + desktop pane) and Chat appearance › Theme: three portrait mini phones with a
+   real chat inside; System = the light chat with the dark one clipped over it on the diagonal; picked = the blue rim + a
+   white check in a blue disc on the corner (#1342) and the name in the action ink. The faces are FIXED paints — a
+   preview shows its OWN mode (#147, the --preview-* pair); the bubble and sent paints are pictures of today's chat. */
+.c-theme-sheet { --theme-pick-gap: var(--surface-settings-ground); }
+.c-sheet .c-theme-sheet { --theme-pick-gap: var(--surface-sheet); }
+.c-theme-sheet__lead {
+  margin: 0 0 var(--spacing-16);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  max-width: 44ch;
 }
-.c-settings__theme {
-  flex: 1;
-  min-width: 0;
+.c-sheet .c-theme-sheet__lead { margin-top: calc(-1 * var(--spacing-8)); }   /* under the sheet title only (the pane has its own topbar) */
+.c-theme-pick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-12);
+  max-width: 520px;                    /* sanctioned: three phones, not three slabs, on a wide pane */
+}
+.c-theme-pick__tile {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: var(--spacing-8);
-  padding: var(--spacing-8);
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
-  border-radius: var(--radius-12);
+  min-width: 0;
+  padding: 0;
+  border: 0;
   background: transparent;
+  color: var(--text-neutral-01);
+  font: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color var(--duration-100) var(--easing-standard);
 }
-.c-settings__theme[aria-checked='true'] { border-color: var(--outline-action-default); }
-@media (hover: hover) and (pointer: fine) {
-  .c-settings__theme:hover { background: var(--surface-interactive-hover); }
-}
-.c-settings__theme:active { background: var(--surface-interactive-pressed); }
-/* the mini screen — FIXED paints (a preview shows its OWN mode, --surface-qr precedent) */
-.c-settings__theme-art {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  height: 64px;                     /* sanctioned: preview miniature dim */
-  padding: var(--spacing-8);
-  border-radius: var(--radius-8);
-  background: var(--preview-light-surface);
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
-  overflow: hidden;
-}
-.c-settings__theme-line {
-  height: 6px;                      /* sanctioned: preview miniature bars */
-  border-radius: var(--radius-full);
-  background: var(--preview-light-line);
-}
-.c-settings__theme-line:first-child { width: 40%; background: var(--surface-action-default); }
-.c-settings__theme-line:nth-child(2) { width: 90%; }
-.c-settings__theme-line:nth-child(3) { width: 65%; }
-.c-settings__theme[data-mode='dark'] .c-settings__theme-art { background: var(--preview-dark-surface); }
-.c-settings__theme[data-mode='dark'] .c-settings__theme-line { background: var(--preview-dark-line); }
-.c-settings__theme[data-mode='dark'] .c-settings__theme-line:first-child { background: var(--surface-action-default); }
-/* System = diagonal split: light art + a dark wedge clipped over the right half */
-.c-settings__theme[data-mode='system'] .c-settings__theme-art {
+.c-theme-pick__mini {
   position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4.1;               /* sanctioned: a portrait phone */
+  border-radius: var(--radius-16);
+  overflow: hidden;
+  transition: box-shadow var(--duration-100) var(--easing-standard);
 }
-.c-settings__theme[data-mode='system'] .c-settings__theme-art::after {
+.c-theme-pick__mini::after {           /* the phone's edge — a light phone on a white card still has a border */
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--preview-dark-surface);
-  clip-path: polygon(100% 0, 100% 100%, 35% 100%);
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14);   /* sanctioned: the picture's edge (theme-picker-render.html) */
+  pointer-events: none;
 }
-.c-settings__theme-foot {
+[data-theme='dark'] .c-theme-pick__mini::after { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); }   /* sanctioned: the picture's edge in dark */
+.c-theme-pick__face {
+  position: absolute;
+  inset: 0;
+  --pf-bg: var(--preview-light-surface);
+  --pf-card: #FFFFFF;                  /* sanctioned: today's light received bubble, as a picture */
+  --pf-line: var(--preview-light-line);
+  --pf-sent: #2160C2;                  /* sanctioned: today's blue, as a picture */
+  background: var(--pf-bg);
+}
+.c-theme-pick__face[data-face='dark'] {
+  --pf-bg: var(--preview-dark-surface);
+  --pf-card: #1E2023;                  /* sanctioned: today's dark received bubble, as a picture */
+  --pf-line: #2A2D31;                  /* sanctioned: a header line on the dark picture */
+  --pf-sent: #1A4A96;                  /* sanctioned: today's dark-step blue, as a picture */
+}
+.c-theme-pick__tile[data-mode='system'] .c-theme-pick__face[data-face='dark'] { clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+[dir='rtl'] .c-theme-pick__tile[data-mode='system'] .c-theme-pick__face[data-face='dark'] { clip-path: polygon(0 0, 100% 100%, 0 100%); }
+.c-theme-pick__face > i { position: absolute; display: block; border-radius: var(--radius-full); }
+.c-theme-pick__hd {
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 15%;
+  border-radius: 0 !important;
+  background: var(--pf-card);
+  display: flex !important;
+  align-items: center;
+  gap: 4px;                            /* sanctioned: miniature */
+  padding-inline: 6px;                 /* sanctioned: miniature */
+}
+.c-theme-pick__hd > b { width: 9px; height: 9px; border-radius: 50%; background: linear-gradient(135deg, #7AA7FF, #A77BFF); flex: none; }   /* sanctioned: the miniature avatar, a picture */
+.c-theme-pick__hd > i { width: 34%; height: 5px; border-radius: 3px; background: var(--pf-line); }   /* sanctioned: miniature */
+.c-theme-pick__r, .c-theme-pick__s { height: 10%; }
+.c-theme-pick__r { inset-inline-start: 7%; inset-block-start: 23%; width: 52%; background: var(--pf-card); }
+.c-theme-pick__r2 { inset-block-start: 37%; width: 38%; }
+.c-theme-pick__s { inset-inline-end: 7%; inset-block-start: 53%; width: 50%; background: var(--pf-sent); }
+.c-theme-pick__s2 { inset-block-start: 67%; width: 34%; }
+.c-theme-pick__cp { inset-inline: 6%; inset-block-end: 5%; height: 10%; background: var(--pf-card); }
+.c-theme-pick__face[data-face='light'] .c-theme-pick__r { box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08); }   /* sanctioned: a white bubble on the light picture */
+.c-theme-pick__tile[aria-checked='true'] .c-theme-pick__mini {
+  box-shadow: 0 0 0 2.5px var(--theme-pick-gap, var(--surface-settings-card)), 0 0 0 4.5px var(--surface-action-default);
+}
+.c-theme-pick__check {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 7px;
+  inset-inline-end: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 2px var(--theme-pick-gap, var(--surface-settings-card)), 0 2px 6px rgba(10, 20, 60, .25);   /* sanctioned: the badge's lift */
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity .16s ease, transform .2s cubic-bezier(.3, 1.4, .5, 1);
+}
+.c-theme-pick__check > svg { width: 14px; height: 14px; }
+.c-theme-pick__tile[aria-checked='true'] .c-theme-pick__check { opacity: 1; transform: none; }
+.c-theme-pick__foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: var(--spacing-4);
+  min-height: 22px;
 }
-.c-settings__theme-label {
+.c-theme-pick__name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-neutral-01);
   font-size: var(--font-size-label-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
-.c-settings__theme[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
-.c-settings__theme[data-loading] .c-settings__opt-check { display: none; }
+@media (max-width: 359px) { .c-theme-pick__name { font-size: var(--font-size-label-sm); } }   /* 320 px phones: ru «Системная» / sl «Sistemska» fit the 76 px tile */
+.c-theme-pick__tile[aria-checked='true'] .c-theme-pick__name { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }
+.c-theme-pick__status { display: inline-flex; align-items: center; flex: none; }   /* the in-flight spinner's slot (the old .c-settings__opt-status grammar) */
+.c-theme-pick__status:empty { display: none; }
+.c-theme-pick__tile:focus-visible { outline: none; }
+.c-theme-pick__tile:focus-visible .c-theme-pick__mini { outline: 2px solid var(--outline-focus); outline-offset: 6px; }
+@media (prefers-reduced-motion: reduce) { .c-theme-pick__check { transition: none; } }
 
 /* —— avatar sheet —— */
 .c-settings__avatar-sheet { display: flex; flex-direction: column; gap: var(--spacing-4); }
@@ -1794,6 +1856,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   flex-direction: column;
   gap: var(--spacing-4);
   padding: var(--spacing-12);
+  padding-inline-start: calc(var(--spacing-12) - var(--outline-width-1));   /* ★ #1356: the border eats 1 px — the glyph box lands on the rows' disc column (x 28 at 360 px) */
   border: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-12);
   background: var(--surface-settings-card);   /* ★ #1007: the danger screen shares the grey ground — its cards go white too */
@@ -1809,15 +1872,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-settings-danger__card-title {
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
+  gap: var(--spacing-16);   /* ★ #1356: the rows' disc → label gap */
   min-height: 24px;
   color: var(--text-error);
   font-size: var(--font-size-body-md);
   font-weight: var(--font-weight-semibold);
 }
-.c-settings-danger__card-title svg { color: currentColor; flex: none; }
+/* ★ #1356 (Damir 14:11 "texts are not aligned … create a padding around it"): the bare 20 px glyph sits in a 30 px box — the
+   size of the rows' disc above — so the title and the line under it start where the rows' texts start. */
+.c-settings-danger__card-title svg { color: currentColor; flex: none; box-sizing: content-box; padding: 5px; }   /* sanctioned: (30 − 20) / 2 — the disc's box */
 .c-settings-danger__card-sub {
-  padding-inline-start: calc(20px + var(--spacing-12));   /* sanctioned: aligns under the 20px glyph */
+  padding-inline-start: calc(30px + var(--spacing-16));   /* sanctioned: ★ #1356 under the 30 px glyph box + the gap (was 20px + 12) */
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
@@ -2067,9 +2132,13 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   --subslide-from: 40%;                              /* LTR: from the trailing (right) edge, 40% travel */
 }
 html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
-.c-subslide--viewport { position: fixed; inset: 0; }        /* covers the whole page, bars included — the settled layout of a sublevel */
+/* ★ S17 walk fix (#1351, Damir 11:20 video): the layer's position is DOUBLE-CLASS (0,2,0). A screen root that positions
+   itself with one class in a later sheet (S17's `.c-settings-dl` / `.c-settings-about--hdr` / `.c-settings-contrib--hdr
+   { position: relative }` in settings-app.css) tied at (0,1,0) and WON by load order: the sliding layer fell back into
+   the page flow under the still-mounted hub (About drew from y = 413 under the "App" header) until the slide settled. */
+.c-subslide.c-subslide--viewport { position: fixed; inset: 0; }        /* covers the whole page, bars included — the settled layout of a sublevel */
 .c-subslide-host { position: relative; }
-.c-subslide--host { position: absolute; inset: 0; }          /* inside one host (the launch views) */
+.c-subslide.c-subslide--host { position: absolute; inset: 0; }          /* inside one host (the launch views) */
 
 /* the exit's tap shield (review MINOR-3) — transparent, above the pointer-dead dying
    layer, gone at animationend/backstop. z-30 = the same plane as the layer it guards. */
@@ -2830,8 +2899,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   height: 6px;
   margin: -3px;
   pointer-events: none;
+  border-radius: 50%;   /* ★ #1357: a round dot (the four-point star read as the AI mark) — the set's bokeh dot */
   background: var(--dc-spk-0);
-  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
   animation: ct-spark .7s ease-out forwards;
 }
 .c-settings-contrib__spark[data-tone="1"] { background: var(--dc-spk-1); }
@@ -5079,41 +5148,8 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
 }
 .c-settings-appearance__colour:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
 
-/* (4) the theme: three mini phones (System = half light, half dark) */
-.c-settings-appearance__themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 520px; padding: 6px 18px 16px; }   /* capped: three phones, not three slabs, on a wide pane */
-.c-settings-appearance__theme {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-neutral-01);
-  font: inherit;
-  font-size: var(--font-size-label-sm);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.c-settings-appearance__phone {
-  position: relative;
-  width: 100%;
-  height: 96px;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #eceef1;                  /* sanctioned: the LIGHT phone face — a fixed picture of the light theme */
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-}
-.c-settings-appearance__phone[data-mode='dark'] { background: #0c0e10; }   /* sanctioned: the DARK phone face */
-.c-settings-appearance__phone[data-mode='system'] { background: linear-gradient(90deg, #eceef1 50%, #0c0e10 50%); }   /* sanctioned */   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-[dir='rtl'] .c-settings-appearance__phone[data-mode='system'] { background: linear-gradient(270deg, #eceef1 50%, #0c0e10 50%); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-.c-settings-appearance__phone i { position: absolute; display: block; height: 10px; border-radius: 5px; }
-.c-settings-appearance__phone-bar { inset-block-start: 0; inset-inline: 0; height: 14px !important; border-radius: 0 !important; background: rgba(127, 127, 127, .22); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-.c-settings-appearance__phone-r { inset-block-start: 28px; inset-inline-start: 8px; width: 40%; background: rgba(127, 127, 127, .45); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-.c-settings-appearance__phone-s { inset-block-start: 46px; inset-inline-end: 8px; width: 46%; background: #2160c2; }   /* sanctioned: today's blue, as a picture */
-.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__phone {
-  box-shadow: 0 0 0 2.5px var(--surface-settings-card), 0 0 0 4.5px var(--surface-action-default);
-}
+/* (4) the theme — ★ #1353: THE shared picker (createThemePicker; its rules live in settings-shell.css) */
+.c-settings-appearance__card--theme .c-theme-pick { padding: 6px 18px 16px; --theme-pick-gap: var(--surface-settings-card); }
 /* ★ S17 C (Damir 20:21: "just a selected rim over the tile and a check icon in a blue circle"): the radio under the phone
    is gone — no other screen uses one. The picked tile keeps the blue rim and carries a white check in a blue disc on its
    top corner; the same mark sits on the chat-list cards, so both rows say "picked" one way. */
@@ -5136,12 +5172,9 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
   transition: opacity .16s ease, transform .2s cubic-bezier(.3, 1.4, .5, 1);
 }
 .c-settings-appearance__pick > svg { width: 14px; height: 14px; }
-.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__pick,
 .c-settings-appearance__line[aria-checked="true"] .c-settings-appearance__pick { opacity: 1; transform: none; }
 .c-settings-appearance__line .c-settings-appearance__pick { inset-block-start: auto; inset-block-end: 10px; inset-inline-end: 10px; }   /* on the label row, clear of the mini list */
-.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__theme-name { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }
 @media (prefers-reduced-motion: reduce) { .c-settings-appearance__pick { transition: none; } }
-.c-settings-appearance__theme:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
 
 /* (5) the chat list: 1 / 2 lines as mini lists (the render's .ap__ln) */
 .c-settings-appearance__lines { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 520px; padding: 6px 18px 12px; }
@@ -7128,6 +7161,20 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 
 .c-bubble-row[data-direction="sent"] .c-voice__badge { border-color: var(--surface-bubble-sent); background: var(--text-bubble-sent); color: var(--surface-bubble-sent); }
 
+/* ★★ #1355: the voice message — the received play disc and the "not yet played" mic badge take the canvas colour; the
+   SENT bubble's unplayed bars are a quiet step of its own colour (they were the fixed --primary-500, blue on a pink bubble). */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-voice {
+    --surface-action-default: var(--chat-accent);
+    --icon-action-default: var(--chat-accent-ink);
+  }
+  .c-bubble-row[data-direction="sent"] .c-voice__bar { background: color-mix(in srgb, var(--text-bubble-sent) 25%, var(--surface-bubble-sent)); }   /* #46 r1 m2: 25 % (was 42 %) — played vs unplayed ≥ 3.12 : 1 on every sent colour, both themes */
+  /* #46 r1 m3: in LIGHT the unread badge is the accent 15 % deeper — ≥ 4 : 1 against the played grey disc on every sent colour
+     (the plain accent fell to 2.96 on Ocean / Dusk / orange; the #46 picks r2 MINOR-3 rule exists to make "not yet played" stand out) */
+  :root:not([data-theme="dark"]) .c-bubble-row[data-direction="received"] .c-voice__who[data-tone="accent"] .c-voice__badge { background: color-mix(in srgb, var(--chat-accent) 85%, #000000); }   /* sanctioned: a deeper step of the accent */
+  .c-bubble-row[data-direction="sent"] .c-voice__bar[data-played] { background: var(--text-bubble-sent); }
+}
+
 </style><!-- .c-chat-canvas paint for the appearance preview -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <link rel="stylesheet" href="spixi.chat-pattern.css"><!-- generated pattern tile (contours, #997) for the preview canvas -->
@@ -7922,6 +7969,137 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* ★ W-b (2026-08-24): desktop content column cap — see wallet-send.css */
 :root[data-desktop] .c-wallet-receive { max-width: 560px; margin-inline: auto; width: 100%; box-sizing: border-box; }
 
+/* —— ★★ #1358 (Damir 2026-10-12 14:54, Direction A of "Spixi Address Sheet"): THE IDENTITY CARD ——
+   One card instead of four boxes: a soft band (the illustration kit's violet / pink / blue halo — a picture, fixed per
+   theme), the avatar cut into it + the name (Account passes them), the explainer as ONE quiet line (no box, no glyph),
+   the QR on its white plate, and the address as ONE start…end group with a labelled Copy pill. Share is the full-width
+   filled action under the card; the safety line is a quiet line at the foot (no green box). */
+.c-addr-sheet__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: 0 var(--spacing-16) var(--spacing-16);
+  border-radius: var(--radius-24);
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-1);
+  overflow: hidden;
+  text-align: center;
+  flex: none;
+}
+[data-theme='dark'] .c-addr-sheet__card { background: var(--surface-sheet-card); }   /* the dark sheet IS the settings-card grey — a card lifts one rung */
+.c-addr-sheet__band {
+  align-self: stretch;
+  margin-inline: calc(-1 * var(--spacing-16));
+  height: 44px;   /* sanctioned: the band without an identity (Wallet › Receive, a contact) */
+  background:
+    radial-gradient(60% 140% at 12% 0%, rgba(154, 122, 255, .85) 0%, transparent 70%),
+    radial-gradient(55% 150% at 92% 10%, rgba(255, 142, 198, .80) 0%, transparent 70%),
+    radial-gradient(70% 120% at 55% 120%, rgba(108, 159, 255, .75) 0%, transparent 70%),
+    linear-gradient(180deg, #F3EFFF, #E2DCFD);   /* sanctioned: the kit's light halo band (address-sheet-render.html A), a picture */
+}
+[data-theme='dark'] .c-addr-sheet__band {
+  background:
+    radial-gradient(60% 140% at 12% 0%, rgba(91, 70, 240, .85) 0%, transparent 70%),
+    radial-gradient(55% 150% at 92% 10%, rgba(192, 63, 147, .80) 0%, transparent 70%),
+    radial-gradient(70% 120% at 55% 120%, rgba(47, 99, 255, .75) 0%, transparent 70%),
+    linear-gradient(180deg, #1D1A3D, #14122C);   /* sanctioned: the kit's dark halo band, a picture */
+}
+.c-addr-sheet__card[data-who] .c-addr-sheet__band { height: 62px; }   /* sanctioned: room for the avatar's top half */
+.c-addr-sheet__avatar {
+  margin-block-start: -44px;   /* sanctioned: half the 64 px avatar + the card gap — cut into the band */
+  box-shadow: 0 0 0 4px var(--surface-settings-card), 0 10px 18px -8px rgba(60, 40, 140, .45);   /* sanctioned: the cut-out ring + the lift (the render's) */
+}
+[data-theme='dark'] .c-addr-sheet__avatar { box-shadow: 0 0 0 4px var(--surface-sheet-card), 0 10px 18px -8px rgba(0, 0, 0, .6); }   /* sanctioned: the dark ring + lift */
+.c-addr-sheet__name {
+  margin: calc(-1 * var(--spacing-4)) 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-heading-xs);
+  font-weight: var(--font-weight-bold);
+}
+/* the explainer: one quiet line under the name — no box, no glyph (the hook classes stay for the order pins) */
+.c-addr-sheet__card .c-addr-sheet__explain { display: block; padding: 0; background: none; max-width: 36ch; }
+.c-addr-sheet__card .c-addr-sheet__explainicon { display: none; }
+.c-addr-sheet__card .c-addr-sheet__info { text-align: center; }
+/* the QR sits in the card's rhythm (the sheet's own block padding is for a QR on the bare sheet) */
+:root .c-addr-sheet__card .c-addr-sheet__qrwrap { padding-block: var(--spacing-4) 0; }
+.c-addr-sheet__card .c-addr-sheet__qrcard { box-shadow: 0 0 0 var(--outline-width-1) var(--outline-neutral-01); }
+[data-theme='dark'] .c-addr-sheet__card .c-addr-sheet__qrcard { box-shadow: none; }
+/* the address: ONE start…end group + the Copy pill; a tap shows the whole value (selectable) */
+.c-addr-sheet__card .c-addr-sheet__addr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 0;
+  border: 0;
+  background: none;
+  align-self: stretch;
+}
+.c-addr-sheet__short {
+  border: 0;
+  background: none;
+  padding: var(--spacing-4) var(--spacing-8);
+  border-radius: var(--radius-8);
+  color: var(--text-neutral-01);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: .02em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-addr-sheet__short:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+.c-addr-sheet__card .c-addr-sheet__addr:not([data-full]) .c-wallet-receive__addrvalue {   /* in the DOM for screen readers, off screen */
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.c-addr-sheet__card .c-addr-sheet__addr[data-full] .c-addr-sheet__short { display: none; }
+.c-addr-sheet__card .c-addr-sheet__addr[data-full] .c-wallet-receive__addrvalue {
+  flex: none;
+  max-width: 32ch;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  color: var(--text-neutral-01);
+  word-break: break-all;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+.c-addr-sheet__card .c-wallet-receive__copy.c-addr-sheet__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  width: auto;
+  height: 36px;   /* sanctioned: the pill (44 hit area through the card's padding is not needed: it is a 36 tall labelled control with 12 px around it) */
+  padding-inline: var(--spacing-12) var(--spacing-16);
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+}
+.c-addr-sheet__card .c-wallet-receive__copy.c-addr-sheet__copy[data-state='ok'] { background: var(--surface-success-inverse); color: var(--text-success); }
+.c-addr-sheet__card .c-wallet-receive__copy.c-addr-sheet__copy[data-state='fail'] { background: var(--surface-error-inverse); color: var(--text-error); }
+/* Share: the one filled action, full width under the card */
+.c-addr-sheet > .c-addr-sheet__sharebtn { flex: none; width: 100%; height: 56px; }
+/* the safety line: one quiet line at the foot (no green box) */
+.c-addr-sheet .c-addr-sheet__explain--safe {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  padding: 0 var(--spacing-8);
+  background: none;
+  box-shadow: none;
+}
+.c-addr-sheet .c-addr-sheet__explain--safe .c-addr-sheet__info { color: var(--text-neutral-02); font-size: var(--font-size-label-sm); line-height: var(--line-height-label-sm); text-align: center; }
+
 </style><!-- ★ Batch E (d) (#557): openAddressSheet (.c-addr-sheet / __qrcard) — unstyled here without it (the toast.css lesson) -->
 <style>
   /* Production shell: fill the WebView. Internal views (hub = root · danger /
@@ -7998,7 +8176,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      Desktop pane only; the phone keeps its bars (one screen at a time, nothing to match). */
   body[data-pane] .c-topbar { background: var(--surface-settings-ground); }
   body[data-pane] .sd-detail .c-topbar[data-variant="view"] { border-bottom-color: transparent; }
-  body[data-pane] .c-settings__themes { padding: var(--spacing-16); }
+  body[data-pane] .c-theme-sheet { padding: var(--spacing-16); }   /* ★ #1353: the lead + THE picker (was .c-settings__themes) */
   body[data-pane] .c-settings__opts { padding: var(--spacing-16); }
   body[data-pane] .c-settings-backup__hero > .c-settings-backup__cta { width: auto; min-width: 240px; margin-inline: auto; }
   body[data-pane] .c-settings-backup__adv-box .c-button { width: auto; }
@@ -8986,6 +9164,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       onAddressInfo: () => {
         openAddressSheet({
           address: state.address, strings, host: document.body,
+          name: state.name, avatar: state.avatarSrc,   // ★ #1358: the identity card — the same sheet from both doors
           onShare: isDesktop ? undefined : shareAddress,   // W9: desktop has no distinct share
         });
       },

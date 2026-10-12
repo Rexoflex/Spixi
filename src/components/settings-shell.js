@@ -63,11 +63,14 @@ function settingsLabel(text) {
 }
 
 /* tinted icon disc (#147) — data-hue rides the --disc-* token pairs */
-function settingsDisc(glyph, hue) {
+function settingsDisc(glyph, hue, grad) {
   const d = document.createElement('span');
   d.className = 'c-disc';
   d.dataset.hue = hue;
-  d.dataset.grad = String(discGrad(glyph));
+  d.dataset.grad = String(grad || discGrad(glyph));
+  /* ★ #1352 (Damir 2026-10-12 12:24): a row may PIN its slot — spreadDiscs keeps it (and still counts it, so the other
+     rows keep their colours); About and Contributors take the colour of their own header */
+  if (grad) d.dataset.gradPin = String(grad);
   d.append(icon(glyph, { size: 16 }));
   return d;
 }
@@ -354,47 +357,91 @@ export function attachScrollIndicator(frame, scroller) {
    EXPORTED: the launch welcome reuses it for its appearance control (preview
    tiles keep the pick visible on the pinned-dark welcome — launch premium
    rework, Damir 2026-07-06). */
-export function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked, inline = false }) {
+/* ★ #1035 → ★ S17 C (#46 r1 M1) → ★ #1353: ONE radio-group keyboard for every picture group in settings (canvas tiles,
+   theme phones, chat-list tiles) — arrows move AND select, Home / End, wrap, RTL mirrored. Only the checked option is in
+   the tab order. (Moved here from settings-screens.js so the shared theme picker uses the same keyboard.) */
+export function radioArrows(group) {
+  group.addEventListener('keydown', (e) => {
+    const kids = [...group.children];
+    const i = kids.indexOf(e.target);
+    if (i < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
+    const rtl = (group.closest('[dir]') || document.documentElement).getAttribute('dir') === 'rtl';
+    const fwd = rtl ? 'ArrowLeft' : 'ArrowRight', back = rtl ? 'ArrowRight' : 'ArrowLeft';
+    let n = -1;
+    if (e.key === fwd || e.key === 'ArrowDown') n = (i + 1) % kids.length;
+    else if (e.key === back || e.key === 'ArrowUp') n = (i - 1 + kids.length) % kids.length;
+    else if (e.key === 'Home') n = 0;
+    else if (e.key === 'End') n = kids.length - 1;
+    if (n < 0) return;
+    e.preventDefault();
+    kids[n].focus();
+    kids[n].click();
+  });
+}
+
+/* ★ #1353 (Damir 2026-10-12 12:57, picked A on the theme-picker render): THE theme picker — ONE component for
+   Account › Theme (the sheet, and the desktop pane's inline screen) and Chat appearance › Theme. Each option is a portrait
+   mini phone with a real chat in it (header, two received bubbles, two sent bubbles, a composer); System is the light chat
+   with the dark one clipped over it on the DIAGONAL, so both halves read as a chat. Picked = the blue rim + a white check
+   in a blue disc on the phone's corner (the Chat appearance mark, #1342) and the name in the action ink.
+   The faces are FIXED paints (a preview shows its OWN mode — the --preview-* precedent, #147).
+   Commit grammar = the old sheet's: commit(value, ctrl) per pick, latched while in flight (a spinner on the name row),
+   the check moves on ctrl.done, the picker STAYS (#148② — keep trying themes). */
+function themeFace(mode) {
+  const f = document.createElement('span');
+  f.className = 'c-theme-pick__face';
+  f.dataset.face = mode;
+  for (const k of ['hd', 'r', 'r r2', 's', 's s2', 'cp']) {
+    const x = document.createElement('i');
+    x.className = k.split(' ').map((c) => 'c-theme-pick__' + c).join(' ');
+    if (k === 'hd') { const a = document.createElement('b'); const t = document.createElement('i'); x.append(a, t); }
+    f.append(x);
+  }
+  return f;
+}
+export function createThemePicker({ current, strings = getStrings(), commit, onPicked, labelledBy }) {
   const wrap = document.createElement('div');
-  wrap.className = 'c-settings__themes';
+  wrap.className = 'c-theme-pick';
   wrap.setAttribute('role', 'radiogroup');
-  wrap.setAttribute('aria-label', strings.theme || 'Theme');
+  if (labelledBy) wrap.setAttribute('aria-labelledby', labelledBy);
+  else wrap.setAttribute('aria-label', strings.theme || 'Theme');
   let inFlight = false;
-  const tilesByValue = new Map();
-  // #148②: the sheet STAYS OPEN after a pick — trying themes must not cost a
-  // reopen per try (Damir). The check moves live; the user dismisses when done.
+  const tiles = [];
   const paint = () => {
-    for (const [v, t] of tilesByValue) t.setAttribute('aria-checked', String(v === current));
+    for (const t of tiles) {
+      const on = t.dataset.value === String(current);
+      t.setAttribute('aria-checked', String(on));
+      t.tabIndex = on ? 0 : -1;
+    }
   };
   for (const o of THEME_OPTIONS) {
+    const mode = ['system', 'light', 'dark'][o.value];
     const tile = document.createElement('button');
     tile.type = 'button';
-    tile.className = 'c-settings__theme';
+    tile.className = 'c-theme-pick__tile';
     tile.setAttribute('role', 'radio');
-    tile.dataset.mode = ['system', 'light', 'dark'][o.value];
-    tile.setAttribute('aria-checked', String(o.value === current));
-    const art = document.createElement('span');
-    art.className = 'c-settings__theme-art';
-    art.setAttribute('aria-hidden', 'true');
-    for (let i = 0; i < 3; i++) {                 // mini screen: bar + two lines
-      const line = document.createElement('span');
-      line.className = 'c-settings__theme-line';
-      art.append(line);
-    }
-    const lab = document.createElement('span');
-    lab.className = 'c-settings__theme-label';
-    lab.textContent = strings[o.key] || o.label;
-    const status = document.createElement('span');
-    status.className = 'c-settings__opt-status';
-    const tick = icon('check', { size: 18 });
-    tick.classList.add('c-settings__opt-check');
-    status.append(tick);
+    tile.dataset.mode = mode;
+    tile.dataset.value = String(o.value);
+    const mini = document.createElement('span');
+    mini.className = 'c-theme-pick__mini';
+    mini.setAttribute('aria-hidden', 'true');
+    if (mode === 'system') mini.append(themeFace('light'), themeFace('dark'));
+    else mini.append(themeFace(mode));
+    const check = document.createElement('span');
+    check.className = 'c-theme-pick__check';
+    check.append(icon('check', { size: 14 }));
+    mini.append(check);
     const foot = document.createElement('span');
-    foot.className = 'c-settings__theme-foot';
-    foot.append(lab, status);
-    tile.append(art, foot);
+    foot.className = 'c-theme-pick__foot';
+    const name = document.createElement('span');
+    name.className = 'c-theme-pick__name';
+    name.textContent = strings[o.key] || o.label;
+    const status = document.createElement('span');
+    status.className = 'c-theme-pick__status';
+    foot.append(name, status);
+    tile.append(mini, foot);
     tile.addEventListener('click', () => {
-      if (inFlight || o.value === current) return;
+      if (inFlight || String(o.value) === String(current)) return;
       inFlight = true;
       tile.dataset.loading = '';
       tile.setAttribute('aria-busy', 'true');
@@ -409,16 +456,8 @@ export function settingsThemeSheet({ current, host, strings = getStrings(), comm
         spinner.remove();
       };
       const ctrl = settingsCtrl(
-        () => {
-          settle();
-          current = o.value;
-          paint();                             // sheet stays open (#148②) — keep trying
-          if (onPicked) onPicked(o);
-        },
-        (msg) => {
-          settle();
-          if (onPicked) onPicked(null, msg);
-        },
+        () => { settle(); current = o.value; paint(); if (onPicked) onPicked(o); },
+        (msg) => { settle(); if (onPicked) onPicked(null, msg); },
       );
       try {
         commit(o.value, ctrl);
@@ -426,11 +465,29 @@ export function settingsThemeSheet({ current, host, strings = getStrings(), comm
         ctrl.fail();                           // sync throw → settle spinner/latch (#141-m4)
       }
     });
-    tilesByValue.set(o.value, tile);
+    tiles.push(tile);
     wrap.append(tile);
   }
+  paint();
+  radioArrows(wrap);
+  /* a host may repaint the picker without a commit (no host does today: a push while the picker is open leaves it as it
+     was, the old tiles' behaviour too — #1353 r1 n2) */
+  wrap.setThemeValue = (v) => { current = v; paint(); };
+  return wrap;
+}
+
+export function settingsThemeSheet({ current, host, strings = getStrings(), commit, onPicked, inline = false }) {
+  /* ★ #1353: the sheet / pane body = a one-line explanation + THE picker (createThemePicker); the sheet stands taller
+     because the phones are portrait (Damir 12:57: "the bottom sheet … should be taller, now it sits awkwardly low") */
+  const wrap = document.createElement('div');
+  wrap.className = 'c-theme-sheet';
+  const lead = document.createElement('p');
+  lead.className = 'c-theme-sheet__lead';
+  lead.textContent = strings.themeLead || 'System follows your device’s light or dark setting.';   // r1 m3: the desktop pane shows it too
+  wrap.append(lead, createThemePicker({ current, strings, commit, onPicked }));
   if (inline) return wrap;                    // #242: pane detail screen hosts the tiles (already stay-open)
   const sheet = createSheet({ content: wrap, host, title: strings.theme || 'Theme', strings });
+  sheet.classList.add('c-sheet--theme');
   openSheet(sheet);
   return sheet;
 }
@@ -749,6 +806,7 @@ export function createSettingsHub({
      * caption under it — "Your Ixian address · What is this?" — opens the same sheet. Copy and QR stay. */
     const openSheet = () => openAddressSheet({
       address, strings, host: hostFor(),
+      name, avatar: avatarSrc,   // ★ #1358: the identity card shows whose code it is
       onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
     });
     /* ★ #1091 (Damir, Windows screenshot): the Copy button kept a blue focus ring after a MOUSE click.
@@ -830,7 +888,7 @@ export function createSettingsHub({
   body.append(hero);
 
   /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
-  const settingRow = ({ glyph, hue, label, value = '', sub = '', badgeSlot = false, onClick, cls, key }) => {
+  const settingRow = ({ glyph, hue, grad, label, value = '', sub = '', badgeSlot = false, onClick, cls, key }) => {
     const section = document.createElement('div');
     section.className = 'c-settings__section';
     const row = document.createElement(onClick ? 'button' : 'div');
@@ -848,13 +906,13 @@ export function createSettingsHub({
     if (sub) {
       const top = document.createElement('span');
       top.className = 'c-settings__row-top';
-      top.append(settingsDisc(glyph, hue), document.createTextNode(label));
+      top.append(settingsDisc(glyph, hue, grad), document.createTextNode(label));
       const s = document.createElement('span');
       s.className = 'c-settings__row-sub';
       s.textContent = sub;
       lab.append(top, s);
     } else {
-      lab.append(settingsDisc(glyph, hue), document.createTextNode(label));
+      lab.append(settingsDisc(glyph, hue, grad), document.createTextNode(label));
     }
     row.append(lab);
     const val = document.createElement('span');
@@ -1147,12 +1205,12 @@ export function createSettingsHub({
   /* How to use + About — STATIC in-hub takeovers, zero-C# (no bridge verb),
      always available (ungated). */
   if (onHowTo) app.card.append(settingRow({
-    glyph: 'info-square-rounded', hue: 'info', label: strings.howToUse || 'How to use Spixi',
+    glyph: 'info-square-rounded', hue: 'info', grad: 2, label: strings.howToUse || 'How to use Spixi',   /* ★ #1352: swapped with About (Damir 12:24) — the orange */
     key: 'howto', sub: strings.howToUseSub || 'Chats, payments and apps',
     onClick: () => onHowTo(),
   }).section);
   if (onAbout) app.card.append(settingRow({
-    glyph: 'info-circle', hue: 'neutral', label: strings.about || 'About', key: 'about',
+    glyph: 'info-circle', hue: 'neutral', grad: 7, label: strings.about || 'About', key: 'about',   /* ★ #1352: the blue of About's own header (Damir 12:24) */
     sub: strings.aboutSub || 'Links and legal',
     onClick: () => onAbout(),
   }).section);
@@ -1161,11 +1219,11 @@ export function createSettingsHub({
      SettingsPage nav verb (be-cutover S8). Contributors is STATIC (component data,
      no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
-    glyph: 'download', hue: 'info', label: strings.downloads || 'Downloads', key: 'downloads',
+    glyph: 'download', hue: 'info', grad: 4, label: strings.downloads || 'Downloads', key: 'downloads',   /* ★ #1352: swapped with Contributors (Damir 12:24) — the green */
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
-    glyph: 'heart-handshake', hue: 'accent', label: strings.contributors || 'Contributors',
+    glyph: 'heart-handshake', hue: 'accent', grad: 9, label: strings.contributors || 'Contributors',   /* ★ #1352: the violet of Contributors' own header (Damir 12:24) */
     key: 'contributors',
     onClick: () => onContributors(),
   }).section);

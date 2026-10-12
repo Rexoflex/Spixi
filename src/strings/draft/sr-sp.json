@@ -659,6 +659,7 @@
   "textSizeCustom": "Prilagođena veličina ({0}%), podešena štipanjem u razgovoru. Izaberite veličinu da je zamenite.",
   "textXL": "XL",
   "theme": "Tema",
+  "themeLead": "Sistemska prati svetlu ili tamnu postavku vašeg uređaja.",
   "themeFailed": "Promena teme nije uspela.",
   "themeSystem": "Sistemska",
   "thisApp": "ova aplikacija",

@@ -637,41 +637,8 @@
 }
 .c-settings-appearance__colour:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
 
-/* (4) the theme: three mini phones (System = half light, half dark) */
-.c-settings-appearance__themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 520px; padding: 6px 18px 16px; }   /* capped: three phones, not three slabs, on a wide pane */
-.c-settings-appearance__theme {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-neutral-01);
-  font: inherit;
-  font-size: var(--font-size-label-sm);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.c-settings-appearance__phone {
-  position: relative;
-  width: 100%;
-  height: 96px;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #eceef1;                  /* sanctioned: the LIGHT phone face — a fixed picture of the light theme */
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-}
-.c-settings-appearance__phone[data-mode='dark'] { background: #0c0e10; }   /* sanctioned: the DARK phone face */
-.c-settings-appearance__phone[data-mode='system'] { background: linear-gradient(90deg, #eceef1 50%, #0c0e10 50%); }   /* sanctioned */   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-[dir='rtl'] .c-settings-appearance__phone[data-mode='system'] { background: linear-gradient(270deg, #eceef1 50%, #0c0e10 50%); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-.c-settings-appearance__phone i { position: absolute; display: block; height: 10px; border-radius: 5px; }
-.c-settings-appearance__phone-bar { inset-block-start: 0; inset-inline: 0; height: 14px !important; border-radius: 0 !important; background: rgba(127, 127, 127, .22); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-.c-settings-appearance__phone-r { inset-block-start: 28px; inset-inline-start: 8px; width: 40%; background: rgba(127, 127, 127, .45); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
-.c-settings-appearance__phone-s { inset-block-start: 46px; inset-inline-end: 8px; width: 46%; background: #2160c2; }   /* sanctioned: today's blue, as a picture */
-.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__phone {
-  box-shadow: 0 0 0 2.5px var(--surface-settings-card), 0 0 0 4.5px var(--surface-action-default);
-}
+/* (4) the theme — ★ #1353: THE shared picker (createThemePicker; its rules live in settings-shell.css) */
+.c-settings-appearance__card--theme .c-theme-pick { padding: 6px 18px 16px; --theme-pick-gap: var(--surface-settings-card); }
 /* ★ S17 C (Damir 20:21: "just a selected rim over the tile and a check icon in a blue circle"): the radio under the phone
    is gone — no other screen uses one. The picked tile keeps the blue rim and carries a white check in a blue disc on its
    top corner; the same mark sits on the chat-list cards, so both rows say "picked" one way. */
@@ -694,12 +661,9 @@
   transition: opacity .16s ease, transform .2s cubic-bezier(.3, 1.4, .5, 1);
 }
 .c-settings-appearance__pick > svg { width: 14px; height: 14px; }
-.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__pick,
 .c-settings-appearance__line[aria-checked="true"] .c-settings-appearance__pick { opacity: 1; transform: none; }
 .c-settings-appearance__line .c-settings-appearance__pick { inset-block-start: auto; inset-block-end: 10px; inset-inline-end: 10px; }   /* on the label row, clear of the mini list */
-.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__theme-name { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }
 @media (prefers-reduced-motion: reduce) { .c-settings-appearance__pick { transition: none; } }
-.c-settings-appearance__theme:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
 
 /* (5) the chat list: 1 / 2 lines as mini lists (the render's .ap__ln) */
 .c-settings-appearance__lines { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 520px; padding: 6px 18px 12px; }

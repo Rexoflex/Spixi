@@ -987,3 +987,17 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 [data-theme="dark"] .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-500); color: var(--text-bubble-received-meta); }
 
 .c-bubble-row[data-direction="sent"] .c-voice__badge { border-color: var(--surface-bubble-sent); background: var(--text-bubble-sent); color: var(--surface-bubble-sent); }
+
+/* ★★ #1355: the voice message — the received play disc and the "not yet played" mic badge take the canvas colour; the
+   SENT bubble's unplayed bars are a quiet step of its own colour (they were the fixed --primary-500, blue on a pink bubble). */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-voice {
+    --surface-action-default: var(--chat-accent);
+    --icon-action-default: var(--chat-accent-ink);
+  }
+  .c-bubble-row[data-direction="sent"] .c-voice__bar { background: color-mix(in srgb, var(--text-bubble-sent) 25%, var(--surface-bubble-sent)); }   /* #46 r1 m2: 25 % (was 42 %) — played vs unplayed ≥ 3.12 : 1 on every sent colour, both themes */
+  /* #46 r1 m3: in LIGHT the unread badge is the accent 15 % deeper — ≥ 4 : 1 against the played grey disc on every sent colour
+     (the plain accent fell to 2.96 on Ocean / Dusk / orange; the #46 picks r2 MINOR-3 rule exists to make "not yet played" stand out) */
+  :root:not([data-theme="dark"]) .c-bubble-row[data-direction="received"] .c-voice__who[data-tone="accent"] .c-voice__badge { background: color-mix(in srgb, var(--chat-accent) 85%, #000000); }   /* sanctioned: a deeper step of the accent */
+  .c-bubble-row[data-direction="sent"] .c-voice__bar[data-played] { background: var(--text-bubble-sent); }
+}

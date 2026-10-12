@@ -532,3 +532,23 @@
   clip-path: inset(50%);
   margin: 0;
 }
+
+/* ★★ #1355: the composer is the chat's own side — its action tokens read the canvas colour (tokens.css --chat-accent*):
+   the send / mic disc, the ⊕ / × glyph and its open disc, the reply / edit context glyph, the quote bar, the recording
+   wave (newest strongest). Inside the color-mix guard: without it, today's action blue. */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-composer {
+    --surface-action-default: var(--chat-accent);
+    --surface-action-hover: color-mix(in srgb, var(--chat-accent), #000000 12%);   /* sanctioned: a pressed / hover step of the accent */
+    --surface-action-pressed: color-mix(in srgb, var(--chat-accent), #000000 22%);   /* sanctioned: the pressed step of the accent */
+    --icon-action-default: var(--chat-accent-ink);
+    --text-action-default: var(--chat-accent-ink);   /* #46 r1 m4: the reply / edit title + the caret follow the quote bar beside them */
+    --icon-action-hover: var(--chat-accent-ink);
+    --surface-action-tonal-default: var(--chat-accent-tonal);
+  }
+  :root .c-composer__rec, [data-theme] .c-composer__rec {
+    --rec-wave-new: var(--chat-accent-ink);
+    --rec-wave-mid: color-mix(in srgb, var(--chat-accent-ink) 72%, var(--surface-composer-pill));   /* #46 r1 N3: opaque tiers over the pill (no opacity — the stacking gate) */
+    --rec-wave-old: color-mix(in srgb, var(--chat-accent-ink) 42%, var(--surface-composer-pill));
+  }
+}

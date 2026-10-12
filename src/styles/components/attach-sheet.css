@@ -83,3 +83,12 @@
 @media (prefers-reduced-motion: reduce) {
   .c-attach-tray { transition: none; }
 }
+
+/* ★★ #1355: the attach tray / sheet discs + glyphs take the canvas colour (tokens.css --chat-accent*). */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-attach {
+    --surface-action-tonal-default: var(--chat-accent-tonal);
+    --surface-action-tonal-hover: var(--chat-accent-tonal-hover);
+    --icon-action-default: var(--chat-accent-ink);
+  }
+}

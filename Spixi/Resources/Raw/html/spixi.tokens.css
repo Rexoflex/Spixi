@@ -1033,7 +1033,7 @@
      neutral-800/-700 were measured at 1.06/1.02 against the pill: not an edge. */
   --surface-composer-pill: var(--surface-bubble-received);   /* ★ #1166 (#1159 / #1165 (11), Damir: "follows the bubble"): the received-bubble ground BY REFERENCE — ink-750 #1E2023 today. Was var(--neutral-800) ink-800 (#989), before it #1e222b */
   --outline-composer-pill: var(--neutral-500);
-  --surface-notice-card: #0c1a4a;   /* ★ Session Z (#884 ③): the Session J midnight (N82(c): 84% sat, 1.140 vs the ground), unchanged */
+  --surface-notice-card: var(--ink-750);   /* ★ #1354 (Damir 2026-10-12 13:14: "make the dark mode notice more neutral so it fits into each theme"): the NEUTRAL dark card — #1E2023, the dark received bubble's step, the mirror of light's white; lifted by --elevation-2. Superseded: #0c1a4a midnight (Session J / Z #884 ③), which read as navy on the S17 violet / pink / teal canvases */
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
   --on-qr: #131415; /* module ink stays dark too — the QR pair never theme-flips */
   --surface-presence-online: var(--success-400);
@@ -1601,9 +1601,10 @@
      the Default stroke sat 4.03 L* below it; the colourful canvas is darker and mid-lightness,
      so the same alpha only reached 2.96 (teal end) / 3.62 (green end). .07 restores 3.47 / 4.26
      — the strength Damir already approved, carried onto a different ground rather than re-picked. */
-  --chat-pattern-alpha-1: 0.128;   /* ★ S17 C v3 (Damir 21:57): −20 % (0.16 → 0.128), Contours AND Waves, every canvas. ★ #1058 (walk after #1056, Damir 2026-09-29: "light barely visible"; picked from the ladder docs/sheets/1050/contours-ladder.png, 7.5 / 12 / 16 / 20 %): 0.075 → 0.16. ★ #1039 (PC+Android walk OV.16, Damir 2026-09-29: "need stronger"): 0.06 → 0.075, the rung #1029 named — ΔL* on Mist 3.99 → 4.99. ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). (Dark: its own −20 % in the dark block.) */
+  --chat-pattern-alpha-1: 0.1024;  /* ★ S17 walk (#1351, Damir 2026-10-12 11:20): −20 % again (0.128 → 0.1024), every canvas, both themes. ★ S17 C v3 (Damir 21:57): −20 % (0.16 → 0.128), Contours AND Waves, every canvas. ★ #1058 (walk after #1056, Damir 2026-09-29: "light barely visible"; picked from the ladder docs/sheets/1050/contours-ladder.png, 7.5 / 12 / 16 / 20 %): 0.075 → 0.16. ★ #1039 (PC+Android walk OV.16, Damir 2026-09-29: "need stronger"): 0.06 → 0.075, the rung #1029 named — ΔL* on Mist 3.99 → 4.99. ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). (Dark: its own −20 % in the dark block.) */
   --chat-pattern-alpha-2: 0.2;     /* Strong — ★ #1058: 0.1 → 0.2 (the next ladder rung) so it stays ABOVE alpha-1. Dormant: no picker selects it (AUG). */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
+  --chat-pattern-tile-max: 1;      /* ★ #1351: the cap on a BOOSTED Background tile (settings-screens.js patternLevelVar); 1 = the opacity clamp itself. Light Aurora lowers it (0.8). */
   /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles
      compute font-size * this; ADOPTION in message-bubble.css lands at the
      chat-shell integration pass (flagged) — the settings preview uses it now. */
@@ -2021,7 +2022,7 @@
      #701 canvas, where #bbd0ff @ .065 read +5.89. So the STRENGTH is unchanged (within 4%)
      and what actually changes is the HUE — a neutral ink instead of a blue-tinted one. */
   --chat-pattern-ink: #C6CFFD;   /* ★ Session J (#758, Damir 2026-09-03: "pattern colour #C6CFFD, 4%") — a periwinkle ink instead of white. Reversal = #ffffff */
-  --chat-pattern-alpha-1: 0.104;   /* ★ S17 C v3 (Damir 21:57): −20 % (0.13 → 0.104). ★ #1058 (Damir 2026-09-29: "dark almost invisible"; picked from the ladder, 4 / 9 / 13 / 18 %): 0.04 → 0.13. ★ Session J (#758): 4%. Superseded: 0.03 (Damir 2026-08-30 #711 "reduce dark by 2%") ← 0.05 */
+  --chat-pattern-alpha-1: 0.0832;  /* ★ S17 walk (#1351, Damir 2026-10-12 11:20): −20 % again (0.104 → 0.0832). ★ S17 C v3 (Damir 21:57): −20 % (0.13 → 0.104). ★ #1058 (Damir 2026-09-29: "dark almost invisible"; picked from the ladder, 4 / 9 / 13 / 18 %): 0.04 → 0.13. ★ Session J (#758): 4%. Superseded: 0.03 (Damir 2026-08-30 #711 "reduce dark by 2%") ← 0.05 */
   --chat-pattern-alpha-2: 0.18;    /* Strong — ★ #1058: 0.1 → 0.18 (the next ladder rung) so it stays ABOVE alpha-1. Was the same 0.1 ceiling in both themes. Dormant. */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* ★★★ AUG (Damir 2026-08-30, ON DEVICE, ruled off a render): the dark canvas takes the
@@ -2375,7 +2376,8 @@
 :root:not([data-theme='dark']) [data-chat-ground='aurora'] {
   --gradient-chat: linear-gradient(150deg, #7EE0C4 0%, #5FB4EE 48%, #8F80F2 100%), var(--chat-canvas-base);
   --chat-pattern-ink: #FFFFFF;
-  --chat-pattern-alpha-1: 0.24;   /* white lines on a vivid ground need more (render: .3; v3 −20 % → .24) */
+  --chat-pattern-alpha-1: 0.192;  /* white lines on a vivid ground need more (render: .3; v3 −20 % → .24; #1351 −20 % → .192) */
+  --chat-pattern-tile-max: 0.8;   /* ★ #1351: the Background tiles on this ground (alpha × boost > 1, so the opacity clamp hid every step) — 20 % under the 1 they showed */
   --surface-select-row-gap: #57A4E6;
   --surface-bubble-sent: #07666B;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
   --gradient-bubble-sent: #07666B;
@@ -2453,13 +2455,14 @@
 /* ★ S17 C (#1334, values v3 §1 / §7): THE PREVIEW TILES MUST NOT INHERIT ANOTHER CANVAS. Custom properties inherit, so a tile
    (a descendant with its own data-chat-ground) under a root on Aurora / Meadow / Ocean … would take the root's values wherever
    its own rule is silent:
-   · light — only Aurora raises the pattern strength (0.24): every OTHER tile resets it to the :root value (0.128; a pin keeps
+   · light — only Aurora raises the pattern strength (0.192): every OTHER tile resets it to the :root value (0.1024; a pin keeps
      the two equal);
    · dark — the Mist descendant rule carries no ink and the Iris ink is the :root periwinkle: both reset to it here, so a
      Meadow / Spixi / new canvas ink never leaks into their tiles. (The sent colour cannot leak: EVERY ground rule — the flat
      descendant rules included — sets its own Auto colour.) */
 :root:not([data-theme='dark']) [data-chat-ground]:not([data-chat-ground='aurora']) {
-  --chat-pattern-alpha-1: 0.128;
+  --chat-pattern-alpha-1: 0.1024;
+  --chat-pattern-tile-max: 1;   /* ★ #1351: only Aurora caps its tiles (0.8) */
 }
 :root[data-theme='dark'] [data-chat-ground='flat'],
 :root[data-theme='dark'] [data-chat-ground='gradient'] {
@@ -2572,4 +2575,42 @@
   --surface-card-sent: #181B22;
   --outline-card-sent: rgba(148, 152, 160, 0.22);
   --outline-card-sent-selected: rgba(148, 152, 160, 0.55);
+}
+
+/* ★★ #1355 (Damir 2026-10-12 13:16–13:56, render "Spixi Chat Accent"; built 14:08): the chat's OWN side follows the
+   canvas colour — the send / mic disc, the composer + / ×, the attach tray, the select-mode tint + check, the voice play
+   disc + the unread mic badge, the recording wave. ONE source: --surface-bubble-sent (the canvas's Auto or the picked
+   colour, set on the same targets as the ground), so the accent IS "the colour of what you send".
+     --chat-accent        the fill (white ink on it ≥ 4.5 : 1 — the S17 C pin on every sent colour, both themes)
+     --chat-accent-ink    an icon ink on the pill / tray / bubble: light = the colour itself (≥ 4.6 : 1 on white);
+                          dark = the colour lifted 50 % toward white (the dark steps are too deep to read on ink grounds)
+     --chat-accent-tonal  a quiet disc: light 16 % over white, dark 38 % over the sheet grey
+     --chat-accent-band   the select-mode row wash (light 16 %, dark 30 %, translucent like --surface-select-row)
+   Behind @supports: a WebView without color-mix keeps today's action blue everywhere (the remaps below are inside the
+   same guard). Measured on the built chat, 7 canvases × 2 themes: every icon ≥ 3.8 : 1 (docs/renders/chat-accent).
+   NOT changed (Damir): the read ticks (on the coloured bubble) and the wallet.
+   ★ #46 r1 (M1): the pick attribute is data-chat-sent (was written data-sent-colour — a dead selector; the pick on <html> =
+   :root resolved anyway). (③) every accent token has a BARE :root value = today's action token, so no theme or engine
+   ever reads an undefined one; the guard re-points them. */
+:root {
+  --chat-accent: var(--surface-action-default);
+  --chat-accent-ink: var(--icon-action-default);
+  --chat-accent-tonal: var(--surface-action-tonal-default);
+  --chat-accent-tonal-hover: var(--surface-action-tonal-hover);
+  --chat-accent-band: var(--surface-select-row);
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  :root, [data-chat-ground], [data-chat-sent] {
+    --chat-accent: var(--surface-bubble-sent);
+    --chat-accent-ink: var(--surface-bubble-sent);
+    --chat-accent-tonal: color-mix(in srgb, var(--surface-bubble-sent) 16%, #FFFFFF);   /* sanctioned: a mix over the light tray / pill white */
+    --chat-accent-tonal-hover: color-mix(in srgb, var(--surface-bubble-sent) 26%, #FFFFFF);   /* sanctioned */
+    --chat-accent-band: color-mix(in srgb, var(--surface-bubble-sent) 16%, transparent);
+  }
+  [data-theme='dark'], [data-theme='dark'] [data-chat-ground], [data-theme='dark'] [data-chat-sent] {
+    --chat-accent-ink: color-mix(in srgb, var(--surface-bubble-sent), #FFFFFF 50%);   /* sanctioned: the lift toward white */
+    --chat-accent-tonal: color-mix(in srgb, var(--surface-bubble-sent) 38%, #1A1C1F);   /* sanctioned: over the dark sheet grey */
+    --chat-accent-tonal-hover: color-mix(in srgb, var(--surface-bubble-sent) 50%, #1A1C1F);   /* sanctioned */
+    --chat-accent-band: color-mix(in srgb, var(--surface-bubble-sent) 30%, transparent);
+  }
 }

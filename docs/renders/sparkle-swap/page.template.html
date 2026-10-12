@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi Sparkle Swap</title>
+<meta name="description" content="Replacements for the four-point sparkle in the Spixi illustration set, drawn into the real scenes, light and dark.">
+<style>
+/* ---------- page tokens ---------- */
+:root {
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface-2: #eef0f5;
+  --ink: #161a24;
+  --ink-2: #565e70;
+  --ink-3: #7c8496;
+  --line: #dde1ea;
+  --accent: #3050bd;
+  --accent-soft: #e6ebfa;
+  --rec: #1f9d57;
+  --rec-soft: #e3f5ea;
+  --warn: #b5560d;
+  --warn-soft: #fbeee2;
+  --chip: #e9ecf3;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 6px 18px -8px rgba(16, 24, 40, .12);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115;
+    --surface: #171a21;
+    --surface-2: #1e222b;
+    --ink: #e9ecf3;
+    --ink-2: #a8afc0;
+    --ink-3: #848ca0;
+    --line: #2a2f3a;
+    --accent: #8fa8ff;
+    --accent-soft: #1f2840;
+    --rec: #4fd18a;
+    --rec-soft: #13281d;
+    --warn: #f0a560;
+    --warn-soft: #2c2016;
+    --chip: #252a35;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -10px rgba(0, 0, 0, .6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-2: #1e222b;
+  --ink: #e9ecf3;
+  --ink-2: #a8afc0;
+  --ink-3: #848ca0;
+  --line: #2a2f3a;
+  --accent: #8fa8ff;
+  --accent-soft: #1f2840;
+  --rec: #4fd18a;
+  --rec-soft: #13281d;
+  --warn: #f0a560;
+  --warn-soft: #2c2016;
+  --chip: #252a35;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -10px rgba(0, 0, 0, .6);
+  color-scheme: dark;
+}
+
+/* ---------- the art's own theme values (from src/styles/tokens.css — the frames, not the page) ---------- */
+.t-light {
+/*@@ART_LIGHT@@*/
+  --frame: #f9fafb;
+}
+.t-dark {
+/*@@ART_LIGHT@@*/
+/*@@ART_DARK@@*/
+  --frame: #0f1115;
+}
+
+/* ---------- the app's illustration motion (src/styles/components/illo.css, verbatim) ---------- */
+/*@@ILLO_CSS@@*/
+
+/* ---------- page ---------- */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: 28px 16px 64px; }
+header.top { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; margin: 0 0 4px; }
+h1 { font-size: clamp(26px, 5vw, 36px); line-height: 1.15; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 21px; line-height: 1.25; margin: 0 0 4px; letter-spacing: -.005em; }
+h3 { font-size: 16px; margin: 0; }
+p { margin: 0; }
+.lede { max-width: 760px; color: var(--ink-2); margin-top: 8px; }
+.seg { display: inline-flex; flex-wrap: wrap; background: var(--chip); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button {
+  appearance: none; border: 0; background: transparent; color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 600;
+  padding: 6px 11px; border-radius: 8px; cursor: pointer; min-height: 32px;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+section { margin-top: 40px; }
+.sec-head { margin-bottom: 14px; max-width: 820px; }
+.sec-head p { color: var(--ink-2); margin-top: 4px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 18px; }
+
+/* the verdict */
+.verdict { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); border-color: color-mix(in srgb, var(--rec) 45%, var(--line)); }
+@media (min-width: 1100px) { .verdict { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } .ba { flex-wrap: nowrap; } }
+.verdict .pick { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+.tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--chip); color: var(--ink-2); }
+.tag.rec { background: var(--rec-soft); color: var(--rec); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.acc { background: var(--accent-soft); color: var(--accent); }
+.verdict ul { margin: 0; padding-inline-start: 18px; color: var(--ink-2); }
+.verdict li + li { margin-top: 4px; }
+.ba { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+/* candidate rows */
+.cand { margin-top: 14px; }
+.cand.is-rec { border-color: color-mix(in srgb, var(--rec) 55%, var(--line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--rec) 35%, transparent), var(--shadow); }
+.cand-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-bottom: 4px; }
+.cand-head .k { font-weight: 800; color: var(--ink-3); font-size: 13px; letter-spacing: .04em; }
+.cand-note { color: var(--ink-2); font-size: 14px; margin-bottom: 12px; max-width: 860px; }
+.figs { display: flex; flex-wrap: wrap; gap: 14px 12px; align-items: flex-start; }
+.fig { margin: 0; display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.fig figcaption { font-size: 12px; color: var(--ink-3); line-height: 1.35; }
+.fig figcaption b { color: var(--ink-2); font-weight: 600; }
+.frame { position: relative; border-radius: 14px; overflow: hidden; background: var(--frame); outline: 1px solid var(--line); outline-offset: -1px; max-width: 100%; }
+.frame > svg { display: block; width: 100%; height: 100%; }
+.sq { width: 240px; height: 240px; }
+.zoom { width: 200px; height: 180px; }
+.zoom::after { content: "2×"; position: absolute; inset-block-start: 6px; inset-inline-end: 8px; font: 700 11px/1 system-ui, sans-serif; color: rgba(127, 135, 160, .9); }
+.pair { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.figs > .pair { margin-inline-end: 8px; }
+.pair-label { font-size: 12px; color: var(--ink-3); }
+.wn, .ab, .ct, .mo, .rt { width: 360px; max-width: 100%; }
+.wn { aspect-ratio: 360 / 216; background: linear-gradient(150deg, var(--wn-ground-a), var(--wn-ground-b)); }
+.ab { aspect-ratio: 360 / 234; background: var(--ab-band-to); }
+.ct { aspect-ratio: 360 / 225; background: linear-gradient(150deg, var(--dc-a), var(--dc-b)); }
+.mo { aspect-ratio: 360 / 164; background: linear-gradient(135deg, var(--wn-ground-a), var(--wn-ground-b)); }
+.rt { width: 300px; aspect-ratio: 320 / 210; }
+.wn > svg, .ab > svg, .ct > svg { position: absolute; inset: 0; }
+.ex {
+  width: 340px; max-width: 100%; display: flex; align-items: stretch; gap: 12px; padding: 12px 12px 0; min-height: 84px;
+  border-radius: 16px; overflow: hidden; color: #f9fafb;
+  background: linear-gradient(90deg, rgba(102, 102, 102, 0) 0%, rgba(2, 6, 25, .45) 100%), #3050bd;
+}
+.ex-t { display: flex; flex-direction: column; justify-content: center; gap: 4px; flex: 1 1 auto; min-width: 0; padding-bottom: 12px; }
+.ex-t span { font-size: 13px; opacity: .85; }
+.ex-t b { font-size: 16px; line-height: 1.25; }
+.ex > svg { flex: 0 1 auto; align-self: flex-end; height: 96px; width: auto; max-width: 42%; margin-inline-end: -12px; }
+.burst { width: 300px; max-width: 100%; aspect-ratio: 300 / 120; }
+
+/* the picker */
+.picker { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 12px; margin: 0 -4px 14px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 14px; }
+.picker label { font-size: 12px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin-inline-end: 6px; }
+.picker .grp { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 14px; }
+.gal .card { padding: 14px; }
+.gal h3 { font-size: 15px; }
+.gal .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 10px; font-size: 12px; color: var(--ink-3); }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+
+/* the occurrence table */
+.tbl-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: start; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td code { word-break: break-word; }
+@media (max-width: 640px) {
+  table, thead, tbody, tr, td { display: block; }
+  thead { display: none; }
+  tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  td { border: 0; padding: 2px 0; }
+}
+.meaning { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.meaning .card p { color: var(--ink-2); font-size: 14px; margin-top: 6px; }
+footer { margin-top: 48px; color: var(--ink-3); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <p class="eyebrow">Spixi · illustration set · design render</p>
+    <h1>Sparkle swap</h1>
+    <p class="lede"><b>Yes, it reads as Gemini.</b> A white four-point star in a violet rounded tile is the Gemini mark and the generic “AI” sign. The same star is drawn in 28 drawings of the set, about 90 times, plus the Contributors tap burst. Below: replacements drawn into the app's own scenes (the real art from <code>src/components/illustrations*.js</code>; only the sparkle changes).</p>
+  </div>
+  <div class="seg" role="group" aria-label="Page theme">
+    <button type="button" data-theme-set="auto" aria-pressed="true">Auto</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light page</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark page</button>
+  </div>
+</header>
+
+<section id="rec" style="margin-top:8px">
+  <div class="card verdict">
+    <div>
+      <p class="eyebrow">Recommendation</p>
+      <h2 id="rec-title"></h2>
+      <div class="pick" id="rec-tags"></div>
+      <ul id="rec-why"></ul>
+    </div>
+    <div class="ba" id="rec-ba"></div>
+  </div>
+</section>
+
+<section id="glyph">
+  <div class="sec-head">
+    <h2>1 · The glyph in the purple tile</h2>
+    <p>The strong Gemini look. Four candidates for “mini apps / something new to discover”, in the four tile scenes: Apps empty state (Damir's screenshot), Welcome 4, Welcome 3 (the violet disc) and the Explore banner. The small companion star goes too; the glyph sits in the tile centre. Twinkles in this section use the recommended decoration.</p>
+  </div>
+  <div id="glyph-rows"></div>
+</section>
+
+<section id="deco">
+  <div class="sec-head">
+    <h2>2 · The small twinkles</h2>
+    <p>Weaker on their own, but they repeat the same star about 80 times across the set, so the AI cue stays even after the tile glyph goes. Three candidates, in the Apps scene, the What's new “mini apps” card, the Contributors heart and the AI-translation moment. The tile glyph in this section is the recommended one.</p>
+  </div>
+  <div id="deco-rows"></div>
+</section>
+
+<section id="coin">
+  <div class="sec-head">
+    <h2>3 · The star on the gold coin</h2>
+    <p>Six scenes put the same star on the IXI coin (Backup, both Wallet empty states, About header, the First IXI and Pay moments). On gold it reads less as Gemini, but it is the same mark. A tile glyph makes no sense on a coin, so the coin gets its own face.</p>
+  </div>
+  <div id="coin-rows"></div>
+</section>
+
+<section id="all">
+  <div class="sec-head">
+    <h2>4 · Every scene that draws the sparkle</h2>
+    <p>All 28 drawings, light and dark, at in-app size. Pick any combination; “Now” shows the shipped art. Default = the recommendation.</p>
+  </div>
+  <div class="picker" id="picker"></div>
+  <div class="gal" id="gal"></div>
+</section>
+
+<section id="where">
+  <div class="sec-head">
+    <h2>5 · Where the sparkle lives</h2>
+    <p><b>Content</b> = a glyph inside a tile or on a coin (the strong look). <b>Decorative</b> = small background twinkles. One path, <code>M0-6.5C.5-2.2 2.2-.5 6.5 0 …Z</code>, defined once per drawing as <code>&lt;prefix&gt;Sp@@</code> / <code>…sp@@</code> and placed with <code>&lt;use&gt;</code>.</p>
+  </div>
+  <div class="tbl-wrap"><table id="where-tbl"><thead><tr><th>file:line</th><th>Scene</th><th>Kind</th><th>Count</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="meaning">
+  <div class="sec-head">
+    <h2>6 · Where the sparkle meant something</h2>
+    <p>In most scenes it is only light. In these it carried a meaning, and something else must carry it now.</p>
+  </div>
+  <div class="meaning" id="meaning-cards"></div>
+</section>
+
+<footer>
+  Built by <code>docs/renders/sparkle-swap/build-sparkle-swap.mjs</code> from the shipped art (<code>src/components/illustrations.js</code>, <code>illustrations-s17.js</code>), motion (<code>src/styles/components/illo.css</code>) and theme values (<code>src/styles/tokens.css</code>). The swap is a string edit on each drawing's own sparkle <code>&lt;use&gt;</code>s, so a port into <code>src/</code> touches only the <code>…Sp@@</code> defs and the content <code>&lt;use&gt;</code>s. Motion classes (<code>il-tw</code>, <code>mo-tw</code>, <code>rn-tw</code>, <code>ct-tw</code>) are kept, so the twinkle timing is unchanged.
+</footer>
+</div>
+
+<script>
+/*@@ART_JSON@@*/
+
+/* ================= the candidates (all drawn in the sparkle's own space: centre 0,0, ~±6 units) ================= */
+const GLYPH = {
+  puzzle: { name: 'Puzzle piece', k: 'A',
+    note: 'The plain sign for “add-ons that plug in”. Reads as mini apps at once, no AI or brand echo, and sits well next to the 4-square grid and the game pad.',
+    svg: '<path transform="scale(.65) translate(-13.2 -11.2)" d="M6 6H9.2A2.75 2.75 0 1 1 12.8 6H16Q18 6 18 8V11.2A2.75 2.75 0 1 1 18 14.8V18Q18 20 16 20H12.8A2.75 2.75 0 1 0 9.2 20H6Q4 20 4 18V14.8A2.75 2.75 0 1 0 4 11.2V8Q4 6 6 6Z"/>' },
+  rocket: { name: 'Rocket', k: 'B',
+    note: 'The app-invite glyph from chat and the rocket tile in the What’s new apps card, so it links the set. But a rocket also says “launch / boost”, and the detail (window, fins) gets busy at 52 px.',
+    svg: '<g transform="rotate(45) scale(.6) translate(-12 -12.6)"><path d="M12 2.2C15.6 4.6 17.2 8.6 17.2 13.2V16.4H6.8V13.2C6.8 8.6 8.4 4.6 12 2.2Z"/><path d="M6.8 11.8 3.6 15.2V18.4L6.8 16.6Z"/><path d="M17.2 11.8 20.4 15.2V18.4L17.2 16.6Z"/><circle cx="12" cy="9.8" r="2.3" fill="#8a6ff3"/><path d="M9.4 17.6H14.6L13.3 20.4Q12 23.4 10.7 20.4Z" opacity=".6"/></g>' },
+  shapes: { name: 'Shapes trio', k: 'C',
+    note: 'Circle, triangle, square: “play, make, discover”. Friendly and abstract, echoes the dimmed square of the blue tile. Weaker meaning: it can also read as “categories” or a kids’ app.',
+    svg: '<g transform="scale(.6) translate(-12.3 -12)"><path d="M12 3.2 17.4 11.4H6.6Z" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/><circle cx="7.4" cy="17.4" r="4.6"/><rect x="13.4" y="13" width="8.8" height="8.8" rx="2.2" opacity=".55"/></g>' },
+  gift: { name: 'Gift box', k: 'D',
+    note: '“Something new to unwrap.” Warm and clear, but in a wallet app a gift also says “free money / reward / promo”, a promise Mini Apps do not make.',
+    svg: '<g transform="scale(.6) translate(-12 -12.8)"><rect x="2.8" y="8.2" width="8.2" height="4.4" rx="1.3"/><rect x="13" y="8.2" width="8.2" height="4.4" rx="1.3"/><rect x="4.2" y="13.8" width="6.8" height="8" rx="1.5"/><rect x="13" y="13.8" width="6.8" height="8" rx="1.5"/><path d="M12 8C10.4 4.2 6.6 3.6 6.8 6.1 7 7.6 9.6 8 12 8Z M12 8C13.6 4.2 17.4 3.6 17.2 6.1 17 7.6 14.4 8 12 8Z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></g>' },
+};
+const DECO = {
+  dots: { name: 'Bokeh dots', k: '1',
+    note: 'A small dot with a soft halo. The set already uses dots (the --il-dotc specks, the What’s new star field), so this is the quietest change. Twinkle motion still works (scale + fade).',
+    a: '<circle r="5.2" opacity=".24"/><circle r="2.5"/>', b: null },
+  glint: { name: 'Rounded glint', k: '2',
+    note: 'A short four-ray cross with round ends: light on glass, not a star (no pinched waist, no long points). Keeps the “twinkle” energy. Risk: near the Apps “+” slot it can echo the plus.',
+    a: '<rect x="-1.25" y="-5.6" width="2.5" height="11.2" rx="1.25"/><rect x="-4.3" y="-1.25" width="8.6" height="2.5" rx="1.25"/>', b: null },
+  rings: { name: 'Rings + confetti', k: '3',
+    note: 'Small open rings, every second one a rounded confetti dash. Festive; good for Contributors, busier everywhere else.',
+    a: '<path fill-rule="evenodd" d="M0-4.3A4.3 4.3 0 1 1 0 4.3 4.3 4.3 0 1 1 0-4.3ZM0-2.5A2.5 2.5 0 1 0 0 2.5 2.5 2.5 0 1 0 0-2.5Z"/>',
+    b: '<rect x="-4.2" y="-1.35" width="8.4" height="2.7" rx="1.35" transform="rotate(-35)"/>' },
+};
+const COIN = {
+  shine: { name: 'Shine bars', note: 'Two slanted bars: the usual “polished coin” highlight. Says “a coin”, nothing else.',
+    svg: '<g transform="translate(-.9 0) rotate(-40)"><rect x="-1.6" y="-5.4" width="3.2" height="10.8" rx="1.6"/><rect x="2.7" y="-3.1" width="2.3" height="6.2" rx="1.15" opacity=".7"/></g>' },
+  glint: { name: 'Glint', note: 'The rounded glint, larger. Matches option 2, but centred on a coin it can read as a “+”.',
+    svg: '<g transform="scale(.95)"><rect x="-1.4" y="-6" width="2.8" height="12" rx="1.4"/><rect x="-4.6" y="-1.4" width="9.2" height="2.8" rx="1.4"/></g>' },
+};
+const REC = { g: 'puzzle', d: 'dots', c: 'shine' };
+
+/* which drawings carry a CONTENT sparkle, and of which family */
+const FAMILY = { welcome3: 'tile', welcome4: 'tile', appsEmpty: 'tile', explore: 'tile',
+  backup: 'coin', walletEmptyA: 'coin', walletEmptyB: 'coin', aboutGlassFg: 'coin', moFirstixi: 'coin', moPay: 'coin' };
+/* the tile centre (local units) — the glyph moves there once the companion star is gone */
+const TILE_CENTER = { welcome4: '24 24', appsEmpty: '26 26', explore: '23 23' };
+
+/* ================= the swap ================= */
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+let seq = 0;
+function swapArt(name, o) {
+  let b = ART[name].b;
+  if (name === 'heartBg') return swapHeart(b, o);
+  const m = /<path id="([^"]+)" d="M0-6\.5C[^"]*"\/>/.exec(b);
+  if (!m) return b;
+  const id = m[1];
+  const fam = FAMILY[name] || null;
+  let content = 0, deco = 0;
+  b = b.replace(new RegExp('<use href="#' + reEsc(id) + '"([^>]*)\\/>', 'g'), (all, attrs) => {
+    const isContent = /transform=/.test(attrs) && !/class=/.test(attrs);
+    if (isContent) {
+      content += 1;
+      if (fam === 'tile') {
+        if (o.g === 'now') return all;
+        if (content > 1) return '';                                   // the companion mini-star leaves with the glyph
+        const c = TILE_CENTER[name];
+        const a2 = c ? attrs.replace(/translate\([^)]*\)/, 'translate(' + c + ')') : attrs;
+        return '<use href="#' + id + '-g"' + a2 + '/>';
+      }
+      if (fam === 'coin') return o.c === 'now' ? all : '<use href="#' + id + '-c"' + attrs + '/>';
+      return all;
+    }
+    if (o.d === 'now') return all;
+    const alt = DECO[o.d].b && (deco++ % 2) ? '-db' : '-da';
+    return '<use href="#' + id + alt + '"' + attrs + '/>';
+  });
+  let defs = '';
+  if (o.g !== 'now') defs += '<g id="' + id + '-g" fill="#fff">' + GLYPH[o.g].svg + '</g>';
+  if (o.c !== 'now') defs += '<g id="' + id + '-c">' + COIN[o.c].svg + '</g>';
+  if (o.d !== 'now') defs += '<g id="' + id + '-da">' + DECO[o.d].a + '</g>' + (DECO[o.d].b ? '<g id="' + id + '-db">' + DECO[o.d].b + '</g>' : '');
+  return b.replace(m[0], m[0] + defs);
+}
+/* the Contributors heart header draws its twinkles as quadratic four-point paths (ct-tw), not the shared <use> */
+function swapHeart(b, o) {
+  if (o.d === 'now') return b;
+  let k = 0;
+  b = b.replace(/<path d="(M[\d.]+ [\d.]+Q[^"]*)" fill="#fff" class="(ct-tw wn-loop)" style="([^"]*)"\/>/g, (all, d, cls, st) => {
+    const n = d.match(/-?[\d.]+/g).map(Number);
+    const cx = n[2], cy = n[3], r = n[4] - n[2];
+    const alt = DECO[o.d].b && (k++ % 2) ? '-db' : '-da';
+    return '<g transform="translate(' + cx + ' ' + cy + ') scale(' + (r / 6.5).toFixed(3) + ')" class="' + cls + '" style="' + st + '"><use href="#htDk@@' + alt + '" fill="#fff"/></g>';
+  });
+  return '<defs><g id="htDk@@-da">' + DECO[o.d].a + '</g>' + (DECO[o.d].b ? '<g id="htDk@@-db">' + DECO[o.d].b + '</g>' : '') + '</defs>' + b;
+}
+function svg(name, o, extra) {
+  const a = ART[name]; const x = extra || {};
+  seq += 1;
+  let body = swapArt(name, o).split('@@').join('-u' + seq);
+  if (name === 'moAi') body = body.replace('data-say="hello"/>', 'data-say="hello">Hello</text>').replace('data-say="greet"/>', 'data-say="greet">Hola</text>');   // the app sets these with textContent
+  return '<svg viewBox="' + (x.vb || a.vb) + '" class="' + a.cls + '" aria-hidden="true" focusable="false" data-held'
+    + (a.style ? ' style="' + a.style + '"' : '') + ((x.par || a.par) ? ' preserveAspectRatio="' + (x.par || a.par) + '"' : '') + '>' + body + '</svg>';
+}
+
+/* ================= scene frames ================= */
+const SCENES = [
+  { id: 'appsEmpty', title: 'Apps · empty state', where: 'illustrations.js:66', kind: 'both', t: 'sq', note: 'Damir’s screenshot' },
+  { id: 'welcome4', title: 'Welcome 4 · Mini apps', where: 'illustrations.js:56', kind: 'both', t: 'sq', note: 'launch flow: dark in-app' },
+  { id: 'explore', title: 'Apps · Explore banner', where: 'illustrations.js:68', kind: 'both', t: 'ex', note: 'same blue in both themes' },
+  { id: 'welcome3', title: 'Welcome 3 · violet disc', where: 'illustrations.js:54', kind: 'both', t: 'sq', note: 'launch flow: dark in-app' },
+  { id: 'backup', title: 'Backup · chest + coin', where: 'illustrations.js:70', kind: 'both', t: 'sq' },
+  { id: 'walletEmptyA', title: 'Wallet · empty (A, wired)', where: 'illustrations.js:77', kind: 'both', t: 'sq' },
+  { id: 'walletEmptyB', title: 'Wallet · empty (B)', where: 'illustrations.js:79', kind: 'both', t: 'sq' },
+  { id: 'welcome1', title: 'Welcome 1', where: 'illustrations.js:50', kind: 'decor', t: 'sq', note: 'launch flow: dark in-app' },
+  { id: 'welcome2', title: 'Welcome 2', where: 'illustrations.js:52', kind: 'decor', t: 'sq', note: 'launch flow: dark in-app' },
+  { id: 'restore', title: 'Restore account', where: 'illustrations.js:58', kind: 'decor', t: 'sq', note: 'launch flow: dark in-app' },
+  { id: 'chatsEmpty', title: 'Chats · empty state', where: 'illustrations.js:60', kind: 'decor', t: 'sq' },
+  { id: 'contactsEmpty', title: 'Contacts · empty state', where: 'illustrations.js:62', kind: 'decor', t: 'sq' },
+  { id: 'addContact', title: 'Add contact', where: 'illustrations.js:64', kind: 'decor', t: 'sq' },
+  { id: 'rating', title: 'Rating nudge', where: 'illustrations.js:72', kind: 'decor', t: 'rt' },
+  { id: 'wnApps', title: 'What’s new · Mini apps', where: 'illustrations-s17.js:37', kind: 'decor', t: 'wn' },
+  { id: 'wnHero', title: 'What’s new · Hero', where: 'illustrations-s17.js:17', kind: 'decor', t: 'wn' },
+  { id: 'wnReply', title: 'What’s new · Reply', where: 'illustrations-s17.js:21', kind: 'decor', t: 'wn' },
+  { id: 'wnVoice', title: 'What’s new · Voice', where: 'illustrations-s17.js:25', kind: 'decor', t: 'wn' },
+  { id: 'wnPhotos', title: 'What’s new · Photos', where: 'illustrations-s17.js:29', kind: 'decor', t: 'wn' },
+  { id: 'wnPrivacy', title: 'What’s new · Privacy', where: 'illustrations-s17.js:33', kind: 'decor', t: 'wn' },
+  { id: 'aboutGlass', title: 'About · header (coin)', where: 'illustrations-s17.js:41', kind: 'both', t: 'ab' },
+  { id: 'heart', title: 'Contributors · heart header', where: 'illustrations-s17.js:55', kind: 'decor', t: 'ct' },
+  { id: 'moAi', title: 'Moment · AI translation', where: 'illustrations-s17.js:63', kind: 'decor', t: 'mo' },
+  { id: 'moFirstixi', title: 'Moment · First IXI (coin)', where: 'illustrations-s17.js:47', kind: 'both', t: 'mo' },
+  { id: 'moPay', title: 'Moment · Pay (coin)', where: 'illustrations-s17.js:53', kind: 'both', t: 'mo' },
+  { id: 'moAutodl', title: 'Moment · Auto-download', where: 'illustrations-s17.js:43', kind: 'decor', t: 'mo' },
+  { id: 'moMic', title: 'Moment · Microphone', where: 'illustrations-s17.js:49', kind: 'decor', t: 'mo' },
+  { id: 'moApp', title: 'Moment · App', where: 'illustrations-s17.js:51', kind: 'decor', t: 'mo' },
+];
+const SC = Object.fromEntries(SCENES.map((s) => [s.id, s]));
+function frame(id, o, theme, x) {
+  const s = SC[id]; const t = 't-' + theme; const ex = x || {};
+  if (ex.zoom) return '<div class="frame zoom ' + t + '">' + svg(id, o, { vb: ex.zoom }) + '</div>';
+  switch (s.t) {
+    case 'sq': return '<div class="frame sq ' + t + '">' + svg(id, o) + '</div>';
+    case 'rt': return '<div class="frame rt ' + t + '">' + svg(id, o) + '</div>';
+    case 'ex': return '<div class="ex ' + t + '"><div class="ex-t"><span>Not sure where to start?</span><b>Explore Spixi Mini Apps →</b></div>'
+      + svg(id, o, { par: 'xMaxYMax meet' }) + '</div>';
+    case 'wn': return '<div class="frame wn ' + t + '">' + svg(id + 'Bg', o) + svg(id + 'Fg', o) + '</div>';
+    case 'ab': return '<div class="frame ab ' + t + '">' + svg('aboutGlassBg', o) + svg('aboutGlassFg', o) + '</div>';
+    case 'ct': return '<div class="frame ct ' + t + '">' + svg('heartBg', o) + svg('heartFg', o) + '</div>';
+    case 'mo': return '<div class="frame mo ' + t + '">' + svg(id, o) + '</div>';
+  }
+  return '';
+}
+const fig = (inner, cap) => '<figure class="fig">' + inner + '<figcaption>' + cap + '</figcaption></figure>';
+function pairLD(id, o, label) {
+  const s = SC[id];
+  if (s.t === 'ex') return '<div class="pair">' + fig(frame(id, o, 'light'), '<b>' + (label || s.title) + '</b> · both themes') + '</div>';
+  return '<div class="pair">' + fig(frame(id, o, 'light'), '<b>' + (label || s.title) + '</b> · light') + fig(frame(id, o, 'dark'), '<b>' + (label || s.title) + '</b> · dark') + '</div>';
+}
+const ZOOM_APPS = '120 30 100 90';                      // the purple tile + the top-right twinkle, at 2×
+
+/* the Contributors chip burst (settings-app.css .c-settings-contrib__spark — a CSS clip-path star, 8 per tap) */
+function burst(dk) {
+  const tones = ['#FF5FA8', '#7B4DFF', '#2FA6FF', '#F2A93B'];
+  seq += 1; const u = 'bk' + seq;
+  let s = '<svg viewBox="0 0 300 120" aria-hidden="true" focusable="false"><defs>';
+  const clip = '<path d="M0-6.5 1.3-1.3 6.5 0 1.3 1.3 0 6.5-1.3 1.3-6.5 0-1.3-1.3Z"/>';  // the polygon() of the CSS
+  s += '<g id="' + u + 'a">' + (dk === 'now' ? clip : DECO[dk].a) + '</g>' + (dk !== 'now' && DECO[dk].b ? '<g id="' + u + 'b">' + DECO[dk].b + '</g>' : '') + '</defs>';
+  s += '<rect x="86" y="42" width="128" height="36" rx="18" fill="var(--surface)" stroke="var(--line)"/>'
+    + '<circle cx="106" cy="60" r="12" fill="#7B4DFF"/><text x="106" y="64.5" text-anchor="middle" font-size="13" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">A</text>'
+    + '<text x="126" y="65" font-size="14" fill="var(--ink)" font-family="system-ui,sans-serif">Ana Novak</text>';
+  for (let i = 0; i < 8; i++) {
+    const an = i / 8 * Math.PI * 2;
+    const x = 150 + Math.cos(an) * 34 * 1.9, y = 60 + Math.sin(an) * 24 * 1.9;
+    const ref = '#' + u + (dk !== 'now' && DECO[dk].b && i % 2 ? 'b' : 'a');
+    s += '<use href="' + ref + '" transform="translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ') scale(.95)" fill="' + tones[i % 4] + '"/>';
+  }
+  return s + '</svg>';
+}
+
+/* ================= sections ================= */
+const opt = (g, d, c) => ({ g, d, c });
+const recTag = '<span class="tag rec">Recommended</span>';
+
+function renderVerdict() {
+  document.getElementById('rec-title').textContent = GLYPH[REC.g].name + ' in the tile · ' + DECO[REC.d].name.toLowerCase() + ' around it';
+  document.getElementById('rec-tags').innerHTML = '<span class="tag rec">Tile glyph: ' + GLYPH[REC.g].k + ' ' + GLYPH[REC.g].name + '</span>'
+    + '<span class="tag rec">Twinkles: ' + DECO[REC.d].k + ' ' + DECO[REC.d].name + '</span>'
+    + '<span class="tag acc">Coin face: ' + COIN[REC.c].name + '</span>';
+  document.getElementById('rec-why').innerHTML = [
+    'The puzzle piece is the common sign for “add-ons that plug in”, so it says Mini Apps without a word. No AI, no brand echo, and it does not compete with the grid or game-pad tiles.',
+    'Bokeh dots remove the star everywhere and keep the light. The set already speaks in dots (the lilac specks, the What’s new star field), so nothing new enters the set.',
+    'On the IXI coin, shine bars replace the star: it stays a polished coin and stops being a sparkle mark.',
+  ].map((t) => '<li>' + t + '</li>').join('');
+  document.getElementById('rec-ba').innerHTML = fig(frame('appsEmpty', opt('now', 'now', 'now'), 'light'), '<b>Now</b> · Apps empty state')
+    + fig(frame('appsEmpty', REC, 'light'), '<b>Recommended</b> · light') + fig(frame('appsEmpty', REC, 'dark'), '<b>Recommended</b> · dark');
+}
+
+function renderGlyphRows() {
+  const rows = [{ key: 'now', name: 'Now · four-point sparkle', k: '', note: 'The shipped art. A white four-point star plus a small companion star, in a violet rounded tile: the Gemini mark.' }]
+    .concat(Object.entries(GLYPH).map(([key, g]) => ({ key, name: g.name, k: g.k, note: g.note })));
+  document.getElementById('glyph-rows').innerHTML = rows.map((r) => {
+    const o = r.key === 'now' ? opt('now', 'now', 'now') : opt(r.key, REC.d, 'now');
+    const rec = r.key === REC.g;
+    return '<article class="card cand' + (rec ? ' is-rec' : '') + '"><div class="cand-head">' + (r.k ? '<span class="k">' + r.k + '</span>' : '')
+      + '<h3>' + r.name + '</h3>' + (rec ? recTag : '') + (r.key === 'now' ? '<span class="tag warn">Reads as Gemini / AI</span>' : '') + '</div>'
+      + '<p class="cand-note">' + r.note + '</p><div class="figs">'
+      + pairLD('appsEmpty', o, 'Apps')
+      + '<div class="pair">' + fig(frame('appsEmpty', o, 'light', { zoom: ZOOM_APPS }), '<b>Tile</b> · 2× · light') + fig(frame('appsEmpty', o, 'dark', { zoom: ZOOM_APPS }), '<b>Tile</b> · 2× · dark') + '</div>'
+      + pairLD('welcome4', o, 'Welcome 4') + pairLD('welcome3', o, 'Welcome 3') + pairLD('explore', o, 'Explore banner')
+      + '</div></article>';
+  }).join('');
+}
+
+function renderDecoRows() {
+  const rows = [{ key: 'now', name: 'Now · four-point twinkles', k: '', note: 'The same star, small, 2–4 per drawing, in every scene of the set.' }]
+    .concat(Object.entries(DECO).map(([key, d]) => ({ key, name: d.name, k: d.k, note: d.note })));
+  document.getElementById('deco-rows').innerHTML = rows.map((r) => {
+    const o = r.key === 'now' ? opt('now', 'now', 'now') : opt(REC.g, r.key, REC.c);
+    const rec = r.key === REC.d;
+    return '<article class="card cand' + (rec ? ' is-rec' : '') + '"><div class="cand-head">' + (r.k ? '<span class="k">' + r.k + '</span>' : '')
+      + '<h3>' + r.name + '</h3>' + (rec ? recTag : '') + '</div><p class="cand-note">' + r.note + '</p><div class="figs">'
+      + pairLD('appsEmpty', o, 'Apps')
+      + fig(frame('appsEmpty', o, 'light', { zoom: ZOOM_APPS }), '<b>Twinkle + tile</b> · 2× · light')
+      + pairLD('wnApps', o, 'What’s new · Mini apps') + pairLD('heart', o, 'Contributors') + pairLD('moAi', o, 'AI moment')
+      + fig('<div class="frame burst t-light">' + burst(r.key) + '</div>', '<b>Contributors chip tap</b> · the 8 sparks (CSS)')
+      + '</div></article>';
+  }).join('');
+}
+
+function renderCoinRows() {
+  const rows = [{ key: 'now', name: 'Now · sparkle on the coin', note: 'The coin carries the same four-point star.' }]
+    .concat(Object.entries(COIN).map(([key, c]) => ({ key, name: c.name, note: c.note })));
+  document.getElementById('coin-rows').innerHTML = rows.map((r) => {
+    const o = r.key === 'now' ? opt('now', 'now', 'now') : opt(REC.g, REC.d, r.key);
+    const rec = r.key === REC.c;
+    return '<article class="card cand' + (rec ? ' is-rec' : '') + '"><div class="cand-head"><h3>' + r.name + '</h3>' + (rec ? recTag : '') + '</div>'
+      + '<p class="cand-note">' + r.note + '</p><div class="figs">'
+      + pairLD('walletEmptyA', o, 'Wallet A')
+      + fig(frame('walletEmptyA', o, 'light', { zoom: '70 -5 100 90' }), '<b>Coin</b> · 2× · light')
+      + pairLD('backup', o, 'Backup') + pairLD('moPay', o, 'Pay moment') + pairLD('aboutGlass', o, 'About header')
+      + '</div></article>';
+  }).join('');
+}
+
+const state = Object.assign({}, REC);
+function renderPicker() {
+  const grp = (label, key, opts) => '<div class="grp"><label>' + label + '</label><div class="seg" role="group" aria-label="' + label + '">'
+    + opts.map(([v, t]) => '<button type="button" data-k="' + key + '" data-v="' + v + '" aria-pressed="' + (state[key] === v) + '">' + t + '</button>').join('') + '</div></div>';
+  document.getElementById('picker').innerHTML =
+    grp('Tile glyph', 'g', [['now', 'Now'], ...Object.entries(GLYPH).map(([k, g]) => [k, g.k + ' ' + g.name])])
+    + grp('Twinkles', 'd', [['now', 'Now'], ...Object.entries(DECO).map(([k, d]) => [k, d.k + ' ' + d.name])])
+    + grp('Coin', 'c', [['now', 'Now'], ...Object.entries(COIN).map(([k, c]) => [k, c.name])]);
+}
+function renderGallery() {
+  document.getElementById('gal').innerHTML = SCENES.map((s) => '<article class="card"><h3>' + s.title + '</h3><div class="meta"><code>' + s.where + '</code>'
+    + (s.kind === 'both' ? '<span class="tag warn">content + decorative</span>' : '<span class="tag">decorative</span>')
+    + (s.note ? '<span>' + s.note + '</span>' : '') + '</div><div class="figs">' + pairLD(s.id, state, s.t === 'ex' ? 'Banner' : 'Scene') + '</div></article>').join('');
+}
+
+/* ================= the tables ================= */
+const WHERE = [
+  ['src/components/illustrations.js:66', 'Apps · empty state (Damir’s screenshot)', 'content (violet tile) + decorative', '2 + 3'],
+  ['src/components/illustrations.js:56', 'Welcome 4 · Mini apps (launch flow)', 'content (violet tile) + decorative', '2 + 3'],
+  ['src/components/illustrations.js:68', 'Apps · Explore Spixi Mini Apps banner', 'content (violet tile) + decorative', '2 + 2'],
+  ['src/components/illustrations.js:54', 'Welcome 3 (launch flow)', 'content (violet disc) + decorative', '1 + 2'],
+  ['src/components/illustrations.js:70', 'Backup · chest + coin', 'content (gold coin) + decorative', '1 + 3'],
+  ['src/components/illustrations.js:77', 'Wallet · empty A (wired)', 'content (gold coin) + decorative', '1 + 4'],
+  ['src/components/illustrations.js:79', 'Wallet · empty B', 'content (gold coin) + decorative', '1 + 4'],
+  ['src/components/illustrations-s17.js:41', 'About · header (aboutGlassFg)', 'content (gold coin)', '1'],
+  ['src/components/illustrations-s17.js:47', 'Moment · First IXI', 'content (gold coin) + decorative', '1 + 2'],
+  ['src/components/illustrations-s17.js:53', 'Moment · Pay', 'content (gold coin) + decorative', '1 + 2'],
+  ['src/components/illustrations.js:50', 'Welcome 1 (launch flow)', 'decorative', '2'],
+  ['src/components/illustrations.js:52', 'Welcome 2 (launch flow)', 'decorative', '3'],
+  ['src/components/illustrations.js:58', 'Restore account', 'decorative', '3'],
+  ['src/components/illustrations.js:60', 'Chats · empty state', 'decorative', '3'],
+  ['src/components/illustrations.js:62', 'Contacts · empty state', 'decorative', '3'],
+  ['src/components/illustrations.js:64', 'Add contact', 'decorative', '3'],
+  ['src/components/illustrations.js:72', 'Rating nudge (rn-tw)', 'decorative', '3'],
+  ['src/components/illustrations-s17.js:17', 'What’s new · Hero (wnHeroFg)', 'decorative', '4'],
+  ['src/components/illustrations-s17.js:21', 'What’s new · Reply (wnReplyFg)', 'decorative', '3'],
+  ['src/components/illustrations-s17.js:25', 'What’s new · Voice (wnVoiceFg)', 'decorative', '3'],
+  ['src/components/illustrations-s17.js:29', 'What’s new · Photos (wnPhotosFg)', 'decorative', '3'],
+  ['src/components/illustrations-s17.js:33', 'What’s new · Privacy (wnPrivacyFg)', 'decorative', '3'],
+  ['src/components/illustrations-s17.js:37', 'What’s new · Mini apps (wnAppsFg)', 'decorative', '3'],
+  ['src/components/illustrations-s17.js:43', 'Moment · Auto-download', 'decorative', '2'],
+  ['src/components/illustrations-s17.js:49', 'Moment · Microphone', 'decorative', '2'],
+  ['src/components/illustrations-s17.js:51', 'Moment · App', 'decorative', '1'],
+  ['src/components/illustrations-s17.js:63', 'Moment · AI translation (MOMENT_AI_TPL)', 'decorative (one at 1.5×)', '3'],
+  ['src/components/illustrations-s17.js:55', 'Contributors · heart header (heartBg, quadratic paths, ct-tw)', 'decorative', '6'],
+  ['src/styles/components/settings-app.css:577', 'Contributors · chip tap burst (.c-settings-contrib__spark, clip-path star; spawned at settings-app.js:933)', 'decorative', '8 per tap'],
+  ['docs/renders/whats-new/parts/art.js:34 · :51', 'Design source of the What’s new scenes (def + sparkle() helper; calls at :102 :127 :152 :179 :203 :226) + art/*.svg (6 built)', 'decorative (source)', '19'],
+  ['docs/renders/whats-new/parts-e/art2.js:43 · :60 · :302 · :442', 'S17 port source: scenes, About spk(), About coin', 'source', '—'],
+  ['docs/renders/whats-new/parts-j/mo.js:24 · parts-i/dc.js:113', 'S17 port source: Moments · Contributors burst', 'source', '—'],
+];
+function renderWhere() {
+  document.querySelector('#where-tbl tbody').innerHTML = WHERE.map((r) => '<tr><td><code>' + r[0] + '</code></td><td>' + r[1] + '</td><td>'
+    + (/content/.test(r[2]) ? '<span class="tag warn">' + r[2] + '</span>' : '<span class="tag">' + r[2] + '</span>') + '</td><td>' + r[3] + '</td></tr>').join('');
+}
+const MEANING = [
+  ['Apps empty · Welcome 4 · Explore banner', 'The star in the violet tile meant “Mini Apps, something new to find”. The puzzle piece takes that meaning: an add-on that plugs into Spixi. The copy beside the art (“Explore Spixi Mini Apps”) still names it.'],
+  ['IXI coin (Wallet, Backup, About, First IXI, Pay)', 'The star meant “valuable / shiny new money”. Shine bars keep “polished coin”. If a stronger IXI cue is wanted later, the real IXI mark belongs on the coin, not a star.'],
+  ['What’s new (all six scenes)', 'The twinkles hint “new”. The card’s eyebrow and title already say What’s new, and the scenes’ entrance motion (il-tw pop) stays on the dots, so the “fresh” feeling stays without the star.'],
+  ['AI translation moment', 'The only scene where the star said “AI” on purpose. The two pills (Hello → the greeting in the new language) carry “translation”; the dots keep the light. Do not swap in another AI sign here, the sheet copy names the feature.'],
+  ['Welcome 3 · violet disc', 'The star sat at the meeting point of wallet and chat (“it all connects”). The puzzle piece keeps that reading: two parts that fit together.'],
+  ['Contributors chip tap', 'Pure celebration, no meaning. Dots in the four tones read as a soft confetti pop; rings + confetti is the festive option if Damir wants more.'],
+];
+function renderMeaning() {
+  document.getElementById('meaning-cards').innerHTML = MEANING.map((m) => '<div class="card"><h3>' + m[0] + '</h3><p>' + m[1] + '</p></div>').join('');
+}
+
+/* ================= wire up ================= */
+function setTheme(v) {
+  const r = document.documentElement;
+  if (v === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', v);
+  document.querySelectorAll('[data-theme-set]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeSet === v)));
+  try { localStorage.setItem('sparkle-swap-theme', v); } catch (e) { /* storage blocked: the toggle still works for this view */ }
+}
+document.querySelectorAll('[data-theme-set]').forEach((b) => b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
+try { const v = localStorage.getItem('sparkle-swap-theme'); if (v) setTheme(v); } catch (e) { /* no stored choice */ }
+document.getElementById('picker').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-k]');
+  if (!b) return;
+  state[b.dataset.k] = b.dataset.v;
+  renderPicker(); renderGallery();
+});
+renderVerdict(); renderGlyphRows(); renderDecoRows(); renderCoinRows(); renderPicker(); renderGallery(); renderWhere(); renderMeaning();
+</script>
+</body>
+</html>

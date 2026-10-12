@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spixi Add App</title>
+<style>
+/* ===================== page chrome (not the app) ===================== */
+:root {
+  --pg-bg: #eef1f4;
+  --pg-surface: #ffffff;
+  --pg-ink: #131415;
+  --pg-ink-2: #4f5664;
+  --pg-line: #dde2e9;
+  --pg-accent: #3050bd;
+  --pg-rec: #0b6b2e;
+  --pg-rec-bg: #e4f4ea;
+  --pg-rec-line: #9fd4b1;
+  --pg-warn: #8a4b00;
+  --pg-warn-bg: #fdf0dc;
+  --pg-code-bg: #e6eaef;
+  --pg-bezel: #16181b;
+  --pg-shadow: 0 18px 40px -18px rgba(17, 18, 19, .35);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pg-bg: #0a0b0d;
+    --pg-surface: #15171a;
+    --pg-ink: #e8ecee;
+    --pg-ink-2: #bbbec4;
+    --pg-line: #2c2e31;
+    --pg-accent: #98b5fc;
+    --pg-rec: #7fd39a;
+    --pg-rec-bg: #10241a;
+    --pg-rec-line: #2b5a3c;
+    --pg-warn: #f2c27a;
+    --pg-warn-bg: #2a1f0e;
+    --pg-code-bg: #1f2226;
+    --pg-bezel: #2a2d31;
+    --pg-shadow: 0 18px 40px -18px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: #0a0b0d;
+  --pg-surface: #15171a;
+  --pg-ink: #e8ecee;
+  --pg-ink-2: #bbbec4;
+  --pg-line: #2c2e31;
+  --pg-accent: #98b5fc;
+  --pg-rec: #7fd39a;
+  --pg-rec-bg: #10241a;
+  --pg-rec-line: #2b5a3c;
+  --pg-warn: #f2c27a;
+  --pg-warn-bg: #2a1f0e;
+  --pg-code-bg: #1f2226;
+  --pg-bezel: #2a2d31;
+  --pg-shadow: 0 18px 40px -18px rgba(0, 0, 0, .8);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--pg-bg);
+  color: var(--pg-ink);
+  font: 15px/1.5 Roboto, Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+.wrap { max-width: 1660px; margin: 0 auto; padding: 32px 16px 64px; }
+.eyebrow { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--pg-ink-2); font-weight: 600; }
+h1 { margin: 0 0 8px; font-size: 32px; line-height: 1.15; letter-spacing: -.5px; }
+h2 { margin: 0 0 6px; font-size: 22px; line-height: 1.25; }
+h3 { margin: 20px 0 6px; font-size: 16px; }
+p { margin: 0 0 10px; max-width: 76ch; }
+.intro { color: var(--pg-ink-2); }
+code { font: 12.5px/1.4 "DejaVu Sans Mono", ui-monospace, monospace; background: var(--pg-code-bg); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+.topline { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.seg { display: inline-flex; padding: 4px; border-radius: 12px; background: var(--pg-surface); border: 1px solid var(--pg-line); }
+.seg button { border: 0; background: transparent; color: var(--pg-ink-2); font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--pg-accent); color: var(--pg-bg); }
+
+.rec { border: 1px solid var(--pg-rec-line); background: var(--pg-rec-bg); border-radius: 18px; padding: 18px 20px; margin: 0 0 36px; }
+.rec .eyebrow { color: var(--pg-rec); }
+.rec p { margin: 0 0 4px; max-width: none; font-size: 16px; }
+.rec p b { color: var(--pg-rec); }
+
+section.sec { margin: 0 0 44px; }
+.sec-head { margin-bottom: 14px; }
+.tag { display: inline-block; vertical-align: middle; margin-inline-start: 8px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.tag.rec-t { background: var(--pg-rec-bg); color: var(--pg-rec); border: 1px solid var(--pg-rec-line); }
+.tag.alt-t { background: var(--pg-code-bg); color: var(--pg-ink-2); }
+.tag.now-t { background: var(--pg-warn-bg); color: var(--pg-warn); }
+
+.frames { display: flex; flex-wrap: wrap; gap: 28px 24px; margin: 18px 0 18px; padding: 4px; }
+.fg { margin: 0; }
+.fg figcaption { margin-top: 10px; font-size: 13px; color: var(--pg-ink-2); text-align: center; }
+.fg figcaption b { color: var(--pg-ink); font-weight: 600; }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; }
+.note { background: var(--pg-surface); border: 1px solid var(--pg-line); border-radius: 16px; padding: 16px 18px; min-width: 0; }
+.note h3 { margin-top: 0; }
+.note ul { margin: 0; padding-inline-start: 20px; }
+.note li { margin: 0 0 7px; }
+.note li:last-child { margin-bottom: 0; }
+
+.tbl { overflow-x: auto; border: 1px solid var(--pg-line); border-radius: 14px; background: var(--pg-surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: start; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--pg-line); }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--pg-ink-2); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+footer { margin-top: 40px; font-size: 13px; color: var(--pg-ink-2); }
+
+/* ===================== the app (resolved tokens of src/styles/tokens.css) ===================== */
+.t-light {
+  --surface-screen: #f9fafb; --surface-neutral-02: #edf0f2; --surface-settings-ground: #f3f5f7;
+  --surface-settings-card: #ffffff; --elevation-settings-card: 0 1px 2px rgba(17, 18, 19, 0.03), 0 1px 3px rgba(17, 18, 19, 0.05);
+  --surface-input-on-settings-card: #edf0f2; --outline-on-card: #dde2e9;
+  --text-neutral-01: #131415; --text-neutral-02: #4f5664; --icon-neutral-01: #131415; --icon-neutral-02: #4f5664;
+  --outline-neutral-01: #e8ecee; --outline-neutral-02: #dde2e9; --topbar-line: #e8ecee;
+  --text-action-default: #3050bd; --surface-action-default: #3050bd; --text-neutral-on-action: #f9fafb; --outline-action-default: #3050bd;
+  --text-error: #b12525;
+  --kb-bg: #e3e6ea; --kb-key: #ffffff; --kb-key-2: #c9ced6; --kb-ink: #131415; --kb-chip: #ffffff;
+  color-scheme: light;
+}
+.t-dark {
+  --surface-screen: #0F1113; --surface-neutral-02: #1A1C1F; --surface-settings-ground: #0F1113;
+  --surface-settings-card: #1A1C1F; --elevation-settings-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --surface-input-on-settings-card: #0F1113; --outline-on-card: #2C2E31;
+  --text-neutral-01: #e8ecee; --text-neutral-02: #bbbec4; --icon-neutral-01: #e8ecee; --icon-neutral-02: #bbbec4;
+  --outline-neutral-01: #1A1C1F; --outline-neutral-02: #232528; --topbar-line: #232528;
+  --text-action-default: #769dff; --surface-action-default: #3050bd; --text-neutral-on-action: #f9fafb; --outline-action-default: #769dff;
+  --text-error: #f49c92;
+  --kb-bg: #1d1f22; --kb-key: #3a3d42; --kb-key-2: #2a2d31; --kb-ink: #e8ecee; --kb-chip: #2a2d31;
+  color-scheme: dark;
+}
+/* theme-STABLE (both blocks): the hub discs (tokens.css --disc-hub-*), the Explore banner's --primary-600 */
+.ph {
+  --disc-hub-7: linear-gradient(180deg, #35B0FF 0%, #007DFF 100%);
+  --disc-hub-8: linear-gradient(180deg, #A29BFF 0%, #785AFF 100%);
+  --disc-hub-10: linear-gradient(180deg, #FB83D5 0%, #EB319C 100%);
+  --primary-600: #3050bd; --neutral-10: #f9fafb;
+  --spacing-4: 4px; --spacing-8: 8px; --spacing-12: 12px; --spacing-16: 16px; --spacing-24: 24px;
+  --radius-12: 12px; --radius-16: 16px;
+  position: relative;
+  width: 360px; height: 780px;
+  flex: none;
+  border-radius: 44px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--surface-screen);
+  color: var(--text-neutral-01);
+  font-family: Roboto, Inter, system-ui, sans-serif;
+  font-size: 16px; line-height: 24px;
+  box-shadow: 0 0 0 8px var(--pg-bezel), var(--pg-shadow);
+  margin: 8px;
+}
+.ph .ic { display: block; flex: none; }
+.sb { flex: none; height: 36px; padding: 10px 26px 0; display: flex; justify-content: space-between; font-size: 13px; line-height: 18px; font-weight: 500; }
+.sb-r { display: inline-flex; align-items: center; gap: 4px; }
+.sig { display: inline-block; width: 0; height: 0; border-left: 10px solid transparent; border-bottom: 10px solid currentColor; }
+.tb { flex: none; height: 56px; display: flex; align-items: center; gap: 8px; padding-inline: 8px; border-bottom: 1px solid var(--topbar-line); background: var(--surface-screen); }
+.tb-back { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--icon-neutral-01); }
+.tb-title { font-size: 20px; line-height: 28px; font-weight: 600; }
+.bd { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 16px 16px 30px; }   /* 30: the gesture bar zone */
+.bd-g { background: var(--surface-settings-ground); }
+.hi { position: absolute; left: 50%; bottom: 8px; width: 120px; height: 4px; margin-left: -60px; border-radius: 2px; background: var(--text-neutral-01); opacity: .55; }
+
+/* buttons (c-button fill 56) */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.btn-fill { background: var(--surface-action-default); color: var(--text-neutral-on-action); }
+.btn-56 { height: 56px; width: 100%; font-size: 16px; }
+.spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-top-color: transparent; opacity: .9; transform: rotate(35deg); }
+
+/* ---- TODAY: apps-add.css as shipped ---- */
+.bd-t0 { gap: 24px; }
+.t0-lead { text-wrap: pretty; margin: 0; font-size: 16px; line-height: 24px; color: var(--text-neutral-02); }
+.t0-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.t0-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px 8px; border: 1px solid var(--outline-neutral-02); border-radius: 16px; }
+.t0-disc { width: 44px; height: 44px; border-radius: 50%; background: var(--surface-neutral-02); color: var(--text-action-default); display: inline-flex; align-items: center; justify-content: center; }
+.t0-lab { font-size: 14px; line-height: 20px; font-weight: 600; text-align: center; }
+.t0-field { display: flex; flex-direction: column; gap: 8px; margin-top: -8px; }
+.t0-label { font-size: 16px; font-weight: 600; }
+.t0-input { display: block; padding: 12px 16px; border: 1px solid var(--outline-neutral-02); border-radius: 12px; background: var(--surface-neutral-02); font-size: 18px; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t0-input.is-bad { border-color: var(--text-error); }
+.t0-err { font-size: 14px; line-height: 20px; color: var(--text-error); }
+.t0-info { display: flex; gap: 12px; align-items: flex-start; padding: 16px; border-radius: 12px; background: var(--surface-neutral-02); color: var(--text-neutral-02); font-size: 14px; line-height: 20px; }
+.t0-info .ic { color: var(--icon-neutral-02); }
+
+/* ---- shared by A + B: cards on the settings ground (settings-shell .c-settings__group grammar) ---- */
+.card { background: var(--surface-settings-card); box-shadow: var(--elevation-settings-card); border-radius: 16px; }
+.a-link, .b-field { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+.a-label { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text-neutral-02); }
+.a-input { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 14px; border-radius: 12px; background: var(--surface-input-on-settings-card); border: 1px solid transparent; font-size: 17px; min-width: 0; }
+.a-input-ic { color: var(--icon-neutral-02); }
+.a-val { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.a-ph { flex: 1; color: var(--text-neutral-02); display: inline-flex; align-items: center; }
+.a-input.is-focus { border: 2px solid var(--outline-action-default); padding-inline: 13px; }
+.caret { display: inline-block; width: 2px; height: 22px; background: var(--outline-action-default); margin-inline-end: 1px; }
+.a-input.is-bad { border: 2px solid var(--text-error); padding-inline: 13px; }
+.a-err { display: flex; gap: 4px; align-items: flex-start; color: var(--text-error); font-size: 14px; line-height: 20px; }
+.a-err .ic { margin-inline-start: -2px; }
+.a-get, .b-field .btn { margin-top: 4px; }
+.a-trust { display: flex; gap: 10px; align-items: flex-start; margin: 12px 4px 20px; color: var(--text-neutral-02); font-size: 14px; line-height: 20px; }
+.a-trust .ic { color: var(--icon-neutral-02); margin-top: 1px; }
+.a-ways { display: flex; flex-direction: column; padding: 4px; }
+.a-row { position: relative; display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 6px 12px; }
+.a-row + .a-row::before { content: ""; position: absolute; top: 0; inset-inline: 58px 12px; height: 1px; background: var(--outline-on-card); }
+.a-row-l { flex: 1; min-width: 0; font-size: 16px; line-height: 22px; }
+.a-row-end { color: var(--icon-neutral-02); }
+.disc { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16); }
+.disc .ic { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .18)); }
+.disc.hub-7 { background: var(--disc-hub-7); }
+.disc.hub-8 { background: var(--disc-hub-8); }
+.disc.hub-10 { background: var(--disc-hub-10); }
+.disc-44 { width: 44px; height: 44px; }
+
+/* keyboard (illustrative — the OS draws it) */
+.has-kb .bd { padding-bottom: 0; }
+.kb { flex: none; height: 268px; background: var(--kb-bg); padding: 6px 4px 22px; display: flex; flex-direction: column; gap: 8px; }
+.kb-strip { height: 38px; display: flex; align-items: center; padding-inline: 8px; }
+.kb-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 12px; border-radius: 999px; background: var(--kb-chip); color: var(--kb-ink); font-size: 13px; line-height: 18px; box-shadow: 0 1px 1px rgba(0, 0, 0, .12); }
+.kb-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-row { display: flex; gap: 5px; justify-content: center; }
+.kb-r2 { padding-inline: 16px; }
+.kb-k { flex: 1; height: 40px; border-radius: 6px; background: var(--kb-key); color: var(--kb-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 17px; box-shadow: 0 1px 0 rgba(0, 0, 0, .18); }
+.kb-w { flex: 1.5; background: var(--kb-key-2); }
+.kb-w2 { flex: 1.6; background: var(--kb-key-2); font-size: 14px; }
+.kb-sp { flex: 5; }
+.kb-go { background: var(--surface-action-default); color: #fff; }
+
+/* ---- B ---- */
+.bd-col { gap: 0; }
+.bd-col > .t0-lead { margin-bottom: 20px; }
+.b-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.b-tile { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 6px 14px; border-radius: 16px; background: var(--surface-settings-card); box-shadow: var(--elevation-settings-card); }
+.b-tile.is-sel { box-shadow: 0 0 0 2px var(--outline-action-default), var(--elevation-settings-card); }
+.b-tile.is-sel .b-lab { color: var(--text-action-default); }
+.b-lab { font-size: 14px; line-height: 20px; font-weight: 600; text-align: center; }
+.b-field { margin-top: 12px; }
+.bd-col .a-trust { margin-bottom: 0; }
+.b-push { flex: 1; min-height: 16px; }
+/* the Apps tab's Explore banner (apps-header.css .c-apps-explore), theme-stable */
+.ex { position: relative; display: flex; align-items: stretch; gap: 12px; padding: 12px 0 0 12px; min-height: 84px; border-radius: 16px; overflow: hidden; color: var(--neutral-10);
+  background: linear-gradient(90deg, rgba(102, 102, 102, 0) 0%, rgba(2, 6, 25, .45) 100%), var(--primary-600); }
+.ex-t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding-bottom: 12px; }
+.ex-title { font-size: 14px; line-height: 20px; opacity: .85; }
+.ex-cta { display: inline-flex; align-items: center; gap: 8px; font-size: 17px; line-height: 24px; font-weight: 600; }
+.ex-art { flex: 0 1 auto; align-self: flex-end; height: 96px; width: auto; max-width: 42%; display: block; overflow: visible; }
+
+@media (max-width: 440px) {
+  .wrap { padding-top: 22px; }
+  h1 { font-size: 26px; }
+  .frames { gap: 20px 0; justify-content: center; }
+  .ph { zoom: .86; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="topline">
+  <div>
+    <p class="eyebrow">Spixi · Apps · design render · 2026-10-12</p>
+    <h1>Add app</h1>
+    <p class="intro">Damir asked: change the Add app screen, or leave it? Below: what the code really does, today redrawn faithfully, and two directions, in light and dark, with the states that matter. Colours are the real tokens of <code>src/styles/tokens.css</code>; glyphs are <code>src/components/icons.js</code>; the Explore art is <code>IL_ART.explore</code> with the rocket and bokeh dots (Damir's pick, #1357; no four-point sparkle).</p>
+  </div>
+  <div class="seg" role="group" aria-label="Page theme">
+    <button type="button" data-t="auto" aria-pressed="true">Auto</button>
+    <button type="button" data-t="light" aria-pressed="false">Light page</button>
+    <button type="button" data-t="dark" aria-pressed="false">Dark page</button>
+  </div>
+</div>
+
+<div class="rec">
+  <p class="eyebrow">Recommendation</p>
+  <p><b>Change it: Direction A, “Link first”.</b> The screen exists for one paste. Today that paste costs an extra tap, the first line promises a directory that is never on the screen, and the safety line sits in a grey box that reads like a disclaimer.</p>
+  <p>A fixes all three in one component and its CSS: about 3 to 4 hours, no new bridge verb, no new string, no C#. If you change nothing else, at least delete “Or explore the directory below.”</p>
+</div>
+
+<section class="sec" id="code">
+  <div class="sec-head">
+    <h2>What the screen really does</h2>
+    <p>One component, <code>createAppsAdd</code> in <code>src/components/apps-add.js</code>, styled by <code>src/styles/components/apps-add.css</code>. Two production callers: the in-shell takeover <code>openAppsAdd</code> in <code>src/shells/home.html</code> (phone, narrow desktop) and <code>src/shells/app_new.html</code> (the desktop pane, AppNewPage). Both pass <code>discover: false</code>.</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Piece</th><th>Code</th><th>What happens in production</th></tr></thead>
+    <tbody>
+      <tr><td>Lead</td><td><code>strings.addLead</code> · apps-add.js:30</td><td>“…Or explore the directory below.” Nothing is below in any state (see Discover).</td></tr>
+      <tr><td>Paste link tile</td><td>apps-add.js:83</td><td>Only REVEALS the hidden URL field (<code>field.hidden = false</code> + focus). The field opens between the tiles and the grey box.</td></tr>
+      <tr><td>Scan QR tile</td><td>apps-add.js:84</td><td><code>ixian:appscan</code> (home.html) / <code>ixian:quickscan</code> (app_new.html). The scan result comes back through <code>setAddUrl</code> (:134), which opens and fills the field.</td></tr>
+      <tr><td>From file tile</td><td>apps-add.js:85</td><td><code>ixian:selectAppFile</code> → native picker → AppDetailsPage installing mode.</td></tr>
+      <tr><td>Get app</td><td>c-button fill 56</td><td>Empty → “Enter an app link.” Else <code>ixian:fetch:&lt;url&gt;</code> + spinner. Success = C# navigates away. Failure = <code>showUrlError(reason)</code> → <code>setAddError</code> (:149) with a reason text (timeout · http · size · invalid). A 20 s grace timer says “If nothing happened, that link may be invalid or unreachable.”</td></tr>
+      <tr><td>Trust banner</td><td><code>.c-apps-add__info</code></td><td>Always shown, grey box (<code>--surface-neutral-02</code>).</td></tr>
+      <tr><td>Discover</td><td>apps-add.js:101</td><td>OMITTED: <code>discover: false</code> at home.html:3427 and app_new.html:159. The in-app catalog is parked (A2, Damir 2026-07-09); the Apps tab’s Explore banner links out instead (<code>ixian:spixiAppsLink</code> → HomePage.xaml.cs:1832 → <code>Utils.openExternal(Config.spixiAppsUrl)</code>).</td></tr>
+      <tr><td>setAddDiscoverFeed</td><td>apps-add.js:142</td><td>Called only by the demo pages (src/demo/apps.html:270, desktop.html:1883). In production there is no <code>.c-apps-discover</code> to fill, so the feed is never rendered and the space below is empty in every state.</td></tr>
+      <tr><td>Developer CTA</td><td><code>onLearnBuild</code> · :112</td><td>Not passed by either caller → never shown.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="sec" id="today">
+  <div class="sec-head">
+    <h2>Today <span class="tag now-t">shipped</span></h2>
+    <p>A faithful redraw of <code>createAppsAdd({ discover: false })</code> at 360 px. The keyboard is not drawn in the field states.</p>
+  </div>
+  <div class="frames"><!--@@TODAY@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What is wrong</h3><ul>
+      <li><b>A broken promise in line one.</b> “Or explore the directory below” points at nothing, in every state, on every platform (both callers pass <code>discover: false</code>).</li>
+      <li><b>The main path has a door in front of it.</b> Paste link opens a hidden field, then you paste, then Get app. The field appears in the middle of the screen and pushes the grey box down.</li>
+      <li><b>Three equal tiles say three equal ways.</b> A shared link is the common case; From file (a .spixi package on disk) is mostly a developer path.</li>
+      <li><b>Grey on grey.</b> Grey discs and a grey info box: next to the redesigned About, Downloads and Contributors screens this reads as a stub, and the safety line looks like small print to skip.</li>
+    </ul></div>
+    <div class="note"><h3>What is not wrong</h3><ul>
+      <li>The empty lower half is not the problem by itself. On a phone that space is where the keyboard goes once the link field has focus.</li>
+      <li>The wiring is sound: reason-specific errors, the loading spinner, the scan → fill path and the 20 s grace timer all stay as they are in both directions.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec" id="a">
+  <div class="sec-head">
+    <h2>A · Link first <span class="tag rec-t">Recommended</span></h2>
+    <p>The link field is the screen. The other ways become rows, the directory becomes an honest link out, the safety line becomes a caption.</p>
+  </div>
+  <div class="frames"><!--@@A@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What changes and why</h3><ul>
+      <li><b>The field is on the screen, first, in a card.</b> Tap it and paste; the keyboard’s clipboard chip already offers the copied link. One tap less, and nothing moves when you start.</li>
+      <li><b>Scan QR and From file become rows</b> with the Account hub discs (violet, pink) and chevrons: the same grammar as Settings, and clearly “other ways”.</li>
+      <li><b>The directory promise is kept honestly:</b> a third row “Explore Spixi Mini Apps” with the external-link glyph (#710: it opens outside the app) sends the existing <code>ixian:spixiAppsLink</code>. No in-app catalog, so A2 holds.</li>
+      <li><b>The safety line sits under the link card</b> as a caption with the shield-lock glyph, next to the thing it warns about. No grey box.</li>
+      <li><b>No lead.</b> The card label and the caption say it all. The free space under the cards is the keyboard’s space.</li>
+    </ul></div>
+    <div class="note"><h3>Build cost: about 3 to 4 h</h3><ul>
+      <li><code>apps-add.js</code> <code>createAppsAdd</code>: field visible and wrapped in a card; the three tiles become two rows, plus the Explore row when <code>onBrowseWeb</code> is given (the parameter already exists); the info box becomes the caption; the lead goes. <code>setAddUrl</code>, <code>setAddError</code> and the pinned selector <code>.c-apps-add__field .c-button</code> keep working.</li>
+      <li><code>apps-add.css</code>: the tile and info rules are replaced (about 70 lines). Reuses <code>.c-disc</code> with <code>--disc-hub-7/8/10</code>, <code>--surface-settings-card</code>, <code>--elevation-settings-card</code>, <code>--surface-input-on-settings-card</code>, ground <code>--surface-settings-ground</code>.</li>
+      <li><code>home.html</code> <code>openAppsAdd</code>: one line, <code>onBrowseWeb: () =&gt; bridge.send('ixian:spixiAppsLink')</code>. <code>app_new.html</code> unchanged: AppNewPage has no handler for that verb, so the row is absent in the desktop pane (the Apps list with its banner is beside it there).</li>
+      <li>No new verb, no new string, no C#. <code>addLead</code> and <code>pasteLink</code> become unused. Two new pins (field visible at mount; no Explore row without the callback). Pipeline: build-demo-bundle → build-shells.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec" id="b">
+  <div class="sec-head">
+    <h2>B · Keep the tiles, premium pass <span class="tag alt-t">Alternative</span></h2>
+    <p>The three-tile model you approved in the Apps rounds (#123 / #128) stays. It gets the card and disc language of the redesigned screens and an honest end.</p>
+  </div>
+  <div class="frames"><!--@@B@@--></div>
+  <div class="notes">
+    <div class="note"><h3>What changes and why</h3><ul>
+      <li><b>White tiles with hub discs</b> (blue link, violet QR, pink file) on the settings ground, in place of outlined tiles with grey discs.</li>
+      <li><b>The open tile shows it is open:</b> a 2 px action ring and an action-coloured label, so the field card under it reads as its child.</li>
+      <li><b>The safety line becomes the shield caption.</b> No grey box.</li>
+      <li><b>The lead loses its broken half.</b> The promise is kept by the Apps tab’s own Explore banner, pinned to the bottom (same art, now the rocket and bokeh dots, theme-stable blue).</li>
+      <li><b>Trade-offs:</b> the main path still costs the extra tap; the banner repeats the one on the Apps tab the user just left; the banner repeats the Apps tab.</li>
+    </ul></div>
+    <div class="note"><h3>Build cost: about 4 to 5 h</h3><ul>
+      <li><code>apps-add.css</code>: tile and info restyle (about 50 lines), same tokens as A.</li>
+      <li><code>apps-add.js</code>: <code>aria-expanded</code> on the Paste link tile, the banner mount. <code>apps-header.js</code>: move the banner (lines 50–95) into an exported <code>createExploreBanner()</code> so both screens use one builder.</li>
+      <li><code>home.html</code>: the same one-line <code>onBrowseWeb</code>. <code>app_new.html</code>: no banner (no handler).</li>
+      <li><code>addLead</code> trimmed in all 13 locale files → the FULL strings pipeline (extract-strings → build-locales → build-strings-iife → build-demo-bundle → build-shells).</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="sec" id="min">
+  <div class="sec-head">
+    <h2>If you leave it: change only the lead</h2>
+    <p><code>addLead</code> → “Add a mini app from a link, a QR code, or a file.” in en-us and the 12 other locales (cut the second sentence). About 30 minutes plus the full strings pipeline. Nothing else on the screen is broken; the rest is the design gap described above.</p>
+  </div>
+</section>
+
+<footer>
+  Built by <code>docs/renders/add-app/build-add-app.mjs</code> from <code>page.template.html</code>. It reads <code>src/components/icons.js</code> and <code>IL_ART.explore</code> (<code>src/components/illustrations.js</code>) and never writes <code>src/</code>. Token values resolved from <code>src/styles/tokens.css</code> on 2026-10-12 (light = <code>:root</code>, dark = <code>[data-theme="dark"]</code>). Status bar and keyboard are illustrative.
+</footer>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var btns = document.querySelectorAll('.seg button');
+  function set(t) {
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', String(btns[i].getAttribute('data-t') === t));
+    try { localStorage.setItem('spixi-add-app-theme', t); } catch (e) {}
+  }
+  for (var i = 0; i < btns.length; i++) btns[i].addEventListener('click', function () { set(this.getAttribute('data-t')); });
+  var saved = null;
+  try { saved = localStorage.getItem('spixi-add-app-theme'); } catch (e) {}
+  if (saved === 'light' || saved === 'dark') set(saved);
+})();
+</script>
+</body>
+</html>

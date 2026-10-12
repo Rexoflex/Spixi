@@ -50,15 +50,17 @@ import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
 
 const ATTACH_ACTIONS = [
-  { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile', flag: 'files' },
+  /* ★ #1355 (Damir 13:41 "having payment as the last 2 items"): the ORDER is Photos · Camera · File / App invite · Pay ·
+     Request — the most used first, the two money tiles last. Was File · Photos · Camera / Pay · Request · App invite. */
   /* ★ S9 (#1244 P = B): Photos (the system picker, ≤ 10, verb sendmedia) + Camera (Android + iOS: C# declares the
      `camera` capability there only, verb camera). The GIF tile is GONE (the `gif` string key stays, unused). "Photos"
      is a NEW key (`photos`): the meaning changed from one photo to a multi-pick. */
   { id: 'photo', glyph: 'photo', label: 'Photos', key: 'photos', flag: 'media' },
   { id: 'camera', glyph: 'camera', label: 'Camera', key: 'camera', flag: 'camera' },
+  { id: 'file', glyph: 'file-isr', label: 'Send file', key: 'sendFile', flag: 'files' },
+  { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
   { id: 'pay', glyph: 'arrow-up-right', label: 'Send payment', key: 'sendPayment', flag: 'payments' },
   { id: 'request', glyph: 'arrow-down-left', label: 'Request payment', key: 'requestPayment', flag: 'payments' },
-  { id: 'app', glyph: 'rocket', label: 'App invite', key: 'appInvite', flag: 'apps' },
 ];
 
 /* ★★ THE ONE PREDICATE — which tiles survive the gates.

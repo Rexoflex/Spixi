@@ -659,6 +659,7 @@
   "textSizeCustom": "Tamaño personalizado ({0} %), ajustado al pellizcar en un chat. Elige un tamaño para reemplazarlo.",
   "textXL": "XL",
   "theme": "Tema",
+  "themeLead": "Sistema sigue el ajuste claro u oscuro de tu dispositivo.",
   "themeFailed": "No se pudo cambiar el tema.",
   "themeSystem": "Sistema",
   "thisApp": "esta app",

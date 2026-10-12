@@ -1724,81 +1724,143 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   font-weight: var(--font-weight-regular);
 }
 
-/* —— theme sheet: VISUAL PREVIEW TILES (#147) —— */
-.c-settings__themes {
-  display: flex;
-  gap: var(--spacing-8);
+/* —— ★ #1353 THE theme picker (createThemePicker; Damir 12:57, picked A on docs/renders/theme-picker) ——
+   ONE picker for Account › Theme (sheet + desktop pane) and Chat appearance › Theme: three portrait mini phones with a
+   real chat inside; System = the light chat with the dark one clipped over it on the diagonal; picked = the blue rim + a
+   white check in a blue disc on the corner (#1342) and the name in the action ink. The faces are FIXED paints — a
+   preview shows its OWN mode (#147, the --preview-* pair); the bubble and sent paints are pictures of today's chat. */
+.c-theme-sheet { --theme-pick-gap: var(--surface-settings-ground); }
+.c-sheet .c-theme-sheet { --theme-pick-gap: var(--surface-sheet); }
+.c-theme-sheet__lead {
+  margin: 0 0 var(--spacing-16);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  max-width: 44ch;
 }
-.c-settings__theme {
-  flex: 1;
-  min-width: 0;
+.c-sheet .c-theme-sheet__lead { margin-top: calc(-1 * var(--spacing-8)); }   /* under the sheet title only (the pane has its own topbar) */
+.c-theme-pick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-12);
+  max-width: 520px;                    /* sanctioned: three phones, not three slabs, on a wide pane */
+}
+.c-theme-pick__tile {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: var(--spacing-8);
-  padding: var(--spacing-8);
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
-  border-radius: var(--radius-12);
+  min-width: 0;
+  padding: 0;
+  border: 0;
   background: transparent;
+  color: var(--text-neutral-01);
+  font: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color var(--duration-100) var(--easing-standard);
 }
-.c-settings__theme[aria-checked='true'] { border-color: var(--outline-action-default); }
-@media (hover: hover) and (pointer: fine) {
-  .c-settings__theme:hover { background: var(--surface-interactive-hover); }
-}
-.c-settings__theme:active { background: var(--surface-interactive-pressed); }
-/* the mini screen — FIXED paints (a preview shows its OWN mode, --surface-qr precedent) */
-.c-settings__theme-art {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  height: 64px;                     /* sanctioned: preview miniature dim */
-  padding: var(--spacing-8);
-  border-radius: var(--radius-8);
-  background: var(--preview-light-surface);
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
-  overflow: hidden;
-}
-.c-settings__theme-line {
-  height: 6px;                      /* sanctioned: preview miniature bars */
-  border-radius: var(--radius-full);
-  background: var(--preview-light-line);
-}
-.c-settings__theme-line:first-child { width: 40%; background: var(--surface-action-default); }
-.c-settings__theme-line:nth-child(2) { width: 90%; }
-.c-settings__theme-line:nth-child(3) { width: 65%; }
-.c-settings__theme[data-mode='dark'] .c-settings__theme-art { background: var(--preview-dark-surface); }
-.c-settings__theme[data-mode='dark'] .c-settings__theme-line { background: var(--preview-dark-line); }
-.c-settings__theme[data-mode='dark'] .c-settings__theme-line:first-child { background: var(--surface-action-default); }
-/* System = diagonal split: light art + a dark wedge clipped over the right half */
-.c-settings__theme[data-mode='system'] .c-settings__theme-art {
+.c-theme-pick__mini {
   position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4.1;               /* sanctioned: a portrait phone */
+  border-radius: var(--radius-16);
+  overflow: hidden;
+  transition: box-shadow var(--duration-100) var(--easing-standard);
 }
-.c-settings__theme[data-mode='system'] .c-settings__theme-art::after {
+.c-theme-pick__mini::after {           /* the phone's edge — a light phone on a white card still has a border */
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--preview-dark-surface);
-  clip-path: polygon(100% 0, 100% 100%, 35% 100%);
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14);   /* sanctioned: the picture's edge (theme-picker-render.html) */
+  pointer-events: none;
 }
-.c-settings__theme-foot {
+[data-theme='dark'] .c-theme-pick__mini::after { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); }   /* sanctioned: the picture's edge in dark */
+.c-theme-pick__face {
+  position: absolute;
+  inset: 0;
+  --pf-bg: var(--preview-light-surface);
+  --pf-card: #FFFFFF;                  /* sanctioned: today's light received bubble, as a picture */
+  --pf-line: var(--preview-light-line);
+  --pf-sent: #2160C2;                  /* sanctioned: today's blue, as a picture */
+  background: var(--pf-bg);
+}
+.c-theme-pick__face[data-face='dark'] {
+  --pf-bg: var(--preview-dark-surface);
+  --pf-card: #1E2023;                  /* sanctioned: today's dark received bubble, as a picture */
+  --pf-line: #2A2D31;                  /* sanctioned: a header line on the dark picture */
+  --pf-sent: #1A4A96;                  /* sanctioned: today's dark-step blue, as a picture */
+}
+.c-theme-pick__tile[data-mode='system'] .c-theme-pick__face[data-face='dark'] { clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+[dir='rtl'] .c-theme-pick__tile[data-mode='system'] .c-theme-pick__face[data-face='dark'] { clip-path: polygon(0 0, 100% 100%, 0 100%); }
+.c-theme-pick__face > i { position: absolute; display: block; border-radius: var(--radius-full); }
+.c-theme-pick__hd {
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 15%;
+  border-radius: 0 !important;
+  background: var(--pf-card);
+  display: flex !important;
+  align-items: center;
+  gap: 4px;                            /* sanctioned: miniature */
+  padding-inline: 6px;                 /* sanctioned: miniature */
+}
+.c-theme-pick__hd > b { width: 9px; height: 9px; border-radius: 50%; background: linear-gradient(135deg, #7AA7FF, #A77BFF); flex: none; }   /* sanctioned: the miniature avatar, a picture */
+.c-theme-pick__hd > i { width: 34%; height: 5px; border-radius: 3px; background: var(--pf-line); }   /* sanctioned: miniature */
+.c-theme-pick__r, .c-theme-pick__s { height: 10%; }
+.c-theme-pick__r { inset-inline-start: 7%; inset-block-start: 23%; width: 52%; background: var(--pf-card); }
+.c-theme-pick__r2 { inset-block-start: 37%; width: 38%; }
+.c-theme-pick__s { inset-inline-end: 7%; inset-block-start: 53%; width: 50%; background: var(--pf-sent); }
+.c-theme-pick__s2 { inset-block-start: 67%; width: 34%; }
+.c-theme-pick__cp { inset-inline: 6%; inset-block-end: 5%; height: 10%; background: var(--pf-card); }
+.c-theme-pick__face[data-face='light'] .c-theme-pick__r { box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08); }   /* sanctioned: a white bubble on the light picture */
+.c-theme-pick__tile[aria-checked='true'] .c-theme-pick__mini {
+  box-shadow: 0 0 0 2.5px var(--theme-pick-gap, var(--surface-settings-card)), 0 0 0 4.5px var(--surface-action-default);
+}
+.c-theme-pick__check {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 7px;
+  inset-inline-end: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 2px var(--theme-pick-gap, var(--surface-settings-card)), 0 2px 6px rgba(10, 20, 60, .25);   /* sanctioned: the badge's lift */
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity .16s ease, transform .2s cubic-bezier(.3, 1.4, .5, 1);
+}
+.c-theme-pick__check > svg { width: 14px; height: 14px; }
+.c-theme-pick__tile[aria-checked='true'] .c-theme-pick__check { opacity: 1; transform: none; }
+.c-theme-pick__foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: var(--spacing-4);
+  min-height: 22px;
 }
-.c-settings__theme-label {
+.c-theme-pick__name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-neutral-01);
   font-size: var(--font-size-label-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
-.c-settings__theme[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
-.c-settings__theme[data-loading] .c-settings__opt-check { display: none; }
+@media (max-width: 359px) { .c-theme-pick__name { font-size: var(--font-size-label-sm); } }   /* 320 px phones: ru «Системная» / sl «Sistemska» fit the 76 px tile */
+.c-theme-pick__tile[aria-checked='true'] .c-theme-pick__name { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }
+.c-theme-pick__status { display: inline-flex; align-items: center; flex: none; }   /* the in-flight spinner's slot (the old .c-settings__opt-status grammar) */
+.c-theme-pick__status:empty { display: none; }
+.c-theme-pick__tile:focus-visible { outline: none; }
+.c-theme-pick__tile:focus-visible .c-theme-pick__mini { outline: 2px solid var(--outline-focus); outline-offset: 6px; }
+@media (prefers-reduced-motion: reduce) { .c-theme-pick__check { transition: none; } }
 
 /* —— avatar sheet —— */
 .c-settings__avatar-sheet { display: flex; flex-direction: column; gap: var(--spacing-4); }
@@ -1858,6 +1920,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   flex-direction: column;
   gap: var(--spacing-4);
   padding: var(--spacing-12);
+  padding-inline-start: calc(var(--spacing-12) - var(--outline-width-1));   /* ★ #1356: the border eats 1 px — the glyph box lands on the rows' disc column (x 28 at 360 px) */
   border: var(--outline-width-1) solid var(--outline-neutral-01);
   border-radius: var(--radius-12);
   background: var(--surface-settings-card);   /* ★ #1007: the danger screen shares the grey ground — its cards go white too */
@@ -1873,15 +1936,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-settings-danger__card-title {
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
+  gap: var(--spacing-16);   /* ★ #1356: the rows' disc → label gap */
   min-height: 24px;
   color: var(--text-error);
   font-size: var(--font-size-body-md);
   font-weight: var(--font-weight-semibold);
 }
-.c-settings-danger__card-title svg { color: currentColor; flex: none; }
+/* ★ #1356 (Damir 14:11 "texts are not aligned … create a padding around it"): the bare 20 px glyph sits in a 30 px box — the
+   size of the rows' disc above — so the title and the line under it start where the rows' texts start. */
+.c-settings-danger__card-title svg { color: currentColor; flex: none; box-sizing: content-box; padding: 5px; }   /* sanctioned: (30 − 20) / 2 — the disc's box */
 .c-settings-danger__card-sub {
-  padding-inline-start: calc(20px + var(--spacing-12));   /* sanctioned: aligns under the 20px glyph */
+  padding-inline-start: calc(30px + var(--spacing-16));   /* sanctioned: ★ #1356 under the 30 px glyph box + the gap (was 20px + 12) */
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
@@ -2849,8 +2914,8 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   height: 6px;
   margin: -3px;
   pointer-events: none;
+  border-radius: 50%;   /* ★ #1357: a round dot (the four-point star read as the AI mark) — the set's bokeh dot */
   background: var(--dc-spk-0);
-  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
   animation: ct-spark .7s ease-out forwards;
 }
 .c-settings-contrib__spark[data-tone="1"] { background: var(--dc-spk-1); }

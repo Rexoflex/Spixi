@@ -659,6 +659,7 @@
   "textSizeCustom": "Eigene Größe ({0} %), per Fingergeste im Chat eingestellt. Wähle eine Größe, um sie zu ersetzen.",
   "textXL": "XL",
   "theme": "Design",
+  "themeLead": "System folgt der Hell- oder Dunkel-Einstellung deines Geräts.",
   "themeFailed": "Design konnte nicht geändert werden.",
   "themeSystem": "System",
   "thisApp": "diese App",

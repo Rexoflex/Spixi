@@ -125,7 +125,7 @@ export default async function (h) {
       /* ★ S17 C v3 RE-BASE (Damir 21:50): the dark Meadow / Spixi are FULL COVERAGE (no fade to the canvas), new gaps */
       darkGreen: has(dg, '--gradient-chat: linear-gradient(160deg, #0F2C23 0%, #0B1A16 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #BFE8CB;') && has(dg, '--surface-select-row-gap: #243E4E;'),
       darkBlue: has(db, '--gradient-chat: linear-gradient(160deg, #0F2349 0%, #0A1430 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C2DDFB;') && has(db, '--surface-select-row-gap: #233867;'),
-      noticeEdge: has(rule(chatH, D('blue').map((x) => x + ' .c-sysnotice__card')), 'box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);'),
+      noticeEdge: !rule(chatH, D('blue').map((x) => x + ' .c-sysnotice__card')),   /* ★ #1354 RE-BASE: the hairline RETIRED — the neutral card shares no canvas's hue */
       /* ★ S17 C RE-BASE (#1334): the dark "top stop" dot faces are RETIRED — a 92 × 124 mini chat paints the whole ramp
          through --gradient-chat (the same token rules the chat uses), so no dark tile reads as a black disc */
       dotGreen: !rule(setH, [":root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='green']"]),

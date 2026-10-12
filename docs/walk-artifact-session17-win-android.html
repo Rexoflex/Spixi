@@ -62,7 +62,7 @@ textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:1
 <div class="wrap">
   <header>
     <h1>Spixi Session 17 Walk</h1>
-    <p class="sub"><b>Session 17 (#1331–#1350): What's new · About · Chat appearance v3 · illustrations · settings screens · Moment sheets.</b> Walk it AFTER the Session 16 walk. Apply the S17 patch and commit, build Windows (F5) and Android, then walk the rows. ⚠ The S17 C# is UNCOMPILED: this build is the first compile — a build error is a batch bug, paste it. Several rows need a FRESH account (What's new, the moments): use Account › Delete data… › Delete account where a row says so. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both logs.</p>
+    <p class="sub"><b>Session 17 (#1331–#1350) + the walk fixes #1351 (pages slide over the whole screen · chat pattern −20 % again) · #1352 (About / Contributors icon colours) · #1353 (one theme picker) · #1354 (neutral secure notice) · #1355 (the chat follows the canvas colour, attach order) · #1356 (Delete data alignment): What's new · About · Chat appearance v3 · illustrations · settings screens · Moment sheets.</b> Walk it AFTER the Session 16 walk. S17 is committed (052aac6b): apply the walk-fix patch and commit, build Windows (F5) and Android, then walk the rows. ⚠ The S17 C# is UNCOMPILED: this build is the first compile — a build error is a batch bug, paste it. Several rows need a FRESH account (What's new, the moments): use Account › Delete data… › Delete account where a row says so. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both logs.</p>
   </header>
   <nav class="jump" aria-label="Parts">
     <a href="#commit">1 · Commit + push</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
@@ -102,17 +102,14 @@ const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spix
 const STEPS = {
   commit: [
     ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
-    ["Check the tree.", "git --no-optional-locks status --short", "Only untracked files (Claude outputs and your notes). Other changes: stop and paste them."],
-    ["Check that you are on the render commit.", "git --no-optional-locks log --oneline -1", "<b>9be995da What's new renders: …</b>. Another hash: stop and paste it."],
-    ["Refresh the index.", "git update-index --refresh", "No output, or a list of untracked notes. Both are OK."],
-    ["Check that the patch applies.", "git apply --check \"..\\Claude outputs\\session17.patch\"", "No output."],
-    ["Apply the patch (it also stages the new files).", "git apply --index \"..\\Claude outputs\\session17.patch\"", "No output."],
-    ["Check the count.", "git diff --cached --stat", "The last line says <b>144 files changed</b>. Another number: stop and paste it."],
-    ["Commit.", "git commit -F docs/commit-message-session17.txt", "Subject \"Session 17: What's new, About header, Chat appearance v3, illustrations, settings screens, Moment sheets\"."],
+    ["Check the tree.", "git --no-optional-locks status --short", "Only untracked files (your notes). Other changes: stop and paste them."],
+    ["Check that you are on the BE review pack commit (on top of S17).", "git --no-optional-locks log --oneline -1", "<b>e39a1ac8 BE review pack: …</b>. Another hash: stop and paste it."],
+    ["Check that the walk-fix patch applies.", "git apply --check \"..\\Claude outputs\\s17-walkfix-all.patch\"", "No output (a note about trailing whitespace in a render file is fine)."],
+    ["Apply the patch (it also stages the new pins and renders).", "git apply --index \"..\\Claude outputs\\s17-walkfix-all.patch\"", "No output."],
+    ["Check the count.", "git diff --cached --stat", "The last line says <b>103 files changed</b>. Another number: stop and paste it."],
+    ["Commit.", "git commit -F docs/commit-message-s17-walkfix.txt", "Subject \"S17 walk fixes: slides, theme picker, chat accent, address card\"."],
     ["Push.", "git push", "Ends with <b>redesign/frontend -> redesign/frontend</b>."],
-    ["Run the smoke test (35 min).", "node scripts/smoke-test.mjs", "Last line <b>BASELINE OK — 5795 / the 2 KNOWN (#136 · B3)</b>."],
-    ["Run the C# harness.", "node scripts/run-csh.mjs", "Last line <b>CSH pass=435 fail=0</b>."],
-    ["Delete the old build output (C# and html changed).", "Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue", "No output."],
+    ["Delete the old build output (the html changed).", "Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue", "No output."],
   ],
   win: [
     ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
@@ -123,12 +120,12 @@ const STEPS = {
     ['Copy the log next to the other outputs (NOT into the repo folder).', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
   ],
   and: [
-    ['Connect the phone with USB. Check it.', 'adb devices', 'One line ending with <b>device</b>.'],
-    ['Make the log buffer large.', 'adb logcat -G 16M', 'No output.'],
-    ['Clear the log.', 'adb logcat -c', 'No output.'],
+    ['Connect the phone with USB. Check it.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -G 16M', 'No output.'],
+    ['Clear the log.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -c', 'No output.'],
     ['Build and deploy Debug (the html changed: obj / bin are already deleted).', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Debug -t:Run', 'The app opens on the phone. A build error: paste it.'],
     ['Walk the Android rows below.', '', ''],
-    ['Save the log as UTF-8.', 'adb logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s17.txt"', 'A file of a few MB.'],
+    ['Save the log as UTF-8.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s17.txt"', 'A file of a few MB.'],
   ],
 };
 const W = 'w', A = 'a';
@@ -147,8 +144,20 @@ const ROWS = [
   {p:W,id:"CA-PICK-W",t:"CA-PICK — #1334 · 20:21",d:"1) Pick a bubble colour, then a canvas.",e:"A picked colour overrides the canvas's own; a canvas pick resets to Auto. The theme / preview tiles show a rim + a check, no radio."},
   {p:A,id:"CA-PICK-A",t:"CA-PICK — #1334 · 20:21",d:"1) Pick a bubble colour, then a canvas.",e:"A picked colour overrides the canvas's own; a canvas pick resets to Auto. The theme / preview tiles show a rim + a check, no radio."},
   {p:A,id:"CA-CORNERS",t:"CA-CORNERS — #1336",d:"1) Corners slider to 4, 18, 22; open a chat.",e:"18 = today's bubbles; the small corners follow (4 → 2 px, 22 → 5 px)."},
-  {p:W,id:"CA-PATTERN-W",t:"CA-PATTERN — v3 21:57",d:"1) Compare the chat pattern with the S16 build.",e:"The pattern is about 20 % lighter (Contours and Waves)."},
-  {p:A,id:"CA-PATTERN-A",t:"CA-PATTERN — v3 21:57",d:"1) Compare the chat pattern with the S16 build.",e:"The pattern is about 20 % lighter (Contours and Waves)."},
+  {p:W,id:"CA-PATTERN-W",t:"CA-PATTERN — #1351 (v3 21:57 + 2026-10-12)",d:"1) Open a chat with Contours, then with Waves, light and dark. 2) Compare with the first S17 build of today.",e:"The pattern is about 20 % lighter than the first S17 build of today (about 36 % lighter than S16), on every canvas, in both themes."},
+  {p:A,id:"CA-PATTERN-A",t:"CA-PATTERN — #1351 (v3 21:57 + 2026-10-12)",d:"1) Open a chat with Contours, then with Waves, light and dark. 2) Compare with the first S17 build of today.",e:"The pattern is about 20 % lighter than the first S17 build of today (about 36 % lighter than S16), on every canvas, in both themes."},
+  {p:A,id:"CA-ACCENT-A",t:"CA-ACCENT — #1355",d:"1) Pick Dusk, then Mist + a teal bubble colour, light and dark. 2) In a chat: send / mic, ⊕ / ×, the attach tray, a voice message, select mode (long-press a row).",e:"Everything on your side takes the bubble colour: send / mic disc, ⊕ / × glyph, tray discs, the received voice play disc + unread mic badge, the selected-row wash + check. Read ticks and the wallet unchanged."},
+  {p:W,id:"CA-ACCENT-W",t:"CA-ACCENT — #1355",d:"1) Pick Dusk, light and dark. 2) In a chat: send button, ⊕, the attach sheet, select mode.",e:"The send button, the ⊕, the attach discs and the selection take the bubble colour."},
+  {p:A,id:"AT-ORDER",t:"AT-ORDER — #1355 · Damir 13:41",d:"1) Open the attach tray in a 1:1 chat.",e:"Photos · Camera · Send file / App invite · Pay · Request — the two payment tiles last."},
+  {p:A,id:"DD-ALIGN",t:"DD-ALIGN — #1356 · Damir 14:11",d:"1) Account › Delete data.",e:"\"Delete account\" and its line start exactly where \"Delete all chat history\" and its line start."},
+  {p:A,id:"AD-CARD",t:"AD-CARD — #1358 · Damir 14:58",d:"1) Account: tap the QR button under your name. 2) Tap the short address. 3) Tap the full address. 4) Tap Copy. 5) Phone: Share. 6) A contact's profile › their address.",e:"1: ONE card — a colour band, your photo + name, one line about the address, the QR on white, the address as start … end (8 … 8) with a \"Copy\" pill; under the card a full-width blue Share, then one safety line. 2: the full address shows; 3: it folds back. 4: the pill says Copied. 5: the share sheet. 6: their card has no Share and no safety line."},
+  {p:A,id:"SPARKLE",t:"SPARKLE — #1357 · Damir 15:03",d:"1) Apps tab empty state + Explore banner. 2) Wallet empty + the coin pictures. 3) About › Contributors, tap a chip. 4) What's new / Moments pictures.",e:"No four-point \"AI\" star anywhere: the violet tiles hold a small rocket, the twinkles are soft round dots (they still twinkle), the coins carry two shine bars, the chip tap sends round sparks."},
+  {p:A,id:"TH-PICKER-A",t:"TH-PICKER — #1353 · Damir 12:57",d:"1) Account › Theme: try Light, Dark, System. 2) Chat appearance › Theme: the same.",e:"One picker in both places: three tall mini chats, System split on the diagonal, a blue rim + a check on the picked one. The sheet stands about a third of the screen with one line of text under \"Theme\"; it stays open while you try."},
+  {p:W,id:"TH-PICKER-W",t:"TH-PICKER — #1353 · Damir 12:57",d:"1) Account › Theme in the pane. 2) Chat appearance › Theme.",e:"The same picker in both places (tall mini chats, diagonal System, rim + check); the line under the title says \"device\"; a pick changes the theme at once."},
+  {p:A,id:"NOTICE",t:"NOTICE — #1354 · Damir 13:14",d:"1) Open a chat on Mist, Dusk, Aurora, Iris, in dark and in light.",e:"The secure notice is a NEUTRAL card (white in light, dark grey in dark, no navy); its icon disc has the canvas's bubble colour."},
+  {p:A,id:"HUB-DISCS-A",t:"HUB-DISCS — #1352 · Damir 12:24",d:"1) Account: look at the App group, light and dark.",e:"How to use = orange · About = blue (like the About header) · Downloads = green · Contributors = violet (like the Contributors header). The other rows keep their colours."},
+  {p:W,id:"HUB-DISCS-W",t:"HUB-DISCS — #1352 · Damir 12:24",d:"1) Account: look at the App group, light and dark.",e:"How to use = orange · About = blue · Downloads = green · Contributors = violet. No two neighbouring icons share a colour."},
+  {p:A,id:"SL-SLIDE",t:"SL-SLIDE — #1351 (Damir 11:20 video)",d:"1) Account: scroll down to the App group. 2) Open About, then go back. 3) The same for Downloads. 4) The same for Contributors. 5) The same for How to use Spixi.",e:"Each page slides in and out over the WHOLE screen. No box that starts under the \"App\" header, no jump to full screen at the end of the slide."},
   {p:A,id:"DL-SCREEN",t:"DL-SCREEN — #1336 · #1349",d:"1) Settings › Downloads with files. 2) Select mode, select 2, Delete. 3) Clear all.",e:"Summary card, chips, day groups; select + delete confirm; Clear all empties the list."},
   {p:W,id:"DC-SCREEN-W",t:"DC-SCREEN — #1336",d:"1) About › Contributors.",e:"Heart header with motion, contributor chips (tap = sparks), credits."},
   {p:A,id:"DC-SCREEN-A",t:"DC-SCREEN — #1336",d:"1) About › Contributors.",e:"Heart header with motion, contributor chips (tap = sparks), credits."},

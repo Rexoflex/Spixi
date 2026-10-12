@@ -1,5 +1,5 @@
 /* ==== S9 B1 — #1244 P = B: the attach tiles (Photos + Camera, no GIF) and the paste-a-picture path, on the BUILT chat.html ====
- *   · media + camera caps in a 1:1 → Send file · Photos · Camera · Pay · Request · App invite (no GIF); Photos → ixian:sendmedia,
+ *   · media + camera caps in a 1:1 → Photos · Camera · Send file · App invite · Pay · Request (no GIF; #1355 order); Photos → ixian:sendmedia,
  *     Camera → ixian:camera; media without camera → no Camera tile; no media cap → neither (an old exe)
  *   · a paste whose clipboardData has an image type (types or items) and no text/plain → preventDefault + ixian:pasteImage;
  *     text beside it → an ordinary paste (no verb); no media cap → no verb
@@ -22,7 +22,8 @@ export default async function (h) {
   try {
     const s = await K.open({ caps: 'reply,media,camera' });
     const labels = await tilesOf(s);
-    r.six = JSON.stringify(labels) === JSON.stringify(['Send file', 'Photos', 'Camera', 'Pay', 'Request', 'App invite']);
+    /* ★ #1355 RE-BASE (Damir 13:41): the two payment tiles go LAST — Photos · Camera · Send file / App invite · Pay · Request */
+    r.six = JSON.stringify(labels) === JSON.stringify(['Photos', 'Camera', 'Send file', 'App invite', 'Pay', 'Request']);
     r.noGif = !labels.includes('GIF');
     const tile = (name) => [...s.d.querySelectorAll('.c-attach-tray .c-attach__tile')].find((t) => t.textContent.trim() === name);
     const cam = tile('Camera');
@@ -48,7 +49,7 @@ export default async function (h) {
     s2.W.close();
   } catch (e) { r.err2 = e.message; }
   ok(Object.values(r).every((x) => x === true),
-    '★★ S9 B1 (#1244 P = B) on the built chat shell: the tray shows Send file · Photos · Camera · Pay · Request · App invite with media + camera (no GIF tile); Photos sends ixian:sendmedia and Camera ixian:camera; media alone = no Camera; an old exe (no media cap) = neither — ' + JSON.stringify(r));
+    '★★ S9 B1 (#1244 P = B; order #1355) on the built chat shell: the tray shows Photos · Camera · Send file · App invite · Pay · Request with media + camera (no GIF tile); Photos sends ixian:sendmedia and Camera ixian:camera; media alone = no Camera; an old exe (no media cap) = neither — ' + JSON.stringify(r));
 
   /* —— paste —— */
   const p = {};

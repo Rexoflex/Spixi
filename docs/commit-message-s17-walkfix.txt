@@ -1,0 +1,58 @@
+S17 walk fixes: slides, theme picker, chat accent, address card
+
+1351-1358 (Damir 2026-10-12, before the S17 walk):
+
+- About, Downloads and Contributors opened and closed as a box drawn
+  from mid-screen under the Account "App" header, then jumped to full
+  screen. The three screen roots set position: relative with one class
+  in settings-app.css; the slide layer's position: fixed also had one
+  class in an earlier sheet, so the screen root won the tie and the
+  layer fell into the page flow under the hub. subscreen-slide.css now
+  uses .c-subslide.c-subslide--viewport / --host, so no screen can
+  override the layer while it slides.
+- Chat background pattern opacity -20 % on every canvas, both themes,
+  Contours and Waves: light 0.128 -> 0.1024, Aurora light 0.24 ->
+  0.192, dark 0.104 -> 0.0832. The Background tiles follow; on light
+  Aurora they were stuck at the opacity clamp, so they now cap at
+  --chat-pattern-tile-max 0.8.
+- Account hub icon colours: About takes the blue of its header and
+  Contributors the violet of its header, swapped with How to use and
+  Downloads. A row can pin its disc colour; a pinned disc keeps its
+  turn in the sequence, so every other row keeps its colour.
+- One theme picker for Account > Theme (sheet and desktop pane) and
+  Chat appearance > Theme: portrait mini chats, System on the
+  diagonal, the rim and corner check. The sheet gets a one-line lead
+  (themeLead, en-us + 12 locales) and stands taller.
+- The secure notice: neutral dark card (#1E2023), the icon disc in
+  the canvas bubble colour; the blue hairlines on dark Iris / Spixi go.
+- The chat's own side follows the canvas colour (from the sent bubble
+  colour, inside one @supports (color-mix) guard; older WebViews keep
+  today's blue): send / mic, the composer + / x, the attach tray, the
+  received voice play disc and unread mic badge, the sent voice bars,
+  the select-mode wash and check. Read ticks and wallet unchanged.
+- Attach tray order: Photos, Camera, Send file / App invite, Pay,
+  Request (the two payment tiles last).
+- Delete data: the Danger zone card's text aligns with the rows (the
+  glyph sits in the disc's 30 px box).
+- The four-point sparkle read as an "AI" mark: the violet tiles now
+  hold a rocket, the twinkles are bokeh dots (motion kept), the coins
+  carry shine bars, the Contributors chip burst is a round dot.
+- The address sheet is one identity card: band, avatar + name, one
+  explainer line, the QR, the address as ONE start ... end group
+  (8 ... 8, tap for the full value) with a labelled Copy pill; Share
+  is the full-width filled button under the card, then the safety
+  line. A contact's sheet keeps no Share and no safety line.
+
+New pins scripts/pins-s17/g-slide-layer.mjs (all 11 Account
+sublevels), h-theme-picker.mjs, i-chat-accent.mjs (98 colour
+combinations), j-danger-align.mjs, k-sparkle-swap.mjs and
+l-address-card.mjs, deliberate breaks checked; pattern,
+disc-sequence, theme-tile, notice, attach-order and address-chip
+pins re-based. Walk rows SL-SLIDE, HUB-DISCS, TH-PICKER, NOTICE,
+CA-ACCENT, AT-ORDER, DD-ALIGN, AD-CARD, SPARKLE (new) and
+CA-PATTERN (re-based) in docs/walk-s17.md.
+
+Renders kept for later in docs/renders/: address-sheet, sparkle-swap,
+add-app, new-chat-flows. Damir's picks recorded, not built:
+1359 Add app B without the Explore banner, 1360 Add contact screen A
++ sheet A, 1361 New group A with the group identity card.

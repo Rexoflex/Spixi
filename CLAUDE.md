@@ -86,4 +86,5 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 - Open (handoff §3): the phone About / Contributors title over the art (< 4.5 : 1) · the duplicate "Set group photo" tab stop · a toast for Reset moment sheets · RTL "n / 10".
 - Next topics: the S18 walk → privacy levels (Damir 23:33, option 1 = presets over the real switches) → the perf levers and freeze prep.
 - Open BE questions: P24 · P13/P25 · P09 (unchanged) · P26 / P28 (P28 gained the S18 D3 note; none blocking).
-- **NEXT SESSION: read `docs/handoff-2026-10-12.md` FIRST, then paste `docs/prompts/session-19.md`.** Next free DECISIONS number: **#1368**.
+- 2026-10-12 late: **Albanian (sq-al) added** (#1368, `Claude outputs/sq-al.patch` on `35ebb04c`): 14 languages; sq-al is DRAFT_FIRST in build-locales (AI .txt); walk `docs/walk-sq-al.md`.
+- **NEXT SESSION: read `docs/handoff-2026-10-12.md` FIRST, then paste `docs/prompts/session-19.md`.** Next free DECISIONS number: **#1369**.

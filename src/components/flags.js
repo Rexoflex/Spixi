@@ -394,6 +394,7 @@ export const LANGUAGES = [
   { code: 'lt-lt', label: 'Lietuvių', flag: 'lt' },
   { code: 'cn-cn', label: '中文', flag: 'cn' },
   { code: 'ja-jp', label: '日本語', flag: 'jp' },
+  { code: 'sq-al', label: 'Shqip', flag: 'al' },   // #1368: the first release-train language
 ];
 
 /** Every country code the list uses — the pins enumerate this, never a hand list. */

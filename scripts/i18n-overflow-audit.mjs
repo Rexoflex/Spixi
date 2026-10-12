@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOW_NEAR = process.argv.includes('--all');
 const LANGS = ['en-us', 'de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
-  'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];
+  'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al'];
 const dicts = {};
 for (const l of LANGS) dicts[l] = JSON.parse(readFileSync(join(root, 'src/strings', l + '.json'), 'utf8'));
 

@@ -163,7 +163,7 @@ export default async function (h) {
 
   /* ———— #1178 copy: every locale has the six keys; the room keys keep {0}; en-us never says "received" ———— */
   await guard('#1178 copy', async () => {
-    const LOCS = ['cn-cn', 'de-de', 'en-us', 'es-co', 'fr-fr', 'id-id', 'it-it', 'ja-jp', 'lt-lt', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp'];
+    const LOCS = ['cn-cn', 'de-de', 'en-us', 'es-co', 'fr-fr', 'id-id', 'it-it', 'ja-jp', 'lt-lt', 'pt-br', 'ru-ru', 'sl-si', 'sq-al', 'sr-sp'];
     const KEYS = ['notification-file', 'notification-photo', 'notification-file-group', 'notification-photo-group', 'notification-file-neutral', 'notification-photo-neutral'];
     const bad = [];
     let en = {};
@@ -180,7 +180,7 @@ export default async function (h) {
     }
     const noReceived = KEYS.every((k) => en[k] && !/received/i.test(en[k]));
     ok(bad.length === 0 && noReceived && en['notification-file'] === 'Sent you a file' && en['notification-photo-group'] === '{0} sent a photo',
-      '#1178 copy: 13 locales × 6 keys, {0} in the room keys, en-us never "received" — ' + JSON.stringify({ bad: bad.slice(0, 8), noReceived }));
+      '#1178 copy: 14 locales × 6 keys, {0} in the room keys, en-us never "received" — ' + JSON.stringify({ bad: bad.slice(0, 8), noReceived }));
   });
 
   /* ———— #1178 C#: the offer path uses the new keys; never the file name ———— */

@@ -186,8 +186,8 @@ export default async function (h) {
     const notEnglish = langs.filter((f) => f !== 'en-us.txt' && /^chat-group-members-see = Members can see the group now\.\r?$/m.test(rd('Spixi/Resources/Raw/lang/' + f)));
     ok(/string text = S9FixRules\.createdLine\(SpixiLocalization\._SL\(S9FixRules\.CreatedKey\), SpixiLocalization\._SL\(S9FixRules\.MembersSeeKey\)\);/.test(w)
       && /public const string MembersSeeKey = "chat-group-members-see";/.test(stripCode(rd('Spixi/Utils/S9FixRules.cs')))
-      && langs.length === 13 && keyed.length === 13 && en && notEnglish.length === 0
+      && langs.length === 14 && keyed.length === 14 && en && notEnglish.length === 0   // + sq-al #1368
       && /<Compile Include="\.\.\/\.\.\/Spixi\/Utils\/S10FixRules\.cs" \/>/.test(CSPROJ),
-      'S10 B P3: the owner\'s created line = "You created this group" + "\\n" + "Members can see the group now." (both C# keys, chat-group-members-see translated in all 13 lang files: ' + keyed.length + '/' + langs.length + ', en=' + en + ', untranslated=' + notEnglish.length + '); S10FixRules is compiled into scripts/csh');
+      'S10 B P3: the owner\'s created line = "You created this group" + "\\n" + "Members can see the group now." (both C# keys, chat-group-members-see translated in all 14 lang files: ' + keyed.length + '/' + langs.length + ', en=' + en + ', untranslated=' + notEnglish.length + '); S10FixRules is compiled into scripts/csh');
   });
 }

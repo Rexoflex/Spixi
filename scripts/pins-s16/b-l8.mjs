@@ -148,12 +148,13 @@ export default async function (h) {
     && !/runBackupThenPush\(BackupPage\.backupAccount\)/.test(SP);
   e.alertKeys = /_SL\("settings-backup-refused-title"\) \?\? "[^"]+"/.test(alertFn) && /_SL\("settings-backup-refused-text"\) \?\? "[^"]+"/.test(alertFn)
     && /displaySpixiAlert\(/.test(alertFn);
-  e.langs = LANGS.length === 13 && LANGS.every((x) => {
+  e.langs = LANGS.length === 14 &&   // + sq-al #1368
+ LANGS.every((x) => {
     const t = readFileSync(join(root, 'Spixi/Resources/Raw/lang', x), 'utf8');
     return /^settings-backup-refused-title = \S.*$/m.test(t) && /^settings-backup-refused-text = \S.{20,}$/m.test(t);
   });
   ok(Object.values(e).every(Boolean),
-    '★ S16 L8-e (#1312): BackupPage.backupAccount reads the password through WalletPassStore.read (off the UI thread) and REFUSES — fixed-word log, return — when it is null/empty or does not open the wallet, BEFORE the zip is built (no unencrypted archive, never encrypted with ""), returns false, and BOTH callers (BackupPage.onBackupAccount, SettingsPage ixian:backupAccount) show the native "Backup not made" alert (settings-backup-refused-* in all 13 lang files) — ' + JSON.stringify(e));
+    '★ S16 L8-e (#1312): BackupPage.backupAccount reads the password through WalletPassStore.read (off the UI thread) and REFUSES — fixed-word log, return — when it is null/empty or does not open the wallet, BEFORE the zip is built (no unencrypted archive, never encrypted with ""), returns false, and BOTH callers (BackupPage.onBackupAccount, SettingsPage ixian:backupAccount) show the native "Backup not made" alert (settings-backup-refused-* in all 14 lang files) — ' + JSON.stringify(e));
 
   /* ── (f) SecureStorage: only in the store, only inside Task.Run, every wait bounded ── */
   const ssFiles = CS.filter(({ t }) => /\bSecureStorage\./.test(t)).map(({ f }) => f);

@@ -245,6 +245,6 @@ export default async function (h) {
     if (!j.addContactBadAddress || !j.badAddress || j.addContactBadAddress === j.badAddress) bad.push(f);
   }
   const en = JSON.parse(readFileSync(join(dir, 'en-us.json'), 'utf8'));
-  ok(codes.length === 13 && bad.length === 0 && en.addContactBadAddress === BAD_EN,
-    '★ #1360: addContactBadAddress exists in en-us + the 12 locale JSONs and differs from badAddress in every one (' + codes.length + ' files; bad: ' + JSON.stringify(bad) + ')');
+  ok(codes.length === 14 && bad.length === 0 && en.addContactBadAddress === BAD_EN,
+    '★ #1360: addContactBadAddress exists in en-us + the 13 locale JSONs and differs from badAddress in every one (' + codes.length + ' files; bad: ' + JSON.stringify(bad) + ')');
 }

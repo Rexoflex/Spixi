@@ -182,7 +182,7 @@ export default async function (h) {
       disc: /\.c-indicator\[data-variant="reaction"\] \{\s*background: var\(--surface-select-row\);\s*color: var\(--icon-action-default\);/.test(css),
       size: /\.c-chatlist-item__indicators \.c-indicator\[data-variant="reaction"\] \{ width: 20px; \}/.test(css),
       bothThemes: (rd('src/styles/tokens.css').match(/--surface-select-row:/g) || []).length >= 2,
-      strings: ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br', 'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'].every((l) => { const v = JSON.parse(rd('src/strings/' + l + '.json')).newReaction; return !!v && v !== 'New reaction'; }),
+      strings: ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br', 'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al'].every((l) => { const v = JSON.parse(rd('src/strings/' + l + '.json')).newReaction; return !!v && v !== 'New reaction'; }),
     };
     ok(Object.values(look).every(Boolean),
       '★ #1148 (4) the heart\'s look: the selected-row tint (mode-aware token, both themes) + the action ink, a 20 px disc with a 12 px filled heart; "New reaction" translated in all 12 locales (not English) — ' + JSON.stringify(look));

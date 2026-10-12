@@ -182,3 +182,4 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L132 | A session held in two places (C# and a shell) needs ONE clock (the wall clock) and an expiry the shell hears; a setTimeout stops while a phone sleeps. | #1347 | — |
 | L133 | A default flip of a privacy switch turns a latent input path on for everyone — sanitize the peer-controlled value first. | #1346 | — |
 | L134 | A pin with a hard ms threshold flakes when the bundle grows — measure the margin against the path it must exclude (250 → 400 vs the 450 ms timer). | #1350 | — |
+| L135 | Reuse-first is a rule for HUMAN translations; for a language whose legacy file is also AI, the per-key draft must win, or values written for another site (all-caps chips, colons) leak in. | #1368 | — |

@@ -1,0 +1,19 @@
+Add Albanian (sq-al): shell dictionary, legacy lang file, picker row
+
+1368 (Damir 2026-10-12): the first release-train language, AI only.
+
+- src/strings/draft/sq-al.json (1055 keys) and
+  Spixi/Resources/Raw/lang/sq-al.txt (627 ids, the en-us.txt shape,
+  UTF-8 with BOM), plus the term glossary draft/sq-al.glossary.json.
+  Drafted on one brief, then two independent reviews; all 51 findings
+  applied (the native fee line and the dialing line read with their
+  joins).
+- build-locales: DRAFT_FIRST. Reuse-first protects human community
+  translations; sq-al's lang file is an AI draft, so sq-al builds from
+  its per-key draft only. Fixture pin through the real CLI.
+- flags.js LANGUAGES: sq-al "Shqip", flag al; img/flags/al.png.
+- SpixiLocalization languages + the Utils.cs culture gate; the
+  existing prefix rule maps sq-XK / sq-MK to sq-al.
+- Generator, verify, overflow, smoke, pin and csh locale lists; the
+  locale count pins 13 -> 14.
+- Walk sheet docs/walk-sq-al.md; DECISIONS 1368; lesson L135.

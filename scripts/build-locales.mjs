@@ -25,7 +25,9 @@ const TODO = process.argv.includes('--todo');
 const CHECK = process.argv.includes('--check');   // GATE 51: writes nothing, fails on a never-drafted key
 const LANGS = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br',
   // N4 (#379): the #360 residual — same legacy-reuse-first recipe, drafts in draft/<code>.json
-  'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];
+  'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp',
+  // sq-al (#1368): the first train language — no legacy set existed, so draft/sq-al.json AND lang/sq-al.txt are AI drafts
+  'sq-al'];
 const enUS = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
 const KEYS = Object.keys(enUS);
 const PH = /\{[^}]+\}/;
@@ -86,8 +88,18 @@ const NO_REUSE = new Set([
 /* GATE 51 — see the tail of this file. */
 const engAll = new Map();
 
+/* ★ #1368 — DRAFT-FIRST locales. Reuse-first exists to keep the HUMAN community translations
+   in lang/<code>.txt (TRANSLATORS-README). A train language has no human set: its .txt and its
+   draft are BOTH AI drafts, and the draft is written per key for the redesign's own context.
+   Reuse-first there swapped 25 good sq-al drafts for a legacy value written for another site —
+   all-caps status chips ("NË PRITJE" for txPending), a trailing colon ("Versioni:" for version),
+   the tip chip's "Tjetër" for the privacy tier "Custom". A draft-first locale reads only its draft
+   (a key the draft lacks still falls to English and to the --todo list). When a native speaker corrects the .txt,
+   the code leaves this set and the human value wins again. */
+const DRAFT_FIRST = new Set(['sq-al']);
+
 for (const code of LANGS) {
-  const legacy = parseLang(code);
+  const legacy = DRAFT_FIRST.has(code) ? new Map() : parseLang(code);
   const draftFile = join(draftDir, code + '.json');
   const drafted = existsSync(draftFile) ? JSON.parse(readFileSync(draftFile, 'utf8')) : {};
   const out = {}, todo = {}, stats = { reused: 0, drafted: 0, english: 0 };
@@ -102,7 +114,9 @@ for (const code of LANGS) {
     if (drafted[k] && drafted[k].trim()) { out[k] = drafted[k]; stats.drafted++; continue; }
     out[k] = enUS[k]; stats.english++; todo[k] = enUS[k];         // needs a draft
   }
-  for (const k of Object.keys(todo)) engAll.set(k, (engAll.get(k) || 0) + 1);
+  /* #1368: GATE 51 counts the HUMAN-set locales only. A key drafted in sq-al alone would otherwise pass
+     --check while it ships English in all twelve others (the gate is "English everywhere that matters"). */
+  if (!DRAFT_FIRST.has(code)) for (const k of Object.keys(todo)) engAll.set(k, (engAll.get(k) || 0) + 1);
   if (CHECK) { console.log(`${code}: reuse ${stats.reused} · draft ${stats.drafted} · english-fallback ${stats.english}`); continue; }
   if (TODO) { mkdirSync(draftDir, { recursive: true }); writeFileSync(join(draftDir, code + '.todo.json'), JSON.stringify(todo, null, 2) + '\n'); }
   else {
@@ -143,20 +157,21 @@ for (const code of LANGS) {
    ⚠ The one skip is DERIVED, not chosen: a key whose English is empty or whitespace has
    nothing to translate (`handshakeReady` is ""), and the resolver counts it as an
    English fallback because `drafted[k].trim()` is falsy for an empty draft value. */
+const GATE51_LOCALES = LANGS.filter((c) => !DRAFT_FIRST.has(c)).length;   // #1368
 if (CHECK) {
   const never = [...engAll.entries()]
-    .filter(([k, n]) => n === LANGS.length && String(enUS[k] ?? '').trim())
+    .filter(([k, n]) => n === GATE51_LOCALES && String(enUS[k] ?? '').trim())
     .map(([k]) => k)
     .sort();
   if (never.length) {
     console.error('\nbuild-locales --check: ' + never.length + ' key(s) fell back to English in ALL '
-      + LANGS.length + ' locales — added after a drafting round and present in no src/strings/draft/*.json,'
+      + GATE51_LOCALES + ' human-set locales — added after a drafting round and present in no src/strings/draft/*.json,'
       + ' so they ship English everywhere:');
     for (const k of never) console.error('  ' + k + ' = ' + JSON.stringify(enUS[k]));
     console.error('Fix: add the key to src/strings/draft/<code>.json for each locale (write the English value'
       + ' verbatim if it is genuinely the same word in that language — that is what records the decision).');
     process.exitCode = 1;
   } else {
-    console.log('\nbuild-locales --check: every key is drafted or reused in at least one locale \u2713');
+    console.log('\nbuild-locales --check: every key is drafted or reused in at least one human-set locale \u2713');
   }
 }

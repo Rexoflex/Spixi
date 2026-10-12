@@ -23,6 +23,7 @@ namespace SPIXI.Lang
             "pt-br",
             "ru-ru",
             "sl-si",
+            "sq-al",
             "sr-sp"
         };
 

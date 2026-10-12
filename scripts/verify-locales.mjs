@@ -10,7 +10,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LANGS = ['de-de','es-co','fr-fr','sr-sp','sl-si','ru-ru','pt-br',
-  'it-it','id-id','lt-lt','cn-cn','ja-jp'];   // N4 (#379)
+  'it-it','id-id','lt-lt','cn-cn','ja-jp','sq-al'];   // N4 (#379) · sq-al #1368
 const en = JSON.parse(readFileSync(join(root,'src/strings/en-us.json'),'utf8'));
 const KEYS = Object.keys(en);
 const phSet = (s) => (String(s).match(/\{[^}]+\}/g) || []).sort().join(',');

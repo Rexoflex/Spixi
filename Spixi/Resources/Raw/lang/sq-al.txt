@@ -1,0 +1,716 @@
+﻿language-code = sq-al
+language = Shqip
+
+; Address Screen
+address-title = Adresa Spixi
+address-description = Adresa juaj Spixi është ID-ja juaj kryesore. Përdoreni për të komunikuar me përdoruesit e tjerë.
+address-copied = Adresa u kopjua
+address-gen-1 = Duke krijuar
+address-gen-1b = Duke përgatitur
+address-gen-2 = Spixi
+address-gen-2b = Spixi
+address-gen-3 = adresën
+address-gen-4 = ...
+address-tooltip = Prekni për ta kopjuar
+address-copy = Kopjo
+address-share = Ndaj
+
+; App Details Screen
+app-details-title = Detajet e aplikacionit
+app-details-publisher = Botuesi:
+app-details-version = Versioni:
+app-details-uninstall = Çinstalo
+app-details-start = Nis
+app-details-dialog-title = Menaxheri i aplikacioneve Spixi
+app-details-dialog-removed-text = Aplikacioni u hoq me sukses.
+app-details-dialog-removefailed-text = Ndodhi një gabim gjatë heqjes së aplikacionit.
+
+; New App Screen
+app-new-title = Shto mini-aplikacion
+app-new-description = Shtoni një aplikacion të ri Spixi duke ngjitur URL-në.
+app-new-install = Instalo
+app-new-dialog-title = Menaxheri i aplikacioneve Spixi
+app-new-dialog-installed-text = Aplikacioni „{0}“ u instalua me sukses.
+app-new-dialog-installfailed-text = Ndodhi një gabim gjatë instalimit të aplikacionit.
+
+; Apps Screen
+apps-title = Aplikacionet Spixi
+apps-empty = Nuk keni asnjë aplikacion të instaluar.
+apps-apps-text = Aplikacionet
+apps-not-sure-text = Nuk e dini nga t'ia filloni? Vizitoni <a href='ixian:spixiAppsLink'>{0}</a> për të zbuluar mini-aplikacionet Spixi.
+apps-launch = Hap
+apps-launch-app = Hap aplikacionin
+apps-remove-app = Hiq këtë aplikacion
+apps-find-installed-apps = Gjeni mini-aplikacionet e instaluara
+apps-add-note = Doni të provoni një mini-aplikacion të ri? Shkruani URL-në e tij ose skanoni një kod QR për ta instaluar.
+apps-add-url-placeholder = Shkruani URL-në ku ndodhet mini-aplikacioni...
+apps-get-from-url = Merr aplikacionin nga URL-ja
+apps-scan = Skano
+apps-file = Instalo nga skedari
+apps-what-is-title = Mini-aplikacionet janë aplikacione të lehta JavaScript që funksionojnë në mënyrë të sigurt brenda Spixi-t.
+apps-what-is-description = Instaloni vetëm nga burime që u besoni. Kontrolli është gjithmonë në duart tuaja.
+apps-what-is-learn = Mëso më shumë
+apps-add-invalid-url = Shkruani një URL të vlefshme para se të vazhdoni.
+apps-details-description = Përshkrimi
+apps-details-capabilities = Aftësitë
+apps-details-details = Detajet
+apps-details-id = ID
+apps-details-version = Versioni
+apps-details-size = Madhësia
+apps-details-install-url = URL-ja e instalimit
+apps-details-download = Shkarko dhe instalo
+apps-details-download-note = Aplikacioni do të instalohet në mënyrë të sigurt në mjedisin e izoluar (sandbox) të Spixi-t.
+apps-install-title = Instalo mini-aplikacionin
+apps-source = Burimi
+apps-install-confirm = Konfirmo instalimin
+apps-install-cancel = Anulo
+apps-installing-title = Duke instaluar aplikacionin...
+apps-installing-description = Duke shkarkuar dhe verifikuar burimin
+apps-failed-install-title = Instalimi i aplikacionit dështoi
+apps-failed-install-description = Nuk mundëm ta përfundonim instalimin. Kontrolloni lidhjen ose provoni përsëri më vonë.
+apps-failed-install-retry = Provo përsëri
+apps-failed-install-cancel = Anulo
+apps-success-install-title = U instalua me sukses
+apps-success-install-description = Aplikacioni u instalua në bibliotekën tuaj të mini-aplikacioneve.
+apps-success-install-view = Shiko detajet e aplikacionit
+apps-remove-title = Të hiqet aplikacioni?
+apps-remove-description = Kjo do ta fshijë aplikacionin nga pajisja juaj. Asnjë e dhënë nuk do të humbasë, përveç nëse aplikacioni i ruan ato lokalisht.
+apps-remove-confirm = Hiq aplikacionin
+apps-remove-cancel = Anulo
+apps-removing-app = Duke hequr aplikacionin...
+apps-removing-app-description = Të dhënat e aplikacionit po hiqen.
+apps-removing-app-success = Aplikacioni u hoq
+apps-removing-app-description-success = Aplikacioni dhe të dhënat e tij u hoqën nga kjo pajisje.
+apps-removing-app-continue = Vazhdo
+apps-session-title = Jeni në seancë me
+apps-session-return = Prekni për t'u kthyer
+apps-session-leave = Dil
+apps-session-invite-sent-to = Ftesa u dërgua te
+apps-session-invite-cancel = Anulo ftesën
+
+; App Actions
+app-action-title = Veprim shërbimi
+app-action-description = Shërbimi {0} dëshiron të kryejë veprimin {1}. Jeni të sigurt që doni të vazhdoni?
+app-action-unknown = Veprim i panjohur.
+app-action-error-processing-title = Gabim gjatë përpunimit të veprimit
+app-action-error-processing = Gabim gjatë përpunimit të veprimit {0}.
+app-action-error-sending-title = Gabim gjatë dërgimit të përgjigjes
+app-action-error-sending = Gabim gjatë dërgimit të përgjigjes së veprimit te shërbimi {0}.
+app-action-sent = Veprimi i aplikacionit u dërgua
+app-action-response-confirmation = Doni t'i ndani të dhënat e mëposhtme me këtë shërbim? {0}
+app-action-response-payment-user-confirmation = {0} kërkon një pagesë prej {1}. Doni ta autorizoni këtë pagesë?
+app-action-response-payment-service-confirmation = {0} kërkon një pagesë prej {1}. Doni ta autorizoni këtë pagesë?
+
+; Chat Screen
+chat-sent-contact-request = ka dërguar një kërkesë kontakti
+chat-accept = Prano
+chat-ignore = Refuzo
+chat-type-placeholder = Shkruani një mesazh...
+chat-send-media = Media
+chat-send-file = Skedar
+chat-request-payment = Kërko
+chat-send-payment = Paguaj
+chat-app = Aplikacion
+chat-status = Statusi
+chat-amount = Shuma
+chat-view = Detajet
+chat-payment-request-sent = Kërkesa e pagesës u dërgua
+chat-payment-request-received = Kërkesë e re për pagesë
+chat-payment-sent = Pagesa u dërgua
+chat-payment-received = Pagesa u mor
+chat-payment-status-waiting-confirmation = Në pritje të konfirmimit
+chat-payment-status-declined = E REFUZUAR
+chat-payment-status-pending = NË PRITJE
+chat-payment-status-confirmed = E KONFIRMUAR
+chat-call-outgoing = Telefonatë dalëse
+chat-call-incoming = Telefonatë hyrëse
+chat-call-no-answer = Pa përgjigje
+chat-call-missed = Telefonatë e humbur
+chat-call-declined = Telefonata u refuzua
+chat-voice-message = Mesazh zanor
+chat-voice-message-length = Mesazh zanor ({0})
+chat-call-ended = Telefonata përfundoi
+chat-online = Në linjë
+chat-offline = Jashtë linje
+chat-waiting-for-response = Në pritje të përgjigjes
+chat-text-too-long = Teksti është shumë i gjatë.
+chat-member-count = {0} anëtarë
+chat-member-count-one = 1 anëtar
+chat-context-pin-message = Fikso mesazhin
+chat-context-copy-message = Kopjo mesazhin
+chat-context-copy-selected = Kopjo të përzgjedhurat
+chat-context-tip-user = Jep bakshish
+chat-context-like-message = Pëlqe mesazhin
+chat-context-user-info = Info e përdoruesit
+chat-context-send-contact-request = Shto kontakt
+chat-context-report-message = Raporto mesazhin
+chat-context-kick-user = Nxirr
+chat-context-ban-user = Përjashto
+chat-context-delete-message = Fshi mesazhin
+chat-message-cost-bar = Dërgimi i mesazheve kushton {0} për kB
+chat-request-sent-title = Kërkesa e kontaktit u dërgua
+chat-request-sent-details = Do të mund të bisedoni në mënyrë të sigurt sapo të pranohet kërkesa juaj.
+chat-request-sent-undo = Zhbëj
+chat-request-received-title = Morët një kërkesë kontakti
+chat-request-received-details = Dikush dëshiron të lidhet me ju! Pasi ta pranoni, do të mund të bisedoni në mënyrë të sigurt.
+
+chat-app-invite-sent = Ftesa u dërgua
+chat-app-invite-received = Morët një ftesë
+chat-app-get = Merr aplikacionin
+chat-app-back = Kthehu te aplikacioni
+chat-app-launch = Hap aplikacionin
+
+chat-modal-tip-title = Bakshish për {0}?
+chat-modal-tip-body = Zgjidhni ose shkruani shumën që doni të jepni si bakshish.
+chat-modal-tip-custom = Tjetër
+chat-modal-tip-pay-button = Paguaj
+chat-modal-tip-confirmation-body = Jeni gati t'i jepni „{0}“ një bakshish prej {1}. Kjo shumë do të zbritet nga portofoli juaj.
+chat-modal-tip-confirmed-body = Sapo i dhatë „{0}“ një bakshish prej {1}. Shuma është zbritur nga portofoli juaj.
+chat-modal-tip-error-body = Ndodhi një gabim i panjohur gjatë dërgimit të bakshishit.
+chat-modal-tip-already-body = Ju keni dhënë tashmë bakshish për këtë mesazh.
+
+chat-bot-details-info = Info e grupit
+chat-bot-address = Adresa e grupit
+chat-bot-toggle-notifications = Ndiz/fik njoftimet
+chat-bot-invite = Fto një kontakt në këtë grup
+chat-bot-leave = Dil nga grupi
+
+chat-bot-user-address = Adresa e përdoruesit
+chat-bot-user-send-contact-request = Shto kontakt
+
+chat-modal-kick-title = Të nxirret {0}?
+chat-modal-kick-body = Jeni të sigurt që doni ta nxirrni „{0}“ nga ky server?
+chat-modal-kick-kick-button = NXIRR PËRDORUESIN
+chat-modal-kicked-title = {0} u nxor
+chat-modal-kicked-body = E nxorët „{0}“ nga ky server.
+
+chat-modal-ban-title = Të përjashtohet {0}?
+chat-modal-ban-body = Jeni të sigurt që doni ta përjashtoni „{0}“ nga ky server?
+chat-modal-ban-ban-button = PËRJASHTO PËRDORUESIN
+chat-modal-banned-title = {0} u përjashtua
+chat-modal-banned-body = E përjashtuat „{0}“ nga ky server.
+
+chat-bot-not-ready-title = Grupi nuk është gati
+chat-bot-not-ready-body = Grupi nuk është gati ende. Provoni përsëri pas disa minutash.
+
+chat-kicked = Jeni hequr nga kjo bisedë grupi.
+chat-banned = Jeni përjashtuar nga ky grup.
+
+chat-report-title = Raporto përmbajtjen
+chat-report-details = Doni ta raportoni këtë përmbajtje?
+chat-report = Raporto
+chat-report-cancel = Anulo
+
+chat-private-note-title = Kjo bisedë është private.
+chat-private-note-message = Mesazhet ruhen vetëm në pajisjen tuaj dhe i dërgohen drejtpërdrejt kontaktit tuaj me enkriptimin më të avancuar.
+
+; Contact Details Screen
+contact-details-chat = Bisedë
+contact-details-send = Dërgo
+contact-details-receive = Merr
+contact-details-notifications = Njoftimet
+contact-details-history = Transaksionet
+contact-details-account-address = Adresa Spixi
+contact-details-address-1 = Duke marrë
+contact-details-address-2 = adresën
+contact-details-address-3 = Spixi...
+contact-details-removecontact = Hiq këtë kontakt
+contact-details-removedcontact-title = U fshi
+contact-details-removedcontact-text = Kontakti u fshi.
+contact-details-deletehistory = Fshi historikun e bisedës
+contact-details-deletedhistory-title = U fshi
+contact-details-deletedhistory-text = Historiku i mesazheve u fshi.
+contact-details-delete-history-modal-title = Të pastrohet historiku i bisedës?
+contact-details-delete-history-modal-subtitle = I gjithë historiku i bisedës do të hiqet.
+contact-details-delete-history-modal-confirm = Po, pastro bisedën
+contact-details-delete-contact-modal-title = Hiq nga kontaktet
+contact-details-delete-contact-modal-subtitle = Kjo do ta heqë kontaktin nga lista juaj. Nuk do të mund të dërgoni ose të merrni më mesazhe, përveç nëse e shtoni përsëri.
+contact-details-delete-contact-modal-confirm = Po, hiq kontaktin
+contact-details-cannotremovecontact-title = Kontakti nuk mund të hiqet
+contact-details-cannotremovecontact-text = Ky kontakt nuk mund të hiqet sepse është pjesëmarrës në një grup.
+
+; New Contact Screen
+contact-new-title = Shto kontakt të ri
+contact-new-description = Për të shtuar një kontakt të ri, ngjitni ose shkruani adresën e tij Spixi. Mund të skanoni edhe kodin e tij QR.
+contact-new-placeholder = Ngjitni ose shkruani adresën
+contact-new-send-request = Shto kontakt
+contact-new-invalid-address-self-text = Adresa që keni shkruar është adresa juaj.
+contact-self-title = Kjo është adresa juaj
+contact-exists-title = Është tashmë te kontaktet tuaja
+contact-new-invalid-address-exists-text = Ky kontakt është shtuar tashmë.
+contact-new-scan = Skano
+contact-new-scan-help = Ose skanoni kodin QR
+contact-new-send = Dërgo
+contact-new-cancel = Anulo
+contact-new-confirm-title = Të shtohet kontakti?
+contact-new-confirm-details = Jeni gati t'i dërgoni një kërkesë kontakti adresës Spixi në vijim:
+
+; Downloads Screen
+downloads-title = Shkarkimet
+downloads-empty = Nuk keni skedarë të shkarkuar.
+
+; Contributors Screen
+contributors-title = Kontribuesit
+contributors-thanks = Falënderime të veçanta për kontribuesit tanë
+contributors-special-thanks-title = Falënderime të veçanta për kontribuesit tanë
+
+; Index Screen
+index-balance = Gjendja IXI
+index-balance-show = Shfaq
+index-balance-hide = Fshih
+index-balance-info = E fshehur
+index-notifications = Njoftimet
+index-unread-chats = Biseda të palexuara
+index-no-conversations-title = Bisedat tuaja ju presin
+index-no-conversations = Shtoni një kontakt dhe përshëndetni, bisedat tuaja do të shfaqen këtu.
+index-no-contacts-title = Këtu është qetë
+index-no-contacts = Shtoni dikë për t'u lidhur. Vetëm njerëzit që miratoni mund të bisedojnë me ju.
+index-new-chat-button = Bisedë e re
+index-no-transactions-title = Ende asnjë aktivitet
+index-no-transactions = Sapo të filloni të përdorni portofolin tuaj IXI, transaksionet tuaja do të shfaqen këtu.
+index-send = Dërgo
+index-scan = Skano
+index-receive = Merr
+index-all = Të gjitha
+index-sent = Të dërguara
+index-received = Të marra
+index-recent-activity = Aktiviteti i fundit
+index-contacts-placeholder = Kërko kontakte
+index-tab-home = Kreu
+index-tab-chats = Bisedat
+index-tab-wallet = Portofoli
+index-tab-contacts = Kontaktet
+index-tab-address = Adresa
+index-new-title = I ri
+index-new-contact = Kontakt
+index-new-chat = Bisedë
+index-new-send = Dërgo IXI
+index-new-request = Kërko IXI
+index-new-cancel = Anulo
+index-side-title = Përdorues Spixi
+index-side-myaddress = Adresa ime Spixi
+index-side-apps = Aplikacionet
+index-side-downloads = Shkarkimet
+index-side-settings = Cilësimet
+index-side-security = Siguria
+index-side-backup = Kopja rezervë
+index-side-password = Fjalëkalimi
+index-side-about = Rreth
+index-side-contributors = Kontribuesit
+index-side-howtouse = Si të përdorni Spixi-n
+index-side-sendlog = Dërgo regjistrin e aplikacionit
+index-side-dev = Zhvilluesi
+index-devmode = Modaliteti i zhvilluesit u aktivizua
+index-excerpt-payment-request-sent = Kërkesa e pagesës u dërgua
+index-excerpt-payment-request-received = Morët një kërkesë pagese
+index-excerpt-payment-sent = Pagesa u dërgua
+index-excerpt-payment-received = Pagesa u mor
+index-excerpt-contact-accepted = Kontakti u pranua
+index-excerpt-contact-request = Kërkesë kontakti
+index-excerpt-file = Skedar
+index-excerpt-photo = Foto
+index-excerpt-photos = {0} foto
+index-excerpt-voice-call = Telefonatë zanore
+index-excerpt-self = 
+index-excerpt-you = Ju
+index-excerpt-typing = Po shkruan...
+index-side-settings-subtitle = Pamja, gjuha, pseudonimi dhe të dhënat
+index-side-password-subtitle = Ndrysho fjalëkalimin e Spixi-t
+index-side-backup-subtitle = Krijo një skedar kopjeje rezervë
+index-side-how-to-subtitle = Mësoni si ta përdorni Spixi-n
+index-side-about-subtitle = Informacion, ndihmë, na kontaktoni, politika e privatësisë
+index-missing-tx-title = Ju mungojnë disa transaksione?
+index-missing-tx-text = Spixi lexon drejtpërdrejt nga blockchain-i, jo nga serverë të centralizuar, prandaj sinkronizimi mund të zgjasë pak më shumë.
+index-missing-tx-view-all = Shiko të gjitha transaksionet në eksplorues
+index-backup-prompt-title = Mos harroni të bëni kopje rezervë
+index-backup-prompt-desc = Spixi është plotësisht i decentralizuar: të dhënat tuaja mbeten vetëm në pajisjen tuaj. Që kontaktet tuaja të jenë të sigurta dhe të riktheni gjithçka më vonë, krijoni tani një kopje rezervë.
+index-backup-prompt-create = Po, krijo kopje rezervë
+index-backup-prompt-not-now = Jo tani
+index-backup-prompt-note = Rekomandohet të bëni kopje rezervë sa herë që shtoni një kontakt të ri.
+
+; Onboarding Screen
+onboarding-choose-language = Zgjidhni gjuhën
+onboarding-get-started = Fillo
+onboarding-step-skip = Kapërce
+onboarding-step-back = Mbrapa
+onboarding-step-next = Tjetër
+onboarding-step-1-title = Biseda juaj, pajisja juaj, rregullat tuaja.
+onboarding-step-1-subtitle = Spixi nuk përdor serverë. Mesazhet mbeten në pajisjen tuaj dhe dërgohen vetëm të enkriptuara, drejtpërdrejt te kontakti juaj.
+onboarding-step-2-title = Adresa juaj është ID-ja juaj e vetme.
+onboarding-step-2-subtitle = Spixi nuk ka nevojë për numrin tuaj të telefonit apo për email-in. Adresa juaj unike Spixi është gjithçka ju duhet për t'u lidhur.
+onboarding-step-3-title = Dërgoni dhe merrni pagesa IXI.
+onboarding-step-3-subtitle = Përdorni portofolin e integruar për të dërguar ose marrë monedha IXI drejtpërdrejt brenda bisedave tuaja. Është aq e thjeshtë sa dërgimi i një mesazhi.
+onboarding-step-4-title = Zbuloni mini-aplikacionet brenda bisedave tuaja.
+onboarding-step-4-subtitle = Mini-aplikacionet e Spixi-t ju lejojnë të luani lojëra, të përdorni mjete ose të zhbllokoni veçori të reja, të gjitha drejtpërdrejt brenda bisedave tuaja.
+
+
+; Onboarding Create Account Screen
+create-account-title = Le t'ia fillojmë.
+create-account-description = Krijoni një llogari të re ose riktheni një llogari me kopjen tuaj rezervë.
+create-account-new = Llogari e re
+create-account-already = Keni tashmë një llogari?
+create-account-restore = Rikthe llogarinë
+create-account-step = Hapi
+create-account-step-of = nga
+create-account-step-1-title = Vendosni pseudonimin dhe foton
+create-account-step-1-subtitle = Pseudonimi dhe avatari juaj do të jenë të dukshëm për kontaktet tuaja. Mund t'i ndryshoni në çdo kohë.
+create-account-step-1-tap = prekni për të ngarkuar
+create-account-step-1-nickname-placeholder = Shkruani pseudonimin
+create-account-step-2-title = Krijoni një fjalëkalim për kopjen rezervë
+create-account-step-2-subtitle = Do t'ju duhet ky fjalëkalim për të rikthyer llogarinë tuaj Spixi nga një skedar kopjeje rezervë. Ruajeni në vend të sigurt.
+create-account-step-2-password-placeholder = Shkruani fjalëkalimin
+create-account-step-2-password-confirm = Konfirmoni fjalëkalimin
+create-account-step-2-password-confirm-note = Fjalëkalimi duhet të ketë të paktën 10 karaktere.
+create-account-step-2-password-confirm-note-success = Fjalëkalimet përputhen
+create-account-step-2-password-confirm-note-error = Fjalëkalimet duhet të përputhen
+create-account-step-2-note-title = Spixi nuk e ruan këtë fjalëkalim.
+create-account-step-2-note-subtitle = Pa të ose pa skedarin e kopjes rezervë, llogaria dhe portofoli juaj nuk mund të rikthehen.
+create-account-finish-setup = Përfundo konfigurimin
+create-account-creating = Po krijohet llogaria juaj...
+create-account-creating-description = Nuk do të zgjasë shumë. Llogaria juaj po sigurohet.
+
+; Launch create/onboarding alerts (#334 L5): consumed by LaunchCreatePage +
+; OnboardPage but previously in NO lang file — _SL returned null and
+; DisplayAlert(null,null,null) throws, so these alerts never showed at all.
+intro-new-emptynick-title = Kërkohet pseudonimi
+intro-new-emptynick-text = Shkruani një pseudonim për të vazhduar.
+intro-new-avatarerror-title = Avatari nuk u vendos
+intro-new-walleterror-title = Llogaria nuk u krijua
+intro-new-walleterror-text = Ndodhi një gabim gjatë krijimit të llogarisë suaj. Provoni përsëri.
+intro-new-walletexists-title = Llogaria ekziston tashmë
+intro-new-walletexists-text = Në këtë pajisje ekziston tashmë një llogari, prandaj këtu nuk mund të krijohet një e re. Rinisni Spixi-n për të vazhduar me llogarinë ekzistuese.
+intro-restore-walletexists-title = Llogaria është tashmë në këtë pajisje
+intro-restore-walletexists-text = Në këtë pajisje ekziston tashmë një llogari. Për ta përdorur, rinisni Spixi-n. Për të rikthyer një llogari tjetër: rinisni Spixi-n, hapni Llogaria › Fshi të dhënat… › Fshi llogarinë, pastaj hapni përsëri „Rikthe llogarinë ekzistuese“.
+
+; Intro Restore Screen
+intro-restore-title = Rikthe llogarinë
+intro-restore-subtitle = Zgjidhni skedarin e kopjes rezervë për të filluar rikthimin e llogarisë suaj Spixi.
+intro-restore-select-file = Zgjidh skedarin e kopjes rezervë
+intro-restore-file-error-title = Skedari i kopjes rezervë nuk u lexua
+intro-restore-file-selecterror-text = Skedari nuk u zgjodh. Provoni përsëri ose kopjoni fillimisht skedarin e kopjes rezervë në këtë pajisje.
+intro-restore-file-readerror-text = Skedari nuk u lexua. Kontrolloni që skedari i kopjes rezervë të jetë i plotë, pastaj provoni përsëri.
+intro-restore-file-writeerror-text = Skedari nuk u përgatit. Kontrolloni hapësirën e lirë në këtë pajisje, pastaj provoni përsëri.
+intro-restore-account-failed-text = Kjo është një kopje rezervë e llogarisë Spixi, por nuk mund të rikthehej. Kontrolloni hapësirën e lirë në këtë pajisje, pastaj provoni përsëri me skedarin origjinal të kopjes rezervë.
+intro-restore-pass-title = Shkruani fjalëkalimin e kopjes rezervë
+intro-restore-pass-subtitle = Për të rikthyer llogarinë tuaj Spixi, shkruani fjalëkalimin që përdorët për të mbrojtur skedarin e kopjes rezervë.
+intro-restore-pass-placeholder = Shkruani fjalëkalimin
+intro-restore-note-title = Spixi nuk e ruan këtë fjalëkalim.
+intro-restore-note-subtitle = Vetëm ju mund ta hapni këtë skedar kopjeje rezervë.
+intro-restore-button = Rikthe llogarinë
+intro-restoring-title = Po rikthehet llogaria juaj...
+intro-restoring-subtitle = Prisni pak. Po e shkyçim llogarinë tuaj në mënyrë të sigurt.
+intro-restore-pass-error = Fjalëkalim i pasaktë. Provoni përsëri.
+
+; Intro Retry Screen
+intro-retry-description-1 = Rishkruani fjalëkalimin
+intro-retry-description-2 = Duket se ka një problem me qasjen në llogarinë tuaj. Shkruani fjalëkalimin për të vazhduar.
+intro-retry-placeholder = Shkruani fjalëkalimin
+intro-retry-proceed = Vazhdo
+intro-retry-title = Po rikthehet qasja<br />në portofolin tuaj
+intro-retry-info = Kjo mund të zgjasë pak
+intro-retry-invalidpassword-title = Fjalëkalim i pavlefshëm
+intro-retry-invalidpassword-text = Portofoli nuk mund të dekriptohet, provoni përsëri.
+
+; Lock Screen
+lock-description = Spixi është i kyçur
+lock-placeholder = Shkruani fjalëkalimin
+lock-error = Fjalëkalim i pasaktë
+lock-unlock = Shkyç
+lock-change = Ndërro portofolin
+
+; Settings Screen
+settings-title = Cilësimet
+settings-save = Ruaj
+settings-cancel = Anulo
+settings-confirm = Konfirmo
+settings-description = Menaxhoni llogarinë tuaj Spixi dhe të dhënat e ruajtura në këtë pajisje.
+settings-account-information = Cilësimet bazë
+settings-account-description = Ndryshoni gjuhën, avatarin dhe pseudonimin.
+settings-account-language-edit = Gjuha
+settings-account-appearance-edit = Pamja
+settings-account-appearance-automatic = Automatike
+settings-account-appearance-light = E çelët
+settings-account-appearance-dark = E errët
+settings-account-image-edit = Avatari
+settings-account-nick-edit = Pseudonimi
+settings-account-nick-placeholder = Shkruani pseudonimin e ri
+settings-account-deleteinfo = Mund ta fshini përgjithmonë në çdo kohë këtë llogari Spixi dhe të gjitha të dhënat e lidhura me të nga kjo pajisje.<br/><br/><b>E rëndësishme:</b> Pas fshirjes, do t'ju duhet të krijoni ose të riktheni një llogari për të vazhduar përdorimin e Spixi-t.
+settings-account-delete = Fshi llogarinë
+settings-deletea-title = Të fshihet kjo llogari Spixi?
+settings-deletea-text = Jeni të sigurt që doni ta fshini këtë llogari Spixi?<br/><br/>Ky veprim nuk mund të zhbëhet! Rekomandohet të bëni një kopje rezervë të kësaj llogarie para se ta fshini. Do t'ju duhet skedari i kopjes rezervë nëse doni ndonjëherë të riktheni qasjen në këtë llogari.
+settings-deleteda-title = U fshi
+settings-deleteda-text = Llogaria Spixi u fshi.
+settings-wallet-settings = Cilësimet e portofolit
+settings-wallet-description = Ky portofol është i lidhur me këtë llogari Spixi. Për të fshirë portofolin, llogarinë dhe të gjithë historikun e pagesave në këtë pajisje, prekni butonin më poshtë.
+settings-wallet-delete = Fshi portofolin tim
+settings-deletew-title = Të fshihet ky portofol?
+settings-deletew-text = Jeni të sigurt që doni ta fshini këtë portofol?<br/><br/>Ky veprim nuk mund të zhbëhet! Duke fshirë këtë portofol, do të humbni qasjen në të gjitha fondet që ndodhen në të! Për ta rikthyer këtë portofol do t'ju duhen skedari i kopjes rezervë dhe fjalëkalimi i enkriptimit!
+settings-deletew-error-title = Gabim
+settings-deletew-error-text = Skedari i portofolit nuk mund të fshihet.
+settings-history = Historiku i mesazheve
+settings-history-description = I gjithë historiku i mesazheve dhe të gjithë skedarët që keni shkarkuar ruhen në këtë pajisje. Me butonat më poshtë mund të fshini në çdo kohë të gjithë historikun e mesazheve ose të gjitha shkarkimet.
+settings-history-delete = Fshi historikun e mesazheve
+settings-downloads-delete = Fshi të gjitha shkarkimet
+settings-deleteh-title = Të fshihet historiku i mesazheve?
+settings-deleteh-text = Jeni të sigurt që doni të fshini TË GJITHË historikun e mesazheve? Ky veprim nuk mund të zhbëhet!
+settings-deletedh-title = U fshi
+settings-deletedh-text = Historiku i mesazheve u fshi.
+settings-deleted-title = Të fshihen të gjitha shkarkimet?
+settings-deleted-text = Jeni të sigurt që doni të fshini TË GJITHA shkarkimet? Të gjithë skedarët që keni shkarkuar në Spixi do të fshihen! Ky veprim nuk mund të zhbëhet!
+settings-deletedd-title = U fshinë
+settings-deletedd-text = U fshinë {0} skedarë të shkarkuar.
+settings-deleted-error-title = Gabim
+settings-deleted-error-text = Ndodhi një gabim i panjohur.
+settings-emptynick-title = Pseudonim i pavlefshëm
+settings-emptynick-text = Shkruani pseudonimin.
+settings-unsaved-changes-modal-title = Ndryshime të paruajtura
+settings-unsaved-changes-modal-subtitle = Nëse largoheni tani, ndryshimet tuaja do të humbasin. Doni të vazhdoni?
+
+; Settings Backup Screen
+settings-backup-title = Kopja rezervë e llogarisë
+settings-backup-description = Shkarkoni një skedar kopjeje rezervë që ju lejon ta riktheni këtë llogari Spixi. Kontaktet ruhen vetëm në pajisjen tuaj dhe përfshihen në kopjet rezervë të bëra pasi janë shtuar.
+settings-backup-save = BËJ KOPJE REZERVË TË PORTOFOLIT
+settings-backup-account-save = BËJ KOPJE REZERVË TË PORTOFOLIT DHE KONTAKTEVE
+settings-backup-notice = Ky skedar i kopjes rezervë dhe fjalëkalimi i lidhur me të do t'ju duhen për të rikthyer qasjen nëse:
+settings-backup-notice2 = - humbisni këtë pajisje<br />- çinstaloni Spixi-n nga kjo pajisje<br />- fshini këtë llogari Spixi<br />- fshini këtë portofol
+settings-backup-invalidpassword-title = Fjalëkalim i pavlefshëm
+settings-backup-invalidpassword-text = Shkruani një fjalëkalim të vlefshëm.
+settings-backup-refused-title = Kopja rezervë nuk u bë
+settings-backup-refused-text = Spixi nuk mundi të lexonte fjalëkalimin tuaj të ruajtur, prandaj nuk u bë asnjë kopje rezervë. Rinisni Spixi-n, shkruani fjalëkalimin nëse ju kërkohet dhe bëni sërish kopjen rezervë.
+settings-backup-saved-title = A e ruajtët kopjen rezervë?
+settings-backup-saved-text = Zgjidhni Po vetëm nëse skedari i kopjes rezervë tani është ruajtur ose dërguar diku në vend të sigurt.
+settings-backup-saved-yes = Po
+settings-backup-saved-no = Jo
+
+; Settings Encryption Screen
+settings-encryption-title = Fjalëkalimi
+settings-encryption-description = Fjalëkalimi është i lidhur me këtë llogari dhe portofol. Do t'ju duhet ky fjalëkalim nëse ndonjëherë përpiqeni të riktheni qasjen në këtë llogari ose portofol Spixi.
+settings-encryption-edit = Ndrysho fjalëkalimin
+settings-encryption-type = Shkruani fjalëkalimin <b>AKTUAL</b>.
+settings-encryption-placeholder = Fjalëkalimi aktual
+settings-encryption-typenew = Shkruani fjalëkalimin e <b>RI</b>.
+settings-encryption-placeholdernew = Fjalëkalimi i ri
+settings-encryption-placeholderretype = Rishkruani fjalëkalimin e ri
+settings-encryption-change = Ndrysho fjalëkalimin
+settings-encryption-password10 = Fjalëkalimi duhet të ketë të paktën 10 karaktere
+settings-encryption-passwordconf = Konfirmoni fjalëkalimin
+settings-encryption-passwordnomatch = Fjalëkalimet nuk përputhen
+settings-encryption-passwordmatch = Fjalëkalimet përputhen
+settings-encryption-invalidpassword-title = Fjalëkalim i pavlefshëm
+settings-encryption-invalidpassword-text = Shkruani një fjalëkalim të vlefshëm.
+settings-encryption-passwordchanged-title = Fjalëkalimi
+settings-encryption-passwordchanged-text = Fjalëkalimi u ndryshua me sukses.
+settings-encryption-invalidpassword-current-text = Fjalëkalimi aktual është i pasaktë, provoni përsëri.
+
+; Settings Lock Screen
+settings-lock-title = Kyç Spixi-n tim
+settings-lock-description = Krijoni një fjalëkalim kyçjeje, që vetëm ju të keni qasje në Spixi në këtë pajisje.
+settings-lock-status = Statusi i sigurisë:
+settings-lock-unlocked = I SHKYÇUR
+settings-lock-locked = I KYÇUR
+settings-lock-passwordinfo = Krijo ose ndrysho fjalëkalimin e kyçjes
+settings-lock-password = Shkruani fjalëkalimin <b>AKTUAL</b> të kyçjes
+settings-lock-password-new = Shkruani fjalëkalimin e <b>RI</b> të kyçjes
+settings-lock-placeholder-1 = Shkruani fjalëkalimin aktual
+settings-lock-placeholder-2 = Shkruani fjalëkalimin e ri
+settings-lock-placeholder-3 = Rishkruani fjalëkalimin e ri
+settings-lock-info = Ky fjalëkalim kyçjeje do t'ju kërkohet sa herë që hapni Spixi-n.
+settings-lock-save = Vendos fjalëkalimin
+settings-lock-authinfo = Do t'ju duhet vërtetimi biometrik ose fjalëkalimi për të shkyçur Spixi-n.
+settings-lock-confirm-text = Cilësimet do të hyjnë në fuqi pas ruajtjes.
+
+; Wallet Contact Request Screen
+wallet-contact-request-title = Kërkesë pagese
+wallet-contact-request-subtitle = Kërkesë pagese nga:
+wallet-contact-request-amount = Shuma
+wallet-contact-request-info = Përdoruesi ka kërkuar një pagesë për shumën e mëposhtme
+wallet-contact-request-respond = Përgjigju kërkesës për pagesë
+wallet-contact-request-respondinfo = Refuzoni ose dërgoni pagesën. Përdoruesi që dërgoi kërkesën do të njoftohet për vendimin tuaj.
+wallet-contact-request-decline = Refuzo
+wallet-contact-request-proceed = Dërgo pagesën
+
+; Wallet Recipient Screen
+wallet-recipient-title = Zgjidh kontaktin
+wallet-recipient-search-placeholder = Kërko kontakte
+wallet-recipient-empty = 0 kontakte të zgjedhura
+wallet-recipient-add = Shto kontakt(e)
+wallet-recipient-selected = Kontakt(e) të zgjedhur(a)
+wallet-recipient-new-contact-button = Shto kontakt të ri
+wallet-recipient-no-contact-button = Kontakt i ri
+wallet-recipient-new-chat-button = Bisedë e re
+wallet-recipient-new-group-button = Krijo grup
+wallet-recipient-group-settings = Cilësimet e grupit
+wallet-recipient-group-image-edit = Ndrysho foton e grupit
+wallet-recipient-group-name = Emri i grupit
+wallet-recipient-group-name-placeholder = Shkruani emrin e grupit
+wallet-recipient-group-blind-mode = Modaliteti anonim
+wallet-recipient-group-blind-mode-info = Kur është aktiv, vetëm krijuesi i grupit mund të shohë listën e adresave të kontakteve. Anëtarët e tjerë do të shohin vetëm pseudonimet.
+
+; Wallet Request Screen
+wallet-request-title = Kërko pagesë
+wallet-request-subtitle = Kërko një shumë të caktuar
+wallet-request-amount-placeholder = Shkruani shumën
+wallet-request-address = Adresa e marrësit
+wallet-request-send-info = Dërgo si kërkesë te kontaktet:
+wallet-request-add = Mund ta dërgoni këtë kërkesë për të njëjtën shumë te më shumë se një përdorues. <br/>Shtoni përdorues/adresa të tjera për ta dërguar këtë kërkesë.
+wallet-request-placeholder = Ngjitni ose shkruani adresën
+wallet-request-send = Dërgo kërkesën
+wallet-request-error-title = Gabim
+wallet-request-error-text = Plotësoni saktë të gjitha fushat e detyrueshme.
+
+; Wallet Send Screen
+wallet-send-title = Dërgo IXI
+wallet-send-details = Ngjitni ose shkruani adresën ku doni të dërgoni pagesën. Shfletoni kontaktet ose skanoni një kod QR.
+wallet-send-subdetails = Dërgo IXI te
+wallet-send-add = Shto marrës
+wallet-send-placeholder = Ngjitni ose shkruani adresën
+wallet-send-more = Shtoni marrës të tjerë për këtë transaksion. E njëjta shumë do t'u dërgohet të gjithëve.
+wallet-send-recipients = Marrësi(t)
+wallet-send-norecipients = Nuk është zgjedhur asnjë marrës
+wallet-send-next = Tjetër
+wallet-send-max = Dërgo shumën maksimale
+wallet-send-select = Zgjidh kontaktin
+wallet-send-or = Ose
+
+; Wallet Send 2 Screen
+wallet-send2-title = Konfirmo pagesën
+wallet-send2-policy = Rregulli i tarifës së transaksionit
+wallet-send2-info = Pagesat IXI nuk mund të kthehen mbrapsht.
+wallet-send2-feeinfo = IXI është tarifa e rrjetit, e përfshirë në pagesë.
+wallet-send2-normal = Normale
+wallet-send2-high = E lartë
+wallet-send2-custom = E personalizuar
+wallet-send2-placeholder = Sa doni të dërgoni?
+wallet-send2-amount = Shuma
+wallet-send2-max-amount = Dërgo shumën maksimale
+wallet-send2-max-amount-warning = Jeni gati të dërgoni të gjithë gjendjen!
+wallet-send2-fee = Tarifa totale e transaksionit
+wallet-send2-total = Shuma totale që paguhet nga gjendja
+wallet-send2-send = Dërgo IXI
+wallet-send2-confirm-title = Jeni gati të dërgoni
+wallet-send2-confirm = Konfirmo
+wallet-send2-cancel = Anulo
+wallet-send2-edit = Ndrysho pagesën
+wallet-send2-remove-recipient = Hiq marrësin
+wallet-send2-done = U krye
+wallet-send2-yourbalance = Gjendja aktuale
+
+; Wallet Sent Screen
+wallet-sent-title = Detajet e pagesës
+wallet-sent-subtitle = Pagesa u dërgua te:
+wallet-status-sent-pending = Pagesa po dërgohet
+wallet-status-receive-pending = Pagesa po vjen
+wallet-status-sent = Pagesa u dërgua
+wallet-status-receive = Pagesa u mor
+wallet-status-failed = Pagesa dështoi
+wallet-sent-amount = Shuma
+wallet-sent-status = Statusi i pagesës
+wallet-sent-confirmed = E KONFIRMUAR
+wallet-sent-unconfirmed = E PAKONFIRMUAR
+wallet-sent-details = Shuma që dërguat është zbritur nga gjendja juaj.
+wallet-sent-fee = Tarifa e pagesës
+wallet-sent-feeinfo = Kjo pagesë ka një tarifë rrjeti prej
+wallet-sent-txid = ID e transaksionit
+wallet-sent-view-explorer = Shiko në eksplorues
+wallet-sent-dismiss = Mbyll
+wallet-sent-unconfirmed-details = Pagesa u dërgua, por ende nuk është konfirmuar nga rrjeti. Pas konfirmimit, do të shihni ID-në e transaksionit dhe një lidhje për ta parë në eksplorues.
+wallet-unknown-sender = Dërgues i panjohur
+wallet-unknown-recipient = Marrës i panjohur
+wallet-sentrecv-title = Pagesa u mor
+wallet-sentrecv-subtitle = Pagesa u mor nga:
+wallet-sentrecv-amount = Shuma
+wallet-sentrecv-details = Shuma u shtua në gjendjen e portofolit tuaj.
+
+; Global wallet errors
+wallet-error-amount-title = Shumë e pavlefshme
+wallet-error-amount-text = Shkruani një shumë të vlefshme.
+wallet-error-amountdecimal-text = Shkruani shumën me numrin e saktë të dhjetoreve.
+wallet-error-balance-title = Gjendje e pamjaftueshme
+wallet-error-balance-text = Gjendja është shumë e ulët për këtë transaksion. Kostoja totale e transaksionit është {0}, ndërsa gjendja aktuale është {1}.
+wallet-error-balance-fee-text = Shuma plus tarifa e rrjetit e kalon gjendjen tuaj të disponueshme.
+
+; Onboarding join official bot
+onboarding-bot-title = Bëhuni pjesë e rrugëtimit të Spixi-t
+onboarding-bot-subtitle = Bashkohuni me bisedën tonë zyrtare në grup për të ndarë mendimet, për t'u lidhur me ekipin dhe për të qenë në dijeni të të gjitha veçorive më të reja.
+onboarding-bot-join-button = Bashkohu me komunitetin
+onboarding-bot-skip = Kapërce tani për tani
+
+; Empty State
+empty-state-title = Mirë se vini në Spixi
+empty-state-detail-1 = Aplikacioni juaj i sigurt i bisedave nga pajisja në pajisje, me portofol të integruar.
+empty-state-detail-2 = Gëzoni biseda të enkriptuara: mesazhet tuaja ruhen dhe transmetohen vetëm mes pajisjes suaj dhe kontakteve tuaja, kështu privatësia juaj mbetet e paprekur.
+
+; Ixinames
+ixinames-request-title = IXI Names kërkon të lidhet
+ixinames-request-details = Jeni të sigurt që doni ta lidhni këtë Spixi me IXI Names? Shërbimi do të marrë qasje në këtë adresë.
+ixinames-request-decline = Refuzo
+ixinames-request-connect = Lidhu
+ixinames-message-connected = Ky Spixi tani është i lidhur me IXI Names.
+ixinames-message-error = Spixi nuk mundi të lidhej me IXI Names. Provoni përsëri.
+
+; Rating
+rating-request-title = A ju pëlqen Spixi?
+rating-request-details = Mendimi juaj na ndihmon ta bëjmë më të mirë.
+rating-request-no = Jo shumë...
+rating-request-yes = Po, më pëlqen shumë
+
+; Global
+global-connecting-s2 = Po lidhet me Ixian S2...
+global-connecting-dlt = Po lidhet me platformën Ixian...
+global-received = E MARRË
+global-sent = E DËRGUAR
+global-app-accept = Prano
+global-app-reject = Refuzo
+global-app-wants-to-use = {0} dëshiron të përdorë {1} me ju.
+global-call-in-call = Në telefonatë
+global-call-dialing = Duke thirrur
+global-call-incoming = Telefonatë hyrëse
+
+global-dialog-error = Gabim
+global-dialog-ok = OK
+global-dialog-cancel = Anulo
+global-invalid-address-title = Kjo adresë nuk funksionoi
+global-invalid-address-text = Shkruani një adresë të vlefshme.
+
+global-friend-request-accepted = {0} e pranoi kërkesën tuaj për kontakt.
+global-friend-request-connected = Tani jeni të lidhur me {0}.
+chat-group-added-you = {0} ju shtoi në këtë grup
+chat-group-added-you-noname = U shtuat në këtë grup
+chat-group-you-created = Ju e krijuat këtë grup
+chat-group-members-see = Anëtarët tani mund ta shohin grupin.
+
+global-update-available = Një version i ri i Spixi-t ({0}) është i disponueshëm. Përditësojeni për përvojën më të mirë.
+global-modal-external-link-title = Hap lidhjen e jashtme
+global-modal-external-link-body = Po hapni një lidhje të jashtme ({0}). Lidhjet e jashtme mund të jenë të pasigurta; vazhdoni me përgjegjësinë tuaj.
+global-modal-external-link-button-visit = Vazhdo
+
+global-lock-auth-text = Kërkohet vërtetimi
+global-lock-invalidpassword-title = Vërtetimi dështoi
+global-lock-invalidpassword-text = Shkruani fjalëkalimin për të shkyçur Spixi-n
+
+global-time-justnow = tani
+global-time-aminuteago = 1 min
+global-time-minutesago = min
+
+global-share-choose = Zgjidh veprimin
+global-share-savefile = Ruaj skedarin
+global-share-sharefile = Ndaj skedarin
+
+; Notifications (#334 AND-15) - per-type local notification copy (no message content; a member name only in the *-group keys, only with the sender-name setting on - #1178)
+notification-new-message = Mesazh i ri
+notification-new-messages = {0} mesazhe të reja
+notification-incoming-call = Telefonatë hyrëse
+notification-missed-call = Telefonatë e humbur
+notification-payment-received = Pagesa u mor
+notification-payment-request = Kërkesë pagese
+notification-app-invite = Ftesë për aplikacion
+notification-file = Ju dërgoi një skedar
+notification-photo = Ju dërgoi një foto
+notification-file-group = {0} dërgoi një skedar
+notification-photo-group = {0} dërgoi një foto
+notification-file-neutral = Skedar i ri
+notification-photo-neutral = Foto e re
+notification-contact-request = Kërkesë kontakti
+chat-new-norecipient-text = Zgjidhni një marrës për të nisur bisedën.
+group-limit-title = Shumë anëtarë
+group-limit-text = Një grup mund të ketë deri në 10 anëtarë përveç jush.

@@ -4783,9 +4783,9 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   // their dictionaries and un-hid them → EXACTLY 13. The old `>= 8` was a
   // tautology after the un-hide: a stale bundle still shipping the 8-row
   // picker passed it (Opus loop r1 MINOR-2, the #288 MAJOR-2 class).
-  ok(!!langSheet && langSheet.querySelectorAll('.c-settings__opt').length === 13
+  ok(!!langSheet && langSheet.querySelectorAll('.c-settings__opt').length === 14   // #1368: + sq-al
     && !!langSheet.querySelector('.c-settings__opt-flag'),
-    'language pill opens the settings option sheet (#148⑥ — flags leading, EXACTLY 13 shipped locales post-N4)');
+    'language pill opens the settings option sheet (#148⑥ — flags leading, EXACTLY 14 shipped locales: the N4 13 + sq-al #1368)');
   W.Spixi.dismissTopOverlay();
   await sleep(400);
   // ★ N72 (#391): the appearance pill is GONE. The launch flow is fixed dark in both
@@ -10332,7 +10332,7 @@ console.log('multi-select entry gestures · counted confirm · attach sheet titl
   ok(enDict.deleteSelectedMany === 'Delete {n} messages?' && enDict.attachTitle === 'Add to chat',
     'en-us carries the counted confirm + the renamed attach label');
   for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
-    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379)
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al']) {   // N4 (#379) · sq-al #1368
     const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
     ok(loc.deleteSelectedMany.includes('{n}') && loc.deleteSelectedMany !== enDict.deleteSelectedMany
       && loc.selectedCount.includes('{n}') && loc.attachTitle !== enDict.attachTitle,
@@ -10558,7 +10558,7 @@ console.log('apps surface — perf · Add-app button · empty state · explore b
   ok(enApps.addApp === 'Add app' && !!enApps.appsEmptyTitle && !!enApps.appsEmptyBody,
     'APPS COPY: en-us carries the button label + the empty-state headline and supporting line');
   for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
-    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379)
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al']) {   // N4 (#379) · sq-al #1368
     const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
     ok(loc.addApp !== enApps.addApp && loc.appsEmptyTitle !== enApps.appsEmptyTitle && loc.appsEmptyBody !== enApps.appsEmptyBody,
       code + ': Add app + the Apps empty-state copy are really translated (not the English fallback)');
@@ -10732,7 +10732,7 @@ console.log('empty states — chats · wallet · contacts (illustration + copy +
     && enES.walletEmptyBody === 'Payments you send and receive show up here.',
     'EMPTY-STATE COPY: en-us carries the three CTAs + the shortened wallet line (one sentence — the second only restated the button)');
   for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
-    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379)
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al']) {   // N4 (#379) · sq-al #1368
     const loc = JSON.parse(readFileSync(join(root, 'src/strings', code + '.json'), 'utf8'));
     ok(loc.chatsEmptyBody !== enES.chatsEmptyBody && loc.walletEmptyBody !== enES.walletEmptyBody
       && loc.contactsEmptyBody !== enES.contactsEmptyBody && loc.chatsEmptyCta !== enES.chatsEmptyCta
@@ -12168,7 +12168,7 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
      already-pinned ones (ru-RU already brings NBSP) — this is a belt over the
      exact runtime codes, not new separator coverage. */
   const LOCALES360 = ['en-US', 'de-DE', 'es-CO', 'fr-FR', 'pt-BR', 'ru-RU', 'sl-SI',
-    'it-it', 'id-id', 'lt-lt', 'zh-cn', 'ja-jp'];
+    'it-it', 'id-id', 'lt-lt', 'zh-cn', 'ja-jp', 'sq-al'];
   ok(!icuOk || LOCALES360.every((L) => ['1234', '123456', '3000000'].every((canon) => {
     /* through the ROUTER, with the event shapes the handlers actually receive —
        a router that stops dispatching to the per-edit inverse must fail here
@@ -12219,7 +12219,7 @@ console.log('#360 — I-6 locale digit grouping (display skin over the #77 wire)
     && !/Substring\(0, 2\)/.test(utils360.slice(utils360.indexOf('amountToLocalizedDisplayString'), utils360.indexOf('amountToLocalizedDisplayString') + 2200))
     && /SpixiLocalization\.getCurrentLanguage\(\)/.test(utils360),
     '★ I-6 r2 (#360, loop r1 MAJOR-3): the C# alert formatter keeps FULL precision (trailing zeros trimmed, NO 2-dp cap) with separators from the APP LANGUAGE. The insufficient-balance sentence exists to expose a SHORTFALL and the shortfall is usually the 0.005 fee — a 2-dp cap rendered "cost is 10, balance is 10", the exact r4-documented bug. String-only: an IxiNumber never passes through a float');
-  ok(/case "de-de": case "es-co": case "fr-fr": case "pt-br": case "ru-ru": case "sl-si": case "sr-sp": case "en-us": case "it-it": case "id-id": case "lt-lt": case "cn-cn": case "ja-jp":/.test(utils360.replace(/\s+/g, ' '))
+  ok(/case "de-de": case "es-co": case "fr-fr": case "pt-br": case "ru-ru": case "sl-si": case "sr-sp": case "en-us": case "it-it": case "id-id": case "lt-lt": case "cn-cn": case "ja-jp": case "sq-al":/.test(utils360.replace(/\s+/g, ' '))
     && utils360.indexOf('switch (lang)') > utils360.indexOf('amountToLocalizedDisplayString')
     && /switch \(lang\)/.test(utils360.slice(utils360.indexOf('amountToLocalizedDisplayString'), utils360.indexOf('bytesToHumanFormatString'))),
     '★ I-6 r3 (#360, r2 MAJOR-2): the C# formatter resolves a culture ONLY for the languages the SHELL also localizes — a language with no FE dictionary keeps <html lang="en"> (build-strings-iife), so without the gate an it/id/lt user saw en-convention amounts on every FE surface and native-convention amounts in the alerts: the mixed convention I-6 exists to prevent, introduced by the batch');
@@ -12318,13 +12318,13 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
   ok(Object.values(enDict).every((v) => !String(v).includes(emDash)),
     'N3a ★ GATE: zero em-dashes in the en-us dictionary — the sweep holds for every future extract');
   for (const code of ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
-    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379): the five ride the same gate
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al']) {   // N4 (#379): the five ride the same gate · sq-al #1368
     const dict = JSON.parse(read('src/strings/' + code + '.json'));
     ok(Object.values(dict).every((v) => !String(v).includes(emDash)),
       'N3a GATE: zero em-dashes in the BUILT ' + code + ' dictionary (drafts + the six legacy feeder values swept)');
   }
   for (const code of ['pt-br', 'ru-ru', 'sr-sp', 'sl-si',
-    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {   // N4 (#379): all built-locale legacy sets feed now
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al']) {   // N4 (#379): all built-locale legacy sets feed now · sq-al #1368
     const lang = read('Spixi/Resources/Raw/lang/' + code + '.txt');
     const feeders = lang.split('\n').filter((l) => /^(index-backup-prompt-desc|empty-state-detail-2) =/.test(l));
     ok(feeders.length > 0 && feeders.every((l) => !l.includes(emDash)),
@@ -12335,7 +12335,7 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
   {
     const iife = read('src/demo/strings.iife.js');
     const shipped = read('Spixi/Resources/Raw/html/spixi.strings.js');
-    for (const code of ['it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp']) {
+    for (const code of ['it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al']) {
       ok(iife.includes('"' + code + '":{') && shipped.includes('"' + code + '":{'),
         'N4: the ' + code + ' dictionary ships in BOTH strings artifacts (demo iife + Raw/html)');
     }
@@ -12379,9 +12379,9 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
     const buildLangs = codesOf(read('scripts/build-locales.mjs'), 'const LANGS = [');
     const iifeLangs = codesOf(read('scripts/build-strings-iife.mjs'), 'const LOCALES = [');
     const same = (a, b) => a.length === b.length && a.slice().sort().join() === b.slice().sort().join();
-    ok(settingsLangs.length === 13 && same(settingsLangs, launchLangs)
+    ok(settingsLangs.length === 14 && same(settingsLangs, launchLangs)
       && same(settingsLangs, ['en-us'].concat(buildLangs)) && same(buildLangs, iifeLangs),
-      'N4: the offered list, build-locales LANGS and build-strings-iife LOCALES agree (13 = en-us + 12) — a row cannot ship ahead of its dictionary');
+      'N4: the offered list, build-locales LANGS and build-strings-iife LOCALES agree (14 = en-us + 13, sq-al #1368) — a row cannot ship ahead of its dictionary');
     ok(settingsLangs.every((c) => existsSync(join(root, 'src/strings', c + '.json'))),
       'N4: every picker code has a built dictionary file in src/strings/');
 
@@ -12733,7 +12733,7 @@ console.log('R1 identity round — N1 avatar rework (#364) · N34 owner chip (#3
     'N26 (loop m1): the contact_details request latch survives change-gated panel rebuilds');
   /* —— N27 strings in all 8 built dictionaries ————————————————————— */
   const locales366 = ['en-us', 'de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp',
-    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];   // N4 (#379)
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al'];   // N4 (#379) · sq-al #1368
   /* ★★ SPEC §4: the three removeBlocked keys are RETIRED with their modal, and the two
    * the new flow needs must exist everywhere instead. A string the extractor no longer
    * sees would leave a dictionary carrying dead weight; a string it sees but a locale
@@ -13032,9 +13032,9 @@ console.log('#370/#371 — D-19b reverse-resolve · N48 amOwner · N49/N50 · R2
     && /string groupCountText = memberCountText\(groupMemberCount\);/.test(scp370),
     'R2 (#371): BOTH C# member-count sites route through memberCountText — "1 member" via the new legacy id, plural via the old format string, and a lang file missing the new id falls back to the plural (never a null sub)');
   {
-    const langs = ['cn-cn','de-de','en-us','es-co','fr-fr','id-id','it-it','ja-jp','lt-lt','pt-br','ru-ru','sl-si','sr-sp'];
+    const langs = ['cn-cn','de-de','en-us','es-co','fr-fr','id-id','it-it','ja-jp','lt-lt','pt-br','ru-ru','sl-si','sq-al','sr-sp'];
     ok(langs.every((l) => /^chat-member-count-one = .+$/m.test(read('Spixi/Resources/Raw/lang/' + l + '.txt'))),
-      'R2 (#371): chat-member-count-one exists in ALL 13 legacy lang files');
+      'R2 (#371): chat-member-count-one exists in ALL 14 legacy lang files');
   }
   const base370 = nc(read('Spixi/Utils/SpixiContentPage.cs'));
   ok(/if \(fr\.state == FriendState\.RequestReceived\) return "pending-in";/.test(base370),
@@ -16973,7 +16973,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
    * English for any key with no draft entry — so nothing was missing, nothing was
    * red, and the screen was in English. The gate that catches this is not parity,
    * it is "is the value still the English one". */
-  const LOCS = ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp', 'it-it', 'id-id', 'ja-jp', 'lt-lt', 'cn-cn'];
+  const LOCS = ['de-de', 'es-co', 'fr-fr', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp', 'it-it', 'id-id', 'ja-jp', 'lt-lt', 'cn-cn', 'sq-al'];
   const grab = (src, key) => {
     const m = src.match(new RegExp(key + ':\\s*"((?:[^"\\\\]|\\\\.)*)"'));
     return m ? m[1] : null;
@@ -21561,7 +21561,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
       for (const m of bundle.matchAll(/base \+ '([A-Za-z0-9_-]+\.png)'/g)) refs.add('images/onboarding/' + m[1]);
       // the flag files are composed from the LANGUAGES list (flags.js FLAG_BASE + code + .png)
       const flagCodes = [...bundle.matchAll(/flag:\s*'([a-z]{2})'/g)].map((m) => m[1]);
-      ok(flagCodes.length === 13, '★ Session N gate premise: LANGUAGES declares 13 flag codes (got ' + flagCodes.length + ')');
+      ok(flagCodes.length === 14, '★ Session N gate premise: LANGUAGES declares 14 flag codes (sq-al #1368) (got ' + flagCodes.length + ')');
       for (const c of flagCodes) refs.add('img/flags/' + c + '.png');
       const SENTINELS = ['img/spixiavatar.png', 'img/spixi-group-avatar.png', 'img/app-noicon.jpg'];
       for (const sn of SENTINELS) refs.delete(sn);
@@ -21595,7 +21595,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
        only through flags.js's composed `FLAG_BASE + code + '.png'`, so the base itself is
        pinned — change it and neither direction of the gate would notice. */
     ok(/let FLAG_BASE = 'img\/flags\/';/.test(built('spixi.bundle.js')),
-      '★ Session N gate premise: flags.js composes its files from FLAG_BASE = img/flags/ (the gate derives the 13 flag references from this base + the LANGUAGES codes)');
+      '★ Session N gate premise: flags.js composes its files from FLAG_BASE = img/flags/ (the gate derives the 14 flag references from this base + the LANGUAGES codes)');
     /* E2 · every loadPage-able document runs the real dispatcher (#46 auditor A): the widened
        supportsRawDataUriArgs and the push-only theme sweep both rest on "every shipped
        document is a redesigned shell" — pinned as a name-level allowlist of the one
@@ -34013,7 +34013,7 @@ console.log('#907: the history window counts visible messages');
 {
   const { spawnSync } = await import('node:child_process');
   const CLI = join(root, 'scripts', 'build-locales.mjs');
-  const LANGS51 = ['de-de','es-co','fr-fr','sr-sp','sl-si','ru-ru','pt-br','it-it','id-id','lt-lt','cn-cn','ja-jp'];
+  const LANGS51 = ['de-de','es-co','fr-fr','sr-sp','sl-si','ru-ru','pt-br','it-it','id-id','lt-lt','cn-cn','ja-jp','sq-al'];
   const run51 = (args) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
 
   /* (a) the real tree */
@@ -34753,6 +34753,44 @@ console.log('#907: the history window counts visible messages');
 
 }
 
+/* ★★ #1368 — DRAFT-FIRST: a train language with no HUMAN legacy set takes its per-key draft, never
+   an AI legacy value written for another site. Executed on a fixture through the real CLI: one key
+   whose English matches a legacy id, a legacy value that is WRONG for the key's site (all-caps
+   status chip) in sq-al AND in de-de, and a draft for both. sq-al must build its draft; de-de must
+   still build the legacy value (reuse-first stays for the human sets — the set is scoped, not global).
+   Mutation: delete 'sq-al' from DRAFT_FIRST in build-locales.mjs → sq-al builds "NË PRITJE" → red. */
+{
+  const { spawnSync } = await import('node:child_process');
+  const CLI = join(root, 'scripts', 'build-locales.mjs');
+  const d = mkdtempSync(join(tmpdir(), 'spixi-draftfirst-'));
+  mkdirSync(join(d, 'src', 'strings', 'draft'), { recursive: true });
+  mkdirSync(join(d, 'Spixi', 'Resources', 'Raw', 'lang'), { recursive: true });
+  writeFileSync(join(d, 'src', 'strings', 'en-us.json'), JSON.stringify({ zzPending: 'Pending', zzOnlySq: 'Only one locale drafted this.' }, null, 2));
+  writeFileSync(join(d, 'Spixi', 'Resources', 'Raw', 'lang', 'en-us.txt'), 'zz-status = Pending\n');
+  writeFileSync(join(d, 'Spixi', 'Resources', 'Raw', 'lang', 'de-de.txt'), 'zz-status = AUSSTEHEND\n');
+  writeFileSync(join(d, 'Spixi', 'Resources', 'Raw', 'lang', 'sq-al.txt'), 'zz-status = NË PRITJE\n');
+  for (const c of ['de-de','es-co','fr-fr','sr-sp','sl-si','ru-ru','pt-br','it-it','id-id','lt-lt','cn-cn','ja-jp','sq-al']) {
+    writeFileSync(join(d, 'src', 'strings', 'draft', c + '.json'),
+      JSON.stringify(Object.assign({ zzPending: c === 'sq-al' ? 'Në pritje' : c === 'de-de' ? 'Ausstehend' : 'x' },
+        c === 'sq-al' ? { zzOnlySq: 'Vetëm një gjuhë e përktheu.' } : {}), null, 2));
+  }
+  const r = spawnSync(process.execPath, [CLI, '--root', d], { encoding: 'utf8' });
+  const builtOf = (c) => { try { return JSON.parse(readFileSync(join(d, 'src', 'strings', c + '.json'), 'utf8')).zzPending; } catch (_) { return null; } };
+  const sq = builtOf('sq-al'), de = builtOf('de-de');
+  ok(r.status === 0 && sq === 'Në pritje' && de === 'AUSSTEHEND',
+    '★★ #1368 DRAFT-FIRST EXECUTED: sq-al builds its DRAFT ("' + sq + '", must be "Në pritje", not its AI legacy "NË PRITJE") while de-de keeps reuse-first ("' + de
+    + '", must be the legacy "AUSSTEHEND") — status=' + r.status + '. Reuse-first protects HUMAN community translations; sq-al\'s .txt is an AI draft, so reuse there swapped 25 per-key drafts for values written for another site');
+  /* (b) GATE 51 counts the HUMAN-set locales: a key drafted ONLY in the AI locale still ships English in twelve,
+     so --check must be red and name it. Mutation: count DRAFT_FIRST locales again (the engAll guard AND
+     GATE51_LOCALES) → status 0 → red. Reverting only the guard keeps this row green; GATE 51 (b) then goes red instead. */
+  const g = spawnSync(process.execPath, [CLI, '--check', '--root', d], { encoding: 'utf8' });
+  const gOut = String(g.stdout || '') + String(g.stderr || '');
+  ok(g.status === 1 && /zzOnlySq/.test(gOut) && !/zzPending/.test(gOut),
+    '★★ #1368 GATE 51 SCOPE: a key drafted only in sq-al fails --check and is named (status=' + g.status + ', named=' + /zzOnlySq/.test(gOut)
+    + ') — sq-al is an AI draft-first locale, so its draft cannot stand in for the twelve human-set locales');
+  try { rmSync(d, { recursive: true, force: true }); } catch (_) {}
+}
+
 /* ══ GATE 59 — ONE LABEL, TWO OWNERS: THE KEY IS THE FIX ════════════════════════
    ★★ THE DEFECT (#842, Damir): "VAŠ SPIXI ID" on somebody else's contact page —
    "even thought its contacts id, so it should just say Spixi ID not VAŠ or YOURS in any
@@ -34781,7 +34819,7 @@ console.log('#907: the history window counts visible messages');
    three pronouns that happened to come up (#798), and it could not see a fourth. */
 {
   const LANGS59 = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br',
-    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];
+    'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al'];
 
   /* (a) — each key is read from exactly one place. Derived by sweeping the sources, so a
      future third caller of either key is a red row here rather than a translator's guess. */
@@ -34824,9 +34862,9 @@ console.log('#907: the history window counts visible messages');
   });
   const wrong59 = rows59.filter((r) => !r.draft || r.built !== r.draft);
   const decisive59 = rows59.filter((r) => r.decisive);
-  ok(rows59.length === 12 && wrong59.length === 0 && decisive59.length >= 3,
+  ok(rows59.length === 13 && wrong59.length === 0 && decisive59.length >= 3,
     '★★ GATE 59 (b) THE CONTACT LABEL IS BUILT FROM ITS DRAFT, NOT FROM legacy address-title — '
-    + decisive59.length + ' of 12 locales DECIDE this (the ones where the two differ): '
+    + decisive59.length + ' of 13 locales DECIDE this (the ones where the two differ): '
     + JSON.stringify(decisive59.map((r) => r.code + ': draft "' + r.draft + '" vs legacy "' + r.legacy + '"'))
     + (wrong59.length ? ' · MISMATCHED=' + JSON.stringify(wrong59.map((r) => r.code + ' built "' + r.built + '"')) : '')
     + '. Dropping contactSpixiAddress from build-locales NO_REUSE makes the reuse-first recipe match its English to that legacy id and puts "Vaš Spixi ID" back on a contact page in three languages — with extract-strings, build-locales --check, i18n-lint and the pseudo sweep all still green, because every one of them is about COVERAGE and this is about ownership');

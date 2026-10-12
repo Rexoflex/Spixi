@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LOCALES = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br',
-  'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];   // N4 (#379)
+  'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al'];   // N4 (#379) · sq-al #1368
 const enUS = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
 const locales = {};
 for (const c of LOCALES) {

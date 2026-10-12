@@ -159,7 +159,7 @@ export default async function (h) {
     /* every built locale names its OWN labels for the path (the words the user sees on Account) */
     const en = JSON.parse(raw('src/strings/en-us.json'));
     r.enKey = typeof en.otherWalletWayBody === 'string' && en.otherWalletWayTitle === 'One account per device' && !('otherWalletCta' in en) && !('otherWalletTitle' in en);
-    const codes = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br', 'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];
+    const codes = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br', 'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al'];
     const miss = [];
     for (const c of ['en-us', ...codes]) {
       const j = c === 'en-us' ? en : JSON.parse(raw('src/strings/' + c + '.json'));
@@ -246,7 +246,7 @@ export default async function (h) {
 
   /* ── LANG ── */
   {
-    const codes = ['en-us', 'cn-cn', 'de-de', 'es-co', 'fr-fr', 'id-id', 'it-it', 'ja-jp', 'lt-lt', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp'];
+    const codes = ['en-us', 'cn-cn', 'de-de', 'es-co', 'fr-fr', 'id-id', 'it-it', 'ja-jp', 'lt-lt', 'pt-br', 'ru-ru', 'sl-si', 'sq-al', 'sr-sp'];
     const bad = [];
     let enVal = '';
     for (const c of codes) {
@@ -266,7 +266,7 @@ export default async function (h) {
       fallbacks: fb.length === 2 && fb.every((x) => x === enVal),
     };
     ok(Object.values(l).every(Boolean),
-      '★ S16 LANG (#1311 (b)): the restore-conflict alert names the REAL path in all 13 lang files — each intro-restore-walletexists-text carries that locale\'s own "Delete data…" and "Delete account" labels (the stale "Delete wallet" card is gone since #545); LaunchPage\'s two C# fallbacks equal the en-us.txt value — ' + JSON.stringify(l) + (bad.length ? ' bad=' + bad.join(',') : ''));
+      '★ S16 LANG (#1311 (b)): the restore-conflict alert names the REAL path in all 14 lang files — each intro-restore-walletexists-text carries that locale\'s own "Delete data…" and "Delete account" labels (the stale "Delete wallet" card is gone since #545); LaunchPage\'s two C# fallbacks equal the en-us.txt value — ' + JSON.stringify(l) + (bad.length ? ' bad=' + bad.join(',') : ''));
   }
 
   /* ── REARM ── */

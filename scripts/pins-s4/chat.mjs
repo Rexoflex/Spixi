@@ -929,12 +929,12 @@ export default async function (h) {
     const dk = await lines('?desktop=1');
     const mb = await lines('?mobile=1');
     const en = JSON.parse(rd('src/strings/en-us.json'));
-    const locs = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br', 'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp'];
+    const locs = ['de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br', 'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al'];
     const tr = locs.map((c) => JSON.parse(rd('src/strings/' + c + '.json')).clickToDownload);
     ok(dk.desktop && dk.card === 'Click to download' && dk.tile === 'Click to download' && dk.errs === 0
       && !mb.desktop && mb.card === 'Tap to download' && mb.tile === 'Tap to download' && mb.errs === 0
       && en.clickToDownload === 'Click to download' && tr.every((v) => typeof v === 'string' && v && v !== 'Click to download'),
-      '★ #1147 (3): an offered file says "Click to download" on desktop (:root[data-desktop], a mouse) on the file CARD and the photo TILE; a phone keeps "Tap to download"; the key clickToDownload is translated in all 12 locales — ' + JSON.stringify({ dk, mb, tr }));
+      '★ #1147 (3): an offered file says "Click to download" on desktop (:root[data-desktop], a mouse) on the file CARD and the photo TILE; a phone keeps "Tap to download"; the key clickToDownload is translated in all 13 locales — ' + JSON.stringify({ dk, mb, tr }));
   }
 
   /* ———— #1147 (5): photo fade on chat open — the BUILT shell, executed: a LOCAL photo tile waits QUIET (no face), the

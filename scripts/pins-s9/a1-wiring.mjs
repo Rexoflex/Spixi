@@ -250,7 +250,7 @@ export default async function (h) {
   await guard('S9 A1 M14 photo excerpt', async () => {
     const HOME = stripCode(rd('Spixi/Pages/Home/HomePage.xaml.cs'));
     const fb = bodyOf(HOME, 'else if (lastmsg.type == FriendMessageType.fileHeader)');
-    const langs = ['cn-cn', 'de-de', 'en-us', 'es-co', 'fr-fr', 'id-id', 'it-it', 'ja-jp', 'lt-lt', 'pt-br', 'ru-ru', 'sl-si', 'sr-sp']
+    const langs = ['cn-cn', 'de-de', 'en-us', 'es-co', 'fr-fr', 'id-id', 'it-it', 'ja-jp', 'lt-lt', 'pt-br', 'ru-ru', 'sl-si', 'sq-al', 'sr-sp']
       .map((c) => rd('Spixi/Resources/Raw/lang/' + c + '.txt'));
     ok(before(fb, 'VoiceCodec.isVoiceFileName(voiceName)', 'SharedItems.isImageName(photoName)')
       && /else if \(SharedItems\.parseFileHeader\(lastmsg\.message, out string photoName, out _\)\s*&& SharedItems\.isImageName\(photoName\)\)/.test(fb)
@@ -258,7 +258,7 @@ export default async function (h) {
       && /excerpt = photoCount > 1\s*\? string\.Format\(SpixiLocalization\._SL\("index-excerpt-photos"\) \?\? "\{0\} photos", photoCount\)\s*: \(SpixiLocalization\._SL\("index-excerpt-photo"\) \?\? "Photo"\);\s*excerptKind = "photo";/.test(fb)
       && /if \(excerptKind == "text" && lastmsg\.type == FriendMessageType\.standard && lastmsg\.id != null\s*&& SPhotoGroups\.isCaption\(friend\.walletAddress\.ToString\(\), Crypto\.hashToString\(lastmsg\.id\),\s*lastmsg\.localSender \? SPhotoGroups\.FromMe : \(lastmsg\.senderAddress != null \? lastmsg\.senderAddress\.ToString\(\) : friend\.walletAddress\.ToString\(\)\)\)\)\s*\{\s*excerptKind = "photo";\s*\}/.test(HOME)
       && langs.every((t) => /^index-excerpt-photo = \S/m.test(t) && /^index-excerpt-photos = .*\{0\}/m.test(t)),
-      'S9 A1 M14 photo excerpt: a photo file row (after the voice test) reads "Photo" or "{n} photos" (a stored group of count > 1) with kind "photo"; a group\'s caption text keeps its text with kind "photo"; both keys in all 13 lang files ({0} in the plural)');
+      'S9 A1 M14 photo excerpt: a photo file row (after the voice test) reads "Photo" or "{n} photos" (a stored group of count > 1) with kind "photo"; a group\'s caption text keeps its text with kind "photo"; both keys in all 14 lang files ({0} in the plural)');
   });
 
   /* ———— M15 (r1): the Sent copies never reach a device backup ———— */

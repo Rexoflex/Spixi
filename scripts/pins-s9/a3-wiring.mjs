@@ -80,8 +80,8 @@ export default async function (h) {
       && /string text = S9FixRules\.createdLine\(SpixiLocalization\._SL\(S9FixRules\.CreatedKey\), SpixiLocalization\._SL\(S9FixRules\.MembersSeeKey\)\);/.test(w)   // ★ S10 P3 (#1254): the two-line form
       && /Node\.addMessageWithType\(new byte\[\] \{ UnreadRule\.AddedToGroupLineId \}, FriendMessageType\.standard, group\.walletAddress, 0, text, false, null, 0, false, false\);/.test(w)
       && before(w, 'S9FixRules.writesCreatedLine(', 'Node.addMessageWithType(') && !/string\.Format/.test(w) && logsFixed(w)
-      && langs.length === 13 && keyed.length === 13 && en,
-      'S9 A3 GRP-ADD: createGroup → the owner\'s OWN {7} line (id 07: no unread / notification / receipt; no format; only into an empty new group) so the chats list shows the group — key chat-group-you-created in all 13 lang files (' + keyed.length + '/' + langs.length + ', en=' + en + ')');
+      && langs.length === 14 && keyed.length === 14 && en,   // 14 = the N4 13 + sq-al (#1368)
+      'S9 A3 GRP-ADD: createGroup → the owner\'s OWN {7} line (id 07: no unread / notification / receipt; no format; only into an empty new group) so the chats list shows the group — key chat-group-you-created in all 14 lang files (' + keyed.length + '/' + langs.length + ', en=' + en + ')');
   });
 
   /* ———— APP: Join marks the newest INCOMING invite row (SAppJoins), the card reads Joined after the page closes ———— */

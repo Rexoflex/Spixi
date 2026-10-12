@@ -187,7 +187,7 @@ public class S9FixTests
     }
 
     // —— #1246 ——
-    static readonly string[] Langs = { "cn-cn", "en-us", "es-co", "de-de", "id-id", "fr-fr", "it-it", "ja-jp", "lt-lt", "pt-br", "ru-ru", "sl-si", "sr-sp" };
+    static readonly string[] Langs = { "cn-cn", "en-us", "es-co", "de-de", "id-id", "fr-fr", "it-it", "ja-jp", "lt-lt", "pt-br", "ru-ru", "sl-si", "sq-al", "sr-sp" };
 
     [TestMethod]
     public void translation_report_link_is_built_from_a_known_code_only()

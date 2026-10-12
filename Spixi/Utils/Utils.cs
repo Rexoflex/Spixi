@@ -243,6 +243,7 @@ namespace SPIXI
                 case "de-de": case "es-co": case "fr-fr": case "pt-br":
                 case "ru-ru": case "sl-si": case "sr-sp": case "en-us":
                 case "it-it": case "id-id": case "lt-lt": case "cn-cn": case "ja-jp":
+                case "sq-al":
                     try
                     {
                         var ci = System.Globalization.CultureInfo.GetCultureInfo(lang == "cn-cn" ? "zh-cn" : lang);

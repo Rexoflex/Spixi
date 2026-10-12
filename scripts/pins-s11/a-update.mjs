@@ -112,11 +112,11 @@ export default async function (h) {
       if (W.Spixi.updateVersionOf(fmt(tpl, '0.9 now'), [tpl]) !== null) bad.push(f + ':space');
       if (W.Spixi.updateVersionOf(tpl.replace('{0}', ''), [tpl]) !== null) bad.push(f + ':empty');
     }
-    l.everyLocale = Object.keys(tpls).length === 13 && bad.length === 0 ? true : bad.join(',') || Object.keys(tpls).length;
+    l.everyLocale = Object.keys(tpls).length === 14 &&   /* + sq-al #1368 */ bad.length === 0 ? true : bad.join(',') || Object.keys(tpls).length;
     l.notATemplate = W.Spixi.updateVersionOf('Connecting to Ixian Platform...', Object.values(tpls)) === null;
     l.noErr = K.noErr(s.errs);
   } catch (e) { l.err = e.message; }
   finally { if (s) { s.close(); s = null; } }
   ok(Object.values(l).every((x) => x === true),
-    '★ S11 A item 4 (#1262): LOCALE-PROOF — with the carrier substituted (de-de) the German notice is a card; all 13 lang templates of global-update-available give the version back (also with a suffix), and a hole that is markup, has a space or is empty is refused — ' + JSON.stringify(l));
+    '★ S11 A item 4 (#1262): LOCALE-PROOF — with the carrier substituted (de-de) the German notice is a card; all 14 lang templates of global-update-available give the version back (also with a suffix), and a hole that is markup, has a space or is empty is refused — ' + JSON.stringify(l));
 }

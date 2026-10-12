@@ -89,38 +89,67 @@ function toDataUri(rawSvg) {
  * vertically by construction). All alpha lives INSIDE the mask (stroke-opacity .7), so the
  * ink token alone decides the colour. Deterministic PRNG: byte-identical on every machine.
  */
-const CONTOURS = { w: 320, h: 240, lines: 5, amp: 18, lineW: 0.6, lineAlpha: 0.7, step: 8, seed: 3 };
-
-// deterministic PRNG — the tile must be byte-identical on every machine
-function mulberry32(a) {
-  return function next() {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-const num = (v) => String(Math.round(v * 100) / 100);   // trim float noise
+/* ★★ S17 C (#1334, Damir 2026-10-11 19:13: "the waves seem more visible in the render … just rework current waves so it
+   fits"): the CONTOURS tile is REDRAWN as the render's Waves (docs/renders/whats-new/parts-f/appear.js) — sixteen long
+   flowing lines, one every 20 px, each its own amplitude (5 ± 4 px) and phase; the wavelength (200) divides the tile width
+   (400) and the line step (20) divides its height (320), so the tile repeats with NO seam (BUTT caps: round caps at x = 0 and
+   x = 400 overlapped into a visible vertical seam on the swatch). 1.3 px, full stroke: the
+   opacity ladder (--chat-pattern-alpha-*) and the per-canvas ink (--chat-pattern-ink) stay the only dials. The id stays
+   'contours' (every stored pref keeps working); the LABEL is "Waves" (patternStyleContours). Was: five soft lines per
+   320 × 240 tile, 0.6 px at 70 % (#997). It is still ONE tiled mask, decoded once — the chat-open cost rule (15:12). */
+const CONTOURS = { w: 400, h: 320, lines: 16, step: 20, x: 8, lineW: 1.3 };   // ★ values file 21:24: a point every 8 units (was 10)
+const num = (v) => String(Math.round(v * 10) / 10);   // trim float noise (0.1 px is below a device pixel at 1×)
 
 function buildContoursSvg() {
   const o = CONTOURS;
-  const rnd = mulberry32(o.seed);
-  const d = [];
-  const band = o.h / o.lines;
+  let d = '';
   for (let i = 0; i < o.lines; i++) {
-    const y0 = band * i + band / 2;
-    const p1 = rnd() * Math.PI * 2, p2 = rnd() * Math.PI * 2;
-    const a1 = o.amp * (0.55 + rnd() * 0.45), a2 = o.amp * 0.35 * rnd();
-    let path = '';
-    for (let x = 0; x <= o.w; x += o.step) {
-      const y = y0 + a1 * Math.sin((2 * Math.PI * x) / o.w + p1) + a2 * Math.sin((4 * Math.PI * x) / o.w + p2);
-      path += (x ? 'L' : 'M') + num(x) + ' ' + num(y);
+    const y0 = 10 + i * o.step, A = 5 + 4 * Math.sin(i * 0.9), ph = i * 0.55;
+    for (let x = 0; x <= o.w; x += o.x) {
+      const y = y0 + A * Math.sin((x / 200) * 2 * Math.PI + ph);
+      d += (x ? 'L' : 'M') + num(x) + ' ' + num(y);
     }
-    d.push(path);
   }
   return `<svg width="${o.w}" height="${o.h}" viewBox="0 0 ${o.w} ${o.h}" fill="none" xmlns="http://www.w3.org/2000/svg">`
-    + `<path d='${d.join('')}' stroke='black' stroke-opacity='${o.lineAlpha}' stroke-width='${o.lineW}' stroke-linejoin='round'/></svg>`;
+    + `<path d='${d}' stroke='black' stroke-width='${o.lineW}' stroke-linecap='butt' stroke-linejoin='round'/></svg>`;
 }
+
+/* ★★ S17 C (#1335, Damir 19:22 "add it, name 'Contours'"): RINGS — the render's topographic contours, a NEW style id
+   'rings' (label "Contours", patternRings). Five centres × seven wobbly rings; every ring that crosses a tile edge is
+   drawn again on the far side (the wrapped copy), so the tile repeats with NO seam. Same ink, same ladder, one mask. */
+const RINGS = { w: 400, h: 320, lineW: 1.4, centres: [[60, 70], [300, 40], [200, 210], [360, 260], [40, 280]], rings: 7 };
+function buildRingsSvg() {
+  const o = RINGS;
+  let r0 = 7;
+  const rnd = () => { r0 = (r0 * 9301 + 49297) % 233280; return r0 / 233280; };
+  const shapes = [];
+  for (const [cx, cy] of o.centres) {
+    for (let k = 1; k <= o.rings; k++) {
+      const R = k * 16 + rnd() * 6;
+      const pts = [];
+      for (let a = 0; a < 360; a += 20) {
+        const t = (a * Math.PI) / 180, rr = R * (1 + 0.12 * Math.sin(3 * t + k) + 0.06 * Math.cos(5 * t));
+        pts.push([cx + rr * Math.cos(t), cy + rr * Math.sin(t)]);
+      }
+      shapes.push(pts);
+    }
+  }
+  const ring = (pts, dx, dy) => pts.map((q, i) => (i ? 'L' : 'M') + num(q[0] + dx) + ' ' + num(q[1] + dy)).join('') + 'Z';   // 0.1 px, as the render (integers read angular)
+  let d = '';
+  for (const pts of shapes) {
+    const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+    const sx = [0], sy = [0];
+    if (Math.min(...xs) < 0) sx.push(o.w);
+    if (Math.max(...xs) > o.w) sx.push(-o.w);
+    if (Math.min(...ys) < 0) sy.push(o.h);
+    if (Math.max(...ys) > o.h) sy.push(-o.h);
+    for (const dx of sx) for (const dy of sy) d += ring(pts, dx, dy);
+  }
+  return `<svg width="${o.w}" height="${o.h}" viewBox="0 0 ${o.w} ${o.h}" fill="none" xmlns="http://www.w3.org/2000/svg">`
+    + `<path d='${d}' stroke='black' stroke-width='${o.lineW}' stroke-linejoin='round'/></svg>`;
+}
+const ringsSize = `${RINGS.w}px ${RINGS.h}px`;
+const ringsUri = toDataUri(buildRingsSvg());
 
 const contoursSize = `${CONTOURS.w}px ${CONTOURS.h}px`;
 const contoursUri = toDataUri(buildContoursSvg());
@@ -137,7 +166,7 @@ const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
      --chat-pattern-size  its tile size
      --chat-pattern-tile  block | none
 
-   Source: contours — synthesized in the generator (${CONTOURS.w}×${CONTOURS.h}, seed ${CONTOURS.seed})
+   Source: contours ("Waves") and rings ("Contours") — synthesized in the generator (${CONTOURS.w}×${CONTOURS.h} · ${RINGS.w}×${RINGS.h})
    ★ RETIRED: triangles and line art (E1, 2026-08-29); doodles and Live flow (#835,
      2026-09-09); the doodles URI itself (#866, Session W — 233 KB nothing could select);
      the DATA MATRIX (#997, 2026-09-28 — replaced by contours, Damir's pick).
@@ -145,6 +174,8 @@ const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
 :root {
   --chat-pattern-uri-contours: ${contoursUri};
   --chat-pattern-size-contours: ${contoursSize};
+  --chat-pattern-uri-rings: ${ringsUri};
+  --chat-pattern-size-rings: ${ringsSize};
 
   /* ★★ #997 default style = CONTOURS (Damir, 2026-09-28). An absent pref resolves HERE, and so
      does a pref naming any retired style — 'matrix' (#997), 'triangles' and 'lineart' (#690),
@@ -159,6 +190,12 @@ const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
 [data-chat-pattern='contours'] {
   --chat-pattern-uri: var(--chat-pattern-uri-contours);
   --chat-pattern-size: var(--chat-pattern-size-contours);
+  --chat-pattern-tile: block;
+}
+/* ★ S17 C (#1335): the rings ("Contours") — a second style; every ladder admits 'rings' */
+[data-chat-pattern='rings'] {
+  --chat-pattern-uri: var(--chat-pattern-uri-rings);
+  --chat-pattern-size: var(--chat-pattern-size-rings);
   --chat-pattern-tile: block;
 }
 /* ★ #835 retired the [data-chat-pattern='doodles'] and ='flow' blocks with their styles;
@@ -177,4 +214,5 @@ const css = `/* GENERATED by scripts/generate-chat-pattern.mjs — DO NOT EDIT.
 
 writeFileSync(OUT, css);
 console.log(`✓ ${OUT} written (${(css.length / 1024).toFixed(1)} KB)`);
-console.log(`  contours ${CONTOURS.w}×${CONTOURS.h}   ${(contoursUri.length / 1024).toFixed(1)} KB   ★ the one tile (#997)`);
+console.log(`  contours ${CONTOURS.w}×${CONTOURS.h}   ${(contoursUri.length / 1024).toFixed(1)} KB   ★ "Waves" (S17 #1334)`);
+console.log(`  rings    ${RINGS.w}×${RINGS.h}   ${(ringsUri.length / 1024).toFixed(1)} KB   ★ "Contours" (S17 #1335)`);

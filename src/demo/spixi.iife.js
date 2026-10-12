@@ -3111,6 +3111,79 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
   }, duration);
 }
 
+/* ---- src/components/illustrations-s17.js ---- */
+/**
+ * illustrations-s17 — ★ S17 (#1331) the S17 art as STATIC IL_ART entries (merged into illustrations.js IL_ART):
+ * the six What's new scenes (wn<Id>Bg / wn<Id>Fg — a full-bleed background layer + a foreground layer), the About
+ * header Glass art (aboutGlassBg / aboutGlassFg), the seven Moment-sheet drawings (mo<Kind>; the AI one is built per
+ * greeting length by momentAiEntry), and the Contributors glass heart (heartBg / heartFg).
+ *
+ * Ported from the design render (docs/renders/whats-new: parts-e/art2.js, parts-j/mo.js, parts-i/dc.js) with the CLEAN
+ * BLUE end state baked in; every id ends in `@@` (illustrations.js replaces it per call), every reference resolves
+ * inside the same body, no script, no event attribute, no URL, no user data — static module strings only. Theme values
+ * come from tokens.css (--wn-*, --ab-band-*, --ab-field-*, --ch-*, --dc-*); motion from illo.css (the S17 block).
+ * Re-port: the S17 port script (session notes) — edit the render, then regenerate; never hand-edit a body.
+ */
+const S17_ART = {
+  wnHeroBg: { vb: '0 0 400 300', par: 'xMidYMin slice', cls: 'il wn-l wn-l--bg',
+    b: '<defs><linearGradient id="whBw1@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B48CFF"/><stop offset="1" stop-color="#6E7BFF"/></linearGradient><linearGradient id="whBw2@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9ACB"/><stop offset="1" stop-color="#9B6BFF"/></linearGradient><linearGradient id="whBw3@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7FD3FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="whBw4@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C7A6FF"/><stop offset="1" stop-color="#FF8FB8"/></linearGradient></defs><g opacity=".22" class="wn-pan wn-loop"><rect x="-24" y="-10" width="58" height="26" rx="13" fill="url(#whBw1@@)"/><rect x="52" y="-16" width="44" height="38" rx="9" fill="url(#whBw2@@)"/><rect x="128" y="-10" width="40" height="22" rx="11" fill="url(#whBw3@@)"/><circle cx="157" cy="1" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="204" y="-14" width="32" height="32" rx="10" fill="url(#whBw4@@)"/><rect x="280" y="-10" width="64" height="24" rx="12" fill="url(#whBw1@@)"/><rect x="356" y="-10" width="58" height="26" rx="13" fill="url(#whBw2@@)"/><rect x="14" y="34" width="32" height="32" rx="10" fill="url(#whBw3@@)"/><rect x="90" y="38" width="64" height="24" rx="12" fill="url(#whBw4@@)"/><rect x="166" y="38" width="58" height="26" rx="13" fill="url(#whBw1@@)"/><rect x="242" y="32" width="44" height="38" rx="9" fill="url(#whBw2@@)"/><rect x="318" y="38" width="40" height="22" rx="11" fill="url(#whBw3@@)"/><circle cx="347" cy="49" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="394" y="34" width="32" height="32" rx="10" fill="url(#whBw4@@)"/><rect x="-24" y="80" width="44" height="38" rx="9" fill="url(#whBw1@@)"/><rect x="52" y="86" width="40" height="22" rx="11" fill="url(#whBw2@@)"/><circle cx="81" cy="97" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="128" y="82" width="32" height="32" rx="10" fill="url(#whBw3@@)"/><rect x="204" y="86" width="64" height="24" rx="12" fill="url(#whBw4@@)"/><rect x="280" y="86" width="58" height="26" rx="13" fill="url(#whBw1@@)"/><rect x="356" y="80" width="44" height="38" rx="9" fill="url(#whBw2@@)"/><rect x="14" y="134" width="64" height="24" rx="12" fill="url(#whBw3@@)"/><rect x="90" y="134" width="58" height="26" rx="13" fill="url(#whBw4@@)"/><rect x="166" y="128" width="44" height="38" rx="9" fill="url(#whBw1@@)"/><rect x="242" y="134" width="40" height="22" rx="11" fill="url(#whBw2@@)"/><circle cx="271" cy="145" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="318" y="130" width="32" height="32" rx="10" fill="url(#whBw3@@)"/><rect x="394" y="134" width="64" height="24" rx="12" fill="url(#whBw4@@)"/><rect x="-24" y="182" width="40" height="22" rx="11" fill="url(#whBw1@@)"/><circle cx="5" cy="193" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="52" y="178" width="32" height="32" rx="10" fill="url(#whBw2@@)"/><rect x="128" y="182" width="64" height="24" rx="12" fill="url(#whBw3@@)"/><rect x="204" y="182" width="58" height="26" rx="13" fill="url(#whBw4@@)"/><rect x="280" y="176" width="44" height="38" rx="9" fill="url(#whBw1@@)"/><rect x="356" y="182" width="40" height="22" rx="11" fill="url(#whBw2@@)"/><circle cx="385" cy="193" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="14" y="230" width="58" height="26" rx="13" fill="url(#whBw3@@)"/><rect x="90" y="224" width="44" height="38" rx="9" fill="url(#whBw4@@)"/><rect x="166" y="230" width="40" height="22" rx="11" fill="url(#whBw1@@)"/><circle cx="195" cy="241" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="242" y="226" width="32" height="32" rx="10" fill="url(#whBw2@@)"/><rect x="318" y="230" width="64" height="24" rx="12" fill="url(#whBw3@@)"/><rect x="394" y="230" width="58" height="26" rx="13" fill="url(#whBw4@@)"/><rect x="-24" y="274" width="32" height="32" rx="10" fill="url(#whBw1@@)"/><rect x="52" y="278" width="64" height="24" rx="12" fill="url(#whBw2@@)"/><rect x="128" y="278" width="58" height="26" rx="13" fill="url(#whBw3@@)"/><rect x="204" y="272" width="44" height="38" rx="9" fill="url(#whBw4@@)"/><rect x="280" y="278" width="40" height="22" rx="11" fill="url(#whBw1@@)"/><circle cx="309" cy="289" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="356" y="274" width="32" height="32" rx="10" fill="url(#whBw2@@)"/><rect x="14" y="320" width="44" height="38" rx="9" fill="url(#whBw3@@)"/><rect x="90" y="326" width="40" height="22" rx="11" fill="url(#whBw4@@)"/><circle cx="119" cy="337" r="7.5" fill="#fff" fill-opacity=".45"/><rect x="166" y="322" width="32" height="32" rx="10" fill="url(#whBw1@@)"/><rect x="242" y="326" width="64" height="24" rx="12" fill="url(#whBw2@@)"/><rect x="318" y="326" width="58" height="26" rx="13" fill="url(#whBw3@@)"/><rect x="394" y="320" width="44" height="38" rx="9" fill="url(#whBw4@@)"/></g><circle class="wn-tw wn-loop" style="--i:1;fill:var(--wn-star,rgba(255,255,255,.85))" cx="97.6" cy="283.7" r="1.1"/><circle class="wn-tw wn-loop" style="--i:3;fill:var(--wn-star,rgba(255,255,255,.85))" cx="164.3" cy="182" r="1.3"/><circle class="wn-tw wn-loop" style="--i:4;fill:var(--wn-star,rgba(255,255,255,.85))" cx="263" cy="49" r="1"/><circle class="wn-tw wn-loop" style="--i:8;fill:var(--wn-star,rgba(255,255,255,.85))" cx="48.3" cy="284.3" r="1.5"/><circle class="wn-tw wn-loop" style="--i:9;fill:var(--wn-star,rgba(255,255,255,.85))" cx="75.7" cy="268.3" r="1.1"/><circle class="wn-tw wn-loop" style="--i:10;fill:var(--wn-star,rgba(255,255,255,.85))" cx="268.7" cy="179.7" r="0.8"/><circle class="wn-tw wn-loop" style="--i:11;fill:var(--wn-star,rgba(255,255,255,.85))" cx="394.2" cy="285.2" r="0.8"/><circle class="wn-tw wn-loop" style="--i:12;fill:var(--wn-star,rgba(255,255,255,.85))" cx="218.8" cy="211.4" r="0.7"/><circle class="wn-tw wn-loop" style="--i:13;fill:var(--wn-star,rgba(255,255,255,.85))" cx="309.1" cy="225.1" r="0.9"/><circle class="wn-tw wn-loop" style="--i:16;fill:var(--wn-star,rgba(255,255,255,.85))" cx="241.2" cy="257.1" r="1.3"/><circle class="wn-tw wn-loop" style="--i:17;fill:var(--wn-star,rgba(255,255,255,.85))" cx="261.1" cy="87" r="0.8"/><circle class="wn-tw wn-loop" style="--i:18;fill:var(--wn-star,rgba(255,255,255,.85))" cx="180.1" cy="57.7" r="0.6"/><circle class="wn-tw wn-loop" style="--i:20;fill:var(--wn-star,rgba(255,255,255,.85))" cx="382.1" cy="208" r="1"/><circle class="wn-tw wn-loop" style="--i:21;fill:var(--wn-star,rgba(255,255,255,.85))" cx="198.3" cy="280.9" r="1.4"/><circle class="wn-tw wn-loop" style="--i:22;fill:var(--wn-star,rgba(255,255,255,.85))" cx="180.3" cy="281.2" r="0.8"/>' },
+  wnHeroFg: { vb: '0 0 400 250', cls: 'il wn-l wn-l--fg',
+    b: '<defs><linearGradient id="whFbl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="whFblS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="whFvi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="whFviS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="whFli@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#eaf2ff"/><stop offset="1" stop-color="#b9d2ff"/></linearGradient><linearGradient id="whFliS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8fb0f0"/><stop offset="1" stop-color="#6886d8"/></linearGradient><linearGradient id="whFgl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.3" stop-color="#fff" stop-opacity="0.05"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="whFph1@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9DB6FF"/><stop offset="1" stop-color="#E3E4FE"/></linearGradient><linearGradient id="whFph2@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A48DFF"/><stop offset="1" stop-color="#eaf2ff"/></linearGradient><radialGradient id="whFglow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#4f86ff" stop-opacity="0.5"/><stop offset="1" stop-color="#4f86ff" stop-opacity="0"/></radialGradient><filter id="whFsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="whFsp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse class="wn-glow" cx="200" cy="122" rx="170" ry="120" fill="url(#whFglow@@)"/><g class="il-ring" style="--to:50% 50%"><circle cx="200" cy="122" r="62" fill="none" stroke="#b2caff" stroke-opacity=".22" stroke-width="1"/><circle cx="200" cy="122" r="100" fill="none" stroke="#b2caff" stroke-opacity=".22" stroke-width="1"/><circle cx="200" cy="122" r="140" fill="none" stroke="#b2caff" stroke-opacity=".22" stroke-width="1"/></g><g class="il-rise" style="--o:.05s"><ellipse cx="200" cy="214" rx="78" ry="12" fill="#05041a" opacity=".45"/><rect x="152" y="30" width="96" height="184" rx="20" fill="#0d0e26" stroke="#fff" stroke-opacity=".28" stroke-width="1"/><rect x="157" y="35" width="86" height="174" rx="15" fill="#f5f6fb"/><rect x="157" y="35" width="86" height="26" rx="15" fill="#6C4CF2"/><rect x="157" y="48" width="86" height="13" fill="#6C4CF2"/><path d="M166 50h30" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-opacity="0.85"/><rect x="164" y="70" width="48" height="14" rx="7" fill="#e3e7f0"/><rect x="188" y="90" width="48" height="14" rx="7" fill="#6C4CF2"/><rect x="164" y="110" width="58" height="34" rx="9" fill="#cbcffe"/><rect x="167" y="113" width="25" height="28" rx="6" fill="url(#whFph1@@)"/><rect x="194" y="113" width="25" height="28" rx="6" fill="url(#whFph2@@)"/><rect x="182" y="150" width="54" height="16" rx="8" fill="#6C4CF2"/><rect x="196" y="155" width="2.4" height="6" rx="1.2" fill="#fff" opacity=".85"/><rect x="201" y="153" width="2.4" height="10" rx="1.2" fill="#fff" opacity=".85"/><rect x="206" y="156" width="2.4" height="4" rx="1.2" fill="#fff" opacity=".85"/><rect x="211" y="152" width="2.4" height="12" rx="1.2" fill="#fff" opacity=".85"/><rect x="216" y="154" width="2.4" height="8" rx="1.2" fill="#fff" opacity=".85"/><rect x="221" y="155" width="2.4" height="6" rx="1.2" fill="#fff" opacity=".85"/><rect x="226" y="153" width="2.4" height="10" rx="1.2" fill="#fff" opacity=".85"/><circle cx="189" cy="158" r="4.5" fill="#fff"/><rect x="164" y="186" width="72" height="14" rx="7" fill="#e3e7f0"/></g><g transform="translate(92 72)"><g class="il-fly" style="--o:0.55s;--fx:60px;--fy:30px"><g class="wn-bob wn-loop" style="--d:4.55s"><g filter="url(#whFsh@@)"><rect x="-21.5" y="-20.5" width="48" height="48" rx="15" fill="url(#whFviS@@)"/><rect x="-24" y="-24" width="48" height="48" rx="15" fill="url(#whFvi@@)"/></g><rect x="-24" y="-24" width="48" height="48" rx="15" fill="url(#whFgl@@)"/><rect x="-23.6" y="-23.6" width="47.2" height="47.2" rx="15" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="-12" y="-12" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M19.2499 13.9999C19.2499 13.138 18.9073 12.3116 18.2978 11.7021C17.6883 11.0926 16.8619 10.7499 15.9999 10.7499H6.81049L9.53022 13.4697C9.82311 13.7626 9.82311 14.2373 9.53022 14.5302C9.23732 14.8231 8.76256 14.8231 8.46967 14.5302L4.46967 10.5302C4.17678 10.2373 4.17678 9.76256 4.46967 9.46967L8.46967 5.46967C8.76256 5.17678 9.23732 5.17678 9.53022 5.46967C9.82311 5.76256 9.82311 6.23732 9.53022 6.53022L6.81049 9.24994H15.9999C17.2597 9.24994 18.4675 9.75075 19.3583 10.6415C20.2491 11.5323 20.7499 12.7402 20.7499 13.9999C20.7499 15.2597 20.2491 16.4675 19.3583 17.3583C18.4675 18.2491 17.2597 18.7499 15.9999 18.7499H14.9999C14.5857 18.7499 14.2499 18.4142 14.2499 17.9999C14.2499 17.5857 14.5857 17.2499 14.9999 17.2499H15.9999C16.8619 17.2499 17.6883 16.9073 18.2978 16.2978C18.9073 15.6883 19.2499 14.8619 19.2499 13.9999Z" fill="currentColor"/></svg></g></g></g><g transform="translate(310 70)"><g class="il-fly" style="--o:0.75s;--fx:-60px;--fy:30px"><g class="wn-bob wn-loop" style="--d:4.75s"><g filter="url(#whFsh@@)"><rect x="-21.5" y="-20.5" width="48" height="48" rx="15" fill="url(#whFblS@@)"/><rect x="-24" y="-24" width="48" height="48" rx="15" fill="url(#whFbl@@)"/></g><rect x="-24" y="-24" width="48" height="48" rx="15" fill="url(#whFgl@@)"/><rect x="-23.6" y="-23.6" width="47.2" height="47.2" rx="15" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="-12" y="-12" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M4.25 10C4.25 9.58579 4.58579 9.25 5 9.25C5.41421 9.25 5.75 9.58579 5.75 10C5.75 11.6576 6.40895 13.2468 7.58105 14.4189C8.75316 15.591 10.3424 16.25 12 16.25C13.6576 16.25 15.2468 15.591 16.4189 14.4189C17.591 13.2468 18.25 11.6576 18.25 10C18.25 9.58579 18.5858 9.25 19 9.25C19.4142 9.25 19.75 9.58579 19.75 10C19.75 12.0554 18.9339 14.0271 17.4805 15.4805C16.2049 16.756 14.5301 17.5399 12.75 17.7129V20.25H16C16.4142 20.25 16.75 20.5858 16.75 21C16.75 21.4142 16.4142 21.75 16 21.75H8C7.58579 21.75 7.25 21.4142 7.25 21C7.25 20.5858 7.58579 20.25 8 20.25H11.25V17.7129C9.46991 17.5399 7.79507 16.756 6.51953 15.4805C5.06612 14.0271 4.25 12.0554 4.25 10ZM14.25 5C14.25 4.40326 14.0128 3.83114 13.5908 3.40918C13.1689 2.98722 12.5967 2.75 12 2.75C11.4033 2.75 10.8311 2.98722 10.4092 3.40918C9.98722 3.83114 9.75 4.40326 9.75 5V10C9.75 10.5967 9.98722 11.1689 10.4092 11.5908C10.8311 12.0128 11.4033 12.25 12 12.25C12.5967 12.25 13.1689 12.0128 13.5908 11.5908C14.0128 11.1689 14.25 10.5967 14.25 10V5ZM15.75 10C15.75 10.9946 15.3546 11.9481 14.6514 12.6514C13.9481 13.3546 12.9946 13.75 12 13.75C11.0054 13.75 10.0519 13.3546 9.34863 12.6514C8.64537 11.9481 8.25 10.9946 8.25 10V5C8.25 4.00544 8.64537 3.05189 9.34863 2.34863C10.0519 1.64537 11.0054 1.25 12 1.25C12.9946 1.25 13.9481 1.64537 14.6514 2.34863C15.3546 3.05189 15.75 4.00544 15.75 5V10Z" fill="currentColor"/></svg></g></g></g><g transform="translate(96 176)"><g class="il-fly" style="--o:0.95s;--fx:60px;--fy:-30px"><g class="wn-bob wn-loop" style="--d:4.95s"><g filter="url(#whFsh@@)"><rect x="-21.5" y="-20.5" width="48" height="48" rx="15" fill="url(#whFliS@@)"/><rect x="-24" y="-24" width="48" height="48" rx="15" fill="url(#whFli@@)"/></g><rect x="-24" y="-24" width="48" height="48" rx="15" fill="url(#whFgl@@)"/><rect x="-23.6" y="-23.6" width="47.2" height="47.2" rx="15" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="-12" y="-12" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="color:#5C45CC"><path d="M20.25 16.3105L17.4795 13.54C17.1283 13.2022 16.7893 13.0801 16.5 13.0801C16.2107 13.0801 15.8717 13.2022 15.5205 13.54L15.0605 14L16.5303 15.4697C16.8231 15.7626 16.8232 16.2374 16.5303 16.5303C16.2374 16.8231 15.7626 16.8231 15.4697 16.5303L10.4795 11.54C10.1282 11.2022 9.78933 11.0801 9.5 11.0801C9.21067 11.0801 8.87175 11.2022 8.52051 11.54L3.75 16.3105V18C3.75 18.5967 3.98722 19.1689 4.40918 19.5908C4.83114 20.0128 5.40326 20.25 6 20.25H18C18.5967 20.25 19.1689 20.0128 19.5908 19.5908C20.0128 19.1689 20.25 18.5967 20.25 18V16.3105ZM15.0098 7.25C15.424 7.25 15.7598 7.58579 15.7598 8C15.7598 8.41421 15.424 8.75 15.0098 8.75H15C14.5858 8.75 14.25 8.41421 14.25 8C14.25 7.58579 14.5858 7.25 15 7.25H15.0098ZM20.25 6C20.25 5.40326 20.0128 4.83114 19.5908 4.40918C19.1689 3.98722 18.5967 3.75 18 3.75H6C5.40326 3.75 4.83114 3.98722 4.40918 4.40918C3.98722 4.83114 3.75 5.40326 3.75 6V14.1895L7.47949 10.46C8.0561 9.9051 8.75344 9.58008 9.5 9.58008C10.1532 9.58008 10.768 9.82895 11.2979 10.2627L11.5205 10.46L14 12.9395L14.4795 12.46C15.0561 11.9051 15.7534 11.5801 16.5 11.5801C17.1532 11.5801 17.768 11.829 18.2979 12.2627L18.5205 12.46L20.25 14.1895V6ZM21.75 18C21.75 18.9946 21.3546 19.9481 20.6514 20.6514C19.9481 21.3546 18.9946 21.75 18 21.75H6C5.00544 21.75 4.05189 21.3546 3.34863 20.6514C2.64537 19.9481 2.25 18.9946 2.25 18V6C2.25 5.00544 2.64537 4.05189 3.34863 3.34863C4.05189 2.64537 5.00544 2.25 6 2.25H18C18.9946 2.25 19.9481 2.64537 20.6514 3.34863C21.3546 4.05189 21.75 5.00544 21.75 6V18Z" fill="currentColor"/></svg></g></g></g><g transform="translate(306 178)"><g class="il-fly" style="--o:1.15s;--fx:-60px;--fy:-30px"><g class="wn-bob wn-loop" style="--d:5.15s"><g filter="url(#whFsh@@)"><rect x="-21.5" y="-20.5" width="48" height="48" rx="15" fill="url(#whFviS@@)"/><rect x="-24" y="-24" width="48" height="48" rx="15" fill="url(#whFvi@@)"/></g><rect x="-24" y="-24" width="48" height="48" rx="15" fill="url(#whFgl@@)"/><rect x="-23.6" y="-23.6" width="47.2" height="47.2" rx="15" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="-12" y="-12" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M2.46999 2.46967C2.76288 2.17678 3.23764 2.17678 3.53054 2.46967L17.1643 16.1035C17.2029 16.1362 17.2407 16.1707 17.2727 16.2119L21.5305 20.4697C21.8234 20.7626 21.8234 21.2373 21.5305 21.5302C21.2376 21.8231 20.7629 21.8231 20.47 21.5302L16.553 17.6132C15.1574 18.3664 13.5925 18.7586 12.0003 18.749V18.7499L11.9983 18.749L11.9954 18.7499V18.749C8.05594 18.7471 4.84544 16.5336 2.35671 12.3857C2.21444 12.1483 2.21442 11.8516 2.35671 11.6142C3.47358 9.75274 4.73721 8.27725 6.15554 7.21576L2.46999 3.53022C2.1771 3.23732 2.1771 2.76256 2.46999 2.46967ZM7.2278 8.28803C6.02811 9.14382 4.90915 10.3715 3.88112 11.999C6.14425 15.5833 8.85262 17.2499 12.0003 17.2499H12.0051C13.1947 17.2578 14.3658 16.9972 15.4358 16.496L13.3401 14.4003C12.9341 14.627 12.4745 14.7508 12.0012 14.7509C11.2719 14.751 10.5717 14.4618 10.0559 13.9462C9.5402 13.4307 9.25051 12.7311 9.25026 12.0019C9.25018 11.5282 9.37392 11.0675 9.60085 10.6611L7.2278 8.28803ZM12.0003 5.24994C15.9419 5.24994 19.1541 7.4646 21.6438 11.6142C21.7861 11.8516 21.7861 12.1483 21.6438 12.3857C20.9546 13.5344 20.2093 14.5363 19.4075 15.3847C19.123 15.6857 18.648 15.6995 18.3469 15.415C18.046 15.1304 18.0331 14.6554 18.3176 14.3544C18.9459 13.6897 19.5463 12.9056 20.1184 11.9999C17.8555 8.41638 15.1476 6.74994 12.0003 6.74994H11.9983C11.4379 6.7485 10.8787 6.8038 10.3294 6.91498C9.9235 6.99715 9.52791 6.73484 9.44558 6.32904C9.36339 5.92307 9.62554 5.52745 10.0315 5.44526C10.6795 5.31407 11.3391 5.24837 12.0003 5.24994ZM10.7639 11.8242C10.7556 11.8824 10.7503 11.9414 10.7503 12.0009C10.7503 12.3324 10.8821 12.6503 11.1165 12.8847C11.3509 13.119 11.6688 13.2509 12.0003 13.2509C12.0594 13.2509 12.1181 13.2445 12.176 13.2363L10.7639 11.8242Z" fill="currentColor"/></svg></g></g></g><g transform="translate(130 30) scale(1)"><g class="il-tw" style="--i:0;--o:0.8s"><use href="#whFsp@@" fill="#fff"/></g></g><g transform="translate(272 222) scale(0.8)"><g class="il-tw" style="--i:1;--o:0.8s"><use href="#whFsp@@" fill="#fff"/></g></g><g transform="translate(352 128) scale(0.7)"><g class="il-tw" style="--i:2;--o:0.8s"><use href="#whFsp@@" fill="#fff"/></g></g><g transform="translate(46 126) scale(0.7)"><g class="il-tw" style="--i:3;--o:0.8s"><use href="#whFsp@@" fill="#fff"/></g></g>' },
+  wnReplyBg: { vb: '0 0 400 240', par: 'xMidYMid slice', cls: 'il wn-l wn-l--bg',
+    b: '<defs><linearGradient id="wrBw1@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B48CFF"/><stop offset="1" stop-color="#6E7BFF"/></linearGradient><linearGradient id="wrBw2@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9ACB"/><stop offset="1" stop-color="#9B6BFF"/></linearGradient><linearGradient id="wrBw3@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7FD3FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="wrBw4@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C7A6FF"/><stop offset="1" stop-color="#FF8FB8"/></linearGradient></defs><g opacity=".24" class="wn-rise wn-loop" style="--d:22s"><g fill="url(#wrBw1@@)"><rect x="-30" y="-20" width="54" height="28" rx="14"/><path d="M-20 4l-12 6l4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="66" y="-20" width="68" height="28" rx="14"/><path d="M124 4l12 6l-4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="162" y="-20" width="82" height="28" rx="14"/><path d="M172 4l-12 6l4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="258" y="-20" width="96" height="28" rx="14"/><path d="M344 4l12 6l-4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="354" y="-20" width="54" height="28" rx="14"/><path d="M364 4l-12 6l4-10Z"/></g><g fill="url(#wrBw2@@)"><rect x="10" y="24" width="96" height="28" rx="14"/><path d="M96 48l12 6l-4-10Z"/></g><g fill="url(#wrBw4@@)"><rect x="106" y="24" width="54" height="28" rx="14"/><path d="M116 48l-12 6l4-10Z"/></g><g fill="url(#wrBw2@@)"><rect x="202" y="24" width="68" height="28" rx="14"/><path d="M260 48l12 6l-4-10Z"/></g><g fill="url(#wrBw4@@)"><rect x="298" y="24" width="82" height="28" rx="14"/><path d="M308 48l-12 6l4-10Z"/></g><g fill="url(#wrBw2@@)"><rect x="394" y="24" width="96" height="28" rx="14"/><path d="M480 48l12 6l-4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="-30" y="68" width="82" height="28" rx="14"/><path d="M-20 92l-12 6l4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="66" y="68" width="96" height="28" rx="14"/><path d="M152 92l12 6l-4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="162" y="68" width="54" height="28" rx="14"/><path d="M172 92l-12 6l4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="258" y="68" width="68" height="28" rx="14"/><path d="M316 92l12 6l-4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="354" y="68" width="82" height="28" rx="14"/><path d="M364 92l-12 6l4-10Z"/></g><g fill="url(#wrBw4@@)"><rect x="10" y="112" width="68" height="28" rx="14"/><path d="M68 136l12 6l-4-10Z"/></g><g fill="url(#wrBw2@@)"><rect x="106" y="112" width="82" height="28" rx="14"/><path d="M116 136l-12 6l4-10Z"/></g><g fill="url(#wrBw4@@)"><rect x="202" y="112" width="96" height="28" rx="14"/><path d="M288 136l12 6l-4-10Z"/></g><g fill="url(#wrBw2@@)"><rect x="298" y="112" width="54" height="28" rx="14"/><path d="M308 136l-12 6l4-10Z"/></g><g fill="url(#wrBw4@@)"><rect x="394" y="112" width="68" height="28" rx="14"/><path d="M452 136l12 6l-4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="-30" y="156" width="54" height="28" rx="14"/><path d="M-20 180l-12 6l4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="66" y="156" width="68" height="28" rx="14"/><path d="M124 180l12 6l-4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="162" y="156" width="82" height="28" rx="14"/><path d="M172 180l-12 6l4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="258" y="156" width="96" height="28" rx="14"/><path d="M344 180l12 6l-4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="354" y="156" width="54" height="28" rx="14"/><path d="M364 180l-12 6l4-10Z"/></g><g fill="url(#wrBw2@@)"><rect x="10" y="200" width="96" height="28" rx="14"/><path d="M96 224l12 6l-4-10Z"/></g><g fill="url(#wrBw4@@)"><rect x="106" y="200" width="54" height="28" rx="14"/><path d="M116 224l-12 6l4-10Z"/></g><g fill="url(#wrBw2@@)"><rect x="202" y="200" width="68" height="28" rx="14"/><path d="M260 224l12 6l-4-10Z"/></g><g fill="url(#wrBw4@@)"><rect x="298" y="200" width="82" height="28" rx="14"/><path d="M308 224l-12 6l4-10Z"/></g><g fill="url(#wrBw2@@)"><rect x="394" y="200" width="96" height="28" rx="14"/><path d="M480 224l12 6l-4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="-30" y="244" width="82" height="28" rx="14"/><path d="M-20 268l-12 6l4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="66" y="244" width="96" height="28" rx="14"/><path d="M152 268l12 6l-4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="162" y="244" width="54" height="28" rx="14"/><path d="M172 268l-12 6l4-10Z"/></g><g fill="url(#wrBw1@@)"><rect x="258" y="244" width="68" height="28" rx="14"/><path d="M316 268l12 6l-4-10Z"/></g><g fill="url(#wrBw3@@)"><rect x="354" y="244" width="82" height="28" rx="14"/><path d="M364 268l-12 6l4-10Z"/></g></g><circle class="wn-tw wn-loop" style="--i:0;fill:var(--wn-star,rgba(255,255,255,.85))" cx="132.4" cy="52.1" r="1.4"/><circle class="wn-tw wn-loop" style="--i:1;fill:var(--wn-star,rgba(255,255,255,.85))" cx="153.6" cy="158" r="0.8"/><circle class="wn-tw wn-loop" style="--i:2;fill:var(--wn-star,rgba(255,255,255,.85))" cx="384.9" cy="103.3" r="0.9"/><circle class="wn-tw wn-loop" style="--i:3;fill:var(--wn-star,rgba(255,255,255,.85))" cx="193.1" cy="228" r="1.2"/><circle class="wn-tw wn-loop" style="--i:4;fill:var(--wn-star,rgba(255,255,255,.85))" cx="144.9" cy="152.2" r="1.2"/><circle class="wn-tw wn-loop" style="--i:5;fill:var(--wn-star,rgba(255,255,255,.85))" cx="6.8" cy="215.8" r="1.3"/><circle class="wn-tw wn-loop" style="--i:6;fill:var(--wn-star,rgba(255,255,255,.85))" cx="345.6" cy="38.9" r="0.8"/><circle class="wn-tw wn-loop" style="--i:7;fill:var(--wn-star,rgba(255,255,255,.85))" cx="127.8" cy="201.4" r="1.2"/><circle class="wn-tw wn-loop" style="--i:8;fill:var(--wn-star,rgba(255,255,255,.85))" cx="320.3" cy="83.4" r="0.9"/><circle class="wn-tw wn-loop" style="--i:9;fill:var(--wn-star,rgba(255,255,255,.85))" cx="289.6" cy="24.8" r="1.3"/><circle class="wn-tw wn-loop" style="--i:10;fill:var(--wn-star,rgba(255,255,255,.85))" cx="202.5" cy="125.7" r="0.9"/><circle class="wn-tw wn-loop" style="--i:11;fill:var(--wn-star,rgba(255,255,255,.85))" cx="225.5" cy="6" r="0.9"/><circle class="wn-tw wn-loop" style="--i:12;fill:var(--wn-star,rgba(255,255,255,.85))" cx="125.4" cy="5.7" r="1"/><circle class="wn-tw wn-loop" style="--i:13;fill:var(--wn-star,rgba(255,255,255,.85))" cx="68.8" cy="224.9" r="1.4"/>' },
+  wnReplyFg: { vb: '0 0 400 240', cls: 'il wn-l wn-l--fg',
+    b: '<defs><linearGradient id="wrFbl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="wrFblS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="wrFvi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="wrFli@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#eaf2ff"/><stop offset="1" stop-color="#b9d2ff"/></linearGradient><linearGradient id="wrFliS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8fb0f0"/><stop offset="1" stop-color="#6886d8"/></linearGradient><linearGradient id="wrFgl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.3" stop-color="#fff" stop-opacity="0.05"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="wrFglow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#4f86ff" stop-opacity="0.5"/><stop offset="1" stop-color="#4f86ff" stop-opacity="0"/></radialGradient><filter id="wrFsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="wrFshS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="wrFsp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse class="wn-glow" cx="200" cy="124" rx="180" ry="110" fill="url(#wrFglow@@)"/><g class="il-fade" style="--o:.5s"><circle cx="56" cy="70" r="15" style="fill:var(--wn-chip,#3050bd)" fill-opacity=".14"/><svg x="46" y="60" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:var(--wn-chip-ink,#3050bd)"><path d="M19.2499 13.9999C19.2499 13.138 18.9073 12.3116 18.2978 11.7021C17.6883 11.0926 16.8619 10.7499 15.9999 10.7499H6.81049L9.53022 13.4697C9.82311 13.7626 9.82311 14.2373 9.53022 14.5302C9.23732 14.8231 8.76256 14.8231 8.46967 14.5302L4.46967 10.5302C4.17678 10.2373 4.17678 9.76256 4.46967 9.46967L8.46967 5.46967C8.76256 5.17678 9.23732 5.17678 9.53022 5.46967C9.82311 5.76256 9.82311 6.23732 9.53022 6.53022L6.81049 9.24994H15.9999C17.2597 9.24994 18.4675 9.75075 19.3583 10.6415C20.2491 11.5323 20.7499 12.7402 20.7499 13.9999C20.7499 15.2597 20.2491 16.4675 19.3583 17.3583C18.4675 18.2491 17.2597 18.7499 15.9999 18.7499H14.9999C14.5857 18.7499 14.2499 18.4142 14.2499 17.9999C14.2499 17.5857 14.5857 17.2499 14.9999 17.2499H15.9999C16.8619 17.2499 17.6883 16.9073 18.2978 16.2978C18.9073 15.6883 19.2499 14.8619 19.2499 13.9999Z" fill="currentColor"/></svg></g><g class="il-wn-nudge" style="--o:.2s"><g filter="url(#wrFsh@@)"><rect x="86.5" y="49.5" width="176" height="48" rx="18" fill="url(#wrFliS@@)"/><rect x="84" y="46" width="176" height="48" rx="18" fill="url(#wrFli@@)"/></g><rect x="84" y="46" width="176" height="48" rx="18" fill="url(#wrFgl@@)"/><rect x="84.4" y="46.4" width="175.2" height="47.2" rx="18" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><path d="M100 63h118" stroke="#6886d8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.55"/><path d="M100 77h74" stroke="#6886d8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.4"/></g><g transform="translate(0 0)"><g class="il-pop" style="--o:1.5s;--to:50% 50%"><rect x="98" y="98" width="144" height="30" rx="15" fill="#fff" filter="url(#wrFshS@@)"/><circle cx="112" cy="113" r="9.5" fill="#FF6B8A"/><svg x="106" y="107" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6.979 3.074a6 6 0 0 1 4.988 1.425l.037 .033l.034 -.03a6 6 0 0 1 4.733 -1.44l.246 .036a6 6 0 0 1 3.364 10.008l-.18 .185l-.048 .041l-7.45 7.379a1 1 0 0 1 -1.313 .082l-.094 -.082l-7.493 -7.422a6 6 0 0 1 3.176 -10.215z"/></svg><circle cx="135" cy="113" r="9.5" fill="#FFC94D"/><svg x="129" y="107" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path fill="none" d="M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873l-6.158 -3.245" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><circle cx="158" cy="113" r="9.5" fill="#7DA6FF"/><svg x="152" y="107" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M1.46967 11.4697C1.76256 11.1768 2.23732 11.1768 2.53022 11.4697L7.53022 16.4697C7.82311 16.7626 7.82311 17.2373 7.53022 17.5302C7.23732 17.8231 6.76256 17.8231 6.46967 17.5302L1.46967 12.5302C1.17678 12.2373 1.17678 11.7626 1.46967 11.4697ZM21.4697 6.46967C21.7626 6.17678 22.2373 6.17678 22.5302 6.46967C22.8231 6.76256 22.8231 7.23732 22.5302 7.53022L12.5302 17.5302C12.2373 17.8231 11.7626 17.8231 11.4697 17.5302L6.46967 12.5302C6.17678 12.2373 6.17678 11.7626 6.46967 11.4697C6.76256 11.1768 7.23732 11.1768 7.53022 11.4697L11.9999 15.9394L21.4697 6.46967ZM16.4697 6.46967C16.7626 6.17678 17.2373 6.17678 17.5302 6.46967C17.8231 6.76256 17.8231 7.23732 17.5302 7.53022L12.5302 12.5302C12.2373 12.8231 11.7626 12.8231 11.4697 12.5302C11.1768 12.2373 11.1768 11.7626 11.4697 11.4697L16.4697 6.46967Z" fill="currentColor"/></svg><circle cx="181" cy="113" r="9.5" fill="#A48DFF"/><svg x="175" y="107" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 3h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M9 13h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M19 13h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M17 3a1 1 0 0 1 .993 .883l.007 .117v2h2a1 1 0 0 1 .117 1.993l-.117 .007h-2v2a1 1 0 0 1 -1.993 .117l-.007 -.117v-2h-2a1 1 0 0 1 -.117 -1.993l.117 -.007h2v-2a1 1 0 0 1 1 -1z"/></svg><circle cx="204" cy="113" r="9.5" fill="#3CC79A"/><svg x="198" y="107" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6.979 3.074a6 6 0 0 1 4.988 1.425l.037 .033l.034 -.03a6 6 0 0 1 4.733 -1.44l.246 .036a6 6 0 0 1 3.364 10.008l-.18 .185l-.048 .041l-7.45 7.379a1 1 0 0 1 -1.313 .082l-.094 -.082l-7.493 -7.422a6 6 0 0 1 3.176 -10.215z"/></svg><circle cx="227" cy="113" r="9.5" fill="#FF9F5A"/><svg x="221" y="107" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path fill="none" d="M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873l-6.158 -3.245" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></g></g><g class="il-rise" style="--o:.75s"><g filter="url(#wrFsh@@)"><rect x="138.5" y="143.5" width="228" height="72" rx="20" fill="url(#wrFblS@@)"/><rect x="136" y="140" width="228" height="72" rx="20" fill="url(#wrFbl@@)"/></g><rect x="136" y="140" width="228" height="72" rx="20" fill="url(#wrFgl@@)"/><rect x="136.4" y="140.4" width="227.2" height="71.2" rx="20" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><rect x="150" y="151" width="200" height="25" rx="8" fill="#fff" fill-opacity=".24"/><rect x="150" y="151" width="4" height="25" rx="2" fill="#fff"/><path d="M162 163.5h110" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-opacity="0.75"/><path class="il-draw" style="--len:150;--o:2.1s" d="M152 195h150" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/></g><g class="il-pop" style="--o:2.5s;--to:50% 50%"><circle cx="360" cy="140" r="15" fill="url(#wrFvi@@)" filter="url(#wrFshS@@)"/><svg x="351" y="131" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M18.5781 7.49976C18.5781 7.22692 18.5243 6.9569 18.4199 6.70483C18.3155 6.45267 18.1627 6.22303 17.9697 6.03003C17.7768 5.8371 17.547 5.68426 17.2949 5.57983C17.0429 5.47549 16.7728 5.42163 16.5 5.42163C16.2272 5.42163 15.9571 5.47549 15.7051 5.57983C15.453 5.68426 15.2232 5.8371 15.0303 6.03003L14.5605 6.49976L17.5 9.43921L17.9697 8.96948C18.1626 8.77659 18.3155 8.54764 18.4199 8.29565C18.5244 8.04349 18.5781 7.7727 18.5781 7.49976ZM4.75 16.3103V19.2498H7.68945L16.4395 10.4998L13.5 7.5603L4.75 16.3103ZM20.0781 7.49976C20.0781 7.96968 19.9855 8.43572 19.8057 8.86987C19.6259 9.30377 19.3624 9.6979 19.0303 10.03L8.53027 20.53C8.38962 20.6707 8.19891 20.7498 8 20.7498H4C3.58579 20.7498 3.25 20.414 3.25 19.9998V15.9998C3.25008 15.801 3.32915 15.6101 3.46973 15.4695L13.9697 4.96948C14.302 4.63727 14.6968 4.3739 15.1309 4.19409C15.565 4.01431 16.0301 3.92163 16.5 3.92163C16.9699 3.92163 17.435 4.01431 17.8691 4.19409C18.3032 4.3739 18.698 4.63727 19.0303 4.96948C19.3625 5.30173 19.6258 5.69652 19.8057 6.13062C19.9855 6.56468 20.0781 7.02994 20.0781 7.49976Z" fill="currentColor"/></svg></g><g class="il-drop" style="--o:2.0s;--dy:-30px"><circle cx="250" cy="92" r="11" fill="#FF6B8A" stroke="#fff" stroke-width="2"/><svg x="243" y="85" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6.979 3.074a6 6 0 0 1 4.988 1.425l.037 .033l.034 -.03a6 6 0 0 1 4.733 -1.44l.246 .036a6 6 0 0 1 3.364 10.008l-.18 .185l-.048 .041l-7.45 7.379a1 1 0 0 1 -1.313 .082l-.094 -.082l-7.493 -7.422a6 6 0 0 1 3.176 -10.215z"/></svg></g><g transform="translate(70 200) scale(0.8)"><g class="il-tw" style="--i:0;--o:2.6s"><use href="#wrFsp@@" fill="#fff"/></g></g><g transform="translate(380 96) scale(0.7)"><g class="il-tw" style="--i:1;--o:2.7s"><use href="#wrFsp@@" fill="#fff"/></g></g><g transform="translate(280 30) scale(0.9)"><g class="il-tw" style="--i:2;--o:1s"><use href="#wrFsp@@" fill="#fff"/></g></g>' },
+  wnVoiceBg: { vb: '0 0 400 240', par: 'xMidYMid slice', cls: 'il wn-l wn-l--bg',
+    b: '<defs><linearGradient id="wvBw1@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B48CFF"/><stop offset="1" stop-color="#6E7BFF"/></linearGradient><linearGradient id="wvBw2@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9ACB"/><stop offset="1" stop-color="#9B6BFF"/></linearGradient><linearGradient id="wvBw3@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7FD3FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="wvBw4@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C7A6FF"/><stop offset="1" stop-color="#FF8FB8"/></linearGradient></defs><rect class="wn-bar wn-loop" style="--i:0" x="4" y="97.9" width="6" height="44.2" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:1" x="13.2" y="63.1" width="6" height="113.9" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:2" x="22.4" y="42.7" width="6" height="154.7" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:3" x="31.6" y="43.5" width="6" height="153" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:4" x="40.8" y="61.4" width="6" height="117.3" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:5" x="50" y="85.2" width="6" height="69.7" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:6" x="59.2" y="94.5" width="6" height="51" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:7" x="68.4" y="93.7" width="6" height="52.7" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:8" x="77.6" y="91.1" width="6" height="57.8" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:9" x="86.8" y="77.5" width="6" height="85" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:10" x="96" y="74.1" width="6" height="91.8" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:11" x="105.2" y="87.7" width="6" height="64.6" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:12" x="114.4" y="80.9" width="6" height="78.2" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:13" x="123.6" y="50.3" width="6" height="139.4" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:14" x="132.8" y="32.5" width="6" height="175.1" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:15" x="142" y="35" width="6" height="170" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:16" x="151.2" y="58.8" width="6" height="122.4" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:17" x="160.4" y="93.7" width="6" height="52.7" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:18" x="169.6" y="73.3" width="6" height="93.5" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:19" x="178.8" y="59.7" width="6" height="120.7" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:20" x="188" y="64.8" width="6" height="110.5" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:21" x="197.2" y="80.9" width="6" height="78.2" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:22" x="206.4" y="95.4" width="6" height="49.3" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:23" x="215.6" y="97.1" width="6" height="45.9" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:24" x="224.8" y="85.2" width="6" height="69.7" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:25" x="234" y="65.6" width="6" height="108.8" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:26" x="243.2" y="52" width="6" height="136" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:27" x="252.4" y="56.3" width="6" height="127.5" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:28" x="261.6" y="79.2" width="6" height="81.6" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:29" x="270.8" y="81.8" width="6" height="76.5" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:30" x="280" y="49.5" width="6" height="141.1" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:31" x="289.2" y="33.3" width="6" height="173.4" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:32" x="298.4" y="39.3" width="6" height="161.5" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:33" x="307.6" y="63.1" width="6" height="113.9" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:34" x="316.8" y="91.1" width="6" height="57.8" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:35" x="326" y="85.2" width="6" height="69.7" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:36" x="335.2" y="81.8" width="6" height="76.5" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:37" x="344.4" y="92" width="6" height="56.1" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:38" x="353.6" y="90.3" width="6" height="59.5" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:39" x="362.8" y="86" width="6" height="68" rx="3" fill="url(#wvBw4@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:40" x="372" y="97.9" width="6" height="44.2" rx="3" fill="url(#wvBw1@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:41" x="381.2" y="73.3" width="6" height="93.5" rx="3" fill="url(#wvBw2@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:42" x="390.4" y="47.8" width="6" height="144.5" rx="3" fill="url(#wvBw3@@)" opacity=".3"/><rect class="wn-bar wn-loop" style="--i:43" x="399.6" y="35" width="6" height="170" rx="3" fill="url(#wvBw4@@)" opacity=".3"/>' },
+  wnVoiceFg: { vb: '0 0 400 240', cls: 'il wn-l wn-l--fg',
+    b: '<defs><linearGradient id="wvFbl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="wvFblS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="wvFgl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.3" stop-color="#fff" stop-opacity="0.05"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="wvFglowB@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#5A86FF" stop-opacity="0.45"/><stop offset="1" stop-color="#5A86FF" stop-opacity="0"/></radialGradient><radialGradient id="wvFvc@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#B7D0FF"/><stop offset=".5" stop-color="#6F9BFF"/><stop offset="1" stop-color="#3A6CE0"/></radialGradient><filter id="wvFsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="wvFsp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse class="wn-glow" cx="118" cy="120" rx="120" ry="100" fill="url(#wvFglowB@@)"/><circle class="il-wn-pulse" style="--o:0.5s" cx="118" cy="120" r="34" fill="none" stroke="#BFD4FF" stroke-width="2"/><circle class="il-wn-pulse" style="--o:1.3s" cx="118" cy="120" r="34" fill="none" stroke="#BFD4FF" stroke-width="2"/><circle class="il-wn-pulse" style="--o:2.1s" cx="118" cy="120" r="34" fill="none" stroke="#BFD4FF" stroke-width="2"/><g class="il-pop" style="--o:.1s;--to:50% 50%"><circle cx="118" cy="120" r="36" fill="url(#wvFvc@@)" filter="url(#wvFsh@@)"/><circle cx="118" cy="120" r="35.5" fill="none" stroke="#fff" stroke-opacity=".35"/><svg x="102" y="104" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M4.25 10C4.25 9.58579 4.58579 9.25 5 9.25C5.41421 9.25 5.75 9.58579 5.75 10C5.75 11.6576 6.40895 13.2468 7.58105 14.4189C8.75316 15.591 10.3424 16.25 12 16.25C13.6576 16.25 15.2468 15.591 16.4189 14.4189C17.591 13.2468 18.25 11.6576 18.25 10C18.25 9.58579 18.5858 9.25 19 9.25C19.4142 9.25 19.75 9.58579 19.75 10C19.75 12.0554 18.9339 14.0271 17.4805 15.4805C16.2049 16.756 14.5301 17.5399 12.75 17.7129V20.25H16C16.4142 20.25 16.75 20.5858 16.75 21C16.75 21.4142 16.4142 21.75 16 21.75H8C7.58579 21.75 7.25 21.4142 7.25 21C7.25 20.5858 7.58579 20.25 8 20.25H11.25V17.7129C9.46991 17.5399 7.79507 16.756 6.51953 15.4805C5.06612 14.0271 4.25 12.0554 4.25 10ZM14.25 5C14.25 4.40326 14.0128 3.83114 13.5908 3.40918C13.1689 2.98722 12.5967 2.75 12 2.75C11.4033 2.75 10.8311 2.98722 10.4092 3.40918C9.98722 3.83114 9.75 4.40326 9.75 5V10C9.75 10.5967 9.98722 11.1689 10.4092 11.5908C10.8311 12.0128 11.4033 12.25 12 12.25C12.5967 12.25 13.1689 12.0128 13.5908 11.5908C14.0128 11.1689 14.25 10.5967 14.25 10V5ZM15.75 10C15.75 10.9946 15.3546 11.9481 14.6514 12.6514C13.9481 13.3546 12.9946 13.75 12 13.75C11.0054 13.75 10.0519 13.3546 9.34863 12.6514C8.64537 11.9481 8.25 10.9946 8.25 10V5C8.25 4.00544 8.64537 3.05189 9.34863 2.34863C10.0519 1.64537 11.0054 1.25 12 1.25C12.9946 1.25 13.9481 1.64537 14.6514 2.34863C15.3546 3.05189 15.75 4.00544 15.75 5V10Z" fill="currentColor"/></svg></g><g class="il-in" style="--o:.7s;--fx:-26px;--fy:0px"><g filter="url(#wvFsh@@)"><rect x="178.5" y="95.5" width="196" height="58" rx="29" fill="url(#wvFblS@@)"/><rect x="176" y="92" width="196" height="58" rx="29" fill="url(#wvFbl@@)"/></g><rect x="176" y="92" width="196" height="58" rx="29" fill="url(#wvFgl@@)"/><rect x="176.4" y="92.4" width="195.2" height="57.2" rx="29" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><circle cx="206" cy="121" r="17" fill="#fff"/><svg x="198" y="113" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#3050bd"><path d="M6.63379 3.34569C6.87098 3.21315 7.16215 3.21891 7.39355 3.36132L20.3936 11.3613C20.6151 11.4979 20.75 11.7397 20.75 12C20.75 12.2603 20.6151 12.5021 20.3936 12.6387L7.39355 20.6387C7.16215 20.7811 6.87098 20.7868 6.63379 20.6543C6.39686 20.5217 6.25 20.2715 6.25 20V3.99999C6.25 3.72845 6.39686 3.4783 6.63379 3.34569ZM7.75 18.6572L18.5684 12L7.75 5.34179V18.6572Z" fill="currentColor"/></svg><rect x="232" y="117" width="3.6" height="8" rx="1.8" fill="#fff" opacity="0.4"/><rect x="239" y="114" width="3.6" height="14" rx="1.8" fill="#fff" opacity="0.4"/><rect x="246" y="111" width="3.6" height="20" rx="1.8" fill="#fff" opacity="0.4"/><rect x="253" y="115" width="3.6" height="12" rx="1.8" fill="#fff" opacity="0.4"/><rect x="260" y="109" width="3.6" height="24" rx="1.8" fill="#fff" opacity="0.4"/><rect x="267" y="112" width="3.6" height="18" rx="1.8" fill="#fff" opacity="0.4"/><rect x="274" y="116" width="3.6" height="10" rx="1.8" fill="#fff" opacity="0.4"/><rect x="281" y="110" width="3.6" height="22" rx="1.8" fill="#fff" opacity="0.4"/><rect x="288" y="113" width="3.6" height="16" rx="1.8" fill="#fff" opacity="0.4"/><rect x="295" y="108" width="3.6" height="26" rx="1.8" fill="#fff" opacity="0.4"/><rect x="302" y="115" width="3.6" height="12" rx="1.8" fill="#fff" opacity="0.4"/><rect x="309" y="112" width="3.6" height="18" rx="1.8" fill="#fff" opacity="0.4"/><rect x="316" y="117" width="3.6" height="8" rx="1.8" fill="#fff" opacity="0.4"/><rect x="323" y="114" width="3.6" height="14" rx="1.8" fill="#fff" opacity="0.4"/><rect x="330" y="111" width="3.6" height="20" rx="1.8" fill="#fff" opacity="0.4"/><rect x="337" y="116" width="3.6" height="10" rx="1.8" fill="#fff" opacity="0.4"/><g class="il-fade" style="--o:1.5s"><rect x="232" y="117" width="3.6" height="8" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:1.6s"><rect x="239" y="114" width="3.6" height="14" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:1.7s"><rect x="246" y="111" width="3.6" height="20" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:1.8s"><rect x="253" y="115" width="3.6" height="12" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:1.9s"><rect x="260" y="109" width="3.6" height="24" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2s"><rect x="267" y="112" width="3.6" height="18" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2s"><rect x="274" y="116" width="3.6" height="10" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.1s"><rect x="281" y="110" width="3.6" height="22" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.2s"><rect x="288" y="113" width="3.6" height="16" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.3s"><rect x="295" y="108" width="3.6" height="26" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.4s"><rect x="302" y="115" width="3.6" height="12" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.5s"><rect x="309" y="112" width="3.6" height="18" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.6s"><rect x="316" y="117" width="3.6" height="8" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.7s"><rect x="323" y="114" width="3.6" height="14" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.8s"><rect x="330" y="111" width="3.6" height="20" rx="1.8" fill="#fff"/></g><g class="il-fade" style="--o:2.8s"><rect x="337" y="116" width="3.6" height="10" rx="1.8" fill="#fff"/></g><g class="il-pop" style="--o:1.4s;--to:50% 50%"><circle cx="232" cy="139" r="0" fill="#fff"/></g></g><g transform="translate(186 60) scale(0.9)"><g class="il-tw" style="--i:0;--o:1.2s"><use href="#wvFsp@@" fill="#fff"/></g></g><g transform="translate(360 180) scale(0.7)"><g class="il-tw" style="--i:1;--o:1.8s"><use href="#wvFsp@@" fill="#fff"/></g></g><g transform="translate(60 40) scale(0.7)"><g class="il-tw" style="--i:2;--o:0.6s"><use href="#wvFsp@@" fill="#fff"/></g></g>' },
+  wnPhotosBg: { vb: '0 0 400 240', par: 'xMidYMid slice', cls: 'il wn-l wn-l--bg',
+    b: '<defs><linearGradient id="wpBph1@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9DB6FF"/><stop offset="1" stop-color="#E3E4FE"/></linearGradient><linearGradient id="wpBph2@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A48DFF"/><stop offset="1" stop-color="#eaf2ff"/></linearGradient><linearGradient id="wpBph3@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A6CF2"/><stop offset="1" stop-color="#B4D0FF"/></linearGradient><linearGradient id="wpBph4@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8466F2"/><stop offset="1" stop-color="#CBCFFE"/></linearGradient><radialGradient id="wpBglow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#4f86ff" stop-opacity="0.5"/><stop offset="1" stop-color="#4f86ff" stop-opacity="0"/></radialGradient></defs><g class="wn-pan wn-loop"><g opacity="0.2"><rect x="-40" y="-30" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="14.8" cy="-13.8" r="5.9" fill="#fff" opacity=".85"/><path d="M-40 16.4L-16.3 -4.1L0.7 10L11.8 1.3L34 18.6V21Q34 24 24 24H-30Q-40 24 -40 14Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="44" y="-30" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="98.8" cy="-13.8" r="5.9" fill="#fff" opacity=".85"/><path d="M44 16.4L67.7 -4.1L84.7 10L95.8 1.3L118 18.6V21Q118 24 108 24H54Q44 24 44 14Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="128" y="-30" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="182.8" cy="-13.8" r="5.9" fill="#fff" opacity=".85"/><path d="M128 16.4L151.7 -4.1L168.7 10L179.8 1.3L202 18.6V21Q202 24 192 24H138Q128 24 128 14Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="212" y="-30" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="266.8" cy="-13.8" r="5.9" fill="#fff" opacity=".85"/><path d="M212 16.4L235.7 -4.1L252.7 10L263.8 1.3L286 18.6V21Q286 24 276 24H222Q212 24 212 14Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="296" y="-30" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="350.8" cy="-13.8" r="5.9" fill="#fff" opacity=".85"/><path d="M296 16.4L319.7 -4.1L336.7 10L347.8 1.3L370 18.6V21Q370 24 360 24H306Q296 24 296 14Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="380" y="-30" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="434.8" cy="-13.8" r="5.9" fill="#fff" opacity=".85"/><path d="M380 16.4L403.7 -4.1L420.7 10L431.8 1.3L454 18.6V21Q454 24 444 24H390Q380 24 380 14Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="464" y="-30" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="518.8" cy="-13.8" r="5.9" fill="#fff" opacity=".85"/><path d="M464 16.4L487.7 -4.1L504.7 10L515.8 1.3L538 18.6V21Q538 24 528 24H474Q464 24 464 14Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="2" y="34" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="56.8" cy="50.2" r="5.9" fill="#fff" opacity=".85"/><path d="M2 80.4L25.7 59.9L42.7 74L53.8 65.3L76 82.6V85Q76 88 66 88H12Q2 88 2 78Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="86" y="34" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="140.8" cy="50.2" r="5.9" fill="#fff" opacity=".85"/><path d="M86 80.4L109.7 59.9L126.7 74L137.8 65.3L160 82.6V85Q160 88 150 88H96Q86 88 86 78Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="170" y="34" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="224.8" cy="50.2" r="5.9" fill="#fff" opacity=".85"/><path d="M170 80.4L193.7 59.9L210.7 74L221.8 65.3L244 82.6V85Q244 88 234 88H180Q170 88 170 78Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="254" y="34" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="308.8" cy="50.2" r="5.9" fill="#fff" opacity=".85"/><path d="M254 80.4L277.7 59.9L294.7 74L305.8 65.3L328 82.6V85Q328 88 318 88H264Q254 88 254 78Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="338" y="34" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="392.8" cy="50.2" r="5.9" fill="#fff" opacity=".85"/><path d="M338 80.4L361.7 59.9L378.7 74L389.8 65.3L412 82.6V85Q412 88 402 88H348Q338 88 338 78Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="422" y="34" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="476.8" cy="50.2" r="5.9" fill="#fff" opacity=".85"/><path d="M422 80.4L445.7 59.9L462.7 74L473.8 65.3L496 82.6V85Q496 88 486 88H432Q422 88 422 78Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="506" y="34" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="560.8" cy="50.2" r="5.9" fill="#fff" opacity=".85"/><path d="M506 80.4L529.7 59.9L546.7 74L557.8 65.3L580 82.6V85Q580 88 570 88H516Q506 88 506 78Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="-40" y="98" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="14.8" cy="114.2" r="5.9" fill="#fff" opacity=".85"/><path d="M-40 144.4L-16.3 123.9L0.7 138L11.8 129.3L34 146.6V149Q34 152 24 152H-30Q-40 152 -40 142Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="44" y="98" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="98.8" cy="114.2" r="5.9" fill="#fff" opacity=".85"/><path d="M44 144.4L67.7 123.9L84.7 138L95.8 129.3L118 146.6V149Q118 152 108 152H54Q44 152 44 142Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="128" y="98" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="182.8" cy="114.2" r="5.9" fill="#fff" opacity=".85"/><path d="M128 144.4L151.7 123.9L168.7 138L179.8 129.3L202 146.6V149Q202 152 192 152H138Q128 152 128 142Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="212" y="98" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="266.8" cy="114.2" r="5.9" fill="#fff" opacity=".85"/><path d="M212 144.4L235.7 123.9L252.7 138L263.8 129.3L286 146.6V149Q286 152 276 152H222Q212 152 212 142Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="296" y="98" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="350.8" cy="114.2" r="5.9" fill="#fff" opacity=".85"/><path d="M296 144.4L319.7 123.9L336.7 138L347.8 129.3L370 146.6V149Q370 152 360 152H306Q296 152 296 142Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="380" y="98" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="434.8" cy="114.2" r="5.9" fill="#fff" opacity=".85"/><path d="M380 144.4L403.7 123.9L420.7 138L431.8 129.3L454 146.6V149Q454 152 444 152H390Q380 152 380 142Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="464" y="98" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="518.8" cy="114.2" r="5.9" fill="#fff" opacity=".85"/><path d="M464 144.4L487.7 123.9L504.7 138L515.8 129.3L538 146.6V149Q538 152 528 152H474Q464 152 464 142Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="2" y="162" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="56.8" cy="178.2" r="5.9" fill="#fff" opacity=".85"/><path d="M2 208.4L25.7 187.9L42.7 202L53.8 193.3L76 210.6V213Q76 216 66 216H12Q2 216 2 206Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="86" y="162" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="140.8" cy="178.2" r="5.9" fill="#fff" opacity=".85"/><path d="M86 208.4L109.7 187.9L126.7 202L137.8 193.3L160 210.6V213Q160 216 150 216H96Q86 216 86 206Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="170" y="162" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="224.8" cy="178.2" r="5.9" fill="#fff" opacity=".85"/><path d="M170 208.4L193.7 187.9L210.7 202L221.8 193.3L244 210.6V213Q244 216 234 216H180Q170 216 170 206Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="254" y="162" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="308.8" cy="178.2" r="5.9" fill="#fff" opacity=".85"/><path d="M254 208.4L277.7 187.9L294.7 202L305.8 193.3L328 210.6V213Q328 216 318 216H264Q254 216 254 206Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="338" y="162" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="392.8" cy="178.2" r="5.9" fill="#fff" opacity=".85"/><path d="M338 208.4L361.7 187.9L378.7 202L389.8 193.3L412 210.6V213Q412 216 402 216H348Q338 216 338 206Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="422" y="162" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="476.8" cy="178.2" r="5.9" fill="#fff" opacity=".85"/><path d="M422 208.4L445.7 187.9L462.7 202L473.8 193.3L496 210.6V213Q496 216 486 216H432Q422 216 422 206Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="506" y="162" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="560.8" cy="178.2" r="5.9" fill="#fff" opacity=".85"/><path d="M506 208.4L529.7 187.9L546.7 202L557.8 193.3L580 210.6V213Q580 216 570 216H516Q506 216 506 206Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="-40" y="226" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="14.8" cy="242.2" r="5.9" fill="#fff" opacity=".85"/><path d="M-40 272.4L-16.3 251.9L0.7 266L11.8 257.3L34 274.6V277Q34 280 24 280H-30Q-40 280 -40 270Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="44" y="226" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="98.8" cy="242.2" r="5.9" fill="#fff" opacity=".85"/><path d="M44 272.4L67.7 251.9L84.7 266L95.8 257.3L118 274.6V277Q118 280 108 280H54Q44 280 44 270Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="128" y="226" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="182.8" cy="242.2" r="5.9" fill="#fff" opacity=".85"/><path d="M128 272.4L151.7 251.9L168.7 266L179.8 257.3L202 274.6V277Q202 280 192 280H138Q128 280 128 270Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="212" y="226" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="266.8" cy="242.2" r="5.9" fill="#fff" opacity=".85"/><path d="M212 272.4L235.7 251.9L252.7 266L263.8 257.3L286 274.6V277Q286 280 276 280H222Q212 280 212 270Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="296" y="226" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="350.8" cy="242.2" r="5.9" fill="#fff" opacity=".85"/><path d="M296 272.4L319.7 251.9L336.7 266L347.8 257.3L370 274.6V277Q370 280 360 280H306Q296 280 296 270Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="380" y="226" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="434.8" cy="242.2" r="5.9" fill="#fff" opacity=".85"/><path d="M380 272.4L403.7 251.9L420.7 266L431.8 257.3L454 274.6V277Q454 280 444 280H390Q380 280 380 270Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="464" y="226" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="518.8" cy="242.2" r="5.9" fill="#fff" opacity=".85"/><path d="M464 272.4L487.7 251.9L504.7 266L515.8 257.3L538 274.6V277Q538 280 528 280H474Q464 280 464 270Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="2" y="290" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="56.8" cy="306.2" r="5.9" fill="#fff" opacity=".85"/><path d="M2 336.4L25.7 315.9L42.7 330L53.8 321.3L76 338.6V341Q76 344 66 344H12Q2 344 2 334Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="86" y="290" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="140.8" cy="306.2" r="5.9" fill="#fff" opacity=".85"/><path d="M86 336.4L109.7 315.9L126.7 330L137.8 321.3L160 338.6V341Q160 344 150 344H96Q86 344 86 334Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="170" y="290" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="224.8" cy="306.2" r="5.9" fill="#fff" opacity=".85"/><path d="M170 336.4L193.7 315.9L210.7 330L221.8 321.3L244 338.6V341Q244 344 234 344H180Q170 344 170 334Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="254" y="290" width="74" height="54" rx="10" fill="url(#wpBph1@@)"/><circle cx="308.8" cy="306.2" r="5.9" fill="#fff" opacity=".85"/><path d="M254 336.4L277.7 315.9L294.7 330L305.8 321.3L328 338.6V341Q328 344 318 344H264Q254 344 254 334Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="338" y="290" width="74" height="54" rx="10" fill="url(#wpBph2@@)"/><circle cx="392.8" cy="306.2" r="5.9" fill="#fff" opacity=".85"/><path d="M338 336.4L361.7 315.9L378.7 330L389.8 321.3L412 338.6V341Q412 344 402 344H348Q338 344 338 334Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="422" y="290" width="74" height="54" rx="10" fill="url(#wpBph3@@)"/><circle cx="476.8" cy="306.2" r="5.9" fill="#fff" opacity=".85"/><path d="M422 336.4L445.7 315.9L462.7 330L473.8 321.3L496 338.6V341Q496 344 486 344H432Q422 344 422 334Z" fill="#2a4fb5" opacity=".55"/></g><g opacity="0.2"><rect x="506" y="290" width="74" height="54" rx="10" fill="url(#wpBph4@@)"/><circle cx="560.8" cy="306.2" r="5.9" fill="#fff" opacity=".85"/><path d="M506 336.4L529.7 315.9L546.7 330L557.8 321.3L580 338.6V341Q580 344 570 344H516Q506 344 506 334Z" fill="#2a4fb5" opacity=".55"/></g></g><rect class="wn-glow" width="400" height="240" fill="url(#wpBglow@@)"/>' },
+  wnPhotosFg: { vb: '0 0 400 240', cls: 'il wn-l wn-l--fg',
+    b: '<defs><linearGradient id="wpFvi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="wpFli@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#eaf2ff"/><stop offset="1" stop-color="#b9d2ff"/></linearGradient><linearGradient id="wpFliS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8fb0f0"/><stop offset="1" stop-color="#6886d8"/></linearGradient><linearGradient id="wpFgl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.3" stop-color="#fff" stop-opacity="0.05"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="wpFph1@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9DB6FF"/><stop offset="1" stop-color="#E3E4FE"/></linearGradient><linearGradient id="wpFph2@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A48DFF"/><stop offset="1" stop-color="#eaf2ff"/></linearGradient><linearGradient id="wpFph3@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A6CF2"/><stop offset="1" stop-color="#B4D0FF"/></linearGradient><linearGradient id="wpFph4@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8466F2"/><stop offset="1" stop-color="#CBCFFE"/></linearGradient><radialGradient id="wpFglow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#4f86ff" stop-opacity="0.5"/><stop offset="1" stop-color="#4f86ff" stop-opacity="0"/></radialGradient><filter id="wpFsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="wpFsp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse class="wn-glow" cx="190" cy="124" rx="170" ry="110" fill="url(#wpFglow@@)"/><g transform="rotate(-4 186 124)"><g class="il-rise" style="--o:.05s"><g filter="url(#wpFsh@@)"><rect x="100.5" y="41.5" width="176" height="172" rx="22" fill="url(#wpFliS@@)"/><rect x="98" y="38" width="176" height="172" rx="22" fill="url(#wpFli@@)"/></g><rect x="98" y="38" width="176" height="172" rx="22" fill="url(#wpFgl@@)"/><rect x="98.4" y="38.4" width="175.2" height="171.2" rx="22" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><g class="il-pop" style="--o:0.4s;--to:50% 50%"><g opacity="1"><rect x="112" y="52" width="70" height="62" rx="10" fill="url(#wpFph1@@)"/><circle cx="163.8" cy="70.6" r="6.8" fill="#fff" opacity=".85"/><path d="M112 105.3L134.4 81.8L150.5 97.9L161 88L182 107.8V111Q182 114 172 114H122Q112 114 112 104Z" fill="#2a4fb5" opacity=".55"/></g></g><g class="il-pop" style="--o:0.5s;--to:50% 50%"><g opacity="1"><rect x="188" y="52" width="70" height="62" rx="10" fill="url(#wpFph2@@)"/><circle cx="239.8" cy="70.6" r="6.8" fill="#fff" opacity=".85"/><path d="M188 105.3L210.4 81.8L226.5 97.9L237 88L258 107.8V111Q258 114 248 114H198Q188 114 188 104Z" fill="#2a4fb5" opacity=".55"/></g></g><g class="il-pop" style="--o:0.6s;--to:50% 50%"><g opacity="1"><rect x="112" y="120" width="70" height="62" rx="10" fill="url(#wpFph3@@)"/><circle cx="163.8" cy="138.6" r="6.8" fill="#fff" opacity=".85"/><path d="M112 173.3L134.4 149.8L150.5 165.9L161 156L182 175.8V179Q182 182 172 182H122Q112 182 112 172Z" fill="#2a4fb5" opacity=".55"/></g></g><g class="il-pop" style="--o:0.7s;--to:50% 50%"><g opacity="1"><rect x="188" y="120" width="70" height="62" rx="10" fill="url(#wpFph4@@)"/><circle cx="239.8" cy="138.6" r="6.8" fill="#fff" opacity=".85"/><path d="M188 173.3L210.4 149.8L226.5 165.9L237 156L258 175.8V179Q258 182 248 182H198Q188 182 188 172Z" fill="#2a4fb5" opacity=".55"/></g><rect x="188" y="120" width="70" height="62" rx="10" fill="#2C1F8A" opacity=".55"/><svg x="211" y="139" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M20.25 16.3105L17.4795 13.54C17.1283 13.2022 16.7893 13.0801 16.5 13.0801C16.2107 13.0801 15.8717 13.2022 15.5205 13.54L15.0605 14L16.5303 15.4697C16.8231 15.7626 16.8232 16.2374 16.5303 16.5303C16.2374 16.8231 15.7626 16.8231 15.4697 16.5303L10.4795 11.54C10.1282 11.2022 9.78933 11.0801 9.5 11.0801C9.21067 11.0801 8.87175 11.2022 8.52051 11.54L3.75 16.3105V18C3.75 18.5967 3.98722 19.1689 4.40918 19.5908C4.83114 20.0128 5.40326 20.25 6 20.25H18C18.5967 20.25 19.1689 20.0128 19.5908 19.5908C20.0128 19.1689 20.25 18.5967 20.25 18V16.3105ZM15.0098 7.25C15.424 7.25 15.7598 7.58579 15.7598 8C15.7598 8.41421 15.424 8.75 15.0098 8.75H15C14.5858 8.75 14.25 8.41421 14.25 8C14.25 7.58579 14.5858 7.25 15 7.25H15.0098ZM20.25 6C20.25 5.40326 20.0128 4.83114 19.5908 4.40918C19.1689 3.98722 18.5967 3.75 18 3.75H6C5.40326 3.75 4.83114 3.98722 4.40918 4.40918C3.98722 4.83114 3.75 5.40326 3.75 6V14.1895L7.47949 10.46C8.0561 9.9051 8.75344 9.58008 9.5 9.58008C10.1532 9.58008 10.768 9.82895 11.2979 10.2627L11.5205 10.46L14 12.9395L14.4795 12.46C15.0561 11.9051 15.7534 11.5801 16.5 11.5801C17.1532 11.5801 17.768 11.829 18.2979 12.2627L18.5205 12.46L20.25 14.1895V6ZM21.75 18C21.75 18.9946 21.3546 19.9481 20.6514 20.6514C19.9481 21.3546 18.9946 21.75 18 21.75H6C5.00544 21.75 4.05189 21.3546 3.34863 20.6514C2.64537 19.9481 2.25 18.9946 2.25 18V6C2.25 5.00544 2.64537 4.05189 3.34863 3.34863C4.05189 2.64537 5.00544 2.25 6 2.25H18C18.9946 2.25 19.9481 2.64537 20.6514 3.34863C21.3546 4.05189 21.75 5.00544 21.75 6V18Z" fill="currentColor"/></svg></g><path d="M114 194h56" stroke="#6886d8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.45"/></g></g><g transform="translate(316 92)"><g class="il-drop" style="--o:1.15s;--dy:-40px"><g class="il-wn-dim" style="--o:2.5s"><path d="M0 -26C-14 -26 -24 -15 -24 -2C-24 15 0 30 0 30C0 30 24 15 24 -2C24 -15 14 -26 0 -26Z" fill="url(#wpFvi@@)" filter="url(#wpFsh@@)"/><circle cx="0" cy="-3" r="8.5" fill="#fff"/></g></g></g><path class="il-draw" style="--len:80;--o:2.05s" d="M290 62L342 124" stroke="#FF6B8A" stroke-width="5" stroke-linecap="round"/><path class="il-draw" style="--len:80;--o:2.05s" d="M290 62L342 124" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-opacity=".6"/><g transform="translate(92 30) scale(0.9)"><g class="il-tw" style="--i:0;--o:1s"><use href="#wpFsp@@" fill="#fff"/></g></g><g transform="translate(296 196) scale(0.8)"><g class="il-tw" style="--i:1;--o:2.6s"><use href="#wpFsp@@" fill="#fff"/></g></g><g transform="translate(372 50) scale(0.7)"><g class="il-tw" style="--i:2;--o:2.7s"><use href="#wpFsp@@" fill="#fff"/></g></g>' },
+  wnPrivacyBg: { vb: '0 0 400 240', par: 'xMidYMid slice', cls: 'il wn-l wn-l--bg',
+    b: '<defs><linearGradient id="wyBw1@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B48CFF"/><stop offset="1" stop-color="#6E7BFF"/></linearGradient><linearGradient id="wyBw2@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9ACB"/><stop offset="1" stop-color="#9B6BFF"/></linearGradient><linearGradient id="wyBw3@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7FD3FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="wyBw4@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C7A6FF"/><stop offset="1" stop-color="#FF8FB8"/></linearGradient></defs><g class="wn-pan wn-loop"><rect x="-10" y="4" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.16"/><circle cx="1" cy="15" r="8" fill="#fff" opacity="0.22"/><rect x="54" y="4" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.32"/><circle cx="87" cy="15" r="8" fill="#fff" opacity="0.4"/><rect x="118" y="4" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.32"/><circle cx="151" cy="15" r="8" fill="#fff" opacity="0.4"/><rect x="182" y="4" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.16"/><circle cx="193" cy="15" r="8" fill="#fff" opacity="0.22"/><rect x="246" y="4" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.32"/><circle cx="279" cy="15" r="8" fill="#fff" opacity="0.4"/><rect x="310" y="4" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.32"/><circle cx="343" cy="15" r="8" fill="#fff" opacity="0.4"/><rect x="374" y="4" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.16"/><circle cx="385" cy="15" r="8" fill="#fff" opacity="0.22"/><rect x="22" y="36" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.16"/><circle cx="33" cy="47" r="8" fill="#fff" opacity="0.22"/><rect x="86" y="36" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.32"/><circle cx="119" cy="47" r="8" fill="#fff" opacity="0.4"/><rect x="150" y="36" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.32"/><circle cx="183" cy="47" r="8" fill="#fff" opacity="0.4"/><rect x="214" y="36" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.16"/><circle cx="225" cy="47" r="8" fill="#fff" opacity="0.22"/><rect x="278" y="36" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.32"/><circle cx="311" cy="47" r="8" fill="#fff" opacity="0.4"/><rect x="342" y="36" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.32"/><circle cx="375" cy="47" r="8" fill="#fff" opacity="0.4"/><rect x="406" y="36" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.16"/><circle cx="417" cy="47" r="8" fill="#fff" opacity="0.22"/><rect x="-10" y="68" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.16"/><circle cx="1" cy="79" r="8" fill="#fff" opacity="0.22"/><rect x="54" y="68" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.32"/><circle cx="87" cy="79" r="8" fill="#fff" opacity="0.4"/><rect x="118" y="68" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.32"/><circle cx="151" cy="79" r="8" fill="#fff" opacity="0.4"/><rect x="182" y="68" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.16"/><circle cx="193" cy="79" r="8" fill="#fff" opacity="0.22"/><rect x="246" y="68" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.32"/><circle cx="279" cy="79" r="8" fill="#fff" opacity="0.4"/><rect x="310" y="68" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.32"/><circle cx="343" cy="79" r="8" fill="#fff" opacity="0.4"/><rect x="374" y="68" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.16"/><circle cx="385" cy="79" r="8" fill="#fff" opacity="0.22"/><rect x="22" y="100" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.16"/><circle cx="33" cy="111" r="8" fill="#fff" opacity="0.22"/><rect x="86" y="100" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.32"/><circle cx="119" cy="111" r="8" fill="#fff" opacity="0.4"/><rect x="150" y="100" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.32"/><circle cx="183" cy="111" r="8" fill="#fff" opacity="0.4"/><rect x="214" y="100" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.16"/><circle cx="225" cy="111" r="8" fill="#fff" opacity="0.22"/><rect x="278" y="100" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.32"/><circle cx="311" cy="111" r="8" fill="#fff" opacity="0.4"/><rect x="342" y="100" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.32"/><circle cx="375" cy="111" r="8" fill="#fff" opacity="0.4"/><rect x="406" y="100" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.16"/><circle cx="417" cy="111" r="8" fill="#fff" opacity="0.22"/><rect x="-10" y="132" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.16"/><circle cx="1" cy="143" r="8" fill="#fff" opacity="0.22"/><rect x="54" y="132" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.32"/><circle cx="87" cy="143" r="8" fill="#fff" opacity="0.4"/><rect x="118" y="132" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.32"/><circle cx="151" cy="143" r="8" fill="#fff" opacity="0.4"/><rect x="182" y="132" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.16"/><circle cx="193" cy="143" r="8" fill="#fff" opacity="0.22"/><rect x="246" y="132" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.32"/><circle cx="279" cy="143" r="8" fill="#fff" opacity="0.4"/><rect x="310" y="132" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.32"/><circle cx="343" cy="143" r="8" fill="#fff" opacity="0.4"/><rect x="374" y="132" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.16"/><circle cx="385" cy="143" r="8" fill="#fff" opacity="0.22"/><rect x="22" y="164" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.16"/><circle cx="33" cy="175" r="8" fill="#fff" opacity="0.22"/><rect x="86" y="164" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.32"/><circle cx="119" cy="175" r="8" fill="#fff" opacity="0.4"/><rect x="150" y="164" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.32"/><circle cx="183" cy="175" r="8" fill="#fff" opacity="0.4"/><rect x="214" y="164" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.16"/><circle cx="225" cy="175" r="8" fill="#fff" opacity="0.22"/><rect x="278" y="164" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.32"/><circle cx="311" cy="175" r="8" fill="#fff" opacity="0.4"/><rect x="342" y="164" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.32"/><circle cx="375" cy="175" r="8" fill="#fff" opacity="0.4"/><rect x="406" y="164" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.16"/><circle cx="417" cy="175" r="8" fill="#fff" opacity="0.22"/><rect x="-10" y="196" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.16"/><circle cx="1" cy="207" r="8" fill="#fff" opacity="0.22"/><rect x="54" y="196" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.32"/><circle cx="87" cy="207" r="8" fill="#fff" opacity="0.4"/><rect x="118" y="196" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.32"/><circle cx="151" cy="207" r="8" fill="#fff" opacity="0.4"/><rect x="182" y="196" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.16"/><circle cx="193" cy="207" r="8" fill="#fff" opacity="0.22"/><rect x="246" y="196" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.32"/><circle cx="279" cy="207" r="8" fill="#fff" opacity="0.4"/><rect x="310" y="196" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.32"/><circle cx="343" cy="207" r="8" fill="#fff" opacity="0.4"/><rect x="374" y="196" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.16"/><circle cx="385" cy="207" r="8" fill="#fff" opacity="0.22"/><rect x="22" y="228" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.16"/><circle cx="33" cy="239" r="8" fill="#fff" opacity="0.22"/><rect x="86" y="228" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.32"/><circle cx="119" cy="239" r="8" fill="#fff" opacity="0.4"/><rect x="150" y="228" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.32"/><circle cx="183" cy="239" r="8" fill="#fff" opacity="0.4"/><rect x="214" y="228" width="44" height="22" rx="11" fill="url(#wyBw3@@)" opacity="0.16"/><circle cx="225" cy="239" r="8" fill="#fff" opacity="0.22"/><rect x="278" y="228" width="44" height="22" rx="11" fill="url(#wyBw4@@)" opacity="0.32"/><circle cx="311" cy="239" r="8" fill="#fff" opacity="0.4"/><rect x="342" y="228" width="44" height="22" rx="11" fill="url(#wyBw1@@)" opacity="0.32"/><circle cx="375" cy="239" r="8" fill="#fff" opacity="0.4"/><rect x="406" y="228" width="44" height="22" rx="11" fill="url(#wyBw2@@)" opacity="0.16"/><circle cx="417" cy="239" r="8" fill="#fff" opacity="0.22"/></g><circle class="wn-ripple wn-loop" style="--o:-0s" cx="200" cy="120" r="40" fill="none" stroke="#5fb0ff" stroke-width="1.5"/><circle class="wn-ripple wn-loop" style="--o:-2s" cx="200" cy="120" r="40" fill="none" stroke="#5fb0ff" stroke-width="1.5"/><circle class="wn-ripple wn-loop" style="--o:-4s" cx="200" cy="120" r="40" fill="none" stroke="#5fb0ff" stroke-width="1.5"/>' },
+  wnPrivacyFg: { vb: '0 0 400 240', cls: 'il wn-l wn-l--fg',
+    b: '<defs><linearGradient id="wyFli@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#eaf2ff"/><stop offset="1" stop-color="#b9d2ff"/></linearGradient><linearGradient id="wyFliS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8fb0f0"/><stop offset="1" stop-color="#6886d8"/></linearGradient><linearGradient id="wyFgl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.3" stop-color="#fff" stop-opacity="0.05"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="wyFglowB@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#5A86FF" stop-opacity="0.45"/><stop offset="1" stop-color="#5A86FF" stop-opacity="0"/></radialGradient><radialGradient id="wyFvc@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#B7D0FF"/><stop offset=".5" stop-color="#6F9BFF"/><stop offset="1" stop-color="#3A6CE0"/></radialGradient><filter id="wyFsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="wyFshS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="wyFsp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse class="wn-glow" cx="200" cy="124" rx="170" ry="110" fill="url(#wyFglowB@@)"/><g class="il-rise" style="--o:.05s"><g filter="url(#wyFsh@@)"><rect x="96.5" y="47.5" width="216" height="160" rx="22" fill="url(#wyFliS@@)"/><rect x="94" y="44" width="216" height="160" rx="22" fill="url(#wyFli@@)"/></g><rect x="94" y="44" width="216" height="160" rx="22" fill="url(#wyFgl@@)"/><rect x="94.4" y="44.4" width="215.2" height="159.2" rx="22" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><circle cx="122" cy="78" r="14" fill="#e5eeff"/><svg x="112" y="68" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#5C45CC"><path d="M1.46967 11.4697C1.76256 11.1768 2.23732 11.1768 2.53022 11.4697L7.53022 16.4697C7.82311 16.7626 7.82311 17.2373 7.53022 17.5302C7.23732 17.8231 6.76256 17.8231 6.46967 17.5302L1.46967 12.5302C1.17678 12.2373 1.17678 11.7626 1.46967 11.4697ZM21.4697 6.46967C21.7626 6.17678 22.2373 6.17678 22.5302 6.46967C22.8231 6.76256 22.8231 7.23732 22.5302 7.53022L12.5302 17.5302C12.2373 17.8231 11.7626 17.8231 11.4697 17.5302L6.46967 12.5302C6.17678 12.2373 6.17678 11.7626 6.46967 11.4697C6.76256 11.1768 7.23732 11.1768 7.53022 11.4697L11.9999 15.9394L21.4697 6.46967ZM16.4697 6.46967C16.7626 6.17678 17.2373 6.17678 17.5302 6.46967C17.8231 6.76256 17.8231 7.23732 17.5302 7.53022L12.5302 12.5302C12.2373 12.8231 11.7626 12.8231 11.4697 12.5302C11.1768 12.2373 11.1768 11.7626 11.4697 11.4697L16.4697 6.46967Z" fill="currentColor"/></svg><path d="M146 73h70" stroke="#6886d8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.5"/><path d="M146 84h44" stroke="#6886d8" stroke-width="3.4" stroke-linecap="round" stroke-opacity="0.3"/><rect x="240" y="67" width="46" height="22" rx="11" fill="#c2d2ea"/><g class="il-wn-off" style="--o:0.8s"><rect x="240" y="67" width="46" height="22" rx="11" fill="#3050bd"/></g><g class="il-wn-knob" style="--o:0.8s"><circle cx="275" cy="78" r="8.5" fill="#fff" filter="url(#wyFshS@@)"/></g><circle cx="122" cy="124" r="14" fill="#e5eeff"/><svg x="112" y="114" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#5C45CC"><path d="M5.25 12C5.25 11.9337 5.22364 11.8701 5.17676 11.8232C5.12987 11.7764 5.0663 11.75 5 11.75C4.9337 11.75 4.87013 11.7764 4.82324 11.8232C4.77636 11.8701 4.75 11.9337 4.75 12C4.75 12.0663 4.77636 12.1299 4.82324 12.1768C4.87013 12.2236 4.9337 12.25 5 12.25C5.0663 12.25 5.12987 12.2236 5.17676 12.1768C5.22364 12.1299 5.25 12.0663 5.25 12ZM12.25 12C12.25 11.9337 12.2236 11.8701 12.1768 11.8232C12.1299 11.7764 12.0663 11.75 12 11.75C11.9337 11.75 11.8701 11.7764 11.8232 11.8232C11.7764 11.8701 11.75 11.9337 11.75 12C11.75 12.0663 11.7764 12.1299 11.8232 12.1768C11.8701 12.2236 11.9337 12.25 12 12.25C12.0663 12.25 12.1299 12.2236 12.1768 12.1768C12.2236 12.1299 12.25 12.0663 12.25 12ZM19.25 12C19.25 11.9337 19.2236 11.8701 19.1768 11.8232C19.1299 11.7764 19.0663 11.75 19 11.75C18.9337 11.75 18.8701 11.7764 18.8232 11.8232C18.7764 11.8701 18.75 11.9337 18.75 12C18.75 12.0663 18.7764 12.1299 18.8232 12.1768C18.8701 12.2236 18.9337 12.25 19 12.25C19.0663 12.25 19.1299 12.2236 19.1768 12.1768C19.2236 12.1299 19.25 12.0663 19.25 12ZM6.75 12C6.75 12.4641 6.56549 12.9091 6.2373 13.2373C5.90912 13.5655 5.46413 13.75 5 13.75C4.53587 13.75 4.09088 13.5655 3.7627 13.2373C3.43451 12.9091 3.25 12.4641 3.25 12C3.25 11.5359 3.43451 11.0909 3.7627 10.7627C4.09088 10.4345 4.53587 10.25 5 10.25C5.46413 10.25 5.90912 10.4345 6.2373 10.7627C6.56549 11.0909 6.75 11.5359 6.75 12ZM13.75 12C13.75 12.4641 13.5655 12.9091 13.2373 13.2373C12.9091 13.5655 12.4641 13.75 12 13.75C11.5359 13.75 11.0909 13.5655 10.7627 13.2373C10.4345 12.9091 10.25 12.4641 10.25 12C10.25 11.5359 10.4345 11.0909 10.7627 10.7627C11.0909 10.4345 11.5359 10.25 12 10.25C12.4641 10.25 12.9091 10.4345 13.2373 10.7627C13.5655 11.0909 13.75 11.5359 13.75 12ZM20.75 12C20.75 12.4641 20.5655 12.9091 20.2373 13.2373C19.9091 13.5655 19.4641 13.75 19 13.75C18.5359 13.75 18.0909 13.5655 17.7627 13.2373C17.4345 12.9091 17.25 12.4641 17.25 12C17.25 11.5359 17.4345 11.0909 17.7627 10.7627C18.0909 10.4345 18.5359 10.25 19 10.25C19.4641 10.25 19.9091 10.4345 20.2373 10.7627C20.5655 11.0909 20.75 11.5359 20.75 12Z" fill="currentColor"/></svg><path d="M146 119h70" stroke="#6886d8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.5"/><path d="M146 130h44" stroke="#6886d8" stroke-width="3.4" stroke-linecap="round" stroke-opacity="0.3"/><rect x="240" y="113" width="46" height="22" rx="11" fill="#c2d2ea"/><g class="il-wn-off" style="--o:1.3s"><rect x="240" y="113" width="46" height="22" rx="11" fill="#3050bd"/></g><g class="il-wn-knob" style="--o:1.3s"><circle cx="275" cy="124" r="8.5" fill="#fff" filter="url(#wyFshS@@)"/></g><circle cx="122" cy="170" r="14" fill="#e5eeff"/><svg x="112" y="160" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#5C45CC"><path d="M20.25 12C20.25 10.9166 20.0367 9.84371 19.6221 8.84277C19.2075 7.84186 18.6001 6.93209 17.834 6.16602C17.0679 5.39995 16.1581 4.79253 15.1572 4.37793C14.1563 3.96333 13.0834 3.75 12 3.75C10.9166 3.75 9.84371 3.96333 8.84277 4.37793C7.84186 4.79253 6.93209 5.39995 6.16602 6.16602C5.39995 6.93209 4.79253 7.84186 4.37793 8.84277C3.96333 9.84371 3.75 10.9166 3.75 12C3.75 13.0834 3.96333 14.1563 4.37793 15.1572C4.74622 16.0463 5.26733 16.8629 5.91602 17.5713C6.23476 17.0355 6.65863 16.565 7.16504 16.1885C7.98469 15.5791 8.97864 15.2497 10 15.25H14C15.0226 15.2497 16.0177 15.5797 16.8379 16.1904C17.3429 16.5665 17.7649 17.0367 18.083 17.5713C18.7319 16.8628 19.2537 16.0465 19.6221 15.1572C20.0367 14.1563 20.25 13.0834 20.25 12ZM10 16.75C9.30114 16.7498 8.62041 16.9746 8.05957 17.3916C7.63041 17.7107 7.28941 18.1296 7.0625 18.6084C7.61047 19.0178 8.20798 19.3591 8.84277 19.6221C9.84371 20.0367 10.9166 20.25 12 20.25C13.0834 20.25 14.1563 20.0367 15.1572 19.6221C15.7918 19.3592 16.3887 19.0176 16.9365 18.6084C16.71 18.1306 16.3705 17.7124 15.9424 17.3936C15.4513 17.0279 14.8685 16.8095 14.2617 16.7607L14 16.75H10ZM14.25 10C14.25 9.40326 14.0128 8.83114 13.5908 8.40918C13.1689 7.98722 12.5967 7.75 12 7.75C11.4033 7.75 10.8311 7.98722 10.4092 8.40918C9.98722 8.83114 9.75 9.40326 9.75 10C9.75 10.5967 9.98722 11.1689 10.4092 11.5908C10.8311 12.0128 11.4033 12.25 12 12.25C12.5967 12.25 13.1689 12.0128 13.5908 11.5908C14.0128 11.1689 14.25 10.5967 14.25 10ZM21.75 12C21.75 13.2804 21.4978 14.5485 21.0078 15.7314C20.5178 16.9143 19.7998 17.9892 18.8945 18.8945C18.7215 19.0676 18.5395 19.2306 18.3545 19.3896C18.3308 19.4127 18.3061 19.4342 18.2793 19.4541C17.5151 20.0978 16.6576 20.6242 15.7314 21.0078C14.5485 21.4978 13.2804 21.75 12 21.75C10.7196 21.75 9.45148 21.4978 8.26855 21.0078C7.08573 20.5178 6.01078 19.7998 5.10547 18.8945C4.20016 17.9892 3.48217 16.9143 2.99219 15.7314C2.5022 14.5485 2.25 13.2804 2.25 12C2.25 10.7196 2.5022 9.45148 2.99219 8.26855C3.48217 7.08573 4.20016 6.01078 5.10547 5.10547C6.01078 4.20016 7.08573 3.48217 8.26855 2.99219C9.45148 2.5022 10.7196 2.25 12 2.25C13.2804 2.25 14.5485 2.5022 15.7314 2.99219C16.9143 3.48217 17.9892 4.20016 18.8945 5.10547C19.7998 6.01078 20.5178 7.08573 21.0078 8.26855C21.4978 9.45148 21.75 10.7196 21.75 12ZM15.75 10C15.75 10.9946 15.3546 11.9481 14.6514 12.6514C13.9481 13.3546 12.9946 13.75 12 13.75C11.0054 13.75 10.0519 13.3546 9.34863 12.6514C8.64537 11.9481 8.25 10.9946 8.25 10C8.25 9.00544 8.64537 8.05189 9.34863 7.34863C10.0519 6.64537 11.0054 6.25 12 6.25C12.9946 6.25 13.9481 6.64537 14.6514 7.34863C15.3546 8.05189 15.75 9.00544 15.75 10Z" fill="currentColor"/></svg><path d="M146 165h70" stroke="#6886d8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.5"/><path d="M146 176h44" stroke="#6886d8" stroke-width="3.4" stroke-linecap="round" stroke-opacity="0.3"/><rect x="240" y="159" width="46" height="22" rx="11" fill="#c2d2ea"/><g class="il-wn-off" style="--o:1.8s"><rect x="240" y="159" width="46" height="22" rx="11" fill="#3050bd"/></g><g class="il-wn-knob" style="--o:1.8s"><circle cx="275" cy="170" r="8.5" fill="#fff" filter="url(#wyFshS@@)"/></g></g><g transform="translate(312 48)"><g class="il-pop" style="--o:2.35s;--to:50% 50%"><circle r="24" fill="url(#wyFvc@@)" filter="url(#wyFsh@@)"/><circle r="23.5" fill="none" stroke="#fff" stroke-opacity=".35"/><svg x="-13" y="-13" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M2.46999 2.46967C2.76288 2.17678 3.23764 2.17678 3.53054 2.46967L17.1643 16.1035C17.2029 16.1362 17.2407 16.1707 17.2727 16.2119L21.5305 20.4697C21.8234 20.7626 21.8234 21.2373 21.5305 21.5302C21.2376 21.8231 20.7629 21.8231 20.47 21.5302L16.553 17.6132C15.1574 18.3664 13.5925 18.7586 12.0003 18.749V18.7499L11.9983 18.749L11.9954 18.7499V18.749C8.05594 18.7471 4.84544 16.5336 2.35671 12.3857C2.21444 12.1483 2.21442 11.8516 2.35671 11.6142C3.47358 9.75274 4.73721 8.27725 6.15554 7.21576L2.46999 3.53022C2.1771 3.23732 2.1771 2.76256 2.46999 2.46967ZM7.2278 8.28803C6.02811 9.14382 4.90915 10.3715 3.88112 11.999C6.14425 15.5833 8.85262 17.2499 12.0003 17.2499H12.0051C13.1947 17.2578 14.3658 16.9972 15.4358 16.496L13.3401 14.4003C12.9341 14.627 12.4745 14.7508 12.0012 14.7509C11.2719 14.751 10.5717 14.4618 10.0559 13.9462C9.5402 13.4307 9.25051 12.7311 9.25026 12.0019C9.25018 11.5282 9.37392 11.0675 9.60085 10.6611L7.2278 8.28803ZM12.0003 5.24994C15.9419 5.24994 19.1541 7.4646 21.6438 11.6142C21.7861 11.8516 21.7861 12.1483 21.6438 12.3857C20.9546 13.5344 20.2093 14.5363 19.4075 15.3847C19.123 15.6857 18.648 15.6995 18.3469 15.415C18.046 15.1304 18.0331 14.6554 18.3176 14.3544C18.9459 13.6897 19.5463 12.9056 20.1184 11.9999C17.8555 8.41638 15.1476 6.74994 12.0003 6.74994H11.9983C11.4379 6.7485 10.8787 6.8038 10.3294 6.91498C9.9235 6.99715 9.52791 6.73484 9.44558 6.32904C9.36339 5.92307 9.62554 5.52745 10.0315 5.44526C10.6795 5.31407 11.3391 5.24837 12.0003 5.24994ZM10.7639 11.8242C10.7556 11.8824 10.7503 11.9414 10.7503 12.0009C10.7503 12.3324 10.8821 12.6503 11.1165 12.8847C11.3509 13.119 11.6688 13.2509 12.0003 13.2509C12.0594 13.2509 12.1181 13.2445 12.176 13.2363L10.7639 11.8242Z" fill="currentColor"/></svg></g></g><g transform="translate(70 50) scale(0.8)"><g class="il-tw" style="--i:0;--o:2.6s"><use href="#wyFsp@@" fill="#fff"/></g></g><g transform="translate(352 190) scale(0.8)"><g class="il-tw" style="--i:1;--o:2.7s"><use href="#wyFsp@@" fill="#fff"/></g></g><g transform="translate(58 196) scale(0.6)"><g class="il-tw" style="--i:2;--o:1s"><use href="#wyFsp@@" fill="#fff"/></g></g>' },
+  wnAppsBg: { vb: '0 0 400 240', par: 'xMidYMid slice', cls: 'il wn-l wn-l--bg',
+    b: '<defs><linearGradient id="waBw1@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B48CFF"/><stop offset="1" stop-color="#6E7BFF"/></linearGradient><linearGradient id="waBw2@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9ACB"/><stop offset="1" stop-color="#9B6BFF"/></linearGradient><linearGradient id="waBw3@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7FD3FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="waBw4@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C7A6FF"/><stop offset="1" stop-color="#FF8FB8"/></linearGradient></defs><circle cx="200" cy="120" r="170" fill="none" style="stroke:var(--wn-deco,#fff)" stroke-opacity=".14"/><circle cx="200" cy="120" r="110" fill="none" style="stroke:var(--wn-deco,#fff)" stroke-opacity=".12" stroke-dasharray="3 6"/><g class="wn-orbit wn-loop"><rect x="355" y="105" width="30" height="30" rx="9" fill="url(#waBw1@@)" opacity="0.34"/><rect x="338.2" y="178.8" width="30" height="30" rx="9" fill="url(#waBw2@@)" opacity="0.34"/><rect x="291" y="237.9" width="30" height="30" rx="9" fill="url(#waBw3@@)" opacity="0.34"/><rect x="222.8" y="270.7" width="30" height="30" rx="9" fill="url(#waBw4@@)" opacity="0.34"/><rect x="147.2" y="270.7" width="30" height="30" rx="9" fill="url(#waBw1@@)" opacity="0.34"/><rect x="79" y="237.9" width="30" height="30" rx="9" fill="url(#waBw2@@)" opacity="0.34"/><rect x="31.8" y="178.8" width="30" height="30" rx="9" fill="url(#waBw3@@)" opacity="0.34"/><rect x="15" y="105" width="30" height="30" rx="9" fill="url(#waBw4@@)" opacity="0.34"/><rect x="31.8" y="31.2" width="30" height="30" rx="9" fill="url(#waBw1@@)" opacity="0.34"/><rect x="79" y="-27.9" width="30" height="30" rx="9" fill="url(#waBw2@@)" opacity="0.34"/><rect x="147.2" y="-60.7" width="30" height="30" rx="9" fill="url(#waBw3@@)" opacity="0.34"/><rect x="222.8" y="-60.7" width="30" height="30" rx="9" fill="url(#waBw4@@)" opacity="0.34"/><rect x="291" y="-27.9" width="30" height="30" rx="9" fill="url(#waBw1@@)" opacity="0.34"/><rect x="338.2" y="31.2" width="30" height="30" rx="9" fill="url(#waBw2@@)" opacity="0.34"/></g><g class="wn-orbit wn-orbit--rev wn-loop"><rect x="297.7" y="155" width="22" height="22" rx="6.6" fill="url(#waBw1@@)" opacity="0.3"/><rect x="249.9" y="210.1" width="22" height="22" rx="6.6" fill="url(#waBw2@@)" opacity="0.3"/><rect x="178.9" y="226.6" width="22" height="22" rx="6.6" fill="url(#waBw3@@)" opacity="0.3"/><rect x="111.7" y="198.2" width="22" height="22" rx="6.6" fill="url(#waBw4@@)" opacity="0.3"/><rect x="74.1" y="135.7" width="22" height="22" rx="6.6" fill="url(#waBw1@@)" opacity="0.3"/><rect x="80.3" y="63" width="22" height="22" rx="6.6" fill="url(#waBw2@@)" opacity="0.3"/><rect x="128.1" y="7.9" width="22" height="22" rx="6.6" fill="url(#waBw3@@)" opacity="0.3"/><rect x="199.1" y="-8.6" width="22" height="22" rx="6.6" fill="url(#waBw4@@)" opacity="0.3"/><rect x="266.3" y="19.8" width="22" height="22" rx="6.6" fill="url(#waBw1@@)" opacity="0.3"/><rect x="303.9" y="82.3" width="22" height="22" rx="6.6" fill="url(#waBw2@@)" opacity="0.3"/></g><g class="wn-orbit wn-loop"><rect x="409.4" y="148.1" width="36" height="36" rx="10.8" fill="url(#waBw1@@)" opacity="0.26"/><rect x="379.9" y="223.1" width="36" height="36" rx="10.8" fill="url(#waBw2@@)" opacity="0.26"/><rect x="326.6" y="283.5" width="36" height="36" rx="10.8" fill="url(#waBw3@@)" opacity="0.26"/><rect x="255.8" y="322" width="36" height="36" rx="10.8" fill="url(#waBw4@@)" opacity="0.26"/><rect x="176.1" y="333.9" width="36" height="36" rx="10.8" fill="url(#waBw1@@)" opacity="0.26"/><rect x="97.1" y="317.9" width="36" height="36" rx="10.8" fill="url(#waBw2@@)" opacity="0.26"/><rect x="28.4" y="275.9" width="36" height="36" rx="10.8" fill="url(#waBw3@@)" opacity="0.26"/><rect x="-21.8" y="212.8" width="36" height="36" rx="10.8" fill="url(#waBw4@@)" opacity="0.26"/><rect x="-47.4" y="136.5" width="36" height="36" rx="10.8" fill="url(#waBw1@@)" opacity="0.26"/><rect x="-45.4" y="55.9" width="36" height="36" rx="10.8" fill="url(#waBw2@@)" opacity="0.26"/><rect x="-15.9" y="-19.1" width="36" height="36" rx="10.8" fill="url(#waBw3@@)" opacity="0.26"/><rect x="37.4" y="-79.5" width="36" height="36" rx="10.8" fill="url(#waBw4@@)" opacity="0.26"/><rect x="108.2" y="-118" width="36" height="36" rx="10.8" fill="url(#waBw1@@)" opacity="0.26"/><rect x="187.9" y="-129.9" width="36" height="36" rx="10.8" fill="url(#waBw2@@)" opacity="0.26"/><rect x="266.9" y="-113.9" width="36" height="36" rx="10.8" fill="url(#waBw3@@)" opacity="0.26"/><rect x="335.6" y="-71.9" width="36" height="36" rx="10.8" fill="url(#waBw4@@)" opacity="0.26"/><rect x="385.8" y="-8.8" width="36" height="36" rx="10.8" fill="url(#waBw1@@)" opacity="0.26"/><rect x="411.4" y="67.5" width="36" height="36" rx="10.8" fill="url(#waBw2@@)" opacity="0.26"/></g><circle class="wn-tw wn-loop" style="--i:0;fill:var(--wn-star,rgba(255,255,255,.85))" cx="260" cy="217.1" r="0.9"/><circle class="wn-tw wn-loop" style="--i:1;fill:var(--wn-star,rgba(255,255,255,.85))" cx="41.6" cy="54.8" r="1.3"/><circle class="wn-tw wn-loop" style="--i:2;fill:var(--wn-star,rgba(255,255,255,.85))" cx="77.9" cy="78.6" r="1.3"/><circle class="wn-tw wn-loop" style="--i:3;fill:var(--wn-star,rgba(255,255,255,.85))" cx="135.5" cy="148.5" r="1.4"/><circle class="wn-tw wn-loop" style="--i:4;fill:var(--wn-star,rgba(255,255,255,.85))" cx="381.1" cy="124.6" r="0.9"/><circle class="wn-tw wn-loop" style="--i:5;fill:var(--wn-star,rgba(255,255,255,.85))" cx="181.3" cy="106.7" r="1.1"/><circle class="wn-tw wn-loop" style="--i:6;fill:var(--wn-star,rgba(255,255,255,.85))" cx="102.8" cy="195" r="0.7"/><circle class="wn-tw wn-loop" style="--i:7;fill:var(--wn-star,rgba(255,255,255,.85))" cx="312.2" cy="9.3" r="0.9"/><circle class="wn-tw wn-loop" style="--i:8;fill:var(--wn-star,rgba(255,255,255,.85))" cx="176.3" cy="129.8" r="1.1"/><circle class="wn-tw wn-loop" style="--i:9;fill:var(--wn-star,rgba(255,255,255,.85))" cx="261.7" cy="176.4" r="0.9"/><circle class="wn-tw wn-loop" style="--i:10;fill:var(--wn-star,rgba(255,255,255,.85))" cx="335" cy="9.1" r="0.7"/><circle class="wn-tw wn-loop" style="--i:11;fill:var(--wn-star,rgba(255,255,255,.85))" cx="163" cy="207.9" r="0.7"/>' },
+  wnAppsFg: { vb: '0 0 400 240', cls: 'il wn-l wn-l--fg',
+    b: '<defs><linearGradient id="waFbl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="waFblS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="waFvi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="waFviS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="waFli@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#eaf2ff"/><stop offset="1" stop-color="#b9d2ff"/></linearGradient><linearGradient id="waFliS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8fb0f0"/><stop offset="1" stop-color="#6886d8"/></linearGradient><linearGradient id="waFgn@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8EF0C9"/><stop offset="0.5" stop-color="#3CC79A"/><stop offset="1" stop-color="#2DB38B"/></linearGradient><linearGradient id="waFgnS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1F8E6C"/><stop offset="1" stop-color="#17775A"/></linearGradient><linearGradient id="waFgl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.3" stop-color="#fff" stop-opacity="0.05"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="waFglow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#4f86ff" stop-opacity="0.5"/><stop offset="1" stop-color="#4f86ff" stop-opacity="0"/></radialGradient><filter id="waFsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="waFshS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3" result="o"/><feFlood style="flood-color:var(--wn-shadow,#2a1478);flood-opacity:var(--wn-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="waFsp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse class="wn-glow" cx="180" cy="124" rx="170" ry="110" fill="url(#waFglow@@)"/><g class="il-rise" style="--o:.05s"><g filter="url(#waFsh@@)"><rect x="58.5" y="55.5" width="214" height="130" rx="24" fill="url(#waFliS@@)"/><rect x="56" y="52" width="214" height="130" rx="24" fill="url(#waFli@@)"/></g><rect x="56" y="52" width="214" height="130" rx="24" fill="url(#waFgl@@)"/><rect x="56.4" y="52.4" width="213.2" height="129.2" rx="24" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><g filter="url(#waFshS@@)"><rect x="76" y="72.6" width="56" height="56" rx="16" fill="url(#waFviS@@)"/><rect x="74" y="70" width="56" height="56" rx="16" fill="url(#waFvi@@)"/></g><rect x="74" y="70" width="56" height="56" rx="16" fill="url(#waFgl@@)"/><rect x="74.4" y="70.4" width="55.2" height="55.2" rx="16" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="88" y="84" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 3h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M9 13h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M19 13h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M17 3a1 1 0 0 1 .993 .883l.007 .117v2h2a1 1 0 0 1 .117 1.993l-.117 .007h-2v2a1 1 0 0 1 -1.993 .117l-.007 -.117v-2h-2a1 1 0 0 1 -.117 -1.993l.117 -.007h2v-2a1 1 0 0 1 1 -1z"/></svg><path d="M144 86h104" stroke="#6886d8" stroke-width="4.4" stroke-linecap="round" stroke-opacity="0.55"/><path d="M144 102h70" stroke="#6886d8" stroke-width="3.6" stroke-linecap="round" stroke-opacity="0.35"/><rect x="74" y="142" width="86" height="26" rx="13" fill="none" stroke="#8ca4e0" stroke-width="1.4"/><path d="M102 155h30" stroke="#8ca4e0" stroke-width="3" stroke-linecap="round" stroke-opacity="0.8"/></g><g class="il-pop" style="--o:1.35s;--to:50% 50%"><g filter="url(#waFshS@@)"><rect x="169.6" y="144.4" width="86" height="26" rx="13" fill="url(#waFgnS@@)"/><rect x="168" y="142" width="86" height="26" rx="13" fill="url(#waFgn@@)"/></g><rect x="168" y="142" width="86" height="26" rx="13" fill="url(#waFgl@@)"/><rect x="168.4" y="142.4" width="85.2" height="25.2" rx="13" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="200" y="146" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M1.46967 11.4697C1.76256 11.1768 2.23732 11.1768 2.53022 11.4697L7.53022 16.4697C7.82311 16.7626 7.82311 17.2373 7.53022 17.5302C7.23732 17.8231 6.76256 17.8231 6.46967 17.5302L1.46967 12.5302C1.17678 12.2373 1.17678 11.7626 1.46967 11.4697ZM21.4697 6.46967C21.7626 6.17678 22.2373 6.17678 22.5302 6.46967C22.8231 6.76256 22.8231 7.23732 22.5302 7.53022L12.5302 17.5302C12.2373 17.8231 11.7626 17.8231 11.4697 17.5302L6.46967 12.5302C6.17678 12.2373 6.17678 11.7626 6.46967 11.4697C6.76256 11.1768 7.23732 11.1768 7.53022 11.4697L11.9999 15.9394L21.4697 6.46967ZM16.4697 6.46967C16.7626 6.17678 17.2373 6.17678 17.5302 6.46967C17.8231 6.76256 17.8231 7.23732 17.5302 7.53022L12.5302 12.5302C12.2373 12.8231 11.7626 12.8231 11.4697 12.5302C11.1768 12.2373 11.1768 11.7626 11.4697 11.4697L16.4697 6.46967Z" fill="currentColor"/></svg></g><circle class="il-wn-tap" style="--o:1.75s" cx="211" cy="155" r="20" fill="#fff"/><g transform="translate(300 48)"><g class="il-fly" style="--o:2s;--fx:-110px;--fy:37.199999999999996px"><g class="wn-bob wn-loop" style="--d:6s"><g filter="url(#waFsh@@)"><rect x="-16.5" y="-15.5" width="38" height="38" rx="12" fill="url(#waFblS@@)"/><rect x="-19" y="-19" width="38" height="38" rx="12" fill="url(#waFbl@@)"/></g><rect x="-19" y="-19" width="38" height="38" rx="12" fill="url(#waFgl@@)"/><rect x="-18.6" y="-18.6" width="37.2" height="37.2" rx="12" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="-10" y="-10" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path d="M16.9999 3.25C17.9944 3.25 18.948 3.64537 19.6513 4.34863C20.3545 5.05189 20.7499 6.00544 20.7499 7C20.7499 7.01362 20.7496 7.02742 20.7489 7.04102C20.6439 8.9664 19.9703 10.8178 18.8134 12.3604C17.7556 13.7706 16.3362 14.8629 14.7108 15.5293C14.6058 16.4983 14.2944 17.4352 13.7909 18.2744C13.2004 19.2585 12.3691 20.0761 11.3749 20.6494C11.1566 20.7752 10.8892 20.7837 10.6639 20.6709C10.4387 20.558 10.2846 20.3391 10.2548 20.0889C10.1889 19.5343 10.0579 18.9931 9.87 18.4746C9.29252 19.1397 8.58847 19.6901 7.79285 20.0879C6.59033 20.6891 5.23539 20.9178 3.90223 20.7441C3.56497 20.7001 3.29968 20.434 3.25574 20.0967C3.08209 18.7634 3.31071 17.4086 3.91199 16.2061C4.30977 15.4106 4.85836 14.7053 5.52332 14.1279C5.0055 13.9405 4.46479 13.8109 3.91102 13.7451C3.66083 13.7153 3.44192 13.5612 3.32899 13.3359C3.21619 13.1107 3.22463 12.8433 3.35047 12.625C3.92375 11.6308 4.74136 10.7994 5.72547 10.209C6.56442 9.70564 7.50094 9.39325 8.46961 9.28809C9.13598 7.66287 10.2294 6.24415 11.6395 5.18652C13.1821 4.02957 15.0335 3.35599 16.9589 3.25098L16.9999 3.25ZM7.01648 14.8711C6.26777 15.3754 5.65962 16.0654 5.25379 16.877C4.87724 17.63 4.69169 18.4599 4.70301 19.2959C5.53908 19.3073 6.36882 19.1226 7.12195 18.7461C7.93365 18.3402 8.62345 17.7313 9.12781 16.9824C8.85543 16.5649 8.53922 16.1741 8.1825 15.8174C7.82546 15.4603 7.4344 15.1436 7.01648 14.8711ZM17.0165 4.75C15.396 4.84313 13.8388 5.41258 12.5399 6.38672C11.2346 7.36571 10.2484 8.70984 9.70691 10.249C9.60423 10.5406 9.33324 10.7398 9.0243 10.75C8.13215 10.7795 7.26238 11.0359 6.49695 11.4951C6.04731 11.7649 5.64371 12.1004 5.29578 12.4873C6.78175 12.8809 8.14585 13.6596 9.24305 14.7568C10.34 15.8537 11.1179 17.2176 11.5116 18.7031C11.8985 18.3552 12.235 17.9526 12.5048 17.5029C12.964 16.7375 13.2204 15.8677 13.2499 14.9756L13.2626 14.8613C13.3114 14.6011 13.4958 14.3828 13.7509 14.293C15.29 13.7515 16.6342 12.7653 17.6132 11.46C18.5875 10.1609 19.1559 8.60328 19.2489 6.98242C19.2443 6.39204 19.0085 5.82699 18.5907 5.40918C18.1727 4.99114 17.6072 4.75435 17.0165 4.75ZM15.2499 9C15.2499 8.9337 15.2235 8.87013 15.1766 8.82324C15.1298 8.77636 15.0662 8.75 14.9999 8.75C14.9336 8.75 14.87 8.77636 14.8231 8.82324C14.7762 8.87013 14.7499 8.9337 14.7499 9C14.7499 9.0663 14.7762 9.12987 14.8231 9.17676C14.87 9.22364 14.9336 9.25 14.9999 9.25C15.0662 9.25 15.1298 9.22364 15.1766 9.17676C15.2235 9.12987 15.2499 9.0663 15.2499 9ZM16.7499 9C16.7499 9.46413 16.5654 9.90912 16.2372 10.2373C15.909 10.5655 15.464 10.75 14.9999 10.75C14.5358 10.75 14.0908 10.5655 13.7626 10.2373C13.4344 9.90912 13.2499 9.46413 13.2499 9C13.2499 8.53587 13.4344 8.09088 13.7626 7.7627C14.0908 7.43451 14.5358 7.25 14.9999 7.25C15.464 7.25 15.909 7.43451 16.2372 7.7627C16.5654 8.09088 16.7499 8.53587 16.7499 9Z" fill="currentColor"/></svg></g></g></g><g transform="translate(330 110)"><g class="il-fly" style="--o:2.15s;--fx:-110px;--fy:0px"><g class="wn-bob wn-loop" style="--d:6.15s"><g filter="url(#waFsh@@)"><rect x="-16.5" y="-15.5" width="38" height="38" rx="12" fill="url(#waFviS@@)"/><rect x="-19" y="-19" width="38" height="38" rx="12" fill="url(#waFvi@@)"/></g><rect x="-19" y="-19" width="38" height="38" rx="12" fill="url(#waFgl@@)"/><rect x="-18.6" y="-18.6" width="37.2" height="37.2" rx="12" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="-10" y="-10" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#fff"><path fill="none" d="M7 8l-4 4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path fill="none" d="M17 8l4 4l-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path fill="none" d="M14 4l-4 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></g></g></g><g transform="translate(300 172)"><g class="il-fly" style="--o:2.3s;--fx:-110px;--fy:-37.199999999999996px"><g class="wn-bob wn-loop" style="--d:6.3s"><g filter="url(#waFsh@@)"><rect x="-16.5" y="-15.5" width="38" height="38" rx="12" fill="url(#waFliS@@)"/><rect x="-19" y="-19" width="38" height="38" rx="12" fill="url(#waFli@@)"/></g><rect x="-19" y="-19" width="38" height="38" rx="12" fill="url(#waFgl@@)"/><rect x="-18.6" y="-18.6" width="37.2" height="37.2" rx="12" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width=".8"/><svg x="-10" y="-10" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#5C45CC"><path fill="none" d="M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873l-6.158 -3.245" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></g></g></g><g transform="translate(40 40) scale(0.8)"><g class="il-tw" style="--i:0;--o:1s"><use href="#waFsp@@" fill="#fff"/></g></g><g transform="translate(260 214) scale(0.8)"><g class="il-tw" style="--i:1;--o:2.5s"><use href="#waFsp@@" fill="#fff"/></g></g><g transform="translate(372 214) scale(0.6)"><g class="il-tw" style="--i:2;--o:2.6s"><use href="#waFsp@@" fill="#fff"/></g></g>' },
+  aboutGlassBg: { vb: '0 0 400 240', par: 'xMidYMax slice', cls: 'il ab-l',
+    b: '<defs><linearGradient id="agBg@@" x1="0" y1="0" x2=".55" y2="1"><stop offset="0" style="stop-color:var(--ab-band-from,#3f8ff7)"/><stop offset=".62" style="stop-color:var(--ab-band-to,#2a74e6)"/><stop offset="1" style="stop-color:var(--ab-band-deep,#1556c6)"/></linearGradient><radialGradient id="agBfA@@" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(--ab-field-a,#8fd2ff);stop-opacity:0.9"/><stop offset=".55" style="stop-color:var(--ab-field-a,#8fd2ff);stop-opacity:0.315"/><stop offset="1" style="stop-color:var(--ab-field-a,#8fd2ff);stop-opacity:0"/></radialGradient><radialGradient id="agBfB@@" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(--ab-field-b,#7fb0ff);stop-opacity:0.55"/><stop offset=".55" style="stop-color:var(--ab-field-b,#7fb0ff);stop-opacity:0.193"/><stop offset="1" style="stop-color:var(--ab-field-b,#7fb0ff);stop-opacity:0"/></radialGradient><radialGradient id="agBfC@@" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(--ab-field-c,#2f86ff);stop-opacity:0.7"/><stop offset=".55" style="stop-color:var(--ab-field-c,#2f86ff);stop-opacity:0.245"/><stop offset="1" style="stop-color:var(--ab-field-c,#2f86ff);stop-opacity:0"/></radialGradient><radialGradient id="agBsh@@" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:#fff;stop-opacity:0.55"/><stop offset=".55" style="stop-color:#fff;stop-opacity:0.193"/><stop offset="1" style="stop-color:#fff;stop-opacity:0"/></radialGradient><linearGradient id="agBscr@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--ab-scrim,rgba(8,30,90,.28))"/><stop offset="1" style="stop-color:var(--ab-scrim,rgba(8,30,90,.28));stop-opacity:0"/></linearGradient></defs><rect width="400" height="240" fill="url(#agBg@@)"/><g class="wn-drift wn-loop" style="--dx:-18px;--dy:10px;--d:17s"><circle cx="312" cy="176" r="120" fill="url(#agBfA@@)"/></g><g class="wn-drift wn-loop" style="--dx:22px;--dy:-10px;--d:21s"><circle cx="56" cy="196" r="150" fill="url(#agBfB@@)"/></g><g class="wn-drift wn-loop" style="--dx:14px;--dy:-12px;--d:15s"><circle cx="200" cy="250" r="110" fill="url(#agBfC@@)"/></g><ellipse cx="350" cy="-10" rx="190" ry="120" fill="url(#agBsh@@)" style="opacity:var(--ab-sheen-op,.45)"/><rect width="400" height="96" fill="url(#agBscr@@)"/>' },
+  aboutGlassFg: { vb: '0 0 400 240', par: 'xMidYMax slice', cls: 'il ab-l',
+    b: '<defs><radialGradient id="agFtvi@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#7b4dff"/><stop offset=".6" stop-color="#c9a6ff" stop-opacity=".85"/><stop offset="1" stop-color="#c9a6ff" stop-opacity=".35"/></radialGradient><radialGradient id="agFcvi@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7b4dff" stop-opacity=".55"/><stop offset="1" stop-color="#7b4dff" stop-opacity="0"/></radialGradient><radialGradient id="agFtau@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#f2a93b"/><stop offset=".6" stop-color="#ffe08a" stop-opacity=".85"/><stop offset="1" stop-color="#ffe08a" stop-opacity=".35"/></radialGradient><radialGradient id="agFcau@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#f2a93b" stop-opacity=".55"/><stop offset="1" stop-color="#f2a93b" stop-opacity="0"/></radialGradient><radialGradient id="agFtpk@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#b45cff"/><stop offset=".6" stop-color="#ffb3dc" stop-opacity=".85"/><stop offset="1" stop-color="#ffb3dc" stop-opacity=".35"/></radialGradient><radialGradient id="agFcpk@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#b45cff" stop-opacity=".55"/><stop offset="1" stop-color="#b45cff" stop-opacity="0"/></radialGradient><linearGradient id="agFgf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="agFgr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".4"/></linearGradient><filter id="agFgb@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><filter id="agFgbF@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="9"/></filter><filter id="agFgsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="#06134a" flood-opacity=".22"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="agFspG@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><g class="il-fade" style="--o:.05s"><circle cx="54" cy="96" r="42" fill="#b98bff" fill-opacity="0.45" filter="url(#agFgbF@@)"/><circle cx="362" cy="70" r="36" fill="#7fe0ff" fill-opacity="0.4" filter="url(#agFgbF@@)"/><circle cx="248" cy="120" r="16" fill="#ff9fd2" fill-opacity="0.45" filter="url(#agFgbF@@)"/><circle cx="150" cy="60" r="12" fill="#ffe08a" fill-opacity="0.4" filter="url(#agFgbF@@)"/></g><g transform="translate(94 162) rotate(-6)"><g class="il-in" style="--o:0.25s;--fx:0px;--fy:14px"><g class="wn-drift wn-loop" style="--dx:0px;--dy:-5px;--d:14s"><g transform="scale(1.1)"><ellipse cx="4.8" cy="30" rx="40" ry="10.4" fill="url(#agFcvi@@)" filter="url(#agFgb@@)"/><g filter="url(#agFgsh@@)"><path d="M-22 -20H22A18 18 0 0 1 22 16H-14L-24 24L-22 15.2A18 18 0 0 1 -22 -20Z" fill="url(#agFtvi@@)"/></g><path d="M-22 -20H22A18 18 0 0 1 22 16H-14L-24 24L-22 15.2A18 18 0 0 1 -22 -20Z" fill="url(#agFgf@@)"/><path d="M-22 -20H22A18 18 0 0 1 22 16H-14L-24 24L-22 15.2A18 18 0 0 1 -22 -20Z" fill="none" stroke="url(#agFgr@@)" stroke-width="1.2"/><circle cx="-14" cy="-2" r="4" fill="#fff" fill-opacity=".95"/><circle cx="0" cy="-2" r="4" fill="#fff" fill-opacity=".95"/><circle cx="14" cy="-2" r="4" fill="#fff" fill-opacity=".95"/></g></g></g></g><g transform="translate(236 106) rotate(-10)"><g class="il-in" style="--o:0.4s;--fx:0px;--fy:14px"><g class="wn-drift wn-loop" style="--dx:0px;--dy:4px;--d:13s"><ellipse cx="1.9" cy="23" rx="16" ry="8.1" fill="url(#agFcpk@@)" filter="url(#agFgb@@)"/><g filter="url(#agFgsh@@)"><rect x="-16" y="-16" width="32" height="32" rx="10" fill="url(#agFtpk@@)"/></g><rect x="-16" y="-16" width="32" height="32" rx="10" fill="url(#agFgf@@)"/><rect x="-16" y="-16" width="32" height="32" rx="10" fill="none" stroke="url(#agFgr@@)" stroke-width="1.2"/><svg x="-9" y="-9" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#fff" opacity="0.95"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 3h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M9 13h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M19 13h-4a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2z"/><path d="M17 3a1 1 0 0 1 .993 .883l.007 .117v2h2a1 1 0 0 1 .117 1.993l-.117 .007h-2v2a1 1 0 0 1 -1.993 .117l-.007 -.117v-2h-2a1 1 0 0 1 -.117 -1.993l.117 -.007h2v-2a1 1 0 0 1 1 -1z"/></svg></g></g></g><g transform="translate(314 160) rotate(0)"><g class="il-in" style="--o:0.5s;--fx:0px;--fy:14px"><g class="wn-drift wn-loop" style="--dx:0px;--dy:5px;--d:16s"><ellipse cx="3" cy="32" rx="25" ry="11" fill="url(#agFcau@@)" filter="url(#agFgb@@)"/><g filter="url(#agFgsh@@)"><circle r="25" fill="url(#agFtau@@)"/></g><circle r="25" fill="url(#agFgf@@)"/><circle r="25" fill="none" stroke="url(#agFgr@@)" stroke-width="1.2"/><circle r="18" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.2"/><use href="#agFspG@@" transform="scale(1.5)" fill="#fff"/></g></g></g>' },
+  moAutodl: { vb: '0 0 360 150', par: 'xMidYMid slice', cls: 'il mo-art',
+    b: '<defs><radialGradient id="mautvi@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#7b4dff"/><stop offset=".6" stop-color="#d2b8ff" stop-opacity=".88"/><stop offset="1" stop-color="#d2b8ff" stop-opacity=".4"/></radialGradient><radialGradient id="maucvi@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7b4dff" stop-opacity=".55"/><stop offset="1" stop-color="#7b4dff" stop-opacity="0"/></radialGradient><radialGradient id="mautcy@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#2fa6ff"/><stop offset=".6" stop-color="#a6ecff" stop-opacity=".88"/><stop offset="1" stop-color="#a6ecff" stop-opacity=".4"/></radialGradient><radialGradient id="mauccy@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#2fa6ff" stop-opacity=".55"/><stop offset="1" stop-color="#2fa6ff" stop-opacity="0"/></radialGradient><radialGradient id="mautpk@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#b45cff"/><stop offset=".6" stop-color="#ffb3dc" stop-opacity=".88"/><stop offset="1" stop-color="#ffb3dc" stop-opacity=".4"/></radialGradient><radialGradient id="maucpk@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#b45cff" stop-opacity=".55"/><stop offset="1" stop-color="#b45cff" stop-opacity="0"/></radialGradient><radialGradient id="mautbl@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#3a6ce0"/><stop offset=".6" stop-color="#b7d0ff" stop-opacity=".88"/><stop offset="1" stop-color="#b7d0ff" stop-opacity=".4"/></radialGradient><radialGradient id="maucbl@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3a6ce0" stop-opacity=".55"/><stop offset="1" stop-color="#3a6ce0" stop-opacity="0"/></radialGradient><linearGradient id="maugf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="maugr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/></linearGradient><radialGradient id="mault@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><filter id="maugb@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><filter id="maugbF@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10"/></filter><filter id="maugsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="#06134a" flood-opacity=".26"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="mausp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="180" cy="70" rx="150" ry="70" fill="url(#mault@@)"/><circle cx="40" cy="110" r="34" fill="#c9a6ff" fill-opacity="0.26" filter="url(#maugbF@@)"/><circle cx="330" cy="34" r="30" fill="#8fe3ff" fill-opacity="0.26" filter="url(#maugbF@@)"/><g transform="translate(132 80) rotate(-14)"><g class="il-mo-in" style="--o:0.1s"><g class="mo-float wn-loop" style="--d:16s;--dy:3px"><ellipse cx="2.9" cy="31" rx="24" ry="10.7" fill="url(#maucbl@@)" filter="url(#maugb@@)"/><g filter="url(#maugsh@@)"><rect x="-24" y="-24" width="48" height="48" rx="13" fill="url(#mautbl@@)"/></g><rect x="-24" y="-24" width="48" height="48" rx="13" fill="url(#maugf@@)"/><rect x="-24" y="-24" width="48" height="48" rx="13" fill="none" stroke="url(#maugr@@)" stroke-width="1.2"/></g></g></g><g transform="translate(212 74) rotate(12)"><g class="il-mo-in" style="--o:0.2s"><g class="mo-float wn-loop" style="--d:15s;--dy:-3px"><ellipse cx="2.9" cy="31" rx="24" ry="10.7" fill="url(#maucvi@@)" filter="url(#maugb@@)"/><g filter="url(#maugsh@@)"><rect x="-24" y="-24" width="48" height="48" rx="13" fill="url(#mautvi@@)"/></g><rect x="-24" y="-24" width="48" height="48" rx="13" fill="url(#maugf@@)"/><rect x="-24" y="-24" width="48" height="48" rx="13" fill="none" stroke="url(#maugr@@)" stroke-width="1.2"/></g></g></g><g transform="translate(170 72) rotate(-3)"><g class="il-mo-in" style="--o:0.3s"><g class="mo-float wn-loop" style="--d:14s;--dy:-4px"><ellipse cx="4" cy="40" rx="33" ry="13.6" fill="url(#maucpk@@)" filter="url(#maugb@@)"/><g filter="url(#maugsh@@)"><rect x="-33" y="-33" width="66" height="66" rx="18" fill="url(#mautpk@@)"/></g><rect x="-33" y="-33" width="66" height="66" rx="18" fill="url(#maugf@@)"/><rect x="-33" y="-33" width="66" height="66" rx="18" fill="none" stroke="url(#maugr@@)" stroke-width="1.2"/><circle cx="11" cy="-10" r="5" fill="#fff" fill-opacity=".92"/><path d="M-22 17L-7 1L3 10L11 3L22 14" fill="none" stroke="#fff" stroke-opacity=".95" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/></g></g></g><g transform="translate(206 106) rotate(0)"><g class="il-mo-in" style="--o:0.55s"><g class="mo-float wn-loop" style="--d:12s;--dy:2px"><ellipse cx="2.4" cy="27" rx="20" ry="9.4" fill="url(#mauccy@@)" filter="url(#maugb@@)"/><g filter="url(#maugsh@@)"><circle r="20" fill="url(#mautcy@@)"/></g><circle r="20" fill="url(#maugf@@)"/><circle r="20" fill="none" stroke="url(#maugr@@)" stroke-width="1.2"/><circle r="14.5" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="2.6"/><circle r="14.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" pathLength="100" stroke-dasharray="100" class="il-mo-ring" transform="rotate(-90)"/><svg x="-7.5" y="-7.5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14"/><path d="M18 13l-6 6"/><path d="M6 13l6 6"/></svg></g></g></g><g transform="translate(92 44) scale(0.8)"><use href="#mausp@@" class="mo-tw wn-loop" style="--i:0" fill="#fff"/></g><g transform="translate(282 112) scale(0.9)"><use href="#mausp@@" class="mo-tw wn-loop" style="--i:1" fill="#fff"/></g>' },
+  moOffline: { vb: '0 0 360 150', par: 'xMidYMid slice', cls: 'il mo-art',
+    b: '<defs><radialGradient id="moftvi@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#7b4dff"/><stop offset=".6" stop-color="#d2b8ff" stop-opacity=".88"/><stop offset="1" stop-color="#d2b8ff" stop-opacity=".4"/></radialGradient><radialGradient id="mofcvi@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7b4dff" stop-opacity=".55"/><stop offset="1" stop-color="#7b4dff" stop-opacity="0"/></radialGradient><radialGradient id="moftau@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#f2a93b"/><stop offset=".6" stop-color="#ffe08a" stop-opacity=".88"/><stop offset="1" stop-color="#ffe08a" stop-opacity=".4"/></radialGradient><radialGradient id="mofcau@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#f2a93b" stop-opacity=".55"/><stop offset="1" stop-color="#f2a93b" stop-opacity="0"/></radialGradient><radialGradient id="moftcy@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#2fa6ff"/><stop offset=".6" stop-color="#a6ecff" stop-opacity=".88"/><stop offset="1" stop-color="#a6ecff" stop-opacity=".4"/></radialGradient><radialGradient id="mofccy@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#2fa6ff" stop-opacity=".55"/><stop offset="1" stop-color="#2fa6ff" stop-opacity="0"/></radialGradient><radialGradient id="moftpk@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#b45cff"/><stop offset=".6" stop-color="#ffb3dc" stop-opacity=".88"/><stop offset="1" stop-color="#ffb3dc" stop-opacity=".4"/></radialGradient><radialGradient id="mofcpk@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#b45cff" stop-opacity=".55"/><stop offset="1" stop-color="#b45cff" stop-opacity="0"/></radialGradient><radialGradient id="moftbl@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#3a6ce0"/><stop offset=".6" stop-color="#b7d0ff" stop-opacity=".88"/><stop offset="1" stop-color="#b7d0ff" stop-opacity=".4"/></radialGradient><radialGradient id="mofcbl@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3a6ce0" stop-opacity=".55"/><stop offset="1" stop-color="#3a6ce0" stop-opacity="0"/></radialGradient><linearGradient id="mofgf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="mofgr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/></linearGradient><radialGradient id="moflt@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><filter id="mofgb@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><filter id="mofgbF@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10"/></filter><filter id="mofgsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="#06134a" flood-opacity=".26"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><ellipse cx="180" cy="70" rx="150" ry="70" fill="url(#moflt@@)"/><circle cx="40" cy="110" r="34" fill="#c9a6ff" fill-opacity="0.26" filter="url(#mofgbF@@)"/><circle cx="330" cy="34" r="30" fill="#8fe3ff" fill-opacity="0.26" filter="url(#mofgbF@@)"/><g transform="translate(108 84) rotate(-6)"><g class="il-mo-in" style="--o:0.15s"><g class="mo-float wn-loop" style="--d:15s;--dy:-3px"><ellipse cx="2.5" cy="42" rx="21" ry="14.2" fill="url(#mofcvi@@)" filter="url(#mofgb@@)"/><g filter="url(#mofgsh@@)"><rect x="-21" y="-35" width="42" height="70" rx="11" fill="url(#moftvi@@)"/></g><rect x="-21" y="-35" width="42" height="70" rx="11" fill="url(#mofgf@@)"/><rect x="-21" y="-35" width="42" height="70" rx="11" fill="none" stroke="url(#mofgr@@)" stroke-width="1.2"/><rect x="-15" y="-27" width="30" height="48" rx="5" fill="#fff" fill-opacity=".12"/><g opacity=".55"><svg x="-9" y="-9" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8h.01"/><path d="M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12z"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5"/><path d="M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3"/></svg></g><path d="M-5 29h10" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/></g></g></g><g transform="translate(88 56) rotate(0)"><g class="il-mo-in" style="--o:0.3s"><g class="mo-float wn-loop" style="--d:12s;--dy:3px"><ellipse cx="1.6" cy="20" rx="13" ry="7.2" fill="url(#mofcau@@)" filter="url(#mofgb@@)"/><g filter="url(#mofgsh@@)"><circle r="13" fill="url(#moftau@@)"/></g><circle r="13" fill="url(#mofgf@@)"/><circle r="13" fill="none" stroke="url(#mofgr@@)" stroke-width="1.2"/><svg x="-7" y="-7" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/></svg></g></g></g><path d="M128 70C150 30 210 30 232 70" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2.2" stroke-dasharray="2 7" stroke-linecap="round" class="il-mo-in" style="--o:.4s"/><g transform="translate(180 40) rotate(-8)"><g class="il-mo-in" style="--o:0.55s"><g class="mo-float wn-loop" style="--d:9s;--dy:-5px"><ellipse cx="1.6" cy="20" rx="13" ry="7.2" fill="url(#mofcpk@@)" filter="url(#mofgb@@)"/><g filter="url(#mofgsh@@)"><rect x="-13" y="-13" width="26" height="26" rx="8" fill="url(#moftpk@@)"/></g><rect x="-13" y="-13" width="26" height="26" rx="8" fill="url(#mofgf@@)"/><rect x="-13" y="-13" width="26" height="26" rx="8" fill="none" stroke="url(#mofgr@@)" stroke-width="1.2"/><circle cx="4.5" cy="-4" r="2.2" fill="#fff"/><path d="M-9 7L-3 0L1 4L5 1L9 6" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></g></g></g><g transform="translate(252 84) rotate(6)"><g class="il-mo-in" style="--o:0.3s"><g class="mo-float wn-loop" style="--d:14s;--dy:3px"><ellipse cx="2.5" cy="42" rx="21" ry="14.2" fill="url(#mofcbl@@)" filter="url(#mofgb@@)"/><g filter="url(#mofgsh@@)"><rect x="-21" y="-35" width="42" height="70" rx="11" fill="url(#moftbl@@)"/></g><rect x="-21" y="-35" width="42" height="70" rx="11" fill="url(#mofgf@@)"/><rect x="-21" y="-35" width="42" height="70" rx="11" fill="none" stroke="url(#mofgr@@)" stroke-width="1.2"/><rect x="-15" y="-27" width="30" height="48" rx="5" fill="#fff" fill-opacity=".12"/><rect x="-11" y="-11" width="22" height="22" rx="6" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.6" stroke-dasharray="3 3.4"/><path d="M-5 29h10" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/></g></g></g><g transform="translate(272 110) rotate(0)"><g class="il-mo-in" style="--o:0.7s"><g class="mo-float wn-loop" style="--d:12s;--dy:-3px"><ellipse cx="1.6" cy="20" rx="13" ry="7.2" fill="url(#mofccy@@)" filter="url(#mofgb@@)"/><g filter="url(#mofgsh@@)"><circle r="13" fill="url(#moftcy@@)"/></g><circle r="13" fill="url(#mofgf@@)"/><circle r="13" fill="none" stroke="url(#mofgr@@)" stroke-width="1.2"/><svg x="-7.5" y="-7.5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12l3 2"/><path d="M12 7v5"/></svg></g></g></g>' },
+  moFirstixi: { vb: '0 0 360 150', par: 'xMidYMid slice', cls: 'il mo-art',
+    b: '<defs><radialGradient id="mfitvi@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#7b4dff"/><stop offset=".6" stop-color="#d2b8ff" stop-opacity=".88"/><stop offset="1" stop-color="#d2b8ff" stop-opacity=".4"/></radialGradient><radialGradient id="mficvi@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7b4dff" stop-opacity=".55"/><stop offset="1" stop-color="#7b4dff" stop-opacity="0"/></radialGradient><radialGradient id="mfitgn@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#1fb488"/><stop offset=".6" stop-color="#a8f5d4" stop-opacity=".88"/><stop offset="1" stop-color="#a8f5d4" stop-opacity=".4"/></radialGradient><radialGradient id="mficgn@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#1fb488" stop-opacity=".55"/><stop offset="1" stop-color="#1fb488" stop-opacity="0"/></radialGradient><radialGradient id="mfitbl@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#3a6ce0"/><stop offset=".6" stop-color="#b7d0ff" stop-opacity=".88"/><stop offset="1" stop-color="#b7d0ff" stop-opacity=".4"/></radialGradient><radialGradient id="mficbl@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3a6ce0" stop-opacity=".55"/><stop offset="1" stop-color="#3a6ce0" stop-opacity="0"/></radialGradient><linearGradient id="mfigf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="mfigr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/></linearGradient><radialGradient id="mfilt@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><filter id="mfigb@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><filter id="mfigbF@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10"/></filter><filter id="mfigsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="#06134a" flood-opacity=".26"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="mfisp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="180" cy="70" rx="150" ry="70" fill="url(#mfilt@@)"/><circle cx="40" cy="110" r="34" fill="#c9a6ff" fill-opacity="0.26" filter="url(#mfigbF@@)"/><circle cx="330" cy="34" r="30" fill="#8fe3ff" fill-opacity="0.26" filter="url(#mfigbF@@)"/><g transform="translate(120 82) rotate(-6)"><g class="il-mo-in" style="--o:0.15s"><g class="mo-float wn-loop" style="--d:15s;--dy:-3px"><ellipse cx="2.5" cy="42" rx="21" ry="14.2" fill="url(#mficvi@@)" filter="url(#mfigb@@)"/><g filter="url(#mfigsh@@)"><rect x="-21" y="-35" width="42" height="70" rx="11" fill="url(#mfitvi@@)"/></g><rect x="-21" y="-35" width="42" height="70" rx="11" fill="url(#mfigf@@)"/><rect x="-21" y="-35" width="42" height="70" rx="11" fill="none" stroke="url(#mfigr@@)" stroke-width="1.2"/><rect x="-15" y="-27" width="30" height="48" rx="5" fill="#fff" fill-opacity=".12"/><circle r="12" fill="#ffd15c" fill-opacity=".95"/><circle r="8.4" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1"/><use href="#mfisp@@" transform="scale(.9)" fill="#fff"/><path d="M-5 29h10" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/></g></g></g><path d="M146 82H204" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2.2" stroke-dasharray="2 7" stroke-linecap="round" class="il-mo-in" style="--o:.4s"/><path d="M200 76L207 82L200 88" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="il-mo-in" style="--o:.45s"/><g transform="translate(242 80) rotate(5)"><g class="il-mo-in" style="--o:0.55s"><g class="mo-float wn-loop" style="--d:13s;--dy:4px"><ellipse cx="2.9" cy="39" rx="24" ry="13.2" fill="url(#mficgn@@)" filter="url(#mfigb@@)"/><g filter="url(#mfigsh@@)"><path d="M-24 -32H12L24 -20V28Q24 32 20 32H-20Q-24 32 -24 28V-28Q-24 -32 -20 -32Z" fill="url(#mfitgn@@)"/></g><path d="M-24 -32H12L24 -20V28Q24 32 20 32H-20Q-24 32 -24 28V-28Q-24 -32 -20 -32Z" fill="url(#mfigf@@)"/><path d="M-24 -32H12L24 -20V28Q24 32 20 32H-20Q-24 32 -24 28V-28Q-24 -32 -20 -32Z" fill="none" stroke="url(#mfigr@@)" stroke-width="1.2"/><path d="M12 -32V-20H24" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="1.4" stroke-linejoin="round"/><svg x="-11" y="-11" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0z"/><path d="M15 9h.01"/></svg></g></g></g><g transform="translate(266 108) rotate(0)"><g class="il-mo-in" style="--o:0.8s"><g class="mo-float wn-loop" style="--d:12s;--dy:-3px"><ellipse cx="1.4" cy="19" rx="12" ry="6.8" fill="url(#mficbl@@)" filter="url(#mfigb@@)"/><g filter="url(#mfigsh@@)"><circle r="12" fill="url(#mfitbl@@)"/></g><circle r="12" fill="url(#mfigf@@)"/><circle r="12" fill="none" stroke="url(#mfigr@@)" stroke-width="1.2"/><svg x="-6.5" y="-6.5" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5l10 -10"/></svg></g></g></g><g transform="translate(84 46) scale(0.9)"><use href="#mfisp@@" class="mo-tw wn-loop" style="--i:0" fill="#fff"/></g><g transform="translate(286 44) scale(0.9)"><use href="#mfisp@@" class="mo-tw wn-loop" style="--i:1" fill="#fff"/></g>' },
+  moMic: { vb: '0 0 360 150', par: 'xMidYMid slice', cls: 'il mo-art',
+    b: '<defs><radialGradient id="mmitcy@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#2fa6ff"/><stop offset=".6" stop-color="#a6ecff" stop-opacity=".88"/><stop offset="1" stop-color="#a6ecff" stop-opacity=".4"/></radialGradient><radialGradient id="mmiccy@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#2fa6ff" stop-opacity=".55"/><stop offset="1" stop-color="#2fa6ff" stop-opacity="0"/></radialGradient><radialGradient id="mmitbl@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#3a6ce0"/><stop offset=".6" stop-color="#b7d0ff" stop-opacity=".88"/><stop offset="1" stop-color="#b7d0ff" stop-opacity=".4"/></radialGradient><radialGradient id="mmicbl@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3a6ce0" stop-opacity=".55"/><stop offset="1" stop-color="#3a6ce0" stop-opacity="0"/></radialGradient><linearGradient id="mmigf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="mmigr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/></linearGradient><radialGradient id="mmilt@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><filter id="mmigb@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><filter id="mmigbF@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10"/></filter><filter id="mmigsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="#06134a" flood-opacity=".26"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="mmisp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="180" cy="70" rx="150" ry="70" fill="url(#mmilt@@)"/><circle cx="40" cy="110" r="34" fill="#c9a6ff" fill-opacity="0.26" filter="url(#mmigbF@@)"/><circle cx="330" cy="34" r="30" fill="#8fe3ff" fill-opacity="0.26" filter="url(#mmigbF@@)"/><g transform="translate(156 78) rotate(0)"><g class="il-mo-in" style="--o:0.15s"><g class="mo-float wn-loop" style="--d:14s;--dy:-4px"><ellipse cx="3.8" cy="39" rx="32" ry="13.2" fill="url(#mmicbl@@)" filter="url(#mmigb@@)"/><g filter="url(#mmigsh@@)"><circle r="32" fill="url(#mmitbl@@)"/></g><circle r="32" fill="url(#mmigf@@)"/><circle r="32" fill="none" stroke="url(#mmigr@@)" stroke-width="1.2"/><circle r="27.5" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.5"/><svg x="-15" y="-15" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2m0 3a3 3 0 0 1 3 -3h0a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3h0a3 3 0 0 1 -3 -3z"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M8 21l8 0"/><path d="M12 17l0 4"/></svg></g></g></g><g transform="translate(240 84) rotate(0)"><g class="il-mo-in" style="--o:0.4s"><g class="mo-float wn-loop" style="--d:13s;--dy:4px"><ellipse cx="4.6" cy="23" rx="38" ry="8.1" fill="url(#mmiccy@@)" filter="url(#mmigb@@)"/><g filter="url(#mmigsh@@)"><rect x="-38" y="-16" width="76" height="32" rx="16" fill="url(#mmitcy@@)"/></g><rect x="-38" y="-16" width="76" height="32" rx="16" fill="url(#mmigf@@)"/><rect x="-38" y="-16" width="76" height="32" rx="16" fill="none" stroke="url(#mmigr@@)" stroke-width="1.2"/><path d="M-25 -3v6" stroke="#fff" stroke-opacity=".95" stroke-width="3.4" stroke-linecap="round"/><path d="M-15 -6v12" stroke="#fff" stroke-opacity=".95" stroke-width="3.4" stroke-linecap="round"/><path d="M-5 -9v18" stroke="#fff" stroke-opacity=".95" stroke-width="3.4" stroke-linecap="round"/><path d="M5 -5v10" stroke="#fff" stroke-opacity=".95" stroke-width="3.4" stroke-linecap="round"/><path d="M15 -7v14" stroke="#fff" stroke-opacity=".95" stroke-width="3.4" stroke-linecap="round"/><path d="M25 -3.5v7" stroke="#fff" stroke-opacity=".95" stroke-width="3.4" stroke-linecap="round"/></g></g></g><g transform="translate(98 52) scale(0.9)"><use href="#mmisp@@" class="mo-tw wn-loop" style="--i:0" fill="#fff"/></g><g transform="translate(282 50) scale(0.8)"><use href="#mmisp@@" class="mo-tw wn-loop" style="--i:1" fill="#fff"/></g>' },
+  moApp: { vb: '0 0 360 150', par: 'xMidYMid slice', cls: 'il mo-art',
+    b: '<defs><radialGradient id="maptvi@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#7b4dff"/><stop offset=".6" stop-color="#d2b8ff" stop-opacity=".88"/><stop offset="1" stop-color="#d2b8ff" stop-opacity=".4"/></radialGradient><radialGradient id="mapcvi@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7b4dff" stop-opacity=".55"/><stop offset="1" stop-color="#7b4dff" stop-opacity="0"/></radialGradient><radialGradient id="maptcy@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#2fa6ff"/><stop offset=".6" stop-color="#a6ecff" stop-opacity=".88"/><stop offset="1" stop-color="#a6ecff" stop-opacity=".4"/></radialGradient><radialGradient id="mapccy@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#2fa6ff" stop-opacity=".55"/><stop offset="1" stop-color="#2fa6ff" stop-opacity="0"/></radialGradient><radialGradient id="maptpk@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#b45cff"/><stop offset=".6" stop-color="#ffb3dc" stop-opacity=".88"/><stop offset="1" stop-color="#ffb3dc" stop-opacity=".4"/></radialGradient><radialGradient id="mapcpk@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#b45cff" stop-opacity=".55"/><stop offset="1" stop-color="#b45cff" stop-opacity="0"/></radialGradient><radialGradient id="maptbl@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#3a6ce0"/><stop offset=".6" stop-color="#b7d0ff" stop-opacity=".88"/><stop offset="1" stop-color="#b7d0ff" stop-opacity=".4"/></radialGradient><radialGradient id="mapcbl@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3a6ce0" stop-opacity=".55"/><stop offset="1" stop-color="#3a6ce0" stop-opacity="0"/></radialGradient><linearGradient id="mapgf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="mapgr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/></linearGradient><radialGradient id="maplt@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><filter id="mapgb@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><filter id="mapgbF@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10"/></filter><filter id="mapgsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="#06134a" flood-opacity=".26"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="mapsp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="180" cy="70" rx="150" ry="70" fill="url(#maplt@@)"/><circle cx="40" cy="110" r="34" fill="#c9a6ff" fill-opacity="0.26" filter="url(#mapgbF@@)"/><circle cx="330" cy="34" r="30" fill="#8fe3ff" fill-opacity="0.26" filter="url(#mapgbF@@)"/><g transform="translate(152 78) rotate(-6)"><g class="il-mo-in" style="--o:0.15s"><g class="mo-float wn-loop" style="--d:14s;--dy:-4px"><ellipse cx="3.6" cy="37" rx="30" ry="12.6" fill="url(#mapcpk@@)" filter="url(#mapgb@@)"/><g filter="url(#mapgsh@@)"><rect x="-30" y="-30" width="60" height="60" rx="18" fill="url(#maptpk@@)"/></g><rect x="-30" y="-30" width="60" height="60" rx="18" fill="url(#mapgf@@)"/><rect x="-30" y="-30" width="60" height="60" rx="18" fill="none" stroke="url(#mapgr@@)" stroke-width="1.2"/><svg x="-14" y="-14" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/><path d="M4 14m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/><path d="M14 14m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/><path d="M14 7l6 0"/><path d="M17 4l0 6"/></svg></g></g></g><g transform="translate(218 48) rotate(0)"><g class="il-mo-in" style="--o:0.35s"><g class="mo-float wn-loop" style="--d:12s;--dy:3px"><ellipse cx="1.9" cy="23" rx="16" ry="8.1" fill="url(#mapcvi@@)" filter="url(#mapgb@@)"/><g filter="url(#mapgsh@@)"><circle r="16" fill="url(#maptvi@@)"/></g><circle r="16" fill="url(#mapgf@@)"/><circle r="16" fill="none" stroke="url(#mapgr@@)" stroke-width="1.2"/><svg x="-8.5" y="-8.5" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0z"/><path d="M15 9h.01"/></svg></g></g></g><g transform="translate(240 98) rotate(0)"><g class="il-mo-in" style="--o:0.5s"><g class="mo-float wn-loop" style="--d:13s;--dy:-3px"><ellipse cx="1.9" cy="23" rx="16" ry="8.1" fill="url(#mapccy@@)" filter="url(#mapgb@@)"/><g filter="url(#mapgsh@@)"><circle r="16" fill="url(#maptcy@@)"/></g><circle r="16" fill="url(#mapgf@@)"/><circle r="16" fill="none" stroke="url(#mapgr@@)" stroke-width="1.2"/><svg x="-8.5" y="-8.5" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6m-8 0a8 3 0 1 0 16 0a8 3 0 1 0 -16 0"/><path d="M4 6v6a8 3 0 0 0 16 0v-6"/><path d="M4 12v6a8 3 0 0 0 16 0v-6"/></svg></g></g></g><g transform="translate(96 108) rotate(0)"><g class="il-mo-in" style="--o:0.65s"><g class="mo-float wn-loop" style="--d:15s;--dy:3px"><ellipse cx="1.7" cy="21" rx="14" ry="7.5" fill="url(#mapcbl@@)" filter="url(#mapgb@@)"/><g filter="url(#mapgsh@@)"><circle r="14" fill="url(#maptbl@@)"/></g><circle r="14" fill="url(#mapgf@@)"/><circle r="14" fill="none" stroke="url(#mapgr@@)" stroke-width="1.2"/><svg x="-7.5" y="-7.5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0 -3 -3.85"/></svg></g></g></g><g transform="translate(278 62) scale(0.8)"><use href="#mapsp@@" class="mo-tw wn-loop" style="--i:1" fill="#fff"/></g>' },
+  moPay: { vb: '0 0 360 150', par: 'xMidYMid slice', cls: 'il mo-art',
+    b: '<defs><radialGradient id="mpatau@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#f2a93b"/><stop offset=".6" stop-color="#ffe08a" stop-opacity=".88"/><stop offset="1" stop-color="#ffe08a" stop-opacity=".4"/></radialGradient><radialGradient id="mpacau@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#f2a93b" stop-opacity=".55"/><stop offset="1" stop-color="#f2a93b" stop-opacity="0"/></radialGradient><radialGradient id="mpatgn@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#1fb488"/><stop offset=".6" stop-color="#a8f5d4" stop-opacity=".88"/><stop offset="1" stop-color="#a8f5d4" stop-opacity=".4"/></radialGradient><radialGradient id="mpacgn@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#1fb488" stop-opacity=".55"/><stop offset="1" stop-color="#1fb488" stop-opacity="0"/></radialGradient><radialGradient id="mpatbl@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#3a6ce0"/><stop offset=".6" stop-color="#b7d0ff" stop-opacity=".88"/><stop offset="1" stop-color="#b7d0ff" stop-opacity=".4"/></radialGradient><radialGradient id="mpacbl@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3a6ce0" stop-opacity=".55"/><stop offset="1" stop-color="#3a6ce0" stop-opacity="0"/></radialGradient><linearGradient id="mpagf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="mpagr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/></linearGradient><radialGradient id="mpalt@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><filter id="mpagb@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><filter id="mpagbF@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10"/></filter><filter id="mpagsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="#06134a" flood-opacity=".26"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="mpasp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="180" cy="70" rx="150" ry="70" fill="url(#mpalt@@)"/><circle cx="40" cy="110" r="34" fill="#c9a6ff" fill-opacity="0.26" filter="url(#mpagbF@@)"/><circle cx="330" cy="34" r="30" fill="#8fe3ff" fill-opacity="0.26" filter="url(#mpagbF@@)"/><g transform="translate(146 86) rotate(0)"><g class="il-mo-in" style="--o:0.15s"><g class="mo-float wn-loop" style="--d:15s;--dy:-4px"><ellipse cx="3.4" cy="35" rx="28" ry="12" fill="url(#mpacau@@)" filter="url(#mpagb@@)"/><g filter="url(#mpagsh@@)"><circle r="28" fill="url(#mpatau@@)"/></g><circle r="28" fill="url(#mpagf@@)"/><circle r="28" fill="none" stroke="url(#mpagr@@)" stroke-width="1.2"/><circle r="20.5" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.2"/><use href="#mpasp@@" transform="scale(1.7)" fill="#fff"/></g></g></g><g transform="translate(204 54) rotate(0)"><g class="il-mo-in" style="--o:0.35s"><g class="mo-float wn-loop" style="--d:12s;--dy:3px"><ellipse cx="2.3" cy="26" rx="19" ry="9.1" fill="url(#mpacbl@@)" filter="url(#mpagb@@)"/><g filter="url(#mpagsh@@)"><circle r="19" fill="url(#mpatbl@@)"/></g><circle r="19" fill="url(#mpagf@@)"/><circle r="19" fill="none" stroke="url(#mpagr@@)" stroke-width="1.2"/><svg x="-10" y="-10" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7l-10 10"/><path d="M8 7l9 0l0 9"/></svg></g></g></g><g transform="translate(238 102) rotate(0)"><g class="il-mo-in" style="--o:0.5s"><g class="mo-float wn-loop" style="--d:13s;--dy:-3px"><ellipse cx="1.9" cy="23" rx="16" ry="8.1" fill="url(#mpacgn@@)" filter="url(#mpagb@@)"/><g filter="url(#mpagsh@@)"><circle r="16" fill="url(#mpatgn@@)"/></g><circle r="16" fill="url(#mpagf@@)"/><circle r="16" fill="none" stroke="url(#mpagr@@)" stroke-width="1.2"/><svg x="-9" y="-9" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-opacity=".96" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5l10 -10"/></svg></g></g></g><g transform="translate(96 50) scale(0.8)"><use href="#mpasp@@" class="mo-tw wn-loop" style="--i:0" fill="#fff"/></g><g transform="translate(276 60) scale(0.9)"><use href="#mpasp@@" class="mo-tw wn-loop" style="--i:1" fill="#fff"/></g>' },
+  heartBg: { vb: '0 0 400 250', par: 'xMidYMax slice', cls: 'il ct-l',
+    b: '<defs><linearGradient id="htBg@@" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" style="stop-color:var(--dc-a,#6f7dff)"/><stop offset=".6" style="stop-color:var(--dc-b,#a35cff)"/><stop offset="1" style="stop-color:var(--dc-c,#ff7ab6)"/></linearGradient><linearGradient id="htBs@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b0630" stop-opacity=".25"/><stop offset="1" stop-color="#0b0630" stop-opacity="0"/></linearGradient><radialGradient id="htBbk0@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#9be8ff" stop-opacity="0.35"/><stop offset="0.071" stop-color="#9be8ff" stop-opacity="0.35"/><stop offset="0.143" stop-color="#9be8ff" stop-opacity="0.35"/><stop offset="0.214" stop-color="#9be8ff" stop-opacity="0.35"/><stop offset="0.286" stop-color="#9be8ff" stop-opacity="0.348"/><stop offset="0.357" stop-color="#9be8ff" stop-opacity="0.341"/><stop offset="0.429" stop-color="#9be8ff" stop-opacity="0.321"/><stop offset="0.5" stop-color="#9be8ff" stop-opacity="0.279"/><stop offset="0.571" stop-color="#9be8ff" stop-opacity="0.213"/><stop offset="0.643" stop-color="#9be8ff" stop-opacity="0.136"/><stop offset="0.714" stop-color="#9be8ff" stop-opacity="0.07"/><stop offset="0.786" stop-color="#9be8ff" stop-opacity="0.028"/><stop offset="0.857" stop-color="#9be8ff" stop-opacity="0.009"/><stop offset="0.929" stop-color="#9be8ff" stop-opacity="0.002"/><stop offset="1" stop-color="#9be8ff" stop-opacity="0"/></radialGradient><radialGradient id="htBbk1@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffe08a" stop-opacity="0.35"/><stop offset="0.071" stop-color="#ffe08a" stop-opacity="0.35"/><stop offset="0.143" stop-color="#ffe08a" stop-opacity="0.35"/><stop offset="0.214" stop-color="#ffe08a" stop-opacity="0.349"/><stop offset="0.286" stop-color="#ffe08a" stop-opacity="0.345"/><stop offset="0.357" stop-color="#ffe08a" stop-opacity="0.332"/><stop offset="0.429" stop-color="#ffe08a" stop-opacity="0.304"/><stop offset="0.5" stop-color="#ffe08a" stop-opacity="0.254"/><stop offset="0.571" stop-color="#ffe08a" stop-opacity="0.185"/><stop offset="0.643" stop-color="#ffe08a" stop-opacity="0.114"/><stop offset="0.714" stop-color="#ffe08a" stop-opacity="0.058"/><stop offset="0.786" stop-color="#ffe08a" stop-opacity="0.023"/><stop offset="0.857" stop-color="#ffe08a" stop-opacity="0.007"/><stop offset="0.929" stop-color="#ffe08a" stop-opacity="0.002"/><stop offset="1" stop-color="#ffe08a" stop-opacity="0"/></radialGradient><radialGradient id="htBbk2@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ff9fd2" stop-opacity="0.394"/><stop offset="0.071" stop-color="#ff9fd2" stop-opacity="0.391"/><stop offset="0.143" stop-color="#ff9fd2" stop-opacity="0.383"/><stop offset="0.214" stop-color="#ff9fd2" stop-opacity="0.365"/><stop offset="0.286" stop-color="#ff9fd2" stop-opacity="0.334"/><stop offset="0.357" stop-color="#ff9fd2" stop-opacity="0.287"/><stop offset="0.429" stop-color="#ff9fd2" stop-opacity="0.228"/><stop offset="0.5" stop-color="#ff9fd2" stop-opacity="0.164"/><stop offset="0.571" stop-color="#ff9fd2" stop-opacity="0.105"/><stop offset="0.643" stop-color="#ff9fd2" stop-opacity="0.059"/><stop offset="0.714" stop-color="#ff9fd2" stop-opacity="0.029"/><stop offset="0.786" stop-color="#ff9fd2" stop-opacity="0.012"/><stop offset="0.857" stop-color="#ff9fd2" stop-opacity="0.004"/><stop offset="0.929" stop-color="#ff9fd2" stop-opacity="0.001"/><stop offset="1" stop-color="#ff9fd2" stop-opacity="0"/></radialGradient><radialGradient id="htBbk3@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#c9a6ff" stop-opacity="0.412"/><stop offset="0.071" stop-color="#c9a6ff" stop-opacity="0.405"/><stop offset="0.143" stop-color="#c9a6ff" stop-opacity="0.385"/><stop offset="0.214" stop-color="#c9a6ff" stop-opacity="0.35"/><stop offset="0.286" stop-color="#c9a6ff" stop-opacity="0.302"/><stop offset="0.357" stop-color="#c9a6ff" stop-opacity="0.243"/><stop offset="0.429" stop-color="#c9a6ff" stop-opacity="0.181"/><stop offset="0.5" stop-color="#c9a6ff" stop-opacity="0.123"/><stop offset="0.571" stop-color="#c9a6ff" stop-opacity="0.076"/><stop offset="0.643" stop-color="#c9a6ff" stop-opacity="0.042"/><stop offset="0.714" stop-color="#c9a6ff" stop-opacity="0.021"/><stop offset="0.786" stop-color="#c9a6ff" stop-opacity="0.009"/><stop offset="0.857" stop-color="#c9a6ff" stop-opacity="0.004"/><stop offset="0.929" stop-color="#c9a6ff" stop-opacity="0.001"/><stop offset="1" stop-color="#c9a6ff" stop-opacity="0"/></radialGradient></defs><rect width="400" height="250" fill="url(#htBg@@)"/><g class="wn-drift wn-loop" style="--dx:14px;--dy:-8px;--d:16s"><circle cx="62" cy="96" r="71" fill="url(#htBbk0@@)"/><circle cx="350" cy="70" r="67" fill="url(#htBbk1@@)"/><circle cx="300" cy="190" r="53" fill="url(#htBbk2@@)"/><circle cx="110" cy="200" r="47" fill="url(#htBbk3@@)"/></g><rect width="400" height="96" fill="url(#htBs@@)"/><path d="M90 142Q90 150 98 150Q90 150 90 158Q90 150 82 150Q90 150 90 142Z" fill="#fff" class="ct-tw wn-loop" style="--i:0"/><path d="M318 122Q318 128 324 128Q318 128 318 134Q318 128 312 128Q318 128 318 122Z" fill="#fff" class="ct-tw wn-loop" style="--i:1"/><path d="M146 90.8Q146 96 151.2 96Q146 96 146 101.2Q146 96 140.8 96Q146 96 146 90.8Z" fill="#fff" class="ct-tw wn-loop" style="--i:2"/><path d="M262 75.2Q262 82 268.8 82Q262 82 262 88.8Q262 82 255.2 82Q262 82 262 75.2Z" fill="#fff" class="ct-tw wn-loop" style="--i:3"/><path d="M56 191.6Q56 196 60.4 196Q56 196 56 200.4Q56 196 51.6 196Q56 196 56 191.6Z" fill="#fff" class="ct-tw wn-loop" style="--i:4"/><path d="M352 200.8Q352 206 357.2 206Q352 206 352 211.2Q352 206 346.8 206Q352 206 352 200.8Z" fill="#fff" class="ct-tw wn-loop" style="--i:5"/>' },
+  heartFg: { vb: '0 0 400 250', par: 'xMidYMax slice', cls: 'il ct-l',
+    b: '<defs><radialGradient id="htFc@@" cx=".64" cy=".7" r=".8"><stop offset="0" stop-color="#ff5fa8"/><stop offset=".6" stop-color="#ffb3dc" stop-opacity=".85"/><stop offset="1" stop-color="#ffd9ee" stop-opacity=".4"/></radialGradient><linearGradient id="htFf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="htFr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".5" stop-color="#fff" stop-opacity=".15"/><stop offset="1" stop-color="#fff" stop-opacity=".4"/></linearGradient><filter id="htFb@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="9"/></filter><filter id="htFd@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="7"/><feOffset dy="8" result="o"/><feFlood flood-color="#4a0f5a" flood-opacity=".35"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g transform="translate(200 150) scale(1.22)"><g class="wn-bob wn-loop" style="--d:6s;--bd:1s"><ellipse cx="4" cy="58" rx="46" ry="9" fill="#ff5fa8" opacity=".45" filter="url(#htFb@@)"/><g filter="url(#htFd@@)"><path d="M0 46C-30 26-52 6-52-16-52-34-38-46-22-46-10-46-3-39 0-32 3-39 10-46 22-46 38-46 52-34 52-16 52 6 30 26 0 46Z" fill="url(#htFc@@)"/></g><path d="M0 46C-30 26-52 6-52-16-52-34-38-46-22-46-10-46-3-39 0-32 3-39 10-46 22-46 38-46 52-34 52-16 52 6 30 26 0 46Z" fill="url(#htFf@@)"/><path d="M0 46C-30 26-52 6-52-16-52-34-38-46-22-46-10-46-3-39 0-32 3-39 10-46 22-46 38-46 52-34 52-16 52 6 30 26 0 46Z" fill="none" stroke="url(#htFr@@)" stroke-width="1.3"/><svg x="-20" y="-28" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/><path d="M12 6l-3.293 3.293a1 1 0 0 0 0 1.414l.543 .543c.69 .69 1.81 .69 2.5 0l1 -1a3.182 3.182 0 0 1 4.5 0l2.25 2.25"/><path d="M12.5 15.5l2 2"/><path d="M15 13l2 2"/></svg></g></g>' },
+};
+
+/* The AI-translation drawing carries two pills ("Hello" + the greeting in the NEW language). Their text is NEVER in
+   the markup: the caller sets [data-say="hello"] / [data-say="greet"] with textContent. Only a NUMBER (the greeting
+   length) reaches the markup — it sizes the greeting pill. */
+const MOMENT_AI_TPL = '<defs><radialGradient id="maitvi@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#7b4dff"/><stop offset=".6" stop-color="#d2b8ff" stop-opacity=".88"/><stop offset="1" stop-color="#d2b8ff" stop-opacity=".4"/></radialGradient><radialGradient id="maicvi@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7b4dff" stop-opacity=".55"/><stop offset="1" stop-color="#7b4dff" stop-opacity="0"/></radialGradient><radialGradient id="maitcy@@" cx=".66" cy=".7" r=".8"><stop offset="0" stop-color="#2fa6ff"/><stop offset=".6" stop-color="#a6ecff" stop-opacity=".88"/><stop offset="1" stop-color="#a6ecff" stop-opacity=".4"/></radialGradient><radialGradient id="maiccy@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#2fa6ff" stop-opacity=".55"/><stop offset="1" stop-color="#2fa6ff" stop-opacity="0"/></radialGradient><linearGradient id="maigf@@" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="maigr@@" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/></linearGradient><radialGradient id="mailt@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><filter id="maigb@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><filter id="maigbF@@" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10"/></filter><filter id="maigsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="#06134a" flood-opacity=".26"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="maisp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="180" cy="70" rx="150" ry="70" fill="url(#mailt@@)"/><circle cx="40" cy="110" r="34" fill="#c9a6ff" fill-opacity="0.26" filter="url(#maigbF@@)"/><circle cx="330" cy="34" r="30" fill="#8fe3ff" fill-opacity="0.26" filter="url(#maigbF@@)"/><g transform="translate(126 68) rotate(-4)"><g class="il-mo-in" style="--o:0.15s"><g class="mo-float wn-loop" style="--d:13s;--dy:-4px"><ellipse cx="5.5" cy="29" rx="46" ry="10" fill="url(#maiccy@@)" filter="url(#maigb@@)"/><g filter="url(#maigsh@@)"><rect x="-46" y="-22" width="92" height="44" rx="22" fill="url(#maitcy@@)"/></g><rect x="-46" y="-22" width="92" height="44" rx="22" fill="url(#maigf@@)"/><rect x="-46" y="-22" width="92" height="44" rx="22" fill="none" stroke="url(#maigr@@)" stroke-width="1.2"/><text y="0" text-anchor="middle" dominant-baseline="central" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-weight="700" font-size="18" fill="#fff" fill-opacity=".96" data-say="hello"/></g></g></g><g transform="translate(234 94) rotate(4)"><g class="il-mo-in" style="--o:0.3s"><g class="mo-float wn-loop" style="--d:15s;--dy:4px"><ellipse cx="{{CX}}" cy="29" rx="{{H}}" ry="10" fill="url(#maicvi@@)" filter="url(#maigb@@)"/><g filter="url(#maigsh@@)"><rect x="-{{H}}" y="-22" width="{{W}}" height="44" rx="22" fill="url(#maitvi@@)"/></g><rect x="-{{H}}" y="-22" width="{{W}}" height="44" rx="22" fill="url(#maigf@@)"/><rect x="-{{H}}" y="-22" width="{{W}}" height="44" rx="22" fill="none" stroke="url(#maigr@@)" stroke-width="1.2"/><text y="0" text-anchor="middle" dominant-baseline="central" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-weight="700" font-size="{{FS}}" fill="#fff" fill-opacity=".96" data-say="greet"/></g></g></g><g transform="translate(186 36) scale(1.5)"><use href="#maisp@@" class="mo-tw wn-loop" style="--i:0" fill="#fff"/></g><g transform="translate(284 44) scale(0.9)"><use href="#maisp@@" class="mo-tw wn-loop" style="--i:1" fill="#fff"/></g><g transform="translate(82 116) scale(0.8)"><use href="#maisp@@" class="mo-tw wn-loop" style="--i:2" fill="#fff"/></g>';
+function momentAiEntry(n) {
+  const len = Math.max(0, Math.min(40, Math.floor(Number(n) || 0)));
+  const w = Math.max(92, len * 11 + 34);
+  const f = (x) => Math.round(x * 10) / 10;
+  const b = MOMENT_AI_TPL.split('{{W}}').join(String(w)).split('{{H}}').join(String(w / 2))
+    .split('{{CX}}').join(String(f(w * 0.06))).split('{{FS}}').join(len > 6 ? '16' : '18');
+  return { vb: '0 0 360 150', par: 'xMidYMid slice', cls: 'il mo-art', b };
+}
+
 /* ---- src/components/illustrations.js ---- */
 /**
  * illustrations — ★ S11 B (#1262): the approved illustration set as INLINE SVG.
@@ -3150,6 +3223,8 @@ function setSuccess(el, { label = null, duration = 1400 } = {}) {
  * Markup is a STATIC module constant written through innerHTML on a fresh SVG element —
  * the icons.js precedent; never user data, never a remote string.
  */
+
+
 const IL_NS = 'http://www.w3.org/2000/svg';
 let ilSeq = 0;                                   // per document: the id suffix of each call
 
@@ -3161,38 +3236,41 @@ const IL_ART = {
   welcome1: { vb: '0 0 240 240', cls: 'il',
     b: '<defs><linearGradient id="w1Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w1Vi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><radialGradient id="w1Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="w1Ring@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><radialGradient id="w1RingF@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".16"/><stop offset=".7" stop-color="var(--il-glow)" stop-opacity=".06"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity=".1"/></radialGradient><linearGradient id="w1Glass@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DCE6FF" stop-opacity=".85"/><stop offset=".55" stop-color="#9DB6FF" stop-opacity=".55"/><stop offset="1" stop-color="#8C7CF5" stop-opacity=".5"/></linearGradient><filter id="w1Blur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="w1ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w1Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="122" rx="112" ry="100" fill="url(#w1Glow@@)"/><g class="il-ring" style="--to:50% 50%"><circle cx="120" cy="122" r="100" fill="url(#w1RingF@@)"/><circle cx="120" cy="122" r="44" fill="none" stroke="url(#w1Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="122" r="72" fill="none" stroke="url(#w1Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="122" r="100" fill="none" stroke="url(#w1Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/></g><g transform="translate(30 66) scale(1)" fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" class="il-fade" style="--o:1.1s"><rect x="-8" y="-7" width="16" height="14" rx="3.5"/><path d="M-5 4l3.5-3.5 2.5 2.5 2.5-2.5 2.5 3"/><circle cx="-2.5" cy="-2.5" r="1.4"/></g><g transform="translate(208 62) scale(1)" fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" class="il-fade" style="--o:1.1s"><rect x="-5" y="-8.5" width="10" height="17" rx="2.6"/><path d="M-1.6 5.6h3.2"/></g><g transform="translate(92 196) scale(1)" fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" class="il-fade" style="--o:1.1s"><rect x="-8" y="-8" width="16" height="16" rx="3.5"/><rect x="-4.6" y="-4.6" width="3.6" height="3.6" rx=".9"/><rect x="1" y="-4.6" width="3.6" height="3.6" rx=".9"/><rect x="-4.6" y="1" width="3.6" height="3.6" rx=".9"/><rect x="1" y="1" width="3.6" height="3.6" rx=".9"/></g><g fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.2" class="il-fade" style="--o:1.2s"><circle cx="150" cy="40" r="2.2"/><circle cx="224" cy="150" r="2.2"/></g><g class="il-grow" style="--o:.55s;--to:50% 50%"><rect x="86" y="101" width="68" height="30" rx="15.0" fill="#8FB2FF" opacity=".35" filter="url(#w1Blur@@)"/><rect x="86" y="103" width="68" height="26" rx="13.0" fill="url(#w1Glass@@)"/><path d="M90 105.6h60" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/></g><g class="il-in" style="--o:.1s;--fx:-14px"><g filter="url(#w1ShS@@)"><rect x="22" y="96" width="80" height="38" rx="19" fill="url(#w1Bl@@)"/></g><rect x="36.25" y="108.5" width="44" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="36.25" y="116" width="28" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g><g class="il-in" style="--o:.25s;--fx:14px"><g filter="url(#w1ShS@@)"><rect x="138" y="100" width="80" height="38" rx="19" fill="url(#w1Vi@@)"/></g><rect x="152.25" y="112.5" width="44" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="152.25" y="120" width="28" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g><g fill="var(--il-spark)"><g transform="translate(206 104) scale(0.7)"><use href="#w1Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(40 152) scale(0.6)"><use href="#w1Sp@@" class="il-tw" style="--i:1"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="176" cy="58" r="1.6"/><circle cx="60" cy="104" r="1.4"/></g>' },
   welcome2: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="w2Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w2BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w2Br@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w2BrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="w2Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w2Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="w2Lc@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B9B2EC"/><stop offset=".5" stop-color="#9890DA"/><stop offset="1" stop-color="#7C72C8"/></linearGradient><linearGradient id="w2LcS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B50A8"/><stop offset="1" stop-color="#433A86"/></linearGradient><filter id="w2Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w2ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w2Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="118" rx="104" ry="92" fill="url(#w2Glow@@)"/><ellipse cx="120" cy="118" rx="100" ry="58" transform="rotate(-8 120 118)" fill="none" stroke="var(--il-orbit)" stroke-width="1.2" stroke-dasharray="1.5 7" stroke-linecap="round"/><ellipse cx="116" cy="190" rx="70" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-float"><g class="il-pop" style="--o:.1s;--to:50% 60%"><g transform="translate(40 66) rotate(-8 75 48)"><g filter="url(#w2Sh@@)"><rect x="2.5" y="3.5" width="150" height="96" rx="16" fill="url(#w2LcS@@)"/><rect x="0" y="0" width="150" height="96" rx="16" fill="url(#w2Lc@@)"/></g><rect x="0" y="0" width="150" height="96" rx="16" fill="url(#w2Gl@@)"/><rect x="0.4" y="0.4" width="149.2" height="95.2" rx="16" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width=".8"/><g filter="url(#w2ShS@@)"><circle cx="33.12" cy="37.6" r="18" fill="url(#w2BlS@@)"/><circle cx="32" cy="36" r="18" fill="url(#w2Bl@@)"/></g><circle cx="32" cy="36" r="18" fill="url(#w2Gl@@)"/><circle cx="32" cy="36" r="17.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="32" cy="32.4" r="5.4"/><path d="M22.64 47.16C22.64 39.6 26.96 38.7 32 38.7S41.36 39.6 41.36 47.16Z"/></g><rect x="60" y="26" width="64" height="5" rx="2.5" fill="#3B2F8C" opacity="0.55"/><rect x="60" y="38" width="42" height="4" rx="2.0" fill="#3B2F8C" opacity="0.38"/><rect x="18" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="31" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="44" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="57" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="70" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="83" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="96" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="109" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="122" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/></g></g></g><g class="il-float" style="--d:-1.5s"><g class="il-pop" style="--o:.7s;--to:50% 50%"><g transform="translate(160 132) rotate(10 25 25)"><g filter="url(#w2Sh@@)"><rect x="2.2" y="3" width="50" height="50" rx="13" fill="url(#w2BrS@@)"/><rect x="0" y="0" width="50" height="50" rx="13" fill="url(#w2Br@@)"/></g><rect x="0" y="0" width="50" height="50" rx="13" fill="url(#w2Gl@@)"/><rect x="0.4" y="0.4" width="49.2" height="49.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="9" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="15.4" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="15.4" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="28.2" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="15.4" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="21.8" y="21.8" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="15.4" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="28.2" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="21.8" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="9" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="28.2" y="9" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="9" y="28.2" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(50 52) scale(0.9)"><use href="#w2Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(206 64) scale(1)"><use href="#w2Sp@@" class="il-tw" style="--i:1"/></g><g transform="translate(196 198) scale(0.7)"><use href="#w2Sp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="34" cy="170" r="2"/><circle cx="214" cy="118" r="1.8"/><circle cx="150" cy="36" r="1.6"/></g>' },
+    b: '<defs><linearGradient id="w2Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w2BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w2Br@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w2BrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="w2Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w2Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="w2Lc@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B9B2EC"/><stop offset=".5" stop-color="#9890DA"/><stop offset="1" stop-color="#7C72C8"/></linearGradient><linearGradient id="w2LcS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B50A8"/><stop offset="1" stop-color="#433A86"/></linearGradient><filter id="w2Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w2ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w2Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="118" rx="104" ry="92" fill="url(#w2Glow@@)"/><ellipse cx="120" cy="118" rx="100" ry="58" transform="rotate(-8 120 118)" fill="none" stroke="var(--il-orbit)" stroke-width="1.2" stroke-dasharray="1.5 7" stroke-linecap="round"/><ellipse cx="116" cy="190" rx="70" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-float"><g class="il-pop" style="--o:.1s;--to:50% 60%"><g transform="translate(40 66) rotate(-8 75 48)"><g filter="url(#w2Sh@@)"><rect x="2.5" y="3.5" width="150" height="96" rx="16" fill="url(#w2LcS@@)"/><rect x="0" y="0" width="150" height="96" rx="16" fill="url(#w2Lc@@)"/></g><rect x="0" y="0" width="150" height="96" rx="16" fill="url(#w2Gl@@)"/><rect x="0.4" y="0.4" width="149.2" height="95.2" rx="16" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width=".8"/><g filter="url(#w2ShS@@)"><circle cx="33.12" cy="37.6" r="18" fill="url(#w2BlS@@)"/><circle cx="32" cy="36" r="18" fill="url(#w2Bl@@)"/></g><circle cx="32" cy="36" r="18" fill="url(#w2Gl@@)"/><circle cx="32" cy="36" r="17.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="32" cy="32.4" r="5.4"/><path d="M22.64 47.16C22.64 39.6 26.96 38.7 32 38.7S41.36 39.6 41.36 47.16Z"/></g><rect x="60" y="26" width="64" height="5" rx="2.5" fill="#3B2F8C" opacity="0.55"/><rect x="60" y="38" width="42" height="4" rx="2.0" fill="#3B2F8C" opacity="0.38"/><rect x="18" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="31" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="44" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="57" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="70" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="83" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="96" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.26"/><rect x="109" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/><rect x="122" y="70" width="9" height="4.5" rx="2.2" fill="#3B2F8C" opacity="0.42"/></g></g></g><g class="il-float" style="--d:-1.5s"><g class="il-pop" style="--o:.7s;--to:50% 50%"><g transform="translate(160 132) rotate(10 25 25)"><g filter="url(#w2Sh@@)"><rect x="2.2" y="3" width="50" height="50" rx="13" fill="url(#w2BrS@@)"/><rect x="0" y="0" width="50" height="50" rx="13" fill="url(#w2Br@@)"/></g><rect x="0" y="0" width="50" height="50" rx="13" fill="url(#w2Gl@@)"/><rect x="0.4" y="0.4" width="49.2" height="49.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="9" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="15.4" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="15.4" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="28.2" y="9" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="15.4" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="21.8" y="21.8" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="15.4" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="28.2" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="21.8" y="34.6" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="34.6" y="28.2" width="5" height="5" rx="1.25" fill="#fff" opacity=".95"/><rect x="9" y="9" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="28.2" y="9" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="9" y="28.2" width="11.4" height="11.4" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(50 52) scale(0.9)"><use href="#w2Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(206 64) scale(1)"><use href="#w2Sp@@" class="il-tw" style="--i:1"/></g><g transform="translate(196 198) scale(0.7)"><use href="#w2Sp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="34" cy="170" r="2"/><circle cx="214" cy="118" r="1.8"/><circle cx="150" cy="36" r="1.6"/></g>' },
   welcome3: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="w3Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w3BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w3Vi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w3ViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="w3Li@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="w3LiS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><linearGradient id="w3Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w3Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="w3Ring@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><radialGradient id="w3RingF@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".16"/><stop offset=".7" stop-color="var(--il-glow)" stop-opacity=".06"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity=".1"/></radialGradient><linearGradient id="w3Glass@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DCE6FF" stop-opacity=".85"/><stop offset=".55" stop-color="#9DB6FF" stop-opacity=".55"/><stop offset="1" stop-color="#8C7CF5" stop-opacity=".5"/></linearGradient><radialGradient id="w3Vc@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#D9CCFF"/><stop offset=".5" stop-color="#8F7BFF"/><stop offset="1" stop-color="#5E45E0"/></radialGradient><filter id="w3Blur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="w3Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w3ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w3Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="124" rx="112" ry="100" fill="url(#w3Glow@@)"/><g class="il-ring" style="--to:50% 50%"><circle cx="120" cy="124" r="96" fill="url(#w3RingF@@)"/><circle cx="120" cy="124" r="40" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="124" r="68" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="124" r="96" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/></g><g class="il-grow" style="--o:.5s;--to:50% 50%"><rect x="94" y="112" width="62" height="24" rx="12.0" fill="#8FB2FF" opacity=".35" filter="url(#w3Blur@@)"/><rect x="94" y="114" width="62" height="20" rx="10.0" fill="url(#w3Glass@@)"/><path d="M98 116.6h54" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/><path d="M104 114h22" stroke="#fff" stroke-opacity="0.5" stroke-width="1.2" stroke-linecap="round"/><path d="M130 132h18" stroke="#fff" stroke-opacity="0.4" stroke-width="1.2" stroke-linecap="round"/></g><g class="il-in" style="--o:.1s;--fx:-14px"><g transform="translate(20 96) rotate(-4 37 28)"><g filter="url(#w3ShS@@)"><rect x="5.5" y="-6" width="62" height="40" rx="10" fill="url(#w3LiS@@)"/><rect x="4" y="-8" width="62" height="40" rx="10" fill="url(#w3Li@@)"/></g><rect x="4" y="-8" width="62" height="40" rx="10" fill="url(#w3Gl@@)"/><rect x="4.4" y="-7.6" width="61.2" height="39.2" rx="10" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g filter="url(#w3Sh@@)"><rect x="2.5" y="3.5" width="74" height="56" rx="13" fill="url(#w3ViS@@)"/><rect x="0" y="0" width="74" height="56" rx="13" fill="url(#w3Vi@@)"/></g><rect x="0" y="0" width="74" height="56" rx="13" fill="url(#w3Gl@@)"/><rect x="0.4" y="0.4" width="73.2" height="55.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g filter="url(#w3ShS@@)"><rect x="50.2" y="21" width="40" height="22" rx="11" fill="url(#w3BlS@@)"/><rect x="48" y="18" width="40" height="22" rx="11" fill="url(#w3Bl@@)"/></g><rect x="48" y="18" width="40" height="22" rx="11" fill="url(#w3Gl@@)"/><rect x="48.4" y="18.4" width="39.2" height="21.2" rx="11" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><circle cx="60" cy="29" r="4.4" fill="#fff" opacity=".95"/></g></g><g class="il-in" style="--o:.25s;--fx:14px"><g transform="translate(148 104)"><g filter="url(#w3Sh@@)"><rect x="0" y="0" width="74" height="40" rx="16" fill="url(#w3Bl@@)"/></g><rect x="12" y="13" width="42" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="12" y="20.5" width="28" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g></g><g class="il-pop" style="--o:.75s;--to:50% 50%"><g filter="url(#w3ShS@@)"><circle cx="125.4" cy="125.8" r="17" fill="#4632A8"/><circle cx="124" cy="124" r="17" fill="url(#w3Vc@@)"/></g><circle cx="124" cy="124" r="12.58" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.2"/><use href="#w3Sp@@" transform="translate(124 124) scale(1.27)" fill="#fff"/><ellipse cx="117.2" cy="116.35" rx="4.08" ry="2.04" fill="#fff" opacity=".7" transform="rotate(-35 117.2 116.35)"/></g><g fill="var(--il-spark)"><g transform="translate(200 74) scale(0.75)"><use href="#w3Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(46 170) scale(0.6)"><use href="#w3Sp@@" class="il-tw" style="--i:1"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="84" cy="62" r="1.6"/><circle cx="180" cy="180" r="1.6"/></g>' },
+    b: '<defs><linearGradient id="w3Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w3BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w3Vi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w3ViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="w3Li@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="w3LiS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><linearGradient id="w3Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w3Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="w3Ring@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><radialGradient id="w3RingF@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".16"/><stop offset=".7" stop-color="var(--il-glow)" stop-opacity=".06"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity=".1"/></radialGradient><linearGradient id="w3Glass@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DCE6FF" stop-opacity=".85"/><stop offset=".55" stop-color="#9DB6FF" stop-opacity=".55"/><stop offset="1" stop-color="#8C7CF5" stop-opacity=".5"/></linearGradient><radialGradient id="w3Vc@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#D9CCFF"/><stop offset=".5" stop-color="#8F7BFF"/><stop offset="1" stop-color="#5E45E0"/></radialGradient><filter id="w3Blur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="w3Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w3ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w3Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="124" rx="112" ry="100" fill="url(#w3Glow@@)"/><g class="il-ring" style="--to:50% 50%"><circle cx="120" cy="124" r="96" fill="url(#w3RingF@@)"/><circle cx="120" cy="124" r="40" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="124" r="68" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/><circle cx="120" cy="124" r="96" fill="none" stroke="url(#w3Ring@@)" stroke-width="1" opacity="var(--il-ring-a)"/></g><g class="il-grow" style="--o:.5s;--to:50% 50%"><rect x="94" y="112" width="62" height="24" rx="12.0" fill="#8FB2FF" opacity=".35" filter="url(#w3Blur@@)"/><rect x="94" y="114" width="62" height="20" rx="10.0" fill="url(#w3Glass@@)"/><path d="M98 116.6h54" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/><path d="M104 114h22" stroke="#fff" stroke-opacity="0.5" stroke-width="1.2" stroke-linecap="round"/><path d="M130 132h18" stroke="#fff" stroke-opacity="0.4" stroke-width="1.2" stroke-linecap="round"/></g><g class="il-in" style="--o:.1s;--fx:-14px"><g transform="translate(20 96) rotate(-4 37 28)"><g filter="url(#w3ShS@@)"><rect x="5.5" y="-6" width="62" height="40" rx="10" fill="url(#w3LiS@@)"/><rect x="4" y="-8" width="62" height="40" rx="10" fill="url(#w3Li@@)"/></g><rect x="4" y="-8" width="62" height="40" rx="10" fill="url(#w3Gl@@)"/><rect x="4.4" y="-7.6" width="61.2" height="39.2" rx="10" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g filter="url(#w3Sh@@)"><rect x="2.5" y="3.5" width="74" height="56" rx="13" fill="url(#w3ViS@@)"/><rect x="0" y="0" width="74" height="56" rx="13" fill="url(#w3Vi@@)"/></g><rect x="0" y="0" width="74" height="56" rx="13" fill="url(#w3Gl@@)"/><rect x="0.4" y="0.4" width="73.2" height="55.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g filter="url(#w3ShS@@)"><rect x="50.2" y="21" width="40" height="22" rx="11" fill="url(#w3BlS@@)"/><rect x="48" y="18" width="40" height="22" rx="11" fill="url(#w3Bl@@)"/></g><rect x="48" y="18" width="40" height="22" rx="11" fill="url(#w3Gl@@)"/><rect x="48.4" y="18.4" width="39.2" height="21.2" rx="11" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><circle cx="60" cy="29" r="4.4" fill="#fff" opacity=".95"/></g></g><g class="il-in" style="--o:.25s;--fx:14px"><g transform="translate(148 104)"><g filter="url(#w3Sh@@)"><rect x="0" y="0" width="74" height="40" rx="16" fill="url(#w3Bl@@)"/></g><rect x="12" y="13" width="42" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="12" y="20.5" width="28" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g></g><g class="il-pop" style="--o:.75s;--to:50% 50%"><g filter="url(#w3ShS@@)"><circle cx="125.4" cy="125.8" r="17" fill="#4632A8"/><circle cx="124" cy="124" r="17" fill="url(#w3Vc@@)"/></g><circle cx="124" cy="124" r="12.58" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.2"/><use href="#w3Sp@@" transform="translate(124 124) scale(1.27)" fill="#fff"/><ellipse cx="117.2" cy="116.35" rx="4.08" ry="2.04" fill="#fff" opacity=".7" transform="rotate(-35 117.2 116.35)"/></g><g fill="var(--il-spark)"><g transform="translate(200 74) scale(0.75)"><use href="#w3Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(46 170) scale(0.6)"><use href="#w3Sp@@" class="il-tw" style="--i:1"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="84" cy="62" r="1.6"/><circle cx="180" cy="180" r="1.6"/></g>' },
   welcome4: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="w4Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w4BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w4Vi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w4ViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="w4Pk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="w4PkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="w4Nt@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-card)"/><stop offset="1" stop-color="var(--il-card-2)"/></linearGradient><linearGradient id="w4NtS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-card-side)"/><stop offset="1" stop-color="var(--il-card-side)"/></linearGradient><linearGradient id="w4Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w4Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="w4Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w4ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w4Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="116" rx="106" ry="94" fill="url(#w4Glow@@)"/><ellipse cx="120" cy="200" rx="78" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-float" style="--d:-2s"><g transform="translate(45 122)"><g filter="url(#w4Sh@@)"><rect x="2.2" y="3" width="150" height="70" rx="18" fill="url(#w4NtS@@)"/><rect x="0" y="0" width="150" height="70" rx="18" fill="url(#w4Nt@@)"/></g><rect x="0.4" y="0.4" width="149.2" height="69.2" rx="18" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width=".8"/><rect x="16" y="16" width="58" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.7"/><rect x="16" y="27" width="36" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.45"/><rect x="12" y="42" width="126" height="16" rx="8" fill="var(--il-recv)"/><rect x="22" y="48.4" width="40" height="3.2" rx="1.6" fill="var(--il-recv-line)" opacity="0.55"/><circle cx="128" cy="50" r="5" fill="url(#w4Bl@@)"/></g></g><g class="il-float" style="--d:-.4s"><g class="il-rise" style="--o:.3s"><g transform="translate(44 66) rotate(-10 24 24)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4PkS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Pk@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="9" y="17" width="30" height="16" rx="8" fill="#fff" opacity=".95"/><path d="M16 22v6M13 25h6" stroke="#D9437A" stroke-width="2.2" stroke-linecap="round"/><circle cx="30" cy="23" r="1.9" fill="#D9437A"/><circle cx="33.5" cy="27" r="1.9" fill="#D9437A"/></g></g></g><g class="il-float" style="--d:-1.1s"><g class="il-rise" style="--o:.55s"><g transform="translate(96 38)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4ViS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Vi@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><use href="#w4Sp@@" transform="translate(22 25) scale(1.9)" fill="#fff"/><use href="#w4Sp@@" transform="translate(34 13) scale(.8)" fill="#fff" opacity=".85"/></g></g></g><g class="il-float" style="--d:-1.7s"><g class="il-rise" style="--o:.8s"><g transform="translate(148 66) rotate(10 24 24)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4BlS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Bl@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="12" y="12" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="12" y="25" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="25" y="12" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="25" y="25" width="11" height="11" rx="3" fill="#fff" opacity="0.55"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(204 46) scale(1)"><use href="#w4Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 52) scale(0.8)"><use href="#w4Sp@@" class="il-tw" style="--i:1"/></g><g transform="translate(122 24) scale(0.6)"><use href="#w4Sp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="26" cy="120" r="2"/><circle cx="214" cy="126" r="1.8"/><circle cx="178" cy="206" r="1.6"/></g>' },
+    b: '<defs><linearGradient id="w4Bl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="w4BlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="w4Vi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="w4ViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="w4Pk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="w4PkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="w4Nt@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-card)"/><stop offset="1" stop-color="var(--il-card-2)"/></linearGradient><linearGradient id="w4NtS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-card-side)"/><stop offset="1" stop-color="var(--il-card-side)"/></linearGradient><linearGradient id="w4Gl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="w4Glow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="w4Sh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="w4ShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="w4Sp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="116" rx="106" ry="94" fill="url(#w4Glow@@)"/><ellipse cx="120" cy="200" rx="78" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-float" style="--d:-2s"><g transform="translate(45 122)"><g filter="url(#w4Sh@@)"><rect x="2.2" y="3" width="150" height="70" rx="18" fill="url(#w4NtS@@)"/><rect x="0" y="0" width="150" height="70" rx="18" fill="url(#w4Nt@@)"/></g><rect x="0.4" y="0.4" width="149.2" height="69.2" rx="18" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width=".8"/><rect x="16" y="16" width="58" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.7"/><rect x="16" y="27" width="36" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.45"/><rect x="12" y="42" width="126" height="16" rx="8" fill="var(--il-recv)"/><rect x="22" y="48.4" width="40" height="3.2" rx="1.6" fill="var(--il-recv-line)" opacity="0.55"/><circle cx="128" cy="50" r="5" fill="url(#w4Bl@@)"/></g></g><g class="il-float" style="--d:-.4s"><g class="il-rise" style="--o:.3s"><g transform="translate(44 66) rotate(-10 24 24)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4PkS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Pk@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="9" y="17" width="30" height="16" rx="8" fill="#fff" opacity=".95"/><path d="M16 22v6M13 25h6" stroke="#D9437A" stroke-width="2.2" stroke-linecap="round"/><circle cx="30" cy="23" r="1.9" fill="#D9437A"/><circle cx="33.5" cy="27" r="1.9" fill="#D9437A"/></g></g></g><g class="il-float" style="--d:-1.1s"><g class="il-rise" style="--o:.55s"><g transform="translate(96 38)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4ViS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Vi@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><use href="#w4Sp@@" transform="translate(22 25) scale(1.9)" fill="#fff"/><use href="#w4Sp@@" transform="translate(34 13) scale(.8)" fill="#fff" opacity=".85"/></g></g></g><g class="il-float" style="--d:-1.7s"><g class="il-rise" style="--o:.8s"><g transform="translate(148 66) rotate(10 24 24)"><g filter="url(#w4ShS@@)"><rect x="2.2" y="3" width="48" height="48" rx="13" fill="url(#w4BlS@@)"/><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Bl@@)"/></g><rect x="0" y="0" width="48" height="48" rx="13" fill="url(#w4Gl@@)"/><rect x="0.4" y="0.4" width="47.2" height="47.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="12" y="12" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="12" y="25" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="25" y="12" width="11" height="11" rx="3" fill="#fff" opacity="0.95"/><rect x="25" y="25" width="11" height="11" rx="3" fill="#fff" opacity="0.55"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(204 46) scale(1)"><use href="#w4Sp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 52) scale(0.8)"><use href="#w4Sp@@" class="il-tw" style="--i:1"/></g><g transform="translate(122 24) scale(0.6)"><use href="#w4Sp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="26" cy="120" r="2"/><circle cx="214" cy="126" r="1.8"/><circle cx="178" cy="206" r="1.6"/></g>' },
   restore: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="rsBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="rsBrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="rsVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="rsViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="rsGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="rsGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="rsArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="rsSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="rsShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="rsSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="116" rx="112" ry="96" fill="url(#rsGlow@@)"/><g class="il-in" style="--o:.1s;--fx:-14px"><g transform="translate(22 72) rotate(-4 32 42)"><g filter="url(#rsSh@@)"><path d="M12 0H44L64 20V72A12 12 0 0 1 52 84H12A12 12 0 0 1 0 72V12A12 12 0 0 1 12 0Z" transform="translate(2.5 3.5)" fill="url(#rsBrS@@)"/><path d="M12 0H44L64 20V72A12 12 0 0 1 52 84H12A12 12 0 0 1 0 72V12A12 12 0 0 1 12 0Z" fill="url(#rsBr@@)"/></g><path d="M44 0V12A8 8 0 0 0 52 20H64Z" fill="#C9C4FF" opacity=".9"/><g fill="#fff"><rect x="23" y="27" width="18" height="14" rx="3.5"/></g><path d="M26.5 27v-3.4a5.5 5.5 0 0 1 11 0V27" fill="none" stroke="#fff" stroke-width="2.6"/><circle cx="32" cy="33.6" r="2" fill="#6A5BF5"/><rect x="10" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="10" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/><rect x="26" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="26" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/><rect x="42" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="42" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/></g></g><g class="il-grow" style="--o:.5s;--to:0% 50%"><g transform="translate(100 116)"><g filter="url(#rsShS@@)"><path d="M0 -4H22V-10L34 0 22 10V4H0A4 4 0 0 1 0-4Z" fill="url(#rsArc@@)"/></g><path d="M-6 -14h18" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M4 -20h10" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M-6 14h18" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M4 20h10" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/></g></g><g class="il-pop" style="--o:.8s;--to:50% 50%"><g transform="translate(184 114)"><circle cx="0" cy="0" r="35" fill="none" stroke="url(#rsArc@@)" stroke-width="3"/><g filter="url(#rsShS@@)"><circle cx="1.12" cy="1.6" r="27" fill="url(#rsViS@@)"/><circle cx="0" cy="0" r="27" fill="url(#rsVi@@)"/></g><circle cx="0" cy="0" r="27" fill="url(#rsGl@@)"/><circle cx="0" cy="0" r="26.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="0" cy="-5.4" r="8.1"/><path d="M-14.04 16.74C-14.04 5.4 -7.56 4.05 0 4.05S14.04 5.4 14.04 16.74Z"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(220 62) scale(0.7)"><use href="#rsSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(30 182) scale(0.6)"><use href="#rsSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(150 176) scale(0.5)"><use href="#rsSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="102" cy="62" r="1.6"/><circle cx="214" cy="170" r="1.4"/></g>' },
+    b: '<defs><linearGradient id="rsBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="rsBrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="rsVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="rsViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="rsGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="rsGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="rsArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="rsSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="rsShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="rsSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="116" rx="112" ry="96" fill="url(#rsGlow@@)"/><g class="il-in" style="--o:.1s;--fx:-14px"><g transform="translate(22 72) rotate(-4 32 42)"><g filter="url(#rsSh@@)"><path d="M12 0H44L64 20V72A12 12 0 0 1 52 84H12A12 12 0 0 1 0 72V12A12 12 0 0 1 12 0Z" transform="translate(2.5 3.5)" fill="url(#rsBrS@@)"/><path d="M12 0H44L64 20V72A12 12 0 0 1 52 84H12A12 12 0 0 1 0 72V12A12 12 0 0 1 12 0Z" fill="url(#rsBr@@)"/></g><path d="M44 0V12A8 8 0 0 0 52 20H64Z" fill="#C9C4FF" opacity=".9"/><g fill="#fff"><rect x="23" y="27" width="18" height="14" rx="3.5"/></g><path d="M26.5 27v-3.4a5.5 5.5 0 0 1 11 0V27" fill="none" stroke="#fff" stroke-width="2.6"/><circle cx="32" cy="33.6" r="2" fill="#6A5BF5"/><rect x="10" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="10" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/><rect x="26" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="26" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/><rect x="42" y="54" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.9"/><rect x="42" y="63" width="12" height="4.4" rx="2.2" fill="#fff" opacity="0.65"/></g></g><g class="il-grow" style="--o:.5s;--to:0% 50%"><g transform="translate(100 116)"><g filter="url(#rsShS@@)"><path d="M0 -4H22V-10L34 0 22 10V4H0A4 4 0 0 1 0-4Z" fill="url(#rsArc@@)"/></g><path d="M-6 -14h18" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M4 -20h10" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M-6 14h18" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/><path d="M4 20h10" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"/></g></g><g class="il-pop" style="--o:.8s;--to:50% 50%"><g transform="translate(184 114)"><circle cx="0" cy="0" r="35" fill="none" stroke="url(#rsArc@@)" stroke-width="3"/><g filter="url(#rsShS@@)"><circle cx="1.12" cy="1.6" r="27" fill="url(#rsViS@@)"/><circle cx="0" cy="0" r="27" fill="url(#rsVi@@)"/></g><circle cx="0" cy="0" r="27" fill="url(#rsGl@@)"/><circle cx="0" cy="0" r="26.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="0" cy="-5.4" r="8.1"/><path d="M-14.04 16.74C-14.04 5.4 -7.56 4.05 0 4.05S14.04 5.4 14.04 16.74Z"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(220 62) scale(0.7)"><use href="#rsSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(30 182) scale(0.6)"><use href="#rsSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(150 176) scale(0.5)"><use href="#rsSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="102" cy="62" r="1.6"/><circle cx="214" cy="170" r="1.4"/></g>' },
   chatsEmpty: { vb: '0 0 240 240', cls: 'il',
     b: '<defs><linearGradient id="chBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><radialGradient id="chGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="chArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="chSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="chSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="104" ry="88" fill="url(#chGlow@@)"/><g class="il-pop" style="--o:.1s;--to:0% 100%"><g transform="translate(40 96)"><g filter="url(#chSh@@)"><rect x="0" y="0" width="64" height="46" rx="23" fill="url(#chBr@@)"/></g><circle cx="20" cy="23" r="3.6" fill="#fff" class="il-dot" style="--i:0"/><circle cx="32" cy="23" r="3.6" fill="#fff" class="il-dot" style="--i:1"/><circle cx="44" cy="23" r="3.6" fill="#fff" class="il-dot" style="--i:2"/></g></g><circle cx="112" cy="120" r="1.6" fill="var(--il-dotc)" class="il-fade" style="--o:.7s"/><circle cx="118" cy="120" r="1.6" fill="var(--il-dotc)" class="il-fade" style="--o:.7s"/><circle cx="124" cy="120" r="1.6" fill="var(--il-dotc)" class="il-fade" style="--o:.7s"/><circle cx="130" cy="120" r="1.6" fill="var(--il-dotc)" class="il-fade" style="--o:.7s"/><g class="il-pop" style="--o:.5s;--to:100% 100%"><g transform="translate(138 96)"><rect x="0" y="0" width="64" height="46" rx="23" fill="var(--il-glow)" fill-opacity=".1" stroke="url(#chArc@@)" stroke-width="2.2"/><circle cx="20" cy="23" r="3.4" fill="var(--il-dotc)"/><circle cx="32" cy="23" r="3.4" fill="var(--il-dotc)"/><circle cx="44" cy="23" r="3.4" fill="var(--il-dotc)"/></g></g><g fill="var(--il-spark)"><g transform="translate(66 64) scale(0.7)"><use href="#chSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(196 76) scale(0.8)"><use href="#chSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(170 170) scale(0.6)"><use href="#chSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="48" cy="166" r="1.8"/><circle cx="120" cy="62" r="1.6"/><circle cx="210" cy="136" r="1.4"/></g>' },
   contactsEmpty: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="ctBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="ctBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="ctBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="ctBrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="ctVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="ctViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="ctGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="ctGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="ctArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="ctBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="ctSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="ctShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="ctSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="106" ry="96" fill="url(#ctGlow@@)"/><ellipse cx="120" cy="204" rx="80" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><path d="M84 140C102 126 138 124 156 108" fill="none" stroke="url(#ctArc@@)" stroke-width="1.8" stroke-dasharray="1.5 6" stroke-linecap="round" class="il-draw" style="--len:100;--o:.6s"/><g class="il-pop" style="--o:.3s"><g transform="translate(152 52) rotate(8 35 43) scale(.86)" opacity=".85"><g filter="url(#ctSh@@)"><rect width="70" height="86" rx="15" fill="var(--il-card)"/></g><rect x=".7" y=".7" width="68.6" height="84.6" rx="14.3" fill="none" stroke="url(#ctArc@@)" stroke-opacity=".9" stroke-width="1.6"/><circle cx="35" cy="31" r="20" fill="var(--il-recv)" opacity=".8"/><g filter="url(#ctShS@@)"><circle cx="36.12" cy="32.6" r="16" fill="url(#ctViS@@)"/><circle cx="35" cy="31" r="16" fill="url(#ctVi@@)"/></g><circle cx="35" cy="31" r="16" fill="url(#ctGl@@)"/><circle cx="35" cy="31" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="35" cy="27.8" r="4.8"/><path d="M26.68 40.92C26.68 34.2 30.52 33.4 35 33.4S43.32 34.2 43.32 40.92Z"/></g><rect x="15" y="58" width="40" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.8"/><rect x="21" y="68" width="28" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.5"/></g></g><g class="il-pop" style="--o:.1s"><g transform="translate(22 92) rotate(-7 35 43)"><g filter="url(#ctSh@@)"><rect width="70" height="86" rx="15" fill="var(--il-card)"/></g><rect x=".7" y=".7" width="68.6" height="84.6" rx="14.3" fill="none" stroke="url(#ctArc@@)" stroke-opacity=".9" stroke-width="1.6"/><circle cx="35" cy="31" r="20" fill="var(--il-recv)" opacity=".8"/><g filter="url(#ctShS@@)"><circle cx="36.12" cy="32.6" r="16" fill="url(#ctBlS@@)"/><circle cx="35" cy="31" r="16" fill="url(#ctBl@@)"/></g><circle cx="35" cy="31" r="16" fill="url(#ctGl@@)"/><circle cx="35" cy="31" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="35" cy="27.8" r="4.8"/><path d="M26.68 40.92C26.68 34.2 30.52 33.4 35 33.4S43.32 34.2 43.32 40.92Z"/></g><rect x="15" y="58" width="40" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.8"/><rect x="21" y="68" width="28" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.5"/></g></g><g class="il-pop" style="--o:.85s;--to:50% 50%"><g transform="translate(122 128)"><g filter="url(#ctSh@@)"><rect x="-16.8" y="-16" width="38" height="38" rx="11" fill="url(#ctBrS@@)"/><rect x="-19" y="-19" width="38" height="38" rx="11" fill="url(#ctBr@@)"/></g><rect x="-19" y="-19" width="38" height="38" rx="11" fill="url(#ctGl@@)"/><rect x="-18.6" y="-18.6" width="37.2" height="37.2" rx="11" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g transform="translate(-19 -19)"><rect x="9.0" y="9.0" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="9.0" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="16.4" y="16.4" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="9.0" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="16.4" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="16.4" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/></g><g class="il-scan" style="--sy:11px;--o:1.1s"><rect x="-15" y="-5" width="30" height="10" fill="#C9F0FF" opacity=".35" filter="url(#ctBlur@@)"/><rect x="-15" y="-1" width="30" height="2" rx="1" fill="#E6F7FF"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(62 62) scale(1)"><use href="#ctSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(214 186) scale(0.8)"><use href="#ctSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(122 38) scale(0.6)"><use href="#ctSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="30" cy="70" r="2"/><circle cx="222" cy="124" r="1.8"/><circle cx="150" cy="214" r="1.6"/></g>' },
+    b: '<defs><linearGradient id="ctBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="ctBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="ctBr@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset="0.35" stop-color="#6F7DFF"/><stop offset="0.72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="ctBrS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="ctVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="ctViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="ctGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="ctGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="ctArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="ctBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="ctSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="ctShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="ctSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="106" ry="96" fill="url(#ctGlow@@)"/><ellipse cx="120" cy="204" rx="80" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><path d="M84 140C102 126 138 124 156 108" fill="none" stroke="url(#ctArc@@)" stroke-width="1.8" stroke-dasharray="1.5 6" stroke-linecap="round" class="il-draw" style="--len:100;--o:.6s"/><g class="il-pop" style="--o:.3s"><g transform="translate(152 52) rotate(8 35 43) scale(.86)" opacity=".85"><g filter="url(#ctSh@@)"><rect width="70" height="86" rx="15" fill="var(--il-card)"/></g><rect x=".7" y=".7" width="68.6" height="84.6" rx="14.3" fill="none" stroke="url(#ctArc@@)" stroke-opacity=".9" stroke-width="1.6"/><circle cx="35" cy="31" r="20" fill="var(--il-recv)" opacity=".8"/><g filter="url(#ctShS@@)"><circle cx="36.12" cy="32.6" r="16" fill="url(#ctViS@@)"/><circle cx="35" cy="31" r="16" fill="url(#ctVi@@)"/></g><circle cx="35" cy="31" r="16" fill="url(#ctGl@@)"/><circle cx="35" cy="31" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="35" cy="27.8" r="4.8"/><path d="M26.68 40.92C26.68 34.2 30.52 33.4 35 33.4S43.32 34.2 43.32 40.92Z"/></g><rect x="15" y="58" width="40" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.8"/><rect x="21" y="68" width="28" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.5"/></g></g><g class="il-pop" style="--o:.1s"><g transform="translate(22 92) rotate(-7 35 43)"><g filter="url(#ctSh@@)"><rect width="70" height="86" rx="15" fill="var(--il-card)"/></g><rect x=".7" y=".7" width="68.6" height="84.6" rx="14.3" fill="none" stroke="url(#ctArc@@)" stroke-opacity=".9" stroke-width="1.6"/><circle cx="35" cy="31" r="20" fill="var(--il-recv)" opacity=".8"/><g filter="url(#ctShS@@)"><circle cx="36.12" cy="32.6" r="16" fill="url(#ctBlS@@)"/><circle cx="35" cy="31" r="16" fill="url(#ctBl@@)"/></g><circle cx="35" cy="31" r="16" fill="url(#ctGl@@)"/><circle cx="35" cy="31" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="35" cy="27.8" r="4.8"/><path d="M26.68 40.92C26.68 34.2 30.52 33.4 35 33.4S43.32 34.2 43.32 40.92Z"/></g><rect x="15" y="58" width="40" height="4" rx="2.0" fill="var(--il-recv-line)" opacity="0.8"/><rect x="21" y="68" width="28" height="3.4" rx="1.7" fill="var(--il-recv-line)" opacity="0.5"/></g></g><g class="il-pop" style="--o:.85s;--to:50% 50%"><g transform="translate(122 128)"><g filter="url(#ctSh@@)"><rect x="-16.8" y="-16" width="38" height="38" rx="11" fill="url(#ctBrS@@)"/><rect x="-19" y="-19" width="38" height="38" rx="11" fill="url(#ctBr@@)"/></g><rect x="-19" y="-19" width="38" height="38" rx="11" fill="url(#ctGl@@)"/><rect x="-18.6" y="-18.6" width="37.2" height="37.2" rx="11" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g transform="translate(-19 -19)"><rect x="9.0" y="9.0" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="9.0" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="16.4" y="16.4" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="9.0" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="16.4" y="23.8" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/><rect x="23.8" y="16.4" width="5.6" height="5.6" rx="1.4" fill="#fff" opacity=".96"/></g><g class="il-scan" style="--sy:11px;--o:1.1s"><rect x="-15" y="-5" width="30" height="10" fill="#C9F0FF" opacity=".35" filter="url(#ctBlur@@)"/><rect x="-15" y="-1" width="30" height="2" rx="1" fill="#E6F7FF"/></g></g></g><g fill="var(--il-spark)"><g transform="translate(62 62) scale(1)"><use href="#ctSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(214 186) scale(0.8)"><use href="#ctSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(122 38) scale(0.6)"><use href="#ctSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="30" cy="70" r="2"/><circle cx="222" cy="124" r="1.8"/><circle cx="150" cy="214" r="1.6"/></g>' },
   addContact: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="adBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="adBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="adVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="adViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="adGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="adGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="adRing@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><linearGradient id="adArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="adBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><radialGradient id="adHalo@@" cx=".5" cy=".42" r=".55"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".0"/><stop offset=".78" stop-color="var(--il-glow)" stop-opacity=".14"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity=".0"/></radialGradient><filter id="adShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="adSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="100" ry="100" fill="url(#adGlow@@)"/><circle cx="120" cy="120" r="58" fill="url(#adHalo@@)"/><circle cx="120" cy="120" r="54" fill="none" stroke="url(#adRing@@)" stroke-width="1" opacity="var(--il-ring-a)"/><g class="il-fade" style="--o:.2s"><path d="M50 78V60a10 10 0 0 1 10-10h18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M162 50h18a10 10 0 0 1 10 10v18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M190 162v18a10 10 0 0 1-10 10h-18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M78 190H60a10 10 0 0 1-10-10v-18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></g><g class="il-pop" style="--o:.05s;--to:50% 50%"><g filter="url(#adShS@@)"><circle cx="121.12" cy="121.6" r="44" fill="url(#adBlS@@)"/><circle cx="120" cy="120" r="44" fill="url(#adBl@@)"/></g><circle cx="120" cy="120" r="44" fill="url(#adGl@@)"/><circle cx="120" cy="120" r="43.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="120" cy="112.2" r="13.2"/><path d="M97.12 148.28C97.12 129.8 107.68 127.6 120 127.6S142.88 129.8 142.88 148.28Z"/></g><circle cx="120" cy="120" r="38" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1"/><path d="M92 92a38 38 0 0 1 30-14" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="1.6" stroke-linecap="round"/></g><g class="il-pop" style="--o:.7s;--to:50% 50%"><circle cx="158" cy="158" r="19.5" fill="var(--il-screen)"/><g filter="url(#adShS@@)"><circle cx="159.12" cy="159.6" r="16" fill="url(#adViS@@)"/><circle cx="158" cy="158" r="16" fill="url(#adVi@@)"/></g><circle cx="158" cy="158" r="16" fill="url(#adGl@@)"/><circle cx="158" cy="158" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><path d="M158 151v14M151 158h14" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/></g><g class="il-scan" style="--sy:56px;--o:1s"><rect x="56" y="113" width="128" height="14" fill="var(--il-spark)" opacity=".18" filter="url(#adBlur@@)"/><rect x="58" y="119" width="124" height="2" rx="1" fill="var(--il-spark)" opacity=".85"/></g><g fill="var(--il-spark)"><g transform="translate(204 40) scale(1.1)"><use href="#adSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 204) scale(0.9)"><use href="#adSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(206 206) scale(0.6)"><use href="#adSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="36" cy="36" r="2.4"/><circle cx="120" cy="226" r="1.6"/></g>' },
+    b: '<defs><linearGradient id="adBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="adBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="adVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="adViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="adGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="adGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="adRing@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><linearGradient id="adArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="adBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><radialGradient id="adHalo@@" cx=".5" cy=".42" r=".55"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".0"/><stop offset=".78" stop-color="var(--il-glow)" stop-opacity=".14"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity=".0"/></radialGradient><filter id="adShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="adSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="120" rx="100" ry="100" fill="url(#adGlow@@)"/><circle cx="120" cy="120" r="58" fill="url(#adHalo@@)"/><circle cx="120" cy="120" r="54" fill="none" stroke="url(#adRing@@)" stroke-width="1" opacity="var(--il-ring-a)"/><g class="il-fade" style="--o:.2s"><path d="M50 78V60a10 10 0 0 1 10-10h18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M162 50h18a10 10 0 0 1 10 10v18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M190 162v18a10 10 0 0 1-10 10h-18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M78 190H60a10 10 0 0 1-10-10v-18" fill="none" stroke="url(#adArc@@)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></g><g class="il-pop" style="--o:.05s;--to:50% 50%"><g filter="url(#adShS@@)"><circle cx="121.12" cy="121.6" r="44" fill="url(#adBlS@@)"/><circle cx="120" cy="120" r="44" fill="url(#adBl@@)"/></g><circle cx="120" cy="120" r="44" fill="url(#adGl@@)"/><circle cx="120" cy="120" r="43.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="120" cy="112.2" r="13.2"/><path d="M97.12 148.28C97.12 129.8 107.68 127.6 120 127.6S142.88 129.8 142.88 148.28Z"/></g><circle cx="120" cy="120" r="38" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1"/><path d="M92 92a38 38 0 0 1 30-14" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="1.6" stroke-linecap="round"/></g><g class="il-pop" style="--o:.7s;--to:50% 50%"><circle cx="158" cy="158" r="19.5" fill="var(--il-screen)"/><g filter="url(#adShS@@)"><circle cx="159.12" cy="159.6" r="16" fill="url(#adViS@@)"/><circle cx="158" cy="158" r="16" fill="url(#adVi@@)"/></g><circle cx="158" cy="158" r="16" fill="url(#adGl@@)"/><circle cx="158" cy="158" r="15.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><path d="M158 151v14M151 158h14" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/></g><g class="il-scan" style="--sy:56px;--o:1s"><rect x="56" y="113" width="128" height="14" fill="var(--il-spark)" opacity=".18" filter="url(#adBlur@@)"/><rect x="58" y="119" width="124" height="2" rx="1" fill="var(--il-spark)" opacity=".85"/></g><g fill="var(--il-spark)"><g transform="translate(204 40) scale(1.1)"><use href="#adSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 204) scale(0.9)"><use href="#adSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(206 206) scale(0.6)"><use href="#adSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="36" cy="36" r="2.4"/><circle cx="120" cy="226" r="1.6"/></g>' },
   appsEmpty: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="apBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="apBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="apVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="apViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="apPk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="apPkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="apGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="apGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="apRing@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><linearGradient id="apArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="apSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="apSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="118" rx="104" ry="96" fill="url(#apGlow@@)"/><ellipse cx="120" cy="204" rx="70" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><rect x="46" y="42" width="148" height="148" rx="30" fill="var(--il-recv)" opacity=".5"/><rect x="46.6" y="42.6" width="146.8" height="146.8" rx="29.4" fill="none" stroke="url(#apRing@@)" stroke-width="1" opacity="var(--il-ring-a)"/><rect x="62" y="122" width="52" height="52" rx="15" fill="var(--il-glow)" fill-opacity=".08" stroke="url(#apArc@@)" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 4.2"/><rect x="126" y="122" width="52" height="52" rx="15" fill="var(--il-glow)" fill-opacity=".08" stroke="url(#apArc@@)" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 4.2"/><path d="M152 140v16M144 148h16" stroke="var(--il-orbit-strong)" stroke-width="2.4" stroke-linecap="round"/><g class="il-drop" style="--o:.2s"><g transform="translate(62 58)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="52" height="52" rx="15" fill="url(#apBlS@@)"/><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apBl@@)"/></g><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="51.2" height="51.2" rx="15" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="13" y="13" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="13" y="27" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="27" y="13" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="27" y="27" width="12" height="12" rx="3.4" fill="#fff" opacity="0.55"/></g></g><g class="il-drop" style="--o:.45s"><g transform="translate(126 58)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="52" height="52" rx="15" fill="url(#apViS@@)"/><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apVi@@)"/></g><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="51.2" height="51.2" rx="15" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><use href="#apSp@@" transform="translate(26 26) scale(2.2)" fill="#fff"/><use href="#apSp@@" transform="translate(38 14) scale(.7)" fill="#fff" opacity=".8"/></g></g><g class="il-pop" style="--o:.9s;--to:50% 50%"><g transform="translate(36 112) rotate(-12 22 22)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="44" height="44" rx="13" fill="url(#apPkS@@)"/><rect x="0" y="0" width="44" height="44" rx="13" fill="url(#apPk@@)"/></g><rect x="0" y="0" width="44" height="44" rx="13" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="43.2" height="43.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="8" y="15" width="28" height="15" rx="7.5" fill="#fff" opacity=".95"/><path d="M14.5 20v5.4M11.8 22.7h5.4" stroke="#D9437A" stroke-width="2" stroke-linecap="round"/><circle cx="28" cy="21" r="1.8" fill="#D9437A"/><circle cx="31.4" cy="24.6" r="1.8" fill="#D9437A"/></g></g><g fill="var(--il-spark)"><g transform="translate(206 52) scale(1)"><use href="#apSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 64) scale(0.8)"><use href="#apSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(206 170) scale(0.65)"><use href="#apSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="30" cy="190" r="2"/><circle cx="120" cy="26" r="1.8"/><circle cx="216" cy="110" r="1.6"/></g>' },
+    b: '<defs><linearGradient id="apBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="apBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="apVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="apViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="apPk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="apPkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="apGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="apGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><linearGradient id="apRing@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--il-ring-c)" stop-opacity=".9"/><stop offset=".5" stop-color="var(--il-ring-c)" stop-opacity=".15"/><stop offset="1" stop-color="var(--il-ring-c)" stop-opacity=".6"/></linearGradient><linearGradient id="apArc@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7EB0FF"/><stop offset="1" stop-color="#A47BFF"/></linearGradient><filter id="apSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="apSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="120" cy="118" rx="104" ry="96" fill="url(#apGlow@@)"/><ellipse cx="120" cy="204" rx="70" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><rect x="46" y="42" width="148" height="148" rx="30" fill="var(--il-recv)" opacity=".5"/><rect x="46.6" y="42.6" width="146.8" height="146.8" rx="29.4" fill="none" stroke="url(#apRing@@)" stroke-width="1" opacity="var(--il-ring-a)"/><rect x="62" y="122" width="52" height="52" rx="15" fill="var(--il-glow)" fill-opacity=".08" stroke="url(#apArc@@)" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 4.2"/><rect x="126" y="122" width="52" height="52" rx="15" fill="var(--il-glow)" fill-opacity=".08" stroke="url(#apArc@@)" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 4.2"/><path d="M152 140v16M144 148h16" stroke="var(--il-orbit-strong)" stroke-width="2.4" stroke-linecap="round"/><g class="il-drop" style="--o:.2s"><g transform="translate(62 58)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="52" height="52" rx="15" fill="url(#apBlS@@)"/><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apBl@@)"/></g><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="51.2" height="51.2" rx="15" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="13" y="13" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="13" y="27" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="27" y="13" width="12" height="12" rx="3.4" fill="#fff" opacity="0.95"/><rect x="27" y="27" width="12" height="12" rx="3.4" fill="#fff" opacity="0.55"/></g></g><g class="il-drop" style="--o:.45s"><g transform="translate(126 58)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="52" height="52" rx="15" fill="url(#apViS@@)"/><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apVi@@)"/></g><rect x="0" y="0" width="52" height="52" rx="15" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="51.2" height="51.2" rx="15" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><use href="#apSp@@" transform="translate(26 26) scale(2.2)" fill="#fff"/><use href="#apSp@@" transform="translate(38 14) scale(.7)" fill="#fff" opacity=".8"/></g></g><g class="il-pop" style="--o:.9s;--to:50% 50%"><g transform="translate(36 112) rotate(-12 22 22)"><g filter="url(#apSh@@)"><rect x="2.2" y="3" width="44" height="44" rx="13" fill="url(#apPkS@@)"/><rect x="0" y="0" width="44" height="44" rx="13" fill="url(#apPk@@)"/></g><rect x="0" y="0" width="44" height="44" rx="13" fill="url(#apGl@@)"/><rect x="0.4" y="0.4" width="43.2" height="43.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><rect x="8" y="15" width="28" height="15" rx="7.5" fill="#fff" opacity=".95"/><path d="M14.5 20v5.4M11.8 22.7h5.4" stroke="#D9437A" stroke-width="2" stroke-linecap="round"/><circle cx="28" cy="21" r="1.8" fill="#D9437A"/><circle cx="31.4" cy="24.6" r="1.8" fill="#D9437A"/></g></g><g fill="var(--il-spark)"><g transform="translate(206 52) scale(1)"><use href="#apSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 64) scale(0.8)"><use href="#apSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(206 170) scale(0.65)"><use href="#apSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="30" cy="190" r="2"/><circle cx="120" cy="26" r="1.8"/><circle cx="216" cy="110" r="1.6"/></g>' },
   explore: { vb: '0 0 132 100', cls: 'il', style: '--il-shadow:#070A3A;--il-shadow-a:.38;--il-glow:#A9B8FF;--il-spark:#fff;--il-dotc:#DCD2FF',
-    b: '<defs><linearGradient id="exVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="exViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="exLi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="exLiS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><linearGradient id="exPk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="exPkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="exGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="exGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="exBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="exSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="exSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="74" cy="72" rx="62" ry="46" fill="url(#exGlow@@)"/><ellipse cx="70" cy="98" rx="52" ry="10" fill="#fff" opacity=".12" filter="url(#exBlur@@)"/><g class="il-rise" style="--o:.2s"><g transform="translate(12 52) rotate(-14 23 23)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exPkS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exPk@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><rect x="8" y="16" width="30" height="15" rx="7.5" fill="#fff" opacity=".96"/><path d="M15 20.8v5.4M12.3 23.5h5.4" stroke="#D9437A" stroke-width="2" stroke-linecap="round"/><circle cx="29" cy="22" r="1.8" fill="#D9437A"/><circle cx="32.4" cy="25.6" r="1.8" fill="#D9437A"/></g></g><g class="il-rise" style="--o:.45s"><g transform="translate(80 48) rotate(12 23 23)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exViS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exVi@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><use href="#exSp@@" transform="translate(23 23) scale(2)" fill="#fff"/><use href="#exSp@@" transform="translate(34 12) scale(.6)" fill="#fff" opacity=".8"/></g></g><g class="il-rise" style="--o:.7s"><g transform="translate(44 30)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exLiS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exLi@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><rect x="11" y="11" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="11" y="24" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="24" y="11" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="24" y="24" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.5"/></g></g><g fill="var(--il-spark)"><g transform="translate(118 22) scale(0.9)"><use href="#exSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(20 30) scale(0.7)"><use href="#exSp@@" class="il-tw" style="--i:1"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="104" cy="8" r="1.6"/><circle cx="126" cy="60" r="1.2"/></g>' },
+    b: '<defs><linearGradient id="exVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6C8FF"/><stop offset="0.4" stop-color="#A48DFF"/><stop offset="0.78" stop-color="#8466F2"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="exViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C45CC"/><stop offset="1" stop-color="#4632A8"/></linearGradient><linearGradient id="exLi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="exLiS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><linearGradient id="exPk@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB8CB"/><stop offset="0.45" stop-color="#FF7299"/><stop offset="1" stop-color="#D9437A"/></linearGradient><linearGradient id="exPkS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B03462"/><stop offset="1" stop-color="#8C2350"/></linearGradient><linearGradient id="exGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="exGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="exBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="exSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="exSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><ellipse cx="74" cy="72" rx="62" ry="46" fill="url(#exGlow@@)"/><ellipse cx="70" cy="98" rx="52" ry="10" fill="#fff" opacity=".12" filter="url(#exBlur@@)"/><g class="il-rise" style="--o:.2s"><g transform="translate(12 52) rotate(-14 23 23)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exPkS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exPk@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><rect x="8" y="16" width="30" height="15" rx="7.5" fill="#fff" opacity=".96"/><path d="M15 20.8v5.4M12.3 23.5h5.4" stroke="#D9437A" stroke-width="2" stroke-linecap="round"/><circle cx="29" cy="22" r="1.8" fill="#D9437A"/><circle cx="32.4" cy="25.6" r="1.8" fill="#D9437A"/></g></g><g class="il-rise" style="--o:.45s"><g transform="translate(80 48) rotate(12 23 23)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exViS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exVi@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><use href="#exSp@@" transform="translate(23 23) scale(2)" fill="#fff"/><use href="#exSp@@" transform="translate(34 12) scale(.6)" fill="#fff" opacity=".8"/></g></g><g class="il-rise" style="--o:.7s"><g transform="translate(44 30)"><g filter="url(#exSh@@)"><rect x="2.2" y="3" width="46" height="46" rx="13" fill="url(#exLiS@@)"/><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exLi@@)"/></g><rect x="0" y="0" width="46" height="46" rx="13" fill="url(#exGl@@)"/><rect x="0.4" y="0.4" width="45.2" height="45.2" rx="13" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width=".8"/><rect x="11" y="11" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="11" y="24" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="24" y="11" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.95"/><rect x="24" y="24" width="11" height="11" rx="3" fill="#6F7DFF" opacity="0.5"/></g></g><g fill="var(--il-spark)"><g transform="translate(118 22) scale(0.9)"><use href="#exSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(20 30) scale(0.7)"><use href="#exSp@@" class="il-tw" style="--i:1"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="104" cy="8" r="1.6"/><circle cx="126" cy="60" r="1.2"/></g>' },
   backup: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="bkBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="bkBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="bkLi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="bkLiS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><radialGradient id="bkGd@@" cx="0.38" cy="0.3" r="0.85"><stop offset="0" stop-color="#FFF3C2"/><stop offset="0.5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="bkGdS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D99530"/><stop offset="1" stop-color="#B87418"/></linearGradient><linearGradient id="bkGl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="0.36" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="bkGlow@@" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity="0.42"/><stop offset="0.55" stop-color="var(--il-glow)" stop-opacity="0.12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="bkBlur@@" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="bkSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="bkShS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.2" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="bkSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><linearGradient id="bkFr@@" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="#8E9BFF"/><stop offset=".55" stop-color="#6F74FA"/><stop offset="1" stop-color="#6153E6"/></linearGradient><linearGradient id="bkSd@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9A86F8"/><stop offset="1" stop-color="#6E55DA"/></linearGradient><linearGradient id="bkIn@@" x1="0" y1="1" x2=".2" y2="0"><stop offset="0" stop-color="#3C2DA6"/><stop offset="1" stop-color="#7A6CF2"/></linearGradient><linearGradient id="bkLd@@" x1="0" y1="1" x2=".1" y2="0"><stop offset="0" stop-color="#A99BFF"/><stop offset="1" stop-color="#D3CBFF"/></linearGradient><linearGradient id="bkTr@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#E6E2FF" stop-opacity=".55"/></linearGradient><ellipse cx="124" cy="128" rx="108" ry="98" fill="url(#bkGlow@@)"/><ellipse cx="126" cy="208" rx="62" ry="5" fill="var(--il-shadow)" opacity="var(--il-ground-a)" class="il-ground"/><g class="il-pop" style="--o:.05s;--to:50% 100%"><g filter="url(#bkShS@@)"><path d="M90 120L190 124L198 80Q199 74 193 74L104 72Q97 72 96 78Z" fill="url(#bkSd@@)"/><path d="M93 117L187 122L194 82Q195 78 191 78L106 76Q101 76 100 80Z" fill="url(#bkLd@@)" opacity=".9"/></g><rect x="132" y="86" width="22" height="8" rx="3" fill="url(#bkGd@@)" opacity=".85" transform="rotate(2 143 90)"/><path d="M62 138L164 142L190 124L90 120Z" fill="url(#bkIn@@)"/><ellipse cx="126" cy="131" rx="44" ry="9" fill="#C9C0FF" opacity=".45" filter="url(#bkBlur@@)" class="il-glowin" style="--o:1.1s"/></g><rect x="91" y="96" width="10" height="34" rx="5" fill="url(#bkTr@@)" class="il-fade" style="--o:.9s"/><rect x="121" y="84" width="10" height="42" rx="5" fill="url(#bkTr@@)" class="il-fade" style="--o:.9s"/><rect x="153" y="96" width="10" height="34" rx="5" fill="url(#bkTr@@)" class="il-fade" style="--o:.9s"/><g class="il-drop" style="--o:.35s"><g transform="translate(64 94) rotate(-10 20 15)"><g filter="url(#bkShS@@)"><rect x="2.2" y="3" width="40" height="30" rx="8" fill="url(#bkLiS@@)"/><rect x="0" y="0" width="40" height="30" rx="8" fill="url(#bkLi@@)"/></g><rect x="0" y="0" width="40" height="30" rx="8" fill="url(#bkGl@@)"/><rect x="0.4" y="0.4" width="39.2" height="29.2" rx="8" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width=".8"/><g filter="url(#bkShS@@)"><circle cx="13.12" cy="14.6" r="7" fill="url(#bkBlS@@)"/><circle cx="12" cy="13" r="7" fill="url(#bkBl@@)"/></g><circle cx="12" cy="13" r="7" fill="url(#bkGl@@)"/><circle cx="12" cy="13" r="6.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8"/><g fill="#fff" opacity="0.95"><circle cx="12" cy="11.6" r="2.1"/><path d="M8.36 17.34C8.36 14.4 10.04 14.05 12 14.05S15.64 14.4 15.64 17.34Z"/></g><rect x="22" y="9" width="13" height="3" rx="1.5" fill="#8E7AD9" opacity="0.8"/><rect x="22" y="15" width="9" height="3" rx="1.5" fill="#8E7AD9" opacity="0.6"/></g></g><g class="il-drop" style="--o:.55s"><g filter="url(#bkShS@@)"><ellipse cx="127.8" cy="98.1" rx="15" ry="15" fill="url(#bkGdS@@)"/><circle cx="126" cy="96" r="15" fill="url(#bkGd@@)"/></g><circle cx="126" cy="96" r="10.8" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.05"/><circle cx="126" cy="96" r="10.8" fill="none" stroke="#C98422" stroke-opacity=".35" stroke-width="0.75" transform="translate(0.75 0.9)"/><use href="#bkSp@@" transform="translate(126 96) scale(1.02)" fill="#fff" opacity=".92"/><ellipse cx="120.3" cy="89.7" rx="3.9" ry="1.95" fill="#fff" opacity=".7" transform="rotate(-35 120.3 89.7)"/></g><g class="il-drop" style="--o:.75s"><g transform="translate(140 98) rotate(8 21 12)"><g filter="url(#bkShS@@)"><rect x="0" y="0" width="42" height="24" rx="12" fill="url(#bkBl@@)"/></g><rect x="9" y="8" width="20" height="3.2" rx="1.6" fill="#fff" opacity="0.95"/><rect x="9" y="15.5" width="13" height="3.2" rx="1.6" fill="#fff" opacity="0.7"/></g></g><g class="il-pop" style="--o:.05s;--to:50% 100%"><g filter="url(#bkSh@@)"><path d="M164 142L190 124L190 182Q190 188 185 191L170 201Q166 204 166 198Z" fill="url(#bkSd@@)"/><path d="M62 138L164 142L166 198Q166 206 158 206L72 205Q64 205 64 197Z" fill="url(#bkFr@@)"/></g><path d="M62 138L164 142L190 124" fill="none" stroke="#C7C2FF" stroke-opacity=".55" stroke-width="1.2" stroke-linejoin="round"/><path d="M86 140.5L86 205M142 141.6V205.6" stroke="#5546D8" stroke-opacity=".35" stroke-width="7"/><g filter="url(#bkShS@@)"><rect x="102" y="156" width="24" height="30" rx="7" fill="url(#bkGd@@)"/></g><circle cx="114" cy="167" r="3.6" fill="#7A4A0C"/><path d="M112.2 169h3.6l1 8h-5.6Z" fill="#7A4A0C"/><ellipse cx="108" cy="160.5" rx="3.6" ry="1.6" fill="#fff" opacity=".6"/></g><g fill="var(--il-spark)"><g transform="translate(210 70) scale(0.8)"><use href="#bkSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(36 130) scale(0.65)"><use href="#bkSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(70 64) scale(0.55)"><use href="#bkSp@@" class="il-tw" style="--i:2"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="44" cy="96" r="1.8"/><circle cx="214" cy="170" r="1.6"/><circle cx="160" cy="52" r="1.4"/></g>' },
+    b: '<defs><linearGradient id="chbl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset="0.35" stop-color="#7DA6FF"/><stop offset="0.72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="chblS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63DA"/><stop offset="1" stop-color="#2C44AE"/></linearGradient><linearGradient id="chli@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#F1EAFF"/><stop offset="1" stop-color="#CBB9FF"/></linearGradient><linearGradient id="chliS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A891F0"/><stop offset="1" stop-color="#7F68D8"/></linearGradient><linearGradient id="chgl@@" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.3"/><stop offset="0.3" stop-color="#fff" stop-opacity="0.05"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="chgd@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C2"/><stop offset=".5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="chgdS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D99530"/><stop offset="1" stop-color="#B87418"/></linearGradient><filter id="chsh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="6" result="o"/><feFlood style="flood-color:var(--ch-shadow,#2a1478);flood-opacity:var(--ch-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="chshS@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3" result="o"/><feFlood style="flood-color:var(--ch-shadow,#2a1478);flood-opacity:var(--ch-shadow-a,.38)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="chsp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><defs><linearGradient id="chfr@@" x1="0" y1="0" x2="0.25" y2="1"><stop offset="0" stop-color="#93A0FF"/><stop offset="0.55" stop-color="#7277F8"/><stop offset="1" stop-color="#5C4EE2"/></linearGradient><linearGradient id="chsd@@" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#8E78F4"/><stop offset="1" stop-color="#5E46D2"/></linearGradient><linearGradient id="chlo@@" x1="0" y1="0" x2="0.2" y2="1"><stop offset="0" stop-color="#8C78F2"/><stop offset="1" stop-color="#6A55DC"/></linearGradient><linearGradient id="chlin@@" x1="0" y1="0" x2="0.1" y2="1"><stop offset="0" stop-color="#D9D2FF"/><stop offset="1" stop-color="#B4A8FA"/></linearGradient><linearGradient id="chin@@" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#3A2C9E"/><stop offset="1" stop-color="#5A4AD0"/></linearGradient><linearGradient id="chao@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A1E8A" stop-opacity="0"/><stop offset="1" stop-color="#2A1E8A" stop-opacity="0.26"/></linearGradient><linearGradient id="chlk@@" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#FFE9A6"/><stop offset="0.5" stop-color="#FFD15C"/><stop offset="1" stop-color="#EFA53A"/></linearGradient><radialGradient id="chwm@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#E9E4FF" stop-opacity=".75"/><stop offset="1" stop-color="#E9E4FF" stop-opacity="0"/></radialGradient><radialGradient id="chglw@@" cx=".5" cy=".5" r=".5"><stop offset="0" style="stop-color:var(--il-glow,#9aa8ff);stop-opacity:.4"/><stop offset=".6" style="stop-color:var(--il-glow,#9aa8ff);stop-opacity:.1"/><stop offset="1" style="stop-color:var(--il-glow,#9aa8ff);stop-opacity:0"/></radialGradient><clipPath id="chfc@@"><rect x="0" y="0" width="163" height="240"/></clipPath><clipPath id="chsc@@"><rect x="163" y="0" width="77" height="240"/></clipPath><linearGradient id="chjn@@" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="1" stop-color="#fff" stop-opacity="0.12"/></linearGradient><filter id="chbz@@" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3"/></filter></defs><ellipse cx="124" cy="130" rx="108" ry="96" fill="url(#chglw@@)"/><ellipse class="il-ground" cx="125" cy="206" rx="66" ry="5.5" style="fill:var(--il-shadow,#3b3f9e)"/><g class="il-ch-in" style="--o:0s"><g class="il-ch-lid"><g filter="url(#chshS@@)"><path d="M88 121H188Q192 121 192.8 117L199.6 80Q200.8 73 194 73H104Q97.6 73 96.4 79.4L86 117Q85.2 121 88 121Z" fill="url(#chlo@@)"/></g><path d="M93 117.4H184.6Q187.2 117.4 187.8 114.8L193.4 83Q194 79 190.2 79H107Q103.4 79 102.6 82.6L91.4 114.6Q90.6 117.4 93 117.4Z" fill="url(#chlin@@)"/><path d="M104 75.2H193.6" stroke="#fff" stroke-opacity=".55" stroke-width="1.2" stroke-linecap="round"/><path d="M93.4 116.6L102.8 83" stroke="#fff" stroke-opacity=".35" stroke-width="1" stroke-linecap="round"/></g><path d="M62.5 137H163L185.4 123.9Q188.6 121.9 185 121H92Q88.6 121 85.8 122.6L61.4 134.6Q58.8 136.6 62.5 137Z" fill="url(#chin@@)"/><g class="il-glowin" style="--o:1s"><ellipse cx="125" cy="129" rx="44" ry="7.5" fill="url(#chwm@@)" filter="url(#chbz@@)"/></g></g><g class="il-ch-rise" style="--o:0.9s"><g class="ch-float wn-loop" style="--d:7s"><g transform="translate(64 92) rotate(-10 20 15)"><g filter="url(#chshS@@)"><rect x="1.8" y="2.6" width="40" height="30" rx="8" fill="url(#chliS@@)"/><rect width="40" height="30" rx="8" fill="url(#chli@@)"/></g><rect width="40" height="30" rx="8" fill="url(#chgl@@)"/><rect x=".4" y=".4" width="39.2" height="29.2" rx="7.6" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width=".8"/><g filter="url(#chshS@@)"><circle cx="12" cy="13" r="7" fill="url(#chbl@@)"/></g><circle cx="12" cy="13" r="7" fill="url(#chgl@@)"/><circle cx="12" cy="11.6" r="2.1" fill="#fff"/><path d="M8.4 17.3C8.4 14.4 10 14 12 14S15.6 14.4 15.6 17.3Z" fill="#fff"/><path d="M23 10.5h11" stroke="#8E7AD9" stroke-width="3" stroke-linecap="round" stroke-opacity="0.75"/><path d="M23 16.5h7" stroke="#8E7AD9" stroke-width="3" stroke-linecap="round" stroke-opacity="0.5"/></g></g></g><g class="il-ch-rise" style="--o:1.05s"><g class="ch-float wn-loop" style="--d:6s"><g filter="url(#chshS@@)"><circle cx="127.6" cy="97.8" r="15" fill="url(#chgdS@@)"/><circle cx="126" cy="96" r="15" fill="url(#chgd@@)"/></g><circle cx="126" cy="96" r="10.8" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1"/><use href="#chsp@@" transform="translate(126 96)" fill="#fff" opacity=".92"/><ellipse cx="120.4" cy="89.8" rx="3.8" ry="1.8" fill="#fff" opacity=".6" transform="rotate(-35 120.4 89.8)"/></g></g><g class="il-ch-rise" style="--o:1.2s"><g class="ch-float wn-loop" style="--d:8s"><g transform="translate(140 98) rotate(8 21 12)"><g filter="url(#chshS@@)"><rect x="1.6" y="2.4" width="42" height="24" rx="12" fill="url(#chblS@@)"/><rect width="42" height="24" rx="12" fill="url(#chbl@@)"/></g><rect width="42" height="24" rx="12" fill="url(#chgl@@)"/><rect x=".4" y=".4" width="41.2" height="23.2" rx="11.6" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".8"/><path d="M9 9.6h20" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-opacity="0.95"/><path d="M9 16.2h12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-opacity="0.7"/></g></g></g><g class="il-ch-in" style="--o:0s"><g filter="url(#chsh@@)"><path d="M59 140.5Q59 137 62.5 137H163L185.4 123.9Q191 120.6 191 127V180.6Q191 185.6 186.8 188.2L168.4 199.6Q162.6 203 156 203H70Q59 203 59 192Z" fill="url(#chfr@@)"/></g><g clip-path="url(#chsc@@)"><path d="M59 140.5Q59 137 62.5 137H163L185.4 123.9Q191 120.6 191 127V180.6Q191 185.6 186.8 188.2L168.4 199.6Q162.6 203 156 203H70Q59 203 59 192Z" fill="url(#chsd@@)"/></g><g clip-path="url(#chfc@@)"><path d="M59 140.5Q59 137 62.5 137H163L185.4 123.9Q191 120.6 191 127V180.6Q191 185.6 186.8 188.2L168.4 199.6Q162.6 203 156 203H70Q59 203 59 192Z" fill="url(#chao@@)"/></g><path d="M63 137.7H163L185.2 124.6" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M163 138.4V201.2" stroke="url(#chjn@@)" stroke-width="1.2"/><g filter="url(#chshS@@)"><rect x="100" y="155" width="24" height="30" rx="8" fill="#D7922E"/><rect x="100" y="153.6" width="24" height="30" rx="8" fill="url(#chlk@@)"/></g><rect x="100.6" y="154.2" width="22.8" height="28.8" rx="7.4" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".9"/><circle cx="112" cy="165" r="3.4" fill="#7A4A0C"/><path d="M110.4 167H113.6L114.4 174H109.6Z" fill="#7A4A0C"/></g><g style="fill:var(--il-spark,#7186ff)"><g transform="translate(210 70) scale(0.75)"><use href="#chsp@@" class="il-tw" style="--i:0;--o:1.4s"/></g><g transform="translate(36 130) scale(0.6)"><use href="#chsp@@" class="il-tw" style="--i:1;--o:1.4s"/></g><g transform="translate(72 62) scale(0.5)"><use href="#chsp@@" class="il-tw" style="--i:2;--o:1.4s"/></g></g>' },
   rating: { vb: '0 0 320 210', cls: 'rn-illo rn-once',
     b: '<defs><linearGradient id="rnBody@@" x1="5" y1="2" x2="27" y2="31" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#A9B6FF"/><stop offset=".35" stop-color="#6F7DFF"/><stop offset=".72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><radialGradient id="rnShade@@" cx=".72" cy=".86" r=".7"><stop offset="0" stop-color="#2A1F86" stop-opacity=".38"/><stop offset="1" stop-color="#2A1F86" stop-opacity="0"/></radialGradient><linearGradient id="rnGloss@@" x1="0" y1="0" x2=".35" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".62"/><stop offset=".38" stop-color="#fff" stop-opacity=".08"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="rnSide@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><radialGradient id="rnGlow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--rn-glow)" stop-opacity=".42"/><stop offset=".55" stop-color="var(--rn-glow)" stop-opacity=".12"/><stop offset="1" stop-color="var(--rn-glow)" stop-opacity="0"/></radialGradient><radialGradient id="rnHeart@@" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#FFB3C8"/><stop offset=".45" stop-color="#FF6F96"/><stop offset="1" stop-color="#E23A6A"/></radialGradient><radialGradient id="rnStar@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#FFF1B8"/><stop offset=".5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="rnB1@@" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#9CC6FF"/><stop offset="1" stop-color="#4E86FF"/></linearGradient><linearGradient id="rnB2@@" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#F1E9FF"/><stop offset="1" stop-color="#C3ADFF"/></linearGradient><filter id="rnSh@@" x="-80%" y="-80%" width="260%" height="280%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="7" result="b"/><feOffset dy="7" in="b" result="o"/><feFlood flood-color="var(--rn-shadow)" flood-opacity="var(--rn-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="rnShS@@" x="-80%" y="-80%" width="260%" height="280%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3.2" result="b"/><feOffset dy="3.5" in="b" result="o"/><feFlood flood-color="var(--rn-shadow)" flood-opacity="var(--rn-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><clipPath id="rnClip@@"><path d="M14.1837 30.7611C12.7734 30.7611 11.3974 30.4686 10.0923 29.8903C7.56429 28.7703 5.61457 26.7131 4.602 24.0937C3.58943 21.4766 3.63286 18.6126 4.72543 16.0297C5.35172 14.5508 6.31172 13.2228 7.50943 12.1828C7.43172 10.5783 7.71972 8.95313 8.346 7.47427C9.98029 3.61141 13.7243 1.11313 17.8843 1.11313H18.2271C19.7266 1.11313 25.6557 1.11084 26.138 1.11084C26.8786 1.11084 27.4226 1.57713 27.53 1.6777C27.6351 1.77141 28.1289 2.26055 28.1289 3.15884C28.1289 3.73027 28.1243 9.39884 28.122 11.1223V11.696C28.1174 13.1268 27.8317 14.5234 27.2717 15.8468C26.6454 17.3257 25.6854 18.6537 24.4877 19.6937C24.5654 21.2983 24.2774 22.9234 23.6511 24.4023C22.0191 28.2628 18.3026 30.7611 14.1837 30.7611ZM8.06029 15.0857C7.60086 15.6617 7.22143 16.3017 6.92657 16.9943C6.08543 18.9828 6.05114 21.1863 6.83057 23.2C7.61 25.2114 9.10714 26.7931 11.0477 27.6526C12.0489 28.096 13.1049 28.32 14.1837 28.32C17.3426 28.32 20.1951 26.4023 21.45 23.4331C21.7449 22.736 21.9414 22.0114 22.0351 21.2708C20.7071 21.8811 19.2511 22.2034 17.7997 22.2034C16.3894 22.2034 15.0134 21.9108 13.7083 21.3326C12.1951 20.6628 10.8489 19.6206 9.81343 18.3223C9.05914 17.3691 8.45572 16.2583 8.06029 15.0857ZM10.058 13.3006C10.5814 15.8857 12.2934 18.0434 14.666 19.0948C15.6671 19.5383 16.7209 19.7623 17.802 19.7623C19.2649 19.7623 20.6911 19.3508 21.9391 18.5691C21.4157 15.984 19.7037 13.8263 17.3311 12.7748C16.33 12.3314 15.2763 12.1074 14.1951 12.1074C12.7323 12.1074 11.306 12.5211 10.058 13.3006ZM14.1951 9.66855C15.6054 9.66855 16.9814 9.96113 18.2866 10.5394C19.7997 11.2091 21.146 12.2491 22.1814 13.5497C22.9403 14.5028 23.5437 15.6137 23.9391 16.7886C24.3986 16.2126 24.778 15.5726 25.0729 14.88C25.5574 13.7326 25.5574 12.4206 25.5574 11.264C25.5574 10.9897 25.5574 10.6948 25.5574 10.3908V10.3543C25.5574 9.70741 25.5574 8.97598 25.5574 8.29484C25.5551 7.44684 25.5551 6.58512 25.5574 5.89255V5.83313C25.5574 5.54513 25.5574 5.28227 25.5574 5.04913V3.69598H17.9803C17.9026 3.69598 17.8591 3.69598 17.834 3.69598C17.8271 3.69598 17.818 3.69598 17.8111 3.69598H17.8066C14.6614 3.69598 11.7449 5.60227 10.5449 8.43655C10.25 9.1337 10.0534 9.85827 9.95972 10.5988C11.2877 9.98855 12.7437 9.66855 14.1951 9.66855Z" fill-rule="evenodd" clip-rule="evenodd"/></clipPath><path id="rnSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/></defs><linearGradient id="rnBez@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A4F63"/><stop offset=".5" stop-color="#2A2D3A"/><stop offset="1" stop-color="#1B1D26"/></linearGradient><linearGradient id="rnEdge@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6F7489"/><stop offset="1" stop-color="#3A3E4E"/></linearGradient><linearGradient id="rnGlass@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/></linearGradient><ellipse cx="160" cy="112" rx="112" ry="88" fill="url(#rnGlow@@)"/><ellipse cx="170" cy="192" rx="62" ry="6" fill="var(--rn-shadow)" opacity="calc(var(--rn-shadow-a) * .9)" filter="url(#rnShS@@)"/><g class="rn-float" style="--d:0s"><g transform="translate(112 18) scale(.86) matrix(.94 -.17 .1 .99 0 14)"><g filter="url(#rnSh@@)"><rect x="5" y="3" width="124" height="186" rx="22" fill="url(#rnEdge@@)"/><rect width="124" height="186" rx="22" fill="url(#rnBez@@)"/></g><rect x="5" y="5" width="114" height="176" rx="17" fill="var(--rn-screen)"/><rect x="47" y="10" width="30" height="6" rx="3" fill="#0E0F14" stroke="#3A3E4E" stroke-width=".6"/><g transform="translate(5 12)"><g class="rn-pop" style="--o:0s"><rect x="12" y="22" width="58" height="16" rx="7" fill="var(--rn-recv)"/><rect x="19" y="27" width="38" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".85"/><rect x="19" y="32" width="24" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".55"/></g><g class="rn-pop" style="--o:0.6s"><rect x="46" y="44" width="62" height="16" rx="7" fill="url(#rnB1@@)"/><rect x="53" y="49" width="42" height="2.6" rx="1.3" fill="#fff" opacity=".85"/><rect x="53" y="54" width="28" height="2.6" rx="1.3" fill="#fff" opacity=".55"/></g><g class="rn-pop" style="--o:1.2s"><rect x="12" y="66" width="46" height="16" rx="7" fill="var(--rn-recv)"/><rect x="19" y="71" width="26" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".85"/><rect x="19" y="76" width="12" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".55"/></g><g class="rn-pop" style="--o:1.8s"><rect x="30" y="88" width="78" height="26" rx="7" fill="url(#rnB1@@)"/><rect x="37" y="93" width="58" height="2.6" rx="1.3" fill="#fff" opacity=".85"/><rect x="37" y="99" width="48" height="2.6" rx="1.3" fill="#fff" opacity=".85"/><rect x="37" y="105" width="40" height="2.6" rx="1.3" fill="#fff" opacity=".6"/></g><g class="rn-pop" style="--o:2.4s"><rect x="12" y="120" width="54" height="16" rx="7" fill="var(--rn-recv)"/><rect x="19" y="125" width="34" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".85"/><rect x="19" y="130" width="20" height="2.6" rx="1.3" fill="var(--rn-recv-line)" opacity=".55"/></g><g class="rn-pop" style="--o:2.1s"><g transform="translate(103 108)"><circle r="7" fill="var(--rn-screen)" stroke="var(--rn-recv)" stroke-width="1.2"/><g transform="scale(.26) translate(0 -14)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g></g></g></g><rect x="11" y="166" width="102" height="10" rx="5" fill="var(--rn-recv)" opacity=".8"/><rect x="5" y="5" width="114" height="176" rx="17" fill="url(#rnGlass@@)"/></g></g><g class="rn-rise" style="--o:2.7s;--x:18px"><g transform="translate(258 124) scale(0.5)"><g class="rn-beat"><g filter="url(#rnShS@@)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g><path d="M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" stroke-linecap="round"/></g></g></g><g class="rn-rise" style="--o:3.3s;--x:10px"><g transform="translate(272 118) scale(0.36)"><g class="rn-beat"><g filter="url(#rnShS@@)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g><path d="M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" stroke-linecap="round"/></g></g></g><g class="rn-rise" style="--o:3.9s;--x:22px"><g transform="translate(252 130) scale(0.4)"><g class="rn-beat"><g filter="url(#rnShS@@)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g><path d="M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" stroke-linecap="round"/></g></g></g><g class="rn-rise" style="--o:4.5s;--x:14px"><g transform="translate(266 122) scale(0.32)"><g class="rn-beat"><g filter="url(#rnShS@@)"><path d="M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18 -6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z" fill="url(#rnHeart@@)"/></g><path d="M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" stroke-linecap="round"/></g></g></g><g class="rn-float" style="--d:-1.8s"><g transform="translate(80 154) scale(0.75)"><g class="rn-spin"><g filter="url(#rnShS@@)"><path d="M0-13.5 4-4.8 13.4-4.1 6.3 2.2 8.5 11.6 0 6.6-8.5 11.6-6.3 2.2-13.4-4.1-4-4.8Z" fill="url(#rnStar@@)" stroke="url(#rnStar@@)" stroke-width="3.2" stroke-linejoin="round"/></g><ellipse cx="-3.2" cy="-4.2" rx="2.6" ry="1.4" fill="#fff" opacity=".65" transform="rotate(-35 -3.2 -4.2)"/></g></g></g><g fill="var(--rn-spark)"><use href="#rnSp@@" class="rn-tw" x="74" y="48" style="--i:0" transform="scale(1)"/><use href="#rnSp@@" class="rn-tw" x="262" y="40" style="--i:1" transform="scale(1)"/><use href="#rnSp@@" class="rn-tw" x="276" y="150" style="--i:2" transform="scale(1)"/></g><g fill="var(--rn-dotc)"><circle cx="96" cy="96" r="2" opacity=".7"/><circle cx="250" cy="184" r="1.8" opacity=".7"/><circle cx="206" cy="22" r="1.6" opacity=".7"/></g>' },
   /* ★ S14 (#1290): the wallet zero state is IXI — peer-to-peer, no bank card. The old art (two payment cards, an
      EMV chip, a contactless mark, gold coins) is GONE. Two candidates, ONE wired (WALLET_EMPTY_ART below):
      A = two phones passing a glowing IXI coin along a dotted arc · B = an IXI coin on an Ixian node graph over a coin stack. */
   walletEmptyA: { vb: '0 0 240 240', cls: 'il',
-    b: '<defs><linearGradient id="waVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset=".35" stop-color="#6F7DFF"/><stop offset=".72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="waViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="waBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset=".35" stop-color="#7DA6FF"/><stop offset=".72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="waBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63D8"/><stop offset="1" stop-color="#3546B5"/></linearGradient><radialGradient id="waGd@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C2"/><stop offset=".5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="waGdS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D99530"/><stop offset="1" stop-color="#B87418"/></linearGradient><linearGradient id="waGl@@" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".4" stop-color="#fff" stop-opacity=".06"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="waGlow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".42"/><stop offset=".55" stop-color="var(--il-glow)" stop-opacity=".12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="waSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="waSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/><g id="waMe@@"><circle r="13"/><circle cy="-3.4" r="4.4" fill="#fff"/><path d="M-7.6 8.2a7.6 6.4 0 0 1 15.2 0Z" fill="#fff"/></g></defs><ellipse cx="120" cy="124" rx="108" ry="92" fill="url(#waGlow@@)"/><ellipse cx="120" cy="124" rx="104" ry="58" transform="rotate(-8 120 124)" fill="none" stroke="var(--il-orbit)" stroke-width="1.2" stroke-dasharray="1.5 7" stroke-linecap="round"/><ellipse cx="120" cy="198" rx="84" ry="5" fill="var(--il-shadow)" class="il-ground"/><g class="il-pop" style="--o:.05s;--to:50% 100%"><g transform="translate(30 80) rotate(-9 32 56)" filter="url(#waSh@@)"><rect x="2" y="3" width="64" height="112" rx="15" fill="url(#waViS@@)"/><rect width="64" height="112" rx="15" fill="url(#waVi@@)"/><rect x="5" y="6" width="54" height="100" rx="11" fill="var(--il-card)"/><rect x="25" y="10" width="14" height="3" rx="1.5" fill="var(--il-recv)"/><use href="#waMe@@" x="32" y="44" fill="url(#waVi@@)"/><rect x="15" y="66" width="34" height="4" rx="2" fill="var(--il-recv-line)" opacity=".7"/><rect x="20" y="76" width="24" height="3.4" rx="1.7" fill="var(--il-recv)"/><rect x="12" y="88" width="40" height="11" rx="5.5" fill="url(#waVi@@)" opacity=".9"/><rect width="64" height="112" rx="15" fill="url(#waGl@@)"/></g></g><g class="il-pop" style="--o:.2s;--to:50% 100%"><g transform="translate(146 80) rotate(9 32 56)" filter="url(#waSh@@)"><rect x="2" y="3" width="64" height="112" rx="15" fill="url(#waBlS@@)"/><rect width="64" height="112" rx="15" fill="url(#waBl@@)"/><rect x="5" y="6" width="54" height="100" rx="11" fill="var(--il-card)"/><rect x="25" y="10" width="14" height="3" rx="1.5" fill="var(--il-recv)"/><use href="#waMe@@" x="32" y="44" fill="url(#waBl@@)"/><rect x="15" y="66" width="34" height="4" rx="2" fill="var(--il-recv-line)" opacity=".7"/><rect x="20" y="76" width="24" height="3.4" rx="1.7" fill="var(--il-recv)"/><rect x="12" y="88" width="40" height="11" rx="5.5" fill="url(#waBl@@)" opacity=".9"/><rect width="64" height="112" rx="15" fill="url(#waGl@@)"/></g></g><g class="il-fade" style="--o:.45s" fill="none" stroke="var(--il-orbit-strong)" stroke-width="2.4" stroke-linecap="round"><path d="M68 74Q120 4 172 74" stroke-dasharray=".1 7.2"/><path d="M171.6 64.6L172 74l-8.8-2.6" stroke-linejoin="round"/></g><g class="il-fly" style="--o:.65s;--fx:-46px;--fy:26px"><g filter="url(#waSh@@)"><circle cx="122.4" cy="42.8" r="21" fill="url(#waGdS@@)"/><circle cx="120" cy="40" r="21" fill="url(#waGd@@)"/></g><circle cx="120" cy="40" r="15" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/><circle cx="120" cy="40" r="15" fill="none" stroke="#C98422" stroke-opacity=".35" stroke-width="1.1" transform="translate(1 1.2)"/><use href="#waSp@@" transform="translate(120 40) scale(1.45)" fill="#fff" opacity=".95"/><ellipse cx="112" cy="31" rx="5.6" ry="2.8" fill="#fff" opacity=".7" transform="rotate(-35 112 31)"/></g><g fill="var(--il-spark)"><g transform="translate(206 60) scale(.9)"><use href="#waSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(30 54) scale(.75)"><use href="#waSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(216 178) scale(.6)"><use href="#waSp@@" class="il-tw" style="--i:2"/></g><g transform="translate(24 184) scale(.55)"><use href="#waSp@@" class="il-tw" style="--i:3"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="160" cy="22" r="1.8"/><circle cx="76" cy="26" r="1.5"/><circle cx="226" cy="120" r="1.4"/><circle cx="14" cy="122" r="1.4"/></g>' },
+    b: '<defs><linearGradient id="waVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset=".35" stop-color="#6F7DFF"/><stop offset=".72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="waViS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5546D8"/><stop offset="1" stop-color="#3E2FB5"/></linearGradient><linearGradient id="waBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset=".35" stop-color="#7DA6FF"/><stop offset=".72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><linearGradient id="waBlS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D63D8"/><stop offset="1" stop-color="#3546B5"/></linearGradient><radialGradient id="waGd@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C2"/><stop offset=".5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="waGdS@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D99530"/><stop offset="1" stop-color="#B87418"/></linearGradient><linearGradient id="waGl@@" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.275"/><stop offset=".4" stop-color="#fff" stop-opacity="0.03"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="waGlow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".42"/><stop offset=".55" stop-color="var(--il-glow)" stop-opacity=".12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="waSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="waSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/><g id="waMe@@"><circle r="13"/><circle cy="-3.4" r="4.4" fill="#fff"/><path d="M-7.6 8.2a7.6 6.4 0 0 1 15.2 0Z" fill="#fff"/></g></defs><ellipse cx="120" cy="124" rx="108" ry="92" fill="url(#waGlow@@)"/><ellipse cx="120" cy="124" rx="104" ry="58" transform="rotate(-8 120 124)" fill="none" stroke="var(--il-orbit)" stroke-width="1.2" stroke-dasharray="1.5 7" stroke-linecap="round"/><ellipse cx="120" cy="198" rx="84" ry="5" fill="var(--il-shadow)" class="il-ground"/><g class="il-pop" style="--o:.05s;--to:50% 100%"><g transform="translate(30 80) rotate(-9 32 56)" filter="url(#waSh@@)"><rect x="2" y="3" width="64" height="112" rx="15" fill="url(#waViS@@)"/><rect width="64" height="112" rx="15" fill="url(#waVi@@)"/><rect x="5" y="6" width="54" height="100" rx="11" fill="var(--il-card)"/><rect x="25" y="10" width="14" height="3" rx="1.5" fill="var(--il-recv)"/><use href="#waMe@@" x="32" y="44" fill="url(#waVi@@)"/><rect x="15" y="66" width="34" height="4" rx="2" fill="var(--il-recv-line)" opacity=".7"/><rect x="20" y="76" width="24" height="3.4" rx="1.7" fill="var(--il-recv)"/><rect x="12" y="88" width="40" height="11" rx="5.5" fill="url(#waVi@@)" opacity=".9"/><rect width="64" height="112" rx="15" fill="url(#waGl@@)"/></g></g><g class="il-pop" style="--o:.2s;--to:50% 100%"><g transform="translate(146 80) rotate(9 32 56)" filter="url(#waSh@@)"><rect x="2" y="3" width="64" height="112" rx="15" fill="url(#waBlS@@)"/><rect width="64" height="112" rx="15" fill="url(#waBl@@)"/><rect x="5" y="6" width="54" height="100" rx="11" fill="var(--il-card)"/><rect x="25" y="10" width="14" height="3" rx="1.5" fill="var(--il-recv)"/><use href="#waMe@@" x="32" y="44" fill="url(#waBl@@)"/><rect x="15" y="66" width="34" height="4" rx="2" fill="var(--il-recv-line)" opacity=".7"/><rect x="20" y="76" width="24" height="3.4" rx="1.7" fill="var(--il-recv)"/><rect x="12" y="88" width="40" height="11" rx="5.5" fill="url(#waBl@@)" opacity=".9"/><rect width="64" height="112" rx="15" fill="url(#waGl@@)"/></g></g><g class="il-fade" style="--o:.45s" fill="none" stroke="var(--il-orbit-strong)" stroke-width="2.4" stroke-linecap="round"><path d="M68 74Q120 4 172 74" stroke-dasharray=".1 7.2"/><path d="M171.6 64.6L172 74l-8.8-2.6" stroke-linejoin="round"/></g><g class="il-fly" style="--o:.65s;--fx:-46px;--fy:26px"><g filter="url(#waSh@@)"><circle cx="122.4" cy="42.8" r="21" fill="url(#waGdS@@)"/><circle cx="120" cy="40" r="21" fill="url(#waGd@@)"/></g><circle cx="120" cy="40" r="15" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/><circle cx="120" cy="40" r="15" fill="none" stroke="#C98422" stroke-opacity=".35" stroke-width="1.1" transform="translate(1 1.2)"/><use href="#waSp@@" transform="translate(120 40) scale(1.45)" fill="#fff" opacity=".95"/><ellipse cx="112" cy="31" rx="5.6" ry="2.8" fill="#fff" opacity=".7" transform="rotate(-35 112 31)"/></g><g fill="var(--il-spark)"><g transform="translate(206 60) scale(.9)"><use href="#waSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(30 54) scale(.75)"><use href="#waSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(216 178) scale(.6)"><use href="#waSp@@" class="il-tw" style="--i:2"/></g><g transform="translate(24 184) scale(.55)"><use href="#waSp@@" class="il-tw" style="--i:3"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="160" cy="22" r="1.8"/><circle cx="76" cy="26" r="1.5"/><circle cx="226" cy="120" r="1.4"/><circle cx="14" cy="122" r="1.4"/></g>' },
   walletEmptyB: { vb: '0 0 240 240', cls: 'il',
     b: '<defs><linearGradient id="wbVi@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A9B6FF"/><stop offset=".35" stop-color="#6F7DFF"/><stop offset=".72" stop-color="#6A5BF5"/><stop offset="1" stop-color="#9468F2"/></linearGradient><linearGradient id="wbBl@@" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B4D0FF"/><stop offset=".35" stop-color="#7DA6FF"/><stop offset=".72" stop-color="#4E86FF"/><stop offset="1" stop-color="#5A6CF2"/></linearGradient><radialGradient id="wbGd@@" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C2"/><stop offset=".5" stop-color="#FFD15C"/><stop offset="1" stop-color="#F2A93B"/></radialGradient><linearGradient id="wbGdS@@" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#E6A23A"/><stop offset=".55" stop-color="#C98422"/><stop offset="1" stop-color="#A9690F"/></linearGradient><radialGradient id="wbGlow@@" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--il-glow)" stop-opacity=".42"/><stop offset=".55" stop-color="var(--il-glow)" stop-opacity=".12"/><stop offset="1" stop-color="var(--il-glow)" stop-opacity="0"/></radialGradient><filter id="wbSh@@" x="-60%" y="-60%" width="220%" height="240%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="4"/><feOffset dy="4" result="o"/><feFlood flood-color="var(--il-shadow)" flood-opacity="var(--il-shadow-a)"/><feComposite in2="o" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter><path id="wbSp@@" d="M0-6.5C.5-2.2 2.2-.5 6.5 0 2.2.5.5 2.2 0 6.5-.5 2.2-2.2.5-6.5 0-2.2-.5-.5-2.2 0-6.5Z"/><g id="wbC@@"><path d="M-38 0v9a38 12 0 0 0 76 0V0Z" fill="url(#wbGdS@@)"/><ellipse rx="38" ry="12" fill="url(#wbGd@@)"/><ellipse rx="27" ry="8" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.3"/><ellipse rx="27" ry="8" fill="none" stroke="#C98422" stroke-opacity=".3" stroke-width="1" transform="translate(.8 1)"/></g><g id="wbN@@"><circle r="9" fill="var(--il-card)"/><circle r="5.2"/><circle cx="-1.6" cy="-1.8" r="1.6" fill="#fff" opacity=".8"/></g></defs><ellipse cx="120" cy="120" rx="108" ry="96" fill="url(#wbGlow@@)"/><ellipse cx="120" cy="120" rx="104" ry="58" transform="rotate(-10 120 120)" fill="none" stroke="var(--il-orbit)" stroke-width="1.2" stroke-dasharray="1.5 7" stroke-linecap="round"/><ellipse cx="120" cy="196" rx="70" ry="5" fill="var(--il-shadow)" class="il-ground"/><g class="il-fade" style="--o:.1s" fill="none" stroke="var(--il-orbit-strong)" stroke-width="1.6" stroke-linecap="round"><path d="M120 86L46 66M120 86L84 30M120 86L166 28M120 86L204 74M120 86L210 138M120 86L32 128M46 66L84 30M84 30L166 28M166 28L204 74M204 74L210 138M46 66L32 128"/></g><g filter="url(#wbSh@@)"><g class="il-pop" style="--o:.2s;--to:50% 50%"><use href="#wbN@@" x="46" y="66" fill="url(#wbVi@@)"/></g><g class="il-pop" style="--o:.28s;--to:50% 50%"><use href="#wbN@@" x="84" y="30" fill="url(#wbBl@@)"/></g><g class="il-pop" style="--o:.36s;--to:50% 50%"><use href="#wbN@@" x="166" y="28" fill="url(#wbVi@@)"/></g><g class="il-pop" style="--o:.44s;--to:50% 50%"><use href="#wbN@@" x="204" y="74" fill="url(#wbBl@@)"/></g><g class="il-pop" style="--o:.52s;--to:50% 50%"><use href="#wbN@@" x="210" y="138" fill="url(#wbVi@@)"/></g><g class="il-pop" style="--o:.6s;--to:50% 50%"><use href="#wbN@@" x="32" y="128" fill="url(#wbBl@@)"/></g></g><g class="il-drop" style="--o:.3s;--dy:-30px" filter="url(#wbSh@@)"><use href="#wbC@@" x="120" y="176"/><use href="#wbC@@" x="120" y="162"/><use href="#wbC@@" x="120" y="148"/></g><g class="il-fly" style="--o:.75s;--fx:0px;--fy:-30px"><g filter="url(#wbSh@@)"><circle cx="122.6" cy="89" r="26" fill="#C98422"/><circle cx="120" cy="86" r="26" fill="url(#wbGd@@)"/></g><circle cx="120" cy="86" r="19" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.8"/><circle cx="120" cy="86" r="19" fill="none" stroke="#C98422" stroke-opacity=".35" stroke-width="1.2" transform="translate(1.2 1.4)"/><use href="#wbSp@@" transform="translate(120 86) scale(1.75)" fill="#fff" opacity=".95"/><ellipse cx="110" cy="75" rx="6.6" ry="3.3" fill="#fff" opacity=".7" transform="rotate(-35 110 75)"/></g><g fill="var(--il-spark)"><g transform="translate(184 112) scale(.8)"><use href="#wbSp@@" class="il-tw" style="--i:0"/></g><g transform="translate(58 102) scale(.7)"><use href="#wbSp@@" class="il-tw" style="--i:1"/></g><g transform="translate(126 18) scale(.6)"><use href="#wbSp@@" class="il-tw" style="--i:2"/></g><g transform="translate(206 186) scale(.55)"><use href="#wbSp@@" class="il-tw" style="--i:3"/></g></g><g fill="var(--il-dotc)" opacity=".75"><circle cx="26" cy="176" r="1.8"/><circle cx="226" cy="104" r="1.4"/><circle cx="150" cy="200" r="1.4"/></g>' },
 };
+/* ★ S17 (#1331): the S17 art joins the table (What's new scenes, About glass, Moment drawings, Contributors heart) —
+   static entries from illustrations-s17.js; the same @@ id rule, the same buildIllo, the same one-entrance hold. */
+Object.assign(IL_ART, S17_ART);
 
-function buildIllo(name, className, slot) {
-  const a = IL_ART[name];
+function buildIllo(name, className, slot, entry) {
+  const a = entry || IL_ART[name];
   const svg = document.createElementNS(IL_NS, 'svg');
   svg.setAttribute('viewBox', a.vb);
   svg.setAttribute('class', a.cls + (className ? ' ' + className : ''));
@@ -3201,6 +3279,7 @@ function buildIllo(name, className, slot) {
   svg.setAttribute('data-illo', slot || name);   // ★ S14 (#1290): the SLOT (walletEmpty) — data-art names the drawing
   if (slot) svg.setAttribute('data-art', name);
   if (a.style) svg.setAttribute('style', a.style);
+  if (a.par) svg.setAttribute('preserveAspectRatio', a.par);   // ★ S17 (#1331): full-bleed layers (slice) — static table values only
   ilSeq += 1;
   svg.innerHTML = a.b.split('@@').join('-i' + ilSeq); // static module strings only — never user data
   watchEntrance(svg);
@@ -3252,6 +3331,37 @@ const WALLET_EMPTY_ART = 'walletEmptyA';
 function illoWalletEmptyA(o = {}) { return buildIllo('walletEmptyA', o.className); }
 function illoWalletEmptyB(o = {}) { return buildIllo('walletEmptyB', o.className); }
 function illoWalletEmpty(o = {}) { return buildIllo(WALLET_EMPTY_ART, o.className, 'walletEmpty'); }
+
+/* ★ S17 (#1331) — the S17 factories. Each returns decorative SVG(s) exactly like the set above (aria-hidden, per-call
+   ids, watchEntrance). A two-layer scene returns { bg, fg } (the background loops, the foreground enters once). */
+const WN_SCENE_IDS = ['hero', 'reply', 'voice', 'photos', 'privacy', 'apps'];
+const capWord = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+function illoWhatsNew(id, o = {}) {
+  if (WN_SCENE_IDS.indexOf(id) < 0) return null;
+  const k = 'wn' + capWord(id);
+  return { bg: buildIllo(k + 'Bg', o.className, k + 'Bg'), fg: buildIllo(k + 'Fg', o.className, k + 'Fg') };
+}
+function illoAboutGlass(o = {}) {
+  return { bg: buildIllo('aboutGlassBg', o.className), fg: buildIllo('aboutGlassFg', o.className) };
+}
+function illoContribHeart(o = {}) {
+  return { bg: buildIllo('heartBg', o.className), fg: buildIllo('heartFg', o.className) };
+}
+const MOMENT_ART_KINDS = ['ai', 'autodl', 'offline', 'firstixi', 'mic', 'app', 'pay'];
+/* the AI drawing: `hello` / `greet` are set with textContent (never markup); only the greeting LENGTH sizes its pill */
+function illoMoment(kind, o = {}) {
+  if (MOMENT_ART_KINDS.indexOf(kind) < 0) return null;
+  if (kind === 'ai') {
+    const greet = String(o.greet || '');
+    const svg = buildIllo('moAi', o.className, 'moAi', momentAiEntry([...greet].length));
+    const h = svg.querySelector('[data-say="hello"]');
+    const g = svg.querySelector('[data-say="greet"]');
+    if (h) h.textContent = String(o.hello || 'Hello');
+    if (g) g.textContent = greet;
+    return svg;
+  }
+  return buildIllo('mo' + capWord(kind), o.className);
+}
 
 /* legacy file name (no folder, no extension) → factory. `discover-apps` is the demo
    desktop's Explore art; `wallet-es` the retired wallet export (#453 → S11).
@@ -11721,7 +11831,7 @@ function openMemberSheet({
       if (canView) {
         const view = createButton({
           label: strings.viewProfile || 'View profile',
-          type: 'outline', size: 44,
+          type: 'text', size: 44,   // ★ S17 (Damir 20:42): a sheet's secondary buttons are text buttons — no outline
           icon: icon('user-circle', { size: 18 }),
           onClick: goToProfile,
         });
@@ -11734,12 +11844,12 @@ function openMemberSheet({
         const payRow = document.createElement('div');
         payRow.className = 'c-member__payrow';
         if (onPay) payRow.append(createButton({
-          label: strings.sendPayment || 'Pay', type: 'outline', size: 44,
+          label: strings.sendPayment || 'Pay', type: 'text', size: 44,   // ★ S17 (Damir 20:42): a sheet's secondary buttons are text buttons — no outline
           icon: icon('arrow-up-right', { size: 18 }),
           onClick: () => { closeSheet(sheet); onPay(member); },
         }));
         if (onRequestPayment) payRow.append(createButton({
-          label: strings.requestPayment || 'Request', type: 'outline', size: 44,
+          label: strings.requestPayment || 'Request', type: 'text', size: 44,   // ★ S17 (Damir 20:42): a sheet's secondary buttons are text buttons — no outline
           icon: icon('arrow-down-left', { size: 18 }),
           onClick: () => { closeSheet(sheet); onRequestPayment(member); },
         }));
@@ -11789,7 +11899,7 @@ function openMemberSheet({
                          // click must not fire two actions once the sheet closes
     for (const a of actions) {
       actRow.append(createButton({
-        label: a.label, type: 'outline', size: 44,
+        label: a.label, type: 'text', size: 44,   // ★ S17 (Damir 20:42): a sheet's secondary buttons are text buttons — no outline
         intent: a.destructive ? 'destructive' : 'default',
         icon: a.glyph ? icon(a.glyph, { size: 18 }) : null,
         onClick: () => {
@@ -18830,6 +18940,7 @@ function createWalletSend({
   lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
   fiatPrice = null,         // ★ #1263: IXI → fiat, RAW decimal from C#; absent/zero → no fiat line (#1041)
   onQuickScan, onQuote, onSend, onDone,
+  onBeforeReview = null,    // ★ S17 F (#1340): (go, stop) — the host may put ONE step before the review (the first-payment moment); go() opens the review, stop() returns to the compose
 } = {}) {
   // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
   // the one FE surface doing money math. Pre-formatted display strings (hero-style
@@ -19305,7 +19416,26 @@ function createWalletSend({
   };
 
   /* ——— review sheet (#26) — the shared openPaymentReview, fee KNOWN at open ——— */
+  /* ★ S17 F (#1340): the host's step before the review (the first-payment moment sheet). The review itself is
+     unchanged; go() re-checks everything, so a compose that changed meanwhile opens nothing stale. */
   function openSendReview() {
+    if (!valid() || state.sending) return;
+    if (state.review && state.review.isOpen()) return;
+    if (typeof onBeforeReview === 'function' && !state.beforeReview) {
+      state.beforeReview = true;
+      let went = false;
+      try {
+        onBeforeReview(
+          () => { if (went) return; went = true; state.beforeReview = false; if (el.isConnected) openSendReviewNow(); },   // go (#46 r1: never over a closed compose)
+          () => { if (went) return; went = true; state.beforeReview = false; }                         // stop: back to the compose
+        );
+      } catch (e) { state.beforeReview = false; openSendReviewNow(); }
+      return;
+    }
+    if (state.beforeReview) return;                      // the step before is on screen
+    openSendReviewNow();
+  }
+  function openSendReviewNow() {
     if (!valid() || state.sending) return;               // per-VIEW in-flight token (audit C1)
     // loop r1 M4: ONE review sheet per compose — a double tap stacked two, and the
     // survivor could fire a second send. Loop r2 R2-3: "one" = one OPEN sheet — a sheet
@@ -29006,7 +29136,11 @@ function createSettingsDanger({
   const quiet = document.createElement('div');
   quiet.className = 'c-settings__group';
   quietWrap.append(quiet);
-  const quietRow = (label, sub, buildOpts) => {
+  /* ★★ S17 E (#1337, Damir 15:34 "option A — show the thing", deletedata-render.html): the icon names WHAT goes (the title
+     already says "Delete"): chat history = `messages` on a blue tile, downloads = `download` on a green tile — the iOS /
+     Android storage pattern. REVERSES #1018 ("a trash row on the danger screen is the calm slate"): Damir picked the
+     coloured tiles over the slate from the rendered three-way. Tiles are tokens (--dd-tile-*), no literals. */
+  const quietRow = (label, sub, buildOpts, glyph = 'trash', tile = '') => {
     const section = document.createElement('div');
     section.className = 'c-settings__section';
     const row = document.createElement('button');
@@ -29018,8 +29152,9 @@ function createSettingsDanger({
     top.className = 'c-settings__row-top';
     const disc = document.createElement('span');
     disc.className = 'c-disc';
-    disc.dataset.hue = 'neutral';   // ★ #1018: NO per-glyph gradient here — a trash row on the danger screen is the calm slate, never a green or orange palette slot
-    disc.append(icon('trash', { size: 16 }));
+    if (tile) disc.dataset.ddTile = tile;   // ★ S17 E: the tile names the KIND of data (settings-shell.css)
+    else disc.dataset.hue = 'neutral';      // the #1018 slate, kept for a row with no named kind
+    disc.append(icon(glyph, { size: 16 }));
     top.append(disc, document.createTextNode(label));
     const s = document.createElement('span');
     s.className = 'c-settings__row-sub';
@@ -29040,6 +29175,7 @@ function createSettingsDanger({
       confirmLabel: strings.deleteConfirm || 'Delete',
       run: (ctrl) => onDeleteHistory(ctrl),
     }),
+    'messages', 'history',
   );
   if (onDeleteDownloads) quietRow(
     strings.deleteDownloads || 'Delete downloads',
@@ -29050,6 +29186,7 @@ function createSettingsDanger({
       confirmLabel: strings.deleteConfirm || 'Delete',
       run: (ctrl) => onDeleteDownloads(ctrl),
     }),
+    'download', 'downloads',
   );
   if (quiet.childElementCount) body.append(quietWrap);
 
@@ -29067,7 +29204,8 @@ function createSettingsDanger({
     b.className = 'c-settings-danger__card';
     const t = document.createElement('span');
     t.className = 'c-settings-danger__card-title';
-    t.append(icon('trash', { size: 20 }), document.createTextNode(title));
+    /* ★ S17 E (#1337, option A): the account card names what goes — `user-circle` in the card's error ink, no tile (as today) */
+    t.append(icon('user-circle', { size: 20 }), document.createTextNode(title));
     const s = document.createElement('span');
     s.className = 'c-settings-danger__card-sub';
     s.textContent = sub;
@@ -29424,7 +29562,12 @@ const PATTERN_STYLES = [
      still sit in src/assets/images unreferenced — deleting artwork is Damir's call. */
   /* ★★ #997 (Damir 2026-09-28): CONTOURS replace the data matrix (picked from constellation ·
      fine lattice · contours on the three grounds). Still ONE style; 'matrix' falls through. */
-  { id: 'contours', key: 'patternStyleContours', label: 'Contours' },
+  /* ★★ S17 C (#1334, Damir 19:13): the id stays 'contours' (every stored pref keeps working) but the TILE is the
+     render's Waves now and the LABEL is "Waves" — same key, new value in every locale. */
+  /* ★★ S17 C (#1335, Damir 19:22 "add it, name 'Contours'"): the render's topographic rings — a NEW id and key. FIRST, as in
+     the render (None · Contours · Waves, Damir 19:49 "that's what we want") */
+  { id: 'rings', key: 'patternRings', label: 'Contours' },
+  { id: 'contours', key: 'patternStyleContours', label: 'Waves' },
 ];/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
  *
  * Damir's dial: off, the new default, and one stronger step at 0.1. The change
@@ -29462,20 +29605,25 @@ const CHAT_GROUNDS = [
      ⓘ ONE MEMBER MEANS THE ROW DOES NOT RENDER — see the guard below. That is Damir's own
      rule, re-ruled explicitly on 2026-09-04 for the dark case: a one-option chooser reads
      as a broken control, so the row is ABSENT rather than shown with nothing to choose. */
-  { id: 'flat', key: 'groundFlat', label: 'Solid' },
+  { id: 'flat', key: 'groundFlat', label: 'Mist' }   /* ★ S17 C (Damir 15:55): the canvas NAMES — no "… gradient", no "Brand"; keys kept, values changed */,
   /* ★★ #998 (Damir 2026-09-28, the polish round): the option is BACK as the BRAND GRADIENT —
      light only (★ #1066: and a DARK brand gradient since 2026-09-29, blue-violet → midnight), never the default (tokens.css #1002: #CCD0EC → #D0C9EB → #D5C3EB with its own
      ink #3A2F66). The restore was the one line #855 promised; the label is a NEW key because
      "Gradient" translations named the retired teal wash. */
-  { id: 'gradient', key: 'groundBrandGradient', label: 'Brand gradient' },
+  { id: 'gradient', key: 'groundBrandGradient', label: 'Iris' },
   /* ★★ #1080 F15 (Damir 2026-09-30, from his green title-bar screenshot; picked G2 of a rendered
      3-way): a SOFT GREEN gradient — LIGHT ONLY (`lightOnly`). There is no dark green rule, so in dark
      the dot is not offered and a stored 'green' paints the flat midnight ground (tokens.css). */
   /* ★★ S8 (#1237, Damir 2026-10-07): green is offered in DARK too (DG1 "Forest" — tokens.css has a dark rule now), and a
      fourth ground joins: BLUE — light B1 "Sky", dark DB1 "Azure". Both themes offer the same four: Solid · Brand · Green ·
      Blue. The `lightOnly` filter below stays as the mechanism (no member uses it today). */
-  { id: 'green', key: 'groundGreenGradient', label: 'Green gradient' },
-  { id: 'blue', key: 'groundBlueGradient', label: 'Blue gradient' },
+  /* ★ S17 C (Damir 15:55): the order of the render — Mist · Iris · Spixi · Meadow, then the three NEW canvases */
+  { id: 'blue', key: 'groundBlueGradient', label: 'Spixi' },
+  { id: 'green', key: 'groundGreenGradient', label: 'Meadow' },
+  /* ★★ S17 C (#1334): ADDED next to today's four (15:09) — tokens.css carries each one's ground, ink and Auto sent colour */
+  { id: 'aurora', key: 'groundAurora', label: 'Aurora' },
+  { id: 'dusk', key: 'groundDusk', label: 'Dusk' },
+  { id: 'ocean', key: 'groundOcean', label: 'Ocean' },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -29547,6 +29695,8 @@ const PATTERN_SWATCH_BOOST = 6;
    Damir asked to quieten. The values ARE the picks, so they are the thing to move: 4.5 is one
    step louder, 2 one step softer, both rendered on the sheet. */
 const PATTERN_SWATCH_BOOSTS = {
+  /* ★ S17 C (#1335): the rings tile carries more ink than the waves tile — one step softer in the tiles */
+  rings: 4.5,
   /* ★ #835: the `doodles: 3` override retired with its style. It existed because ONE
      multiplier cannot balance two artworks with different ink coverage — dense doodle line
      art against the matrix's scattered dots. With a single tile left there is nothing to
@@ -29585,12 +29735,8 @@ function readPatternLevel(raw, fallback = 1) {
   if (n === 1 || n === 2) return 1;          // already a level index (2 = retired Strong)
   return 1;                                  // legacy alpha: anything above 0 → Subtle
 }
-const TEXT_SIZES = [            // --chat-text-scale — bubble adoption LIVE (message-bubble.css, 6e.2)
-  { value: 0.9, key: 'textS', label: 'S' },
-  { value: 1, key: 'textM', label: 'M' },
-  { value: 1.1, key: 'textL', label: 'L' },
-  { value: 1.25, key: 'textXL', label: 'XL' },
-];
+/* ★ S17 C (#1334): TEXT_SIZES (S · M · L · XL) is RETIRED — the text size is a 12–22 px slider now (the render); the four
+   preset keys leave the extractor table and every locale with it. Recover from git (S8 era) if presets ever return. */
 const SECURITY_TIERS = [        // §9 proposal — see spec §8 translation table
   { id: 'basic', key: 'tierBasic', label: 'Basic',
     descKey: 'tierBasicDesc', desc: 'Convenience first. Lock optional, previews on, receipts on.' },
@@ -29824,362 +29970,491 @@ function screenShell(className, title, onBack) {
   return { el, body, live };
 }
 
+/* ★ S17 C (Damir 20:21): the ONE "picked" mark of the appearance tiles (theme phones, chat-list cards) — a white check in a
+   blue disc, shown by CSS only on the [aria-checked="true"] tile; decoration (the radio role carries the state) */
+function pickMark() {
+  const m = document.createElement('span');
+  m.className = 'c-settings-appearance__pick';
+  m.setAttribute('aria-hidden', 'true');
+  m.append(icon('check', { size: 14 }));
+  return m;
+}
+
 /**
- * Chat appearance — FE-ONLY (#147): live preview canvas + pattern intensity +
- * message text size. Picks apply INSTANTLY (root css vars via callbacks) —
- * no bridge, no latch; the preview rides the REAL .c-chat-canvas paint.
+ * Chat appearance — FE-ONLY (#147): every pick applies INSTANTLY to the live preview and is written by the host
+ * (localStorage, the chat shell's #690 ladders read it) — no bridge, no latch; the preview rides the REAL
+ * .c-chat-canvas paint and the real bubble tokens.
+ *
+ * ★★ S17 C (#1334, Damir 2026-10-11 14:27 "a premium chat appearance screen", appearance-render.html, LOCKED) —
+ * FIVE CARDS: (1) the live preview (the canvas, its pattern, a date chip, a received bubble with a sender name, a sent
+ * bubble with ticks) + the text-size slider 12–22 px; (2) the CANVAS as a row of mini chats — today's four (renamed Mist,
+ * Iris, Spixi, Meadow, 15:55) + NEW Aurora, Dusk, Ocean; (3) the BACKGROUND (None · Waves · Contours) + the NEW bubble
+ * colour (Auto + 6) + the NEW bubble corners (4–22 px); (4) the THEME as three mini phones (only with `onTheme`);
+ * (5) the chat-list message preview (1 / 2 lines as mini lists) + the Tips switch.
+ * ★ ADDITIONS, NOT REPLACEMENTS (15:09): today's canvases and their exact look stay (tokens.css), the default stays Mist
+ * + the pattern; nobody's chat changes until they pick something. ★ TODAY'S BUBBLE LOOK STAYS (15:16): only a colour
+ * (data-chat-sent) and a radius (--bubble-radius) are layered on top; the received glass edge is untouched.
+ * ★ A canvas pick resets the bubble colour to Auto (Damir, interview). ★ The corners default is 18 px = today (the tail
+ * and group corners scale so 18 → 4 px exactly). ★ Desktop, wide: two columns (the preview stays put on the left).
+ * Motion: colour / ground / radius ease ≤ .45 s; reduced motion = instant (settings-screens.css).
+ * The storage is UNCHANGED for every existing control (pattern level + style, ground, text scale, preview lines); two
+ * NEW keys only, for the two new controls (spixi.chat.sentcolour · spixi.chat.corners — the host writes them).
  */
+const BUBBLE_COLOURS = [
+  { id: 'auto', key: 'bubbleColourAuto', label: 'Auto' },
+  { id: 'blue', key: 'colourBlue', label: 'Blue' },
+  { id: 'violet', key: 'colourViolet', label: 'Violet' },
+  { id: 'teal', key: 'colourTeal', label: 'Teal' },
+  { id: 'pink', key: 'colourPink', label: 'Pink' },
+  { id: 'orange', key: 'colourOrange', label: 'Orange' },
+  { id: 'graphite', key: 'colourGraphite', label: 'Graphite' },
+];
+const BUBBLE_CORNERS = { min: 4, max: 22, def: 18 };
+const TEXT_SIZE_PX = { min: 12, max: 22, base: 16 };
+/* ★ S17 C v3 (Damir 21:50, replaces the 21:24 file): EVERY canvas carries its OWN flat bubble colour (Auto) in tokens.css —
+   each ground rule (root + descendant) sets the sent colour, its card and its meta ink, so a tile never inherits another
+   canvas's colour and "Auto" is simply no data-chat-sent. */
+
+/* ★ #1035 → ★ S17 C (#46 r1 M1): ONE radio-group keyboard for every picture group on this screen (canvas tiles, theme phones,
+   chat-list tiles) — arrows move AND select, Home / End, wrap, RTL mirrored. Only the checked option is in the tab order. */
+function radioArrows(group) {
+  group.addEventListener('keydown', (e) => {
+    const kids = [...group.children];
+    const i = kids.indexOf(e.target);
+    if (i < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
+    const rtl = (group.closest('[dir]') || document.documentElement).getAttribute('dir') === 'rtl';
+    const fwd = rtl ? 'ArrowLeft' : 'ArrowRight', back = rtl ? 'ArrowRight' : 'ArrowLeft';
+    let n = -1;
+    if (e.key === fwd || e.key === 'ArrowDown') n = (i + 1) % kids.length;
+    else if (e.key === back || e.key === 'ArrowUp') n = (i - 1 + kids.length) % kids.length;
+    else if (e.key === 'Home') n = 0;
+    else if (e.key === 'End') n = kids.length - 1;
+    if (n < 0) return;
+    e.preventDefault();
+    kids[n].focus();
+    kids[n].click();
+  });
+}
+
 function createChatAppearance({
-  patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
-  patternStyle = 'contours',     // ★ #997: the only style left (matrix, doodles + Live flow retired)
-  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — ★ #1066: both themes (a rule per theme in tokens.css) · ★ S8 (#1237): | 'green' | 'blue'
+  patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1), not an alpha
+  patternStyle = 'contours',     // ★ S17 C: 'contours' ("Waves") | 'rings' ("Contours")
+  chatGround = 'flat',           // ★ S17 C: flat (Mist) · gradient (Iris) · blue (Spixi) · green (Meadow) · aurora · dusk · ocean
   textScale = 1,
+  sentColour = 'auto',           // ★ S17 C (#1334): 'auto' | a BUBBLE_COLOURS id
+  corners = BUBBLE_CORNERS.def,  // ★ S17 C (#1336): 4–22 px
+  theme,                         // ★ S17 C: the THEME_OPTIONS value (0 System · 1 Light · 2 Dark); the card renders only with onTheme
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
-  host,                          // ★ #1019: unused since the Canvas choice became circles (no sheet); kept so existing callers stay valid
+  host,                          // kept so existing callers stay valid (#1019)
   onBack,
-  onPattern,                     // (level) — shell persists the index; CSS resolves the alpha
-  onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
-  onChatGround,                  // (id) — shell sets data-chat-ground + persists (★ AUG)
-  onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
-  previewLines = '1',            // ★ S11 (#1262): default 1 line (#1261) · ★ S10 P4 (#1254): the chat-list excerpt — '1' | '2' lines (spixi.chat.previewlines)
-  onPreviewLines,                // ('1' | '2') — shell persists; home.html reads it. No handler → no row.
-  hintsOn = true,                // ★ S11 (#1262): the "Tips on the Chats screen" switch — C# (SHints) owns the value
-  onHints,                       // (next, ctrl) — the shell's latch (ixian:hintsoff). No handler → no row (an old exe).
+  onPattern,                     // (level) — the host persists the index; CSS resolves the alpha
+  onPatternStyle,                // (id)
+  onChatGround,                  // (id)
+  onTextScale,                   // (scale) — on release of the slider
+  onSentColour,                  // ★ S17 C (id) — 'auto' clears the key
+  onCorners,                     // ★ S17 C (px) — on release of the slider
+  onTheme,                       // ★ S17 C (value, ctrl) — the host's theme commit (ixian:appearance:<v>); no handler → no card
+  previewLines = '1',            // ★ S11 (#1262): '1' | '2'
+  onPreviewLines,                // ('1' | '2') — no handler → no card row
+  hintsOn = true,                // ★ S11 (#1262): C# (SHints) owns the value
+  onHints,                       // (next, ctrl) — no handler → no row
   strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
-  /* live preview — real canvas class: gradient + generated pattern mask */
+  body.classList.add('c-settings-appearance__body');
+  const card = (cls) => { const c = document.createElement('section'); c.className = 'c-settings__section c-settings-appearance__card ' + cls; return c; };
+  const label = (text, id) => { const h = document.createElement('h3'); h.className = 'c-settings__label'; h.textContent = text; if (id) h.id = id; return h; };
+
+  /* ── state ── */
+  const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'contours';
+  let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
+  const groundsHere = CHAT_GROUNDS.filter((o) => !o.lightOnly || document.documentElement.getAttribute('data-theme') !== 'dark');
+  let groundCurrent = groundsHere.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  let groundStored = chatGround;   // (#46 r1 of #1080) a stored light-only pick shows as flat, a tap on flat still WRITES flat
+  let colourCurrent = BUBBLE_COLOURS.some((o) => o.id === sentColour) ? sentColour : 'auto';
+  const clampInt = (v, lo, hi, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  let cornersCurrent = clampInt(corners, BUBBLE_CORNERS.min, BUBBLE_CORNERS.max, BUBBLE_CORNERS.def);
+  let sizePx = clampInt(Number(textScale) * TEXT_SIZE_PX.base, TEXT_SIZE_PX.min, TEXT_SIZE_PX.max, TEXT_SIZE_PX.base);
+  /* the colour the background tiles show: the pick, else the canvas's own (its ground rule) */
+  const tileSent = () => (colourCurrent !== 'auto' ? colourCurrent : '');
+  const setSent = (node, v) => { if (v) node.setAttribute('data-chat-sent', v); else node.removeAttribute('data-chat-sent'); };
+
+  /* ── (1) the preview + the text size ── */
+  const c1 = card('c-settings-appearance__card--preview');
   const preview = document.createElement('div');
   preview.className = 'c-chat-canvas c-settings-appearance__preview';
   preview.setAttribute('aria-hidden', 'true');
+  const chip = document.createElement('span');
+  chip.className = 'c-settings-appearance__chip';
+  chip.textContent = (strings.today || 'Today');
   const bubbleIn = document.createElement('div');
   bubbleIn.className = 'c-settings-appearance__bubble';
   bubbleIn.dataset.side = 'received';
-  bubbleIn.textContent = strings.previewIncoming || 'Pattern, gradient, text size…';
+  const who = document.createElement('span');
+  who.className = 'c-settings-appearance__who';
+  who.textContent = (strings.previewSender || 'Ana Kovač');
+  const inText = document.createElement('span');
+  inText.textContent = (strings.previewIncoming || 'Pattern, gradient, text size…');
+  const inMeta = document.createElement('span');
+  inMeta.className = 'c-settings-appearance__meta';
+  inMeta.textContent = '13:27';
+  bubbleIn.append(who, inText, inMeta);
   const bubbleOut = document.createElement('div');
   bubbleOut.className = 'c-settings-appearance__bubble';
   bubbleOut.dataset.side = 'sent';
-  bubbleOut.textContent = strings.previewOutgoing || '…exactly how your chats will look.';
-  preview.append(bubbleIn, bubbleOut);
-  body.append(preview);
+  const outText = document.createElement('span');
+  outText.textContent = (strings.previewOutgoing || '…exactly how your chats will look.');
+  const outMeta = document.createElement('span');
+  outMeta.className = 'c-settings-appearance__meta';
+  outMeta.append('13:42', icon('checks', { size: 14 }));
+  bubbleOut.append(outText, outMeta);
+  /* ★ S17 C (Damir 19:45 "on desktop make the preview mimic a bigger vertical chat canvas"): two more messages, shown only
+     in the tall desktop preview (settings-screens.css), so the left column reads as a real conversation */
+  const mkBubble = (side, text, time, ticks) => {
+    const b = document.createElement('div');
+    b.className = 'c-settings-appearance__bubble c-settings-appearance__bubble--more';
+    b.dataset.side = side;
+    const t = document.createElement('span');
+    t.textContent = text;
+    const m = document.createElement('span');
+    m.className = 'c-settings-appearance__meta';
+    m.append(time);
+    if (ticks) m.append(icon('checks', { size: 14 }));
+    b.append(t, m);
+    return b;
+  };
+  const moreOut = mkBubble('sent', (strings.previewOutgoing2 || 'Trying a new look.'), '13:31', true);
+  const moreIn = mkBubble('received', (strings.previewIncoming2 || 'Looks great!'), '13:35', false);
+  preview.append(chip, bubbleIn, moreOut, moreIn, bubbleOut);
 
-  /* ★★ Session M (#774) — THE BACKGROUND CONTROL ABSORBED THE OPACITY CARD.
-     Damir, from the device: *"we have 3 which are quite similar and confusing this way…
-     currently we have 3 almost identical rows."* Background, Canvas and Opacity all
-     rendered as the same widget — a pair of ~56px patterned tiles — so three different
-     questions wore one costume, and the costume LIED about two of them: the Canvas tiles
-     showed the doodle pattern rather than the ground they pick, and the Opacity tiles
-     showed a pattern rather than an intensity.
-     So the goal is NOT "one card fewer". It is that each control looks like the question
-     it asks: a pattern choice earns swatches (it is inherently visual), a binary with no
-     texture to preview does not. Background keeps tiles and gains a None member; Colour
-     becomes a value row.
+  const sizeRow = document.createElement('div');
+  sizeRow.className = 'c-settings-appearance__slider c-settings-appearance__size';
+  const sizeId = 'c-settings-size-label';
+  const sizeSmall = document.createElement('span');
+  sizeSmall.className = 'c-settings-appearance__a c-settings-appearance__a--s';
+  sizeSmall.setAttribute('aria-hidden', 'true');
+  sizeSmall.textContent = 'A';
+  const sizeRange = document.createElement('input');
+  sizeRange.type = 'range';
+  sizeRange.className = 'c-settings-appearance__range';
+  sizeRange.min = String(TEXT_SIZE_PX.min); sizeRange.max = String(TEXT_SIZE_PX.max); sizeRange.step = '1';
+  sizeRange.value = String(sizePx);
+  sizeRange.setAttribute('aria-labelledby', sizeId);
+  const sizeLarge = document.createElement('span');
+  sizeLarge.className = 'c-settings-appearance__a c-settings-appearance__a--l';
+  sizeLarge.setAttribute('aria-hidden', 'true');
+  sizeLarge.textContent = 'A';
+  const sizeVal = document.createElement('output');
+  sizeVal.className = 'c-settings-appearance__val';
+  sizeRow.append(sizeSmall, sizeRange, sizeLarge, sizeVal);
+  c1.append(label((strings.textSize || 'Message text size'), sizeId), preview, sizeRow);
 
-     ★★★ THE STORAGE IS UNCHANGED, AND THAT IS DELIBERATE — it is the safer half of this
-     batch. The spec (docs/chat-appearance-restructure-spec.md §4) assumed the (style,
-     level) PAIR would collapse into one stored value, which would mean a new key, a
-     migration, and that migration repeated in all three pre-paint ladders (the #690 rule).
-     None of it is necessary: with Strong retired the level is already binary, so
-     `level 0` IS "None" and `level 1 + style` IS that style — the collapse is total and
-     LOSSLESS in the direction that matters, and it can be computed at render time from the
-     two keys that already exist. Net: zero migration, zero new key, zero ladder change,
-     and chat.html / settings.html keep reading exactly what they read today.
-     ⚠ Consequence worth stating because it is a FEATURE and not an oversight: picking None
-     leaves the stored STYLE untouched, so a user who goes None → Doodles → None → Matrix
-     never loses the pattern they had. The pair is only ever read as one value here.
-     REVERSAL: this is the whole restructure — restore the separate style/intensity groups
-     from git and the three-identical-rows defect returns with them. */
-  const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
-  /* the style axis and the level axis, kept apart INSIDE this screen. `styleCurrent` is
-     the style the user last chose (or the default) and survives a None pick; `levelCurrent`
-     is 0 or 1 and is what None actually writes. */
-  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'contours';
-  let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
-  const bgOpts = [
-    /* ★ Session M: a NEW string, and the only one this restructure adds. The retired
-       `patternOff` ("Off") was translated in every locale and was still NOT reused: under
-       a "Background" heading "Off" names the CONTROL rather than the option, which is the
-       same class of lie the tiles were telling. */
-    { id: 'none', label: strings.patternNone || 'None', off: true },
-    ...styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
-  ];
-  const bgValue = () => (levelCurrent > 0 ? styleCurrent : 'none');
-  const styleSec = document.createElement('div');
-  styleSec.className = 'c-settings__section';
-  const stLab = document.createElement('h3');
-  stLab.className = 'c-settings__label';
-  stLab.textContent = strings.patternStyle || 'Background';
-  const styleGroup = styleSwatchGroup({
-    options: bgOpts,
-    current: bgValue(),
-    ariaLabel: strings.patternStyle || 'Background',
-    onPick: (id) => {
-      if (id === 'none') {
-        levelCurrent = 0;
-        /* the live preview follows in the same frame — the tile ring is not the only
-           feedback, and this preview is the whole reason the screen has one. */
-        preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(0));
-        if (onPattern) onPattern(0);
-        return;
-      }
-      styleCurrent = id;
-      applyPreviewStyle(id);
-      /* ★ coming BACK from None has to restore the intensity as well as the style, or the
-         user picks a pattern and nothing appears. The write is CONDITIONAL so a plain
-         style swap does not re-write a value that has not changed. */
-      if (levelCurrent === 0) {
-        levelCurrent = 1;
-        preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(1));
-        if (onPattern) onPattern(1);
-      }
-      if (onPatternStyle) onPatternStyle(id);
-    },
-  });
-  styleSec.append(stLab, styleGroup);
-  // AND-35 (#371, Damir dial): the SIZE control leads — appended below, before
-  // this section (build order unchanged; only the visual order flips).
-
-  /* ★★ AUG GROUND (Damir 2026-08-30). Rendered only in LIGHT until #1066 (below: both themes now) — see CHAT_GROUNDS.
-     `isLight` is read from the live document rather than passed in, because this screen
-     can be open across a setTheme push (#421) and a row that was correct at build time
-     would then be wrong on screen.
-     ⚠ Session M: that sentence was TRUE of the read and FALSE of the outcome (#772) —
-     reading the live document at BUILD time is exactly what makes a rebuild correct, and a
-     setTheme push rebuilds nothing on its own. The row survived an OS flip into dark and
-     sat there with no effect. settings.html now re-renders THIS view from the setTheme
-     handler's onApplied, which is what makes the sentence true; the read stays here
-     because the rebuild depends on it. */
-  /* ★★ #1066 (Damir 2026-09-29: "offer a gradient in dark mode too"; picked B, blue-violet → midnight,
-     from a rendered 3-way at both chat widths): the Canvas row is shown in BOTH themes now. It
-     REVERSES the dark half of #774 ③ / #855 ("in dark the row is absent" — there was no dark
-     gradient to choose then). The one pref paints per theme: tokens.css has a light AND a dark rule. */
-  /* ★ #1080 F15: the grounds THIS theme can paint — a lightOnly member is not offered in dark (read from the
-     live document, like the rest of this block), so a stored light-only pick shows as the flat it paints. */
-  const groundsHere = CHAT_GROUNDS.filter((o) => !o.lightOnly || document.documentElement.getAttribute('data-theme') !== 'dark');
-  let groundCurrent = groundsHere.some((o) => o.id === chatGround) ? chatGround : 'flat';
-  /* (#46 r1) what is STORED, as distinct from what is shown: in dark a stored light-only pick shows the flat dot
-     checked, and a tap on that dot must still WRITE 'flat' (else the stored light-only pick is unreachable).
-     ★ S8 (#1237): green was that pick until it got a dark rule — the rule stays for any future light-only member. */
-  let groundStored = chatGround;
-  /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
-     at build it inherited the document's, and settings.html's root never carries one, so the
-     preview painted FLAT under a Gradient swatch. It is stamped from the current value at build. */
-  preview.setAttribute('data-chat-ground', groundCurrent);
-  /* ★ Session M: the colour card is a SINGLE ROW, so it takes the hub's card padding (4)
-     rather than the appearance screen's section padding (12) — a 48px row inside a 12px
-     section reads as a row floating in a box.
-     ⚠ (#1066: in both themes now.) The section is built only when the guard holds. It used to be created and appended
-     unconditionally, which painted an empty 8px card in dark. */
+  /* ── (2) the canvas: a row of mini chats ── */
   let groundSec = null;
-  /* ★★ #855: DERIVED, not hard-coded off. The row appears when there is more than one
-     ground to choose between — which is false today (gradient retired) and true again the
-     moment a second member returns to CHAT_GROUNDS. Writing `if (false)` or deleting the
-     block would make the restore a re-implementation instead of a one-line revert, and
-     would hide that this is the SAME rule the dark branch already applies. */
+  let dots = null;
   if (groundsHere.length > 1) {
-    groundSec = document.createElement('div');
-    groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
-    /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a
-       layout preference. Two near-identical coloured rectangles is precisely the confusion
-       being removed; shipping the colour control as another swatch row would delete a card
-       and keep the defect. The shape is the house one for a one-of-N choice that does not
-       deserve a card of its own (settingsOptionSheet), so nothing is invented here.
-       REVERSAL: swap this block for styleSwatchGroup({ faceAttr: 'chatGround' }) and the
-       AUG tiles are back. */
-    /* ★ no h3 here, and that is the point: the other two cards are "heading + control",
-       this one IS the control. A heading above a row that repeats the same word was the
-       first thing the restructure was supposed to stop doing. */
-    const groundLabel = (id) => {
-      const o = CHAT_GROUNDS.find((g) => g.id === id);
-      return o ? (strings[o.key] || o.label) : id;
-    };
-    /* ★★ #1019 (Damir 2026-09-28: "a coloured circle instead of the Solid/Gradient wording"): the
-       row keeps its one word ("Canvas") and the CHOICE is a pair of colour circles — each paints
-       the ground it picks (data-chat-ground on the dot resolves --gradient-chat through the same
-       token rules the chat uses). The names stay the accessible names (role=radio + aria-label),
-       and the value row → option sheet round trip is gone: one tap picks. Supersedes #998's value row. */
+    groundSec = card('c-settings-appearance__groundsec');
+    const labId = 'c-settings-ground-label';
     const row = document.createElement('div');
-    row.className = 'c-settings__row c-settings__row--static c-settings-appearance__ground';   // ★ #1024: a row that is not a control (D-16 r2 B-6 class)
-    const lab = document.createElement('span');
-    lab.className = 'c-settings__row-label';
-    lab.id = 'c-settings-ground-label';
-    lab.textContent = strings.chatGround || 'Canvas';
-    const dots = document.createElement('div');
+    row.className = 'c-settings-appearance__ground';
+    dots = document.createElement('div');
     dots.className = 'c-settings-appearance__dots';
     dots.setAttribute('role', 'radiogroup');
-    dots.setAttribute('aria-labelledby', lab.id);
-    /* ★ #1032 (the #1024 dial, under the #205 deferral): the ARIA radio-group keyboard contract — ONE tab stop
-       (the checked dot, roving tabindex), arrows move AND select (Right/Down next, Left/Up previous, mirrored
-       in RTL; Home/End), wrapping. Operable before only by Tab + Enter per dot. The other four radiogroups
-       of the #205 list keep the deferral. */
-    const paint = () => {
-      /* groundCurrent is always one of CHAT_GROUNDS (an unknown stored value falls back to 'flat' above), so
-         exactly one dot is checked and it is the single tab stop (#1035: the "none checked" branch was dead) */
-      for (const b of dots.children) {
-        const on = b.dataset.value === groundCurrent;
-        b.setAttribute('aria-checked', String(on));
-        b.tabIndex = on ? 0 : -1;
-      }
-    };
-    dots.addEventListener('keydown', (e) => {
-      const kids = [...dots.children];
-      const i = kids.indexOf(e.target);
-      if (i < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
-      const rtl = (dots.closest('[dir]') || document.documentElement).getAttribute('dir') === 'rtl';
-      const fwd = rtl ? 'ArrowLeft' : 'ArrowRight', back = rtl ? 'ArrowRight' : 'ArrowLeft';
-      let n = -1;
-      if (e.key === fwd || e.key === 'ArrowDown') n = (i + 1) % kids.length;
-      else if (e.key === back || e.key === 'ArrowUp') n = (i - 1 + kids.length) % kids.length;
-      else if (e.key === 'Home') n = 0;
-      else if (e.key === 'End') n = kids.length - 1;
-      if (n < 0) return;
-      e.preventDefault();
-      kids[n].focus();
-      kids[n].click();   // a radio arrow SELECTS (the click handler is a no-op on the current one)
-    });
+    dots.setAttribute('aria-labelledby', labId);
+    radioArrows(dots);   // ★ #1035: a radio group — arrows move AND select, Home/End, wrap, RTL mirrored (the shared helper)
     for (const o of groundsHere) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-settings-appearance__dot';
       b.dataset.value = o.id;
       b.setAttribute('role', 'radio');
-      b.setAttribute('aria-label', groundLabel(o.id));
+      const name = (strings[o.key] || o.label);
+      b.setAttribute('aria-label', name);
       const face = document.createElement('span');
-      face.className = 'c-settings-appearance__dot-face';
+      face.className = 'c-chat-canvas c-settings-appearance__dot-face';
+      face.setAttribute('aria-hidden', 'true');
       face.setAttribute('data-chat-ground', o.id);
+      const r = document.createElement('i'); r.className = 'c-settings-appearance__mini c-settings-appearance__mini--r';
+      const sb = document.createElement('i'); sb.className = 'c-settings-appearance__mini c-settings-appearance__mini--s';
+      const r2 = document.createElement('i'); r2.className = 'c-settings-appearance__mini c-settings-appearance__mini--r2';
+      const ok = document.createElement('span'); ok.className = 'c-settings-appearance__ok'; ok.append(icon('check', { size: 14 }));
+      const cap = document.createElement('span');
+      cap.className = 'c-settings-appearance__dot-name';   // the render: the name is a pill INSIDE the tile, at its foot
+      cap.setAttribute('aria-hidden', 'true');
+      cap.textContent = name;
+      face.append(r, sb, r2, ok, cap);
       b.append(face);
       b.addEventListener('click', () => {
         if (groundCurrent === o.id && groundStored === o.id) return;
         groundCurrent = o.id;
         groundStored = o.id;
-        paint();
-        preview.setAttribute('data-chat-ground', o.id);
         if (onChatGround) onChatGround(o.id);
+        /* ★ S17 C (Damir, interview): a canvas pick resets the bubble colour to Auto — the canvas shows its OWN sent colour */
+        if (colourCurrent !== 'auto') { colourCurrent = 'auto'; if (onSentColour) onSentColour('auto'); }
+        paint();
       });
       dots.append(b);
     }
-    paint();
-    row.append(lab, dots);
-    groundSec.append(row);
+    row.append(dots);
+    groundSec.append(label((strings.chatGround || 'Canvas'), labId), row);
   }
 
-  const sizeSec = document.createElement('div');
-  sizeSec.className = 'c-settings__section';
-  const sLab = document.createElement('h3');
-  sLab.className = 'c-settings__label';
-  sLab.textContent = strings.textSize || 'Message text size';
-  /* ★ #1040 (Damir 2026-09-29: "no size shows as selected — that is because I pinch-zoomed
-     in a chat"): a pinch in the conversation stores ANY scale, so the four presets can all
-     be unchecked. Say so instead of looking broken: a one-line note under the control names
-     the custom size, and picking a preset replaces it (the note goes with it). */
-  /* ★ #1041 (#46 r1, auditor C M1): a pinch that ends a hair off a preset (the chat stores the
-     raw scale; 1.1 × a 1.0012 ratio = 1.10132) is THAT preset — otherwise no pill is checked
-     and the note says "Custom size (110%)", which is the L the user is looking at. Within
-     0.02 of a preset, the preset is checked and no note is shown. */
-  const nearPreset = TEXT_SIZES.find((o) => Math.abs(o.value - Number(textScale)) < 0.02);
-  const sizeCurrent = nearPreset ? nearPreset.value : textScale;
-  let customNote = null;
-  if (!nearPreset && Number.isFinite(Number(textScale)) && Number(textScale) > 0) {
-    customNote = document.createElement('p');
-    customNote.className = 'c-settings__note c-settings-appearance__custom';
-    customNote.id = 'c-settings-size-custom';
-    const pct = Math.round(Number(textScale) * 100);
-    customNote.textContent = (strings.textSizeCustom || 'Custom size ({0}%), set by pinching in a chat. Pick a size to replace it.')
-      .split('{0}').join(String(pct));
-  }
-  sizeSec.append(sLab, segGroup({
-    options: TEXT_SIZES.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
-    current: sizeCurrent,
-    ariaLabel: strings.textSize || 'Message text size',
-    onPick: (v) => {
-      preview.style.setProperty('--chat-text-scale', String(v));
-      if (customNote) {
-        customNote.remove(); customNote = null;
-        const grp = sizeSec.querySelector('.c-settings-seg');
-        if (grp) grp.removeAttribute('aria-describedby');
+  /* ── (3) background + bubble colour + corners ── */
+  const c3 = card('c-settings-appearance__card--bubbles');
+  const bgOpts = [
+    { id: 'none', label: (strings.patternNone || 'None'), off: true },
+    ...styleOpts.map((o) => ({ id: o.id, label: (strings[o.key] || o.label) })),
+  ];
+  const bgValue = () => (levelCurrent > 0 ? styleCurrent : 'none');
+  const styleGroup = styleSwatchGroup({
+    options: bgOpts,
+    current: bgValue(),
+    ariaLabel: (strings.patternStyle || 'Background'),
+    onPick: (id) => {
+      if (id === 'none') {   // ★ Session M (#774): None writes the LEVEL only; the style survives
+        levelCurrent = 0;
+        if (onPattern) onPattern(0);
+        paint();
+        return;
       }
-      if (onTextScale) onTextScale(v);
+      styleCurrent = id;
+      if (levelCurrent === 0) { levelCurrent = 1; if (onPattern) onPattern(1); }
+      if (onPatternStyle) onPatternStyle(id);
+      paint();
     },
-  }));
-  if (customNote) {
-    sizeSec.append(customNote);
-    // ★ #1041 (auditor C N5): a group with nothing checked says WHY to a screen reader
-    const grp = sizeSec.querySelector('.c-settings-seg');
-    if (grp) grp.setAttribute('aria-describedby', customNote.id);
-  }
-  // AND-35 (#371, Damir dial): Text size first, then Background.
-  /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
-     does not exist, so only two are appended. A live theme flip re-renders this whole
-     screen (settings.html onApplied), which is what keeps the order correct. */
-  /* ★ S10 P4 (#1254) → ★ S11 A2 (#1261/#1263, R3-MAJOR-1): "Message preview" — an INLINE segmented control under
-     Text size, the SAME grammar (an h3 label over segGroup's radio pills): "1 line | 2 lines", default 1 line. It was
-     a value row that opened the option sheet — one tap more for a two-way choice, and a different grammar from the
-     control right above it. The chats list (home.html) reads the stored value; nothing in THIS document paints a row. */
-  let previewSec = null;
-  if (onPreviewLines) {
-    previewSec = document.createElement('div');
-    previewSec.className = 'c-settings__section c-settings-appearance__previewsec';
-    const pLab = document.createElement('h3');
-    pLab.className = 'c-settings__label';
-    pLab.textContent = strings.chatPreviewLines || 'Message preview';
-    const seg = segGroup({
-      options: [
-        { value: 1, label: strings.previewLinesOne || '1 line' },
-        { value: 2, label: strings.previewLinesTwo || '2 lines' },
-      ],
-      current: previewLines === '2' ? 2 : 1,   // ★ S11 (#1262): absent / anything else = 1 line
-      ariaLabel: strings.chatPreviewLines || 'Message preview',
-      onPick: (v) => onPreviewLines(v === 2 ? '2' : '1'),
+  });
+  const colours = document.createElement('div');
+  colours.className = 'c-settings-appearance__colours';
+  colours.setAttribute('role', 'radiogroup');
+  const colLab = 'c-settings-colour-label';
+  colours.setAttribute('aria-labelledby', colLab);
+  for (const o of BUBBLE_COLOURS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-appearance__colour';
+    b.dataset.value = o.id;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-label', (strings[o.key] || o.label));
+    const face = document.createElement('span');
+    face.className = 'c-settings-appearance__colour-face';
+    face.setAttribute('aria-hidden', 'true');
+    if (o.id === 'auto') { face.dataset.auto = ''; face.textContent = 'A'; }
+    b.append(face);
+    b.addEventListener('click', () => {
+      if (colourCurrent === o.id) return;
+      colourCurrent = o.id;
+      if (onSentColour) onSentColour(o.id);
+      paint();
     });
-    seg.classList.add('c-settings-appearance__preview-lines');
-    previewSec.append(pLab, seg);
+    colours.append(b);
   }
-  body.append(sizeSec, styleSec);
-  if (groundSec) body.append(groundSec);
-  if (previewSec) sizeSec.after(previewSec);   // ★ S10 P4: right under Text size
-  /* ★ S11 (#1262): the hint cards' off switch — under the chat-list row (Message preview), else under Text size. */
-  if (onHints) {
-    const hintsSec = switchRow({
-      glyph: 'info-circle', hue: 'accent',
-      label: strings.hintsSwitch || 'Tips on the Chats screen',
-      checked: hintsOn, onToggle: onHints,
+  radioArrows(colours);   // the same radio keyboard as the canvas row (#46 r2 NIT-10: the shared helper)
+  const cornersRow = document.createElement('div');
+  cornersRow.className = 'c-settings-appearance__slider c-settings-appearance__corners';
+  const cornersId = 'c-settings-corners-label';
+  const cnS = document.createElement('span'); cnS.className = 'c-settings-appearance__cn c-settings-appearance__cn--s'; cnS.setAttribute('aria-hidden', 'true');
+  const cornersRange = document.createElement('input');
+  cornersRange.type = 'range';
+  cornersRange.className = 'c-settings-appearance__range';
+  cornersRange.min = String(BUBBLE_CORNERS.min); cornersRange.max = String(BUBBLE_CORNERS.max); cornersRange.step = '1';
+  cornersRange.value = String(cornersCurrent);
+  cornersRange.setAttribute('aria-labelledby', cornersId);
+  const cnL = document.createElement('span'); cnL.className = 'c-settings-appearance__cn c-settings-appearance__cn--l'; cnL.setAttribute('aria-hidden', 'true');
+  const cornersVal = document.createElement('output');
+  cornersVal.className = 'c-settings-appearance__val';
+  cornersRow.append(cnS, cornersRange, cnL, cornersVal);
+  c3.append(label((strings.patternStyle || 'Background')), styleGroup,
+    label((strings.bubbleColour || 'Bubble colour'), colLab), colours,
+    label((strings.bubbleCorners || 'Bubble corners'), cornersId), cornersRow);
+
+  /* ── (4) theme (only when the host can commit one) ── */
+  let c4 = null;
+  let themeBtns = [];
+  let themeCurrent = theme;
+  if (onTheme) {
+    c4 = card('c-settings-appearance__card--theme');
+    const tId = 'c-settings-theme-label';
+    const g = document.createElement('div');
+    g.className = 'c-settings-appearance__themes';
+    g.setAttribute('role', 'radiogroup');
+    g.setAttribute('aria-labelledby', tId);
+    themeBtns = THEME_OPTIONS.map((o) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings-appearance__theme';
+      b.dataset.value = String(o.value);
+      b.setAttribute('role', 'radio');
+      const ph = document.createElement('span');
+      ph.className = 'c-settings-appearance__phone';
+      ph.setAttribute('aria-hidden', 'true');
+      ph.dataset.mode = o.value === 2 ? 'dark' : o.value === 1 ? 'light' : 'system';
+      for (const k of ['bar', 'r', 's']) { const i = document.createElement('i'); i.className = 'c-settings-appearance__phone-' + k; ph.append(i); }
+      const t = document.createElement('span');
+      t.className = 'c-settings-appearance__theme-name';
+      t.textContent = (strings[o.key] || o.label);
+      /* ★ S17 C (Damir 20:21): no radio under the phone (no other screen uses one) — the picked tile takes the blue rim
+         and a white check in a blue disc on its corner (pickMark, the same mark as the chat-list tiles) */
+      ph.append(pickMark());
+      b.append(ph, t);
+      b.addEventListener('click', () => {
+        if (String(themeCurrent) === String(o.value)) return;
+        themeCurrent = o.value;
+        paint();
+        try { onTheme(o.value, { done() {}, fail() {} }); } catch { /* a commit failure must not break the screen */ }
+      });
+      g.append(b);
+      return b;
     });
-    hintsSec.dataset.pref = 'hintsOn';
-    (previewSec || sizeSec).after(hintsSec);
+    radioArrows(g);   // #46 r1 M1: the keyboard reaches every phone
+    c4.append(label((strings.theme || 'Theme'), tId), g);
   }
 
-  // preview honors the incoming state
-  preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));
-  preview.style.setProperty('--chat-text-scale', String(textScale));
-  applyPreviewStyle(styleCurrent);
-  /* The preview mounts a LIVE engine (rAF + ResizeObserver + a document
-     visibilitychange listener). settings.html's renderLayout() replaces the
-     screen's children wholesale — on Back, on setLocale, on setPaneMode, on
-     onRepresented — so without an explicit release the loop keeps running
-     against a detached node forever, and the listener pins the whole discarded
-     subtree. Every re-entry would add another. Same shape as, and released
-     alongside, releaseDownloads (#267). (#46 audit) */
+  /* ── (5) the chat list + tips ── */
+  let c5 = null;
+  let lineBtns = [];
+  let linesCurrent = previewLines === '2' ? '2' : '1';
+  if (onPreviewLines || onHints) {
+    c5 = card('c-settings-appearance__card--list c-settings-appearance__previewsec');
+    if (onPreviewLines) {
+      const lId = 'c-settings-lines-label';
+      const g = document.createElement('div');
+      g.className = 'c-settings-appearance__lines c-settings-appearance__preview-lines';
+      g.setAttribute('role', 'radiogroup');
+      g.setAttribute('aria-labelledby', lId);
+      lineBtns = [['1', strings.previewLinesOne || '1 line'], ['2', strings.previewLinesTwo || '2 lines']].map(([v, name]) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'c-settings-appearance__line';
+        b.dataset.value = v;
+        b.setAttribute('role', 'radio');
+        const list = document.createElement('span');
+        list.className = 'c-settings-appearance__minilist';
+        list.setAttribute('aria-hidden', 'true');
+        for (let n = 0; n < 2; n++) {
+          const it = document.createElement('span'); it.className = 'c-settings-appearance__minirow';
+          const av = document.createElement('i'); av.className = 'c-settings-appearance__miniav';
+          const tx = document.createElement('span'); tx.className = 'c-settings-appearance__minitx';
+          const t0 = document.createElement('i'); t0.className = 'c-settings-appearance__minit'; tx.append(t0);
+          for (let m = 0; m < Number(v); m++) { const l = document.createElement('i'); l.className = 'c-settings-appearance__minil'; tx.append(l); }
+          it.append(av, tx); list.append(it);
+        }
+        const t = document.createElement('span');
+        t.className = 'c-settings-appearance__line-name';
+        t.textContent = name;
+        b.append(list, t, pickMark());
+        b.addEventListener('click', () => {
+          if (linesCurrent === v) return;
+          linesCurrent = v;
+          paint();
+          onPreviewLines(v);
+        });
+        g.append(b);
+        return b;
+      });
+      radioArrows(g);   // #46 r1 M1
+      c5.append(label((strings.chatPreviewLines || 'Message preview'), lId), g);
+    }
+    if (onHints) {
+      const hintsSec = switchRow({
+        glyph: 'info-circle', hue: 'accent',
+        label: (strings.hintsSwitch || 'Tips on the Chats screen'),
+        checked: hintsOn, onToggle: onHints,
+      });
+      hintsSec.dataset.pref = 'hintsOn';
+      c5.append(hintsSec);
+    }
+  }
+
+  /* ── paint: every visible state from the five values ── */
+  function paint() {
+    preview.setAttribute('data-chat-ground', groundCurrent);
+    preview.dataset.chatPattern = styleCurrent;
+    preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));
+    preview.style.setProperty('--chat-text-scale', String(sizePx / TEXT_SIZE_PX.base));
+    preview.style.setProperty('--bubble-radius', cornersCurrent + 'px');
+    for (const n of ['--bubble-radius-group', '--bubble-radius-origin']) preview.style.setProperty(n, Math.max(2, Math.round(cornersCurrent * 0.22)) + 'px');   // ★ S17 C (#1334): 18 → 4, as the chat
+    setSent(preview, colourCurrent !== 'auto' ? colourCurrent : '');
+    sizeVal.textContent = String(sizePx);
+    sizeRange.setAttribute('aria-valuetext', sizePx + ' px');
+    sizeRange.style.setProperty('--p', ((sizePx - TEXT_SIZE_PX.min) / (TEXT_SIZE_PX.max - TEXT_SIZE_PX.min) * 100) + '%');
+    cornersVal.textContent = String(cornersCurrent);
+    cornersRange.setAttribute('aria-valuetext', cornersCurrent + ' px');
+    cornersRange.style.setProperty('--p', ((cornersCurrent - BUBBLE_CORNERS.min) / (BUBBLE_CORNERS.max - BUBBLE_CORNERS.min) * 100) + '%');
+    if (dots) {
+      for (const b of dots.children) {
+        const on = b.dataset.value === groundCurrent;
+        b.setAttribute('aria-checked', String(on));
+        b.tabIndex = on ? 0 : -1;
+        const f = b.querySelector('.c-settings-appearance__dot-face');
+        f.dataset.chatPattern = styleCurrent;
+        f.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));   // a mini CHAT: the chat's own alpha, no swatch boost
+        setSent(f, '');   // #46 r1 m1: a canvas tile shows ITS OWN colour (a canvas pick resets the bubble colour to Auto)
+      }
+    }
+    /* the background tiles sit on the picked canvas */
+    styleGroup.setAttribute('data-chat-ground', groundCurrent);
+    setSent(styleGroup, tileSent());
+    for (const b of styleGroup.children) b.setAttribute('aria-checked', String(b.dataset.value === bgValue()));
+    /* the colour discs: each its own colour; Auto = the canvas's own */
+    colours.setAttribute('data-chat-ground', groundCurrent);
+    for (const b of colours.children) {
+      const on = b.dataset.value === colourCurrent;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+      /* Auto = the canvas's OWN colour (its ground rule, through the group's data-chat-ground) — never the pick */
+      setSent(b.firstElementChild, b.dataset.value === 'auto' ? '' : b.dataset.value);
+    }
+    for (const b of themeBtns) {
+      const on = String(themeCurrent) === b.dataset.value;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    }
+    for (const b of lineBtns) {
+      const on = b.dataset.value === linesCurrent;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    }
+  }
+
+  sizeRange.addEventListener('input', () => { sizePx = clampInt(sizeRange.value, TEXT_SIZE_PX.min, TEXT_SIZE_PX.max, sizePx); paint(); });
+  sizeRange.addEventListener('change', () => { if (onTextScale) onTextScale(Math.round((sizePx / TEXT_SIZE_PX.base) * 10000) / 10000); });
+  cornersRange.addEventListener('input', () => { cornersCurrent = clampInt(cornersRange.value, BUBBLE_CORNERS.min, BUBBLE_CORNERS.max, cornersCurrent); paint(); });
+  cornersRange.addEventListener('change', () => { if (onCorners) onCorners(cornersCurrent); });
+
+  /* ── layout: the cards; desktop, wide = two columns (the preview card stays on the left) ── */
+  const left = document.createElement('div');
+  left.className = 'c-settings-appearance__col c-settings-appearance__col--a';
+  left.append(c1);
+  const right = document.createElement('div');
+  right.className = 'c-settings-appearance__col c-settings-appearance__col--b';
+  for (const c of [groundSec, c3, c4, c5]) if (c) right.append(c);
+  body.append(left, right);
+  let ro = null;
+  if (isDesktop && typeof ResizeObserver === 'function') {
+    ro = new ResizeObserver((ents) => {
+      const w = ents[0] && ents[0].contentRect ? ents[0].contentRect.width : 0;
+      body.toggleAttribute('data-cols', w >= 720);
+    });
+    ro.observe(body);
+  }
+  paint();
+  /* the render opens the canvas row ON the picked canvas: once laid out, scroll it into view (a no-op when it is visible) */
+  if (dots && typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      const on = dots.querySelector('[aria-checked="true"]');
+      if (!on || !dots.clientWidth) return;
+      const l = on.offsetLeft - dots.offsetLeft, r = l + on.offsetWidth;
+      if (l < dots.scrollLeft || r > dots.scrollLeft + dots.clientWidth) dots.scrollLeft = Math.max(0, l - 18);
+    });
+  }
+
+  /* #341 / #46: the shell's release hook — the swatch group's (static now) and the width observer */
   el.release = () => {
-    /* ★ Session M: ONE group now. The intensity group's release went with its card — and
-       it was load-bearing while it existed (a flow face keeps a rAF loop + a
-       visibilitychange listener alive against a detached node), which is why the surviving
-       group's release is still called and not tidied away. */
     if (styleGroup.releaseSwatches) styleGroup.releaseSwatches();
+    if (ro) { ro.disconnect(); ro = null; }
   };
   return el;
-
-  /* The big preview mirrors the chat exactly: tile styles are pure CSS (the
-     attribute switches the inherited URI), flow mounts the real engine. It runs
-     LIVE here — unlike the swatches — because this is the one place the user is
-     deciding whether they want motion at all, and it is a single canvas.
-     Declared as a hoisted function so the style section above can call it
-     before the preview's own initial paint below. */
-  function applyPreviewStyle(id) {
-    preview.dataset.chatPattern = id;
-    /* ★ Session M: the `intensityGroup.setSwatchStyle(id)` call lived here — the intensity
-       tiles had to re-skin to the chosen style, or a user on "Data matrix" was offered
-       levels of doodles. With one control there is no second row to keep honest. */
-  }
 }
 
 /**
@@ -30705,62 +30980,195 @@ function appScreenShell(className, title, onBack) {
 
 /**
  * Downloads — createSettingsDownloads({ files, host, onBack, onOpenFile,
- * onDeleteFile, onClearAll, strings }).
- * files: [{ name, time }] (time = the opaque ctime string).
+ * onDeleteFile, onClearAll, onShowInChat, strings }).
+ * files: [{ name, time, size?, sender?, senderKey? }] (time = epoch seconds, or an old exe's opaque ctime string).
  * Free fn: setDownloads(el, files) — the clearFiles/addFile wholesale mirror.
+ *
+ * ★ S17 E (#1336, downloads-contributors-render.html, LOCKED): the premium screen —
+ *   · a SUMMARY card: "{n} files · {total}", a storage bar by kind (one colour per kind, grows in once), a legend with
+ *     each kind's size, and — only where the host passes onClearAll — the red "Delete all downloads" action
+ *   · FILTERS: All · Photos · Files (only when both kinds are listed) + today's "From: <who> ▾" (only when a sender is
+ *     known; the #1107 sheet, unchanged)
+ *   · the list GROUPED BY DAY with each day's size; photos as a 3-column grid of TYPE tiles with a size badge (the real
+ *     thumbnail is the pickup — it needs the media handler, Session 16 lever #1); other files as rows with a coloured
+ *     type tile + format tag, the name, "from {name} · size · time"
+ *   · the per-row chat + trash buttons are gone: actions live in SELECT mode ("Select" / "Cancel" in the bar, or a
+ *     long-press / right-click on a file) — check marks, a floating bar with "{n} selected", "Show in chat" (exactly one
+ *     file with a known sender) and Delete (confirm, then onDeleteFile per name)
+ * Untrusted: a file name and a sender name are PEER-chosen — textContent only, never markup, never a selector.
  */
+const DL_GLYPH = { image: 'photo', pdf: 'file-text', doc: 'file-text', archive: 'file-zip', audio: 'volume', video: 'player-play', code: 'code', other: 'file-isr' };
+const DL_LONG_PRESS_MS = 500;
+const DL_LEGEND_MAX = 4;          // kinds named in the bar + legend; the rest is "Other"
+/* the family's name in the legend when its files carry more than one format (one format = the format itself: PDF, ZIP) */
+function dlKindLabel(family, strings) {
+  switch (family) {
+    case 'image': return strings.photos || 'Photos';
+    case 'pdf': return 'PDF';                                      // i18n-lint-ok:proper-noun
+    case 'doc': return strings.downloadsKindDocs || 'Documents';
+    case 'archive': return strings.downloadsKindArchives || 'Archives';
+    case 'audio': return strings.downloadsKindAudio || 'Audio';
+    case 'video': return strings.downloadsKindVideo || 'Videos';
+    case 'code': return strings.downloadsKindCode || 'Code';
+    default: return strings.downloadsKindOther || 'Other';
+  }
+}
+/* a calm, stable tone for a photo's type tile (the name picks it — the same file keeps its colour) */
+function dlTone(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return String(h % 8);
+}
+const dlEpoch = (time) => { const s = String(time == null ? '' : time).trim(); return (/^\d{1,12}$/.test(s) && Number(s) > 0) ? Number(s) : 0; };
+const dlBytes = (size) => { const b = Number(size); return Number.isFinite(b) && b > 0 ? b : 0; };
+
 function createSettingsDownloads({
   files = [],
   host,
   onBack,
   onOpenFile,                    // (name) — ixian:open:<name>, fire-and-forget
   onDeleteFile,                  // (name, ctrl) — ixian:delete:<name>; C# re-pushes the list
-  onClearAll,                    // (ctrl) — ixian:deleted; C# re-pushes (empty)
-  onShowInChat,                  // ★★ #1107 (name) — ixian:showDownloadInChat:<name>; only on a row with a known sender
+  onClearAll,                    // (ctrl) — ixian:deleted; the host re-asks the list
+  onShowInChat,                  // ★★ #1107 (name) — ixian:showDownloadInChat:<name>; only for a file with a known sender
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dl', strings.downloads || 'Downloads', onBack);
-  /* ★★ #1107 (part 5b): newest first (C# also pushes in that order); a sender filter appears once phase 2 named at
-     least one sender (setDownloadSenders — matched through the file's own message, never by name). */
   let senderKey = '';                  // '' = all senders
+  let kindFilter = 'all';              // 'all' | 'photo' | 'file'
   let current = [];
+  let query = '';
+  let selecting = false;
+  const sel = new Set();               // selected file NAMES (a name is the list's own key)
   const hostFor = () => host || el.closest('.demo-phone') || undefined;
+  const canSelect = !!(onDeleteFile || onShowInChat);
+
+  /* —— the bar's Select / Cancel (a plain accent text button, render "tbtn") —— */
+  const bar = el.querySelector('.c-topbar');
+  const selBtn = document.createElement('button');
+  selBtn.type = 'button';
+  selBtn.className = 'c-settings-dl__selbtn';
+  selBtn.addEventListener('click', () => setSelecting(!selecting));
+  if (bar && canSelect) {
+    const acts = document.createElement('div');
+    acts.className = 'c-topbar__actions';   // the bar's trailing-action slot (topbar.js grammar)
+    acts.append(selBtn);
+    bar.append(acts);
+  }
 
   /* search — frontend name filter (#67 chat-list precedent, no bridge) */
-  let query = '';
   const search = createSearchField({
     placeholder: strings.searchDownloads || 'Search files',
     ariaLabel: strings.searchDownloads || 'Search files',
     strings,
-    onInput: (v) => { query = v.trim().toLowerCase(); applyFilter(); },
+    onInput: (v) => { query = v.trim().toLowerCase(); paintList(); },
   });
   const searchWrap = document.createElement('div');
   searchWrap.className = 'c-settings-dl__search';
   searchWrap.append(search);
   body.append(searchWrap);
 
-  /* ★★ #1107: the sender filter — ONE "From: <who>" chip (shown only when a sender is known) that opens the option
-     sheet: "Everyone" + every sender, sorted, with a search field once the list is long. Chips per sender did not
-     scale (Damir: "it could be 50 or more people"; #1111). No sort control: newest first only (#1111). */
-  /* ★ G-5 (#1119, Damir picked C of three renders: "the From chip looks small / out of place"): a SECTION HEADER over
-     the list — the shown-file count on the left, an accent text button "From: <who> ▾" on the right, both on the card's
-     edge. Same sheet, same filter, same strings; no chip. The row hides when no sender is known (as the chip did). */
-  const controls = document.createElement('div');
-  controls.className = 'c-settings-dl__controls';
-  let senders = new Map();             // key → label, from the current list
-  let avatars = new Map();             // ★ S10 F7: key → data:image URI (setDownloadsAvatars; validated by the shell)
+  /* —— the summary card —— */
+  const sum = document.createElement('section');
+  sum.className = 'c-settings-dl__sum';
+  const sumTop = document.createElement('div');
+  sumTop.className = 'c-settings-dl__sum-top';
   const countEl = document.createElement('span');
   countEl.className = 'c-settings-dl__count';
+  const totalEl = document.createElement('span');
+  totalEl.className = 'c-settings-dl__total';
+  sumTop.append(countEl, totalEl);
+  const barEl = document.createElement('div');
+  barEl.className = 'c-settings-dl__bar';
+  barEl.setAttribute('aria-hidden', 'true');   // the legend below says the same in words
+  const legend = document.createElement('div');
+  legend.className = 'c-settings-dl__legend';
+  sum.append(sumTop, barEl, legend);
+  if (onClearAll) {
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'c-settings-dl__clear';   // the ONE error-hue destructive action on this surface (#147⑤ reservation)
+    clear.textContent = strings.clearDownloads || 'Delete all downloads';
+    clear.addEventListener('click', () => settingsConfirm({
+      title: strings.clearDownloadsTitle || 'Delete all downloads?',
+      bodyText: strings.deleteDownloadsBody || 'Received files are removed from this device. Senders keep theirs.',
+      confirmLabel: strings.deleteConfirm || 'Delete',
+      host: hostFor(), strings,
+      run: (ctrl) => onClearAll(ctrl),     // sync throw handled inside settingsConfirm
+    }));
+    sum.append(clear);
+  }
+  body.append(sum);
+  let barGrown = false;                  // the bar grows in ONCE per screen, never on a re-push
+  function paintSummary() {
+    const n = current.length;
+    countEl.textContent = n === 1 ? (strings.downloadsCountOne || '1 file')
+      : (strings.downloadsCount || '{n} files').split('{n}').join(String(n));
+    const total = current.reduce((a, f) => a + dlBytes(f.size), 0);
+    const tsz = formatFileSize(total);
+    totalEl.textContent = tsz ? '· ' + tsz : '';
+    /* by kind: the family, labelled by its one format (PDF, ZIP) or by the family's name when it mixes formats */
+    const by = new Map();
+    for (const f of current) {
+      const { family, label } = fileKind(f.name);
+      const k = by.get(family) || { family, bytes: 0, labels: new Set() };
+      k.bytes += dlBytes(f.size);
+      k.labels.add(label || '');
+      by.set(family, k);
+    }
+    let kinds = [...by.values()].filter((k) => k.bytes > 0).sort((a, b) => (b.family === 'image') - (a.family === 'image') || b.bytes - a.bytes);   // photos first (the render), then by size
+    if (kinds.length > DL_LEGEND_MAX) {
+      const rest = kinds.slice(DL_LEGEND_MAX - 1);
+      kinds = kinds.slice(0, DL_LEGEND_MAX - 1).concat([{ family: 'other', bytes: rest.reduce((a, k) => a + k.bytes, 0), labels: new Set(['', '?']) }]);
+    }
+    const segs = [];
+    const items = [];
+    kinds.forEach((k, i) => {
+      const seg = document.createElement('i');
+      seg.dataset.kind = k.family;
+      seg.style.flexGrow = String(k.bytes);
+      if (!barGrown) seg.style.animationDelay = (i * 0.12) + 's';
+      segs.push(seg);
+      const one = k.labels.size === 1 ? [...k.labels][0] : '';
+      const lab = (k.family === 'image' || !one) ? dlKindLabel(k.family, strings) : one;
+      const it = document.createElement('span');
+      it.dataset.kind = k.family;
+      it.textContent = lab + ' · ' + formatFileSize(k.bytes);
+      items.push(it);
+    });
+    barEl.replaceChildren(...segs);
+    barEl.hidden = segs.length === 0;   // an old exe pushes no sizes: no bar, no legend — the count stays
+    legend.replaceChildren(...items);
+    legend.hidden = items.length === 0;
+    if (segs.length) { if (barGrown) barEl.dataset.grown = ''; barGrown = true; }   // a re-push never replays the growth
+  }
+
+  /* —— filters: All · Photos · Files + the From chip (#1107 sheet) —— */
+  const controls = document.createElement('div');
+  controls.className = 'c-settings-dl__controls';
+  const kindWrap = document.createElement('div');
+  kindWrap.className = 'c-settings-dl__kinds';
+  const kindChips = [['all', strings.all || 'All'], ['photo', strings.photos || 'Photos'], ['file', strings.sharedFiles || 'Files']].map(([id, lab]) => {
+    const c = document.createElement('button');
+    c.type = 'button';
+    c.className = 'c-settings-dl__chip';
+    c.dataset.kind = id;
+    c.textContent = lab;
+    c.addEventListener('click', () => { kindFilter = id; paintList(); });
+    kindWrap.append(c);
+    return [id, c];
+  });
+  let senders = new Map();             // key → label, from the current list
+  let avatars = new Map();             // ★ S10 F7: key → data:image URI (setDownloadsAvatars; validated by the shell)
   const fromChip = document.createElement('button');
   fromChip.type = 'button';
-  fromChip.className = 'c-settings-dl__from-btn';
+  fromChip.className = 'c-settings-dl__chip c-settings-dl__from-btn';
   fromChip.setAttribute('aria-haspopup', 'dialog');
   const fromLab = document.createElement('span');
   fromLab.className = 'c-settings-dl__from-label';
   fromChip.append(fromLab, icon('chevron-down', { size: 16 }));
   fromChip.addEventListener('click', () => openSenderSheet());
-  controls.append(countEl, fromChip);
+  controls.append(kindWrap, fromChip);
   body.append(controls);
   const fromLabel = () => (strings.downloadsFromChip || 'From: {name}').split('{name}').join(
     senderKey ? (senders.get(senderKey) || '') : (strings.downloadsAllSenders || 'Everyone'));
@@ -30768,24 +31176,18 @@ function createSettingsDownloads({
     fromLab.textContent = fromLabel();
     if (senderKey) fromChip.dataset.active = ''; else delete fromChip.dataset.active;
   }
-  function paintCount(n) {
-    countEl.textContent = n === 1 ? (strings.downloadsCountOne || '1 file')
-      : (strings.downloadsCount || '{n} files').split('{n}').join(String(n));
-  }
-  /* ★ S10 F7 (#1254, Damir pick C): each row = a 40 px avatar (the pushed photo, else the name's gradient initials) +
-     "{n} files · last {when}" — counted from the list on screen (`current`, all files, not the search). {when} = the
-     sender's newest epoch time in the row's own date format (formatTxTimestamp; no relative form exists); an old exe's
-     opaque time string gives no "last" part. "Everyone" = a tonal people disc + the total. */
+  /* ★ S10 F7 (#1254, Damir pick C): each sheet row = a 40 px avatar + "{n} files · last {when}" — counted from the
+     whole list (`current`). {when} = the sender's newest epoch time; an old exe's opaque time gives no "last" part. */
   const filesLabel = (n) => (n === 1 ? (strings.downloadsSenderFilesOne || '1 file')
     : (strings.downloadsSenderFiles || '{n} files').split('{n}').join(String(n)));
   function senderStats() {
-    const stats = new Map();             // key → { n, newest (epoch s, 0 = unknown) }
+    const stats = new Map();
     for (const f of current) {
       if (!f.senderKey) continue;
       const st = stats.get(f.senderKey) || { n: 0, newest: 0 };
       st.n++;
-      const t = String(f.time || '').trim();
-      if (/^\d{1,12}$/.test(t) && Number(t) > st.newest) st.newest = Number(t);
+      const t = dlEpoch(f.time);
+      if (t > st.newest) st.newest = t;
       stats.set(f.senderKey, st);
     }
     return stats;
@@ -30807,7 +31209,7 @@ function createSettingsDownloads({
     const sheet = settingsOptionSheet({
       title: strings.downloadsFilterSender || 'From',
       options, current: senderKey, host: hostFor(), strings,
-      commit: (value, ctrl) => { senderKey = value; paintFromChip(); applyFilter(); ctrl.done(); },
+      commit: (value, ctrl) => { senderKey = value; paintFromChip(); paintList(); ctrl.done(); },
     });
     const list = sheet && sheet.querySelector('.c-settings__opts');
     if (list && options.length > SENDER_SEARCH_MIN) {
@@ -30827,21 +31229,11 @@ function createSettingsDownloads({
       list.parentNode.insertBefore(f, list);
     }
   }
-  function renderSenders(list) {
-    senders = new Map();
-    for (const f of list) if (f.senderKey && f.sender && !senders.has(f.senderKey)) senders.set(f.senderKey, f.sender);
-    if (senderKey && !senders.has(senderKey)) senderKey = '';   // (#46 r2 R2-1) a filter on a sender no longer listed is cleared — the chip hides with it, so nothing could clear it
-    controls.hidden = senders.size === 0;
-    paintFromChip();
-  }
 
-  /* list card */
-  const groupWrap = document.createElement('div');
-  groupWrap.className = 'c-settings__groupwrap';
-  const card = document.createElement('div');
-  card.className = 'c-settings__group';
-  groupWrap.append(card);
-  body.append(groupWrap);
+  /* —— the list (day groups) —— */
+  const listEl = document.createElement('div');
+  listEl.className = 'c-settings-dl__list';
+  body.append(listEl);
 
   /* empty state — also what a clearFiles push renders */
   const empty = document.createElement('div');
@@ -30857,151 +31249,316 @@ function createSettingsDownloads({
   empty.append(emptyDisc, emptyText);
   body.append(empty);
 
-  /* no-matches note (search active, nothing left) */
+  /* no-matches note (a search or a filter left nothing) */
   const noMatch = document.createElement('p');
   noMatch.className = 'c-settings__note c-settings-dl__nomatch';
   noMatch.textContent = strings.downloadsNoMatch || 'No files match your search.';
   noMatch.hidden = true;
   body.append(noMatch);
 
-  /* clear-all — the ONE error-hue destructive row on this surface (#147⑤ reservation) */
-  let clearWrap = null;
-  if (onClearAll) {
-    clearWrap = document.createElement('div');
-    clearWrap.className = 'c-settings__groupwrap';
-    const clearCard = document.createElement('div');
-    clearCard.className = 'c-settings__group';
-    const section = document.createElement('div');
-    section.className = 'c-settings__section';
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'c-settings__row';
-    const lab = document.createElement('span');
-    lab.className = 'c-settings__row-label';
-    const disc = document.createElement('span');
-    disc.className = 'c-disc';
-    disc.dataset.hue = 'error';
-    disc.dataset.grad = String(discGrad('trash'));
-    disc.append(icon('trash', { size: 16 }));
-    lab.append(disc, document.createTextNode(strings.clearDownloads || 'Delete all downloads'));
-    row.append(lab, icon('chevron-right', { size: 18 }));
-    row.addEventListener('click', () => settingsConfirm({
-      title: strings.clearDownloadsTitle || 'Delete all downloads?',
-      bodyText: strings.deleteDownloadsBody || 'Received files are removed from this device. Senders keep theirs.',
+  /* —— select mode: the floating bar —— */
+  const selbar = document.createElement('div');
+  selbar.className = 'c-settings-dl__selbar';
+  const selN = document.createElement('b');
+  selN.className = 'c-settings-dl__selcount';
+  const goBtn = document.createElement('button');
+  goBtn.type = 'button';
+  goBtn.className = 'c-settings-dl__go';
+  goBtn.append(icon('message', { size: 18 }));
+  const goLab = document.createElement('span');
+  goLab.textContent = strings.showInChat || 'Show in chat';
+  goBtn.append(goLab);
+  goBtn.addEventListener('click', () => {
+    const name = [...sel][0];
+    const f = current.find((x) => x.name === name);
+    if (sel.size !== 1 || !f || !f.senderKey || !onShowInChat) return;
+    setSelecting(false);
+    onShowInChat(name);
+  });
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'c-settings-dl__del';
+  delBtn.append(icon('trash', { size: 18 }));
+  const delLab = document.createElement('span');
+  delLab.textContent = strings.delete || 'Delete';
+  delBtn.append(delLab);
+  delBtn.addEventListener('click', () => {
+    const names = [...sel];
+    if (!names.length || !onDeleteFile) return;
+    const one = names.length === 1;
+    settingsConfirm({
+      title: one ? (strings.deleteFileTitle || 'Delete this file?')
+        : (strings.deleteFilesTitle || 'Delete {n} files?').split('{n}').join(String(names.length)),
+      bodyText: one ? (strings.deleteFileBody || '“{name}” is removed from this device.').split('{name}').join(names[0])
+        : (strings.deleteFilesBody || 'The files are removed from this device. Senders keep theirs.'),
       confirmLabel: strings.deleteConfirm || 'Delete',
       host: hostFor(), strings,
-      run: (ctrl) => onClearAll(ctrl),     // sync throw handled inside settingsConfirm
-    }));
-    section.append(row);
-    clearCard.append(section);
-    clearWrap.append(clearCard);
-    body.append(clearWrap);
+      run: (ctrl) => {
+        /* one verb per file (the frozen ixian:delete…:<name>); the confirm closes once every file answered */
+        let left = names.length;
+        const sub = { done: () => { if (--left === 0) { setSelecting(false); ctrl.done(); } }, fail: (m) => ctrl.fail(m) };
+        for (const n of names) onDeleteFile(n, sub);
+      },
+    });
+  });
+  if (onShowInChat) selbar.append(selN, goBtn); else selbar.append(selN);
+  if (onDeleteFile) selbar.append(delBtn);
+  if (canSelect) el.append(selbar);
+
+  /* select mode repaints the marks in place — never the list, so a long-press never pulls the row from under the finger */
+  function paintMarks() {
+    for (const b of listEl.querySelectorAll('.c-settings-dl__open')) {
+      const row = b.closest('.c-settings-dl__row');
+      markSelected(b, row ? row.dataset.name : '');
+    }
+    paintSelbar();
+  }
+  function setSelecting(on) {
+    selecting = !!on && current.length > 0;
+    if (!selecting) sel.clear();
+    paintMarks();
+  }
+  function toggle(name) {
+    if (!selecting) selecting = true;
+    if (sel.has(name)) sel.delete(name); else sel.add(name);
+    paintMarks();
+  }
+  function paintSelbar() {
+    if (selecting) el.dataset.selecting = ''; else delete el.dataset.selecting;
+    selBtn.textContent = selecting ? (strings.cancel || 'Cancel') : (strings.select || 'Select');
+    selBtn.hidden = current.length === 0;
+    selN.textContent = (strings.selectedCount || '{n} selected').split('{n}').join(String(sel.size));
+    const on = selecting && sel.size > 0;
+    if (on) selbar.dataset.on = ''; else delete selbar.dataset.on;
+    selbar.setAttribute('aria-hidden', on ? 'false' : 'true');
+    for (const b of selbar.querySelectorAll('button')) b.tabIndex = on ? 0 : -1;
+    const only = sel.size === 1 ? current.find((x) => x.name === [...sel][0]) : null;
+    goBtn.hidden = !(only && only.senderKey);
+    if (only) goBtn.setAttribute('aria-label', (strings.downloadsShowInChat || 'Show {name} in chat').split('{name}').join(only.name));
+    else goBtn.removeAttribute('aria-label');
   }
 
-  const fileRow = ({ name, time, size, sender, senderKey: rowSender }) => {
-    const section = document.createElement('div');
-    section.className = 'c-settings__section';
+  /* a tap opens (or, in select mode, toggles); a long-press or a right-click selects */
+  let firedAt = 0;                       // the last long-press (screen-wide: its release must not count as a tap)
+  function wirePress(btn, name) {
+    let timer = 0, x0 = 0, y0 = 0;
+    const clear = () => { if (timer) { clearTimeout(timer); timer = 0; } };
+    btn.addEventListener('pointerdown', (e) => {
+      if (!canSelect || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      x0 = e.clientX; y0 = e.clientY;
+      clear();
+      timer = setTimeout(() => { timer = 0; firedAt = Date.now(); toggle(name); }, DL_LONG_PRESS_MS);
+    });
+    btn.addEventListener('pointermove', (e) => { if (timer && (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10)) clear(); });
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) btn.addEventListener(t, clear);
+    btn.addEventListener('contextmenu', (e) => {
+      if (!canSelect) return;
+      e.preventDefault();                                       // no callout / menu over a file
+      if (Date.now() - firedAt < 900) return;                  // the long-press already took it (Android sends both)
+      toggle(name);
+    });
+    btn.addEventListener('click', (e) => {
+      if (Date.now() - firedAt < 900) { e.preventDefault(); return; }   // the release after a long-press is not a tap
+      if (selecting) { toggle(name); return; }
+      if (onOpenFile) onOpenFile(name);
+    });
+  }
+  function check() {
+    const ck = document.createElement('span');
+    ck.className = 'c-settings-dl__ck';
+    ck.setAttribute('aria-hidden', 'true');
+    ck.append(icon('check', { size: 14 }));
+    return ck;
+  }
+  function markSelected(btn, name) {
+    if (selecting) btn.setAttribute('aria-pressed', sel.has(name) ? 'true' : 'false');
+    else btn.removeAttribute('aria-pressed');
+  }
+
+  /* a photo: a cell of the 3-column grid — the type tile at cell size (the thumbnail is the pickup) + a size badge */
+  function photoCell(f) {
+    const row = document.createElement('div');
+    row.className = 'c-settings-dl__row c-settings-dl__row--th';
+    row.dataset.name = f.name;
+    if (f.senderKey) row.dataset.sender = f.senderKey;   // ★★ #1107: the From filter's key
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-dl__open c-settings-dl__th';
+    const sz = formatFileSize(f.size);
+    b.setAttribute('aria-label', sz ? f.name + ', ' + sz : f.name);   // peer-chosen — an attribute VALUE, never markup
+    /* the picture layer (a tone + the photo glyph today; the thumbnail later) — it shrinks into the cell when picked */
+    const img = document.createElement('span');
+    img.className = 'c-settings-dl__th-img';
+    img.dataset.tone = dlTone(f.name);
+    img.setAttribute('aria-hidden', 'true');
+    const glyph = icon('photo', { size: 30 });
+    glyph.classList.add('c-settings-dl__th-glyph');
+    img.append(glyph);
+    b.append(img, check());
+    const lab = fileKind(f.name).label;
+    if (lab) {
+      const tag = document.createElement('span');
+      tag.className = 'c-settings-dl__th-tag';
+      tag.setAttribute('aria-hidden', 'true');
+      tag.textContent = lab;
+      b.append(tag);
+    }
+    if (sz) {
+      const s = document.createElement('span');
+      s.className = 'c-settings-dl__sz';
+      s.setAttribute('aria-hidden', 'true');
+      s.textContent = sz;
+      b.append(s);
+    }
+    markSelected(b, f.name);
+    wirePress(b, f.name);
+    row.append(b);
+    return row;
+  }
+  /* any other file: a row — the coloured type tile + its format tag, the name, "from {name} · size · time" */
+  function fileRow(f, timeOfDay) {
     const row = document.createElement('div');
     row.className = 'c-settings-dl__row';
-    row.dataset.name = name;
-    if (rowSender) row.dataset.sender = rowSender;   // ★★ #1107: the From filter's key
-
+    row.dataset.name = f.name;
+    if (f.senderKey) row.dataset.sender = f.senderKey;
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'c-settings-dl__open';
-    const disc = createFileTile(name);     // ★ A3 (#1126): the chat's file-type tile (PNG · PDF …), the same builder
+    const { family, label } = fileKind(f.name);
+    const tile = document.createElement('span');
+    tile.className = 'c-settings-dl__tile';
+    tile.dataset.kind = family;
+    tile.setAttribute('aria-hidden', 'true');   // (#46 r1 B-1) decoration: the row's name is the file name
+    tile.append(icon(DL_GLYPH[family] || DL_GLYPH.other, { size: 22 }));
+    if (label) {
+      const tag = document.createElement('em');
+      tag.className = 'c-settings-dl__tag';
+      tag.textContent = label;
+      tile.append(tag);
+    }
     const meta = document.createElement('span');
     meta.className = 'c-settings-dl__meta';
     const nm = document.createElement('span');
     nm.className = 'c-settings-dl__name';
-    fillFileName(nm, name);                // UNTRUSTED — textContent only (★ #1005: keeps the extension)
+    fillFileName(nm, f.name);              // UNTRUSTED — textContent only (★ #1005: keeps the extension)
     meta.append(nm);
-    if (time) {
+    const parts = [];
+    const sz = formatFileSize(f.size);
+    if (sz) parts.push(sz);
+    const ep = dlEpoch(f.time);
+    if (ep) {
+      parts.push(timeOfDay ? new Date(ep * 1000).toLocaleTimeString(docLocale(), timeOpts()) : formatTxTimestamp(ep * 1000));
+    } else if (f.time) {
+      parts.push(String(f.time));          // an old exe's opaque locale string — never parsed
+    }
+    if (f.sender || parts.length) {
       const tm = document.createElement('span');
       tm.className = 'c-settings-dl__time';
-      // iOS-55/#328 (W1 class): C# now pushes raw EPOCH SECONDS — all-digits
-      // formats via formatTxTimestamp/docLocale (translated, chat-row parity);
-      // anything else = an OLD exe's culture-opaque DateTime string → verbatim.
-      const s = String(time).trim();
-      tm.textContent = (/^\d{1,12}$/.test(s) && Number(s) > 0)
-        ? formatTxTimestamp(Number(s) * 1000)
-        : time;                            // opaque locale string — never parsed
-      /* ★★ #1107: · size, then "from <sender>" on its own line (only when C# matched it through the file's message) */
-      const sz = formatFileSize(size);
-      if (sz) tm.textContent += ' · ' + sz;
+      if (f.sender) {
+        const from = document.createElement('span');
+        from.className = 'c-settings-dl__from';
+        from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(f.sender);   // peer-chosen name — textContent only
+        tm.append(from);
+      }
+      if (parts.length) tm.append(document.createTextNode((f.sender ? ' · ' : '') + parts.join(' · ')));
       meta.append(tm);
     }
-    if (sender) {
-      const from = document.createElement('span');
-      from.className = 'c-settings-dl__time c-settings-dl__from';
-      from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(sender);   // peer-chosen name — textContent only
-      meta.append(from);
-    }
-    open.append(disc, meta);
-    if (onOpenFile) open.addEventListener('click', () => onOpenFile(name));
-    else open.disabled = true;
+    open.append(check(), tile, meta);
+    markSelected(open, f.name);
+    wirePress(open, f.name);
     row.append(open);
+    return row;
+  }
 
-    if (onShowInChat && rowSender) {
-      const go = document.createElement('button');
-      go.type = 'button';
-      go.className = 'c-settings-dl__go';   // (#46 r1 B11) its own class — never matched as the delete button
-      go.setAttribute('aria-label', (strings.downloadsShowInChat || 'Show {name} in chat').split('{name}').join(name));
-      go.append(icon('message', { size: 18 }));
-      go.addEventListener('click', () => onShowInChat(name));
-      row.append(go);
-    }
+  const isPhoto = (f) => fileKind(f.name).family === 'image';
+  function paintList() {
+    for (const n of [...sel]) if (!current.some((f) => f.name === n)) sel.delete(n);   // a re-push drops what went
+    if (selecting && current.length === 0) selecting = false;
+    const hasPhoto = current.some(isPhoto);
+    const hasFile = current.some((f) => !isPhoto(f));
+    const mixed = hasPhoto && hasFile;
+    if (!mixed) kindFilter = 'all';        // a filter on a kind no longer listed is cleared — its chips hide with it
+    kindWrap.hidden = !mixed;
+    controls.hidden = !mixed && senders.size === 0;
+    fromChip.hidden = senders.size === 0;
+    for (const [id, c] of kindChips) c.setAttribute('aria-pressed', String(id === kindFilter));
 
-    if (onDeleteFile) {
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'c-settings-dl__del';
-      del.setAttribute('aria-label',
-        (strings.deleteFile || 'Delete {name}').split('{name}').join(name));
-      del.append(icon('trash', { size: 18 }));
-      del.addEventListener('click', () => settingsConfirm({
-        title: strings.deleteFileTitle || 'Delete this file?',
-        bodyText: (strings.deleteFileBody || '“{name}” is removed from this device.')
-          .split('{name}').join(name),
-        confirmLabel: strings.deleteConfirm || 'Delete',
-        host: hostFor(), strings,
-        run: (ctrl) => onDeleteFile(name, ctrl),
-      }));
-      row.append(del);
+    /* newest first (stable: an old exe's opaque time sorts as 0 and keeps C#'s order) */
+    const shown = current.slice().sort((a, b) => dlEpoch(b.time) - dlEpoch(a.time)).filter((f) =>
+      (!query || f.name.toLowerCase().includes(query))
+      && (!senderKey || f.senderKey === senderKey)                                       // ★★ #1107
+      && (kindFilter === 'all' || (kindFilter === 'photo' ? isPhoto(f) : !isPhoto(f))));
+    /* day groups, in list order; a file without an epoch time joins one group with no day label */
+    const now = Date.now();
+    const groups = [];
+    const byKey = new Map();
+    for (const f of shown) {
+      const ep = dlEpoch(f.time);
+      let key = '~', label = '';
+      if (ep) {
+        const d = new Date(ep * 1000);
+        key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+        label = dayBucketLabel(ep * 1000, strings, now, strings.today || 'Today');
+      }
+      let g = byKey.get(key);
+      if (!g) { g = { label, files: [] }; byKey.set(key, g); groups.push(g); }
+      g.files.push(f);
     }
-    section.append(row);
-    return section;
-  };
-
-  function applyFilter() {
-    let visible = 0;
-    for (const s of card.children) {
-      const rowEl = s.querySelector('.c-settings-dl__row');
-      const name = rowEl ? (rowEl.dataset.name || '') : '';
-      const hit = (!query || name.toLowerCase().includes(query))
-        && (!senderKey || (rowEl && rowEl.dataset.sender === senderKey));   // ★★ #1107
-      s.hidden = !hit;
-      if (hit) visible++;
+    const out = [];
+    for (const g of groups) {
+      const sec = document.createElement('section');
+      sec.className = 'c-settings-dl__group';
+      const h = document.createElement('h3');
+      h.className = 'c-settings-dl__day';
+      const hl = document.createElement('span');
+      hl.textContent = g.label;
+      const hs = document.createElement('span');
+      hs.className = 'c-settings-dl__day-size';
+      hs.textContent = formatFileSize(g.files.reduce((a, f) => a + dlBytes(f.size), 0));
+      h.append(hl, hs);
+      if (g.label || hs.textContent) sec.append(h);
+      const ph = g.files.filter(isPhoto);
+      const fl = g.files.filter((f) => !isPhoto(f));
+      if (ph.length) {
+        const grid = document.createElement('div');
+        grid.className = 'c-settings-dl__grid';
+        grid.append(...ph.map(photoCell));
+        sec.append(grid);
+      }
+      if (fl.length) {
+        const box = document.createElement('div');
+        box.className = 'c-settings-dl__files';
+        box.append(...fl.map((f) => fileRow(f, !!g.label)));
+        sec.append(box);
+      }
+      out.push(sec);
     }
-    noMatch.hidden = !(card.childElementCount > 0 && visible === 0);
-    paintCount(visible);   // ★ G-5: the header counts what is SHOWN
-    live.textContent = (query || senderKey)
-      ? (strings.downloadsMatches || '{n} files match').split('{n}').join(String(visible))
+    listEl.replaceChildren(...out);
+    const has = current.length > 0;
+    listEl.hidden = !has;
+    noMatch.hidden = !(has && shown.length === 0);
+    live.textContent = (query || senderKey || kindFilter !== 'all')
+      ? (strings.downloadsMatches || '{n} files match').split('{n}').join(String(shown.length))
       : '';
+    paintSelbar();
+  }
+
+  function renderSenders(list) {
+    senders = new Map();
+    for (const f of list) if (f.senderKey && f.sender && !senders.has(f.senderKey)) senders.set(f.senderKey, f.sender);
+    if (senderKey && !senders.has(senderKey)) senderKey = '';   // (#46 r2 R2-1) a filter on a sender no longer listed is cleared
+    paintFromChip();
   }
 
   function render(list) {
-    current = list;
-    // newest first (stable: an old exe's opaque time string sorts as 0 and keeps C#'s order)
-    const sorted = list.slice().sort((a, b) => (Number(b.time) || 0) - (Number(a.time) || 0));
-    card.replaceChildren(...sorted.map(fileRow));   // fileRow sets data-sender (#46 r3 R3-7: no per-row search)
-    renderSenders(list);
-    const has = list.length > 0;
-    groupWrap.hidden = !has;
+    current = (list || []).map((f) => Object.assign({}, f, { name: String(f && f.name != null ? f.name : '') }));
+    renderSenders(current);
+    const has = current.length > 0;
+    sum.hidden = !has;
     empty.hidden = has;
-    searchWrap.hidden = list.length < SEARCH_MIN;
-    if (clearWrap) clearWrap.hidden = !has;
-    applyFilter();
+    searchWrap.hidden = current.length < SEARCH_MIN;
+    paintSummary();
+    paintList();
   }
   render(files);
 
@@ -31137,53 +31694,102 @@ function setDevLog(el, text) {
 }
 
 /**
- * Contributors — createSettingsContributors({ contributors, onBack, strings }).
- * Static thank-you screen (legacy contributors.html port): art slot + the
- * names on a card. Illustration swaps into the art slot later
- * (illustrations-plan.md language decision).
+ * Contributors — createSettingsContributors({ contributors, credits, onBack, strings }).
+ * ★ S17 E (#1336, downloads-contributors-render.html, LOCKED): the thank-you screen —
+ *   · a warm FULL-BLEED header (the About band's grammar in a violet → pink key, --dc-a/b/c): a glass heart with the
+ *     heart-handshake glyph etched, coloured bokeh, twinkles, a slow float (illoContribHeart, two decorative layers);
+ *     the top bar floats over it with white ink and turns solid once the header has scrolled under it (About's rule)
+ *   · "Thank you" + contributorsLead
+ *   · each name a chip with a coloured initial disc; the chips pop in one by one; a tap bounces the chip and throws
+ *     eight small sparkles (decoration — reduced motion: none)
+ *   · the credits: one row per credit — a type tile, the label, the FULL source text (CC-BY asks for the attribution and
+ *     the licence link on the shipped artifact: never shortened), a licence pill. No external-link mark: no verb opens
+ *     a link from here (the About ruling), so the source stays selectable text.
  */
+const CONTRIB_SPARKS = 8;
+const CREDIT_GLYPH = { creditSounds: 'volume', creditIcons: 'icons', creditFlags: 'flag' };
 function createSettingsContributors({
   contributors = CONTRIBUTORS,
   credits = ASSET_CREDITS,        // ★ #502 — overridable, same shape as contributors
+  onHeader,                       // ★ S17 (#1339): OPTIONAL (over) — as About's: the header under the status bar, or not
   onBack,
   strings = getStrings(),
 } = {}) {
   const { el, body } = appScreenShell(
     'c-settings-contrib', strings.contributors || 'Contributors', onBack);
+  el.classList.add('c-settings-contrib--hdr');
+  const bar = el.querySelector('.c-topbar');
+  const solidAt = () => Math.max(0, (body.firstElementChild ? body.firstElementChild.offsetHeight : 0) * 0.55);
+  let overHdr = null;
+  body.addEventListener('scroll', () => {
+    const solid = body.scrollTop > solidAt();
+    if (bar) bar.toggleAttribute('data-solid', solid);
+    if (onHeader && overHdr !== !solid) { overHdr = !solid; try { onHeader(overHdr); } catch (e) { /* presentation only */ } }
+  }, { passive: true });
+  if (onHeader) { overHdr = true; try { onHeader(true); } catch (e) { /* presentation only */ } }
 
-  /* art slot — token-styled placeholder (backup-hero precedent) */
-  const art = document.createElement('div');
-  art.className = 'c-settings-contrib__art';
-  art.setAttribute('aria-hidden', 'true');
-  const disc = document.createElement('span');
-  disc.className = 'c-disc c-settings-contrib__art-disc';
-  disc.dataset.hue = 'accent';
-  disc.dataset.grad = String(discGrad('heart-handshake'));
-  disc.append(icon('heart-handshake', { size: 32 }));
-  art.append(disc);
-  body.append(art);
+  /* the header — decoration (aria-hidden); "Thank you" below is the heading */
+  const band = document.createElement('div');
+  band.className = 'c-settings-contrib__band';
+  band.setAttribute('aria-hidden', 'true');
+  const art = illoContribHeart();
+  band.append(art.bg, art.fg);
+  body.append(band);
 
-  const lead = document.createElement('p');
-  lead.className = 'c-settings__note c-settings-contrib__lead';
-  lead.textContent = strings.contributorsLead ||
+  const lead = document.createElement('div');
+  lead.className = 'c-settings-contrib__head';
+  const thanks = document.createElement('h2');
+  thanks.className = 'c-settings-contrib__thanks';
+  thanks.textContent = strings.thanks || 'Thank you';
+  const p = document.createElement('p');
+  p.className = 'c-settings-contrib__lead';
+  p.textContent = strings.contributorsLead ||
     'Spixi is better because these people cared. Special thanks to:';
+  lead.append(thanks, p);
   body.append(lead);
 
-  const groupWrap = document.createElement('div');
-  groupWrap.className = 'c-settings__groupwrap';
+  const reduce = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
   const card = document.createElement('div');
-  card.className = 'c-settings__group c-settings-contrib__card';
+  card.className = 'c-settings-contrib__card';
   const list = document.createElement('ul');
   list.className = 'c-settings-contrib__list';
-  for (const name of contributors) {
+  contributors.forEach((name, k) => {
     const li = document.createElement('li');
-    li.className = 'c-settings-contrib__name';
-    li.textContent = name;
+    li.className = 'c-settings-contrib__chip';
+    li.style.setProperty('--d', (0.25 + Math.min(k, 12) * 0.05).toFixed(2) + 's');   // the pop-in, one by one (≤ .85 s)
+    const disc = document.createElement('i');
+    disc.className = 'c-settings-contrib__initial';
+    disc.dataset.tone = String(k % 6);
+    disc.setAttribute('aria-hidden', 'true');
+    const letter = [...String(name).replace(/[^\p{L}\p{N}]/gu, '')][0] || [...String(name)][0] || '?';   // a code point, never half a pair
+    disc.textContent = letter.toLocaleUpperCase();
+    const nm = document.createElement('span');
+    nm.className = 'c-settings-contrib__name';
+    nm.textContent = name;
+    li.append(disc, nm);
+    /* a tap: the chip bounces and throws sparkles — pure decoration, no verb */
+    li.addEventListener('click', () => {
+      li.classList.remove('is-burst');
+      void li.offsetWidth;                 // restart the bounce
+      li.classList.add('is-burst');
+      if (reduce()) return;
+      for (let i = 0; i < CONTRIB_SPARKS; i++) {
+        const s = document.createElement('span');
+        s.className = 'c-settings-contrib__spark';
+        s.dataset.tone = String(i % 4);
+        s.setAttribute('aria-hidden', 'true');
+        const an = i / CONTRIB_SPARKS * Math.PI * 2;
+        s.style.setProperty('--x', (Math.cos(an) * 34).toFixed(1) + 'px');
+        s.style.setProperty('--y', (Math.sin(an) * 24).toFixed(1) + 'px');
+        s.addEventListener('animationend', () => s.remove());
+        setTimeout(() => s.remove(), 900);   // backstop: no animation (jsdom, a hidden pane) never piles them up
+        li.append(s);
+      }
+    });
     list.append(li);
-  }
+  });
   card.append(list);
-  groupWrap.append(card);
-  body.append(groupWrap);
+  body.append(card);
 
   /* ★ #502: the asset credits, under their own heading and their own card. */
   if (credits.length) {
@@ -31191,29 +31797,36 @@ function createSettingsContributors({
     h.className = 'c-settings__label c-settings-contrib__credits-title';   // ★ #1040: the hub's section-label grammar ("Preferences"), not a centred note
     h.textContent = strings.creditsTitle || 'Credits';
     body.append(h);
-
-    const creditsWrap = document.createElement('div');
-    creditsWrap.className = 'c-settings__groupwrap';
     const creditsCard = document.createElement('div');
-    creditsCard.className = 'c-settings__group c-settings-contrib__card c-settings-contrib__card--credits';
+    creditsCard.className = 'c-settings-contrib__card c-settings-contrib__card--credits';
     const creditsList = document.createElement('ul');
     creditsList.className = 'c-settings-contrib__credits';
     for (const c of credits) {
       const li = document.createElement('li');
       li.className = 'c-settings-contrib__credit';
+      const tile = document.createElement('span');
+      tile.className = 'c-settings-contrib__tile';
+      tile.dataset.credit = CREDIT_GLYPH[c.key] ? c.key : 'other';
+      tile.setAttribute('aria-hidden', 'true');
+      tile.append(icon(CREDIT_GLYPH[c.key] || 'heart-handshake', { size: 20 }));
+      const tx = document.createElement('span');
+      tx.className = 'c-settings-contrib__credit-text';
       const what = document.createElement('span');
       what.className = 'c-settings-contrib__credit-what';
       what.textContent = creditLabel(c, strings);
       const who = document.createElement('span');
       who.className = 'c-settings-contrib__credit-who';
       // Proper nouns — deliberately NOT localized. i18n-lint-ok:proper-noun
-      who.textContent = c.source + ' · ' + c.licence;
-      li.append(what, who);
+      who.textContent = c.source;
+      const lic = document.createElement('span');
+      lic.className = 'c-settings-contrib__licence';
+      lic.textContent = c.licence;   // i18n-lint-ok:proper-noun (an SPDX identifier)
+      tx.append(what, who, lic);
+      li.append(tile, tx);
       creditsList.append(li);
     }
     creditsCard.append(creditsList);
-    creditsWrap.append(creditsCard);
-    body.append(creditsWrap);
+    body.append(creditsCard);
   }
 
   return el;
@@ -31297,87 +31910,8 @@ function aboutVersionText(version) {
   return /^[0-9A-Za-z.+-]{1,32}$/.test(v) ? v : '';
 }
 
-/* ★ S12 B (#1267) — the About hero art: the Spixi mark on a violet tile, a dashed orbit with three satellites
-   (★ S14 (#1279, Damir 12:24): a heart, a chat bubble and a gold star — the heart and star are the rating art's
-   own (illustrations.js `rating`: rnHeart / rnStar gradients, white gloss), the lock and IXI coin retired) and small
-   sparkles. Inline so the --ab-* tokens (tokens.css) theme it;
-   a still drawing (no motion → nothing for reduced motion to stop). Built element by element with
-   createElementNS from the static table below — no markup string, no innerHTML (this file has none). Gradient
-   ids are unique per call. */
-const AB_NS = 'http://www.w3.org/2000/svg';
-let abSeq = 0;
-function abEl(tag, attrs, kids) {
-  const n = document.createElementNS(AB_NS, tag);
-  for (const k of Object.keys(attrs || {})) n.setAttribute(k, String(attrs[k]));
-  for (const c of kids || []) n.append(c);
-  return n;
-}
-const abStop = (o, v, a) => abEl('stop', { offset: o, style: 'stop-color:' + v + (a != null ? ';stop-opacity:' + a : '') });
-const AB_HEART = 'M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18-6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z';   /* illustrations.js `rating` */
-const AB_STAR = 'M0-13.5 4-4.8 13.4-4.1 6.3 2.2 8.5 11.6 0 6.6-8.5 11.6-6.3 2.2-13.4-4.1-4-4.8Z';
-const abSpark = (x, y, r) => abEl('path', { d: `M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}Z` });
-function aboutHeroArt({ tile = true } = {}) {
-  abSeq += 1;
-  const id = (n) => n + '-ab' + abSeq;
-  const url = (n) => 'url(#' + id(n) + ')';
-  const lin = (n, a, b, diag) => abEl('linearGradient', { id: id(n), x1: 0, y1: 0, x2: diag ? 1 : 0, y2: 1 }, [abStop(0, a), abStop(1, b)]);
-  /* ★ S13 B (About "Banner hero"): `tile: false` draws the scene WITHOUT its centre — no glow, floor, tile or mark —
-     for the band, where the overlapping app icon (createSettingsAbout) is the centre object instead */
-  const centre = tile ? [
-    abEl('ellipse', { cx: 150, cy: 72, rx: 120, ry: 66, fill: url('g') }),
-    abEl('ellipse', { cx: 150, cy: 136, rx: 46, ry: 5, style: 'fill:var(--ab-floor)' }),
-  ] : [];
-  const tileRects = tile ? [
-    abEl('rect', { x: 116, y: 42, width: 68, height: 72, rx: 22, style: 'fill:var(--ab-tile-shadow)', filter: url('f') }),
-    abEl('rect', { x: 110, y: 30, width: 80, height: 80, rx: 22, fill: url('t') }),
-    abEl('rect', { x: 110, y: 30, width: 80, height: 80, rx: 22, fill: url('h') }),
-  ] : [];
-  const svg = abEl('svg', { viewBox: '0 0 300 150', class: 'c-settings-about__art', 'aria-hidden': 'true', focusable: 'false' }, [
-    abEl('defs', {}, [
-      ...(tile ? [
-        abEl('radialGradient', { id: id('g') }, [abStop(0, 'var(--ab-glow)'), abStop(1, 'var(--ab-glow)', 0)]),
-        lin('t', 'var(--ab-tile-a)', 'var(--ab-tile-b)', true),
-        abEl('linearGradient', { id: id('h'), x1: 0, y1: 0, x2: 0, y2: 1 }, [abStop(0, '#fff', 0.32), abStop(0.55, '#fff', 0)]),
-        abEl('filter', { id: id('f'), x: '-50%', y: '-50%', width: '200%', height: '200%' }, [abEl('feGaussianBlur', { stdDeviation: 7 })]),
-      ] : []),
-      lin('b', 'var(--ab-bubble-a)', 'var(--ab-bubble-b)', true),
-      /* the rating art's literal stops (they read on the band in both themes, so no tokens; ★ S14 #1288: their offset
-         shades are navy now, was violet, for the blue band) */
-      abEl('radialGradient', { id: id('hr'), cx: 0.35, cy: 0.3, r: 0.85 }, [abStop(0, '#FFB3C8'), abStop(0.45, '#FF6F96'), abStop(1, '#E23A6A')]),
-      abEl('radialGradient', { id: id('st'), cx: 0.38, cy: 0.3, r: 0.85 }, [abStop(0, '#FFF1B8'), abStop(0.5, '#FFD15C'), abStop(1, '#F2A93B')]),
-    ]),
-    ...centre,
-    abEl('ellipse', { cx: 150, cy: 84, rx: 118, ry: 34, fill: 'none', style: 'stroke:var(--ab-orbit)', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-dasharray': '0.1 6' }),
-    ...tileRects,
-    /* the heart (the rating art's path, scaled): a soft offset shade under it instead of a blur filter, then the gloss */
-    abEl('g', { transform: 'translate(58 50.5) scale(0.84)' }, [
-      abEl('path', { d: AB_HEART, transform: 'translate(0 2.6)', fill: '#0d2f6b', 'fill-opacity': 0.26 }),
-      abEl('path', { d: AB_HEART, fill: url('hr') }),
-      abEl('path', { d: 'M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1', fill: 'none', stroke: '#fff', 'stroke-opacity': 0.7, 'stroke-width': 2.4, 'stroke-linecap': 'round' }),
-    ]),
-    /* the chat bubble with its three dots */
-    abEl('path', { d: 'M214 39a9 9 0 0 1 9 -9h24a9 9 0 0 1 9 9v8a9 9 0 0 1 -9 9h-18l-7 6v-6.6a9 9 0 0 1 -8 -8.4z', fill: url('b') }),
-    abEl('g', { style: 'fill:var(--ab-bubble-dot)' }, [226, 235, 244].map((cx) => abEl('circle', { cx, cy: 43, r: 2.4 }))),   /* ★ S14 (#1288): blue dots in the now-white bubble */
-    /* the gold star (the rating art's), its shade and its small highlight */
-    abEl('g', { transform: 'translate(244 104)' }, [
-      abEl('path', { d: AB_STAR, transform: 'translate(0 2.4)', fill: '#0d2f6b', stroke: '#0d2f6b', 'fill-opacity': 0.26, 'stroke-opacity': 0.26, 'stroke-width': 3.2, 'stroke-linejoin': 'round' }),
-      abEl('path', { d: AB_STAR, fill: url('st'), stroke: url('st'), 'stroke-width': 3.2, 'stroke-linejoin': 'round' }),
-      abEl('ellipse', { cx: -3.2, cy: -4.2, rx: 2.6, ry: 1.4, fill: '#fff', opacity: 0.65, transform: 'rotate(-35 -3.2 -4.2)' }),
-    ]),
-    abEl('g', { style: 'fill:var(--ab-spark)' }, [
-      abSpark(92, 22, 5), abSpark(222, 14, 3.5), abSpark(96, 106, 4.5), abSpark(270, 74, 4),
-      abEl('circle', { cx: 34, cy: 96, r: 1.6 }), abEl('circle', { cx: 268, cy: 40, r: 1.4 }), abEl('circle', { cx: 196, cy: tile ? 126 : 121, r: 1.5 }),   /* on the band: lifted off its lower edge */
-    ]),
-  ]);
-  /* the mark is the icon registry's own `logo` (one source for the Spixi mark) */
-  if (tile) {
-    const mark = icon('logo', { size: 44 });
-    mark.setAttribute('x', '128'); mark.setAttribute('y', '48');
-    mark.setAttribute('class', 'c-settings-about__mark');
-    svg.append(mark);
-  }
-  return svg;
-}
+/* ★ S17 B (#1332): the S12–S14 hand-built band art (aboutHeroArt: orbit, heart, bubble, star) is RETIRED — the band is
+   the full-bleed Glass header now (illustrations.js illoAboutGlass). Recover it from git (S14, #1279) if ever wanted. */
 
 /* ★ S13 B (About "Banner hero"): ONE entrance (the band's gradient drift + the app icon settling .92 → 1), then
    `data-held` (settings-app.css: animation none) — the glass-card precedent (glass-card.js holdEntrance): the first
@@ -31413,11 +31947,28 @@ function createSettingsAbout({
   onLicences,                    // ★ S12 B (#1267): OPTIONAL — opens the Contributors credits (the host's own screen)
   onRate,                        // ★ S12 B (#1267): OPTIONAL — settings.html passes it only with bridge.cap('rate')
   devSeed,                       // ★ Session I: OPTIONAL { onSeed, onUnseed, status } — the DEV-BUILD seed harness (see below); absent = no card
+  whatsNew,                      // ★ S17 (#1333): OPTIONAL { version, isNew, onOpen } — the "What's new" row (badge "New" while isNew); absent = no row
+  onHeader,                      // ★ S17 (#1339): OPTIONAL (over) — true while the full-bleed header is under the status bar (the host tells C# the bar ink)
   onBack,
   strings = getStrings(),
 } = {}) {
   const { el, body } = appScreenShell(
     'c-settings-about', strings.about || 'About', onBack);
+  /* ★ S17 B (#1332, kit-render.html "About · full-bleed header", art = Glass, LOCKED): the band grew into a FULL-BLEED
+     header under the status bar and the top bar. The top bar floats over it with white ink (the region tokens are
+     re-assigned in scope, the .screen--hero precedent, #20) and turns SOLID again once the header has scrolled under
+     it, so the title never sits white-on-white over the cards. */
+  el.classList.add('c-settings-about--hdr');
+  const bar = el.querySelector('.c-topbar');
+  const solidAt = () => Math.max(0, (body.firstElementChild ? body.firstElementChild.offsetHeight : 0) * 0.55);
+  let overHdr = null;
+  const onScroll = () => {
+    const solid = body.scrollTop > solidAt();
+    if (bar) bar.toggleAttribute('data-solid', solid);
+    if (onHeader && overHdr !== !solid) { overHdr = !solid; try { onHeader(overHdr); } catch (e) { /* presentation only */ } }
+  };
+  body.addEventListener('scroll', onScroll, { passive: true });
+  if (onHeader) { overHdr = true; try { onHeader(true); } catch (e) { /* presentation only */ } }
 
   /* hero card */
   const hero = document.createElement('div');
@@ -31436,7 +31987,11 @@ function createSettingsAbout({
   const band = document.createElement('div');
   band.className = 'c-settings-about__band';
   band.setAttribute('aria-hidden', 'true');
-  band.append(aboutHeroArt({ tile: false }));
+  /* ★ S17 B (#1332): the band = the Glass header — a ground layer (the deeper launcher-blue pair + a deep stop, three
+     drifting light fields, a sheen, a top scrim) and the art layer (three frosted objects on one arc round the icon:
+     the chat bubble, the app tile, the coin; no specular streak, no padlock; a slow float). Static art, one entrance. */
+  const glass = illoAboutGlass({ className: 'c-settings-about__art' });
+  band.append(glass.bg, glass.fg);
   const appIcon = document.createElement('div');
   appIcon.className = 'c-settings-about__appicon';
   appIcon.setAttribute('aria-hidden', 'true');
@@ -31456,6 +32011,34 @@ function createSettingsAbout({
     hero.append(ver);
   }
   body.append(hero);
+
+  /* ★ S17 A/B (#1333): "What's new" — opens the What's new card (the host's own component, in this trusted shell). The
+     "New" badge stays until the user has opened it in this version (the host decides `isNew`; C# owns the seen
+     version). The sub line names the version and the count, like the card's own eyebrow. */
+  if (whatsNew && typeof whatsNew.onOpen === 'function') {
+    const card = document.createElement('div');
+    card.className = 'c-settings__group c-settings-links c-settings-about__wn';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row c-settings-about__wn-row';
+    const ver = aboutVersionText(whatsNew.version || version);
+    const sub = (strings.whatsNewSub || 'Spixi {0} · 6 new things').split('{0}').join(ver || '');
+    b.append(aboutTile('rocket', 8), rowText(strings.whatsNew || 'What’s new', sub));
+    if (whatsNew.isNew) {
+      const badge = document.createElement('span');
+      badge.className = 'c-settings-about__new';
+      badge.textContent = strings.whatsNewBadge || 'New';
+      b.append(badge);
+    }
+    b.append(icon('chevron-right', { size: 18 }));
+    b.addEventListener('click', () => {
+      const nb = b.querySelector('.c-settings-about__new');
+      if (nb) nb.remove();   // opened in this version: the badge goes at once (C# records the seen version)
+      try { whatsNew.onOpen(); } catch { /* the row must not throw out of the screen */ }
+    });
+    card.append(b);
+    body.append(card);
+  }
 
   /* Why Spixi — three facts (no rows to tap). No post-quantum line, no "server" wording (#1267). */
   const why = aboutGroup(body, strings.aboutWhy || 'Why Spixi', 'c-settings-about__why');
@@ -33129,7 +33712,8 @@ function showRatingNudge({ host, illustration = '', onRate, onDismiss, strings =
   const yes = createButton({ label: strings.ratingYes || 'Yes, I am loving it', size: 56, width: 'full' });
   yes.addEventListener('click', () => answer('yes'));
 
-  const no = createButton({ label: strings.ratingNo || 'Not so much…', type: 'outline', size: 56, width: 'full' });
+  /* ★ S17 (Damir 20:42, "consistency"): every secondary button in a SHEET is a text button — no outline */
+  const no = createButton({ label: strings.ratingNo || 'Not so much…', type: 'text', size: 56, width: 'full' });
   no.addEventListener('click', () => answer('no'));
 
   if (art) content.append(art);
@@ -33141,6 +33725,630 @@ function showRatingNudge({ host, illustration = '', onRate, onDismiss, strings =
   sheet.setAttribute('aria-label', strings.ratingTitle || 'Are you enjoying Spixi?');
   openSheet(sheet);
   return sheet;
+}
+
+/* ---- src/components/whats-new.js ---- */
+/**
+ * ★ S17 A (#1338) — WHAT'S NEW: the spotlight carousel (kit-render.html § What's new, CLEAN BLUE, LOCKED 14:45;
+ * PROPOSAL.md plan v2). One card, six slides; every slide = its scene in its own panel (illoWhatsNew: a background
+ * and a foreground layer) over the title + body on the sheet; dots and Next / Got it in the foot; × on the panel.
+ *
+ *   createWhatsNew({ version, slides, host, desktop, onDone, strings }) → the overlay element (opened)
+ *     version  the release digits ("0.9.22") — the eyebrow on slide 1 says "New in Spixi {0}"
+ *     slides   the slide ids (whatsNewSlides(version) gives this release's set)
+ *     onDone(how)  ONCE, on every close path: 'gotit' (the last Next) · 'close' (×) · 'dismiss' (Esc, back)
+ *   whatsNewSlides(version) → the per-release table's ids, or null (a release with no table bumps `seen` silently, #1143)
+ *
+ * Motion (PROPOSAL §3): each scene plays its entrance once, the first time its slide shows (il-* / wn-* classes,
+ * watchEntrance holds the end frame), then only its background loops run (≤ 0.5 Hz). ⚠ The render's lesson: every
+ * scene is aria-hidden, so the loop pause is keyed on the OFF-SCREEN slide (.wn-paused), never on aria-hidden. While
+ * the finger drags, the background layer moves at −0.42 × and the foreground at +0.16 × the slide offset (depth);
+ * the ends rubber-band. Reduced motion = no transition, no parallax, every scene at its end frame (illo.css).
+ * Security: copy = the string table (textContent only); the art = inline static SVG from the bundle; no fetch, no
+ * storage — the host owns `seen` (C# SLocalOnlyStore through ixian:whatsnew:done).
+ */
+
+
+
+
+
+
+/* THE PER-RELEASE TABLE: release digits → slide ids. ⚠ A version bump without a row here shows nothing and bumps
+   `seen` silently — the pin compares this table with Config.version (the CSH / source pin "the table names this build"). */
+const WHATS_NEW_SETS = Object.freeze({
+  '0.9.22': Object.freeze(['hero', 'reply', 'voice', 'photos', 'privacy', 'apps']),
+});
+function whatsNewSlides(version) {
+  const v = String(version == null ? '' : version);
+  return Object.prototype.hasOwnProperty.call(WHATS_NEW_SETS, v) ? WHATS_NEW_SETS[v].slice() : null;
+}
+
+const DEPTH = { bg: -0.42, fg: 0.16 };
+const SWIPE_MIN = 40;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* the copy per slide — a SWITCH, never strings['whatsNew' + id + 'Title']: extract-strings is a static sweep and a
+   computed key ships English in every locale (the creditLabel rule, settings-app.js) */
+function slideCopy(id, strings) {
+  switch (id) {
+    case 'hero': return [strings.whatsNewHeroTitle || 'Meet the new Spixi', strings.whatsNewHeroBody || 'Redesigned from top to bottom, with new ways to talk. Your chats, contacts and wallet are all still here.'];
+    case 'reply': return [strings.whatsNewReplyTitle || 'React, reply and edit', strings.whatsNewReplyBody || 'Swipe a message to reply, react with one tap, or fix a typo after you send. Works best with contacts on the new Spixi.'];
+    case 'voice': return [strings.whatsNewVoiceTitle || 'Voice messages', strings.whatsNewVoiceBody || 'Record a message instead of typing it. Contacts on an older Spixi get it as an audio file.'];
+    case 'photos': return [strings.whatsNewPhotosTitle || 'Photos and albums', strings.whatsNewPhotosBody || 'Send up to 10 photos at once and open them full screen. Spixi removes the location from the photos you send.'];
+    case 'privacy': return [strings.whatsNewPrivacyTitle || 'Your privacy, your switches', strings.whatsNewPrivacyBody || 'Hide read receipts, typing and your online status. You find all three in Settings › Privacy.'];
+    case 'apps': return [strings.whatsNewAppsTitle || 'Mini apps, together', strings.whatsNewAppsBody || 'Invite a contact to a game or a tool. They join with one tap, right in the chat.'];
+    default: return ['', ''];
+  }
+}
+
+function createWhatsNew({
+  version = '',
+  slides = WN_SCENE_IDS,
+  host,
+  desktop = false,
+  onDone,
+  strings = getStrings(),
+} = {}) {
+  const ids = (slides || []).filter((id) => WN_SCENE_IDS.indexOf(id) >= 0);
+  const n = ids.length;
+  let i = 0;
+  let finished = false;
+  const uid = overlayId('c-whatsnew');
+
+  const el = document.createElement('section');
+  el.className = 'c-whatsnew';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  if (desktop) el.dataset.desktop = '';
+
+  const card = document.createElement('div');
+  card.className = 'c-whatsnew__card';
+  /* the opening focus lands on the CARD (a C# push opens it before any input — overlay.js would otherwise put a ring on ×) */
+  card.tabIndex = -1;
+  card.dataset.autofocus = '';
+
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'c-whatsnew__x';
+  close.setAttribute('aria-label', strings.close || 'Close');
+  close.append(icon('x', { size: 22 }));
+  close.addEventListener('click', () => done('close'));
+
+  const vp = document.createElement('div');
+  vp.className = 'c-whatsnew__vp';
+  const track = document.createElement('div');
+  track.className = 'c-whatsnew__track';
+  vp.append(track);
+
+  const slideEls = ids.map((id, k) => {
+    const s = document.createElement('div');
+    s.className = 'c-whatsnew__slide';
+    s.dataset.slide = id;
+    s.setAttribute('role', 'group');
+    s.setAttribute('aria-roledescription', 'slide');
+    s.setAttribute('aria-label', (k + 1) + ' / ' + n);
+    const art = document.createElement('div');
+    art.className = 'c-whatsnew__art';
+    art.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('div');
+    text.className = 'c-whatsnew__text';
+    if (k === 0) {
+      const eb = document.createElement('p');
+      eb.className = 'c-whatsnew__eyebrow';
+      eb.textContent = (strings.whatsNewEyebrow || 'New in Spixi {0}').split('{0}').join(version);
+      text.append(eb);
+    }
+    const [title, bodyText] = slideCopy(id, strings);
+    const h = document.createElement('h2');
+    h.className = 'c-whatsnew__title';
+    h.id = uid + '-t' + k;
+    h.textContent = title;
+    const p = document.createElement('p');
+    p.className = 'c-whatsnew__body';
+    p.textContent = bodyText;
+    text.append(h, p);
+    s.append(art, text);
+    track.append(s);
+    return { s, art, id, built: false, layers: [] };
+  });
+
+  const foot = document.createElement('div');
+  foot.className = 'c-whatsnew__foot';
+  const dots = document.createElement('div');
+  dots.className = 'c-whatsnew__dots';
+  dots.setAttribute('role', 'tablist');
+  dots.setAttribute('aria-label', strings.whatsNew || 'What’s new');
+  const dotEls = ids.map((id, k) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-whatsnew__dot';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-label', (k + 1) + ' / ' + n);
+    b.addEventListener('click', () => go(k));
+    dots.append(b);
+    return b;
+  });
+  const primary = createButton({ label: strings.next || 'Next', size: 56, width: 'full' });
+  primary.classList.add('c-whatsnew__primary');
+  primary.addEventListener('click', () => { if (i < n - 1) go(i + 1); else done('gotit'); });
+  foot.append(dots, primary);
+
+  card.append(close, vp, foot);
+  let prev = null, next = null;
+  if (desktop) {
+    /* desktop: side arrows beside the card (the keyboard has ← / →) */
+    const row = document.createElement('div');
+    row.className = 'c-whatsnew__row';
+    prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'c-whatsnew__side';
+    prev.setAttribute('aria-label', strings.previous || 'Previous');
+    prev.append(icon('chevron-left', { size: 24 }));
+    prev.addEventListener('click', () => go(i - 1));
+    next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'c-whatsnew__side';
+    next.setAttribute('aria-label', strings.next || 'Next');
+    next.append(icon('chevron-right', { size: 24 }));
+    next.addEventListener('click', () => go(i + 1));
+    row.append(prev, card, next);
+    el.append(row);
+  } else {
+    el.append(card);
+  }
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') { e.preventDefault(); go(i + 1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); go(i - 1); }
+  });
+
+  /* the scenes are built only when their slide is about to show (the current one and its neighbours) */
+  function ensureArt(k) {
+    const sl = slideEls[k];
+    if (!sl || sl.built) return;
+    sl.built = true;
+    const sc = illoWhatsNew(sl.id);   // each layer is an `il wn-l wn-l--bg|fg` svg (the art table's own classes)
+    if (!sc) return;
+    for (const [svg, depth] of [[sc.bg, 'bg'], [sc.fg, 'fg']]) {
+      const L = document.createElement('div');
+      L.className = 'c-whatsnew__layer';
+      L.dataset.depth = depth;
+      L.append(svg);
+      sl.art.append(L);
+      sl.layers.push(L);
+    }
+  }
+  const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
+  /* pos = the fractional slide under the finger: the track, and the parallax of the neighbours' layers */
+  function paint(pos) {
+    const W = vp.clientWidth || 1;
+    track.style.transform = 'translateX(' + (-pos * W * (document.documentElement.dir === 'rtl' ? -1 : 1)) + 'px)';
+    const rm = reduced();
+    slideEls.forEach((sl, k) => {
+      const off = (k - pos) * W;
+      for (const L of sl.layers) {
+        const d = L.dataset.depth === 'bg' ? DEPTH.bg : DEPTH.fg;
+        L.style.transform = (!rm && Math.abs(k - pos) < 1.5) ? 'translateX(' + (off * d).toFixed(1) + 'px)' : '';
+      }
+    });
+  }
+  function go(k) {
+    if (!n) return;
+    i = clamp(k, 0, n - 1);
+    ensureArt(i);
+    paint(i);
+    const last = i === n - 1;
+    const lab = primary.querySelector('.c-button__label');
+    if (lab) lab.textContent = last ? (strings.whatsNewGotIt || 'Got it') : (strings.next || 'Next');
+    dotEls.forEach((d, k2) => { d.setAttribute('aria-selected', String(k2 === i)); d.tabIndex = k2 === i ? 0 : -1; });
+    slideEls.forEach((sl, k2) => {
+      const on = k2 === i;
+      sl.s.setAttribute('aria-hidden', String(!on));
+      if (on) sl.s.removeAttribute('inert'); else sl.s.setAttribute('inert', '');
+      sl.art.classList.toggle('wn-paused', !on);   // ⚠ the pause is keyed on the OFF-SCREEN slide, never on aria-hidden
+    });
+    el.setAttribute('aria-labelledby', uid + '-t' + i);
+    if (prev) { prev.disabled = i === 0; next.disabled = last; }
+  }
+
+  /* the swipe: the finger drags the track; ≥ 40 px moves one slide; the ends rubber-band */
+  let x0 = null, dx = 0, pid = null;
+  vp.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    x0 = e.clientX; dx = 0; pid = e.pointerId;
+    card.dataset.drag = '';
+    ensureArt(i - 1); ensureArt(i + 1);
+  });
+  vp.addEventListener('pointermove', (e) => {
+    if (x0 == null || e.pointerId !== pid) return;
+    dx = (e.clientX - x0) * (document.documentElement.dir === 'rtl' ? -1 : 1);
+    const W = vp.clientWidth || 1;
+    let p = i - dx / W;
+    if (p < 0) p = p / 3;
+    if (p > n - 1) p = n - 1 + (p - n + 1) / 3;
+    paint(p);
+  });
+  const end = (e) => {
+    if (x0 == null || (e && e.pointerId !== pid)) return;
+    x0 = null; pid = null;
+    delete card.dataset.drag;
+    if (Math.abs(dx) >= SWIPE_MIN) go(i + (dx < 0 ? 1 : -1)); else go(i);
+  };
+  for (const t of ['pointerup', 'pointercancel', 'pointerleave']) vp.addEventListener(t, end);
+
+  /* #46 r1 m6: a rotation / window resize re-aligns the track (the offsets are px of the viewport width) */
+  const onResize = () => { try { if (!finished) paint(i); } catch (e) {} };
+  window.addEventListener('resize', onResize);
+  function done(how) {
+    if (finished) return;
+    finished = true;
+    window.removeEventListener('resize', onResize);
+    dismissOverlay(el);
+    try { if (onDone) onDone(how); } catch (e) { /* the host's verb must not break the close */ }
+  }
+
+  go(0);
+  setOverlayOpts(el, { host, lightDismiss: false, escDismiss: true, onDismiss: () => done('dismiss') });
+  openOverlay(el, { host, lightDismiss: false, escDismiss: true, onDismiss: () => done('dismiss') });
+  /* its own scrim: tagged for the deeper dark dim; on desktop no dim at all (Damir's pick) — the scrim stays, clear, so
+     the click-catcher and the stack still work */
+  const scrim = el.previousElementSibling;
+  if (scrim && scrim.classList.contains('c-scrim')) {
+    scrim.dataset.wn = '';
+    if (desktop) scrim.dataset.dtClear = '';
+  }
+  requestAnimationFrame(() => paint(i));   // the viewport has its width only once it is in the document
+  return el;
+}
+
+/* ---- src/components/moment-sheet.js ---- */
+/**
+ * c-moment — ★ S17 F (#1340, Damir 17:12 / 17:36 / 20:37) — THE MOMENT SHEETS. Seven one-time sheets; a user action
+ * starts each one (docs/renders/whats-new/MOMENTS.md + moments-render.html = the spec). One component on today's c-sheet
+ * + the c-backup-nudge stack. ★ 20:37 (Damir): the art is FULL-BLEED at the TOP of the sheet (the sheet's own corners
+ * clip it; the grab handle sits white on the art) — not a card inside the sheet as the render drew it. The art ground =
+ * the What's new panel (--wn-ground-a → -b), the drawings = illustrations.js illoMoment (the About glass grammar).
+ * ★ 20:42 (Damir): a secondary choice in a sheet is a TEXT button, never an outline.
+ *
+ * showMomentSheet({ id, host, strings, ctx, onClose }) → the sheet element (opened), or null for an unknown id.
+ *   id   — one of MOMENT_IDS.
+ *   ctx  — { name } (offline: the sender) · { app, invitedBy, caps:[MiniAppCapabilities names] } (app) · {} otherwise.
+ *          Every value lands through textContent — never markup.
+ *   onClose(choice) — ONCE, after the sheet is gone: the button's value ('backup' · 'continue' ·
+ *          'open' · 'ok' · 'settings'), or 'dismiss' for every quiet path (the text button, back, Esc, the scrim, a swipe). The flag
+ *          was already stored by C# when it answered yes (every close path counts as seen, MOMENTS.md).
+ *
+ * THE CLIENT (one per shell): createMomentClient({ bridge }) → { setState(json), answer(id, arg, ok, caps),
+ *   seen(id, arg), ask(id, arg, onYes, onNo, opts) }. The protocol (P28, flag SpixiFlags.S17Moments, cap `moments`):
+ *   · C# → setMoments {"seen":[ids],"apps":[app ids],"lang":"<code>"|"" ,"session":true|false} on load (and to the
+ *     home page when a moment is granted elsewhere — home then holds its own cards back for the session).
+ *   · shell → `ixian:moment:<id>` · `ixian:moment:lang:<code>` · `ixian:moment:app:<app id>` (the ASK).
+ *   · C# → momentAnswer(id, arg, "1"|"0", "<caps csv>") — C# decides (seen, one per session, never with a card,
+ *     the id's own condition) and stores seen BEFORE it answers "1".
+ *   · shell (home only) → `ixian:moment:card` when a hint / update / backup / rating card goes on screen.
+ *   · shell (chat only) → `ixian:openPrivacy` from the auto-download offer's "Open Settings" (C# opens Settings › Privacy;
+ *     the chat never writes the setting — #46 security r1 MAJOR-1).
+ *   The after-the-result moments are ASKED only when the host's screen is clear, so a yes shows at once (C# stores seen at
+ *   the yes; #46 r1 MINOR-1).
+ *   No cap, no state, a refused or a late answer → onNo(): the user's action is never held up (ASK_WAIT_MS).
+ */
+
+
+
+
+
+
+const MOMENT_IDS = ['lang', 'autodl', 'offline', 'firstixi', 'mic', 'app', 'pay'];
+const MO_ART_OF = { lang: 'ai', autodl: 'autodl', offline: 'offline', firstixi: 'firstixi', mic: 'mic', app: 'app', pay: 'pay' };
+/* the capability rows of the app moment: the apps-details vocabulary (cap_* / capx_*), the same fallbacks */
+const MO_CAP_ORDER = ['Storage', 'MultiUser', 'Authentication', 'TransactionSigning', 'RegisteredNamesManagement'];
+const MO_CAP_GLYPH = { Storage: 'database', MultiUser: 'users', Authentication: 'user-circle', TransactionSigning: 'key', RegisteredNamesManagement: 'at' };
+
+let moSeq = 0;
+const moFill = (tpl, map) => String(tpl).replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(map, k) ? String(map[k]) : m));
+
+function moCapLabel(c, strings) {
+  switch (c) {
+    case 'Storage': return strings.cap_Storage || 'Local storage';
+    case 'MultiUser': return strings.cap_MultiUser || 'Multi-user';
+    case 'Authentication': return strings.cap_Authentication || 'Sign in as you';
+    case 'TransactionSigning': return strings.cap_TransactionSigning || 'Sign transactions';
+    case 'RegisteredNamesManagement': return strings.cap_RegisteredNamesManagement || 'Manage names';
+    default: return '';
+  }
+}
+function moCapExplain(c, strings) {
+  switch (c) {
+    case 'Storage': return strings.capx_Storage || 'Can save data on your device so it remembers things between sessions.';
+    case 'MultiUser': return strings.capx_MultiUser || 'Runs shared sessions so you can use this app together with friends.';
+    case 'Authentication': return strings.capx_Authentication || 'Can prove who you are to this app using your Spixi identity, without a password.';
+    case 'TransactionSigning': return strings.capx_TransactionSigning || 'Can ask you to approve IXI payments. You always confirm each one yourself.';
+    case 'RegisteredNamesManagement': return strings.capx_RegisteredNamesManagement || 'Can read and manage your registered Ixian names.';
+    default: return '';
+  }
+}
+
+/** The copy of one moment: { title, body, buttons:[[type, label, value]] } (English = the render's copy, MOMENTS.md). */
+function momentCopy(id, ctx = {}, strings = getStrings()) {
+  const name = String(ctx.name || '');
+  switch (id) {
+    case 'lang': return {
+      title: strings.momentAiTitle || 'Translated with AI',
+      body: strings.languageAiNote || 'Some text in this language was translated with AI and can contain errors. Tell us if you find one.',
+      buttons: [['fill', strings.momentUnderstand || 'I understand', 'ok']],
+    };
+    case 'autodl': return {
+      title: strings.momentAutoDlTitle || 'Download photos automatically?',
+      body: strings.momentAutoDlBody || 'Photos from your contacts download when they arrive, up to 10 MB each. You can change this in Settings › Privacy.',
+      /* ★ #46 security r1 (MAJOR-1, Damir 22:2x "Open Settings"): the chat WebView is UNTRUSTED, so the offer never writes the
+         setting from here — the fill button opens Settings › Privacy (ixian:openPrivacy) where the user picks Wi-Fi only / Always */
+      buttons: [['fill', strings.momentOpenSettings || 'Open Settings', 'settings'], ['text', strings.backupNudgeSkip || 'Not now', 'dismiss']],
+    };
+    case 'offline': return {
+      title: moFill(strings.momentOfflineTitle || 'Waiting for {name}', { name }),
+      body: moFill(strings.momentOfflineBody || 'Files come directly from {name}’s device. The download continues by itself when {name} is online again.', { name }),
+      buttons: [['fill', strings.ok || 'OK', 'ok']],
+    };
+    case 'firstixi': return {
+      title: strings.momentFirstIxiTitle || 'You received your first IXI',
+      body: strings.momentFirstIxiBody || 'Your wallet is only on this device. A backup is one file, locked with your password, that brings it back on a new phone.',
+      buttons: [['fill', strings.backupNudgeCta || 'Back up now', 'backup'], ['text', strings.later || 'Later', 'dismiss']],
+    };
+    case 'mic': return {
+      title: strings.momentMicTitle || 'Send voice messages',
+      body: strings.momentMicBody || 'To record, Spixi needs your microphone. Your phone asks you next. Spixi uses it only while you record.',
+      buttons: [['fill', strings.continue || 'Continue', 'continue'], ['text', strings.backupNudgeSkip || 'Not now', 'dismiss']],
+    };
+    case 'app': {
+      const invited = ctx.invitedBy ? moFill(strings.momentAppInvited || '{name} invited you to this app.', { name: String(ctx.invitedBy) }) + ' ' : '';
+      return {
+        title: moFill(strings.momentAppTitle || 'Before you open {app}', { app: String(ctx.app || '') }),
+        body: invited + (strings.momentAppBody || 'It runs inside Spixi. Only open apps from people you trust.'),
+        buttons: [['fill', strings.open || 'Open', 'open'], ['text', strings.cancel || 'Cancel', 'dismiss']],
+      };
+    }
+    case 'pay': return {
+      title: strings.momentPayTitle || 'Before you pay',
+      body: strings.momentPayBody || 'Payments cannot be undone. Check the contact and the amount on the next screen. The small network fee goes to the Ixian network, not to Spixi.',
+      buttons: [['fill', strings.continue || 'Continue', 'continue']],
+    };
+    default: return null;
+  }
+}
+
+/** The capability rows (known names only, the details page's order; SingleUser and unknown names never show). */
+function momentCaps(caps) {
+  const list = Array.isArray(caps) ? caps : String(caps || '').split(',');
+  const have = list.map((c) => String(c).trim());
+  return MO_CAP_ORDER.filter((c) => have.indexOf(c) >= 0);
+}
+
+function showMomentSheet({ id, host, strings = getStrings(), ctx = {}, onClose } = {}) {
+  const copy = momentCopy(id, ctx, strings);
+  if (!copy) return null;
+
+  const content = document.createElement('div');
+  content.className = 'c-moment';
+  content.dataset.moment = id;
+
+  const artBox = document.createElement('div');
+  artBox.className = 'c-moment__art';
+  const art = illoMoment(MO_ART_OF[id], { className: 'c-moment__illo', hello: 'Hello', greet: strings.momentHello || 'Hello' });
+  if (art) artBox.append(art);
+
+  const title = document.createElement('h3');
+  title.className = 'c-moment__title';
+  title.textContent = copy.title;
+  moSeq += 1;
+  title.id = 'c-moment-t' + moSeq;
+  content.append(artBox, title);
+
+  const caps = id === 'app' ? momentCaps(ctx.caps) : [];
+  if (caps.length) {
+    content.dataset.caps = '';
+    const list = document.createElement('ul');
+    list.className = 'c-moment__caps';
+    for (const c of caps) {
+      const li = document.createElement('li');
+      li.className = 'c-moment__cap';
+      li.dataset.cap = c;
+      const tile = document.createElement('span');
+      tile.className = 'c-moment__cap-tile';
+      tile.setAttribute('aria-hidden', 'true');
+      tile.append(icon(MO_CAP_GLYPH[c] || 'apps'));
+      const txt = document.createElement('span');
+      txt.className = 'c-moment__cap-text';
+      const b = document.createElement('b');
+      b.textContent = moCapLabel(c, strings);
+      const sm = document.createElement('small');
+      sm.textContent = moCapExplain(c, strings);
+      txt.append(b, sm);
+      li.append(tile, txt);
+      list.append(li);
+    }
+    content.append(list);
+  }
+
+  const body = document.createElement('p');
+  body.className = 'c-moment__body';
+  body.textContent = copy.body;
+  body.id = 'c-moment-b' + moSeq;
+  content.append(body);
+
+  let choice = null;
+  const btns = document.createElement('div');
+  btns.className = 'c-moment__btns';
+  for (const [type, label, value] of copy.buttons) {
+    const b = createButton({ label, type, size: 56, width: 'full' });
+    b.dataset.value = value;
+    b.addEventListener('click', () => {
+      if (choice) return;                         // one latch across every button
+      choice = value;
+      closeSheet(sheet);
+    });
+    btns.append(b);
+  }
+  content.append(btns);
+
+  let closed = false;
+  const sheet = createSheet({
+    content, host, strings,
+    onDismiss: () => {
+      if (closed) return;
+      closed = true;
+      try { if (onClose) onClose(choice || 'dismiss'); } catch (e) { /* the host's continuation */ }
+    },
+  });
+  sheet.classList.add('c-moment__sheet');
+  sheet.dataset.moment = id;
+  /* #46 r1 NIT: the title names the dialog, the body describes it (both read out) */
+  sheet.removeAttribute('aria-label');
+  sheet.setAttribute('aria-labelledby', title.id);
+  sheet.setAttribute('aria-describedby', body.id);
+  openSheet(sheet);
+  return sheet;
+}
+
+/* ———————————————————————————— the client ———————————————————————————— */
+
+const ASK_WAIT_MS = 1500;   // no answer by then = no sheet (an old exe, a busy bridge): the action goes on
+const MO_LANG_RE = /^[a-z]{2}-[a-z]{2}$/;
+const MO_APP_RE = /^[A-Za-z0-9._-]{1,128}$/;
+
+function moValidArg(id, arg) {
+  if (id === 'lang') return MO_LANG_RE.test(arg);
+  if (id === 'app') return MO_APP_RE.test(arg);
+  return arg === '';
+}
+
+const MO_SESSION_MS = 6 * 60 * 60 * 1000;   // = SMoments.SessionMs: a session ends 6 h after its first moment / card
+function createMomentClient({ bridge, onSessionEnd = null } = {}) {
+  let state = null;                               // the validated setMoments push; null = no moments (an older exe, none yet)
+  const waits = new Map();                        // 'id:arg' → { onYes, onNo, timer, late }
+  /* #46 r2 (MINOR-A / MINOR-3): the session ENDS here too — C# sends the time left (sessionMs); a yes in this document starts
+     a fresh one — so a host that holds cards back (home) lets them go again */
+  let sessionTimer = 0;
+  let sessionDeadline = 0;   // #46 r3 MINOR-2: a WALL-clock deadline (a timer stops while the phone sleeps; C# uses the wall clock)
+  const endSession = () => {
+    clearTimeout(sessionTimer);
+    sessionTimer = 0;
+    sessionDeadline = 0;
+    if (state && state.session) {
+      state.session = false;
+      /* #46 r4 (MINOR-1): LATER, never inside the caller — sessionTaken() runs in home's hintBlocked(), and a nested
+         pumpHint there put two hint cards on screen */
+      setTimeout(() => { try { if (onSessionEnd) onSessionEnd(); } catch (e) {} }, 0);
+    }
+  };
+  const armSession = (ms) => {
+    clearTimeout(sessionTimer);
+    sessionTimer = 0;
+    sessionDeadline = 0;
+    if (!(ms > 0)) return;
+    sessionDeadline = Date.now() + ms;
+    sessionTimer = setTimeout(endSession, ms);
+  };
+  const checkSession = () => { if (sessionDeadline && Date.now() >= sessionDeadline) endSession(); };
+  try { if (typeof document === 'object') document.addEventListener('visibilitychange', checkSession); } catch (e) {}
+
+  const key = (id, arg) => id + ':' + arg;
+  function on() {
+    try { return !!state && !!bridge && bridge.cap('moments'); } catch (e) { return false; }
+  }
+  function seen(id, arg = '') {
+    if (!state) return true;
+    if (id === 'app') return state.apps.indexOf(arg) >= 0;
+    if (id === 'lang') return state.lang !== arg;            // only the pending language may ask
+    return state.seen.indexOf(id) >= 0;
+  }
+
+  return {
+    /** setMoments(json) — anything malformed leaves the client OFF. */
+    setState(json) {
+      let o = null;
+      try { o = typeof json === 'string' ? JSON.parse(json) : json; } catch (e) { o = null; }
+      if (!o || typeof o !== 'object' || !Array.isArray(o.seen) || !Array.isArray(o.apps)) return;
+      state = {
+        seen: o.seen.filter((x) => MOMENT_IDS.indexOf(x) >= 0),
+        apps: o.apps.filter((x) => typeof x === 'string' && MO_APP_RE.test(x)),
+        lang: (typeof o.lang === 'string' && MO_LANG_RE.test(o.lang)) ? o.lang : '',
+        session: o.session === true,
+      };
+      const left = Number(o.sessionMs);
+      /* sessionMs: the time left (C#); 0 with session true = it ends now (#46 r3 NIT-8); absent (an older exe) = the full 6 h */
+      if (state.session && o.sessionMs !== undefined && Number.isFinite(left) && left <= 0) { state.session = false; armSession(0); }
+      else armSession(state.session && Number.isFinite(left) && left > 0 && left <= MO_SESSION_MS ? Math.round(left) : (state.session ? MO_SESSION_MS : 0));
+    },
+    get state() { return state; },
+    /** an ask for this moment is on its way (a second tap waits for it, it does not run the action twice) */
+    pending(id, arg = '') { return waits.has(key(id, arg)) && !waits.get(key(id, arg)).timedOut; },
+    /** true while this session already had a moment (home holds its cards back) */
+    sessionTaken() { checkSession(); return !!state && state.session; },
+    on,
+    seen,
+    /** ask(id, arg, onYes(caps), onNo(), { late }) — `late: true` = a yes after ASK_WAIT_MS still shows (an after-the-result
+     *  moment); a confirm-step moment (mic · app · pay) passes nothing, so a late yes is dropped (the action went on). */
+    ask(id, arg = '', onYes, onNo, opts = {}) {
+      const no = () => { try { if (onNo) onNo(); } catch (e) {} };
+      if (MOMENT_IDS.indexOf(id) < 0 || !moValidArg(id, arg) || !on() || seen(id, arg)) { no(); return false; }
+      const k = key(id, arg);
+      if (waits.has(k)) { no(); return false; }             // one ask per moment at a time
+      const w = { onYes, onNo, late: !!opts.late, timedOut: false, timer: 0 };
+      w.timer = setTimeout(() => {
+        w.timedOut = true;
+        if (!w.late) waits.delete(k);
+        else setTimeout(() => { if (waits.get(k) === w) waits.delete(k); }, 30000);   // #46 r2 NIT-12: a late wait that never hears back goes
+        no();
+      }, ASK_WAIT_MS);
+      waits.set(k, w);
+      bridge.send('ixian:moment:' + id + (arg ? ':' + arg : ''));
+      return true;
+    },
+    /** momentAnswer(id, arg, ok, caps) */
+    answer(id, arg, ok, caps) {
+      const a = String(arg == null ? '' : arg);
+      const k = key(String(id), a);
+      const w = waits.get(k);
+      const yes = String(ok) === '1';
+      if (yes && state) {                                     // C# stored it: never ask again in this document
+        if (id === 'app') { if (state.apps.indexOf(a) < 0) state.apps.push(a); }
+        else if (id === 'lang') state.lang = '';
+        else if (state.seen.indexOf(id) < 0) state.seen.push(id);
+        if (id !== 'firstixi' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
+      }
+      if (!w) return;
+      waits.delete(k);
+      clearTimeout(w.timer);
+      if (w.timedOut) {                                       // the action already went on
+        if (yes && w.late) { try { if (w.onYes) w.onYes(String(caps || '').split(',').filter(Boolean)); } catch (e) {} }
+        return;
+      }
+      if (yes) { try { if (w.onYes) w.onYes(String(caps || '').split(',').filter(Boolean)); } catch (e) {} }
+      else { try { if (w.onNo) w.onNo(); } catch (e) {} }
+    },
+  };
+}
+
+/** The CONFIRM-step moments (mic · app · pay): ask; a yes shows the sheet — its fill button = go(), every quiet close =
+ *  stop(); a no, no cap or no answer within ASK_WAIT_MS = go() at once. A tap while the ask is on its way is ignored. */
+function momentBeforeAction(client, { id, arg = '', ctx = {}, ctxFor = null, host, strings = getStrings(), go, stop } = {}) {
+  /* #46 r1 (MINOR-5): a second tap while the ask is on its way STOPS (the host's latch is released), it never strands it */
+  if (client && client.pending(id, arg)) { try { if (stop) stop(); } catch (e) {} return; }
+  let done = false;
+  const g = () => { if (done) return; done = true; try { if (go) go(); } catch (e) {} };
+  const st = () => { if (done) return; done = true; try { if (stop) stop(); } catch (e) {} };
+  if (!client) { g(); return; }
+  client.ask(id, arg, (caps) => {
+    const c = ctxFor ? ctxFor(caps) : ctx;
+    const sheet = showMomentSheet({ id, host, strings, ctx: c, onClose: (v) => (v === 'dismiss' ? st() : g()) });
+    if (!sheet) g();
+  }, g);
+}
+
+/** The AFTER-the-result moments (lang · autodl · offline · firstixi): ask; a yes calls show(caps) — the host shows the
+ *  sheet when its screen is clear. A late yes still shows (the user's action is long done). */
+function momentAfterResult(client, id, arg, show) {
+  if (!client) return false;
+  return client.ask(id, arg || '', (caps) => { try { show(caps); } catch (e) {} }, null, { late: true });
 }
 
 /* ---- src/bridge/native.js ---- */
@@ -34080,5 +35288,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, TEXT_SIZES: TEXT_SIZES, SECURITY_TIERS: SECURITY_TIERS, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

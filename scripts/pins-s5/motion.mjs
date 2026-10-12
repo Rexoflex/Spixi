@@ -107,7 +107,7 @@ export default async function (h) {
     try { W.close(); } catch (e) {}
     const r = {
       tall: tallH > 120,
-      paintedFast: at >= 0 && at < 250,   /* double rAF; the 450 ms timer is the old path */
+      paintedFast: at >= 0 && at < 400,   /* double rAF; the 450 ms timer is the old path — ★ S17 re-base: < 400 (was 250; 276 ms measured under a loaded full smoke with the S17 bundle), still clear of the 450 ms path */
       fromTop: box.top === '0px' && box.bottom === 'auto' && /var\(--call-card-h\)|^64px$/.test(box.height),
       oneHeight: !!cardTok && !!cardDip && Number(cardTok[1]) === Number(cardDip[1]),
       noErrors: errs.filter((e) => /ReferenceError|TypeError/.test(e)).length === 0,

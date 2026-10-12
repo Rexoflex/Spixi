@@ -26,17 +26,17 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
-import { formatTxTimestamp } from './timestamp.js';   // iOS-55/#328: epoch ctimes → localized display
+import { formatTxTimestamp, dayBucketLabel, docLocale, timeOpts } from './timestamp.js';   // iOS-55/#328: epoch ctimes → localized display
 import { createTopbar } from './topbar.js';
 import { openLegalDoc } from './launch-shell.js';   // iOS-23: ONE source for the legal copy (#169)
 import { createButton, setLoading, setSuccess } from './button.js';
 import { createSearchField } from './search-field.js';
 import { settingsConfirm, settingsOptionSheet } from './settings-shell.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
-import { fillFileName, createFileTile } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
+import { fillFileName, fileKind } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
 import { formatFileSize } from './timestamp.js';            // ★★ #1107: one size format (chat info + Downloads) — ★ S11 F4 (#1263): its home is timestamp.js
 import { createAvatar, safeImageSrc } from './avatar.js';                 // ★ S10 F7 (#1254): the From sheet's sender avatars
-import { illoChatsEmpty, illoAddContact, illoWelcome3, illoAppsEmpty, illoBackup, illoWelcome1 } from './illustrations.js';   // ★ S12 B (#1267): the How-to step art (the S11 set)
+import { illoChatsEmpty, illoAddContact, illoWelcome3, illoAppsEmpty, illoBackup, illoWelcome1, illoAboutGlass, illoContribHeart } from './illustrations.js';   // ★ S12 B (#1267): the How-to step art (the S11 set)
 
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
@@ -138,62 +138,195 @@ function appScreenShell(className, title, onBack) {
 
 /**
  * Downloads — createSettingsDownloads({ files, host, onBack, onOpenFile,
- * onDeleteFile, onClearAll, strings }).
- * files: [{ name, time }] (time = the opaque ctime string).
+ * onDeleteFile, onClearAll, onShowInChat, strings }).
+ * files: [{ name, time, size?, sender?, senderKey? }] (time = epoch seconds, or an old exe's opaque ctime string).
  * Free fn: setDownloads(el, files) — the clearFiles/addFile wholesale mirror.
+ *
+ * ★ S17 E (#1336, downloads-contributors-render.html, LOCKED): the premium screen —
+ *   · a SUMMARY card: "{n} files · {total}", a storage bar by kind (one colour per kind, grows in once), a legend with
+ *     each kind's size, and — only where the host passes onClearAll — the red "Delete all downloads" action
+ *   · FILTERS: All · Photos · Files (only when both kinds are listed) + today's "From: <who> ▾" (only when a sender is
+ *     known; the #1107 sheet, unchanged)
+ *   · the list GROUPED BY DAY with each day's size; photos as a 3-column grid of TYPE tiles with a size badge (the real
+ *     thumbnail is the pickup — it needs the media handler, Session 16 lever #1); other files as rows with a coloured
+ *     type tile + format tag, the name, "from {name} · size · time"
+ *   · the per-row chat + trash buttons are gone: actions live in SELECT mode ("Select" / "Cancel" in the bar, or a
+ *     long-press / right-click on a file) — check marks, a floating bar with "{n} selected", "Show in chat" (exactly one
+ *     file with a known sender) and Delete (confirm, then onDeleteFile per name)
+ * Untrusted: a file name and a sender name are PEER-chosen — textContent only, never markup, never a selector.
  */
+const DL_GLYPH = { image: 'photo', pdf: 'file-text', doc: 'file-text', archive: 'file-zip', audio: 'volume', video: 'player-play', code: 'code', other: 'file-isr' };
+const DL_LONG_PRESS_MS = 500;
+const DL_LEGEND_MAX = 4;          // kinds named in the bar + legend; the rest is "Other"
+/* the family's name in the legend when its files carry more than one format (one format = the format itself: PDF, ZIP) */
+function dlKindLabel(family, strings) {
+  switch (family) {
+    case 'image': return strings.photos || 'Photos';
+    case 'pdf': return 'PDF';                                      // i18n-lint-ok:proper-noun
+    case 'doc': return strings.downloadsKindDocs || 'Documents';
+    case 'archive': return strings.downloadsKindArchives || 'Archives';
+    case 'audio': return strings.downloadsKindAudio || 'Audio';
+    case 'video': return strings.downloadsKindVideo || 'Videos';
+    case 'code': return strings.downloadsKindCode || 'Code';
+    default: return strings.downloadsKindOther || 'Other';
+  }
+}
+/* a calm, stable tone for a photo's type tile (the name picks it — the same file keeps its colour) */
+function dlTone(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return String(h % 8);
+}
+const dlEpoch = (time) => { const s = String(time == null ? '' : time).trim(); return (/^\d{1,12}$/.test(s) && Number(s) > 0) ? Number(s) : 0; };
+const dlBytes = (size) => { const b = Number(size); return Number.isFinite(b) && b > 0 ? b : 0; };
+
 export function createSettingsDownloads({
   files = [],
   host,
   onBack,
   onOpenFile,                    // (name) — ixian:open:<name>, fire-and-forget
   onDeleteFile,                  // (name, ctrl) — ixian:delete:<name>; C# re-pushes the list
-  onClearAll,                    // (ctrl) — ixian:deleted; C# re-pushes (empty)
-  onShowInChat,                  // ★★ #1107 (name) — ixian:showDownloadInChat:<name>; only on a row with a known sender
+  onClearAll,                    // (ctrl) — ixian:deleted; the host re-asks the list
+  onShowInChat,                  // ★★ #1107 (name) — ixian:showDownloadInChat:<name>; only for a file with a known sender
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dl', strings.downloads || 'Downloads', onBack);
-  /* ★★ #1107 (part 5b): newest first (C# also pushes in that order); a sender filter appears once phase 2 named at
-     least one sender (setDownloadSenders — matched through the file's own message, never by name). */
   let senderKey = '';                  // '' = all senders
+  let kindFilter = 'all';              // 'all' | 'photo' | 'file'
   let current = [];
+  let query = '';
+  let selecting = false;
+  const sel = new Set();               // selected file NAMES (a name is the list's own key)
   const hostFor = () => host || el.closest('.demo-phone') || undefined;
+  const canSelect = !!(onDeleteFile || onShowInChat);
+
+  /* —— the bar's Select / Cancel (a plain accent text button, render "tbtn") —— */
+  const bar = el.querySelector('.c-topbar');
+  const selBtn = document.createElement('button');
+  selBtn.type = 'button';
+  selBtn.className = 'c-settings-dl__selbtn';
+  selBtn.addEventListener('click', () => setSelecting(!selecting));
+  if (bar && canSelect) {
+    const acts = document.createElement('div');
+    acts.className = 'c-topbar__actions';   // the bar's trailing-action slot (topbar.js grammar)
+    acts.append(selBtn);
+    bar.append(acts);
+  }
 
   /* search — frontend name filter (#67 chat-list precedent, no bridge) */
-  let query = '';
   const search = createSearchField({
     placeholder: strings.searchDownloads || 'Search files',
     ariaLabel: strings.searchDownloads || 'Search files',
     strings,
-    onInput: (v) => { query = v.trim().toLowerCase(); applyFilter(); },
+    onInput: (v) => { query = v.trim().toLowerCase(); paintList(); },
   });
   const searchWrap = document.createElement('div');
   searchWrap.className = 'c-settings-dl__search';
   searchWrap.append(search);
   body.append(searchWrap);
 
-  /* ★★ #1107: the sender filter — ONE "From: <who>" chip (shown only when a sender is known) that opens the option
-     sheet: "Everyone" + every sender, sorted, with a search field once the list is long. Chips per sender did not
-     scale (Damir: "it could be 50 or more people"; #1111). No sort control: newest first only (#1111). */
-  /* ★ G-5 (#1119, Damir picked C of three renders: "the From chip looks small / out of place"): a SECTION HEADER over
-     the list — the shown-file count on the left, an accent text button "From: <who> ▾" on the right, both on the card's
-     edge. Same sheet, same filter, same strings; no chip. The row hides when no sender is known (as the chip did). */
-  const controls = document.createElement('div');
-  controls.className = 'c-settings-dl__controls';
-  let senders = new Map();             // key → label, from the current list
-  let avatars = new Map();             // ★ S10 F7: key → data:image URI (setDownloadsAvatars; validated by the shell)
+  /* —— the summary card —— */
+  const sum = document.createElement('section');
+  sum.className = 'c-settings-dl__sum';
+  const sumTop = document.createElement('div');
+  sumTop.className = 'c-settings-dl__sum-top';
   const countEl = document.createElement('span');
   countEl.className = 'c-settings-dl__count';
+  const totalEl = document.createElement('span');
+  totalEl.className = 'c-settings-dl__total';
+  sumTop.append(countEl, totalEl);
+  const barEl = document.createElement('div');
+  barEl.className = 'c-settings-dl__bar';
+  barEl.setAttribute('aria-hidden', 'true');   // the legend below says the same in words
+  const legend = document.createElement('div');
+  legend.className = 'c-settings-dl__legend';
+  sum.append(sumTop, barEl, legend);
+  if (onClearAll) {
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'c-settings-dl__clear';   // the ONE error-hue destructive action on this surface (#147⑤ reservation)
+    clear.textContent = strings.clearDownloads || 'Delete all downloads';
+    clear.addEventListener('click', () => settingsConfirm({
+      title: strings.clearDownloadsTitle || 'Delete all downloads?',
+      bodyText: strings.deleteDownloadsBody || 'Received files are removed from this device. Senders keep theirs.',
+      confirmLabel: strings.deleteConfirm || 'Delete',
+      host: hostFor(), strings,
+      run: (ctrl) => onClearAll(ctrl),     // sync throw handled inside settingsConfirm
+    }));
+    sum.append(clear);
+  }
+  body.append(sum);
+  let barGrown = false;                  // the bar grows in ONCE per screen, never on a re-push
+  function paintSummary() {
+    const n = current.length;
+    countEl.textContent = n === 1 ? (strings.downloadsCountOne || '1 file')
+      : (strings.downloadsCount || '{n} files').split('{n}').join(String(n));
+    const total = current.reduce((a, f) => a + dlBytes(f.size), 0);
+    const tsz = formatFileSize(total);
+    totalEl.textContent = tsz ? '· ' + tsz : '';
+    /* by kind: the family, labelled by its one format (PDF, ZIP) or by the family's name when it mixes formats */
+    const by = new Map();
+    for (const f of current) {
+      const { family, label } = fileKind(f.name);
+      const k = by.get(family) || { family, bytes: 0, labels: new Set() };
+      k.bytes += dlBytes(f.size);
+      k.labels.add(label || '');
+      by.set(family, k);
+    }
+    let kinds = [...by.values()].filter((k) => k.bytes > 0).sort((a, b) => (b.family === 'image') - (a.family === 'image') || b.bytes - a.bytes);   // photos first (the render), then by size
+    if (kinds.length > DL_LEGEND_MAX) {
+      const rest = kinds.slice(DL_LEGEND_MAX - 1);
+      kinds = kinds.slice(0, DL_LEGEND_MAX - 1).concat([{ family: 'other', bytes: rest.reduce((a, k) => a + k.bytes, 0), labels: new Set(['', '?']) }]);
+    }
+    const segs = [];
+    const items = [];
+    kinds.forEach((k, i) => {
+      const seg = document.createElement('i');
+      seg.dataset.kind = k.family;
+      seg.style.flexGrow = String(k.bytes);
+      if (!barGrown) seg.style.animationDelay = (i * 0.12) + 's';
+      segs.push(seg);
+      const one = k.labels.size === 1 ? [...k.labels][0] : '';
+      const lab = (k.family === 'image' || !one) ? dlKindLabel(k.family, strings) : one;
+      const it = document.createElement('span');
+      it.dataset.kind = k.family;
+      it.textContent = lab + ' · ' + formatFileSize(k.bytes);
+      items.push(it);
+    });
+    barEl.replaceChildren(...segs);
+    barEl.hidden = segs.length === 0;   // an old exe pushes no sizes: no bar, no legend — the count stays
+    legend.replaceChildren(...items);
+    legend.hidden = items.length === 0;
+    if (segs.length) { if (barGrown) barEl.dataset.grown = ''; barGrown = true; }   // a re-push never replays the growth
+  }
+
+  /* —— filters: All · Photos · Files + the From chip (#1107 sheet) —— */
+  const controls = document.createElement('div');
+  controls.className = 'c-settings-dl__controls';
+  const kindWrap = document.createElement('div');
+  kindWrap.className = 'c-settings-dl__kinds';
+  const kindChips = [['all', strings.all || 'All'], ['photo', strings.photos || 'Photos'], ['file', strings.sharedFiles || 'Files']].map(([id, lab]) => {
+    const c = document.createElement('button');
+    c.type = 'button';
+    c.className = 'c-settings-dl__chip';
+    c.dataset.kind = id;
+    c.textContent = lab;
+    c.addEventListener('click', () => { kindFilter = id; paintList(); });
+    kindWrap.append(c);
+    return [id, c];
+  });
+  let senders = new Map();             // key → label, from the current list
+  let avatars = new Map();             // ★ S10 F7: key → data:image URI (setDownloadsAvatars; validated by the shell)
   const fromChip = document.createElement('button');
   fromChip.type = 'button';
-  fromChip.className = 'c-settings-dl__from-btn';
+  fromChip.className = 'c-settings-dl__chip c-settings-dl__from-btn';
   fromChip.setAttribute('aria-haspopup', 'dialog');
   const fromLab = document.createElement('span');
   fromLab.className = 'c-settings-dl__from-label';
   fromChip.append(fromLab, icon('chevron-down', { size: 16 }));
   fromChip.addEventListener('click', () => openSenderSheet());
-  controls.append(countEl, fromChip);
+  controls.append(kindWrap, fromChip);
   body.append(controls);
   const fromLabel = () => (strings.downloadsFromChip || 'From: {name}').split('{name}').join(
     senderKey ? (senders.get(senderKey) || '') : (strings.downloadsAllSenders || 'Everyone'));
@@ -201,24 +334,18 @@ export function createSettingsDownloads({
     fromLab.textContent = fromLabel();
     if (senderKey) fromChip.dataset.active = ''; else delete fromChip.dataset.active;
   }
-  function paintCount(n) {
-    countEl.textContent = n === 1 ? (strings.downloadsCountOne || '1 file')
-      : (strings.downloadsCount || '{n} files').split('{n}').join(String(n));
-  }
-  /* ★ S10 F7 (#1254, Damir pick C): each row = a 40 px avatar (the pushed photo, else the name's gradient initials) +
-     "{n} files · last {when}" — counted from the list on screen (`current`, all files, not the search). {when} = the
-     sender's newest epoch time in the row's own date format (formatTxTimestamp; no relative form exists); an old exe's
-     opaque time string gives no "last" part. "Everyone" = a tonal people disc + the total. */
+  /* ★ S10 F7 (#1254, Damir pick C): each sheet row = a 40 px avatar + "{n} files · last {when}" — counted from the
+     whole list (`current`). {when} = the sender's newest epoch time; an old exe's opaque time gives no "last" part. */
   const filesLabel = (n) => (n === 1 ? (strings.downloadsSenderFilesOne || '1 file')
     : (strings.downloadsSenderFiles || '{n} files').split('{n}').join(String(n)));
   function senderStats() {
-    const stats = new Map();             // key → { n, newest (epoch s, 0 = unknown) }
+    const stats = new Map();
     for (const f of current) {
       if (!f.senderKey) continue;
       const st = stats.get(f.senderKey) || { n: 0, newest: 0 };
       st.n++;
-      const t = String(f.time || '').trim();
-      if (/^\d{1,12}$/.test(t) && Number(t) > st.newest) st.newest = Number(t);
+      const t = dlEpoch(f.time);
+      if (t > st.newest) st.newest = t;
       stats.set(f.senderKey, st);
     }
     return stats;
@@ -240,7 +367,7 @@ export function createSettingsDownloads({
     const sheet = settingsOptionSheet({
       title: strings.downloadsFilterSender || 'From',
       options, current: senderKey, host: hostFor(), strings,
-      commit: (value, ctrl) => { senderKey = value; paintFromChip(); applyFilter(); ctrl.done(); },
+      commit: (value, ctrl) => { senderKey = value; paintFromChip(); paintList(); ctrl.done(); },
     });
     const list = sheet && sheet.querySelector('.c-settings__opts');
     if (list && options.length > SENDER_SEARCH_MIN) {
@@ -260,21 +387,11 @@ export function createSettingsDownloads({
       list.parentNode.insertBefore(f, list);
     }
   }
-  function renderSenders(list) {
-    senders = new Map();
-    for (const f of list) if (f.senderKey && f.sender && !senders.has(f.senderKey)) senders.set(f.senderKey, f.sender);
-    if (senderKey && !senders.has(senderKey)) senderKey = '';   // (#46 r2 R2-1) a filter on a sender no longer listed is cleared — the chip hides with it, so nothing could clear it
-    controls.hidden = senders.size === 0;
-    paintFromChip();
-  }
 
-  /* list card */
-  const groupWrap = document.createElement('div');
-  groupWrap.className = 'c-settings__groupwrap';
-  const card = document.createElement('div');
-  card.className = 'c-settings__group';
-  groupWrap.append(card);
-  body.append(groupWrap);
+  /* —— the list (day groups) —— */
+  const listEl = document.createElement('div');
+  listEl.className = 'c-settings-dl__list';
+  body.append(listEl);
 
   /* empty state — also what a clearFiles push renders */
   const empty = document.createElement('div');
@@ -290,151 +407,316 @@ export function createSettingsDownloads({
   empty.append(emptyDisc, emptyText);
   body.append(empty);
 
-  /* no-matches note (search active, nothing left) */
+  /* no-matches note (a search or a filter left nothing) */
   const noMatch = document.createElement('p');
   noMatch.className = 'c-settings__note c-settings-dl__nomatch';
   noMatch.textContent = strings.downloadsNoMatch || 'No files match your search.';
   noMatch.hidden = true;
   body.append(noMatch);
 
-  /* clear-all — the ONE error-hue destructive row on this surface (#147⑤ reservation) */
-  let clearWrap = null;
-  if (onClearAll) {
-    clearWrap = document.createElement('div');
-    clearWrap.className = 'c-settings__groupwrap';
-    const clearCard = document.createElement('div');
-    clearCard.className = 'c-settings__group';
-    const section = document.createElement('div');
-    section.className = 'c-settings__section';
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'c-settings__row';
-    const lab = document.createElement('span');
-    lab.className = 'c-settings__row-label';
-    const disc = document.createElement('span');
-    disc.className = 'c-disc';
-    disc.dataset.hue = 'error';
-    disc.dataset.grad = String(discGrad('trash'));
-    disc.append(icon('trash', { size: 16 }));
-    lab.append(disc, document.createTextNode(strings.clearDownloads || 'Delete all downloads'));
-    row.append(lab, icon('chevron-right', { size: 18 }));
-    row.addEventListener('click', () => settingsConfirm({
-      title: strings.clearDownloadsTitle || 'Delete all downloads?',
-      bodyText: strings.deleteDownloadsBody || 'Received files are removed from this device. Senders keep theirs.',
+  /* —— select mode: the floating bar —— */
+  const selbar = document.createElement('div');
+  selbar.className = 'c-settings-dl__selbar';
+  const selN = document.createElement('b');
+  selN.className = 'c-settings-dl__selcount';
+  const goBtn = document.createElement('button');
+  goBtn.type = 'button';
+  goBtn.className = 'c-settings-dl__go';
+  goBtn.append(icon('message', { size: 18 }));
+  const goLab = document.createElement('span');
+  goLab.textContent = strings.showInChat || 'Show in chat';
+  goBtn.append(goLab);
+  goBtn.addEventListener('click', () => {
+    const name = [...sel][0];
+    const f = current.find((x) => x.name === name);
+    if (sel.size !== 1 || !f || !f.senderKey || !onShowInChat) return;
+    setSelecting(false);
+    onShowInChat(name);
+  });
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'c-settings-dl__del';
+  delBtn.append(icon('trash', { size: 18 }));
+  const delLab = document.createElement('span');
+  delLab.textContent = strings.delete || 'Delete';
+  delBtn.append(delLab);
+  delBtn.addEventListener('click', () => {
+    const names = [...sel];
+    if (!names.length || !onDeleteFile) return;
+    const one = names.length === 1;
+    settingsConfirm({
+      title: one ? (strings.deleteFileTitle || 'Delete this file?')
+        : (strings.deleteFilesTitle || 'Delete {n} files?').split('{n}').join(String(names.length)),
+      bodyText: one ? (strings.deleteFileBody || '“{name}” is removed from this device.').split('{name}').join(names[0])
+        : (strings.deleteFilesBody || 'The files are removed from this device. Senders keep theirs.'),
       confirmLabel: strings.deleteConfirm || 'Delete',
       host: hostFor(), strings,
-      run: (ctrl) => onClearAll(ctrl),     // sync throw handled inside settingsConfirm
-    }));
-    section.append(row);
-    clearCard.append(section);
-    clearWrap.append(clearCard);
-    body.append(clearWrap);
+      run: (ctrl) => {
+        /* one verb per file (the frozen ixian:delete…:<name>); the confirm closes once every file answered */
+        let left = names.length;
+        const sub = { done: () => { if (--left === 0) { setSelecting(false); ctrl.done(); } }, fail: (m) => ctrl.fail(m) };
+        for (const n of names) onDeleteFile(n, sub);
+      },
+    });
+  });
+  if (onShowInChat) selbar.append(selN, goBtn); else selbar.append(selN);
+  if (onDeleteFile) selbar.append(delBtn);
+  if (canSelect) el.append(selbar);
+
+  /* select mode repaints the marks in place — never the list, so a long-press never pulls the row from under the finger */
+  function paintMarks() {
+    for (const b of listEl.querySelectorAll('.c-settings-dl__open')) {
+      const row = b.closest('.c-settings-dl__row');
+      markSelected(b, row ? row.dataset.name : '');
+    }
+    paintSelbar();
+  }
+  function setSelecting(on) {
+    selecting = !!on && current.length > 0;
+    if (!selecting) sel.clear();
+    paintMarks();
+  }
+  function toggle(name) {
+    if (!selecting) selecting = true;
+    if (sel.has(name)) sel.delete(name); else sel.add(name);
+    paintMarks();
+  }
+  function paintSelbar() {
+    if (selecting) el.dataset.selecting = ''; else delete el.dataset.selecting;
+    selBtn.textContent = selecting ? (strings.cancel || 'Cancel') : (strings.select || 'Select');
+    selBtn.hidden = current.length === 0;
+    selN.textContent = (strings.selectedCount || '{n} selected').split('{n}').join(String(sel.size));
+    const on = selecting && sel.size > 0;
+    if (on) selbar.dataset.on = ''; else delete selbar.dataset.on;
+    selbar.setAttribute('aria-hidden', on ? 'false' : 'true');
+    for (const b of selbar.querySelectorAll('button')) b.tabIndex = on ? 0 : -1;
+    const only = sel.size === 1 ? current.find((x) => x.name === [...sel][0]) : null;
+    goBtn.hidden = !(only && only.senderKey);
+    if (only) goBtn.setAttribute('aria-label', (strings.downloadsShowInChat || 'Show {name} in chat').split('{name}').join(only.name));
+    else goBtn.removeAttribute('aria-label');
   }
 
-  const fileRow = ({ name, time, size, sender, senderKey: rowSender }) => {
-    const section = document.createElement('div');
-    section.className = 'c-settings__section';
+  /* a tap opens (or, in select mode, toggles); a long-press or a right-click selects */
+  let firedAt = 0;                       // the last long-press (screen-wide: its release must not count as a tap)
+  function wirePress(btn, name) {
+    let timer = 0, x0 = 0, y0 = 0;
+    const clear = () => { if (timer) { clearTimeout(timer); timer = 0; } };
+    btn.addEventListener('pointerdown', (e) => {
+      if (!canSelect || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      x0 = e.clientX; y0 = e.clientY;
+      clear();
+      timer = setTimeout(() => { timer = 0; firedAt = Date.now(); toggle(name); }, DL_LONG_PRESS_MS);
+    });
+    btn.addEventListener('pointermove', (e) => { if (timer && (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10)) clear(); });
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) btn.addEventListener(t, clear);
+    btn.addEventListener('contextmenu', (e) => {
+      if (!canSelect) return;
+      e.preventDefault();                                       // no callout / menu over a file
+      if (Date.now() - firedAt < 900) return;                  // the long-press already took it (Android sends both)
+      toggle(name);
+    });
+    btn.addEventListener('click', (e) => {
+      if (Date.now() - firedAt < 900) { e.preventDefault(); return; }   // the release after a long-press is not a tap
+      if (selecting) { toggle(name); return; }
+      if (onOpenFile) onOpenFile(name);
+    });
+  }
+  function check() {
+    const ck = document.createElement('span');
+    ck.className = 'c-settings-dl__ck';
+    ck.setAttribute('aria-hidden', 'true');
+    ck.append(icon('check', { size: 14 }));
+    return ck;
+  }
+  function markSelected(btn, name) {
+    if (selecting) btn.setAttribute('aria-pressed', sel.has(name) ? 'true' : 'false');
+    else btn.removeAttribute('aria-pressed');
+  }
+
+  /* a photo: a cell of the 3-column grid — the type tile at cell size (the thumbnail is the pickup) + a size badge */
+  function photoCell(f) {
+    const row = document.createElement('div');
+    row.className = 'c-settings-dl__row c-settings-dl__row--th';
+    row.dataset.name = f.name;
+    if (f.senderKey) row.dataset.sender = f.senderKey;   // ★★ #1107: the From filter's key
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-dl__open c-settings-dl__th';
+    const sz = formatFileSize(f.size);
+    b.setAttribute('aria-label', sz ? f.name + ', ' + sz : f.name);   // peer-chosen — an attribute VALUE, never markup
+    /* the picture layer (a tone + the photo glyph today; the thumbnail later) — it shrinks into the cell when picked */
+    const img = document.createElement('span');
+    img.className = 'c-settings-dl__th-img';
+    img.dataset.tone = dlTone(f.name);
+    img.setAttribute('aria-hidden', 'true');
+    const glyph = icon('photo', { size: 30 });
+    glyph.classList.add('c-settings-dl__th-glyph');
+    img.append(glyph);
+    b.append(img, check());
+    const lab = fileKind(f.name).label;
+    if (lab) {
+      const tag = document.createElement('span');
+      tag.className = 'c-settings-dl__th-tag';
+      tag.setAttribute('aria-hidden', 'true');
+      tag.textContent = lab;
+      b.append(tag);
+    }
+    if (sz) {
+      const s = document.createElement('span');
+      s.className = 'c-settings-dl__sz';
+      s.setAttribute('aria-hidden', 'true');
+      s.textContent = sz;
+      b.append(s);
+    }
+    markSelected(b, f.name);
+    wirePress(b, f.name);
+    row.append(b);
+    return row;
+  }
+  /* any other file: a row — the coloured type tile + its format tag, the name, "from {name} · size · time" */
+  function fileRow(f, timeOfDay) {
     const row = document.createElement('div');
     row.className = 'c-settings-dl__row';
-    row.dataset.name = name;
-    if (rowSender) row.dataset.sender = rowSender;   // ★★ #1107: the From filter's key
-
+    row.dataset.name = f.name;
+    if (f.senderKey) row.dataset.sender = f.senderKey;
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'c-settings-dl__open';
-    const disc = createFileTile(name);     // ★ A3 (#1126): the chat's file-type tile (PNG · PDF …), the same builder
+    const { family, label } = fileKind(f.name);
+    const tile = document.createElement('span');
+    tile.className = 'c-settings-dl__tile';
+    tile.dataset.kind = family;
+    tile.setAttribute('aria-hidden', 'true');   // (#46 r1 B-1) decoration: the row's name is the file name
+    tile.append(icon(DL_GLYPH[family] || DL_GLYPH.other, { size: 22 }));
+    if (label) {
+      const tag = document.createElement('em');
+      tag.className = 'c-settings-dl__tag';
+      tag.textContent = label;
+      tile.append(tag);
+    }
     const meta = document.createElement('span');
     meta.className = 'c-settings-dl__meta';
     const nm = document.createElement('span');
     nm.className = 'c-settings-dl__name';
-    fillFileName(nm, name);                // UNTRUSTED — textContent only (★ #1005: keeps the extension)
+    fillFileName(nm, f.name);              // UNTRUSTED — textContent only (★ #1005: keeps the extension)
     meta.append(nm);
-    if (time) {
+    const parts = [];
+    const sz = formatFileSize(f.size);
+    if (sz) parts.push(sz);
+    const ep = dlEpoch(f.time);
+    if (ep) {
+      parts.push(timeOfDay ? new Date(ep * 1000).toLocaleTimeString(docLocale(), timeOpts()) : formatTxTimestamp(ep * 1000));
+    } else if (f.time) {
+      parts.push(String(f.time));          // an old exe's opaque locale string — never parsed
+    }
+    if (f.sender || parts.length) {
       const tm = document.createElement('span');
       tm.className = 'c-settings-dl__time';
-      // iOS-55/#328 (W1 class): C# now pushes raw EPOCH SECONDS — all-digits
-      // formats via formatTxTimestamp/docLocale (translated, chat-row parity);
-      // anything else = an OLD exe's culture-opaque DateTime string → verbatim.
-      const s = String(time).trim();
-      tm.textContent = (/^\d{1,12}$/.test(s) && Number(s) > 0)
-        ? formatTxTimestamp(Number(s) * 1000)
-        : time;                            // opaque locale string — never parsed
-      /* ★★ #1107: · size, then "from <sender>" on its own line (only when C# matched it through the file's message) */
-      const sz = formatFileSize(size);
-      if (sz) tm.textContent += ' · ' + sz;
+      if (f.sender) {
+        const from = document.createElement('span');
+        from.className = 'c-settings-dl__from';
+        from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(f.sender);   // peer-chosen name — textContent only
+        tm.append(from);
+      }
+      if (parts.length) tm.append(document.createTextNode((f.sender ? ' · ' : '') + parts.join(' · ')));
       meta.append(tm);
     }
-    if (sender) {
-      const from = document.createElement('span');
-      from.className = 'c-settings-dl__time c-settings-dl__from';
-      from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(sender);   // peer-chosen name — textContent only
-      meta.append(from);
-    }
-    open.append(disc, meta);
-    if (onOpenFile) open.addEventListener('click', () => onOpenFile(name));
-    else open.disabled = true;
+    open.append(check(), tile, meta);
+    markSelected(open, f.name);
+    wirePress(open, f.name);
     row.append(open);
+    return row;
+  }
 
-    if (onShowInChat && rowSender) {
-      const go = document.createElement('button');
-      go.type = 'button';
-      go.className = 'c-settings-dl__go';   // (#46 r1 B11) its own class — never matched as the delete button
-      go.setAttribute('aria-label', (strings.downloadsShowInChat || 'Show {name} in chat').split('{name}').join(name));
-      go.append(icon('message', { size: 18 }));
-      go.addEventListener('click', () => onShowInChat(name));
-      row.append(go);
-    }
+  const isPhoto = (f) => fileKind(f.name).family === 'image';
+  function paintList() {
+    for (const n of [...sel]) if (!current.some((f) => f.name === n)) sel.delete(n);   // a re-push drops what went
+    if (selecting && current.length === 0) selecting = false;
+    const hasPhoto = current.some(isPhoto);
+    const hasFile = current.some((f) => !isPhoto(f));
+    const mixed = hasPhoto && hasFile;
+    if (!mixed) kindFilter = 'all';        // a filter on a kind no longer listed is cleared — its chips hide with it
+    kindWrap.hidden = !mixed;
+    controls.hidden = !mixed && senders.size === 0;
+    fromChip.hidden = senders.size === 0;
+    for (const [id, c] of kindChips) c.setAttribute('aria-pressed', String(id === kindFilter));
 
-    if (onDeleteFile) {
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'c-settings-dl__del';
-      del.setAttribute('aria-label',
-        (strings.deleteFile || 'Delete {name}').split('{name}').join(name));
-      del.append(icon('trash', { size: 18 }));
-      del.addEventListener('click', () => settingsConfirm({
-        title: strings.deleteFileTitle || 'Delete this file?',
-        bodyText: (strings.deleteFileBody || '“{name}” is removed from this device.')
-          .split('{name}').join(name),
-        confirmLabel: strings.deleteConfirm || 'Delete',
-        host: hostFor(), strings,
-        run: (ctrl) => onDeleteFile(name, ctrl),
-      }));
-      row.append(del);
+    /* newest first (stable: an old exe's opaque time sorts as 0 and keeps C#'s order) */
+    const shown = current.slice().sort((a, b) => dlEpoch(b.time) - dlEpoch(a.time)).filter((f) =>
+      (!query || f.name.toLowerCase().includes(query))
+      && (!senderKey || f.senderKey === senderKey)                                       // ★★ #1107
+      && (kindFilter === 'all' || (kindFilter === 'photo' ? isPhoto(f) : !isPhoto(f))));
+    /* day groups, in list order; a file without an epoch time joins one group with no day label */
+    const now = Date.now();
+    const groups = [];
+    const byKey = new Map();
+    for (const f of shown) {
+      const ep = dlEpoch(f.time);
+      let key = '~', label = '';
+      if (ep) {
+        const d = new Date(ep * 1000);
+        key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+        label = dayBucketLabel(ep * 1000, strings, now, strings.today || 'Today');
+      }
+      let g = byKey.get(key);
+      if (!g) { g = { label, files: [] }; byKey.set(key, g); groups.push(g); }
+      g.files.push(f);
     }
-    section.append(row);
-    return section;
-  };
-
-  function applyFilter() {
-    let visible = 0;
-    for (const s of card.children) {
-      const rowEl = s.querySelector('.c-settings-dl__row');
-      const name = rowEl ? (rowEl.dataset.name || '') : '';
-      const hit = (!query || name.toLowerCase().includes(query))
-        && (!senderKey || (rowEl && rowEl.dataset.sender === senderKey));   // ★★ #1107
-      s.hidden = !hit;
-      if (hit) visible++;
+    const out = [];
+    for (const g of groups) {
+      const sec = document.createElement('section');
+      sec.className = 'c-settings-dl__group';
+      const h = document.createElement('h3');
+      h.className = 'c-settings-dl__day';
+      const hl = document.createElement('span');
+      hl.textContent = g.label;
+      const hs = document.createElement('span');
+      hs.className = 'c-settings-dl__day-size';
+      hs.textContent = formatFileSize(g.files.reduce((a, f) => a + dlBytes(f.size), 0));
+      h.append(hl, hs);
+      if (g.label || hs.textContent) sec.append(h);
+      const ph = g.files.filter(isPhoto);
+      const fl = g.files.filter((f) => !isPhoto(f));
+      if (ph.length) {
+        const grid = document.createElement('div');
+        grid.className = 'c-settings-dl__grid';
+        grid.append(...ph.map(photoCell));
+        sec.append(grid);
+      }
+      if (fl.length) {
+        const box = document.createElement('div');
+        box.className = 'c-settings-dl__files';
+        box.append(...fl.map((f) => fileRow(f, !!g.label)));
+        sec.append(box);
+      }
+      out.push(sec);
     }
-    noMatch.hidden = !(card.childElementCount > 0 && visible === 0);
-    paintCount(visible);   // ★ G-5: the header counts what is SHOWN
-    live.textContent = (query || senderKey)
-      ? (strings.downloadsMatches || '{n} files match').split('{n}').join(String(visible))
+    listEl.replaceChildren(...out);
+    const has = current.length > 0;
+    listEl.hidden = !has;
+    noMatch.hidden = !(has && shown.length === 0);
+    live.textContent = (query || senderKey || kindFilter !== 'all')
+      ? (strings.downloadsMatches || '{n} files match').split('{n}').join(String(shown.length))
       : '';
+    paintSelbar();
+  }
+
+  function renderSenders(list) {
+    senders = new Map();
+    for (const f of list) if (f.senderKey && f.sender && !senders.has(f.senderKey)) senders.set(f.senderKey, f.sender);
+    if (senderKey && !senders.has(senderKey)) senderKey = '';   // (#46 r2 R2-1) a filter on a sender no longer listed is cleared
+    paintFromChip();
   }
 
   function render(list) {
-    current = list;
-    // newest first (stable: an old exe's opaque time string sorts as 0 and keeps C#'s order)
-    const sorted = list.slice().sort((a, b) => (Number(b.time) || 0) - (Number(a.time) || 0));
-    card.replaceChildren(...sorted.map(fileRow));   // fileRow sets data-sender (#46 r3 R3-7: no per-row search)
-    renderSenders(list);
-    const has = list.length > 0;
-    groupWrap.hidden = !has;
+    current = (list || []).map((f) => Object.assign({}, f, { name: String(f && f.name != null ? f.name : '') }));
+    renderSenders(current);
+    const has = current.length > 0;
+    sum.hidden = !has;
     empty.hidden = has;
-    searchWrap.hidden = list.length < SEARCH_MIN;
-    if (clearWrap) clearWrap.hidden = !has;
-    applyFilter();
+    searchWrap.hidden = current.length < SEARCH_MIN;
+    paintSummary();
+    paintList();
   }
   render(files);
 
@@ -570,53 +852,102 @@ export function setDevLog(el, text) {
 }
 
 /**
- * Contributors — createSettingsContributors({ contributors, onBack, strings }).
- * Static thank-you screen (legacy contributors.html port): art slot + the
- * names on a card. Illustration swaps into the art slot later
- * (illustrations-plan.md language decision).
+ * Contributors — createSettingsContributors({ contributors, credits, onBack, strings }).
+ * ★ S17 E (#1336, downloads-contributors-render.html, LOCKED): the thank-you screen —
+ *   · a warm FULL-BLEED header (the About band's grammar in a violet → pink key, --dc-a/b/c): a glass heart with the
+ *     heart-handshake glyph etched, coloured bokeh, twinkles, a slow float (illoContribHeart, two decorative layers);
+ *     the top bar floats over it with white ink and turns solid once the header has scrolled under it (About's rule)
+ *   · "Thank you" + contributorsLead
+ *   · each name a chip with a coloured initial disc; the chips pop in one by one; a tap bounces the chip and throws
+ *     eight small sparkles (decoration — reduced motion: none)
+ *   · the credits: one row per credit — a type tile, the label, the FULL source text (CC-BY asks for the attribution and
+ *     the licence link on the shipped artifact: never shortened), a licence pill. No external-link mark: no verb opens
+ *     a link from here (the About ruling), so the source stays selectable text.
  */
+const CONTRIB_SPARKS = 8;
+const CREDIT_GLYPH = { creditSounds: 'volume', creditIcons: 'icons', creditFlags: 'flag' };
 export function createSettingsContributors({
   contributors = CONTRIBUTORS,
   credits = ASSET_CREDITS,        // ★ #502 — overridable, same shape as contributors
+  onHeader,                       // ★ S17 (#1339): OPTIONAL (over) — as About's: the header under the status bar, or not
   onBack,
   strings = getStrings(),
 } = {}) {
   const { el, body } = appScreenShell(
     'c-settings-contrib', strings.contributors || 'Contributors', onBack);
+  el.classList.add('c-settings-contrib--hdr');
+  const bar = el.querySelector('.c-topbar');
+  const solidAt = () => Math.max(0, (body.firstElementChild ? body.firstElementChild.offsetHeight : 0) * 0.55);
+  let overHdr = null;
+  body.addEventListener('scroll', () => {
+    const solid = body.scrollTop > solidAt();
+    if (bar) bar.toggleAttribute('data-solid', solid);
+    if (onHeader && overHdr !== !solid) { overHdr = !solid; try { onHeader(overHdr); } catch (e) { /* presentation only */ } }
+  }, { passive: true });
+  if (onHeader) { overHdr = true; try { onHeader(true); } catch (e) { /* presentation only */ } }
 
-  /* art slot — token-styled placeholder (backup-hero precedent) */
-  const art = document.createElement('div');
-  art.className = 'c-settings-contrib__art';
-  art.setAttribute('aria-hidden', 'true');
-  const disc = document.createElement('span');
-  disc.className = 'c-disc c-settings-contrib__art-disc';
-  disc.dataset.hue = 'accent';
-  disc.dataset.grad = String(discGrad('heart-handshake'));
-  disc.append(icon('heart-handshake', { size: 32 }));
-  art.append(disc);
-  body.append(art);
+  /* the header — decoration (aria-hidden); "Thank you" below is the heading */
+  const band = document.createElement('div');
+  band.className = 'c-settings-contrib__band';
+  band.setAttribute('aria-hidden', 'true');
+  const art = illoContribHeart();
+  band.append(art.bg, art.fg);
+  body.append(band);
 
-  const lead = document.createElement('p');
-  lead.className = 'c-settings__note c-settings-contrib__lead';
-  lead.textContent = strings.contributorsLead ||
+  const lead = document.createElement('div');
+  lead.className = 'c-settings-contrib__head';
+  const thanks = document.createElement('h2');
+  thanks.className = 'c-settings-contrib__thanks';
+  thanks.textContent = strings.thanks || 'Thank you';
+  const p = document.createElement('p');
+  p.className = 'c-settings-contrib__lead';
+  p.textContent = strings.contributorsLead ||
     'Spixi is better because these people cared. Special thanks to:';
+  lead.append(thanks, p);
   body.append(lead);
 
-  const groupWrap = document.createElement('div');
-  groupWrap.className = 'c-settings__groupwrap';
+  const reduce = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
   const card = document.createElement('div');
-  card.className = 'c-settings__group c-settings-contrib__card';
+  card.className = 'c-settings-contrib__card';
   const list = document.createElement('ul');
   list.className = 'c-settings-contrib__list';
-  for (const name of contributors) {
+  contributors.forEach((name, k) => {
     const li = document.createElement('li');
-    li.className = 'c-settings-contrib__name';
-    li.textContent = name;
+    li.className = 'c-settings-contrib__chip';
+    li.style.setProperty('--d', (0.25 + Math.min(k, 12) * 0.05).toFixed(2) + 's');   // the pop-in, one by one (≤ .85 s)
+    const disc = document.createElement('i');
+    disc.className = 'c-settings-contrib__initial';
+    disc.dataset.tone = String(k % 6);
+    disc.setAttribute('aria-hidden', 'true');
+    const letter = [...String(name).replace(/[^\p{L}\p{N}]/gu, '')][0] || [...String(name)][0] || '?';   // a code point, never half a pair
+    disc.textContent = letter.toLocaleUpperCase();
+    const nm = document.createElement('span');
+    nm.className = 'c-settings-contrib__name';
+    nm.textContent = name;
+    li.append(disc, nm);
+    /* a tap: the chip bounces and throws sparkles — pure decoration, no verb */
+    li.addEventListener('click', () => {
+      li.classList.remove('is-burst');
+      void li.offsetWidth;                 // restart the bounce
+      li.classList.add('is-burst');
+      if (reduce()) return;
+      for (let i = 0; i < CONTRIB_SPARKS; i++) {
+        const s = document.createElement('span');
+        s.className = 'c-settings-contrib__spark';
+        s.dataset.tone = String(i % 4);
+        s.setAttribute('aria-hidden', 'true');
+        const an = i / CONTRIB_SPARKS * Math.PI * 2;
+        s.style.setProperty('--x', (Math.cos(an) * 34).toFixed(1) + 'px');
+        s.style.setProperty('--y', (Math.sin(an) * 24).toFixed(1) + 'px');
+        s.addEventListener('animationend', () => s.remove());
+        setTimeout(() => s.remove(), 900);   // backstop: no animation (jsdom, a hidden pane) never piles them up
+        li.append(s);
+      }
+    });
     list.append(li);
-  }
+  });
   card.append(list);
-  groupWrap.append(card);
-  body.append(groupWrap);
+  body.append(card);
 
   /* ★ #502: the asset credits, under their own heading and their own card. */
   if (credits.length) {
@@ -624,29 +955,36 @@ export function createSettingsContributors({
     h.className = 'c-settings__label c-settings-contrib__credits-title';   // ★ #1040: the hub's section-label grammar ("Preferences"), not a centred note
     h.textContent = strings.creditsTitle || 'Credits';
     body.append(h);
-
-    const creditsWrap = document.createElement('div');
-    creditsWrap.className = 'c-settings__groupwrap';
     const creditsCard = document.createElement('div');
-    creditsCard.className = 'c-settings__group c-settings-contrib__card c-settings-contrib__card--credits';
+    creditsCard.className = 'c-settings-contrib__card c-settings-contrib__card--credits';
     const creditsList = document.createElement('ul');
     creditsList.className = 'c-settings-contrib__credits';
     for (const c of credits) {
       const li = document.createElement('li');
       li.className = 'c-settings-contrib__credit';
+      const tile = document.createElement('span');
+      tile.className = 'c-settings-contrib__tile';
+      tile.dataset.credit = CREDIT_GLYPH[c.key] ? c.key : 'other';
+      tile.setAttribute('aria-hidden', 'true');
+      tile.append(icon(CREDIT_GLYPH[c.key] || 'heart-handshake', { size: 20 }));
+      const tx = document.createElement('span');
+      tx.className = 'c-settings-contrib__credit-text';
       const what = document.createElement('span');
       what.className = 'c-settings-contrib__credit-what';
       what.textContent = creditLabel(c, strings);
       const who = document.createElement('span');
       who.className = 'c-settings-contrib__credit-who';
       // Proper nouns — deliberately NOT localized. i18n-lint-ok:proper-noun
-      who.textContent = c.source + ' · ' + c.licence;
-      li.append(what, who);
+      who.textContent = c.source;
+      const lic = document.createElement('span');
+      lic.className = 'c-settings-contrib__licence';
+      lic.textContent = c.licence;   // i18n-lint-ok:proper-noun (an SPDX identifier)
+      tx.append(what, who, lic);
+      li.append(tile, tx);
       creditsList.append(li);
     }
     creditsCard.append(creditsList);
-    creditsWrap.append(creditsCard);
-    body.append(creditsWrap);
+    body.append(creditsCard);
   }
 
   return el;
@@ -730,87 +1068,8 @@ export function aboutVersionText(version) {
   return /^[0-9A-Za-z.+-]{1,32}$/.test(v) ? v : '';
 }
 
-/* ★ S12 B (#1267) — the About hero art: the Spixi mark on a violet tile, a dashed orbit with three satellites
-   (★ S14 (#1279, Damir 12:24): a heart, a chat bubble and a gold star — the heart and star are the rating art's
-   own (illustrations.js `rating`: rnHeart / rnStar gradients, white gloss), the lock and IXI coin retired) and small
-   sparkles. Inline so the --ab-* tokens (tokens.css) theme it;
-   a still drawing (no motion → nothing for reduced motion to stop). Built element by element with
-   createElementNS from the static table below — no markup string, no innerHTML (this file has none). Gradient
-   ids are unique per call. */
-const AB_NS = 'http://www.w3.org/2000/svg';
-let abSeq = 0;
-function abEl(tag, attrs, kids) {
-  const n = document.createElementNS(AB_NS, tag);
-  for (const k of Object.keys(attrs || {})) n.setAttribute(k, String(attrs[k]));
-  for (const c of kids || []) n.append(c);
-  return n;
-}
-const abStop = (o, v, a) => abEl('stop', { offset: o, style: 'stop-color:' + v + (a != null ? ';stop-opacity:' + a : '') });
-const AB_HEART = 'M0 8.5C-6.5-1.8-19-.2-19 10.2-19 18-6 25.5 0 29.5 6 25.5 19 18 19 10.2 19-.2 6.5-1.8 0 8.5Z';   /* illustrations.js `rating` */
-const AB_STAR = 'M0-13.5 4-4.8 13.4-4.1 6.3 2.2 8.5 11.6 0 6.6-8.5 11.6-6.3 2.2-13.4-4.1-4-4.8Z';
-const abSpark = (x, y, r) => abEl('path', { d: `M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}Z` });
-function aboutHeroArt({ tile = true } = {}) {
-  abSeq += 1;
-  const id = (n) => n + '-ab' + abSeq;
-  const url = (n) => 'url(#' + id(n) + ')';
-  const lin = (n, a, b, diag) => abEl('linearGradient', { id: id(n), x1: 0, y1: 0, x2: diag ? 1 : 0, y2: 1 }, [abStop(0, a), abStop(1, b)]);
-  /* ★ S13 B (About "Banner hero"): `tile: false` draws the scene WITHOUT its centre — no glow, floor, tile or mark —
-     for the band, where the overlapping app icon (createSettingsAbout) is the centre object instead */
-  const centre = tile ? [
-    abEl('ellipse', { cx: 150, cy: 72, rx: 120, ry: 66, fill: url('g') }),
-    abEl('ellipse', { cx: 150, cy: 136, rx: 46, ry: 5, style: 'fill:var(--ab-floor)' }),
-  ] : [];
-  const tileRects = tile ? [
-    abEl('rect', { x: 116, y: 42, width: 68, height: 72, rx: 22, style: 'fill:var(--ab-tile-shadow)', filter: url('f') }),
-    abEl('rect', { x: 110, y: 30, width: 80, height: 80, rx: 22, fill: url('t') }),
-    abEl('rect', { x: 110, y: 30, width: 80, height: 80, rx: 22, fill: url('h') }),
-  ] : [];
-  const svg = abEl('svg', { viewBox: '0 0 300 150', class: 'c-settings-about__art', 'aria-hidden': 'true', focusable: 'false' }, [
-    abEl('defs', {}, [
-      ...(tile ? [
-        abEl('radialGradient', { id: id('g') }, [abStop(0, 'var(--ab-glow)'), abStop(1, 'var(--ab-glow)', 0)]),
-        lin('t', 'var(--ab-tile-a)', 'var(--ab-tile-b)', true),
-        abEl('linearGradient', { id: id('h'), x1: 0, y1: 0, x2: 0, y2: 1 }, [abStop(0, '#fff', 0.32), abStop(0.55, '#fff', 0)]),
-        abEl('filter', { id: id('f'), x: '-50%', y: '-50%', width: '200%', height: '200%' }, [abEl('feGaussianBlur', { stdDeviation: 7 })]),
-      ] : []),
-      lin('b', 'var(--ab-bubble-a)', 'var(--ab-bubble-b)', true),
-      /* the rating art's literal stops (they read on the band in both themes, so no tokens; ★ S14 #1288: their offset
-         shades are navy now, was violet, for the blue band) */
-      abEl('radialGradient', { id: id('hr'), cx: 0.35, cy: 0.3, r: 0.85 }, [abStop(0, '#FFB3C8'), abStop(0.45, '#FF6F96'), abStop(1, '#E23A6A')]),
-      abEl('radialGradient', { id: id('st'), cx: 0.38, cy: 0.3, r: 0.85 }, [abStop(0, '#FFF1B8'), abStop(0.5, '#FFD15C'), abStop(1, '#F2A93B')]),
-    ]),
-    ...centre,
-    abEl('ellipse', { cx: 150, cy: 84, rx: 118, ry: 34, fill: 'none', style: 'stroke:var(--ab-orbit)', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-dasharray': '0.1 6' }),
-    ...tileRects,
-    /* the heart (the rating art's path, scaled): a soft offset shade under it instead of a blur filter, then the gloss */
-    abEl('g', { transform: 'translate(58 50.5) scale(0.84)' }, [
-      abEl('path', { d: AB_HEART, transform: 'translate(0 2.6)', fill: '#0d2f6b', 'fill-opacity': 0.26 }),
-      abEl('path', { d: AB_HEART, fill: url('hr') }),
-      abEl('path', { d: 'M-12.5 5.2c2.6-1.6 5.6-.7 6.9 1', fill: 'none', stroke: '#fff', 'stroke-opacity': 0.7, 'stroke-width': 2.4, 'stroke-linecap': 'round' }),
-    ]),
-    /* the chat bubble with its three dots */
-    abEl('path', { d: 'M214 39a9 9 0 0 1 9 -9h24a9 9 0 0 1 9 9v8a9 9 0 0 1 -9 9h-18l-7 6v-6.6a9 9 0 0 1 -8 -8.4z', fill: url('b') }),
-    abEl('g', { style: 'fill:var(--ab-bubble-dot)' }, [226, 235, 244].map((cx) => abEl('circle', { cx, cy: 43, r: 2.4 }))),   /* ★ S14 (#1288): blue dots in the now-white bubble */
-    /* the gold star (the rating art's), its shade and its small highlight */
-    abEl('g', { transform: 'translate(244 104)' }, [
-      abEl('path', { d: AB_STAR, transform: 'translate(0 2.4)', fill: '#0d2f6b', stroke: '#0d2f6b', 'fill-opacity': 0.26, 'stroke-opacity': 0.26, 'stroke-width': 3.2, 'stroke-linejoin': 'round' }),
-      abEl('path', { d: AB_STAR, fill: url('st'), stroke: url('st'), 'stroke-width': 3.2, 'stroke-linejoin': 'round' }),
-      abEl('ellipse', { cx: -3.2, cy: -4.2, rx: 2.6, ry: 1.4, fill: '#fff', opacity: 0.65, transform: 'rotate(-35 -3.2 -4.2)' }),
-    ]),
-    abEl('g', { style: 'fill:var(--ab-spark)' }, [
-      abSpark(92, 22, 5), abSpark(222, 14, 3.5), abSpark(96, 106, 4.5), abSpark(270, 74, 4),
-      abEl('circle', { cx: 34, cy: 96, r: 1.6 }), abEl('circle', { cx: 268, cy: 40, r: 1.4 }), abEl('circle', { cx: 196, cy: tile ? 126 : 121, r: 1.5 }),   /* on the band: lifted off its lower edge */
-    ]),
-  ]);
-  /* the mark is the icon registry's own `logo` (one source for the Spixi mark) */
-  if (tile) {
-    const mark = icon('logo', { size: 44 });
-    mark.setAttribute('x', '128'); mark.setAttribute('y', '48');
-    mark.setAttribute('class', 'c-settings-about__mark');
-    svg.append(mark);
-  }
-  return svg;
-}
+/* ★ S17 B (#1332): the S12–S14 hand-built band art (aboutHeroArt: orbit, heart, bubble, star) is RETIRED — the band is
+   the full-bleed Glass header now (illustrations.js illoAboutGlass). Recover it from git (S14, #1279) if ever wanted. */
 
 /* ★ S13 B (About "Banner hero"): ONE entrance (the band's gradient drift + the app icon settling .92 → 1), then
    `data-held` (settings-app.css: animation none) — the glass-card precedent (glass-card.js holdEntrance): the first
@@ -846,11 +1105,28 @@ export function createSettingsAbout({
   onLicences,                    // ★ S12 B (#1267): OPTIONAL — opens the Contributors credits (the host's own screen)
   onRate,                        // ★ S12 B (#1267): OPTIONAL — settings.html passes it only with bridge.cap('rate')
   devSeed,                       // ★ Session I: OPTIONAL { onSeed, onUnseed, status } — the DEV-BUILD seed harness (see below); absent = no card
+  whatsNew,                      // ★ S17 (#1333): OPTIONAL { version, isNew, onOpen } — the "What's new" row (badge "New" while isNew); absent = no row
+  onHeader,                      // ★ S17 (#1339): OPTIONAL (over) — true while the full-bleed header is under the status bar (the host tells C# the bar ink)
   onBack,
   strings = getStrings(),
 } = {}) {
   const { el, body } = appScreenShell(
     'c-settings-about', strings.about || 'About', onBack);
+  /* ★ S17 B (#1332, kit-render.html "About · full-bleed header", art = Glass, LOCKED): the band grew into a FULL-BLEED
+     header under the status bar and the top bar. The top bar floats over it with white ink (the region tokens are
+     re-assigned in scope, the .screen--hero precedent, #20) and turns SOLID again once the header has scrolled under
+     it, so the title never sits white-on-white over the cards. */
+  el.classList.add('c-settings-about--hdr');
+  const bar = el.querySelector('.c-topbar');
+  const solidAt = () => Math.max(0, (body.firstElementChild ? body.firstElementChild.offsetHeight : 0) * 0.55);
+  let overHdr = null;
+  const onScroll = () => {
+    const solid = body.scrollTop > solidAt();
+    if (bar) bar.toggleAttribute('data-solid', solid);
+    if (onHeader && overHdr !== !solid) { overHdr = !solid; try { onHeader(overHdr); } catch (e) { /* presentation only */ } }
+  };
+  body.addEventListener('scroll', onScroll, { passive: true });
+  if (onHeader) { overHdr = true; try { onHeader(true); } catch (e) { /* presentation only */ } }
 
   /* hero card */
   const hero = document.createElement('div');
@@ -869,7 +1145,11 @@ export function createSettingsAbout({
   const band = document.createElement('div');
   band.className = 'c-settings-about__band';
   band.setAttribute('aria-hidden', 'true');
-  band.append(aboutHeroArt({ tile: false }));
+  /* ★ S17 B (#1332): the band = the Glass header — a ground layer (the deeper launcher-blue pair + a deep stop, three
+     drifting light fields, a sheen, a top scrim) and the art layer (three frosted objects on one arc round the icon:
+     the chat bubble, the app tile, the coin; no specular streak, no padlock; a slow float). Static art, one entrance. */
+  const glass = illoAboutGlass({ className: 'c-settings-about__art' });
+  band.append(glass.bg, glass.fg);
   const appIcon = document.createElement('div');
   appIcon.className = 'c-settings-about__appicon';
   appIcon.setAttribute('aria-hidden', 'true');
@@ -889,6 +1169,34 @@ export function createSettingsAbout({
     hero.append(ver);
   }
   body.append(hero);
+
+  /* ★ S17 A/B (#1333): "What's new" — opens the What's new card (the host's own component, in this trusted shell). The
+     "New" badge stays until the user has opened it in this version (the host decides `isNew`; C# owns the seen
+     version). The sub line names the version and the count, like the card's own eyebrow. */
+  if (whatsNew && typeof whatsNew.onOpen === 'function') {
+    const card = document.createElement('div');
+    card.className = 'c-settings__group c-settings-links c-settings-about__wn';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-links__row c-settings-about__wn-row';
+    const ver = aboutVersionText(whatsNew.version || version);
+    const sub = (strings.whatsNewSub || 'Spixi {0} · 6 new things').split('{0}').join(ver || '');
+    b.append(aboutTile('rocket', 8), rowText(strings.whatsNew || 'What’s new', sub));
+    if (whatsNew.isNew) {
+      const badge = document.createElement('span');
+      badge.className = 'c-settings-about__new';
+      badge.textContent = strings.whatsNewBadge || 'New';
+      b.append(badge);
+    }
+    b.append(icon('chevron-right', { size: 18 }));
+    b.addEventListener('click', () => {
+      const nb = b.querySelector('.c-settings-about__new');
+      if (nb) nb.remove();   // opened in this version: the badge goes at once (C# records the seen version)
+      try { whatsNew.onOpen(); } catch { /* the row must not throw out of the screen */ }
+    });
+    card.append(b);
+    body.append(card);
+  }
 
   /* Why Spixi — three facts (no rows to tap). No post-quantum line, no "server" wording (#1267). */
   const why = aboutGroup(body, strings.aboutWhy || 'Why Spixi', 'c-settings-about__why');

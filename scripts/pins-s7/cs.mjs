@@ -136,7 +136,7 @@ export default async function (h) {
 
   /* ———— V1: setCaps declares `voice` for an approved 1:1 / a non-blind private group only, in the ONE setCaps push ———— */
   await guard('V1 caps', async () => {
-    const add = /caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*caps\s*\+=\s*",media";\s*caps\s*\+=\s*",savePhoto";\s*#if ANDROID \|\| IOS\s*if\s*\(\s*SFilePicker\.CameraAvailable\(\)\s*\)\s*\{\s*caps\s*\+=\s*",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);   /* ★ S9 A1 re-base: + the media / camera caps (CONTRACT §1a) */ /* ★ S11 G re-base (#1263): + caps += ",savePhoto" after media (pins-s11/g-cs.mjs) */
+    const add = /caps\s*\+=\s*",edit";\s*\}\s*if\s*\(\s*voiceCapFor\(friend\)\s*\)\s*\{\s*caps\s*\+=\s*",voice";\s*\}\s*caps\s*\+=\s*",media";\s*caps\s*\+=\s*",savePhoto";\s*(?:if\s*\(\s*SpixiFlags\.S17Moments\s*\)\s*\{\s*caps\s*\+=\s*",moments";[^}]*\}\s*)?#if ANDROID \|\| IOS\s*if\s*\(\s*SFilePicker\.CameraAvailable\(\)\s*\)\s*\{\s*caps\s*\+=\s*",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this,\s*"setCaps",\s*caps\);/.test(SCP);   /* ★ S9 A1 re-base: + the media / camera caps (CONTRACT §1a) */ /* ★ S11 G re-base (#1263): + caps += ",savePhoto" after media (pins-s11/g-cs.mjs) */
     const one = (SCP.match(/"setCaps"/g) || []).length === 1 && (SCP.match(/",voice"/g) || []).length === 1;
     const rule = /public static bool voiceCapFor\(Friend\? f\)\s*\{\s*return f != null && !f\.bot && f\.state == FriendState\.Approved\s*&& \(f\.type == FriendType\.Normal \|\| \(f\.type == FriendType\.Group && !Utils\.hidesParticipants\(f\)\)\);\s*\}/.test(SCP);
     /* the verbs re-check it (a shell that sends without the cap gets nothing) */

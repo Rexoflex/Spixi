@@ -83,14 +83,14 @@ const DYNAMIC = {
      translations already exist and are good, and dropping them means re-drafting all of
      them to restore a row that was never redesigned. Retiring them is correct the day the
      option is retired for good rather than "for now" — and that is a decision, not a tidy-up. */
-  groundFlat: 'Solid',
+  groundFlat: 'Mist',   // ★ S17 C (Damir 15:55): the canvas NAMES — keys kept, values changed (was Solid · Brand gradient · Green gradient · Blue gradient)
   /* ★★ #998 (Damir 2026-09-28): the option is BACK as the BRAND gradient — so the row is read
      again, and it reads a NEW key: "Gradient" was translated for the retired teal wash, and
      the brand gradient is a different thing. groundGradient is therefore retired for good
      (the #855 "for now" resolved the other way: the OPTION returned, the old LABEL did not). */
-  groundBrandGradient: 'Brand gradient',
-  groundGreenGradient: 'Green gradient',   // ★ #1080 F15: CHAT_GROUNDS is read as strings[o.key] — unextractable, so it lives here
-  groundBlueGradient: 'Blue gradient',     // ★ S8 (#1237): the fourth ground (light Sky · dark Azure) — same reason
+  groundBrandGradient: 'Iris',
+  groundGreenGradient: 'Meadow',   // ★ #1080 F15: CHAT_GROUNDS is read as strings[o.key] — unextractable, so it lives here
+  groundBlueGradient: 'Spixi',     // ★ S8 (#1237): the fourth ground (light Sky · dark Azure) — same reason
   // #341 review MINOR-4: PATTERN_STYLES is read as strings[o.key], so it is
   // unextractable and MUST live here. It did not, so the
   // three style names existed in the locale files only until the next extract run —
@@ -106,11 +106,19 @@ const DYNAMIC = {
      to it because they compare locales against each other. */
   /* ★ #997 (Damir 2026-09-28): the data matrix is retired for CONTOURS — its key goes with it
      (the rule above), and the live style's key lives here because strings[o.key] is unextractable. */
-  patternStyleContours: 'Contours',
-  textS: 'S',
-  textM: 'M',
-  textL: 'L',
-  textXL: 'XL',
+  patternStyleContours: 'Waves',   // ★ S17 C (#1334): the same id, the tile redrawn as the render's waves — the label follows
+  patternRings: 'Contours',        // ★ S17 C (#1335): the render's topographic rings, a NEW style
+  /* ★ S17 C (#1334): the three NEW canvases and the bubble colours (CHAT_GROUNDS / BUBBLE_COLOURS read strings[o.key]) */
+  groundAurora: 'Aurora',
+  groundDusk: 'Dusk',
+  groundOcean: 'Ocean',
+  bubbleColourAuto: 'Auto',
+  colourBlue: 'Blue',
+  colourViolet: 'Violet',
+  colourTeal: 'Teal',
+  colourPink: 'Pink',
+  colourOrange: 'Orange',
+  colourGraphite: 'Graphite',
   tierBasic: 'Basic',
   tierBasicDesc: 'Convenience first. Lock optional, previews on, receipts on.',
   tierModerate: 'Moderate',
@@ -155,7 +163,8 @@ const DYNAMIC_SOURCES = {
      still has readers — patternNone and the three patternStyle* names — so the row is
      retargeted rather than deleted; deleting it would drop those four to "dynamic". */
   pattern: 'settings-screens.js (PATTERN_STYLES, bgOpts)',
-  text: 'settings-screens.js (TEXT_SIZES)',
+  ground: 'settings-screens.js (CHAT_GROUNDS)',        // ★ S17 C (#1334)
+  colour: 'settings-screens.js (BUBBLE_COLOURS)',      // ★ S17 C (#1334)
   tier: 'settings-screens.js (TIERS)',
   sd: 'chat-info.js (disappearing-message options)',
   filter: 'wallet-shell.js (TX_FILTERS)',

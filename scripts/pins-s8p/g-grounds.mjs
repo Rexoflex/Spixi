@@ -89,8 +89,9 @@ export default async function (h) {
       const dots = [...d.querySelectorAll('.c-settings-appearance__dots [role="radio"]')];
       const prev = d.querySelector('.c-settings-appearance__preview');
       const key = theme + ':' + stored;
-      const shape = dots.map((b) => b.dataset.value).join() === 'flat,gradient,green,blue'
-        && dots.map((b) => b.getAttribute('aria-label')).join('|') === 'Solid|Brand gradient|Green gradient|Blue gradient'
+      /* ★ S17 C RE-BASE (#1334, Damir 15:55): SEVEN canvases in the render's order, renamed (the S8 four keep their ids) */
+      const shape = dots.map((b) => b.dataset.value).join() === 'flat,gradient,blue,green,aurora,dusk,ocean'
+        && dots.map((b) => b.getAttribute('aria-label')).join('|') === 'Mist|Iris|Spixi|Meadow|Aurora|Dusk|Ocean'
         && dots.every((b) => b.querySelector('.c-settings-appearance__dot-face').getAttribute('data-chat-ground') === b.dataset.value);
       const checked = dots.filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.dataset.value).join();
       let wrote = null;
@@ -121,11 +122,14 @@ export default async function (h) {
     const has = (body, decl) => body.replace(/\s+/g, ' ').includes(decl);
     const c = {
       lightBlue: has(lb, '--gradient-chat: linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%), var(--chat-canvas-base);') && has(lb, '--chat-pattern-ink: #1E3A66;') && has(lb, '--surface-select-row-gap: #ADC1E9;'),
-      darkGreen: has(dg, '--gradient-chat: linear-gradient(180deg, #11231A 0%, #0E1A14 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #BFE8CB;') && has(dg, '--surface-select-row-gap: #253748;'),
-      darkBlue: has(db, '--gradient-chat: linear-gradient(180deg, #0D2238 0%, #0C1828 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C2DDFB;') && has(db, '--surface-select-row-gap: #233557;'),
+      /* ★ S17 C v3 RE-BASE (Damir 21:50): the dark Meadow / Spixi are FULL COVERAGE (no fade to the canvas), new gaps */
+      darkGreen: has(dg, '--gradient-chat: linear-gradient(160deg, #0F2C23 0%, #0B1A16 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #BFE8CB;') && has(dg, '--surface-select-row-gap: #243E4E;'),
+      darkBlue: has(db, '--gradient-chat: linear-gradient(160deg, #0F2349 0%, #0A1430 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C2DDFB;') && has(db, '--surface-select-row-gap: #233867;'),
       noticeEdge: has(rule(chatH, D('blue').map((x) => x + ' .c-sysnotice__card')), 'box-shadow: var(--elevation-2), inset 0 0 0 1px rgba(118, 157, 255, 0.28);'),
-      dotGreen: has(rule(setH, [":root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='green']"]), 'background: linear-gradient(180deg, #1A3326 0%, #11231A 100%);'),
-      dotBlue: has(rule(setH, [":root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='blue']"]), 'background: linear-gradient(180deg, #173452 0%, #0D2238 100%);'),
+      /* ★ S17 C RE-BASE (#1334): the dark "top stop" dot faces are RETIRED — a 92 × 124 mini chat paints the whole ramp
+         through --gradient-chat (the same token rules the chat uses), so no dark tile reads as a black disc */
+      dotGreen: !rule(setH, [":root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='green']"]),
+      dotBlue: !rule(setH, [":root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='blue']"]) && /\.c-settings-appearance__dot-face \{[^}]*background: var\(--gradient-chat\)/.test(setH),
       noScratch: !/data-chat-ground[=^]+'x-/.test(tk + chatH + setH) && !/__s8x/.test(chatH),
     };
     ok(Object.values(c).every(Boolean),

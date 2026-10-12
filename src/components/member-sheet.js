@@ -170,7 +170,7 @@ export function openMemberSheet({
       if (canView) {
         const view = createButton({
           label: strings.viewProfile || 'View profile',
-          type: 'outline', size: 44,
+          type: 'text', size: 44,   // ★ S17 (Damir 20:42): a sheet's secondary buttons are text buttons — no outline
           icon: icon('user-circle', { size: 18 }),
           onClick: goToProfile,
         });
@@ -183,12 +183,12 @@ export function openMemberSheet({
         const payRow = document.createElement('div');
         payRow.className = 'c-member__payrow';
         if (onPay) payRow.append(createButton({
-          label: strings.sendPayment || 'Pay', type: 'outline', size: 44,
+          label: strings.sendPayment || 'Pay', type: 'text', size: 44,   // ★ S17 (Damir 20:42): a sheet's secondary buttons are text buttons — no outline
           icon: icon('arrow-up-right', { size: 18 }),
           onClick: () => { closeSheet(sheet); onPay(member); },
         }));
         if (onRequestPayment) payRow.append(createButton({
-          label: strings.requestPayment || 'Request', type: 'outline', size: 44,
+          label: strings.requestPayment || 'Request', type: 'text', size: 44,   // ★ S17 (Damir 20:42): a sheet's secondary buttons are text buttons — no outline
           icon: icon('arrow-down-left', { size: 18 }),
           onClick: () => { closeSheet(sheet); onRequestPayment(member); },
         }));
@@ -238,7 +238,7 @@ export function openMemberSheet({
                          // click must not fire two actions once the sheet closes
     for (const a of actions) {
       actRow.append(createButton({
-        label: a.label, type: 'outline', size: 44,
+        label: a.label, type: 'text', size: 44,   // ★ S17 (Damir 20:42): a sheet's secondary buttons are text buttons — no outline
         intent: a.destructive ? 'destructive' : 'default',
         icon: a.glyph ? icon(a.glyph, { size: 18 }) : null,
         onClick: () => {

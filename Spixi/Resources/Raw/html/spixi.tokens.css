@@ -1311,7 +1311,7 @@
      instead of 1px" — back to C's GAP after eleven days of living with D. The corner stays
      at D's 4px: he asked for the gap, not the pair.
      Reversal ladder: 2px (shipped) · 1px (D, 09-08 → 09-19) · 3px (Session I) · var(--spacing-2). */
-  --bubble-radius-group: 4px;                         /* the corners a same-sender run shares; was var(--radius-8) */
+  --bubble-radius-group: 4px;   /* the corners a same-sender run shares; was var(--radius-8). ★ S17 C (#1334, Damir's values file 21:24): the corners pref sets it INLINE beside --bubble-radius as max(2, round(r × 0.22)) px — 18 → exactly today's 4 (chat.html head script + applyPatternPrefs, the settings preview) */
   --bubble-gap-group: 10px;                           /* between groups (row margin-top); was var(--spacing-12) */
   --bubble-gap-inner: 2px;                            /* inside a same-sender group; ★ #904: 1px (dial D) → 2px, Damir's ask; 3px before D, var(--spacing-2) before that */
   --bubble-meta-margin-top: 4px;                      /* the floated time/ticks tail; was var(--spacing-8) — must stay ≤ line-height − meta line-height */
@@ -1321,7 +1321,7 @@
      could not follow a clip-path tail). --bubble-tail / --bubble-tail-h are DELETED with it; the
      corner where the tail sat takes this small radius. Reversal: the two tail tokens (7px / 11px,
      #904) + the Session I tail block in message-bubble.css. */
-  --bubble-radius-origin: 4px;                        /* the group-start / lone bubble's top-outer corner (was 0 + the tail) */
+  --bubble-radius-origin: 4px;  /* the group-start / lone bubble's top-outer corner (was 0 + the tail). ★ S17 C (#1334): set inline with the group corner, max(2, round(r × 0.22)) px */
   --bubble-avatar-size: 32px;                         /* ★ Session K (walk J2 T1, Damir: "a bit bigger"): the group sender avatar beside the first bubble — sheet 28 / 32 / 36, 32 ships until he picks; reversal var(--size-avatar-24) */
   --bubble-avatar-inset: var(--spacing-8);            /* ★ Session K (walk J2 T1: "left aligned with the left edge of the composer"): the avatar row's inline inset = the composer's own (composer.css padding-inline-start). ★ 2026-09-08: moved 12 → 8 WITH that padding — measured, moving only the bar left the avatar 4px inboard and broke the alignment the token exists for. Reversals in step: --spacing-12 here + --spacing-12 there; before Session K it was the plain row inset */
   --bubble-elevation: 0 1px 0.5px rgba(0, 0, 0, 0.13);  /* ★ sheet 1c: the WA/TG faint lift (light); dark re-dials below. Reversal = `0 0 0 0 transparent` (a no-op shadow, never `none`: it sits in a shadow LIST beside the hairline hook) */
@@ -1387,6 +1387,13 @@
   --il-shadow-a: .16;
   --il-ground-a: .12;
   --il-spark: #7186ff;
+  /* ★ S17 (#1331) — the S17 art: the What's new + Moment panel ground, the What's new scenes, the calm chest
+     (backup slot), the Contributors header. Values = the render's CLEAN BLUE end state (docs/renders/whats-new). */
+  --wn-ground-a: #4f86ff; --wn-ground-b: #a35cff;
+  --wn-glow-a: .06; --wn-star: rgba(255, 255, 255, .85); --wn-shadow: #2a1478; --wn-shadow-a: .38;
+  --wn-deco: #ffffff; --wn-chip: #3050bd; --wn-chip-ink: #3050bd;
+  --ch-shadow: #2a1478; --ch-shadow-a: .38;
+  --dc-a: #6f7dff; --dc-b: #a35cff; --dc-c: #ff7ab6;
   --il-dotc: #ac90ff;
   --il-screen: #f4f5f8;
   --il-recv: #e3e6ee;
@@ -1433,8 +1440,18 @@
   --ab-band-sheen: rgba(255, 255, 255, .22);   /* ★ S13 B: the band's top-right light */
   /* ★ S14 (#1288): the band moves from the hint-art violet to a SOFTER blue of the launcher's family, so the icon
      tile (its own deeper #0076E1) still stands off it; the chat bubble on it goes white (a blue bubble would sink) */
-  --ab-band-from: #9ccbff;
-  --ab-band-to: #4f97f0;
+  /* ★ S17 B (#1332): the band GREW into the full-bleed About header (under the status bar + the top bar, white bar
+     ink) → a DEEPER pair so "About" and the status glyphs hold ≥ 4.5 : 1, a deep third stop, three drifting light
+     fields, a top-right sheen and a top scrim (the Glass header, kit-render.html). Was #9ccbff → #4f97f0 (S14 #1288,
+     a band inside a white card). */
+  --ab-band-from: #3f8ff7;
+  --ab-band-to: #2a74e6;
+  --ab-band-deep: #1556c6;
+  --ab-field-a: #8fd2ff;
+  --ab-field-b: #7fb0ff;
+  --ab-field-c: #2f86ff;
+  --ab-sheen-op: .45;
+  --ab-scrim: rgba(8, 30, 90, .28);
   --ab-bubble-dot: #0076e1;
   /* ★ S14 (#1288): the app icon tile = the REAL launcher ground (Spixi/Resources/AppIcon/appicon.svg: #0076E1 + the
      #689 radial from the top-right corner) — one icon, so ONE set for both themes (the dark block does not override) */
@@ -1584,7 +1601,7 @@
      the Default stroke sat 4.03 L* below it; the colourful canvas is darker and mid-lightness,
      so the same alpha only reached 2.96 (teal end) / 3.62 (green end). .07 restores 3.47 / 4.26
      — the strength Damir already approved, carried onto a different ground rather than re-picked. */
-  --chat-pattern-alpha-1: 0.16;    /* ★ #1058 (walk after #1056, Damir 2026-09-29: "light barely visible"; picked from the ladder docs/sheets/1050/contours-ladder.png, 7.5 / 12 / 16 / 20 %): 0.075 → 0.16. ★ #1039 (PC+Android walk OV.16, Damir 2026-09-29: "need stronger"): 0.06 → 0.075, the rung #1029 named — ΔL* on Mist 3.99 → 4.99. ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). Dark unchanged. */
+  --chat-pattern-alpha-1: 0.128;   /* ★ S17 C v3 (Damir 21:57): −20 % (0.16 → 0.128), Contours AND Waves, every canvas. ★ #1058 (walk after #1056, Damir 2026-09-29: "light barely visible"; picked from the ladder docs/sheets/1050/contours-ladder.png, 7.5 / 12 / 16 / 20 %): 0.075 → 0.16. ★ #1039 (PC+Android walk OV.16, Damir 2026-09-29: "need stronger"): 0.06 → 0.075, the rung #1029 named — ΔL* on Mist 3.99 → 4.99. ★ #1029 (walk P.8, Damir 2026-09-28: "light Contours almost invisible"): ONE rung up, back to 0.06 — ΔL* on Mist 2.99 → 3.99 (the brand gradient 2.45 → 3.27); rendered with 0.075 beside it (docs/sheets/overnight-1028/p8-contours-light.png). Was 0.045 — #1002 ("Subtle ≈ 0.045" on Mist); before that 0.06 (2026-08-30). Next rung if still faint = 0.075 (ΔL* 4.99). (Dark: its own −20 % in the dark block.) */
   --chat-pattern-alpha-2: 0.2;     /* Strong — ★ #1058: 0.1 → 0.2 (the next ladder rung) so it stays ABOVE alpha-1. Dormant: no picker selects it (AUG). */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* message text scale (#147 — Chat appearance setting, FE-only). Bubbles
@@ -1774,6 +1791,40 @@
   --disc-grad-9: linear-gradient(180deg, #BB8DFA 0%, #AE59C8 100%);   /* purple = avatar pair 9 */
   --disc-grad-10: linear-gradient(180deg, #E57DCC 0%, #CF4A8C 100%);   /* pink = avatar pair 10 */
   --disc-grad-11: linear-gradient(180deg, #F778A0 0%, #DA4959 100%);   /* rose = avatar pair 11 */
+  /* ★ S17 E (#1337, deletedata-render.html option A): the Delete data tiles name the KIND of data — chat history blue,
+     downloads green (the render's two tiles; mode-less, like the disc palette). White glyph ≥ 3 : 1 at the tile centre. */
+  --dd-tile-history: linear-gradient(160deg, #6AA8FF 0%, #2160C2 100%);
+  --dd-tile-downloads: linear-gradient(160deg, #3CC49A 0%, #0E8164 100%);
+  /* ★ S17 E (#1336, downloads-contributors-render.html): Downloads names each KIND of file by one colour — the bar and
+     the legend take the solid (--dl-kind-*), the row's type tile the gradient (--dl-tile-*); white glyph ≥ 3 : 1 at the
+     tile centre. A photo's type tile (until its thumbnail, the pickup) takes one of eight calm tones (--dl-th-*), picked by
+     its name. Contributors: the six initial discs, the four sparkle inks and the three credit tiles. Mode-less. */
+  --dl-kind-image: #4F86FF;   --dl-tile-image: linear-gradient(160deg, #6AA8FF 0%, #2160C2 100%);
+  --dl-kind-pdf: #E0524F;     --dl-tile-pdf: linear-gradient(160deg, #FF8A80 0%, #D63C3C 100%);
+  --dl-kind-archive: #E8A33A; --dl-tile-archive: linear-gradient(160deg, #FFCF70 0%, #E08A1E 100%);
+  --dl-kind-doc: #5B6CF0;     --dl-tile-doc: linear-gradient(160deg, #9AA6FF 0%, #4351D6 100%);
+  --dl-kind-audio: #8A5CFF;   --dl-tile-audio: linear-gradient(160deg, #C9A6FF 0%, #7B4DFF 100%);
+  --dl-kind-video: #E2457A;   --dl-tile-video: linear-gradient(160deg, #FFB3C8 0%, #E23A6A 100%);
+  --dl-kind-code: #2DB38B;    --dl-tile-code: linear-gradient(160deg, #8EF0C9 0%, #23A07B 100%);
+  --dl-kind-other: #8A96A8;   --dl-tile-other: linear-gradient(160deg, #B4BECC 0%, #5B6778 100%);
+  --dl-th-0: linear-gradient(160deg, #9BE7FF 0%, #4FA3FF 100%);
+  --dl-th-1: linear-gradient(160deg, #FFB26B 0%, #FF6F91 100%);
+  --dl-th-2: linear-gradient(160deg, #FFE08A 0%, #FFB347 100%);
+  --dl-th-3: linear-gradient(160deg, #C6F6D5 0%, #68D391 100%);
+  --dl-th-4: linear-gradient(160deg, #FBC2EB 0%, #A18CD1 100%);
+  --dl-th-5: linear-gradient(160deg, #FFD1A6 0%, #FF9A8B 100%);
+  --dl-th-6: linear-gradient(160deg, #B8F1FF 0%, #7FD3FF 100%);
+  --dl-th-7: linear-gradient(160deg, #FFF1C1 0%, #F7C873 100%);
+  --dc-av-0: linear-gradient(150deg, #9CCBFF 0%, #2F7BE3 100%);
+  --dc-av-1: linear-gradient(150deg, #FFB3C8 0%, #E23A6A 100%);
+  --dc-av-2: linear-gradient(150deg, #C9A6FF 0%, #7B4DFF 100%);
+  --dc-av-3: linear-gradient(150deg, #8EF0C9 0%, #2DB38B 100%);
+  --dc-av-4: linear-gradient(150deg, #FFE08A 0%, #F2A93B 100%);
+  --dc-av-5: linear-gradient(150deg, #9BE8FF 0%, #2FA6FF 100%);
+  --dc-spk-0: #FF5FA8; --dc-spk-1: #7B4DFF; --dc-spk-2: #2FA6FF; --dc-spk-3: #F2A93B;
+  --dc-tile-sounds: linear-gradient(160deg, #C9A6FF 0%, #7B4DFF 100%);
+  --dc-tile-icons: linear-gradient(160deg, #6AA8FF 0%, #2160C2 100%);
+  --dc-tile-flags: linear-gradient(160deg, #FFB3C8 0%, #E23A6A 100%);
   --disc-grad-neutral: linear-gradient(180deg, #8A96A8 0%, #5B6778 100%);   /* slate — the calm rows */
   --disc-shade: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15));   /* ★ #1031 (M4): the icon disc's shade — a white glyph ≥ 3:1 on every pair */
   --tile-shade: linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25));   /* ★ #1031 (M3): the document tile's shade under a family gradient — white 11px bold ≥ 4.5:1 */
@@ -1970,7 +2021,7 @@
      #701 canvas, where #bbd0ff @ .065 read +5.89. So the STRENGTH is unchanged (within 4%)
      and what actually changes is the HUE — a neutral ink instead of a blue-tinted one. */
   --chat-pattern-ink: #C6CFFD;   /* ★ Session J (#758, Damir 2026-09-03: "pattern colour #C6CFFD, 4%") — a periwinkle ink instead of white. Reversal = #ffffff */
-  --chat-pattern-alpha-1: 0.13;    /* ★ #1058 (Damir 2026-09-29: "dark almost invisible"; picked from the ladder, 4 / 9 / 13 / 18 %): 0.04 → 0.13. ★ Session J (#758): 4%. Superseded: 0.03 (Damir 2026-08-30 #711 "reduce dark by 2%") ← 0.05 */
+  --chat-pattern-alpha-1: 0.104;   /* ★ S17 C v3 (Damir 21:57): −20 % (0.13 → 0.104). ★ #1058 (Damir 2026-09-29: "dark almost invisible"; picked from the ladder, 4 / 9 / 13 / 18 %): 0.04 → 0.13. ★ Session J (#758): 4%. Superseded: 0.03 (Damir 2026-08-30 #711 "reduce dark by 2%") ← 0.05 */
   --chat-pattern-alpha-2: 0.18;    /* Strong — ★ #1058: 0.1 → 0.18 (the next ladder rung) so it stays ABOVE alpha-1. Was the same 0.1 ceiling in both themes. Dormant. */
   --chat-pattern-opacity: var(--chat-pattern-alpha-1);
   /* ★★★ AUG (Damir 2026-08-30, ON DEVICE, ruled off a render): the dark canvas takes the
@@ -2066,6 +2117,12 @@
   --il-shadow-a: .32;
   --il-ground-a: .38;
   --il-spark: #bcc8ff;
+  /* ★ S17 (#1331) — the S17 art, dark values (see the light block). */
+  --wn-ground-a: #2c5fd8; --wn-ground-b: #6a2fc8;
+  --wn-glow-a: .1; --wn-star: #ffffff; --wn-shadow: #050522; --wn-shadow-a: .55;
+  --wn-deco: #a48dff; --wn-chip: #ffffff; --wn-chip-ink: #ffffff;
+  --ch-shadow: #050522; --ch-shadow-a: .55;
+  --dc-a: #2c3fa8; --dc-b: #5a2aa8; --dc-c: #8a2a6e;
   --il-dotc: #c7b5ff;
   --il-screen: #15171c;
   --il-recv: #2b2f3a;
@@ -2109,6 +2166,12 @@
   --ab-band-sheen: rgba(255, 255, 255, .16);
   --ab-band-from: #24509e;   /* ★ S14 (#1288): a deeper launcher-family blue under the brighter #0076E1 tile */
   --ab-band-to: #173a7c;
+  --ab-band-deep: #0f2a5e;              /* ★ S17 B (#1332): the full-bleed header's deep stop, dark */
+  --ab-field-a: #3f7fe0;
+  --ab-field-b: #3f5fe0;
+  --ab-field-c: #1d5fd0;
+  --ab-sheen-op: .35;
+  --ab-scrim: rgba(0, 0, 0, .25);
   --ab-bubble-dot: #0a62c4;
 }
 
@@ -2169,6 +2232,13 @@
   --gradient-chat: linear-gradient(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%), var(--chat-canvas-base);
   --chat-pattern-ink: #3A2F66;
   --surface-select-row-gap: #B6B6E4;   /* #46 r1 B-m1: the band over the gradient's middle stop (ring 3.59:1) */
+  --surface-bubble-sent: #6145D6;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #6145D6;
+  --surface-card-sent: #EFECFB;
+  --outline-card-sent: rgba(97, 69, 214, 0.18);
+  --outline-card-sent-selected: rgba(97, 69, 214, 0.45);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
 /* ★★ #1080 F15 (Damir 2026-09-30, picked G2 of a rendered 3-way, from his green title-bar colours):
    the GREEN gradient — light only, never the default, same two selectors as the brand rule (the chat
@@ -2180,16 +2250,31 @@
   --gradient-chat: linear-gradient(160deg, #D6EBC6 0%, #D2EDA8 45%, #CFE9BD 100%), var(--chat-canvas-base);
   --chat-pattern-ink: #2F5A1E;
   --surface-select-row-gap: #B8D4AB;   /* #46 r1 B-m1: the band over the green's middle stop (ring 4.34:1) */
+  --surface-bubble-sent: #0E7A55;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #0E7A55;
+  --surface-card-sent: #E7F2EE;
+  --outline-card-sent: rgba(14, 122, 85, 0.18);
+  --outline-card-sent-selected: rgba(14, 122, 85, 0.45);
+  --text-bubble-sent-meta: var(--neutral-10);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
 /* ★★ S8 (#1237, Damir 2026-10-07, picked B1 "Sky" of the rendered s8x 3-way): the BLUE gradient, light half — a cool
    sky wash, never the default, same two selectors as the brand and green rules; its own deep-navy ink. Measured on the
-   plain stops: sent #2160c2 4.30 → 3.83:1 · white received 1.39 → 1.56:1 · the A2 ring 3.85:1 on its gap.
+   plain stops (S8, with the old blue bubble): sent #2160c2 4.30 → 3.83:1 · white received 1.39 → 1.56:1 · the A2 ring 3.85:1
+   on its gap. ★ S17 C v3: its own bubble is #3050BD (the Spixi brand blue).
    Reversal = delete this rule, the dark 'blue' rule and the CHAT_GROUNDS member. */
 :root:not([data-theme='dark'])[data-chat-ground='blue'],
 :root:not([data-theme='dark']) [data-chat-ground='blue'] {
   --gradient-chat: linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%), var(--chat-canvas-base);
   --chat-pattern-ink: #1E3A66;
   --surface-select-row-gap: #ADC1E9;   /* the select-row band (16 %) made opaque over the middle stop #C5D6F1 — ring 3.85:1 */
+  --surface-bubble-sent: #3050BD;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #3050BD;
+  --surface-card-sent: #EAEEF8;
+  --outline-card-sent: rgba(48, 80, 189, 0.18);
+  --outline-card-sent-selected: rgba(48, 80, 189, 0.45);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
 /* ⚠★ AND THE FLAT TILE HAS TO SAY SO EXPLICITLY. Custom properties INHERIT: once <html>
    carries data-chat-ground='gradient', the wash above cascades into every descendant —
@@ -2200,37 +2285,291 @@
 :root:not([data-theme='dark']) [data-chat-ground='flat'] {
   --gradient-chat: var(--chat-canvas-base);
   --chat-pattern-ink: var(--chat-pattern-ink-mist);   /* ★ #1002: the brand gradient's ink must not cascade into the flat tile */
+  --surface-bubble-sent: #2160C2;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #2160C2;
+  --surface-card-sent: #EAF0FC;
+  --outline-card-sent: rgba(33, 96, 194, 0.18);
+  --outline-card-sent-selected: rgba(33, 96, 194, 0.45);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
 /* ★★ #1066 (Damir 2026-09-29: "offer a gradient in dark mode too"; picked B of a rendered 3-way at
    mobile + desktop width — A brand violet · B blue-violet · C violet corner): the DARK brand gradient,
-   blue-violet at the top settling into the #0C0E10 midnight ground by the bottom half, so the composer
-   and the newest messages sit on the plain canvas. Same pref, same selectors as light (the root for the
-   chat, a descendant for the settings preview and the dot), (0,3,0) against the dark block's (0,1,0).
-   The pattern ink stays #C6CFFD (it reads on both ends). Sent #1a4a96 vs the top stop #151B36 = 2.0:1
-   (the same lift it has on the flat canvas, 2.2:1). Reversal = delete these two rules. */
+   blue-violet at the top settling into the #0C0E10 midnight ground by the bottom half (★ S17 C v3: now FULL COVERAGE,
+   see the rule). Same pref, same selectors as light (the root for the chat, a descendant for the settings preview and the
+   dot), (0,3,0) against the dark block's (0,1,0). The pattern ink stays #C6CFFD. Reversal = delete these two rules. */
 :root[data-theme='dark'][data-chat-ground='gradient'],
 :root[data-theme='dark'] [data-chat-ground='gradient'] {
-  --gradient-chat: linear-gradient(180deg, #151B36 0%, #11142A 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);   /* r2 NIT: the last stop IS the canvas — no seam if the base is re-picked */
-  --surface-select-row-gap: #273259;   /* #46 r2 R2-m2: the band over the gradient's middle stop (22 % over #11142A) — the flat #232D45 left a seam */
+  /* ★ S17 C v3 (Damir 21:50): FULL COVERAGE — the canvas keeps its colour over the whole chat (the fade to the plain ground made
+     every dark canvas look the same). Was linear-gradient(180deg, #151B36 0%, #11142A 45%, var(--chat-canvas-base) 100%). */
+  --gradient-chat: linear-gradient(160deg, #1C1645 0%, #0D1030 100%), var(--chat-canvas-base);
+  --chat-pattern-ink: #C6CFFD;
+  --surface-select-row-gap: #2A3165;   /* v3: today's band (22 %) made opaque over the middle of the new ground */
+  --surface-bubble-sent: #4B31B7;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #4B31B7;
+  --surface-card-sent: #261F44;
+  --outline-card-sent: rgba(156, 142, 215, 0.22);
+  --outline-card-sent-selected: rgba(156, 142, 215, 0.55);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
 /* ★★ S8 (#1237, Damir 2026-10-07, picked from the rendered s8x 3-ways): the DARK green (DG1 "Forest") and the DARK blue
-   (DB1 "Azure") — the #1066 grammar exactly: a tinted top settling into the midnight canvas (the last stop IS
-   var(--chat-canvas-base), no seam), so the composer and the newest messages sit on the plain ground. Each carries its
-   own pattern ink (the dark #C6CFFD periwinkle read violet on these hues). Measured on the plain top → bottom stops:
-   sent #1a4a96 1.93 / 1.89 → 2.27:1 (the dark brand gradient: 1.98) · the A2 ring 4.68:1 on each gap.
+   (DB1 "Azure") — each carries its own pattern ink (the dark #C6CFFD periwinkle read violet on these hues). ★ S17 C v3
+   (Damir 21:50): FULL COVERAGE now (the S8 fade into the midnight canvas made the dark canvases look alike) and each its
+   own flat bubble (values in the rules; contrast in the S17 C header).
    Reversal = delete these two rules (green falls back to light-only: put `lightOnly: true` back on its member). */
 :root[data-theme='dark'][data-chat-ground='green'],
 :root[data-theme='dark'] [data-chat-ground='green'] {
-  --gradient-chat: linear-gradient(180deg, #11231A 0%, #0E1A14 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);
+  --gradient-chat: linear-gradient(160deg, #0F2C23 0%, #0B1A16 100%), var(--chat-canvas-base);   /* ★ S17 C v3: full coverage (was 180deg #11231A → #0E1A14 → the canvas) */
   --chat-pattern-ink: #BFE8CB;
-  --surface-select-row-gap: #253748;   /* the select-row band (22 %) made opaque over the middle stop #0E1A14 — ring 4.68:1 */
+  --surface-select-row-gap: #243E4E;   /* v3: today's band (22 %) made opaque over the middle of the new ground */
+  --surface-bubble-sent: #11603F;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #11603F;
+  --surface-card-sent: #172B26;
+  --outline-card-sent: rgba(124, 168, 149, 0.22);
+  --outline-card-sent-selected: rgba(124, 168, 149, 0.55);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
 :root[data-theme='dark'][data-chat-ground='blue'],
 :root[data-theme='dark'] [data-chat-ground='blue'] {
-  --gradient-chat: linear-gradient(180deg, #0D2238 0%, #0C1828 45%, var(--chat-canvas-base) 100%), var(--chat-canvas-base);
+  --gradient-chat: linear-gradient(160deg, #0F2349 0%, #0A1430 100%), var(--chat-canvas-base);   /* ★ S17 C v3: full coverage (was 180deg #0D2238 → #0C1828 → the canvas) */
   --chat-pattern-ink: #C2DDFB;
-  --surface-select-row-gap: #233557;   /* the select-row band (22 %) made opaque over the middle stop #0C1828 — ring 4.68:1 */
+  --surface-select-row-gap: #233867;   /* v3: today's band (22 %) made opaque over the middle of the new ground */
+  --surface-bubble-sent: #2D48A3;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #2D48A3;
+  --surface-card-sent: #1E253E;
+  --outline-card-sent: rgba(140, 154, 204, 0.22);
+  --outline-card-sent-selected: rgba(140, 154, 204, 0.55);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
 :root[data-theme='dark'] [data-chat-ground='flat'] {
   --gradient-chat: var(--chat-canvas-base);
+  --surface-bubble-sent: #1A4A96;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #1A4A96;
+  --surface-card-sent: #19253B;
+  --outline-card-sent: rgba(118, 157, 255, 0.22);
+  --outline-card-sent-selected: rgba(118, 157, 255, 0.55);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+
+/* ═══ ★ S17 C (#1334) — CHAT APPEARANCE: three NEW canvases + the bubble colours ═══════════════════════════════════
+   ★ v3 (Damir 21:50, "FINAL VALUES v3" — replaces the 21:24 file): there are no users yet, so today's four change too —
+   EACH canvas carries its OWN flat bubble colour (Auto: sent = gradient-sent, its card tint, its meta ink) in its ground
+   rule, and every DARK canvas is FULL COVERAGE (no fade to the plain ground — that made the dark canvases look alike).
+   Pattern alpha −20 % (21:57). Light grounds of Mist / Iris / Spixi / Meadow = today's. Same two selectors as the rules
+   above (the chat root + a descendant for the settings preview and its tiles), (0,3,0) against the theme blocks' (0,1,0).
+   · AURORA (Damir 15:55 B: a REAL aurora — the violet one read as Viber), DUSK, OCEAN: ground · pattern ink · the select
+     band made opaque over the middle stop · the canvas's OWN sent colour ("Auto") with its sent-card tint.
+   · BUBBLE COLOURS ([data-chat-sent], spixi.chat.sentcolour): AFTER the ground rules on purpose — same specificity, later
+     wins — so a picked colour beats a canvas's Auto colour on the same element. Light = the lightest step that keeps
+     white text ≥ 4.6 : 1; dark = one step deeper (−0.10 lightness, the #1055 step; Damir 15:15). The sent CARDS follow
+     the colour (Damir 18:2x): a pale tint (light 10 % of the colour over white · dark 25 % of the dark step over the
+     card base) + a 1 px edge at 18 % / 22 %, 45 % / 55 % while selected. 'blue' = today's exact values.
+   Measured white-on-sent (light / dark, WCAG): blue #2160C2 5.97 / #1A4A96 8.52 · violet #6C4CF2 5.31 / #4B27E4 7.75 · teal #0C7F73 4.88 / #0B4D46 9.70 · pink #D02B7D 4.86 / #A62264 6.92 · orange #B85414 4.87 / #844115 7.64 · graphite #3C4352 9.92 / #262B35 14.20.
+   v3 Auto per canvas (white / meta ink, light · dark): Mist #2160C2 5.97 / 5.05 · #1A4A96 8.52 / 7.21 — Iris #6145D6 6.31 / 5.33 · #4B31B7 8.67 / 7.33 — Spixi #3050BD 6.98 / 5.90 · #2D48A3 8.18 / 6.92 — Meadow #0E7A55 5.34 / #f9fafb 5.11 · #11603F 7.58 / 6.41 — Aurora #07666B 6.73 / 5.69 · #08626A 7.08 / 5.99 — Dusk #D02B7D 4.86 / #f9fafb 4.65 · #A62264 6.92 / 5.85 — Ocean #0D7AA7 4.82 / #f9fafb 4.61 · #13729A 5.38 / 4.55.
+   Sent cards: light = 10 % of the colour over white + a 1 px edge at 18 % / 45 %; dark = 25 % of the colour over #19191D + an edge of the colour lifted 45 % to white at 22 % / 55 %. */
+:root:not([data-theme='dark'])[data-chat-ground='aurora'],
+:root:not([data-theme='dark']) [data-chat-ground='aurora'] {
+  --gradient-chat: linear-gradient(150deg, #7EE0C4 0%, #5FB4EE 48%, #8F80F2 100%), var(--chat-canvas-base);
+  --chat-pattern-ink: #FFFFFF;
+  --chat-pattern-alpha-1: 0.24;   /* white lines on a vivid ground need more (render: .3; v3 −20 % → .24) */
+  --surface-select-row-gap: #57A4E6;
+  --surface-bubble-sent: #07666B;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #07666B;
+  --surface-card-sent: #E6F0F0;
+  --outline-card-sent: rgba(7, 102, 107, 0.18);
+  --outline-card-sent-selected: rgba(7, 102, 107, 0.45);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-ground='aurora'],
+:root[data-theme='dark'] [data-chat-ground='aurora'] {
+  --gradient-chat: linear-gradient(150deg, #0A3833 0%, #102A62 52%, #261866 100%), var(--chat-canvas-base);   /* ★ S17 C v3 (Damir 21:50): full coverage */
+  --chat-pattern-ink: #FFFFFF;
+  --surface-select-row-gap: #264385;
+  --surface-bubble-sent: #08626A;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #08626A;
+  --surface-card-sent: #152B30;
+  --outline-card-sent: rgba(119, 169, 173, 0.22);
+  --outline-card-sent-selected: rgba(119, 169, 173, 0.55);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root:not([data-theme='dark'])[data-chat-ground='dusk'],
+:root:not([data-theme='dark']) [data-chat-ground='dusk'] {
+  --gradient-chat: linear-gradient(160deg, #FFD9C4 0%, #E9C9FF 100%), var(--chat-canvas-base);
+  --chat-pattern-ink: #7A3F5E;
+  --surface-select-row-gap: #D5BCDC;
+  --surface-bubble-sent: #D02B7D;
+  --gradient-bubble-sent: #D02B7D;
+  --surface-card-sent: #FAEAF2;
+  --outline-card-sent: rgba(208, 43, 125, 0.18);
+  --outline-card-sent-selected: rgba(208, 43, 125, 0.45);
+  --text-bubble-sent-meta: var(--neutral-10);   /* ★ S17 C (values file 21:24): #f9fafb — today's #e9ecf3 is 4.11 : 1 on this sent colour (fails 4.5) */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-ground='dusk'],
+:root[data-theme='dark'] [data-chat-ground='dusk'] {
+  --gradient-chat: linear-gradient(160deg, #3B1F3C 0%, #1B1430 100%), var(--chat-canvas-base);   /* ★ S17 C v3 (Damir 21:50): full coverage */
+  --chat-pattern-ink: #FFC9E4;
+  --surface-select-row-gap: #3C3762;
+  --surface-bubble-sent: #A62264;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #A62264;
+  --surface-card-sent: #3C1B2F;
+  --outline-card-sent: rgba(206, 133, 170, 0.22);
+  --outline-card-sent-selected: rgba(206, 133, 170, 0.55);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root:not([data-theme='dark'])[data-chat-ground='ocean'],
+:root:not([data-theme='dark']) [data-chat-ground='ocean'] {
+  --gradient-chat: linear-gradient(160deg, #BDEFFF 0%, #C9D6FF 100%), var(--chat-canvas-base);
+  --chat-pattern-ink: #0E5770;
+  --surface-select-row-gap: #ABCBF4;
+  --surface-bubble-sent: #0D7AA7;
+  --gradient-bubble-sent: #0D7AA7;
+  --surface-card-sent: #E7F2F6;
+  --outline-card-sent: rgba(13, 122, 167, 0.18);
+  --outline-card-sent-selected: rgba(13, 122, 167, 0.45);
+  --text-bubble-sent-meta: var(--neutral-10);   /* ★ S17 C (values file 21:24): #f9fafb — today's #e9ecf3 is 4.07 : 1 on this sent colour (fails 4.5) */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-ground='ocean'],
+:root[data-theme='dark'] [data-chat-ground='ocean'] {
+  --gradient-chat: linear-gradient(160deg, #0B3A4A 0%, #0B1D3A 100%), var(--chat-canvas-base);   /* ★ S17 C v3 (Damir 21:50): full coverage */
+  --chat-pattern-ink: #A6ECFF;
+  --surface-select-row-gap: #23456C;
+  --surface-bubble-sent: #13729A;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #13729A;
+  --surface-card-sent: #182F3C;
+  --outline-card-sent: rgba(125, 177, 199, 0.22);
+  --outline-card-sent-selected: rgba(125, 177, 199, 0.55);
+  --text-bubble-sent-meta: var(--primary-50);
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+/* ★ S17 C (#1334, values v3 §1 / §7): THE PREVIEW TILES MUST NOT INHERIT ANOTHER CANVAS. Custom properties inherit, so a tile
+   (a descendant with its own data-chat-ground) under a root on Aurora / Meadow / Ocean … would take the root's values wherever
+   its own rule is silent:
+   · light — only Aurora raises the pattern strength (0.24): every OTHER tile resets it to the :root value (0.128; a pin keeps
+     the two equal);
+   · dark — the Mist descendant rule carries no ink and the Iris ink is the :root periwinkle: both reset to it here, so a
+     Meadow / Spixi / new canvas ink never leaks into their tiles. (The sent colour cannot leak: EVERY ground rule — the flat
+     descendant rules included — sets its own Auto colour.) */
+:root:not([data-theme='dark']) [data-chat-ground]:not([data-chat-ground='aurora']) {
+  --chat-pattern-alpha-1: 0.128;
+}
+:root[data-theme='dark'] [data-chat-ground='flat'],
+:root[data-theme='dark'] [data-chat-ground='gradient'] {
+  --chat-pattern-ink: #C6CFFD;
+}
+:root:not([data-theme='dark'])[data-chat-sent='blue'],
+:root:not([data-theme='dark']) [data-chat-sent='blue'] {
+  --surface-bubble-sent: #2160C2;
+  --gradient-bubble-sent: #2160C2;
+  --surface-card-sent: #EAF0FC;
+  --outline-card-sent: rgba(33, 96, 194, 0.18);
+  --outline-card-sent-selected: rgba(33, 96, 194, 0.45);
+  --text-bubble-sent-meta: var(--primary-50);   /* ★ S17 C: today's meta ink (≥ 4.5 here) — resets an inherited #f9fafb */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-sent='blue'],
+:root[data-theme='dark'] [data-chat-sent='blue'] {
+  --surface-bubble-sent: #1A4A96;
+  --gradient-bubble-sent: #1A4A96;
+  --surface-card-sent: #19253B;
+  --outline-card-sent: rgba(118, 157, 255, 0.22);
+  --outline-card-sent-selected: rgba(118, 157, 255, 0.55);
+}
+:root:not([data-theme='dark'])[data-chat-sent='violet'],
+:root:not([data-theme='dark']) [data-chat-sent='violet'] {
+  --surface-bubble-sent: #6C4CF2;
+  --gradient-bubble-sent: #6C4CF2;
+  --surface-card-sent: #F0EDFE;
+  --outline-card-sent: rgba(108, 76, 242, 0.18);
+  --outline-card-sent-selected: rgba(108, 76, 242, 0.45);
+  --text-bubble-sent-meta: var(--neutral-10);   /* ★ S17 C (values file 21:24): #f9fafb — today's #e9ecf3 is 4.49 : 1 on this sent colour (fails 4.5) */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-sent='violet'],
+:root[data-theme='dark'] [data-chat-sent='violet'] {
+  --surface-bubble-sent: #4B27E4;
+  --gradient-bubble-sent: #4B27E4;
+  --surface-card-sent: #211A4E;
+  --outline-card-sent: rgba(174, 157, 248, 0.22);
+  --outline-card-sent-selected: rgba(174, 157, 248, 0.55);
+}
+:root:not([data-theme='dark'])[data-chat-sent='teal'],
+:root:not([data-theme='dark']) [data-chat-sent='teal'] {
+  --surface-bubble-sent: #0C7F73;
+  --gradient-bubble-sent: #0C7F73;
+  --surface-card-sent: #E7F2F1;
+  --outline-card-sent: rgba(12, 127, 115, 0.18);
+  --outline-card-sent-selected: rgba(12, 127, 115, 0.45);
+  --text-bubble-sent-meta: var(--neutral-10);   /* ★ S17 C (values file 21:24): #f9fafb — today's #e9ecf3 is 4.13 : 1 on this sent colour (fails 4.5) */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-sent='teal'],
+:root[data-theme='dark'] [data-chat-sent='teal'] {
+  --surface-bubble-sent: #0B4D46;
+  --gradient-bubble-sent: #0B4D46;
+  --surface-card-sent: #112426;
+  --outline-card-sent: rgba(121, 185, 178, 0.22);
+  --outline-card-sent-selected: rgba(121, 185, 178, 0.55);
+}
+:root:not([data-theme='dark'])[data-chat-sent='pink'],
+:root:not([data-theme='dark']) [data-chat-sent='pink'] {
+  --surface-bubble-sent: #D02B7D;
+  --gradient-bubble-sent: #D02B7D;
+  --surface-card-sent: #FAEAF2;
+  --outline-card-sent: rgba(208, 43, 125, 0.18);
+  --outline-card-sent-selected: rgba(208, 43, 125, 0.45);
+  --text-bubble-sent-meta: var(--neutral-10);   /* ★ S17 C (values file 21:24): #f9fafb — today's #e9ecf3 is 4.11 : 1 on this sent colour (fails 4.5) */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-sent='pink'],
+:root[data-theme='dark'] [data-chat-sent='pink'] {
+  --surface-bubble-sent: #A62264;
+  --gradient-bubble-sent: #A62264;
+  --surface-card-sent: #38192E;
+  --outline-card-sent: rgba(229, 138, 184, 0.22);
+  --outline-card-sent-selected: rgba(229, 138, 184, 0.55);
+}
+:root:not([data-theme='dark'])[data-chat-sent='orange'],
+:root:not([data-theme='dark']) [data-chat-sent='orange'] {
+  --surface-bubble-sent: #B85414;
+  --gradient-bubble-sent: #B85414;
+  --surface-card-sent: #F8EEE8;
+  --outline-card-sent: rgba(184, 84, 20, 0.18);
+  --outline-card-sent-selected: rgba(184, 84, 20, 0.45);
+  --text-bubble-sent-meta: var(--neutral-10);   /* ★ S17 C (values file 21:24): #f9fafb — today's #e9ecf3 is 4.11 : 1 on this sent colour (fails 4.5) */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-sent='orange'],
+:root[data-theme='dark'] [data-chat-sent='orange'] {
+  --surface-bubble-sent: #844115;
+  --gradient-bubble-sent: #844115;
+  --surface-card-sent: #2F211A;
+  --outline-card-sent: rgba(216, 161, 126, 0.22);
+  --outline-card-sent-selected: rgba(216, 161, 126, 0.55);
+}
+:root:not([data-theme='dark'])[data-chat-sent='graphite'],
+:root:not([data-theme='dark']) [data-chat-sent='graphite'] {
+  --surface-bubble-sent: #3C4352;
+  --gradient-bubble-sent: #3C4352;
+  --surface-card-sent: #ECECEE;
+  --outline-card-sent: rgba(60, 67, 82, 0.18);
+  --outline-card-sent-selected: rgba(60, 67, 82, 0.45);
+  --text-bubble-sent-meta: var(--primary-50);   /* ★ S17 C: today's meta ink (≥ 4.5 here) — resets an inherited #f9fafb */
+  --icon-bubble-delivered: var(--text-bubble-sent-meta);
+}
+:root[data-theme='dark'][data-chat-sent='graphite'],
+:root[data-theme='dark'] [data-chat-sent='graphite'] {
+  --surface-bubble-sent: #262B35;
+  --gradient-bubble-sent: #262B35;
+  --surface-card-sent: #181B22;
+  --outline-card-sent: rgba(148, 152, 160, 0.22);
+  --outline-card-sent-selected: rgba(148, 152, 160, 0.55);
 }

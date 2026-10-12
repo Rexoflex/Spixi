@@ -52,6 +52,8 @@
      the W-h gate catches a miss. Without them the takeover opens UNSTYLED. -->
 <link rel="stylesheet" href="../styles/components/contact-row.css"><!-- W-j: wallet-send's row atom (companion stylesheet) -->
 <link rel="stylesheet" href="../styles/components/wallet-send.css">
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S17 F (#46 r3 MINOR-3): the moment art's motion -->
+<link rel="stylesheet" href="../styles/components/moment-sheet.css"><!-- ★ S17 F (#1340): the first-payment moment -->
 <!-- ★★ THE W-h GATE CAUGHT THESE TWO, and it was right: openRequestSheet renders
      .c-tipsheet (no hyphen — tip-sheet.js) with a .c-chip amount row, so the Request sheet
      would have opened UNSTYLED. Two stylesheets for one opener is the miss the gate is for. -->
@@ -251,6 +253,7 @@
      * `setSendQuote` is renamed because the BRIDGE HANDLER below shares the name. */
     createTopbar,                                    // the takeover's own view topbar (Back)
     createWalletSend,                                // Pay  → the lockedRecipient compose (W5 #523)
+    createMomentClient, momentBeforeAction,          // ★ S17 F (#1340): the first-payment moment before the review
     openRequestSheet,                                // Request → the amount sheet (#139/#528)
     setSendQuote: applySendQuote,                    // W6 — the component-side quote applier
     parseSharedItems, createSharedList,              // ★★ #1106: shared media / files / links
@@ -319,6 +322,7 @@
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  const moments = createMomentClient({ bridge });   // ★ S17 F (#1340, P28): the first payment (Pay on this page)
   /* #343: ONE call lights up press feedback for every pressable surface in this
      shell (src/components/pressable.js). Delegated on document, so rows created
      later by a re-render are covered without re-attaching. A new shell needs
@@ -1064,6 +1068,8 @@
          the Max ceiling. This shell sent a second, identical quote after the cover was
          attached. The duplicate is removed. ⚠ Do not add a quote here again. */
       onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
+      // ★ S17 F (#1340): the first payment — the moment sheet BEFORE the review; the review and the native confirm are unchanged
+      onBeforeReview: (go, stop) => momentBeforeAction(moments, { id: 'pay', host: document.body, strings, go, stop }),
       onSend: (payload, ctrl) => {
         const r = (payload.recipients && payload.recipients[0]) || {};
         cdSendCtrl = ctrl;
@@ -1122,6 +1128,15 @@
    * C#→JS handlers — page globals (executeUiCommand resolves bare fnRefs).
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    /* ★ S17 F (#1340, 🟡 NEW push, P28 · flag S17Moments + cap `moments`) */
+    setMoments(json) {
+      if (!bridge.cap('moments')) return;
+      moments.setState(String(json));
+    },
+    momentAnswer(id, arg, ok, caps) {
+      if (!bridge.cap('moments')) return;
+      moments.answer(String(id), String(arg == null ? '' : arg), String(ok), String(caps == null ? '' : caps));
+    },
     // W1 (#336): this shell had NO setTheme handler at all — the pick-time C# fan-out
     // (SettingsPage:398-426, all overlays) hit an undefined bare global (a swallowed
     // ReferenceError, the #258 class), so a live chat-info/group-info pane could

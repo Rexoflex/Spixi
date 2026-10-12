@@ -950,6 +950,12 @@ namespace SPIXI
                     Utils.openExternal(u);   // the one external-open gate (Spixi/Utils/Utils.cs)
                 }
             }
+            else if (S17Rules.isDoneVerb(current_url))
+            {
+                /* ★ S17 (#1338, 🟡 NEW verb, P26): the What's new card closed (any path) — store seen = this version. No
+                 * argument travels; the version is C#'s own. Ignored with the flag OFF. */
+                markWhatsNewSeen();
+            }
             else if (current_url.StartsWith("ixian:hint:", StringComparison.Ordinal))
             {
                 /* ★ S11 A (#1262, 🟡 NEW verb): `ixian:hint:<shown|done>:<tip id>` from the Chats-list hint card. The action
@@ -2672,6 +2678,46 @@ namespace SPIXI
          * glyphs; every other screen follows the app theme. The launch flow already gets
          * that for free (intro.html is a fixed dark surface); this is the wallet half.
          * tab2 is the wallet tab (HomePage's own tab ids, see the ixian:tab: branch). */
+        /* ★ S17 (#1338, 🟡 NEW push, P26): setWhatsNew {"version":"<digits>","show":true|false} — show = the stored seen version
+         * (SLocalOnlyStore, local only) differs from this build's. A fresh install (create OR restore) has none, so it shows once
+         * (Damir 20:43). An invalid Config.version pushes nothing. The FE owns the per-release table and answers
+         * ixian:whatsnew:done at once when it has none (a silent bump). Shared by SettingsPage (the About row's badge). */
+        internal static void pushWhatsNewTo(SpixiContentPage page)
+        {
+            if (!SpixiFlags.S17Bridge)
+            {
+                return;
+            }
+            string v = S17Rules.versionDigits(Config.version);
+            if (v.Length == 0)
+            {
+                return;
+            }
+            string json = S17Rules.pushJson(v, S17Rules.shouldShow(SLocalOnlyStore.get(S17Rules.SeenKey), v));
+            if (json.Length > 0)
+            {
+                Utils.sendUiCommand(page, "setWhatsNew", json);
+            }
+        }
+
+        private void pushWhatsNew()
+        {
+            pushWhatsNewTo(this);
+        }
+
+        internal static void markWhatsNewSeen()
+        {
+            if (!SpixiFlags.S17Bridge)
+            {
+                return;
+            }
+            string v = S17Rules.versionDigits(Config.version);
+            if (v.Length > 0)
+            {
+                SLocalOnlyStore.set(S17Rules.SeenKey, v);
+            }
+        }
+
         protected override string systemBarSurfaceColorString()
         {
             /* ★ L6 review MAJOR-2. The hero colour is right for the WALLET TAB and wrong
@@ -2793,8 +2839,12 @@ namespace SPIXI
             // ★ S11 A (#1262): + hints — this exe handles ixian:hint:* and pushes setHints (the counters, right below).
             // ★ S11 A2 (#1263, R2-m4): + updateHelp — this exe handles ixian:updateHelp (the update card's link).
             // ★ S12 A (#1267): + hintHelp — this exe handles ixian:hintHelp:<id> (a hint card's web Learn more).
-            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp,hintHelp");
+            // ★ S17 (#1338, P26): + whatsnew — this exe pushes setWhatsNew and handles ixian:whatsnew:done (flag SpixiFlags.S17Bridge).
+            // ★ S17 F (#1340, P28): + moments — setMoments / momentAnswer and the ixian:moment:* verbs (flag SpixiFlags.S17Moments).
+            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp,hintHelp" + (SpixiFlags.S17Bridge ? ",whatsnew" : "") + (SpixiFlags.S17Moments ? ",moments" : ""));
             pushHints();
+            pushWhatsNew();
+            SMoments.pushTo(this);   // ★ S17 F (#1340): the moment state (no-op with the flag OFF)
 
             // ★ D-20 (#357): the "Connecting…" state died with the document. warningDisplayed
             // is a C# field, so it survives every shell reload (language re-bake, theme, WebView

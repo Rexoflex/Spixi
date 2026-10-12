@@ -72,7 +72,8 @@
         is set in BOTH themes and is inert in dark (the brand gradient is a light ground).
         ★ S8 (#1237): four values now — flat · gradient · green · blue — each with a light AND a dark
         rule; this is ladder 1 of the #690 three (readPatternPrefs below · settings.html readChatPrefs). -->
-<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='';try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.8,t))));if(s!=='contours')s='contours';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient'&&g!=='green'&&g!=='blue')g='flat';document.documentElement.setAttribute('data-chat-ground',g);})();</script>
+<!-- ★ S17 C (#1334): ladder 1 of the #690 three also reads the NEW keys — spixi.chat.sentcolour (6 ids, else no attribute = the canvas's Auto colour) and spixi.chat.corners (4–22 px, else the token 18) — and admits the new ground ids (aurora · dusk · ocean) and the new pattern id (rings); the text-size floor is 0.75 (the 12 px end of the slider). -->
+<script>(function(){var r=document.documentElement.style,de=document.documentElement.hasAttribute('data-desktop'),p=NaN,t=NaN,s='',g='',c='',k=NaN;try{p=parseFloat(localStorage.getItem('spixi.chat.pattern'));t=parseFloat(localStorage.getItem('spixi.chat.textscale'));s=localStorage.getItem('spixi.chat.patternstyle')||'';g=localStorage.getItem('spixi.chat.ground')||'';c=localStorage.getItem('spixi.chat.sentcolour')||'';k=parseFloat(localStorage.getItem('spixi.chat.corners'));}catch(e){}var lv;if(!isFinite(p))lv=1;else if(p<=0)lv=0;else lv=1;r.setProperty('--chat-pattern-opacity',lv<=0?'0':'var(--chat-pattern-alpha-1)');if(isFinite(t))r.setProperty('--chat-text-scale',String(Math.min(1.5,Math.max(0.75,t))));if(s!=='contours'&&s!=='rings')s='contours';document.documentElement.setAttribute('data-chat-pattern',s);if(g!=='flat'&&g!=='gradient'&&g!=='green'&&g!=='blue'&&g!=='aurora'&&g!=='dusk'&&g!=='ocean')g='flat';document.documentElement.setAttribute('data-chat-ground',g);if(c==='blue'||c==='violet'||c==='teal'||c==='pink'||c==='orange'||c==='graphite')document.documentElement.setAttribute('data-chat-sent',c);if(isFinite(k)){k=Math.round(Math.min(22,Math.max(4,k)));var q=Math.max(2,Math.round(k*0.22))+'px';r.setProperty('--bubble-radius',k+'px');r.setProperty('--bubble-radius-group',q);r.setProperty('--bubble-radius-origin',q);}})();</script>
 <style>
   /* Paint the screen surface IMMEDIATELY — before tokens.css/base.css load and
      before the JS bundle parses — so entering a chat doesn't flash an empty
@@ -6549,6 +6550,247 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 .c-amount-pad__key:disabled { color: var(--text-neutral-disabled); cursor: default; }
 
 </style>
+<style data-src="../styles/components/illo.css">
+/* illo — ★ S11 B (#1262): motion for the inline illustration set (illustrations.js).
+   ONE entrance, then the frame holds (every animation runs once, fill both; nothing
+   loops). Reduced motion = static. Colours are tokens (--il-* / --rn-*, tokens.css);
+   per-element dials are inline custom properties in the art (--o delay, --i stagger…). */
+
+.il { display: block; overflow: visible; }
+/* ★ S11 A2 (#1263): the ground shadow's token rides CSS (a var() in the SVG attribute is not reliably resolved) */
+.il-ground { opacity: var(--il-ground-a); }
+.il-ring { animation: ilRing 1.1s cubic-bezier(.2,.7,.3,1) both; transform-box: fill-box; transform-origin: center; }
+.il-fade { animation: ilFade .9s ease-out var(--o,0s) both; }
+.il-pop { animation: ilPop .7s cubic-bezier(.3,1.35,.5,1) var(--o,0s) both; transform-box: fill-box; transform-origin: var(--to,50% 100%); }
+.il-in { animation: ilIn .8s cubic-bezier(.2,.8,.3,1) var(--o,0s) both; }
+.il-drop { animation: ilDrop .9s cubic-bezier(.35,1.25,.55,1) var(--o,0s) both; }
+.il-fly { animation: ilFly 1.1s cubic-bezier(.3,.9,.35,1) var(--o,0s) both; }
+.il-grow { animation: ilGrow .7s cubic-bezier(.3,.8,.3,1) var(--o,0s) both; transform-box: fill-box; transform-origin: center; }
+.il-draw { stroke-dasharray: var(--len) var(--len); animation: ilDraw 1s cubic-bezier(.4,0,.2,1) var(--o,0s) both; }
+.il-tw { animation: ilTw 1.6s ease-in-out calc(var(--o,1s) + var(--i) * .25s) both; transform-box: fill-box; transform-origin: center; }
+.il-dot { animation: ilDot 1.1s ease-in-out calc(var(--i) * .16s + 1.2s) 3 both; }
+.il-scan { animation: ilScan 2.2s ease-in-out var(--o,1s) both; }
+.il-glowin { animation: ilGlowIn 1.6s ease-out var(--o,0s) both; }
+.il-float { animation: ilFloat 4.6s cubic-bezier(.45,0,.55,1) calc(var(--d,0s) * -.25) both; }
+.il-rise { animation: ilRise .8s cubic-bezier(.3,1.2,.5,1) calc(var(--o,0s) + .15s) both; }
+@keyframes ilRing { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+@keyframes ilFade { from { opacity: 0; } }
+@keyframes ilPop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes ilIn { from { opacity: 0; transform: translate(var(--fx,0),var(--fy,8px)); } to { opacity: 1; transform: none; } }
+@keyframes ilDrop { 0% { opacity: 0; transform: translateY(var(--dy,-34px)); } 40% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ilFly { 0% { opacity: 0; transform: translate(var(--fx),var(--fy)) scale(.5); } 30% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ilGrow { from { opacity: 0; transform: scaleX(.1); } to { opacity: 1; transform: none; } }
+@keyframes ilDraw { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+@keyframes ilTw { 0% { opacity: 0; transform: scale(.3); } 55% { opacity: 1; transform: scale(1.2); } 100% { opacity: .9; transform: none; } }
+@keyframes ilDot { 0%, 100% { opacity: .45; } 40% { opacity: 1; } }
+@keyframes ilScan { 0% { opacity: 0; transform: translateY(calc(var(--sy) * -1)); } 15% { opacity: 1; } 55% { transform: translateY(var(--sy)); } 100% { opacity: .8; transform: none; } }
+@keyframes ilGlowIn { 0% { opacity: 0; } 60% { opacity: 1; } 100% { opacity: .85; } }
+@keyframes ilFloat { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+@keyframes ilRise { from { opacity: 0; transform: translateY(22px) scale(.92); } to { opacity: 1; transform: none; } }
+
+/* the rating art (version D "Phone", rn-once): bubbles pop in, a heart lands, hearts rise
+   beside the phone — ONCE (the design file looped the idle motions twice; "plays once and
+   holds" wins), then the frame holds. */
+.rn-illo { display: block; width: 100%; height: auto; margin-inline: auto; overflow: visible; }
+.rn-once .rn-pop { animation: rnPopIn .5s cubic-bezier(.3,.7,.4,1) calc(var(--o) + .3s) both; transform-box: fill-box; transform-origin: left bottom; }
+.rn-once .rn-rise { animation: rnRise 5.2s cubic-bezier(.3,0,.5,1) var(--o) both; }
+.rn-once .rn-float { animation: rnFloat 5.2s cubic-bezier(.45,0,.55,1) var(--d) both; }
+.rn-once .rn-beat { animation: rnBeat 2.8s cubic-bezier(.45,0,.55,1) both; transform-box: fill-box; transform-origin: 50% 60%; }
+.rn-once .rn-spin { animation: rnSpin 7s cubic-bezier(.45,0,.55,1) both; transform-box: fill-box; transform-origin: center; }
+.rn-once .rn-tw { animation: rnTw 3.2s ease-in-out calc(var(--i) * .8s) both; transform-box: fill-box; transform-origin: center; }
+@keyframes rnPopIn { from { opacity: 0; transform: translateY(6px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes rnRise { 0% { opacity: 0; transform: translate(0,0) scale(.7); } 15% { opacity: 1; } 70% { opacity: .9; } 100% { opacity: 0; transform: translate(var(--x),-84px) scale(1); } }
+@keyframes rnFloat { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+@keyframes rnBeat { 0%, 20%, 42%, 100% { transform: none; } 10% { transform: scale(1.07); } 30% { transform: scale(1.05); } }
+@keyframes rnSpin { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(8deg) scale(1.04); } }
+@keyframes rnTw { 0%, 100% { opacity: .2; transform: scale(.55); } 50% { opacity: .9; transform: none; } }
+
+/* ★ S11 A2 (#1263, R2-m2): one entrance per lifetime — once held (illustrations.js), a restart begins 60 s in the
+   past, so the `both` fill paints the END frame (animation:none would show the base styles, not the end frames) */
+.il[data-held] *, .rn-illo[data-held] * { animation-delay: -60s !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .il *, .rn-illo * { animation: none !important; }
+  .rn-rise, .rn-pop { opacity: .9; }
+}
+
+/* ═══ ★ S17 (#1331) — motion for the S17 art (What's new scenes wn-, About glass ab-, the calm chest ch-, the
+   Moment drawings mo-, the Contributors heart ct-). Ported from the design render (docs/renders/whats-new). ═══ */
+
+/* ---------- roots ---------- */
+/* a layer fills its panel (bg under fg, both absolute); the slice roots clip, the What's new foreground may overhang */
+.il.wn-l, .il.ab-l, .il.ct-l { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.il.wn-l--bg, .il.ab-l, .il.ct-l, .il.mo-art { overflow: hidden; }
+.il.wn-l--fg { overflow: visible; }
+.wn-glow { opacity: var(--wn-glow-a, .06); }                              /* the scene glow: 6 % light · 10 % dark */
+
+/* ---------- ENTRANCES (once, then hold) ---------- */
+.il-wn-pulse { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ilWnPulse 2.4s ease-out var(--o, 0s) 3 both; }
+.il-wn-nudge { animation: ilWnNudge 1.2s cubic-bezier(.3, .7, .3, 1) var(--o, .2s) both; }
+.il-wn-off { animation: ilWnOff .35s ease var(--o, 0s) both; }
+.il-wn-knob { animation: ilWnKnob .45s cubic-bezier(.3, 1.3, .5, 1) var(--o, 0s) both; }
+.il-wn-dim { animation: ilWnDim .6s ease var(--o, 0s) both; }
+.il-wn-tap { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ilWnTap .8s ease-out var(--o, 0s) both; }
+.il-ch-in { animation: ilChIn .7s cubic-bezier(.2, .7, .2, 1) var(--o, 0s) both; }
+.il-ch-lid { transform-box: fill-box; transform-origin: 50% 100%; animation: ilChLid 1s cubic-bezier(.25, .8, .25, 1) .35s both; }
+.il-ch-rise { animation: ilChRise .9s cubic-bezier(.2, .7, .2, 1) var(--o, 0s) both; }
+.il-mo-in { animation: ilMoIn .7s cubic-bezier(.2, .75, .2, 1) calc(var(--o, 0s) + .25s) both; }
+.il-mo-ring { stroke-dashoffset: 100; animation: ilMoRing 1.6s cubic-bezier(.4, 0, .2, 1) .9s both; }
+@keyframes ilWnPulse { from { transform: scale(1); opacity: .8; } to { transform: scale(2.2); opacity: 0; } }
+@keyframes ilWnNudge { 0% { transform: translateX(-10px); opacity: 0; } 22% { opacity: 1; transform: none; } 55% { transform: translateX(20px); } 100% { transform: none; } }
+@keyframes ilWnOff { to { opacity: 0; } }
+@keyframes ilWnKnob { to { transform: translateX(-24px); } }
+@keyframes ilWnDim { to { opacity: .6; } }
+@keyframes ilWnTap { 0% { transform: scale(.4); opacity: 0; } 30% { opacity: .6; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes ilChIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ilChLid { from { transform: scaleY(.3); } to { transform: none; } }
+@keyframes ilChRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes ilMoIn { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+@keyframes ilMoRing { to { stroke-dashoffset: 0; } }
+
+/* the end frame once held (illo.css's `.il[data-held] *` already does this; listed so the s17 set states it itself) */
+.il[data-held] .il-wn-pulse, .il[data-held] .il-wn-nudge, .il[data-held] .il-wn-off, .il[data-held] .il-wn-knob,
+.il[data-held] .il-wn-dim, .il[data-held] .il-wn-tap, .il[data-held] .il-ch-in, .il[data-held] .il-ch-lid,
+.il[data-held] .il-ch-rise, .il[data-held] .il-mo-in, .il[data-held] .il-mo-ring { animation-delay: -60s !important; }
+
+/* ---------- LOOPS (.wn-loop; ≤ 0.5 Hz; transform / opacity only; delay in --ld) ---------- */
+.wn-drift { --ld: 0s; animation: wnDrift var(--d, 16s) ease-in-out var(--ld) infinite alternate; }
+.wn-tw { --ld: calc(var(--i, 0) * -.7s); animation: wnTw 3.6s ease-in-out var(--ld) infinite alternate; }
+.wn-rise { --ld: 0s; animation: wnRise var(--d, 12s) ease-in-out var(--ld) infinite alternate; }
+.wn-bar { --ld: calc(var(--i, 0) * -.17s); transform-box: fill-box; transform-origin: center; animation: wnBar 2.6s ease-in-out var(--ld) infinite alternate; }
+.wn-pan { --ld: 0s; animation: wnPan 28s ease-in-out var(--ld) infinite alternate; }
+.wn-ripple { --ld: var(--o, 0s); transform-box: fill-box; transform-origin: center; animation: wnRipple 6s ease-out var(--ld) infinite; }
+.wn-orbit { --ld: 0s; transform-box: view-box; transform-origin: 200px 120px; animation: wnOrbit 90s linear var(--ld) infinite; }
+.wn-orbit--rev { animation-duration: 70s; animation-direction: reverse; }
+.wn-bob { --ld: var(--bd, 1.6s); animation: wnBob var(--d, 5s) ease-in-out var(--ld) infinite alternate; }
+.ch-float { --ld: 2.2s; animation: chFloat var(--d, 7s) ease-in-out var(--ld) infinite alternate; }
+.mo-float { --ld: 1.2s; animation: moFloat var(--d, 14s) ease-in-out var(--ld) infinite alternate; }
+.mo-tw { --ld: calc(var(--i, 0) * -.7s); animation: moTw 3.2s ease-in-out var(--ld) infinite alternate; }
+.ct-tw { --ld: calc(var(--i, 0) * -.6s); animation: ctTw 3.4s ease-in-out var(--ld) infinite alternate; }
+@keyframes wnDrift { to { transform: translate(var(--dx), var(--dy)); } }
+@keyframes wnTw { from { opacity: .12; } to { opacity: .9; } }
+@keyframes wnRise { to { transform: translateY(-34px); } }
+@keyframes wnBar { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+@keyframes wnPan { to { transform: translate(-64px, -40px); } }
+@keyframes wnRipple { from { transform: scale(.6); opacity: .55; } to { transform: scale(5); opacity: 0; } }
+@keyframes wnOrbit { to { transform: rotate(360deg); } }
+@keyframes wnBob { to { transform: translateY(-5px); } }
+@keyframes chFloat { to { transform: translateY(-3px); } }
+@keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
+@keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
+@keyframes ctTw { from { opacity: .2; } to { opacity: .95; } }
+
+/* a held drawing: loops keep their own delay (no jump); paused on demand */
+.il[data-held] .wn-loop { animation-delay: var(--ld, 0s) !important; }
+.wn-paused .wn-loop, .il[data-paused] .wn-loop { animation-play-state: paused; }
+
+/* ---------- reduced motion: the END frame, no loop ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .il .wn-loop { animation: none !important; }
+  .il .il-wn-off { opacity: 0; }
+  .il .il-wn-knob { transform: translateX(-24px); }
+  .il .il-wn-dim { opacity: .6; }
+  .il .il-mo-ring { stroke-dashoffset: 0; }
+  /* il-wn-pulse · il-wn-tap: their base opacity 0 is the end frame */
+}
+
+</style><!-- ★ S17 F (#46 r3 MINOR-3): the moment art's motion (entrance, float, twinkle) — static without it -->
+<style data-src="../styles/components/moment-sheet.css">
+/* ★ S17 F (#1340) — c-moment: the Moment sheets (moment-sheet.js). A port of the render's .sheet / .panel / .caps rules
+   (docs/renders/whats-new/parts-j/mo.css) on today's c-sheet, with Damir's 20:37 change: the art is FULL-BLEED at the
+   top of the sheet — the sheet's own top corners clip it and the grab handle sits white on the art. The art ground =
+   the What's new panel (--wn-ground-a → -b, tokens.css); the drawings' motion lives in illo.css. Semantic tokens;
+   logical properties (RTL-safe). */
+
+.c-sheet.c-moment__sheet { padding-top: 0; }
+:root[data-desktop] .c-sheet.c-moment__sheet { padding-top: 0; }
+/* the grab handle on the art: white, over it (the sheet's own handle, moved) */
+.c-moment__sheet > .c-sheet__handle {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: var(--spacing-8);
+  inset-inline-start: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, .72);   /* sanctioned: the handle on the vivid art (the What's new × grammar) */
+}
+[dir="rtl"] .c-moment__sheet > .c-sheet__handle { transform: translateX(50%); }
+
+.c-moment {
+  --mo-art-h: 164px;                       /* sanctioned: the render's 150 px panel at full bleed (360 × 150 art, slice) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.c-moment[data-caps] { --mo-art-h: 128px; }   /* the render's shorter panel when the capability rows follow */
+
+/* full bleed: out to the sheet's edges (mobile 16 px sides, desktop dialog 24 px) */
+.c-moment__art {
+  position: relative;
+  align-self: stretch;
+  height: var(--mo-art-h);
+  margin-inline: calc(-1 * var(--spacing-16));
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--wn-ground-a), var(--wn-ground-b));
+}
+:root[data-desktop] .c-moment__art { margin-inline: calc(-1 * var(--spacing-24)); }
+:root[data-theme="dark"] .c-moment__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }   /* sanctioned: the art / text split, dark (the What's new rule) */
+.c-moment__illo { display: block; width: 100%; height: 100%; }
+
+.c-moment__title {
+  margin: var(--spacing-16) 0 6px;
+  color: var(--text-neutral-01);
+  font-size: 21px;                         /* sanctioned: the render's sheet title */
+  line-height: 1.25;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -.2px;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.c-moment[data-caps] .c-moment__title { margin-block-start: var(--spacing-12); }
+.c-moment__body {
+  margin: 0 0 18px;                        /* sanctioned: the render's body foot */
+  max-width: 290px;
+  color: var(--text-neutral-02);
+  font-size: 15px;                         /* sanctioned: the render's body size */
+  line-height: 1.45;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.c-moment__btns { align-self: stretch; display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-moment__btns .c-button[data-type="text"] { margin-block-start: -4px; }
+.c-moment__btns .c-button[data-size="56"] { height: auto; min-height: 56px; white-space: normal; line-height: 1.25; padding-block: var(--spacing-8); }
+
+/* the app moment: the app's own capability rows (the details page's vocabulary) */
+.c-moment__caps {
+  align-self: stretch;
+  margin: var(--spacing-4) 0 var(--spacing-12);
+  padding: 0;
+  list-style: none;
+  background: var(--surface-sheet-card);
+  border-radius: 18px;                     /* sanctioned: the render's card radius */
+  text-align: start;
+}
+.c-moment__cap { display: flex; gap: var(--spacing-12); align-items: center; padding: var(--spacing-8) 14px; }
+.c-moment__cap + .c-moment__cap { border-block-start: 1px solid var(--outline-sheet-01); }
+.c-moment__cap-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;                             /* sanctioned: the white glyph on the render's blue tile */
+  background: linear-gradient(160deg, #8fb0ff, #3a6ce0);   /* sanctioned: the render's capability tile */
+}
+.c-moment__cap-tile svg { width: 18px; height: 18px; }
+.c-moment__cap-tile svg [stroke] { stroke: currentColor; }
+.c-moment__cap-text { display: flex; flex-direction: column; min-width: 0; }
+.c-moment__cap-text b { font-size: 14.5px; color: var(--text-neutral-01); }   /* sanctioned: the render's row label */
+.c-moment__cap-text small { font-size: 12.5px; line-height: 1.35; color: var(--text-neutral-02); }   /* sanctioned: the render's row line */
+
+</style><!-- ★ S17 F (#1340): the Moment sheets (auto-download · offline sender · mic · mini app · first payment) -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <script>window.__cdParse&&window.__cdParse.push(['styles',performance.now()]);</script>
 <link rel="stylesheet" href="spixi.chat-pattern.css"><!-- theme-ink pattern mask (loads after message-bubble.css) -->
@@ -7176,6 +7418,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     openRequestSheet,               // #528: attach → Request (the #139 amount sheet, live)
     createWalletSend,               // W5 (#523): attach → Pay (lockedRecipient compose)
     openPaymentReview,              // ★ W-d: request-in Pay → the review sheet BEFORE the native confirm
+    showMomentSheet, createMomentClient, momentBeforeAction, momentAfterResult, ASK_WAIT_MS,   // ★ S17 F (#1340): the Moment sheets
     setSendQuote: applySendQuote,   // W6 — aliased: the bridge handler below shares the name
     createModal, openModal, showToast, createButton,
     createWarningBanner, setWarning, createContactRequest,
@@ -7255,17 +7498,25 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
      storage event, the same focus/visibility fallback, the same stamp gate, plus one explicit
      refresh at onChatScreenReady so an attach never presents a stale size. An unset or
      non-finite value means "no override" and REMOVES the property (the token default). */
-  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground', text: 'spixi.chat.textscale' };
+  const PATTERN_PREF_KEYS = { level: 'spixi.chat.pattern', style: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground', text: 'spixi.chat.textscale',
+    sent: 'spixi.chat.sentcolour', corners: 'spixi.chat.corners' };   // ★ S17 C (#1334): the two NEW keys ride the same ladder
+  /* ★ S17 C (#1334): the value sets, in step with the head script and settings.html (the #690 rule) */
+  const CHAT_GROUND_IDS = ['flat', 'gradient', 'green', 'blue', 'aurora', 'dusk', 'ocean'];
+  const CHAT_SENT_IDS = ['blue', 'violet', 'teal', 'pink', 'orange', 'graphite'];
   function readPatternPrefs() {
     const de = document.documentElement.hasAttribute('data-desktop');
-    let p = NaN, s = '', gr = '', t = NaN;
+    let p = NaN, s = '', gr = '', t = NaN, sent = '', k = NaN;
     try {
       p = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.level));
       s = localStorage.getItem(PATTERN_PREF_KEYS.style) || '';
       gr = localStorage.getItem(PATTERN_PREF_KEYS.ground) || '';
       t = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.text));
+      sent = localStorage.getItem(PATTERN_PREF_KEYS.sent) || '';
+      k = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.corners));
     } catch (e) { /* DomStorageEnabled=false → boot defaults, forever */ }
-    if (isFinite(t)) t = Math.min(1.5, Math.max(0.8, t)); else t = NaN;   // the head script's clamp, in step
+    if (isFinite(t)) t = Math.min(1.5, Math.max(0.75, t)); else t = NaN;   // the head script's clamp, in step (★ S17: floor 0.75 = the slider's 12 px)
+    if (CHAT_SENT_IDS.indexOf(sent) < 0) sent = '';                          // ★ S17 C: '' = Auto (the canvas's own sent colour)
+    k = isFinite(k) ? Math.round(Math.min(22, Math.max(4, k))) : NaN;       // ★ S17 C: NaN = the token default (18 px)
     // ★ N81 (#422): p is a LEVEL INDEX now. readPatternLevel migrates the legacy
     // fractional alphas (0.3/0.5/0.7) and clamps; B2 (#256) platform-aware default
     // survives unchanged — desktop Off, mobile Default.
@@ -7278,7 +7529,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
        the list". `de` no longer gates anything here: Live flow was the only desktop-only
        style. */
     // ★★ #997: CONTOURS replace the data matrix — a stored 'matrix' falls through like every retired style
-    if (s !== 'contours') s = 'contours';
+    if (s !== 'contours' && s !== 'rings') s = 'contours';   // ★ S17 C (#1335): + the rings ("Contours")
     /* ★★ #835 (Damir, 2026-09-09): "we will remove the gradient on light, it's too busy."
        THE DEFAULT FLIPS; THE OPTION STAYS. He ruled the other way on 2026-08-30 — "leave
        the gradient as an option in chat appearance on light mode", recorded verbatim at
@@ -7299,8 +7550,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
        the list", and restoring the option restores their pick. */
     /* ★★ #998 (Damir 2026-09-28): the option is BACK as the BRAND gradient (light only) — this
        ladder admits 'gradient' again, in step with the head script and settings.html. */
-    if (gr !== 'flat' && gr !== 'gradient' && gr !== 'green' && gr !== 'blue') gr = 'flat';   // ★ #1080 F15: + the green gradient · ★ S8 (#1237): + the blue gradient — all four paint in BOTH themes (a light and a dark rule each, tokens.css)
-    return { level: p, style: s, ground: gr, text: t };
+    if (CHAT_GROUND_IDS.indexOf(gr) < 0) gr = 'flat';   // ★ S17 C (#1334): + aurora · dusk · ocean   // ★ #1080 F15: + the green gradient · ★ S8 (#1237): + the blue gradient — all four paint in BOTH themes (a light and a dark rule each, tokens.css)
+    return { level: p, style: s, ground: gr, text: t, sent, corners: k };
   }
   function applyPatternPrefs(prefs) {
     const r = document.documentElement;
@@ -7316,11 +7567,16 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     r.setAttribute('data-chat-ground', prefs.ground);   // ★ AUG → #1066: painted in BOTH themes (tokens.css has a rule per theme)
     if (isFinite(prefs.text)) r.style.setProperty('--chat-text-scale', String(prefs.text));   // ★ Session P: the stored size, or
     else r.style.removeProperty('--chat-text-scale');                                          //   the token default when unset
+    if (prefs.sent) r.setAttribute('data-chat-sent', prefs.sent); else r.removeAttribute('data-chat-sent');          // ★ S17 C
+    /* ★ S17 C (#1334): the small corners follow at max(2, round(r × 0.22)) — 18 → today's 18 / 4 / 4; unset = the tokens */
+    for (const [n, v] of [['--bubble-radius', prefs.corners], ['--bubble-radius-group', Math.max(2, Math.round(prefs.corners * 0.22))], ['--bubble-radius-origin', Math.max(2, Math.round(prefs.corners * 0.22))]]) {
+      if (isFinite(prefs.corners)) r.style.setProperty(n, v + 'px'); else r.style.removeProperty(n);
+    }
   }
   /* ⚠ THE STAMP IS THE GATE. A key left out of it is a key whose change is invisible to
      the poll — the ground would have needed a WebView reload exactly like the pattern did
      before W5 F5. Every field readPatternPrefs returns must appear here. */
-  const patternStamp = (p) => p.level + '|' + p.style + '|' + p.ground + '|' + p.text;
+  const patternStamp = (p) => p.level + '|' + p.style + '|' + p.ground + '|' + p.text + '|' + p.sent + '|' + p.corners;
   let seenPatternPrefs = patternStamp(readPatternPrefs());
   function refreshPatternPrefsIfChanged() {
     const prefs = readPatternPrefs();
@@ -7330,7 +7586,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     applyPatternPrefs(prefs);
   }
   window.addEventListener('storage', (e) => {
-    if (!e.key || e.key === PATTERN_PREF_KEYS.level || e.key === PATTERN_PREF_KEYS.style || e.key === PATTERN_PREF_KEYS.ground || e.key === PATTERN_PREF_KEYS.text) refreshPatternPrefsIfChanged();
+    if (!e.key || Object.values(PATTERN_PREF_KEYS).indexOf(e.key) >= 0) refreshPatternPrefsIfChanged();   // ★ S17 C: every key of the ladder
   });
   window.addEventListener('focus', refreshPatternPrefsIfChanged);
   document.addEventListener('visibilitychange', () => {
@@ -7363,6 +7619,10 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  /* ★ S17 F (#1340, P28 · flag SpixiFlags.S17Moments, cap `moments`): the Moment sheets' ask / answer client. The chat
+     hosts five of the seven: auto-download photos (2) · a file from an offline sender (3) · the microphone (5) · a mini
+     app's first open (6) · the first payment (7). C# decides and stores; this shell shows. */
+  const moments = createMomentClient({ bridge });
   /* #343: ONE call lights up press feedback for every pressable surface in this
      shell (src/components/pressable.js). Delegated on document, so rows created
      later by a re-render are covered without re-attaching. A new shell needs
@@ -8004,7 +8264,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    * that; this maps the gesture onto --chat-text-scale instead.
    *
    * Same variable, same clamp and same storage key the Chat-appearance screen
-   * writes (TEXT_SIZES spans 0.9..1.25; the boot script clamps 0.8..1.5), so a
+   * writes (★ S17: the settings slider spans 0.75..1.375; the boot script clamps 0.75..1.5), so a
    * pinch and the settings picker are two controls over ONE preference and
    * survive a reopen identically.
    *
@@ -8012,7 +8272,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    * viewport is scale-clamped. Non-passive so the 2-finger move can preventDefault
    * (otherwise the log scroll-pans under the pinch). Single-finger scrolling is
    * untouched — we bail unless exactly two touches are down. */
-  const TEXT_SCALE_MIN = 0.8, TEXT_SCALE_MAX = 1.5;
+  const TEXT_SCALE_MIN = 0.75, TEXT_SCALE_MAX = 1.5;   // ★ S17 C (#1334): floor 0.75 = the slider's 12 px (was 0.8)
   function readTextScale() {
     const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chat-text-scale'));
     return isNaN(v) ? 1 : v;
@@ -9052,7 +9312,13 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   }
   function startVoiceRecording() {
     if (!composerEl || !voiceAllowed() || getComposerRecording(composerEl)) return;
-    bridge.send('ixian:voicerec:start');
+    /* ★ S17 F (#1340): the first mic tap — the moment sheet BEFORE the system permission dialog (C# answers yes only while
+       the permission is not granted yet, and never for an unpackaged Windows exe: no dialog there). Continue = record. */
+    momentBeforeAction(moments, {
+      id: 'mic', host: overlayHost, strings: window.SL || {},
+      go: () => { if (composerEl && voiceAllowed() && !getComposerRecording(composerEl)) bridge.send('ixian:voicerec:start'); },
+      stop: null,
+    });
   }
 
   function buildRow(rec, position) {
@@ -9419,6 +9685,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     if (rec.acceptAskedAt && now - rec.acceptAskedAt < ACCEPT_GUARD_MS) return false;
     rec.acceptAskedAt = now;
     bridge.send('ixian:acceptfile:' + rec.fileid);
+    rec.manualAccept = true;                                   // ★ S17 F (#1340): the user asked for this one (the autodl moment)
+    armOfflineMoment(rec);
     if (rec.group) setTimeout(() => { if (rec.fstate === 'offer' && !rec.transferStarted && gridMembers.has(String(rec.id))) renderLog(); }, ACCEPT_GUARD_MS + 50);   // the disabled Download all comes back
     return true;
   }
@@ -9590,6 +9858,93 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     return row;
   }
 
+  /* ★★ S17 F (#1340) — THE MOMENT SHEETS IN THE CHAT. The after-the-result ones (auto-download, offline sender) wait for a
+     clear screen (no sheet or menu open, the chat visible), then show; the confirm-step ones (mic · app · pay) are the
+     user's own tap and show at once (momentBeforeAction). */
+  const OFFLINE_MOMENT_MS = 10000;                  // a manual download with no first tick by then = waiting for the sender's device
+  let offlineMomentTimer = 0;
+  const chatMomentWaiting = [];
+  let chatMomentRetry = 0;
+  /* clear = no sheet / tray / strip / select mode / money cover (chatOverlayLive), the chat visible, and the user not in the
+     middle of typing (#46 r1 MINOR-4: a sheet would take the keyboard away) */
+  function chatMomentClear() {
+    if (document.visibilityState !== 'visible') return false;
+    try { if (chatOverlayLive() || chatPayReview) return false; } catch (e) { return false; }
+    const ae = document.activeElement;
+    if (ae && composerEl && composerEl.contains(ae) && String(ae.value || ae.textContent || '').trim()) return false;
+    try { if (composerEl && getComposerRecording(composerEl)) return false; } catch (e) {}   // #46 r2 MINOR-4: never over a recording
+    return true;
+  }
+  /* #46 r1 (MINOR-1): a moment is ASKED only when the screen is clear, so C#'s yes (seen stored) shows at once */
+  function pumpChatMoment() {
+    clearTimeout(chatMomentRetry);
+    chatMomentRetry = 0;
+    if (!chatMomentWaiting.length) return;
+    if (!chatMomentClear()) { chatMomentRetry = setTimeout(pumpChatMoment, 1000); return; }
+    const m = chatMomentWaiting[0];
+    if (!m.granted) {
+      if (m.asking) return;
+      if (m.stale && m.stale()) { chatMomentWaiting.shift(); setTimeout(pumpChatMoment, 0); return; }   // #46 r2: never ask for a moment that went stale
+      m.asking = true;
+      /* #46 r2 (MINOR-2): a LATE yes (C# already stored seen) puts the moment back at the head instead of losing it */
+      const asked = momentAfterResult(moments, m.id, '', () => {
+        m.granted = true; m.asking = false;
+        if (chatMomentWaiting.indexOf(m) < 0) chatMomentWaiting.unshift(m);
+        pumpChatMoment();
+      });
+      if (!asked) { chatMomentWaiting.shift(); setTimeout(pumpChatMoment, 0); return; }
+      setTimeout(() => { const at = chatMomentWaiting.indexOf(m); if (!m.granted && at >= 0) { chatMomentWaiting.splice(at, 1); pumpChatMoment(); } }, ASK_WAIT_MS + 200);   // #46 r3 NIT-6: by identity, not the head
+      return;
+    }
+    chatMomentWaiting.shift();
+    if (m.stale && m.stale()) { setTimeout(pumpChatMoment, 0); return; }
+    showMomentSheet({
+      id: m.id, host: overlayHost, strings: window.SL || {}, ctx: m.ctx,
+      onClose: (v) => {
+        /* #46 security r1 (MAJOR-1): the offer never writes the setting from this UNTRUSTED document — it opens Settings ›
+           Privacy (C# opens the page; the user picks there) */
+        if (m.id === 'autodl' && v === 'settings') bridge.send('ixian:openPrivacy');
+        setTimeout(pumpChatMoment, 600);
+      },
+    });
+  }
+  function queueChatMoment(id, ctx, stale) {
+    if (chatMomentWaiting.some((w) => w.id === id)) return;
+    chatMomentWaiting.push({ id, ctx: ctx || {}, stale: stale || null, granted: false, asking: false });
+    pumpChatMoment();
+  }
+  let autoDlAsked = false;
+  function maybeAutoDlMoment() {
+    if (autoDlAsked || !moments.on() || moments.seen('autodl')) return;
+    autoDlAsked = true;
+    setTimeout(() => queueChatMoment('autodl', {}), 900);   // the photo shows first
+  }
+  /* the first manual download that waits: no first tick after OFFLINE_MOMENT_MS while the peer is not shown online */
+  function armOfflineMoment(rec) {
+    if (offlineMomentTimer || !moments.on() || moments.seen('offline') || mode.isMulti) return;
+    offlineMomentTimer = setTimeout(() => {
+      offlineMomentTimer = 0;
+      if (rec.transferStarted || rec.fstate === 'complete' || identity.online) return;
+      if (document.visibilityState !== 'visible') return;
+      const name = (identity.name && identity.name !== identity.address) ? identity.name : '';
+      if (!name) return;                                       // "Waiting for {name}" needs a name
+      queueChatMoment('offline', { name }, () => !!rec.transferStarted || rec.fstate === 'complete');
+    }, OFFLINE_MOMENT_MS);
+  }
+  /* who invited me to an app: the 1:1 peer's name, or the group member's nick — never an address, never a placeholder */
+  function appInviterOf(rec) {
+    if (!mode.isMulti) return (identity.name && identity.name !== identity.address) ? identity.name : '';
+    return senderHasNick(rec) ? rec.senderNick : '';
+  }
+  function chatAppMoment(appId, appName, invitedBy, go) {
+    momentBeforeAction(moments, {
+      id: 'app', arg: String(appId || ''), host: overlayHost, strings: window.SL || {},
+      ctxFor: (caps) => ({ app: appName || '', invitedBy, caps }),
+      /* #46 r2 (MAJOR-1): Cancel / back releases the card's one-shot Join (the renderLog idiom) — never a dead button */
+      go, stop: () => renderLog(),
+    });
+  }
+
   /* app invite/session card (chat.js addAppRequest:1174). state derives from the
    * stable localSender + appStatus signals; actions reuse the EXISTING verbs
    * (installApp / joinApp). ★ S8 (#1233): Decline sends ixian:appDecline:<id> — C# sends the
@@ -9637,8 +9992,10 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       // otherwise installApp fires with an empty string and silently no-ops (C# fetch
       // rejects it). No URL → no dead button (the user can still Decline).
       onGet: rec.appInstallURL ? () => bridge.send('ixian:installApp:' + encodeURIComponent(rec.appInstallURL)) : undefined,
-      onLaunch: () => bridge.send('ixian:joinApp:' + rec.appid),
-      onJoin: () => bridge.send('ixian:joinApp:' + rec.appid),
+      /* ★ S17 F (#1340): the first open of each app = the app moment (Open goes on, Cancel stays) — "<name> invited you"
+         only on a card that came to me */
+      onLaunch: () => chatAppMoment(rec.appid, rec.name, incoming ? appInviterOf(rec) : '', () => bridge.send('ixian:joinApp:' + rec.appid)),
+      onJoin: () => chatAppMoment(rec.appid, rec.name, incoming ? appInviterOf(rec) : '', () => bridge.send('ixian:joinApp:' + rec.appid)),
       // in-session (already joined) → Resume reopens the app; joinApp re-shows the
       // minimized session. No End-session verb exists in the bridge → onEnd omitted
       // (createAppBubble gates it, so no dead button).
@@ -11128,7 +11485,11 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   /* tip: open the amount sheet (no balance — C# runs the real balance check +
    * native confirm), then emit ixian:contextAction:tip:<id>:<amount>. Recipient
    * is DISPLAY-only (C# resolves the real payee from the msg id). */
+  /* ★ S17 F (#1340, #46 r1 NIT): a tip is a payment too — the first one gets the moment sheet before the amount sheet */
   function openTipForMessage(rec) {
+    momentBeforeAction(moments, { id: 'pay', host: overlayHost, strings: window.SL || {}, go: () => openTipForMessageNow(rec), stop: null });
+  }
+  function openTipForMessageNow(rec) {
     openTipSheet({
       message: { id: rec.id, excerpt: (!isVoiceRec(rec) && rec.text) || undefined },   // ★ #1208: a voice row has no text to quote
       recipient: {
@@ -11604,6 +11965,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
          ⚠ Do not add a quote here again. The policy question — whether a balance belongs
          in the chat document at all — stays OPEN for Damir. */
       onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
+      // ★ S17 F (#1340): the first payment — the moment sheet BEFORE the review; the review and the native confirm are unchanged
+      onBeforeReview: (go, stop) => momentBeforeAction(moments, { id: 'pay', host: overlayHost, strings: s, go, stop }),
       onSend: (payload, ctrl) => {
         const r = (payload.recipients && payload.recipients[0]) || {};
         chatSendCtrl = ctrl;
@@ -11661,7 +12024,12 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     clearPayWait();
     if (r) { try { r.close(true); } catch (e) { /* already gone */ } }
   }
+  /* ★ S17 F (#1340): a request's Pay is a payment too — the first one gets the moment sheet before the review */
   function openPayRequestReview(rec) {
+    if (chatPayReview) return;
+    momentBeforeAction(moments, { id: 'pay', host: overlayHost, strings: window.SL || {}, go: () => openPayRequestReviewNow(rec), stop: () => renderLog() });   // #46 r2 MAJOR-1: the card's Pay comes back
+  }
+  function openPayRequestReviewNow(rec) {
     if (chatPayReview) return;                         // double-open guard
     if (mode.type !== 0) return;                       // loop r1 A-2: 1:1 only (the card arm gates too — belt)
     if (!identity.address || !rec || !rec.id) return;
@@ -11773,7 +12141,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
           go.classList.add('chat-app-picker__go');
           b.append(go);
         }
-        b.addEventListener('click', () => { closeSheet(sheet); bridge.send('ixian:app:' + app.id); });
+        b.addEventListener('click', () => { closeSheet(sheet); chatAppMoment(app.id, app.name, '', () => bridge.send('ixian:app:' + app.id)); });   // ★ S17 F (#1340)
         rows.push({ el: b, q: (app.name + ' ' + (app.publisher || '')).toLowerCase() });
         list.append(b);
       }
@@ -12848,6 +13216,16 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    * The 1:1 text path is wired; the rest are safe no-op stubs.
    * ————————————————————————————————————————————————————————————————————————— */
   const handlers = {
+    /* ★ S17 F (#1340, 🟡 NEW push, P28 · flag S17Moments + cap `moments`): {"seen":[ids],"apps":[app ids],"lang":"","session":bool} */
+    setMoments(json) {
+      if (!bridge.cap('moments')) return;
+      moments.setState(String(json));
+    },
+    /* ★ S17 F (#1340, 🟡 NEW push): C#'s answer to ixian:moment:<id>[:<arg>] — "1" = show (seen is already stored) */
+    momentAnswer(id, arg, ok, caps) {
+      if (!bridge.cap('moments')) return;
+      moments.answer(String(id), String(arg == null ? '' : arg), String(ok), String(caps == null ? '' : caps));
+    },
     /* ——— header + mode (wired) ——————————————————————————————————————————— */
 
     // setChatMode(type, cost, costText, admin, botDescription, notificationsString, blindString)
@@ -13960,6 +14338,12 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       else renderLog();
       // slick completion cue for OUTGOING transfers (Damir F5): a one-shot success
       // toast the moment a sent file finishes (the bar + open button carry the rest).
+      /* ★ S17 F (#1340): the first MANUAL photo download finished and shows → the auto-download offer (C# checks the setting
+         is Off, Load pictures is on and the Tips switch is on) */
+      if (done && prev !== 'complete' && rec.direction === 'received' && rec.manualAccept && !rec.voiceFile
+          && isPhotoFileName(rec.name) && mediaAutoloadOn()) {
+        maybeAutoDlMoment();
+      }
       if (done && prev !== 'complete' && rec.direction === 'sent' && !rec.sentToastShown && !rec.voiceFile) {   // ★ #1208: a voice message is not a "File sent"
         rec.sentToastShown = true;
         showToast({ text: (window.SL && window.SL.fileSent) || 'File sent', tone: 'success', host: overlayHost, strings: window.SL || {} });

@@ -39,7 +39,8 @@ namespace Spixi
     /// push carries the sender's address and no chat address; the known limit is stated on the
     /// extension's <c>decide</c>. Names go through <c>displayNameFor</c> (the #211 truncation
     /// canon) and are written ONLY while the sender-name switch is on — the extension has no
-    /// use for them otherwise, so the roster's names are not copied at rest for nothing. No
+    /// use for them otherwise, so the roster's names are not copied at rest for nothing (★ S17 #1346: the switch is ON by
+    /// default now, so this is the common case; the names are sanitized + capped by displayNameFor, #46 security r3). No
     /// message text, no keys. The file is excluded from iCloud/iTunes backup (the App Group
     /// container is backed up by default, and #912 ② reaches only the app's own folders). The
     /// write — build, serialise, temp file, move — happens under ONE lock so a slow earlier

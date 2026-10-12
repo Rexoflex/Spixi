@@ -43,6 +43,7 @@ const FILES = [
   'src/components/pressable.js',        // #343 shared press feedback (no component deps)
   'src/components/chatlist-item.js',
   'src/components/button.js',
+  'src/components/illustrations-s17.js', // ★ S17 (#1331): the S17 art table (data only) — BEFORE illustrations.js, which merges it into IL_ART
   'src/components/illustrations.js', // ★ S11 B (#1262): the inline illustration set — no imports; before empty-state and every art consumer
   'src/components/empty-state.js', // shared zero state (chats/wallet/contacts) — needs button.js
   'src/components/topbar.js',
@@ -124,6 +125,8 @@ const FILES = [
   'src/components/launch-shell.js',     // Phase 1 #5: welcome/create/restore/retry/tail (imports passwordField + ENC_MIN from lock-shell — must follow it)
   'src/components/backup-nudge.js',     // periodic backup prompt (legacy #backup-prompt parity, Damir 2026-07-06)
   'src/components/rating-nudge.js',     // rate-app prompt (legacy #ratingModal replacement — showRatingPrompt mirror)
+  'src/components/whats-new.js',        // ★ S17 A (#1338): the What's new spotlight carousel (overlay + illustrations)
+  'src/components/moment-sheet.js',     // ★ S17 F (#1340): the Moment sheets + their ask / answer client
   'src/bridge/native.js',               // Phase 3 #173: real-bridge transport core (in the bundle so smoke can drive it; demos stay mock-wired)
   'src/bridge/scan-page.js',            // Phase 3 #173: scan real-bridge adapter (first repoint target) — after scan-shell + native
   'src/bridge/lock-page.js',            // Phase 3 #173: lock/encpass real-bridge adapters — after lock-shell + native

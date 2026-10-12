@@ -2,6 +2,8 @@
 
 For: the BE engineer. Snapshot of `redesign/frontend` at **387ca78b** (Session 15 addendum) against the fork point **`0e85a4b8`**; Ixian-Core at **097341a**. Why it exists: DECISIONS #1312 — BE reviews our changes ONCE at handover instead of approving each one first. Written 2026-10-11 (DECISIONS #1320), docs only, no code changed.
 
+> **Session 17 update (#1331–#1350).** New packets P26 (What's new + the bar ink) and P28 (the Moment sheets), both behind flags; P27 is reserved. Read them with P12–P25 in the second sitting (+10 min).
+>
 > **Session 16 update (#1321–#1325).** The S16 batch fixed flags F1–F5, F8 and MAJOR #9 (#1322) and built L8 (#1323) and the F3/F4 media gate behind flags. New packets P24 (L8) and P25 (the media gate). P01, P03, P05, P07, P09–P12 and P21 are re-verified at the S16 tree (`626ce787` + the S16 diff); the other packets keep their 387ca78b lines.
 
 > **Readings taken while Damir was away (unattended run, 2026-10-11).**
@@ -71,6 +73,9 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P23](P23-theme.md) | Theme, language, hints, About / help links | LOW | no | yes | shipped | 5 |
 | [P24](P24-walletpass-l8.md) | L8: the wallet password in SecureStorage (flag `SecureWalletPass`) | HIGH | yes — the password at rest | yes (dev verb) | shipped, flag ON · Mac not walked | 7 |
 | [P25](P25-media-input-gate.md) | F3/F4: the mic and the clipboard only for the chat on screen (flag `MediaInputGate`) | HIGH | no (the mic, the clipboard) | yes (gated verbs) | shipped, flag ON | 5 |
+| [P26](P26-whats-new.md) | S17: the "What's new" card + the About / Contributors status-bar ink (flag `S17Bridge`) | LOW | no | yes (1 push, 2 verbs) | built, flag ON | 4 |
+| P27 | reserved (desktop Hello — not built) | — | — | — | — | — |
+| [P28](P28-moments.md) | S17: seven one-time Moment sheets (flag `S17Moments`); `ixian:photoAutoDl:` one-shot on a chat page | LOW–MEDIUM | no (the pay moment only delays the FE review) | yes (2 pushes, 2 verbs) | built, flag ON | 6 |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

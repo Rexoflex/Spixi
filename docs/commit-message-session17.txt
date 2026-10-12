@@ -1,0 +1,22 @@
+Session 17: What's new, About header, Chat appearance v3, illustrations, settings screens, Moment sheets
+
+A  What's new: a one-time spotlight card per release (6 slides) through the home nudge queue,
+   shown on every fresh install; the About "What's new" row. C#: setWhatsNew push +
+   ixian:whatsnew:done (SLocalOnlyStore whatsnew.seen), flag S17Bridge, packet P26.
+B  About / Contributors full-bleed headers; the Android status-bar ink under them
+   (ixian:topsurface:<plain|about|contrib>, constant colours).
+C  Chat appearance, final values v3: seven canvases (Mist, Iris, Spixi, Meadow, Aurora, Dusk,
+   Ocean), each with its own flat bubble colour; full-coverage dark canvases; pattern -20 %;
+   bubble colours + corners; Contours (rings) + Waves; tiles follow the selection; the
+   preview date chip uses the chat's tokens; no radio on picture tiles.
+D  The S17 illustration set (What's new scenes, About glass, Contributors heart, Moment art).
+E  Downloads (summary, chips, select mode, delete, Clear all), Contributors, Delete data A;
+   secondary buttons in sheets are text buttons.
+F  Moment sheets: seven one-time sheets (AI translation, auto-download offer, offline sender,
+   first IXI without a backup, microphone, mini app first open, first payment), full-bleed
+   art. C#: SMoments + S17MomentRules (ask / answer, setMoments, ixian:moment:*,
+   ixian:openPrivacy one-shot), flag S17Moments, packet P28.
+   The notification sender name is ON by default; the nickname is sanitized and capped.
+
+Strings for all 12 locales; pins in scripts/pins-s17; C# harness S17Tests + S17MomentTests.
+#46 loop r1-r4 incl. a security-only review at high effort. DECISIONS #1331-#1350.

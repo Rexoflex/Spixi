@@ -67,7 +67,7 @@ export default async function (h) {
 
   /* ———— M1: the caps — `media` always (the shell ANDs canSendFile), `camera` on Android + iOS only, in the ONE push ———— */
   await guard('S9 A1 M1 caps', async () => {
-    ok(/caps \+= ",voice";\s*\}\s*caps \+= ",media";\s*caps \+= ",savePhoto";\s*#if ANDROID \|\| IOS\s*if \(SFilePicker\.CameraAvailable\(\)\)\s*\{\s*caps \+= ",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this, "setCaps", caps\);/.test(SCP) /* ★ S11 G re-base (#1263): + caps += ",savePhoto" after media (pins-s11/g-cs.mjs) */
+    ok(/caps \+= ",voice";\s*\}\s*caps \+= ",media";\s*caps \+= ",savePhoto";\s*(?:if\s*\(\s*SpixiFlags\.S17Moments\s*\)\s*\{\s*caps\s*\+=\s*",moments";[^}]*\}\s*)?#if ANDROID \|\| IOS\s*if \(SFilePicker\.CameraAvailable\(\)\)\s*\{\s*caps \+= ",camera";\s*\}\s*#endif\s*Utils\.sendUiCommand\(this, "setCaps", caps\);/.test(SCP) /* ★ S11 G re-base (#1263): + caps += ",savePhoto" after media (pins-s11/g-cs.mjs) */
       && count(SCP, /",media"/g) === 1 && count(SCP, /",camera"/g) === 1 && count(SCP, /"setCaps"/g) === 1,
       'S9 A1 M1 caps: setCaps gains ",media" (every chat — the shell gates on canSendFile, C# re-checks mediaAllowed) and ",camera" under #if ANDROID || IOS only when the device has a camera (SFilePicker.CameraAvailable — #46 r1), before the ONE push (CONTRACT §1a)');
   });

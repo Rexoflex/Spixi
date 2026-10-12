@@ -62,6 +62,8 @@
 <link rel="stylesheet" href="../styles/components/launch-shell.css"><!-- iOS-23 AUDIT MAJOR-2: About -> Terms/Privacy reuse launch-shell's doc sheet (.c-launch__terms-*, __sheet-close, __link) -->
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- Chat appearance takeover (6e.2) -->
 <link rel="stylesheet" href="../styles/components/settings-backup.css"><!-- Backup sublevel in the pane (#243) -->
+<link rel="stylesheet" href="../styles/components/whats-new.css"><!-- ★ S17 A (#1338): the What's new card from About -->
+<link rel="stylesheet" href="../styles/components/moment-sheet.css"><!-- ★ S17 F (#1340): the AI translation moment -->
 <link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/lock-shell.css"><!-- #341: c-encpass + password fields for the Change-password sublevel (#804: every form factor) -->
 <link rel="stylesheet" href="../styles/components/message-bubble.css"><!-- .c-chat-canvas paint for the appearance preview -->
@@ -204,6 +206,8 @@
   const {
     createSettingsHub, createSettingsDanger,
     createSettingsAbout, createSettingsHowTo,
+    createWhatsNew, whatsNewSlides,   // ★ S17 A (#1338): the What's new card, opened from About
+    showMomentSheet, createMomentClient, momentAfterResult,   // ★ S17 F (#1340): the AI translation moment
     createSettingsContributors, createSettingsBackup, setBackupScreenStatus,
     createSettingsDownloads, setDownloads,
     setDownloadsAvatars,             // ★ S10 F7 (#1254): the From sheet's sender avatars
@@ -385,6 +389,20 @@
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  /* ★ S17 F (#1340, P28 · flag S17Moments, cap `moments`): Settings hosts ONE moment — the AI translation notice, after a
+     new language (not English) is applied, IN that language: C# pushes setMoments right AFTER setLocale (the live
+     re-localize, #334), so `strings` is already the new dictionary. #46 r1 (MINOR-1): asked only when the screen is clear
+     (the language sheet closed), so C#'s yes shows at once. */
+  const moments = createMomentClient({ bridge });
+  let langMomentTimer = 0;
+  function askLangMoment(code, tries) {
+    clearTimeout(langMomentTimer);
+    if (document.body.dataset.overlayOpen !== undefined || document.visibilityState !== 'visible') {
+      if (tries < 60) langMomentTimer = setTimeout(() => askLangMoment(code, tries + 1), 500);
+      return;
+    }
+    momentAfterResult(moments, 'lang', code, () => showMomentSheet({ id: 'lang', host: document.body, strings, ctx: {} }));
+  }
   /* #343: ONE call lights up press feedback for every pressable surface in this
      shell (src/components/pressable.js). Delegated on document, so rows created
      later by a re-render are covered without re-attaching. A new shell needs
@@ -406,6 +424,7 @@
    * showRemoveAvatar(conditional) · loadAvatar · setVersion (S4) · setAddress (S1) ·
    * setLanguage (S3). It does NOT push backup status — that row degrades (BE gap S2). */
   const state = {
+    whatsNew: null,              // ★ S17 A (#1338): { version, show } once setWhatsNew lands (cap whatsnew)
     devSeed: null,               // ★ Session I ②: { status } once setDevSeed lands (dev builds only)
     name: '', savedName: '',
     address: '',                 // S1: setAddress push → QR/address block
@@ -428,7 +447,7 @@
        Defaults match the C# defaults exactly, so the first paint cannot flicker: sender
        name OFF is today's shipped notification copy, byte for byte. */
     notifEnabled: true,
-    notifSenderName: false,
+    notifSenderName: true,     // ★ S17 (#1346, Damir 23:32): the C# default is ON now (SNotificationPrefs.showSenderName)
     notifSounds: true,
     hintsOn: true,          // ★ S11 (#1262): seeded by setHintsOff (C# SHints)
     callRingtone: true,        // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
@@ -553,7 +572,8 @@
    * from here, from chat.html's pre-paint script and from applyPatternPrefs alike.
    * readPatternLevel migrates the legacy fractional values. */
   const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground',
-    previewLines: 'spixi.chat.previewlines' };   // ★ S10 P4 (#1254): '1' | '2' (absent / anything else = '1', ★ S11 #1261); the CONSUMER is home.html (the chats list)
+    previewLines: 'spixi.chat.previewlines',
+    sentColour: 'spixi.chat.sentcolour', corners: 'spixi.chat.corners' };   // ★ S17 C (#1334): the two NEW keys (absent = Auto · the token 18 px)   // ★ S10 P4 (#1254): '1' | '2' (absent / anything else = '1', ★ S11 #1261); the CONSUMER is home.html (the chats list)
   function readChatPrefs() {
     // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
     // mobile Default (1). Mirrors chat.html's pre-paint boot read so the
@@ -578,11 +598,11 @@
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
-      if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.8, t));
+      if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.75, t));   // ★ S17 C: floor 0.75 (the slider's 12 px), in step with chat.html
       const st = localStorage.getItem(CHAT_PREFS.patternStyle);
       // ★ #835: 'triangles', 'lineart', 'doodles' and 'flow' are all retired and
       // deliberately absent here, so any of them falls through to the default above.
-      if (st === 'contours') patternStyle = st;   // ★ #997: a stored 'matrix' falls through
+      if (st === 'contours' || st === 'rings') patternStyle = st;   // ★ S17 C (#1335): + the rings   // ★ #997: a stored 'matrix' falls through
       const gr = localStorage.getItem(CHAT_PREFS.ground);
       /* ★ Session J (Damir, Windows: "sometimes it shows the gradient selected but doesn't have it
          applied"): this line only ever set 'gradient'. Since Session I the DEFAULT is 'gradient',
@@ -590,11 +610,19 @@
          while chat.html's ladder honoured the flat. Both stored values are read now. */
       // ★ #855 → #998: 'gradient' is ADMITTED again (the brand gradient, light only);
       // any other value falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
-      if (gr === 'flat' || gr === 'gradient' || gr === 'green' || gr === 'blue') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too · ★ S8 (#1237): and the blue   // ★ #998: anything else, incl. absent/corrupt → the default above
+      if (['flat', 'gradient', 'green', 'blue', 'aurora', 'dusk', 'ocean'].indexOf(gr) >= 0) chatGround = gr;   // ★ S17 C (#1334): + aurora · dusk · ocean   // ★ #1080 F15: the third ladder admits the green gradient too · ★ S8 (#1237): and the blue   // ★ #998: anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     let previewLines = '1';   // ★ S11 (#1262): the default is 1 LINE (#1261)
     try { if (localStorage.getItem(CHAT_PREFS.previewLines) === '2') previewLines = '2'; } catch (e) {}   // ★ S10 P4: the home.html ladder's twin
-    return { pattern, textScale, patternStyle, chatGround, previewLines };
+    /* ★ S17 C (#1334): the two NEW keys, read the way chat.html reads them */
+    let sentColour = 'auto', corners = 18;
+    try {
+      const c = localStorage.getItem(CHAT_PREFS.sentColour);
+      if (['blue', 'violet', 'teal', 'pink', 'orange', 'graphite'].indexOf(c) >= 0) sentColour = c;
+      const k = parseFloat(localStorage.getItem(CHAT_PREFS.corners));
+      if (isFinite(k)) corners = Math.round(Math.min(22, Math.max(4, k)));
+    } catch (e) {}
+    return { pattern, textScale, patternStyle, chatGround, previewLines, sentColour, corners };
   }
 
   /* ★ security sweep E-1b — the remote-media opt-out, read here and written by the
@@ -882,8 +910,18 @@
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(() => stamp('paint')));
   }
 
+  /* ★ S17 (#1339, 🟡 NEW verb, P26 · cap `topsurface`): the Android status bar sits over this WebView; while a full-bleed
+     header (About, Contributors) is under it, C# picks the bar ink against the band, not the light page. Exact words only
+     (plain | about | contrib), sent on a change; never in the desktop pane (no status bar there). */
+  let topSurface = 'plain';
+  function setTopSurface(kind) {
+    if (kind === topSurface || paneMode || !bridge.cap('topsurface')) return;
+    topSurface = kind;
+    try { bridge.send('ixian:topsurface:' + kind); } catch (e) { /* presentation only */ }
+  }
   function renderLayout() {
     if (exiting) return;                           // no re-render once the page is exiting
+    if (currentView !== 'about' && currentView !== 'contributors') setTopSurface('plain');
     // [CDPERF] settings-sub — ONE hook for every view (#798: not a list of the three
     // rows this session is about). Stamps only when the view actually changes.
     if (currentView !== subRendered) { subRendered = currentView; cdperfSubStart(currentView); }
@@ -1595,6 +1633,23 @@
           onSeedHeavy: () => bridge.send('ixian:devseed:heavy'),   // ★ Session J: the count dial
           onUnseed: () => bridge.send('ixian:devunseed'),
         } : undefined,
+        /* ★ S17 A (#1338): the "What's new" row — only with the cap, a validated push and a slide table for that release;
+           "New" until opened in this version. Opening it is the same card as the auto-show; its close (every path) sends
+           ixian:whatsnew:done, so C# stores seen = this version. */
+        whatsNew: (state.whatsNew && whatsNewSlides(state.whatsNew.version)) ? {
+          version: state.whatsNew.version,
+          isNew: !!state.whatsNew.show,
+          onOpen: () => {
+            const v = state.whatsNew.version;
+            state.whatsNew.show = false;
+            createWhatsNew({
+              version: v, slides: whatsNewSlides(v), host: document.body,
+              desktop: document.documentElement.hasAttribute('data-desktop'), strings,
+              onDone: () => { try { bridge.send('ixian:whatsnew:done'); } catch (e) {} },
+            });
+          },
+        } : undefined,
+        onHeader: (over) => setTopSurface(over ? 'about' : 'plain'),   // ★ S17 (#1339)
         onBack: showHub,
       });
       case 'howto': return createSettingsHowTo({
@@ -1684,6 +1739,7 @@
       });
       case 'contributors': return createSettingsContributors({
         strings,
+        onHeader: (over) => setTopSurface(over ? 'contrib' : 'plain'),   // ★ S17 (#1339)
         onBack: contributorsBack,   // ★ S12 B (r1 R2-m1): → About when opened from About › Licences, else the hub
       });
       case 'chatappearance': {
@@ -1708,6 +1764,14 @@
           onPreviewLines: (v) => { try { localStorage.setItem(CHAT_PREFS.previewLines, v === '1' ? '1' : '2'); } catch (e) {} },
           hintsOn: state.hintsOn,
           onHints: bridge.cap('hints') ? (next, ctrl) => { latchNotif('hintsOn', next, ctrl); } : undefined,   // ★ S11 (#1262)
+          /* ★ S17 C (#1334): the two NEW controls (the chat shell's ladders read the keys) + the Theme card (the SAME commit
+             the hub's theme sheet uses: applyTheme + ixian:appearance:<v>; the live flip re-renders this view, #772) */
+          sentColour: prefs.sentColour,
+          corners: prefs.corners,
+          onSentColour: (v) => { try { if (v === 'auto') localStorage.removeItem(CHAT_PREFS.sentColour); else localStorage.setItem(CHAT_PREFS.sentColour, String(v)); } catch (e) {} },
+          onCorners: (v) => { try { localStorage.setItem(CHAT_PREFS.corners, String(v)); } catch (e) {} },
+          theme: state.theme,
+          onTheme: (v, ctrl) => { state.theme = v; applyTheme(v); bridge.send('ixian:appearance:' + v); if (ctrl && ctrl.done) ctrl.done(); },
         }));
       }
       // #242/#243: Theme/Language as pane sublevels (the hub routes here via
@@ -1777,8 +1841,12 @@
           onDeleteFile: (name, ctrl) => { bridge.send('ixian:deleteDownload:' + encodeURIComponent(name)); ctrl.done(); },  // C# re-pushes the list
           // ★★ #1107: "Show in chat" — a NAME only, encoded like open/delete; C# runs the same traversal guard, then its own index
           onShowInChat: (name) => bridge.send('ixian:showDownloadInChat:' + encodeURIComponent(name)),
-          // no onClearAll: same #264 audit rationale as downloads.html — the only
-          // bulk verb (ixian:deleted) lives on the DANGER screen with its confirm.
+          /* ★ S17 E (#1336, Damir: "clear-all reuses ixian:deleted"): the summary card's "Delete all downloads" sends the
+             SAME frozen verb the Delete data screen sends (SettingsPage.onDeleteDownloads), behind the same confirm
+             (settingsConfirm in the component). That handler does not re-push the list, so the screen asks for it again
+             — ixian:loadDownloads, the verb this case already sends; the native bridge queues the two in order (#N75).
+             downloads.html still passes none: DownloadsPage has no bulk verb (the #264 audit). */
+          onClearAll: (ctrl) => { bridge.send('ixian:deleted'); bridge.send('ixian:loadDownloads'); ctrl.done(); },
         });
         bridge.send('ixian:loadDownloads');   // request the list into THIS WebView
         return downloadsEl;
@@ -2209,6 +2277,39 @@
     // setVersion(version) — S4 (SettingsPage.onLoad, mirrors LaunchPage:33);
     // feeds the hub Version row + the About takeover.
     setVersion(v) { appVersion = v || ''; scheduleRebuild(); },
+    /* ★ S17 A (#1338, 🟡 NEW push, P26): {"version":"<digits>","show":true|false} — the About row's "New" badge. Same
+       validation as home.html; a bad push changes nothing. */
+    /* ★ S17 F (#1340, 🟡 NEW push, P28): {"seen":[ids],"apps":[app ids],"lang":"<code>"|"","session":bool} — a pending
+       language asks once; C# answers yes for a new non-English language not seen before, in a session with no card */
+    setMoments(json) {
+      if (!bridge.cap('moments')) return;
+      moments.setState(String(json));
+      const st = moments.state;
+      if (st && st.lang) { clearTimeout(langMomentTimer); langMomentTimer = setTimeout(() => askLangMoment(st.lang, 0), 400); }
+    },
+    /* ★ S17 F (#1340, 🟡 NEW push): C#'s answer to ixian:moment:lang:<code> */
+    momentAnswer(id, arg, ok, caps) {
+      if (!bridge.cap('moments')) return;
+      moments.answer(String(id), String(arg == null ? '' : arg), String(ok), String(caps == null ? '' : caps));
+    },
+    /* ★ S17 F (#1340, #46 security r1, 🟡 NEW push): openScreen('privacy') — the auto-download offer in a chat asked C# to
+       open Settings › Privacy; this document shows that screen with the auto-download row in view. Exact id or nothing. */
+    openScreen(id) {
+      if (String(id) !== 'privacy') return;
+      showPrivacy();
+      setTimeout(() => {
+        const row = (paneMode ? detailWrap : root).querySelector('[data-pref="photoAutoDl"]');
+        if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
+      }, 120);
+    },
+    setWhatsNew(json) {
+      if (!bridge.cap('whatsnew')) return;
+      let o = null;
+      try { o = JSON.parse(String(json)); } catch (e) { return; }
+      if (!o || typeof o !== 'object' || typeof o.show !== 'boolean' || typeof o.version !== 'string' || !/^[0-9.]{1,16}$/.test(o.version)) return;
+      state.whatsNew = { version: o.version, show: o.show };
+      scheduleRebuild();
+    },
 
     // setAddress(address) — S1 (SettingsPage.onLoad). PLAIN identity address (legacy
     // share form, HomePage:322 — no ExtendedAddress _suffix, that's payment-only);

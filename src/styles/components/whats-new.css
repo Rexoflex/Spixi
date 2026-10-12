@@ -1,0 +1,177 @@
+/* ★ S17 A (#1338) — WHAT'S NEW: the spotlight card (kit-render.html § What's new, CLEAN BLUE, LOCKED). A port of the
+   render's .wt / .sp rules (parts/render.css) with the CLEAN BLUE end values baked in (parts-e/kit.css
+   :root[data-pal="blue"] — the palette swap itself is not ported). The scenes and their motion live in illo.css;
+   their ground is --wn-ground-a/-b (tokens.css). Semantic tokens; logical properties (RTL-safe). */
+
+.c-whatsnew {
+  --wn-art-h: clamp(150px, 27vh, 228px);   /* the render's art band: 27 % of the screen, 150–228 px */
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-16);
+  padding-block: calc(var(--spacing-16) + var(--safe-top, 0px)) calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  pointer-events: none;                    /* the card takes the touches; the scrim under it catches the rest */
+  outline: none;
+}
+.c-whatsnew > * { pointer-events: auto; }
+
+/* the card: the sheet ground, one entrance (rise + scale), the panel on top, the text on the sheet */
+.c-whatsnew__card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;                     /* sanctioned: the render's card radius */
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--surface-sheet);
+  box-shadow: var(--elevation-3);
+  opacity: 0;
+  transform: translateY(18px) scale(.95);
+  transition: opacity 420ms var(--easing-decelerate), transform 420ms var(--easing-decelerate);
+}
+.c-whatsnew[data-open] .c-whatsnew__card { opacity: 1; transform: none; }
+.c-whatsnew__card:focus { outline: none; }   /* a programmatic landing spot (whats-new.js), never a control */
+/* dark: the card stands off the screen — a deeper scrim, a light rim, a soft blue glow (kit.css "DARK" block) */
+:root[data-theme="dark"] .c-whatsnew__card {
+  box-shadow: 0 30px 70px -18px rgba(0, 0, 0, .85), 0 0 90px -30px rgba(70, 120, 255, .45);   /* sanctioned: the render's dark lift + glow */
+}
+:root[data-theme="dark"] .c-whatsnew__card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 0 0 1px rgba(255, 255, 255, .08);   /* sanctioned: the render's light rim */
+}
+:root[data-theme="dark"] .c-scrim[data-wn] { background: rgba(2, 4, 12, .74); }   /* sanctioned: the render's deeper dark scrim (whats-new.js tags its own scrim) */
+/* desktop: no dim (Damir's pick) — the card carries its own lift */
+.c-whatsnew[data-desktop] .c-whatsnew__card { box-shadow: 0 24px 60px -16px rgba(10, 20, 60, .45), 0 0 0 1px var(--outline-sheet-01); }   /* sanctioned: a lift with no scrim behind it */
+
+/* the slides */
+.c-whatsnew__vp { position: relative; z-index: 1; overflow: hidden; touch-action: pan-y; cursor: grab; flex: 1 1 auto; min-height: 0; }
+.c-whatsnew__track { display: flex; transition: transform var(--duration-300) var(--easing-standard); }
+.c-whatsnew__card[data-drag] .c-whatsnew__track,
+.c-whatsnew__card[data-drag] .c-whatsnew__layer { transition: none; }
+.c-whatsnew__slide { flex: 0 0 100%; min-width: 0; display: flex; flex-direction: column; }
+.c-whatsnew__art {
+  position: relative;
+  flex: none;
+  height: var(--wn-art-h);
+  overflow: hidden;
+  background: linear-gradient(150deg, var(--wn-ground-a), var(--wn-ground-b));   /* the frame before the scene paints = its ground */
+}
+:root[data-theme="dark"] .c-whatsnew__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }   /* sanctioned: the art / text split, dark */
+.c-whatsnew__layer { position: absolute; inset: 0; transition: transform var(--duration-300) var(--easing-standard); will-change: transform; }
+.c-whatsnew__text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 18px 22px 2px;                  /* sanctioned: the render's text inset */
+  text-align: center;
+}
+.c-whatsnew__eyebrow {
+  margin: 0;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: .02em;
+}
+.c-whatsnew__title {
+  margin: 0;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  letter-spacing: var(--tracking-heading-sm, 0);
+  font-weight: var(--font-weight-bold);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.c-whatsnew__body {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* the foot: dots + Next / Got it */
+.c-whatsnew__foot { position: relative; z-index: 1; flex: none; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 14px 20px 20px; }
+.c-whatsnew__dots { display: flex; gap: 6px; align-items: center; }
+.c-whatsnew__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-neutral-03);
+  cursor: pointer;
+  position: relative;
+  transition: width var(--duration-200) var(--easing-standard), background-color var(--duration-300) var(--easing-standard);
+}
+.c-whatsnew__dot::after { content: ""; position: absolute; inset: -12px -4px; }   /* the 8 px dot reaches a 32 px hit box */
+.c-whatsnew__dot[aria-selected="true"] { width: 22px; background: var(--surface-action-default); }
+.c-whatsnew__primary.c-button[data-size="56"] { height: auto; min-height: 56px; white-space: normal; text-align: center; line-height: 1.25; padding-block: var(--spacing-8); }
+
+/* × on the panel: a frosted white disc (the render's CLEAN BLUE value) */
+.c-whatsnew__x {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .2);     /* sanctioned: the render's frosted × on the vivid panel */
+  color: #fff;                             /* sanctioned: white glyph on the vivid panel */
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.c-whatsnew__x::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; }   /* 44 px hit box */
+.c-whatsnew__x:focus-visible, .c-whatsnew__dot:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+
+/* desktop: arrows beside the card */
+.c-whatsnew__row { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; max-height: 100%; }
+.c-whatsnew__side {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-sheet);
+  color: var(--icon-neutral-01);
+  box-shadow: var(--elevation-2);
+  cursor: pointer;
+}
+.c-whatsnew__side[disabled] { opacity: .35; cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .c-whatsnew__side:not([disabled]):hover { background: var(--surface-interactive-hover); }
+}
+
+/* the narrow phone (320 × 568): the band gives way first */
+@media (max-height: 600px) { .c-whatsnew { --wn-art-h: 136px; } .c-whatsnew__text { padding-block-start: 12px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .c-whatsnew__card, .c-whatsnew__track, .c-whatsnew__layer, .c-whatsnew__dot { transition: none; }
+}

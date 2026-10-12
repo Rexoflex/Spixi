@@ -23,7 +23,7 @@ import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { discGrad } from './disc.js';
 import { createTopbar } from './topbar.js';
-import { settingsOptionSheet } from './settings-shell.js';   // the Privacy screen's photo auto-download picker (★ S11 A2: Message preview left it for the inline control)
+import { settingsOptionSheet, THEME_OPTIONS } from './settings-shell.js';   // the Privacy screen's photo auto-download picker (★ S11 A2: Message preview left it for the inline control)
 /* ★ Session M (#774): the Colour control is a VALUE ROW that opens the house option sheet,
    not a third tile pair — see createChatAppearance. The direction is safe and already
    travelled: build-demo-bundle.mjs orders settings-shell BEFORE settings-screens, and
@@ -55,7 +55,12 @@ export const PATTERN_STYLES = [
      still sit in src/assets/images unreferenced — deleting artwork is Damir's call. */
   /* ★★ #997 (Damir 2026-09-28): CONTOURS replace the data matrix (picked from constellation ·
      fine lattice · contours on the three grounds). Still ONE style; 'matrix' falls through. */
-  { id: 'contours', key: 'patternStyleContours', label: 'Contours' },
+  /* ★★ S17 C (#1334, Damir 19:13): the id stays 'contours' (every stored pref keeps working) but the TILE is the
+     render's Waves now and the LABEL is "Waves" — same key, new value in every locale. */
+  /* ★★ S17 C (#1335, Damir 19:22 "add it, name 'Contours'"): the render's topographic rings — a NEW id and key. FIRST, as in
+     the render (None · Contours · Waves, Damir 19:49 "that's what we want") */
+  { id: 'rings', key: 'patternRings', label: 'Contours' },
+  { id: 'contours', key: 'patternStyleContours', label: 'Waves' },
 ];/* ★ N81 (#422) — THREE levels, and the value is a LEVEL INDEX, not an alpha.
  *
  * Damir's dial: off, the new default, and one stronger step at 0.1. The change
@@ -93,20 +98,25 @@ export const CHAT_GROUNDS = [
      ⓘ ONE MEMBER MEANS THE ROW DOES NOT RENDER — see the guard below. That is Damir's own
      rule, re-ruled explicitly on 2026-09-04 for the dark case: a one-option chooser reads
      as a broken control, so the row is ABSENT rather than shown with nothing to choose. */
-  { id: 'flat', key: 'groundFlat', label: 'Solid' },
+  { id: 'flat', key: 'groundFlat', label: 'Mist' }   /* ★ S17 C (Damir 15:55): the canvas NAMES — no "… gradient", no "Brand"; keys kept, values changed */,
   /* ★★ #998 (Damir 2026-09-28, the polish round): the option is BACK as the BRAND GRADIENT —
      light only (★ #1066: and a DARK brand gradient since 2026-09-29, blue-violet → midnight), never the default (tokens.css #1002: #CCD0EC → #D0C9EB → #D5C3EB with its own
      ink #3A2F66). The restore was the one line #855 promised; the label is a NEW key because
      "Gradient" translations named the retired teal wash. */
-  { id: 'gradient', key: 'groundBrandGradient', label: 'Brand gradient' },
+  { id: 'gradient', key: 'groundBrandGradient', label: 'Iris' },
   /* ★★ #1080 F15 (Damir 2026-09-30, from his green title-bar screenshot; picked G2 of a rendered
      3-way): a SOFT GREEN gradient — LIGHT ONLY (`lightOnly`). There is no dark green rule, so in dark
      the dot is not offered and a stored 'green' paints the flat midnight ground (tokens.css). */
   /* ★★ S8 (#1237, Damir 2026-10-07): green is offered in DARK too (DG1 "Forest" — tokens.css has a dark rule now), and a
      fourth ground joins: BLUE — light B1 "Sky", dark DB1 "Azure". Both themes offer the same four: Solid · Brand · Green ·
      Blue. The `lightOnly` filter below stays as the mechanism (no member uses it today). */
-  { id: 'green', key: 'groundGreenGradient', label: 'Green gradient' },
-  { id: 'blue', key: 'groundBlueGradient', label: 'Blue gradient' },
+  /* ★ S17 C (Damir 15:55): the order of the render — Mist · Iris · Spixi · Meadow, then the three NEW canvases */
+  { id: 'blue', key: 'groundBlueGradient', label: 'Spixi' },
+  { id: 'green', key: 'groundGreenGradient', label: 'Meadow' },
+  /* ★★ S17 C (#1334): ADDED next to today's four (15:09) — tokens.css carries each one's ground, ink and Auto sent colour */
+  { id: 'aurora', key: 'groundAurora', label: 'Aurora' },
+  { id: 'dusk', key: 'groundDusk', label: 'Dusk' },
+  { id: 'ocean', key: 'groundOcean', label: 'Ocean' },
 ];
 
 /* ★ Session M (#783): THE PATTERN_LEVELS ARRAY IS GONE. Session M folded the intensity
@@ -178,6 +188,8 @@ export const PATTERN_SWATCH_BOOST = 6;
    Damir asked to quieten. The values ARE the picks, so they are the thing to move: 4.5 is one
    step louder, 2 one step softer, both rendered on the sheet. */
 const PATTERN_SWATCH_BOOSTS = {
+  /* ★ S17 C (#1335): the rings tile carries more ink than the waves tile — one step softer in the tiles */
+  rings: 4.5,
   /* ★ #835: the `doodles: 3` override retired with its style. It existed because ONE
      multiplier cannot balance two artworks with different ink coverage — dense doodle line
      art against the matrix's scattered dots. With a single tile left there is nothing to
@@ -216,12 +228,8 @@ export function readPatternLevel(raw, fallback = 1) {
   if (n === 1 || n === 2) return 1;          // already a level index (2 = retired Strong)
   return 1;                                  // legacy alpha: anything above 0 → Subtle
 }
-export const TEXT_SIZES = [            // --chat-text-scale — bubble adoption LIVE (message-bubble.css, 6e.2)
-  { value: 0.9, key: 'textS', label: 'S' },
-  { value: 1, key: 'textM', label: 'M' },
-  { value: 1.1, key: 'textL', label: 'L' },
-  { value: 1.25, key: 'textXL', label: 'XL' },
-];
+/* ★ S17 C (#1334): TEXT_SIZES (S · M · L · XL) is RETIRED — the text size is a 12–22 px slider now (the render); the four
+   preset keys leave the extractor table and every locale with it. Recover from git (S8 era) if presets ever return. */
 export const SECURITY_TIERS = [        // §9 proposal — see spec §8 translation table
   { id: 'basic', key: 'tierBasic', label: 'Basic',
     descKey: 'tierBasicDesc', desc: 'Convenience first. Lock optional, previews on, receipts on.' },
@@ -455,362 +463,491 @@ function screenShell(className, title, onBack) {
   return { el, body, live };
 }
 
+/* ★ S17 C (Damir 20:21): the ONE "picked" mark of the appearance tiles (theme phones, chat-list cards) — a white check in a
+   blue disc, shown by CSS only on the [aria-checked="true"] tile; decoration (the radio role carries the state) */
+function pickMark() {
+  const m = document.createElement('span');
+  m.className = 'c-settings-appearance__pick';
+  m.setAttribute('aria-hidden', 'true');
+  m.append(icon('check', { size: 14 }));
+  return m;
+}
+
 /**
- * Chat appearance — FE-ONLY (#147): live preview canvas + pattern intensity +
- * message text size. Picks apply INSTANTLY (root css vars via callbacks) —
- * no bridge, no latch; the preview rides the REAL .c-chat-canvas paint.
+ * Chat appearance — FE-ONLY (#147): every pick applies INSTANTLY to the live preview and is written by the host
+ * (localStorage, the chat shell's #690 ladders read it) — no bridge, no latch; the preview rides the REAL
+ * .c-chat-canvas paint and the real bubble tokens.
+ *
+ * ★★ S17 C (#1334, Damir 2026-10-11 14:27 "a premium chat appearance screen", appearance-render.html, LOCKED) —
+ * FIVE CARDS: (1) the live preview (the canvas, its pattern, a date chip, a received bubble with a sender name, a sent
+ * bubble with ticks) + the text-size slider 12–22 px; (2) the CANVAS as a row of mini chats — today's four (renamed Mist,
+ * Iris, Spixi, Meadow, 15:55) + NEW Aurora, Dusk, Ocean; (3) the BACKGROUND (None · Waves · Contours) + the NEW bubble
+ * colour (Auto + 6) + the NEW bubble corners (4–22 px); (4) the THEME as three mini phones (only with `onTheme`);
+ * (5) the chat-list message preview (1 / 2 lines as mini lists) + the Tips switch.
+ * ★ ADDITIONS, NOT REPLACEMENTS (15:09): today's canvases and their exact look stay (tokens.css), the default stays Mist
+ * + the pattern; nobody's chat changes until they pick something. ★ TODAY'S BUBBLE LOOK STAYS (15:16): only a colour
+ * (data-chat-sent) and a radius (--bubble-radius) are layered on top; the received glass edge is untouched.
+ * ★ A canvas pick resets the bubble colour to Auto (Damir, interview). ★ The corners default is 18 px = today (the tail
+ * and group corners scale so 18 → 4 px exactly). ★ Desktop, wide: two columns (the preview stays put on the left).
+ * Motion: colour / ground / radius ease ≤ .45 s; reduced motion = instant (settings-screens.css).
+ * The storage is UNCHANGED for every existing control (pattern level + style, ground, text scale, preview lines); two
+ * NEW keys only, for the two new controls (spixi.chat.sentcolour · spixi.chat.corners — the host writes them).
  */
+export const BUBBLE_COLOURS = [
+  { id: 'auto', key: 'bubbleColourAuto', label: 'Auto' },
+  { id: 'blue', key: 'colourBlue', label: 'Blue' },
+  { id: 'violet', key: 'colourViolet', label: 'Violet' },
+  { id: 'teal', key: 'colourTeal', label: 'Teal' },
+  { id: 'pink', key: 'colourPink', label: 'Pink' },
+  { id: 'orange', key: 'colourOrange', label: 'Orange' },
+  { id: 'graphite', key: 'colourGraphite', label: 'Graphite' },
+];
+export const BUBBLE_CORNERS = { min: 4, max: 22, def: 18 };
+export const TEXT_SIZE_PX = { min: 12, max: 22, base: 16 };
+/* ★ S17 C v3 (Damir 21:50, replaces the 21:24 file): EVERY canvas carries its OWN flat bubble colour (Auto) in tokens.css —
+   each ground rule (root + descendant) sets the sent colour, its card and its meta ink, so a tile never inherits another
+   canvas's colour and "Auto" is simply no data-chat-sent. */
+
+/* ★ #1035 → ★ S17 C (#46 r1 M1): ONE radio-group keyboard for every picture group on this screen (canvas tiles, theme phones,
+   chat-list tiles) — arrows move AND select, Home / End, wrap, RTL mirrored. Only the checked option is in the tab order. */
+function radioArrows(group) {
+  group.addEventListener('keydown', (e) => {
+    const kids = [...group.children];
+    const i = kids.indexOf(e.target);
+    if (i < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
+    const rtl = (group.closest('[dir]') || document.documentElement).getAttribute('dir') === 'rtl';
+    const fwd = rtl ? 'ArrowLeft' : 'ArrowRight', back = rtl ? 'ArrowRight' : 'ArrowLeft';
+    let n = -1;
+    if (e.key === fwd || e.key === 'ArrowDown') n = (i + 1) % kids.length;
+    else if (e.key === back || e.key === 'ArrowUp') n = (i - 1 + kids.length) % kids.length;
+    else if (e.key === 'Home') n = 0;
+    else if (e.key === 'End') n = kids.length - 1;
+    if (n < 0) return;
+    e.preventDefault();
+    kids[n].focus();
+    kids[n].click();
+  });
+}
+
 export function createChatAppearance({
-  patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1/2), not an alpha
-  patternStyle = 'contours',     // ★ #997: the only style left (matrix, doodles + Live flow retired)
-  chatGround = 'flat',           // ★ AUG 2026-08-30: 'flat' (default) | 'gradient' — ★ #1066: both themes (a rule per theme in tokens.css) · ★ S8 (#1237): | 'green' | 'blue'
+  patternOpacity = 1,             // ★ N81 (#422): a LEVEL index (0/1), not an alpha
+  patternStyle = 'contours',     // ★ S17 C: 'contours' ("Waves") | 'rings' ("Contours")
+  chatGround = 'flat',           // ★ S17 C: flat (Mist) · gradient (Iris) · blue (Spixi) · green (Meadow) · aurora · dusk · ocean
   textScale = 1,
+  sentColour = 'auto',           // ★ S17 C (#1334): 'auto' | a BUBBLE_COLOURS id
+  corners = BUBBLE_CORNERS.def,  // ★ S17 C (#1336): 4–22 px
+  theme,                         // ★ S17 C: the THEME_OPTIONS value (0 System · 1 Light · 2 Dark); the card renders only with onTheme
   isDesktop = typeof document === 'object' && document.documentElement.hasAttribute('data-desktop'),
-  host,                          // ★ #1019: unused since the Canvas choice became circles (no sheet); kept so existing callers stay valid
+  host,                          // kept so existing callers stay valid (#1019)
   onBack,
-  onPattern,                     // (level) — shell persists the index; CSS resolves the alpha
-  onPatternStyle,                // (id) — shell sets data-chat-pattern + persists (W5)
-  onChatGround,                  // (id) — shell sets data-chat-ground + persists (★ AUG)
-  onTextScale,                   // (scale) — sets --chat-text-scale (bubble adoption: chat-shell integration, #147 flag)
-  previewLines = '1',            // ★ S11 (#1262): default 1 line (#1261) · ★ S10 P4 (#1254): the chat-list excerpt — '1' | '2' lines (spixi.chat.previewlines)
-  onPreviewLines,                // ('1' | '2') — shell persists; home.html reads it. No handler → no row.
-  hintsOn = true,                // ★ S11 (#1262): the "Tips on the Chats screen" switch — C# (SHints) owns the value
-  onHints,                       // (next, ctrl) — the shell's latch (ixian:hintsoff). No handler → no row (an old exe).
+  onPattern,                     // (level) — the host persists the index; CSS resolves the alpha
+  onPatternStyle,                // (id)
+  onChatGround,                  // (id)
+  onTextScale,                   // (scale) — on release of the slider
+  onSentColour,                  // ★ S17 C (id) — 'auto' clears the key
+  onCorners,                     // ★ S17 C (px) — on release of the slider
+  onTheme,                       // ★ S17 C (value, ctrl) — the host's theme commit (ixian:appearance:<v>); no handler → no card
+  previewLines = '1',            // ★ S11 (#1262): '1' | '2'
+  onPreviewLines,                // ('1' | '2') — no handler → no card row
+  hintsOn = true,                // ★ S11 (#1262): C# (SHints) owns the value
+  onHints,                       // (next, ctrl) — no handler → no row
   strings = getStrings(),
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
-  /* live preview — real canvas class: gradient + generated pattern mask */
+  body.classList.add('c-settings-appearance__body');
+  const card = (cls) => { const c = document.createElement('section'); c.className = 'c-settings__section c-settings-appearance__card ' + cls; return c; };
+  const label = (text, id) => { const h = document.createElement('h3'); h.className = 'c-settings__label'; h.textContent = text; if (id) h.id = id; return h; };
+
+  /* ── state ── */
+  const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
+  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'contours';
+  let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
+  const groundsHere = CHAT_GROUNDS.filter((o) => !o.lightOnly || document.documentElement.getAttribute('data-theme') !== 'dark');
+  let groundCurrent = groundsHere.some((o) => o.id === chatGround) ? chatGround : 'flat';
+  let groundStored = chatGround;   // (#46 r1 of #1080) a stored light-only pick shows as flat, a tap on flat still WRITES flat
+  let colourCurrent = BUBBLE_COLOURS.some((o) => o.id === sentColour) ? sentColour : 'auto';
+  const clampInt = (v, lo, hi, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  let cornersCurrent = clampInt(corners, BUBBLE_CORNERS.min, BUBBLE_CORNERS.max, BUBBLE_CORNERS.def);
+  let sizePx = clampInt(Number(textScale) * TEXT_SIZE_PX.base, TEXT_SIZE_PX.min, TEXT_SIZE_PX.max, TEXT_SIZE_PX.base);
+  /* the colour the background tiles show: the pick, else the canvas's own (its ground rule) */
+  const tileSent = () => (colourCurrent !== 'auto' ? colourCurrent : '');
+  const setSent = (node, v) => { if (v) node.setAttribute('data-chat-sent', v); else node.removeAttribute('data-chat-sent'); };
+
+  /* ── (1) the preview + the text size ── */
+  const c1 = card('c-settings-appearance__card--preview');
   const preview = document.createElement('div');
   preview.className = 'c-chat-canvas c-settings-appearance__preview';
   preview.setAttribute('aria-hidden', 'true');
+  const chip = document.createElement('span');
+  chip.className = 'c-settings-appearance__chip';
+  chip.textContent = (strings.today || 'Today');
   const bubbleIn = document.createElement('div');
   bubbleIn.className = 'c-settings-appearance__bubble';
   bubbleIn.dataset.side = 'received';
-  bubbleIn.textContent = strings.previewIncoming || 'Pattern, gradient, text size…';
+  const who = document.createElement('span');
+  who.className = 'c-settings-appearance__who';
+  who.textContent = (strings.previewSender || 'Ana Kovač');
+  const inText = document.createElement('span');
+  inText.textContent = (strings.previewIncoming || 'Pattern, gradient, text size…');
+  const inMeta = document.createElement('span');
+  inMeta.className = 'c-settings-appearance__meta';
+  inMeta.textContent = '13:27';
+  bubbleIn.append(who, inText, inMeta);
   const bubbleOut = document.createElement('div');
   bubbleOut.className = 'c-settings-appearance__bubble';
   bubbleOut.dataset.side = 'sent';
-  bubbleOut.textContent = strings.previewOutgoing || '…exactly how your chats will look.';
-  preview.append(bubbleIn, bubbleOut);
-  body.append(preview);
+  const outText = document.createElement('span');
+  outText.textContent = (strings.previewOutgoing || '…exactly how your chats will look.');
+  const outMeta = document.createElement('span');
+  outMeta.className = 'c-settings-appearance__meta';
+  outMeta.append('13:42', icon('checks', { size: 14 }));
+  bubbleOut.append(outText, outMeta);
+  /* ★ S17 C (Damir 19:45 "on desktop make the preview mimic a bigger vertical chat canvas"): two more messages, shown only
+     in the tall desktop preview (settings-screens.css), so the left column reads as a real conversation */
+  const mkBubble = (side, text, time, ticks) => {
+    const b = document.createElement('div');
+    b.className = 'c-settings-appearance__bubble c-settings-appearance__bubble--more';
+    b.dataset.side = side;
+    const t = document.createElement('span');
+    t.textContent = text;
+    const m = document.createElement('span');
+    m.className = 'c-settings-appearance__meta';
+    m.append(time);
+    if (ticks) m.append(icon('checks', { size: 14 }));
+    b.append(t, m);
+    return b;
+  };
+  const moreOut = mkBubble('sent', (strings.previewOutgoing2 || 'Trying a new look.'), '13:31', true);
+  const moreIn = mkBubble('received', (strings.previewIncoming2 || 'Looks great!'), '13:35', false);
+  preview.append(chip, bubbleIn, moreOut, moreIn, bubbleOut);
 
-  /* ★★ Session M (#774) — THE BACKGROUND CONTROL ABSORBED THE OPACITY CARD.
-     Damir, from the device: *"we have 3 which are quite similar and confusing this way…
-     currently we have 3 almost identical rows."* Background, Canvas and Opacity all
-     rendered as the same widget — a pair of ~56px patterned tiles — so three different
-     questions wore one costume, and the costume LIED about two of them: the Canvas tiles
-     showed the doodle pattern rather than the ground they pick, and the Opacity tiles
-     showed a pattern rather than an intensity.
-     So the goal is NOT "one card fewer". It is that each control looks like the question
-     it asks: a pattern choice earns swatches (it is inherently visual), a binary with no
-     texture to preview does not. Background keeps tiles and gains a None member; Colour
-     becomes a value row.
+  const sizeRow = document.createElement('div');
+  sizeRow.className = 'c-settings-appearance__slider c-settings-appearance__size';
+  const sizeId = 'c-settings-size-label';
+  const sizeSmall = document.createElement('span');
+  sizeSmall.className = 'c-settings-appearance__a c-settings-appearance__a--s';
+  sizeSmall.setAttribute('aria-hidden', 'true');
+  sizeSmall.textContent = 'A';
+  const sizeRange = document.createElement('input');
+  sizeRange.type = 'range';
+  sizeRange.className = 'c-settings-appearance__range';
+  sizeRange.min = String(TEXT_SIZE_PX.min); sizeRange.max = String(TEXT_SIZE_PX.max); sizeRange.step = '1';
+  sizeRange.value = String(sizePx);
+  sizeRange.setAttribute('aria-labelledby', sizeId);
+  const sizeLarge = document.createElement('span');
+  sizeLarge.className = 'c-settings-appearance__a c-settings-appearance__a--l';
+  sizeLarge.setAttribute('aria-hidden', 'true');
+  sizeLarge.textContent = 'A';
+  const sizeVal = document.createElement('output');
+  sizeVal.className = 'c-settings-appearance__val';
+  sizeRow.append(sizeSmall, sizeRange, sizeLarge, sizeVal);
+  c1.append(label((strings.textSize || 'Message text size'), sizeId), preview, sizeRow);
 
-     ★★★ THE STORAGE IS UNCHANGED, AND THAT IS DELIBERATE — it is the safer half of this
-     batch. The spec (docs/chat-appearance-restructure-spec.md §4) assumed the (style,
-     level) PAIR would collapse into one stored value, which would mean a new key, a
-     migration, and that migration repeated in all three pre-paint ladders (the #690 rule).
-     None of it is necessary: with Strong retired the level is already binary, so
-     `level 0` IS "None" and `level 1 + style` IS that style — the collapse is total and
-     LOSSLESS in the direction that matters, and it can be computed at render time from the
-     two keys that already exist. Net: zero migration, zero new key, zero ladder change,
-     and chat.html / settings.html keep reading exactly what they read today.
-     ⚠ Consequence worth stating because it is a FEATURE and not an oversight: picking None
-     leaves the stored STYLE untouched, so a user who goes None → Doodles → None → Matrix
-     never loses the pattern they had. The pair is only ever read as one value here.
-     REVERSAL: this is the whole restructure — restore the separate style/intensity groups
-     from git and the three-identical-rows defect returns with them. */
-  const styleOpts = PATTERN_STYLES.filter((o) => isDesktop || !o.desktopOnly);
-  /* the style axis and the level axis, kept apart INSIDE this screen. `styleCurrent` is
-     the style the user last chose (or the default) and survives a None pick; `levelCurrent`
-     is 0 or 1 and is what None actually writes. */
-  let styleCurrent = styleOpts.some((o) => o.id === patternStyle) ? patternStyle : 'contours';
-  let levelCurrent = Number(patternOpacity) > 0 ? 1 : 0;
-  const bgOpts = [
-    /* ★ Session M: a NEW string, and the only one this restructure adds. The retired
-       `patternOff` ("Off") was translated in every locale and was still NOT reused: under
-       a "Background" heading "Off" names the CONTROL rather than the option, which is the
-       same class of lie the tiles were telling. */
-    { id: 'none', label: strings.patternNone || 'None', off: true },
-    ...styleOpts.map((o) => ({ id: o.id, label: strings[o.key] || o.label })),
-  ];
-  const bgValue = () => (levelCurrent > 0 ? styleCurrent : 'none');
-  const styleSec = document.createElement('div');
-  styleSec.className = 'c-settings__section';
-  const stLab = document.createElement('h3');
-  stLab.className = 'c-settings__label';
-  stLab.textContent = strings.patternStyle || 'Background';
-  const styleGroup = styleSwatchGroup({
-    options: bgOpts,
-    current: bgValue(),
-    ariaLabel: strings.patternStyle || 'Background',
-    onPick: (id) => {
-      if (id === 'none') {
-        levelCurrent = 0;
-        /* the live preview follows in the same frame — the tile ring is not the only
-           feedback, and this preview is the whole reason the screen has one. */
-        preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(0));
-        if (onPattern) onPattern(0);
-        return;
-      }
-      styleCurrent = id;
-      applyPreviewStyle(id);
-      /* ★ coming BACK from None has to restore the intensity as well as the style, or the
-         user picks a pattern and nothing appears. The write is CONDITIONAL so a plain
-         style swap does not re-write a value that has not changed. */
-      if (levelCurrent === 0) {
-        levelCurrent = 1;
-        preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(1));
-        if (onPattern) onPattern(1);
-      }
-      if (onPatternStyle) onPatternStyle(id);
-    },
-  });
-  styleSec.append(stLab, styleGroup);
-  // AND-35 (#371, Damir dial): the SIZE control leads — appended below, before
-  // this section (build order unchanged; only the visual order flips).
-
-  /* ★★ AUG GROUND (Damir 2026-08-30). Rendered only in LIGHT until #1066 (below: both themes now) — see CHAT_GROUNDS.
-     `isLight` is read from the live document rather than passed in, because this screen
-     can be open across a setTheme push (#421) and a row that was correct at build time
-     would then be wrong on screen.
-     ⚠ Session M: that sentence was TRUE of the read and FALSE of the outcome (#772) —
-     reading the live document at BUILD time is exactly what makes a rebuild correct, and a
-     setTheme push rebuilds nothing on its own. The row survived an OS flip into dark and
-     sat there with no effect. settings.html now re-renders THIS view from the setTheme
-     handler's onApplied, which is what makes the sentence true; the read stays here
-     because the rebuild depends on it. */
-  /* ★★ #1066 (Damir 2026-09-29: "offer a gradient in dark mode too"; picked B, blue-violet → midnight,
-     from a rendered 3-way at both chat widths): the Canvas row is shown in BOTH themes now. It
-     REVERSES the dark half of #774 ③ / #855 ("in dark the row is absent" — there was no dark
-     gradient to choose then). The one pref paints per theme: tokens.css has a light AND a dark rule. */
-  /* ★ #1080 F15: the grounds THIS theme can paint — a lightOnly member is not offered in dark (read from the
-     live document, like the rest of this block), so a stored light-only pick shows as the flat it paints. */
-  const groundsHere = CHAT_GROUNDS.filter((o) => !o.lightOnly || document.documentElement.getAttribute('data-theme') !== 'dark');
-  let groundCurrent = groundsHere.some((o) => o.id === chatGround) ? chatGround : 'flat';
-  /* (#46 r1) what is STORED, as distinct from what is shown: in dark a stored light-only pick shows the flat dot
-     checked, and a tap on that dot must still WRITE 'flat' (else the stored light-only pick is unreachable).
-     ★ S8 (#1237): green was that pick until it got a dark rule — the rule stays for any future light-only member. */
-  let groundStored = chatGround;
-  /* ★ Session J (same finding): the live PREVIEW carried data-chat-ground only after a pick —
-     at build it inherited the document's, and settings.html's root never carries one, so the
-     preview painted FLAT under a Gradient swatch. It is stamped from the current value at build. */
-  preview.setAttribute('data-chat-ground', groundCurrent);
-  /* ★ Session M: the colour card is a SINGLE ROW, so it takes the hub's card padding (4)
-     rather than the appearance screen's section padding (12) — a 48px row inside a 12px
-     section reads as a row floating in a box.
-     ⚠ (#1066: in both themes now.) The section is built only when the guard holds. It used to be created and appended
-     unconditionally, which painted an empty 8px card in dark. */
+  /* ── (2) the canvas: a row of mini chats ── */
   let groundSec = null;
-  /* ★★ #855: DERIVED, not hard-coded off. The row appears when there is more than one
-     ground to choose between — which is false today (gradient retired) and true again the
-     moment a second member returns to CHAT_GROUNDS. Writing `if (false)` or deleting the
-     block would make the restore a re-implementation instead of a one-line revert, and
-     would hide that this is the SAME rule the dark branch already applies. */
+  let dots = null;
   if (groundsHere.length > 1) {
-    groundSec = document.createElement('div');
-    groundSec.className = 'c-settings__section c-settings-appearance__groundsec';
-    /* ★★ Session M (#774): A VALUE ROW, NOT A TILE PAIR — and this is the FIX, not a
-       layout preference. Two near-identical coloured rectangles is precisely the confusion
-       being removed; shipping the colour control as another swatch row would delete a card
-       and keep the defect. The shape is the house one for a one-of-N choice that does not
-       deserve a card of its own (settingsOptionSheet), so nothing is invented here.
-       REVERSAL: swap this block for styleSwatchGroup({ faceAttr: 'chatGround' }) and the
-       AUG tiles are back. */
-    /* ★ no h3 here, and that is the point: the other two cards are "heading + control",
-       this one IS the control. A heading above a row that repeats the same word was the
-       first thing the restructure was supposed to stop doing. */
-    const groundLabel = (id) => {
-      const o = CHAT_GROUNDS.find((g) => g.id === id);
-      return o ? (strings[o.key] || o.label) : id;
-    };
-    /* ★★ #1019 (Damir 2026-09-28: "a coloured circle instead of the Solid/Gradient wording"): the
-       row keeps its one word ("Canvas") and the CHOICE is a pair of colour circles — each paints
-       the ground it picks (data-chat-ground on the dot resolves --gradient-chat through the same
-       token rules the chat uses). The names stay the accessible names (role=radio + aria-label),
-       and the value row → option sheet round trip is gone: one tap picks. Supersedes #998's value row. */
+    groundSec = card('c-settings-appearance__groundsec');
+    const labId = 'c-settings-ground-label';
     const row = document.createElement('div');
-    row.className = 'c-settings__row c-settings__row--static c-settings-appearance__ground';   // ★ #1024: a row that is not a control (D-16 r2 B-6 class)
-    const lab = document.createElement('span');
-    lab.className = 'c-settings__row-label';
-    lab.id = 'c-settings-ground-label';
-    lab.textContent = strings.chatGround || 'Canvas';
-    const dots = document.createElement('div');
+    row.className = 'c-settings-appearance__ground';
+    dots = document.createElement('div');
     dots.className = 'c-settings-appearance__dots';
     dots.setAttribute('role', 'radiogroup');
-    dots.setAttribute('aria-labelledby', lab.id);
-    /* ★ #1032 (the #1024 dial, under the #205 deferral): the ARIA radio-group keyboard contract — ONE tab stop
-       (the checked dot, roving tabindex), arrows move AND select (Right/Down next, Left/Up previous, mirrored
-       in RTL; Home/End), wrapping. Operable before only by Tab + Enter per dot. The other four radiogroups
-       of the #205 list keep the deferral. */
-    const paint = () => {
-      /* groundCurrent is always one of CHAT_GROUNDS (an unknown stored value falls back to 'flat' above), so
-         exactly one dot is checked and it is the single tab stop (#1035: the "none checked" branch was dead) */
-      for (const b of dots.children) {
-        const on = b.dataset.value === groundCurrent;
-        b.setAttribute('aria-checked', String(on));
-        b.tabIndex = on ? 0 : -1;
-      }
-    };
-    dots.addEventListener('keydown', (e) => {
-      const kids = [...dots.children];
-      const i = kids.indexOf(e.target);
-      if (i < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
-      const rtl = (dots.closest('[dir]') || document.documentElement).getAttribute('dir') === 'rtl';
-      const fwd = rtl ? 'ArrowLeft' : 'ArrowRight', back = rtl ? 'ArrowRight' : 'ArrowLeft';
-      let n = -1;
-      if (e.key === fwd || e.key === 'ArrowDown') n = (i + 1) % kids.length;
-      else if (e.key === back || e.key === 'ArrowUp') n = (i - 1 + kids.length) % kids.length;
-      else if (e.key === 'Home') n = 0;
-      else if (e.key === 'End') n = kids.length - 1;
-      if (n < 0) return;
-      e.preventDefault();
-      kids[n].focus();
-      kids[n].click();   // a radio arrow SELECTS (the click handler is a no-op on the current one)
-    });
+    dots.setAttribute('aria-labelledby', labId);
+    radioArrows(dots);   // ★ #1035: a radio group — arrows move AND select, Home/End, wrap, RTL mirrored (the shared helper)
     for (const o of groundsHere) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'c-settings-appearance__dot';
       b.dataset.value = o.id;
       b.setAttribute('role', 'radio');
-      b.setAttribute('aria-label', groundLabel(o.id));
+      const name = (strings[o.key] || o.label);
+      b.setAttribute('aria-label', name);
       const face = document.createElement('span');
-      face.className = 'c-settings-appearance__dot-face';
+      face.className = 'c-chat-canvas c-settings-appearance__dot-face';
+      face.setAttribute('aria-hidden', 'true');
       face.setAttribute('data-chat-ground', o.id);
+      const r = document.createElement('i'); r.className = 'c-settings-appearance__mini c-settings-appearance__mini--r';
+      const sb = document.createElement('i'); sb.className = 'c-settings-appearance__mini c-settings-appearance__mini--s';
+      const r2 = document.createElement('i'); r2.className = 'c-settings-appearance__mini c-settings-appearance__mini--r2';
+      const ok = document.createElement('span'); ok.className = 'c-settings-appearance__ok'; ok.append(icon('check', { size: 14 }));
+      const cap = document.createElement('span');
+      cap.className = 'c-settings-appearance__dot-name';   // the render: the name is a pill INSIDE the tile, at its foot
+      cap.setAttribute('aria-hidden', 'true');
+      cap.textContent = name;
+      face.append(r, sb, r2, ok, cap);
       b.append(face);
       b.addEventListener('click', () => {
         if (groundCurrent === o.id && groundStored === o.id) return;
         groundCurrent = o.id;
         groundStored = o.id;
-        paint();
-        preview.setAttribute('data-chat-ground', o.id);
         if (onChatGround) onChatGround(o.id);
+        /* ★ S17 C (Damir, interview): a canvas pick resets the bubble colour to Auto — the canvas shows its OWN sent colour */
+        if (colourCurrent !== 'auto') { colourCurrent = 'auto'; if (onSentColour) onSentColour('auto'); }
+        paint();
       });
       dots.append(b);
     }
-    paint();
-    row.append(lab, dots);
-    groundSec.append(row);
+    row.append(dots);
+    groundSec.append(label((strings.chatGround || 'Canvas'), labId), row);
   }
 
-  const sizeSec = document.createElement('div');
-  sizeSec.className = 'c-settings__section';
-  const sLab = document.createElement('h3');
-  sLab.className = 'c-settings__label';
-  sLab.textContent = strings.textSize || 'Message text size';
-  /* ★ #1040 (Damir 2026-09-29: "no size shows as selected — that is because I pinch-zoomed
-     in a chat"): a pinch in the conversation stores ANY scale, so the four presets can all
-     be unchecked. Say so instead of looking broken: a one-line note under the control names
-     the custom size, and picking a preset replaces it (the note goes with it). */
-  /* ★ #1041 (#46 r1, auditor C M1): a pinch that ends a hair off a preset (the chat stores the
-     raw scale; 1.1 × a 1.0012 ratio = 1.10132) is THAT preset — otherwise no pill is checked
-     and the note says "Custom size (110%)", which is the L the user is looking at. Within
-     0.02 of a preset, the preset is checked and no note is shown. */
-  const nearPreset = TEXT_SIZES.find((o) => Math.abs(o.value - Number(textScale)) < 0.02);
-  const sizeCurrent = nearPreset ? nearPreset.value : textScale;
-  let customNote = null;
-  if (!nearPreset && Number.isFinite(Number(textScale)) && Number(textScale) > 0) {
-    customNote = document.createElement('p');
-    customNote.className = 'c-settings__note c-settings-appearance__custom';
-    customNote.id = 'c-settings-size-custom';
-    const pct = Math.round(Number(textScale) * 100);
-    customNote.textContent = (strings.textSizeCustom || 'Custom size ({0}%), set by pinching in a chat. Pick a size to replace it.')
-      .split('{0}').join(String(pct));
-  }
-  sizeSec.append(sLab, segGroup({
-    options: TEXT_SIZES.map((o) => ({ value: o.value, label: strings[o.key] || o.label })),
-    current: sizeCurrent,
-    ariaLabel: strings.textSize || 'Message text size',
-    onPick: (v) => {
-      preview.style.setProperty('--chat-text-scale', String(v));
-      if (customNote) {
-        customNote.remove(); customNote = null;
-        const grp = sizeSec.querySelector('.c-settings-seg');
-        if (grp) grp.removeAttribute('aria-describedby');
+  /* ── (3) background + bubble colour + corners ── */
+  const c3 = card('c-settings-appearance__card--bubbles');
+  const bgOpts = [
+    { id: 'none', label: (strings.patternNone || 'None'), off: true },
+    ...styleOpts.map((o) => ({ id: o.id, label: (strings[o.key] || o.label) })),
+  ];
+  const bgValue = () => (levelCurrent > 0 ? styleCurrent : 'none');
+  const styleGroup = styleSwatchGroup({
+    options: bgOpts,
+    current: bgValue(),
+    ariaLabel: (strings.patternStyle || 'Background'),
+    onPick: (id) => {
+      if (id === 'none') {   // ★ Session M (#774): None writes the LEVEL only; the style survives
+        levelCurrent = 0;
+        if (onPattern) onPattern(0);
+        paint();
+        return;
       }
-      if (onTextScale) onTextScale(v);
+      styleCurrent = id;
+      if (levelCurrent === 0) { levelCurrent = 1; if (onPattern) onPattern(1); }
+      if (onPatternStyle) onPatternStyle(id);
+      paint();
     },
-  }));
-  if (customNote) {
-    sizeSec.append(customNote);
-    // ★ #1041 (auditor C N5): a group with nothing checked says WHY to a screen reader
-    const grp = sizeSec.querySelector('.c-settings-seg');
-    if (grp) grp.setAttribute('aria-describedby', customNote.id);
-  }
-  // AND-35 (#371, Damir dial): Text size first, then Background.
-  /* ★ Session M: THREE cards in light — size, background, colour. In dark the colour card
-     does not exist, so only two are appended. A live theme flip re-renders this whole
-     screen (settings.html onApplied), which is what keeps the order correct. */
-  /* ★ S10 P4 (#1254) → ★ S11 A2 (#1261/#1263, R3-MAJOR-1): "Message preview" — an INLINE segmented control under
-     Text size, the SAME grammar (an h3 label over segGroup's radio pills): "1 line | 2 lines", default 1 line. It was
-     a value row that opened the option sheet — one tap more for a two-way choice, and a different grammar from the
-     control right above it. The chats list (home.html) reads the stored value; nothing in THIS document paints a row. */
-  let previewSec = null;
-  if (onPreviewLines) {
-    previewSec = document.createElement('div');
-    previewSec.className = 'c-settings__section c-settings-appearance__previewsec';
-    const pLab = document.createElement('h3');
-    pLab.className = 'c-settings__label';
-    pLab.textContent = strings.chatPreviewLines || 'Message preview';
-    const seg = segGroup({
-      options: [
-        { value: 1, label: strings.previewLinesOne || '1 line' },
-        { value: 2, label: strings.previewLinesTwo || '2 lines' },
-      ],
-      current: previewLines === '2' ? 2 : 1,   // ★ S11 (#1262): absent / anything else = 1 line
-      ariaLabel: strings.chatPreviewLines || 'Message preview',
-      onPick: (v) => onPreviewLines(v === 2 ? '2' : '1'),
+  });
+  const colours = document.createElement('div');
+  colours.className = 'c-settings-appearance__colours';
+  colours.setAttribute('role', 'radiogroup');
+  const colLab = 'c-settings-colour-label';
+  colours.setAttribute('aria-labelledby', colLab);
+  for (const o of BUBBLE_COLOURS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-settings-appearance__colour';
+    b.dataset.value = o.id;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-label', (strings[o.key] || o.label));
+    const face = document.createElement('span');
+    face.className = 'c-settings-appearance__colour-face';
+    face.setAttribute('aria-hidden', 'true');
+    if (o.id === 'auto') { face.dataset.auto = ''; face.textContent = 'A'; }
+    b.append(face);
+    b.addEventListener('click', () => {
+      if (colourCurrent === o.id) return;
+      colourCurrent = o.id;
+      if (onSentColour) onSentColour(o.id);
+      paint();
     });
-    seg.classList.add('c-settings-appearance__preview-lines');
-    previewSec.append(pLab, seg);
+    colours.append(b);
   }
-  body.append(sizeSec, styleSec);
-  if (groundSec) body.append(groundSec);
-  if (previewSec) sizeSec.after(previewSec);   // ★ S10 P4: right under Text size
-  /* ★ S11 (#1262): the hint cards' off switch — under the chat-list row (Message preview), else under Text size. */
-  if (onHints) {
-    const hintsSec = switchRow({
-      glyph: 'info-circle', hue: 'accent',
-      label: strings.hintsSwitch || 'Tips on the Chats screen',
-      checked: hintsOn, onToggle: onHints,
+  radioArrows(colours);   // the same radio keyboard as the canvas row (#46 r2 NIT-10: the shared helper)
+  const cornersRow = document.createElement('div');
+  cornersRow.className = 'c-settings-appearance__slider c-settings-appearance__corners';
+  const cornersId = 'c-settings-corners-label';
+  const cnS = document.createElement('span'); cnS.className = 'c-settings-appearance__cn c-settings-appearance__cn--s'; cnS.setAttribute('aria-hidden', 'true');
+  const cornersRange = document.createElement('input');
+  cornersRange.type = 'range';
+  cornersRange.className = 'c-settings-appearance__range';
+  cornersRange.min = String(BUBBLE_CORNERS.min); cornersRange.max = String(BUBBLE_CORNERS.max); cornersRange.step = '1';
+  cornersRange.value = String(cornersCurrent);
+  cornersRange.setAttribute('aria-labelledby', cornersId);
+  const cnL = document.createElement('span'); cnL.className = 'c-settings-appearance__cn c-settings-appearance__cn--l'; cnL.setAttribute('aria-hidden', 'true');
+  const cornersVal = document.createElement('output');
+  cornersVal.className = 'c-settings-appearance__val';
+  cornersRow.append(cnS, cornersRange, cnL, cornersVal);
+  c3.append(label((strings.patternStyle || 'Background')), styleGroup,
+    label((strings.bubbleColour || 'Bubble colour'), colLab), colours,
+    label((strings.bubbleCorners || 'Bubble corners'), cornersId), cornersRow);
+
+  /* ── (4) theme (only when the host can commit one) ── */
+  let c4 = null;
+  let themeBtns = [];
+  let themeCurrent = theme;
+  if (onTheme) {
+    c4 = card('c-settings-appearance__card--theme');
+    const tId = 'c-settings-theme-label';
+    const g = document.createElement('div');
+    g.className = 'c-settings-appearance__themes';
+    g.setAttribute('role', 'radiogroup');
+    g.setAttribute('aria-labelledby', tId);
+    themeBtns = THEME_OPTIONS.map((o) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings-appearance__theme';
+      b.dataset.value = String(o.value);
+      b.setAttribute('role', 'radio');
+      const ph = document.createElement('span');
+      ph.className = 'c-settings-appearance__phone';
+      ph.setAttribute('aria-hidden', 'true');
+      ph.dataset.mode = o.value === 2 ? 'dark' : o.value === 1 ? 'light' : 'system';
+      for (const k of ['bar', 'r', 's']) { const i = document.createElement('i'); i.className = 'c-settings-appearance__phone-' + k; ph.append(i); }
+      const t = document.createElement('span');
+      t.className = 'c-settings-appearance__theme-name';
+      t.textContent = (strings[o.key] || o.label);
+      /* ★ S17 C (Damir 20:21): no radio under the phone (no other screen uses one) — the picked tile takes the blue rim
+         and a white check in a blue disc on its corner (pickMark, the same mark as the chat-list tiles) */
+      ph.append(pickMark());
+      b.append(ph, t);
+      b.addEventListener('click', () => {
+        if (String(themeCurrent) === String(o.value)) return;
+        themeCurrent = o.value;
+        paint();
+        try { onTheme(o.value, { done() {}, fail() {} }); } catch { /* a commit failure must not break the screen */ }
+      });
+      g.append(b);
+      return b;
     });
-    hintsSec.dataset.pref = 'hintsOn';
-    (previewSec || sizeSec).after(hintsSec);
+    radioArrows(g);   // #46 r1 M1: the keyboard reaches every phone
+    c4.append(label((strings.theme || 'Theme'), tId), g);
   }
 
-  // preview honors the incoming state
-  preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));
-  preview.style.setProperty('--chat-text-scale', String(textScale));
-  applyPreviewStyle(styleCurrent);
-  /* The preview mounts a LIVE engine (rAF + ResizeObserver + a document
-     visibilitychange listener). settings.html's renderLayout() replaces the
-     screen's children wholesale — on Back, on setLocale, on setPaneMode, on
-     onRepresented — so without an explicit release the loop keeps running
-     against a detached node forever, and the listener pins the whole discarded
-     subtree. Every re-entry would add another. Same shape as, and released
-     alongside, releaseDownloads (#267). (#46 audit) */
+  /* ── (5) the chat list + tips ── */
+  let c5 = null;
+  let lineBtns = [];
+  let linesCurrent = previewLines === '2' ? '2' : '1';
+  if (onPreviewLines || onHints) {
+    c5 = card('c-settings-appearance__card--list c-settings-appearance__previewsec');
+    if (onPreviewLines) {
+      const lId = 'c-settings-lines-label';
+      const g = document.createElement('div');
+      g.className = 'c-settings-appearance__lines c-settings-appearance__preview-lines';
+      g.setAttribute('role', 'radiogroup');
+      g.setAttribute('aria-labelledby', lId);
+      lineBtns = [['1', strings.previewLinesOne || '1 line'], ['2', strings.previewLinesTwo || '2 lines']].map(([v, name]) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'c-settings-appearance__line';
+        b.dataset.value = v;
+        b.setAttribute('role', 'radio');
+        const list = document.createElement('span');
+        list.className = 'c-settings-appearance__minilist';
+        list.setAttribute('aria-hidden', 'true');
+        for (let n = 0; n < 2; n++) {
+          const it = document.createElement('span'); it.className = 'c-settings-appearance__minirow';
+          const av = document.createElement('i'); av.className = 'c-settings-appearance__miniav';
+          const tx = document.createElement('span'); tx.className = 'c-settings-appearance__minitx';
+          const t0 = document.createElement('i'); t0.className = 'c-settings-appearance__minit'; tx.append(t0);
+          for (let m = 0; m < Number(v); m++) { const l = document.createElement('i'); l.className = 'c-settings-appearance__minil'; tx.append(l); }
+          it.append(av, tx); list.append(it);
+        }
+        const t = document.createElement('span');
+        t.className = 'c-settings-appearance__line-name';
+        t.textContent = name;
+        b.append(list, t, pickMark());
+        b.addEventListener('click', () => {
+          if (linesCurrent === v) return;
+          linesCurrent = v;
+          paint();
+          onPreviewLines(v);
+        });
+        g.append(b);
+        return b;
+      });
+      radioArrows(g);   // #46 r1 M1
+      c5.append(label((strings.chatPreviewLines || 'Message preview'), lId), g);
+    }
+    if (onHints) {
+      const hintsSec = switchRow({
+        glyph: 'info-circle', hue: 'accent',
+        label: (strings.hintsSwitch || 'Tips on the Chats screen'),
+        checked: hintsOn, onToggle: onHints,
+      });
+      hintsSec.dataset.pref = 'hintsOn';
+      c5.append(hintsSec);
+    }
+  }
+
+  /* ── paint: every visible state from the five values ── */
+  function paint() {
+    preview.setAttribute('data-chat-ground', groundCurrent);
+    preview.dataset.chatPattern = styleCurrent;
+    preview.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));
+    preview.style.setProperty('--chat-text-scale', String(sizePx / TEXT_SIZE_PX.base));
+    preview.style.setProperty('--bubble-radius', cornersCurrent + 'px');
+    for (const n of ['--bubble-radius-group', '--bubble-radius-origin']) preview.style.setProperty(n, Math.max(2, Math.round(cornersCurrent * 0.22)) + 'px');   // ★ S17 C (#1334): 18 → 4, as the chat
+    setSent(preview, colourCurrent !== 'auto' ? colourCurrent : '');
+    sizeVal.textContent = String(sizePx);
+    sizeRange.setAttribute('aria-valuetext', sizePx + ' px');
+    sizeRange.style.setProperty('--p', ((sizePx - TEXT_SIZE_PX.min) / (TEXT_SIZE_PX.max - TEXT_SIZE_PX.min) * 100) + '%');
+    cornersVal.textContent = String(cornersCurrent);
+    cornersRange.setAttribute('aria-valuetext', cornersCurrent + ' px');
+    cornersRange.style.setProperty('--p', ((cornersCurrent - BUBBLE_CORNERS.min) / (BUBBLE_CORNERS.max - BUBBLE_CORNERS.min) * 100) + '%');
+    if (dots) {
+      for (const b of dots.children) {
+        const on = b.dataset.value === groundCurrent;
+        b.setAttribute('aria-checked', String(on));
+        b.tabIndex = on ? 0 : -1;
+        const f = b.querySelector('.c-settings-appearance__dot-face');
+        f.dataset.chatPattern = styleCurrent;
+        f.style.setProperty('--chat-pattern-opacity', patternLevelVar(levelCurrent));   // a mini CHAT: the chat's own alpha, no swatch boost
+        setSent(f, '');   // #46 r1 m1: a canvas tile shows ITS OWN colour (a canvas pick resets the bubble colour to Auto)
+      }
+    }
+    /* the background tiles sit on the picked canvas */
+    styleGroup.setAttribute('data-chat-ground', groundCurrent);
+    setSent(styleGroup, tileSent());
+    for (const b of styleGroup.children) b.setAttribute('aria-checked', String(b.dataset.value === bgValue()));
+    /* the colour discs: each its own colour; Auto = the canvas's own */
+    colours.setAttribute('data-chat-ground', groundCurrent);
+    for (const b of colours.children) {
+      const on = b.dataset.value === colourCurrent;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+      /* Auto = the canvas's OWN colour (its ground rule, through the group's data-chat-ground) — never the pick */
+      setSent(b.firstElementChild, b.dataset.value === 'auto' ? '' : b.dataset.value);
+    }
+    for (const b of themeBtns) {
+      const on = String(themeCurrent) === b.dataset.value;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    }
+    for (const b of lineBtns) {
+      const on = b.dataset.value === linesCurrent;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    }
+  }
+
+  sizeRange.addEventListener('input', () => { sizePx = clampInt(sizeRange.value, TEXT_SIZE_PX.min, TEXT_SIZE_PX.max, sizePx); paint(); });
+  sizeRange.addEventListener('change', () => { if (onTextScale) onTextScale(Math.round((sizePx / TEXT_SIZE_PX.base) * 10000) / 10000); });
+  cornersRange.addEventListener('input', () => { cornersCurrent = clampInt(cornersRange.value, BUBBLE_CORNERS.min, BUBBLE_CORNERS.max, cornersCurrent); paint(); });
+  cornersRange.addEventListener('change', () => { if (onCorners) onCorners(cornersCurrent); });
+
+  /* ── layout: the cards; desktop, wide = two columns (the preview card stays on the left) ── */
+  const left = document.createElement('div');
+  left.className = 'c-settings-appearance__col c-settings-appearance__col--a';
+  left.append(c1);
+  const right = document.createElement('div');
+  right.className = 'c-settings-appearance__col c-settings-appearance__col--b';
+  for (const c of [groundSec, c3, c4, c5]) if (c) right.append(c);
+  body.append(left, right);
+  let ro = null;
+  if (isDesktop && typeof ResizeObserver === 'function') {
+    ro = new ResizeObserver((ents) => {
+      const w = ents[0] && ents[0].contentRect ? ents[0].contentRect.width : 0;
+      body.toggleAttribute('data-cols', w >= 720);
+    });
+    ro.observe(body);
+  }
+  paint();
+  /* the render opens the canvas row ON the picked canvas: once laid out, scroll it into view (a no-op when it is visible) */
+  if (dots && typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      const on = dots.querySelector('[aria-checked="true"]');
+      if (!on || !dots.clientWidth) return;
+      const l = on.offsetLeft - dots.offsetLeft, r = l + on.offsetWidth;
+      if (l < dots.scrollLeft || r > dots.scrollLeft + dots.clientWidth) dots.scrollLeft = Math.max(0, l - 18);
+    });
+  }
+
+  /* #341 / #46: the shell's release hook — the swatch group's (static now) and the width observer */
   el.release = () => {
-    /* ★ Session M: ONE group now. The intensity group's release went with its card — and
-       it was load-bearing while it existed (a flow face keeps a rAF loop + a
-       visibilitychange listener alive against a detached node), which is why the surviving
-       group's release is still called and not tidied away. */
     if (styleGroup.releaseSwatches) styleGroup.releaseSwatches();
+    if (ro) { ro.disconnect(); ro = null; }
   };
   return el;
-
-  /* The big preview mirrors the chat exactly: tile styles are pure CSS (the
-     attribute switches the inherited URI), flow mounts the real engine. It runs
-     LIVE here — unlike the swatches — because this is the one place the user is
-     deciding whether they want motion at all, and it is a single canvas.
-     Declared as a hoisted function so the style section above can call it
-     before the preview's own initial paint below. */
-  function applyPreviewStyle(id) {
-    preview.dataset.chatPattern = id;
-    /* ★ Session M: the `intensityGroup.setSwatchStyle(id)` call lived here — the intensity
-       tiles had to re-skin to the chosen style, or a user on "Data matrix" was offered
-       levels of doodles. With one control there is no second row to keep honest. */
-  }
 }
 
 /**

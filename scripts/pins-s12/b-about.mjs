@@ -40,11 +40,11 @@ export default async function (h) {
     const band = hero && hero.querySelector(':scope > .c-settings-about__band');
     const appIcon = hero && hero.querySelector(':scope > .c-settings-about__appicon');
     const kids = hero ? [...hero.children].map((c) => c.className) : [];
+    /* ★ S17 re-base (#1332): the band is the full-bleed Glass header — two decorative layers (illoAboutGlass: the
+       ground + the three frosted objects), no text in the art, no tile / mark of its own (the app icon is the centre) */
     a.band = !!band && band.getAttribute('aria-hidden') === 'true' && !!art && art.parentElement === band
-      && art.querySelectorAll('rect').length === 0   /* ★ S14 re-base (#1279): no tile rects, and the lock body is gone */
-      && !art.querySelector('.c-settings-about__mark') && !art.querySelector('filter')
-      && !art.querySelector('text')   /* ★ S14 (#1279): the IXI coin label is gone */
-      && art.querySelectorAll('radialGradient').length === 2;   /* ★ S14 (#1279): the heart + the gold star (the rating art's gradients) */
+      && band.querySelectorAll('svg.il.ab-l').length === 2 && !band.querySelector('text')
+      && !band.querySelector('.c-settings-about__mark');
     a.appIcon = !!appIcon && appIcon.getAttribute('aria-hidden') === 'true' && band.nextElementSibling === appIcon
       && appIcon.querySelectorAll('svg').length === 1 && !appIcon.textContent.trim()
       && JSON.stringify(kids) === JSON.stringify(['c-settings-about__band', 'c-settings-about__appicon', 'c-settings-about__app-name', 'c-settings-about__tagline', 'c-settings-about__version'])

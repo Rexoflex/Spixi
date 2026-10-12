@@ -6457,6 +6457,16 @@ namespace SPIXI
                     onPaintedSignal();
                 }
             }
+            else if (url.StartsWith("ixian:moment:", StringComparison.Ordinal))
+            {
+                /* ★ S17 F (#1340, 🟡 NEW verbs, P28, flag S17Moments): the Moment sheets' ask (`ixian:moment:<id>[:<arg>]`) and the
+                 * home card note (`ixian:moment:card`). Only the four pages that host a moment, never a mini-app WebView
+                 * (hasGeneratedContent); SMoments validates the exact grammar (S17MomentRules.parseAsk) before reading further. */
+                if (hasGeneratedContent && (this is HomePage || this is SingleChatPage || this is SettingsPage || this is ContactDetails))
+                {
+                    SMoments.handleVerb(this, url);
+                }
+            }
             else if (url.StartsWith("ixian:cdping:", StringComparison.Ordinal))
             {
                 /* ★ Session N [CDPERF] rtt — TEMPORARY (retire with the set, handoff ⑬):

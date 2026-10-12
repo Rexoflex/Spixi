@@ -1,0 +1,93 @@
+/* ★ S17 F (#1340) — c-moment: the Moment sheets (moment-sheet.js). A port of the render's .sheet / .panel / .caps rules
+   (docs/renders/whats-new/parts-j/mo.css) on today's c-sheet, with Damir's 20:37 change: the art is FULL-BLEED at the
+   top of the sheet — the sheet's own top corners clip it and the grab handle sits white on the art. The art ground =
+   the What's new panel (--wn-ground-a → -b, tokens.css); the drawings' motion lives in illo.css. Semantic tokens;
+   logical properties (RTL-safe). */
+
+.c-sheet.c-moment__sheet { padding-top: 0; }
+:root[data-desktop] .c-sheet.c-moment__sheet { padding-top: 0; }
+/* the grab handle on the art: white, over it (the sheet's own handle, moved) */
+.c-moment__sheet > .c-sheet__handle {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: var(--spacing-8);
+  inset-inline-start: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, .72);   /* sanctioned: the handle on the vivid art (the What's new × grammar) */
+}
+[dir="rtl"] .c-moment__sheet > .c-sheet__handle { transform: translateX(50%); }
+
+.c-moment {
+  --mo-art-h: 164px;                       /* sanctioned: the render's 150 px panel at full bleed (360 × 150 art, slice) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.c-moment[data-caps] { --mo-art-h: 128px; }   /* the render's shorter panel when the capability rows follow */
+
+/* full bleed: out to the sheet's edges (mobile 16 px sides, desktop dialog 24 px) */
+.c-moment__art {
+  position: relative;
+  align-self: stretch;
+  height: var(--mo-art-h);
+  margin-inline: calc(-1 * var(--spacing-16));
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--wn-ground-a), var(--wn-ground-b));
+}
+:root[data-desktop] .c-moment__art { margin-inline: calc(-1 * var(--spacing-24)); }
+:root[data-theme="dark"] .c-moment__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }   /* sanctioned: the art / text split, dark (the What's new rule) */
+.c-moment__illo { display: block; width: 100%; height: 100%; }
+
+.c-moment__title {
+  margin: var(--spacing-16) 0 6px;
+  color: var(--text-neutral-01);
+  font-size: 21px;                         /* sanctioned: the render's sheet title */
+  line-height: 1.25;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -.2px;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.c-moment[data-caps] .c-moment__title { margin-block-start: var(--spacing-12); }
+.c-moment__body {
+  margin: 0 0 18px;                        /* sanctioned: the render's body foot */
+  max-width: 290px;
+  color: var(--text-neutral-02);
+  font-size: 15px;                         /* sanctioned: the render's body size */
+  line-height: 1.45;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.c-moment__btns { align-self: stretch; display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-moment__btns .c-button[data-type="text"] { margin-block-start: -4px; }
+.c-moment__btns .c-button[data-size="56"] { height: auto; min-height: 56px; white-space: normal; line-height: 1.25; padding-block: var(--spacing-8); }
+
+/* the app moment: the app's own capability rows (the details page's vocabulary) */
+.c-moment__caps {
+  align-self: stretch;
+  margin: var(--spacing-4) 0 var(--spacing-12);
+  padding: 0;
+  list-style: none;
+  background: var(--surface-sheet-card);
+  border-radius: 18px;                     /* sanctioned: the render's card radius */
+  text-align: start;
+}
+.c-moment__cap { display: flex; gap: var(--spacing-12); align-items: center; padding: var(--spacing-8) 14px; }
+.c-moment__cap + .c-moment__cap { border-block-start: 1px solid var(--outline-sheet-01); }
+.c-moment__cap-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;                             /* sanctioned: the white glyph on the render's blue tile */
+  background: linear-gradient(160deg, #8fb0ff, #3a6ce0);   /* sanctioned: the render's capability tile */
+}
+.c-moment__cap-tile svg { width: 18px; height: 18px; }
+.c-moment__cap-tile svg [stroke] { stroke: currentColor; }
+.c-moment__cap-text { display: flex; flex-direction: column; min-width: 0; }
+.c-moment__cap-text b { font-size: 14.5px; color: var(--text-neutral-01); }   /* sanctioned: the render's row label */
+.c-moment__cap-text small { font-size: 12.5px; line-height: 1.35; color: var(--text-neutral-02); }   /* sanctioned: the render's row line */

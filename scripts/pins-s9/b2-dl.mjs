@@ -40,7 +40,12 @@ export default async function (h) {
 
     /* a confirm open → Esc is the confirm's */
     await sleep(700);   // past the Esc burst latch
-    const del = d.querySelector('.c-settings-dl__del');
+    /* ★ S17 E (#1336) re-base: delete lives in select mode — Select, pick a file, the select bar's Delete */
+    const selBtn = d.querySelector('.c-settings-dl__selbtn');
+    if (selBtn) selBtn.click();
+    const pickRow = d.querySelector('.c-settings-dl__row .c-settings-dl__open');
+    if (pickRow) pickRow.click();
+    const del = d.querySelector('.c-settings-dl__selbar .c-settings-dl__del');
     if (del) del.click();
     await sleep(120);
     const confirmUp = d.body.dataset.overlayOpen !== undefined;

@@ -177,3 +177,8 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L127 | "Is this view on screen?" read from the page stack is a guess: a desktop pane can be "open" while a narrow window hides its column — read the layout state in the same turn. | #1325 | — |
 | L128 | Android loads every shell through LoadDataWithBaseURL(…, null), so WebView.Url is about:blank — never key a permission on the document URL. | #1325 | — |
 | L129 | MAUI SecureStorage on unpackaged Windows awaits DPAPI on the caller's context: wrap every call in Task.Run + a bounded wait. | #1323 | — |
+| L130 | A prompt in an UNTRUSTED WebView must never write a setting: an ask / answer protocol is no proof of a user tap — route the choice to a trusted surface. | #1347 | — |
+| L131 | "Seen at the grant" needs "ask only when it can show" — otherwise a granted sheet is lost to a tab switch or a reload. | #1347 | — |
+| L132 | A session held in two places (C# and a shell) needs ONE clock (the wall clock) and an expiry the shell hears; a setTimeout stops while a phone sleeps. | #1347 | — |
+| L133 | A default flip of a privacy switch turns a latent input path on for everyone — sanitize the peer-controlled value first. | #1346 | — |
+| L134 | A pin with a hard ms threshold flakes when the bundle grows — measure the margin against the path it must exclude (250 → 400 vs the 450 ms timer). | #1350 | — |

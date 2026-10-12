@@ -166,9 +166,14 @@ export default async function (h) {
           && /var\(--ab-icon-ground\)/.test(tileBg)
           && Math.abs(+rad[1] / 1024 * 100 - 141.42) < 0.01 && Math.abs(stops[0].o * 100 - 13.13) < 0.001
           && !/--ab-icon-sheen|--ab-tile-a/.test(tileBg),
-        bandBlue: /linear-gradient\(\s*120deg,\s*var\(--ab-band-from\) 0%,\s*var\(--ab-band-to\) 100%\s*\)/.test(bandBg) && !/glass-card-art/.test(bandBg)
+        /* ★ S17 re-base (#1332): the band is the full-bleed Glass header — its ground is drawn by the art (the
+           --ab-band-* pair + --ab-band-deep), the element's own background is the pair's middle stop (the frame before
+           the art paints); the pair stays launcher-blue (hue 205–225) */
+        bandBlue: /var\(--ab-band-to\)/.test(bandBg) && !!band.querySelector('svg.ab-l') && !/glass-card-art/.test(bandBg)
           && [from, to].every((x) => { const hh = hue(x); return hh >= 205 && hh <= 225; }),
-        tileStandsOff: cr(g0, from) >= 1.4 && cr(g0, to) >= 1.4,   // the launcher ground vs both band ends (the surface ring comes on top)
+        /* ★ S17 re-base (#1332): the icon no longer has to stand off the band by colour — it sits on the header's lower
+           edge inside a 5 px ring of the SCREEN ground (kit-render.html), which separates it in both themes */
+        tileStandsOff: /0px 0px 0px 5px var\(--surface-settings-ground\)|0 0 0 5px var\(--surface-settings-ground\)/.test(String(t.getPropertyValue('box-shadow') || '')),
         bandTokens: !!BAND.light && !!BAND.dark && !!hex(BAND[th].from) && !!hex(BAND[th].to)
           && from.toLowerCase() === BAND[th].from && to.toLowerCase() === BAND[th].to
           && (th === 'light' || (BAND.dark.from !== BAND.light.from && BAND.dark.to !== BAND.light.to && lum(from) < DARK_LUM && lum(to) < DARK_LUM)),

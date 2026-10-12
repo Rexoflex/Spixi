@@ -20,7 +20,8 @@ export default async function (h) {
     await K.sleep(300);
     return s;
   };
-  const sw = (d) => [...d.querySelectorAll('.c-settings-appearance .c-settings__section')].find((x) => /Tips on the Chats screen/.test(x.textContent));
+  /* ★ S17 C RE-BASE (#1334): the switch lives INSIDE the fifth card (the chat list), so the innermost section is the one */
+  const sw = (d) => [...d.querySelectorAll('.c-settings-appearance .c-settings__section')].reverse().find((x) => /Tips on the Chats screen/.test(x.textContent));
   const r = {};
   try {
     await open('settingsApply,downloadsInline');
@@ -32,7 +33,9 @@ export default async function (h) {
     const secs = [...d.querySelectorAll('.c-settings-appearance .c-settings__section')];
     const pv = secs.findIndex((x) => !!x.querySelector('.c-settings-appearance__preview-lines'));
     const hs = sw(d);
-    r.underMessagePreview = pv >= 0 && secs.indexOf(hs) === pv + 1 && hs.dataset.pref === 'hintsOn';
+    /* ★ S17 C RE-BASE (#1334): "right under Message preview" = in the SAME card, right after the 1 / 2-lines control */
+    r.underMessagePreview = pv >= 0 && !!hs && secs[pv].contains(hs) && hs.dataset.pref === 'hintsOn'
+      && hs.previousElementSibling && hs.previousElementSibling.classList.contains('c-settings-appearance__preview-lines');
     const t = hs && hs.querySelector('[role="switch"]');
     r.seedOn = !!t && t.getAttribute('aria-checked') === 'true';
     s.sent.length = 0;

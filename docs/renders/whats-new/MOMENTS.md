@@ -20,16 +20,16 @@ Round 2 (Damir 17:36): DROPPED "Request sent" (before acceptance we usually know
 | # | Moment | Trigger | Buttons | Value |
 |---|---|---|---|---|
 | 1 | AI translation | the new language is applied (not English), once per language | I understand | Damir's idea · honesty |
-| 2 | Auto-download photos | the first manual photo download finishes, setting = Off, "Load pictures and GIFs" on | Wi-Fi only · Always · Not now | Damir's idea · comfort |
+| 2 | Auto-download photos | the first manual photo download finishes, setting = Off, "Load pictures and GIFs" on | Open Settings · Not now (★ built S17, #46 security r1: the chat never writes the setting — it opens Settings › Privacy, `ixian:openPrivacy`) | Damir's idea · comfort |
 | 3 | File from an offline sender | the first download that waits because the sender's app is offline | OK | high · prevents "it is broken" |
-| 4 | First IXI received, no backup | the first incoming payment while the backup status is "never" or "dirty" | Back up now · Later | highest · prevents loss |
+| 4 | First IXI received, no backup | the first incoming payment while no backup was ever made (★ built S17: "dirty" is not tracked in C#, #1343) | Back up now · Later | highest · prevents loss |
 | 5 | Microphone | the first tap on the mic, before the system permission dialog (Android, iOS, macOS; Windows only if it shows a dialog) | Continue · Not now | medium · fewer refused permissions |
 | 6 | Mini app, first open | the first open of each mini app, from an invite or from Apps | Open · Cancel | medium · trust |
 | 7 | First payment | the first Pay / Send, before the review step | Continue | high · "cannot be undone" + where the fee goes |
 
 ## Checked in the tree (17:20)
 
-- 2: the setting is real: `photoAutoDl` = off (default) · wifi · always, photos ≤ 10 MB, only while "Load pictures and GIFs" is on (`S11ChatRules.shouldAutoDownload`, `settings-screens.js` createPrivacy). The verb is `ixian:photoAutoDl:<value>:<load pictures 0|1>` — no new verb. The sheet names the place: Settings › Privacy.
+- 2: the setting is real: `photoAutoDl` = off (default) · wifi · always, photos ≤ 10 MB, only while "Load pictures and GIFs" is on (`S11ChatRules.shouldAutoDownload`, `settings-screens.js` createPrivacy). ~~The verb is `ixian:photoAutoDl:<value>:<load pictures 0|1>` — no new verb.~~ ★ Built S17 (#46 security r1, Damir 22:2x): the sheet's button OPENS Settings › Privacy (`ixian:openPrivacy`, one-shot); the chat never writes the setting.
 - 3: the sender's app serves the file (`TransferManager.receiveAcceptFile` → `sendFileData`; the receiver's `onUpdate` re-asks with `requestFileData`), so the sender's app must be online, and the download continues by itself. The copy says "device", never "no server" (push relay rule, design queue).
 - 1: `languageAiNote` already exists in every language (de, fr, ru checked); new keys = the title, "I understand" and one greeting word per language. The "Report a translation problem" link stays in the language sheet.
 - 4, 7: reuse `backupNudgeCta`, `paymentsCannotUndo`, `feeExplain` wording. 7 changes nothing in the C# confirmation (the risky part stays native).

@@ -966,3 +966,8 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 
 /* ★ S10 P4 (#1254) → ★ S11 A2 (#1263): the "Message preview" card is an inline segmented control now (the Text size
    grammar) — it takes the plain section padding, so the single-row padding rule that stood here is gone. */
+
+/* ★ S17 E (#1337, option A): the Delete data tiles — the disc wears the KIND's gradient (tokens.css --dd-tile-*) under the
+   shared disc shade; the glyph stays white (the disc grammar) */
+.c-disc[data-dd-tile='history'] { --disc-grad: var(--dd-tile-history); }
+.c-disc[data-dd-tile='downloads'] { --disc-grad: var(--dd-tile-downloads); }

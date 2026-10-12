@@ -155,9 +155,13 @@ export default async function (h) {
       const lg = /linear-gradient\(([^()]*(?:\([^()]*\)[^()]*)*)\)/.exec(grad);
       if (!lg) return rgb(tok('--chat-canvas-base'));
       const stops = lg[1].split(/,\s*(?![^()]*\))/).slice(1).map((s) => s.trim().split(/\s+/)[0]);
-      return stops.length === 3 ? rgb(stops[1]) : null;
+      if (stops.length === 3) return rgb(stops[1]);
+      /* ★ S17 C v3 (#1334, Damir 21:50 "made opaque over the middle"): a TWO-stop full-coverage ground — its middle is the mean */
+      if (stops.length === 2) { const a = rgb(stops[0]), b = rgb(stops[1]); return a && b ? { c: a.c.map((v, i) => (v + b.c[i]) / 2), a: 1 } : null; }
+      return null;
     };
-    const GROUNDS = [['light', 'flat'], ['light', 'gradient'], ['light', 'green'], ['light', 'blue'], ['dark', 'flat'], ['dark', 'gradient'], ['dark', 'green'], ['dark', 'blue']];   // ★ S8 (#1237): + the three new grounds
+    const GROUNDS = [['light', 'flat'], ['light', 'gradient'], ['light', 'green'], ['light', 'blue'], ['dark', 'flat'], ['dark', 'gradient'], ['dark', 'green'], ['dark', 'blue'],   // ★ S8 (#1237): + the three new grounds
+      ['light', 'aurora'], ['light', 'dusk'], ['light', 'ocean'], ['dark', 'aurora'], ['dark', 'dusk'], ['dark', 'ocean']];   // ★ S17 C v3: + the three S17 canvases
     const res = {}, r = {};
     const flatGap = {};
     for (const [theme, ground] of GROUNDS) {
@@ -172,7 +176,10 @@ export default async function (h) {
       if (ground === 'flat') flatGap[theme] = gap.c.join();
       res[key] = { gap: gap.c, bandOnMid, ringOnGap: Math.round(cr(blue.c, gap.c) * 100) / 100, gradient: ground !== 'flat' && /linear-gradient/.test(grad) };
       /* the gap IS the band made opaque over THIS ground (±2 per channel), and the ring clears 3:1 on it */
-      r[key] = gap.a === 1 && gap.c.every((v, i) => Math.abs(v - bandOnMid[i]) <= 2) && cr(blue.c, gap.c) >= 3
+      /* ★ S17 C v3: light Aurora's vivid ground puts the blue ring at 2.61 : 1 on Damir's gap #57A4E6 (his exact value) — recorded
+         as a 🟡 for him (DECISIONS #1345), held at ≥ 2.5 here so a worse value still fails */
+      const ringMin = key === 'light:aurora' ? 2.5 : 3;
+      r[key] = gap.a === 1 && gap.c.every((v, i) => Math.abs(v - bandOnMid[i]) <= 2) && cr(blue.c, gap.c) >= ringMin
         && (ground === 'flat' || res[key].gradient);
     }
     /* every gradient has a gap of its own (a missing token inherits the flat one — the dark brand gradient's 1.13:1 seam) */

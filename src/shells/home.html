@@ -86,6 +86,8 @@
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 
 <link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state (chats · wallet · contacts · apps) — ONE link: build-shells INLINES each href, so a second one shipped a duplicate copy of the whole file -->
+<link rel="stylesheet" href="../styles/components/whats-new.css"><!-- ★ S17 A (#1338): the What's new spotlight card -->
+<link rel="stylesheet" href="../styles/components/moment-sheet.css"><!-- ★ S17 F (#1340): the Moment sheets (first IXI · mini app · first payment) -->
 <link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
@@ -522,6 +524,8 @@
     //  and nothing else in this shell toasts; re-destructure from the bundle if needed)
     // nudges (A11/A5, #302) — both ride the ONE queue below, never open directly
     showBackupNudge, showRatingNudge,
+    createWhatsNew, whatsNewSlides,       // ★ S17 A (#1338): the What's new card — rides the SAME queue, at its head
+    showMomentSheet, createMomentClient, momentBeforeAction, momentAfterResult,   // ★ S17 F (#1340): the Moment sheets
     attachPressFeedback,
     formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
     fiatLine,                              // ★ #1040: one fiat display rule (2 dp, sub-cent = "<$0.01")
@@ -599,6 +603,10 @@
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  /* ★ S17 F (#1340, P28 · flag SpixiFlags.S17Moments, cap `moments`): the Moment sheets' ask / answer client. Home hosts
+     three of the seven: the first IXI received (safety), a mini app's first open (the Apps tab) and the first payment
+     (Wallet › Send). C# decides and stores; this shell shows. */
+  const moments = createMomentClient({ bridge, onSessionEnd: () => { try { pumpHint(); pumpNudges(); } catch (e) {} } });   // #46 r2: the session ends → the held cards may come
   /* #343: ONE call lights up press feedback for every pressable surface in this
      shell (src/components/pressable.js). Delegated on document, so rows created
      later by a re-render are covered without re-attaching. A new shell needs
@@ -1077,6 +1085,7 @@
     if (updateCard) updateCard.replaceWith(fresh);
     updateCard = fresh;
     placeUpdateCard();
+    noteMomentCard();                                            // ★ S17 F (#1340): no moment sheet in a session with the update card
     pumpHint();                                                  // never together: an open hint gives way
   }
 
@@ -1100,6 +1109,7 @@
   function hintBlocked() {
     try {
       return !!updateCard || nudgeOpen !== null
+        || moments.sessionTaken()   // ★ S17 F (#1340): a moment sheet showed in this session — no hint card in it
         || nudgeQueue.some((k) => k !== 'rating' || (!ratingTooEarly() && !ratingSnoozed()));
     } catch (e) { return true; }  // the nudge queue is declared further down — before it exists, nothing shows
   }
@@ -1117,6 +1127,7 @@
     hintShownId = id;
     if (hintsState) hintsState.lastShown = hintNow();
     bridge.send('ixian:hint:shown:' + id);
+    noteMomentCard();
   }
   function hintDone(id) {
     dropHintCard();
@@ -3024,6 +3035,8 @@
                                                            // returns via quickScanResult (a bare address
                                                            // must not fall into the add-contact route)
       onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
+      // ★ S17 F (#1340): the first payment — the moment sheet BEFORE the review; the review and the native confirm are unchanged
+      onBeforeReview: (go, stop) => momentBeforeAction(moments, { id: 'pay', host: document.body, strings: walletStrings, go, stop }),
       // review Confirm → the W5 signed hand-off. C# owns confirm/auth/sign/broadcast;
       // the sheet stays latched until `signSendResult` lands (ok / cancel / fail).
       onSend: (payload, ctrl) => {
@@ -3295,14 +3308,18 @@
       // flag also launches solo — legacy's chain had no final else, so such a tap
       // simply did nothing (index.html:649-676); that dead branch is not restored.
       const multi = !!app.isMultiUser && !app.isSingleUser;
-      if (multi) { openContacts('app', app.id); return; }
-      bridge.send('ixian:startApp:' + app.id);
+      /* ★ S17 F (#1340): the first open of EACH app = the app moment (its own capability rows + the trust line), the
+         confirm step itself: Open goes on, Cancel stays here. Asked only before the first open; then straight on. */
+      appMoment(app, () => {
+        if (multi) { openContacts('app', app.id); return; }
+        bridge.send('ixian:startApp:' + app.id);
+      });
     },
     // A9 (#302): explicit multi-user launch for a dual-capability app (⋮ → "Invite a
     // contact") — same in-shell picker as the multi-only tap above.
     onLaunchMulti: (app) => {
       if (!app || app.id == null || app.id === '') return;
-      openContacts('app', app.id);
+      appMoment(app, () => openContacts('app', app.id));   // ★ S17 F (#1340)
     },
     // details → the app's details page (launch-mode + permissions live there); reached
     // via the ⋮ menu's "App details" action (onOpen).
@@ -3532,6 +3549,7 @@
     if (!placeholderView.hidden) setPlaceholder(navId);
     nudgeTabId = navId;
     pumpNudges();                       // a tab change can unblock a queued nudge
+    pumpMoment();                       // ★ S17 F (#1340): …and a waiting moment (Chats or Wallet)
     pumpHint();                         // ★ S11 A (#1262): …and a hint waits for the Chats tab
   }
 
@@ -3568,6 +3586,9 @@
   const NUDGE_GAP_MS = 600;                          // no back-to-back scrims
 
   const nudgeQueue = [];               // kinds waiting for a clear context
+  /* ★ S17 A (#1338): the release C# named in setWhatsNew (digits) and this release's slide ids (the FE table) */
+  let whatsNewVersion = '';
+  let whatsNewSet = null;
   let nudgeOpen = null;                // kind currently on screen
   let nudgeReadyAt = 0;                // gap timer
 
@@ -3634,7 +3655,9 @@
   function enqueueNudge(kind) {
     if (nudgeOpen === kind) return;                 // already on screen
     if (!nudgeQueue.includes(kind)) nudgeQueue.push(kind);
-    nudgeQueue.sort((a, b) => (a === 'backup' ? -1 : 0) - (b === 'backup' ? -1 : 0));
+    /* ★ S17 A (#1338): What's new first (it explains the release the user just opened), then backup, then rating */
+    const NUDGE_RANK = { whatsnew: 0, backup: 1, rating: 2 };
+    nudgeQueue.sort((a, b) => (a in NUDGE_RANK ? NUDGE_RANK[a] : 9) - (b in NUDGE_RANK ? NUDGE_RANK[b] : 9));
     /* Coalesce before opening. Pumping synchronously would let whichever push landed
        FIRST take the screen, so the backup>rating priority could never actually
        reorder anything — and the real ordering that matters is the bad one: leaving a
@@ -3646,17 +3669,97 @@
     pumpHint();                                     // ★ S11 A (#1262): a hint never stands beside a backup / rating prompt
   }
 
+  /* ★★ S17 F (#1340) — THE MOMENT SHEETS ON HOME. A granted after-the-result moment (the first IXI) waits here for a
+     clear screen (no sheet, no takeover, a visible Chats or Wallet tab, no field in focus), then shows; the confirm-step
+     ones (app · pay) are the user's own tap, so they show at once. `ixian:moment:card` tells C# that a hint / update /
+     backup / rating card went on screen (no moment sheet in that session, MOMENTS.md) — once per document. */
+  /* #46 r3 MINOR-1: EVERY card that goes on screen tells C# (C# keeps the first time; its session ends 6 h later, so a card
+     shown after that must start a new one) */
+  function noteMomentCard() {
+    if (!bridge.cap('moments')) return;
+    bridge.send('ixian:moment:card');
+  }
+  const momentWaiting = [];                // granted moments waiting for a clear screen: { id, ctx }
+  function momentContextClear() {
+    if (nudgeOpen) return false;
+    if (document.body.dataset.overlayOpen !== undefined) return false;
+    if (contactsView || walletTakeover) return false;
+    if (document.querySelector('.c-contacts, .wallet-takeover')) return false;
+    if (nudgeTabId !== 'chats' && nudgeTabId !== 'wallet') return false;
+    if (document.visibilityState !== 'visible') return false;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return false;
+    return Date.now() >= nudgeReadyAt;
+  }
+  function pumpMoment() {
+    try { tryFirstIxiMoment(); } catch (e) { return; }   // declared further down than a boot-time tab switch
+    try { if (!momentWaiting.length || !momentContextClear()) return; } catch (e) { return; }
+    const m = momentWaiting.shift();
+    nudgeOpen = 'moment';
+    showMomentSheet({
+      id: m.id, host: document.body, strings, ctx: m.ctx,
+      onClose: (v) => {
+        closeNudge();
+        if (m.id === 'firstixi' && v === 'backup') { nudgeQueue.length = 0; bridge.send('ixian:backup'); }   // Settings › Backup
+      },
+    });
+  }
+  /* the first IXI received while there is no backup (SAFETY — it may show beside a card): asked once the wallet holds
+     a received payment; C# answers yes only while no backup was ever made, and stores the flag either way */
+  /* #46 r1 (MINOR-1): asked only when the screen is CLEAR, so C#'s yes (seen stored) shows at once and is never lost to a
+     tab or a reload in between */
+  let firstIxiAsked = false;
+  let firstIxiWanted = false;
+  function maybeFirstIxiMoment() {
+    if (firstIxiAsked || !moments.on() || moments.seen('firstixi')) return;
+    const got = (walletState.txs || []).some((t) => t && t.direction === 'in' && t.status !== 'failed');
+    if (!got) return;
+    firstIxiWanted = true;
+    pumpMoment();
+  }
+  function tryFirstIxiMoment() {
+    if (!firstIxiWanted || firstIxiAsked || !momentContextClear()) return;
+    firstIxiAsked = true;
+    momentAfterResult(moments, 'firstixi', '', () => {
+      if (!momentWaiting.some((w) => w.id === 'firstixi')) momentWaiting.push({ id: 'firstixi', ctx: {} });
+      pumpMoment();
+    });
+  }
+  /* a mini app's first open (the Apps tab) — the confirm step: Open = go(), Cancel / back = stay */
+  function appMoment(app, go) {
+    momentBeforeAction(moments, {
+      id: 'app', arg: String(app.id), host: document.body, strings,
+      ctxFor: (caps) => ({ app: app.name || '', caps }),
+      go, stop: null,
+    });
+  }
+
   function closeNudge() {
     nudgeOpen = null;
     nudgeReadyAt = Date.now() + NUDGE_GAP_MS;
-    setTimeout(() => { pumpNudges(); pumpHint(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint
+    setTimeout(() => { pumpNudges(); pumpMoment(); pumpHint(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint · ★ S17 F: a waiting moment
   }
 
   function pumpNudges() {
     if (!nudgeQueue.length || !nudgeContextClear()) return;
     const kind = nudgeQueue.shift();
-    if (kind === 'backup') {
+    if (kind === 'whatsnew') {
+      if (!whatsNewSet) { pumpNudges(); return; }
+      nudgeOpen = 'whatsnew';
+      createWhatsNew({
+        version: whatsNewVersion,
+        slides: whatsNewSet,
+        host: document.body,
+        desktop: document.documentElement.hasAttribute('data-desktop'),   // no dim on desktop (Damir's pick)
+        strings,
+        /* every close path (Got it · × · Esc · back) — C# stores seen = this version; no argument travels */
+        onDone: () => { whatsNewSet = null; try { bridge.send('ixian:whatsnew:done'); } catch (e) {} closeNudge(); },
+      });
+    } else if (kind === 'backup') {
+      /* ★ S17 F (#1340, #46 r1): the backup card is SAFETY — like the first-IXI moment it shows even in a session that had a
+         moment (a moment never holds it back; C# stamps at the push, so a held card would be lost for 30 days) */
       nudgeOpen = 'backup';
+      noteMomentCard();
       showBackupNudge({
         host: document.body,
         illustration: 'backup',   // ★ S11 A2: the inline art's name
@@ -3678,7 +3781,9 @@
       // the moment the fifth open happens rather than a week later.
       if (ratingTooEarly()) { pumpNudges(); pumpHint(); return; }
       if (ratingSnoozed()) { pumpNudges(); pumpHint(); return; }
+      if (moments.sessionTaken()) { pumpNudges(); pumpHint(); return; }   // ★ S17 F (#1340): no stamp — C# asks again on the next chat exit
       nudgeOpen = 'rating';
+      noteMomentCard();
       showRatingNudge({
         host: document.body,
         illustration: 'rating',   // N14a → ★ S11 A2: the inline art's name
@@ -3693,6 +3798,7 @@
   }
 
   document.addEventListener('visibilitychange', pumpNudges);
+  document.addEventListener('visibilitychange', () => pumpMoment());   // ★ S17 F (#1340)
 
   /* Retry hook. Rather than threading a callback through every overlay/takeover
    * close site (and missing the next one someone adds), watch the two things the
@@ -3700,7 +3806,7 @@
    * children (both takeovers and every sheet mount to document.body). pumpNudges
    * early-returns on an empty queue, so this costs nothing in the normal case. */
   try {
-    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); })
+    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); if (momentWaiting.length || (firstIxiWanted && !firstIxiAsked)) pumpMoment(); })
       .observe(document.body, { childList: true, attributes: true, attributeFilter: ['data-overlay-open'] });
   } catch (_) { /* no MutationObserver → nudges still fire on push / tab change */ }
 
@@ -4285,6 +4391,21 @@
       commitWalletIncoming();      // ★ #1133 lever 2b
       walletZero.open();
       scheduleWalletRender();
+      maybeFirstIxiMoment();       // ★ S17 F (#1340)
+    },
+    /* ★ S17 F (#1340, 🟡 NEW push, P28 · flag S17Moments + cap `moments`): {"seen":[ids],"apps":[app ids],"lang":"","session":bool}
+       — pushed at load and again when a moment is granted on another page (session = true: home holds its cards back). */
+    setMoments(json) {
+      if (!bridge.cap('moments')) return;
+      moments.setState(String(json));
+      pumpHint();
+      maybeFirstIxiMoment();   // #46 r1 NIT: the wallet list may have landed before this push
+      pumpMoment();
+    },
+    /* ★ S17 F (#1340, 🟡 NEW push): C#'s answer to ixian:moment:<id>[:<arg>] — "1" = show (seen is already stored) */
+    momentAnswer(id, arg, ok, caps) {
+      if (!bridge.cap('moments')) return;
+      moments.answer(String(id), String(arg == null ? '' : arg), String(ok), String(caps == null ? '' : caps));
     },
 
     // One tx row (home.js:248 / HomePage:1219):
@@ -4569,6 +4690,21 @@
     // "composeSend,…" from onLoaded; an old exe pushes nothing → gates stay closed.
     setCaps(list) {
       String(list || '').split(',').forEach((c) => { c = c.trim(); if (c) bridge.capabilities[c] = true; });
+    },
+    /* ★ S17 A (#1338, 🟡 NEW push, P26 · behind SpixiFlags.S17Bridge + the `whatsnew` cap): {"version":"<digits>","show":true|false}.
+       Validated: an object, version ^[0-9.]{1,16}$, show === true — anything else changes nothing. A release with no slide table
+       here bumps `seen` at once (#1143: no empty "what's new"). The card waits in the nudge queue like the backup card. */
+    setWhatsNew(json) {
+      if (!bridge.cap('whatsnew')) return;
+      let o = null;
+      try { o = JSON.parse(String(json)); } catch (e) { return; }
+      if (!o || typeof o !== 'object' || o.show !== true || typeof o.version !== 'string' || !/^[0-9.]{1,16}$/.test(o.version)) return;
+      if (nudgeOpen === 'whatsnew' || nudgeQueue.indexOf('whatsnew') >= 0) return;   // a second push (re-load) while it waits or stands
+      const set = whatsNewSlides(o.version);
+      if (!set) { bridge.send('ixian:whatsnew:done'); return; }
+      whatsNewVersion = o.version;
+      whatsNewSet = set;
+      enqueueNudge('whatsnew');
     },
     // W6 answer to ixian:feeQuery — RAW decimal strings from C# (fee incl. relay
     // payouts; balance = available). Routed to the OPEN compose only; a push that

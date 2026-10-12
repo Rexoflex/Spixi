@@ -1377,7 +1377,11 @@ export function createSettingsDanger({
   const quiet = document.createElement('div');
   quiet.className = 'c-settings__group';
   quietWrap.append(quiet);
-  const quietRow = (label, sub, buildOpts) => {
+  /* ★★ S17 E (#1337, Damir 15:34 "option A — show the thing", deletedata-render.html): the icon names WHAT goes (the title
+     already says "Delete"): chat history = `messages` on a blue tile, downloads = `download` on a green tile — the iOS /
+     Android storage pattern. REVERSES #1018 ("a trash row on the danger screen is the calm slate"): Damir picked the
+     coloured tiles over the slate from the rendered three-way. Tiles are tokens (--dd-tile-*), no literals. */
+  const quietRow = (label, sub, buildOpts, glyph = 'trash', tile = '') => {
     const section = document.createElement('div');
     section.className = 'c-settings__section';
     const row = document.createElement('button');
@@ -1389,8 +1393,9 @@ export function createSettingsDanger({
     top.className = 'c-settings__row-top';
     const disc = document.createElement('span');
     disc.className = 'c-disc';
-    disc.dataset.hue = 'neutral';   // ★ #1018: NO per-glyph gradient here — a trash row on the danger screen is the calm slate, never a green or orange palette slot
-    disc.append(icon('trash', { size: 16 }));
+    if (tile) disc.dataset.ddTile = tile;   // ★ S17 E: the tile names the KIND of data (settings-shell.css)
+    else disc.dataset.hue = 'neutral';      // the #1018 slate, kept for a row with no named kind
+    disc.append(icon(glyph, { size: 16 }));
     top.append(disc, document.createTextNode(label));
     const s = document.createElement('span');
     s.className = 'c-settings__row-sub';
@@ -1411,6 +1416,7 @@ export function createSettingsDanger({
       confirmLabel: strings.deleteConfirm || 'Delete',
       run: (ctrl) => onDeleteHistory(ctrl),
     }),
+    'messages', 'history',
   );
   if (onDeleteDownloads) quietRow(
     strings.deleteDownloads || 'Delete downloads',
@@ -1421,6 +1427,7 @@ export function createSettingsDanger({
       confirmLabel: strings.deleteConfirm || 'Delete',
       run: (ctrl) => onDeleteDownloads(ctrl),
     }),
+    'download', 'downloads',
   );
   if (quiet.childElementCount) body.append(quietWrap);
 
@@ -1438,7 +1445,8 @@ export function createSettingsDanger({
     b.className = 'c-settings-danger__card';
     const t = document.createElement('span');
     t.className = 'c-settings-danger__card-title';
-    t.append(icon('trash', { size: 20 }), document.createTextNode(title));
+    /* ★ S17 E (#1337, option A): the account card names what goes — `user-circle` in the card's error ink, no tile (as today) */
+    t.append(icon('user-circle', { size: 20 }), document.createTextNode(title));
     const s = document.createElement('span');
     s.className = 'c-settings-danger__card-sub';
     s.textContent = sub;

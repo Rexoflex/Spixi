@@ -686,6 +686,16 @@ namespace SPIXI
             {
                 onVoiceRecStart();
             }
+            /* ★ S17 F (#1340, P28, #46 security r1 MAJOR-1, Damir 22:2x "Open Settings"): the auto-download offer's button. EXACT
+             * verb, no argument; it only OPENS Settings › Privacy (the user picks Wi-Fi only / Always there). The chat — an untrusted
+             * WebView — never writes the setting; the worst a hostile script can do is open that screen in front of the user. */
+            else if (current_url.Equals("ixian:openPrivacy", StringComparison.Ordinal))
+            {
+                if (SpixiFlags.S17Moments && SMoments.takePrivacyOpen(this))   // #46 security r2: ONE, only after C# granted THIS page the offer
+                {
+                    SettingsPage.openAt("privacy");
+                }
+            }
             else if (current_url.Equals("ixian:voicerec:cancel", StringComparison.Ordinal))
             {
                 onVoiceRecCancel();
@@ -1637,6 +1647,10 @@ namespace SPIXI
              * there too (mediaAllowed). An old shell ignores both; an old exe declares neither (Photo stays hidden). */
             caps += ",media";
             caps += ",savePhoto";   // ★ S11 G (#1263 a, 🟡 NEW cap): this exe answers ixian:savePhoto (the viewer's Save); an old shell ignores it
+            if (SpixiFlags.S17Moments)
+            {
+                caps += ",moments";   // ★ S17 F (#1340, P28): setMoments / momentAnswer + the ixian:moment:* verbs
+            }
 #if ANDROID || IOS
             if (SFilePicker.CameraAvailable())   // ★ #46 r1 (shell auditor): a device with no camera shows no Camera tile
             {
@@ -1644,6 +1658,7 @@ namespace SPIXI
             }
 #endif
             Utils.sendUiCommand(this, "setCaps", caps);
+            SMoments.pushTo(this);   // ★ S17 F (#1340): the moment state (no-op with the flag OFF)
 
             warningDisplayed = false;
             unreadIndicatorDisplayed = false;

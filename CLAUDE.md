@@ -39,7 +39,7 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 2. **Render** any visual change on the BUILT shell, both themes; Damir picks the dials.
 3. **Pipeline:** FULL = (`generate-icons` if SVGs) → `extract-strings` → `build-locales` → `build-strings-iife` → `build-demo-bundle` → `build-shells` — **bundle BEFORE shells** (#258); shell/CSS/token-only = `build-shells`; C#-only = none. Then the `--check` gates.
 4. **Pins:** behaviour, not source text (#771/#798); **break the code on purpose — the pin must fail for exactly that reason** (mutation, #802) before you believe it.
-5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5730** (with the Ixian-Core sibling, session 15 #1307). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=378 fail=0` on the newest installed SDK (#1122, #1129, #1135, #1149, #1150, #1160, #1166, #1185, #1186, #1206, #1209, #1226, #1241, #1242, #1250, #1251, #1256).
+5. **Smoke:** `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`; the delta must equal the new pins, else look first. Current: **5795** (S17, #1350). **C# harness:** `node scripts/run-csh.mjs` → `CSH pass=435 fail=0` on the newest installed SDK (#1122, #1129, #1135, #1149, #1150, #1160, #1166, #1185, #1186, #1206, #1209, #1226, #1241, #1242, #1250, #1251, #1256).
 6. **#46 loop** (Opus, in-session) until CLEAN — after a green smoke run, before the batch leaves the machine; smoke again after the last fix; verdict written into its brief (#660).
 7. **Walk:** Damir builds — **Windows = F5, never `dotnet build`** (#663); Android Debug; **iPhone + Mac (and Android, #449): wipe `obj`/`bin` when the html changed, then a plain build, then Run — incremental builds do not repackage Raw html** (#320); the BUILD row must show something only this build has. Walk sheet → pasted results → a `WALK #N: n P · n F · n N/A` DECISIONS row; each fail = mechanism first.
 8. **Commit:** one logical unit; `docs/commit-message-<batch>.txt` (no attribution lines — ★ COMMIT RULE); Damir reviews the diff, commits and pushes; never `git add -A`. Use `git --no-optional-locks` on the mounted repo; give the PowerShell repo commands with every delivery.
@@ -81,10 +81,10 @@ Rework of the Spixi MAUI app's WebView frontend: consolidate 29 HTML pages → 9
 
 ## Where we are now (≤ 10 lines — replace, never append; history goes to `docs/status-log.md`)
 
-- 2026-10-11: **S16 BUILT, UNCOMMITTED — patch `Claude outputs/_transfer/session16.patch`, applied to the PC tree** (#1321–#1326): security F1 F2 F3/F4 F5 F8 + MAJOR #9 (#1322) · L8 walletpass → SecureStorage behind `SecureWalletPass` (#1323, P24) · F3/F4 gate behind `MediaInputGate` (P25) · `[THEME]` lines, RESTORE-B sheet, re-arm once per id, Android hold shield, wallet sync strip A (#1324).
-- Smoke BASELINE OK **5756** · CSH **423**. Security-only #46 r1 → r5 CLEAN (#1325). ⚠ S16 C# UNCOMPILED (20 files + 5 new, handoff §0).
-- Walk: `docs/office-walk-sheet-v1.md` **§6** (18 S16 rows, A / W / I / M) + the office §0–§5 still owed. Mac L8 is a measured risk (no keychain entitlement).
-- Parallel: S17-early (design work) uses DECISIONS #1331–#1350 + packet P26, rebases on the S16 patch (#1326); desktop Hello = P27 if picked.
-- Deferred by Damir: the perf levers (after the S16 walk; research `claude/session-16-perf-research.md`) and freeze prep (after perf).
-- Open BE questions: P24 (retry view on a read failure; the flag-OFF path) · P13/P25 (call verbs outside the mic gate) · P09 (`removecontact` without a native confirm).
-- **NEXT SESSION: read `docs/handoff-2026-10-11b.md` FIRST, then paste `docs/prompts/session-16b.md` (record the S16 walk, the fix round).** Next free DECISIONS number: **#1327**.
+- 2026-10-12: **S17 BUILT, UNCOMMITTED — ONE patch `session17.patch` on `9be995da`** (#1331–#1350): What's new card on every fresh install + the About / Contributors headers and bar ink (`S17Bridge`, P26) · Chat appearance FINAL v3 (7 canvases, own flat bubbles, full-coverage dark, pattern −20 %) · the S17 illustration set · Downloads / Contributors / Delete data · seven Moment sheets (`S17Moments`, P28) · sender name ON by default (#1346).
+- Smoke BASELINE OK **5795** · CSH **435**. #46 r1 → r4 (#1347); security-only #46 at HIGH: 0 MAJOR from r2 on, one accepted residual (#1348). ⚠ S17 C# UNCOMPILED (3 new files + 8 changed).
+- S16 is committed (`e2e84629`); its walk (`docs/office-walk-sheet-v1.md` §6) comes FIRST, then the S17 walk (`docs/walk-s17.md` + the Artifact "Spixi Session 17 Walk").
+- 🟡 for Damir at the walk: #1343 (the moment defaults we chose) · #1345 (light Aurora ring 2.61 : 1).
+- Next topics: privacy levels (Damir 23:33, option 1 = presets over the real switches) · then the perf levers and freeze prep (deferred by Damir).
+- Open BE questions: P24 · P13/P25 · P09 (unchanged) · P26 / P28 (none blocking).
+- **NEXT SESSION: read `docs/handoff-2026-10-11c.md` FIRST, then paste `docs/prompts/session-17b.md`.** Next free DECISIONS number: **#1351**.

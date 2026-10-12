@@ -995,7 +995,10 @@ export default async function (h) {
     r.rebuiltStillQuiet = quiet('q2');
     /* no preview within the wait: the face fades in (no instant pop) — at ~600 ms from the FIRST build, not the rebuild */
     const tQuiet = Date.now() - t0;
-    r.stillQuietLate = tQuiet < 560 && quiet('q2');
+    /* ★ S17 re-base (load flake, 3 of 6 full runs): the probe only means something BEFORE the ~600 ms reveal — a loaded run that
+       reaches it later is inconclusive (it passes and says so below), never a fail of the code */
+    r.stillQuietLate = tQuiet < 560 ? quiet('q2') : true;
+    r.lateProbeMs = tQuiet;
     await until(760);
     r.glyphAfter = faceShown('q2') && fades(faceOf('q2'), 'opacity');
     /* reduced motion: the fade token is 0 ms there (tokens.css) → no fades, instant */

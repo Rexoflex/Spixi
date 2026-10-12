@@ -467,3 +467,9 @@ L8 walletpass → SecureStorage behind the SecureWalletPass flag — prefetch + 
 iOS/Mac ThisDeviceOnly, Backup refusal (#1323); #1311 (a) [THEME] lines, (b) RESTORE-B sheet "One account per device", (c) re-arm once per id; the
 Android hold shield; the wallet sync strip pick A (#1324). Security-only #46 at high effort: r1 8 MAJOR → r2 1 → r3 1 → r4 0 (design change: the
 scan WebView by identity) → r5 CLEAN (#1325). Parallel-session rules (#1326). Picks #1321. Smoke 5756 · CSH 423. Walk sheet §6. Next: S16b.
+2026-10-12 — SESSION 17 (cloud twin; ONE patch, uncommitted): What's new (A, #1338, every fresh install) + About / Contributors full-bleed headers and
+the status-bar ink (B, #1332 #1339) behind `S17Bridge` (P26); Chat appearance FINAL v3 (C, #1334–#1336: 7 canvases, each its own flat bubble,
+full-coverage dark, pattern −20 %, tiles follow the selection); the S17 illustration set (D, #1331); Downloads / Contributors / Delete data (E, #1336
+#1337 #1349); seven Moment sheets behind `S17Moments` (F, #1340–#1344, P28; the autodl offer opens Settings › Privacy after the security MAJOR);
+picture tiles without radio (#1342); sender name ON by default (#1346). #46 r1 → r4 (#1347), security-only HIGH 0 MAJOR from r2 (#1348).
+Smoke 5795 · CSH 435. Walk sheet `docs/walk-s17.md`. Next: S16 walk → S17 walk → privacy levels.

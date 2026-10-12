@@ -24,6 +24,16 @@ namespace SPIXI
     [XamlCompilation(XamlCompilationOptions.Compile)]
     public partial class SettingsPage : SpixiContentPage
     {
+        /* ★ S17 (#1339): 0 = the page surface decides the bar ink; 1 = the About header, 2 = the Contributors header is under
+         * the status bar (ixian:topsurface:*). Reset on every load (a fresh document starts on the hub). */
+        private int topSurfaceKind = 0;
+
+        protected override string systemBarSurfaceColorString()
+        {
+            string? c = SpixiFlags.S17Bridge ? S17Rules.topSurfaceColor(topSurfaceKind, ThemeManager.getResolvedAppearanceName() == "light") : null;
+            return c ?? base.systemBarSurfaceColorString();
+        }
+
         string selectedLanguage = null;
         ThemeAppearance selectedAppearance = ThemeAppearance.automatic;
 
@@ -63,6 +73,43 @@ namespace SPIXI
             }
             windowWide = wide;
             Utils.sendUiCommand(this, "setPaneMode", wide ? "1" : "0");
+        }
+
+        /* ★ S17 F (#1340, #46 security r1, 🟡 NEW push `openScreen`): open Settings ON one screen — today only "privacy" (the
+         * chat's auto-download offer). The id is C#'s own constant; the shell accepts the exact id only. A live Settings page
+         * gets the push at once; a new one at its load. */
+        private static string pendingScreen = "";
+        private static long pendingScreenAt = 0;   // #46 security r2 NIT-1: a pending screen older than 15 s is dropped (a refused push)
+        private bool shellLoaded = false;
+
+        internal static void openAt(string screen)
+        {
+            if (screen != "privacy") return;
+            pendingScreen = screen;
+            pendingScreenAt = Environment.TickCount64;
+            try
+            {
+                HomePage? home = HomePage.InstanceOrNull();
+                if (home != null) home.onSettings(home, EventArgs.Empty);
+                foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+                {
+                    if (p is SettingsPage sp && sp.shellLoaded) sp.pushPendingScreen();
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("SettingsPage: openAt failed (" + e.GetType().Name + ")");
+            }
+        }
+
+        private void pushPendingScreen()
+        {
+            shellLoaded = true;
+            if (pendingScreen.Length == 0) return;
+            string s = pendingScreen;
+            pendingScreen = "";
+            if (Environment.TickCount64 - pendingScreenAt > 15000) return;
+            Utils.sendUiCommand(this, "openScreen", s);
         }
 
         public SettingsPage(bool pane_mode = false, double master_width = 0)
@@ -236,6 +283,18 @@ namespace SPIXI
             caps += ",hints";
             // ★ #1133 (A5 #1124): the Privacy "Show photo previews in chats" row — this exe handles ixian:photoPreviews.
             caps += ",photoPreviews";
+            // ★ S17 (#1338 / #1339, P26): the About "What's new" row (setWhatsNew + ixian:whatsnew:done) and the bar ink under a
+            // full-bleed header (ixian:topsurface:*) — flag SpixiFlags.S17Bridge. (Kept ABOVE the dev cap: pins-s4/nav.mjs.)
+            if (SpixiFlags.S17Bridge)
+            {
+                caps += ",whatsnew,topsurface";
+            }
+            // ★ S17 F (#1340, P28): the AI translation moment (setMoments + momentAnswer, ixian:moment:lang:<code>) — flag S17Moments
+            if (SpixiFlags.S17Moments)
+            {
+                caps += ",moments";
+            }
+            topSurfaceKind = 0;   // ★ S17 (#1339): a fresh document starts on the hub (its own surface)
             /* ★ S9 (Session AD): the Developer row. The cap is granted ONLY while dev mode
              * is on (HomePage's 10-tap toggle persists `devMode`) — the row renders where
              * the affordance already exists, and never for a user who has not opted in. */
@@ -244,8 +303,11 @@ namespace SPIXI
                 caps += ",dev";
             }
             Utils.sendUiCommand(this, "setCaps", caps);
+            HomePage.pushWhatsNewTo(this);       // ★ S17 (#1338): the About row's "New" badge (no-op with the flag OFF)
+            SMoments.pushTo(this);               // ★ S17 F (#1340): the moment state (a pending language asks; no-op with the flag OFF)
             BackupPage.pushBackupStatus(this);   // ★ S2 (Session AD): the Backup row's status
             pushIgnoredRequests();               // ★ #978: the Declined-requests list
+            pushPendingScreen();                 // ★ S17 F (#1340): a screen another page asked for (openAt)
 
             // ★ NOTIF-2: the current values, so the switches render in the right position
             // rather than at the component defaults. Three bools, one push each — the
@@ -444,6 +506,20 @@ namespace SPIXI
             else if (current_url.Equals("ixian:deleteh", StringComparison.Ordinal))
             {
                 onDeleteHistory();
+            }
+            else if (S17Rules.isDoneVerb(current_url))
+            {
+                HomePage.markWhatsNewSeen();   // ★ S17 (#1338, P26): opened from About — the same store as the auto-show
+            }
+            else if (current_url.StartsWith(S17Rules.TopSurfacePrefix, StringComparison.Ordinal))
+            {
+                /* ★ S17 (#1339, 🟡 NEW verb, P26): plain | about | contrib — the colour behind the status bar while a full-bleed
+                 * header is under it (constants only, S17Rules.topSurfaceColor). An unknown tail is dropped. */
+                if (SpixiFlags.S17Bridge && S17Rules.parseTopSurface(current_url, out int topKind) && topKind != topSurfaceKind)
+                {
+                    topSurfaceKind = topKind;
+                    repaintOwnSystemBars();
+                }
             }
             else if (current_url.Equals("ixian:deleted", StringComparison.Ordinal))
             {
@@ -896,6 +972,10 @@ namespace SPIXI
                     // on mobile they sit UNDER this page (invisible); the one visible
                     // desktop-pane flash is a logged v1 residual (DECISIONS #334).
                     Utils.sendUiCommand(this, "setLocale", lang);
+                    /* ★ S17 F (#1340, P28): the AI translation moment — AFTER setLocale (the queue keeps the order), so the sheet
+                     * opens in the NEW language. A non-English code only (SMoments.noteLanguage); the shell asks, C# decides. */
+                    SMoments.noteLanguage(SpixiLocalization.getCurrentLanguage());
+                    SMoments.pushTo(this);
                     // #285 (F5 2026-07-29): strings are BAKED into generated pages; the
                     // deferred save/exit Home reload (#242) never fires on DESKTOP — the
                     // Account pane is tabbed away from, not exited — so the rest of the

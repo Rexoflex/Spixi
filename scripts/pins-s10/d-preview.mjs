@@ -134,19 +134,19 @@ export default async function (h) {
     /* ★ S11 re-base (#1261/#1263): the inline segmented control (the Text size grammar) replaced the row + sheet */
     let t = await openAppearance({});
     const seg = () => t.d.querySelector('.c-settings-appearance__preview-lines');
-    const pills = () => [...((seg() && seg().querySelectorAll('.c-settings-seg__pill')) || [])];
-    const checked = () => (pills().find((p) => p.getAttribute('aria-checked') === 'true') || {}).textContent;
+    /* ★ S17 C RE-BASE (#1334): the control is TWO MINI LISTS now (the render's fifth card) — still a radiogroup of two
+       radios named "1 line" / "2 lines", labelled "Message preview", in the chat-list card with the Tips switch */
+    const pills = () => [...((seg() && seg().querySelectorAll('[role="radio"]')) || [])];
+    const checked = () => ((pills().find((p) => p.getAttribute('aria-checked') === 'true') || {}).textContent || '').trim();
     const secs = [...t.d.querySelectorAll('.c-settings-appearance .c-settings__section')];
-    const sizeIdx = secs.findIndex((x) => /Message text size/.test(x.textContent));
     const plIdx = secs.findIndex((x) => x.contains(seg()));
-    const sizeSeg = secs[sizeIdx] && secs[sizeIdx].querySelector('.c-settings-seg');
+    const lab = seg() && t.d.getElementById(seg().getAttribute('aria-labelledby') || '-');
     const st = {
-      control: !!seg() && seg().getAttribute('role') === 'radiogroup' && seg().getAttribute('aria-label') === 'Message preview'
-        && seg().classList.contains('c-settings-seg') && !!sizeSeg && seg().className.split(' ')[0] === sizeSeg.className.split(' ')[0]
-        && /Message preview/.test(((secs[plIdx] && secs[plIdx].querySelector('.c-settings__label')) || {}).textContent),
-      pills: pills().map((p) => p.textContent).join('|') === '1 line|2 lines' && pills().every((p) => p.getAttribute('role') === 'radio'),
+      control: !!seg() && seg().getAttribute('role') === 'radiogroup' && !!lab && lab.textContent === 'Message preview'
+        && pills().every((p) => !!p.querySelector('.c-settings-appearance__minilist')),
+      pills: pills().map((p) => p.textContent.trim()).join('|') === '1 line|2 lines' && pills().every((p) => p.getAttribute('role') === 'radio'),
       default1: checked() === '1 line',
-      underTextSize: sizeIdx >= 0 && plIdx === sizeIdx + 1,
+      underTextSize: plIdx >= 0 && secs[plIdx].classList.contains('c-settings-appearance__card--list'),
       noSheetRow: !t.d.querySelector('.c-settings-appearance .c-settings__row-value') || ![...t.d.querySelectorAll('.c-settings-appearance .c-settings__row')].some((x) => /Message preview/.test(x.textContent)),
     };
     if (pills()[1]) pills()[1].click();

@@ -375,7 +375,9 @@ export default async function (h) {
     const verb = sp.slice(sp.indexOf('current_url.StartsWith("ixian:photoPreviews:"'));
     ok(/SChatPrefs\.photoPreviews = status\.Equals\("on", StringComparison\.Ordinal\);\s*Utils\.sendUiCommand\(this, "setPhotoPreviews", SChatPrefs\.photoPreviews\.ToString\(\)\);/.test(verb.slice(0, 400))
        && (sp.match(/Utils\.sendUiCommand\(this, "setPhotoPreviews", SChatPrefs\.photoPreviews\.ToString\(\)\);/g) || []).length === 2
-       && /caps \+= ",photoPreviews";\s*Utils\.sendUiCommand\(this, "setCaps", caps\);/.test(sp.replace(/if \(Preferences\.Default\.Get\("devMode", false\)\)\s*\{\s*caps \+= ",dev";\s*\}\s*/, '')),
+       && /caps \+= ",photoPreviews";\s*Utils\.sendUiCommand\(this, "setCaps", caps\);/.test(sp.replace(/if \(Preferences\.Default\.Get\("devMode", false\)\)\s*\{\s*caps \+= ",dev";\s*\}\s*/, '')
+         /* ★ S17 A / F re-base: the flag-gated S17 caps + the bar-ink reset sit between photoPreviews and the push */
+         .replace(/if \(SpixiFlags\.S17Bridge\)\s*\{\s*caps \+= ",whatsnew,topsurface";\s*\}\s*/, '').replace(/if \(SpixiFlags\.S17Moments\)\s*\{\s*caps \+= ",moments";\s*\}\s*/, '').replace(/(caps \+= ",photoPreviews";)\s*topSurfaceKind = 0;\s*/, '$1 ')),
       '★ #1133 Privacy (SOURCE — MAUI-only): SettingsPage handles `ixian:photoPreviews:` (StartsWith, Ordinal), stores SChatPrefs.photoPreviews ("on" only) and echoes the STORED value; the onLoad seed is the second push; the photoPreviews cap is granted');
     const en = JSON.parse(rd('src/strings/en-us.json'));
     ok(en.photoPreviewsTitle === 'Show photo previews in chats'

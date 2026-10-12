@@ -2102,6 +2102,11 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 /* ★ S10 P4 (#1254) → ★ S11 A2 (#1263): the "Message preview" card is an inline segmented control now (the Text size
    grammar) — it takes the plain section padding, so the single-row padding rule that stood here is gone. */
 
+/* ★ S17 E (#1337, option A): the Delete data tiles — the disc wears the KIND's gradient (tokens.css --dd-tile-*) under the
+   shared disc shade; the glyph stays white (the disc grammar) */
+.c-disc[data-dd-tile='history'] { --disc-grad: var(--dd-tile-history); }
+.c-disc[data-dd-tile='downloads'] { --disc-grad: var(--dd-tile-downloads); }
+
 </style><!-- shared row/group/section grammar -->
 <style data-src="../styles/components/chip.css">
 /* c-chip — mirrors Figma chip/{small,large} + code-first selected/disabled
@@ -2276,119 +2281,434 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   background: var(--surface-settings-ground);   /* ★ #1013 (r2 m3): the sublevels take the hub's ground — #1007's white card on the old #F9FAFB ground read 1.04:1 (dark unchanged: ground = surface-screen) */
 }
 
-/* —— downloads —— */
+/* —— downloads —— ★ S17 E (#1336): the premium screen, a port of downloads-contributors-render.html (dc.css) ——
+   summary card · filter chips · day groups (a photo grid + file rows) · select mode with a floating bar. The per-row
+   chat / trash buttons are gone (select mode carries the actions). */
+.c-settings-dl { position: relative; }
+.c-settings-dl > .c-settings__body { gap: 0; padding-block-end: var(--spacing-32); }
+.c-settings-dl[data-selecting] > .c-settings__body { padding-block-end: 104px; }   /* sanctioned: room under the floating bar */
+.c-settings-dl__search { margin-block: var(--spacing-4) var(--spacing-12); }
+.c-settings-dl__search[hidden] { display: none; }
 
-/* split row: open (tap target) + delete — two SIBLING buttons, never nested */
-/* ★ S11 A (#1262, Damir 23:44 screenshot: "the rows are too cramped"): clear vertical space between the Downloads
-   rows. Each row is the only child of its own `.c-settings__section`, so a sibling selector between rows can never
-   match — the space is the row's own block padding (4 above + 4 below) plus a roomier press target (8 above + 8
-   below, was 4). The 44 px targets are untouched (the Show-in-chat / delete buttons keep their fixed box). */
-.c-settings-dl__row {
+/* the bar's Select / Cancel: plain accent text (the render's "tbtn"), the 44 px target kept */
+.c-settings-dl__selbtn {
+  flex: none;
+  min-width: 44px;                  /* sanctioned: minimum touch target */
+  min-height: 44px;
+  margin-inline-start: auto;
+  padding: 0 var(--spacing-8);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font: inherit;
+  font-size: 15px;                  /* sanctioned: the render's bar action */
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-dl__selbtn[hidden] { display: none; }
+.c-settings-dl__selbtn:focus-visible { border-radius: var(--radius-8); }
+
+/* the summary card: count + size, a storage bar by kind, the delete-all action */
+.c-settings-dl__sum {
+  padding: var(--spacing-16) 18px 14px;   /* sanctioned: the render's card inset */
+  border-radius: 22px;              /* sanctioned: the render's summary radius */
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+}
+.c-settings-dl__sum[hidden] { display: none; }
+.c-settings-dl__sum-top { display: flex; align-items: baseline; gap: var(--spacing-8); flex-wrap: wrap; }
+.c-settings-dl__count {
+  color: var(--text-neutral-01);
+  font-size: 26px;                  /* sanctioned: the render's summary figure */
+  line-height: 1.15;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.5px;
+  font-feature-settings: "tnum" 1;
+}
+.c-settings-dl__total { color: var(--text-neutral-02); font-size: 15px; line-height: 1.3; font-feature-settings: "tnum" 1; }
+.c-settings-dl__bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;                     /* sanctioned: the render's storage bar */
+  margin: var(--spacing-12) 0 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--surface-neutral-02);
+}
+.c-settings-dl__bar[hidden], .c-settings-dl__legend[hidden] { display: none; }
+.c-settings-dl__bar > i {
+  display: block;
+  flex: 1 1 0;
+  min-width: 4px;                   /* a tiny kind still shows a sliver */
+  height: 100%;
+  background: var(--dl-kind-other);
+  transform-origin: left center;
+  animation: dl-grow .9s cubic-bezier(.2, .7, .2, 1) both;
+}
+[dir="rtl"] .c-settings-dl__bar > i { transform-origin: right center; }
+.c-settings-dl__bar[data-grown] > i { animation: none; }
+@keyframes dl-grow { from { transform: scaleX(0); } }
+.c-settings-dl__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--text-neutral-02);
+  font-size: 13px;                  /* sanctioned: the render's legend */
+  line-height: 1.4;
+  font-feature-settings: "tnum" 1;
+}
+.c-settings-dl__legend > span::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  margin-inline-end: 6px;
+  background: var(--dl-kind-other);
+}
+.c-settings-dl__bar > i[data-kind="image"], .c-settings-dl__legend > [data-kind="image"]::before { background: var(--dl-kind-image); }
+.c-settings-dl__bar > i[data-kind="pdf"], .c-settings-dl__legend > [data-kind="pdf"]::before { background: var(--dl-kind-pdf); }
+.c-settings-dl__bar > i[data-kind="archive"], .c-settings-dl__legend > [data-kind="archive"]::before { background: var(--dl-kind-archive); }
+.c-settings-dl__bar > i[data-kind="doc"], .c-settings-dl__legend > [data-kind="doc"]::before { background: var(--dl-kind-doc); }
+.c-settings-dl__bar > i[data-kind="audio"], .c-settings-dl__legend > [data-kind="audio"]::before { background: var(--dl-kind-audio); }
+.c-settings-dl__bar > i[data-kind="video"], .c-settings-dl__legend > [data-kind="video"]::before { background: var(--dl-kind-video); }
+.c-settings-dl__bar > i[data-kind="code"], .c-settings-dl__legend > [data-kind="code"]::before { background: var(--dl-kind-code); }
+.c-settings-dl__clear {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;                 /* sanctioned: minimum touch target (the render's text action, 44 tall) */
+  margin: var(--spacing-2) 0 -10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-error);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* filters: All · Photos · Files, then the From chip at the end */
+.c-settings-dl__controls {
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
-  padding-block: var(--spacing-4);
+  gap: var(--spacing-8);
+  margin-inline: calc(-1 * var(--spacing-16));
+  padding: 14px var(--spacing-16) var(--spacing-4);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.c-settings-dl__controls::-webkit-scrollbar { display: none; }
+.c-settings-dl__controls[hidden], .c-settings-dl__kinds[hidden] { display: none; }
+.c-settings-dl__kinds { display: flex; gap: var(--spacing-8); flex: none; }
+.c-settings-dl__chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;                     /* sanctioned: the render's chip */
+  padding: 0 14px;
+  border: 0;
+  border-radius: 17px;
+  background: var(--surface-settings-card);
+  box-shadow: inset 0 0 0 1px var(--outline-on-card);
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* the chip is 34 px tall (the render); its hit box reaches the 44 px touch minimum without growing the row */
+.c-settings-dl__chip { position: relative; }
+.c-settings-dl__chip::after { content: ""; position: absolute; inset: -5px 0; }
+.c-settings-dl__chip[aria-pressed="true"] { background: var(--surface-action-default); color: var(--text-neutral-on-action); box-shadow: none; }
+.c-settings-dl__chip:focus-visible { border-radius: 17px; }
+@media (hover: hover) and (pointer: fine) {
+  .c-settings-dl__chip:not([aria-pressed="true"]):hover { background: var(--surface-card-hover); }   /* the card pair (#882) */
+}
+.c-settings-dl__from-btn { margin-inline-start: auto; max-width: 70%; color: var(--text-action-default); }
+.c-settings-dl__from-btn[hidden] { display: none; }
+.c-settings-dl__from-btn svg { flex: none; }
+.c-settings-dl__from-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from { white-space: nowrap; }
+.c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
+
+/* day groups */
+.c-settings-dl__list[hidden] { display: none; }
+.c-settings-dl__day {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  margin: 0;
+  padding: 18px 6px var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: var(--font-weight-semibold);
+  font-feature-settings: "tnum" 1;
+}
+.c-settings-dl__group + .c-settings-dl__group > .c-settings-dl__grid:first-child,
+.c-settings-dl__group + .c-settings-dl__group > .c-settings-dl__files:first-child { margin-block-start: var(--spacing-16); }
+.c-settings-dl__grid + .c-settings-dl__files { margin-block-start: var(--spacing-8); }
+
+/* photos: a 3-column grid of type tiles (the thumbnail is the pickup) with a size badge */
+.c-settings-dl__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-4);
+  border-radius: 18px;              /* sanctioned: the render's grid radius */
+  overflow: hidden;
+}
+:root[data-desktop] .c-settings-dl__grid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }   /* a wide pane: more, smaller cells (3 columns are a phone's grid) */
+.c-settings-dl__row--th { display: block; padding: 0; }
+.c-settings-dl__open.c-settings-dl__th {   /* double class: the cell outranks the file row's own .c-settings-dl__open */
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  background: var(--surface-neutral-02);
+  color: #fff;                      /* sanctioned: white glyph and badge ink on the tone (the type tile grammar) */
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+@supports not (aspect-ratio: 1) { .c-settings-dl__open.c-settings-dl__th { height: 0; padding-block-end: 100%; } }
+.c-settings-dl__th-img {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dl-th-0);
+  animation: dl-in .5s ease both;
+  transition: transform .2s ease, border-radius .2s ease;
+}
+@keyframes dl-in { from { opacity: 0; transform: scale(1.04); } }
+.c-settings-dl__th-img[data-tone="1"] { background: var(--dl-th-1); }
+.c-settings-dl__th-img[data-tone="2"] { background: var(--dl-th-2); }
+.c-settings-dl__th-img[data-tone="3"] { background: var(--dl-th-3); }
+.c-settings-dl__th-img[data-tone="4"] { background: var(--dl-th-4); }
+.c-settings-dl__th-img[data-tone="5"] { background: var(--dl-th-5); }
+.c-settings-dl__th-img[data-tone="6"] { background: var(--dl-th-6); }
+.c-settings-dl__th-img[data-tone="7"] { background: var(--dl-th-7); }
+.c-settings-dl__th-img::after {    /* a soft floor shade so the white glyph and badge hold on the light tones */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(10, 20, 60, 0) 30%, rgba(10, 20, 60, .28) 100%);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-settings-dl__th-glyph {
+  position: relative;
+  z-index: 1;
+  width: 34%;
+  height: auto;
+  max-width: 44px;
+  opacity: .95;
+  filter: drop-shadow(0 2px 4px rgba(10, 20, 60, .3));   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-settings-dl__th-tag {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 6px;
+  inset-inline-start: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .85);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #1b2340;                   /* sanctioned: dark ink on the white tag */
+  font-size: 9px;
+  line-height: 1.4;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: .02em;
+}
+.c-settings-dl__sz {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: 6px;
+  inset-block-end: 6px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, .42);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #fff;   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  font-size: 11px;                  /* sanctioned: the render's size badge */
+  line-height: 1.4;
+  font-weight: var(--font-weight-semibold);
+  font-feature-settings: "tnum" 1;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.c-settings-dl__row--th[data-highlight] .c-settings-dl__th { box-shadow: inset 0 0 0 3px var(--surface-action-default); }
+
+/* other files: rows on one card, a hairline between them */
+.c-settings-dl__files {
+  border-radius: 20px;              /* sanctioned: the render's files card */
+  overflow: hidden;
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+}
+.c-settings-dl__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.c-settings-dl__files > .c-settings-dl__row + .c-settings-dl__row::before {
+  content: "";
+  position: absolute;
+  inset-inline: 74px 0;             /* sanctioned: past the tile (16 + 44 + 14) */
+  inset-block-start: 0;
+  height: 1px;
+  background: var(--outline-on-card);
+  z-index: 1;
+}
+.c-settings-dl[data-selecting] .c-settings-dl__files > .c-settings-dl__row + .c-settings-dl__row::before { inset-inline-start: 112px; }
 .c-settings-dl__open {
   flex: 1;
   min-width: 0;                     /* the name ellipsis needs a shrinkable box */
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
-  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52, settings-row parity #149②) */
-  padding: var(--spacing-8);        /* ★ S11 A (#1262): 8 px block padding (was 4) — the rows breathe */
+  gap: 14px;
+  min-height: var(--row-h-nav);
+  padding: var(--spacing-12) var(--spacing-16);
   border: 0;
   background: transparent;
-  border-radius: var(--radius-12);
+  color: inherit;
   cursor: pointer;
   text-align: start;
+  font: inherit;
   -webkit-tap-highlight-color: transparent;
-  /* ★ D-16 r3 (Opus finding 2): the file row joins the CANONICAL press family.
-     5c-ii (2026-08-24): the fill itself now rides the compositor ::before layer
-     in base.css, same as the other seven families. */
+  /* ★ D-16 r3: the file row is in the CANONICAL press family (the fill rides base.css's ::before layer) */
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .c-settings-dl__open:hover { background-color: var(--surface-interactive-hover); }
+  .c-settings-dl__th:hover > .c-settings-dl__th-img { filter: brightness(1.04); }
 }
-/* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
-.c-settings-dl__meta {
-  min-width: 0;
+.c-settings-dl__tile {
+  position: relative;
+  flex: none;
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: the render's type tile */
+  height: 44px;
+  border-radius: 13px;
+  background: var(--dl-tile-other);
+  color: #fff;                      /* sanctioned: white glyph on the kind gradient */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
 }
+.c-settings-dl__tile[data-kind="image"] { background: var(--dl-tile-image); }
+.c-settings-dl__tile[data-kind="pdf"] { background: var(--dl-tile-pdf); }
+.c-settings-dl__tile[data-kind="archive"] { background: var(--dl-tile-archive); }
+.c-settings-dl__tile[data-kind="doc"] { background: var(--dl-tile-doc); }
+.c-settings-dl__tile[data-kind="audio"] { background: var(--dl-tile-audio); }
+.c-settings-dl__tile[data-kind="video"] { background: var(--dl-tile-video); }
+.c-settings-dl__tile[data-kind="code"] { background: var(--dl-tile-code); }
+.c-settings-dl__tile > svg { width: 22px; height: 22px; }
+.c-settings-dl__tag {
+  position: absolute;
+  inset-block-end: -5px;
+  inset-inline-end: -6px;
+  max-width: 40px;
+  overflow: hidden;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--surface-settings-card);
+  color: var(--text-neutral-01);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  font-size: 9px;                   /* sanctioned: the render's format tag */
+  line-height: 1.4;
+  font-style: normal;
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+.c-settings-dl__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-2); }
 .c-settings-dl__name {
   color: var(--text-neutral-01);
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
+  font-size: 15.5px;                /* sanctioned: the render's row name */
+  line-height: 1.3;
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .c-settings-dl__time {
   color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
+  font-size: 13.5px;
+  line-height: 1.35;
+  font-feature-settings: "tnum" 1;
 }
-.c-settings-dl__del {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;                      /* sanctioned: minimum touch target */
-  height: 44px;
-  border: 0;
-  background: transparent;
-  border-radius: var(--radius-12);
-  color: var(--icon-neutral-02);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard),
-              color var(--duration-100) var(--easing-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-settings-dl__del:hover {
-    background: var(--surface-interactive-hover);
-    color: var(--icon-error);
-  }
-}
-.c-settings-dl__del:active { background: var(--surface-interactive-pressed); }
+.c-settings-dl__row[data-highlight] .c-settings-dl__open { background-color: var(--surface-action-tonal-default); }
 
-/* ★★ #1107: ONE "From: <who>" chip (a sheet picks the sender — chips per person did not scale, #1111) */
-/* ★ G-5 (#1119, render C): a section header on the card's edge — the count left, an accent "From: … ▾" text button right */
-.c-settings-dl__controls { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-8); padding: 0 var(--spacing-4) var(--spacing-4); }
-.c-settings-dl__controls[hidden] { display: none; }
-.c-settings-dl__count { flex: none; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); letter-spacing: var(--tracking-body-sm); color: var(--text-neutral-02); }
-.c-settings-dl__from-btn {
-  display: inline-flex; align-items: center; gap: var(--spacing-4); min-width: 0; max-width: 70%; min-height: 44px;
-  padding: 0 var(--spacing-4); border: 0; background: none; color: var(--text-accent); cursor: pointer;
-  font: inherit; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); font-weight: var(--font-weight-semibold);
-  -webkit-tap-highlight-color: transparent;
+/* select mode: check marks (hidden until selecting), the picked cell shrinks, the floating bar rises */
+.c-settings-dl__ck {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #fff;   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #fff;   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
 }
-.c-settings-dl__from-btn svg { flex: none; }
-.c-settings-dl__from-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.c-settings-dl__from-btn:focus-visible { border-radius: var(--radius-8); }   /* (#46 r1 B10) the global ring (--outline-focus); only its corners here */
-.c-settings-dl__from { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
-/* the Downloads "Show in chat" icon: the delete button's 44px box, its own class (#46 r1 B11 / r2 R2-2) */
-.c-settings-dl__go {
+.c-settings-dl__ck > svg { width: 15px; height: 15px; opacity: 0; }
+.c-settings-dl__files .c-settings-dl__ck { position: static; flex: none; order: -1; border-color: var(--text-neutral-02); background: transparent; }
+.c-settings-dl[data-selecting] .c-settings-dl__ck { display: inline-flex; }
+.c-settings-dl [aria-pressed="true"] > .c-settings-dl__ck { background: var(--surface-action-default); border-color: var(--surface-action-default); }
+.c-settings-dl [aria-pressed="true"] > .c-settings-dl__ck > svg { opacity: 1; }
+.c-settings-dl__th[aria-pressed="true"] > .c-settings-dl__th-img { transform: scale(.88); border-radius: 12px; }
+.c-settings-dl__selbar {
+  position: absolute;
+  z-index: 6;
+  inset-inline: 12px;
+  inset-block-end: calc(14px + var(--safe-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 18px;
+  border-radius: 22px;
+  background: var(--surface-settings-card);
+  box-shadow: 0 16px 34px -12px rgba(10, 14, 50, .5), 0 0 0 1px var(--outline-on-card);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  transform: translateY(calc(100% + 40px));
+  visibility: hidden;
+  transition: transform .32s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .32s;
+}
+.c-settings-dl__selbar[data-on] { transform: none; visibility: visible; transition: transform .32s cubic-bezier(.2, .8, .2, 1), visibility 0s; }
+.c-settings-dl__selcount { flex: 1; min-width: 0; color: var(--text-neutral-01); font-size: 15px; font-weight: var(--font-weight-semibold); }
+.c-settings-dl__selbar button {
   flex: none;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 44px;                      /* sanctioned: minimum touch target */
-  height: 44px;
+  gap: 6px;
+  height: 44px;                     /* sanctioned: minimum touch target (the render's 40, raised) */
+  padding: 0 14px;
   border: 0;
-  background: transparent;
-  border-radius: var(--radius-12);
-  color: var(--icon-neutral-02);
+  border-radius: 22px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard), color var(--duration-100) var(--easing-standard);
 }
-.c-settings-dl__go:active { background: var(--surface-interactive-pressed); }
-@media (hover: hover) and (pointer: fine) { .c-settings-dl__go:hover { background: var(--surface-interactive-hover); color: var(--icon-action-default); } }
+.c-settings-dl__selbar button[hidden] { display: none; }
+.c-settings-dl__selbar button > svg { width: 18px; height: 18px; }
+.c-settings-dl__go { background: var(--surface-neutral-02); color: var(--text-neutral-01); }
+.c-settings-dl__del { background: var(--surface-destructive-default); color: var(--text-neutral-on-destructive); }
+@media (prefers-reduced-motion: reduce) {
+  .c-settings-dl__bar > i, .c-settings-dl__th-img { animation: none; }
+  .c-settings-dl__selbar, .c-settings-dl__selbar[data-on], .c-settings-dl__th-img { transition: none; }
+}
 
 /* empty state — centered, calm */
 .c-settings-dl__empty {
@@ -2399,6 +2719,8 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   padding: var(--spacing-32) var(--spacing-16);
   text-align: center;
 }
+.c-settings-dl__empty[hidden] { display: none; }
+.c-settings-dl__nomatch { margin-block-start: var(--spacing-16); text-align: center; }
 
 /* —— developer log —— */
 
@@ -2429,19 +2751,41 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   flex-wrap: wrap;                  /* two 44s survive narrow frames */
 }
 
-/* —— contributors —— */
-.c-settings-contrib__art {
-  display: flex;
-  justify-content: center;
-  padding-block-start: var(--spacing-16);
+/* —— contributors —— ★ S17 E (#1336): the thank-you screen, a port of downloads-contributors-render.html (dc.css) ——
+   a warm full-bleed header (the heart), "Thank you", the names as chips with initial discs, the credits as rows. */
+.c-settings-contrib__band {
+  --ct-hdr-h: 220px;
+  position: relative;
+  align-self: stretch;
+  flex: none;
+  margin-inline: calc(-1 * var(--spacing-16));
+  block-size: calc(var(--ct-hdr-h) + var(--safe-top, 0px));
+  overflow: hidden;
+  background: var(--dc-b);         /* the frame before the art paints = the art's own middle stop */
 }
-.c-settings-contrib__art-disc {
-  width: 64px;                      /* sanctioned: art-slot disc (backup-hero precedent) */
-  height: 64px;
+:root[data-desktop] .c-settings-contrib__band { --ct-hdr-h: 200px; }
+.c-settings-contrib__head { margin: 18px 10px 0; text-align: center; }
+.c-settings-contrib__thanks {
+  margin: 0 0 6px;
+  color: var(--text-neutral-01);
+  font-size: 26px;                  /* sanctioned: the render's heading */
+  line-height: 1.2;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.5px;
 }
-.c-settings-contrib__lead { text-align: center; }
-.c-settings-contrib__card { padding: var(--spacing-12); }
-.c-settings-contrib__card--credits { padding-block: var(--spacing-4); }   /* ★ #1040: the rows carry their own 12 block padding */
+.c-settings-contrib__lead {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: 15px;
+  line-height: 1.45;
+}
+.c-settings-contrib__card {
+  border-radius: 24px;              /* sanctioned: the render's names card */
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+}
+.c-settings-contrib__card:not(.c-settings-contrib__card--credits) { margin-block-start: 18px; padding: var(--spacing-16) 14px; }
+.c-settings-contrib__card--credits { border-radius: 22px; overflow: hidden; }
 .c-settings-contrib__list {
   margin: 0;
   padding: 0;
@@ -2451,23 +2795,71 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   justify-content: center;
   gap: var(--spacing-8);
 }
-.c-settings-contrib__name {
-  padding: var(--spacing-4) var(--spacing-12);
-  border-radius: var(--radius-full);
-  background: var(--surface-input); /* card scope reassigns to -on-card (#150③) */
+.c-settings-contrib__chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  height: 40px;                     /* sanctioned: the render's name chip */
+  padding: 0 14px 0 5px;
+  border-radius: 20px;
+  background: var(--surface-input);   /* the screen's input fill (neutral-02) — the card here is not a .c-settings__group, so no on-card swap */
   color: var(--text-neutral-01);
-  font-size: var(--font-size-label-md);
-  line-height: var(--line-height-label-md);
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+  animation: ct-pop .5s cubic-bezier(.3, 1.3, .5, 1) both;
+  animation-delay: var(--d, 0s);
+}
+@keyframes ct-pop { from { opacity: 0; transform: translateY(8px) scale(.9); } }
+.c-settings-contrib__chip.is-burst { animation: ct-bounce .45s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes ct-bounce { 40% { transform: scale(1.12); } }
+.c-settings-contrib__initial {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--dc-av-0);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #fff;                      /* sanctioned: white initial on the disc gradient */
+  font-size: 13px;
+  line-height: 1;
+  font-style: normal;
+  font-weight: var(--font-weight-bold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .2);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-settings-contrib__initial[data-tone="1"] { background: var(--dc-av-1); }
+.c-settings-contrib__initial[data-tone="2"] { background: var(--dc-av-2); }
+.c-settings-contrib__initial[data-tone="3"] { background: var(--dc-av-3); }
+.c-settings-contrib__initial[data-tone="4"] { background: var(--dc-av-4); }
+.c-settings-contrib__initial[data-tone="5"] { background: var(--dc-av-5); }
+.c-settings-contrib__name {
+  font-size: 15px;
+  line-height: 1;
   font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
 }
+.c-settings-contrib__spark {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  pointer-events: none;
+  background: var(--dc-spk-0);
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  animation: ct-spark .7s ease-out forwards;
+}
+.c-settings-contrib__spark[data-tone="1"] { background: var(--dc-spk-1); }
+.c-settings-contrib__spark[data-tone="2"] { background: var(--dc-spk-2); }
+.c-settings-contrib__spark[data-tone="3"] { background: var(--dc-spk-3); }
+@keyframes ct-spark { from { transform: translate(0, 0) scale(.4); opacity: 1; } to { transform: translate(var(--x), var(--y)) scale(1.6); opacity: 0; } }
 
-/* ★ #502 — asset credits. A LIST, not chips: a chip is a name and these are
-   facts, so they read as stacked rows with the label above its source. */
-.c-settings-contrib__credits-title {
-  /* ★ #1040 (Damir 2026-09-29: "left-align the credits, like a list"): the heading takes the
-     hub's section-label look and sits at the card's start edge; only the margin is local */
-  margin-block: var(--spacing-8) 0;   /* ★ #1041: the body's 12px gap spaces it from its card, like the hub's labels */
-}
+/* ★ #502 — asset credits: rows (a list of facts), the label above its FULL source, a licence pill */
+.c-settings-contrib__credits-title { margin: 22px 0 0; }   /* ★ #1040: the hub's section-label grammar, its own margin */
 .c-settings-contrib__credits {
   margin: 0;
   padding: 0;
@@ -2475,30 +2867,65 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   display: flex;
   flex-direction: column;
 }
-/* ★ #1040: rows, start-aligned, one hairline between them (the on-card role, #886) —
-   three centred paragraphs read as a poem; a list reads as facts */
 .c-settings-contrib__credit {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
+  align-items: flex-start;
+  gap: 14px;
   text-align: start;
-  padding-block: var(--spacing-12);
-  padding-inline: var(--spacing-4);
+  padding: 14px var(--spacing-16);
 }
-.c-settings-contrib__credit + .c-settings-contrib__credit {
-  border-block-start: var(--outline-width-1) solid var(--outline-on-card);
+.c-settings-contrib__credit + .c-settings-contrib__credit::before {
+  content: "";
+  position: absolute;
+  inset-inline: 70px 0;             /* sanctioned: past the tile (16 + 40 + 14) */
+  inset-block-start: 0;
+  height: 1px;
+  background: var(--outline-on-card);
 }
+.c-settings-contrib__tile {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--dl-tile-other);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #fff;                      /* sanctioned: white glyph on the tile gradient */
+}
+.c-settings-contrib__tile[data-credit="creditSounds"] { background: var(--dc-tile-sounds); }
+.c-settings-contrib__tile[data-credit="creditIcons"] { background: var(--dc-tile-icons); }
+.c-settings-contrib__tile[data-credit="creditFlags"] { background: var(--dc-tile-flags); }
+.c-settings-contrib__credit-text { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .c-settings-contrib__credit-what {
+  margin-block-end: var(--spacing-2);
   color: var(--text-neutral-01);
-  font-size: var(--font-size-label-md);
-  line-height: var(--line-height-label-md);
+  font-size: 15.5px;
+  line-height: 1.3;
   font-weight: var(--font-weight-semibold);
 }
 .c-settings-contrib__credit-who {
   color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
+  font-size: 13.5px;
+  line-height: 1.4;
   overflow-wrap: anywhere;      /* a domain must never widen the card */
+  -webkit-user-select: text;
+  user-select: text;
+}
+.c-settings-contrib__licence {
+  margin-block-start: 7px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: var(--ab-chip);
+  color: var(--text-action-default);
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: var(--font-weight-bold);
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-settings-contrib__chip, .c-settings-contrib__chip.is-burst { animation: none; }
 }
 
 /* —— about —— ★ S12 B (#1267, design "B, hero card-led") */
@@ -2516,32 +2943,25 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   align-items: center;
   gap: var(--spacing-4);
   text-align: center;
-  padding: 0 var(--spacing-20) var(--spacing-24);
-  border-radius: var(--radius-24);
-  background: var(--glass-card-surface);
-  box-shadow: inset 0 1px 0 var(--glass-card-highlight), var(--glass-card-shadow);
-  overflow: hidden;
+  /* ★ S17 B (#1332): no card any more — the identity (icon · name · tagline · version) sits on the screen ground under
+     the full-bleed header (kit-render.html "About · full-bleed header"); was the glass card of S13 / S14 */
+  padding: 0 var(--spacing-20) var(--spacing-8);
 }
+/* ★ S17 B (#1332): the band IS the full-bleed header now — ~234 px under the status bar (its inset added), edge to edge
+   past the body's inline padding, the Glass art in two layers (illo.css .il.ab-l fills it); the ground is in the art
+   (the --ab-band-* pair + a deep stop, three drifting light fields, a sheen, a top scrim) */
 .c-settings-about__band {
+  --ab-hdr-h: 234px;
   position: relative;
   align-self: stretch;
   flex: none;
-  margin-inline: calc(-1 * var(--spacing-20));
-  block-size: 128px;
+  margin-inline: calc(-1 * var(--spacing-16) - var(--spacing-20));
+  block-size: calc(var(--ab-hdr-h) + var(--safe-top, 0px));
   overflow: hidden;
-  background:
-    radial-gradient(60% 120% at 50% 110%, var(--ab-band-shade) 0%, transparent 70%),
-    radial-gradient(80% 140% at 85% 0%, var(--ab-band-sheen) 0%, transparent 55%),
-    linear-gradient(120deg, var(--ab-band-from) 0%, var(--ab-band-to) 100%);   /* ★ S14 (#1288): launcher blue, was the hint-art violet */
-  background-size: 100% 100%, 100% 100%, 130% 100%;
-  background-position: 0 0, 0 0, 50% 0;
-  background-repeat: no-repeat;
+  background: var(--ab-band-to);   /* the frame before the art paints = the art's own middle stop */
 }
-/* the art on the band: fixed-width and centred by a logical inset (calc(50% - half) from the inline START, so RTL
-   centres the same way without a mirrored transform); 320 px wide and lifted 10 px so the whole scene (top sparkle
-   to the lowest dot, ~117 of its 150 units) sits inside the 128 px band with nothing kissing either edge — at 360 px
-   and on the desktop pane alike; its orbit and sparkles re-inked white for the gradient */
-.c-settings-about__band .c-settings-about__art {
+:root[data-desktop] .c-settings-about__band { --ab-hdr-h: 208px; }
+.c-settings-about__art {
   --ab-art-w: 320px;
   position: absolute;
   inset-block-start: -10px;
@@ -2567,7 +2987,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   justify-content: center;
   inline-size: 84px;
   block-size: 84px;
-  margin-block-start: -46px;
+  margin-block-start: -42px;   /* ★ S17 B (#1332): centred on the header's lower edge (was -46px into the 128 px band) */
   margin-block-end: var(--spacing-8);
   border-radius: var(--radius-24);
   /* ★ S14 (#1288): the REAL launcher ground (appicon.svg, Damir's #689 CSS layered the same way: the radial from the
@@ -2579,7 +2999,9 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   color: var(--ab-mark);
   /* the cut-out ring in the card's own surface, a 1 px highlight hairline round it (so the ring reads as a rim, not a
      hole, on the dark card), then the soft brand glow */
-  box-shadow: 0 0 0 5px var(--glass-card-surface), 0 0 0 6px var(--glass-card-highlight), 0 14px 26px -10px var(--ab-tile-shadow);
+  /* ★ S17 B (#1332): the cut-out ring is the SCREEN ground now (the identity sits on it, no card); was the glass
+     card's surface + a highlight hairline */
+  box-shadow: 0 0 0 5px var(--surface-settings-ground), 0 14px 26px -10px var(--ab-tile-shadow);
 }
 .c-settings-about__appicon svg { inline-size: 46px; block-size: 46px; }
 .c-settings-about__app-name {
@@ -2622,20 +3044,13 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 /* ONE entrance (the glass-card precedent): the band's gradient drifts into place while the icon settles .92 → 1;
    createSettingsAbout sets `data-held` after it (or its backstop), so a re-layout never replays it; reduced motion =
    static */
-.c-settings-about__band { animation: about-band-in var(--duration-300) var(--easing-decelerate) both; }
 .c-settings-about__appicon { animation: about-icon-in var(--duration-300) var(--easing-decelerate) both; }
-@keyframes about-band-in {
-  from { background-position: 0 0, 0 0, 100% 0; }
-  to { background-position: 0 0, 0 0, 50% 0; }
-}
 @keyframes about-icon-in {
   from { transform: scale(.92); }
   to { transform: none; }
 }
-.c-settings-about__hero[data-held] .c-settings-about__band,
 .c-settings-about__hero[data-held] .c-settings-about__appicon { animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  .c-settings-about__band,
   .c-settings-about__appicon { animation: none; }
 }
 /* a labelled group: the label sits on the ground above its card (the hub's section-label grammar) */
@@ -2784,6 +3199,58 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
+}
+
+/* —— ★ S17 B (#1332): the top bar floats over the full-bleed header ——
+   The bar leaves the flow (absolute over the body), so the body — and the header, its first child — starts at the top
+   of the screen, under the status bar. Over the header the bar is transparent with white ink (the region tokens are
+   re-assigned in scope: the .screen--hero precedent, #20) and "About" 22 px bold; once the header has scrolled under it
+   (createSettingsAbout sets data-solid) the bar takes its own surface and ink again. */
+.c-settings-about--hdr, .c-settings-contrib--hdr { position: relative; }
+.c-settings-about--hdr > .c-topbar,
+.c-settings-contrib--hdr > .c-topbar {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+}
+.c-settings-about--hdr > .c-topbar:not([data-solid]),
+.c-settings-contrib--hdr > .c-topbar:not([data-solid]) {
+  --surface-topbar: transparent;
+  --text-topbar: var(--text-on-hero);
+  --icon-topbar: var(--icon-on-hero);
+}
+.c-settings-about--hdr > .c-topbar:not([data-solid]) .c-topbar__title,
+.c-settings-contrib--hdr > .c-topbar:not([data-solid]) .c-topbar__title {
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  text-shadow: 0 1px 2px rgba(0, 20, 70, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-settings-about--hdr > .c-settings__body,
+.c-settings-contrib--hdr > .c-settings__body { padding-block-start: 0; }
+/* over the header the bar has no edge (a hairline across the art); solid again, it takes its own */
+.c-settings-about--hdr > .c-topbar[data-variant]:not([data-solid]),
+.c-settings-contrib--hdr > .c-topbar[data-variant]:not([data-solid]) { border-bottom-color: transparent; box-shadow: none; }
+/* the identity sits on the SCREEN ground under the header (kit-render.html) — the hero element still wears the settings
+   group class (its pins and the hold hook read it), so its card surface is cleared here at a higher weight */
+.c-settings-about--hdr .c-settings__group.c-settings-about__hero {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+/* —— ★ S17 A/B (#1333): the "What's new" row and its "New" badge —— */
+.c-settings-about__new {   /* the tonal accent badge (badge.css grammar, #54) */
+  flex: none;
+  padding: var(--spacing-2) var(--spacing-8);
+  border-radius: var(--radius-8);
+  background: var(--surface-accent-inverse);
+  color: var(--text-accent);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
 }
 
 </style>

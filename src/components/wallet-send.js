@@ -90,6 +90,7 @@ export function createWalletSend({
   lockedRecipient = null,   // chat Pay (#139): { name?, address } — pre-picked, NO change (the peer is known)
   fiatPrice = null,         // ★ #1263: IXI → fiat, RAW decimal from C#; absent/zero → no fiat line (#1041)
   onQuickScan, onQuote, onSend, onDone,
+  onBeforeReview = null,    // ★ S17 F (#1340): (go, stop) — the host may put ONE step before the review (the first-payment moment); go() opens the review, stop() returns to the compose
 } = {}) {
   // NB contract: balance/fee are RAW numerics (number or plain decimal string) — this is
   // the one FE surface doing money math. Pre-formatted display strings (hero-style
@@ -565,7 +566,26 @@ export function createWalletSend({
   };
 
   /* ——— review sheet (#26) — the shared openPaymentReview, fee KNOWN at open ——— */
+  /* ★ S17 F (#1340): the host's step before the review (the first-payment moment sheet). The review itself is
+     unchanged; go() re-checks everything, so a compose that changed meanwhile opens nothing stale. */
   function openSendReview() {
+    if (!valid() || state.sending) return;
+    if (state.review && state.review.isOpen()) return;
+    if (typeof onBeforeReview === 'function' && !state.beforeReview) {
+      state.beforeReview = true;
+      let went = false;
+      try {
+        onBeforeReview(
+          () => { if (went) return; went = true; state.beforeReview = false; if (el.isConnected) openSendReviewNow(); },   // go (#46 r1: never over a closed compose)
+          () => { if (went) return; went = true; state.beforeReview = false; }                         // stop: back to the compose
+        );
+      } catch (e) { state.beforeReview = false; openSendReviewNow(); }
+      return;
+    }
+    if (state.beforeReview) return;                      // the step before is on screen
+    openSendReviewNow();
+  }
+  function openSendReviewNow() {
     if (!valid() || state.sending) return;               // per-VIEW in-flight token (audit C1)
     // loop r1 M4: ONE review sheet per compose — a double tap stacked two, and the
     // survivor could fire a second send. Loop r2 R2-3: "one" = one OPEN sheet — a sheet

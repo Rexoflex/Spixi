@@ -68,6 +68,42 @@ namespace SPIXI
             {
                 onBack();
             }
+            else if (current_url.StartsWith("ixian:devflash:s17m:", StringComparison.Ordinal))
+            {
+                /* ★ S17 F (#1312 rule 1, P28, dev surface): `ixian:devflash:s17m:<0|1>` — SpixiFlags.S17Moments (the Moment
+                 * sheets); the same rules: dev mode on and "0" / "1", or nothing is stored; acts at the next start. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false)
+                        && S16PassRules.parseFlagTail(current_url.Substring("ixian:devflash:s17m:".Length), out int value))
+                    {
+                        Preferences.Default.Set(SpixiFlags.S17MomentsKey, value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: flag switch failed: " + ex.GetType().Name);
+                }
+                pushFlagsDev();
+            }
+            else if (current_url.StartsWith("ixian:devflash:s17:", StringComparison.Ordinal))
+            {
+                /* ★ S17 (#1312 rule 1, P26, dev surface): `ixian:devflash:s17:<0|1>` — SpixiFlags.S17Bridge (What's new + the bar
+                 * ink); the S16 switches' rules exactly: dev mode on and "0" / "1", or nothing is stored; acts at the next start. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false)
+                        && S16PassRules.parseFlagTail(current_url.Substring("ixian:devflash:s17:".Length), out int value))
+                    {
+                        Preferences.Default.Set(SpixiFlags.S17BridgeKey, value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: flag switch failed: " + ex.GetType().Name);
+                }
+                pushFlagsDev();
+            }
             else if (current_url.StartsWith("ixian:devflash:securepass:", StringComparison.Ordinal)
                 || current_url.StartsWith("ixian:devflash:mediagate:", StringComparison.Ordinal))
             {
@@ -220,16 +256,20 @@ namespace SPIXI
          *  acts in THIS run is SpixiFlags (read at start); the row says a change acts after a restart. Guarded reference. */
         private void pushFlagsDev()
         {
-            int sp = 1, mg = 1;
+            int sp = 1, mg = 1, sb = 1, sm = 1;
             try
             {
                 sp = Preferences.Default.Get(SpixiFlags.SecureWalletPassKey, 1);
                 mg = Preferences.Default.Get(SpixiFlags.MediaInputGateKey, 1);
+                sb = Preferences.Default.Get(SpixiFlags.S17BridgeKey, 1);
+                sm = Preferences.Default.Get(SpixiFlags.S17MomentsKey, 1);
             }
             catch (Exception)
             {
             }
-            Utils.sendUiCommand(this, "window.setFlagsDev", (sp == 0 ? "0" : "1") + "," + (mg == 0 ? "0" : "1"));
+            // ★ S17: a third digit (the S17 bridge); an older dev.html reads the first two only
+            // ★ S17 F: a fourth digit (the Moment sheets); an older dev.html reads what it knows
+            Utils.sendUiCommand(this, "window.setFlagsDev", (sp == 0 ? "0" : "1") + "," + (mg == 0 ? "0" : "1") + "," + (sb == 0 ? "0" : "1") + "," + (sm == 0 ? "0" : "1"));
         }
 
         // #321 (R5 parity): share/save the CURRENT log. The share copy is a stable

@@ -240,7 +240,9 @@ namespace SPIXI
                 && friend.approved
                 && friend.state == FriendState.Approved)
             {
-                Utils.sendUiCommand(this, "setCaps", "composeSend,composeRequest");
+                // ★ S17 F (#1340, P28): + moments — the first-payment moment before the review (flag SpixiFlags.S17Moments)
+                Utils.sendUiCommand(this, "setCaps", "composeSend,composeRequest" + (SpixiFlags.S17Moments ? ",moments" : ""));
+                SMoments.pushTo(this);
             }
 
             if (isGroup)

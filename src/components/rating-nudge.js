@@ -76,7 +76,8 @@ export function showRatingNudge({ host, illustration = '', onRate, onDismiss, st
   const yes = createButton({ label: strings.ratingYes || 'Yes, I am loving it', size: 56, width: 'full' });
   yes.addEventListener('click', () => answer('yes'));
 
-  const no = createButton({ label: strings.ratingNo || 'Not so much…', type: 'outline', size: 56, width: 'full' });
+  /* ★ S17 (Damir 20:42, "consistency"): every secondary button in a SHEET is a text button — no outline */
+  const no = createButton({ label: strings.ratingNo || 'Not so much…', type: 'text', size: 56, width: 'full' });
   no.addEventListener('click', () => answer('no'));
 
   if (art) content.append(art);

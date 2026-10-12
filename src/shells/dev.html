@@ -274,6 +274,8 @@
       ['securepass', strings.devFlagsSecurePass || 'Wallet password in secure storage'],
       ['mediagate', strings.devFlagsMediaGate || 'Voice and paste only in the open chat'],
     ];
+    if (flagsDev.length > 2) rows.push(['s17', strings.devFlagsS17 || 'What’s new and the About bar ink (S17)']);   // ★ S17 (P26)
+    if (flagsDev.length > 3) rows.push(['s17m', strings.devFlagsS17m || 'Moment sheets (S17)']);   // ★ S17 F (P28)
     rows.forEach(([name, label], i) => {
       const row = document.createElement('div');
       row.className = 'c-settings__row c-settings__row--static';
@@ -343,9 +345,9 @@
     },
     /* ★ S16 (#1312, 🟡 new push): the stored flag switches "s,m" (1 = ON); anything but two 0/1 digits is ignored. */
     setFlagsDev(v) {
-      const m = /^([01]),([01])$/.exec(String(v || ''));
+      const m = /^([01]),([01])(?:,([01])(?:,([01]))?)?$/.exec(String(v || ''));   // ★ S17: an optional third digit (the S17 bridge) · ★ S17 F: a fourth (the Moment sheets)
       if (!m) return;
-      flagsDev = [m[1] === '1', m[2] === '1'];
+      flagsDev = [m[1] === '1', m[2] === '1'].concat(m[3] ? [m[3] === '1'] : []).concat(m[4] ? [m[4] === '1'] : []);
       mountFlagsDev();
     },
   };

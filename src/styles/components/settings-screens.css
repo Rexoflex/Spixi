@@ -208,9 +208,14 @@
    crosses ~2 lines, which is what makes it read as contours rather than as one stray curve.
    Rendered, not guessed (Session M's lesson: the mask lives on ::before, so only a
    stylesheet can move it). Was the matrix's 144px. */
-.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='contours']::before {
-  -webkit-mask-size: 160px 120px;
-  mask-size: 160px 120px;
+.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='contours']::before,
+.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='rings']::before {
+  /* ★ S17 C (#1334 / #1335): half the 400 × 320 tile, the SAME aspect (was 160 × 120 = half the old 320 × 240 —
+     at the new 5 : 4 tile that box letterboxed the mask into a blank vertical band) */
+  -webkit-mask-size: 140px 112px;   /* the render's tiles show the WHOLE drawing in miniature (≈ .35 of the 400 × 320 tile) */
+  mask-size: 140px 112px;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
 /* Live flow paints on a canvas child; chat-pattern.css already zeroes the tile
    (--chat-pattern-tile: none) for this style, so nothing to hide here. The
@@ -304,27 +309,299 @@
 .c-settings-security__tier[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
 .c-settings-security__tier[data-loading] .c-settings__opt-check { display: none; }
 
-/* —— ★ Session M (#774): the Colour card — a single value row, so it takes the HUB's card
-   padding (4) instead of the appearance screen's section padding (12). A 48px row inside a
-   12px section reads as a row floating in a box rather than as a card that IS a row.
-   The rule is written against the section, not the row. ★ #1066: the section is built in
-   BOTH themes now (a dark brand gradient exists), so the rule applies in dark too.
-   REVERSAL: delete this rule and the row sits 20px in from the card edge. —— */
-.c-settings-appearance .c-settings__section.c-settings-appearance__groundsec {
-  padding: var(--spacing-4);
+/* ═══ ★★ S17 C (#1334) — CHAT APPEARANCE, premium: a PORT of appearance-render.html (parts-f/appear.css), LOCKED ══════
+   Damir 19:49 ("look how beautiful this is … that's what we want"): the render's own values, mapped onto Spixi tokens —
+   cards 24 px with the render's soft shadow, accent labels, the FULL-BLEED 236 px preview, the styled sliders, mini-chat
+   tiles with the name pill inside and the check top-right, three background tiles, glossy discs, mini phones, mini lists.
+   #1019's colour circles, the #1066 r2 / S8 dark "top stop" faces and #774's single-row Colour card are retired with the
+   old layout. Literals marked "sanctioned" are the render's decorative values (a pill on a picture, a gloss, a shadow).
+   Motion: colour / ground / radius ease (≤ .45 s); reduced motion = instant. Logical properties (RTL); hovers guarded. */
+.c-settings-appearance__body { gap: var(--spacing-12); }
+.c-settings-appearance__col { display: flex; flex-direction: column; gap: var(--spacing-12); min-width: 0; }
+
+/* the cards (the render's .ap__card) — no inner padding: each control owns its own 18 px inset, the preview runs edge to edge */
+.c-settings-appearance .c-settings__section.c-settings-appearance__card {
+  display: block;
+  padding: 0;
+  border-radius: var(--radius-24);
+  overflow: hidden;
+  background: var(--surface-settings-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 10px 24px -18px rgba(20, 24, 70, .35);   /* sanctioned: the render's card shadow */
 }
-/* ★★ #1019: the Canvas choice is a pair of COLOUR CIRCLES (Damir 2026-09-28). 32px faces in 44px
-   hit targets; the picked one carries the action ring with a 2px gap (the swatch grammar); each
-   face paints its ground through --gradient-chat, so a circle is always what the chat will show.
-   The flat face gets a hairline — Mist on a white card is a low-contrast disc without one. */
+.c-settings-appearance .c-settings-appearance__card .c-settings__label {
+  margin: 0;
+  padding: var(--spacing-16) 18px 6px;   /* sanctioned: the render's 18 px card inset */
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: 650;
+  letter-spacing: .02em;
+  color: var(--text-action-default);
+}
+/* a switch row inside a card is flat (no card in a card) */
+.c-settings-appearance .c-settings-appearance__card .c-settings__section {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: var(--spacing-4) 6px;
+}
+
+/* (1) the preview — FULL BLEED in its card, 236 px; the chat's own grammar in miniature */
+.c-settings-appearance__card--preview .c-chat-canvas.c-settings-appearance__preview {
+  position: relative;
+  display: block;
+  height: 236px;
+  min-height: 148px;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  transition: background .45s ease;
+}
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__chip,
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble { position: absolute; }
+.c-settings-appearance__chip {
+  inset-block-start: 14px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  /* ★ S17 C v3 §2 (Damir 21:50): the SAME tokens as the real chat's date chip (message-bubble.css .c-datesep__pill) — the
+     render's grey veil with white text was a render guess */
+  padding: var(--spacing-2) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--surface-chat-glass);
+  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  border: var(--outline-width-1) solid var(--outline-chat-glass);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .c-settings-appearance__chip { background: var(--surface-chat-chip); border-color: var(--outline-neutral-01); }
+}
+[dir='rtl'] .c-settings-appearance__chip { transform: translateX(50%); }
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble {
+  max-width: 76%;
+  padding: 8px 12px 6px;
+  line-height: 1.35;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .08)) drop-shadow(0 3px 5px rgba(0, 0, 0, .12));   /* sanctioned: the render's lift */
+  transition: background-color .35s ease, border-radius .2s ease, font-size .15s ease;
+}
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble[data-side='received'] { inset-inline-start: 12px; inset-block-start: 52px; }
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble[data-side='sent'] { inset-inline-end: 12px; inset-block-end: 18px; }
+.c-settings-appearance__bubble--more { display: none; }
+.c-settings-appearance__who {
+  display: block;
+  margin-block-end: 1px;
+  font-size: .82em;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-action-default);    /* the sender name keeps its OWN ink, never the bubble colour (Damir 15:16) */
+}
+.c-settings-appearance__meta {
+  float: inline-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-block-start: 6px;
+  margin-inline-start: 10px;
+  font-size: 11px;                      /* sanctioned: the chat's own time size */
+  opacity: .7;
+}
+.c-settings-appearance__meta svg { width: 15px; height: 15px; }
+.c-settings-appearance__bubble[data-side='sent'] .c-settings-appearance__meta { color: var(--text-bubble-sent-meta); opacity: 1; }
+
+/* desktop, wide (data-cols ≥ 720 px; Damir 19:45 "make the preview mimic a bigger vertical chat canvas"): two columns —
+   the preview card stays put on the left as a TALL chat canvas with four messages anchored at its foot, like a chat */
+.c-settings-appearance__body[data-cols] {
+  display: grid;
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+  align-items: start;
+  column-gap: var(--spacing-16);
+}
+.c-settings-appearance__body[data-cols] .c-settings-appearance__col--a { position: sticky; inset-block-start: 0; }
+.c-settings-appearance__body[data-cols] .c-chat-canvas.c-settings-appearance__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  height: clamp(420px, 64vh, 640px);
+  padding: 14px 12px 18px;
+}
+.c-settings-appearance__body[data-cols] .c-chat-canvas.c-settings-appearance__preview > * { position: relative; inset: auto; transform: none; }
+.c-settings-appearance__body[data-cols] .c-settings-appearance__chip { align-self: center; margin-block-end: auto; }
+.c-settings-appearance__body[data-cols] .c-settings-appearance__bubble--more { display: block; }
+.c-settings-appearance__body[data-cols] .c-settings-appearance__bubble[data-side='received'] { align-self: flex-start; }
+.c-settings-appearance__body[data-cols] .c-settings-appearance__bubble[data-side='sent'] { align-self: flex-end; }
+
+/* the sliders (the render's .ap__range): a 6 px track filled to the value (--p), a white 24 px thumb */
+.c-settings-appearance__slider { display: flex; align-items: center; gap: 12px; padding: 14px 18px 16px; }
+.c-settings-appearance__corners { padding-block-start: 6px; }
+.c-settings-appearance__range {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.c-settings-appearance__range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--surface-action-default) var(--p, 50%), var(--surface-neutral-02) var(--p, 50%));
+}
+[dir='rtl'] .c-settings-appearance__range::-webkit-slider-runnable-track {
+  background: linear-gradient(to left, var(--surface-action-default) var(--p, 50%), var(--surface-neutral-02) var(--p, 50%));
+}
+.c-settings-appearance__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #fff;                     /* sanctioned: the render's white thumb, both themes */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .06), 0 3px 8px rgba(20, 30, 80, .3);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+}
+.c-settings-appearance__range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--surface-neutral-02); }
+.c-settings-appearance__range::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--surface-action-default); }
+.c-settings-appearance__range::-moz-range-thumb { width: 24px; height: 24px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(20, 30, 80, .3); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__range:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+.c-settings-appearance__a { font-weight: var(--font-weight-bold); color: var(--text-neutral-02); }
+.c-settings-appearance__a--s { font-size: 12px; }    /* sanctioned: the slider's end marks ARE its range */
+.c-settings-appearance__a--l { font-size: 20px; }    /* sanctioned: as above */
+.c-settings-appearance__val {
+  min-inline-size: 26px;
+  text-align: end;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-action-default);
+  font-feature-settings: "tnum" 1;
+}
+.c-settings-appearance__cn { flex: none; width: 22px; height: 18px; border: 2.2px solid var(--text-neutral-02); border-inline-start: 0; border-block-end: 0; }
+.c-settings-appearance__cn--s { border-start-end-radius: 3px; }
+.c-settings-appearance__cn--l { border-start-end-radius: 14px; }
+
+/* (2) the canvas: a scroll row of mini chats (the render's .ap__th) */
 .c-settings-appearance__ground { cursor: default; }
-.c-settings-appearance__dots { display: flex; gap: var(--spacing-4); margin-inline-start: auto; }
+.c-settings-appearance__dots {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 18px 16px;
+  scroll-padding-inline: 18px;          /* the snap keeps the 18 px inset (without it the first tile snaps to the card edge) */
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.c-settings-appearance__dots::-webkit-scrollbar { display: none; }
 .c-settings-appearance__dot {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  cursor: pointer;
+  scroll-snap-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-appearance__dot-face {
+  position: relative;
+  display: block;
+  width: 92px;
+  height: 124px;
+  border-radius: 18px;
+  background: var(--gradient-chat);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+  overflow: hidden;
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+.c-settings-appearance__dot:active .c-settings-appearance__dot-face { transform: scale(.96); }
+.c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__dot-face {
+  box-shadow: 0 0 0 2.5px var(--surface-settings-card), 0 0 0 4.5px var(--surface-action-default);
+}
+/* the face also wears .c-chat-canvas (the real canvas paint), whose rule says flex: 1 / min-height: 0 and lifts every
+   child (position: relative) — the double class keeps the tile its 124 px and places the bars, the check and the name */
+.c-chat-canvas.c-settings-appearance__dot-face { flex: none; height: 124px; min-height: 124px; }
+.c-chat-canvas.c-settings-appearance__dot-face > .c-settings-appearance__mini,
+.c-chat-canvas.c-settings-appearance__dot-face > .c-settings-appearance__ok,
+.c-chat-canvas.c-settings-appearance__dot-face > .c-settings-appearance__dot-name { position: absolute; }
+/* the pattern in miniature (the render: the 400 × 320 drawing sliced into the 92 × 124 tile) */
+.c-chat-canvas.c-settings-appearance__dot-face::before { -webkit-mask-size: 155px 124px; mask-size: 155px 124px; -webkit-mask-position: center; mask-position: center; }
+.c-settings-appearance__mini { height: 16px; border-radius: 8px; }
+.c-settings-appearance__mini--r { inset-block-start: 18px; inset-inline-start: 9px; width: 52px; background: var(--surface-bubble-received); }
+.c-settings-appearance__mini--s { inset-block-start: 42px; inset-inline-end: 9px; width: 44px; background: var(--surface-bubble-sent); transition: background-color .45s ease; }
+.c-settings-appearance__mini--r2 { inset-block-start: 66px; inset-inline-start: 9px; width: 38px; background: var(--surface-bubble-received); }
+.c-settings-appearance__ok {
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-action-default);
+  color: #fff;                          /* sanctioned: white check on the action disc */
+}
+.c-settings-appearance__ok svg { width: 14px; height: 14px; }
+.c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__ok { display: inline-flex; }
+.c-settings-appearance__dot-name {
+  inset-inline: 6px;
+  inset-block-end: 7px;
+  padding: 3px 0;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, .82); /* sanctioned: the render's name pill on a picture, both themes */
+  color: #1b1d2a;                       /* sanctioned: dark ink on that pill */
+  font-size: 11px;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-settings-appearance__dot:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 4px; }
+
+/* (3) background: three tiles on the picked canvas (the render's .ap__pt) */
+.c-settings-appearance .c-settings-swatches--style {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 4px 18px 16px;
+}
+.c-settings-appearance .c-settings-swatch {
+  height: 72px;
+  border: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+}
+.c-settings-appearance .c-settings-swatch[aria-checked='true'] {
+  border: 0;
+  box-shadow: 0 0 0 2.5px var(--surface-settings-card), 0 0 0 4.5px var(--surface-action-default);
+}
+.c-settings-appearance .c-settings-swatch .c-settings-swatch__canvas { background: var(--gradient-chat); }
+.c-settings-appearance .c-settings-swatch .c-settings-swatch__label {
+  position: absolute;
+  inset-inline-start: 8px;
+  inset-block-end: 7px;
+  max-width: calc(100% - 16px);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, .82); /* sanctioned: the render's label pill on a picture */
+  color: #1b1d2a;                       /* sanctioned */   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-settings-appearance .c-settings-swatch[aria-checked='true'] .c-settings-swatch__label { color: #1b1d2a; }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+
+/* (3) bubble colour: glossy discs (the render's .ap__col) in 44 px targets */
+.c-settings-appearance__colours { display: flex; flex-wrap: wrap; gap: 0; padding: 0 13px 12px; }
+.c-settings-appearance__colour {
   width: 44px;
   height: 44px;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   background: transparent;
   display: inline-flex;
   align-items: center;
@@ -332,33 +609,127 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.c-settings-appearance__dot-face {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background: var(--gradient-chat);
-  box-shadow: inset 0 0 0 1px var(--outline-on-card);
+.c-settings-appearance__colour-face {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface-bubble-sent);
+  box-shadow: inset 0 -3px 6px rgba(0, 0, 0, .18), inset 0 2px 3px rgba(255, 255, 255, .25);   /* sanctioned: the render's gloss */
+  color: var(--text-bubble-sent);
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-bold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .15s ease, background-color .45s ease;
 }
-/* ★ #1066 r2 (MINOR-4): in DARK the two dots read as two black circles (the gradient's top stop is
-   1.14:1 off the solid #0C0E10, and a 32px face shows mostly its dark half). The GRADIENT dot paints
-   the ground's top — its blue-violet half — so the choice is legible; the chat and the preview keep
-   the full ramp. Light is untouched (its pair already differs clearly). */
-:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='gradient'] {
-  background: linear-gradient(180deg, #1C2448 0%, #151B36 100%);   /* sanctioned: a swatch face for the #1066 dark ground — its top stop #151B36 plus one lighter step so the 32px dot separates from the solid dot; no semantic role carries a dot face */
+.c-settings-appearance__colour:active .c-settings-appearance__colour-face { transform: scale(.92); }
+.c-settings-appearance__colour[aria-checked="true"] .c-settings-appearance__colour-face {
+  box-shadow: 0 0 0 3px var(--surface-settings-card), 0 0 0 5px var(--surface-action-default);   /* #46 r1 m2: the action ring of the other tiles (≥ 3 : 1 in dark; the colour itself was 1.2–3.2) */
 }
-/* ★ S8 (#1237): the same rule for the two new dark grounds — each dot paints its ground's TOP (DG1 Forest #11231A, DB1 Azure
-   #0D2238) plus one lighter step, so the four dark dots read as four choices, not four black circles. */
-:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='green'] {
-  background: linear-gradient(180deg, #1A3326 0%, #11231A 100%);   /* sanctioned: a swatch face for the S8 dark green ground — its top stop plus one lighter step (the #1066 r2 rule) */
+.c-settings-appearance__colour[aria-checked="true"] .c-settings-appearance__colour-face:not([data-auto])::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  background: #fff;                     /* sanctioned: the render's white "picked" dot */
 }
-:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='blue'] {
-  background: linear-gradient(180deg, #173452 0%, #0D2238 100%);   /* sanctioned: a swatch face for the S8 dark blue ground — its top stop plus one lighter step (the #1066 r2 rule) */
+.c-settings-appearance__colour:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
+
+/* (4) the theme: three mini phones (System = half light, half dark) */
+.c-settings-appearance__themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 520px; padding: 6px 18px 16px; }   /* capped: three phones, not three slabs, on a wide pane */
+.c-settings-appearance__theme {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: var(--font-size-label-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__dot-face {
-  box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default);
+.c-settings-appearance__phone {
+  position: relative;
+  width: 100%;
+  height: 96px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #eceef1;                  /* sanctioned: the LIGHT phone face — a fixed picture of the light theme */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
 }
-@media (hover: hover) and (pointer: fine) {
-  .c-settings-appearance__dot:hover .c-settings-appearance__dot-face { box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-neutral-03); }
-  .c-settings-appearance__dot[aria-checked="true"]:hover .c-settings-appearance__dot-face { box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default); }
+.c-settings-appearance__phone[data-mode='dark'] { background: #0c0e10; }   /* sanctioned: the DARK phone face */
+.c-settings-appearance__phone[data-mode='system'] { background: linear-gradient(90deg, #eceef1 50%, #0c0e10 50%); }   /* sanctioned */   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+[dir='rtl'] .c-settings-appearance__phone[data-mode='system'] { background: linear-gradient(270deg, #eceef1 50%, #0c0e10 50%); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__phone i { position: absolute; display: block; height: 10px; border-radius: 5px; }
+.c-settings-appearance__phone-bar { inset-block-start: 0; inset-inline: 0; height: 14px !important; border-radius: 0 !important; background: rgba(127, 127, 127, .22); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__phone-r { inset-block-start: 28px; inset-inline-start: 8px; width: 40%; background: rgba(127, 127, 127, .45); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__phone-s { inset-block-start: 46px; inset-inline-end: 8px; width: 46%; background: #2160c2; }   /* sanctioned: today's blue, as a picture */
+.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__phone {
+  box-shadow: 0 0 0 2.5px var(--surface-settings-card), 0 0 0 4.5px var(--surface-action-default);
 }
-.c-settings-appearance__dot:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
+/* ★ S17 C (Damir 20:21: "just a selected rim over the tile and a check icon in a blue circle"): the radio under the phone
+   is gone — no other screen uses one. The picked tile keeps the blue rim and carries a white check in a blue disc on its
+   top corner; the same mark sits on the chat-list cards, so both rows say "picked" one way. */
+.c-settings-appearance__pick {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 2px var(--surface-settings-card), 0 2px 6px rgba(10, 20, 60, .25);   /* sanctioned: the badge's lift */
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity .16s ease, transform .2s cubic-bezier(.3, 1.4, .5, 1);
+}
+.c-settings-appearance__pick > svg { width: 14px; height: 14px; }
+.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__pick,
+.c-settings-appearance__line[aria-checked="true"] .c-settings-appearance__pick { opacity: 1; transform: none; }
+.c-settings-appearance__line .c-settings-appearance__pick { inset-block-start: auto; inset-block-end: 10px; inset-inline-end: 10px; }   /* on the label row, clear of the mini list */
+.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__theme-name { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }
+@media (prefers-reduced-motion: reduce) { .c-settings-appearance__pick { transition: none; } }
+.c-settings-appearance__theme:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+
+/* (5) the chat list: 1 / 2 lines as mini lists (the render's .ap__ln) */
+.c-settings-appearance__lines { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 520px; padding: 6px 18px 12px; }
+.c-settings-appearance__line {
+  position: relative;
+  padding: 12px 12px 34px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-settings-ground);   /* the render's faint well (its --surface-neutral-01 fallback); ours is white on the card */
+  color: var(--text-neutral-01);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-appearance__line[aria-checked="true"] { box-shadow: 0 0 0 2px var(--surface-action-default); }
+.c-settings-appearance__line:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+.c-settings-appearance__minilist { display: block; }
+.c-settings-appearance__minirow { display: flex; align-items: flex-start; gap: 8px; margin-block-end: 8px; }
+.c-settings-appearance__miniav { flex: none; display: block; width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(150deg, #9ccbff, #2f7be3); }   /* sanctioned: the render's sample avatars */
+.c-settings-appearance__minirow + .c-settings-appearance__minirow .c-settings-appearance__miniav { background: linear-gradient(150deg, #ffb3c8, #b45cff); }   /* sanctioned */   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__minitx { flex: 1; display: flex; flex-direction: column; gap: 4px; padding-block-start: 2px; }
+.c-settings-appearance__minit, .c-settings-appearance__minil { display: block; height: 5px; border-radius: 3px; background: var(--text-neutral-02); opacity: .35; }
+.c-settings-appearance__minit { width: 60%; opacity: .7; }
+.c-settings-appearance__line-name { position: absolute; inset-inline-start: 12px; inset-block-end: 10px; font-size: var(--font-size-label-sm); font-weight: var(--font-weight-semibold); }
+
+@media (prefers-reduced-motion: reduce) {
+  .c-chat-canvas.c-settings-appearance__preview,
+  .c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble,
+  .c-settings-appearance__mini--s,
+  .c-settings-appearance__dot-face,
+  .c-settings-appearance__colour-face { transition: none; }
+}

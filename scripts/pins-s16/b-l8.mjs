@@ -223,7 +223,9 @@ export default async function (h) {
     reads: /Preferences\.Default\.Get\("devMode", false\)/.test(init) && /Preferences\.Default\.Get\(SecureWalletPassKey, 1\)/.test(init) && /Preferences\.Default\.Get\(MediaInputGateKey, 1\)/.test(init),
     rule: /SecureWalletPass = S16PassRules\.effectiveFlag\(dev, sp\);/.test(init) && /MediaInputGate = S16PassRules\.effectiveFlag\(dev, mg\);/.test(init)
       && /return !\(devMode && stored == 0\);/.test(RULES),
-    oneLine: (init.match(/Logging\.info\(/g) || []).length === 1 && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init),
+    /* ★ S17 A / F re-base: one [FLAGS] line per flag family — S16's two flags, then S17Bridge, then S17Moments (each a fixed line) */
+    oneLine: (init.match(/Logging\.info\(/g) || []).length === 3 && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
+      && /Logging\.info\(S17Rules\.flagLine\(S17Bridge\)\);/.test(init) && /Logging\.info\(S17MomentRules\.flagLine\(S17Moments\)\);/.test(init),
   };
   /* ★ #46 r1 (R2 NIT-2): leaving dev mode drops both switches, so a later dev-mode-on cannot revive a stored 0 */
   const HPd = rd('Spixi/Pages/Home/HomePage.xaml.cs');
@@ -243,7 +245,7 @@ export default async function (h) {
       && DP.indexOf('"ixian:devflash:mediagate:", StringComparison.Ordinal)') > verbAt,
     grammar: /if \(Preferences\.Default\.Get\("devMode", false\)\s*&& S16PassRules\.parseFlagTail\(current_url\.Substring\(prefix\.Length\), out int value\)\)\s*\{\s*Preferences\.Default\.Set\(secure \? SpixiFlags\.SecureWalletPassKey : SpixiFlags\.MediaInputGateKey, value\);\s*\}/.test(verbB)
       && /pushFlagsDev\(\);\s*\}$/.test(verbB),
-    push: /Utils\.sendUiCommand\(this, "window\.setFlagsDev", \(sp == 0 \? "0" : "1"\) \+ "," \+ \(mg == 0 \? "0" : "1"\)\);/.test(pushB)
+    push: /Utils\.sendUiCommand\(this, "window\.setFlagsDev", \(sp == 0 \? "0" : "1"\) \+ "," \+ \(mg == 0 \? "0" : "1"\)(?: \+ "," \+ \(sb == 0 \? "0" : "1"\))?(?: \+ "," \+ \(sm == 0 \? "0" : "1"\))?\);/.test(pushB)   // ★ S17 A / F re-base: + the S17 digits
       && /Preferences\.Default\.Get\(SpixiFlags\.SecureWalletPassKey, 1\)/.test(pushB),
     seeded: /pushContainerDev\(\);[^\n]*\n\s*pushFlagsDev\(\);/.test(DP),
   };
@@ -272,7 +274,7 @@ export default async function (h) {
     j.echo = sws().map((x) => x.getAttribute('aria-checked')).join() === 'true,false';
     s.push('setFlagsDev', '1');
     s.push('setFlagsDev', '1,2');
-    s.push('setFlagsDev', '0,0,0');
+    s.push('setFlagsDev', '0,0,0,0,0');   // ★ S17 re-base: 3 and 4 digits are valid now (the S17 flags) — 5 is not
     await sleep(40);
     j.malformed = sws().map((x) => x.getAttribute('aria-checked')).join() === 'true,false';
     j.flashUntouched = !s.d.querySelector('.c-dev-flash');

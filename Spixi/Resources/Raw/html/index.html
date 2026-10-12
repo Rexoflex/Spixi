@@ -3201,6 +3201,282 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 :root[data-desktop] .c-empty-state__illo { width: clamp(132px, 22vw, 200px); }
 
 </style><!-- shared zero state (chats · wallet · contacts · apps) — ONE link: build-shells INLINES each href, so a second one shipped a duplicate copy of the whole file -->
+<style data-src="../styles/components/whats-new.css">
+/* ★ S17 A (#1338) — WHAT'S NEW: the spotlight card (kit-render.html § What's new, CLEAN BLUE, LOCKED). A port of the
+   render's .wt / .sp rules (parts/render.css) with the CLEAN BLUE end values baked in (parts-e/kit.css
+   :root[data-pal="blue"] — the palette swap itself is not ported). The scenes and their motion live in illo.css;
+   their ground is --wn-ground-a/-b (tokens.css). Semantic tokens; logical properties (RTL-safe). */
+
+.c-whatsnew {
+  --wn-art-h: clamp(150px, 27vh, 228px);   /* the render's art band: 27 % of the screen, 150–228 px */
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-16);
+  padding-block: calc(var(--spacing-16) + var(--safe-top, 0px)) calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  pointer-events: none;                    /* the card takes the touches; the scrim under it catches the rest */
+  outline: none;
+}
+.c-whatsnew > * { pointer-events: auto; }
+
+/* the card: the sheet ground, one entrance (rise + scale), the panel on top, the text on the sheet */
+.c-whatsnew__card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;                     /* sanctioned: the render's card radius */
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--surface-sheet);
+  box-shadow: var(--elevation-3);
+  opacity: 0;
+  transform: translateY(18px) scale(.95);
+  transition: opacity 420ms var(--easing-decelerate), transform 420ms var(--easing-decelerate);
+}
+.c-whatsnew[data-open] .c-whatsnew__card { opacity: 1; transform: none; }
+.c-whatsnew__card:focus { outline: none; }   /* a programmatic landing spot (whats-new.js), never a control */
+/* dark: the card stands off the screen — a deeper scrim, a light rim, a soft blue glow (kit.css "DARK" block) */
+:root[data-theme="dark"] .c-whatsnew__card {
+  box-shadow: 0 30px 70px -18px rgba(0, 0, 0, .85), 0 0 90px -30px rgba(70, 120, 255, .45);   /* sanctioned: the render's dark lift + glow */
+}
+:root[data-theme="dark"] .c-whatsnew__card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 0 0 1px rgba(255, 255, 255, .08);   /* sanctioned: the render's light rim */
+}
+:root[data-theme="dark"] .c-scrim[data-wn] { background: rgba(2, 4, 12, .74); }   /* sanctioned: the render's deeper dark scrim (whats-new.js tags its own scrim) */
+/* desktop: no dim (Damir's pick) — the card carries its own lift */
+.c-whatsnew[data-desktop] .c-whatsnew__card { box-shadow: 0 24px 60px -16px rgba(10, 20, 60, .45), 0 0 0 1px var(--outline-sheet-01); }   /* sanctioned: a lift with no scrim behind it */
+
+/* the slides */
+.c-whatsnew__vp { position: relative; z-index: 1; overflow: hidden; touch-action: pan-y; cursor: grab; flex: 1 1 auto; min-height: 0; }
+.c-whatsnew__track { display: flex; transition: transform var(--duration-300) var(--easing-standard); }
+.c-whatsnew__card[data-drag] .c-whatsnew__track,
+.c-whatsnew__card[data-drag] .c-whatsnew__layer { transition: none; }
+.c-whatsnew__slide { flex: 0 0 100%; min-width: 0; display: flex; flex-direction: column; }
+.c-whatsnew__art {
+  position: relative;
+  flex: none;
+  height: var(--wn-art-h);
+  overflow: hidden;
+  background: linear-gradient(150deg, var(--wn-ground-a), var(--wn-ground-b));   /* the frame before the scene paints = its ground */
+}
+:root[data-theme="dark"] .c-whatsnew__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }   /* sanctioned: the art / text split, dark */
+.c-whatsnew__layer { position: absolute; inset: 0; transition: transform var(--duration-300) var(--easing-standard); will-change: transform; }
+.c-whatsnew__text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 18px 22px 2px;                  /* sanctioned: the render's text inset */
+  text-align: center;
+}
+.c-whatsnew__eyebrow {
+  margin: 0;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: .02em;
+}
+.c-whatsnew__title {
+  margin: 0;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  letter-spacing: var(--tracking-heading-sm, 0);
+  font-weight: var(--font-weight-bold);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.c-whatsnew__body {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* the foot: dots + Next / Got it */
+.c-whatsnew__foot { position: relative; z-index: 1; flex: none; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 14px 20px 20px; }
+.c-whatsnew__dots { display: flex; gap: 6px; align-items: center; }
+.c-whatsnew__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-neutral-03);
+  cursor: pointer;
+  position: relative;
+  transition: width var(--duration-200) var(--easing-standard), background-color var(--duration-300) var(--easing-standard);
+}
+.c-whatsnew__dot::after { content: ""; position: absolute; inset: -12px -4px; }   /* the 8 px dot reaches a 32 px hit box */
+.c-whatsnew__dot[aria-selected="true"] { width: 22px; background: var(--surface-action-default); }
+.c-whatsnew__primary.c-button[data-size="56"] { height: auto; min-height: 56px; white-space: normal; text-align: center; line-height: 1.25; padding-block: var(--spacing-8); }
+
+/* × on the panel: a frosted white disc (the render's CLEAN BLUE value) */
+.c-whatsnew__x {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .2);     /* sanctioned: the render's frosted × on the vivid panel */
+  color: #fff;                             /* sanctioned: white glyph on the vivid panel */
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.c-whatsnew__x::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; }   /* 44 px hit box */
+.c-whatsnew__x:focus-visible, .c-whatsnew__dot:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+
+/* desktop: arrows beside the card */
+.c-whatsnew__row { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; max-height: 100%; }
+.c-whatsnew__side {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-sheet);
+  color: var(--icon-neutral-01);
+  box-shadow: var(--elevation-2);
+  cursor: pointer;
+}
+.c-whatsnew__side[disabled] { opacity: .35; cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .c-whatsnew__side:not([disabled]):hover { background: var(--surface-interactive-hover); }
+}
+
+/* the narrow phone (320 × 568): the band gives way first */
+@media (max-height: 600px) { .c-whatsnew { --wn-art-h: 136px; } .c-whatsnew__text { padding-block-start: 12px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .c-whatsnew__card, .c-whatsnew__track, .c-whatsnew__layer, .c-whatsnew__dot { transition: none; }
+}
+
+</style><!-- ★ S17 A (#1338): the What's new spotlight card -->
+<style data-src="../styles/components/moment-sheet.css">
+/* ★ S17 F (#1340) — c-moment: the Moment sheets (moment-sheet.js). A port of the render's .sheet / .panel / .caps rules
+   (docs/renders/whats-new/parts-j/mo.css) on today's c-sheet, with Damir's 20:37 change: the art is FULL-BLEED at the
+   top of the sheet — the sheet's own top corners clip it and the grab handle sits white on the art. The art ground =
+   the What's new panel (--wn-ground-a → -b, tokens.css); the drawings' motion lives in illo.css. Semantic tokens;
+   logical properties (RTL-safe). */
+
+.c-sheet.c-moment__sheet { padding-top: 0; }
+:root[data-desktop] .c-sheet.c-moment__sheet { padding-top: 0; }
+/* the grab handle on the art: white, over it (the sheet's own handle, moved) */
+.c-moment__sheet > .c-sheet__handle {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: var(--spacing-8);
+  inset-inline-start: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, .72);   /* sanctioned: the handle on the vivid art (the What's new × grammar) */
+}
+[dir="rtl"] .c-moment__sheet > .c-sheet__handle { transform: translateX(50%); }
+
+.c-moment {
+  --mo-art-h: 164px;                       /* sanctioned: the render's 150 px panel at full bleed (360 × 150 art, slice) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.c-moment[data-caps] { --mo-art-h: 128px; }   /* the render's shorter panel when the capability rows follow */
+
+/* full bleed: out to the sheet's edges (mobile 16 px sides, desktop dialog 24 px) */
+.c-moment__art {
+  position: relative;
+  align-self: stretch;
+  height: var(--mo-art-h);
+  margin-inline: calc(-1 * var(--spacing-16));
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--wn-ground-a), var(--wn-ground-b));
+}
+:root[data-desktop] .c-moment__art { margin-inline: calc(-1 * var(--spacing-24)); }
+:root[data-theme="dark"] .c-moment__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }   /* sanctioned: the art / text split, dark (the What's new rule) */
+.c-moment__illo { display: block; width: 100%; height: 100%; }
+
+.c-moment__title {
+  margin: var(--spacing-16) 0 6px;
+  color: var(--text-neutral-01);
+  font-size: 21px;                         /* sanctioned: the render's sheet title */
+  line-height: 1.25;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -.2px;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.c-moment[data-caps] .c-moment__title { margin-block-start: var(--spacing-12); }
+.c-moment__body {
+  margin: 0 0 18px;                        /* sanctioned: the render's body foot */
+  max-width: 290px;
+  color: var(--text-neutral-02);
+  font-size: 15px;                         /* sanctioned: the render's body size */
+  line-height: 1.45;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.c-moment__btns { align-self: stretch; display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-moment__btns .c-button[data-type="text"] { margin-block-start: -4px; }
+.c-moment__btns .c-button[data-size="56"] { height: auto; min-height: 56px; white-space: normal; line-height: 1.25; padding-block: var(--spacing-8); }
+
+/* the app moment: the app's own capability rows (the details page's vocabulary) */
+.c-moment__caps {
+  align-self: stretch;
+  margin: var(--spacing-4) 0 var(--spacing-12);
+  padding: 0;
+  list-style: none;
+  background: var(--surface-sheet-card);
+  border-radius: 18px;                     /* sanctioned: the render's card radius */
+  text-align: start;
+}
+.c-moment__cap { display: flex; gap: var(--spacing-12); align-items: center; padding: var(--spacing-8) 14px; }
+.c-moment__cap + .c-moment__cap { border-block-start: 1px solid var(--outline-sheet-01); }
+.c-moment__cap-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;                             /* sanctioned: the white glyph on the render's blue tile */
+  background: linear-gradient(160deg, #8fb0ff, #3a6ce0);   /* sanctioned: the render's capability tile */
+}
+.c-moment__cap-tile svg { width: 18px; height: 18px; }
+.c-moment__cap-tile svg [stroke] { stroke: currentColor; }
+.c-moment__cap-text { display: flex; flex-direction: column; min-width: 0; }
+.c-moment__cap-text b { font-size: 14.5px; color: var(--text-neutral-01); }   /* sanctioned: the render's row label */
+.c-moment__cap-text small { font-size: 12.5px; line-height: 1.35; color: var(--text-neutral-02); }   /* sanctioned: the render's row line */
+
+</style><!-- ★ S17 F (#1340): the Moment sheets (first IXI · mini app · first payment) -->
 <style data-src="../styles/components/illo.css">
 /* illo — ★ S11 B (#1262): motion for the inline illustration set (illustrations.js).
    ONE entrance, then the frame holds (every animation runs once, fill both; nothing
@@ -3263,6 +3539,86 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 @media (prefers-reduced-motion: reduce) {
   .il *, .rn-illo * { animation: none !important; }
   .rn-rise, .rn-pop { opacity: .9; }
+}
+
+/* ═══ ★ S17 (#1331) — motion for the S17 art (What's new scenes wn-, About glass ab-, the calm chest ch-, the
+   Moment drawings mo-, the Contributors heart ct-). Ported from the design render (docs/renders/whats-new). ═══ */
+
+/* ---------- roots ---------- */
+/* a layer fills its panel (bg under fg, both absolute); the slice roots clip, the What's new foreground may overhang */
+.il.wn-l, .il.ab-l, .il.ct-l { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.il.wn-l--bg, .il.ab-l, .il.ct-l, .il.mo-art { overflow: hidden; }
+.il.wn-l--fg { overflow: visible; }
+.wn-glow { opacity: var(--wn-glow-a, .06); }                              /* the scene glow: 6 % light · 10 % dark */
+
+/* ---------- ENTRANCES (once, then hold) ---------- */
+.il-wn-pulse { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ilWnPulse 2.4s ease-out var(--o, 0s) 3 both; }
+.il-wn-nudge { animation: ilWnNudge 1.2s cubic-bezier(.3, .7, .3, 1) var(--o, .2s) both; }
+.il-wn-off { animation: ilWnOff .35s ease var(--o, 0s) both; }
+.il-wn-knob { animation: ilWnKnob .45s cubic-bezier(.3, 1.3, .5, 1) var(--o, 0s) both; }
+.il-wn-dim { animation: ilWnDim .6s ease var(--o, 0s) both; }
+.il-wn-tap { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ilWnTap .8s ease-out var(--o, 0s) both; }
+.il-ch-in { animation: ilChIn .7s cubic-bezier(.2, .7, .2, 1) var(--o, 0s) both; }
+.il-ch-lid { transform-box: fill-box; transform-origin: 50% 100%; animation: ilChLid 1s cubic-bezier(.25, .8, .25, 1) .35s both; }
+.il-ch-rise { animation: ilChRise .9s cubic-bezier(.2, .7, .2, 1) var(--o, 0s) both; }
+.il-mo-in { animation: ilMoIn .7s cubic-bezier(.2, .75, .2, 1) calc(var(--o, 0s) + .25s) both; }
+.il-mo-ring { stroke-dashoffset: 100; animation: ilMoRing 1.6s cubic-bezier(.4, 0, .2, 1) .9s both; }
+@keyframes ilWnPulse { from { transform: scale(1); opacity: .8; } to { transform: scale(2.2); opacity: 0; } }
+@keyframes ilWnNudge { 0% { transform: translateX(-10px); opacity: 0; } 22% { opacity: 1; transform: none; } 55% { transform: translateX(20px); } 100% { transform: none; } }
+@keyframes ilWnOff { to { opacity: 0; } }
+@keyframes ilWnKnob { to { transform: translateX(-24px); } }
+@keyframes ilWnDim { to { opacity: .6; } }
+@keyframes ilWnTap { 0% { transform: scale(.4); opacity: 0; } 30% { opacity: .6; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes ilChIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ilChLid { from { transform: scaleY(.3); } to { transform: none; } }
+@keyframes ilChRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes ilMoIn { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+@keyframes ilMoRing { to { stroke-dashoffset: 0; } }
+
+/* the end frame once held (illo.css's `.il[data-held] *` already does this; listed so the s17 set states it itself) */
+.il[data-held] .il-wn-pulse, .il[data-held] .il-wn-nudge, .il[data-held] .il-wn-off, .il[data-held] .il-wn-knob,
+.il[data-held] .il-wn-dim, .il[data-held] .il-wn-tap, .il[data-held] .il-ch-in, .il[data-held] .il-ch-lid,
+.il[data-held] .il-ch-rise, .il[data-held] .il-mo-in, .il[data-held] .il-mo-ring { animation-delay: -60s !important; }
+
+/* ---------- LOOPS (.wn-loop; ≤ 0.5 Hz; transform / opacity only; delay in --ld) ---------- */
+.wn-drift { --ld: 0s; animation: wnDrift var(--d, 16s) ease-in-out var(--ld) infinite alternate; }
+.wn-tw { --ld: calc(var(--i, 0) * -.7s); animation: wnTw 3.6s ease-in-out var(--ld) infinite alternate; }
+.wn-rise { --ld: 0s; animation: wnRise var(--d, 12s) ease-in-out var(--ld) infinite alternate; }
+.wn-bar { --ld: calc(var(--i, 0) * -.17s); transform-box: fill-box; transform-origin: center; animation: wnBar 2.6s ease-in-out var(--ld) infinite alternate; }
+.wn-pan { --ld: 0s; animation: wnPan 28s ease-in-out var(--ld) infinite alternate; }
+.wn-ripple { --ld: var(--o, 0s); transform-box: fill-box; transform-origin: center; animation: wnRipple 6s ease-out var(--ld) infinite; }
+.wn-orbit { --ld: 0s; transform-box: view-box; transform-origin: 200px 120px; animation: wnOrbit 90s linear var(--ld) infinite; }
+.wn-orbit--rev { animation-duration: 70s; animation-direction: reverse; }
+.wn-bob { --ld: var(--bd, 1.6s); animation: wnBob var(--d, 5s) ease-in-out var(--ld) infinite alternate; }
+.ch-float { --ld: 2.2s; animation: chFloat var(--d, 7s) ease-in-out var(--ld) infinite alternate; }
+.mo-float { --ld: 1.2s; animation: moFloat var(--d, 14s) ease-in-out var(--ld) infinite alternate; }
+.mo-tw { --ld: calc(var(--i, 0) * -.7s); animation: moTw 3.2s ease-in-out var(--ld) infinite alternate; }
+.ct-tw { --ld: calc(var(--i, 0) * -.6s); animation: ctTw 3.4s ease-in-out var(--ld) infinite alternate; }
+@keyframes wnDrift { to { transform: translate(var(--dx), var(--dy)); } }
+@keyframes wnTw { from { opacity: .12; } to { opacity: .9; } }
+@keyframes wnRise { to { transform: translateY(-34px); } }
+@keyframes wnBar { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+@keyframes wnPan { to { transform: translate(-64px, -40px); } }
+@keyframes wnRipple { from { transform: scale(.6); opacity: .55; } to { transform: scale(5); opacity: 0; } }
+@keyframes wnOrbit { to { transform: rotate(360deg); } }
+@keyframes wnBob { to { transform: translateY(-5px); } }
+@keyframes chFloat { to { transform: translateY(-3px); } }
+@keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
+@keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
+@keyframes ctTw { from { opacity: .2; } to { opacity: .95; } }
+
+/* a held drawing: loops keep their own delay (no jump); paused on demand */
+.il[data-held] .wn-loop { animation-delay: var(--ld, 0s) !important; }
+.wn-paused .wn-loop, .il[data-paused] .wn-loop { animation-play-state: paused; }
+
+/* ---------- reduced motion: the END frame, no loop ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .il .wn-loop { animation: none !important; }
+  .il .il-wn-off { opacity: 0; }
+  .il .il-wn-knob { transform: translateX(-24px); }
+  .il .il-wn-dim { opacity: .6; }
+  .il .il-mo-ring { stroke-dashoffset: 0; }
+  /* il-wn-pulse · il-wn-tap: their base opacity 0 is the end frame */
 }
 
 </style><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
@@ -6620,6 +6976,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     //  and nothing else in this shell toasts; re-destructure from the bundle if needed)
     // nudges (A11/A5, #302) — both ride the ONE queue below, never open directly
     showBackupNudge, showRatingNudge,
+    createWhatsNew, whatsNewSlides,       // ★ S17 A (#1338): the What's new card — rides the SAME queue, at its head
+    showMomentSheet, createMomentClient, momentBeforeAction, momentAfterResult,   // ★ S17 F (#1340): the Moment sheets
     attachPressFeedback,
     formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
     fiatLine,                              // ★ #1040: one fiat display rule (2 dp, sub-cent = "<$0.01")
@@ -6697,6 +7055,10 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  /* ★ S17 F (#1340, P28 · flag SpixiFlags.S17Moments, cap `moments`): the Moment sheets' ask / answer client. Home hosts
+     three of the seven: the first IXI received (safety), a mini app's first open (the Apps tab) and the first payment
+     (Wallet › Send). C# decides and stores; this shell shows. */
+  const moments = createMomentClient({ bridge, onSessionEnd: () => { try { pumpHint(); pumpNudges(); } catch (e) {} } });   // #46 r2: the session ends → the held cards may come
   /* #343: ONE call lights up press feedback for every pressable surface in this
      shell (src/components/pressable.js). Delegated on document, so rows created
      later by a re-render are covered without re-attaching. A new shell needs
@@ -7175,6 +7537,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     if (updateCard) updateCard.replaceWith(fresh);
     updateCard = fresh;
     placeUpdateCard();
+    noteMomentCard();                                            // ★ S17 F (#1340): no moment sheet in a session with the update card
     pumpHint();                                                  // never together: an open hint gives way
   }
 
@@ -7198,6 +7561,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   function hintBlocked() {
     try {
       return !!updateCard || nudgeOpen !== null
+        || moments.sessionTaken()   // ★ S17 F (#1340): a moment sheet showed in this session — no hint card in it
         || nudgeQueue.some((k) => k !== 'rating' || (!ratingTooEarly() && !ratingSnoozed()));
     } catch (e) { return true; }  // the nudge queue is declared further down — before it exists, nothing shows
   }
@@ -7215,6 +7579,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     hintShownId = id;
     if (hintsState) hintsState.lastShown = hintNow();
     bridge.send('ixian:hint:shown:' + id);
+    noteMomentCard();
   }
   function hintDone(id) {
     dropHintCard();
@@ -9122,6 +9487,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
                                                            // returns via quickScanResult (a bare address
                                                            // must not fall into the add-contact route)
       onQuote: (addr, amount) => bridge.send('ixian:feeQuery:' + addr + ':' + amount),
+      // ★ S17 F (#1340): the first payment — the moment sheet BEFORE the review; the review and the native confirm are unchanged
+      onBeforeReview: (go, stop) => momentBeforeAction(moments, { id: 'pay', host: document.body, strings: walletStrings, go, stop }),
       // review Confirm → the W5 signed hand-off. C# owns confirm/auth/sign/broadcast;
       // the sheet stays latched until `signSendResult` lands (ok / cancel / fail).
       onSend: (payload, ctrl) => {
@@ -9393,14 +9760,18 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       // flag also launches solo — legacy's chain had no final else, so such a tap
       // simply did nothing (index.html:649-676); that dead branch is not restored.
       const multi = !!app.isMultiUser && !app.isSingleUser;
-      if (multi) { openContacts('app', app.id); return; }
-      bridge.send('ixian:startApp:' + app.id);
+      /* ★ S17 F (#1340): the first open of EACH app = the app moment (its own capability rows + the trust line), the
+         confirm step itself: Open goes on, Cancel stays here. Asked only before the first open; then straight on. */
+      appMoment(app, () => {
+        if (multi) { openContacts('app', app.id); return; }
+        bridge.send('ixian:startApp:' + app.id);
+      });
     },
     // A9 (#302): explicit multi-user launch for a dual-capability app (⋮ → "Invite a
     // contact") — same in-shell picker as the multi-only tap above.
     onLaunchMulti: (app) => {
       if (!app || app.id == null || app.id === '') return;
-      openContacts('app', app.id);
+      appMoment(app, () => openContacts('app', app.id));   // ★ S17 F (#1340)
     },
     // details → the app's details page (launch-mode + permissions live there); reached
     // via the ⋮ menu's "App details" action (onOpen).
@@ -9630,6 +10001,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     if (!placeholderView.hidden) setPlaceholder(navId);
     nudgeTabId = navId;
     pumpNudges();                       // a tab change can unblock a queued nudge
+    pumpMoment();                       // ★ S17 F (#1340): …and a waiting moment (Chats or Wallet)
     pumpHint();                         // ★ S11 A (#1262): …and a hint waits for the Chats tab
   }
 
@@ -9666,6 +10038,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   const NUDGE_GAP_MS = 600;                          // no back-to-back scrims
 
   const nudgeQueue = [];               // kinds waiting for a clear context
+  /* ★ S17 A (#1338): the release C# named in setWhatsNew (digits) and this release's slide ids (the FE table) */
+  let whatsNewVersion = '';
+  let whatsNewSet = null;
   let nudgeOpen = null;                // kind currently on screen
   let nudgeReadyAt = 0;                // gap timer
 
@@ -9732,7 +10107,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   function enqueueNudge(kind) {
     if (nudgeOpen === kind) return;                 // already on screen
     if (!nudgeQueue.includes(kind)) nudgeQueue.push(kind);
-    nudgeQueue.sort((a, b) => (a === 'backup' ? -1 : 0) - (b === 'backup' ? -1 : 0));
+    /* ★ S17 A (#1338): What's new first (it explains the release the user just opened), then backup, then rating */
+    const NUDGE_RANK = { whatsnew: 0, backup: 1, rating: 2 };
+    nudgeQueue.sort((a, b) => (a in NUDGE_RANK ? NUDGE_RANK[a] : 9) - (b in NUDGE_RANK ? NUDGE_RANK[b] : 9));
     /* Coalesce before opening. Pumping synchronously would let whichever push landed
        FIRST take the screen, so the backup>rating priority could never actually
        reorder anything — and the real ordering that matters is the bad one: leaving a
@@ -9744,17 +10121,97 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     pumpHint();                                     // ★ S11 A (#1262): a hint never stands beside a backup / rating prompt
   }
 
+  /* ★★ S17 F (#1340) — THE MOMENT SHEETS ON HOME. A granted after-the-result moment (the first IXI) waits here for a
+     clear screen (no sheet, no takeover, a visible Chats or Wallet tab, no field in focus), then shows; the confirm-step
+     ones (app · pay) are the user's own tap, so they show at once. `ixian:moment:card` tells C# that a hint / update /
+     backup / rating card went on screen (no moment sheet in that session, MOMENTS.md) — once per document. */
+  /* #46 r3 MINOR-1: EVERY card that goes on screen tells C# (C# keeps the first time; its session ends 6 h later, so a card
+     shown after that must start a new one) */
+  function noteMomentCard() {
+    if (!bridge.cap('moments')) return;
+    bridge.send('ixian:moment:card');
+  }
+  const momentWaiting = [];                // granted moments waiting for a clear screen: { id, ctx }
+  function momentContextClear() {
+    if (nudgeOpen) return false;
+    if (document.body.dataset.overlayOpen !== undefined) return false;
+    if (contactsView || walletTakeover) return false;
+    if (document.querySelector('.c-contacts, .wallet-takeover')) return false;
+    if (nudgeTabId !== 'chats' && nudgeTabId !== 'wallet') return false;
+    if (document.visibilityState !== 'visible') return false;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return false;
+    return Date.now() >= nudgeReadyAt;
+  }
+  function pumpMoment() {
+    try { tryFirstIxiMoment(); } catch (e) { return; }   // declared further down than a boot-time tab switch
+    try { if (!momentWaiting.length || !momentContextClear()) return; } catch (e) { return; }
+    const m = momentWaiting.shift();
+    nudgeOpen = 'moment';
+    showMomentSheet({
+      id: m.id, host: document.body, strings, ctx: m.ctx,
+      onClose: (v) => {
+        closeNudge();
+        if (m.id === 'firstixi' && v === 'backup') { nudgeQueue.length = 0; bridge.send('ixian:backup'); }   // Settings › Backup
+      },
+    });
+  }
+  /* the first IXI received while there is no backup (SAFETY — it may show beside a card): asked once the wallet holds
+     a received payment; C# answers yes only while no backup was ever made, and stores the flag either way */
+  /* #46 r1 (MINOR-1): asked only when the screen is CLEAR, so C#'s yes (seen stored) shows at once and is never lost to a
+     tab or a reload in between */
+  let firstIxiAsked = false;
+  let firstIxiWanted = false;
+  function maybeFirstIxiMoment() {
+    if (firstIxiAsked || !moments.on() || moments.seen('firstixi')) return;
+    const got = (walletState.txs || []).some((t) => t && t.direction === 'in' && t.status !== 'failed');
+    if (!got) return;
+    firstIxiWanted = true;
+    pumpMoment();
+  }
+  function tryFirstIxiMoment() {
+    if (!firstIxiWanted || firstIxiAsked || !momentContextClear()) return;
+    firstIxiAsked = true;
+    momentAfterResult(moments, 'firstixi', '', () => {
+      if (!momentWaiting.some((w) => w.id === 'firstixi')) momentWaiting.push({ id: 'firstixi', ctx: {} });
+      pumpMoment();
+    });
+  }
+  /* a mini app's first open (the Apps tab) — the confirm step: Open = go(), Cancel / back = stay */
+  function appMoment(app, go) {
+    momentBeforeAction(moments, {
+      id: 'app', arg: String(app.id), host: document.body, strings,
+      ctxFor: (caps) => ({ app: app.name || '', caps }),
+      go, stop: null,
+    });
+  }
+
   function closeNudge() {
     nudgeOpen = null;
     nudgeReadyAt = Date.now() + NUDGE_GAP_MS;
-    setTimeout(() => { pumpNudges(); pumpHint(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint
+    setTimeout(() => { pumpNudges(); pumpMoment(); pumpHint(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint · ★ S17 F: a waiting moment
   }
 
   function pumpNudges() {
     if (!nudgeQueue.length || !nudgeContextClear()) return;
     const kind = nudgeQueue.shift();
-    if (kind === 'backup') {
+    if (kind === 'whatsnew') {
+      if (!whatsNewSet) { pumpNudges(); return; }
+      nudgeOpen = 'whatsnew';
+      createWhatsNew({
+        version: whatsNewVersion,
+        slides: whatsNewSet,
+        host: document.body,
+        desktop: document.documentElement.hasAttribute('data-desktop'),   // no dim on desktop (Damir's pick)
+        strings,
+        /* every close path (Got it · × · Esc · back) — C# stores seen = this version; no argument travels */
+        onDone: () => { whatsNewSet = null; try { bridge.send('ixian:whatsnew:done'); } catch (e) {} closeNudge(); },
+      });
+    } else if (kind === 'backup') {
+      /* ★ S17 F (#1340, #46 r1): the backup card is SAFETY — like the first-IXI moment it shows even in a session that had a
+         moment (a moment never holds it back; C# stamps at the push, so a held card would be lost for 30 days) */
       nudgeOpen = 'backup';
+      noteMomentCard();
       showBackupNudge({
         host: document.body,
         illustration: 'backup',   // ★ S11 A2: the inline art's name
@@ -9776,7 +10233,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       // the moment the fifth open happens rather than a week later.
       if (ratingTooEarly()) { pumpNudges(); pumpHint(); return; }
       if (ratingSnoozed()) { pumpNudges(); pumpHint(); return; }
+      if (moments.sessionTaken()) { pumpNudges(); pumpHint(); return; }   // ★ S17 F (#1340): no stamp — C# asks again on the next chat exit
       nudgeOpen = 'rating';
+      noteMomentCard();
       showRatingNudge({
         host: document.body,
         illustration: 'rating',   // N14a → ★ S11 A2: the inline art's name
@@ -9791,6 +10250,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   }
 
   document.addEventListener('visibilitychange', pumpNudges);
+  document.addEventListener('visibilitychange', () => pumpMoment());   // ★ S17 F (#1340)
 
   /* Retry hook. Rather than threading a callback through every overlay/takeover
    * close site (and missing the next one someone adds), watch the two things the
@@ -9798,7 +10258,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    * children (both takeovers and every sheet mount to document.body). pumpNudges
    * early-returns on an empty queue, so this costs nothing in the normal case. */
   try {
-    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); })
+    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); if (momentWaiting.length || (firstIxiWanted && !firstIxiAsked)) pumpMoment(); })
       .observe(document.body, { childList: true, attributes: true, attributeFilter: ['data-overlay-open'] });
   } catch (_) { /* no MutationObserver → nudges still fire on push / tab change */ }
 
@@ -10383,6 +10843,21 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       commitWalletIncoming();      // ★ #1133 lever 2b
       walletZero.open();
       scheduleWalletRender();
+      maybeFirstIxiMoment();       // ★ S17 F (#1340)
+    },
+    /* ★ S17 F (#1340, 🟡 NEW push, P28 · flag S17Moments + cap `moments`): {"seen":[ids],"apps":[app ids],"lang":"","session":bool}
+       — pushed at load and again when a moment is granted on another page (session = true: home holds its cards back). */
+    setMoments(json) {
+      if (!bridge.cap('moments')) return;
+      moments.setState(String(json));
+      pumpHint();
+      maybeFirstIxiMoment();   // #46 r1 NIT: the wallet list may have landed before this push
+      pumpMoment();
+    },
+    /* ★ S17 F (#1340, 🟡 NEW push): C#'s answer to ixian:moment:<id>[:<arg>] — "1" = show (seen is already stored) */
+    momentAnswer(id, arg, ok, caps) {
+      if (!bridge.cap('moments')) return;
+      moments.answer(String(id), String(arg == null ? '' : arg), String(ok), String(caps == null ? '' : caps));
     },
 
     // One tx row (home.js:248 / HomePage:1219):
@@ -10667,6 +11142,21 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     // "composeSend,…" from onLoaded; an old exe pushes nothing → gates stay closed.
     setCaps(list) {
       String(list || '').split(',').forEach((c) => { c = c.trim(); if (c) bridge.capabilities[c] = true; });
+    },
+    /* ★ S17 A (#1338, 🟡 NEW push, P26 · behind SpixiFlags.S17Bridge + the `whatsnew` cap): {"version":"<digits>","show":true|false}.
+       Validated: an object, version ^[0-9.]{1,16}$, show === true — anything else changes nothing. A release with no slide table
+       here bumps `seen` at once (#1143: no empty "what's new"). The card waits in the nudge queue like the backup card. */
+    setWhatsNew(json) {
+      if (!bridge.cap('whatsnew')) return;
+      let o = null;
+      try { o = JSON.parse(String(json)); } catch (e) { return; }
+      if (!o || typeof o !== 'object' || o.show !== true || typeof o.version !== 'string' || !/^[0-9.]{1,16}$/.test(o.version)) return;
+      if (nudgeOpen === 'whatsnew' || nudgeQueue.indexOf('whatsnew') >= 0) return;   // a second push (re-load) while it waits or stands
+      const set = whatsNewSlides(o.version);
+      if (!set) { bridge.send('ixian:whatsnew:done'); return; }
+      whatsNewVersion = o.version;
+      whatsNewSet = set;
+      enqueueNudge('whatsnew');
     },
     // W6 answer to ixian:feeQuery — RAW decimal strings from C# (fee incl. relay
     // payouts; balance = available). Routed to the OPEN compose only; a push that

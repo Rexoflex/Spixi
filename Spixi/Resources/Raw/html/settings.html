@@ -2038,6 +2038,11 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 /* ★ S10 P4 (#1254) → ★ S11 A2 (#1263): the "Message preview" card is an inline segmented control now (the Text size
    grammar) — it takes the plain section padding, so the single-row padding rule that stood here is gone. */
 
+/* ★ S17 E (#1337, option A): the Delete data tiles — the disc wears the KIND's gradient (tokens.css --dd-tile-*) under the
+   shared disc shade; the glyph stays white (the disc grammar) */
+.c-disc[data-dd-tile='history'] { --disc-grad: var(--dd-tile-history); }
+.c-disc[data-dd-tile='downloads'] { --disc-grad: var(--dd-tile-downloads); }
+
 </style>
 <style data-src="../styles/components/subscreen-slide.css">
 /* ★ Session H — the in-shell subscreen slide (subscreen-slide.js; DECISIONS #707/#718)
@@ -2257,119 +2262,434 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   background: var(--surface-settings-ground);   /* ★ #1013 (r2 m3): the sublevels take the hub's ground — #1007's white card on the old #F9FAFB ground read 1.04:1 (dark unchanged: ground = surface-screen) */
 }
 
-/* —— downloads —— */
+/* —— downloads —— ★ S17 E (#1336): the premium screen, a port of downloads-contributors-render.html (dc.css) ——
+   summary card · filter chips · day groups (a photo grid + file rows) · select mode with a floating bar. The per-row
+   chat / trash buttons are gone (select mode carries the actions). */
+.c-settings-dl { position: relative; }
+.c-settings-dl > .c-settings__body { gap: 0; padding-block-end: var(--spacing-32); }
+.c-settings-dl[data-selecting] > .c-settings__body { padding-block-end: 104px; }   /* sanctioned: room under the floating bar */
+.c-settings-dl__search { margin-block: var(--spacing-4) var(--spacing-12); }
+.c-settings-dl__search[hidden] { display: none; }
 
-/* split row: open (tap target) + delete — two SIBLING buttons, never nested */
-/* ★ S11 A (#1262, Damir 23:44 screenshot: "the rows are too cramped"): clear vertical space between the Downloads
-   rows. Each row is the only child of its own `.c-settings__section`, so a sibling selector between rows can never
-   match — the space is the row's own block padding (4 above + 4 below) plus a roomier press target (8 above + 8
-   below, was 4). The 44 px targets are untouched (the Show-in-chat / delete buttons keep their fixed box). */
-.c-settings-dl__row {
+/* the bar's Select / Cancel: plain accent text (the render's "tbtn"), the 44 px target kept */
+.c-settings-dl__selbtn {
+  flex: none;
+  min-width: 44px;                  /* sanctioned: minimum touch target */
+  min-height: 44px;
+  margin-inline-start: auto;
+  padding: 0 var(--spacing-8);
+  border: 0;
+  background: transparent;
+  color: var(--text-action-default);
+  font: inherit;
+  font-size: 15px;                  /* sanctioned: the render's bar action */
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-dl__selbtn[hidden] { display: none; }
+.c-settings-dl__selbtn:focus-visible { border-radius: var(--radius-8); }
+
+/* the summary card: count + size, a storage bar by kind, the delete-all action */
+.c-settings-dl__sum {
+  padding: var(--spacing-16) 18px 14px;   /* sanctioned: the render's card inset */
+  border-radius: 22px;              /* sanctioned: the render's summary radius */
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+}
+.c-settings-dl__sum[hidden] { display: none; }
+.c-settings-dl__sum-top { display: flex; align-items: baseline; gap: var(--spacing-8); flex-wrap: wrap; }
+.c-settings-dl__count {
+  color: var(--text-neutral-01);
+  font-size: 26px;                  /* sanctioned: the render's summary figure */
+  line-height: 1.15;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.5px;
+  font-feature-settings: "tnum" 1;
+}
+.c-settings-dl__total { color: var(--text-neutral-02); font-size: 15px; line-height: 1.3; font-feature-settings: "tnum" 1; }
+.c-settings-dl__bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;                     /* sanctioned: the render's storage bar */
+  margin: var(--spacing-12) 0 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--surface-neutral-02);
+}
+.c-settings-dl__bar[hidden], .c-settings-dl__legend[hidden] { display: none; }
+.c-settings-dl__bar > i {
+  display: block;
+  flex: 1 1 0;
+  min-width: 4px;                   /* a tiny kind still shows a sliver */
+  height: 100%;
+  background: var(--dl-kind-other);
+  transform-origin: left center;
+  animation: dl-grow .9s cubic-bezier(.2, .7, .2, 1) both;
+}
+[dir="rtl"] .c-settings-dl__bar > i { transform-origin: right center; }
+.c-settings-dl__bar[data-grown] > i { animation: none; }
+@keyframes dl-grow { from { transform: scaleX(0); } }
+.c-settings-dl__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--text-neutral-02);
+  font-size: 13px;                  /* sanctioned: the render's legend */
+  line-height: 1.4;
+  font-feature-settings: "tnum" 1;
+}
+.c-settings-dl__legend > span::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  margin-inline-end: 6px;
+  background: var(--dl-kind-other);
+}
+.c-settings-dl__bar > i[data-kind="image"], .c-settings-dl__legend > [data-kind="image"]::before { background: var(--dl-kind-image); }
+.c-settings-dl__bar > i[data-kind="pdf"], .c-settings-dl__legend > [data-kind="pdf"]::before { background: var(--dl-kind-pdf); }
+.c-settings-dl__bar > i[data-kind="archive"], .c-settings-dl__legend > [data-kind="archive"]::before { background: var(--dl-kind-archive); }
+.c-settings-dl__bar > i[data-kind="doc"], .c-settings-dl__legend > [data-kind="doc"]::before { background: var(--dl-kind-doc); }
+.c-settings-dl__bar > i[data-kind="audio"], .c-settings-dl__legend > [data-kind="audio"]::before { background: var(--dl-kind-audio); }
+.c-settings-dl__bar > i[data-kind="video"], .c-settings-dl__legend > [data-kind="video"]::before { background: var(--dl-kind-video); }
+.c-settings-dl__bar > i[data-kind="code"], .c-settings-dl__legend > [data-kind="code"]::before { background: var(--dl-kind-code); }
+.c-settings-dl__clear {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;                 /* sanctioned: minimum touch target (the render's text action, 44 tall) */
+  margin: var(--spacing-2) 0 -10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-error);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* filters: All · Photos · Files, then the From chip at the end */
+.c-settings-dl__controls {
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
-  padding-block: var(--spacing-4);
+  gap: var(--spacing-8);
+  margin-inline: calc(-1 * var(--spacing-16));
+  padding: 14px var(--spacing-16) var(--spacing-4);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.c-settings-dl__controls::-webkit-scrollbar { display: none; }
+.c-settings-dl__controls[hidden], .c-settings-dl__kinds[hidden] { display: none; }
+.c-settings-dl__kinds { display: flex; gap: var(--spacing-8); flex: none; }
+.c-settings-dl__chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;                     /* sanctioned: the render's chip */
+  padding: 0 14px;
+  border: 0;
+  border-radius: 17px;
+  background: var(--surface-settings-card);
+  box-shadow: inset 0 0 0 1px var(--outline-on-card);
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* the chip is 34 px tall (the render); its hit box reaches the 44 px touch minimum without growing the row */
+.c-settings-dl__chip { position: relative; }
+.c-settings-dl__chip::after { content: ""; position: absolute; inset: -5px 0; }
+.c-settings-dl__chip[aria-pressed="true"] { background: var(--surface-action-default); color: var(--text-neutral-on-action); box-shadow: none; }
+.c-settings-dl__chip:focus-visible { border-radius: 17px; }
+@media (hover: hover) and (pointer: fine) {
+  .c-settings-dl__chip:not([aria-pressed="true"]):hover { background: var(--surface-card-hover); }   /* the card pair (#882) */
+}
+.c-settings-dl__from-btn { margin-inline-start: auto; max-width: 70%; color: var(--text-action-default); }
+.c-settings-dl__from-btn[hidden] { display: none; }
+.c-settings-dl__from-btn svg { flex: none; }
+.c-settings-dl__from-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from { white-space: nowrap; }
+.c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
+
+/* day groups */
+.c-settings-dl__list[hidden] { display: none; }
+.c-settings-dl__day {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  margin: 0;
+  padding: 18px 6px var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: var(--font-weight-semibold);
+  font-feature-settings: "tnum" 1;
+}
+.c-settings-dl__group + .c-settings-dl__group > .c-settings-dl__grid:first-child,
+.c-settings-dl__group + .c-settings-dl__group > .c-settings-dl__files:first-child { margin-block-start: var(--spacing-16); }
+.c-settings-dl__grid + .c-settings-dl__files { margin-block-start: var(--spacing-8); }
+
+/* photos: a 3-column grid of type tiles (the thumbnail is the pickup) with a size badge */
+.c-settings-dl__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-4);
+  border-radius: 18px;              /* sanctioned: the render's grid radius */
+  overflow: hidden;
+}
+:root[data-desktop] .c-settings-dl__grid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }   /* a wide pane: more, smaller cells (3 columns are a phone's grid) */
+.c-settings-dl__row--th { display: block; padding: 0; }
+.c-settings-dl__open.c-settings-dl__th {   /* double class: the cell outranks the file row's own .c-settings-dl__open */
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  background: var(--surface-neutral-02);
+  color: #fff;                      /* sanctioned: white glyph and badge ink on the tone (the type tile grammar) */
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+@supports not (aspect-ratio: 1) { .c-settings-dl__open.c-settings-dl__th { height: 0; padding-block-end: 100%; } }
+.c-settings-dl__th-img {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dl-th-0);
+  animation: dl-in .5s ease both;
+  transition: transform .2s ease, border-radius .2s ease;
+}
+@keyframes dl-in { from { opacity: 0; transform: scale(1.04); } }
+.c-settings-dl__th-img[data-tone="1"] { background: var(--dl-th-1); }
+.c-settings-dl__th-img[data-tone="2"] { background: var(--dl-th-2); }
+.c-settings-dl__th-img[data-tone="3"] { background: var(--dl-th-3); }
+.c-settings-dl__th-img[data-tone="4"] { background: var(--dl-th-4); }
+.c-settings-dl__th-img[data-tone="5"] { background: var(--dl-th-5); }
+.c-settings-dl__th-img[data-tone="6"] { background: var(--dl-th-6); }
+.c-settings-dl__th-img[data-tone="7"] { background: var(--dl-th-7); }
+.c-settings-dl__th-img::after {    /* a soft floor shade so the white glyph and badge hold on the light tones */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(10, 20, 60, 0) 30%, rgba(10, 20, 60, .28) 100%);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-settings-dl__th-glyph {
+  position: relative;
+  z-index: 1;
+  width: 34%;
+  height: auto;
+  max-width: 44px;
+  opacity: .95;
+  filter: drop-shadow(0 2px 4px rgba(10, 20, 60, .3));   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-settings-dl__th-tag {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 6px;
+  inset-inline-start: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .85);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #1b2340;                   /* sanctioned: dark ink on the white tag */
+  font-size: 9px;
+  line-height: 1.4;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: .02em;
+}
+.c-settings-dl__sz {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: 6px;
+  inset-block-end: 6px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, .42);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #fff;   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  font-size: 11px;                  /* sanctioned: the render's size badge */
+  line-height: 1.4;
+  font-weight: var(--font-weight-semibold);
+  font-feature-settings: "tnum" 1;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.c-settings-dl__row--th[data-highlight] .c-settings-dl__th { box-shadow: inset 0 0 0 3px var(--surface-action-default); }
+
+/* other files: rows on one card, a hairline between them */
+.c-settings-dl__files {
+  border-radius: 20px;              /* sanctioned: the render's files card */
+  overflow: hidden;
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+}
+.c-settings-dl__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.c-settings-dl__files > .c-settings-dl__row + .c-settings-dl__row::before {
+  content: "";
+  position: absolute;
+  inset-inline: 74px 0;             /* sanctioned: past the tile (16 + 44 + 14) */
+  inset-block-start: 0;
+  height: 1px;
+  background: var(--outline-on-card);
+  z-index: 1;
+}
+.c-settings-dl[data-selecting] .c-settings-dl__files > .c-settings-dl__row + .c-settings-dl__row::before { inset-inline-start: 112px; }
 .c-settings-dl__open {
   flex: 1;
   min-width: 0;                     /* the name ellipsis needs a shrinkable box */
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
-  min-height: var(--row-h-nav);     /* ★ Session I canon: 48 (was 52, settings-row parity #149②) */
-  padding: var(--spacing-8);        /* ★ S11 A (#1262): 8 px block padding (was 4) — the rows breathe */
+  gap: 14px;
+  min-height: var(--row-h-nav);
+  padding: var(--spacing-12) var(--spacing-16);
   border: 0;
   background: transparent;
-  border-radius: var(--radius-12);
+  color: inherit;
   cursor: pointer;
   text-align: start;
+  font: inherit;
   -webkit-tap-highlight-color: transparent;
-  /* ★ D-16 r3 (Opus finding 2): the file row joins the CANONICAL press family.
-     5c-ii (2026-08-24): the fill itself now rides the compositor ::before layer
-     in base.css, same as the other seven families. */
+  /* ★ D-16 r3: the file row is in the CANONICAL press family (the fill rides base.css's ::before layer) */
   transition: background-color var(--duration-100) var(--easing-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .c-settings-dl__open:hover { background-color: var(--surface-interactive-hover); }
+  .c-settings-dl__th:hover > .c-settings-dl__th-img { filter: brightness(1.04); }
 }
-/* 5c-i/ii: the :active fill mirror is REMOVED — see chatlist-item.css. */
-.c-settings-dl__meta {
-  min-width: 0;
+.c-settings-dl__tile {
+  position: relative;
+  flex: none;
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: the render's type tile */
+  height: 44px;
+  border-radius: 13px;
+  background: var(--dl-tile-other);
+  color: #fff;                      /* sanctioned: white glyph on the kind gradient */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
 }
+.c-settings-dl__tile[data-kind="image"] { background: var(--dl-tile-image); }
+.c-settings-dl__tile[data-kind="pdf"] { background: var(--dl-tile-pdf); }
+.c-settings-dl__tile[data-kind="archive"] { background: var(--dl-tile-archive); }
+.c-settings-dl__tile[data-kind="doc"] { background: var(--dl-tile-doc); }
+.c-settings-dl__tile[data-kind="audio"] { background: var(--dl-tile-audio); }
+.c-settings-dl__tile[data-kind="video"] { background: var(--dl-tile-video); }
+.c-settings-dl__tile[data-kind="code"] { background: var(--dl-tile-code); }
+.c-settings-dl__tile > svg { width: 22px; height: 22px; }
+.c-settings-dl__tag {
+  position: absolute;
+  inset-block-end: -5px;
+  inset-inline-end: -6px;
+  max-width: 40px;
+  overflow: hidden;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--surface-settings-card);
+  color: var(--text-neutral-01);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  font-size: 9px;                   /* sanctioned: the render's format tag */
+  line-height: 1.4;
+  font-style: normal;
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+.c-settings-dl__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-2); }
 .c-settings-dl__name {
   color: var(--text-neutral-01);
-  font-size: var(--font-size-body-md);
-  line-height: var(--line-height-body-md);
+  font-size: 15.5px;                /* sanctioned: the render's row name */
+  line-height: 1.3;
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .c-settings-dl__time {
   color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
+  font-size: 13.5px;
+  line-height: 1.35;
+  font-feature-settings: "tnum" 1;
 }
-.c-settings-dl__del {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;                      /* sanctioned: minimum touch target */
-  height: 44px;
-  border: 0;
-  background: transparent;
-  border-radius: var(--radius-12);
-  color: var(--icon-neutral-02);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard),
-              color var(--duration-100) var(--easing-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-settings-dl__del:hover {
-    background: var(--surface-interactive-hover);
-    color: var(--icon-error);
-  }
-}
-.c-settings-dl__del:active { background: var(--surface-interactive-pressed); }
+.c-settings-dl__row[data-highlight] .c-settings-dl__open { background-color: var(--surface-action-tonal-default); }
 
-/* ★★ #1107: ONE "From: <who>" chip (a sheet picks the sender — chips per person did not scale, #1111) */
-/* ★ G-5 (#1119, render C): a section header on the card's edge — the count left, an accent "From: … ▾" text button right */
-.c-settings-dl__controls { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-8); padding: 0 var(--spacing-4) var(--spacing-4); }
-.c-settings-dl__controls[hidden] { display: none; }
-.c-settings-dl__count { flex: none; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); letter-spacing: var(--tracking-body-sm); color: var(--text-neutral-02); }
-.c-settings-dl__from-btn {
-  display: inline-flex; align-items: center; gap: var(--spacing-4); min-width: 0; max-width: 70%; min-height: 44px;
-  padding: 0 var(--spacing-4); border: 0; background: none; color: var(--text-accent); cursor: pointer;
-  font: inherit; font-size: var(--font-size-body-sm); line-height: var(--line-height-body-sm); font-weight: var(--font-weight-semibold);
-  -webkit-tap-highlight-color: transparent;
+/* select mode: check marks (hidden until selecting), the picked cell shrinks, the floating bar rises */
+.c-settings-dl__ck {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #fff;   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #fff;   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
 }
-.c-settings-dl__from-btn svg { flex: none; }
-.c-settings-dl__from-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.c-settings-dl__from-btn:focus-visible { border-radius: var(--radius-8); }   /* (#46 r1 B10) the global ring (--outline-focus); only its corners here */
-.c-settings-dl__from { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
-/* the Downloads "Show in chat" icon: the delete button's 44px box, its own class (#46 r1 B11 / r2 R2-2) */
-.c-settings-dl__go {
+.c-settings-dl__ck > svg { width: 15px; height: 15px; opacity: 0; }
+.c-settings-dl__files .c-settings-dl__ck { position: static; flex: none; order: -1; border-color: var(--text-neutral-02); background: transparent; }
+.c-settings-dl[data-selecting] .c-settings-dl__ck { display: inline-flex; }
+.c-settings-dl [aria-pressed="true"] > .c-settings-dl__ck { background: var(--surface-action-default); border-color: var(--surface-action-default); }
+.c-settings-dl [aria-pressed="true"] > .c-settings-dl__ck > svg { opacity: 1; }
+.c-settings-dl__th[aria-pressed="true"] > .c-settings-dl__th-img { transform: scale(.88); border-radius: 12px; }
+.c-settings-dl__selbar {
+  position: absolute;
+  z-index: 6;
+  inset-inline: 12px;
+  inset-block-end: calc(14px + var(--safe-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 18px;
+  border-radius: 22px;
+  background: var(--surface-settings-card);
+  box-shadow: 0 16px 34px -12px rgba(10, 14, 50, .5), 0 0 0 1px var(--outline-on-card);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  transform: translateY(calc(100% + 40px));
+  visibility: hidden;
+  transition: transform .32s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .32s;
+}
+.c-settings-dl__selbar[data-on] { transform: none; visibility: visible; transition: transform .32s cubic-bezier(.2, .8, .2, 1), visibility 0s; }
+.c-settings-dl__selcount { flex: 1; min-width: 0; color: var(--text-neutral-01); font-size: 15px; font-weight: var(--font-weight-semibold); }
+.c-settings-dl__selbar button {
   flex: none;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 44px;                      /* sanctioned: minimum touch target */
-  height: 44px;
+  gap: 6px;
+  height: 44px;                     /* sanctioned: minimum touch target (the render's 40, raised) */
+  padding: 0 14px;
   border: 0;
-  background: transparent;
-  border-radius: var(--radius-12);
-  color: var(--icon-neutral-02);
+  border-radius: 22px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard), color var(--duration-100) var(--easing-standard);
 }
-.c-settings-dl__go:active { background: var(--surface-interactive-pressed); }
-@media (hover: hover) and (pointer: fine) { .c-settings-dl__go:hover { background: var(--surface-interactive-hover); color: var(--icon-action-default); } }
+.c-settings-dl__selbar button[hidden] { display: none; }
+.c-settings-dl__selbar button > svg { width: 18px; height: 18px; }
+.c-settings-dl__go { background: var(--surface-neutral-02); color: var(--text-neutral-01); }
+.c-settings-dl__del { background: var(--surface-destructive-default); color: var(--text-neutral-on-destructive); }
+@media (prefers-reduced-motion: reduce) {
+  .c-settings-dl__bar > i, .c-settings-dl__th-img { animation: none; }
+  .c-settings-dl__selbar, .c-settings-dl__selbar[data-on], .c-settings-dl__th-img { transition: none; }
+}
 
 /* empty state — centered, calm */
 .c-settings-dl__empty {
@@ -2380,6 +2700,8 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   padding: var(--spacing-32) var(--spacing-16);
   text-align: center;
 }
+.c-settings-dl__empty[hidden] { display: none; }
+.c-settings-dl__nomatch { margin-block-start: var(--spacing-16); text-align: center; }
 
 /* —— developer log —— */
 
@@ -2410,19 +2732,41 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   flex-wrap: wrap;                  /* two 44s survive narrow frames */
 }
 
-/* —— contributors —— */
-.c-settings-contrib__art {
-  display: flex;
-  justify-content: center;
-  padding-block-start: var(--spacing-16);
+/* —— contributors —— ★ S17 E (#1336): the thank-you screen, a port of downloads-contributors-render.html (dc.css) ——
+   a warm full-bleed header (the heart), "Thank you", the names as chips with initial discs, the credits as rows. */
+.c-settings-contrib__band {
+  --ct-hdr-h: 220px;
+  position: relative;
+  align-self: stretch;
+  flex: none;
+  margin-inline: calc(-1 * var(--spacing-16));
+  block-size: calc(var(--ct-hdr-h) + var(--safe-top, 0px));
+  overflow: hidden;
+  background: var(--dc-b);         /* the frame before the art paints = the art's own middle stop */
 }
-.c-settings-contrib__art-disc {
-  width: 64px;                      /* sanctioned: art-slot disc (backup-hero precedent) */
-  height: 64px;
+:root[data-desktop] .c-settings-contrib__band { --ct-hdr-h: 200px; }
+.c-settings-contrib__head { margin: 18px 10px 0; text-align: center; }
+.c-settings-contrib__thanks {
+  margin: 0 0 6px;
+  color: var(--text-neutral-01);
+  font-size: 26px;                  /* sanctioned: the render's heading */
+  line-height: 1.2;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.5px;
 }
-.c-settings-contrib__lead { text-align: center; }
-.c-settings-contrib__card { padding: var(--spacing-12); }
-.c-settings-contrib__card--credits { padding-block: var(--spacing-4); }   /* ★ #1040: the rows carry their own 12 block padding */
+.c-settings-contrib__lead {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: 15px;
+  line-height: 1.45;
+}
+.c-settings-contrib__card {
+  border-radius: 24px;              /* sanctioned: the render's names card */
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+}
+.c-settings-contrib__card:not(.c-settings-contrib__card--credits) { margin-block-start: 18px; padding: var(--spacing-16) 14px; }
+.c-settings-contrib__card--credits { border-radius: 22px; overflow: hidden; }
 .c-settings-contrib__list {
   margin: 0;
   padding: 0;
@@ -2432,23 +2776,71 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   justify-content: center;
   gap: var(--spacing-8);
 }
-.c-settings-contrib__name {
-  padding: var(--spacing-4) var(--spacing-12);
-  border-radius: var(--radius-full);
-  background: var(--surface-input); /* card scope reassigns to -on-card (#150③) */
+.c-settings-contrib__chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  height: 40px;                     /* sanctioned: the render's name chip */
+  padding: 0 14px 0 5px;
+  border-radius: 20px;
+  background: var(--surface-input);   /* the screen's input fill (neutral-02) — the card here is not a .c-settings__group, so no on-card swap */
   color: var(--text-neutral-01);
-  font-size: var(--font-size-label-md);
-  line-height: var(--line-height-label-md);
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+  animation: ct-pop .5s cubic-bezier(.3, 1.3, .5, 1) both;
+  animation-delay: var(--d, 0s);
+}
+@keyframes ct-pop { from { opacity: 0; transform: translateY(8px) scale(.9); } }
+.c-settings-contrib__chip.is-burst { animation: ct-bounce .45s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes ct-bounce { 40% { transform: scale(1.12); } }
+.c-settings-contrib__initial {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--dc-av-0);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #fff;                      /* sanctioned: white initial on the disc gradient */
+  font-size: 13px;
+  line-height: 1;
+  font-style: normal;
+  font-weight: var(--font-weight-bold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .2);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-settings-contrib__initial[data-tone="1"] { background: var(--dc-av-1); }
+.c-settings-contrib__initial[data-tone="2"] { background: var(--dc-av-2); }
+.c-settings-contrib__initial[data-tone="3"] { background: var(--dc-av-3); }
+.c-settings-contrib__initial[data-tone="4"] { background: var(--dc-av-4); }
+.c-settings-contrib__initial[data-tone="5"] { background: var(--dc-av-5); }
+.c-settings-contrib__name {
+  font-size: 15px;
+  line-height: 1;
   font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
 }
+.c-settings-contrib__spark {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  pointer-events: none;
+  background: var(--dc-spk-0);
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  animation: ct-spark .7s ease-out forwards;
+}
+.c-settings-contrib__spark[data-tone="1"] { background: var(--dc-spk-1); }
+.c-settings-contrib__spark[data-tone="2"] { background: var(--dc-spk-2); }
+.c-settings-contrib__spark[data-tone="3"] { background: var(--dc-spk-3); }
+@keyframes ct-spark { from { transform: translate(0, 0) scale(.4); opacity: 1; } to { transform: translate(var(--x), var(--y)) scale(1.6); opacity: 0; } }
 
-/* ★ #502 — asset credits. A LIST, not chips: a chip is a name and these are
-   facts, so they read as stacked rows with the label above its source. */
-.c-settings-contrib__credits-title {
-  /* ★ #1040 (Damir 2026-09-29: "left-align the credits, like a list"): the heading takes the
-     hub's section-label look and sits at the card's start edge; only the margin is local */
-  margin-block: var(--spacing-8) 0;   /* ★ #1041: the body's 12px gap spaces it from its card, like the hub's labels */
-}
+/* ★ #502 — asset credits: rows (a list of facts), the label above its FULL source, a licence pill */
+.c-settings-contrib__credits-title { margin: 22px 0 0; }   /* ★ #1040: the hub's section-label grammar, its own margin */
 .c-settings-contrib__credits {
   margin: 0;
   padding: 0;
@@ -2456,30 +2848,65 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   display: flex;
   flex-direction: column;
 }
-/* ★ #1040: rows, start-aligned, one hairline between them (the on-card role, #886) —
-   three centred paragraphs read as a poem; a list reads as facts */
 .c-settings-contrib__credit {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
+  align-items: flex-start;
+  gap: 14px;
   text-align: start;
-  padding-block: var(--spacing-12);
-  padding-inline: var(--spacing-4);
+  padding: 14px var(--spacing-16);
 }
-.c-settings-contrib__credit + .c-settings-contrib__credit {
-  border-block-start: var(--outline-width-1) solid var(--outline-on-card);
+.c-settings-contrib__credit + .c-settings-contrib__credit::before {
+  content: "";
+  position: absolute;
+  inset-inline: 70px 0;             /* sanctioned: past the tile (16 + 40 + 14) */
+  inset-block-start: 0;
+  height: 1px;
+  background: var(--outline-on-card);
 }
+.c-settings-contrib__tile {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--dl-tile-other);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  color: #fff;                      /* sanctioned: white glyph on the tile gradient */
+}
+.c-settings-contrib__tile[data-credit="creditSounds"] { background: var(--dc-tile-sounds); }
+.c-settings-contrib__tile[data-credit="creditIcons"] { background: var(--dc-tile-icons); }
+.c-settings-contrib__tile[data-credit="creditFlags"] { background: var(--dc-tile-flags); }
+.c-settings-contrib__credit-text { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .c-settings-contrib__credit-what {
+  margin-block-end: var(--spacing-2);
   color: var(--text-neutral-01);
-  font-size: var(--font-size-label-md);
-  line-height: var(--line-height-label-md);
+  font-size: 15.5px;
+  line-height: 1.3;
   font-weight: var(--font-weight-semibold);
 }
 .c-settings-contrib__credit-who {
   color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
+  font-size: 13.5px;
+  line-height: 1.4;
   overflow-wrap: anywhere;      /* a domain must never widen the card */
+  -webkit-user-select: text;
+  user-select: text;
+}
+.c-settings-contrib__licence {
+  margin-block-start: 7px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: var(--ab-chip);
+  color: var(--text-action-default);
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: var(--font-weight-bold);
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-settings-contrib__chip, .c-settings-contrib__chip.is-burst { animation: none; }
 }
 
 /* —— about —— ★ S12 B (#1267, design "B, hero card-led") */
@@ -2497,32 +2924,25 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   align-items: center;
   gap: var(--spacing-4);
   text-align: center;
-  padding: 0 var(--spacing-20) var(--spacing-24);
-  border-radius: var(--radius-24);
-  background: var(--glass-card-surface);
-  box-shadow: inset 0 1px 0 var(--glass-card-highlight), var(--glass-card-shadow);
-  overflow: hidden;
+  /* ★ S17 B (#1332): no card any more — the identity (icon · name · tagline · version) sits on the screen ground under
+     the full-bleed header (kit-render.html "About · full-bleed header"); was the glass card of S13 / S14 */
+  padding: 0 var(--spacing-20) var(--spacing-8);
 }
+/* ★ S17 B (#1332): the band IS the full-bleed header now — ~234 px under the status bar (its inset added), edge to edge
+   past the body's inline padding, the Glass art in two layers (illo.css .il.ab-l fills it); the ground is in the art
+   (the --ab-band-* pair + a deep stop, three drifting light fields, a sheen, a top scrim) */
 .c-settings-about__band {
+  --ab-hdr-h: 234px;
   position: relative;
   align-self: stretch;
   flex: none;
-  margin-inline: calc(-1 * var(--spacing-20));
-  block-size: 128px;
+  margin-inline: calc(-1 * var(--spacing-16) - var(--spacing-20));
+  block-size: calc(var(--ab-hdr-h) + var(--safe-top, 0px));
   overflow: hidden;
-  background:
-    radial-gradient(60% 120% at 50% 110%, var(--ab-band-shade) 0%, transparent 70%),
-    radial-gradient(80% 140% at 85% 0%, var(--ab-band-sheen) 0%, transparent 55%),
-    linear-gradient(120deg, var(--ab-band-from) 0%, var(--ab-band-to) 100%);   /* ★ S14 (#1288): launcher blue, was the hint-art violet */
-  background-size: 100% 100%, 100% 100%, 130% 100%;
-  background-position: 0 0, 0 0, 50% 0;
-  background-repeat: no-repeat;
+  background: var(--ab-band-to);   /* the frame before the art paints = the art's own middle stop */
 }
-/* the art on the band: fixed-width and centred by a logical inset (calc(50% - half) from the inline START, so RTL
-   centres the same way without a mirrored transform); 320 px wide and lifted 10 px so the whole scene (top sparkle
-   to the lowest dot, ~117 of its 150 units) sits inside the 128 px band with nothing kissing either edge — at 360 px
-   and on the desktop pane alike; its orbit and sparkles re-inked white for the gradient */
-.c-settings-about__band .c-settings-about__art {
+:root[data-desktop] .c-settings-about__band { --ab-hdr-h: 208px; }
+.c-settings-about__art {
   --ab-art-w: 320px;
   position: absolute;
   inset-block-start: -10px;
@@ -2548,7 +2968,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   justify-content: center;
   inline-size: 84px;
   block-size: 84px;
-  margin-block-start: -46px;
+  margin-block-start: -42px;   /* ★ S17 B (#1332): centred on the header's lower edge (was -46px into the 128 px band) */
   margin-block-end: var(--spacing-8);
   border-radius: var(--radius-24);
   /* ★ S14 (#1288): the REAL launcher ground (appicon.svg, Damir's #689 CSS layered the same way: the radial from the
@@ -2560,7 +2980,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   color: var(--ab-mark);
   /* the cut-out ring in the card's own surface, a 1 px highlight hairline round it (so the ring reads as a rim, not a
      hole, on the dark card), then the soft brand glow */
-  box-shadow: 0 0 0 5px var(--glass-card-surface), 0 0 0 6px var(--glass-card-highlight), 0 14px 26px -10px var(--ab-tile-shadow);
+  /* ★ S17 B (#1332): the cut-out ring is the SCREEN ground now (the identity sits on it, no card); was the glass
+     card's surface + a highlight hairline */
+  box-shadow: 0 0 0 5px var(--surface-settings-ground), 0 14px 26px -10px var(--ab-tile-shadow);
 }
 .c-settings-about__appicon svg { inline-size: 46px; block-size: 46px; }
 .c-settings-about__app-name {
@@ -2603,20 +3025,13 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 /* ONE entrance (the glass-card precedent): the band's gradient drifts into place while the icon settles .92 → 1;
    createSettingsAbout sets `data-held` after it (or its backstop), so a re-layout never replays it; reduced motion =
    static */
-.c-settings-about__band { animation: about-band-in var(--duration-300) var(--easing-decelerate) both; }
 .c-settings-about__appicon { animation: about-icon-in var(--duration-300) var(--easing-decelerate) both; }
-@keyframes about-band-in {
-  from { background-position: 0 0, 0 0, 100% 0; }
-  to { background-position: 0 0, 0 0, 50% 0; }
-}
 @keyframes about-icon-in {
   from { transform: scale(.92); }
   to { transform: none; }
 }
-.c-settings-about__hero[data-held] .c-settings-about__band,
 .c-settings-about__hero[data-held] .c-settings-about__appicon { animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  .c-settings-about__band,
   .c-settings-about__appicon { animation: none; }
 }
 /* a labelled group: the label sits on the ground above its card (the hub's section-label grammar) */
@@ -2765,6 +3180,58 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
   color: var(--text-neutral-01);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
+}
+
+/* —— ★ S17 B (#1332): the top bar floats over the full-bleed header ——
+   The bar leaves the flow (absolute over the body), so the body — and the header, its first child — starts at the top
+   of the screen, under the status bar. Over the header the bar is transparent with white ink (the region tokens are
+   re-assigned in scope: the .screen--hero precedent, #20) and "About" 22 px bold; once the header has scrolled under it
+   (createSettingsAbout sets data-solid) the bar takes its own surface and ink again. */
+.c-settings-about--hdr, .c-settings-contrib--hdr { position: relative; }
+.c-settings-about--hdr > .c-topbar,
+.c-settings-contrib--hdr > .c-topbar {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+}
+.c-settings-about--hdr > .c-topbar:not([data-solid]),
+.c-settings-contrib--hdr > .c-topbar:not([data-solid]) {
+  --surface-topbar: transparent;
+  --text-topbar: var(--text-on-hero);
+  --icon-topbar: var(--icon-on-hero);
+}
+.c-settings-about--hdr > .c-topbar:not([data-solid]) .c-topbar__title,
+.c-settings-contrib--hdr > .c-topbar:not([data-solid]) .c-topbar__title {
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  text-shadow: 0 1px 2px rgba(0, 20, 70, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-settings-about--hdr > .c-settings__body,
+.c-settings-contrib--hdr > .c-settings__body { padding-block-start: 0; }
+/* over the header the bar has no edge (a hairline across the art); solid again, it takes its own */
+.c-settings-about--hdr > .c-topbar[data-variant]:not([data-solid]),
+.c-settings-contrib--hdr > .c-topbar[data-variant]:not([data-solid]) { border-bottom-color: transparent; box-shadow: none; }
+/* the identity sits on the SCREEN ground under the header (kit-render.html) — the hero element still wears the settings
+   group class (its pins and the hold hook read it), so its card surface is cleared here at a higher weight */
+.c-settings-about--hdr .c-settings__group.c-settings-about__hero {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+/* —— ★ S17 A/B (#1333): the "What's new" row and its "New" badge —— */
+.c-settings-about__new {   /* the tonal accent badge (badge.css grammar, #54) */
+  flex: none;
+  padding: var(--spacing-2) var(--spacing-8);
+  border-radius: var(--radius-8);
+  background: var(--surface-accent-inverse);
+  color: var(--text-accent);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
 }
 
 </style><!-- About / How-to takeovers (c-settings-about/-howto/-links) -->
@@ -4183,9 +4650,14 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
    crosses ~2 lines, which is what makes it read as contours rather than as one stray curve.
    Rendered, not guessed (Session M's lesson: the mask lives on ::before, so only a
    stylesheet can move it). Was the matrix's 144px. */
-.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='contours']::before {
-  -webkit-mask-size: 160px 120px;
-  mask-size: 160px 120px;
+.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='contours']::before,
+.c-settings-swatch .c-settings-swatch__canvas[data-chat-pattern='rings']::before {
+  /* ★ S17 C (#1334 / #1335): half the 400 × 320 tile, the SAME aspect (was 160 × 120 = half the old 320 × 240 —
+     at the new 5 : 4 tile that box letterboxed the mask into a blank vertical band) */
+  -webkit-mask-size: 140px 112px;   /* the render's tiles show the WHOLE drawing in miniature (≈ .35 of the 400 × 320 tile) */
+  mask-size: 140px 112px;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
 /* Live flow paints on a canvas child; chat-pattern.css already zeroes the tile
    (--chat-pattern-tile: none) for this style, so nothing to hide here. The
@@ -4279,27 +4751,299 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
 .c-settings-security__tier[aria-checked='true'] .c-settings__opt-check { visibility: visible; }
 .c-settings-security__tier[data-loading] .c-settings__opt-check { display: none; }
 
-/* —— ★ Session M (#774): the Colour card — a single value row, so it takes the HUB's card
-   padding (4) instead of the appearance screen's section padding (12). A 48px row inside a
-   12px section reads as a row floating in a box rather than as a card that IS a row.
-   The rule is written against the section, not the row. ★ #1066: the section is built in
-   BOTH themes now (a dark brand gradient exists), so the rule applies in dark too.
-   REVERSAL: delete this rule and the row sits 20px in from the card edge. —— */
-.c-settings-appearance .c-settings__section.c-settings-appearance__groundsec {
-  padding: var(--spacing-4);
+/* ═══ ★★ S17 C (#1334) — CHAT APPEARANCE, premium: a PORT of appearance-render.html (parts-f/appear.css), LOCKED ══════
+   Damir 19:49 ("look how beautiful this is … that's what we want"): the render's own values, mapped onto Spixi tokens —
+   cards 24 px with the render's soft shadow, accent labels, the FULL-BLEED 236 px preview, the styled sliders, mini-chat
+   tiles with the name pill inside and the check top-right, three background tiles, glossy discs, mini phones, mini lists.
+   #1019's colour circles, the #1066 r2 / S8 dark "top stop" faces and #774's single-row Colour card are retired with the
+   old layout. Literals marked "sanctioned" are the render's decorative values (a pill on a picture, a gloss, a shadow).
+   Motion: colour / ground / radius ease (≤ .45 s); reduced motion = instant. Logical properties (RTL); hovers guarded. */
+.c-settings-appearance__body { gap: var(--spacing-12); }
+.c-settings-appearance__col { display: flex; flex-direction: column; gap: var(--spacing-12); min-width: 0; }
+
+/* the cards (the render's .ap__card) — no inner padding: each control owns its own 18 px inset, the preview runs edge to edge */
+.c-settings-appearance .c-settings__section.c-settings-appearance__card {
+  display: block;
+  padding: 0;
+  border-radius: var(--radius-24);
+  overflow: hidden;
+  background: var(--surface-settings-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 10px 24px -18px rgba(20, 24, 70, .35);   /* sanctioned: the render's card shadow */
 }
-/* ★★ #1019: the Canvas choice is a pair of COLOUR CIRCLES (Damir 2026-09-28). 32px faces in 44px
-   hit targets; the picked one carries the action ring with a 2px gap (the swatch grammar); each
-   face paints its ground through --gradient-chat, so a circle is always what the chat will show.
-   The flat face gets a hairline — Mist on a white card is a low-contrast disc without one. */
+.c-settings-appearance .c-settings-appearance__card .c-settings__label {
+  margin: 0;
+  padding: var(--spacing-16) 18px 6px;   /* sanctioned: the render's 18 px card inset */
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: 650;
+  letter-spacing: .02em;
+  color: var(--text-action-default);
+}
+/* a switch row inside a card is flat (no card in a card) */
+.c-settings-appearance .c-settings-appearance__card .c-settings__section {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: var(--spacing-4) 6px;
+}
+
+/* (1) the preview — FULL BLEED in its card, 236 px; the chat's own grammar in miniature */
+.c-settings-appearance__card--preview .c-chat-canvas.c-settings-appearance__preview {
+  position: relative;
+  display: block;
+  height: 236px;
+  min-height: 148px;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  transition: background .45s ease;
+}
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__chip,
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble { position: absolute; }
+.c-settings-appearance__chip {
+  inset-block-start: 14px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  /* ★ S17 C v3 §2 (Damir 21:50): the SAME tokens as the real chat's date chip (message-bubble.css .c-datesep__pill) — the
+     render's grey veil with white text was a render guess */
+  padding: var(--spacing-2) var(--spacing-12);
+  border-radius: var(--radius-full);
+  background: var(--surface-chat-glass);
+  -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
+  border: var(--outline-width-1) solid var(--outline-chat-glass);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  letter-spacing: var(--tracking-label-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .c-settings-appearance__chip { background: var(--surface-chat-chip); border-color: var(--outline-neutral-01); }
+}
+[dir='rtl'] .c-settings-appearance__chip { transform: translateX(50%); }
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble {
+  max-width: 76%;
+  padding: 8px 12px 6px;
+  line-height: 1.35;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .08)) drop-shadow(0 3px 5px rgba(0, 0, 0, .12));   /* sanctioned: the render's lift */
+  transition: background-color .35s ease, border-radius .2s ease, font-size .15s ease;
+}
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble[data-side='received'] { inset-inline-start: 12px; inset-block-start: 52px; }
+.c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble[data-side='sent'] { inset-inline-end: 12px; inset-block-end: 18px; }
+.c-settings-appearance__bubble--more { display: none; }
+.c-settings-appearance__who {
+  display: block;
+  margin-block-end: 1px;
+  font-size: .82em;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-action-default);    /* the sender name keeps its OWN ink, never the bubble colour (Damir 15:16) */
+}
+.c-settings-appearance__meta {
+  float: inline-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-block-start: 6px;
+  margin-inline-start: 10px;
+  font-size: 11px;                      /* sanctioned: the chat's own time size */
+  opacity: .7;
+}
+.c-settings-appearance__meta svg { width: 15px; height: 15px; }
+.c-settings-appearance__bubble[data-side='sent'] .c-settings-appearance__meta { color: var(--text-bubble-sent-meta); opacity: 1; }
+
+/* desktop, wide (data-cols ≥ 720 px; Damir 19:45 "make the preview mimic a bigger vertical chat canvas"): two columns —
+   the preview card stays put on the left as a TALL chat canvas with four messages anchored at its foot, like a chat */
+.c-settings-appearance__body[data-cols] {
+  display: grid;
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+  align-items: start;
+  column-gap: var(--spacing-16);
+}
+.c-settings-appearance__body[data-cols] .c-settings-appearance__col--a { position: sticky; inset-block-start: 0; }
+.c-settings-appearance__body[data-cols] .c-chat-canvas.c-settings-appearance__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  height: clamp(420px, 64vh, 640px);
+  padding: 14px 12px 18px;
+}
+.c-settings-appearance__body[data-cols] .c-chat-canvas.c-settings-appearance__preview > * { position: relative; inset: auto; transform: none; }
+.c-settings-appearance__body[data-cols] .c-settings-appearance__chip { align-self: center; margin-block-end: auto; }
+.c-settings-appearance__body[data-cols] .c-settings-appearance__bubble--more { display: block; }
+.c-settings-appearance__body[data-cols] .c-settings-appearance__bubble[data-side='received'] { align-self: flex-start; }
+.c-settings-appearance__body[data-cols] .c-settings-appearance__bubble[data-side='sent'] { align-self: flex-end; }
+
+/* the sliders (the render's .ap__range): a 6 px track filled to the value (--p), a white 24 px thumb */
+.c-settings-appearance__slider { display: flex; align-items: center; gap: 12px; padding: 14px 18px 16px; }
+.c-settings-appearance__corners { padding-block-start: 6px; }
+.c-settings-appearance__range {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.c-settings-appearance__range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--surface-action-default) var(--p, 50%), var(--surface-neutral-02) var(--p, 50%));
+}
+[dir='rtl'] .c-settings-appearance__range::-webkit-slider-runnable-track {
+  background: linear-gradient(to left, var(--surface-action-default) var(--p, 50%), var(--surface-neutral-02) var(--p, 50%));
+}
+.c-settings-appearance__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #fff;                     /* sanctioned: the render's white thumb, both themes */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .06), 0 3px 8px rgba(20, 30, 80, .3);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+}
+.c-settings-appearance__range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--surface-neutral-02); }
+.c-settings-appearance__range::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--surface-action-default); }
+.c-settings-appearance__range::-moz-range-thumb { width: 24px; height: 24px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(20, 30, 80, .3); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__range:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+.c-settings-appearance__a { font-weight: var(--font-weight-bold); color: var(--text-neutral-02); }
+.c-settings-appearance__a--s { font-size: 12px; }    /* sanctioned: the slider's end marks ARE its range */
+.c-settings-appearance__a--l { font-size: 20px; }    /* sanctioned: as above */
+.c-settings-appearance__val {
+  min-inline-size: 26px;
+  text-align: end;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-action-default);
+  font-feature-settings: "tnum" 1;
+}
+.c-settings-appearance__cn { flex: none; width: 22px; height: 18px; border: 2.2px solid var(--text-neutral-02); border-inline-start: 0; border-block-end: 0; }
+.c-settings-appearance__cn--s { border-start-end-radius: 3px; }
+.c-settings-appearance__cn--l { border-start-end-radius: 14px; }
+
+/* (2) the canvas: a scroll row of mini chats (the render's .ap__th) */
 .c-settings-appearance__ground { cursor: default; }
-.c-settings-appearance__dots { display: flex; gap: var(--spacing-4); margin-inline-start: auto; }
+.c-settings-appearance__dots {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 18px 16px;
+  scroll-padding-inline: 18px;          /* the snap keeps the 18 px inset (without it the first tile snaps to the card edge) */
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.c-settings-appearance__dots::-webkit-scrollbar { display: none; }
 .c-settings-appearance__dot {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  cursor: pointer;
+  scroll-snap-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-appearance__dot-face {
+  position: relative;
+  display: block;
+  width: 92px;
+  height: 124px;
+  border-radius: 18px;
+  background: var(--gradient-chat);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+  overflow: hidden;
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+.c-settings-appearance__dot:active .c-settings-appearance__dot-face { transform: scale(.96); }
+.c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__dot-face {
+  box-shadow: 0 0 0 2.5px var(--surface-settings-card), 0 0 0 4.5px var(--surface-action-default);
+}
+/* the face also wears .c-chat-canvas (the real canvas paint), whose rule says flex: 1 / min-height: 0 and lifts every
+   child (position: relative) — the double class keeps the tile its 124 px and places the bars, the check and the name */
+.c-chat-canvas.c-settings-appearance__dot-face { flex: none; height: 124px; min-height: 124px; }
+.c-chat-canvas.c-settings-appearance__dot-face > .c-settings-appearance__mini,
+.c-chat-canvas.c-settings-appearance__dot-face > .c-settings-appearance__ok,
+.c-chat-canvas.c-settings-appearance__dot-face > .c-settings-appearance__dot-name { position: absolute; }
+/* the pattern in miniature (the render: the 400 × 320 drawing sliced into the 92 × 124 tile) */
+.c-chat-canvas.c-settings-appearance__dot-face::before { -webkit-mask-size: 155px 124px; mask-size: 155px 124px; -webkit-mask-position: center; mask-position: center; }
+.c-settings-appearance__mini { height: 16px; border-radius: 8px; }
+.c-settings-appearance__mini--r { inset-block-start: 18px; inset-inline-start: 9px; width: 52px; background: var(--surface-bubble-received); }
+.c-settings-appearance__mini--s { inset-block-start: 42px; inset-inline-end: 9px; width: 44px; background: var(--surface-bubble-sent); transition: background-color .45s ease; }
+.c-settings-appearance__mini--r2 { inset-block-start: 66px; inset-inline-start: 9px; width: 38px; background: var(--surface-bubble-received); }
+.c-settings-appearance__ok {
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-action-default);
+  color: #fff;                          /* sanctioned: white check on the action disc */
+}
+.c-settings-appearance__ok svg { width: 14px; height: 14px; }
+.c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__ok { display: inline-flex; }
+.c-settings-appearance__dot-name {
+  inset-inline: 6px;
+  inset-block-end: 7px;
+  padding: 3px 0;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, .82); /* sanctioned: the render's name pill on a picture, both themes */
+  color: #1b1d2a;                       /* sanctioned: dark ink on that pill */
+  font-size: 11px;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-settings-appearance__dot:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 4px; }
+
+/* (3) background: three tiles on the picked canvas (the render's .ap__pt) */
+.c-settings-appearance .c-settings-swatches--style {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 4px 18px 16px;
+}
+.c-settings-appearance .c-settings-swatch {
+  height: 72px;
+  border: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+}
+.c-settings-appearance .c-settings-swatch[aria-checked='true'] {
+  border: 0;
+  box-shadow: 0 0 0 2.5px var(--surface-settings-card), 0 0 0 4.5px var(--surface-action-default);
+}
+.c-settings-appearance .c-settings-swatch .c-settings-swatch__canvas { background: var(--gradient-chat); }
+.c-settings-appearance .c-settings-swatch .c-settings-swatch__label {
+  position: absolute;
+  inset-inline-start: 8px;
+  inset-block-end: 7px;
+  max-width: calc(100% - 16px);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, .82); /* sanctioned: the render's label pill on a picture */
+  color: #1b1d2a;                       /* sanctioned */   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-settings-appearance .c-settings-swatch[aria-checked='true'] .c-settings-swatch__label { color: #1b1d2a; }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+
+/* (3) bubble colour: glossy discs (the render's .ap__col) in 44 px targets */
+.c-settings-appearance__colours { display: flex; flex-wrap: wrap; gap: 0; padding: 0 13px 12px; }
+.c-settings-appearance__colour {
   width: 44px;
   height: 44px;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   background: transparent;
   display: inline-flex;
   align-items: center;
@@ -4307,36 +5051,130 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.c-settings-appearance__dot-face {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background: var(--gradient-chat);
-  box-shadow: inset 0 0 0 1px var(--outline-on-card);
+.c-settings-appearance__colour-face {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface-bubble-sent);
+  box-shadow: inset 0 -3px 6px rgba(0, 0, 0, .18), inset 0 2px 3px rgba(255, 255, 255, .25);   /* sanctioned: the render's gloss */
+  color: var(--text-bubble-sent);
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-bold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .15s ease, background-color .45s ease;
 }
-/* ★ #1066 r2 (MINOR-4): in DARK the two dots read as two black circles (the gradient's top stop is
-   1.14:1 off the solid #0C0E10, and a 32px face shows mostly its dark half). The GRADIENT dot paints
-   the ground's top — its blue-violet half — so the choice is legible; the chat and the preview keep
-   the full ramp. Light is untouched (its pair already differs clearly). */
-:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='gradient'] {
-  background: linear-gradient(180deg, #1C2448 0%, #151B36 100%);   /* sanctioned: a swatch face for the #1066 dark ground — its top stop #151B36 plus one lighter step so the 32px dot separates from the solid dot; no semantic role carries a dot face */
+.c-settings-appearance__colour:active .c-settings-appearance__colour-face { transform: scale(.92); }
+.c-settings-appearance__colour[aria-checked="true"] .c-settings-appearance__colour-face {
+  box-shadow: 0 0 0 3px var(--surface-settings-card), 0 0 0 5px var(--surface-action-default);   /* #46 r1 m2: the action ring of the other tiles (≥ 3 : 1 in dark; the colour itself was 1.2–3.2) */
 }
-/* ★ S8 (#1237): the same rule for the two new dark grounds — each dot paints its ground's TOP (DG1 Forest #11231A, DB1 Azure
-   #0D2238) plus one lighter step, so the four dark dots read as four choices, not four black circles. */
-:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='green'] {
-  background: linear-gradient(180deg, #1A3326 0%, #11231A 100%);   /* sanctioned: a swatch face for the S8 dark green ground — its top stop plus one lighter step (the #1066 r2 rule) */
+.c-settings-appearance__colour[aria-checked="true"] .c-settings-appearance__colour-face:not([data-auto])::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  background: #fff;                     /* sanctioned: the render's white "picked" dot */
 }
-:root[data-theme='dark'] .c-settings-appearance__dot-face[data-chat-ground='blue'] {
-  background: linear-gradient(180deg, #173452 0%, #0D2238 100%);   /* sanctioned: a swatch face for the S8 dark blue ground — its top stop plus one lighter step (the #1066 r2 rule) */
+.c-settings-appearance__colour:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
+
+/* (4) the theme: three mini phones (System = half light, half dark) */
+.c-settings-appearance__themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 520px; padding: 6px 18px 16px; }   /* capped: three phones, not three slabs, on a wide pane */
+.c-settings-appearance__theme {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-neutral-01);
+  font: inherit;
+  font-size: var(--font-size-label-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.c-settings-appearance__dot[aria-checked="true"] .c-settings-appearance__dot-face {
-  box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default);
+.c-settings-appearance__phone {
+  position: relative;
+  width: 100%;
+  height: 96px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #eceef1;                  /* sanctioned: the LIGHT phone face — a fixed picture of the light theme */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
 }
-@media (hover: hover) and (pointer: fine) {
-  .c-settings-appearance__dot:hover .c-settings-appearance__dot-face { box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-neutral-03); }
-  .c-settings-appearance__dot[aria-checked="true"]:hover .c-settings-appearance__dot-face { box-shadow: inset 0 0 0 1px var(--outline-on-card), 0 0 0 2px var(--surface-settings-card), 0 0 0 4px var(--outline-action-default); }
+.c-settings-appearance__phone[data-mode='dark'] { background: #0c0e10; }   /* sanctioned: the DARK phone face */
+.c-settings-appearance__phone[data-mode='system'] { background: linear-gradient(90deg, #eceef1 50%, #0c0e10 50%); }   /* sanctioned */   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+[dir='rtl'] .c-settings-appearance__phone[data-mode='system'] { background: linear-gradient(270deg, #eceef1 50%, #0c0e10 50%); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__phone i { position: absolute; display: block; height: 10px; border-radius: 5px; }
+.c-settings-appearance__phone-bar { inset-block-start: 0; inset-inline: 0; height: 14px !important; border-radius: 0 !important; background: rgba(127, 127, 127, .22); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__phone-r { inset-block-start: 28px; inset-inline-start: 8px; width: 40%; background: rgba(127, 127, 127, .45); }   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__phone-s { inset-block-start: 46px; inset-inline-end: 8px; width: 46%; background: #2160c2; }   /* sanctioned: today's blue, as a picture */
+.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__phone {
+  box-shadow: 0 0 0 2.5px var(--surface-settings-card), 0 0 0 4.5px var(--surface-action-default);
 }
-.c-settings-appearance__dot:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
+/* ★ S17 C (Damir 20:21: "just a selected rim over the tile and a check icon in a blue circle"): the radio under the phone
+   is gone — no other screen uses one. The picked tile keeps the blue rim and carries a white check in a blue disc on its
+   top corner; the same mark sits on the chat-list cards, so both rows say "picked" one way. */
+.c-settings-appearance__pick {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 2px var(--surface-settings-card), 0 2px 6px rgba(10, 20, 60, .25);   /* sanctioned: the badge's lift */
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity .16s ease, transform .2s cubic-bezier(.3, 1.4, .5, 1);
+}
+.c-settings-appearance__pick > svg { width: 14px; height: 14px; }
+.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__pick,
+.c-settings-appearance__line[aria-checked="true"] .c-settings-appearance__pick { opacity: 1; transform: none; }
+.c-settings-appearance__line .c-settings-appearance__pick { inset-block-start: auto; inset-block-end: 10px; inset-inline-end: 10px; }   /* on the label row, clear of the mini list */
+.c-settings-appearance__theme[aria-checked="true"] .c-settings-appearance__theme-name { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }
+@media (prefers-reduced-motion: reduce) { .c-settings-appearance__pick { transition: none; } }
+.c-settings-appearance__theme:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+
+/* (5) the chat list: 1 / 2 lines as mini lists (the render's .ap__ln) */
+.c-settings-appearance__lines { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 520px; padding: 6px 18px 12px; }
+.c-settings-appearance__line {
+  position: relative;
+  padding: 12px 12px 34px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-settings-ground);   /* the render's faint well (its --surface-neutral-01 fallback); ours is white on the card */
+  color: var(--text-neutral-01);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings-appearance__line[aria-checked="true"] { box-shadow: 0 0 0 2px var(--surface-action-default); }
+.c-settings-appearance__line:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+.c-settings-appearance__minilist { display: block; }
+.c-settings-appearance__minirow { display: flex; align-items: flex-start; gap: 8px; margin-block-end: 8px; }
+.c-settings-appearance__miniav { flex: none; display: block; width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(150deg, #9ccbff, #2f7be3); }   /* sanctioned: the render's sample avatars */
+.c-settings-appearance__minirow + .c-settings-appearance__minirow .c-settings-appearance__miniav { background: linear-gradient(150deg, #ffb3c8, #b45cff); }   /* sanctioned */   /* sanctioned: the render's own value (appearance-render.html) — a fixed picture of a theme, a thumb or a lift */
+.c-settings-appearance__minitx { flex: 1; display: flex; flex-direction: column; gap: 4px; padding-block-start: 2px; }
+.c-settings-appearance__minit, .c-settings-appearance__minil { display: block; height: 5px; border-radius: 3px; background: var(--text-neutral-02); opacity: .35; }
+.c-settings-appearance__minit { width: 60%; opacity: .7; }
+.c-settings-appearance__line-name { position: absolute; inset-inline-start: 12px; inset-block-end: 10px; font-size: var(--font-size-label-sm); font-weight: var(--font-weight-semibold); }
+
+@media (prefers-reduced-motion: reduce) {
+  .c-chat-canvas.c-settings-appearance__preview,
+  .c-chat-canvas.c-settings-appearance__preview > .c-settings-appearance__bubble,
+  .c-settings-appearance__mini--s,
+  .c-settings-appearance__dot-face,
+  .c-settings-appearance__colour-face { transition: none; }
+}
 
 </style><!-- Chat appearance takeover (6e.2) -->
 <style data-src="../styles/components/settings-backup.css">
@@ -4591,6 +5429,282 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
 }
 
 </style><!-- Backup sublevel in the pane (#243) -->
+<style data-src="../styles/components/whats-new.css">
+/* ★ S17 A (#1338) — WHAT'S NEW: the spotlight card (kit-render.html § What's new, CLEAN BLUE, LOCKED). A port of the
+   render's .wt / .sp rules (parts/render.css) with the CLEAN BLUE end values baked in (parts-e/kit.css
+   :root[data-pal="blue"] — the palette swap itself is not ported). The scenes and their motion live in illo.css;
+   their ground is --wn-ground-a/-b (tokens.css). Semantic tokens; logical properties (RTL-safe). */
+
+.c-whatsnew {
+  --wn-art-h: clamp(150px, 27vh, 228px);   /* the render's art band: 27 % of the screen, 150–228 px */
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-16);
+  padding-block: calc(var(--spacing-16) + var(--safe-top, 0px)) calc(var(--spacing-16) + var(--safe-bottom, 0px));
+  pointer-events: none;                    /* the card takes the touches; the scrim under it catches the rest */
+  outline: none;
+}
+.c-whatsnew > * { pointer-events: auto; }
+
+/* the card: the sheet ground, one entrance (rise + scale), the panel on top, the text on the sheet */
+.c-whatsnew__card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;                     /* sanctioned: the render's card radius */
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--surface-sheet);
+  box-shadow: var(--elevation-3);
+  opacity: 0;
+  transform: translateY(18px) scale(.95);
+  transition: opacity 420ms var(--easing-decelerate), transform 420ms var(--easing-decelerate);
+}
+.c-whatsnew[data-open] .c-whatsnew__card { opacity: 1; transform: none; }
+.c-whatsnew__card:focus { outline: none; }   /* a programmatic landing spot (whats-new.js), never a control */
+/* dark: the card stands off the screen — a deeper scrim, a light rim, a soft blue glow (kit.css "DARK" block) */
+:root[data-theme="dark"] .c-whatsnew__card {
+  box-shadow: 0 30px 70px -18px rgba(0, 0, 0, .85), 0 0 90px -30px rgba(70, 120, 255, .45);   /* sanctioned: the render's dark lift + glow */
+}
+:root[data-theme="dark"] .c-whatsnew__card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 0 0 1px rgba(255, 255, 255, .08);   /* sanctioned: the render's light rim */
+}
+:root[data-theme="dark"] .c-scrim[data-wn] { background: rgba(2, 4, 12, .74); }   /* sanctioned: the render's deeper dark scrim (whats-new.js tags its own scrim) */
+/* desktop: no dim (Damir's pick) — the card carries its own lift */
+.c-whatsnew[data-desktop] .c-whatsnew__card { box-shadow: 0 24px 60px -16px rgba(10, 20, 60, .45), 0 0 0 1px var(--outline-sheet-01); }   /* sanctioned: a lift with no scrim behind it */
+
+/* the slides */
+.c-whatsnew__vp { position: relative; z-index: 1; overflow: hidden; touch-action: pan-y; cursor: grab; flex: 1 1 auto; min-height: 0; }
+.c-whatsnew__track { display: flex; transition: transform var(--duration-300) var(--easing-standard); }
+.c-whatsnew__card[data-drag] .c-whatsnew__track,
+.c-whatsnew__card[data-drag] .c-whatsnew__layer { transition: none; }
+.c-whatsnew__slide { flex: 0 0 100%; min-width: 0; display: flex; flex-direction: column; }
+.c-whatsnew__art {
+  position: relative;
+  flex: none;
+  height: var(--wn-art-h);
+  overflow: hidden;
+  background: linear-gradient(150deg, var(--wn-ground-a), var(--wn-ground-b));   /* the frame before the scene paints = its ground */
+}
+:root[data-theme="dark"] .c-whatsnew__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }   /* sanctioned: the art / text split, dark */
+.c-whatsnew__layer { position: absolute; inset: 0; transition: transform var(--duration-300) var(--easing-standard); will-change: transform; }
+.c-whatsnew__text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 18px 22px 2px;                  /* sanctioned: the render's text inset */
+  text-align: center;
+}
+.c-whatsnew__eyebrow {
+  margin: 0;
+  color: var(--text-action-default);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: .02em;
+}
+.c-whatsnew__title {
+  margin: 0;
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-heading-sm);
+  line-height: var(--line-height-heading-sm);
+  letter-spacing: var(--tracking-heading-sm, 0);
+  font-weight: var(--font-weight-bold);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.c-whatsnew__body {
+  margin: 0;
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* the foot: dots + Next / Got it */
+.c-whatsnew__foot { position: relative; z-index: 1; flex: none; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 14px 20px 20px; }
+.c-whatsnew__dots { display: flex; gap: 6px; align-items: center; }
+.c-whatsnew__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-neutral-03);
+  cursor: pointer;
+  position: relative;
+  transition: width var(--duration-200) var(--easing-standard), background-color var(--duration-300) var(--easing-standard);
+}
+.c-whatsnew__dot::after { content: ""; position: absolute; inset: -12px -4px; }   /* the 8 px dot reaches a 32 px hit box */
+.c-whatsnew__dot[aria-selected="true"] { width: 22px; background: var(--surface-action-default); }
+.c-whatsnew__primary.c-button[data-size="56"] { height: auto; min-height: 56px; white-space: normal; text-align: center; line-height: 1.25; padding-block: var(--spacing-8); }
+
+/* × on the panel: a frosted white disc (the render's CLEAN BLUE value) */
+.c-whatsnew__x {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .2);     /* sanctioned: the render's frosted × on the vivid panel */
+  color: #fff;                             /* sanctioned: white glyph on the vivid panel */
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.c-whatsnew__x::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; }   /* 44 px hit box */
+.c-whatsnew__x:focus-visible, .c-whatsnew__dot:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
+
+/* desktop: arrows beside the card */
+.c-whatsnew__row { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; max-height: 100%; }
+.c-whatsnew__side {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-sheet);
+  color: var(--icon-neutral-01);
+  box-shadow: var(--elevation-2);
+  cursor: pointer;
+}
+.c-whatsnew__side[disabled] { opacity: .35; cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .c-whatsnew__side:not([disabled]):hover { background: var(--surface-interactive-hover); }
+}
+
+/* the narrow phone (320 × 568): the band gives way first */
+@media (max-height: 600px) { .c-whatsnew { --wn-art-h: 136px; } .c-whatsnew__text { padding-block-start: 12px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .c-whatsnew__card, .c-whatsnew__track, .c-whatsnew__layer, .c-whatsnew__dot { transition: none; }
+}
+
+</style><!-- ★ S17 A (#1338): the What's new card from About -->
+<style data-src="../styles/components/moment-sheet.css">
+/* ★ S17 F (#1340) — c-moment: the Moment sheets (moment-sheet.js). A port of the render's .sheet / .panel / .caps rules
+   (docs/renders/whats-new/parts-j/mo.css) on today's c-sheet, with Damir's 20:37 change: the art is FULL-BLEED at the
+   top of the sheet — the sheet's own top corners clip it and the grab handle sits white on the art. The art ground =
+   the What's new panel (--wn-ground-a → -b, tokens.css); the drawings' motion lives in illo.css. Semantic tokens;
+   logical properties (RTL-safe). */
+
+.c-sheet.c-moment__sheet { padding-top: 0; }
+:root[data-desktop] .c-sheet.c-moment__sheet { padding-top: 0; }
+/* the grab handle on the art: white, over it (the sheet's own handle, moved) */
+.c-moment__sheet > .c-sheet__handle {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: var(--spacing-8);
+  inset-inline-start: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, .72);   /* sanctioned: the handle on the vivid art (the What's new × grammar) */
+}
+[dir="rtl"] .c-moment__sheet > .c-sheet__handle { transform: translateX(50%); }
+
+.c-moment {
+  --mo-art-h: 164px;                       /* sanctioned: the render's 150 px panel at full bleed (360 × 150 art, slice) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.c-moment[data-caps] { --mo-art-h: 128px; }   /* the render's shorter panel when the capability rows follow */
+
+/* full bleed: out to the sheet's edges (mobile 16 px sides, desktop dialog 24 px) */
+.c-moment__art {
+  position: relative;
+  align-self: stretch;
+  height: var(--mo-art-h);
+  margin-inline: calc(-1 * var(--spacing-16));
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--wn-ground-a), var(--wn-ground-b));
+}
+:root[data-desktop] .c-moment__art { margin-inline: calc(-1 * var(--spacing-24)); }
+:root[data-theme="dark"] .c-moment__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }   /* sanctioned: the art / text split, dark (the What's new rule) */
+.c-moment__illo { display: block; width: 100%; height: 100%; }
+
+.c-moment__title {
+  margin: var(--spacing-16) 0 6px;
+  color: var(--text-neutral-01);
+  font-size: 21px;                         /* sanctioned: the render's sheet title */
+  line-height: 1.25;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -.2px;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.c-moment[data-caps] .c-moment__title { margin-block-start: var(--spacing-12); }
+.c-moment__body {
+  margin: 0 0 18px;                        /* sanctioned: the render's body foot */
+  max-width: 290px;
+  color: var(--text-neutral-02);
+  font-size: 15px;                         /* sanctioned: the render's body size */
+  line-height: 1.45;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.c-moment__btns { align-self: stretch; display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-moment__btns .c-button[data-type="text"] { margin-block-start: -4px; }
+.c-moment__btns .c-button[data-size="56"] { height: auto; min-height: 56px; white-space: normal; line-height: 1.25; padding-block: var(--spacing-8); }
+
+/* the app moment: the app's own capability rows (the details page's vocabulary) */
+.c-moment__caps {
+  align-self: stretch;
+  margin: var(--spacing-4) 0 var(--spacing-12);
+  padding: 0;
+  list-style: none;
+  background: var(--surface-sheet-card);
+  border-radius: 18px;                     /* sanctioned: the render's card radius */
+  text-align: start;
+}
+.c-moment__cap { display: flex; gap: var(--spacing-12); align-items: center; padding: var(--spacing-8) 14px; }
+.c-moment__cap + .c-moment__cap { border-block-start: 1px solid var(--outline-sheet-01); }
+.c-moment__cap-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;                             /* sanctioned: the white glyph on the render's blue tile */
+  background: linear-gradient(160deg, #8fb0ff, #3a6ce0);   /* sanctioned: the render's capability tile */
+}
+.c-moment__cap-tile svg { width: 18px; height: 18px; }
+.c-moment__cap-tile svg [stroke] { stroke: currentColor; }
+.c-moment__cap-text { display: flex; flex-direction: column; min-width: 0; }
+.c-moment__cap-text b { font-size: 14.5px; color: var(--text-neutral-01); }   /* sanctioned: the render's row label */
+.c-moment__cap-text small { font-size: 12.5px; line-height: 1.35; color: var(--text-neutral-02); }   /* sanctioned: the render's row line */
+
+</style><!-- ★ S17 F (#1340): the AI translation moment -->
 <style data-src="../styles/components/illo.css">
 /* illo — ★ S11 B (#1262): motion for the inline illustration set (illustrations.js).
    ONE entrance, then the frame holds (every animation runs once, fill both; nothing
@@ -4653,6 +5767,86 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
 @media (prefers-reduced-motion: reduce) {
   .il *, .rn-illo * { animation: none !important; }
   .rn-rise, .rn-pop { opacity: .9; }
+}
+
+/* ═══ ★ S17 (#1331) — motion for the S17 art (What's new scenes wn-, About glass ab-, the calm chest ch-, the
+   Moment drawings mo-, the Contributors heart ct-). Ported from the design render (docs/renders/whats-new). ═══ */
+
+/* ---------- roots ---------- */
+/* a layer fills its panel (bg under fg, both absolute); the slice roots clip, the What's new foreground may overhang */
+.il.wn-l, .il.ab-l, .il.ct-l { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.il.wn-l--bg, .il.ab-l, .il.ct-l, .il.mo-art { overflow: hidden; }
+.il.wn-l--fg { overflow: visible; }
+.wn-glow { opacity: var(--wn-glow-a, .06); }                              /* the scene glow: 6 % light · 10 % dark */
+
+/* ---------- ENTRANCES (once, then hold) ---------- */
+.il-wn-pulse { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ilWnPulse 2.4s ease-out var(--o, 0s) 3 both; }
+.il-wn-nudge { animation: ilWnNudge 1.2s cubic-bezier(.3, .7, .3, 1) var(--o, .2s) both; }
+.il-wn-off { animation: ilWnOff .35s ease var(--o, 0s) both; }
+.il-wn-knob { animation: ilWnKnob .45s cubic-bezier(.3, 1.3, .5, 1) var(--o, 0s) both; }
+.il-wn-dim { animation: ilWnDim .6s ease var(--o, 0s) both; }
+.il-wn-tap { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ilWnTap .8s ease-out var(--o, 0s) both; }
+.il-ch-in { animation: ilChIn .7s cubic-bezier(.2, .7, .2, 1) var(--o, 0s) both; }
+.il-ch-lid { transform-box: fill-box; transform-origin: 50% 100%; animation: ilChLid 1s cubic-bezier(.25, .8, .25, 1) .35s both; }
+.il-ch-rise { animation: ilChRise .9s cubic-bezier(.2, .7, .2, 1) var(--o, 0s) both; }
+.il-mo-in { animation: ilMoIn .7s cubic-bezier(.2, .75, .2, 1) calc(var(--o, 0s) + .25s) both; }
+.il-mo-ring { stroke-dashoffset: 100; animation: ilMoRing 1.6s cubic-bezier(.4, 0, .2, 1) .9s both; }
+@keyframes ilWnPulse { from { transform: scale(1); opacity: .8; } to { transform: scale(2.2); opacity: 0; } }
+@keyframes ilWnNudge { 0% { transform: translateX(-10px); opacity: 0; } 22% { opacity: 1; transform: none; } 55% { transform: translateX(20px); } 100% { transform: none; } }
+@keyframes ilWnOff { to { opacity: 0; } }
+@keyframes ilWnKnob { to { transform: translateX(-24px); } }
+@keyframes ilWnDim { to { opacity: .6; } }
+@keyframes ilWnTap { 0% { transform: scale(.4); opacity: 0; } 30% { opacity: .6; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes ilChIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ilChLid { from { transform: scaleY(.3); } to { transform: none; } }
+@keyframes ilChRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes ilMoIn { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+@keyframes ilMoRing { to { stroke-dashoffset: 0; } }
+
+/* the end frame once held (illo.css's `.il[data-held] *` already does this; listed so the s17 set states it itself) */
+.il[data-held] .il-wn-pulse, .il[data-held] .il-wn-nudge, .il[data-held] .il-wn-off, .il[data-held] .il-wn-knob,
+.il[data-held] .il-wn-dim, .il[data-held] .il-wn-tap, .il[data-held] .il-ch-in, .il[data-held] .il-ch-lid,
+.il[data-held] .il-ch-rise, .il[data-held] .il-mo-in, .il[data-held] .il-mo-ring { animation-delay: -60s !important; }
+
+/* ---------- LOOPS (.wn-loop; ≤ 0.5 Hz; transform / opacity only; delay in --ld) ---------- */
+.wn-drift { --ld: 0s; animation: wnDrift var(--d, 16s) ease-in-out var(--ld) infinite alternate; }
+.wn-tw { --ld: calc(var(--i, 0) * -.7s); animation: wnTw 3.6s ease-in-out var(--ld) infinite alternate; }
+.wn-rise { --ld: 0s; animation: wnRise var(--d, 12s) ease-in-out var(--ld) infinite alternate; }
+.wn-bar { --ld: calc(var(--i, 0) * -.17s); transform-box: fill-box; transform-origin: center; animation: wnBar 2.6s ease-in-out var(--ld) infinite alternate; }
+.wn-pan { --ld: 0s; animation: wnPan 28s ease-in-out var(--ld) infinite alternate; }
+.wn-ripple { --ld: var(--o, 0s); transform-box: fill-box; transform-origin: center; animation: wnRipple 6s ease-out var(--ld) infinite; }
+.wn-orbit { --ld: 0s; transform-box: view-box; transform-origin: 200px 120px; animation: wnOrbit 90s linear var(--ld) infinite; }
+.wn-orbit--rev { animation-duration: 70s; animation-direction: reverse; }
+.wn-bob { --ld: var(--bd, 1.6s); animation: wnBob var(--d, 5s) ease-in-out var(--ld) infinite alternate; }
+.ch-float { --ld: 2.2s; animation: chFloat var(--d, 7s) ease-in-out var(--ld) infinite alternate; }
+.mo-float { --ld: 1.2s; animation: moFloat var(--d, 14s) ease-in-out var(--ld) infinite alternate; }
+.mo-tw { --ld: calc(var(--i, 0) * -.7s); animation: moTw 3.2s ease-in-out var(--ld) infinite alternate; }
+.ct-tw { --ld: calc(var(--i, 0) * -.6s); animation: ctTw 3.4s ease-in-out var(--ld) infinite alternate; }
+@keyframes wnDrift { to { transform: translate(var(--dx), var(--dy)); } }
+@keyframes wnTw { from { opacity: .12; } to { opacity: .9; } }
+@keyframes wnRise { to { transform: translateY(-34px); } }
+@keyframes wnBar { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+@keyframes wnPan { to { transform: translate(-64px, -40px); } }
+@keyframes wnRipple { from { transform: scale(.6); opacity: .55; } to { transform: scale(5); opacity: 0; } }
+@keyframes wnOrbit { to { transform: rotate(360deg); } }
+@keyframes wnBob { to { transform: translateY(-5px); } }
+@keyframes chFloat { to { transform: translateY(-3px); } }
+@keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
+@keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
+@keyframes ctTw { from { opacity: .2; } to { opacity: .95; } }
+
+/* a held drawing: loops keep their own delay (no jump); paused on demand */
+.il[data-held] .wn-loop { animation-delay: var(--ld, 0s) !important; }
+.wn-paused .wn-loop, .il[data-paused] .wn-loop { animation-play-state: paused; }
+
+/* ---------- reduced motion: the END frame, no loop ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .il .wn-loop { animation: none !important; }
+  .il .il-wn-off { opacity: 0; }
+  .il .il-wn-knob { transform: translateX(-24px); }
+  .il .il-wn-dim { opacity: .6; }
+  .il .il-mo-ring { stroke-dashoffset: 0; }
+  /* il-wn-pulse · il-wn-tap: their base opacity 0 is the end frame */
 }
 
 </style><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
@@ -6864,6 +8058,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   const {
     createSettingsHub, createSettingsDanger,
     createSettingsAbout, createSettingsHowTo,
+    createWhatsNew, whatsNewSlides,   // ★ S17 A (#1338): the What's new card, opened from About
+    showMomentSheet, createMomentClient, momentAfterResult,   // ★ S17 F (#1340): the AI translation moment
     createSettingsContributors, createSettingsBackup, setBackupScreenStatus,
     createSettingsDownloads, setDownloads,
     setDownloadsAvatars,             // ★ S10 F7 (#1254): the From sheet's sender avatars
@@ -7045,6 +8241,20 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
+  /* ★ S17 F (#1340, P28 · flag S17Moments, cap `moments`): Settings hosts ONE moment — the AI translation notice, after a
+     new language (not English) is applied, IN that language: C# pushes setMoments right AFTER setLocale (the live
+     re-localize, #334), so `strings` is already the new dictionary. #46 r1 (MINOR-1): asked only when the screen is clear
+     (the language sheet closed), so C#'s yes shows at once. */
+  const moments = createMomentClient({ bridge });
+  let langMomentTimer = 0;
+  function askLangMoment(code, tries) {
+    clearTimeout(langMomentTimer);
+    if (document.body.dataset.overlayOpen !== undefined || document.visibilityState !== 'visible') {
+      if (tries < 60) langMomentTimer = setTimeout(() => askLangMoment(code, tries + 1), 500);
+      return;
+    }
+    momentAfterResult(moments, 'lang', code, () => showMomentSheet({ id: 'lang', host: document.body, strings, ctx: {} }));
+  }
   /* #343: ONE call lights up press feedback for every pressable surface in this
      shell (src/components/pressable.js). Delegated on document, so rows created
      later by a re-render are covered without re-attaching. A new shell needs
@@ -7066,6 +8276,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * showRemoveAvatar(conditional) · loadAvatar · setVersion (S4) · setAddress (S1) ·
    * setLanguage (S3). It does NOT push backup status — that row degrades (BE gap S2). */
   const state = {
+    whatsNew: null,              // ★ S17 A (#1338): { version, show } once setWhatsNew lands (cap whatsnew)
     devSeed: null,               // ★ Session I ②: { status } once setDevSeed lands (dev builds only)
     name: '', savedName: '',
     address: '',                 // S1: setAddress push → QR/address block
@@ -7088,7 +8299,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
        Defaults match the C# defaults exactly, so the first paint cannot flicker: sender
        name OFF is today's shipped notification copy, byte for byte. */
     notifEnabled: true,
-    notifSenderName: false,
+    notifSenderName: true,     // ★ S17 (#1346, Damir 23:32): the C# default is ON now (SNotificationPrefs.showSenderName)
     notifSounds: true,
     hintsOn: true,          // ★ S11 (#1262): seeded by setHintsOff (C# SHints)
     callRingtone: true,        // ★ E-W4 (#1118): matches the C# default (KEY_CALL_RINGTONE = true)
@@ -7213,7 +8424,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * from here, from chat.html's pre-paint script and from applyPatternPrefs alike.
    * readPatternLevel migrates the legacy fractional values. */
   const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground',
-    previewLines: 'spixi.chat.previewlines' };   // ★ S10 P4 (#1254): '1' | '2' (absent / anything else = '1', ★ S11 #1261); the CONSUMER is home.html (the chats list)
+    previewLines: 'spixi.chat.previewlines',
+    sentColour: 'spixi.chat.sentcolour', corners: 'spixi.chat.corners' };   // ★ S17 C (#1334): the two NEW keys (absent = Auto · the token 18 px)   // ★ S10 P4 (#1254): '1' | '2' (absent / anything else = '1', ★ S11 #1261); the CONSUMER is home.html (the chats list)
   function readChatPrefs() {
     // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
     // mobile Default (1). Mirrors chat.html's pre-paint boot read so the
@@ -7238,11 +8450,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     try {
       pattern = readPatternLevel(localStorage.getItem(CHAT_PREFS.pattern), pattern);   // ★ N81 (#422)
       const t = parseFloat(localStorage.getItem(CHAT_PREFS.textScale));
-      if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.8, t));
+      if (!isNaN(t)) textScale = Math.min(1.5, Math.max(0.75, t));   // ★ S17 C: floor 0.75 (the slider's 12 px), in step with chat.html
       const st = localStorage.getItem(CHAT_PREFS.patternStyle);
       // ★ #835: 'triangles', 'lineart', 'doodles' and 'flow' are all retired and
       // deliberately absent here, so any of them falls through to the default above.
-      if (st === 'contours') patternStyle = st;   // ★ #997: a stored 'matrix' falls through
+      if (st === 'contours' || st === 'rings') patternStyle = st;   // ★ S17 C (#1335): + the rings   // ★ #997: a stored 'matrix' falls through
       const gr = localStorage.getItem(CHAT_PREFS.ground);
       /* ★ Session J (Damir, Windows: "sometimes it shows the gradient selected but doesn't have it
          applied"): this line only ever set 'gradient'. Since Session I the DEFAULT is 'gradient',
@@ -7250,11 +8462,19 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          while chat.html's ladder honoured the flat. Both stored values are read now. */
       // ★ #855 → #998: 'gradient' is ADMITTED again (the brand gradient, light only);
       // any other value falls through to 'flat' — the THIRD ladder, agreeing with chat.html's two.
-      if (gr === 'flat' || gr === 'gradient' || gr === 'green' || gr === 'blue') chatGround = gr;   // ★ #1080 F15: the third ladder admits the green gradient too · ★ S8 (#1237): and the blue   // ★ #998: anything else, incl. absent/corrupt → the default above
+      if (['flat', 'gradient', 'green', 'blue', 'aurora', 'dusk', 'ocean'].indexOf(gr) >= 0) chatGround = gr;   // ★ S17 C (#1334): + aurora · dusk · ocean   // ★ #1080 F15: the third ladder admits the green gradient too · ★ S8 (#1237): and the blue   // ★ #998: anything else, incl. absent/corrupt → the default above
     } catch (e) {}
     let previewLines = '1';   // ★ S11 (#1262): the default is 1 LINE (#1261)
     try { if (localStorage.getItem(CHAT_PREFS.previewLines) === '2') previewLines = '2'; } catch (e) {}   // ★ S10 P4: the home.html ladder's twin
-    return { pattern, textScale, patternStyle, chatGround, previewLines };
+    /* ★ S17 C (#1334): the two NEW keys, read the way chat.html reads them */
+    let sentColour = 'auto', corners = 18;
+    try {
+      const c = localStorage.getItem(CHAT_PREFS.sentColour);
+      if (['blue', 'violet', 'teal', 'pink', 'orange', 'graphite'].indexOf(c) >= 0) sentColour = c;
+      const k = parseFloat(localStorage.getItem(CHAT_PREFS.corners));
+      if (isFinite(k)) corners = Math.round(Math.min(22, Math.max(4, k)));
+    } catch (e) {}
+    return { pattern, textScale, patternStyle, chatGround, previewLines, sentColour, corners };
   }
 
   /* ★ security sweep E-1b — the remote-media opt-out, read here and written by the
@@ -7542,8 +8762,18 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(() => stamp('paint')));
   }
 
+  /* ★ S17 (#1339, 🟡 NEW verb, P26 · cap `topsurface`): the Android status bar sits over this WebView; while a full-bleed
+     header (About, Contributors) is under it, C# picks the bar ink against the band, not the light page. Exact words only
+     (plain | about | contrib), sent on a change; never in the desktop pane (no status bar there). */
+  let topSurface = 'plain';
+  function setTopSurface(kind) {
+    if (kind === topSurface || paneMode || !bridge.cap('topsurface')) return;
+    topSurface = kind;
+    try { bridge.send('ixian:topsurface:' + kind); } catch (e) { /* presentation only */ }
+  }
   function renderLayout() {
     if (exiting) return;                           // no re-render once the page is exiting
+    if (currentView !== 'about' && currentView !== 'contributors') setTopSurface('plain');
     // [CDPERF] settings-sub — ONE hook for every view (#798: not a list of the three
     // rows this session is about). Stamps only when the view actually changes.
     if (currentView !== subRendered) { subRendered = currentView; cdperfSubStart(currentView); }
@@ -8255,6 +9485,23 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
           onSeedHeavy: () => bridge.send('ixian:devseed:heavy'),   // ★ Session J: the count dial
           onUnseed: () => bridge.send('ixian:devunseed'),
         } : undefined,
+        /* ★ S17 A (#1338): the "What's new" row — only with the cap, a validated push and a slide table for that release;
+           "New" until opened in this version. Opening it is the same card as the auto-show; its close (every path) sends
+           ixian:whatsnew:done, so C# stores seen = this version. */
+        whatsNew: (state.whatsNew && whatsNewSlides(state.whatsNew.version)) ? {
+          version: state.whatsNew.version,
+          isNew: !!state.whatsNew.show,
+          onOpen: () => {
+            const v = state.whatsNew.version;
+            state.whatsNew.show = false;
+            createWhatsNew({
+              version: v, slides: whatsNewSlides(v), host: document.body,
+              desktop: document.documentElement.hasAttribute('data-desktop'), strings,
+              onDone: () => { try { bridge.send('ixian:whatsnew:done'); } catch (e) {} },
+            });
+          },
+        } : undefined,
+        onHeader: (over) => setTopSurface(over ? 'about' : 'plain'),   // ★ S17 (#1339)
         onBack: showHub,
       });
       case 'howto': return createSettingsHowTo({
@@ -8344,6 +9591,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       });
       case 'contributors': return createSettingsContributors({
         strings,
+        onHeader: (over) => setTopSurface(over ? 'contrib' : 'plain'),   // ★ S17 (#1339)
         onBack: contributorsBack,   // ★ S12 B (r1 R2-m1): → About when opened from About › Licences, else the hub
       });
       case 'chatappearance': {
@@ -8368,6 +9616,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
           onPreviewLines: (v) => { try { localStorage.setItem(CHAT_PREFS.previewLines, v === '1' ? '1' : '2'); } catch (e) {} },
           hintsOn: state.hintsOn,
           onHints: bridge.cap('hints') ? (next, ctrl) => { latchNotif('hintsOn', next, ctrl); } : undefined,   // ★ S11 (#1262)
+          /* ★ S17 C (#1334): the two NEW controls (the chat shell's ladders read the keys) + the Theme card (the SAME commit
+             the hub's theme sheet uses: applyTheme + ixian:appearance:<v>; the live flip re-renders this view, #772) */
+          sentColour: prefs.sentColour,
+          corners: prefs.corners,
+          onSentColour: (v) => { try { if (v === 'auto') localStorage.removeItem(CHAT_PREFS.sentColour); else localStorage.setItem(CHAT_PREFS.sentColour, String(v)); } catch (e) {} },
+          onCorners: (v) => { try { localStorage.setItem(CHAT_PREFS.corners, String(v)); } catch (e) {} },
+          theme: state.theme,
+          onTheme: (v, ctrl) => { state.theme = v; applyTheme(v); bridge.send('ixian:appearance:' + v); if (ctrl && ctrl.done) ctrl.done(); },
         }));
       }
       // #242/#243: Theme/Language as pane sublevels (the hub routes here via
@@ -8437,8 +9693,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
           onDeleteFile: (name, ctrl) => { bridge.send('ixian:deleteDownload:' + encodeURIComponent(name)); ctrl.done(); },  // C# re-pushes the list
           // ★★ #1107: "Show in chat" — a NAME only, encoded like open/delete; C# runs the same traversal guard, then its own index
           onShowInChat: (name) => bridge.send('ixian:showDownloadInChat:' + encodeURIComponent(name)),
-          // no onClearAll: same #264 audit rationale as downloads.html — the only
-          // bulk verb (ixian:deleted) lives on the DANGER screen with its confirm.
+          /* ★ S17 E (#1336, Damir: "clear-all reuses ixian:deleted"): the summary card's "Delete all downloads" sends the
+             SAME frozen verb the Delete data screen sends (SettingsPage.onDeleteDownloads), behind the same confirm
+             (settingsConfirm in the component). That handler does not re-push the list, so the screen asks for it again
+             — ixian:loadDownloads, the verb this case already sends; the native bridge queues the two in order (#N75).
+             downloads.html still passes none: DownloadsPage has no bulk verb (the #264 audit). */
+          onClearAll: (ctrl) => { bridge.send('ixian:deleted'); bridge.send('ixian:loadDownloads'); ctrl.done(); },
         });
         bridge.send('ixian:loadDownloads');   // request the list into THIS WebView
         return downloadsEl;
@@ -8869,6 +10129,39 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // setVersion(version) — S4 (SettingsPage.onLoad, mirrors LaunchPage:33);
     // feeds the hub Version row + the About takeover.
     setVersion(v) { appVersion = v || ''; scheduleRebuild(); },
+    /* ★ S17 A (#1338, 🟡 NEW push, P26): {"version":"<digits>","show":true|false} — the About row's "New" badge. Same
+       validation as home.html; a bad push changes nothing. */
+    /* ★ S17 F (#1340, 🟡 NEW push, P28): {"seen":[ids],"apps":[app ids],"lang":"<code>"|"","session":bool} — a pending
+       language asks once; C# answers yes for a new non-English language not seen before, in a session with no card */
+    setMoments(json) {
+      if (!bridge.cap('moments')) return;
+      moments.setState(String(json));
+      const st = moments.state;
+      if (st && st.lang) { clearTimeout(langMomentTimer); langMomentTimer = setTimeout(() => askLangMoment(st.lang, 0), 400); }
+    },
+    /* ★ S17 F (#1340, 🟡 NEW push): C#'s answer to ixian:moment:lang:<code> */
+    momentAnswer(id, arg, ok, caps) {
+      if (!bridge.cap('moments')) return;
+      moments.answer(String(id), String(arg == null ? '' : arg), String(ok), String(caps == null ? '' : caps));
+    },
+    /* ★ S17 F (#1340, #46 security r1, 🟡 NEW push): openScreen('privacy') — the auto-download offer in a chat asked C# to
+       open Settings › Privacy; this document shows that screen with the auto-download row in view. Exact id or nothing. */
+    openScreen(id) {
+      if (String(id) !== 'privacy') return;
+      showPrivacy();
+      setTimeout(() => {
+        const row = (paneMode ? detailWrap : root).querySelector('[data-pref="photoAutoDl"]');
+        if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
+      }, 120);
+    },
+    setWhatsNew(json) {
+      if (!bridge.cap('whatsnew')) return;
+      let o = null;
+      try { o = JSON.parse(String(json)); } catch (e) { return; }
+      if (!o || typeof o !== 'object' || typeof o.show !== 'boolean' || typeof o.version !== 'string' || !/^[0-9.]{1,16}$/.test(o.version)) return;
+      state.whatsNew = { version: o.version, show: o.show };
+      scheduleRebuild();
+    },
 
     // setAddress(address) — S1 (SettingsPage.onLoad). PLAIN identity address (legacy
     // share form, HomePage:322 — no ExtendedAddress _suffix, that's payment-only);

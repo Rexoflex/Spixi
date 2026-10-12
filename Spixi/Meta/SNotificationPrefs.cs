@@ -58,6 +58,10 @@ namespace SPIXI.Meta
         // dead-control class this project keeps shipping. So it is wired to the one
         // thing it CAN control, the sender name, and the copy is corrected to say so.
         // Message TEXT is still never included, on any setting.
+        // ★ S17 (#1346, Damir 2026-10-11 23:32: "the only one off by default … feels weird"): the default is now TRUE — a
+        // notification names the sender unless the user turns the switch off (the per-TYPE line stays when it is off). A
+        // stored value (either way) is kept. iOS: the extension's shared store carries the value at its next write
+        // (SPushPrefsShare); until then the extension's own default (false) applies.
         private const string KEY_SENDER_NAME = "notif_sender_name";
         // In-app sound effects. Default TRUE, but note that with no assets shipped yet
         // every effect is a fail-soft no-op, so the default cannot change behaviour.
@@ -114,7 +118,7 @@ namespace SPIXI.Meta
 
         public static bool showSenderName
         {
-            get { return getBool(KEY_SENDER_NAME, false); }
+            get { return getBool(KEY_SENDER_NAME, true); }   // ★ S17 (#1346): default ON (Damir)
             set { setBool(KEY_SENDER_NAME, value); shareForPushExtension(); }
         }
 
@@ -174,7 +178,10 @@ namespace SPIXI.Meta
         {
             try
             {
-                string name = friend?.nickname ?? "";
+                /* ★ S17 (#1346, #46 security r3 MINOR-1): the nickname is PEER-CONTROLLED and, with the sender name ON by default,
+                 * reaches every lock screen — controls, separators, format and bidi characters go first (the #1178 member-name
+                 * rule, FileRowRules.sanitizeMemberName), and a usable name is capped (memberNameForNotification). */
+                string name = FileRowRules.sanitizeMemberName(friend?.nickname);
                 if (string.IsNullOrEmpty(name))
                 {
                     return "";
@@ -190,7 +197,7 @@ namespace SPIXI.Meta
                 {
                     return truncateMiddle(name);
                 }
-                return name;
+                return FileRowRules.memberNameForNotification(name);
             }
             catch (Exception)
             {

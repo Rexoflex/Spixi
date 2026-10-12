@@ -3218,7 +3218,7 @@
   /* ★★ S17 F (#1340) — THE MOMENT SHEETS IN THE CHAT. The after-the-result ones (auto-download, offline sender) wait for a
      clear screen (no sheet or menu open, the chat visible), then show; the confirm-step ones (mic · app · pay) are the
      user's own tap and show at once (momentBeforeAction). */
-  const OFFLINE_MOMENT_MS = 10000;                  // a manual download with no first tick by then = waiting for the sender's device
+  const OFFLINE_MOMENT_MS = 5000;                   // a manual download with no first tick by then = waiting for the sender's device · ★ S18 D1 (S17 walk MO-OFFLINE, Damir 17:17: "10 s is too long; 5 s max"): 10000 → 5000
   let offlineMomentTimer = 0;
   const chatMomentWaiting = [];
   let chatMomentRetry = 0;

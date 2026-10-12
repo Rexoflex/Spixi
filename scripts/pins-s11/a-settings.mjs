@@ -1,6 +1,9 @@
-/* ==== ★ S11 A2 (#1263, R3-MINOR-1) — the hints switch on the BUILT settings shell (Chat appearance) ====
+/* ==== ★ S11 A2 (#1263, R3-MINOR-1) — the hints switch on the BUILT settings shell (★ S18 D1 RE-BASE: Notifications) ====
+ * ★ S18 D1 RE-BASE (S17 walk, #1362 interview — Damir 17:2x): the switch MOVED from Chat appearance card (5) to the
+ * Notifications screen (its own card after the notification cards); the clauses below are unchanged otherwise. The caps
+ * carry `globalNotifications` (C# always sends it — SettingsPage caps) so the Notifications row exists.
  *   · an exe WITHOUT the `hints` cap → no switch (an older exe has no ixian:hintsoff branch);
- *   · with it: "Tips on the Chats screen" sits RIGHT UNDER Message preview; setHintsOff('False') (C#: hints not off)
+ *   · with it: "Tips on the Chats screen" sits on Notifications (NOT in Chat appearance); setHintsOff('False') (C#: hints not off)
  *     → the switch is ON; a tap sends ixian:hintsoff:1 (the verb says OFF, inverted) and stays optimistic; the echo
  *     setHintsOff('True') → OFF; a tap back sends ixian:hintsoff:0;
  *   · nothing lands in localStorage (C# owns the value: SHints).
@@ -15,27 +18,24 @@ export default async function (h) {
     s.push('setCaps', caps);
     s.push('setHintsOff', 'False');
     await K.sleep(200);
-    const hub = s.d.querySelector('[data-setting-key="chatappearance"]') || [...s.d.querySelectorAll('.c-settings__row')].find((x) => /Chat appearance/.test(x.textContent));
+    const hub = s.d.querySelector('[data-setting-key="notifications"]');   // ★ S18 D1 re-base: was chatappearance
     if (hub) hub.click();
     await K.sleep(300);
     return s;
   };
-  /* ★ S17 C RE-BASE (#1334): the switch lives INSIDE the fifth card (the chat list), so the innermost section is the one */
-  const sw = (d) => [...d.querySelectorAll('.c-settings-appearance .c-settings__section')].reverse().find((x) => /Tips on the Chats screen/.test(x.textContent));
+  /* ★ S18 D1 RE-BASE: the switch's section on the Notifications screen (was: the fifth Chat appearance card, S17 C) */
+  const sw = (d) => [...d.querySelectorAll('.c-settings-notifs .c-settings__section')].find((x) => /Tips on the Chats screen/.test(x.textContent));
   const r = {};
   try {
-    await open('settingsApply,downloadsInline');
-    r.noCapNoSwitch = !!s.d.querySelector('.c-settings-appearance') && !sw(s.d);
+    await open('settingsApply,downloadsInline,globalNotifications');
+    r.noCapNoSwitch = !!s.d.querySelector('.c-settings-notifs') && !sw(s.d);
     s.close(); s = null;
-    await open('settingsApply,downloadsInline,hints');
+    await open('settingsApply,downloadsInline,globalNotifications,hints');
     const { d, W } = s;
     const lsBefore = W.localStorage.length;
-    const secs = [...d.querySelectorAll('.c-settings-appearance .c-settings__section')];
-    const pv = secs.findIndex((x) => !!x.querySelector('.c-settings-appearance__preview-lines'));
     const hs = sw(d);
-    /* ★ S17 C RE-BASE (#1334): "right under Message preview" = in the SAME card, right after the 1 / 2-lines control */
-    r.underMessagePreview = pv >= 0 && !!hs && secs[pv].contains(hs) && hs.dataset.pref === 'hintsOn'
-      && hs.previousElementSibling && hs.previousElementSibling.classList.contains('c-settings-appearance__preview-lines');
+    /* ★ S18 D1 RE-BASE (was "right under Message preview" in Chat appearance card 5): on Notifications, in its OWN card */
+    r.onNotifications = !!hs && hs.dataset.pref === 'hintsOn' && !!hs.closest('.c-settings-notifs__tips') && !d.querySelector('.c-settings-appearance');
     const t = hs && hs.querySelector('[role="switch"]');
     r.seedOn = !!t && t.getAttribute('aria-checked') === 'true';
     s.sent.length = 0;
@@ -55,5 +55,5 @@ export default async function (h) {
   } catch (e) { r.err = e.message; }
   finally { if (s) { s.close(); s = null; } }
   ok(Object.values(r).every((x) => x === true),
-    '★ S11 A2 (#1263, R3-MINOR-1): the settings shell\'s hints switch — none without the hints cap; with it "Tips on the Chats screen" sits right under Message preview; setHintsOff("False") → ON; a tap → ixian:hintsoff:1 (optimistic OFF); the echo setHintsOff("True") → OFF; a tap back → ixian:hintsoff:0; no localStorage — ' + JSON.stringify(r));
+    '★ S11 A2 (#1263, R3-MINOR-1): the settings shell\'s hints switch — none without the hints cap; with it "Tips on the Chats screen" sits on the Notifications screen (★ S18 D1 re-base: was under Message preview in Chat appearance); setHintsOff("False") → ON; a tap → ixian:hintsoff:1 (optimistic OFF); the echo setHintsOff("True") → OFF; a tap back → ixian:hintsoff:0; no localStorage — ' + JSON.stringify(r));
 }

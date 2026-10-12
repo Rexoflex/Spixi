@@ -177,7 +177,7 @@ export function mountContacts({
       },
       onPickAvatar: (ctrl) => { groupCtrl = ctrl; bridge.send('ixian:groupavatar'); },
       onCreate: ({ name, blind, addresses }, ctrl) => {
-        if (addresses.length < 2) { ctrl.fail(strings.groupNeedsTwo || 'Pick at least two people.'); return; }
+        if (addresses.length < 2) { ctrl.fail(strings.groupNeedsTwo || 'Select at least 2 people to create a group.'); return; }
         // grammar mirrors the legacy ixian:select payload 1:1 (HomePage parses it)
         bridge.send('ixian:creategroup:' + (blind ? '1' : '0') + name + ':|' + addresses.join('|'));
         ctrl.done();
@@ -254,6 +254,13 @@ export function mountContacts({
       /* "View contact" (#435(b)): close this panel and the takeover, then let HomePage
        * open the contact's own page — the shell has no business rendering it. */
       onViewContact: (addr) => { if (addr) { closeAddContact(); close(); bridge.send('ixian:details:' + addr); } },
+      /* ★ #1360: the known row's avatar — the photo the roster this takeover already holds carries for that
+       * address (read at answer time, so a re-flushed roster is the one asked), else null → the placeholder. */
+      avatarFor: (addr) => {
+        const roster = getRoster ? getRoster() : [];
+        const hit = (roster || []).find((c) => c && c.address === addr);
+        return hit && hit.avatar ? hit.avatar : null;
+      },
     });
     picker.hidden = true;
     overlay.append(addPanel);

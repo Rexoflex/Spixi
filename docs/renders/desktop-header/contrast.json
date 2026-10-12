@@ -1,0 +1,1404 @@
+{
+ "viewport": [
+  1128,
+  800
+ ],
+ "narrow": [
+  720,
+  800
+ ],
+ "frames": {
+  "about-light-phone": {
+   "png": "about-light-phone.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     0,
+     0,
+     412,
+     80
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "About",
+    "titleText": [
+     60,
+     38.5,
+     63.046875,
+     26
+    ],
+    "titleInk": "rgb(249, 250, 251)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     18,
+     39.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(249, 250, 251)",
+    "band": [
+     0,
+     0,
+     412,
+     258
+    ],
+    "body": [
+     0,
+     0,
+     412,
+     915
+    ]
+   },
+   "title": {
+    "min": 3.49,
+    "median": 4.23,
+    "worstBg": "#5981ea",
+    "n": 1728
+   },
+   "icon": {
+    "min": 3.49,
+    "median": 4.04,
+    "worstBg": "#5a81ea",
+    "n": 600
+   },
+   "titlePass": false,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-light-phone": {
+   "png": "contributors-light-phone.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     0,
+     0,
+     412,
+     80
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "Contributors",
+    "titleText": [
+     60,
+     38.5,
+     130.78125,
+     26
+    ],
+    "titleInk": "rgb(249, 250, 251)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     18,
+     39.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(249, 250, 251)",
+    "band": [
+     0,
+     0,
+     412,
+     244
+    ],
+    "body": [
+     0,
+     0,
+     412,
+     915
+    ]
+   },
+   "title": {
+    "min": 2.68,
+    "median": 3.99,
+    "worstBg": "#8992f5",
+    "n": 3537
+   },
+   "icon": {
+    "min": 2.8,
+    "median": 3.61,
+    "worstBg": "#868ef3",
+    "n": 600
+   },
+   "titlePass": false,
+   "iconPass": false,
+   "errors": []
+  },
+  "about-light-today": {
+   "png": "about-light-today.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgb(243, 245, 247)",
+    "barPos": "absolute",
+    "title": "About",
+    "titleText": [
+     388,
+     14.5,
+     63.046875,
+     26
+    ],
+    "titleInk": "rgb(249, 250, 251)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(249, 250, 251)",
+    "band": [
+     408,
+     0,
+     630,
+     208
+    ],
+    "body": [
+     408,
+     0,
+     640,
+     800
+    ]
+   },
+   "title": {
+    "min": 1.05,
+    "median": 1.05,
+    "worstBg": "#f3f5f7",
+    "n": 1728
+   },
+   "icon": {
+    "min": 1.05,
+    "median": 1.05,
+    "worstBg": "#f3f5f7",
+    "n": 600
+   },
+   "titlePass": false,
+   "iconPass": false,
+   "errors": []
+  },
+  "contributors-light-today": {
+   "png": "contributors-light-today.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgb(243, 245, 247)",
+    "barPos": "absolute",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     14.5,
+     130.78125,
+     26
+    ],
+    "titleInk": "rgb(249, 250, 251)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(249, 250, 251)",
+    "band": [
+     408,
+     0,
+     630,
+     200
+    ],
+    "body": [
+     408,
+     0,
+     640,
+     800
+    ]
+   },
+   "title": {
+    "min": 1.05,
+    "median": 1.05,
+    "worstBg": "#f3f5f7",
+    "n": 3537
+   },
+   "icon": {
+    "min": 1.05,
+    "median": 1.05,
+    "worstBg": "#f3f5f7",
+    "n": 600
+   },
+   "titlePass": false,
+   "iconPass": false,
+   "errors": []
+  },
+  "about-light-a": {
+   "png": "about-light-a.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "About",
+    "titleText": [
+     388,
+     14.5,
+     63.046875,
+     26
+    ],
+    "titleInk": "rgb(249, 250, 251)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(249, 250, 251)",
+    "band": [
+     328,
+     0,
+     800,
+     234
+    ],
+    "body": [
+     328,
+     0,
+     800,
+     800
+    ]
+   },
+   "title": {
+    "min": 6.01,
+    "median": 6.16,
+    "worstBg": "#275eb4",
+    "n": 1728
+   },
+   "icon": {
+    "min": 5.91,
+    "median": 5.99,
+    "worstBg": "#285fb6",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-light-a": {
+   "png": "contributors-light-a.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     14.5,
+     130.78125,
+     26
+    ],
+    "titleInk": "rgb(249, 250, 251)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(249, 250, 251)",
+    "band": [
+     328,
+     0,
+     800,
+     220
+    ],
+    "body": [
+     328,
+     0,
+     800,
+     800
+    ]
+   },
+   "title": {
+    "min": 7.8,
+    "median": 8.12,
+    "worstBg": "#3e45a2",
+    "n": 3537
+   },
+   "icon": {
+    "min": 7.72,
+    "median": 7.96,
+    "worstBg": "#3a47a2",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-light-b": {
+   "png": "about-light-b.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgb(243, 245, 247)",
+    "barPos": "sticky",
+    "title": "About",
+    "titleText": [
+     388,
+     16.5,
+     50.171875,
+     21
+    ],
+    "titleInk": "rgb(19, 20, 21)",
+    "titleSize": "18px",
+    "titleWeight": "600",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(19, 20, 21)",
+    "band": [
+     424,
+     68,
+     598,
+     208
+    ],
+    "body": [
+     408,
+     56,
+     640,
+     744
+    ]
+   },
+   "title": {
+    "min": 16.88,
+    "median": 16.88,
+    "worstBg": "#f3f5f7",
+    "n": 1122
+   },
+   "icon": {
+    "min": 16.88,
+    "median": 16.88,
+    "worstBg": "#f3f5f7",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-light-b": {
+   "png": "contributors-light-b.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgb(243, 245, 247)",
+    "barPos": "sticky",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     16.5,
+     104.0625,
+     21
+    ],
+    "titleInk": "rgb(19, 20, 21)",
+    "titleSize": "18px",
+    "titleWeight": "600",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(19, 20, 21)",
+    "band": [
+     424,
+     68,
+     598,
+     200
+    ],
+    "body": [
+     408,
+     56,
+     640,
+     744
+    ]
+   },
+   "title": {
+    "min": 16.88,
+    "median": 16.88,
+    "worstBg": "#f3f5f7",
+    "n": 2310
+   },
+   "icon": {
+    "min": 16.88,
+    "median": 16.88,
+    "worstBg": "#f3f5f7",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-light-a-narrow": {
+   "png": "about-light-a-narrow.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     392,
+     56
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "About",
+    "titleText": [
+     388,
+     14.5,
+     63.046875,
+     26
+    ],
+    "titleInk": "rgb(249, 250, 251)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(249, 250, 251)",
+    "band": [
+     328,
+     0,
+     392,
+     234
+    ],
+    "body": [
+     328,
+     0,
+     392,
+     800
+    ]
+   },
+   "title": {
+    "min": 6.32,
+    "median": 7.12,
+    "worstBg": "#3159af",
+    "n": 1728
+   },
+   "icon": {
+    "min": 6.1,
+    "median": 6.4,
+    "worstBg": "#2f5cb2",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-light-a-narrow": {
+   "png": "contributors-light-a-narrow.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     392,
+     56
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     14.5,
+     130.78125,
+     26
+    ],
+    "titleInk": "rgb(249, 250, 251)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(249, 250, 251)",
+    "band": [
+     328,
+     0,
+     392,
+     220
+    ],
+    "body": [
+     328,
+     0,
+     392,
+     800
+    ]
+   },
+   "title": {
+    "min": 6.38,
+    "median": 7.34,
+    "worstBg": "#4c53ad",
+    "n": 3537
+   },
+   "icon": {
+    "min": 6.64,
+    "median": 7.42,
+    "worstBg": "#4751aa",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-light-b-narrow": {
+   "png": "about-light-b-narrow.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     392,
+     56
+    ],
+    "barBg": "rgb(243, 245, 247)",
+    "barPos": "sticky",
+    "title": "About",
+    "titleText": [
+     388,
+     16.5,
+     50.171875,
+     21
+    ],
+    "titleInk": "rgb(19, 20, 21)",
+    "titleSize": "18px",
+    "titleWeight": "600",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(19, 20, 21)",
+    "band": [
+     344,
+     68,
+     350,
+     208
+    ],
+    "body": [
+     328,
+     56,
+     392,
+     744
+    ]
+   },
+   "title": {
+    "min": 16.88,
+    "median": 16.88,
+    "worstBg": "#f3f5f7",
+    "n": 1122
+   },
+   "icon": {
+    "min": 16.88,
+    "median": 16.88,
+    "worstBg": "#f3f5f7",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-light-b-narrow": {
+   "png": "contributors-light-b-narrow.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     392,
+     56
+    ],
+    "barBg": "rgb(243, 245, 247)",
+    "barPos": "sticky",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     16.5,
+     104.0625,
+     21
+    ],
+    "titleInk": "rgb(19, 20, 21)",
+    "titleSize": "18px",
+    "titleWeight": "600",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(19, 20, 21)",
+    "band": [
+     344,
+     68,
+     350,
+     200
+    ],
+    "body": [
+     328,
+     56,
+     392,
+     744
+    ]
+   },
+   "title": {
+    "min": 16.88,
+    "median": 16.88,
+    "worstBg": "#f3f5f7",
+    "n": 2310
+   },
+   "icon": {
+    "min": 16.88,
+    "median": 16.88,
+    "worstBg": "#f3f5f7",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-dark-phone": {
+   "png": "about-dark-phone.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     0,
+     0,
+     412,
+     80
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "About",
+    "titleText": [
+     60,
+     38.5,
+     63.046875,
+     26
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     18,
+     39.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     0,
+     0,
+     412,
+     258
+    ],
+    "body": [
+     0,
+     0,
+     412,
+     915
+    ]
+   },
+   "title": {
+    "min": 5.49,
+    "median": 8.64,
+    "worstBg": "#4a57a8",
+    "n": 1728
+   },
+   "icon": {
+    "min": 5.45,
+    "median": 7.83,
+    "worstBg": "#4b57aa",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-dark-phone": {
+   "png": "contributors-dark-phone.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     0,
+     0,
+     412,
+     80
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "Contributors",
+    "titleText": [
+     60,
+     38.5,
+     130.78125,
+     26
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     18,
+     39.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     0,
+     0,
+     412,
+     244
+    ],
+    "body": [
+     0,
+     0,
+     412,
+     915
+    ]
+   },
+   "title": {
+    "min": 3.92,
+    "median": 8.14,
+    "worstBg": "#5e6fbf",
+    "n": 3537
+   },
+   "icon": {
+    "min": 4.24,
+    "median": 6.63,
+    "worstBg": "#5969bb",
+    "n": 600
+   },
+   "titlePass": false,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-dark-today": {
+   "png": "about-dark-today.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgb(15, 17, 19)",
+    "barPos": "absolute",
+    "title": "About",
+    "titleText": [
+     388,
+     14.5,
+     63.046875,
+     26
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     408,
+     0,
+     630,
+     208
+    ],
+    "body": [
+     408,
+     0,
+     640,
+     800
+    ]
+   },
+   "title": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 1728
+   },
+   "icon": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-dark-today": {
+   "png": "contributors-dark-today.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgb(15, 17, 19)",
+    "barPos": "absolute",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     14.5,
+     130.78125,
+     26
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     408,
+     0,
+     630,
+     200
+    ],
+    "body": [
+     408,
+     0,
+     640,
+     800
+    ]
+   },
+   "title": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 3537
+   },
+   "icon": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-dark-a": {
+   "png": "about-dark-a.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "About",
+    "titleText": [
+     388,
+     14.5,
+     63.046875,
+     26
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     328,
+     0,
+     800,
+     234
+    ],
+    "body": [
+     328,
+     0,
+     800,
+     800
+    ]
+   },
+   "title": {
+    "min": 8.9,
+    "median": 9.17,
+    "worstBg": "#1b3d78",
+    "n": 1728
+   },
+   "icon": {
+    "min": 8.71,
+    "median": 8.86,
+    "worstBg": "#1d3e7b",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-dark-a": {
+   "png": "contributors-dark-a.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     14.5,
+     130.78125,
+     26
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     328,
+     0,
+     800,
+     220
+    ],
+    "body": [
+     328,
+     0,
+     800,
+     800
+    ]
+   },
+   "title": {
+    "min": 11.01,
+    "median": 11.35,
+    "worstBg": "#242771",
+    "n": 3537
+   },
+   "icon": {
+    "min": 11.02,
+    "median": 11.26,
+    "worstBg": "#202871",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-dark-b": {
+   "png": "about-dark-b.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgb(15, 17, 19)",
+    "barPos": "sticky",
+    "title": "About",
+    "titleText": [
+     388,
+     16.5,
+     50.171875,
+     21
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "18px",
+    "titleWeight": "600",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     424,
+     68,
+     598,
+     208
+    ],
+    "body": [
+     408,
+     56,
+     640,
+     744
+    ]
+   },
+   "title": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 1122
+   },
+   "icon": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-dark-b": {
+   "png": "contributors-dark-b.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     800,
+     56
+    ],
+    "barBg": "rgb(15, 17, 19)",
+    "barPos": "sticky",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     16.5,
+     104.0625,
+     21
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "18px",
+    "titleWeight": "600",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     424,
+     68,
+     598,
+     200
+    ],
+    "body": [
+     408,
+     56,
+     640,
+     744
+    ]
+   },
+   "title": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 2310
+   },
+   "icon": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-dark-a-narrow": {
+   "png": "about-dark-a-narrow.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     392,
+     56
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "About",
+    "titleText": [
+     388,
+     14.5,
+     63.046875,
+     26
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     328,
+     0,
+     392,
+     234
+    ],
+    "body": [
+     328,
+     0,
+     392,
+     800
+    ]
+   },
+   "title": {
+    "min": 8.05,
+    "median": 10.62,
+    "worstBg": "#31417f",
+    "n": 1728
+   },
+   "icon": {
+    "min": 7.34,
+    "median": 9.09,
+    "worstBg": "#394688",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-dark-a-narrow": {
+   "png": "contributors-dark-a-narrow.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     392,
+     56
+    ],
+    "barBg": "rgba(0, 0, 0, 0)",
+    "barPos": "absolute",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     14.5,
+     130.78125,
+     26
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "22px",
+    "titleWeight": "700",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     328,
+     0,
+     392,
+     220
+    ],
+    "body": [
+     328,
+     0,
+     392,
+     800
+    ]
+   },
+   "title": {
+    "min": 7.9,
+    "median": 10.6,
+    "worstBg": "#3b3f85",
+    "n": 3537
+   },
+   "icon": {
+    "min": 8.46,
+    "median": 10.16,
+    "worstBg": "#353b80",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "about-dark-b-narrow": {
+   "png": "about-dark-b-narrow.png",
+   "geo": {
+    "screen": "c-settings-about c-settings-about--hdr",
+    "bar": [
+     328,
+     0,
+     392,
+     56
+    ],
+    "barBg": "rgb(15, 17, 19)",
+    "barPos": "sticky",
+    "title": "About",
+    "titleText": [
+     388,
+     16.5,
+     50.171875,
+     21
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "18px",
+    "titleWeight": "600",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     344,
+     68,
+     350,
+     208
+    ],
+    "body": [
+     328,
+     56,
+     392,
+     744
+    ]
+   },
+   "title": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 1122
+   },
+   "icon": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  },
+  "contributors-dark-b-narrow": {
+   "png": "contributors-dark-b-narrow.png",
+   "geo": {
+    "screen": "c-settings-contrib c-settings-contrib--hdr",
+    "bar": [
+     328,
+     0,
+     392,
+     56
+    ],
+    "barBg": "rgb(15, 17, 19)",
+    "barPos": "sticky",
+    "title": "Contributors",
+    "titleText": [
+     388,
+     16.5,
+     104.0625,
+     21
+    ],
+    "titleInk": "rgb(232, 236, 238)",
+    "titleSize": "18px",
+    "titleWeight": "600",
+    "icon": [
+     346,
+     15.5,
+     24,
+     24
+    ],
+    "iconInk": "rgb(232, 236, 238)",
+    "band": [
+     344,
+     68,
+     350,
+     200
+    ],
+    "body": [
+     328,
+     56,
+     392,
+     744
+    ]
+   },
+   "title": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 2310
+   },
+   "icon": {
+    "min": 15.91,
+    "median": 15.91,
+    "worstBg": "#0f1113",
+    "n": 600
+   },
+   "titlePass": true,
+   "iconPass": true,
+   "errors": []
+  }
+ }
+}

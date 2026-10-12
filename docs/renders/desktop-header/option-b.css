@@ -1,0 +1,60 @@
+/* DC-SCREEN-W · OPTION B — desktop peer pane: the header band stays a ROUNDED CARD inside the 640 px column, and the top
+   bar is the pane's normal bar (ground surface, theme ink, heading-sm title) in the flow above it.
+   Scope: body[data-pane] only (the Account peer pane). The phone and the full-window desktop are untouched.
+   The column cap (src/shells/settings.html:138) and the pane bar ground (:148) stay as they are. */
+
+/* 1 · the bar back in the flow (settings-app.css :943 made it absolute) */
+body[data-pane] .c-settings-about--hdr > .c-topbar,
+body[data-pane] .c-settings-contrib--hdr > .c-topbar { position: sticky; }
+/* 2 · the normal bar ink and title in BOTH states (undo settings-app.css :949–:959; inherit = the :root tokens) */
+body[data-pane] .c-settings-about--hdr > .c-topbar:not([data-solid]),
+body[data-pane] .c-settings-contrib--hdr > .c-topbar:not([data-solid]) {
+  --surface-topbar: inherit;
+  --text-topbar: inherit;
+  --icon-topbar: inherit;
+}
+body[data-pane] .c-settings-about--hdr > .c-topbar:not([data-solid]) .c-topbar__title,
+body[data-pane] .c-settings-contrib--hdr > .c-topbar:not([data-solid]) .c-topbar__title {
+  font-size: var(--font-size-heading-sm);
+  font-weight: var(--font-weight-semibold);
+  text-shadow: none;
+}
+/* 3 · the body keeps its normal top padding (settings-app.css :961 zeroed it for the bleed) */
+body[data-pane] .c-settings-about--hdr > .c-settings__body,
+body[data-pane] .c-settings-contrib--hdr > .c-settings__body { padding-block-start: var(--screen-pad); }
+/* 4 · the band = a rounded card aligned with the column's cards (no bleed past the body padding) */
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band {
+  margin-inline: 0;
+  border-radius: 24px;              /* the screen's own names-card radius (.c-settings-contrib__card) */
+}
+body[data-pane] .c-settings-about--hdr .c-settings-about__band {
+  margin-inline: calc(-1 * var(--spacing-20));   /* escape the hero's own padding only → the cards' edges */
+  border-radius: var(--radius-16);  /* the screen's settings-card radius (.c-settings__group) */
+}
+/* 5 · the art keeps the PHONE's scale, centred in the card: both layers become a 430 px column (they are
+   preserveAspectRatio="xMidYMax slice", so a 598 px layer scales ×1.5 and crops the heart / the app tile at the
+   card's top). The ground layer feathers into a CSS ground of the SAME tokens on the card's sides; the foreground's
+   soft light fields get a short feather at the column edge. */
+body[data-pane] .c-settings-about--hdr .c-settings-about__band > .il,
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band > .il {
+  inset-inline: calc(50% - 215px) auto;
+  inline-size: 430px;
+}
+body[data-pane] .c-settings-about--hdr .c-settings-about__band > .il:first-child,
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band > .il:first-child {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 30%, #000 70%, transparent);
+}
+body[data-pane] .c-settings-about--hdr .c-settings-about__band > .il:last-child,
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band > .il:last-child {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);
+}
+body[data-pane] .c-settings-about--hdr .c-settings-about__band {
+  background: linear-gradient(to right, var(--ab-band-from), var(--ab-band-to) 50%, var(--ab-band-deep));
+}
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band {
+  background:
+    linear-gradient(to bottom, rgba(11, 6, 48, .25), transparent),   /* sanctioned: the heart art's own top shade (htBs) */
+    linear-gradient(to right, var(--dc-a), var(--dc-b) 50%, var(--dc-c));
+}

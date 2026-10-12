@@ -16000,8 +16000,11 @@ function setAppsHeaderEmpty(el, empty) {
  * c-apps-add — the "Add mini app" surface (spec §2.2), now combined with Discover
  * (Damir: "combine discover with adding custom link"). Three method TILES — Paste
  * link (reveals an inline URL field → `ixian:fetch:url`), Scan QR (`ixian:quickscan`),
- * From file (`ixian:selectAppFile`) — a trust banner, and the embedded Discover
+ * From file (`ixian:selectAppFile`) — a trust caption, and the embedded Discover
  * section (reuses c-apps-discover, parked until the apps.spixi.io feed lands).
+ * ★ #1359 (Damir 2026-10-12, Direction B without the Explore banner): white tiles with hub
+ * discs on the settings ground (the shells paint the ground), the open Paste link tile
+ * selected (#1362), the field as a settings card under the tiles, the shield-lock caption.
  *
  * createAppsAdd({ strings, discover = true, onFetchUrl(url), onScan, onPickFile,
  *                 onCategory, onBrowseWeb, onLearnBuild, onOpenApp }) → view
@@ -16012,6 +16015,7 @@ function setAppsHeaderEmpty(el, empty) {
  *   onOpenApp    — a live-Discover card/tile tap → that app's details
  * Free fns (#44): setAddUrl(el, url) reveals + fills the field (QR → setScannedData);
  *                 setAddError(el, msg) shows the inline invalid-URL error;
+ *                 (both open the field and select the Paste link tile — ★ #1359)
  *                 setAddDiscoverFeed(el, feed, opts) — shell fetched the directory (#131):
  *                 flips the embedded Discover live (parsed via apps-feed.js).
  */
@@ -16020,55 +16024,74 @@ function setAppsHeaderEmpty(el, empty) {
 
 
 
+let addSeq = 0;   // ★ #1359: unique ids — the label / aria-controls / aria-describedby wiring must not collide across two mounts (demos)
+
 function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, onScan, onPickFile, onCategory, onBrowseWeb, onLearnBuild, onOpenApp } = {}) {
   const el = document.createElement('div');
   el.className = 'c-apps-add';
+  addSeq += 1;
+  const uid = 'apps-add-' + addSeq;
 
-  /* lead */
+  /* lead — ★ #1359: the broken half ("…explore the directory below") is gone; nothing is below in production */
   const lead = document.createElement('p');
   lead.className = 'c-apps-add__lead';
   lead.textContent = strings.addLead
-    || 'Add a mini app from a link, a QR code, or a file. Or explore the directory below.';
+    || 'Add a mini app from a link, a QR code, or a file.';
   el.append(lead);
 
-  /* URL field (revealed by the Paste-link tile / a QR scan) */
+  /* URL field (revealed by the Paste-link tile / a QR scan / an error) — ★ #1359: a settings card UNDER the tiles */
   const field = document.createElement('div');
   field.className = 'c-apps-add__field';
+  field.id = uid + '-field';
   field.hidden = true;
   const label = document.createElement('label');
   label.className = 'c-apps-add__label';
   label.textContent = strings.appUrlLabel || 'Mini app link';
-  label.setAttribute('for', 'apps-add-url');
+  label.setAttribute('for', uid + '-url');
+  const box = document.createElement('div');
+  box.className = 'c-apps-add__inputbox';
+  const linkIc = icon('link', { size: 20 });
+  linkIc.classList.add('c-apps-add__input-icon');
   const input = document.createElement('input');
   input.type = 'url';
-  input.id = 'apps-add-url';
+  input.id = uid + '-url';
   input.className = 'c-apps-add__input';
   input.placeholder = strings.appUrlPlaceholder || 'https://…';
-  input.setAttribute('aria-label', strings.appUrlLabel || 'Mini app link');
+  box.append(linkIc, input);
   const err = document.createElement('span');
   err.className = 'c-apps-add__error';
+  err.id = uid + '-err';
   err.hidden = true;
   err.setAttribute('role', 'alert');
-  input.addEventListener('input', () => { err.hidden = true; input.removeAttribute('aria-invalid'); });
+  const errText = document.createElement('span');
+  errText.className = 'c-apps-add__error-text';
+  err.append(icon('alert-small', { size: 20 }), errText);   // the glyph stays; setAddError swaps only the text
+  input.addEventListener('input', () => {
+    err.hidden = true;
+    input.removeAttribute('aria-invalid');
+    input.removeAttribute('aria-describedby');
+  });
   const getBtn = createButton({
     label: strings.getFromUrl || 'Get app', type: 'fill', size: 56, width: 'full',
     icon: icon('download', { size: 20 }),
     onClick: () => { if (onFetchUrl) onFetchUrl(input.value.trim()); },
   });
-  field.append(label, input, err, getBtn);
+  field.append(label, box, err, getBtn);
 
-  /* method tiles */
+  /* method tiles — ★ #1359: white cards, a 44 hub disc each (7 blue · 8 violet · 10 pink, the Account hub grammar) */
   const methods = document.createElement('div');
   methods.className = 'c-apps-add__methods';
   methods.setAttribute('role', 'group');
   methods.setAttribute('aria-label', strings.addMethods || 'Ways to add a mini app');
-  const method = (glyph, text, onClick) => {
+  const method = (kind, hub, glyph, text, onClick) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-apps-add__method';
+    b.dataset.method = kind;
     const ic = document.createElement('span');
     ic.className = 'c-apps-add__method-icon';
-    ic.append(icon(glyph, { size: 24 }));
+    ic.dataset.hub = hub;
+    ic.append(icon(glyph, { size: 22 }));
     const t = document.createElement('span');
     t.className = 'c-apps-add__method-label';
     t.textContent = text;
@@ -16076,18 +16099,22 @@ function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, on
     b.addEventListener('click', onClick);
     return b;
   };
+  // #710: 'link' is exported now — 'world' stays the Language row's glyph (one glyph, one meaning).
+  // ★ #1359 / #1362: the Paste link tile CONTROLS the field — once open it stays selected; a 2nd tap only focuses.
+  const linkTile = method('link', '7', 'link', strings.pasteLink || 'Paste link', () => { openAddField(el); input.focus(); });
+  linkTile.setAttribute('aria-expanded', 'false');
+  linkTile.setAttribute('aria-controls', field.id);
   methods.append(
-    // #710: 'link' is exported now — 'world' stays the Language row's glyph (one glyph, one meaning).
-    method('link', strings.pasteLink || 'Paste link', () => { field.hidden = false; input.focus(); }),
-    method('scan', strings.scanQr || 'Scan QR', () => { if (onScan) onScan(); }),
-    method('file-isr', strings.pickFile || 'From file', () => { if (onPickFile) onPickFile(); }),
+    linkTile,
+    method('scan', '8', 'scan', strings.scanQr || 'Scan QR', () => { if (onScan) onScan(); }),
+    method('file', '10', 'file-isr', strings.pickFile || 'From file', () => { if (onPickFile) onPickFile(); }),
   );
   el.append(methods, field);
 
-  /* trust banner */
-  const info = document.createElement('div');
-  info.className = 'c-apps-add__info';
-  info.append(icon('info-circle', { size: 20 }));
+  /* trust line — ★ #1359: a caption with the shield-lock glyph, not a grey box */
+  const info = document.createElement('p');
+  info.className = 'c-apps-add__trust';
+  info.append(icon('shield-lock', { size: 18 }));
   const itext = document.createElement('span');
   itext.textContent = strings.miniAppInfo
     || 'Mini apps are lightweight web apps that run securely inside Spixi. Only add apps from sources you trust.';
@@ -16128,11 +16155,18 @@ function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, on
   return el;
 }
 
+/* ★ #1359: open the field and mark the Paste link tile selected (aria-expanded + data-selected). Never closes. */
+function openAddField(el) {
+  const field = el && el.querySelector('.c-apps-add__field');
+  if (field) field.hidden = false;
+  const tile = el && el.querySelector('.c-apps-add__method[data-method="link"]');
+  if (tile) { tile.setAttribute('aria-expanded', 'true'); tile.setAttribute('data-selected', ''); }
+}
+
 /** Reveal + populate the URL field (used by the QR-scan callback → setScannedData). */
 function setAddUrl(el, url) {
   const input = el && el.querySelector('.c-apps-add__input');
-  const field = el && el.querySelector('.c-apps-add__field');
-  if (field) field.hidden = false;
+  openAddField(el);
   if (input) { input.value = url == null ? '' : String(url); input.focus(); }
 }
 
@@ -16143,17 +16177,20 @@ function setAddDiscoverFeed(el, feed, opts = {}) {
   return el;
 }
 
-/** Show an inline invalid-URL error (the shell's `showUrlError` hook). */
+/** Show an inline invalid-URL error (the shell's `showUrlError` hook). ★ #1359: the alert glyph stays, only the text changes. */
 function setAddError(el, msg) {
   if (!el) return;
-  const field = el.querySelector('.c-apps-add__field');
   const errEl = el.querySelector('.c-apps-add__error');
   const input = el.querySelector('.c-apps-add__input');
-  if (field) field.hidden = false;
+  openAddField(el);
   if (!errEl) return;
-  errEl.textContent = msg || 'That doesn’t look like a valid mini-app link.';
+  const t = errEl.querySelector('.c-apps-add__error-text') || errEl;
+  t.textContent = msg || 'That doesn’t look like a valid mini-app link.';
   errEl.hidden = false;
-  if (input) input.setAttribute('aria-invalid', 'true');
+  if (input) {
+    input.setAttribute('aria-invalid', 'true');
+    if (errEl.id) input.setAttribute('aria-describedby', errEl.id);
+  }
 }
 
 /* ---- src/components/apps-details.js ---- */
@@ -26105,6 +26142,10 @@ function looksLikeAddress(a) {
 
 function createAddContact({
   onCheckAddress, onSendRequest, onScan, onOpened, onBack, onViewContact,
+  /* ★ #1360: OPTIONAL avatarFor(address) → an <img> src or null — the host's roster lookup for the
+     known row's 32 px avatar (contacts-page.js passes one over the roster it holds; contact_new.html
+     holds no roster, so the row draws the deterministic placeholder from the nick + address). */
+  avatarFor,
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
@@ -26114,31 +26155,45 @@ function createAddContact({
   const body = document.createElement('div');
   body.className = 'c-contacts-add__body u-scroll';
 
-  const note = document.createElement('p');
-  note.className = 'c-contacts-add__note';
-  note.textContent = strings.addContactNote || 'Enter an Ixian address to send a contact request.';
-  body.append(note);
-
+  /* ★ #1360 (Damir 2026-10-12, direction A "Polish in place"): ONE settings card — a real <label>,
+     the field box (input · ✓ · separator · scan, the box draws the border) and the one state line —
+     then the lead as a caption UNDER the card, then Send. Label + placeholder = "Address" (Damir
+     16:27); the sentences name the "Spixi address" once each (caption, ✓ line, error). */
   const group = document.createElement('div');
   group.className = 'c-contacts__group c-contacts-add__group';
+
+  const inputId = overlayId('c-contacts-add-input');
+  const label = document.createElement('label');
+  label.className = 'c-contacts-add__label';
+  label.htmlFor = inputId;
+  label.textContent = strings.address || 'Address';
 
   const field = document.createElement('div');
   field.className = 'c-contacts-add__field';
   const input = document.createElement('input');
   input.type = 'text';
+  input.id = inputId;
   input.className = 'c-contacts-add__input';
   input.autocomplete = 'off';
   input.spellcheck = false;
-  input.placeholder = strings.ixianAddress || 'Ixian address';
-  input.setAttribute('aria-label', strings.ixianAddress || 'Ixian address');
+  input.placeholder = strings.address || 'Address';   // the <label> names it — no aria-label (one name, said once)
+  // the ✓ disc INSIDE the field (C# confirmed) — decorative: the role=status line under the field says it
+  const okDisc = document.createElement('span');
+  okDisc.className = 'c-contacts-add__ok';
+  okDisc.setAttribute('aria-hidden', 'true');
+  okDisc.hidden = true;
+  okDisc.append(icon('check', { size: 16 }));
+  const sep = document.createElement('span');
+  sep.className = 'c-contacts-add__sep';
+  sep.setAttribute('aria-hidden', 'true');
   const scanBtn = document.createElement('button');
   scanBtn.type = 'button';
   scanBtn.className = 'c-contacts-add__scan';
   scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
   scanBtn.append(icon('scan', { size: 20 }));
   if (onScan) scanBtn.addEventListener('click', onScan);  // → ixian:quickscan; result via setAddContactAddress
-  field.append(input, scanBtn);
-  group.append(field);
+  field.append(input, okDisc, sep, scanBtn);
+  group.append(label, field);
 
   // live ✓ — checkAddress only ever CONFIRMS (silent on failure): role=status, never an error
   const valid = document.createElement('p');
@@ -26148,7 +26203,7 @@ function createAddContact({
   const validGlyph = icon('check', { size: 16 });
   validGlyph.classList.add('c-contacts-add__valid-glyph');
   const validText = document.createElement('span');
-  validText.textContent = strings.validAddress || 'Looks like a valid Ixian address';
+  validText.textContent = strings.validAddress || 'Looks like a valid Spixi address';
   valid.append(validGlyph, validText);
   group.append(valid);
 
@@ -26157,11 +26212,16 @@ function createAddContact({
   err.setAttribute('role', 'alert');
   err.hidden = true;
   group.append(err);
+  // ★ #1360: the error line leads with the alert glyph (decorative, aria-hidden — the text is the message)
+  const errGlyph = icon('alert-small', { size: 20 });
+  errGlyph.classList.add('c-contacts-add__error-glyph');
 
   /* #435(b): the "you already know this address" affordance. NOT an error and NOT a
      tick — an address already in your contacts is not a failure, it is a different
      outcome, and legacy answered it with a line plus a way to get there. role=status
-     (not alert) for the same reason. */
+     (not alert) for the same reason.
+     ★ #1360: ONE row inside the card — who (a 32 px avatar), the sentence, and "View contact"
+     (a compact text button in the action ink). 'self' keeps the sentence only. */
   const known = document.createElement('div');
   known.className = 'c-contacts-add__known';
   known.setAttribute('role', 'status');
@@ -26170,14 +26230,23 @@ function createAddContact({
   knownText.className = 'c-contacts-add__known-text';
   known.append(knownText);
   const knownBtn = createButton({
-    label: strings.viewContact || 'View contact', type: 'outline', size: 32,
+    label: strings.viewContact || 'View contact', type: 'text', size: 32,
   });
   knownBtn.classList.add('c-contacts-add__known-btn');
   knownBtn.hidden = true;
   known.append(knownBtn);
   group.append(known);
+  let knownAvatar = null;
 
   body.append(group);
+
+  const note = document.createElement('p');
+  note.className = 'c-contacts-add__note';
+  note.append(icon('info-circle', { size: 18 }));
+  const noteText = document.createElement('span');
+  noteText.textContent = strings.addContactNote || 'Enter their Spixi address to send a contact request.';
+  note.append(noteText);
+  body.append(note);
 
   // Primary CTA directly beneath the address field + helper/error line (was pinned to
   // the screen bottom in a .c-contacts__footer — too far from the input). It now lives
@@ -26200,10 +26269,25 @@ function createAddContact({
      and a red "it could be invalid or already in your contacts" AT THE SAME TIME,
      at exactly the moment the user needs to trust what it says. An error now clears
      the tick, and the known-contact panel with it. */
-  const setError = (msg) => {
+  /* ★ #1360: the ✓ is said twice — the green disc INSIDE the field + data-valid on the box, and the
+     role=status line under it. ONE setter, so every place that retires the line retires the disc too. */
+  const setValid = (on) => {
+    valid.hidden = !on;
+    okDisc.hidden = !on;
+    field.toggleAttribute('data-valid', !!on);
+  };
+  /* ★ #46 R2-MINOR-3: { field: false } = the line ONLY. A REQUEST failure (ctrl.fail — C# answers "self", "already a
+     contact" and the 6 s hedge through it) is not a verdict on the typed address (#435(b)); only the local
+     looksLikeAddress failure marks the field (data-invalid + aria-invalid). */
+  const setError = (msg, { field: markField = true } = {}) => {
     err.textContent = msg;
     err.hidden = !msg;
     if (msg) { valid.hidden = true; setKnown(null); }
+    // ★ #1360: the field says it too — data-invalid (the 2 px error border) + aria-invalid, and the glyph leads the line
+    if (msg) { setValid(false); err.prepend(errGlyph); }
+    const bad = !!msg && markField;
+    field.toggleAttribute('data-invalid', bad);
+    if (bad) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
   };
 
   /* #435(b): render (or clear) the known-address answer. kind 'contact' = already in
@@ -26218,9 +26302,9 @@ function createAddContact({
       sendBtn.disabled = false;        // audit MINOR-6: the CTA comes back with the panel
       return;
     }
-    valid.hidden = true;
-    err.hidden = true;
-    err.textContent = '';
+    setValid(false);
+    setError('');            // ★ #1360: also drops data-invalid / aria-invalid with the line
+    if (knownAvatar) { knownAvatar.remove(); knownAvatar = null; }
     if (info.kind === 'self') {
       knownAddress = '';
       knownText.textContent = strings.ownAddressNote || 'This is your own address.';
@@ -26228,6 +26312,17 @@ function createAddContact({
     } else {
       knownAddress = info.address || '';
       const who = (info.nick || '').trim();
+      /* ★ #1360: who, as a 32 px avatar — the host's photo when it has one (#141-m4: a throwing or
+         non-string lookup falls to the placeholder), else the deterministic nick + address placeholder.
+         Decorative: the sentence beside it names them. */
+      let src = null;
+      if (typeof avatarFor === 'function' && knownAddress) {
+        try { const v = avatarFor(knownAddress); src = (typeof v === 'string' && v) ? v : null; } catch { src = null; }
+      }
+      knownAvatar = createAvatar({ src, name: who, address: knownAddress, size: 32 });
+      knownAvatar.classList.add('c-contacts-add__known-avatar');
+      knownAvatar.setAttribute('aria-hidden', 'true');
+      known.prepend(knownAvatar);
       /* ★ Gate row O-12. `who` is the PEER's nickname, and it was the REPLACEMENT
          argument of String.prototype.replace. In that position "$&" and its family are
          substitution syntax, so a nickname that holds one splices other parts of the
@@ -26260,7 +26355,7 @@ function createAddContact({
   };
 
   const validate = () => {
-    valid.hidden = true;
+    setValid(false);
     setKnown(null);          // #435(b): a new keystroke retires the previous answer
     setError('');
     clearTimeout(checkTimer);
@@ -26272,7 +26367,8 @@ function createAddContact({
       const ctrl = contactsCtrl(
         // stale-reply guard + F1: never reveal ✓ while a request is in flight
         // (a slow checkAddress reply must not flash valid on a disabled/latched field)
-        () => { if (!inFlight && input.value.trim() === v) valid.hidden = false; },
+        // ★ #46 R2-NOTE2/3: nor after a success latch, nor over a shown error line
+        () => { if (!inFlight && !latched && err.hidden && input.value.trim() === v) setValid(true); },
         () => {},                                       // silent — matches the bridge contract
       );
       try { onCheckAddress(v, ctrl); } catch { ctrl.fail(); } // #141-m4 (silent path)
@@ -26285,7 +26381,8 @@ function createAddContact({
     clearTimeout(checkTimer);   // F1: kill any pending debounce so a stale ✓ can't land mid/after submit
     const a = input.value.trim();
     if (!looksLikeAddress(a)) {                          // fix #4: block obviously-invalid input locally
-      setError(strings.badAddress || 'That doesn’t look like an Ixian address.');
+      // ★ #1360: this screen's own sentence (badAddress stays for Wallet › Send)
+      setError(strings.addContactBadAddress || 'That doesn’t look like a Spixi address.');
       input.focus();
       return;
     }
@@ -26320,7 +26417,7 @@ function createAddContact({
       },
       (msg) => {
         restore();
-        setError(msg || strings.requestFailed || 'Couldn’t send the request. Check the address and try again.');
+        setError(msg || strings.requestFailed || 'Couldn’t send the request. Check the address and try again.', { field: false });
         input.focus();
       },
     );
@@ -26383,7 +26480,7 @@ function setAddContactKnown(el, kind, address, nick, checked) {
 
 /* ————————————————————————— group setup ————————————————————————— */
 
-const groupState = new WeakMap(); // el → { avatarBtn }
+const groupState = new WeakMap(); // el → { avatarBtn, face, badge, photoLabel, strings }
 
 function createGroupSetup({
   members = [], onPickAvatar, onCreate, onMembersChange, onBack, strings = getStrings(),
@@ -26397,16 +26494,31 @@ function createGroupSetup({
 
   const list = members.slice();
 
-  // —— hero: avatar + name ——
+  /* ★★ #1361 (S18, Damir's pick A + the group identity card on top): the hero is the #1358 IDENTITY CARD for the
+     group — the --identity-band picture at the top, the 88 px photo cut into it (the card-ground ring + the lift), a
+     small action disc on the photo (camera → pencil once a photo is set) and, under it, the action-ink label that is
+     ITSELF a tap target doing the same pick (the photo alone was an unlabelled circle). Then the name field. */
   const hero = document.createElement('div');
   hero.className = 'c-contacts__group c-contacts-group__hero';
+  const band = document.createElement('span');
+  band.className = 'c-contacts-group__band';
+  band.setAttribute('aria-hidden', 'true');
   const avatarBtn = document.createElement('button');
   avatarBtn.type = 'button';
   avatarBtn.className = 'c-contacts-group__avatar';
   avatarBtn.setAttribute('aria-label', strings.setGroupPhoto || 'Set group photo');
-  avatarBtn.append(icon('users', { size: 32 }));
+  const face = icon('users', { size: 32 });
+  const badge = document.createElement('span');
+  badge.className = 'c-contacts-group__badge';
+  badge.dataset.glyph = 'camera';
+  badge.append(icon('camera', { size: 16 }));   // decorative (aria-hidden by the factory) — the button carries the name
+  avatarBtn.append(face, badge);
+  const photoLabel = document.createElement('button');
+  photoLabel.type = 'button';
+  photoLabel.className = 'c-contacts-group__photo-label';
+  photoLabel.textContent = strings.setGroupPhoto || 'Set group photo';
   let avatarBusy = false;
-  avatarBtn.addEventListener('click', () => {
+  const pickPhoto = () => {
     if (!onPickAvatar || avatarBusy) return;
     avatarBusy = true;
     const ctrl = contactsCtrl(
@@ -26414,10 +26526,9 @@ function createGroupSetup({
       () => { avatarBusy = false; },
     );
     try { onPickAvatar(ctrl); } catch { ctrl.fail(); }  // #141-m4
-  });
-  const avatarHint = document.createElement('p');
-  avatarHint.className = 'c-contacts-group__avatar-hint';
-  avatarHint.textContent = strings.setGroupPhoto || 'Set group photo';
+  };
+  avatarBtn.addEventListener('click', pickPhoto);
+  photoLabel.addEventListener('click', pickPhoto);   // ★ #1361: the label is the same pick (one latch: avatarBusy)
 
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
@@ -26436,17 +26547,35 @@ function createGroupSetup({
   nameErr.setAttribute('role', 'alert');
   nameErr.hidden = true;
 
-  hero.append(avatarBtn, avatarHint, nameInput, nameErr);
+  hero.append(band, avatarBtn, photoLabel, nameInput, nameErr);
   body.append(hero);
 
   // —— members ——
+  /* ★ #1361: a header ROW — "Members" at the start, "n / 10" at the end (the picker's counter) — then the chips (each
+     with the member's face), then the RULE line inside the card: below 2 it says why Create waits, at 10 it states the
+     cap, otherwise it is gone (the card just ends). role=status, so the swap is announced. */
   const membersCard = document.createElement('div');
   membersCard.className = 'c-contacts__group c-contacts-group__members';
   const membersHead = document.createElement('p');
   membersHead.className = 'c-contacts-group__members-head';
+  const membersTitle = document.createElement('span');
+  membersTitle.className = 'c-contacts-group__members-title';
+  membersTitle.id = overlayId('contacts-group-members');
+  membersTitle.textContent = strings.membersTitle || 'Members';
+  const membersCount = document.createElement('span');
+  membersCount.className = 'c-contacts-group__members-count';
+  membersHead.append(membersTitle, membersCount);
   const chips = document.createElement('div');
   chips.className = 'c-contacts-group__chips';
-  membersCard.append(membersHead, chips);
+  chips.setAttribute('role', 'group');
+  chips.setAttribute('aria-labelledby', membersTitle.id);
+  const rule = document.createElement('p');
+  rule.className = 'c-contacts-group__rule';
+  rule.id = overlayId('contacts-group-rule');
+  rule.setAttribute('role', 'status');
+  const ruleText = document.createElement('span');
+  rule.append(icon('info-circle', { size: 18 }), ruleText);
+  membersCard.append(membersHead, chips, rule);
   body.append(membersCard);
 
   // —— blind toggle ——
@@ -26454,7 +26583,9 @@ function createGroupSetup({
   blindCard.className = 'c-contacts__group';
   const blindRow = document.createElement('div');
   blindRow.className = 'c-contacts-group__blind';
-  blindRow.append(disc('info', 'users'));
+  const blindDisc = disc('info', 'users');
+  blindDisc.dataset.hub = '8';   // ★ #1361: the blind disc wears the hub violet (disc() is shared — the mark scopes it)
+  blindRow.append(blindDisc);
   const blindCol = document.createElement('span');
   blindCol.className = 'c-contacts__col';
   const blindLabel = document.createElement('span');
@@ -26493,8 +26624,10 @@ function createGroupSetup({
 
   const setNameError = (msg) => { nameErr.textContent = msg; nameErr.hidden = !msg; };
 
+  let inFlight = false;   // declared before the first renderMembers() — it reads it
   const renderMembers = () => {
-    membersHead.textContent = (strings.members || 'members') + ' · ' + list.length;
+    membersCount.textContent = (strings.groupCounter || '{n} / {max}')
+      .split('{n}').join(String(list.length)).split('{max}').join(String(GROUP_MAX_MEMBERS));
     chips.textContent = '';
     list.forEach((m, idx) => {
       // F6: splice by the closed-over index rather than list.indexOf(m) — object
@@ -26507,15 +26640,32 @@ function createGroupSetup({
           if (onMembersChange) onMembersChange(list.map((x) => x.address));
         },
       });
+      /* ★ #1361: the member's face leads the chip (the picker row's avatar, at 24). The WHOLE chip stays the dismiss
+         target (chip.js #50) and its accessible name is unchanged — the aria-label wins over the content. */
+      const face = createAvatar({ src: m.avatar || null, name: m.name || '', address: m.address || '', size: 24 });
+      face.setAttribute('aria-hidden', 'true');
+      chip.prepend(face);
+      chip.dataset.avatar = '';
       chips.append(chip);
     });
-    createBtn.disabled = list.length === 0;
+    /* ★★ #1361 THE BUG FIX: Create waits below 2 (C# rejects a 1-member group — the old `=== 0` let one member
+       through to a host error under the NAME field), and the rule line in the card says why. */
+    const few = list.length < GROUP_MIN_MEMBERS;
+    const full = list.length >= GROUP_MAX_MEMBERS;
+    ruleText.textContent = few
+      ? (strings.groupNeedsTwo || 'Select at least 2 people to create a group.')
+      : full ? (strings.groupLimitNote || 'A group can have up to 10 members besides you.') : '';
+    rule.hidden = !few && !full;
+    rule.dataset.rule = few ? 'min' : full ? 'cap' : '';
+    // ★ #46 R3-NOTE2: never re-ENABLE Create mid-request (setLoading owns it; settle() re-asserts the rule)
+    if (!inFlight) createBtn.disabled = few;
+    if (few) createBtn.setAttribute('aria-describedby', rule.id);
+    else createBtn.removeAttribute('aria-describedby');
   };
   renderMembers();
 
-  let inFlight = false;
   const submit = () => {
-    if (inFlight || createBtn.disabled) return;
+    if (inFlight || createBtn.disabled || list.length < GROUP_MIN_MEMBERS) return;   // ★ #1361: the member rule is the card's, never a name error
     const name = nameInput.value.trim();
     if (!name) { setNameError(strings.groupNameEmpty || 'Give the group a name.'); nameInput.focus(); return; }
     if (name.includes(':|')) {                          // C# split token (bridge-audit-A.md:544)
@@ -26526,11 +26676,12 @@ function createGroupSetup({
     setNameError('');
     inFlight = true;
     setLoading(createBtn, true);
+    // ★ #1361: setLoading(false) restores the button it disabled — a chip removed mid-flight must not leave Create live below 2
+    const settle = () => { inFlight = false; setLoading(createBtn, false); createBtn.disabled = list.length < GROUP_MIN_MEMBERS; };
     const ctrl = contactsCtrl(
-      () => { inFlight = false; setLoading(createBtn, false); },
+      () => { settle(); },
       (msg) => {
-        inFlight = false;
-        setLoading(createBtn, false);
+        settle();
         setNameError(msg || strings.groupCreateFailed || 'Couldn’t create the group. Try again.');
       },
     );
@@ -26564,7 +26715,7 @@ function createGroupSetup({
     nameInput.blur();
   });
 
-  groupState.set(el, { avatarBtn });
+  groupState.set(el, { avatarBtn, face, badge, photoLabel, strings });
   return el;
 }
 
@@ -26658,16 +26809,23 @@ function createPendingContact({
   return el;
 }
 
-/** Group-avatar preview (bridge loadAvatar / demo mock). */
+/** Group-avatar preview (bridge loadAvatar / demo mock). ★ #1361: the photo replaces the glyph (the badge stays and
+ *  turns to a pencil), and the photo button + the label say "Change group photo". */
 function setGroupAvatar(el, src) {
   const st = groupState.get(el);
   if (!st) return;
-  st.avatarBtn.textContent = '';
   const img = document.createElement('img');
   img.className = 'c-contacts-group__avatar-img';
   img.src = src;
   img.alt = '';
-  st.avatarBtn.append(img);
+  st.face.replaceWith(img);
+  st.face = img;
+  st.badge.textContent = '';
+  st.badge.append(icon('pencil', { size: 16 }));
+  st.badge.dataset.glyph = 'pencil';
+  const change = st.strings.changeGroupPhoto || 'Change group photo';
+  st.avatarBtn.setAttribute('aria-label', change);
+  st.photoLabel.textContent = change;
 }
 
 /* ★★ #863 — THE ADD-CONTACT CHOOSER SHEET (Figma "add contact" 11751:1401; Damir,
@@ -26943,7 +27101,7 @@ function mountContacts({
       },
       onPickAvatar: (ctrl) => { groupCtrl = ctrl; bridge.send('ixian:groupavatar'); },
       onCreate: ({ name, blind, addresses }, ctrl) => {
-        if (addresses.length < 2) { ctrl.fail(strings.groupNeedsTwo || 'Pick at least two people.'); return; }
+        if (addresses.length < 2) { ctrl.fail(strings.groupNeedsTwo || 'Select at least 2 people to create a group.'); return; }
         // grammar mirrors the legacy ixian:select payload 1:1 (HomePage parses it)
         bridge.send('ixian:creategroup:' + (blind ? '1' : '0') + name + ':|' + addresses.join('|'));
         ctrl.done();
@@ -27020,6 +27178,13 @@ function mountContacts({
       /* "View contact" (#435(b)): close this panel and the takeover, then let HomePage
        * open the contact's own page — the shell has no business rendering it. */
       onViewContact: (addr) => { if (addr) { closeAddContact(); close(); bridge.send('ixian:details:' + addr); } },
+      /* ★ #1360: the known row's avatar — the photo the roster this takeover already holds carries for that
+       * address (read at answer time, so a re-flushed roster is the one asked), else null → the placeholder. */
+      avatarFor: (addr) => {
+        const roster = getRoster ? getRoster() : [];
+        const hit = (roster || []).find((c) => c && c.address === addr);
+        return hit && hit.avatar ? hit.avatar : null;
+      },
     });
     picker.hidden = true;
     overlay.append(addPanel);
@@ -28297,9 +28462,10 @@ function createThemePicker({ current, strings = getStrings(), commit, onPicked, 
   }
   paint();
   radioArrows(wrap);
-  /* a host may repaint the picker without a commit (no host does today: a push while the picker is open leaves it as it
-     was, the old tiles' behaviour too — #1353 r1 n2) */
-  wrap.setThemeValue = (v) => { current = v; paint(); };
+  /* a host repaints the picker without a commit — ★ S18 D2 (TH-PICKER-A): settings.html does, on EVERY commit and every
+     setAppearance push (repaintThemePickers), so the sheet, the pane's Theme screen and Chat appearance's card always show
+     the ONE value (state.theme). Was unused (#1353 r1 n2), which is how the two pickers came to disagree. */
+  wrap.setThemeValue = (v) => { current = Number(v) === 1 || Number(v) === 2 ? Number(v) : 0; paint(); };
   return wrap;
 }
 
@@ -30120,7 +30286,8 @@ function pickMark() {
  * bubble with ticks) + the text-size slider 12–22 px; (2) the CANVAS as a row of mini chats — today's four (renamed Mist,
  * Iris, Spixi, Meadow, 15:55) + NEW Aurora, Dusk, Ocean; (3) the BACKGROUND (None · Waves · Contours) + the NEW bubble
  * colour (Auto + 6) + the NEW bubble corners (4–22 px); (4) the THEME as three mini phones (only with `onTheme`);
- * (5) the chat-list message preview (1 / 2 lines as mini lists) + the Tips switch.
+ * (5) the chat-list message preview (1 / 2 lines as mini lists). ★ S18 D1 (#1362 interview, Damir 17:2x): the Tips switch
+ * MOVED to the Notifications screen (createNotificationsScreen) — same key, verb and C# owner.
  * ★ ADDITIONS, NOT REPLACEMENTS (15:09): today's canvases and their exact look stay (tokens.css), the default stays Mist
  * + the pattern; nobody's chat changes until they pick something. ★ TODAY'S BUBBLE LOOK STAYS (15:16): only a colour
  * (data-chat-sent) and a radius (--bubble-radius) are layered on top; the received glass edge is untouched.
@@ -30167,9 +30334,7 @@ function createChatAppearance({
   onTheme,                       // ★ S17 C (value, ctrl) — the host's theme commit (ixian:appearance:<v>); no handler → no card
   previewLines = '1',            // ★ S11 (#1262): '1' | '2'
   onPreviewLines,                // ('1' | '2') — no handler → no card row
-  hintsOn = true,                // ★ S11 (#1262): C# (SHints) owns the value
-  onHints,                       // (next, ctrl) — no handler → no row
-  strings = getStrings(),
+  strings = getStrings(),        // ★ S18 D1: hintsOn / onHints left with the Tips switch (now createNotificationsScreen)
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
   body.classList.add('c-settings-appearance__body');
@@ -30395,11 +30560,11 @@ function createChatAppearance({
     c4.append(label((strings.theme || 'Theme'), tId), themePick);
   }
 
-  /* ── (5) the chat list + tips ── */
+  /* ── (5) the chat list (★ S18 D1: the Tips switch moved to Notifications) ── */
   let c5 = null;
   let lineBtns = [];
   let linesCurrent = previewLines === '2' ? '2' : '1';
-  if (onPreviewLines || onHints) {
+  if (onPreviewLines) {
     c5 = card('c-settings-appearance__card--list c-settings-appearance__previewsec');
     if (onPreviewLines) {
       const lId = 'c-settings-lines-label';
@@ -30439,15 +30604,6 @@ function createChatAppearance({
       });
       radioArrows(g);   // #46 r1 M1
       c5.append(label((strings.chatPreviewLines || 'Message preview'), lId), g);
-    }
-    if (onHints) {
-      const hintsSec = switchRow({
-        glyph: 'info-circle', hue: 'accent',
-        label: (strings.hintsSwitch || 'Tips on the Chats screen'),
-        checked: hintsOn, onToggle: onHints,
-      });
-      hintsSec.dataset.pref = 'hintsOn';
-      c5.append(hintsSec);
     }
   }
 
@@ -30705,6 +30861,8 @@ function createNotificationsScreen({
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
   onCallRingtone,                // (next, ctrl) — ★ E-W4: ixian:callRingtone:on|off
   onPushProvider,                // (next, ctrl) — ★ P2 (#708): ixian:notifPushProvider:on|off
+  hintsOn = true,                // ★ S18 D1 (moved from Chat appearance, #1362 interview): C# (SHints) owns the value
+  onHints,                       // (next, ctrl) — ixian:hintsoff:<0|1> (the host's latch); no handler (no 'hints' cap) → no card
   strings = getStrings(),
 } = {}) {
   const { el, body: screenBody, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
@@ -30821,6 +30979,26 @@ function createNotificationsScreen({
     }
   }
   if (!body.children.length) groupWrap.remove();   // ★ #1050: never an empty card (e.g. only the push row rendered)
+  /* ★ S18 D1 (S17 walk, #1362 interview — Damir 17:2x: "hard to catch" in Chat appearance; tips are nudges): THE TIPS SWITCH
+     lives here now, its OWN card after the notification cards (the OneSignal footnote stays under its card). Same key
+     (hintsSwitch), same verb (the host's ixian:hintsoff latch), same C# owner (SHints); its own cap ('hints'), so it shows
+     even where no global-notification row does. data-pref keeps the host's in-place echo (settings.html rebuildHub). */
+  if (onHints) {
+    const tipsWrap = document.createElement('div');
+    tipsWrap.className = 'c-settings__groupwrap c-settings-notifs__tips';
+    const tipsGroup = document.createElement('div');
+    tipsGroup.className = 'c-settings__group';
+    const hintsSec = switchRow({
+      glyph: 'info-circle', hue: 'accent',
+      label: strings.hintsSwitch || 'Tips on the Chats screen',
+      checked: hintsOn, live, onToggle: onHints,
+      failText: strings.privacyFailed || 'Couldn’t update. Try again.',   // #46 r2 N2: a Tips failure is not a notifications failure
+    });
+    hintsSec.dataset.pref = 'hintsOn';
+    tipsGroup.append(hintsSec);
+    tipsWrap.append(tipsGroup);
+    screenBody.append(tipsWrap);
+  }
   return el;
 }
 
@@ -31254,6 +31432,7 @@ function createSettingsDownloads({
     senderKey ? (senders.get(senderKey) || '') : (strings.downloadsAllSenders || 'Everyone'));
   function paintFromChip() {
     fromLab.textContent = fromLabel();
+    fromChip.title = fromLab.textContent;   // ★ S18 D1 (DL-SCREEN): the label ellipsizes; the FULL "From: <name>" stays in the tooltip + the name (the text content)
     if (senderKey) fromChip.dataset.active = ''; else delete fromChip.dataset.active;
   }
   /* ★ S10 F7 (#1254, Damir pick C): each sheet row = a 40 px avatar + "{n} files · last {when}" — counted from the

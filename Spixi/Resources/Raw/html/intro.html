@@ -3723,6 +3723,9 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 @keyframes wnOrbit { to { transform: rotate(360deg); } }
 @keyframes wnBob { to { transform: translateY(-5px); } }
 @keyframes chFloat { to { transform: translateY(-3px); } }
+/* ★ S18 D1 (walk DC-SCREEN-A): the Contributors heart rides the SHARED .wn-bob — a .ct-l-only loop, 2× travel, same tempo (pins-s18/e-heart) */
+.il.ct-l .wn-bob { animation-name: ctBob; }
+@keyframes ctBob { to { transform: translateY(-10px); } }
 @keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
 @keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
 @keyframes ctTw { from { opacity: .2; } to { opacity: .95; } }

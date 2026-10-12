@@ -93,6 +93,45 @@ namespace SPIXI
         /** Does this grant take the session (firstixi does not: it is the exception to the one-per-session rule)? */
         public static bool takesSession(string id) => id != "firstixi";
 
+        /* —— ★ S18 D3: the decision log line (the S17 walk could not tell "refused by the session rule" from "never asked") —— */
+        /** WHY decide() answered as it did, in its own order: seen · consume (= ok: the id's own check says it is never
+         *  needed) · wait · session (a moment this session) · card (a card this session) · ok (granted). */
+        public enum Why { Seen, Wait, Session, Card, Ok }
+        private static readonly string[] WhyWords = { "seen", "wait", "session", "card", "ok" };
+
+        public static Why why(string id, bool seen, bool sessionMoment, bool sessionCard, Eligible eligible)
+        {
+            if (seen) return Why.Seen;
+            if (eligible == Eligible.Consume) return Why.Ok;
+            if (eligible == Eligible.Wait) return Why.Wait;
+            if (id != "firstixi")
+            {
+                if (sessionMoment) return Why.Session;
+                if (sessionCard) return Why.Card;
+            }
+            return Why.Ok;
+        }
+
+        /** At most this many ask lines per process (a page that spams asks cannot flood ixian.log; a walk asks ~20). */
+        public const int MaxAskLines = 100;
+
+        public static string decisionWord(Decision d) => d == Decision.Grant ? "grant" : d == Decision.Consume ? "consume" : "refuse";
+
+        /** `[MO] ask id=<id> d=<grant|refuse|consume> why=<seen|wait|session|card|ok>` — fixed words only: the id is re-read
+         *  from the FIXED set (Ids), never the caller's string; no language code, no app id, no page. "" for an id outside the
+         *  set (unreachable: parseAsk admits the set only) — the caller then logs nothing. */
+        public static string askLine(string id, Decision d, Why w)
+        {
+            int i = Array.IndexOf(Ids, id);
+            int k = (int)w;
+            if (i < 0 || k < 0 || k >= WhyWords.Length) return "";
+            return "[MO] ask id=" + Ids[i] + " d=" + decisionWord(d) + " why=" + WhyWords[k];
+        }
+
+        /** The one line of the Developer › Reset moment sheets action (DevPage, `ixian:devmoments:reset`). */
+        public const string DevResetVerb = "ixian:devmoments:reset";
+        public const string DevResetLine = "[MO] dev reset: moment sheets cleared";
+
         /* —— the csv lists (validated on the way in AND out: a hand-edited file cannot inject a value) —— */
         public static List<string> parseList(string? csv, Func<string, bool> valid)
         {

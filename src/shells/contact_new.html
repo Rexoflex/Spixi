@@ -42,7 +42,9 @@
   /* Production shell: fill the WebView. contact_new.html is loaded by the C#
      ContactNewPage (PUSHED, not a home tab) — the c-contacts-add panel provides
      its own topbar (variant 'view') with a back button, so no separate chrome. */
-  html, body { margin: 0; height: 100%; background: var(--surface-screen); }
+  /* ★ #1360: the page ground is the settings ground the add-contact screen now sits on, so the boot frame and any
+     overscroll match it (dark: the same value as --surface-screen) */
+  html, body { margin: 0; height: 100%; background: var(--surface-settings-ground); }
   body { display: flex; flex-direction: column; overflow: hidden; }
   #add-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #add-root > * { flex: 1; min-height: 0; }

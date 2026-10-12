@@ -666,6 +666,10 @@ function looksLikeAddress(a) {
 
 export function createAddContact({
   onCheckAddress, onSendRequest, onScan, onOpened, onBack, onViewContact,
+  /* ★ #1360: OPTIONAL avatarFor(address) → an <img> src or null — the host's roster lookup for the
+     known row's 32 px avatar (contacts-page.js passes one over the roster it holds; contact_new.html
+     holds no roster, so the row draws the deterministic placeholder from the nick + address). */
+  avatarFor,
   strings = getStrings(),
 } = {}) {
   const el = document.createElement('section');
@@ -675,31 +679,45 @@ export function createAddContact({
   const body = document.createElement('div');
   body.className = 'c-contacts-add__body u-scroll';
 
-  const note = document.createElement('p');
-  note.className = 'c-contacts-add__note';
-  note.textContent = strings.addContactNote || 'Enter an Ixian address to send a contact request.';
-  body.append(note);
-
+  /* ★ #1360 (Damir 2026-10-12, direction A "Polish in place"): ONE settings card — a real <label>,
+     the field box (input · ✓ · separator · scan, the box draws the border) and the one state line —
+     then the lead as a caption UNDER the card, then Send. Label + placeholder = "Address" (Damir
+     16:27); the sentences name the "Spixi address" once each (caption, ✓ line, error). */
   const group = document.createElement('div');
   group.className = 'c-contacts__group c-contacts-add__group';
+
+  const inputId = overlayId('c-contacts-add-input');
+  const label = document.createElement('label');
+  label.className = 'c-contacts-add__label';
+  label.htmlFor = inputId;
+  label.textContent = strings.address || 'Address';
 
   const field = document.createElement('div');
   field.className = 'c-contacts-add__field';
   const input = document.createElement('input');
   input.type = 'text';
+  input.id = inputId;
   input.className = 'c-contacts-add__input';
   input.autocomplete = 'off';
   input.spellcheck = false;
-  input.placeholder = strings.ixianAddress || 'Ixian address';
-  input.setAttribute('aria-label', strings.ixianAddress || 'Ixian address');
+  input.placeholder = strings.address || 'Address';   // the <label> names it — no aria-label (one name, said once)
+  // the ✓ disc INSIDE the field (C# confirmed) — decorative: the role=status line under the field says it
+  const okDisc = document.createElement('span');
+  okDisc.className = 'c-contacts-add__ok';
+  okDisc.setAttribute('aria-hidden', 'true');
+  okDisc.hidden = true;
+  okDisc.append(icon('check', { size: 16 }));
+  const sep = document.createElement('span');
+  sep.className = 'c-contacts-add__sep';
+  sep.setAttribute('aria-hidden', 'true');
   const scanBtn = document.createElement('button');
   scanBtn.type = 'button';
   scanBtn.className = 'c-contacts-add__scan';
   scanBtn.setAttribute('aria-label', strings.scan || 'Scan');
   scanBtn.append(icon('scan', { size: 20 }));
   if (onScan) scanBtn.addEventListener('click', onScan);  // → ixian:quickscan; result via setAddContactAddress
-  field.append(input, scanBtn);
-  group.append(field);
+  field.append(input, okDisc, sep, scanBtn);
+  group.append(label, field);
 
   // live ✓ — checkAddress only ever CONFIRMS (silent on failure): role=status, never an error
   const valid = document.createElement('p');
@@ -709,7 +727,7 @@ export function createAddContact({
   const validGlyph = icon('check', { size: 16 });
   validGlyph.classList.add('c-contacts-add__valid-glyph');
   const validText = document.createElement('span');
-  validText.textContent = strings.validAddress || 'Looks like a valid Ixian address';
+  validText.textContent = strings.validAddress || 'Looks like a valid Spixi address';
   valid.append(validGlyph, validText);
   group.append(valid);
 
@@ -718,11 +736,16 @@ export function createAddContact({
   err.setAttribute('role', 'alert');
   err.hidden = true;
   group.append(err);
+  // ★ #1360: the error line leads with the alert glyph (decorative, aria-hidden — the text is the message)
+  const errGlyph = icon('alert-small', { size: 20 });
+  errGlyph.classList.add('c-contacts-add__error-glyph');
 
   /* #435(b): the "you already know this address" affordance. NOT an error and NOT a
      tick — an address already in your contacts is not a failure, it is a different
      outcome, and legacy answered it with a line plus a way to get there. role=status
-     (not alert) for the same reason. */
+     (not alert) for the same reason.
+     ★ #1360: ONE row inside the card — who (a 32 px avatar), the sentence, and "View contact"
+     (a compact text button in the action ink). 'self' keeps the sentence only. */
   const known = document.createElement('div');
   known.className = 'c-contacts-add__known';
   known.setAttribute('role', 'status');
@@ -731,14 +754,23 @@ export function createAddContact({
   knownText.className = 'c-contacts-add__known-text';
   known.append(knownText);
   const knownBtn = createButton({
-    label: strings.viewContact || 'View contact', type: 'outline', size: 32,
+    label: strings.viewContact || 'View contact', type: 'text', size: 32,
   });
   knownBtn.classList.add('c-contacts-add__known-btn');
   knownBtn.hidden = true;
   known.append(knownBtn);
   group.append(known);
+  let knownAvatar = null;
 
   body.append(group);
+
+  const note = document.createElement('p');
+  note.className = 'c-contacts-add__note';
+  note.append(icon('info-circle', { size: 18 }));
+  const noteText = document.createElement('span');
+  noteText.textContent = strings.addContactNote || 'Enter their Spixi address to send a contact request.';
+  note.append(noteText);
+  body.append(note);
 
   // Primary CTA directly beneath the address field + helper/error line (was pinned to
   // the screen bottom in a .c-contacts__footer — too far from the input). It now lives
@@ -761,10 +793,25 @@ export function createAddContact({
      and a red "it could be invalid or already in your contacts" AT THE SAME TIME,
      at exactly the moment the user needs to trust what it says. An error now clears
      the tick, and the known-contact panel with it. */
-  const setError = (msg) => {
+  /* ★ #1360: the ✓ is said twice — the green disc INSIDE the field + data-valid on the box, and the
+     role=status line under it. ONE setter, so every place that retires the line retires the disc too. */
+  const setValid = (on) => {
+    valid.hidden = !on;
+    okDisc.hidden = !on;
+    field.toggleAttribute('data-valid', !!on);
+  };
+  /* ★ #46 R2-MINOR-3: { field: false } = the line ONLY. A REQUEST failure (ctrl.fail — C# answers "self", "already a
+     contact" and the 6 s hedge through it) is not a verdict on the typed address (#435(b)); only the local
+     looksLikeAddress failure marks the field (data-invalid + aria-invalid). */
+  const setError = (msg, { field: markField = true } = {}) => {
     err.textContent = msg;
     err.hidden = !msg;
     if (msg) { valid.hidden = true; setKnown(null); }
+    // ★ #1360: the field says it too — data-invalid (the 2 px error border) + aria-invalid, and the glyph leads the line
+    if (msg) { setValid(false); err.prepend(errGlyph); }
+    const bad = !!msg && markField;
+    field.toggleAttribute('data-invalid', bad);
+    if (bad) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
   };
 
   /* #435(b): render (or clear) the known-address answer. kind 'contact' = already in
@@ -779,9 +826,9 @@ export function createAddContact({
       sendBtn.disabled = false;        // audit MINOR-6: the CTA comes back with the panel
       return;
     }
-    valid.hidden = true;
-    err.hidden = true;
-    err.textContent = '';
+    setValid(false);
+    setError('');            // ★ #1360: also drops data-invalid / aria-invalid with the line
+    if (knownAvatar) { knownAvatar.remove(); knownAvatar = null; }
     if (info.kind === 'self') {
       knownAddress = '';
       knownText.textContent = strings.ownAddressNote || 'This is your own address.';
@@ -789,6 +836,17 @@ export function createAddContact({
     } else {
       knownAddress = info.address || '';
       const who = (info.nick || '').trim();
+      /* ★ #1360: who, as a 32 px avatar — the host's photo when it has one (#141-m4: a throwing or
+         non-string lookup falls to the placeholder), else the deterministic nick + address placeholder.
+         Decorative: the sentence beside it names them. */
+      let src = null;
+      if (typeof avatarFor === 'function' && knownAddress) {
+        try { const v = avatarFor(knownAddress); src = (typeof v === 'string' && v) ? v : null; } catch { src = null; }
+      }
+      knownAvatar = createAvatar({ src, name: who, address: knownAddress, size: 32 });
+      knownAvatar.classList.add('c-contacts-add__known-avatar');
+      knownAvatar.setAttribute('aria-hidden', 'true');
+      known.prepend(knownAvatar);
       /* ★ Gate row O-12. `who` is the PEER's nickname, and it was the REPLACEMENT
          argument of String.prototype.replace. In that position "$&" and its family are
          substitution syntax, so a nickname that holds one splices other parts of the
@@ -821,7 +879,7 @@ export function createAddContact({
   };
 
   const validate = () => {
-    valid.hidden = true;
+    setValid(false);
     setKnown(null);          // #435(b): a new keystroke retires the previous answer
     setError('');
     clearTimeout(checkTimer);
@@ -833,7 +891,8 @@ export function createAddContact({
       const ctrl = contactsCtrl(
         // stale-reply guard + F1: never reveal ✓ while a request is in flight
         // (a slow checkAddress reply must not flash valid on a disabled/latched field)
-        () => { if (!inFlight && input.value.trim() === v) valid.hidden = false; },
+        // ★ #46 R2-NOTE2/3: nor after a success latch, nor over a shown error line
+        () => { if (!inFlight && !latched && err.hidden && input.value.trim() === v) setValid(true); },
         () => {},                                       // silent — matches the bridge contract
       );
       try { onCheckAddress(v, ctrl); } catch { ctrl.fail(); } // #141-m4 (silent path)
@@ -846,7 +905,8 @@ export function createAddContact({
     clearTimeout(checkTimer);   // F1: kill any pending debounce so a stale ✓ can't land mid/after submit
     const a = input.value.trim();
     if (!looksLikeAddress(a)) {                          // fix #4: block obviously-invalid input locally
-      setError(strings.badAddress || 'That doesn’t look like an Ixian address.');
+      // ★ #1360: this screen's own sentence (badAddress stays for Wallet › Send)
+      setError(strings.addContactBadAddress || 'That doesn’t look like a Spixi address.');
       input.focus();
       return;
     }
@@ -881,7 +941,7 @@ export function createAddContact({
       },
       (msg) => {
         restore();
-        setError(msg || strings.requestFailed || 'Couldn’t send the request. Check the address and try again.');
+        setError(msg || strings.requestFailed || 'Couldn’t send the request. Check the address and try again.', { field: false });
         input.focus();
       },
     );
@@ -944,7 +1004,7 @@ export function setAddContactKnown(el, kind, address, nick, checked) {
 
 /* ————————————————————————— group setup ————————————————————————— */
 
-const groupState = new WeakMap(); // el → { avatarBtn }
+const groupState = new WeakMap(); // el → { avatarBtn, face, badge, photoLabel, strings }
 
 export function createGroupSetup({
   members = [], onPickAvatar, onCreate, onMembersChange, onBack, strings = getStrings(),
@@ -958,16 +1018,31 @@ export function createGroupSetup({
 
   const list = members.slice();
 
-  // —— hero: avatar + name ——
+  /* ★★ #1361 (S18, Damir's pick A + the group identity card on top): the hero is the #1358 IDENTITY CARD for the
+     group — the --identity-band picture at the top, the 88 px photo cut into it (the card-ground ring + the lift), a
+     small action disc on the photo (camera → pencil once a photo is set) and, under it, the action-ink label that is
+     ITSELF a tap target doing the same pick (the photo alone was an unlabelled circle). Then the name field. */
   const hero = document.createElement('div');
   hero.className = 'c-contacts__group c-contacts-group__hero';
+  const band = document.createElement('span');
+  band.className = 'c-contacts-group__band';
+  band.setAttribute('aria-hidden', 'true');
   const avatarBtn = document.createElement('button');
   avatarBtn.type = 'button';
   avatarBtn.className = 'c-contacts-group__avatar';
   avatarBtn.setAttribute('aria-label', strings.setGroupPhoto || 'Set group photo');
-  avatarBtn.append(icon('users', { size: 32 }));
+  const face = icon('users', { size: 32 });
+  const badge = document.createElement('span');
+  badge.className = 'c-contacts-group__badge';
+  badge.dataset.glyph = 'camera';
+  badge.append(icon('camera', { size: 16 }));   // decorative (aria-hidden by the factory) — the button carries the name
+  avatarBtn.append(face, badge);
+  const photoLabel = document.createElement('button');
+  photoLabel.type = 'button';
+  photoLabel.className = 'c-contacts-group__photo-label';
+  photoLabel.textContent = strings.setGroupPhoto || 'Set group photo';
   let avatarBusy = false;
-  avatarBtn.addEventListener('click', () => {
+  const pickPhoto = () => {
     if (!onPickAvatar || avatarBusy) return;
     avatarBusy = true;
     const ctrl = contactsCtrl(
@@ -975,10 +1050,9 @@ export function createGroupSetup({
       () => { avatarBusy = false; },
     );
     try { onPickAvatar(ctrl); } catch { ctrl.fail(); }  // #141-m4
-  });
-  const avatarHint = document.createElement('p');
-  avatarHint.className = 'c-contacts-group__avatar-hint';
-  avatarHint.textContent = strings.setGroupPhoto || 'Set group photo';
+  };
+  avatarBtn.addEventListener('click', pickPhoto);
+  photoLabel.addEventListener('click', pickPhoto);   // ★ #1361: the label is the same pick (one latch: avatarBusy)
 
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
@@ -997,17 +1071,35 @@ export function createGroupSetup({
   nameErr.setAttribute('role', 'alert');
   nameErr.hidden = true;
 
-  hero.append(avatarBtn, avatarHint, nameInput, nameErr);
+  hero.append(band, avatarBtn, photoLabel, nameInput, nameErr);
   body.append(hero);
 
   // —— members ——
+  /* ★ #1361: a header ROW — "Members" at the start, "n / 10" at the end (the picker's counter) — then the chips (each
+     with the member's face), then the RULE line inside the card: below 2 it says why Create waits, at 10 it states the
+     cap, otherwise it is gone (the card just ends). role=status, so the swap is announced. */
   const membersCard = document.createElement('div');
   membersCard.className = 'c-contacts__group c-contacts-group__members';
   const membersHead = document.createElement('p');
   membersHead.className = 'c-contacts-group__members-head';
+  const membersTitle = document.createElement('span');
+  membersTitle.className = 'c-contacts-group__members-title';
+  membersTitle.id = overlayId('contacts-group-members');
+  membersTitle.textContent = strings.membersTitle || 'Members';
+  const membersCount = document.createElement('span');
+  membersCount.className = 'c-contacts-group__members-count';
+  membersHead.append(membersTitle, membersCount);
   const chips = document.createElement('div');
   chips.className = 'c-contacts-group__chips';
-  membersCard.append(membersHead, chips);
+  chips.setAttribute('role', 'group');
+  chips.setAttribute('aria-labelledby', membersTitle.id);
+  const rule = document.createElement('p');
+  rule.className = 'c-contacts-group__rule';
+  rule.id = overlayId('contacts-group-rule');
+  rule.setAttribute('role', 'status');
+  const ruleText = document.createElement('span');
+  rule.append(icon('info-circle', { size: 18 }), ruleText);
+  membersCard.append(membersHead, chips, rule);
   body.append(membersCard);
 
   // —— blind toggle ——
@@ -1015,7 +1107,9 @@ export function createGroupSetup({
   blindCard.className = 'c-contacts__group';
   const blindRow = document.createElement('div');
   blindRow.className = 'c-contacts-group__blind';
-  blindRow.append(disc('info', 'users'));
+  const blindDisc = disc('info', 'users');
+  blindDisc.dataset.hub = '8';   // ★ #1361: the blind disc wears the hub violet (disc() is shared — the mark scopes it)
+  blindRow.append(blindDisc);
   const blindCol = document.createElement('span');
   blindCol.className = 'c-contacts__col';
   const blindLabel = document.createElement('span');
@@ -1054,8 +1148,10 @@ export function createGroupSetup({
 
   const setNameError = (msg) => { nameErr.textContent = msg; nameErr.hidden = !msg; };
 
+  let inFlight = false;   // declared before the first renderMembers() — it reads it
   const renderMembers = () => {
-    membersHead.textContent = (strings.members || 'members') + ' · ' + list.length;
+    membersCount.textContent = (strings.groupCounter || '{n} / {max}')
+      .split('{n}').join(String(list.length)).split('{max}').join(String(GROUP_MAX_MEMBERS));
     chips.textContent = '';
     list.forEach((m, idx) => {
       // F6: splice by the closed-over index rather than list.indexOf(m) — object
@@ -1068,15 +1164,32 @@ export function createGroupSetup({
           if (onMembersChange) onMembersChange(list.map((x) => x.address));
         },
       });
+      /* ★ #1361: the member's face leads the chip (the picker row's avatar, at 24). The WHOLE chip stays the dismiss
+         target (chip.js #50) and its accessible name is unchanged — the aria-label wins over the content. */
+      const face = createAvatar({ src: m.avatar || null, name: m.name || '', address: m.address || '', size: 24 });
+      face.setAttribute('aria-hidden', 'true');
+      chip.prepend(face);
+      chip.dataset.avatar = '';
       chips.append(chip);
     });
-    createBtn.disabled = list.length === 0;
+    /* ★★ #1361 THE BUG FIX: Create waits below 2 (C# rejects a 1-member group — the old `=== 0` let one member
+       through to a host error under the NAME field), and the rule line in the card says why. */
+    const few = list.length < GROUP_MIN_MEMBERS;
+    const full = list.length >= GROUP_MAX_MEMBERS;
+    ruleText.textContent = few
+      ? (strings.groupNeedsTwo || 'Select at least 2 people to create a group.')
+      : full ? (strings.groupLimitNote || 'A group can have up to 10 members besides you.') : '';
+    rule.hidden = !few && !full;
+    rule.dataset.rule = few ? 'min' : full ? 'cap' : '';
+    // ★ #46 R3-NOTE2: never re-ENABLE Create mid-request (setLoading owns it; settle() re-asserts the rule)
+    if (!inFlight) createBtn.disabled = few;
+    if (few) createBtn.setAttribute('aria-describedby', rule.id);
+    else createBtn.removeAttribute('aria-describedby');
   };
   renderMembers();
 
-  let inFlight = false;
   const submit = () => {
-    if (inFlight || createBtn.disabled) return;
+    if (inFlight || createBtn.disabled || list.length < GROUP_MIN_MEMBERS) return;   // ★ #1361: the member rule is the card's, never a name error
     const name = nameInput.value.trim();
     if (!name) { setNameError(strings.groupNameEmpty || 'Give the group a name.'); nameInput.focus(); return; }
     if (name.includes(':|')) {                          // C# split token (bridge-audit-A.md:544)
@@ -1087,11 +1200,12 @@ export function createGroupSetup({
     setNameError('');
     inFlight = true;
     setLoading(createBtn, true);
+    // ★ #1361: setLoading(false) restores the button it disabled — a chip removed mid-flight must not leave Create live below 2
+    const settle = () => { inFlight = false; setLoading(createBtn, false); createBtn.disabled = list.length < GROUP_MIN_MEMBERS; };
     const ctrl = contactsCtrl(
-      () => { inFlight = false; setLoading(createBtn, false); },
+      () => { settle(); },
       (msg) => {
-        inFlight = false;
-        setLoading(createBtn, false);
+        settle();
         setNameError(msg || strings.groupCreateFailed || 'Couldn’t create the group. Try again.');
       },
     );
@@ -1125,7 +1239,7 @@ export function createGroupSetup({
     nameInput.blur();
   });
 
-  groupState.set(el, { avatarBtn });
+  groupState.set(el, { avatarBtn, face, badge, photoLabel, strings });
   return el;
 }
 
@@ -1219,16 +1333,23 @@ export function createPendingContact({
   return el;
 }
 
-/** Group-avatar preview (bridge loadAvatar / demo mock). */
+/** Group-avatar preview (bridge loadAvatar / demo mock). ★ #1361: the photo replaces the glyph (the badge stays and
+ *  turns to a pencil), and the photo button + the label say "Change group photo". */
 export function setGroupAvatar(el, src) {
   const st = groupState.get(el);
   if (!st) return;
-  st.avatarBtn.textContent = '';
   const img = document.createElement('img');
   img.className = 'c-contacts-group__avatar-img';
   img.src = src;
   img.alt = '';
-  st.avatarBtn.append(img);
+  st.face.replaceWith(img);
+  st.face = img;
+  st.badge.textContent = '';
+  st.badge.append(icon('pencil', { size: 16 }));
+  st.badge.dataset.glyph = 'pencil';
+  const change = st.strings.changeGroupPhoto || 'Change group photo';
+  st.avatarBtn.setAttribute('aria-label', change);
+  st.photoLabel.textContent = change;
 }
 
 /* ★★ #863 — THE ADD-CONTACT CHOOSER SHEET (Figma "add contact" 11751:1401; Damir,

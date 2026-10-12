@@ -1,0 +1,54 @@
+Session 18: Add app, Add contact, New group + S17 walk fixes
+
+1359-1366 (Damir 2026-10-12):
+
+- Add app (Direction B without the Explore banner): the screen sits
+  on the settings ground in both shells; three white tiles with hub
+  discs (Paste link 7, Scan QR 8, From file 10); the Paste link tile
+  stays selected while the link field is open (aria-expanded,
+  data-selected), a second tap only focuses the field; the field is a
+  card under the tiles (label, link glyph, the error line with the
+  alert glyph, Get app 56 with the spinner); the trust line is a
+  shield-lock caption. addLead loses "Or explore the directory below."
+  (value edit, 12 locales). Ids are unique per mount.
+- Add contact (screen A + sheet A): one settings card with the
+  "Address" label bound to the field and the scan button inside the
+  field; a green check disc in the field when C# confirms (data-valid);
+  a local bad address marks the field (2 px error border, alert glyph,
+  aria-invalid) with the new key addContactBadAddress; a request
+  failure shows the line only. The lead is a caption under the card.
+  An address already in the contacts shows the contact's photo, the
+  sentence and View contact in one row. The sheet's two choices wear
+  hub 8 / hub 7 with a white glyph. addContactNote and validAddress
+  now say "Spixi address"; badAddress stays for Wallet > Send.
+- `address` joins NO_REUSE in build-locales: the legacy value was a
+  lowercase fragment ("adresse"); capitalised labels in 12 locales.
+- New group (A + the group identity card): the #1358 band (now the
+  --identity-band / --identity-avatar-lift tokens, one source with the
+  address card, value-identical), the 88 px photo cut into it with a
+  camera / pencil badge, "Set / Change group photo" as a second tap
+  target, the name in the card; "Members" + "n / 10"; 24 px faces in
+  the chips (the whole chip still removes); Create is disabled below
+  two members and the rule line sits in the members card (the old
+  1-member dead end put a host error under the name field); blind
+  disc in hub violet; switch border outline-neutral-02. Desktop: the
+  column caps at 640 px for the cards and Create alike.
+- S17 walk (31 P / 5 F / 8 N/A) fixes: the chat pattern x0.8 on
+  desktop (:root[data-desktop]); a contact's address card shows the
+  name and photo (heading "Ixian address"); the Downloads From chip
+  ellipsizes; the offline moment waits 5 s; the Contributors heart
+  floats twice as far; the two theme pickers share one value (the
+  phone sheet never wrote state.theme; open pickers now repaint on
+  every commit and on setAppearance; values clamped 0-2); the Tips
+  switch moves to Notifications; About / Contributors in the desktop
+  pane use the normal pane bar with the band as a rounded card.
+- Moment diagnostics (C#): one [MO] ask line per moment ask with fixed
+  words only (S17MomentRules.why / askLine, capped at 100), and
+  Developer > Reset moment sheets (ixian:devmoments:reset, dev mode
+  only) that clears moments.seen / langs / apps and the session bits.
+  Gate rows and the P28 note added.
+
+Pins: scripts/pins-s18 (12 modules, each with a deliberate break).
+Re-based: #710, the contacts-flow 1-member clauses, l-address-card,
+f-moments, pins-s11/a-settings. INDEX_KB_CEIL 625 -> 635 (measured).
+CSH 435 -> 436.

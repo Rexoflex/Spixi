@@ -454,6 +454,7 @@
      gets the full contact grammar. Groups never reach this: chat-info suppresses the
      row for kind 'group' (a group id is a local session id, not an address). */
   function openPeerAddressSheet({ address }) {
+    const peerName = (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name)) ? state.name : '';
     openAddressSheet({
       address, strings, host: document.body, subject: 'peer',
       /* state.name IS the display name (it already incorporates any user-defined nick
@@ -462,9 +463,15 @@
          unnamed contact (the #276/#279 echo class), so an unguarded title would render
          a full base58 as the sheet's heading and aria-label — directly above the row
          #591 truncated to 9…6. Same guard the roster ingests use. */
-      title: (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name))
-        ? state.name
-        : (strings.peerAddressTitle || 'Ixian address'),
+      /* #46 r2 MINOR-2: the card now carries the name, so the heading says WHAT the sheet is (the self sheet's grammar:
+         "Your Ixian address" + the name in the card) — the name once, not twice. */
+      title: strings.peerAddressTitle || 'Ixian address',
+      /* ★ S18 D1 (S17 walk AD-CARD, Damir 17:17): the identity card shows the contact like mine does — the name under the
+         SAME guard as the title (one value, so they cannot disagree) and the photo the header shows (state.avatarPath,
+         setAvatar). No real name → neither: an unnamed contact's sheet stays the plain address card. Peer fences unchanged
+         (subject 'peer': no Share, no safety line). */
+      name: peerName,
+      avatar: peerName ? (state.avatarPath || null) : null,
     });
   }
 

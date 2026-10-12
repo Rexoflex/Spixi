@@ -1998,3 +1998,26 @@ Packets: NEW P26 (What's new + the About / Contributors bar ink, flag `S17Bridge
 | Notification sender name default ON (#1346, Damir 23:32) | `SNotificationPrefs.showSenderName` default false → TRUE: a notification (and the lock screen) names the sender unless the user turns it off; message text never; a stored value is kept — an existing install that never touched the switch flips to ON at the upgrade; iOS: the App Group store `spixi-push.json` now carries the contacts' nicknames for every default user (row :1509's "only when senderName" is now the common case). #46 security r3: the peer-controlled nickname is sanitized (controls, separators, format, bidi) and capped at 32 before any notification (`displayNameFor` → `FileRowRules`) | ours, DELIBERATE product change (the baseline showed no name) · 🟡 BE informed |
 | `ixian:openPrivacy` one-shot (#46 security r2) | accepted from a chat page only ONCE, within 10 min, after C# granted THAT page the autodl moment; a pending Settings screen older than 15 s is dropped | ours, safe |
 | Moment session expiry (#46 r2) | `setMoments` carries `sessionMs` (0 … 6 h, clamped); C# expires before every push (wall clock) | ours, safe |
+
+## Session 18 D3 — the moment diagnostics: the decision log line + Developer › Reset moment sheets (2026-10-12)
+
+Packet: P28 (the S18 D3 note at its end). The S17 walk (MO-LANG / MO-APP / MO-OFFLINE / MO-AUTODL: no sheet) could not tell "refused by the one-per-session rule" from "never asked": C# logged no decision. Security-only #46 at high for D3 (new verb + log line + store reset): owed in the S18 loop; its verdict goes into DECISIONS (S18 row).
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| Log line `[MO] ask id=<lang\|autodl\|offline\|firstixi\|mic\|app\|pay> d=<grant\|refuse\|consume> why=<seen\|wait\|session\|card\|ok>` — one per ask, `SMoments.answerAsync` after `S17MomentRules.decide` | fixed words only, built by the pure `S17MomentRules.askLine`: the id is RE-READ from the fixed set by index (never the caller's string — an id outside the set logs nothing), the two words from fixed arrays; NO language code, NO app id, no page, no count (csh `S17MomentTests.AskLine_WhyMatchesDecide_FixedWordsOnly`; pin `scripts/pins-s18/f-moments-dev.mjs` (b) askShape / noArgLogged). `ixian.log` is shown by DevPage and shareable from dev mode: the line tells which of the seven moments were asked and answered — the same facts `moments.seen` holds on the device; a hostile host page can add lines only by sending `ixian:moment:*` asks, and at most `S17MomentRules.MaxAskLines` = 100 per process (then nothing more is logged until a restart / a dev reset) — it cannot flood the log | ours, safe · 🟡 BE (P28) |
+| Verb `ixian:devmoments:reset` (exact, no argument) — dev.html → DevPage | `current_url.Equals(S17MomentRules.DevResetVerb)`; acts only with the `devMode` preference on (the S16 flag rules), else nothing; a failure logs its type name. DevPage only (not in `onNavigatingGlobal`, no other page handles it); the row shows only when C# declared the cap `devmoments` (no dead row on an older exe) | ours, safe · 🟡 BE (P28) |
+| Store reset `SMoments.resetForDev` — removes `moments.seen` · `moments.langs` · `moments.apps` (`SLocalOnlyStore.remove`, written at once) + the in-memory session bits (moment, card, since), the pending language and the one-shot `ixian:openPrivacy` grant | worst case = every moment sheet shows once more (the first-payment warning included — more warning, never less); it touches no other key, no setting, no money, no backup. The revoked one-shot only REMOVES a permission | ours, safe |
+| Log line `[MO] dev reset: moment sheets cleared` (once per reset, only when all three removes wrote — #46 security N2) · `[MO] dev reset: store write failed` · `DevPage: moments reset failed: <Type>` | fixed words, a type name | ours, safe |
+
+## Session 18 A–C + D1 — the new screens (2026-10-12, #46 security pass at high: CLEAN)
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| Avatar `img.src` in three new places: the Add contact known row (`avatarFor` → the roster's `avatar`, contacts-page.js), the New group chips (`m.avatar`), the peer address card (`state.avatarPath`, contact_details.html) | no new value source: each is a value C# already pushes and the SAME shell already renders through `createAvatar` (home's roster rows `resolveAvatar` / the data-URI regex; the contact_details hero `setAvatar`); a property set, never markup | inherited (same value, same shell) |
+| Peer name in the peer address card (`openAddressSheet({ name })`) | textContent; the title's own address-shaped guard | ours, safe |
+| Theme commit `ixian:appearance:<v>` from three pickers through ONE `commitTheme` | the value is clamped to 0 / 1 / 2 (base sent the raw sheet index) | ours, tighter than base |
+| The Tips switch moved to Notifications | same verb `ixian:hintsoff:<0\|1>`, same cap `hints`, same shell | ours, safe |
+| Add app / Add contact / New group screens | no new verb, no storage key, no fetch, no innerHTML with data | ours, safe |
+
+| Cap `devmoments` (a second `setCaps` from DevPage.onLoad, after `setFlagsDev`) · string `devResetMoments` | a constant capability name; text only (textContent) | ours, safe |

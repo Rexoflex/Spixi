@@ -8,8 +8,13 @@
  *   · Copy is a LABELLED pill ("Copy"), and its label morphs on success;
  *   · the peer subject (openAddressSheet with subject 'peer') keeps its fences: no Share, no safety line, no identity unless
  *     a name is given.
+ *   · ★ S18 D1 RE-BASE (S17 walk AD-CARD, Damir 17:17): the REAL peer path — contact_details.html, the hero address row →
+ *     openPeerAddressSheet — passes the contact's name + the header's photo: a named contact's sheet shows the avatar (the
+ *     setAvatar src) + the name and still has no Share / no safety line; an address-shaped nickname (the Friend.nickname
+ *     echo) shows NEITHER and the sheet keeps the 'Ixian address' title.
  * Deliberate break (#1358 report): the short form built from 6 + 6 → the group clause fails; Share appended back into the
- * address row → the order clause fails. */
+ * address row → the order clause fails. ★ S18 D1: `name: peerName` dropped from openPeerAddressSheet → the peer clause fails
+ * (peerNamed false); the guard dropped (name: state.name) → the peer clause fails (peerAddr false). */
 import { aKit } from '../pins-s11/a-kit.mjs';
 export default async function (h) {
   const { ok, sleep } = h;
@@ -65,6 +70,31 @@ export default async function (h) {
     W.Spixi.closeAddressSheet();
   } catch (e) { r.threw = e.message; }
   finally { if (s && s.close) s.close(); }
+  /* ★ S18 D1 (AD-CARD): the real peer path on the BUILT contact_details.html — a named contact, then an address-shaped nick */
+  const peerPath = async (nick) => {
+    const c = await K.boot('contact_details.html', { wait: 900 });
+    try {
+      c.push('setAddress', ADDR); c.push('setNickname', nick); c.push('setAvatar', 'Avatars/liu-kang.png');
+      await sleep(400);
+      const row = c.d.querySelector('.c-chat-info__addr-row');
+      if (row) row.click();
+      await sleep(200);
+      const sh = c.d.querySelector('.c-addr-sheet');
+      const av = sh && sh.querySelector('.c-addr-sheet__card > .c-addr-sheet__avatar');
+      const img = av && av.querySelector('img');
+      const nm = sh && sh.querySelector('.c-addr-sheet__card > .c-addr-sheet__name');
+      return { sheet: !!sh, avatar: img ? img.getAttribute('src') : (av ? 'placeholder' : null), name: nm ? nm.textContent : null,
+        title: sh ? sh.getAttribute('aria-label') : null,
+        fences: !!sh && !sh.querySelector('.c-addr-sheet__sharebtn') && !sh.querySelector('.c-addr-sheet__explain--safe') };
+    } finally { c.close(); }
+  };
+  try {
+    const named = await peerPath('Liu Kang');
+    r.peerNamed = named.sheet && named.avatar === 'Avatars/liu-kang.png' && named.name === 'Liu Kang' && named.title === 'Ixian address'   /* re-based by #46 r2 MINOR-2: the name sits in the card once; the heading says what the sheet is */ && named.fences;
+    const echo = await peerPath(ADDR);
+    r.peerAddr = echo.sheet && echo.avatar === null && echo.name === null && echo.title === 'Ixian address' && echo.fences;
+    if (!r.peerNamed || !r.peerAddr) r.peerDetail = JSON.stringify({ named, echo });
+  } catch (e) { r.peerThrew = e.message; }
   ok(Object.values(r).every((v) => v === true),
-    '★ #1358 (Damir 14:54, Direction A): the address sheet is ONE identity card (band · avatar + name · explainer line · QR · the address) with the full-width Share and the safety line under it; the address is ONE start…end group (8 … 8) whose full value stays in the DOM and opens / folds on a tap; Copy is a labelled pill; a contact\'s sheet keeps its fences (no Share, no safety line, no avatar) — ' + JSON.stringify(r));
+    '★ #1358 (Damir 14:54, Direction A): the address sheet is ONE identity card (band · avatar + name · explainer line · QR · the address) with the full-width Share and the safety line under it; the address is ONE start…end group (8 … 8) whose full value stays in the DOM and opens / folds on a tap; Copy is a labelled pill; a contact\'s sheet keeps its fences (no Share, no safety line); ★ S18 D1 (AD-CARD): through the real contact page a NAMED contact shows its photo + name, an address-shaped nickname shows neither — ' + JSON.stringify(r));
 }

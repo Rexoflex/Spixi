@@ -38,6 +38,7 @@ namespace SPIXI.Meta
         private static WeakReference<SpixiContentPage>? privacyOpen;   // the chat page granted the autodl offer: ONE ixian:openPrivacy
         private static long privacyOpenUntil;
         private static string pendingLang = ""; // the non-English language the user just applied (Settings asks after setLocale)
+        private static int askLines;            // ★ S18 D3: [MO] ask lines written by this process (capped at S17MomentRules.MaxAskLines)
 
         /** A session = the process, at most this long after its first moment / card (then both bits clear). */
         public const long SessionMs = S17MomentRules.MaxSessionMs;
@@ -191,6 +192,13 @@ namespace SPIXI.Meta
             expireSession();
             bool seen = isSeen(id, arg);
             S17MomentRules.Decision d = S17MomentRules.decide(id, seen, sessionMoment, sessionCard, eligible);
+            /* ★ S18 D3: one line per ask — fixed words + an id from the fixed set (S17MomentRules.askLine); no code, no app id */
+            string askLine = S17MomentRules.askLine(id, d, S17MomentRules.why(id, seen, sessionMoment, sessionCard, eligible));
+            if (askLine.Length > 0 && askLines < S17MomentRules.MaxAskLines)   // a page spamming asks cannot flood ixian.log
+            {
+                askLines++;
+                Logging.info(askLine);
+            }
             bool yes = d == S17MomentRules.Decision.Grant;
             if (d != S17MomentRules.Decision.Refuse)
             {
@@ -253,6 +261,37 @@ namespace SPIXI.Meta
             if (!owner) return false;   // #46 security r3 NIT-1: another page's verb never uses up the owner's grant
             privacyOpen = null;
             return nowMs() <= privacyOpenUntil;
+        }
+
+        /** ★ S18 D3 (P28, dev surface): Developer › Reset moment sheets (`ixian:devmoments:reset`, DevPage, dev mode only) —
+         *  the three seen keys go and the in-memory bits return to a fresh process (session, card, pending language, the
+         *  one-shot privacy open). Nothing is pushed: the walk restarts the app (the open shells keep their own copy). Writes
+         *  at once (SLocalOnlyStore.remove), so a restart right after cannot lose it. One fixed log line. */
+        public static void resetForDev()
+        {
+            // #46 security N2: SLocalOnlyStore.remove never throws — it returns false on a failed write, so the result decides
+            // the line (a failed reset must not log "cleared"). Fixed words only.
+            bool stored = true;
+            try
+            {
+                stored &= SLocalOnlyStore.remove(S17MomentRules.KeySeen);
+                stored &= SLocalOnlyStore.remove(S17MomentRules.KeyLangs);
+                stored &= SLocalOnlyStore.remove(S17MomentRules.KeyApps);
+            }
+            catch (Exception e)
+            {
+                stored = false;
+                Logging.warn("SMoments: store failed (" + e.GetType().Name + ")");
+            }
+            sessionMoment = false;
+            sessionCard = false;
+            sessionSince = 0;
+            pendingLang = "";
+            privacyOpen = null;
+            privacyOpenUntil = 0;
+            askLines = 0;
+            if (stored) Logging.info(S17MomentRules.DevResetLine);
+            else Logging.warn("[MO] dev reset: store write failed");
         }
 
         private static bool isSeen(string id, string arg)

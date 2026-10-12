@@ -3,12 +3,12 @@
 .c-apps-add {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-24);
+  gap: var(--spacing-12);
   padding: var(--spacing-16);
 }
 
 .c-apps-add__lead {
-  margin: 0;
+  margin: 0 0 var(--spacing-8);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
   color: var(--text-neutral-02);
@@ -20,33 +20,47 @@
   color: var(--text-neutral-02);
 }
 
-/* —— method tiles —— */
+/* —— method tiles —— ★ #1359 (B): settings cards on the settings ground (the shells paint it), a 44 hub
+   disc each in the Account hub grammar (settings-shell.css .c-account .c-disc) */
 .c-apps-add__methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-12); }
 .c-apps-add__method {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-8);
-  padding-block: var(--spacing-16);
-  padding-inline: var(--spacing-8);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  gap: 10px;
+  padding: 18px var(--spacing-4) 14px;
+  border: 0;
   border-radius: var(--radius-16);
-  background: transparent;
+  --_lift: var(--elevation-settings-card);
+  background: var(--surface-settings-card);
+  box-shadow: var(--_lift);
   color: var(--text-neutral-01);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-100) var(--easing-standard);
+  transition: background-color var(--duration-100) var(--easing-standard), box-shadow var(--duration-100) var(--easing-standard);
 }
-@media (hover: hover) and (pointer: fine) { .c-apps-add__method:hover { background: var(--surface-interactive-hover); } }
-.c-apps-add__method:active { background: var(--surface-interactive-pressed); }
+/* ★ #1359 (#46 R1-M2 + the #882 card rule): a card control hovers on the CARD pair — --surface-card-hover (light
+   neutral-200, clearly apart from the white card AND the #F3F5F7 ground; the row-hover #F4F5F7 melted into the ground)
+   and lifts one elevation step; pressed = --surface-card-pressed, no lift. */
+@media (hover: hover) and (pointer: fine) {
+  .c-apps-add__method:hover { background: var(--surface-card-hover); --_lift: var(--elevation-2); }
+}
+.c-apps-add__method:active { background: var(--surface-card-pressed); --_lift: var(--elevation-settings-card); }
+/* ★ #1362: the open Paste link tile */
+.c-apps-add__method[data-selected] { box-shadow: 0 0 0 var(--outline-width-2) var(--outline-action-default), var(--_lift); }
+.c-apps-add__method[data-selected] .c-apps-add__method-label { color: var(--text-action-default); }
 .c-apps-add__method-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: var(--size-target-min); height: var(--size-target-min);
   border-radius: var(--radius-full);
-  background: var(--surface-neutral-02);
-  color: var(--text-action-default);
+  color: #fff;                                          /* sanctioned: the white glyph on a hub disc (base.css .c-disc) */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);  /* sanctioned: the disc's glass edge (base.css .c-disc) */
 }
+.c-apps-add__method-icon > svg { filter: var(--disc-hub-glyph-lift); }
+.c-apps-add__method-icon[data-hub='7']  { background: var(--disc-hub-7); }
+.c-apps-add__method-icon[data-hub='8']  { background: var(--disc-hub-8); }
+.c-apps-add__method-icon[data-hub='10'] { background: var(--disc-hub-10); }
 .c-apps-add__method-label {
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
@@ -54,60 +68,86 @@
   text-align: center;
 }
 
-/* —— URL field —— */
-.c-apps-add__field { display: flex; flex-direction: column; gap: var(--spacing-8); }
+/* —— URL field —— ★ #1359: a settings card; the link glyph sits inside the input's box */
+.c-apps-add__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  padding: var(--spacing-16);
+  border-radius: var(--radius-16);
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+}
 .c-apps-add__label {
-  font-size: var(--font-size-label-md);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-neutral-01);
+  color: var(--text-neutral-02);
+}
+.c-apps-add__inputbox { position: relative; }
+.c-apps-add__input-icon {
+  position: absolute;
+  inset-inline-start: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--icon-neutral-02);
+  pointer-events: none;
 }
 .c-apps-add__input {
   width: 100%;
   box-sizing: border-box;
-  padding: var(--spacing-12) var(--spacing-16);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  min-height: 52px;
+  padding-block: var(--spacing-8);
+  padding-inline: 44px 14px;   /* 14 · the 20 glyph · 10 */
+  border: var(--outline-width-1) solid transparent;
   border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
+  background: var(--surface-input-on-settings-card);
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-lg);
   line-height: var(--line-height-body-lg);
 }
 .c-apps-add__input::placeholder { color: var(--text-neutral-02); }
+/* 2 px rings, no shift */
 .c-apps-add__input:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;
+  outline: none;
   border-color: var(--outline-action-default);
+  box-shadow: inset 0 0 0 var(--outline-width-1) var(--outline-action-default);
 }
-.c-apps-add__input[aria-invalid] { border-color: var(--text-error); }
+.c-apps-add__input[aria-invalid] {
+  border-color: var(--outline-error);
+  box-shadow: inset 0 0 0 var(--outline-width-1) var(--outline-error);
+}
 .c-apps-add__error {
+  display: flex;
+  gap: var(--spacing-4);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-error);
 }
+.c-apps-add__error > svg { flex: none; margin-inline-start: -2px; color: var(--icon-error); }
+.c-apps-add__field .c-button { margin-top: var(--spacing-4); }
 
-/* —— info banner —— */
-.c-apps-add__info {
+/* —— trust line —— ★ #1359: a shield-lock caption, not a grey box */
+.c-apps-add__trust {
   display: flex;
-  gap: var(--spacing-12);
-  align-items: flex-start;
-  padding: var(--spacing-16);
-  border-radius: var(--radius-12);
-  background: var(--surface-neutral-02);
+  gap: var(--spacing-8);
+  margin: 0 var(--spacing-4);
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
 }
-.c-apps-add__info svg { flex: none; color: var(--icon-neutral-02); }
+.c-apps-add__trust svg { flex: none; margin-top: 1px; color: var(--icon-neutral-02); }
 
 /* —— embedded Discover —— */
-.c-apps-add__discover { display: flex; flex-direction: column; }
+.c-apps-add__discover { display: flex; flex-direction: column; margin-top: var(--spacing-12); }
 
 /* —— developer CTA (quiet, page bottom — "anyone can build a mini app", #128③) —— */
 .c-apps-add__dev {
   display: flex;
   align-items: center;
   gap: var(--spacing-12);
+  margin-top: var(--spacing-12);
   padding-block: var(--spacing-12);
   border-block-start: var(--outline-width-1) solid var(--outline-neutral-02);
   color: var(--text-neutral-02);

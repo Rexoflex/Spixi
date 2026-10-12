@@ -2229,10 +2229,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 @media (hover: hover) and (pointer: fine) {
   .c-settings-dl__chip:not([aria-pressed="true"]):hover { background: var(--surface-card-hover); }   /* the card pair (#882) */
 }
-.c-settings-dl__from-btn { margin-inline-start: auto; max-width: 70%; color: var(--text-action-default); }
+/* ★ S18 D1 (S17 walk DL-SCREEN, Damir 17:17: "From: TempestNova777Tempest…" ran off the screen): the From chip SHRINKS into
+   the room the kind chips leave (flex-shrink + min-width 0 — the row never scrolls a long name past the edge), capped at 70 %;
+   the LABEL is the text carrier and clips with an ellipsis (text-overflow only acts on a block's own text, and the chip itself
+   must not clip: its ::after reaches the 44 px hit box). The full name rides `title` and the accessible name (settings-app.js). */
+.c-settings-dl__from-btn { flex: 0 1 auto; min-width: 0; margin-inline-start: auto; max-width: 70%; white-space: nowrap; color: var(--text-action-default); }
 .c-settings-dl__from-btn[hidden] { display: none; }
 .c-settings-dl__from-btn svg { flex: none; }
-.c-settings-dl__from-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from-label { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-settings-dl__from { white-space: nowrap; }
 .c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
 
@@ -3179,6 +3183,9 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
 @keyframes wnOrbit { to { transform: rotate(360deg); } }
 @keyframes wnBob { to { transform: translateY(-5px); } }
 @keyframes chFloat { to { transform: translateY(-3px); } }
+/* ★ S18 D1 (walk DC-SCREEN-A): the Contributors heart rides the SHARED .wn-bob — a .ct-l-only loop, 2× travel, same tempo (pins-s18/e-heart) */
+.il.ct-l .wn-bob { animation-name: ctBob; }
+@keyframes ctBob { to { transform: translateY(-10px); } }
 @keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
 @keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
 @keyframes ctTw { from { opacity: .2; } to { opacity: .95; } }

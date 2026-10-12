@@ -2,9 +2,9 @@
 
 | Risk | Money / keys | Bridge change | Status | Read |
 |---|---|---|---|---|
-| LOW (no moment writes a setting; the payment moment only DELAYS the review) | no (the native confirm is unchanged) | yes — 3 new pushes, 3 new verbs, 1 dev verb | built behind flag `SpixiFlags.S17Moments` (default ON) | 6 min |
+| LOW (no moment writes a setting; the payment moment only DELAYS the review) | no (the native confirm is unchanged) | yes — 3 new pushes, 3 new verbs, 2 dev verbs (S18 D3: + `ixian:devmoments:reset`) | built behind flag `SpixiFlags.S17Moments` (default ON) | 6 min |
 
-**Look here first:** `Spixi/Utils/S17MomentRules.cs` — the grammar and the decision, pure (csh `S17MomentTests.cs`, 6 tests). `Spixi/Meta/SMoments.cs` reads the inputs and stores what the rules decide.
+**Look here first:** `Spixi/Utils/S17MomentRules.cs` — the grammar and the decision, pure (csh `S17MomentTests.cs`, 7 tests — S18 D3 +1: the decision log line). `Spixi/Meta/SMoments.cs` reads the inputs and stores what the rules decide.
 
 **DECISIONS:** #1312 · #1340–#1345 (S17 F) · MOMENTS.md (Damir 17:12 / 17:36) · 20:37 full-bleed art · 20:42 text buttons
 
@@ -61,3 +61,17 @@
 
 ## Question for BE
 None blocking. Is `SLocalOnlyStore` the right home for the moment flags (yes / no)?
+
+## S18 D3 addendum (2026-10-12) — the decision log line + Developer › Reset moment sheets
+Why: the S17 walk (Android) showed no sheet for MO-LANG / MO-APP / MO-OFFLINE / MO-AUTODL. The most likely cause is the one-per-session rule (the Pay moment was granted first in the same process), but C# logged no decision, so it could not be proven; the walk sheet also never said "restart between moment rows".
+
+| Verb / push / log | Args (shape) | Who can send it | Handler | Ours / reshaped |
+|---|---|---|---|---|
+| log `[MO] ask id=<id> d=<grant\|refuse\|consume> why=<seen\|wait\|session\|card\|ok>` | id = one of the seven fixed ids, re-read from `S17MomentRules.Ids` by index; no language code, no app id | written by C# once per `ixian:moment:*` ask, at most 100 per process or per dev reset | `SMoments.answerAsync` → `S17MomentRules.askLine` / `why` (pure) | ours (new) |
+| `ixian:devmoments:reset` | none (exact) | dev.html → DevPage, dev mode on | `SMoments.resetForDev` — removes `moments.seen` · `moments.langs` · `moments.apps`, clears the session bits; one line `[MO] dev reset: moment sheets cleared` | ours (dev) |
+| `setCaps "devmoments"` | constant | DevPage.onLoad → dev.html | the Reset row shows only then (no dead row) | ours (dev) |
+
+- `why` follows `decide()`'s own order: seen → consume (`why=ok`: the id's own check says it is never needed) → wait → session → card → ok. Proof: csh `S17MomentTests.AskLine_WhyMatchesDecide_FixedWordsOnly` (every id × eligibility × the three bits: refuse ⇔ a why other than ok; the line always matches the fixed shape; an id outside the set logs nothing). Pin `scripts/pins-s18/f-moments-dev.mjs`.
+- Files: `Spixi/Utils/S17MomentRules.cs` (`Why`, `why`, `decisionWord`, `askLine`, `DevResetVerb`, `DevResetLine`) · `Spixi/Meta/SMoments.cs` (`answerAsync` the line; `resetForDev`) · `Spixi/Pages/Dev/DevPage.xaml.cs` (the branch; the cap) · `src/shells/dev.html` (the row in the Release flags card).
+- Threat: a hostile host page can add `[MO] ask` lines only by sending asks, at most 100 per process or per dev reset (`MaxAskLines`; the reset needs a user tap in dev mode), so it cannot flood `ixian.log`; the reset is reachable only from DevPage in dev mode, and its worst case is every moment once more (more warning, never less). Gate rows: `docs/security-handover-gate.md` § Session 18 D3.
+- Question for BE: none.

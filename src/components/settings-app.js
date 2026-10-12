@@ -332,6 +332,7 @@ export function createSettingsDownloads({
     senderKey ? (senders.get(senderKey) || '') : (strings.downloadsAllSenders || 'Everyone'));
   function paintFromChip() {
     fromLab.textContent = fromLabel();
+    fromChip.title = fromLab.textContent;   // ★ S18 D1 (DL-SCREEN): the label ellipsizes; the FULL "From: <name>" stays in the tooltip + the name (the text content)
     if (senderKey) fromChip.dataset.active = ''; else delete fromChip.dataset.active;
   }
   /* ★ S10 F7 (#1254, Damir pick C): each sheet row = a 40 px avatar + "{n} files · last {when}" — counted from the

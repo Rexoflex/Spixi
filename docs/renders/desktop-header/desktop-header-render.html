@@ -1,0 +1,119 @@
+<title>Spixi Desktop Headers</title>
+<style>
+/* layout: one reading column; each state is a 2-up grid of pane frames, each frame captioned with its measured contrast */
+:root {
+  --bg: #f3f5f7; --panel: #ffffff; --fg: #131415; --muted: #4f5664; --line: #dde2e9;
+  --accent: #3050bd; --tag: rgba(48, 80, 189, .10); --ok: #007030; --bad: #b42318;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1113; --panel: #1a1c1f; --fg: #e8ecee; --muted: #bbbec4; --line: #2a2d31;
+    --accent: #98b5fc; --tag: rgba(118, 157, 255, .14); --ok: #69b67a; --bad: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1113; --panel: #1a1c1f; --fg: #e8ecee; --muted: #bbbec4; --line: #2a2d31;
+  --accent: #98b5fc; --tag: rgba(118, 157, 255, .14); --ok: #69b67a; --bad: #ff8a80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 28px 72px; padding-inline: 16px; }
+h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.2; letter-spacing: -.4px; text-wrap: balance; }
+h2 { margin: 0; font-size: 22px; line-height: 1.25; text-wrap: balance; }
+h3 { margin: 22px 0 10px; font-size: 15px; }
+p, li { max-width: 80ch; }
+.lede, .sub { color: var(--muted); }
+.sub { margin: 4px 0 18px; }
+code { font: 13px/1.4 var(--mono); }
+section { margin-top: 44px; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.tag { font: 700 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); background: var(--tag); padding: 6px 8px; border-radius: 6px; }
+.rec { margin-top: 24px; padding: 16px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.rec h2 { font-size: 18px; margin-bottom: 6px; }
+.rec p { margin: 6px 0; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 18px; }
+.grid.small { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 760px) { .grid, .grid.small { grid-template-columns: minmax(0, 1fr); } }
+figure { margin: 0; min-width: 0; }
+figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; }
+figcaption { margin-top: 8px; font: 12.5px/1.45 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+figcaption b { color: var(--fg); font-family: var(--sans); font-size: 13.5px; }
+.pass { color: var(--ok); font-weight: 700; }
+.fail { color: var(--bad); font-weight: 700; }
+.tbl { overflow-x: auto; margin-top: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; background: var(--panel); border: 1px solid var(--line); font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+ul { padding-inline-start: 20px; }
+</style>
+<div class="page">
+<h1>About and Contributors headers on desktop</h1>
+<p class="lede">DC-SCREEN-W (ADDENDUM-D §D4). The Account peer pane, rendered from the built settings shell at 1128 × 800
+(a 1200-px window minus the 72-px rail; detail region 800 px). Every frame lists the bar title's contrast against the pixels
+really behind it: the glyphs are hidden, the ground inside the title's text box is sampled, the worst pixel decides.
+The pin needs 4.5 : 1 for the title and 3 : 1 for the back icon. The text-shadow is ignored. Reduced motion, so the art is a still frame.</p>
+
+<div class="rec">
+<h2>Recommendation: option B</h2>
+<p>B uses the pane's own bar, the same as every other Account sublevel: the title spans the detail width, the content holds
+the 640-px column, and the ground is one flat surface (#245b, #1080 F5). The title is 16.88 : 1 in light and
+15.91 : 1 in dark on both screens and both widths. The contrast comes from tokens, not from art, so a
+plain token pin proves it. B costs about 45 CSS lines and no new colour.</p>
+<p>A is the phone's look and passes too (6.01 / 7.80 : 1 light,
+8.90 / 11.01 : 1 dark). It needs a new top scrim, the scrollbar hidden on these two
+screens, a Mac title-bar check, and a pixel pin, because its contrast depends on where the art falls.</p>
+</div>
+
+<section>
+<div class="head"><span class="tag">Today</span><h2>The band is cut and the light title is invisible</h2></div>
+<p class="sub">The 640-px content cap (<code>settings.html:138</code>) also caps the scroller that holds the band. The pane bar
+paints the settings ground (<code>settings.html:148</code>) over the band's top 56 px, but keeps the header's white ink
+(<code>settings-app.css:949–959</code>). Light: 1.05 : 1. Dark: the ink still reads (15.91 : 1), but the band is cut the same way.</p>
+<div class="grid"><figure><img src="about-light-today.png" alt="About, light theme, today" loading="lazy"><figcaption><b>About · light</b><br>title 1.05 : 1 <span class="fail">FAIL</span> · median 1.05 · worst ground #f3f5f7<br>back icon 1.05 : 1 <span class="fail">FAIL</span> (3 : 1)</figcaption></figure><figure><img src="about-dark-today.png" alt="About, dark theme, today" loading="lazy"><figcaption><b>About · dark</b><br>title 15.91 : 1 <span class="pass">PASS</span> · median 15.91 · worst ground #0f1113<br>back icon 15.91 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-light-today.png" alt="Contributors, light theme, today" loading="lazy"><figcaption><b>Contributors · light</b><br>title 1.05 : 1 <span class="fail">FAIL</span> · median 1.05 · worst ground #f3f5f7<br>back icon 1.05 : 1 <span class="fail">FAIL</span> (3 : 1)</figcaption></figure><figure><img src="contributors-dark-today.png" alt="Contributors, dark theme, today" loading="lazy"><figcaption><b>Contributors · dark</b><br>title 15.91 : 1 <span class="pass">PASS</span> · median 15.91 · worst ground #0f1113<br>back icon 15.91 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure></div>
+</section>
+
+<section>
+<div class="head"><span class="tag">Option A</span><h2>Full-width band under a transparent bar</h2></div>
+<p class="sub">The scroller spans the pane, and the column becomes padding. The band bleeds edge to edge at the phone's height
+(234 / 220). The art is held at phone scale in a 430-px column that feathers into a ground of the art's own tokens. A navy
+scrim under the bar keeps the white ink at 4.5 : 1 or more. The bar is transparent until the band scrolls under it.
+Spec: <code>option-a.css</code>.</p>
+<div class="grid"><figure><img src="about-light-a.png" alt="About, light theme, a" loading="lazy"><figcaption><b>About · light</b><br>title 6.01 : 1 <span class="pass">PASS</span> · median 6.16 · worst ground #275eb4<br>back icon 5.91 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="about-dark-a.png" alt="About, dark theme, a" loading="lazy"><figcaption><b>About · dark</b><br>title 8.90 : 1 <span class="pass">PASS</span> · median 9.17 · worst ground #1b3d78<br>back icon 8.71 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-light-a.png" alt="Contributors, light theme, a" loading="lazy"><figcaption><b>Contributors · light</b><br>title 7.80 : 1 <span class="pass">PASS</span> · median 8.12 · worst ground #3e45a2<br>back icon 7.72 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-dark-a.png" alt="Contributors, dark theme, a" loading="lazy"><figcaption><b>Contributors · dark</b><br>title 11.01 : 1 <span class="pass">PASS</span> · median 11.35 · worst ground #242771<br>back icon 11.02 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure></div>
+<h3>Option A on a narrow pane (720-px window, detail 392 px)</h3>
+<div class="grid small"><figure><img src="about-light-a-narrow.png" alt="About, light theme, a-narrow" loading="lazy"><figcaption><b>About · light</b><br>title 6.32 : 1 <span class="pass">PASS</span> · median 7.12 · worst ground #3159af<br>back icon 6.10 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="about-dark-a-narrow.png" alt="About, dark theme, a-narrow" loading="lazy"><figcaption><b>About · dark</b><br>title 8.05 : 1 <span class="pass">PASS</span> · median 10.62 · worst ground #31417f<br>back icon 7.34 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-light-a-narrow.png" alt="Contributors, light theme, a-narrow" loading="lazy"><figcaption><b>Contributors · light</b><br>title 6.38 : 1 <span class="pass">PASS</span> · median 7.34 · worst ground #4c53ad<br>back icon 6.64 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-dark-a-narrow.png" alt="Contributors, dark theme, a-narrow" loading="lazy"><figcaption><b>Contributors · dark</b><br>title 7.90 : 1 <span class="pass">PASS</span> · median 10.60 · worst ground #3b3f85<br>back icon 8.46 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure></div>
+</section>
+
+<section>
+<div class="head"><span class="tag">Option B</span><h2>Rounded band card, normal pane bar</h2></div>
+<p class="sub">The bar is back in the flow with the theme ink and the heading-sm title. The band is a card that lines up with the
+column's cards (radius 24 on Contributors, like its names card; 16 on About, like its settings cards). The art uses the same
+phone-scale column as A, so the heart and the app tile are no longer cropped. Spec: <code>option-b.css</code>.</p>
+<div class="grid"><figure><img src="about-light-b.png" alt="About, light theme, b" loading="lazy"><figcaption><b>About · light</b><br>title 16.88 : 1 <span class="pass">PASS</span> · median 16.88 · worst ground #f3f5f7<br>back icon 16.88 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="about-dark-b.png" alt="About, dark theme, b" loading="lazy"><figcaption><b>About · dark</b><br>title 15.91 : 1 <span class="pass">PASS</span> · median 15.91 · worst ground #0f1113<br>back icon 15.91 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-light-b.png" alt="Contributors, light theme, b" loading="lazy"><figcaption><b>Contributors · light</b><br>title 16.88 : 1 <span class="pass">PASS</span> · median 16.88 · worst ground #f3f5f7<br>back icon 16.88 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-dark-b.png" alt="Contributors, dark theme, b" loading="lazy"><figcaption><b>Contributors · dark</b><br>title 15.91 : 1 <span class="pass">PASS</span> · median 15.91 · worst ground #0f1113<br>back icon 15.91 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure></div>
+<h3>Option B on a narrow pane (720-px window, detail 392 px)</h3>
+<div class="grid small"><figure><img src="about-light-b-narrow.png" alt="About, light theme, b-narrow" loading="lazy"><figcaption><b>About · light</b><br>title 16.88 : 1 <span class="pass">PASS</span> · median 16.88 · worst ground #f3f5f7<br>back icon 16.88 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="about-dark-b-narrow.png" alt="About, dark theme, b-narrow" loading="lazy"><figcaption><b>About · dark</b><br>title 15.91 : 1 <span class="pass">PASS</span> · median 15.91 · worst ground #0f1113<br>back icon 15.91 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-light-b-narrow.png" alt="Contributors, light theme, b-narrow" loading="lazy"><figcaption><b>Contributors · light</b><br>title 16.88 : 1 <span class="pass">PASS</span> · median 16.88 · worst ground #f3f5f7<br>back icon 16.88 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-dark-b-narrow.png" alt="Contributors, dark theme, b-narrow" loading="lazy"><figcaption><b>Contributors · dark</b><br>title 15.91 : 1 <span class="pass">PASS</span> · median 15.91 · worst ground #0f1113<br>back icon 15.91 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure></div>
+</section>
+
+<section>
+<div class="head"><span class="tag">Reference</span><h2>The phone today</h2></div>
+<p class="sub">412 × 915 with a 24-px status-bar inset. This is the look option A copies. The phone header does not reach 4.5 : 1
+either: the twinkles and bokeh sit under the title (About light 3.49, Contributors light
+2.68, Contributors dark 3.92). This is outside D4, which is desktop only.</p>
+<div class="grid small"><figure><img src="about-light-phone.png" alt="About, light theme, phone" loading="lazy"><figcaption><b>About · light</b><br>title 3.49 : 1 <span class="fail">FAIL</span> · median 4.23 · worst ground #5981ea<br>back icon 3.49 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="about-dark-phone.png" alt="About, dark theme, phone" loading="lazy"><figcaption><b>About · dark</b><br>title 5.49 : 1 <span class="pass">PASS</span> · median 8.64 · worst ground #4a57a8<br>back icon 5.45 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure><figure><img src="contributors-light-phone.png" alt="Contributors, light theme, phone" loading="lazy"><figcaption><b>Contributors · light</b><br>title 2.68 : 1 <span class="fail">FAIL</span> · median 3.99 · worst ground #8992f5<br>back icon 2.80 : 1 <span class="fail">FAIL</span> (3 : 1)</figcaption></figure><figure><img src="contributors-dark-phone.png" alt="Contributors, dark theme, phone" loading="lazy"><figcaption><b>Contributors · dark</b><br>title 3.92 : 1 <span class="fail">FAIL</span> · median 8.14 · worst ground #5e6fbf<br>back icon 4.24 : 1 <span class="pass">PASS</span> (3 : 1)</figcaption></figure></div>
+</section>
+
+<section>
+<div class="head"><span class="tag">Compare</span><h2>Cost and risk</h2></div>
+<div class="tbl"><table>
+<tr><th></th><th>Option A · full width</th><th>Option B · card</th></tr>
+<tr><td>Title contrast (min)</td><td>6.01 – 11.01 : 1; narrow 6.32 – 8.05</td><td>16.88 light · 15.91 dark</td></tr>
+<tr><td>Source of the contrast</td><td>Art position plus a new scrim</td><td>Tokens (the pane bar)</td></tr>
+<tr><td>Pin</td><td>A Chromium pixel pin, or a token composite plus a geometry assumption</td><td>A jsdom token pin. Break: drop the ink reset, and the pin reads 1.05 : 1</td></tr>
+<tr><td>New values</td><td>2 scrim colours, a container query, masks</td><td>Masks only (the shared art column)</td></tr>
+<tr><td>Side effects</td><td>Scrollbar hidden on 2 screens; the Mac title-bar hairline crosses the band</td><td>None found</td></tr>
+<tr><td>CSS</td><td>~70 lines in the <code>settings.html</code> pane block</td><td>~45 lines in the same place</td></tr>
+</table></div>
+<p class="sub">Full notes: <code>PORT.md</code>. Regenerate: <code>python3 docs/renders/desktop-header/build-desktop-header.py</code>.</p>
+</section>
+</div>

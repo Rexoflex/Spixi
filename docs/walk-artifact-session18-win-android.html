@@ -1,0 +1,198 @@
+<title>Spixi Session 18 Walk</title>
+<style>
+/* Layout: one narrow column — commit steps, then a Windows part and an Android part (each: build steps, then walk rows), a sticky tally bar.
+   Tokens follow the Spixi redesign palette (ink neutrals, the Spixi blue). */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:780px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:8px 0 0;text-wrap:balance;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .tag{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 8px}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:8px;flex-wrap:wrap}
+nav.jump a{font:600 13px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:5px 12px;text-decoration:none}
+nav.jump a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps li{min-width:0}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.cmd button,.ctl button{font:600 12px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;flex:none}
+.exp{font-size:13px;color:var(--ink-2)}
+.exp b{color:var(--ink)}
+code{font:13px var(--mono);background:var(--brand-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:780px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{width:100%;min-height:120px;font:13px var(--mono)}
+.note{font-size:13px;color:var(--ink-2);border-inline-start:3px solid var(--brand);padding-inline-start:10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Spixi Session 18 Walk</h1>
+    <p class="sub"><b>Session 18 (#1359–#1366): Add app tiles · Add contact (the field says its state) + the coloured sheet · New group identity card (Create waits below 2) · the S17 walk fixes (desktop pattern, the contact's address card, the From chip, one theme value, Tips on Notifications, the desktop About / Contributors header, the heart, the moment diagnostics + Developer › Reset moment sheets).</b> Apply the ONE patch on b7776acb and commit, build Windows (F5) and Android, then walk. ⚠ The S18 C# (SMoments, S17MomentRules, DevPage) is UNCOMPILED for MAUI: this build is its first compile — a build error is a batch bug, paste it. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus both logs.</p>
+  </header>
+  <nav class="jump" aria-label="Parts">
+    <a href="#commit">1 · Commit + push</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
+  </nav>
+
+  <h2 id="commit">Commit + push <span class="tag">fresh PowerShell</span></h2>
+  <section class="box">
+    <h3>Steps (one command each)</h3>
+    <ol class="steps" id="steps-commit"></ol>
+  </section>
+
+  <h2 id="windows">Windows <span class="tag">F5</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-win"></ol>
+  </section>
+  <div id="rows-win"></div>
+
+  <h2 id="android">Android <span class="tag">Debug</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-and"></ol>
+  </section>
+  <div id="rows-and"></div>
+  <p class="note">Moment rows: Developer › Reset moment sheets, then restart the app, before EACH MO row (a moment shows at most once per session). Grep the log for <code>[MO]</code>.</p>
+  <textarea id="out" readonly aria-label="Results text" hidden></textarea>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+</div></div>
+
+<script>
+const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
+const STEPS = {
+  commit: [
+    ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
+    ["Check the tree.", "git --no-optional-locks status --short", "Only untracked files (your notes). Other changes: stop and paste them."],
+    ["Check that you are on the S17 walk-fix commit.", "git --no-optional-locks log --oneline -1", "<b>b7776acb S17 walk fixes: …</b>. Another hash: stop and paste it."],
+    ["Check that the patch applies.", "git apply --check \"..\\Claude outputs\\session18.patch\"", "No output."],
+    ["Apply the patch (it also stages the new files).", "git apply --index \"..\\Claude outputs\\session18.patch\"", "No output."],
+    ["Check the count.", "git diff --cached --stat", "The last line says <b>115 files changed</b>. Another number: stop and paste it."],
+    ["Commit.", "git commit -F docs/commit-message-session18.txt", "Subject \"Session 18: Add app, Add contact, New group + S17 walk fixes\"."],
+    ["Push.", "git push", "Ends with <b>redesign/frontend -> redesign/frontend</b>."],
+    ["Delete the old build output (the html changed).", "Remove-Item -Recurse -Force Spixi\\obj, Spixi\\bin -ErrorAction SilentlyContinue", "No output."],
+  ],
+  win: [
+    ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
+    ['Set the target.', '', 'Configuration <b>Debug</b>, target <b>Windows Machine</b>.'],
+    ['Press F5. Never use dotnet build for Windows (#663).', '', 'The app starts. A build error: paste it in the chat.'],
+    ['Walk the Windows rows below. Use a wide window.', '', ''],
+    ['Save the log.', '', 'Developer page → <b>Send log</b>. It saves <b>Downloads\\spixi-log-&lt;date&gt;.txt</b>.'],
+    ['Copy the log next to the other outputs (NOT into the repo folder).', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
+  ],
+  and: [
+    ['Connect the phone with USB. Check it.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -G 16M', 'No output.'],
+    ['Clear the log.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -c', 'No output.'],
+    ['Build and deploy Debug (the html changed: obj / bin are already deleted).', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Debug -t:Run', 'The app opens on the phone. A build error: paste it.'],
+    ['Walk the Android rows below.', '', ''],
+    ['Save the log as UTF-8.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s18.txt"', 'A file of a few MB.'],
+  ],
+};
+const W = 'w', A = 'a';
+const ROWS = [{"p": "w","id": "S18-BUILD-W","t": "S18-BUILD — this build only","d": "1) F5 (never dotnet build). 2) Apps › Add app.","e": "The build succeeds. Add app shows three white tiles with coloured discs (blue link · violet QR · pink file) — only this build."},{"p": "a","id": "S18-BUILD-A","t": "S18-BUILD — this build only","d": "1) Wipe obj / bin, Debug -t:Run. 2) Apps › Add app.","e": "The build succeeds. Add app shows three white tiles with coloured discs — only this build."},{"p": "a","id": "AA-TILES-A","t": "AA-TILES — #1359","d": "1) Apps › Add app, light then dark.","e": "Grey ground, three white tiles (Paste link blue · Scan QR violet · From file pink, white glyphs), the lead \"Add a mini app from a link, a QR code, or a file.\", a shield line under the tiles. No Explore banner."},{"p": "w","id": "AA-TILES-W","t": "AA-TILES — #1359","d": "1) Apps › Add app (the app_new pane), light then dark. 2) Hover a tile.","e": "As on Android; the hovered tile stays white and lifts (it does not melt into the ground)."},{"p": "a","id": "AA-LINK","t": "AA-LINK — #1359 · #1362","d": "1) Tap Paste link. 2) Tap Paste link again. 3) Enter apps.spixi.io/x and Get app. 4) Turn off the network, enter a valid link, Get app, wait.","e": "1: the tile gets a blue ring + blue label; a white card opens UNDER the tiles: label \"Mini app link\", the link glyph in the field, Get app. 2: the field stays open, the cursor in it. 3: a red ring + an alert glyph + \"That link or file isn't a valid mini app.\" 4: the spinner, then \"The link did not respond…\" with the glyph."},{"p": "a","id": "AC-FIELD","t": "AC-FIELD — #1360","d": "1) New chat › Add contact › Enter or paste a Spixi address.","e": "One white card: label \"Address\", the field with the placeholder \"Address\" and the scan button INSIDE it after a thin line; under the card an info line \"Enter their Spixi address to send a contact request.\"; Send request below."},{"p": "a","id": "AC-VALID","t": "AC-VALID — #1360","d": "1) Paste a valid address of someone who is not a contact.","e": "A green ✓ disc appears inside the field, and the line \"Looks like a valid Spixi address\" under it."},{"p": "a","id": "AC-BAD","t": "AC-BAD — #1360 · #1362 (6)","d": "1) Type \"abc def\", Send request. 2) Tap outside the field.","e": "A 2 px red border and \"That doesn't look like a Spixi address.\" with an alert glyph. The border stays red after the field loses focus."},{"p": "a","id": "AC-KNOWN","t": "AC-KNOWN — #1360","d": "1) Paste the address of an existing contact (one with a photo, and one with a very long name).","e": "One row inside the card: their photo (32 px), \"<name> is already in your contacts.\", \"View contact\". Send request is off. A long name wraps; it never runs under \"View contact\"."},{"p": "w","id": "AC-SHEET","t": "AC-SHEET — #1360","d": "1) New chat › Add contact, light and dark. 2) Hover each choice.","e": "Scan QR code has a violet tile, Enter or paste a blue one, both with white glyphs; no chevrons; \"Enter or paste a Spixi address\" stays on one line; the colour stays on hover."},{"p": "a","id": "NG-HERO","t": "NG-HERO — #1361","d": "1) New chat › Create group, pick 2, ✓. 2) Tap \"Set group photo\" (the text), pick a photo. 3) Light and dark.","e": "A card with the colour band on top, the round photo cut into it with a small camera badge, \"Set group photo\" in blue, the name field in the card. After the pick: the photo, a pencil badge, \"Change group photo\"."},{"p": "a","id": "NG-CHIPS","t": "NG-CHIPS — #1361","d": "1) Pick 5 people. 2) Tap a chip.","e": "The card says \"Members\" and \"5 / 10\"; each chip has a small round face, the name and a grey ×. A tap anywhere on the chip removes it."},{"p": "a","id": "NG-ONE","t": "NG-ONE — #1361 (the 1-member dead end)","d": "1) Remove chips down to one.","e": "Create group turns grey (off); the line \"Select at least 2 people to create a group.\" with an info glyph appears INSIDE the members card. Nothing appears under the name field."},{"p": "a","id": "NG-TEN","t": "NG-TEN — #1361","d": "1) Pick 10 people.","e": "\"10 / 10\" and the line \"A group can have up to 10 members besides you.\" in the members card; Create is on."},{"p": "w","id": "NG-BLIND","t": "NG-BLIND — #1361 · #1362 (3)","d": "1) Create group on a wide window, light and dark. 2) Turn Blind group on and off.","e": "The Blind group disc is violet with a white glyph; the switch has a visible border in dark. The cards and Create group are one column of the same width (640 px), centred."},{"p": "w","id": "PT-DESKTOP","t": "PT-DESKTOP — #1366 D1.1","d": "1) Open a chat with Contours on Mist, Aurora and a dark canvas.","e": "The pattern is about 20 % lighter than in the S17 build on Windows; the phone is unchanged."},{"p": "a","id": "AD-PEER","t": "AD-PEER — #1366 D1.2","d": "1) A contact WITH a name › their address. 2) A contact with no name (address only) › their address.","e": "1: the card shows their photo + name; the sheet heading says \"Ixian address\"; no Share, no safety line. 2: no photo, no name."},{"p": "a","id": "DL-LONGNAME","t": "DL-LONGNAME — #1366 D1.3","d": "1) Settings › Downloads with a file from a contact with a very long name.","e": "The From chip ends with … inside the row; long-press / hover shows the full name."},{"p": "a","id": "TH-SYNC-A","t": "TH-SYNC — #1366 D2","d": "1) Account › Theme: pick Dark. 2) Chat appearance › Theme. 3) Pick System there. 4) Back, Account › Theme.","e": "2: Dark is picked. 4: System is picked. After 1, closing the sheet leaves the focus on the Theme row."},{"p": "w","id": "TH-SYNC-W","t": "TH-SYNC — #1366 D2","d": "1) Account › Theme in the pane: Dark. 2) Chat appearance › Theme. 3) Pick System there; look at the Theme row in the column.","e": "The two pickers always show the same value; the Theme row follows at once."},{"p": "a","id": "TIPS","t": "TIPS — #1362 (4)","d": "1) Settings › Notifications. 2) Chat appearance.","e": "1: a separate last card \"Tips on the Chats screen\" with its switch. 2: no Tips switch."},{"p": "w","id": "DC-DESKTOP","t": "DC-DESKTOP — #1362 (5) option B","d": "1) Account › About in the pane, light and dark. 2) Account › About › Contributors.","e": "The normal pane bar: \"About\" / \"Contributors\" and the back arrow in the normal dark (or light) ink. The colour band is a rounded card in the column; the heart and the tile are not cut."},{"p": "a","id": "HEART","t": "HEART — #1366 D1.5","d": "1) About › Contributors.","e": "The heart floats visibly up and down (about twice the S17 travel). With Reduce motion on: still."},{"p": "a","id": "MO-RESET","t": "MO-RESET — #1366 D3","d": "1) Dev mode on. 2) Developer: the Release flags card.","e": "A \"Reset moment sheets\" row; a tap logs `[MO] dev reset: moment sheets cleared`. Use it before EVERY MO row, then restart the app."},{"p": "a","id": "MO-LANG","t": "MO-LANG — #1340 · S18 D3","d": "1) Developer › Reset moment sheets, restart. 2) Language › Deutsch. 3) Close the sheet, wait 2 s, Language › Italiano. 4) Restart, Language › Français.","e": "2: \"Mit KI übersetzt\" sheet; log `[MO] ask id=lang d=grant why=ok`. 3: no sheet; `d=refuse why=session`. 4: the French sheet; `d=grant`."},{"p": "a","id": "MO-AUTODL","t": "MO-AUTODL — #1340 · S18 D3","d": "1) Privacy › auto-download OFF. 2) Developer › Reset moment sheets, restart. 3) A contact sends a NEW photo; tap it to download.","e": "The sheet \"Download photos automatically?\"; log `[MO] ask id=autodl d=grant why=ok`; Open Settings lands on the auto-download row."},{"p": "a","id": "MO-OFFLINE","t": "MO-OFFLINE — #1340 · S18 D1/D3","d": "1) Developer › Reset moment sheets, restart. 2) The sender closes Spixi. 3) Tap Download on their file. 4) Wait 5 s.","e": "The sheet \"Waiting for <name>\" after 5 s; log `[MO] ask id=offline d=grant why=ok`."},{"p": "a","id": "MO-APP","t": "MO-APP — #1340 · S18 D3","d": "1) Developer › Reset moment sheets, restart. 2) Open a mini app from an invite. 3) Open the same app again.","e": "2: \"Before you open <app>\"; log `[MO] ask id=app d=grant why=ok`. 3: no sheet; `d=refuse why=seen`."}];
+
+const KEY = 'spixi-walk-session18-v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function el(tag, attrs, kids){ const n = document.createElement(tag); for (const k in (attrs||{})) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'html') n.innerHTML = attrs[k]; else n.setAttribute(k, attrs[k]); } (kids||[]).forEach(c => c && n.append(c)); return n; }
+async function copyText(text, btn){
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { const out = document.getElementById('out'); out.hidden = false; out.value = text; out.focus(); out.select(); btn.textContent = 'Select + Ctrl+C'; }
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+}
+function renderSteps(id, list){
+  const ol = document.getElementById(id);
+  list.forEach(([say, cmd, expect]) => {
+    const li = el('li', {}, [el('span', {text: say})]);
+    if (cmd) {
+      const b = el('button', {type:'button', 'aria-label':'Copy command'}); b.textContent = 'Copy'; b.dataset.label = 'Copy';
+      b.addEventListener('click', () => copyText(cmd, b));
+      li.append(el('div', {class:'cmd'}, [el('pre', {text: cmd}), b]));
+    }
+    if (expect) li.append(el('div', {class:'exp', html: 'Expect: ' + expect}));
+    ol.append(li);
+  });
+}
+renderSteps('steps-commit', STEPS.commit);
+renderSteps('steps-win', STEPS.win);
+renderSteps('steps-and', STEPS.and);
+function renderRows(){
+  for (const [host, plat] of [['rows-win', W], ['rows-and', A]]) {
+    const box = document.getElementById(host); box.innerHTML = ''; box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '12px';
+    ROWS.filter(r => r.p === plat).forEach(r => {
+      const s = state[r.id] || {};
+      const card = el('article', {class:'row', 'data-v': s.v || ''});
+      card.append(el('div', {class:'top'}, [el('span', {class:'id', text:r.id}), el('span', {class:'title', text:r.t})]));
+      card.append(el('dl', {}, [el('dt', {text:'Do'}), el('dd', {text:r.d}), el('dt', {text:'Pass if'}), el('dd', {text:r.e})]));
+      const ctl = el('div', {class:'ctl'});
+      [['P','Pass'],['F','Fail'],['N','N/A']].forEach(([k, lab]) => {
+        const b = el('button', {type:'button', 'data-k':k, 'aria-pressed': s.v === k ? 'true' : 'false'}); b.textContent = lab;
+        b.addEventListener('click', () => { state[r.id] = Object.assign({}, state[r.id], {v: s.v === k ? '' : k}); save(); renderRows(); tally(); });
+        ctl.append(b);
+      });
+      card.append(ctl);
+      const ta = el('textarea', {id:'note-' + r.id, 'aria-label':'Note for ' + r.id, placeholder:'Note (what you saw, numbers, paste lines)'});
+      ta.value = s.n || '';
+      ta.addEventListener('input', () => { state[r.id] = Object.assign({}, state[r.id], {n: ta.value}); save(); });
+      card.append(ta);
+      box.append(card);
+    });
+  }
+}
+function counts(){ let p=0,f=0,n=0; ROWS.forEach(r => { const v = (state[r.id]||{}).v; if (v==='P') p++; else if (v==='F') f++; else if (v==='N') n++; }); return {p,f,n}; }
+function tally(){ const c = counts(); const left = ROWS.length - c.p - c.f - c.n;
+  document.getElementById('tally').innerHTML = `<b class="p">${c.p} P</b> · <b class="f">${c.f} F</b> · <b class="n">${c.n} N/A</b> · ${left} open`; }
+document.getElementById('copy').addEventListener('click', (ev) => {
+  const c = counts();
+  const lines = ROWS.map(r => { const s = state[r.id] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id}: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
+  const text = `Walk session 18 (Windows F5 + Android Debug): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
+});
+document.getElementById('reset').addEventListener('click', (ev) => {
+  const b = ev.currentTarget;
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Clear'; }, 2500); return; }
+  state = {}; save(); b.dataset.armed = ''; b.textContent = 'Clear'; renderRows(); tally();
+});
+renderRows(); tally();
+</script>

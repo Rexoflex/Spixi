@@ -75,6 +75,12 @@ const NO_REUSE = new Set([
      ⓘ This is the first NO_REUSE entry whose legacy value is not a MISTRANSLATION — it is
      right for the site it was written for and wrong for the one that borrowed it. */
   'contactSpixiAddress',
+  /* ★ #1363 (S18, #1360; DECISIONS #1363) — `address` became a LABEL (Add contact: the field's label + placeholder,
+     "Address"). Its English matched legacy address-gen-3, a lowercase sentence FRAGMENT in all ten cased locales:
+     de / fr "adresse", es "dirección", pt "endereço", it "indirizzo", sl "naslov", sr "adresu" (accusative),
+     ru "адрес", id "alamat", lt "adresas" — a label read in lowercase. (cn "地址" / ja "アドレス" have no case; the
+     draft wins there too, one rule for the key.) */
+  'address',
 ]);
 
 /* GATE 51 — see the tail of this file. */

@@ -741,6 +741,11 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    item shrink past its own min-content. Inert until something constrains the chip. */
 .c-chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
+/* ★ #1361: a chip led by a face (contacts-shell.js adds the 24 px avatar + data-avatar); muted × */
+.c-chip > .c-avatar { flex: none; }
+.c-chip[data-avatar] { gap: 6px; padding-block: 3px; padding-inline: 3px var(--spacing-8); }
+.c-chip[data-avatar] .c-chip__dismiss { color: var(--icon-neutral-02); }
+
 /* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
    after the label via the chip's flex gap. Muted so the label stays primary; the
    selected chip tints it with the chip text colour (inherits currentColor). */

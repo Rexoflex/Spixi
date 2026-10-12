@@ -487,7 +487,8 @@ function pickMark() {
  * bubble with ticks) + the text-size slider 12–22 px; (2) the CANVAS as a row of mini chats — today's four (renamed Mist,
  * Iris, Spixi, Meadow, 15:55) + NEW Aurora, Dusk, Ocean; (3) the BACKGROUND (None · Waves · Contours) + the NEW bubble
  * colour (Auto + 6) + the NEW bubble corners (4–22 px); (4) the THEME as three mini phones (only with `onTheme`);
- * (5) the chat-list message preview (1 / 2 lines as mini lists) + the Tips switch.
+ * (5) the chat-list message preview (1 / 2 lines as mini lists). ★ S18 D1 (#1362 interview, Damir 17:2x): the Tips switch
+ * MOVED to the Notifications screen (createNotificationsScreen) — same key, verb and C# owner.
  * ★ ADDITIONS, NOT REPLACEMENTS (15:09): today's canvases and their exact look stay (tokens.css), the default stays Mist
  * + the pattern; nobody's chat changes until they pick something. ★ TODAY'S BUBBLE LOOK STAYS (15:16): only a colour
  * (data-chat-sent) and a radius (--bubble-radius) are layered on top; the received glass edge is untouched.
@@ -534,9 +535,7 @@ export function createChatAppearance({
   onTheme,                       // ★ S17 C (value, ctrl) — the host's theme commit (ixian:appearance:<v>); no handler → no card
   previewLines = '1',            // ★ S11 (#1262): '1' | '2'
   onPreviewLines,                // ('1' | '2') — no handler → no card row
-  hintsOn = true,                // ★ S11 (#1262): C# (SHints) owns the value
-  onHints,                       // (next, ctrl) — no handler → no row
-  strings = getStrings(),
+  strings = getStrings(),        // ★ S18 D1: hintsOn / onHints left with the Tips switch (now createNotificationsScreen)
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
   body.classList.add('c-settings-appearance__body');
@@ -762,11 +761,11 @@ export function createChatAppearance({
     c4.append(label((strings.theme || 'Theme'), tId), themePick);
   }
 
-  /* ── (5) the chat list + tips ── */
+  /* ── (5) the chat list (★ S18 D1: the Tips switch moved to Notifications) ── */
   let c5 = null;
   let lineBtns = [];
   let linesCurrent = previewLines === '2' ? '2' : '1';
-  if (onPreviewLines || onHints) {
+  if (onPreviewLines) {
     c5 = card('c-settings-appearance__card--list c-settings-appearance__previewsec');
     if (onPreviewLines) {
       const lId = 'c-settings-lines-label';
@@ -806,15 +805,6 @@ export function createChatAppearance({
       });
       radioArrows(g);   // #46 r1 M1
       c5.append(label((strings.chatPreviewLines || 'Message preview'), lId), g);
-    }
-    if (onHints) {
-      const hintsSec = switchRow({
-        glyph: 'info-circle', hue: 'accent',
-        label: (strings.hintsSwitch || 'Tips on the Chats screen'),
-        checked: hintsOn, onToggle: onHints,
-      });
-      hintsSec.dataset.pref = 'hintsOn';
-      c5.append(hintsSec);
     }
   }
 
@@ -1072,6 +1062,8 @@ export function createNotificationsScreen({
   onEnabled, onPreviews, onSounds,   // (next, ctrl) — §9
   onCallRingtone,                // (next, ctrl) — ★ E-W4: ixian:callRingtone:on|off
   onPushProvider,                // (next, ctrl) — ★ P2 (#708): ixian:notifPushProvider:on|off
+  hintsOn = true,                // ★ S18 D1 (moved from Chat appearance, #1362 interview): C# (SHints) owns the value
+  onHints,                       // (next, ctrl) — ixian:hintsoff:<0|1> (the host's latch); no handler (no 'hints' cap) → no card
   strings = getStrings(),
 } = {}) {
   const { el, body: screenBody, live } = screenShell('c-settings-notifs', strings.notifications || 'Notifications', onBack);
@@ -1188,6 +1180,26 @@ export function createNotificationsScreen({
     }
   }
   if (!body.children.length) groupWrap.remove();   // ★ #1050: never an empty card (e.g. only the push row rendered)
+  /* ★ S18 D1 (S17 walk, #1362 interview — Damir 17:2x: "hard to catch" in Chat appearance; tips are nudges): THE TIPS SWITCH
+     lives here now, its OWN card after the notification cards (the OneSignal footnote stays under its card). Same key
+     (hintsSwitch), same verb (the host's ixian:hintsoff latch), same C# owner (SHints); its own cap ('hints'), so it shows
+     even where no global-notification row does. data-pref keeps the host's in-place echo (settings.html rebuildHub). */
+  if (onHints) {
+    const tipsWrap = document.createElement('div');
+    tipsWrap.className = 'c-settings__groupwrap c-settings-notifs__tips';
+    const tipsGroup = document.createElement('div');
+    tipsGroup.className = 'c-settings__group';
+    const hintsSec = switchRow({
+      glyph: 'info-circle', hue: 'accent',
+      label: strings.hintsSwitch || 'Tips on the Chats screen',
+      checked: hintsOn, live, onToggle: onHints,
+      failText: strings.privacyFailed || 'Couldn’t update. Try again.',   // #46 r2 N2: a Tips failure is not a notifications failure
+    });
+    hintsSec.dataset.pref = 'hintsOn';
+    tipsGroup.append(hintsSec);
+    tipsWrap.append(tipsGroup);
+    screenBody.append(tipsWrap);
+  }
   return el;
 }
 

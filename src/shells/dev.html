@@ -301,6 +301,20 @@
       row.append(lab, sw);
       card.append(row);
     });
+    /* ★ S18 D3 (P28, dev surface): Reset moment sheets — ONE fixed verb, no argument; C# (DevPage, dev mode only) clears the
+       seen lists + the session bits. Only when C# declared the verb (cap `devmoments`) and the Moment-sheets flag row exists. */
+    if (flagsDev.length > 3 && bridge.cap('devmoments')) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'c-settings__row';
+      reset.dataset.devReset = 'moments';
+      const lab = document.createElement('span');
+      lab.className = 'c-settings__row-label';
+      lab.textContent = strings.devResetMoments || 'Reset moment sheets';
+      reset.append(lab);
+      reset.addEventListener('click', () => bridge.send('ixian:devmoments:reset'));
+      card.append(reset);
+    }
     const after = body.querySelector(':scope > .c-dev-container') || body.querySelector(':scope > .c-dev-flash')
       || body.querySelector(':scope > .c-settings__note');
     if (after && after.nextSibling) body.insertBefore(card, after.nextSibling);
@@ -322,11 +336,13 @@
     // mutation; rebuild only when the send button is newly unlocked).
     setCaps(list) {
       const had = bridge.cap('sendlog');
+      const hadReset = bridge.cap('devmoments');   // ★ S18 D3
       String(list || '').split(',').forEach((c) => {
         c = c.trim();
         if (c) bridge.capabilities[c] = true;
       });
       if (!had && bridge.cap('sendlog')) buildDev();
+      else if (!hadReset && bridge.cap('devmoments')) mountFlagsDev();
     },
     /* ★ S11 C (#1262, 🟡 new push): the flash switches' positions "c,g,i" (1 = ON) — the onLoad seed + the echo of
        ixian:devflash. Anything but three 0/1 digits is ignored. */

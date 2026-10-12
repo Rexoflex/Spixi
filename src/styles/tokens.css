@@ -1924,6 +1924,14 @@
   --surface-settings-ground: var(--grey-25);
   --surface-settings-card: #ffffff;
   --surface-input-on-settings-card: var(--neutral-50);
+  /* ★ #1361: the #1358 identity band (a picture, per theme) — ONE source for .c-addr-sheet__band and the New group
+     hero; values moved verbatim from wallet-receive.css. The lift sits under the avatar cut into it. */
+  --identity-band:
+    radial-gradient(60% 140% at 12% 0%, rgba(154, 122, 255, .85) 0%, transparent 70%),
+    radial-gradient(55% 150% at 92% 10%, rgba(255, 142, 198, .80) 0%, transparent 70%),
+    radial-gradient(70% 120% at 55% 120%, rgba(108, 159, 255, .75) 0%, transparent 70%),
+    linear-gradient(180deg, #F3EFFF, #E2DCFD);
+  --identity-avatar-lift: 0 10px 18px -8px rgba(60, 40, 140, .45);
 
   /* elevation — light: shadows */
   --elevation-0: none;
@@ -1990,6 +1998,13 @@
   --surface-settings-ground: var(--surface-screen);   /* ★ #1007: dark unchanged */
   --surface-settings-card: var(--surface-card);
   --surface-input-on-settings-card: var(--surface-input-on-card);
+  /* ★ #1361: the identity band + lift, dark */
+  --identity-band:
+    radial-gradient(60% 140% at 12% 0%, rgba(91, 70, 240, .85) 0%, transparent 70%),
+    radial-gradient(55% 150% at 92% 10%, rgba(192, 63, 147, .80) 0%, transparent 70%),
+    radial-gradient(70% 120% at 55% 120%, rgba(47, 99, 255, .75) 0%, transparent 70%),
+    linear-gradient(180deg, #1D1A3D, #14122C);
+  --identity-avatar-lift: 0 10px 18px -8px rgba(0, 0, 0, .6);
 
   /* elevation — dark: shadows read poorly; raised surfaces use surface-card(-raised) */
   --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -2467,6 +2482,29 @@
 :root[data-theme='dark'] [data-chat-ground='flat'],
 :root[data-theme='dark'] [data-chat-ground='gradient'] {
   --chat-pattern-ink: #C6CFFD;
+}
+/* ★ S18 D1 (S17 walk CA-PATTERN, Damir 2026-10-12 17:17: "desktop −20 % more; mobile is right"): DESKTOP = 0.8 × the mobile
+   pattern strength on EVERY canvas, both themes, keyed on the #228 PLATFORM flag :root[data-desktop] (set before first paint,
+   chat.html :19 + the ?desktop=1 / ?mobile=1 override) — never a width query. Each rule mirrors the mobile rule above it one
+   step more specific, so the mobile values (and the bare-:root definitions) stay exactly as they are. The Background-tile cap
+   follows the same ×0.8 (patternLevelVar: min(tile-max, alpha × boost)), so a boosted tile is 0.8 × its mobile face too.
+   mobile → desktop: light 0.1024 → 0.08192 · dark 0.0832 → 0.06656 · light Aurora 0.192 → 0.1536 · tile cap 1 → 0.8, Aurora 0.8 → 0.64.
+   A pin keeps desktop = 0.8 × mobile on every canvas (pins-s18/e-pattern-desktop). */
+:root[data-desktop] {
+  --chat-pattern-alpha-1: 0.08192;
+  --chat-pattern-tile-max: 0.8;
+}
+:root[data-desktop][data-theme='dark'] {
+  --chat-pattern-alpha-1: 0.06656;
+}
+:root[data-desktop]:not([data-theme='dark'])[data-chat-ground='aurora'],
+:root[data-desktop]:not([data-theme='dark']) [data-chat-ground='aurora'] {
+  --chat-pattern-alpha-1: 0.1536;
+  --chat-pattern-tile-max: 0.64;
+}
+:root[data-desktop]:not([data-theme='dark']) [data-chat-ground]:not([data-chat-ground='aurora']) {
+  --chat-pattern-alpha-1: 0.08192;
+  --chat-pattern-tile-max: 0.8;
 }
 :root:not([data-theme='dark'])[data-chat-sent='blue'],
 :root:not([data-theme='dark']) [data-chat-sent='blue'] {

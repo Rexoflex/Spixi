@@ -68,6 +68,19 @@ namespace SPIXI
             {
                 onBack();
             }
+            else if (current_url.Equals(S17MomentRules.DevResetVerb, StringComparison.Ordinal))
+            {
+                /* ★ S18 D3 (#1312 rule 1, P28, dev surface): `ixian:devmoments:reset` (exact, no argument) — Developer › Reset
+                 * moment sheets: SMoments.resetForDev clears the three seen keys + the session bits. Dev mode on, or nothing. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false)) SMoments.resetForDev();
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: moments reset failed: " + ex.GetType().Name);
+                }
+            }
             else if (current_url.StartsWith("ixian:devflash:s17m:", StringComparison.Ordinal))
             {
                 /* ★ S17 F (#1312 rule 1, P28, dev surface): `ixian:devflash:s17m:<0|1>` — SpixiFlags.S17Moments (the Moment
@@ -192,6 +205,8 @@ namespace SPIXI
             pushFlashDev();   // ★ S11 C (#1262): the flash switches' positions
             pushContainerDev();   // ★ S14 (#1282): the overlay-container probe (Android only)
             pushFlagsDev();   // ★ S16 (#1312): the SpixiFlags switches (stored values; they act at the next start)
+            // ★ S18 D3: the Reset moment sheets row shows only for an exe that has `ixian:devmoments:reset` (no dead row)
+            Utils.sendUiCommand(this, "setCaps", "devmoments");
 
             string srcLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log");
             string destLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log.tmp");

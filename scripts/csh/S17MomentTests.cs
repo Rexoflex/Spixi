@@ -71,6 +71,44 @@ public class S17MomentTests
         Assert.IsTrue(S17MomentRules.pushJson(new string[0], new string[0], "", true, -5).EndsWith("\"sessionMs\":0}"));
     }
 
+    /* ★ S18 D3: the decision log line — the "why" follows decide()'s own order, and the line carries fixed words + an id
+       re-read from the fixed set only (no language code, no app id, nothing the caller passed) */
+    [TestMethod]
+    public void AskLine_WhyMatchesDecide_FixedWordsOnly()
+    {
+        var Y = S17MomentRules.Eligible.Yes; var W = S17MomentRules.Eligible.Wait; var C = S17MomentRules.Eligible.Consume;
+        string L(string id, bool seen, bool sm, bool sc, S17MomentRules.Eligible e) =>
+            S17MomentRules.askLine(id, S17MomentRules.decide(id, seen, sm, sc, e), S17MomentRules.why(id, seen, sm, sc, e));
+        Assert.AreEqual("[MO] ask id=mic d=grant why=ok", L("mic", false, false, false, Y));
+        Assert.AreEqual("[MO] ask id=mic d=refuse why=seen", L("mic", true, true, true, C));          // seen wins over everything
+        Assert.AreEqual("[MO] ask id=mic d=consume why=ok", L("mic", false, true, true, C));          // never needed: stored, nothing shows
+        Assert.AreEqual("[MO] ask id=autodl d=refuse why=wait", L("autodl", false, true, false, W));  // the id's own check first
+        Assert.AreEqual("[MO] ask id=lang d=refuse why=session", L("lang", false, true, true, Y));    // the S17 walk: a moment this session
+        Assert.AreEqual("[MO] ask id=app d=refuse why=card", L("app", false, false, true, Y));        // a card this session
+        Assert.AreEqual("[MO] ask id=firstixi d=grant why=ok", L("firstixi", false, true, true, Y));  // safety: the exception
+        Assert.AreEqual("[MO] ask id=pay d=refuse why=session", L("pay", false, true, false, Y));
+        // every combination: refuse ⇔ a why other than ok, and the line is exactly the fixed shape
+        var shape = new System.Text.RegularExpressions.Regex("^\\[MO\\] ask id=(lang|autodl|offline|firstixi|mic|app|pay) d=(grant|refuse|consume) why=(seen|wait|session|card|ok)$");
+        foreach (string id in S17MomentRules.Ids)
+            foreach (var e in new[] { Y, W, C })
+                for (int b = 0; b < 8; b++)
+                {
+                    bool seen = (b & 1) != 0, sm = (b & 2) != 0, sc = (b & 4) != 0;
+                    var d = S17MomentRules.decide(id, seen, sm, sc, e);
+                    var w = S17MomentRules.why(id, seen, sm, sc, e);
+                    Assert.AreEqual(d == S17MomentRules.Decision.Refuse, w != S17MomentRules.Why.Ok, id + e + b);
+                    Assert.IsTrue(shape.IsMatch(S17MomentRules.askLine(id, d, w)), id + e + b);
+                }
+        // a caller's string never reaches the line: an id outside the set (a code, an app id, a forged line) logs nothing
+        Assert.AreEqual("", S17MomentRules.askLine("de-de", S17MomentRules.Decision.Grant, S17MomentRules.Why.Ok));
+        Assert.AreEqual("", S17MomentRules.askLine("com.ixian.chess", S17MomentRules.Decision.Grant, S17MomentRules.Why.Ok));
+        Assert.AreEqual("", S17MomentRules.askLine("mic\n[MO] forged", S17MomentRules.Decision.Grant, S17MomentRules.Why.Ok));
+        Assert.AreEqual("", S17MomentRules.askLine("mic", S17MomentRules.Decision.Grant, (S17MomentRules.Why)99));
+        Assert.AreEqual("ixian:devmoments:reset", S17MomentRules.DevResetVerb);
+        Assert.AreEqual("[MO] dev reset: moment sheets cleared", S17MomentRules.DevResetLine);
+        Assert.AreEqual(100, S17MomentRules.MaxAskLines);   // the per-process cap SMoments applies (pin f-moments-dev askPlace)
+    }
+
     [TestMethod]
     public void FlagLine_SaysOnlyTheBit()
     {

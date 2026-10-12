@@ -1733,10 +1733,14 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 @media (hover: hover) and (pointer: fine) {
   .c-settings-dl__chip:not([aria-pressed="true"]):hover { background: var(--surface-card-hover); }   /* the card pair (#882) */
 }
-.c-settings-dl__from-btn { margin-inline-start: auto; max-width: 70%; color: var(--text-action-default); }
+/* ★ S18 D1 (S17 walk DL-SCREEN, Damir 17:17: "From: TempestNova777Tempest…" ran off the screen): the From chip SHRINKS into
+   the room the kind chips leave (flex-shrink + min-width 0 — the row never scrolls a long name past the edge), capped at 70 %;
+   the LABEL is the text carrier and clips with an ellipsis (text-overflow only acts on a block's own text, and the chip itself
+   must not clip: its ::after reaches the 44 px hit box). The full name rides `title` and the accessible name (settings-app.js). */
+.c-settings-dl__from-btn { flex: 0 1 auto; min-width: 0; margin-inline-start: auto; max-width: 70%; white-space: nowrap; color: var(--text-action-default); }
 .c-settings-dl__from-btn[hidden] { display: none; }
 .c-settings-dl__from-btn svg { flex: none; }
-.c-settings-dl__from-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from-label { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-settings-dl__from { white-space: nowrap; }
 .c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
 
@@ -3317,6 +3321,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       row.append(lab, sw);
       card.append(row);
     });
+    /* ★ S18 D3 (P28, dev surface): Reset moment sheets — ONE fixed verb, no argument; C# (DevPage, dev mode only) clears the
+       seen lists + the session bits. Only when C# declared the verb (cap `devmoments`) and the Moment-sheets flag row exists. */
+    if (flagsDev.length > 3 && bridge.cap('devmoments')) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'c-settings__row';
+      reset.dataset.devReset = 'moments';
+      const lab = document.createElement('span');
+      lab.className = 'c-settings__row-label';
+      lab.textContent = strings.devResetMoments || 'Reset moment sheets';
+      reset.append(lab);
+      reset.addEventListener('click', () => bridge.send('ixian:devmoments:reset'));
+      card.append(reset);
+    }
     const after = body.querySelector(':scope > .c-dev-container') || body.querySelector(':scope > .c-dev-flash')
       || body.querySelector(':scope > .c-settings__note');
     if (after && after.nextSibling) body.insertBefore(card, after.nextSibling);
@@ -3338,11 +3356,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     // mutation; rebuild only when the send button is newly unlocked).
     setCaps(list) {
       const had = bridge.cap('sendlog');
+      const hadReset = bridge.cap('devmoments');   // ★ S18 D3
       String(list || '').split(',').forEach((c) => {
         c = c.trim();
         if (c) bridge.capabilities[c] = true;
       });
       if (!had && bridge.cap('sendlog')) buildDev();
+      else if (!hadReset && bridge.cap('devmoments')) mountFlagsDev();
     },
     /* ★ S11 C (#1262, 🟡 new push): the flash switches' positions "c,g,i" (1 = ON) — the onLoad seed + the echo of
        ixian:devflash. Anything but three 0/1 digits is ignored. */

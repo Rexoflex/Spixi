@@ -1,0 +1,87 @@
+/* DC-SCREEN-W · OPTION A — desktop peer pane: the header band spans the WHOLE pane width and runs UNDER the top bar,
+   as on the phone (the bar floats over it with white ink and turns solid once the band has scrolled under it —
+   that behaviour is unchanged). Scope: body[data-pane] only (the Account peer pane); the phone and the full-window
+   desktop are untouched.
+   Today two shell rules defeat the S17 header grammar in the pane (src/shells/settings.html):
+     :138  body[data-pane] .sd-detail > :not(.sd-empty) > :not(.c-topbar) { max-width: 640px; margin-inline: auto }
+           → the scroller (.c-settings__body), and the band inside it, is a 640 px centred column;
+     :148  body[data-pane] .c-topbar { background: var(--surface-settings-ground) }
+           → an OPAQUE ground-coloured bar over the band's top 56 px, carrying the white header ink. */
+
+/* 1 · the content column stays 640 px (608 + 2 × 16): the screen is a size container, the column is a gutter */
+body[data-pane] .sd-detail > .c-settings-about--hdr,
+body[data-pane] .sd-detail > .c-settings-contrib--hdr {
+  container-type: inline-size;
+  --hdr-gutter: max(var(--spacing-16), calc(50cqi - 304px));
+}
+/* 2 · the scroller goes full pane width (beats :138 — (0,5,1) over (0,4,1)); the column is now its inline padding.
+   The thin scrollbar (base.css .u-scroll) is hidden on these two screens: a classic scrollbar (WebView2) takes its
+   gutter OUTSIDE the content box, so the band could never reach the pane's right edge under it. Wheel, trackpad and
+   keyboard scrolling are unchanged; the thumb was transparent until hover anyway. */
+body[data-pane] .sd-detail > .c-settings-about--hdr > .c-settings__body.u-scroll,
+body[data-pane] .sd-detail > .c-settings-contrib--hdr > .c-settings__body.u-scroll {
+  max-width: none;
+  padding-inline: var(--hdr-gutter);
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}
+body[data-pane] .sd-detail > .c-settings-about--hdr > .c-settings__body.u-scroll::-webkit-scrollbar,
+body[data-pane] .sd-detail > .c-settings-contrib--hdr > .c-settings__body.u-scroll::-webkit-scrollbar { display: none; }
+
+/* 3 · the band: edge to edge of the pane, the PHONE's height (the bar sits over its top again — drops the desktop
+   −26 / −20 px of settings-app.css :499 / :696) */
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band {
+  --ct-hdr-h: 220px;
+  margin-inline: calc(-1 * var(--hdr-gutter));
+}
+body[data-pane] .c-settings-about--hdr .c-settings-about__band {
+  --ab-hdr-h: 234px;
+  margin-inline: calc(-1 * var(--hdr-gutter) - var(--spacing-20));
+}
+/* 4 · the art keeps the PHONE's scale, centred: both layers become a 430 px column (they are
+   preserveAspectRatio="xMidYMax slice", so a full-width layer scales ×2 on an 800 px pane: the objects crop and the
+   ground's twinkles land under the bar title). The ground layer feathers into a CSS ground of the SAME tokens that
+   fills the wide sides (the art's own top shade on top of the art's own three stops). */
+body[data-pane] .c-settings-about--hdr .c-settings-about__band > .il,
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band > .il {
+  inset-inline: calc(50% - 215px) auto;
+  inline-size: 430px;
+}
+body[data-pane] .c-settings-about--hdr .c-settings-about__band > .il:first-child,
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band > .il:first-child {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 30%, #000 70%, transparent);
+}
+/* the foreground's own soft light fields would be cut at the column's edge: a short feather (the objects sit
+   inside the middle 70 %) */
+body[data-pane] .c-settings-about--hdr .c-settings-about__band > .il:last-child,
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band > .il:last-child {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);
+}
+body[data-pane] .c-settings-about--hdr .c-settings-about__band {
+  background: linear-gradient(to right, var(--ab-band-from), var(--ab-band-to) 50%, var(--ab-band-deep));
+}
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band {
+  background:
+    linear-gradient(to bottom, rgba(11, 6, 48, .25), transparent),   /* sanctioned: the heart art's own top shade (htBs) */
+    linear-gradient(to right, var(--dc-a), var(--dc-b) 50%, var(--dc-c));
+}
+/* 5 · a top scrim under the bar, so the white ink holds 4.5 : 1 on the light band (the band's own top-left stop,
+   --ab-band-from #3f8ff7 / --dc-a #6f7dff, gives white only ~3.1 / ~3.3 : 1). Same navy as the art's own scrim. */
+body[data-pane] .c-settings-about--hdr .c-settings-about__band::after,
+body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  block-size: 120px;
+  background: linear-gradient(to bottom, var(--hdr-scrim) 0, var(--hdr-scrim) 44px, transparent);
+  pointer-events: none;
+}
+body[data-pane] .c-settings-about--hdr, body[data-pane] .c-settings-contrib--hdr { --hdr-scrim: rgba(8, 30, 90, .42); }
+:root[data-theme="dark"] body[data-pane] .c-settings-about--hdr,
+:root[data-theme="dark"] body[data-pane] .c-settings-contrib--hdr { --hdr-scrim: rgba(0, 0, 0, .22); }
+
+/* 6 · the bar is transparent while the band is under it (beats :148); solid again, it takes the pane ground (:148) */
+body[data-pane] .c-settings-about--hdr > .c-topbar:not([data-solid]),
+body[data-pane] .c-settings-contrib--hdr > .c-topbar:not([data-solid]) { background: transparent; }

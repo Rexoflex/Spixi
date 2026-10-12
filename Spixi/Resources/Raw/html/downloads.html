@@ -2251,6 +2251,11 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
    item shrink past its own min-content. Inert until something constrains the chip. */
 .c-chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
+/* ★ #1361: a chip led by a face (contacts-shell.js adds the 24 px avatar + data-avatar); muted × */
+.c-chip > .c-avatar { flex: none; }
+.c-chip[data-avatar] { gap: 6px; padding-block: 3px; padding-inline: 3px var(--spacing-8); }
+.c-chip[data-avatar] .c-chip__dismiss { color: var(--icon-neutral-02); }
+
 /* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
    after the label via the chip's flex gap. Muted so the label stays primary; the
    selected chip tints it with the chip text colour (inherits currentColor). */
@@ -2495,10 +2500,14 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 @media (hover: hover) and (pointer: fine) {
   .c-settings-dl__chip:not([aria-pressed="true"]):hover { background: var(--surface-card-hover); }   /* the card pair (#882) */
 }
-.c-settings-dl__from-btn { margin-inline-start: auto; max-width: 70%; color: var(--text-action-default); }
+/* ★ S18 D1 (S17 walk DL-SCREEN, Damir 17:17: "From: TempestNova777Tempest…" ran off the screen): the From chip SHRINKS into
+   the room the kind chips leave (flex-shrink + min-width 0 — the row never scrolls a long name past the edge), capped at 70 %;
+   the LABEL is the text carrier and clips with an ellipsis (text-overflow only acts on a block's own text, and the chip itself
+   must not clip: its ::after reaches the 44 px hit box). The full name rides `title` and the accessible name (settings-app.js). */
+.c-settings-dl__from-btn { flex: 0 1 auto; min-width: 0; margin-inline-start: auto; max-width: 70%; white-space: nowrap; color: var(--text-action-default); }
 .c-settings-dl__from-btn[hidden] { display: none; }
 .c-settings-dl__from-btn svg { flex: none; }
-.c-settings-dl__from-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-dl__from-label { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-settings-dl__from { white-space: nowrap; }
 .c-settings-dl__sender-search { margin: 0 var(--spacing-16) var(--spacing-8); }
 

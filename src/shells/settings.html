@@ -151,6 +151,48 @@
   body[data-pane] .c-settings__opts { padding: var(--spacing-16); }
   body[data-pane] .c-settings-backup__hero > .c-settings-backup__cta { width: auto; min-width: 240px; margin-inline: auto; }
   body[data-pane] .c-settings-backup__adv-box .c-button { width: auto; }
+  /* ★ S18 D4 (DC-SCREEN-W, Damir picked B of a rendered 2-way, docs/renders/desktop-header): in the pane the About and
+     Contributors headers are NOT the phone's full-bleed band under a floating white-ink bar — the band stopped at the
+     640 column and the opaque pane bar (:148) cut its top, and the white ink sat on the light ground (1.05 : 1). Here the
+     bar is the pane's NORMAL bar (in the flow, theme ink, heading-sm title — every other sublevel's) and the band is a
+     ROUNDED CARD in the column, its art held at PHONE scale. The phone (no data-pane) is untouched. */
+  body[data-pane] .c-settings-about--hdr > .c-topbar,
+  body[data-pane] .c-settings-contrib--hdr > .c-topbar { position: sticky; }   /* undo settings-app.css's absolute */
+  body[data-pane] .c-settings-about--hdr > .c-topbar:not([data-solid]),
+  body[data-pane] .c-settings-contrib--hdr > .c-topbar:not([data-solid]) {
+    --surface-topbar: inherit; --text-topbar: inherit; --icon-topbar: inherit;   /* the theme's bar tokens, not --*-on-hero */
+  }
+  body[data-pane] .c-settings-about--hdr > .c-topbar:not([data-solid]) .c-topbar__title,
+  body[data-pane] .c-settings-contrib--hdr > .c-topbar:not([data-solid]) .c-topbar__title {
+    font-size: var(--font-size-heading-sm); font-weight: var(--font-weight-semibold); text-shadow: none;
+  }
+  body[data-pane] .c-settings-about--hdr > .c-settings__body,
+  body[data-pane] .c-settings-contrib--hdr > .c-settings__body { padding-block-start: var(--screen-pad); }
+  /* the card: aligned with the column's cards — Contributors' own names-card radius, About's settings-group radius
+     (its band escapes only the hero's 20 px padding) */
+  body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band { margin-inline: 0; border-radius: 24px; }
+  body[data-pane] .c-settings-about--hdr .c-settings-about__band { margin-inline: calc(-1 * var(--spacing-20)); border-radius: var(--radius-16); }
+  /* the art at PHONE scale: both layers are xMidYMax slice, so a card-wide layer scaled them ×1.5–×2 and cropped the
+     heart / the app tile — they become a centred 430 px (phone) column; the card's sides are a ground of the art's OWN
+     tokens, and the layers feather into it (ground 30 %, foreground 15 %); max-width: none — base.css's svg cap
+     (max-width: 100%) would shrink the heart below phone scale in a narrow (< 430) card */
+  body[data-pane] .c-settings-about__band > .il,
+  body[data-pane] .c-settings-contrib__band > .il { inset-inline: calc(50% - 215px) auto; inline-size: 430px; max-width: none; }
+  body[data-pane] .c-settings-about__band > .il:first-child,
+  body[data-pane] .c-settings-contrib__band > .il:first-child {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 30%, #000 70%, transparent);   /* sanctioned: a mask's alpha stop, never painted */
+    mask-image: linear-gradient(to right, transparent, #000 30%, #000 70%, transparent);           /* sanctioned: a mask's alpha stop, never painted */
+  }
+  body[data-pane] .c-settings-about__band > .il:last-child,
+  body[data-pane] .c-settings-contrib__band > .il:last-child {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);   /* sanctioned: a mask's alpha stop, never painted */
+    mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);           /* sanctioned: a mask's alpha stop, never painted */
+  }
+  body[data-pane] .c-settings-about--hdr .c-settings-about__band { background: linear-gradient(to right, var(--ab-band-from), var(--ab-band-to) 50%, var(--ab-band-deep)); }
+  body[data-pane] .c-settings-contrib--hdr .c-settings-contrib__band {
+    background: linear-gradient(to bottom, rgba(11, 6, 48, .25), transparent),   /* sanctioned: the heart art's own top shade (illustrations-s17.js htBs) */
+      linear-gradient(to right, var(--dc-a), var(--dc-b) 50%, var(--dc-c));
+  }
   /* detail empty state (dt-empty grammar, desktop demo §3) */
   .sd-empty {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -554,6 +596,30 @@
     // so a light/dark pick "stayed on Account" (Damir F5). idx 0 = auto → shells
     // fall back to the OS scheme. Written on the C# setAppearance push + on a pick.
     try { localStorage.setItem('spixi.appearance', String(idx)); } catch (e) {}
+  }
+  /* ★★ S18 D2 (S17 walk TH-PICKER-A, Damir 17:17: Chat appearance showed Dark while Account › Theme showed System).
+     MECHANISM (reproduced on the BUILT shell in jsdom before this fix): the THREE theme commits did not share a value —
+       · the hub's Theme SHEET (phone) committed applyTheme + the verb but never wrote state.theme, so Chat appearance
+         (built from state.theme) opened on the OLD value, and the next hub rebuild (any push) snapped the row back;
+       · an OPEN picker (the sheet, the pane's Theme sublevel, Chat appearance's card) was never repainted — a setAppearance
+         push and a commit in the other picker (pane: Chat appearance beside the hub row) left it showing the old tile.
+     NOW: ONE value (state.theme), ONE commit (commitTheme) for every picker, and every picker on screen repaints from that
+     value on every commit and on every setAppearance (repaintThemePickers); the hub row follows through the rebuild. */
+  function repaintThemePickers() {
+    for (const p of document.querySelectorAll('.c-theme-pick')) { if (typeof p.setThemeValue === 'function') p.setThemeValue(state.theme); }
+  }
+  function commitTheme(v, ctrl) {
+    const n = Number(v);
+    state.theme = (n === 1 || n === 2) ? n : 0;
+    applyTheme(state.theme);
+    bridge.send('ixian:appearance:' + state.theme);
+    if (ctrl && ctrl.done) ctrl.done();
+    repaintThemePickers();
+    /* #46 r2 MINOR-1: NOT on the phone hub — the Theme sheet sits over the mounted hub, whose own onPicked already moved the
+       row value + the live text in place; a rebuild there detached the row the sheet returns focus to and dropped the
+       announcement (base never rebuilt here: the C# answer is setTheme, which does not rebuild). Pane / a sub-screen: the
+       hub column (or the cached hubEl reused on Back) must take the new value. */
+    if (paneMode || currentView !== 'hub') scheduleRebuild();
   }
   // Boot: the head-top script already resolved data-theme (C#-substituted theme
   // name when running in the app; localStorage/OS in the browser demo). The old
@@ -1185,7 +1251,7 @@
       onAvatarRemove: (ctrl) => { bridge.send('ixian:remove'); avatarPickPending = false; state.avatarSrc = null; state.hasCustomAvatar = false; state.dirtyAvatar = false; ctrl.done(); syncSave(); },
 
       // theme — apply locally for instant feedback, then the legacy verb (C# reloads the page).
-      onTheme: (index, ctrl) => { applyTheme(index); bridge.send('ixian:appearance:' + index); ctrl.done(); },
+      onTheme: (index, ctrl) => commitTheme(index, ctrl),   // ★ S18 D2: the ONE commit (state.theme + every open picker)
       // #242/#243 (Damir): in the pane, Theme/Language open as SUBLEVEL screens
       // like every other row — the sheets stay for mobile.
       onThemeNav: () => { if (!paneMode) return false; showTheme(); return true; },
@@ -1378,7 +1444,7 @@
     }
     /* ★ #1133: the Privacy screen also keeps its live node, so a setPhotoPreviews push with
        no tap in flight moves the switch IN PLACE (a pending tap is resolved by the latch). */
-    for (const k of ['photoPreviews', 'readReceipts', 'typingIndicators', 'hideOnline', 'hintsOn']) {   /* ★ S11 (#1262): + hintsOn (Chat appearance) */   // ★ S8 (#1234): + the three privacy switches
+    for (const k of ['photoPreviews', 'readReceipts', 'typingIndicators', 'hideOnline', 'hintsOn']) {   /* ★ S11 (#1262): + hintsOn (★ S18 D1: on the Notifications screen now) */   // ★ S8 (#1234): + the three privacy switches
       if (notifPending[k]) continue;
       const pv = (paneMode ? detailWrap : root).querySelector('[data-pref="' + k + '"] .c-settings__switch');
       if (pv && pv.getAttribute('aria-checked') !== String(state[k])) pv.setAttribute('aria-checked', String(state[k]));
@@ -1688,6 +1754,9 @@
         onSounds: (next, ctrl) => { latchNotif('notifSounds', next, ctrl); },
         onCallRingtone: (next, ctrl) => { latchNotif('callRingtone', next, ctrl); },   // ★ E-W4
         onPushProvider: (next, ctrl) => { latchNotif('notifPushProvider', next, ctrl); },   // ★ P2 (#708)
+        /* ★ S18 D1 (#1362 interview): the Tips switch moved here from Chat appearance — the same latch + verb (S11 #1262) */
+        hintsOn: state.hintsOn,
+        onHints: bridge.cap('hints') ? (next, ctrl) => { latchNotif('hintsOn', next, ctrl); } : undefined,
       });
       /* ★★ security sweep E-1b — THE OPT-OUT THAT DID NOT EXIST.
          `chat.html` gates remote media (and the app-invite publisher icon) behind
@@ -1763,8 +1832,6 @@
           onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
           previewLines: prefs.previewLines,
           onPreviewLines: (v) => { try { localStorage.setItem(CHAT_PREFS.previewLines, v === '1' ? '1' : '2'); } catch (e) {} },
-          hintsOn: state.hintsOn,
-          onHints: bridge.cap('hints') ? (next, ctrl) => { latchNotif('hintsOn', next, ctrl); } : undefined,   // ★ S11 (#1262)
           /* ★ S17 C (#1334): the two NEW controls (the chat shell's ladders read the keys) + the Theme card (the SAME commit
              the hub's theme sheet uses: applyTheme + ixian:appearance:<v>; the live flip re-renders this view, #772) */
           sentColour: prefs.sentColour,
@@ -1772,7 +1839,7 @@
           onSentColour: (v) => { try { if (v === 'auto') localStorage.removeItem(CHAT_PREFS.sentColour); else localStorage.setItem(CHAT_PREFS.sentColour, String(v)); } catch (e) {} },
           onCorners: (v) => { try { localStorage.setItem(CHAT_PREFS.corners, String(v)); } catch (e) {} },
           theme: state.theme,
-          onTheme: (v, ctrl) => { state.theme = v; applyTheme(v); bridge.send('ixian:appearance:' + v); if (ctrl && ctrl.done) ctrl.done(); },
+          onTheme: (v, ctrl) => commitTheme(v, ctrl),   // ★ S18 D2: the ONE commit
         }));
       }
       // #242/#243: Theme/Language as pane sublevels (the hub routes here via
@@ -1782,8 +1849,7 @@
       case 'theme': return pickerScreen(strings.theme || 'Theme',
         settingsThemeSheet({
           current: state.theme, strings, inline: true,
-          commit: (v, ctrl) => { applyTheme(v); bridge.send('ixian:appearance:' + v); ctrl.done(); },
-          onPicked: (o) => { if (o) { state.theme = o.value; scheduleRebuild(); } },
+          commit: (v, ctrl) => commitTheme(v, ctrl),   // ★ S18 D2: the ONE commit (it writes state.theme + rebuilds the hub row)
         }));
       case 'language': return pickerScreen(strings.language || 'Language',
         settingsOptionSheet({
@@ -2092,7 +2158,7 @@
     },
 
     // setAppearance(idx) — onLoad:46; idx = (int)ThemeAppearance
-    setAppearance(idx) { const n = parseInt(idx, 10); state.theme = isNaN(n) ? 0 : n; applyTheme(state.theme); scheduleRebuild(); },
+    setAppearance(idx) { const n = parseInt(idx, 10); state.theme = isNaN(n) ? 0 : n; applyTheme(state.theme); repaintThemePickers(); scheduleRebuild(); },   // ★ S18 D2: + every open picker
 
     // setLockEnabled(bool.ToString()) — onLoad:52 + lock-off auth resolution (HandleAuthSucceeded:241)
     /* ★ W2 (#348): this push is the AUTHORITATIVE app-lock value — the boot value at

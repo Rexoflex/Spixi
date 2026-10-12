@@ -473,3 +473,10 @@ full-coverage dark, pattern −20 %, tiles follow the selection); the S17 illust
 #1337 #1349); seven Moment sheets behind `S17Moments` (F, #1340–#1344, P28; the autodl offer opens Settings › Privacy after the security MAJOR);
 picture tiles without radio (#1342); sender name ON by default (#1346). #46 r1 → r4 (#1347), security-only HIGH 0 MAJOR from r2 (#1348).
 Smoke 5795 · CSH 435. Walk sheet `docs/walk-s17.md`. Next: S16 walk → S17 walk → privacy levels.
+
+### 2026-10-12 — Session 18 (#1359–#1367)
+S17 walk recorded (#1364: 31 P · 5 F · 8 N/A). Built in one patch on `b7776acb`: Add app B without the Explore banner (#1359), Add contact screen A +
+sheet A with the confirmed "Address" / "Spixi address" words (#1360, #1363), New group A + the group identity card with Create waiting below 2
+(#1361), and the S17 walk fixes (#1366: desktop pattern ×0.8, the peer address card, the From chip, offline 5 s, the heart, ONE theme value,
+Tips → Notifications, the desktop About / Contributors header option B, the `[MO]` ask line + Developer › Reset moment sheets). Interview
+picks #1362. #46 r1 → r2 + security-only HIGH CLEAN. Smoke 5852 · CSH 436. Walk sheet `docs/walk-s18.md`. Next: S18 walk → privacy levels.

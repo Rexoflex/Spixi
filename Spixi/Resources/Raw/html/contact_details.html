@@ -2261,33 +2261,82 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
 }
 
 /* —— add-contact —— */
-.c-contacts-add__note {
-  margin: 0;
+/* ★ #1360 (direction A): settings ground · ONE card (label, field box, state line) · the lead as a caption */
+.c-contacts-add { background: var(--surface-settings-ground); }
+/* desktop: the 640 cap of contact_new.html, here so the home takeover gets it too (★ #46 R2-NOTE5: the pane token) */
+.c-contacts-add > .c-contacts-add__body {
+  width: 100%;
+  max-width: var(--layout-pane-content-max);
+  margin-inline: auto;
+}
+.c-contacts-add__group {
+  padding: var(--spacing-16);
+  gap: var(--spacing-8);
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+  --surface-input: var(--surface-input-on-settings-card);
+}
+.c-contacts-add__label {
   color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
-  padding-inline: var(--spacing-4);
+  font-weight: var(--font-weight-semibold);
 }
-.c-contacts-add__group { padding: var(--spacing-12); gap: var(--spacing-8); }
-.c-contacts-add__field { display: flex; gap: var(--spacing-8); }
-.c-contacts-add__input {
-  flex: 1;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: var(--spacing-12) var(--spacing-16);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
+.c-contacts-add__field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 52px;
+  padding-inline: var(--spacing-12) var(--spacing-4);
+  border: var(--outline-width-1) solid transparent;
   border-radius: var(--radius-12);
   background: var(--surface-input);
+}
+/* 2 px states: the padding gives the px back, the text never moves */
+.c-contacts-add__field:focus-within,
+.c-contacts-add__field[data-invalid] {
+  border-width: var(--outline-width-2);
+  padding-inline: calc(var(--spacing-12) - (var(--outline-width-2) - var(--outline-width-1)))
+                  calc(var(--spacing-4) - (var(--outline-width-2) - var(--outline-width-1)));
+}
+.c-contacts-add__field:focus-within { border-color: var(--outline-action-default); }
+.c-contacts-add__field[data-invalid] { border-color: var(--outline-error); }   /* later: bad wins over focused */
+.c-contacts-add__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: stretch;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-md);
+  text-overflow: ellipsis;
 }
-.c-contacts-add__input:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;              /* #51 text-field focus grammar */
-  border-color: var(--outline-action-default);
-}
+.c-contacts-add__input::placeholder { color: var(--text-neutral-02); opacity: 1; }
+.c-contacts-add__input:focus-visible { outline: none; }   /* the box draws it */
 .c-contacts-add__input:disabled { opacity: var(--opacity-disabled); }
+.c-contacts-add__ok {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-success);
+  color: var(--icon-neutral-on-success);
+}
+.c-contacts-add__sep {
+  flex: none;
+  width: var(--outline-width-1);
+  height: 24px;
+  background: var(--outline-on-card);
+}
 .c-contacts-add__scan {
   flex: none;
   width: var(--size-target-min);
@@ -2295,16 +2344,22 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
-  border-radius: var(--radius-12);
+  border: 0;
+  border-radius: var(--radius-8);
   background: transparent;
   color: var(--icon-action-default);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .c-contacts-add__scan:not(:disabled):hover { background: var(--surface-interactive-hover); } }
-.c-contacts-add__scan:not(:disabled):active { background: var(--surface-interactive-pressed); }
+/* tonal: the neutral hover is the field's own fill in light */
+@media (hover: hover) and (pointer: fine) { .c-contacts-add__scan:not(:disabled):hover { background: var(--surface-action-tonal-default); } }
+.c-contacts-add__scan:not(:disabled):active { background: var(--surface-action-tonal-hover); }
 .c-contacts-add__scan:disabled { opacity: var(--opacity-disabled); cursor: default; }
+/* the ring INSIDE the button, off the box border */
+.c-contacts-add__scan:focus-visible {
+  outline: var(--outline-width-2) solid var(--outline-action-default);
+  outline-offset: calc(-1 * var(--outline-width-2));
+}
 .c-contacts-add__valid {
   margin: 0;
   display: flex;
@@ -2315,37 +2370,102 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   line-height: var(--line-height-body-sm);
 }
 .c-contacts-add__valid-glyph { color: var(--icon-success); flex: none; }   /* #145③ pair */
+/* shared with the group name error + the pending profile (plain text); the glyph row is scoped to this screen */
 .c-contacts-add__error {
   margin: 0;
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   color: var(--text-error);
 }
+.c-contacts-add .c-contacts-add__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+}
+.c-contacts-add__error-glyph { flex: none; margin-inline-start: calc(-1 * var(--spacing-2)); }
 /* #435(b): the already-a-contact answer. Deliberately NEUTRAL, not an error tone —
-   an address you already know is a different outcome, not a failure. */
+   an address you already know is a different outcome, not a failure. ★ #1360: ONE row, avatar · line · View contact. */
 .c-contacts-add__known {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-12) var(--spacing-4);
+  border-radius: var(--radius-12);
+  background: var(--surface-input);
+}
+.c-contacts-add__known-avatar { flex: none; }
+.c-contacts-add__known-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;   /* ★ #46 R2-MINOR-1: a long unbroken peer nick wraps — never under View contact or past the card */
+  color: var(--text-neutral-01);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-contacts-add__known-btn { flex: none; }
+.c-contacts-add__note {
+  margin: 0;
+  display: flex;
   align-items: flex-start;
   gap: var(--spacing-8);
-}
-.c-contacts-add__known-text {
-  margin: 0;
+  padding-inline: var(--spacing-4);
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
 }
+.c-contacts-add__note > svg { flex: none; margin-block-start: 1px; color: var(--icon-neutral-02); }
 
 /* —— group setup —— */
-.c-contacts-group__hero {
+/* ★★ #1361: settings ground + settings cards (overrides the shared rules above, group screen only) */
+.c-contacts-group { background: var(--surface-settings-ground); }
+.c-contacts-group .c-contacts__group {
+  background: var(--surface-settings-card);
+  box-shadow: var(--elevation-settings-card);
+  --surface-input: var(--surface-input-on-settings-card);
+}
+/* #1362: the column caps at the pane content width, centred. The footer by padding (lock-shell.css grammar); the body by
+   capping its CARDS — a % padding resolves against the parent, so in the body it lost the scrollbar gutters and the cards
+   came out 620 px under a 640 px Create (measured on the built shell at 1200 px) */
+.c-contacts-group__body > * {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--layout-pane-content-max);
+  margin-inline: auto;
+}
+.c-contacts-group .c-contacts__footer {
+  padding-inline: max(var(--spacing-16), calc((100% - var(--layout-pane-content-max)) / 2));
+}
+.c-contacts-group .c-contacts__footer { background: var(--surface-settings-ground); }
+/* the body's .u-scroll gutter (base.css, pointer devices) sat on ONE edge, so the capped column centred ~6–10 px left of
+   the footer's Create (measured on the built shell at 1200 px) — reserve it on both edges: one axis for both */
+@media (hover: hover) and (pointer: fine) { .c-contacts-group__body { scrollbar-gutter: stable both-edges; } }
+
+/* the hero = the #1358 identity card: the band, the photo cut into it */
+.c-contacts-group .c-contacts-group__hero {
+  position: relative;
   align-items: center;
-  gap: var(--spacing-8);
-  padding: var(--spacing-16);
+  gap: var(--spacing-12);
+  padding: 0 var(--spacing-16) var(--spacing-16);
+  border-radius: var(--radius-24);
+  box-shadow: var(--elevation-1);   /* the address card's */
+  overflow: hidden;
+  text-align: center;
+}
+.c-contacts-group__band {
+  display: block;
+  align-self: stretch;
+  margin-inline: calc(-1 * var(--spacing-16));
+  height: 62px;   /* .c-addr-sheet__card[data-who] */
+  background: var(--identity-band);
 }
 .c-contacts-group__avatar {
+  position: relative;
   flex: none;
-  width: 80px;                      /* sanctioned: group-avatar dim (avatar-80, settings hero parity) */
-  height: 80px;
+  width: 88px;
+  height: 88px;
+  margin-block-start: -48px;        /* cut into the band: 36 px of the photo on it */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2354,48 +2474,100 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   border-radius: var(--radius-full);
   background: var(--disc-primary-bg);
   color: var(--disc-primary-ink);
+  box-shadow: 0 0 0 4px var(--surface-settings-card), var(--identity-avatar-lift);
   cursor: pointer;
-  overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
-.c-contacts-group__avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.c-contacts-group__avatar-hint {
-  margin: 0;
-  color: var(--text-neutral-02);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-height-body-sm);
+.c-contacts-group__avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-full);
+  object-fit: cover;
 }
+/* camera → pencil (setGroupAvatar); decorative, inside the button */
+.c-contacts-group__badge {
+  position: absolute;
+  inset-inline-end: -2px;
+  inset-block-end: -2px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-default);
+  color: var(--icon-neutral-on-action);
+  box-shadow: 0 0 0 3px var(--surface-settings-card);
+}
+/* the label: the same pick */
+.c-contacts-group__photo-label {
+  min-height: var(--size-target-min);
+  margin-block: calc(-1 * var(--spacing-8));   /* 44 px target, 20 px line */
+  padding: 0 var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-action-default);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-sm);
+  line-height: var(--line-height-label-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .c-contacts-group__photo-label:hover { color: var(--text-action-hover); } }
+.c-contacts-group__photo-label:active { color: var(--text-action-pressed); }
 .c-contacts-group__name {
   box-sizing: border-box;
   width: 100%;
+  min-height: 50px;
   padding: var(--spacing-12) var(--spacing-16);
-  border: var(--outline-width-1) solid var(--outline-neutral-02);
+  border: var(--outline-width-1) solid transparent;
   border-radius: var(--radius-12);
   background: var(--surface-input);
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
+  font-size: var(--font-size-heading-sm);
+  font-weight: var(--font-weight-semibold);
   text-align: center;
 }
+.c-contacts-group__name::placeholder { color: var(--text-neutral-02); }
 .c-contacts-group__name:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 1px;
   border-color: var(--outline-action-default);
 }
-.c-contacts-group__members { padding: var(--spacing-12); gap: var(--spacing-8); }
+.c-contacts-group__hero .c-contacts-add__error { align-self: stretch; margin-block-start: calc(-1 * var(--spacing-4)); }
+
+.c-contacts-group .c-contacts-group__members { padding: var(--spacing-12) var(--spacing-16) var(--spacing-16); gap: var(--spacing-12); }
 .c-contacts-group__members-head {
   margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-8);
   font-size: var(--font-size-label-sm);
   line-height: var(--line-height-label-sm);
   letter-spacing: var(--tracking-label-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-neutral-02);
 }
+.c-contacts-group__members-count { font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums; }
 .c-contacts-group__chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-8);
 }
+.c-contacts-group__rule {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+.c-contacts-group__rule[hidden] { display: none; }
+.c-contacts-group__rule > svg { flex: none; color: var(--icon-neutral-02); margin-block-start: 1px; }
 
 /* —— pending contact profile (minimal + cancel, Damir pick) —— */
 .c-contacts-pending__hero {
@@ -2441,12 +2613,15 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   padding: var(--spacing-8);
 }
 .c-contacts-group__blind-sub { white-space: normal; }   /* explainer wraps — never ellipsized */
+/* ★ #1361: the blind disc = hub violet (the .c-account .c-disc grammar, round) */
+.c-contacts-group__blind .c-disc[data-hub='8'] { background: var(--disc-hub-8); }
+.c-contacts-group__blind .c-disc[data-hub='8'] > svg { filter: var(--disc-hub-glyph-lift); }
 .c-contacts-group__switch {
   flex: none;
   position: relative;
   width: 48px;
   height: 28px;
-  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border: var(--outline-width-1) solid var(--outline-neutral-02);   /* ★ #1361: the settings switch's (was -01) */
   border-radius: var(--radius-full);
   background: var(--switch-track-off);   /* #148① shared pair */
   cursor: pointer;
@@ -2490,7 +2665,8 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
 .c-contacts__row:focus-visible,
 .c-contacts__action:focus-visible,
 .c-contacts-group__switch:focus-visible,
-.c-contacts-group__avatar:focus-visible {
+.c-contacts-group__avatar:focus-visible,
+.c-contacts-group__photo-label:focus-visible {
   outline: var(--outline-width-2) solid var(--outline-action-default);
   outline-offset: 1px;
 }
@@ -2539,7 +2715,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
 .c-contacts-addsheet__item {
   width: 100%;
   display: flex;
-  align-items: flex-start;
+  align-items: center;   /* ★ #1360 (was flex-start) */
   gap: var(--spacing-12);
   padding: var(--spacing-16);
   border: 0;
@@ -2552,7 +2728,7 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
      sheet-card pair (tokens.css) lifts one step from the sheet in BOTH modes; hover = one
      more step + elevation-2; pressed = the top step, shadow dropped. No hairline: a card
      in dark lifts by tone, it does not outline (the same rule the brief's dark-mode read
-     states). The medallion tints tonal on hover — the attach-sheet grammar. */
+     states). ★ #1360: the medallion keeps its hub fill on hover (was the tonal tint). */
   background: var(--surface-sheet-card);
   box-shadow: var(--elevation-1);
   color: var(--text-neutral-01);
@@ -2564,7 +2740,6 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
 }
 @media (hover: hover) and (pointer: fine) {
   .c-contacts-addsheet__item:hover { background: var(--surface-sheet-card-hover); box-shadow: var(--elevation-2); }
-  .c-contacts-addsheet__item:hover .c-contacts-addsheet__medallion { background: var(--surface-action-tonal-default); color: var(--icon-action-default); }
 }
 .c-contacts-addsheet__item:active { background: var(--surface-sheet-card-pressed); box-shadow: none; }
 .c-contacts-addsheet__item:focus-visible {
@@ -2583,6 +2758,14 @@ button.c-chat-info__hero-addr:active { background: var(--surface-interactive-pre
   align-items: center;
   justify-content: center;
 }
+/* ★ #1360 (sheet A): the hub palette by kind — violet scan, blue pencil — white glyph + lift (the .c-account disc) */
+.c-contacts-addsheet__item[data-kind='scan'] .c-contacts-addsheet__medallion,
+.c-contacts-addsheet__item[data-kind='enter'] .c-contacts-addsheet__medallion {
+  color: #fff;   /* sanctioned: white glyph on a hub gradient (base.css .c-disc) */
+}
+.c-contacts-addsheet__item[data-kind='scan'] .c-contacts-addsheet__medallion { background: var(--disc-hub-8); }
+.c-contacts-addsheet__item[data-kind='enter'] .c-contacts-addsheet__medallion { background: var(--disc-hub-7); }
+.c-contacts-addsheet__item[data-kind] .c-contacts-addsheet__glyph { filter: var(--disc-hub-glyph-lift); }
 /* the scan medallion is a composite: the frame, with the small qrcode centred inside it */
 .c-contacts-addsheet__glyph--inset { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .c-contacts-addsheet__text {
@@ -3354,25 +3537,14 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   align-self: stretch;
   margin-inline: calc(-1 * var(--spacing-16));
   height: 44px;   /* sanctioned: the band without an identity (Wallet › Receive, a contact) */
-  background:
-    radial-gradient(60% 140% at 12% 0%, rgba(154, 122, 255, .85) 0%, transparent 70%),
-    radial-gradient(55% 150% at 92% 10%, rgba(255, 142, 198, .80) 0%, transparent 70%),
-    radial-gradient(70% 120% at 55% 120%, rgba(108, 159, 255, .75) 0%, transparent 70%),
-    linear-gradient(180deg, #F3EFFF, #E2DCFD);   /* sanctioned: the kit's light halo band (address-sheet-render.html A), a picture */
-}
-[data-theme='dark'] .c-addr-sheet__band {
-  background:
-    radial-gradient(60% 140% at 12% 0%, rgba(91, 70, 240, .85) 0%, transparent 70%),
-    radial-gradient(55% 150% at 92% 10%, rgba(192, 63, 147, .80) 0%, transparent 70%),
-    radial-gradient(70% 120% at 55% 120%, rgba(47, 99, 255, .75) 0%, transparent 70%),
-    linear-gradient(180deg, #1D1A3D, #14122C);   /* sanctioned: the kit's dark halo band, a picture */
+  background: var(--identity-band);   /* ★ #1361: the token (shared with the New group hero) */
 }
 .c-addr-sheet__card[data-who] .c-addr-sheet__band { height: 62px; }   /* sanctioned: room for the avatar's top half */
 .c-addr-sheet__avatar {
   margin-block-start: -44px;   /* sanctioned: half the 64 px avatar + the card gap — cut into the band */
-  box-shadow: 0 0 0 4px var(--surface-settings-card), 0 10px 18px -8px rgba(60, 40, 140, .45);   /* sanctioned: the cut-out ring + the lift (the render's) */
+  box-shadow: 0 0 0 4px var(--surface-settings-card), var(--identity-avatar-lift);   /* the ring + the lift (★ #1361 token) */
 }
-[data-theme='dark'] .c-addr-sheet__avatar { box-shadow: 0 0 0 4px var(--surface-sheet-card), 0 10px 18px -8px rgba(0, 0, 0, .6); }   /* sanctioned: the dark ring + lift */
+[data-theme='dark'] .c-addr-sheet__avatar { box-shadow: 0 0 0 4px var(--surface-sheet-card), var(--identity-avatar-lift); }   /* the dark ring */
 .c-addr-sheet__name {
   margin: calc(-1 * var(--spacing-4)) 0 0;
   max-width: 100%;
@@ -4633,6 +4805,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 @keyframes wnOrbit { to { transform: rotate(360deg); } }
 @keyframes wnBob { to { transform: translateY(-5px); } }
 @keyframes chFloat { to { transform: translateY(-3px); } }
+/* ★ S18 D1 (walk DC-SCREEN-A): the Contributors heart rides the SHARED .wn-bob — a .ct-l-only loop, 2× travel, same tempo (pins-s18/e-heart) */
+.il.ct-l .wn-bob { animation-name: ctBob; }
+@keyframes ctBob { to { transform: translateY(-10px); } }
 @keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
 @keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
 @keyframes ctTw { from { opacity: .2; } to { opacity: .95; } }
@@ -4976,6 +5151,11 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    .c-chip, which is what makes the ellipsis render; min-width: 0 lets this inner flex
    item shrink past its own min-content. Inert until something constrains the chip. */
 .c-chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ★ #1361: a chip led by a face (contacts-shell.js adds the 24 px avatar + data-avatar); muted × */
+.c-chip > .c-avatar { flex: none; }
+.c-chip[data-avatar] { gap: 6px; padding-block: 3px; padding-inline: 3px var(--spacing-8); }
+.c-chip[data-avatar] .c-chip__dismiss { color: var(--icon-neutral-02); }
 
 /* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
    after the label via the chip's flex gap. Muted so the label stays primary; the
@@ -5614,6 +5794,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
      gets the full contact grammar. Groups never reach this: chat-info suppresses the
      row for kind 'group' (a group id is a local session id, not an address). */
   function openPeerAddressSheet({ address }) {
+    const peerName = (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name)) ? state.name : '';
     openAddressSheet({
       address, strings, host: document.body, subject: 'peer',
       /* state.name IS the display name (it already incorporates any user-defined nick
@@ -5622,9 +5803,15 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
          unnamed contact (the #276/#279 echo class), so an unguarded title would render
          a full base58 as the sheet's heading and aria-label — directly above the row
          #591 truncated to 9…6. Same guard the roster ingests use. */
-      title: (state.name && !isAddressShaped(state.name) && !isPseudoAddressNick(state.name))
-        ? state.name
-        : (strings.peerAddressTitle || 'Ixian address'),
+      /* #46 r2 MINOR-2: the card now carries the name, so the heading says WHAT the sheet is (the self sheet's grammar:
+         "Your Ixian address" + the name in the card) — the name once, not twice. */
+      title: strings.peerAddressTitle || 'Ixian address',
+      /* ★ S18 D1 (S17 walk AD-CARD, Damir 17:17): the identity card shows the contact like mine does — the name under the
+         SAME guard as the title (one value, so they cannot disagree) and the photo the header shows (state.avatarPath,
+         setAvatar). No real name → neither: an unnamed contact's sheet stays the plain address card. Peer fences unchanged
+         (subject 'peer': no Share, no safety line). */
+      name: peerName,
+      avatar: peerName ? (state.avatarPath || null) : null,
     });
   }
 

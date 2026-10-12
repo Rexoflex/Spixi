@@ -38,15 +38,19 @@
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- overlay stack (scrim) for the incoming-call overlay -->
 <link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
-<!-- premium add-app: method tiles + trust banner + URL field -->
+<!-- premium add-app: method tiles + trust caption + URL field -->
 <style>
   /* Production shell: fill the WebView. app_new.html is loaded by the C# AppNewPage
      (PUSHED). The premium add-app surface is the c-apps-add component (method tiles +
-     trust banner + revealable URL field), Discover omitted for phase 1. */
+     trust caption + revealable URL field), Discover omitted for phase 1. */
   html, body { margin: 0; height: 100%; background: var(--surface-screen); }
   body { display: flex; flex-direction: column; overflow: hidden; }
   #topbar-slot { flex: none; }
   #add-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* ★ #1359 (Damir 2026-10-12, Add app B): the screen under the topbar sits on the settings ground — the tiles
+     and the field card are white settings cards (dark: ground = surface-screen, unchanged). On the SCROLLER,
+     not on html/body: the build's device ground (scripts/lib/inline.mjs, html,body …!important) owns those. */
+  #add-scroll { background: var(--surface-settings-ground); }
   /* W11 (#348, Damir): 640 for BOTH add-screens. This shell capped at 560 and
      capped UNCONDITIONALLY; contact_new.html capped at 640 behind a gate. They
      now use the identical rule and the identical value.
@@ -148,7 +152,7 @@
 
   /* —— premium add-app surface (c-apps-add) ——————————————————————————————————
    * Method TILES (Paste link → reveals a URL field · Scan QR · From file), the
-   * "Mini apps are lightweight… only add apps you trust" trust banner. Discover is
+   * "Mini apps are lightweight… only add apps you trust" trust caption. Discover is
    * OMITTED (discover:false) for phase 1 — no directory feed wired yet. Wired to the
    * three AppNewPage verbs (bridge-audit-B §11): fetch / quickscan / selectAppFile. */
   let getBtn = null;      // the field's Get-app c-button (grabbed post-build for loading)

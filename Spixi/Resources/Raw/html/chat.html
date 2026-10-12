@@ -4929,6 +4929,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    item shrink past its own min-content. Inert until something constrains the chip. */
 .c-chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
+/* ★ #1361: a chip led by a face (contacts-shell.js adds the 24 px avatar + data-avatar); muted × */
+.c-chip > .c-avatar { flex: none; }
+.c-chip[data-avatar] { gap: 6px; padding-block: 3px; padding-inline: 3px var(--spacing-8); }
+.c-chip[data-avatar] .c-chip__dismiss { color: var(--icon-neutral-02); }
+
 /* count inside a filter chip (Damir 2026-07-09): a plain trailing NUMBER, sits
    after the label via the chip's flex gap. Muted so the label stays primary; the
    selected chip tints it with the chip text colour (inherits currentColor). */
@@ -6728,6 +6733,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 @keyframes wnOrbit { to { transform: rotate(360deg); } }
 @keyframes wnBob { to { transform: translateY(-5px); } }
 @keyframes chFloat { to { transform: translateY(-3px); } }
+/* ★ S18 D1 (walk DC-SCREEN-A): the Contributors heart rides the SHARED .wn-bob — a .ct-l-only loop, 2× travel, same tempo (pins-s18/e-heart) */
+.il.ct-l .wn-bob { animation-name: ctBob; }
+@keyframes ctBob { to { transform: translateY(-10px); } }
 @keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
 @keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
 @keyframes ctTw { from { opacity: .2; } to { opacity: .95; } }
@@ -9913,7 +9921,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   /* ★★ S17 F (#1340) — THE MOMENT SHEETS IN THE CHAT. The after-the-result ones (auto-download, offline sender) wait for a
      clear screen (no sheet or menu open, the chat visible), then show; the confirm-step ones (mic · app · pay) are the
      user's own tap and show at once (momentBeforeAction). */
-  const OFFLINE_MOMENT_MS = 10000;                  // a manual download with no first tick by then = waiting for the sender's device
+  const OFFLINE_MOMENT_MS = 5000;                   // a manual download with no first tick by then = waiting for the sender's device · ★ S18 D1 (S17 walk MO-OFFLINE, Damir 17:17: "10 s is too long; 5 s max"): 10000 → 5000
   let offlineMomentTimer = 0;
   const chatMomentWaiting = [];
   let chatMomentRetry = 0;

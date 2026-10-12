@@ -470,9 +470,10 @@ export function createThemePicker({ current, strings = getStrings(), commit, onP
   }
   paint();
   radioArrows(wrap);
-  /* a host may repaint the picker without a commit (no host does today: a push while the picker is open leaves it as it
-     was, the old tiles' behaviour too — #1353 r1 n2) */
-  wrap.setThemeValue = (v) => { current = v; paint(); };
+  /* a host repaints the picker without a commit — ★ S18 D2 (TH-PICKER-A): settings.html does, on EVERY commit and every
+     setAppearance push (repaintThemePickers), so the sheet, the pane's Theme screen and Chat appearance's card always show
+     the ONE value (state.theme). Was unused (#1353 r1 n2), which is how the two pickers came to disagree. */
+  wrap.setThemeValue = (v) => { current = Number(v) === 1 || Number(v) === 2 ? Number(v) : 0; paint(); };
   return wrap;
 }
 

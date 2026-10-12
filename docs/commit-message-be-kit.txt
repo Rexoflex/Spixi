@@ -1,0 +1,30 @@
+BE review pack: start-here page, decision sheet, diff commands, refresh list
+
+The BE review-day kit, docs only, new files only (no existing file changed).
+Checked against redesign/frontend 052aac6b, fork point 0e85a4b8.
+
+- docs/be-review-pack/00-start-here.md: one page for the BE engineer. What
+  the redesign is, what changed in numbers (84 new / 74 changed / 11 deleted
+  C# files plus 43 vendored rocksdb-sharp files; +60 535 / -4 786 C# lines;
+  91 new ixian: verbs, 14 legacy verb names gone, 117 new pushes; 4 flags,
+  all ON; the counting method), the trust model in 5 lines, the reading path
+  (must-read 148 min: the decision sheet, the 19 HIGH packets, core-asks;
+  skim 36; optional 24) and how to answer.
+- docs/be-review-pack/00-decision-sheet.md: 10 yes/no decisions (D1 the
+  review model #1312 · D2 L8 in SecureStorage + the retry view · D3 the state
+  gate for mic and clipboard · D4 the call verbs outside the gate · D5 home
+  removecontact without a native confirm · D6 a payment dialog over the app
+  lock · D7 new uses of existing Core codes · D8 the planned perf levers ·
+  D9 delete the flag-OFF paths after the yes · D10 v1 on Core 097341a), each
+  with what ships unless he says no, the switch and the cost of a no; the
+  other packet questions as FYI with their built default.
+- docs/be-review-pack/00-diffs.md: one git diff per packet (files verified at
+  052aac6b, line counts, files missing from a packet's own list), each Look
+  here first line at 052aac6b, a PowerShell block that writes every diff to
+  %TEMP%\spixi-be-diffs, one-commit diffs for P24 P25 P26 P28, and --text for
+  the vendored rocksdb-sharp folder.
+- docs/be-review-pack/00-refresh-list.md: every stale or wrong line in the
+  existing pack for the later refresh (555 stale citations on 331 packet
+  lines, 123 status / content items, README / core-asks / legacy / gate-doc
+  rows), plus one code item (dev mode off does not clear the two S17 flag
+  prefs).

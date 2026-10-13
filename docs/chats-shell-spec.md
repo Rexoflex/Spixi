@@ -57,7 +57,7 @@ Reuses `createChip`/`setChipSelected` exactly as the wallet filter group does. S
 ## 6. Row actions (Q2 — long-press full, swipe curated)
 
 - **Long-press / right-click → `c-sheet`** (reuse `c-msgmenu` sheet infra, §5b, keyboard path): **Pin/Unpin · Mute/Unmute · Mark as read · Delete · Chat info**. Source of truth for the full set.
-- **Swipe → two NON-destructive quick actions only:** leading = **Pin/Unpin**, trailing = **Mute/Unmute**. Curated subset = accelerator, not a duplicate menu.
+- **Swipe → two NON-destructive quick actions only:** leading = **Mute/Unmute**, trailing = **Pin/Unpin** (★ DT-1, Damir 2026-10-13: swapped from pin-leading — #1389). Curated subset = accelerator, not a duplicate menu.
 - **Delete is menu-only** — deliberately excluded from swipe (destructive-on-swipe = accidental-tap risk). Delete in the sheet confirms via `c-modal`.
 - Swipe infra is NEW → must be audited hard (RTL logical directions, momentum/threshold, pointer+touch, a11y alternative = the long-press sheet already covers keyboard/SR). 🟡 build swipe *after* the sheet path is CLEAN so the accessible path exists first.
 - Mute/pin plumbing: `data-muted`/`data-pinned` on the row + model flags; pinned rows sort to top (below requests); muted excluded from nav badge (#42) and show the muted indicators (#81 createIndicators). Bridge for pin/mute persistence = **BE §8** (addChat carries no pinned flag today, #67) → flag-gated.

@@ -1,0 +1,6 @@
+DT-1: swap the phone chat-row swipe sides
+
+1389 (Damir 2026-10-13): the swipe panels were Pin left / Mute right and
+were easy to mix up. Now Mute is the left (leading) panel and Pin the
+right (trailing) one; RTL mirrors. chats-shell-spec.md section 6
+updated; a pin in scripts/pins-dt1/a-list.mjs (swipeSides).

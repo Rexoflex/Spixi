@@ -34,8 +34,10 @@ export function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings 
   const dir = rtl != null ? rtl
     : (typeof document !== 'undefined' && document.documentElement.getAttribute('dir') === 'rtl');
   // physical sides ↔ logical actions (RTL mirrors leading/trailing)
-  const leftAction = dir ? 'mute' : 'pin';
-  const rightAction = dir ? 'pin' : 'mute';
+  /* ★ DT-1 (#1389, Damir 2026-10-13 12:07: "swap the mute and pin locations … always make mistake"): MUTE is the left (leading)
+     panel, PIN the right (trailing) one — was pin left / mute right. RTL mirrors as before. */
+  const leftAction = dir ? 'pin' : 'mute';
+  const rightAction = dir ? 'mute' : 'pin';
   const enabled = (a) => (a === 'pin' ? !!capabilities.pin : !!capabilities.mute);
   const leftEnabled = enabled(leftAction);
   const rightEnabled = enabled(rightAction);

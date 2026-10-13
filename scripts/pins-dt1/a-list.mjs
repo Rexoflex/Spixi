@@ -195,6 +195,13 @@ export default async function (h) {
     const mItem = s3.d.querySelector('.c-chatlist-item');
     const mc = cascade(s3.W);
     n.mobileInset = mc.win(mItem, 'margin-inline');
+    /* ★ DT-1 (Damir 12:07, #1389): the phone swipe panels — MUTE on the left, PIN on the right (was pin left); RTL mirrors */
+    const sw = s3.d.querySelector('.c-chats-list .c-swipe');
+    n.swipe = sw ? { left: (sw.querySelector('.c-swipe__action--left') || {}).dataset?.action, right: (sw.querySelector('.c-swipe__action--right') || {}).dataset?.action } : null;
+    const bare = s3.d.createElement('button');
+    const rtlWrap = s3.W.Spixi.wrapChatRowSwipe(bare, { chat: {}, capabilities: { pin: true, mute: true }, rtl: true });
+    n.swipeRtl = { left: (rtlWrap.querySelector('.c-swipe__action--left') || {}).dataset?.action, right: (rtlWrap.querySelector('.c-swipe__action--right') || {}).dataset?.action };
+    r.swipeSides = !!n.swipe && n.swipe.left === 'mute' && n.swipe.right === 'pin' && n.swipeRtl.left === 'pin' && n.swipeRtl.right === 'mute';
     r.mobile = n.mobile.heads === 0 && n.mobile.wraps === 0 && n.mobile.acts === 0 && n.mobile.rows === 5 && n.mobileInset === '';
     r.noErrMobile = K.noErr(s3.errs);
   } catch (e) { r.threw = e.message + ' ' + (e.stack || '').split('\n').slice(1, 4).join(' | '); }
@@ -220,6 +227,7 @@ export default async function (h) {
   c('insetDesktop', '★ DT-1 A: a desktop row is inset (margin-inline --spacing-8) and rounded (--radius-12)');
   c('patch', '★ DT-1 A: with sections on, the one-row patch replaces only the named row; a row in a folded section is not on screen (true, nothing replaced)');
   c('mobile', '★ DT-1 A: a phone boot with pinned chats has no section head, no wrapper, no action and no inset — today\'s list');
+  c('swipeSides', '★ DT-1 (Damir 2026-10-13, #1389): the phone swipe — Mute is the LEFT panel, Pin the RIGHT one (swapped); RTL mirrors (Pin left, Mute right)');
   c('noErr', '★ DT-1 A: no page error (desktop)');
   c('noErrMobile', '★ DT-1 A: no page error (phone)');
 }

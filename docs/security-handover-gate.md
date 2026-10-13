@@ -2050,3 +2050,12 @@ Security-only #46 at high over B (the dev verb, the push, the log lines) and the
 | Log lines `[DT] titlebar way=<w> theme=<light\|dark> custom=<0\|1>` (one per apply) · `[FLAGS] dttitlebar=<w>` (Windows, once per start) · `[DT] titlebar <create\|attach\|apply\|dispatch\|hide> failed: <Type>` · `DevPage: title bar switch failed: <Type>` | fixed words + a type name (built by the pure `DtTitleBarRules.applyLine` / `flagLine`, csh `DtTitleBarTests`) | ours, safe |
 | Title bar colours (MAUI `Window.TitleBar` / `AppWindow.TitleBar`, the list from the pure `DtTitleBarRules.captionColours`) · way 2 only: `AppWindow.TitleBar.ExtendsContentIntoTitleBar = false` + a MAUI `Window.TitleBar` hidden once its handler exists · a `UISettings.ColorValuesChanged` re-apply · Windows 10 (build < 22000) paints `off` | constants from tokens.css; no WebView setting, no root paint (#1276), no input from a page | ours, safe |
 
+
+## DT-1 round 2 (#1390 · #1392 · #1393) — the desktop list density, the title bar back to the Windows look, pinned rows (2026-10-13)
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| Key `spixi.chat.listdensity` — `comfortable` \| `compact` \| `dense`, written by settings.html (Chat appearance, desktop only), read by home.html's head ladder and settings.html | a UI preference of this device (the `spixi.chat.previewlines` class); NO peer data; the writer writes only the three literals; both readers admit only `compact` / `dense` (anything else = comfortable) and only those literals reach `data-row-density`; try/catch; goes with the account wipe (the `spixi.` prefix sweep, settings.html / launch.html) | ours, safe |
+| `:root[data-row-density]` + a storage-event re-read (the S10 P4 ladder, one script, one listener) | an attribute from a fixed set; no new listener (the count stays 4, gate 5) | ours, safe |
+| Title bar default → `off` (#1392) | removes paint and extension on the default path (DtTitleBar sets only `window.Title`); no new verb, push, pref or log line; the dev ways keep their #1386 rows above | ours, safe (less surface) |
+| Token `--surface-pinned-hover` + the desktop row gap (#1393) | CSS only | ours, safe |

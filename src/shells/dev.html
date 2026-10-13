@@ -257,7 +257,8 @@
   }
 
   /* ★ DT-1 B — the Windows title bar way for the STOP-rule spike (C# pushes setTitleBarDev on Windows only, so no dead row).
-     One of three: maui (MAUI Window.TitleBar, the default) · colors (the system bar, its colours set) · off (today's bar).
+     One of three: off (the Windows look, the DEFAULT since #1392) · maui (MAUI Window.TitleBar) · colors (the system bar, its
+     colours set) — maui and colors failed the DT-1 walk and stay as dev experiments.
      A tap sends `ixian:devflash:titlebar:<word>`, optimistic; C# echoes the STORED word. It acts after a restart (C# reads
      the way once per start). The overlay-container card's grammar exactly. */
   let titleBarDev = null;   // 'maui' | 'colors' | 'off' once C# told us
@@ -276,9 +277,9 @@
     card.setAttribute('aria-label', head.textContent);
     card.append(head);
     const opts = [
+      ['off', strings.devTitleBarOff || 'Windows title bar (default)'],
       ['maui', strings.devTitleBarMaui || 'Spixi title bar (MAUI)'],
       ['colors', strings.devTitleBarColors || 'System title bar, Spixi colours'],
-      ['off', strings.devTitleBarOff || 'Off (today)'],
     ];
     const paint = () => {
       card.querySelectorAll('[data-titlebar]').forEach((b) => {

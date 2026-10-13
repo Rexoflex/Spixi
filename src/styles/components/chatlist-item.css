@@ -302,12 +302,14 @@
 :root[data-desktop] .c-chatlist-item {
   width: auto;
   margin-inline: var(--spacing-8);
+  margin-block: 1px;   /* ★ #1393 (WALK DT-1, Damir: "when pinned there's no space between"): a 2 px gap between two rounded rows */
   border-radius: var(--radius-12);
 }
 /* #46 r1 (A-4): a request card in the same list takes the same gutter + corner, so its avatar and name stay in the rows'
    column (they sat 8 px left of the inset rows) */
 :root[data-desktop] .c-chats-list > .c-contact-request {
   margin-inline: var(--spacing-8);
+  margin-block: 1px;   /* ★ #1393: the rows' gap */
   border-radius: var(--radius-12);
 }
 
@@ -367,8 +369,40 @@
      and paint as the .c-chatlist-item:hover rule above (keep them in step; transition-free, see that rule) */
   :root[data-desktop] .c-chatlist-row:hover > .c-chatlist-item:not([aria-current]):not([data-pinned]),
   :root[data-desktop] .c-chatlist-row[data-hover] > .c-chatlist-item:not([aria-current]):not([data-pinned]) { background-color: var(--surface-interactive-hover); }
+  /* ★ #1393 (WALK DT-1, Damir: "hover looks same as pinned"): on desktop a PINNED row shows the pointer too — the pinned wash,
+     stronger. Supersedes N56's "the hover keeps its hands off pinned rows" for the desktop wrapper only (the phone has no
+     hover); the selected row still keeps its own paint (#353). */
+  :root[data-desktop] .c-chatlist-row:hover > .c-chatlist-item[data-pinned]:not([aria-current]),
+  :root[data-desktop] .c-chatlist-row[data-hover] > .c-chatlist-item[data-pinned]:not([aria-current]) { background-color: var(--surface-pinned-hover); }
   .c-chatlist-row__act:hover { background: var(--surface-interactive-pressed); color: var(--icon-neutral-01); }
 }
+
+/* ★ #1390 (Damir 2026-10-13, the "Spixi Desktop Row Density" render, picked all three) — THE DESKTOP LIST DENSITY.
+   Settings › Chat appearance › List density writes spixi.chat.listdensity; home.html's head ladder sets
+   :root[data-row-density] = comfortable | compact | dense (absent / anything else = comfortable) and, under dense, holds
+   :root[data-preview-lines] at '1' (a dense row is ONE line, so the 2-line flow below never meets it). DESKTOP ONLY: every
+   rule is under :root[data-desktop]; the phone list never changes. Comfortable = today (48 avatar, 2 × 8 padding = 64).
+   Compact = a 40 avatar (56). Dense = a 32 avatar, 2 × 6 padding, the name, the preview, the badges and the time on ONE
+   line (44). Font sizes and weights do not move (#227); request cards and the section heads keep their size. */
+:root[data-desktop][data-row-density="compact"] .c-chatlist-item .c-avatar[data-size="48"] { width: var(--size-avatar-40); height: var(--size-avatar-40); }
+:root[data-desktop][data-row-density="compact"] .c-chatlist-item .c-avatar[data-size="48"] .c-avatar__initials { font-size: 15px; }   /* the 40 step (avatar.css) */
+/* #46 r1 A-M3: the placeholder glyph (group / person, avatar.js: 0.55 × the size, set as svg attributes) follows the disc */
+:root[data-desktop][data-row-density="compact"] .c-chatlist-item .c-avatar[data-size="48"] > svg { width: 22px; height: 22px; }
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-avatar[data-size="48"] > svg { width: 18px; height: 18px; }
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item { padding-block: 6px; }   /* sanctioned: 32 + 2 × 6 = the 44 row */
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-avatar[data-size="48"] { width: var(--size-avatar-32); height: var(--size-avatar-32); }
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-avatar[data-size="48"] .c-avatar__initials { font-size: 12px; }   /* the 32 step (avatar.css) */
+/* #46 r2 MINOR-1: the 32 step's #1001 shadow — NOT on hue 2 (sunflower), which keeps its own stronger shadow at every size */
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-avatar[data-size="48"]:not([data-hue="2"]) .c-avatar__initials { text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25); }   /* sanctioned: the 32 step's #1001 legibility shadow, as avatar.css */
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-avatar[data-size="48"] .c-avatar__dot { width: 10px; height: 10px; }   /* sanctioned: the dot stays avatar-relative */
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item__content { flex-direction: row; align-items: center; gap: var(--spacing-8); }   /* #46 r1 A-N1: centre (the 20 / 18 px line boxes share it) — a baseline put a glyph-led preview 2 px high */
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item__name { flex: 0 1 auto; max-width: 55%; }   /* a long name leaves room for the preview */
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item__content > .c-excerpt { flex: 1 1 0; min-width: 0; }
+/* #46 r1 A-M2 → r2 NIT-1: the #944 / U-05 sender cap is 40% of the EXCERPT, which is short on a dense row ("Ge…: hey all").
+   max(40%, 7ch): a short name (≈ 7 characters) stays whole, and a long one still stops at 40% so the message keeps the rest */
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-excerpt__sender { max-width: max(40%, 7ch); }
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item__right { flex-direction: row-reverse; align-items: center; gap: var(--spacing-8); min-height: var(--row-name-line-height); }   /* the time at the end, the badges before it */
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item__indicators { height: var(--row-name-line-height); }
 
 /* ★ S10 P4 (#1254, Damir pick 2B, default 2 lines): "Message preview: 2 lines" (Chat appearance → home.html sets
    :root[data-preview-lines]). The excerpt becomes ONE inline flow — the sender ("Han Solo: "), the kind glyph and the

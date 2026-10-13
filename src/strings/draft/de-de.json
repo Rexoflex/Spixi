@@ -1036,5 +1036,9 @@
   "devTitleBarTitle": "Title bar (Windows, acts after a restart)",
   "devTitleBarMaui": "Spixi title bar (MAUI)",
   "devTitleBarColors": "System title bar, Spixi colours",
-  "devTitleBarOff": "Off (today)"
+  "devTitleBarOff": "Windows title bar (default)",
+  "listDensity": "Listendichte",
+  "listDensityComfortable": "Komfortabel",
+  "listDensityCompact": "Kompakt",
+  "listDensityDense": "Dicht"
 }

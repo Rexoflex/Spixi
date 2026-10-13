@@ -1,0 +1,25 @@
+DT-1 round 2: list density, the Windows title bar look, pinned rows
+
+1390 (Damir 2026-10-13, picked all three on the render): Settings >
+Chat appearance > List density, desktop only - Comfortable (today,
+64), Compact (40 avatar, 56), Dense (32 avatar, one line, 44). Key
+spixi.chat.listdensity; home.html's head ladder sets
+:root[data-row-density] before first paint and live on a storage
+write; dense holds the message preview at one line. Every density
+rule is under :root[data-desktop]. 4 new string keys (14 languages).
+
+1391: WALK DT-1 (Windows + Android): 17 P / 4 F / 0 N/A - the 4 fails
+are the title bar rows.
+
+1392 (Damir: "Windows look"): the title bar default is "off" - the
+Windows look as before DT-1 - with the caption "Spixi" (was
+"Spixi IM"). The token-coloured ways stay as dev-mode experiments.
+
+1393 (Damir: "no space between, hover looks same as pinned"): desktop
+rows get a 2 px gap; a hovered pinned row paints the new
+--surface-pinned-hover.
+
+Pins: scripts/pins-dt1/c-density.mjs, d-pinned.mjs; b-titlebar.mjs,
+pins-s17/f-moments2.mjs and the csh DtTitleBarTests re-based. The
+index.html size ceiling 644 -> 649 KB (measured 647.0). Walk:
+docs/walk-dt1-r2.md.

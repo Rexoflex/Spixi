@@ -1,4 +1,7 @@
-/* ★ DT-1 B (Damir 2026-10-12, Q1 "Spixi" only) — the Windows title bar in the TOKEN colours, light and dark. Windows only
+/* ★ #1392 (WALK DT-1 #1391, Damir 2026-10-13: "Windows look"): the DEFAULT way is `off` — this file then only sets
+ * window.Title = "Spixi" (onCreateWindow); attach() keeps the AppWindow and extends nothing, apply() returns at once. The
+ * token-coloured ways below (maui · colors) FAILED the walk and act only as dev-mode experiments (Developer › Title bar).
+ * ★ DT-1 B (Damir 2026-10-12, Q1 "Spixi" only) — the Windows title bar in the TOKEN colours, light and dark. Windows only
  * (this folder compiles for net10.0-windows only). The rules (the way switch, the title, the palette, the caption colour
  * list, the Windows 10 fallback, the log line) are in Utils/DtTitleBarRules.cs and run in the C# harness; this file only puts
  * them on the window.
@@ -108,15 +111,15 @@ namespace SPIXI
 
         public static void apply()
         {
+            if (way() == DtTitleBarRules.WayOff)
+            {
+                return;   // ★ #1392 (#46 r1 B NIT-1): the default (the Windows look) — nothing is dispatched, nothing is set
+            }
             void run()
             {
                 try
                 {
-                    int w = way();
-                    if (w == DtTitleBarRules.WayOff)
-                    {
-                        return;   // today: MAUI's default bar in the system colours, nothing set
-                    }
+                    int w = way();   // maui or colors here (off returned above; the way is fixed for the run)
                     if (mauiBar == null && appWindow == null)
                     {
                         return;   // the boot loadTheme runs before any window exists — the hooks call apply() again

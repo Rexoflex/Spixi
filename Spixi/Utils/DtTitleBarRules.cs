@@ -6,14 +6,17 @@
  * decides between them — drag, double-click to maximise, maximise / restore, Snap, the resize band (#1272), the 384 DIP
  * minimum, a live theme switch. So the way is a dev-mode switch (Developer › Title bar, `ixian:devflash:titlebar:<word>`),
  * read ONCE at start like every SpixiFlags switch:
- *   maui   (the default) — way 1: MAUI Window.TitleBar with the title "Spixi", its colours from the tokens;
+ *   off    (the default since #1392) — the Windows look: MAUI's default bar in the system colours, the caption "Spixi";
+ *   maui                 — way 1: MAUI Window.TitleBar with the title "Spixi", its colours from the tokens;
  *   colors               — way 2: the system bar with only its colours set (AppWindow.TitleBar background / foreground /
  *                          inactive / caption buttons): AppWindow.TitleBar.ExtendsContentIntoTitleBar = false (the
  *                          object MAUI set to true) AND MAUI's own 32-DIP band collapsed (a hidden Window.TitleBar) — else
  *                          the caption would draw twice (#46 r1 B MAJOR-1, traced in the MAUI 10.0.71 source);
- *   off                  — today: MAUI's default bar, the caption "Spixi IM", system colours.
+ * ★ #1392 (WALK DT-1, Damir 2026-10-13: DT-TB-LIGHT / DARK / MIN / W2 FAILED — way 1 painted a flat bar that joins the app
+ * with no line under it and drew no title; way 2 drew no title and almost no caption buttons): "Windows look" — `off` is
+ * the default, and its caption is "Spixi" (was "Spixi IM"; Q1). Ways 1 and 2 stay as dev-mode experiments only.
  * A stored non-default way acts ONLY while dev mode is on (the S11ChatRules.containerMode precedent): a user who leaves
- * dev mode gets the default back. The pick that passes the spike becomes the default in a follow-up row.
+ * dev mode gets the default back.
  * WINDOWS 10 (#46 r1 B MINOR-2): the caption colours are ignored there (WinAppSDK docs), so a token-coloured band would carry
  * OS-theme glyphs (light on light when the app and the OS disagree) — any way acts as `off` below build 22000.
  *
@@ -24,15 +27,16 @@ namespace SPIXI
 {
     public static class DtTitleBarRules
     {
-        public const string PrefKey = "devTitleBarWay";   // int pref; absent = Maui. Dev mode only (see wayThatActs)
+        public const string PrefKey = "devTitleBarWay";   // int pref; absent = the default (off). Dev mode only (see wayThatActs)
 
         public const int WayOff = 0;
         public const int WayMaui = 1;
         public const int WayColors = 2;
+        /** ★ #1392: the default way = the Windows look (way 1 and way 2 failed the DT-1 walk) */
+        public const int WayDefault = WayOff;
 
-        /** Q1 (Damir 2026-10-12): the bar says "Spixi" — the logo is already in the rail. `off` keeps today's caption. */
+        /** Q1 (Damir 2026-10-12): the bar says "Spixi" — the logo is already in the rail. ★ #1392: every way, `off` too. */
         public const string Title = "Spixi";
-        public const string LegacyTitle = "Spixi IM";
 
         /* tokens.css, resolved (light / dark) — pins-dt1/b-titlebar.mjs pairs every constant with its token */
         public const string LightBg = "#F9FAFB";          // --surface-screen
@@ -65,7 +69,7 @@ namespace SPIXI
         /** `ixian:devflash:titlebar:<off|maui|colors>` — the tail must be one of the three words exactly. */
         public static bool parseWayVerb(string? tail, out int way)
         {
-            way = WayMaui;
+            way = WayDefault;
             switch (tail)
             {
                 case "off": way = WayOff; return true;
@@ -78,8 +82,8 @@ namespace SPIXI
         /** The way that ACTS this run: the default unless dev mode is on and a known non-default way is stored. */
         public static int wayThatActs(bool devMode, int stored)
         {
-            if (!devMode) return WayMaui;
-            return stored == WayOff || stored == WayColors ? stored : WayMaui;
+            if (!devMode) return WayDefault;
+            return stored == WayMaui || stored == WayColors ? stored : WayDefault;
         }
 
         /** The way that is PAINTED on this OS: Windows 10 (build < 22000) ignores the caption colours → `off`. */
@@ -130,12 +134,12 @@ namespace SPIXI
 
         public static string wayWord(int way)
         {
-            return way == WayOff ? "off" : way == WayColors ? "colors" : "maui";
+            return way == WayMaui ? "maui" : way == WayColors ? "colors" : "off";   // ★ #1392: an unknown value = the default's word
         }
 
         public static string titleFor(int way)
         {
-            return way == WayOff ? LegacyTitle : Title;
+            return Title;   // ★ #1392: "Spixi" on every way (the Windows look included)
         }
 
         /** "#RRGGBB" → (r, g, b); false for anything else (the constants above are the only callers). */

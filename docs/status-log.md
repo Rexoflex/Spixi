@@ -493,3 +493,5 @@ hover pin · mute · info · more = the row menu's actions, #1385); B the Window
 for the spike (#1386, C# UNCOMPILED). #46 two rounds CLEAN (#1387). Pins +48 (pins-dt1), CSH 448. Walk `docs/walk-dt1.md`. Then (#1388) D
 deferred to the agent-support layout work; (#1389) the phone swipe swapped (Mute left, Pin right) as a separate patch. Smoke 5962 (P1) / 5963 (+ swipe). Next: the DT-1 walk (Windows + Android).
 
+
+- 2026-10-13 (DT-1 round 2): WALK DT-1 17 P · 4 F (#1391, the title bar rows). Built in ONE patch `dt1-r2.patch` on top of the two DT-1 commits: the desktop List density setting (#1390, Comfortable 64 · Compact 56 · Dense 44, desktop only), the title bar back to the Windows look with "Spixi" (#1392, `off` = default), pinned rows with a gap and their own hover (#1393). Pins c-density + d-pinned. #46 CLEAN (r1 + r2, 30 breaks killed). Smoke 5965 / the 2 KNOWN · CSH 448. Walk `docs/walk-dt1-r2.md`.

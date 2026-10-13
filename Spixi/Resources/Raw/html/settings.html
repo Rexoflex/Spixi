@@ -5219,6 +5219,21 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
 .c-settings-appearance__minit, .c-settings-appearance__minil { display: block; height: 5px; border-radius: 3px; background: var(--text-neutral-02); opacity: .35; }
 .c-settings-appearance__minit { width: 60%; opacity: .7; }
 .c-settings-appearance__line-name { position: absolute; inset-inline-start: 12px; inset-block-end: 10px; font-size: var(--font-size-label-sm); font-weight: var(--font-weight-semibold); }
+/* ★ #1390: List density (desktop only) — three mini lists: Comfortable (3 rows) · Compact (4, smaller discs) · Dense (5, one
+   line each). The tiles are the Message preview tiles; only the minis change. */
+.c-settings-appearance__density { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* three tiles are narrow: the pick mark moves to the top corner (on the label row it covered "Comfortable"), and the minis
+   keep clear of it */
+.c-settings-appearance__density .c-settings-appearance__line .c-settings-appearance__pick { inset-block-start: 10px; inset-block-end: auto; }
+.c-settings-appearance__density .c-settings-appearance__minilist { padding-inline-end: 26px; }
+.c-settings-appearance__density .c-settings-appearance__line-name { inset-inline-end: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-appearance__minilist[data-density="compact"] .c-settings-appearance__minirow { margin-block-end: 6px; }
+.c-settings-appearance__minilist[data-density="compact"] .c-settings-appearance__miniav { width: 18px; height: 18px; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__minirow { align-items: center; margin-block-end: 5px; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__miniav { width: 12px; height: 12px; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__minitx { flex-direction: row; align-items: center; padding-block-start: 0; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__minit { width: 40%; flex: none; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__minil { flex: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .c-chat-canvas.c-settings-appearance__preview,
@@ -8683,6 +8698,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * readPatternLevel migrates the legacy fractional values. */
   const CHAT_PREFS = { pattern: 'spixi.chat.pattern', textScale: 'spixi.chat.textscale', patternStyle: 'spixi.chat.patternstyle', ground: 'spixi.chat.ground',
     previewLines: 'spixi.chat.previewlines',
+    listDensity: 'spixi.chat.listdensity',   // ★ #1390: 'comfortable' | 'compact' | 'dense' (desktop only; absent / anything else = comfortable); the CONSUMER is home.html's head ladder
     sentColour: 'spixi.chat.sentcolour', corners: 'spixi.chat.corners' };   // ★ S17 C (#1334): the two NEW keys (absent = Auto · the token 18 px)   // ★ S10 P4 (#1254): '1' | '2' (absent / anything else = '1', ★ S11 #1261); the CONSUMER is home.html (the chats list)
   function readChatPrefs() {
     // B2 (#256): ONE key, PLATFORM-AWARE default when unset — desktop Off (0),
@@ -8724,6 +8740,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     } catch (e) {}
     let previewLines = '1';   // ★ S11 (#1262): the default is 1 LINE (#1261)
     try { if (localStorage.getItem(CHAT_PREFS.previewLines) === '2') previewLines = '2'; } catch (e) {}   // ★ S10 P4: the home.html ladder's twin
+    let listDensity = 'comfortable';   // ★ #1390: the home.html ladder's twin
+    try { const dn = localStorage.getItem(CHAT_PREFS.listDensity); if (dn === 'compact' || dn === 'dense') listDensity = dn; } catch (e) {}
     /* ★ S17 C (#1334): the two NEW keys, read the way chat.html reads them */
     let sentColour = 'auto', corners = 18;
     try {
@@ -8732,7 +8750,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       const k = parseFloat(localStorage.getItem(CHAT_PREFS.corners));
       if (isFinite(k)) corners = Math.round(Math.min(22, Math.max(4, k)));
     } catch (e) {}
-    return { pattern, textScale, patternStyle, chatGround, previewLines, sentColour, corners };
+    return { pattern, textScale, patternStyle, chatGround, previewLines, listDensity, sentColour, corners };
   }
 
   /* ★ security sweep E-1b — the remote-media opt-out, read here and written by the
@@ -9876,6 +9894,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
           onTextScale: (v) => { try { localStorage.setItem(CHAT_PREFS.textScale, String(v)); } catch (e) {} },
           previewLines: prefs.previewLines,
           onPreviewLines: (v) => { try { localStorage.setItem(CHAT_PREFS.previewLines, v === '1' ? '1' : '2'); } catch (e) {} },
+          /* ★ #1390: List density — desktop only (no handler on a phone = no control); only the three literals are written */
+          listDensity: prefs.listDensity,
+          onListDensity: isDesktop ? (v) => { try { localStorage.setItem(CHAT_PREFS.listDensity, v === 'dense' || v === 'compact' ? v : 'comfortable'); } catch (e) {} } : undefined,
           /* ★ S17 C (#1334): the two NEW controls (the chat shell's ladders read the keys) + the Theme card (the SAME commit
              the hub's theme sheet uses: applyTheme + ixian:appearance:<v>; the live flip re-renders this view, #772) */
           sentColour: prefs.sentColour,

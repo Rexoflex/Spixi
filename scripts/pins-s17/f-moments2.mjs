@@ -120,7 +120,7 @@ export default async function (h) {
     if (cur) key(cur, 'ArrowRight');
     await sleep(40);
     r.themeArrow = themes.length === 3 && tChecked() !== t0 && sent.slice(n0).some((c) => /^ixian:appearance:/.test(c));
-    const lines = el ? [...el.querySelectorAll('.c-settings-appearance__line')] : [];
+    const lines = el ? [...el.querySelectorAll('.c-settings-appearance__preview-lines .c-settings-appearance__line')] : [];   /* ★ #1390 re-base: the Message preview tiles only (the desktop List density group uses the same tile class; its keyboard is pinned in pins-dt1/c-density.mjs) */
     const lc = lines.find((x) => x.getAttribute('aria-checked') === 'true');
     const l0 = lc ? lc.dataset.value : null;
     if (lc) key(lc, 'End');

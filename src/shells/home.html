@@ -23,16 +23,21 @@
      capability, which stays a probe (L15). Unknown/unsubstituted → no attribute. -->
 <script>(function(){var p='*SL{SpixiPlatform}';if(/^(android|ios|maccatalyst|windows)$/.test(p))document.documentElement.setAttribute('data-platform',p);})();</script>
 <script>(function(){if('*SL{SpixiP1}'==='1')document.documentElement.setAttribute('data-p1','');})();</script>
-<!-- ★ S10 P4 (#1254): the chats-list excerpt lines — spixi.chat.previewlines ('1' | '2'; absent / anything else = '1' — ★ S11 #1262: the default is 1 LINE, #1261),
-     written by Settings → Chat appearance (settings.html CHAT_PREFS). Set BEFORE first paint, and re-read when another
-     document writes it (storage) or this one comes back (visibilitychange · pageshow). Only the two literals reach the
-     attribute. -->
-<script>(function(){function r(){var v='1';try{if(localStorage.getItem('spixi.chat.previewlines')==='2')v='2';}catch(e){}if(document.documentElement.dataset.previewLines!==v)document.documentElement.dataset.previewLines=v;}r();window.addEventListener('storage',function(e){if(!e||e.key===null||e.key==='spixi.chat.previewlines')r();});document.addEventListener('visibilitychange',function(){if(!document.hidden)r();});window.addEventListener('pageshow',r);})();</script>
 <!-- Desktop nav rail (spec 6e.1, #232 ④): gates on :root[data-desktop] — the #228
      platform flag set above (zero-C#; the old ?desktop=1/.is-desktop opt-in is
      superseded — C# never set __SPIXI_DESKTOP__). Browser-preview forcing only:
      ?desktop=1 sets / ?mobile=1 clears the attribute (the app passes no query). -->
 <script>(function(){try{var p=new URLSearchParams(location.search);if(p.get('desktop')==='1')document.documentElement.setAttribute('data-desktop','');else if(p.get('mobile')==='1')document.documentElement.removeAttribute('data-desktop');}catch(e){}})();</script>
+<!-- ★ S10 P4 (#1254): the chats-list excerpt lines — spixi.chat.previewlines ('1' | '2'; absent / anything else = '1' — ★ S11 #1262: the default is 1 LINE, #1261),
+     written by Settings → Chat appearance (settings.html CHAT_PREFS). Set BEFORE first paint, and re-read when another
+     document writes it (storage) or this one comes back (visibilitychange · pageshow). Only the two literals reach the
+     attribute. -->
+<!-- ★ #1390: the SAME ladder sets the desktop list density — spixi.chat.listdensity ('compact' | 'dense'; absent / anything
+     else = 'comfortable') → :root[data-row-density] (the CSS acts only under :root[data-desktop]). A dense row is one line,
+     so under 'dense' ON DESKTOP the preview stays '1' whatever spixi.chat.previewlines holds (#46 r1 A-M1: a phone never reads the
+     density into anything; this ladder sits AFTER the ?desktop / ?mobile override so it sees the final platform flag). Only the
+     literals reach the attributes. -->
+<script>(function(){function r(){var de=document.documentElement,v='1',n='comfortable';try{var s=localStorage.getItem('spixi.chat.listdensity');if(s==='compact'||s==='dense')n=s;if((n!=='dense'||!de.hasAttribute('data-desktop'))&&localStorage.getItem('spixi.chat.previewlines')==='2')v='2';}catch(e){}if(de.dataset.previewLines!==v)de.dataset.previewLines=v;if(de.dataset.rowDensity!==n)de.dataset.rowDensity=n;}r();window.addEventListener('storage',function(e){if(!e||e.key===null||e.key==='spixi.chat.previewlines'||e.key==='spixi.chat.listdensity')r();});document.addEventListener('visibilitychange',function(){if(!document.hidden)r();});window.addEventListener('pageshow',r);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spixi</title>
 <style>

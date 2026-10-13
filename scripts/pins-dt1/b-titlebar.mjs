@@ -9,8 +9,11 @@
  *     ixian:devflash:titlebar: BEFORE the generic ixian:devflash: branch (else the generic one takes it) and pushes the
  *     stored word on Windows only; DtTitleBar.cs never paints the window root (#1276 — no WindowRootViewContainer, no
  *     applyWindowGround) and logs exception TYPES only;
- *   · the DEV CARD on the BUILT dev.html (jsdom): setTitleBarDev('maui') mounts a radiogroup of three (maui / colors / off,
- *     maui checked); a tap on "colors" sends ixian:devflash:titlebar:colors once; an unknown word mounts nothing.
+ *   · the DEV CARD on the BUILT dev.html (jsdom): setTitleBarDev('off') mounts a radiogroup of three (off / maui / colors,
+ *     off checked — ★ #1392 the default); 'maui' moves the check; a tap on "colors" sends ixian:devflash:titlebar:colors
+ *     once; an unknown word mounts nothing;
+ *   · ★ #1392: the DEFAULT (off) paints and extends nothing — DtTitleBar creates a MAUI TitleBar only for maui / colors,
+ *     subscribes UISettings only off the default, and apply() returns before any dispatch under off.
  * Deliberate breaks (DT-1 report): a constant changed one digit → the pair fails; the DevPage branch moved after the
  * generic one → the order fails; the dev card's word check dropped → the unknown-word clause fails. */
 import { aKit } from '../pins-s11/a-kit.mjs';
@@ -60,11 +63,13 @@ export default async function (h) {
       /* the apply runs AFTER the new appearance is stored (else it would paint the previous theme) */
       theme: /activeTheme = name;\s*activeAppearance = appearance;\s*Preferences\.Default\.Set\("appearance", \(int\)activeAppearance\);\s*#if WINDOWS\s*DtTitleBar\.apply\(\);\s*#endif/.test(tm)
         && (tm.match(/DtTitleBar\.apply\(\)/g) || []).length === 1,
-      flags: /DtTitleBarWay = DtTitleBarRules\.wayThatActs\(dev, tbw\);/.test(fl) && /tbw = Preferences\.Default\.Get\(DtTitleBarRules\.PrefKey, DtTitleBarRules\.WayMaui\);/.test(fl),
+      flags: /DtTitleBarWay = DtTitleBarRules\.wayThatActs\(dev, tbw\);/.test(fl) && /tbw = Preferences\.Default\.Get\(DtTitleBarRules\.PrefKey, DtTitleBarRules\.WayDefault\);/.test(fl)
+        /* ★ #1392: every default in the flag read is WayDefault (= off, the Windows look) — never a hard-coded way */
+        && !/WayMaui/.test(fl) && /public const int WayDefault = WayOff;/.test(rulesSrc),
       /* the dev verb: dev mode AND the exact word, then the PARSED way is stored, then the echo */
       devGate: /else if \(current_url\.StartsWith\("ixian:devflash:titlebar:", StringComparison\.Ordinal\)\)\s*\{\s*try\s*\{\s*if \(Preferences\.Default\.Get\("devMode", false\)\s*&& DtTitleBarRules\.parseWayVerb\(current_url\.Substring\("ixian:devflash:titlebar:"\.Length\), out int way\)\)\s*\{\s*Preferences\.Default\.Set\(DtTitleBarRules\.PrefKey, way\);\s*\}\s*\}[\s\S]{0,200}?pushTitleBarDev\(\);\s*\}/.test(dev),
       /* the push: Windows only, the STORED way, as its word; and onLoad calls it */
-      push: /^\s*#if WINDOWS[\s\S]*way = Preferences\.Default\.Get\(DtTitleBarRules\.PrefKey, DtTitleBarRules\.WayMaui\);[\s\S]*Utils\.sendUiCommand\(this, "window\.setTitleBarDev", DtTitleBarRules\.wayWord\(way\)\);\s*#endif\s*$/.test(pushFn)
+      push: /^\s*#if WINDOWS[\s\S]*int way = DtTitleBarRules\.WayDefault;[\s\S]*way = Preferences\.Default\.Get\(DtTitleBarRules\.PrefKey, DtTitleBarRules\.WayDefault\);[\s\S]*Utils\.sendUiCommand\(this, "window\.setTitleBarDev", DtTitleBarRules\.wayWord\(way\)\);\s*#endif\s*$/.test(pushFn)
         && /pushTitleBarDev\(\);/.test(onLoad),
       /* way 2: the AppWindow's own extension flag + MAUI's band collapsed; the caption colours only from the pure list */
       way2: /if \(DtTitleBarRules\.systemBar\(way\(\)\)\)\s*\{\s*aw\.TitleBar\.ExtendsContentIntoTitleBar = false;\s*\}/.test(dt)
@@ -77,6 +82,11 @@ export default async function (h) {
         && !/tb\.\w+Color\s*=(?![^;]*\bc;)/.test(dt.replace(/case "\w+": tb\.\w+ = c; break;/g, '')),
       effective: /return DtTitleBarRules\.effectiveWay\(SpixiFlags\.DtTitleBarWay, Environment\.OSVersion\.Version\.Build\);/.test(dt),
       uiSettings: /uiSettings\.ColorValuesChanged \+= \(s, e\) => apply\(\);/.test(dt),
+      /* ★ #1392 (#46 r1 B MINOR-1): the DEFAULT (off) paints and extends nothing — the three guards that keep it so */
+      offCreate: /if \(w == DtTitleBarRules\.WayMaui\)\s*\{\s*var bar = new Microsoft\.Maui\.Controls\.TitleBar\(\);/.test(dt)
+        && (dt.match(/new Microsoft\.Maui\.Controls\.TitleBar\(\)/g) || []).length === 2,
+      offUiSettings: /if \(uiSettings == null && way\(\) != DtTitleBarRules\.WayOff\)/.test(dt),
+      offApply: /public static void apply\(\)\s*\{\s*if \(way\(\) == DtTitleBarRules\.WayOff\)\s*\{\s*return;/.test(dt),
     };
     const iTb = dev.indexOf('current_url.StartsWith("ixian:devflash:titlebar:"');
     const iGen = dev.indexOf('current_url.StartsWith("ixian:devflash:", StringComparison.Ordinal)');
@@ -96,6 +106,9 @@ export default async function (h) {
     const d2 = s2.d;
     s2.push('setTitleBarDev', 'bogus'); await sleep(50);
     n.bogus = d2.querySelectorAll('.c-dev-titlebar').length;
+    /* ★ #1392: the default word mounts the card with "off" FIRST and checked */
+    s2.push('setTitleBarDev', 'off'); await sleep(50);
+    n.offCard = Array.from(d2.querySelectorAll('.c-dev-titlebar [role="radio"]')).map((b) => b.dataset.titlebar + ':' + b.getAttribute('aria-checked'));
     s2.push('setTitleBarDev', 'maui'); await sleep(50);
     const card = d2.querySelector('.c-dev-titlebar');
     const radios = card ? Array.from(card.querySelectorAll('[role="radio"]')) : [];
@@ -104,8 +117,8 @@ export default async function (h) {
     const col = radios.find((b) => b.dataset.titlebar === 'colors');
     if (col) { col.click(); col.click(); }
     n.sent = s2.sent.slice();
-    r.devCard = n.bogus === 0 && n.card.role === 'radiogroup'
-      && JSON.stringify(n.card.words) === JSON.stringify(['maui:true', 'colors:false', 'off:false'])
+    r.devCard = n.bogus === 0 && n.card.role === 'radiogroup' && JSON.stringify(n.offCard) === JSON.stringify(['off:true', 'maui:false', 'colors:false'])
+      && JSON.stringify(n.card.words) === JSON.stringify(['off:false', 'maui:true', 'colors:false'])
       && JSON.stringify(n.sent) === JSON.stringify(['ixian:devflash:titlebar:colors']);
     r.noErr = K.noErr(s2.errs);
   } catch (e) { r.threw = e.message; }
@@ -113,6 +126,6 @@ export default async function (h) {
   const c = (k, m) => ok(r[k] === true, m + ' — ' + JSON.stringify(r[k] === true ? { [k]: true } : { [k]: r[k], threw: r.threw, n }).slice(0, 1400));
   c('pair', '★ DT-1 B: every DtTitleBarRules colour equals its tokens.css chain resolved on the built shell, light and dark (--surface-screen · --text-neutral-01 / -02 · --surface-interactive-hover / -pressed)');
   c('wire', '★ DT-1 B: the wiring — CreateWindow → onCreateWindow (#if WINDOWS) · the window mapper → attach · loadTheme → apply AFTER the appearance is stored (#if WINDOWS, once) · SpixiFlags → wayThatActs · DevPage routes titlebar BEFORE the generic devflash, dev mode AND the exact word, stores the PARSED way, echoes · the push sends the STORED word on Windows only and onLoad calls it · way 2 = AppWindow.TitleBar.ExtendsContentIntoTitleBar false + MAUI\'s band hidden · caption colours only from captionColours (all 12 names handled) · Windows 10 → effectiveWay · re-apply on UISettings colour changes · no root paint (#1276) · every log line a fixed form (type names only)');
-  c('devCard', '★ DT-1 B: the dev card (built dev.html) — an unknown word mounts nothing; "maui" mounts a radiogroup of three with maui checked; a tap on colors sends ixian:devflash:titlebar:colors once');
+  c('devCard', '★ DT-1 B: the dev card (built dev.html) — an unknown word mounts nothing; "off" (★ #1392 the default) mounts a radiogroup of three, off first and checked; "maui" moves the check; a tap on colors sends ixian:devflash:titlebar:colors once');
   c('noErr', '★ DT-1 B: no page error (dev.html)');
 }

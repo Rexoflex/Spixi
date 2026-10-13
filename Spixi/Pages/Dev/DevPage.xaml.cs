@@ -293,10 +293,10 @@ namespace SPIXI
         private void pushTitleBarDev()
         {
 #if WINDOWS
-            int way = DtTitleBarRules.WayMaui;
+            int way = DtTitleBarRules.WayDefault;
             try
             {
-                way = Preferences.Default.Get(DtTitleBarRules.PrefKey, DtTitleBarRules.WayMaui);
+                way = Preferences.Default.Get(DtTitleBarRules.PrefKey, DtTitleBarRules.WayDefault);
             }
             catch (Exception)
             {

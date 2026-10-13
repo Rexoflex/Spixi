@@ -1,0 +1,201 @@
+<title>Spixi Desktop DT-1 Round 2 Walk</title>
+<style>
+/* Layout: one narrow column — commit steps, then a Windows part and an Android part (each: build steps, then walk rows), a sticky tally bar.
+   Tokens follow the Spixi redesign palette (ink neutrals, the Spixi blue). */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:780px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:8px 0 0;text-wrap:balance;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .tag{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 8px}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:8px;flex-wrap:wrap}
+nav.jump a{font:600 13px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:5px 12px;text-decoration:none}
+nav.jump a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps li{min-width:0}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.cmd button,.ctl button{font:600 12px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;flex:none}
+.exp{font-size:13px;color:var(--ink-2)}
+.exp b{color:var(--ink)}
+code{font:13px var(--mono);background:var(--brand-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:780px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{width:100%;min-height:120px;font:13px var(--mono)}
+.note{font-size:13px;color:var(--ink-2);border-inline-start:3px solid var(--brand);padding-inline-start:10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Spixi Desktop DT-1 Round 2 Walk</h1>
+    <p class="sub"><b>DT-1 round 2 (#1390–#1393): the desktop list density (a setting), the title bar back to the Windows look with "Spixi", and pinned rows with a gap and their own hover.</b> Apply the ONE patch on top of your DT-1 commits, build Windows (F5) and Android, then walk. ⚠ C# UNCOMPILED for MAUI (DtTitleBarRules, SpixiFlags, DevPage — small default changes): the F5 build is the first compile. Smoke 5965 / the 2 KNOWN · CSH 448.</p>
+  </header>
+  <nav class="jump" aria-label="Parts">
+    <a href="#commit">1 · Commit + push</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
+  </nav>
+
+  <h2 id="commit">Commit + push <span class="tag">fresh PowerShell</span></h2>
+  <section class="box">
+    <h3>Steps (one command each)</h3>
+    <ol class="steps" id="steps-commit"></ol>
+  </section>
+
+  <h2 id="windows">Windows <span class="tag">F5</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-win"></ol>
+  </section>
+  <div id="rows-win"></div>
+
+  <h2 id="android">Android <span class="tag">Debug</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-and"></ol>
+  </section>
+  <div id="rows-and"></div>
+  <p class="note">The title bar: grep the Windows log for <code>[FLAGS] dttitlebar</code> — it must say <code>off</code> after DT2-TB-LOOK step 2.</p>
+  <textarea id="out" readonly aria-label="Results text" hidden></textarea>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+</div></div>
+
+<script>
+const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
+const STEPS = {
+  commit: [
+    ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
+    ["Check the tree.", "git --no-optional-locks status --short", "Only untracked files (your notes). Other changes: stop and paste them."],
+    ["Check where you are.", "git --no-optional-locks log --oneline -2", "The two DT-1 commits on top: <b>DT-1: swap the phone chat-row swipe sides</b> and <b>DT-1 P1: …</b>."],
+    ["Refresh the index (Windows).", "git update-index --refresh", "No output, or a list of files — both are fine."],
+    ["Check that the patch applies.", "git apply --check \"..\\Claude outputs\\dt1-r2.patch\"", "No output."],
+    ["Apply the patch (it also stages the new files).", "git apply --index \"..\\Claude outputs\\dt1-r2.patch\"", "No output."],
+    ["Check the count.", "git diff --cached --stat", "The last line says <b>80 files changed</b>. Another number: stop and paste it."],
+    ["Commit.", "git commit -F docs/commit-message-dt1-r2.txt", "Subject \"DT-1 round 2: list density, the Windows title bar look, pinned rows\"."],
+    ["Push.", "git push", "Ends with <b>redesign/frontend -> redesign/frontend</b>."],
+    ["Delete the old build output (the html and the C# changed). The long-path form deletes the WebView2 file Remove-Item cannot.", `cmd /c rd /s /q "\\\\?\\${REPO}\\Spixi\\bin"`, "No output."],
+    ["Delete obj too.", "Remove-Item -Recurse -Force Spixi\\obj -ErrorAction SilentlyContinue", "No output."],
+    ["Check both are gone.", "Test-Path Spixi\\obj; Test-Path Spixi\\bin", "<b>False</b> twice."],
+  ],
+  win: [
+    ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
+    ['Set the target.', '', 'Configuration <b>Debug</b>, target <b>Windows Machine</b>.'],
+    ['Press F5. Never use dotnet build for Windows (#663).', '', 'The app starts. A build error: paste it in the chat.'],
+    ['Walk the Windows rows below. Use a wide window.', '', ''],
+    ['Save the log.', '', 'Developer page → <b>Send log</b>. It saves <b>Downloads\\spixi-log-&lt;date&gt;.txt</b>.'],
+    ['Copy the log next to the other outputs (NOT into the repo folder).', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
+  ],
+  and: [
+    ['Connect the phone with USB. Check it.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -G 16M', 'No output.'],
+    ['Clear the log.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -c', 'No output.'],
+    ['Build and deploy Debug (the html changed: obj / bin are already deleted).', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Debug -t:Run', 'The app opens on the phone. A build error: paste it.'],
+    ['Walk the Android rows below.', '', ''],
+    ['Save the log as UTF-8.', '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe" logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-dt1-r2.txt"', 'A file of a few MB.'],
+  ],
+};
+const W = 'w', A = 'a';
+const ROWS = [{"p": "w", "id": "DT2-BUILD-W", "t": "DT2-BUILD — this build only", "d": "1) F5. 2) Account › Chat appearance.", "e": "The build succeeds. The chat-list card starts with \"List density\": Comfortable · Compact · Dense — only this build."}, {"p": "w", "id": "DT2-TB-LOOK", "t": "DT2-TB — the Windows look", "d": "1) Developer › Title bar › \"Windows title bar (default)\" (your stored \"colors\" acts while dev mode is on). 2) Restart Spixi. 3) Light, then Dark. 4) Drag the window to its narrowest.", "e": "3: the bar looks as before P1 (the Windows theme, like Explorer), with the title \"Spixi\" (not \"Spixi IM\") and the three caption buttons, in both themes. 4: \"Spixi\" and the buttons stay. Log: [FLAGS] dttitlebar=off."}, {"p": "w", "id": "DT2-TB-MARK", "t": "DT2-TB — the small mark", "d": "1) Look at the top centre of the window (the \"═\" mark from the DT-1 walk images).", "e": "The mark is gone. If it is still there: was it there before P1? Write it in the note."}, {"p": "w", "id": "DT2-TB-DEVOFF", "t": "DT2-TB — dev mode off", "d": "1) Turn developer mode off. 2) Restart Spixi.", "e": "The same Windows look and \"Spixi\". Turn developer mode on again after."}, {"p": "w", "id": "DT2-PIN", "t": "DT2 — pinned rows", "d": "1) Pin 2 chats. 2) Look at the two pinned rows. 3) Hover a pinned row. 4) Hover an unpinned row. 5) Open a pinned chat and hover it.", "e": "2: a thin gap between the rounded rows (also between the other rows). 3: the pinned row turns a clearly stronger blue tint. 4: grey, as before. 5: the selected row keeps its own colour."}, {"p": "w", "id": "DT2-DENS-LIVE", "t": "DT2-DENS — the three densities", "d": "1) Chat appearance › List density › Compact. 2) Dense. 3) Comfortable. Watch the chat list each time (no restart).", "e": "1: smaller avatars, the same two lines, about one more row on screen. 2: one line per chat (name, preview, badge, time), small avatars, about three more rows. 3: as before. Each change shows at once."}, {"p": "w", "id": "DT2-DENS-PREVIEW", "t": "DT2-DENS — with Message preview", "d": "1) Message preview › 2 lines. 2) List density › Dense. 3) Compact.", "e": "2: the Message preview control hides; the list shows one line. 3: the control comes back with \"2 lines\" still picked; the list shows 2-line previews."}, {"p": "w", "id": "DT2-DENS-RESTART", "t": "DT2-DENS — restart", "d": "1) Dense. 2) Close and start Spixi.", "e": "The list opens dense (no flash of the big rows)."}, {"p": "w", "id": "DT2-DENS-HOVER", "t": "DT2-DENS — dense + hover", "d": "1) Dense. 2) Hover a row with an unread badge. 3) Hover a pinned row. 4) Light and dark.", "e": "The four buttons fit inside the row; the name stays readable; the badge and the time show again when the pointer leaves. Pinned and unread rows stay one line."}, {"p": "a", "id": "DT2-BUILD-A", "t": "DT2-BUILD — Android", "d": "1) Wipe obj / bin, Debug -t:Run. 2) Account › Chat appearance.", "e": "The build succeeds. NO \"List density\" control (desktop only); Message preview as before."}, {"p": "a", "id": "DT2-PHONE-SAME", "t": "DT2 — the phone list is unchanged", "d": "1) Look at the chat list with 2 pinned chats.", "e": "Full-width rows, no gaps, the same row height and avatars as before."}];
+
+const KEY = 'spixi-walk-dt1-r2-v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function el(tag, attrs, kids){ const n = document.createElement(tag); for (const k in (attrs||{})) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'html') n.innerHTML = attrs[k]; else n.setAttribute(k, attrs[k]); } (kids||[]).forEach(c => c && n.append(c)); return n; }
+async function copyText(text, btn){
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { const out = document.getElementById('out'); out.hidden = false; out.value = text; out.focus(); out.select(); btn.textContent = 'Select + Ctrl+C'; }
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+}
+function renderSteps(id, list){
+  const ol = document.getElementById(id);
+  list.forEach(([say, cmd, expect]) => {
+    const li = el('li', {}, [el('span', {text: say})]);
+    if (cmd) {
+      const b = el('button', {type:'button', 'aria-label':'Copy command'}); b.textContent = 'Copy'; b.dataset.label = 'Copy';
+      b.addEventListener('click', () => copyText(cmd, b));
+      li.append(el('div', {class:'cmd'}, [el('pre', {text: cmd}), b]));
+    }
+    if (expect) li.append(el('div', {class:'exp', html: 'Expect: ' + expect}));
+    ol.append(li);
+  });
+}
+renderSteps('steps-commit', STEPS.commit);
+renderSteps('steps-win', STEPS.win);
+renderSteps('steps-and', STEPS.and);
+function renderRows(){
+  for (const [host, plat] of [['rows-win', W], ['rows-and', A]]) {
+    const box = document.getElementById(host); box.innerHTML = ''; box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '12px';
+    ROWS.filter(r => r.p === plat).forEach(r => {
+      const s = state[r.id] || {};
+      const card = el('article', {class:'row', 'data-v': s.v || ''});
+      card.append(el('div', {class:'top'}, [el('span', {class:'id', text:r.id}), el('span', {class:'title', text:r.t})]));
+      card.append(el('dl', {}, [el('dt', {text:'Do'}), el('dd', {text:r.d}), el('dt', {text:'Pass if'}), el('dd', {text:r.e})]));
+      const ctl = el('div', {class:'ctl'});
+      [['P','Pass'],['F','Fail'],['N','N/A']].forEach(([k, lab]) => {
+        const b = el('button', {type:'button', 'data-k':k, 'aria-pressed': s.v === k ? 'true' : 'false'}); b.textContent = lab;
+        b.addEventListener('click', () => { state[r.id] = Object.assign({}, state[r.id], {v: s.v === k ? '' : k}); save(); renderRows(); tally(); });
+        ctl.append(b);
+      });
+      card.append(ctl);
+      const ta = el('textarea', {id:'note-' + r.id, 'aria-label':'Note for ' + r.id, placeholder:'Note (what you saw, numbers, paste lines)'});
+      ta.value = s.n || '';
+      ta.addEventListener('input', () => { state[r.id] = Object.assign({}, state[r.id], {n: ta.value}); save(); });
+      card.append(ta);
+      box.append(card);
+    });
+  }
+}
+function counts(){ let p=0,f=0,n=0; ROWS.forEach(r => { const v = (state[r.id]||{}).v; if (v==='P') p++; else if (v==='F') f++; else if (v==='N') n++; }); return {p,f,n}; }
+function tally(){ const c = counts(); const left = ROWS.length - c.p - c.f - c.n;
+  document.getElementById('tally').innerHTML = `<b class="p">${c.p} P</b> · <b class="f">${c.f} F</b> · <b class="n">${c.n} N/A</b> · ${left} open`; }
+document.getElementById('copy').addEventListener('click', (ev) => {
+  const c = counts();
+  const lines = ROWS.map(r => { const s = state[r.id] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id}: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
+  const text = `Walk DT-1 R2 (Windows F5 + Android Debug): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
+});
+document.getElementById('reset').addEventListener('click', (ev) => {
+  const b = ev.currentTarget;
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Clear'; }, 2500); return; }
+  state = {}; save(); b.dataset.armed = ''; b.textContent = 'Clear'; renderRows(); tally();
+});
+renderRows(); tally();
+</script>

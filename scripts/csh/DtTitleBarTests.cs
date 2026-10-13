@@ -19,22 +19,24 @@ public class DtTitleBarTests
     }
 
     [TestMethod]
-    public void WayThatActs_DevModeOnly_DefaultMaui()
+    public void WayThatActs_DevModeOnly_DefaultWindowsLook()
     {
-        // not in dev mode: always the default, whatever is stored
-        foreach (int st in new[] { 0, 1, 2, 7, -1 }) Assert.AreEqual(DtTitleBarRules.WayMaui, DtTitleBarRules.wayThatActs(false, st), "dev off, stored " + st);
+        // ★ #1392 (WALK DT-1): the default is the Windows look (off); maui / colors act only in dev mode
+        Assert.AreEqual(DtTitleBarRules.WayOff, DtTitleBarRules.WayDefault);
+        foreach (int st in new[] { 0, 1, 2, 7, -1 }) Assert.AreEqual(DtTitleBarRules.WayOff, DtTitleBarRules.wayThatActs(false, st), "dev off, stored " + st);
         Assert.AreEqual(DtTitleBarRules.WayOff, DtTitleBarRules.wayThatActs(true, DtTitleBarRules.WayOff));
         Assert.AreEqual(DtTitleBarRules.WayColors, DtTitleBarRules.wayThatActs(true, DtTitleBarRules.WayColors));
         Assert.AreEqual(DtTitleBarRules.WayMaui, DtTitleBarRules.wayThatActs(true, DtTitleBarRules.WayMaui));
-        Assert.AreEqual(DtTitleBarRules.WayMaui, DtTitleBarRules.wayThatActs(true, 9), "an unknown stored value = the default");
+        Assert.AreEqual(DtTitleBarRules.WayOff, DtTitleBarRules.wayThatActs(true, 9), "an unknown stored value = the default");
+        Assert.IsTrue(DtTitleBarRules.parseWayVerb("bogus", out int w) == false && w == DtTitleBarRules.WayOff, "a rejected verb leaves the default");
+        Assert.AreEqual("off", DtTitleBarRules.wayWord(9), "an unknown stored value shows the default's word");
     }
 
     [TestMethod]
-    public void Title_SpixiExceptOff()
+    public void Title_SpixiOnEveryWay()
     {
-        Assert.AreEqual("Spixi", DtTitleBarRules.titleFor(DtTitleBarRules.WayMaui));
-        Assert.AreEqual("Spixi", DtTitleBarRules.titleFor(DtTitleBarRules.WayColors));
-        Assert.AreEqual("Spixi IM", DtTitleBarRules.titleFor(DtTitleBarRules.WayOff));
+        // ★ #1392: the Windows look says "Spixi" too (was "Spixi IM")
+        foreach (int w in new[] { 0, 1, 2, 9 }) Assert.AreEqual("Spixi", DtTitleBarRules.titleFor(w), "way " + w);
         foreach (int w in new[] { 0, 1, 2 }) { Assert.IsTrue(DtTitleBarRules.parseWayVerb(DtTitleBarRules.wayWord(w), out int back) && back == w, "word round trip " + w); }
     }
 

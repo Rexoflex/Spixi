@@ -625,6 +625,7 @@
      hovered row. The pin glyph still marks it. That is the price of "lighter"; it is logged as a Damir dial (#1081).
      The ticks keep ≥ 3:1 on it (the #1041/#1047 pins compute that). Dark unchanged. Reversal: rgba(13, 19, 36, 0.07). */
   --surface-pinned: rgba(48, 80, 189, 0.05);
+  --surface-pinned-hover: rgba(48, 80, 189, 0.10);   /* ★ #1393 (WALK DT-1, Damir: "hover looks same as pinned"): a pinned row under the pointer, desktop — the same blue, twice the wash. The delivered tick on it is ~2.98:1 (#46 r2 NIT-2) and is EXEMPT from the #1041 3:1 floor: under the pointer a wrapped row hides its time / ticks (the hover bar), and a data-acts="0" row is a handshaking row, which carries no tick. Reversal: var(--surface-pinned) */
   --surface-menu: var(--neutral-10);
   --surface-sheet: var(--surface-menu);   /* ★ #1030: the SHEET/DIALOG ground (.c-sheet · .c-modal); light = the menu surface, unchanged */
   /* ★ #1035 (#46 auditor C, MAJOR): the tones a component INSIDE a sheet paints that equal the dark sheet
@@ -1067,6 +1068,7 @@
      primary-900 was "invisible" as a dark row tint). brand-50 ink at 6% clears
      the dark contrast check on the neutral-900 list canvas (≈ #1f2327 lift). */
   --surface-pinned: rgba(233, 236, 243, 0.06);
+  --surface-pinned-hover: rgba(233, 236, 243, 0.11);   /* ★ #1393: the dark lift, nearly twice. Reversal: var(--surface-pinned) */
   --surface-menu: var(--neutral-700); /* elevated surfaces lighten in dark mode */
   /* ★ #1030 (walk P.18, Damir: dark bottom sheets "still one level too light"): the sheet and the
      dialog step DOWN one rung to neutral-800 (1.108:1 on the 900 screen — the scrim and the elevation

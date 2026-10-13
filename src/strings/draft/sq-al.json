@@ -1062,5 +1062,9 @@
   "devTitleBarTitle": "Shiriti i titullit (Windows, vepron pas një rinisjeje)",
   "devTitleBarMaui": "Shiriti i titullit i Spixi (MAUI)",
   "devTitleBarColors": "Shiriti i titullit i sistemit, ngjyrat e Spixi",
-  "devTitleBarOff": "Joaktiv (si sot)"
+  "devTitleBarOff": "Shiriti i titullit i Windows (parazgjedhje)",
+  "listDensity": "Dendësia e listës",
+  "listDensityComfortable": "Komode",
+  "listDensityCompact": "Kompakte",
+  "listDensityDense": "E dendur"
 }

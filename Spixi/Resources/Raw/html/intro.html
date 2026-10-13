@@ -3137,6 +3137,21 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-settings-appearance__minit, .c-settings-appearance__minil { display: block; height: 5px; border-radius: 3px; background: var(--text-neutral-02); opacity: .35; }
 .c-settings-appearance__minit { width: 60%; opacity: .7; }
 .c-settings-appearance__line-name { position: absolute; inset-inline-start: 12px; inset-block-end: 10px; font-size: var(--font-size-label-sm); font-weight: var(--font-weight-semibold); }
+/* ★ #1390: List density (desktop only) — three mini lists: Comfortable (3 rows) · Compact (4, smaller discs) · Dense (5, one
+   line each). The tiles are the Message preview tiles; only the minis change. */
+.c-settings-appearance__density { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* three tiles are narrow: the pick mark moves to the top corner (on the label row it covered "Comfortable"), and the minis
+   keep clear of it */
+.c-settings-appearance__density .c-settings-appearance__line .c-settings-appearance__pick { inset-block-start: 10px; inset-block-end: auto; }
+.c-settings-appearance__density .c-settings-appearance__minilist { padding-inline-end: 26px; }
+.c-settings-appearance__density .c-settings-appearance__line-name { inset-inline-end: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-settings-appearance__minilist[data-density="compact"] .c-settings-appearance__minirow { margin-block-end: 6px; }
+.c-settings-appearance__minilist[data-density="compact"] .c-settings-appearance__miniav { width: 18px; height: 18px; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__minirow { align-items: center; margin-block-end: 5px; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__miniav { width: 12px; height: 12px; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__minitx { flex-direction: row; align-items: center; padding-block-start: 0; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__minit { width: 40%; flex: none; }
+.c-settings-appearance__minilist[data-density="dense"] .c-settings-appearance__minil { flex: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .c-chat-canvas.c-settings-appearance__preview,

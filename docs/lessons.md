@@ -185,3 +185,5 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L135 | Reuse-first is a rule for HUMAN translations; for a language whose legacy file is also AI, the per-key draft must win, or values written for another site (all-caps chips, colons) leak in. | #1368 | — |
 | L136 | Every focus hand-back in a desktop shell follows the restoreRowFocus rules (no `document.hasFocus()` → no focus): the panes are separate WebViews, and a re-render must never pull the keyboard out of the chat composer. | #1387 | — |
 | L137 | A MAUI platform view set before its handler exists does not reach the platform (TitleBar.IsVisible at CreateWindow is dropped): act on HandlerChanged, and mark the path UNVERIFIED until a device shows it. | #1387 | — |
+| L138 | A title bar is judged against the OS look around it, not only its tokens: a bar in the app ground with no line under it reads as part of the app — render it beside Explorer before the spike. | #1391 | — |
+| L139 | Windows obj/bin wipes can stop on a WebView2 extension file whose path passes 260 chars — use `cmd /c rd /s /q "\\?\<path>"` in walk sheets. | #1391 | — |

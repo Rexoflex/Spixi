@@ -31,15 +31,15 @@ namespace SPIXI
          *  ixian:moment:* verbs and the one-shot `ixian:openPrivacy` on a chat page. OFF = exactly the old behaviour. */
         public static bool S17Moments { get; private set; } = true;
 
-        /** ★ DT-1 B: the Windows title bar way (DtTitleBarRules: off · maui (default) · colors) — a dev-mode switch for the
+        /** ★ DT-1 B: the Windows title bar way (DtTitleBarRules: off (default, the Windows look — #1392) · maui · colors) — a dev-mode switch for the
          *  STOP-rule spike (Developer › Title bar). Read here on every platform; only Platforms/Windows/DtTitleBar.cs acts on it. */
-        public static int DtTitleBarWay { get; private set; } = DtTitleBarRules.WayMaui;
+        public static int DtTitleBarWay { get; private set; } = DtTitleBarRules.WayDefault;
 
         public static void init()
         {
             bool dev = false;
             int sp = 1, mg = 1, sb = 1, sm = 1;
-            int tbw = DtTitleBarRules.WayMaui;
+            int tbw = DtTitleBarRules.WayDefault;
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -64,11 +64,11 @@ namespace SPIXI
             /* #46 r1 (B NIT-2): its own try, AFTER the release flags — a bad stored value must not skip their reads */
             try
             {
-                tbw = Preferences.Default.Get(DtTitleBarRules.PrefKey, DtTitleBarRules.WayMaui);
+                tbw = Preferences.Default.Get(DtTitleBarRules.PrefKey, DtTitleBarRules.WayDefault);
             }
             catch (Exception)
             {
-                tbw = DtTitleBarRules.WayMaui;
+                tbw = DtTitleBarRules.WayDefault;
             }
             DtTitleBarWay = DtTitleBarRules.wayThatActs(dev, tbw);
 #if WINDOWS

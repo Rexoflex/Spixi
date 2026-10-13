@@ -535,6 +535,8 @@ export function createChatAppearance({
   onTheme,                       // ★ S17 C (value, ctrl) — the host's theme commit (ixian:appearance:<v>); no handler → no card
   previewLines = '1',            // ★ S11 (#1262): '1' | '2'
   onPreviewLines,                // ('1' | '2') — no handler → no card row
+  listDensity = 'comfortable',   // ★ #1390: 'comfortable' | 'compact' | 'dense' (desktop only)
+  onListDensity,                 // (value) — no handler, or not desktop → no control
   strings = getStrings(),        // ★ S18 D1: hintsOn / onHints left with the Tips switch (now createNotificationsScreen)
 } = {}) {
   const { el, body } = screenShell('c-settings-appearance', strings.chatAppearance || 'Chat appearance', onBack);
@@ -765,8 +767,57 @@ export function createChatAppearance({
   let c5 = null;
   let lineBtns = [];
   let linesCurrent = previewLines === '2' ? '2' : '1';
-  if (onPreviewLines) {
+  /* ★ #1390 (Damir 2026-10-13, picked all three on the render): List density — DESKTOP ONLY (the phone list has one
+     density). Three mini lists in the Message preview grammar (a radiogroup, arrows, the pick mark). It sits FIRST in the
+     card: Dense is one line, so it hides the Message preview control below it (the stored preview value stays, and
+     comes back with Comfortable or Compact) — nothing moves above the pointer. */
+  const DENSITIES = [['comfortable', strings.listDensityComfortable || 'Comfortable', 3], ['compact', strings.listDensityCompact || 'Compact', 4], ['dense', strings.listDensityDense || 'Dense', 5]];
+  let densityCurrent = DENSITIES.some((o) => o[0] === listDensity) ? listDensity : 'comfortable';
+  let densityBtns = [];
+  let linesWrap = null;
+  const densityOn = !!onListDensity && isDesktop;
+  if (onPreviewLines || densityOn) {
     c5 = card('c-settings-appearance__card--list c-settings-appearance__previewsec');
+    if (densityOn) {
+      const dId = 'c-settings-density-label';
+      const g = document.createElement('div');
+      g.className = 'c-settings-appearance__lines c-settings-appearance__density';
+      g.setAttribute('role', 'radiogroup');
+      g.setAttribute('aria-labelledby', dId);
+      densityBtns = DENSITIES.map(([v, name, rows]) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'c-settings-appearance__line';
+        b.dataset.value = v;
+        b.setAttribute('role', 'radio');
+        const list = document.createElement('span');
+        list.className = 'c-settings-appearance__minilist';
+        list.dataset.density = v;
+        list.setAttribute('aria-hidden', 'true');
+        for (let n = 0; n < rows; n++) {
+          const it = document.createElement('span'); it.className = 'c-settings-appearance__minirow';
+          const av = document.createElement('i'); av.className = 'c-settings-appearance__miniav';
+          const tx = document.createElement('span'); tx.className = 'c-settings-appearance__minitx';
+          const t0 = document.createElement('i'); t0.className = 'c-settings-appearance__minit'; tx.append(t0);
+          const l = document.createElement('i'); l.className = 'c-settings-appearance__minil'; tx.append(l);
+          it.append(av, tx); list.append(it);
+        }
+        const t = document.createElement('span');
+        t.className = 'c-settings-appearance__line-name';
+        t.textContent = name;
+        b.append(list, t, pickMark());
+        b.addEventListener('click', () => {
+          if (densityCurrent === v) return;
+          densityCurrent = v;
+          paint();
+          onListDensity(v);
+        });
+        g.append(b);
+        return b;
+      });
+      radioArrows(g);
+      c5.append(label((strings.listDensity || 'List density'), dId), g);
+    }
     if (onPreviewLines) {
       const lId = 'c-settings-lines-label';
       const g = document.createElement('div');
@@ -804,7 +855,14 @@ export function createChatAppearance({
         return b;
       });
       radioArrows(g);   // #46 r1 M1
-      c5.append(label((strings.chatPreviewLines || 'Message preview'), lId), g);
+      if (densityOn) {   // #46 r1 A-N4: the wrapper (Dense hides it) only beside the density control — the phone DOM is unchanged
+        linesWrap = document.createElement('div');
+        linesWrap.className = 'c-settings-appearance__lines-wrap';
+        linesWrap.append(label((strings.chatPreviewLines || 'Message preview'), lId), g);
+        c5.append(linesWrap);
+      } else {
+        c5.append(label((strings.chatPreviewLines || 'Message preview'), lId), g);
+      }
     }
   }
 
@@ -852,6 +910,12 @@ export function createChatAppearance({
       b.setAttribute('aria-checked', String(on));
       b.tabIndex = on ? 0 : -1;
     }
+    for (const b of densityBtns) {
+      const on = b.dataset.value === densityCurrent;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    }
+    if (linesWrap) linesWrap.hidden = densityOn && densityCurrent === 'dense';   // ★ #1390: Dense is one line
   }
 
   sizeRange.addEventListener('input', () => { sizePx = clampInt(sizeRange.value, TEXT_SIZE_PX.min, TEXT_SIZE_PX.max, sizePx); paint(); });

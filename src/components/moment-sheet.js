@@ -310,7 +310,8 @@ export function createMomentClient({ bridge, onSessionEnd = null } = {}) {
         if (id === 'app') { if (state.apps.indexOf(a) < 0) state.apps.push(a); }
         else if (id === 'lang') state.lang = '';
         else if (state.seen.indexOf(id) < 0) state.seen.push(id);
-        if (id !== 'firstixi' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
+        /* ★ #46 S19 N2: firstixi and lang never take the session (C#: S17MomentRules.takesSession, S19 F4) */
+        if (id !== 'firstixi' && id !== 'lang' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
       }
       if (!w) return;
       waits.delete(k);
@@ -326,19 +327,22 @@ export function createMomentClient({ bridge, onSessionEnd = null } = {}) {
 }
 
 /** The CONFIRM-step moments (mic · app · pay): ask; a yes shows the sheet — its fill button = go(), every quiet close =
- *  stop(); a no, no cap or no answer within ASK_WAIT_MS = go() at once. A tap while the ask is on its way is ignored. */
-export function momentBeforeAction(client, { id, arg = '', ctx = {}, ctxFor = null, host, strings = getStrings(), go, stop } = {}) {
+ *  stop(); a no, no cap or no answer within ASK_WAIT_MS = go() at once. A tap while the ask is on its way is ignored.
+ *  ★ #46 S19 M4: `otherwise` (optional) replaces go() whenever NO sheet showed (seen, refused, no cap, no answer) — App
+ *  details' Install: the moment REPLACES the install confirm when it shows, the confirm runs when it does not. */
+export function momentBeforeAction(client, { id, arg = '', ctx = {}, ctxFor = null, host, strings = getStrings(), go, stop, otherwise = null } = {}) {
   /* #46 r1 (MINOR-5): a second tap while the ask is on its way STOPS (the host's latch is released), it never strands it */
   if (client && client.pending(id, arg)) { try { if (stop) stop(); } catch (e) {} return; }
   let done = false;
   const g = () => { if (done) return; done = true; try { if (go) go(); } catch (e) {} };
   const st = () => { if (done) return; done = true; try { if (stop) stop(); } catch (e) {} };
-  if (!client) { g(); return; }
+  const o = otherwise ? () => { if (done) return; done = true; try { otherwise(); } catch (e) {} } : g;
+  if (!client) { o(); return; }
   client.ask(id, arg, (caps) => {
     const c = ctxFor ? ctxFor(caps) : ctx;
     const sheet = showMomentSheet({ id, host, strings, ctx: c, onClose: (v) => (v === 'dismiss' ? st() : g()) });
-    if (!sheet) g();
-  }, g);
+    if (!sheet) o();
+  }, o);
 }
 
 /** The AFTER-the-result moments (lang · autodl · offline · firstixi): ask; a yes calls show(caps) — the host shows the

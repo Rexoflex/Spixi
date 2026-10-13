@@ -314,7 +314,6 @@
   "joinTitle": "Prisijunkite prie Spixi bendruomenės",
   "jumpToMention": "Peršokti prie paminėjimo",
   "keepContact": "Palikti kontaktą",
-  "keepOpen": "Neuždarykite Spixi, kol persiuntimas baigsis",
   "keepWaiting": "Laukti toliau",
   "kickBody": "Vėliau juos bus galima pakviesti iš naujo.",
   "languageFailed": "Nepavyko pakeisti kalbos.",
@@ -950,5 +949,10 @@
   "momentAppBody": "Ji veikia Spixi viduje. Atidarykite tik programėles iš žmonių, kuriais pasitikite.",
   "momentPayTitle": "Prieš mokėdami",
   "momentPayBody": "Mokėjimų atšaukti negalima. Kitame ekrane patikrinkite kontaktą ir sumą. Nedidelis tinklo mokestis atitenka Ixian tinklui, ne Spixi.",
-  "momentOpenSettings": "Atidaryti nustatymus"
+  "momentOpenSettings": "Atidaryti nustatymus",
+  "blindGroupNotice": "Nariai nemato vienas kito tapatybės. Šioje grupėje negalima siųsti nuotraukų ir failų.",
+  "keepOpenSent": "Neuždarykite Spixi, kol bus išsiųsta.",
+  "keepOpenReceived": "Gaunama tiesiai iš siuntėjo įrenginio. Neuždarykite Spixi.",
+  "momentAppInstallTitle": "Prieš įdiegdami {app}",
+  "devResetMomentsDone": "Reset sent. Restart the app."
 }

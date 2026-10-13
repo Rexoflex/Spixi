@@ -122,9 +122,11 @@ export default async function (h) {
     const has = (body, decl) => body.replace(/\s+/g, ' ').includes(decl);
     const c = {
       lightBlue: has(lb, '--gradient-chat: linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%), var(--chat-canvas-base);') && has(lb, '--chat-pattern-ink: #1E3A66;') && has(lb, '--surface-select-row-gap: #ADC1E9;'),
-      /* ★ S17 C v3 RE-BASE (Damir 21:50): the dark Meadow / Spixi are FULL COVERAGE (no fade to the canvas), new gaps */
-      darkGreen: has(dg, '--gradient-chat: linear-gradient(160deg, #0F2C23 0%, #0B1A16 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #BFE8CB;') && has(dg, '--surface-select-row-gap: #243E4E;'),
-      darkBlue: has(db, '--gradient-chat: linear-gradient(160deg, #0F2349 0%, #0A1430 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C2DDFB;') && has(db, '--surface-select-row-gap: #233867;'),
+      /* ★ S17 C v3 RE-BASE (Damir 21:50): the dark Meadow / Spixi are FULL COVERAGE (no fade to the canvas), new gaps.
+         ★ S19 option B RE-BASE (Damir pick, "Dark Bubble Options"): every dark stop L × 0.85, the gaps re-derived over the new middle —
+         Meadow #05221A → #05130F gap #1E3748 (was #0F2C23 → #0B1A16, #243E4E) · Spixi #06193E → #050D28 gap #1E3160 (was #0F2349 → #0A1430, #233867) */
+      darkGreen: has(dg, '--gradient-chat: linear-gradient(160deg, #05221A 0%, #05130F 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #BFE8CB;') && has(dg, '--surface-select-row-gap: #1E3748;'),
+      darkBlue: has(db, '--gradient-chat: linear-gradient(160deg, #06193E 0%, #050D28 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C2DDFB;') && has(db, '--surface-select-row-gap: #1E3160;'),
       noticeEdge: !rule(chatH, D('blue').map((x) => x + ' .c-sysnotice__card')),   /* ★ #1354 RE-BASE: the hairline RETIRED — the neutral card shares no canvas's hue */
       /* ★ S17 C RE-BASE (#1334): the dark "top stop" dot faces are RETIRED — a 92 × 124 mini chat paints the whole ramp
          through --gradient-chat (the same token rules the chat uses), so no dark tile reads as a black disc */

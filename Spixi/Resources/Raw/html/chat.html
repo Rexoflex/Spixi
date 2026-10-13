@@ -907,7 +907,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    AA for yellow/green hues on the white bubble (audit MAJOR) — labels run
    darker in light / lighter in dark than the gradient does. */
 :root { --sender-label-s: 60%; --sender-label-l: 28%; } /* audit r2: 34% was still sub-AA at hues 60–180 on white — 28% clears 4.5:1 worst-case */
-[data-theme="dark"] { --sender-label-s: 55%; --sender-label-l: 74%; }
+[data-theme="dark"] { --sender-label-s: 55%; --sender-label-l: 78%; }   /* ★ S19 F10: 74 → 78 (canvas bubbles) */
 .c-bubble__sender {
   display: block;
   font-size: var(--font-size-label-sm);
@@ -1029,7 +1029,8 @@ button.c-bubble__sender {
    on #ffffff was 1.14:1 before this batch and still is. */
 /* #46 r4 m2: the ink-750 bubble (#1E2023, Damir pick 2026-10-03) left ink-700 at 1.063:1 — one more step
    (--surface-neutral-04 = ink-600 #2C2E31) is 1.20:1 again; the dark quote label lightness below follows it. */
-[data-theme="dark"] .c-bubble__reply { background: var(--surface-neutral-04); }
+/* ★ S19 F10: per canvas, one step darker than its bubble (tokens.css) */
+[data-theme="dark"] .c-bubble__reply { background: var(--surface-bubble-received-quote); }
 .c-bubble__reply {
   display: flex;
   align-items: center;
@@ -1414,18 +1415,19 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble__sender[data-idhue="9"], .c-bubble__reply[data-idhue="9"] { --sender-label-l: 55%; --reply-label-l: 53%; } /* 5.02 · 4.72 */
 .c-bubble__sender[data-idhue="10"], .c-bubble__reply[data-idhue="10"] { --sender-label-l: 50%; --reply-label-l: 46%; } /* 4.66 · 4.68 */
 .c-bubble__sender[data-idhue="11"], .c-bubble__reply[data-idhue="11"] { --sender-label-l: 53%; --reply-label-l: 48%; } /* 4.62 · 4.68 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="0"], [data-theme="dark"] .c-bubble__reply[data-idhue="0"] { --sender-label-l: 60%; --reply-label-l: 65%; } /* 4.64 · 4.53 (r4: quote ink-600) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="1"], [data-theme="dark"] .c-bubble__reply[data-idhue="1"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 6.30 · 5.25 (r4: quote ink-600) */
+/* ★ S19 F10: dark NAMES ≥ 4.6 : 1 on every canvas bubble (0 1 7–11 lifted; trailing ratios = ink-750) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="0"], [data-theme="dark"] .c-bubble__reply[data-idhue="0"] { --sender-label-l: 73%; --reply-label-l: 65%; } /* 4.64 · 4.53 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="1"], [data-theme="dark"] .c-bubble__reply[data-idhue="1"] { --sender-label-l: 64%; --reply-label-l: 60%; } /* 6.30 · 5.25 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="2"], [data-theme="dark"] .c-bubble__reply[data-idhue="2"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.35 · 6.96 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="3"], [data-theme="dark"] .c-bubble__reply[data-idhue="3"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.33 · 8.61 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="4"], [data-theme="dark"] .c-bubble__reply[data-idhue="4"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 9.53 · 7.95 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="5"], [data-theme="dark"] .c-bubble__reply[data-idhue="5"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.02 · 8.35 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="6"], [data-theme="dark"] .c-bubble__reply[data-idhue="6"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.03 · 6.70 (r4: quote ink-600) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="7"], [data-theme="dark"] .c-bubble__reply[data-idhue="7"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 5.54 · 4.62 (r4: quote ink-600) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="8"], [data-theme="dark"] .c-bubble__reply[data-idhue="8"] { --sender-label-l: 70%; --reply-label-l: 73%; } /* 4.75 · 4.57 (r4: quote ink-600) (69 → 70: ink-750 ground) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="9"], [data-theme="dark"] .c-bubble__reply[data-idhue="9"] { --sender-label-l: 65%; --reply-label-l: 69%; } /* 4.63 · 4.54 (r4: quote ink-600) (64 → 65: ink-750) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="10"], [data-theme="dark"] .c-bubble__reply[data-idhue="10"] { --sender-label-l: 60%; --reply-label-l: 66%; } /* 4.64 · 4.65 (r4: quote ink-600) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="11"], [data-theme="dark"] .c-bubble__reply[data-idhue="11"] { --sender-label-l: 62%; --reply-label-l: 67%; } /* 4.64 · 4.57 (r4: quote ink-600) (61 → 62: ink-750) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="7"], [data-theme="dark"] .c-bubble__reply[data-idhue="7"] { --sender-label-l: 68%; --reply-label-l: 60%; } /* 5.54 · 4.62 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="8"], [data-theme="dark"] .c-bubble__reply[data-idhue="8"] { --sender-label-l: 78%; --reply-label-l: 73%; } /* 4.75 · 4.57 (r4: quote ink-600) (69 → 70: ink-750 ground) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="9"], [data-theme="dark"] .c-bubble__reply[data-idhue="9"] { --sender-label-l: 76%; --reply-label-l: 69%; } /* 4.63 · 4.54 (r4: quote ink-600) (64 → 65: ink-750) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="10"], [data-theme="dark"] .c-bubble__reply[data-idhue="10"] { --sender-label-l: 73%; --reply-label-l: 66%; } /* 4.64 · 4.65 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="11"], [data-theme="dark"] .c-bubble__reply[data-idhue="11"] { --sender-label-l: 74%; --reply-label-l: 67%; } /* 4.64 · 4.57 (r4: quote ink-600) (61 → 62: ink-750) */
 
 /* ★ #1010 (10b): a LIVE tick change fades in (160ms) instead of snapping — setMessageStatus
    adds the class only outside the load burst. Reduced motion: no animation. */
@@ -1725,7 +1727,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 :root:not([data-theme="dark"]) .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-300); color: var(--text-bubble-received-meta); }
 /* ★ #46 picks r3 (MINOR-B): the DARK mirror — the played disc was the LOUDER one (8.77:1 vs the accent 6.25:1); now ink-500
    (1.41:1 on the bubble, the glyph 6.22:1 on it, the accent 4.43:1 against it) */
-[data-theme="dark"] .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-500); color: var(--text-bubble-received-meta); }
+/* ★ S19 F10: the quote step (ink-500 vanished on canvas bubbles) */
+[data-theme="dark"] .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--surface-bubble-received-quote); color: var(--text-bubble-received-meta); }
 
 .c-bubble-row[data-direction="sent"] .c-voice__badge { border-color: var(--surface-bubble-sent); background: var(--text-bubble-sent); color: var(--surface-bubble-sent); }
 
@@ -2696,7 +2699,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   margin-top: var(--spacing-2);
 }
 /* dark: global track token (neutral-700) equals the card surface — invisible (audit MAJOR) */
-[data-theme="dark"] .c-fbubble__track { background: var(--surface-neutral-04); }
+[data-theme="dark"] .c-fbubble__track { background: var(--surface-neutral-04); }   /* the SENT card's track (on --surface-card-sent) */
+[data-theme="dark"] .c-bubble-row[data-direction="received"] .c-fbubble__track { background: var(--surface-bubble-received-quote); }   /* ★ S19 F10 → #46 S19 M3: the RECEIVED card only — the quote step under the lifted canvas bubble (ink-600 sat at 1.04–1.25 : 1 on it); the sent card keeps neutral-04 */
 .c-fbubble__fill {
   display: block;
   height: 100%;
@@ -6931,6 +6935,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
      #181 · the older-history pill, #907) still seat a short log against it. */
   #messages::after { content: ""; flex: none; height: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-4)); }   /* ★ Session I: + the floating composer's height (published by the ResizeObserver) so the log passes UNDER the pill */
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
+  /* ★ #46 S19 M2: the blind-group notice follows the secure notice as ONE group — the pair centres together (no auto gap between) */
+  #messages > .c-sysnotice[data-followed] { margin-bottom: 0; }
+  #messages > .c-sysnotice[data-blind-notice] { margin-top: var(--spacing-12); }
   /* A3 (#302): unread-elsewhere dot on the chat topbar back button. #48 grammar
      (error surface + a 2px ring in the HOST surface so it reads on any background) at
      topbar scale — ring in --surface-topbar, not the bottombar token the nav badge
@@ -7564,7 +7571,6 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   const CHAT_GROUND_IDS = ['flat', 'gradient', 'green', 'blue', 'aurora', 'dusk', 'ocean'];
   const CHAT_SENT_IDS = ['blue', 'violet', 'teal', 'pink', 'orange', 'graphite'];
   function readPatternPrefs() {
-    const de = document.documentElement.hasAttribute('data-desktop');
     let p = NaN, s = '', gr = '', t = NaN, sent = '', k = NaN;
     try {
       p = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.level));
@@ -7578,9 +7584,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     if (CHAT_SENT_IDS.indexOf(sent) < 0) sent = '';                          // ★ S17 C: '' = Auto (the canvas's own sent colour)
     k = isFinite(k) ? Math.round(Math.min(22, Math.max(4, k))) : NaN;       // ★ S17 C: NaN = the token default (18 px)
     // ★ N81 (#422): p is a LEVEL INDEX now. readPatternLevel migrates the legacy
-    // fractional alphas (0.3/0.5/0.7) and clamps; B2 (#256) platform-aware default
-    // survives unchanged — desktop Off, mobile Default.
-    p = readPatternLevel(p, de ? 0 : 1);
+    // fractional alphas (0.3/0.5/0.7) and clamps. ★ S19 F1: unset = 1 on every platform, as the head script + settings (#690)
+    p = readPatternLevel(p, 1);
     /* ★★ #835: ONE style left. The allowlist IS the migration for every retired style —
        'triangles' and 'lineart' (#690), and now 'doodles' and 'flow' — because a stored
        value that matches nothing falls through to the default instead of rendering
@@ -9746,6 +9751,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     rec.acceptAskedAt = now;
     bridge.send('ixian:acceptfile:' + rec.fileid);
     rec.manualAccept = true;                                   // ★ S17 F (#1340): the user asked for this one (the autodl moment)
+    rec.acceptEcho = true;                                     // ★ S19 F3: C#'s "0" echo of the accept is not the peer
     armOfflineMoment(rec);
     if (rec.group) setTimeout(() => { if (rec.fstate === 'offer' && !rec.transferStarted && gridMembers.has(String(rec.id))) renderLog(); }, ACCEPT_GUARD_MS + 50);   // the disabled Download all comes back
     return true;
@@ -9984,11 +9990,11 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     if (offlineMomentTimer || !moments.on() || moments.seen('offline') || mode.isMulti) return;
     offlineMomentTimer = setTimeout(() => {
       offlineMomentTimer = 0;
-      if (rec.transferStarted || rec.fstate === 'complete' || identity.online) return;
+      if (rec.peerTicked || rec.fstate === 'complete' || identity.online) return;
       if (document.visibilityState !== 'visible') return;
       const name = (identity.name && identity.name !== identity.address) ? identity.name : '';
       if (!name) return;                                       // "Waiting for {name}" needs a name
-      queueChatMoment('offline', { name }, () => !!rec.transferStarted || rec.fstate === 'complete');
+      queueChatMoment('offline', { name }, () => !!rec.peerTicked || rec.fstate === 'complete');
     }, OFFLINE_MOMENT_MS);
   }
   /* who invited me to an app: the 1:1 peer's name, or the group member's nick — never an address, never a placeholder */
@@ -12428,6 +12434,23 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       onLink: () => bridge.send('ixian:openLink:' + SECURE_LINK),
     });
   }
+  /* ★ S19 F11: a blind group says why it has no Photos / File (attachFlags' refusal) — under the secure notice */
+  function blindGroupNoticeOn() {
+    return modeKnown() && mode.isMulti && (mode.type === 1 || mode.type === 2) && mode.hidesAddresses;
+  }
+  let blindNoticeShown = false;
+  function createBlindGroupNotice() {
+    const s = window.SL || {};
+    const title = s.blindGroup || 'Blind group';
+    const el = createSystemNotice({
+      glyph: 'eye-off',
+      title,
+      text: s.blindGroupNotice || 'Members can’t see each other’s identity. Photos and files can’t be sent in this group.',
+      strings: Object.assign({}, s, { systemNotice: title }),   // ★ #46 S19 N1: its own accessible name, not a second "Chat security notice"
+    });
+    el.setAttribute('data-blind-notice', '');
+    return el;
+  }
 
   /* full re-render of the log from the model — used after any insert/delete so
    * grouping + timestamp order stay correct. Rebuilds date separators too.
@@ -12525,6 +12548,14 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
        appears only once history is exhausted, which is also the demo contract
        (src/demo/chat.html:436-450) and #91's original intent. */
     if (!showOlder) frag.append(createSecureNotice());
+    blindNoticeShown = !showOlder && blindGroupNoticeOn();
+    if (blindNoticeShown) {
+      /* ★ #46 S19 M2: the pair centres as ONE group — the secure notice (appended just above: blindNoticeShown implies
+         !showOlder) is marked followed, so its auto margin below goes (chat.html #messages > .c-sysnotice[data-followed]) */
+      const secure = frag.lastElementChild;
+      if (secure && secure.classList.contains('c-sysnotice')) secure.setAttribute('data-followed', '');
+      frag.append(createBlindGroupNotice());
+    }
     /* #265 (Damir ③ / C10 FE-side): a FULFILLED payment request is TWO C#
      * messages — the original requestFunds (flips to ":"+txid → Completed) AND
      * a separate sentFunds direct-payment message carrying the SAME txid. One
@@ -13399,6 +13430,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
          bridge.exposeAll. Do not add a syncAttachAffordance() call here. */
       mode.answeredFor = identity.address;
       if (chatSelect) chatSelect.refresh();   // ★ Session AE (round-3 MINOR-7, placed by round 4): the bar's Delete reads canDeleteRec through `deletable`, and canDeleteRec reads modeKnown() — so the re-evaluation must come AFTER the answer is recorded, or the first room answer leaves Delete refused until the next render
+      if ((!showOlder && blindGroupNoticeOn()) !== blindNoticeShown) renderLog();   // ★ S19 F11
       // channel UI is bot-gated (channel-as-title) — re-evaluate on any mode change
       renderTopbar();
       dbg('setChatMode', { type: t, cost, showCost, admin: mode.admin, notificationsString });
@@ -14378,6 +14410,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       // affordance mid-transfer (integer progress floors at 0 on big files, so
       // a progress>0 gate alone lost to renderLogNow rebuilds).
       rec.transferStarted = true;
+      /* ★ S19 F3: the first 0 push after our accept is C#'s echo; any other = the peer ticked (the offline moment reads it) */
+      if (rec.acceptEcho && !done && rec.progress === 0) rec.acceptEcho = false;
+      else { rec.peerTicked = true; rec.acceptEcho = false; }
       // BOTH directions tick then flip to complete (Damir F5: outgoing shows
       // progress too — the sender gets per-packet ticks, TransferManager:410).
       rec.fstate = done ? 'complete' : 'progress';

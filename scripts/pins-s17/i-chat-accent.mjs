@@ -6,11 +6,15 @@
  * (2) CONTRAST, computed from the REAL sent colours (jsdom resolves --surface-bubble-sent per canvas and per pick on the
  *     built token sheet; the mixes are evaluated here with the CSS formulas, in sRGB):
  *       white glyph on the accent fill ≥ 4.5 · light ink (the colour) on the white pill ≥ 4.5 and on its tonal disc ≥ 3
- *       · dark ink (50 % toward white) on the dark tray ground ≥ 3, on the dark pill ≥ 3, on its tonal disc ≥ 3.
+ *       · dark ink (50 % toward white) on the dark tray ground ≥ 3, on its tonal disc ≥ 3, and — ★ #46 S19 M1 — the reply /
+ *       edit TITLE ink (composer.css --text-action-default = --chat-accent-ink) ≥ 4.5 on the dark composer pill, the pill
+ *       RESOLVED per canvas from the built CSS (--surface-composer-pill; was a hard-coded #1E2023 that hid a pill following a
+ *       lifted canvas bubble) — all 49 dark combinations (7 canvases × Auto + 6 picks).
  * (3) ORDER: the attach tiles are Photos · Camera · File · App invite · Pay · Request (Damir 13:41).
  * Deliberate breaks (#1355 report; #46 r1 N4: the STRUCTURE clause is what fails for a changed mix value, the contrast
  * clause for a changed pick colour — data-chat-sent, the real attribute): a pick colour made pale → LOW names it; the .c-voice remap removed →
- * the structure clause fails; the old order back → the order clause fails. */
+ * the structure clause fails; the old order back → the order clause fails; ★ #46 S19 M1: the dark pill back to
+ * var(--surface-bubble-received) (it follows the S19 F10 canvas bubble again) → LOW names `title-on-pill` (Aurora, Ocean, …). */
 import { aKit } from '../pins-s11/a-kit.mjs';
 export default async function (h) {
   const { ok, sleep, readFileSync, join, root, stripCssComments } = h;
@@ -44,7 +48,14 @@ export default async function (h) {
   const mix = (a, b, pa) => a.map((x, i) => x * pa + b[i] * (1 - pa));
   const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
   const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-  const W = [255, 255, 255], TRAY_D = [15, 17, 19], SHEET_D = [26, 28, 31], PILL_D = [30, 32, 35];
+  const W = [255, 255, 255], TRAY_D = [15, 17, 19], SHEET_D = [26, 28, 31];
+  /* ★ #46 S19 M1: the pill as the document resolves it (var() chains followed on the root) */
+  const resolveVar = (win, node, name, depth = 0) => {
+    const v = String(win.getComputedStyle(node).getPropertyValue(name) || '').replace(/\s+/g, ' ').trim();
+    const m = /^var\((--[\w-]+)(?:, *(.*))?\)$/.exec(v);
+    return m && depth < 8 ? (resolveVar(win, node, m[1], depth + 1) || m[2] || '') : v;
+  };
+  let nDark = 0;
   const low = [];
   let n = 0;
   let s = null;
@@ -71,7 +82,11 @@ export default async function (h) {
         } else {
           const ink = mix(c, W, 0.5);
           check('ink-on-tray', cr(ink, TRAY_D), 3);
-          check('ink-on-pill', cr(ink, PILL_D), 3);
+          const pill = hex(resolveVar(win, r, '--surface-composer-pill'));
+          if (!pill) { low.push(tag + ' no pill colour'); continue; }
+          nDark++;
+          check('ink-on-pill', cr(ink, pill), 3);
+          check('title-on-pill', cr(ink, pill), 4.5);   // ★ #46 S19 M1: the reply / edit title is TEXT
           check('ink-on-tonal', cr(ink, mix(c, SHEET_D, 0.38)), 3);
         }
       }
@@ -84,6 +99,6 @@ export default async function (h) {
     const AS = await import('file://' + join(root, 'src/components/attach-sheet.js'));
     order = AS.attachTilesFor({ media: true, camera: true, apps: true, payments: true, files: true }).map((a) => a.id).join(',');
   } catch (e) { order = 'threw ' + e.message; }
-  ok(Object.values(S).every(Boolean) && n === 98 && low.length === 0 && order === 'photo,camera,file,app,pay,request',
-    '★ #1355 (Damir 13:16–13:56): the chat\'s own side follows the canvas colour — composer (send / mic, ⊕ / ×, the recording wave), the attach tray, the voice play disc + unread mic badge + the sent bars, the select wash + check — all from --surface-bubble-sent inside ONE @supports (color-mix) guard; every combination (' + n + ' = 7 canvases × 7 Auto/picks × 2 themes) holds white-on-fill ≥ 4.5 and every icon ink ≥ 3 (light ink ≥ 4.5 on the pill); the tray order is ' + order + ' — ' + JSON.stringify(S) + (low.length ? ' LOW: ' + low.slice(0, 8).join('; ') : ''));
+  ok(Object.values(S).every(Boolean) && n === 98 && nDark === 49 && low.length === 0 && order === 'photo,camera,file,app,pay,request',
+    '★ #1355 (Damir 13:16–13:56): the chat\'s own side follows the canvas colour — composer (send / mic, ⊕ / ×, the recording wave), the attach tray, the voice play disc + unread mic badge + the sent bars, the select wash + check — all from --surface-bubble-sent inside ONE @supports (color-mix) guard; every combination (' + n + ' = 7 canvases × 7 Auto/picks × 2 themes) holds white-on-fill ≥ 4.5 and every icon ink ≥ 3 (light ink ≥ 4.5 on the pill; ★ #46 S19 M1: the dark reply / edit title ink ≥ 4.5 on the pill resolved per canvas, ' + nDark + ' / 49); the tray order is ' + order + ' — ' + JSON.stringify(S) + (low.length ? ' LOW: ' + low.slice(0, 8).join('; ') : ''));
 }

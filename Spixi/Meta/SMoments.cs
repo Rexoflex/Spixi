@@ -14,14 +14,16 @@ namespace SPIXI.Meta
     /// session bits and the verb glue. The rules are pure (<see cref="S17MomentRules"/>, executed by scripts/csh); this class
     /// only reads the inputs they need and stores what they decide.
     ///
-    /// Store: three keys in the backup-excluded local-only file (<see cref="SLocalOnlyStore"/>, the hint counters' file) —
-    /// wiped with the account by <c>SLocalOnlyStore.clearAll()</c>, nothing to add there. Values are fixed ids, locale codes
-    /// and mini-app ids, validated on the way in and out. Session bits are in memory; a "session" ends with the process OR
+    /// Store: two keys in the backup-excluded local-only file (<see cref="SLocalOnlyStore"/>, the hint counters' file) —
+    /// wiped with the account by <c>SLocalOnlyStore.clearAll()</c>, nothing to add there. Values are fixed ids and mini-app
+    /// ids, validated on the way in and out. ★ S19 F4: the language moment is once per language per SESSION — the set is in
+    /// memory (sessionLangs); `moments.langs` is no longer written (the dev reset still removes an S17 / S18 value).
+    /// Session bits are in memory; a "session" ends with the process OR
     /// SessionMs after its first moment / card (#46 r1 MINOR-2: a desktop app left running is not one endless session).
     ///
-    /// Security lens (docs/security-handover-gate.md): the verbs are accepted only from the four pages that host a moment
-    /// (Home, a chat, Settings, Contact details — the type test in SpixiContentPage.onNavigatingGlobal), never from a
-    /// mini-app WebView (hasGeneratedContent). The worst a hostile page can do: mark moments seen (the first-payment warning
+    /// Security lens (docs/security-handover-gate.md): the verbs are accepted only from the pages that host a moment
+    /// (Home, a chat, Settings, Contact details — the type test in SpixiContentPage.onNavigatingGlobal; ★ S19 F5: + App
+    /// details, for `app:<its own app id>` only), never from a mini-app WebView (hasGeneratedContent). The worst a hostile page can do: mark moments seen (the first-payment warning
     /// burned) and take the session (no hint / rating card, no other moment for up to SessionMs) — never the backup card
     /// (safety, it ignores the session), never money (the native confirm is untouched). ★ #46 security r1 (MAJOR-1): NO moment
     /// writes a setting — the auto-download offer opens Settings › Privacy (`ixian:openPrivacy`, SingleChatPage) and the user
@@ -39,6 +41,8 @@ namespace SPIXI.Meta
         private static long privacyOpenUntil;
         private static string pendingLang = ""; // the non-English language the user just applied (Settings asks after setLocale)
         private static int askLines;            // ★ S18 D3: [MO] ask lines written by this process (capped at S17MomentRules.MaxAskLines)
+        /* ★ S19 F4 (MO-LANG): the languages whose moment showed in THIS session — memory only, never stored (a restart asks again) */
+        private static readonly S17MomentRules.SessionLangs sessionLangs = new S17MomentRules.SessionLangs();
 
         /** A session = the process, at most this long after its first moment / card (then both bits clear). */
         public const long SessionMs = S17MomentRules.MaxSessionMs;
@@ -78,6 +82,7 @@ namespace SPIXI.Meta
         public static string pushJson(SpixiContentPage? page = null)
         {
             bool chat = page is SingleChatPage;
+            bool details = page is AppDetailsPage;
             List<string> seen = S17MomentRules.parseList(SLocalOnlyStore.get(S17MomentRules.KeySeen), S17MomentRules.isSeenId);
             List<string> apps = S17MomentRules.parseList(SLocalOnlyStore.get(S17MomentRules.KeyApps), S17MomentRules.isAppId);
             if (chat)
@@ -85,8 +90,15 @@ namespace SPIXI.Meta
                 seen = seen.Where(x => Array.IndexOf(ChatSeenIds, x) >= 0).ToList();
                 apps = new List<string>();   // the chat asks per app; C# checks again (installed, MultiUser)
             }
-            List<string> langs = S17MomentRules.parseList(SLocalOnlyStore.get(S17MomentRules.KeyLangs), S17MomentRules.isLangCode);
-            string lang = (!chat && pendingLang.Length > 0 && !langs.Contains(pendingLang)) ? pendingLang : "";   // #46 security r4 NIT-1: never to a chat
+            else if (details)
+            {
+                /* ★ S19 F5: App details hosts only its OWN app's moment — no other id, no other app, no language */
+                string own = ((AppDetailsPage)page!).selectedAppId;
+                seen = new List<string>();
+                apps = apps.Where(x => string.Equals(x, own, StringComparison.Ordinal)).ToList();
+            }
+            /* ★ S19 F4: a language is "seen" for the rest of the SESSION only (sessionLangs, memory); moments.langs is not read */
+            string lang = (!chat && !details && pendingLang.Length > 0 && !sessionLangs.has(pendingLang, nowMs())) ? pendingLang : "";   // #46 security r4 NIT-1: never to a chat
             bool taken = sessionTaken;   // #46 r2 (MINOR-A): expired first, so a reload never revives an ended session
             long left = taken && sessionSince != 0 ? SessionMs - (nowMs() - sessionSince) : 0;
             return S17MomentRules.pushJson(seen, apps, lang, taken, left);
@@ -122,6 +134,8 @@ namespace SPIXI.Meta
                 return true;
             }
             if (!S17MomentRules.parseAsk(url, out string id, out string arg)) return true;   // refused silently, never logged
+            /* ★ S19 F5: App details may ask `app:<its own app id>` and nothing else — refused silently, never logged */
+            if (page is AppDetailsPage details && !S17MomentRules.appDetailsAsk(id, arg, details.selectedAppId)) return true;
 #pragma warning disable CS4014
             answerAsync(page, id, arg);
 #pragma warning restore CS4014
@@ -137,7 +151,8 @@ namespace SPIXI.Meta
                 switch (id)
                 {
                     case "lang":
-                        eligible = (page is SettingsPage && arg == pendingLang) ? S17MomentRules.Eligible.Yes : S17MomentRules.Eligible.Wait;
+                        /* ★ S19 F4: Settings, the language just applied, never English (S17MomentRules.langEligible) */
+                        eligible = S17MomentRules.langEligible(page is SettingsPage, arg, pendingLang);
                         break;
                     case "autodl":
                         /* the offer only while the setting is Off, Load pictures is on and the Tips switch is on (MOMENTS.md: 2 is an offer);
@@ -160,11 +175,23 @@ namespace SPIXI.Meta
                         break;
                     case "app":
                         {
-                            MiniApp? app = Node.MiniAppManager != null ? Node.MiniAppManager.getApp(arg) : null;
+                            MiniApp? app;
+                            if (page is AppDetailsPage details)
+                            {
+                                /* ★ S19 F5 (MO-APP at Install): the details page asks before ixian:install and before its Open pill —
+                                   its OWN app (handleVerb: arg == the page's app id), installed or not yet: the caps come from the
+                                   fetched appinfo or the installed app, the same object the page's init showed */
+                                app = details.momentApp;
+                                if (app != null && !string.Equals(app.id, arg, StringComparison.Ordinal)) app = null;
+                            }
+                            else
+                            {
+                                app = Node.MiniAppManager != null ? Node.MiniAppManager.getApp(arg) : null;
+                            }
                             /* #46 security r3 MINOR-2: from a chat, only a MultiUser app (what a chat can open) — a chat cannot probe for
                                the user's single-user apps */
                             if (app != null && page is SingleChatPage && !app.hasCapability(MiniAppCapabilities.MultiUser)) app = null;
-                            if (app == null || !(page is HomePage || page is SingleChatPage))
+                            if (app == null || !(page is HomePage || page is SingleChatPage || page is AppDetailsPage))
                             {
                                 eligible = S17MomentRules.Eligible.Wait;   // not installed: the open itself fails or installs first
                             }
@@ -287,6 +314,7 @@ namespace SPIXI.Meta
             sessionCard = false;
             sessionSince = 0;
             pendingLang = "";
+            sessionLangs.clear();   // ★ S19 F4: the session's languages (memory) — moments.langs above is an S17 / S18 leftover
             privacyOpen = null;
             privacyOpenUntil = 0;
             askLines = 0;
@@ -294,9 +322,28 @@ namespace SPIXI.Meta
             else Logging.warn("[MO] dev reset: store write failed");
         }
 
+        /** ★ #46 S19 (security MINOR-1): App details' URL install put on another app than the fetched appinfo its moment showed
+         *  (another id or capability set, S17MomentRules.installedDiffers) — that app id is no longer seen, so its first open
+         *  shows the package's real caps. Validated id; home gets the new list (it holds a copy). One fixed log line. */
+        public static void unmarkApp(string? appId)
+        {
+            if (!SpixiFlags.S17Moments || !S17MomentRules.isAppId(appId)) return;
+            try
+            {
+                SLocalOnlyStore.setDeferred(S17MomentRules.KeyApps, S17MomentRules.removeFromList(SLocalOnlyStore.get(S17MomentRules.KeyApps), appId!, S17MomentRules.isAppId));
+                Logging.info("[MO] app moment: the installed app differs, asks again");
+            }
+            catch (Exception e)
+            {
+                Logging.warn("SMoments: store failed (" + e.GetType().Name + ")");
+            }
+            HomePage? home = HomePage.InstanceOrNull();
+            if (home != null) pushTo(home);
+        }
+
         private static bool isSeen(string id, string arg)
         {
-            if (id == "lang") return S17MomentRules.parseList(SLocalOnlyStore.get(S17MomentRules.KeyLangs), S17MomentRules.isLangCode).Contains(arg);
+            if (id == "lang") return sessionLangs.has(arg, nowMs());   // ★ S19 F4: once per language per SESSION (memory, never stored)
             if (id == "app") return S17MomentRules.parseList(SLocalOnlyStore.get(S17MomentRules.KeyApps), S17MomentRules.isAppId).Contains(arg);
             return S17MomentRules.parseList(SLocalOnlyStore.get(S17MomentRules.KeySeen), S17MomentRules.isSeenId).Contains(id);
         }
@@ -307,7 +354,7 @@ namespace SPIXI.Meta
             {
                 if (id == "lang")
                 {
-                    SLocalOnlyStore.setDeferred(S17MomentRules.KeyLangs, S17MomentRules.addToList(SLocalOnlyStore.get(S17MomentRules.KeyLangs), arg, S17MomentRules.isLangCode, S17MomentRules.MaxLangs));
+                    sessionLangs.add(arg, nowMs());   // ★ S19 F4: memory only — moments.langs is no longer written
                 }
                 else if (id == "app")
                 {

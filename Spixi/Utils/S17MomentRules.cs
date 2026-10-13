@@ -10,7 +10,8 @@
  *   · the ANSWER momentAnswer(id, arg, "1"|"0", caps) — caps = MiniAppCapabilities NAMES (constants), app moment only.
  *   · the PUSH setMoments {"seen":[ids],"apps":[app ids],"lang":"<code>"|"","session":true|false}.
  * Seen flags: SLocalOnlyStore (device only, never in a backup, wiped with the account) — "moments.seen" (ids, csv),
- * "moments.langs" (codes, csv), "moments.apps" (app ids, csv, the newest MaxApps kept).
+ * "moments.apps" (app ids, csv, the newest MaxApps kept). ★ S19 F4: the language is seen per SESSION, in memory
+ * (SessionLangs); "moments.langs" is no longer written — the dev reset still removes an S17 / S18 value.
  */
 using System;
 using System.Collections.Generic;
@@ -80,18 +81,88 @@ namespace SPIXI
         public enum Decision { Grant, Refuse, Consume }
 
         /** MOMENTS.md: once per id (per language / per app); at most ONE per session and never in a session with a card —
-         *  except firstixi (safety). Seen wins over everything; Consume wins over the session rule (it shows nothing). */
+         *  except firstixi (safety) and lang (★ S19 F4). Seen wins over everything; Consume wins over the session rule (it shows nothing). */
         public static Decision decide(string id, bool seen, bool sessionMoment, bool sessionCard, Eligible eligible)
         {
             if (seen) return Decision.Refuse;
             if (eligible == Eligible.Consume) return Decision.Consume;
             if (eligible == Eligible.Wait) return Decision.Refuse;
-            if (id != "firstixi" && (sessionMoment || sessionCard)) return Decision.Refuse;
+            if (!exemptFromSession(id) && (sessionMoment || sessionCard)) return Decision.Refuse;
             return Decision.Grant;
         }
 
-        /** Does this grant take the session (firstixi does not: it is the exception to the one-per-session rule)? */
-        public static bool takesSession(string id) => id != "firstixi";
+        /** ★ S19 F4 (MO-LANG, Damir 2026-10-12): the ids outside the one-per-session + card rule — firstixi (safety) and lang (the
+         *  user's own language pick: once per language per SESSION, it never waits for an earlier moment or a card). */
+        public static bool exemptFromSession(string id) => id == "firstixi" || id == "lang";
+
+        /** Does this grant take the session? The exempt ids do not — a language sheet never blocks pay / mic / app / autodl /
+         *  offline, and never holds home's cards back. */
+        public static bool takesSession(string id) => !exemptFromSession(id);
+
+        /** ★ S19 F4: the language moment's own check — Settings only, the language the user just applied only, never English. */
+        public static Eligible langEligible(bool onSettings, string? arg, string? pendingLang) =>
+            onSettings && isLangCode(arg) && !isEnglish(arg!) && string.Equals(arg, pendingLang, StringComparison.Ordinal)
+                ? Eligible.Yes : Eligible.Wait;
+
+        /** A session ends MaxSessionMs after its start, or when the wall clock went back (0 = no session yet). */
+        public static bool sessionExpired(long since, long now) => since != 0 && (now - since >= MaxSessionMs || now < since);
+
+        /** ★ S19 F4: the languages whose moment showed in THIS session — memory only (never stored: a restart asks again), at
+         *  most MaxLangs, cleared MaxSessionMs after the first one (a desktop app left running is not one endless session) and
+         *  by the dev reset. Codes are validated on the way in. Locked: the ask and the push may run on different threads. */
+        public sealed class SessionLangs
+        {
+            private readonly List<string> codes = new List<string>();
+            private long since;
+            private readonly object gate = new object();
+
+            public bool has(string? code, long now)
+            {
+                lock (gate)
+                {
+                    expire(now);
+                    return code != null && codes.Contains(code);
+                }
+            }
+
+            public void add(string? code, long now)
+            {
+                if (!isLangCode(code)) return;
+                lock (gate)
+                {
+                    expire(now);
+                    if (since == 0) since = now;
+                    codes.Remove(code!);
+                    codes.Add(code!);
+                    while (codes.Count > MaxLangs) codes.RemoveAt(0);
+                }
+            }
+
+            public void clear()
+            {
+                lock (gate)
+                {
+                    codes.Clear();
+                    since = 0;
+                }
+            }
+
+            public int count { get { lock (gate) { return codes.Count; } } }
+
+            private void expire(long now)
+            {
+                if (sessionExpired(since, now))
+                {
+                    codes.Clear();
+                    since = 0;
+                }
+            }
+        }
+
+        /** ★ S19 F5 (MO-APP at Install): App details hosts ONE moment — `app`, for the page's OWN app id only (the app it shows,
+         *  fetched or installed). Any other id or argument from that page is refused before it is read further. */
+        public static bool appDetailsAsk(string? id, string? arg, string? pageAppId) =>
+            id == "app" && isAppId(pageAppId) && string.Equals(arg, pageAppId, StringComparison.Ordinal);
 
         /* —— ★ S18 D3: the decision log line (the S17 walk could not tell "refused by the session rule" from "never asked") —— */
         /** WHY decide() answered as it did, in its own order: seen · consume (= ok: the id's own check says it is never
@@ -104,7 +175,7 @@ namespace SPIXI
             if (seen) return Why.Seen;
             if (eligible == Eligible.Consume) return Why.Ok;
             if (eligible == Eligible.Wait) return Why.Wait;
-            if (id != "firstixi")
+            if (!exemptFromSession(id))
             {
                 if (sessionMoment) return Why.Session;
                 if (sessionCard) return Why.Card;
@@ -153,6 +224,26 @@ namespace SPIXI
             list.Add(item);
             while (list.Count > cap) list.RemoveAt(0);   // the oldest goes first
             return string.Join(",", list);
+        }
+
+        /** ★ #46 S19 (security MINOR-1): one item out of a stored list (validated both ways, like addToList). */
+        public static string removeFromList(string? csv, string item, Func<string, bool> valid)
+        {
+            List<string> list = parseList(csv, valid);
+            list.Remove(item);
+            return string.Join(",", list);
+        }
+
+        /** ★ #46 S19 (security MINOR-1): after a URL install, does the INSTALLED app differ from the fetched appinfo the App
+         *  details moment showed — another id (the package's own appinfo id) or another capability set? Then the moment the
+         *  user saw named the wrong caps: its seen mark goes (SMoments.unmarkApp) and the next open asks with the real ones.
+         *  No installed app = differs. Capability names compared as a set (order, duplicates and SingleUser included). */
+        public static bool installedDiffers(string? fetchedId, IEnumerable<string>? fetchedCaps, string? installedId, IEnumerable<string>? installedCaps)
+        {
+            if (installedId == null || !string.Equals(fetchedId, installedId, StringComparison.Ordinal)) return true;
+            HashSet<string> a = new HashSet<string>(fetchedCaps ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            HashSet<string> b = new HashSet<string>(installedCaps ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            return !a.SetEquals(b);
         }
 
         /** The caps of the app answer: known names only, in the fixed order. */

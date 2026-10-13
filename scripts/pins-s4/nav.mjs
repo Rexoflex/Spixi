@@ -382,7 +382,8 @@ export default async function (h) {
     const en = JSON.parse(rd('src/strings/en-us.json'));
     ok(en.photoPreviewsTitle === 'Show photo previews in chats'
        && en.photoPreviewsHint === 'Photos you sent or downloaded show as a picture in the chat. Off: every photo stays a file card.'
-       && en.keepOpen === 'Keep Spixi open until the transfer completes',
-      '★ #1133 strings: photoPreviewsTitle / photoPreviewsHint carry the contract text in en-us, and keepOpen (reused by the chat tile) is unchanged');
+       /* re-based by S19 F13: keepOpen is split by direction (the chat tile + the file card were its only readers) */
+       && en.keepOpenSent === 'Keep Spixi open until it’s sent.' && en.keepOpenReceived === 'Comes directly from the sender’s device. Keep Spixi open.' && !('keepOpen' in en),
+      '★ #1133 strings: photoPreviewsTitle / photoPreviewsHint carry the contract text in en-us, and the chat tile\'s keep-open line is keepOpenSent / keepOpenReceived (S19 F13 split keepOpen by direction)');
   }
 }

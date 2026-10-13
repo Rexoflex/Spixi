@@ -314,7 +314,6 @@
   "joinTitle": "Spixi コミュニティに参加しよう",
   "jumpToMention": "メンションへ移動",
   "keepContact": "連絡先を残す",
-  "keepOpen": "転送が完了するまで Spixi を開いたままにしてください",
   "keepWaiting": "このまま待つ",
   "kickBody": "後で再招待できます。",
   "languageFailed": "言語を変更できませんでした。",
@@ -951,5 +950,10 @@
   "momentAppBody": "このアプリは Spixi の中で動きます。信頼できる人からのアプリだけを開いてください。",
   "momentPayTitle": "支払う前に",
   "momentPayBody": "支払いは取り消せません。次の画面で連絡先と金額を確認してください。少額のネットワーク手数料は Spixi ではなく Ixian ネットワークに支払われます。",
-  "momentOpenSettings": "設定を開く"
+  "momentOpenSettings": "設定を開く",
+  "blindGroupNotice": "メンバーは互いの身元を見ることができません。このグループでは写真やファイルを送信できません。",
+  "keepOpenSent": "送信が完了するまで Spixi を開いたままにしてください。",
+  "keepOpenReceived": "送信者のデバイスから直接届きます。Spixi を開いたままにしてください。",
+  "momentAppInstallTitle": "{app} をインストールする前に",
+  "devResetMomentsDone": "Reset sent. Restart the app."
 }

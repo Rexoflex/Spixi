@@ -98,14 +98,27 @@
      grid card had no press feedback at all. */
   background-color: var(--surface-neutral-02);
   border-radius: var(--radius-16);
-  padding: var(--spacing-4);
+  padding: 0;   /* ★ S19 F7: __open IS the card (its padding = the old 4 + 8) — the press layer fills it */
+  transition: background-color var(--duration-100) var(--easing-standard);
 }
 .c-app-item[data-layout="grid"] .c-app-item__open {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--spacing-8);
-  padding: var(--spacing-8);
+  padding: var(--spacing-12);
+  border-radius: inherit;
   min-width: 0;
+}
+/* ★ S19 F7 (#1371): a grid card is a CARD control → the card pair (#882; the __open wash was the card's own colour,
+   1.00 : 1). The wrapper hovers (⋮ / ⓘ keep it lit); the press layer paints card-pressed. List rows unchanged. */
+@media (hover: hover) and (pointer: fine) {
+  .c-app-item[data-layout="grid"]:hover { background-color: var(--surface-card-hover); }
+  .c-app-item[data-layout="grid"] .c-app-item__open:hover:not([aria-current]) { background-color: transparent; }
+}
+html:root .c-app-item[data-layout="grid"] .c-app-item__open:not([aria-current])::before,
+html:root .c-app-item[data-layout="grid"][data-pressed]:hover .c-app-item__open:not([aria-current])::before,
+html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__open:not([aria-current])::before {
+  background: var(--surface-card-pressed);
 }
 .c-app-item[data-layout="grid"] .c-app-item__text { width: 100%; min-width: 0; }
 .c-app-item[data-layout="grid"] .c-app-item__menu,

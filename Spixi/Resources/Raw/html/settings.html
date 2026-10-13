@@ -1324,6 +1324,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      base.css — see chatlist-item.css. State rules set background-COLOR only. */
 }
 .c-settings__row--static { cursor: default; }
+/* ★ S19 F9 (#1371): the row a moment sent the user to (openScreen('privacy') → the auto-download row) flashes once — the
+   wallet just-sent wash (wallet-shell.css c-wallet-txflash, #136): raw 2s sanctioned like that one (no token this long);
+   explicit reduced-motion escape per the same precedent. */
+@keyframes c-settings-rowflash {
+  0% { background-color: var(--surface-action-tonal-default); }
+  100% { background-color: transparent; }
+}
+.c-settings__row[data-flash] { animation: c-settings-rowflash 2s var(--easing-standard) both; }
+@media (prefers-reduced-motion: reduce) { .c-settings__row[data-flash] { animation: none; } }
 @media (hover: hover) and (pointer: fine) {
   .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-card-hover); }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 }
@@ -3678,7 +3687,8 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
   margin-top: var(--spacing-2);
 }
 /* dark: global track token (neutral-700) equals the card surface — invisible (audit MAJOR) */
-[data-theme="dark"] .c-fbubble__track { background: var(--surface-neutral-04); }
+[data-theme="dark"] .c-fbubble__track { background: var(--surface-neutral-04); }   /* the SENT card's track (on --surface-card-sent) */
+[data-theme="dark"] .c-bubble-row[data-direction="received"] .c-fbubble__track { background: var(--surface-bubble-received-quote); }   /* ★ S19 F10 → #46 S19 M3: the RECEIVED card only — the quote step under the lifted canvas bubble (ink-600 sat at 1.04–1.25 : 1 on it); the sent card keeps neutral-04 */
 .c-fbubble__fill {
   display: block;
   height: 100%;
@@ -6351,7 +6361,7 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
    AA for yellow/green hues on the white bubble (audit MAJOR) — labels run
    darker in light / lighter in dark than the gradient does. */
 :root { --sender-label-s: 60%; --sender-label-l: 28%; } /* audit r2: 34% was still sub-AA at hues 60–180 on white — 28% clears 4.5:1 worst-case */
-[data-theme="dark"] { --sender-label-s: 55%; --sender-label-l: 74%; }
+[data-theme="dark"] { --sender-label-s: 55%; --sender-label-l: 78%; }   /* ★ S19 F10: 74 → 78 (canvas bubbles) */
 .c-bubble__sender {
   display: block;
   font-size: var(--font-size-label-sm);
@@ -6473,7 +6483,8 @@ button.c-bubble__sender {
    on #ffffff was 1.14:1 before this batch and still is. */
 /* #46 r4 m2: the ink-750 bubble (#1E2023, Damir pick 2026-10-03) left ink-700 at 1.063:1 — one more step
    (--surface-neutral-04 = ink-600 #2C2E31) is 1.20:1 again; the dark quote label lightness below follows it. */
-[data-theme="dark"] .c-bubble__reply { background: var(--surface-neutral-04); }
+/* ★ S19 F10: per canvas, one step darker than its bubble (tokens.css) */
+[data-theme="dark"] .c-bubble__reply { background: var(--surface-bubble-received-quote); }
 .c-bubble__reply {
   display: flex;
   align-items: center;
@@ -6858,18 +6869,19 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-bubble__sender[data-idhue="9"], .c-bubble__reply[data-idhue="9"] { --sender-label-l: 55%; --reply-label-l: 53%; } /* 5.02 · 4.72 */
 .c-bubble__sender[data-idhue="10"], .c-bubble__reply[data-idhue="10"] { --sender-label-l: 50%; --reply-label-l: 46%; } /* 4.66 · 4.68 */
 .c-bubble__sender[data-idhue="11"], .c-bubble__reply[data-idhue="11"] { --sender-label-l: 53%; --reply-label-l: 48%; } /* 4.62 · 4.68 */
-[data-theme="dark"] .c-bubble__sender[data-idhue="0"], [data-theme="dark"] .c-bubble__reply[data-idhue="0"] { --sender-label-l: 60%; --reply-label-l: 65%; } /* 4.64 · 4.53 (r4: quote ink-600) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="1"], [data-theme="dark"] .c-bubble__reply[data-idhue="1"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 6.30 · 5.25 (r4: quote ink-600) */
+/* ★ S19 F10: dark NAMES ≥ 4.6 : 1 on every canvas bubble (0 1 7–11 lifted; trailing ratios = ink-750) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="0"], [data-theme="dark"] .c-bubble__reply[data-idhue="0"] { --sender-label-l: 73%; --reply-label-l: 65%; } /* 4.64 · 4.53 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="1"], [data-theme="dark"] .c-bubble__reply[data-idhue="1"] { --sender-label-l: 64%; --reply-label-l: 60%; } /* 6.30 · 5.25 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="2"], [data-theme="dark"] .c-bubble__reply[data-idhue="2"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.35 · 6.96 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="3"], [data-theme="dark"] .c-bubble__reply[data-idhue="3"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.33 · 8.61 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="4"], [data-theme="dark"] .c-bubble__reply[data-idhue="4"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 9.53 · 7.95 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="5"], [data-theme="dark"] .c-bubble__reply[data-idhue="5"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 10.02 · 8.35 (r4: quote ink-600) */
 [data-theme="dark"] .c-bubble__sender[data-idhue="6"], [data-theme="dark"] .c-bubble__reply[data-idhue="6"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 8.03 · 6.70 (r4: quote ink-600) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="7"], [data-theme="dark"] .c-bubble__reply[data-idhue="7"] { --sender-label-l: 60%; --reply-label-l: 60%; } /* 5.54 · 4.62 (r4: quote ink-600) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="8"], [data-theme="dark"] .c-bubble__reply[data-idhue="8"] { --sender-label-l: 70%; --reply-label-l: 73%; } /* 4.75 · 4.57 (r4: quote ink-600) (69 → 70: ink-750 ground) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="9"], [data-theme="dark"] .c-bubble__reply[data-idhue="9"] { --sender-label-l: 65%; --reply-label-l: 69%; } /* 4.63 · 4.54 (r4: quote ink-600) (64 → 65: ink-750) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="10"], [data-theme="dark"] .c-bubble__reply[data-idhue="10"] { --sender-label-l: 60%; --reply-label-l: 66%; } /* 4.64 · 4.65 (r4: quote ink-600) */
-[data-theme="dark"] .c-bubble__sender[data-idhue="11"], [data-theme="dark"] .c-bubble__reply[data-idhue="11"] { --sender-label-l: 62%; --reply-label-l: 67%; } /* 4.64 · 4.57 (r4: quote ink-600) (61 → 62: ink-750) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="7"], [data-theme="dark"] .c-bubble__reply[data-idhue="7"] { --sender-label-l: 68%; --reply-label-l: 60%; } /* 5.54 · 4.62 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="8"], [data-theme="dark"] .c-bubble__reply[data-idhue="8"] { --sender-label-l: 78%; --reply-label-l: 73%; } /* 4.75 · 4.57 (r4: quote ink-600) (69 → 70: ink-750 ground) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="9"], [data-theme="dark"] .c-bubble__reply[data-idhue="9"] { --sender-label-l: 76%; --reply-label-l: 69%; } /* 4.63 · 4.54 (r4: quote ink-600) (64 → 65: ink-750) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="10"], [data-theme="dark"] .c-bubble__reply[data-idhue="10"] { --sender-label-l: 73%; --reply-label-l: 66%; } /* 4.64 · 4.65 (r4: quote ink-600) */
+[data-theme="dark"] .c-bubble__sender[data-idhue="11"], [data-theme="dark"] .c-bubble__reply[data-idhue="11"] { --sender-label-l: 74%; --reply-label-l: 67%; } /* 4.64 · 4.57 (r4: quote ink-600) (61 → 62: ink-750) */
 
 /* ★ #1010 (10b): a LIVE tick change fades in (160ms) instead of snapping — setMessageStatus
    adds the class only outside the load burst. Reduced motion: no animation. */
@@ -7169,7 +7181,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 :root:not([data-theme="dark"]) .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-300); color: var(--text-bubble-received-meta); }
 /* ★ #46 picks r3 (MINOR-B): the DARK mirror — the played disc was the LOUDER one (8.77:1 vs the accent 6.25:1); now ink-500
    (1.41:1 on the bubble, the glyph 6.22:1 on it, the accent 4.43:1 against it) */
-[data-theme="dark"] .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--neutral-500); color: var(--text-bubble-received-meta); }
+/* ★ S19 F10: the quote step (ink-500 vanished on canvas bubbles) */
+[data-theme="dark"] .c-bubble-row[data-direction="received"] .c-voice__who:not([data-tone="accent"]) .c-voice__badge { background: var(--surface-bubble-received-quote); color: var(--text-bubble-received-meta); }
 
 .c-bubble-row[data-direction="sent"] .c-voice__badge { border-color: var(--surface-bubble-sent); background: var(--text-bubble-sent); color: var(--surface-bubble-sent); }
 
@@ -10078,6 +10091,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    * fnRefs). SettingsPage.onLoad pushes these; loadAvatar also arrives after the
    * ixian:avatar picker. All coalesce into one hub rebuild.
    * ————————————————————————————————————————————————————————————————————————— */
+  let autoDlFlashTimer = 0;   // ★ S19 F9 (#1371): the auto-download row flash's cleanup (openScreen below)
   const handlers = {
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
 
@@ -10378,7 +10392,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     /* ★ S17 A (#1338, 🟡 NEW push, P26): {"version":"<digits>","show":true|false} — the About row's "New" badge. Same
        validation as home.html; a bad push changes nothing. */
     /* ★ S17 F (#1340, 🟡 NEW push, P28): {"seen":[ids],"apps":[app ids],"lang":"<code>"|"","session":bool} — a pending
-       language asks once; C# answers yes for a new non-English language not seen before, in a session with no card */
+       language asks; C# answers yes for a non-English language not yet asked in THIS session (★ S19 F4: no session / card rule for lang) */
     setMoments(json) {
       if (!bridge.cap('moments')) return;
       moments.setState(String(json));
@@ -10398,6 +10412,18 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       setTimeout(() => {
         const row = (paneMode ? detailWrap : root).querySelector('[data-pref="photoAutoDl"]');
         if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
+        /* ★ S19 F9 (#1371): the row the moment sent the user to flashes ONCE (the wallet just-sent wash, settings-shell.css
+           c-settings-rowflash; reduced motion = no animation). Restarted cleanly if a second openScreen lands mid-flash. */
+        const btn = row && row.querySelector('.c-settings__row');
+        if (btn) {
+          clearTimeout(autoDlFlashTimer);   // a restart must not be cut short by the previous flash's cleanup
+          delete btn.dataset.flash;
+          void btn.offsetWidth;
+          btn.dataset.flash = '';
+          const done = () => { delete btn.dataset.flash; };
+          autoDlFlashTimer = setTimeout(done, 2400);   // reduced-motion / no-animation cleanup (the flashWalletTx precedent); animationend below
+          btn.addEventListener('animationend', (e) => { if (e.target === btn) { clearTimeout(autoDlFlashTimer); done(); } }, { once: true });
+        }
       }, 120);
     },
     setWhatsNew(json) {

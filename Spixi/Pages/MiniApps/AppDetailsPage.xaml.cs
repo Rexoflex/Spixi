@@ -32,6 +32,17 @@ namespace SPIXI
 
         MiniApp fetchedApp = null;
 
+        /* ★ S19 F5 (MO-APP at Install, P28, flag SpixiFlags.S17Moments): the app THIS page asks the app moment for — the
+         * INSTALLED app first (#46 S19 security MINOR-1: Open always launches the installed app, so its caps are the ones to
+         * show), else the fetched appinfo (not yet installed). SMoments answers only for an ask whose app id equals selectedAppId. */
+        public MiniApp? momentApp
+        {
+            get
+            {
+                return Node.MiniAppManager?.getApp(selectedAppId) ?? fetchedApp;
+            }
+        }
+
         Friend? friendOrGroup = null;
 
         private bool shouldReloadDetailView = false;
@@ -228,6 +239,14 @@ namespace SPIXI
                 app_verified.ToString(),
                 (true).ToString());
 
+            /* ★ S19 F5 (MO-APP at Install, P28): the app moment asks BEFORE ixian:install and before the Open pill of an app that
+             * was never opened (app_details.html). Flag OFF = no cap, no push (the shell then installs / opens at once, today). */
+            if (SpixiFlags.S17Moments)
+            {
+                Utils.sendUiCommand(this, "setCaps", "moments");
+                SMoments.pushTo(this);
+            }
+
             // Execute timer-related functionality immediately
             updateScreen();
         }
@@ -248,6 +267,13 @@ namespace SPIXI
                     if (app_name != null)
                     {
                         UIHelpers.shouldRefreshApps = true;
+                        /* ★ #46 S19 (security MINOR-1): the moment showed the FETCHED appinfo's caps — when the installed package
+                           differs (id or caps), that id is no longer seen and its first open shows the real caps */
+                        MiniApp? installed = fetchedApp.id != null ? Node.MiniAppManager.getApp(fetchedApp.id) : null;
+                        if (S17MomentRules.installedDiffers(fetchedApp.id, capNames(fetchedApp), installed?.id, capNames(installed)))
+                        {
+                            SMoments.unmarkApp(fetchedApp.id);
+                        }
                         Utils.sendUiCommand(this, "showInstallSuccess");
                     }
                     else
@@ -275,6 +301,8 @@ namespace SPIXI
                 }
             });
         }
+
+        private static IEnumerable<string>? capNames(MiniApp? app) => app?.capabilities?.Keys.Select(c => c.ToString());
 
         private void onUninstall()
         {

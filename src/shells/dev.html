@@ -36,6 +36,7 @@
 <link rel="stylesheet" href="../styles/components/settings-app.css">
 <link rel="stylesheet" href="../styles/components/overlay.css"><!-- overlay stack (scrim) for the incoming-call overlay -->
 <link rel="stylesheet" href="../styles/components/avatar.css"><!-- caller avatar in the incoming-call overlay -->
+<link rel="stylesheet" href="../styles/components/toast.css"><!-- ★ S19 F8 (#1371): the Reset moment sheets confirmation (showToast ran unstyled without it — the #314 lesson) -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
   /* Production shell: fill the WebView. dev.html is loaded by the C# DevPage
@@ -95,6 +96,7 @@
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack, dismissTopOverlay,   // ★ L3 (#706): the iOS back signal + the one-level chain
     applyPushedTheme,
+    showToast,   // ★ S19 F8 (#1371): the Reset moment sheets confirmation
     } = window.Spixi;
   const strings = window.SL || {};
 
@@ -258,6 +260,8 @@
      row. A tap sends `ixian:devflash:<securepass|mediagate>:<1|0>`, optimistic; C# echoes. C# reads the flags once per
      start, so the card says a change acts after a restart. */
   let flagsDev = null;   // [securePassOn, mediaGateOn] once C# told us
+  const RESET_QUIET_MS = 1000;   // ★ S19 F8 (#1371): taps on Reset moment sheets inside this window after one are ignored
+  let lastResetAt = -1e9;
   function mountFlagsDev() {
     if (!flagsDev || !devEl) return;
     const body = devEl.querySelector('.c-settings__body');
@@ -312,7 +316,17 @@
       lab.className = 'c-settings__row-label';
       lab.textContent = strings.devResetMoments || 'Reset moment sheets';
       reset.append(lab);
-      reset.addEventListener('click', () => bridge.send('ixian:devmoments:reset'));
+      /* ★ S19 F8 (#1371, Damir tapped it 10× in 1.5 s — nothing said it worked): a short toast confirms, and taps for
+         RESET_QUIET_MS after one are ignored (no second verb, no second toast). The tap time lives on the module, so a
+         flags push that remounts the card does not re-open the window. */
+      reset.addEventListener('click', () => {
+        const now = Date.now();
+        if (now - lastResetAt < RESET_QUIET_MS) return;
+        lastResetAt = now;
+        bridge.send('ixian:devmoments:reset');
+        /* #46 S19 security N2: the toast says what happened HERE — the verb was SENT (C# acts after it); no success claim */
+        showToast({ text: strings.devResetMomentsDone || 'Reset sent. Restart the app.', tone: 'info' });
+      });
       card.append(reset);
     }
     const after = body.querySelector(':scope > .c-dev-container') || body.querySelector(':scope > .c-dev-flash')

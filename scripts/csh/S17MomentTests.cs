@@ -41,6 +41,92 @@ public class S17MomentTests
         Assert.IsFalse(S17MomentRules.takesSession("firstixi"));
     }
 
+    /* ★ S19 F4 (MO-LANG, Damir 2026-10-12): once per language per SESSION — exempt from the one-per-session + card rule (like
+       firstixi), it never takes the session, English never asks, and the "seen" set is memory with a session lifetime */
+    [TestMethod]
+    public void Lang_OncePerLanguagePerSession_ExemptAndNeverTakesTheSession()
+    {
+        var Y = S17MomentRules.Eligible.Yes; var W = S17MomentRules.Eligible.Wait;
+        // exempt: a moment AND a card this session still grant the language sheet
+        Assert.AreEqual(S17MomentRules.Decision.Grant, S17MomentRules.decide("lang", false, true, true, Y));
+        Assert.AreEqual(S17MomentRules.Why.Ok, S17MomentRules.why("lang", false, true, true, Y));
+        // …and it never takes the session: pay / mic / app / autodl / offline are not blocked by it
+        Assert.IsFalse(S17MomentRules.takesSession("lang"));
+        foreach (string id in new[] { "autodl", "offline", "mic", "app", "pay" })
+        {
+            Assert.IsTrue(S17MomentRules.takesSession(id), id);
+            Assert.IsFalse(S17MomentRules.exemptFromSession(id), id);
+            Assert.AreEqual(S17MomentRules.Decision.Refuse, S17MomentRules.decide(id, false, true, false, Y), id);   // the rule still holds for them
+        }
+        // the id's own check: Settings, the language just applied, never English
+        Assert.AreEqual(Y, S17MomentRules.langEligible(true, "de-de", "de-de"));
+        Assert.AreEqual(W, S17MomentRules.langEligible(false, "de-de", "de-de"));   // not Settings
+        Assert.AreEqual(W, S17MomentRules.langEligible(true, "fr-fr", "de-de"));    // not the pending language
+        Assert.AreEqual(W, S17MomentRules.langEligible(true, "en-us", "en-us"));    // English never asks
+        Assert.AreEqual(W, S17MomentRules.langEligible(true, "en-gb", "en-gb"));
+        Assert.AreEqual(W, S17MomentRules.langEligible(true, "", ""));
+        Assert.AreEqual(W, S17MomentRules.langEligible(true, null, null));
+        Assert.AreEqual(W, S17MomentRules.langEligible(true, "DE-DE", "DE-DE"));
+
+        // the session set: memory, per language, a 6 h lifetime from its first language, cleared by the dev reset
+        var set = new S17MomentRules.SessionLangs();
+        long t = 1_700_000_000_000;
+        Assert.IsFalse(set.has("de-de", t));
+        set.add("de-de", t);
+        Assert.IsTrue(set.has("de-de", t + 1));
+        Assert.IsFalse(set.has("fr-fr", t + 1));                                   // another language asks once too
+        set.add("fr-fr", t + 2);
+        Assert.IsTrue(set.has("fr-fr", t + 3) && set.has("de-de", t + 3));
+        set.add("x\",\"y", t + 3); set.add("DE-DE", t + 3); set.add(null, t + 3);  // junk never enters
+        Assert.AreEqual(2, set.count);
+        Assert.IsTrue(set.has("de-de", t + S17MomentRules.MaxSessionMs - 1));
+        Assert.IsFalse(set.has("de-de", t + S17MomentRules.MaxSessionMs));         // the session ended: asks again
+        Assert.AreEqual(0, set.count);
+        set.add("it-it", t); Assert.IsFalse(set.has("it-it", t - 1));              // the wall clock went back: a new session
+        for (int i = 0; i < 60; i++) set.add(((char)('a' + i % 26)).ToString() + ((char)('a' + i / 26)).ToString() + "-xx", t);
+        Assert.AreEqual(S17MomentRules.MaxLangs, set.count);                       // capped, the oldest goes first
+        set.clear();
+        Assert.AreEqual(0, set.count);
+        Assert.IsFalse(S17MomentRules.sessionExpired(0, t));
+        Assert.IsTrue(S17MomentRules.sessionExpired(t, t + S17MomentRules.MaxSessionMs));
+    }
+
+    /* ★ S19 F5 (MO-APP at Install): App details hosts ONE moment — `app`, for its own app id only */
+    [TestMethod]
+    public void AppDetails_AsksOnlyItsOwnAppMoment()
+    {
+        Assert.IsTrue(S17MomentRules.appDetailsAsk("app", "com.ixian.chess", "com.ixian.chess"));
+        Assert.IsFalse(S17MomentRules.appDetailsAsk("app", "com.ixian.dice", "com.ixian.chess"));    // another app: never
+        Assert.IsFalse(S17MomentRules.appDetailsAsk("app", "COM.IXIAN.CHESS", "com.ixian.chess"));   // ordinal
+        Assert.IsFalse(S17MomentRules.appDetailsAsk("app", "", ""));                                  // no app id on the page yet
+        Assert.IsFalse(S17MomentRules.appDetailsAsk("app", "a b", "a b"));                            // an id outside the grammar
+        Assert.IsFalse(S17MomentRules.appDetailsAsk("app", "x", null));
+        foreach (string id in new[] { "lang", "autodl", "offline", "firstixi", "mic", "pay", "card" })
+            Assert.IsFalse(S17MomentRules.appDetailsAsk(id, "com.ixian.chess", "com.ixian.chess"), id);
+        // the ask itself is the existing grammar: the page sends exactly ixian:moment:app:<id>
+        Assert.IsTrue(S17MomentRules.parseAsk("ixian:moment:app:com.ixian.chess", out string pid, out string parg));
+        Assert.IsTrue(S17MomentRules.appDetailsAsk(pid, parg, "com.ixian.chess"));
+    }
+
+    /* ★ #46 S19 (security MINOR-1): after a URL install, an installed app that differs from the fetched appinfo the moment
+       showed (id or capability set) loses its seen mark — the next open asks with the real caps */
+    [TestMethod]
+    public void AppDetails_InstalledDiffers_UnmarksTheFetchedId()
+    {
+        string[] caps = { "MultiUser", "Storage" };
+        Assert.IsFalse(S17MomentRules.installedDiffers("com.ixian.chess", caps, "com.ixian.chess", new[] { "Storage", "MultiUser" }));   // same set, any order
+        Assert.IsFalse(S17MomentRules.installedDiffers("a", null, "a", new string[0]));                                               // no caps both sides
+        Assert.IsTrue(S17MomentRules.installedDiffers("com.ixian.chess", caps, "com.ixian.chess", new[] { "MultiUser", "Storage", "TransactionSigning" }));   // the package asks for more
+        Assert.IsTrue(S17MomentRules.installedDiffers("com.ixian.chess", caps, "com.ixian.chess", new[] { "MultiUser" }));            // or for less
+        Assert.IsTrue(S17MomentRules.installedDiffers("com.ixian.chess", caps, "com.ixian.dice", caps));                              // the package's own id
+        Assert.IsTrue(S17MomentRules.installedDiffers("com.ixian.chess", caps, "COM.IXIAN.CHESS", caps));                             // ordinal
+        Assert.IsTrue(S17MomentRules.installedDiffers("com.ixian.chess", caps, null, null));                                          // not installed under that id
+        // the unmark: that one id leaves the stored list, the rest stays validated
+        Assert.AreEqual("a,c", S17MomentRules.removeFromList("a,com.ixian.chess,c", "com.ixian.chess", S17MomentRules.isAppId));
+        Assert.AreEqual("a", S17MomentRules.removeFromList("a,b c", "zz", S17MomentRules.isAppId));
+        Assert.AreEqual("", S17MomentRules.removeFromList(null, "a", S17MomentRules.isAppId));
+    }
+
     [TestMethod]
     public void Lists_ValidatedBothWays_Capped()
     {
@@ -83,7 +169,9 @@ public class S17MomentTests
         Assert.AreEqual("[MO] ask id=mic d=refuse why=seen", L("mic", true, true, true, C));          // seen wins over everything
         Assert.AreEqual("[MO] ask id=mic d=consume why=ok", L("mic", false, true, true, C));          // never needed: stored, nothing shows
         Assert.AreEqual("[MO] ask id=autodl d=refuse why=wait", L("autodl", false, true, false, W));  // the id's own check first
-        Assert.AreEqual("[MO] ask id=lang d=refuse why=session", L("lang", false, true, true, Y));    // the S17 walk: a moment this session
+        /* ★ S19 F4 re-base: the S17 walk's `lang refuse why=session` is gone — lang is exempt from the session + card rule */
+        Assert.AreEqual("[MO] ask id=lang d=grant why=ok", L("lang", false, true, true, Y));
+        Assert.AreEqual("[MO] ask id=lang d=refuse why=seen", L("lang", true, false, false, Y));      // shown this session
         Assert.AreEqual("[MO] ask id=app d=refuse why=card", L("app", false, false, true, Y));        // a card this session
         Assert.AreEqual("[MO] ask id=firstixi d=grant why=ok", L("firstixi", false, true, true, Y));  // safety: the exception
         Assert.AreEqual("[MO] ask id=pay d=refuse why=session", L("pay", false, true, false, Y));

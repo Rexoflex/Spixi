@@ -122,7 +122,7 @@ export function mountContacts({
      takeover — so a programmatic close of the takeover must take it down too, or a tab
      tap under an open chooser leaves a sheet over nothing. Declared here, above close(). */
   let addSheet = null;
-  const closeAddSheet = () => { if (addSheet) { const s = addSheet; addSheet = null; closeSheet(s); } };
+  const closeAddSheet = (opts) => { if (addSheet) { const s = addSheet; addSheet = null; closeSheet(s, opts); } };
 
   const close = (reason) => {
     if (closed) return;
@@ -284,7 +284,9 @@ export function mountContacts({
       strings, host,
       onScan: () => { closeAddSheet(); mountAddContact(); bridge.send('ixian:contactscan'); },
       onEnter: () => {
-        closeAddSheet();
+        /* ★ S19 F2 (#1371, Android): the sheet goes INSTANTLY (no exit slide) — it is bottom:0, and the keyboard the
+           focus below raises shrinks the viewport mid-slide, so a sliding sheet jumped up. Scan keeps today's close. */
+        closeAddSheet({ instant: true });
         const panel = mountAddContact();
         // inside the tap that chose it, so the soft keyboard is allowed to come up with the field
         const input = panel.querySelector('.c-contacts-add__input');

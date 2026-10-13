@@ -244,7 +244,7 @@ export default async function (h) {
     } else r.resolved = false;
     r.noErr = S.errs.length === 0;
     ok(Object.values(r).every(Boolean),
-      '★ #46 r4 m2: the DARK reply quote reads as a surface on the ink-750 received bubble again — its fill (the winning rule on a live quote, computed) is ≥ 1.19:1 against #1E2023 (was 1.063 on ink-700), one step only, and the quote text + all 12 identity-hue quote labels hold ≥ 4.5:1 on it — ' + JSON.stringify(r) + ' ' + JSON.stringify(n) + (made ? ' (quote node placed)' : ''));
+      '★ #46 r4 m2: the DARK reply quote reads as a surface on the ink-750 received bubble again — its fill (the winning rule on a live quote, computed) is ≥ 1.19:1 against the received bubble (was 1.063 on ink-700; re-based by S19 F10: the default Mist canvas carries its own bubble — #1F2326 since S19 option B, was #292B2D — and the quote follows it one step DARKER via --surface-bubble-received-quote, #090A0C at 1.25 : 1), one step only, and the quote text + all 12 identity-hue quote labels hold ≥ 4.5:1 on it — ' + JSON.stringify(r) + ' ' + JSON.stringify(n) + (made ? ' (quote node placed)' : ''));
     S.dom.window.close();
   }
 }

@@ -1,6 +1,6 @@
 /* ==== S18 D3 (Damir 2026-10-12, the S17 walk: MO-LANG / MO-APP / MO-OFFLINE / MO-AUTODL gave no sheet and the log could not
  * say why) — Developer › Reset moment sheets + the moment decision log line. P28, dev surface, #1312 rule 1.
- * (a) EXECUTED on the BUILT dev.html (jsdom):
+ * (a) EXECUTED on the BUILT dev.html (jsdom) — the second tap re-based by S19 F8 (inside the 1 s quiet window: no second verb):
  *   · no row before C# declared the verb (cap `devmoments`) — no dead row on an older exe — and none without the Moment-sheets
  *     flag row (a 3-digit setFlagsDev); with both, ONE row in the flags card, its label = the dictionary's devResetMoments
  *     (en-us and a de-de boot), not a switch (the S16 flags pin counts switches);
@@ -68,7 +68,9 @@ export default async function (h) {
     a.tap = JSON.stringify(s.sent.slice(b0)) === JSON.stringify([VERB]);
     rows()[0].click();
     await sleep(40);
-    a.again = JSON.stringify(s.sent.slice(b0)) === JSON.stringify([VERB, VERB]);
+    /* re-based by S19 F8 (#1371, Damir tapped 10× in 1.5 s): a second tap INSIDE the 1 s quiet window sends nothing more (the
+       after-the-window tap + the toast are pinned in pins-s19/r-dev-reset-toast) */
+    a.again = JSON.stringify(s.sent.slice(b0)) === JSON.stringify([VERB]);
     s.push('setFlagsDev', '1,1,1');   // an exe with no Moment-sheets flag row: no reset row either
     await sleep(40);
     a.behindFlagRow = !!s.d.querySelector('.c-dev-flags') && rows().length === 0;

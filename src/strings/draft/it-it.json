@@ -319,7 +319,6 @@
   "joinTitle": "Unisciti alla community Spixi",
   "jumpToMention": "Vai alla menzione",
   "keepContact": "Mantieni",
-  "keepOpen": "Tieni Spixi aperto finché il trasferimento non è completato",
   "keepWaiting": "Attendi",
   "kickBody": "Potrà essere invitato di nuovo più avanti.",
   "languageFailed": "Impossibile cambiare la lingua.",
@@ -958,5 +957,10 @@
   "momentAppBody": "Funziona dentro Spixi. Apri solo app di persone di cui ti fidi.",
   "momentPayTitle": "Prima di pagare",
   "momentPayBody": "I pagamenti non possono essere annullati. Controlla il contatto e l’importo nella schermata successiva. La piccola commissione di rete va alla rete Ixian, non a Spixi.",
-  "momentOpenSettings": "Apri Impostazioni"
+  "momentOpenSettings": "Apri Impostazioni",
+  "blindGroupNotice": "I membri non possono vedere l’identità degli altri. In questo gruppo non si possono inviare foto e file.",
+  "keepOpenSent": "Tieni Spixi aperto finché l’invio non è completato.",
+  "keepOpenReceived": "Arriva direttamente dal dispositivo del mittente. Tieni Spixi aperto.",
+  "momentAppInstallTitle": "Prima di installare {app}",
+  "devResetMomentsDone": "Reset sent. Restart the app."
 }

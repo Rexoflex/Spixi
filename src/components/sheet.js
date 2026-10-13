@@ -8,7 +8,7 @@
  *   escDismiss   — Esc closes (default: true; safe dismiss path, ARIA APG)
  *   blurDismiss  — desktop: a window blur (click in another pane) closes it (★ S8 #1235; quick menus only)
  *   strings.sheet — aria-label fallback when there is no title ('Menu')
- * openSheet(el) / closeSheet(el) free fns (#44).
+ * openSheet(el) / closeSheet(el[, { instant }]) free fns (#44; ★ S19 F2 instant = no exit slide).
  */
 import { getStrings } from './strings-runtime.js';
 import { openOverlay, dismissOverlay, setOverlayOpts, overlayId } from './overlay.js';
@@ -49,4 +49,4 @@ export function createSheet({
 }
 
 export function openSheet(el) { openOverlay(el); }
-export function closeSheet(el) { dismissOverlay(el); }
+export function closeSheet(el, opts) { dismissOverlay(el, opts); }   // ★ S19 F2: opts = { instant }

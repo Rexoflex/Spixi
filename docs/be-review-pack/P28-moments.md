@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | LOW (no moment writes a setting; the payment moment only DELAYS the review) | no (the native confirm is unchanged) | yes — 3 new pushes, 3 new verbs, 2 dev verbs (S18 D3: + `ixian:devmoments:reset`) | built behind flag `SpixiFlags.S17Moments` (default ON) | 6 min |
 
-**Look here first:** `Spixi/Utils/S17MomentRules.cs` — the grammar and the decision, pure (csh `S17MomentTests.cs`, 7 tests — S18 D3 +1: the decision log line). `Spixi/Meta/SMoments.cs` reads the inputs and stores what the rules decide.
+**Look here first:** `Spixi/Utils/S17MomentRules.cs` — the grammar and the decision, pure (csh `S17MomentTests.cs`, 10 tests — S18 D3 +1: the decision log line; S19 +2: the language per session, App details' own app; #46 S19 +1: the installed-differs unmark). `Spixi/Meta/SMoments.cs` reads the inputs and stores what the rules decide.
 
 **DECISIONS:** #1312 · #1340–#1345 (S17 F) · MOMENTS.md (Damir 17:12 / 17:36) · 20:37 full-bleed art · 20:42 text buttons
 
@@ -56,7 +56,7 @@
 - The first-IXI moment fires on the first wallet list that holds a received payment — an existing user with no backup gets it once after this update (its title says "first IXI").
 - The offline moment is a heuristic: no transfer tick 10 s after a manual accept while the peer is not shown online (the sender may hide its status).
 - Windows: the mic moment shows only for a packaged (MSIX) build — an unpackaged exe has no OS dialog. iOS / macOS: after a refusal the mic moment is consumed (the OS never asks again).
-- App details › Launch (`app_details.html`, AppDetailsPage) opens an app WITHOUT the app moment (that page is not a moment host); the next grid / invite open then shows it once.
+- ~~App details › Launch (`app_details.html`, AppDetailsPage) opens an app WITHOUT the app moment (that page is not a moment host); the next grid / invite open then shows it once.~~ ★ S19 F5: closed — App details hosts the app moment (Install + the first Open), see the S19 addendum.
 - A granted after-the-result moment is lost if the app dies between C#'s "yes" and the sheet (the ask waits for a clear screen, so the window is the answer latency).
 
 ## Question for BE
@@ -74,4 +74,19 @@ Why: the S17 walk (Android) showed no sheet for MO-LANG / MO-APP / MO-OFFLINE / 
 - `why` follows `decide()`'s own order: seen → consume (`why=ok`: the id's own check says it is never needed) → wait → session → card → ok. Proof: csh `S17MomentTests.AskLine_WhyMatchesDecide_FixedWordsOnly` (every id × eligibility × the three bits: refuse ⇔ a why other than ok; the line always matches the fixed shape; an id outside the set logs nothing). Pin `scripts/pins-s18/f-moments-dev.mjs`.
 - Files: `Spixi/Utils/S17MomentRules.cs` (`Why`, `why`, `decisionWord`, `askLine`, `DevResetVerb`, `DevResetLine`) · `Spixi/Meta/SMoments.cs` (`answerAsync` the line; `resetForDev`) · `Spixi/Pages/Dev/DevPage.xaml.cs` (the branch; the cap) · `src/shells/dev.html` (the row in the Release flags card).
 - Threat: a hostile host page can add `[MO] ask` lines only by sending asks, at most 100 per process or per dev reset (`MaxAskLines`; the reset needs a user tap in dev mode), so it cannot flood `ixian.log`; the reset is reachable only from DevPage in dev mode, and its worst case is every moment once more (more warning, never less). Gate rows: `docs/security-handover-gate.md` § Session 18 D3.
+- Question for BE: none.
+
+## S19 addendum (2026-10-12) — F4 language once per session · F5 the app moment at Install
+Why: the S18 walk (Android, Damir 21:21–21:45). MO-LANG: the first language pick showed the sheet, the next picks logged `refuse why=session` — the language moment took and obeyed the one-per-session rule like the others. MO-APP: Damir installs and opens from App details, which was not a moment host, so the app sheet never showed there.
+
+| Verb / push / log | Args (shape) | Who can send it | Handler | Ours / reshaped |
+|---|---|---|---|---|
+| `ixian:moment:lang:<xx-yy>` (unchanged verb) | as before | Settings | `SMoments.answerAsync` — eligibility `S17MomentRules.langEligible` (Settings, the code C# noted after `setLocale`, never English); seen = the in-memory `sessionLangs` (once per language per SESSION: the process, ≤ 6 h after the first language, or the dev reset); `moments.langs` is no longer written; lang is EXEMPT from the one-per-session + card rule and never takes the session (`exemptFromSession` / `takesSession`, like firstixi) | reshaped |
+| `ixian:moment:app:<id>` (unchanged verb) | `<id>` = the page's OWN app id only | + **App details** (`app_details.html` → AppDetailsPage) — before `ixian:install` and before the Open pill of an app never opened | `SpixiContentPage` host test + `SMoments.handleVerb` (`S17MomentRules.appDetailsAsk`: anything else from that page is refused silently, unlogged) → `answerAsync` (caps from the page's own app, `AppDetailsPage.momentApp`: the INSTALLED app first, else the fetched appinfo — #46 S19 MINOR-1; id re-checked); seen under the same id in `moments.apps` (the Apps tab does not ask again) | reshaped (one more host) |
+| push `setCaps "moments"` + `setMoments` | `seen: []`, `apps` = the stored list ∩ {its own app id}, `lang: ""` | C# → app_details.html after `init` (flag `S17Moments`) | `AppDetailsPage.onLoad` → `SMoments.pushTo` | ours (new host) |
+| string `momentAppInstallTitle` | "Before you install {app}" (the body is `momentAppBody`, the fill button the `install` label) | — | `app_details.html` passes it as the app moment's title on Install | ours (new) |
+
+- Threat: a hostile page cannot use the language exemption (only Settings is granted lang, only for the code C# noted itself). From App details only its own app's moment can be asked; the moment only DELAYS `ixian:install` / `ixian:startApp*` (the install path is unchanged). Residual (accepted): the fetched appinfo's id and caps are chosen by its server; the package installs under its own appinfo id with its own caps. ★ #46 S19 MINOR-1: when the installed app differs from the fetched appinfo (id or capability set, `S17MomentRules.installedDiffers`, csh), `SMoments.unmarkApp` takes that id out of `moments.apps` after the install, so the next open shows the package's REAL caps (more warning, never less); an installed app is always shown with its own caps (`momentApp` reads it first). What stays: until that next open the user saw the appinfo's caps, not the package's (a notice — it grants nothing).
+- Proof: csh `S17MomentTests.Lang_OncePerLanguagePerSession_ExemptAndNeverTakesTheSession`, `AppDetails_AsksOnlyItsOwnAppMoment`, `AppDetails_InstalledDiffers_UnmarksTheFetchedId` (#46 S19 MINOR-1), the re-based `AskLine_WhyMatchesDecide_FixedWordsOnly` (`lang` in a taken session = `grant why=ok`); pins `scripts/pins-s19/q-lang.mjs`, `q-app-install.mjs`. Gate rows: `docs/security-handover-gate.md` § Session 19 Q.
+- Files: `Spixi/Utils/S17MomentRules.cs` (`exemptFromSession`, `takesSession`, `langEligible`, `sessionExpired`, `SessionLangs`, `appDetailsAsk`, `installedDiffers`, `removeFromList`) · `Spixi/Meta/SMoments.cs` (`sessionLangs`; `pushJson` / `handleVerb` / `answerAsync` / `resetForDev` / `isSeen` / `markSeen` / `unmarkApp`) · `Spixi/Utils/SpixiContentPage.cs` (the host test) · `Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs` (`momentApp`; the cap + push in `onLoad`; the post-install compare in `onInstall`) · `src/shells/app_details.html`.
 - Question for BE: none.

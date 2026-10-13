@@ -1,0 +1,43 @@
+Session 19: the S18 walk fix round
+
+1369-1373 (S18 walk 26 P / 2 F; Damir 2026-10-12):
+
+- Chat pattern: after a Background change the first chat opened on
+  desktop showed no pattern (the claim re-read defaulted the never-
+  stored level to Off while the boot script painted On). The re-read
+  now defaults to On too.
+- Add contact: "Enter or paste" removes the sheet at once before the
+  form takes focus, so the keyboard no longer lifts a closing sheet
+  over the form (dismissOverlay / closeSheet { instant }).
+- Offline moment: C#'s immediate "0" echo after Accept no longer
+  counts as the transfer starting, so the 5 s sheet can show.
+- Language moment: once per language per session, held in memory;
+  it no longer takes or respects the one-moment session, and never
+  blocks the other moments. moments.langs is not written any more.
+- App moment before Install on app details: C# admits the details page
+  as a moment host for its own app only; the installed app's
+  capabilities win; the sheet replaces the install-confirm dialog when
+  it shows (one dialog); a URL package that declares other
+  capabilities than the fetched appinfo is asked again on first open.
+  New string momentAppInstallTitle.
+- Add app offline: a DNS / connection failure is the reason "network"
+  and shows the "Check your connection" text; the fetch catches log the
+  exception type only.
+- Apps grid tiles hover and press on the card pair.
+- Developer > Reset moment sheets: a toast and a 1 s quiet window.
+- The auto-download row flashes when the moment opens Privacy.
+- Dark chat canvases (option B): darker grounds, a darker and more
+  saturated received bubble per canvas, its quote step, the pattern
+  alpha x1.12; sender names, quotes, the voice disc and the received
+  file track re-derived; the composer pill stays neutral.
+- Blind groups: a notice card that photos and files cannot be sent.
+- Picker: the top-bar confirm is a labelled tonal pill (Next / Start).
+- Transfer line by direction (keepOpenSent / keepOpenReceived).
+- Albanian (sq-al, DRAFT_FIRST) has the five new keys in its draft.
+
+Pins: scripts/pins-s19 (13 modules). Re-based: the pattern-level,
+FetchFailure, #989 / #1029 / #1066 / S8 grounds, c-appearance, fix4,
+fixr4, g-grounds, e-pattern-desktop, i-chat-accent (pill per canvas,
+title >= 4.5), f-moments, f-moments-dev, pins-s4 chat / nav.
+CHAT_KB_CEIL 955 -> 957 (measured). CSH 436 -> 441.
+Smoke BASELINE OK 5914 / the 2 known (#136, B3).

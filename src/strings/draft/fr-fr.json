@@ -346,7 +346,6 @@
   "keepContact": "Garder le contact",
   "keepContactRequest": "Garder",
   "keepInvite": "Garder",
-  "keepOpen": "Gardez Spixi ouvert jusqu'à la fin du transfert",
   "keepRequest": "Garder",
   "keepWaiting": "Attendre",
   "kickBody": "Ils pourront être réinvités plus tard.",
@@ -1027,5 +1026,10 @@
   "momentAppBody": "Elle s’exécute dans Spixi. N’ouvrez que les apps de personnes de confiance.",
   "momentPayTitle": "Avant de payer",
   "momentPayBody": "Les paiements ne peuvent pas être annulés. Vérifiez le contact et le montant sur l’écran suivant. Les petits frais de réseau vont au réseau Ixian, pas à Spixi.",
-  "momentOpenSettings": "Ouvrir les réglages"
+  "momentOpenSettings": "Ouvrir les réglages",
+  "blindGroupNotice": "Les membres ne peuvent pas voir l’identité des autres. Les photos et les fichiers ne peuvent pas être envoyés dans ce groupe.",
+  "keepOpenSent": "Gardez Spixi ouvert jusqu’à la fin de l’envoi.",
+  "keepOpenReceived": "Arrive directement de l’appareil de l’expéditeur. Gardez Spixi ouvert.",
+  "momentAppInstallTitle": "Avant d’installer {app}",
+  "devResetMomentsDone": "Reset sent. Restart the app."
 }

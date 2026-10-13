@@ -1,0 +1,147 @@
+<title>Dark Received Bubbles</title>
+<style>
+:root {
+  --bg: #f3f5f7; --panel: #ffffff; --fg: #131415; --muted: #4f5664; --line: #dde2e9;
+  --ok: #007030; --bad: #b42318; --tag: rgba(48, 80, 189, .10); --accent: #3050bd;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0f1113; --panel: #1a1c1f; --fg: #e8ecee; --muted: #bbbec4; --line: #2a2d31; --ok: #69b67a; --bad: #ff8a80; --tag: rgba(118, 157, 255, .14); --accent: #98b5fc; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0f1113; --panel: #1a1c1f; --fg: #e8ecee; --muted: #bbbec4; --line: #2a2d31; --ok: #69b67a; --bad: #ff8a80; --tag: rgba(118, 157, 255, .14); --accent: #98b5fc; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.page { max-width: 1240px; margin: 0 auto; padding: 28px 16px 72px; }
+h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.2; letter-spacing: -.4px; }
+h2 { margin: 36px 0 12px; font-size: 21px; }
+p { max-width: 80ch; }
+.lede { color: var(--muted); }
+code { font-family: var(--mono); font-size: 13px; }
+.tablewrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: start; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+thead th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-inline-end: 6px; border: 1px solid var(--line); }
+.ok { color: var(--ok); } .bad { color: var(--bad); font-weight: 600; }
+.grid { display: grid; gap: 18px; }
+.grid.mobile { grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); }
+.grid.desktop { grid-template-columns: 1fr; }
+figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+figcaption { font-weight: 600; margin: 0 0 8px; }
+.ba { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ba > div { position: relative; min-width: 0; }
+.ba img { display: block; width: 100%; height: auto; border-radius: 8px; }
+.tag { position: absolute; top: 6px; inset-inline-start: 6px; background: var(--panel); color: var(--muted); font-size: 11.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.tag.new { color: var(--accent); }
+@media (max-width: 720px) { .grid.desktop .ba { grid-template-columns: 1fr; } }
+</style>
+<div class="page">
+<h1>Dark received bubbles, per canvas</h1>
+<p class="lede">S19 F10 (S18 walk). Built <code>chat.html</code>, dark theme, every canvas, mobile (390 px) and desktop (1000 px). Before = base 35ebb04c: one <code>#1E2023</code> bubble on every canvas. After = each dark canvas carries its own <code>--surface-bubble-received</code> (the canvas mid-colour + 12 % white); Aurora, Dusk and Ocean grounds are about 10 % darker and less saturated; the reply quote and the played voice-note disc follow the bubble one step darker; dark group sender names are lifted to hold 4.6 : 1 on every canvas bubble; the composer pill follows the bubble by reference. Light theme is unchanged.</p>
+
+<h2>Measured contrast</h2>
+<p class="lede">WCAG ratios. "vs stops" = the bubble against each gradient stop of its canvas (Aurora has three). ↓ = the bubble is darker than that part of the ground. Text = <code>#E8ECEE</code> on the bubble, meta = <code>#BBBEC4</code>. Pixels = the bubble against the patterned ground beside it, measured on the screenshot (median).</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Canvas</th><th>Old bubble</th><th>Old vs stops</th><th>New bubble</th><th>New vs stops</th><th>Text</th><th>Meta</th><th>Quote vs bubble</th><th>Pixels mobile</th><th>Pixels desktop</th></tr></thead>
+<tbody>
+<tr><th scope="row">Mist</th>
+<td><span class="sw" style="background:#1E2023"></span><code>#1E2023</code></td><td><span class="bad">1.18</span></td>
+<td><span class="sw" style="background:#292B2D"></span><code>#292B2D</code></td><td><span class="ok">1.36</span></td>
+<td>13.73 → <b>11.95</b></td><td>7.63</td>
+<td><code>#1B1C1E</code> 1.20</td>
+<td>1.18 → <b>1.36</b></td><td>1.18 → <b>1.36</b></td></tr>
+<tr><th scope="row">Iris</th>
+<td><span class="sw" style="background:#1E2023"></span><code>#1E2023</code></td><td><span class="bad">1.03</span> / <span class="bad">1.13</span></td>
+<td><span class="sw" style="background:#312F52"></span><code>#312F52</code></td><td><span class="ok">1.33</span> / <span class="ok">1.46</span></td>
+<td>13.73 → <b>10.65</b></td><td>6.80</td>
+<td><code>#23223B</code> 1.22</td>
+<td>1.12 → <b>1.44</b></td><td>1.10 → <b>1.42</b></td></tr>
+<tr><th scope="row">Spixi</th>
+<td><span class="sw" style="background:#1E2023"></span><code>#1E2023</code></td><td><span class="bad">1.06 ↓</span> / <span class="bad">1.11</span></td>
+<td><span class="sw" style="background:#2A3754"></span><code>#2A3754</code></td><td><span class="ok">1.31</span> / <span class="ok">1.53</span></td>
+<td>13.73 → <b>9.96</b></td><td>6.36</td>
+<td><code>#1E283C</code> 1.25</td>
+<td>1.08 → <b>1.49</b></td><td>1.06 → <b>1.46</b></td></tr>
+<tr><th scope="row">Meadow</th>
+<td><span class="sw" style="background:#1E2023"></span><code>#1E2023</code></td><td><span class="bad">1.09 ↓</span> / <span class="bad">1.10</span></td>
+<td><span class="sw" style="background:#2A3D38"></span><code>#2A3D38</code></td><td><span class="ok">1.30</span> / <span class="ok">1.55</span></td>
+<td>13.73 → <b>9.69</b></td><td>6.18</td>
+<td><code>#1E2C28</code> 1.26</td>
+<td>1.07 → <b>1.51</b></td><td>1.04 → <b>1.47</b></td></tr>
+<tr><th scope="row">Aurora</th>
+<td><span class="sw" style="background:#1E2023"></span><code>#1E2023</code></td><td><span class="bad">1.26 ↓</span> / <span class="bad">1.19 ↓</span> / <span class="bad">1.09 ↓</span></td>
+<td><span class="sw" style="background:#2E3C5E"></span><code>#2E3C5E</code></td><td><span class="ok">1.33</span> / <span class="ok">1.39</span> / <span class="ok">1.49</span></td>
+<td>13.73 → <b>9.18</b></td><td>5.86</td>
+<td><code>#212B44</code> 1.29</td>
+<td>1.12 → <b>1.46</b></td><td>1.15 → <b>1.42</b></td></tr>
+<tr><th scope="row">Dusk</th>
+<td><span class="sw" style="background:#1E2023"></span><code>#1E2023</code></td><td><span class="bad">1.13 ↓</span> / <span class="bad">1.08</span></td>
+<td><span class="sw" style="background:#3E3147"></span><code>#3E3147</code></td><td><span class="ok">1.31</span> / <span class="ok">1.52</span></td>
+<td>13.73 → <b>10.18</b></td><td>6.50</td>
+<td><code>#2D2333</code> 1.24</td>
+<td>1.05 → <b>1.49</b></td><td>1.03 → <b>1.46</b></td></tr>
+<tr><th scope="row">Ocean</th>
+<td><span class="sw" style="background:#1E2023"></span><code>#1E2023</code></td><td><span class="bad">1.34 ↓</span> / <span class="bad">1.03</span></td>
+<td><span class="sw" style="background:#263F50"></span><code>#263F50</code></td><td><span class="ok">1.25</span> / <span class="ok">1.61</span></td>
+<td>13.73 → <b>9.25</b></td><td>5.91</td>
+<td><code>#1B2D3A</code> 1.29</td>
+<td>1.03 → <b>1.54</b></td><td>1.06 → <b>1.50</b></td></tr>
+</tbody></table></div>
+
+<h2>Mobile</h2>
+<div class="grid mobile">
+<figure class="pair mobile"><figcaption>Mist</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-mobile-mist.png" alt="Mist, dark, mobile, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-mobile-mist.png" alt="Mist, dark, mobile, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair mobile"><figcaption>Iris</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-mobile-iris.png" alt="Iris, dark, mobile, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-mobile-iris.png" alt="Iris, dark, mobile, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair mobile"><figcaption>Spixi</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-mobile-spixi.png" alt="Spixi, dark, mobile, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-mobile-spixi.png" alt="Spixi, dark, mobile, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair mobile"><figcaption>Meadow</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-mobile-meadow.png" alt="Meadow, dark, mobile, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-mobile-meadow.png" alt="Meadow, dark, mobile, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair mobile"><figcaption>Aurora</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-mobile-aurora.png" alt="Aurora, dark, mobile, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-mobile-aurora.png" alt="Aurora, dark, mobile, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair mobile"><figcaption>Dusk</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-mobile-dusk.png" alt="Dusk, dark, mobile, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-mobile-dusk.png" alt="Dusk, dark, mobile, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair mobile"><figcaption>Ocean</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-mobile-ocean.png" alt="Ocean, dark, mobile, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-mobile-ocean.png" alt="Ocean, dark, mobile, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair mobile"><figcaption>Mist, pattern off</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-mobile-flat.png" alt="Mist, pattern off, dark, mobile, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-mobile-flat.png" alt="Mist, pattern off, dark, mobile, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+</div>
+
+<h2>Desktop</h2>
+<div class="grid desktop">
+<figure class="pair desktop"><figcaption>Mist</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-desktop-mist.png" alt="Mist, dark, desktop, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-desktop-mist.png" alt="Mist, dark, desktop, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair desktop"><figcaption>Iris</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-desktop-iris.png" alt="Iris, dark, desktop, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-desktop-iris.png" alt="Iris, dark, desktop, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair desktop"><figcaption>Spixi</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-desktop-spixi.png" alt="Spixi, dark, desktop, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-desktop-spixi.png" alt="Spixi, dark, desktop, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair desktop"><figcaption>Meadow</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-desktop-meadow.png" alt="Meadow, dark, desktop, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-desktop-meadow.png" alt="Meadow, dark, desktop, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair desktop"><figcaption>Aurora</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-desktop-aurora.png" alt="Aurora, dark, desktop, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-desktop-aurora.png" alt="Aurora, dark, desktop, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair desktop"><figcaption>Dusk</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-desktop-dusk.png" alt="Dusk, dark, desktop, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-desktop-dusk.png" alt="Dusk, dark, desktop, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair desktop"><figcaption>Ocean</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-desktop-ocean.png" alt="Ocean, dark, desktop, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-desktop-ocean.png" alt="Ocean, dark, desktop, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+<figure class="pair desktop"><figcaption>Mist, pattern off</figcaption><div class="ba">
+<div><span class="tag">before</span><img src="before-desktop-flat.png" alt="Mist, pattern off, dark, desktop, before: the #1E2023 received bubble" loading="lazy"></div>
+<div><span class="tag new">after</span><img src="after-desktop-flat.png" alt="Mist, pattern off, dark, desktop, after: the canvas's own received bubble" loading="lazy"></div></div></figure>
+</div>
+</div>

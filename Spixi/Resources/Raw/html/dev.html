@@ -782,6 +782,15 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
      base.css — see chatlist-item.css. State rules set background-COLOR only. */
 }
 .c-settings__row--static { cursor: default; }
+/* ★ S19 F9 (#1371): the row a moment sent the user to (openScreen('privacy') → the auto-download row) flashes once — the
+   wallet just-sent wash (wallet-shell.css c-wallet-txflash, #136): raw 2s sanctioned like that one (no token this long);
+   explicit reduced-motion escape per the same precedent. */
+@keyframes c-settings-rowflash {
+  0% { background-color: var(--surface-action-tonal-default); }
+  100% { background-color: transparent; }
+}
+.c-settings__row[data-flash] { animation: c-settings-rowflash 2s var(--easing-standard) both; }
+@media (prefers-reduced-motion: reduce) { .c-settings__row[data-flash] { animation: none; } }
 @media (hover: hover) and (pointer: fine) {
   .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-card-hover); }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 }
@@ -3055,6 +3064,62 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 
 </style><!-- caller avatar in the incoming-call overlay -->
+<style data-src="../styles/components/toast.css">
+/* c-toast — transient feedback, bottom-anchored above the bottom bar.
+   z-70 (above modals — feedback about the action just taken must be visible). */
+
+.c-toast {
+  position: absolute;
+  /* ★ S10 F5 (#1254): centred by symmetric insets + auto margins (not left 50% + translateX): a long text wraps inside
+     16 px gutters on a phone, and the card never runs off-screen on either side (RTL-symmetric) */
+  left: 16px;
+  right: 16px;
+  margin-inline: auto;
+  width: max-content;
+  /* #314: + the safe-area inset — the iOS bottom bar is 64px + env() tall
+     (bottomnav.css:12); without the env() term the toast's lower edge sat
+     BEHIND the nav on notched iPhones. env = 0 everywhere else (#282 grammar). */
+  bottom: calc(var(--layout-bar-bottom) + var(--safe-bottom, 0px) + var(--spacing-16));
+  transform: translateY(var(--spacing-8));
+  z-index: var(--z-70);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  max-width: min(100% - 32px, 400px);
+  box-sizing: border-box;
+  padding: var(--spacing-12) var(--spacing-16);
+  border-radius: var(--radius-16);
+  background: var(--surface-menu);
+  color: var(--text-neutral-01);
+  box-shadow: var(--elevation-3);
+  font-size: var(--font-size-body-md);
+  line-height: var(--line-height-body-md);
+  letter-spacing: var(--tracking-body-md);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--duration-200) var(--easing-standard),
+              transform var(--duration-200) var(--easing-standard);
+}
+.c-toast[data-open] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.c-toast svg { flex: none; }
+.c-toast[data-tone="info"] svg { color: var(--icon-accent); }
+.c-toast[data-tone="success"] svg { color: var(--icon-success); }
+.c-toast[data-tone="error"] svg { color: var(--icon-error); }
+
+.c-toast__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;   /* ★ S10 F5: 4 lines (a mediaError sentence was cut at 2) */
+  -webkit-box-orient: vertical;
+}
+
+</style><!-- ★ S19 F8 (#1371): the Reset moment sheets confirmation (showToast ran unstyled without it — the #314 lesson) -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
   /* Production shell: fill the WebView. dev.html is loaded by the C# DevPage
@@ -3115,6 +3180,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     createNativeBridge, installExecuteUiCommand,
     attachEdgeBack, dismissTopOverlay,   // ★ L3 (#706): the iOS back signal + the one-level chain
     applyPushedTheme,
+    showToast,   // ★ S19 F8 (#1371): the Reset moment sheets confirmation
     } = window.Spixi;
   const strings = window.SL || {};
 
@@ -3278,6 +3344,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
      row. A tap sends `ixian:devflash:<securepass|mediagate>:<1|0>`, optimistic; C# echoes. C# reads the flags once per
      start, so the card says a change acts after a restart. */
   let flagsDev = null;   // [securePassOn, mediaGateOn] once C# told us
+  const RESET_QUIET_MS = 1000;   // ★ S19 F8 (#1371): taps on Reset moment sheets inside this window after one are ignored
+  let lastResetAt = -1e9;
   function mountFlagsDev() {
     if (!flagsDev || !devEl) return;
     const body = devEl.querySelector('.c-settings__body');
@@ -3332,7 +3400,17 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       lab.className = 'c-settings__row-label';
       lab.textContent = strings.devResetMoments || 'Reset moment sheets';
       reset.append(lab);
-      reset.addEventListener('click', () => bridge.send('ixian:devmoments:reset'));
+      /* ★ S19 F8 (#1371, Damir tapped it 10× in 1.5 s — nothing said it worked): a short toast confirms, and taps for
+         RESET_QUIET_MS after one are ignored (no second verb, no second toast). The tap time lives on the module, so a
+         flags push that remounts the card does not re-open the window. */
+      reset.addEventListener('click', () => {
+        const now = Date.now();
+        if (now - lastResetAt < RESET_QUIET_MS) return;
+        lastResetAt = now;
+        bridge.send('ixian:devmoments:reset');
+        /* #46 S19 security N2: the toast says what happened HERE — the verb was SENT (C# acts after it); no success claim */
+        showToast({ text: strings.devResetMomentsDone || 'Reset sent. Restart the app.', tone: 'info' });
+      });
       card.append(reset);
     }
     const after = body.querySelector(':scope > .c-dev-container') || body.querySelector(':scope > .c-dev-flash')

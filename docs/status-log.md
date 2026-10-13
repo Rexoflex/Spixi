@@ -480,3 +480,8 @@ sheet A with the confirmed "Address" / "Spixi address" words (#1360, #1363), New
 (#1361), and the S17 walk fixes (#1366: desktop pattern ×0.8, the peer address card, the From chip, offline 5 s, the heart, ONE theme value,
 Tips → Notifications, the desktop About / Contributors header option B, the `[MO]` ask line + Developer › Reset moment sheets). Interview
 picks #1362. #46 r1 → r2 + security-only HIGH CLEAN. Smoke 5852 · CSH 436. Walk sheet `docs/walk-s18.md`. Next: S18 walk → privacy levels.
+
+### 2026-10-13 — Session 19 (#1369–#1373): the S18 walk fix round
+S18 walk recorded (#1369: 26 P · 2 F · 0 N/A; mechanisms from the Android + Windows logs and the recording). Picks #1370 (lang once per language per
+session · the app moment at Install · dark option B · blind notice · picker pill · transfer text). Built #1371 (F1–F13), #46 #1372 (security MINOR +
+5 MINOR fixed). Smoke 5914 / the 2 KNOWN (#136 · B3) · CSH 441. Walk sheet `docs/walk-s19.md`. A desktop-uplift session runs in parallel from the S19 commit (#1380+).

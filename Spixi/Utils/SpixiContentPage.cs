@@ -6460,9 +6460,10 @@ namespace SPIXI
             else if (url.StartsWith("ixian:moment:", StringComparison.Ordinal))
             {
                 /* ★ S17 F (#1340, 🟡 NEW verbs, P28, flag S17Moments): the Moment sheets' ask (`ixian:moment:<id>[:<arg>]`) and the
-                 * home card note (`ixian:moment:card`). Only the four pages that host a moment, never a mini-app WebView
-                 * (hasGeneratedContent); SMoments validates the exact grammar (S17MomentRules.parseAsk) before reading further. */
-                if (hasGeneratedContent && (this is HomePage || this is SingleChatPage || this is SettingsPage || this is ContactDetails))
+                 * home card note (`ixian:moment:card`). Only the pages that host a moment, never a mini-app WebView
+                 * (hasGeneratedContent); SMoments validates the exact grammar (S17MomentRules.parseAsk) before reading further.
+                 * ★ S19 F5 (MO-APP at Install): + App details — SMoments admits ONLY `app:<the page's own app id>` from it. */
+                if (hasGeneratedContent && (this is HomePage || this is SingleChatPage || this is SettingsPage || this is ContactDetails || this is AppDetailsPage))
                 {
                     SMoments.handleVerb(this, url);
                 }

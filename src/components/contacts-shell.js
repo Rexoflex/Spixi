@@ -422,8 +422,10 @@ function renderPickerChrome(st) {
       else if (st.opts.onBack) st.opts.onBack();
     },
     backLabel: strings.back || 'Back',
+    /* ★ S19 F12 (#1371): the confirm is the TONAL LABELLED PILL (topbar.js `text` action, the "Add app" precedent) —
+       "Next" (group) / "Start" (app invite) with the check glyph; syncNext keeps disabled + the count in the aria-label. */
     actions: multi
-      ? [{ icon: 'check', label: confirmLabel(st), onClick: () => pickerNext(st) }]
+      ? [{ icon: 'check', text: confirmLabel(st), label: confirmLabel(st), onClick: () => pickerNext(st) }]
       : [],
   });
   st.els.topbar.replaceWith(topbar);

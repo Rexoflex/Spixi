@@ -41,6 +41,8 @@
 <link rel="stylesheet" href="../styles/components/toast.css"><!-- copy-URL toast -->
 <link rel="stylesheet" href="../styles/components/apps-icon.css">
 <link rel="stylesheet" href="../styles/components/apps-details.css">
+<link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S19 F5: the app moment's art motion -->
+<link rel="stylesheet" href="../styles/components/moment-sheet.css"><!-- ★ S19 F5 (MO-APP at Install): the app moment before Install / the first Open -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
   /* Production shell: fill the WebView. app_details.html is loaded by the C#
@@ -127,6 +129,7 @@
     dismissTopOverlay,                   // ★ L3 (Session F): hardware back closes an open confirm first
     applyPushedTheme,
     copyText,                            // ★ #993: the shared copy with the file:// fallback
+    createMomentClient, momentBeforeAction,   // ★ S19 F5: the app moment before Install / the first Open
     } = window.Spixi;
   const strings = window.SL || {};
 
@@ -147,6 +150,11 @@
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+  /* ★ S19 F5 (MO-APP at Install, P28 · flag SpixiFlags.S17Moments, cap `moments`): the app moment on THIS page — BEFORE
+     `ixian:install` and before the Open pill of an app that was never opened. The SAME moment as the Apps tab (id `app`,
+     arg = this page's app id; C# accepts it from AppDetailsPage for this app only and marks it seen by that id, so the
+     Apps tab does not ask again). No cap / no state / no answer within ASK_WAIT_MS = the action goes on (today). */
+  const moments = createMomentClient({ bridge });
 
   const asBool = (v) => v === 'True' || v === 'true' || v === true;
   // Thread the icon path like the apps tab (home.html resolveIcon): normalize the
@@ -181,6 +189,23 @@
     if (!a || a.id == null || a.id === '') return;
     bridge.send('ixian:startAppMulti:' + a.id);
   }
+  /** ★ S19 F5: the app moment, then go(). Install = its own title ("Before you install {app}") and the Install label on the
+   *  fill button; the body is the app moment's (the trust line) with the app's capability rows. A quiet close = stop().
+   *  ★ #46 S19 M4: `otherwise` = what runs when NO sheet shows (Install: the component's install confirm). */
+  function appMoment(a, { install = false, go, stop = null, otherwise = null }) {
+    if (!a || a.id == null || a.id === '') { if (otherwise) otherwise(); else if (stop) stop(); return; }
+    const s = install
+      ? Object.assign({}, strings, {
+        momentAppTitle: strings.momentAppInstallTitle || 'Before you install {app}',
+        open: strings.install || 'Install',
+      })
+      : strings;
+    momentBeforeAction(moments, {
+      id: 'app', arg: String(a.id), host: document.body, strings: s,
+      ctxFor: (caps) => ({ app: a.name || '', caps }),
+      go, stop, otherwise,
+    });
+  }
 
   function buildTopbar() {
     // back-only bar — the app name lives in the details hero right below (Damir).
@@ -196,10 +221,15 @@
       app, strings, host: document.body,
 
       // launch (Open pill on installed apps, or related tiles → their details)
-      onLaunch: (a) => launch(a),
-      onLaunchMulti: (a) => launchMulti(a),      // A9 (#302): dual-capability apps only
+      // ★ S19 F5: the app moment first (asked only while this app was never opened; then straight on)
+      onLaunch: (a) => appMoment(a, { go: () => launch(a) }),
+      onLaunchMulti: (a) => appMoment(a, { go: () => launchMulti(a) }),   // A9 (#302): dual-capability apps only
       onOpen: () => {},                          // no related-app data over this bridge → no-op
 
+      // ★ S19 F5 + #46 S19 M4: ONE question before ixian:install — the app moment, asked FIRST, REPLACES the install
+      // confirm when it shows (its Install = the install; Cancel / back / scrim = nothing); when it does not show (seen,
+      // refused, no cap, no answer within ASK_WAIT_MS) the component's install confirm runs as before
+      beforeInstall: (a, { install, confirm }) => appMoment(a, { install: true, go: install, stop: null, otherwise: confirm }),
       // install — fire the intent, stash the ctrl; C#'s showInstall* resolves it.
       onInstall: (a, ctrl) => { pendingInstallCtrl = ctrl; bridge.send('ixian:install'); },
       // after the success morph the component calls onInstalled → re-render as installed
@@ -282,6 +312,20 @@
     showAppRemoved() {
       showAppRemovedModal({ host: document.body, strings });
       if (app) { app.installed = false; render(); }
+    },
+
+    /* ★ S19 F5 (🟡 P28 · flag S17Moments): the capability list (AppDetailsPage pushes "moments" after init), the moment
+       state (only THIS app's id can be in `apps`; no other id, no language) and C#'s answer to ixian:moment:app:<id> */
+    setCaps(list) {
+      String(list || '').split(',').forEach((c) => { c = c.trim(); if (c) bridge.capabilities[c] = true; });
+    },
+    setMoments(json) {
+      if (!bridge.cap('moments')) return;
+      moments.setState(String(json));
+    },
+    momentAnswer(id, arg, ok, caps) {
+      if (!bridge.cap('moments')) return;
+      moments.answer(String(id), String(arg == null ? '' : arg), String(ok), String(caps == null ? '' : caps));
     },
   };
 

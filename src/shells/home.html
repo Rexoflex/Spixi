@@ -3395,7 +3395,7 @@
   const APP_FETCH_GRACE_MS = 20000;   // > C#'s 15 s HttpClient ceiling — the no-signal belt only
   function appFetchErrorText(reason) {
     const r = String(reason || '');
-    if (r === 'timeout') return strings.appFetchTimeout || 'The link did not respond. Check your connection and try again.';
+    if (r === 'timeout' || r === 'network') return strings.appFetchTimeout || 'The link did not respond. Check your connection and try again.';   // ★ S19 F6: `network` = no answer at all (DNS / connection)
     if (r === 'http') return strings.appFetchHttp || 'The app could not be downloaded from that link.';
     if (r === 'size') return strings.appFetchTooLarge || 'That app package is too large.';
     return strings.appUrlInvalid || 'That link or file isn’t a valid mini app.';

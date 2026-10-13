@@ -1608,6 +1608,250 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 
 </style>
+<style data-src="../styles/components/illo.css">
+/* illo — ★ S11 B (#1262): motion for the inline illustration set (illustrations.js).
+   ONE entrance, then the frame holds (every animation runs once, fill both; nothing
+   loops). Reduced motion = static. Colours are tokens (--il-* / --rn-*, tokens.css);
+   per-element dials are inline custom properties in the art (--o delay, --i stagger…). */
+
+.il { display: block; overflow: visible; }
+/* ★ S11 A2 (#1263): the ground shadow's token rides CSS (a var() in the SVG attribute is not reliably resolved) */
+.il-ground { opacity: var(--il-ground-a); }
+.il-ring { animation: ilRing 1.1s cubic-bezier(.2,.7,.3,1) both; transform-box: fill-box; transform-origin: center; }
+.il-fade { animation: ilFade .9s ease-out var(--o,0s) both; }
+.il-pop { animation: ilPop .7s cubic-bezier(.3,1.35,.5,1) var(--o,0s) both; transform-box: fill-box; transform-origin: var(--to,50% 100%); }
+.il-in { animation: ilIn .8s cubic-bezier(.2,.8,.3,1) var(--o,0s) both; }
+.il-drop { animation: ilDrop .9s cubic-bezier(.35,1.25,.55,1) var(--o,0s) both; }
+.il-fly { animation: ilFly 1.1s cubic-bezier(.3,.9,.35,1) var(--o,0s) both; }
+.il-grow { animation: ilGrow .7s cubic-bezier(.3,.8,.3,1) var(--o,0s) both; transform-box: fill-box; transform-origin: center; }
+.il-draw { stroke-dasharray: var(--len) var(--len); animation: ilDraw 1s cubic-bezier(.4,0,.2,1) var(--o,0s) both; }
+.il-tw { animation: ilTw 1.6s ease-in-out calc(var(--o,1s) + var(--i) * .25s) both; transform-box: fill-box; transform-origin: center; }
+.il-dot { animation: ilDot 1.1s ease-in-out calc(var(--i) * .16s + 1.2s) 3 both; }
+.il-scan { animation: ilScan 2.2s ease-in-out var(--o,1s) both; }
+.il-glowin { animation: ilGlowIn 1.6s ease-out var(--o,0s) both; }
+.il-float { animation: ilFloat 4.6s cubic-bezier(.45,0,.55,1) calc(var(--d,0s) * -.25) both; }
+.il-rise { animation: ilRise .8s cubic-bezier(.3,1.2,.5,1) calc(var(--o,0s) + .15s) both; }
+@keyframes ilRing { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+@keyframes ilFade { from { opacity: 0; } }
+@keyframes ilPop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes ilIn { from { opacity: 0; transform: translate(var(--fx,0),var(--fy,8px)); } to { opacity: 1; transform: none; } }
+@keyframes ilDrop { 0% { opacity: 0; transform: translateY(var(--dy,-34px)); } 40% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ilFly { 0% { opacity: 0; transform: translate(var(--fx),var(--fy)) scale(.5); } 30% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ilGrow { from { opacity: 0; transform: scaleX(.1); } to { opacity: 1; transform: none; } }
+@keyframes ilDraw { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+@keyframes ilTw { 0% { opacity: 0; transform: scale(.3); } 55% { opacity: 1; transform: scale(1.2); } 100% { opacity: .9; transform: none; } }
+@keyframes ilDot { 0%, 100% { opacity: .45; } 40% { opacity: 1; } }
+@keyframes ilScan { 0% { opacity: 0; transform: translateY(calc(var(--sy) * -1)); } 15% { opacity: 1; } 55% { transform: translateY(var(--sy)); } 100% { opacity: .8; transform: none; } }
+@keyframes ilGlowIn { 0% { opacity: 0; } 60% { opacity: 1; } 100% { opacity: .85; } }
+@keyframes ilFloat { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+@keyframes ilRise { from { opacity: 0; transform: translateY(22px) scale(.92); } to { opacity: 1; transform: none; } }
+
+/* the rating art (version D "Phone", rn-once): bubbles pop in, a heart lands, hearts rise
+   beside the phone — ONCE (the design file looped the idle motions twice; "plays once and
+   holds" wins), then the frame holds. */
+.rn-illo { display: block; width: 100%; height: auto; margin-inline: auto; overflow: visible; }
+.rn-once .rn-pop { animation: rnPopIn .5s cubic-bezier(.3,.7,.4,1) calc(var(--o) + .3s) both; transform-box: fill-box; transform-origin: left bottom; }
+.rn-once .rn-rise { animation: rnRise 5.2s cubic-bezier(.3,0,.5,1) var(--o) both; }
+.rn-once .rn-float { animation: rnFloat 5.2s cubic-bezier(.45,0,.55,1) var(--d) both; }
+.rn-once .rn-beat { animation: rnBeat 2.8s cubic-bezier(.45,0,.55,1) both; transform-box: fill-box; transform-origin: 50% 60%; }
+.rn-once .rn-spin { animation: rnSpin 7s cubic-bezier(.45,0,.55,1) both; transform-box: fill-box; transform-origin: center; }
+.rn-once .rn-tw { animation: rnTw 3.2s ease-in-out calc(var(--i) * .8s) both; transform-box: fill-box; transform-origin: center; }
+@keyframes rnPopIn { from { opacity: 0; transform: translateY(6px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes rnRise { 0% { opacity: 0; transform: translate(0,0) scale(.7); } 15% { opacity: 1; } 70% { opacity: .9; } 100% { opacity: 0; transform: translate(var(--x),-84px) scale(1); } }
+@keyframes rnFloat { 0%, 100% { transform: none; } 50% { transform: translateY(-4px); } }
+@keyframes rnBeat { 0%, 20%, 42%, 100% { transform: none; } 10% { transform: scale(1.07); } 30% { transform: scale(1.05); } }
+@keyframes rnSpin { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(8deg) scale(1.04); } }
+@keyframes rnTw { 0%, 100% { opacity: .2; transform: scale(.55); } 50% { opacity: .9; transform: none; } }
+
+/* ★ S11 A2 (#1263, R2-m2): one entrance per lifetime — once held (illustrations.js), a restart begins 60 s in the
+   past, so the `both` fill paints the END frame (animation:none would show the base styles, not the end frames) */
+.il[data-held] *, .rn-illo[data-held] * { animation-delay: -60s !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .il *, .rn-illo * { animation: none !important; }
+  .rn-rise, .rn-pop { opacity: .9; }
+}
+
+/* ═══ ★ S17 (#1331) — motion for the S17 art (What's new scenes wn-, About glass ab-, the calm chest ch-, the
+   Moment drawings mo-, the Contributors heart ct-). Ported from the design render (docs/renders/whats-new). ═══ */
+
+/* ---------- roots ---------- */
+/* a layer fills its panel (bg under fg, both absolute); the slice roots clip, the What's new foreground may overhang */
+.il.wn-l, .il.ab-l, .il.ct-l { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.il.wn-l--bg, .il.ab-l, .il.ct-l, .il.mo-art { overflow: hidden; }
+.il.wn-l--fg { overflow: visible; }
+.wn-glow { opacity: var(--wn-glow-a, .06); }                              /* the scene glow: 6 % light · 10 % dark */
+
+/* ---------- ENTRANCES (once, then hold) ---------- */
+.il-wn-pulse { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ilWnPulse 2.4s ease-out var(--o, 0s) 3 both; }
+.il-wn-nudge { animation: ilWnNudge 1.2s cubic-bezier(.3, .7, .3, 1) var(--o, .2s) both; }
+.il-wn-off { animation: ilWnOff .35s ease var(--o, 0s) both; }
+.il-wn-knob { animation: ilWnKnob .45s cubic-bezier(.3, 1.3, .5, 1) var(--o, 0s) both; }
+.il-wn-dim { animation: ilWnDim .6s ease var(--o, 0s) both; }
+.il-wn-tap { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ilWnTap .8s ease-out var(--o, 0s) both; }
+.il-ch-in { animation: ilChIn .7s cubic-bezier(.2, .7, .2, 1) var(--o, 0s) both; }
+.il-ch-lid { transform-box: fill-box; transform-origin: 50% 100%; animation: ilChLid 1s cubic-bezier(.25, .8, .25, 1) .35s both; }
+.il-ch-rise { animation: ilChRise .9s cubic-bezier(.2, .7, .2, 1) var(--o, 0s) both; }
+.il-mo-in { animation: ilMoIn .7s cubic-bezier(.2, .75, .2, 1) calc(var(--o, 0s) + .25s) both; }
+.il-mo-ring { stroke-dashoffset: 100; animation: ilMoRing 1.6s cubic-bezier(.4, 0, .2, 1) .9s both; }
+@keyframes ilWnPulse { from { transform: scale(1); opacity: .8; } to { transform: scale(2.2); opacity: 0; } }
+@keyframes ilWnNudge { 0% { transform: translateX(-10px); opacity: 0; } 22% { opacity: 1; transform: none; } 55% { transform: translateX(20px); } 100% { transform: none; } }
+@keyframes ilWnOff { to { opacity: 0; } }
+@keyframes ilWnKnob { to { transform: translateX(-24px); } }
+@keyframes ilWnDim { to { opacity: .6; } }
+@keyframes ilWnTap { 0% { transform: scale(.4); opacity: 0; } 30% { opacity: .6; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes ilChIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ilChLid { from { transform: scaleY(.3); } to { transform: none; } }
+@keyframes ilChRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes ilMoIn { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+@keyframes ilMoRing { to { stroke-dashoffset: 0; } }
+
+/* the end frame once held (illo.css's `.il[data-held] *` already does this; listed so the s17 set states it itself) */
+.il[data-held] .il-wn-pulse, .il[data-held] .il-wn-nudge, .il[data-held] .il-wn-off, .il[data-held] .il-wn-knob,
+.il[data-held] .il-wn-dim, .il[data-held] .il-wn-tap, .il[data-held] .il-ch-in, .il[data-held] .il-ch-lid,
+.il[data-held] .il-ch-rise, .il[data-held] .il-mo-in, .il[data-held] .il-mo-ring { animation-delay: -60s !important; }
+
+/* ---------- LOOPS (.wn-loop; ≤ 0.5 Hz; transform / opacity only; delay in --ld) ---------- */
+.wn-drift { --ld: 0s; animation: wnDrift var(--d, 16s) ease-in-out var(--ld) infinite alternate; }
+.wn-tw { --ld: calc(var(--i, 0) * -.7s); animation: wnTw 3.6s ease-in-out var(--ld) infinite alternate; }
+.wn-rise { --ld: 0s; animation: wnRise var(--d, 12s) ease-in-out var(--ld) infinite alternate; }
+.wn-bar { --ld: calc(var(--i, 0) * -.17s); transform-box: fill-box; transform-origin: center; animation: wnBar 2.6s ease-in-out var(--ld) infinite alternate; }
+.wn-pan { --ld: 0s; animation: wnPan 28s ease-in-out var(--ld) infinite alternate; }
+.wn-ripple { --ld: var(--o, 0s); transform-box: fill-box; transform-origin: center; animation: wnRipple 6s ease-out var(--ld) infinite; }
+.wn-orbit { --ld: 0s; transform-box: view-box; transform-origin: 200px 120px; animation: wnOrbit 90s linear var(--ld) infinite; }
+.wn-orbit--rev { animation-duration: 70s; animation-direction: reverse; }
+.wn-bob { --ld: var(--bd, 1.6s); animation: wnBob var(--d, 5s) ease-in-out var(--ld) infinite alternate; }
+.ch-float { --ld: 2.2s; animation: chFloat var(--d, 7s) ease-in-out var(--ld) infinite alternate; }
+.mo-float { --ld: 1.2s; animation: moFloat var(--d, 14s) ease-in-out var(--ld) infinite alternate; }
+.mo-tw { --ld: calc(var(--i, 0) * -.7s); animation: moTw 3.2s ease-in-out var(--ld) infinite alternate; }
+.ct-tw { --ld: calc(var(--i, 0) * -.6s); animation: ctTw 3.4s ease-in-out var(--ld) infinite alternate; }
+@keyframes wnDrift { to { transform: translate(var(--dx), var(--dy)); } }
+@keyframes wnTw { from { opacity: .12; } to { opacity: .9; } }
+@keyframes wnRise { to { transform: translateY(-34px); } }
+@keyframes wnBar { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+@keyframes wnPan { to { transform: translate(-64px, -40px); } }
+@keyframes wnRipple { from { transform: scale(.6); opacity: .55; } to { transform: scale(5); opacity: 0; } }
+@keyframes wnOrbit { to { transform: rotate(360deg); } }
+@keyframes wnBob { to { transform: translateY(-5px); } }
+@keyframes chFloat { to { transform: translateY(-3px); } }
+/* ★ S18 D1 (walk DC-SCREEN-A): the Contributors heart rides the SHARED .wn-bob — a .ct-l-only loop, 2× travel, same tempo (pins-s18/e-heart) */
+.il.ct-l .wn-bob { animation-name: ctBob; }
+@keyframes ctBob { to { transform: translateY(-10px); } }
+@keyframes moFloat { to { transform: translateY(var(--dy, 4px)); } }
+@keyframes moTw { from { opacity: .25; } to { opacity: 1; } }
+@keyframes ctTw { from { opacity: .2; } to { opacity: .95; } }
+
+/* a held drawing: loops keep their own delay (no jump); paused on demand */
+.il[data-held] .wn-loop { animation-delay: var(--ld, 0s) !important; }
+.wn-paused .wn-loop, .il[data-paused] .wn-loop { animation-play-state: paused; }
+
+/* ---------- reduced motion: the END frame, no loop ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .il .wn-loop { animation: none !important; }
+  .il .il-wn-off { opacity: 0; }
+  .il .il-wn-knob { transform: translateX(-24px); }
+  .il .il-wn-dim { opacity: .6; }
+  .il .il-mo-ring { stroke-dashoffset: 0; }
+  /* il-wn-pulse · il-wn-tap: their base opacity 0 is the end frame */
+}
+
+</style><!-- ★ S19 F5: the app moment's art motion -->
+<style data-src="../styles/components/moment-sheet.css">
+/* ★ S17 F (#1340) — c-moment: the Moment sheets (moment-sheet.js). A port of the render's .sheet / .panel / .caps rules
+   (docs/renders/whats-new/parts-j/mo.css) on today's c-sheet, with Damir's 20:37 change: the art is FULL-BLEED at the
+   top of the sheet — the sheet's own top corners clip it and the grab handle sits white on the art. The art ground =
+   the What's new panel (--wn-ground-a → -b, tokens.css); the drawings' motion lives in illo.css. Semantic tokens;
+   logical properties (RTL-safe). */
+
+.c-sheet.c-moment__sheet { padding-top: 0; }
+:root[data-desktop] .c-sheet.c-moment__sheet { padding-top: 0; }
+/* the grab handle on the art: white, over it (the sheet's own handle, moved) */
+.c-moment__sheet > .c-sheet__handle {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: var(--spacing-8);
+  inset-inline-start: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, .72);   /* sanctioned: the handle on the vivid art (the What's new × grammar) */
+}
+[dir="rtl"] .c-moment__sheet > .c-sheet__handle { transform: translateX(50%); }
+
+.c-moment {
+  --mo-art-h: 164px;                       /* sanctioned: the render's 150 px panel at full bleed (360 × 150 art, slice) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.c-moment[data-caps] { --mo-art-h: 128px; }   /* the render's shorter panel when the capability rows follow */
+
+/* full bleed: out to the sheet's edges (mobile 16 px sides, desktop dialog 24 px) */
+.c-moment__art {
+  position: relative;
+  align-self: stretch;
+  height: var(--mo-art-h);
+  margin-inline: calc(-1 * var(--spacing-16));
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--wn-ground-a), var(--wn-ground-b));
+}
+:root[data-desktop] .c-moment__art { margin-inline: calc(-1 * var(--spacing-24)); }
+:root[data-theme="dark"] .c-moment__art { box-shadow: 0 1px 0 rgba(255, 255, 255, .1); }   /* sanctioned: the art / text split, dark (the What's new rule) */
+.c-moment__illo { display: block; width: 100%; height: 100%; }
+
+.c-moment__title {
+  margin: var(--spacing-16) 0 6px;
+  color: var(--text-neutral-01);
+  font-size: 21px;                         /* sanctioned: the render's sheet title */
+  line-height: 1.25;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -.2px;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.c-moment[data-caps] .c-moment__title { margin-block-start: var(--spacing-12); }
+.c-moment__body {
+  margin: 0 0 18px;                        /* sanctioned: the render's body foot */
+  max-width: 290px;
+  color: var(--text-neutral-02);
+  font-size: 15px;                         /* sanctioned: the render's body size */
+  line-height: 1.45;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.c-moment__btns { align-self: stretch; display: flex; flex-direction: column; gap: var(--spacing-8); }
+.c-moment__btns .c-button[data-type="text"] { margin-block-start: -4px; }
+.c-moment__btns .c-button[data-size="56"] { height: auto; min-height: 56px; white-space: normal; line-height: 1.25; padding-block: var(--spacing-8); }
+
+/* the app moment: the app's own capability rows (the details page's vocabulary) */
+.c-moment__caps {
+  align-self: stretch;
+  margin: var(--spacing-4) 0 var(--spacing-12);
+  padding: 0;
+  list-style: none;
+  background: var(--surface-sheet-card);
+  border-radius: 18px;                     /* sanctioned: the render's card radius */
+  text-align: start;
+}
+.c-moment__cap { display: flex; gap: var(--spacing-12); align-items: center; padding: var(--spacing-8) 14px; }
+.c-moment__cap + .c-moment__cap { border-block-start: 1px solid var(--outline-sheet-01); }
+.c-moment__cap-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;                             /* sanctioned: the white glyph on the render's blue tile */
+  background: linear-gradient(160deg, #8fb0ff, #3a6ce0);   /* sanctioned: the render's capability tile */
+}
+.c-moment__cap-tile svg { width: 18px; height: 18px; }
+.c-moment__cap-tile svg [stroke] { stroke: currentColor; }
+.c-moment__cap-text { display: flex; flex-direction: column; min-width: 0; }
+.c-moment__cap-text b { font-size: 14.5px; color: var(--text-neutral-01); }   /* sanctioned: the render's row label */
+.c-moment__cap-text small { font-size: 12.5px; line-height: 1.35; color: var(--text-neutral-02); }   /* sanctioned: the render's row line */
+
+</style><!-- ★ S19 F5 (MO-APP at Install): the app moment before Install / the first Open -->
 <!-- Q4-③ (#270): call CSS removed — calls present on the native CallPage -->
 <style>
   /* Production shell: fill the WebView. app_details.html is loaded by the C#
@@ -1695,6 +1939,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     dismissTopOverlay,                   // ★ L3 (Session F): hardware back closes an open confirm first
     applyPushedTheme,
     copyText,                            // ★ #993: the shared copy with the file:// fallback
+    createMomentClient, momentBeforeAction,   // ★ S19 F5: the app moment before Install / the first Open
     } = window.Spixi;
   const strings = window.SL || {};
 
@@ -1715,6 +1960,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   /* —— bridge transport ———————————————————————————————————————————————————— */
   const bridge = createNativeBridge();          // default sink: location.href = 'ixian:…'
   installExecuteUiCommand();                     // defines window.executeUiCommand for C#
+  /* ★ S19 F5 (MO-APP at Install, P28 · flag SpixiFlags.S17Moments, cap `moments`): the app moment on THIS page — BEFORE
+     `ixian:install` and before the Open pill of an app that was never opened. The SAME moment as the Apps tab (id `app`,
+     arg = this page's app id; C# accepts it from AppDetailsPage for this app only and marks it seen by that id, so the
+     Apps tab does not ask again). No cap / no state / no answer within ASK_WAIT_MS = the action goes on (today). */
+  const moments = createMomentClient({ bridge });
 
   const asBool = (v) => v === 'True' || v === 'true' || v === true;
   // Thread the icon path like the apps tab (home.html resolveIcon): normalize the
@@ -1749,6 +1999,23 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     if (!a || a.id == null || a.id === '') return;
     bridge.send('ixian:startAppMulti:' + a.id);
   }
+  /** ★ S19 F5: the app moment, then go(). Install = its own title ("Before you install {app}") and the Install label on the
+   *  fill button; the body is the app moment's (the trust line) with the app's capability rows. A quiet close = stop().
+   *  ★ #46 S19 M4: `otherwise` = what runs when NO sheet shows (Install: the component's install confirm). */
+  function appMoment(a, { install = false, go, stop = null, otherwise = null }) {
+    if (!a || a.id == null || a.id === '') { if (otherwise) otherwise(); else if (stop) stop(); return; }
+    const s = install
+      ? Object.assign({}, strings, {
+        momentAppTitle: strings.momentAppInstallTitle || 'Before you install {app}',
+        open: strings.install || 'Install',
+      })
+      : strings;
+    momentBeforeAction(moments, {
+      id: 'app', arg: String(a.id), host: document.body, strings: s,
+      ctxFor: (caps) => ({ app: a.name || '', caps }),
+      go, stop, otherwise,
+    });
+  }
 
   function buildTopbar() {
     // back-only bar — the app name lives in the details hero right below (Damir).
@@ -1764,10 +2031,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       app, strings, host: document.body,
 
       // launch (Open pill on installed apps, or related tiles → their details)
-      onLaunch: (a) => launch(a),
-      onLaunchMulti: (a) => launchMulti(a),      // A9 (#302): dual-capability apps only
+      // ★ S19 F5: the app moment first (asked only while this app was never opened; then straight on)
+      onLaunch: (a) => appMoment(a, { go: () => launch(a) }),
+      onLaunchMulti: (a) => appMoment(a, { go: () => launchMulti(a) }),   // A9 (#302): dual-capability apps only
       onOpen: () => {},                          // no related-app data over this bridge → no-op
 
+      // ★ S19 F5 + #46 S19 M4: ONE question before ixian:install — the app moment, asked FIRST, REPLACES the install
+      // confirm when it shows (its Install = the install; Cancel / back / scrim = nothing); when it does not show (seen,
+      // refused, no cap, no answer within ASK_WAIT_MS) the component's install confirm runs as before
+      beforeInstall: (a, { install, confirm }) => appMoment(a, { install: true, go: install, stop: null, otherwise: confirm }),
       // install — fire the intent, stash the ctrl; C#'s showInstall* resolves it.
       onInstall: (a, ctrl) => { pendingInstallCtrl = ctrl; bridge.send('ixian:install'); },
       // after the success morph the component calls onInstalled → re-render as installed
@@ -1850,6 +2122,20 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     showAppRemoved() {
       showAppRemovedModal({ host: document.body, strings });
       if (app) { app.installed = false; render(); }
+    },
+
+    /* ★ S19 F5 (🟡 P28 · flag S17Moments): the capability list (AppDetailsPage pushes "moments" after init), the moment
+       state (only THIS app's id can be in `apps`; no other id, no language) and C#'s answer to ixian:moment:app:<id> */
+    setCaps(list) {
+      String(list || '').split(',').forEach((c) => { c = c.trim(); if (c) bridge.capabilities[c] = true; });
+    },
+    setMoments(json) {
+      if (!bridge.cap('moments')) return;
+      moments.setState(String(json));
+    },
+    momentAnswer(id, arg, ok, caps) {
+      if (!bridge.cap('moments')) return;
+      moments.answer(String(id), String(arg == null ? '' : arg), String(ok), String(caps == null ? '' : caps));
     },
   };
 

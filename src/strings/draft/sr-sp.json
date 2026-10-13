@@ -346,7 +346,6 @@
   "keepContact": "Zadrži kontakt",
   "keepContactRequest": "Zadrži",
   "keepInvite": "Zadrži",
-  "keepOpen": "Držite Spixi otvoren dok se prenos ne završi",
   "keepRequest": "Zadrži",
   "keepWaiting": "Nastavi da čekaš",
   "kickBody": "Mogu biti ponovo pozvani kasnije.",
@@ -1027,5 +1026,10 @@
   "momentAppBody": "Radi unutar aplikacije Spixi. Otvarajte samo aplikacije od ljudi kojima verujete.",
   "momentPayTitle": "Pre plaćanja",
   "momentPayBody": "Plaćanja se ne mogu poništiti. Proverite kontakt i iznos na sledećem ekranu. Mala mrežna naknada ide mreži Ixian, ne aplikaciji Spixi.",
-  "momentOpenSettings": "Otvori podešavanja"
+  "momentOpenSettings": "Otvori podešavanja",
+  "blindGroupNotice": "Članovi ne mogu da vide identitet jedni drugih. U ovoj grupi nije moguće slati fotografije i datoteke.",
+  "keepOpenSent": "Držite Spixi otvoren dok se slanje ne završi.",
+  "keepOpenReceived": "Stiže direktno sa uređaja pošiljaoca. Držite Spixi otvoren.",
+  "momentAppInstallTitle": "Pre nego što instalirate {app}",
+  "devResetMomentsDone": "Reset sent. Restart the app."
 }

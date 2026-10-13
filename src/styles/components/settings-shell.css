@@ -253,6 +253,15 @@
      base.css — see chatlist-item.css. State rules set background-COLOR only. */
 }
 .c-settings__row--static { cursor: default; }
+/* ★ S19 F9 (#1371): the row a moment sent the user to (openScreen('privacy') → the auto-download row) flashes once — the
+   wallet just-sent wash (wallet-shell.css c-wallet-txflash, #136): raw 2s sanctioned like that one (no token this long);
+   explicit reduced-motion escape per the same precedent. */
+@keyframes c-settings-rowflash {
+  0% { background-color: var(--surface-action-tonal-default); }
+  100% { background-color: transparent; }
+}
+.c-settings__row[data-flash] { animation: c-settings-rowflash 2s var(--easing-standard) both; }
+@media (prefers-reduced-motion: reduce) { .c-settings__row[data-flash] { animation: none; } }
 @media (hover: hover) and (pointer: fine) {
   .c-settings__row:not(.c-settings__row--static):hover { background-color: var(--surface-card-hover); }   /* ★ Session Z (#882 (a)): this row sits ON a --surface-card, and --surface-interactive-hover IS the card's colour (light 50 on 50, dark 800 on 800) — no hover at all. The card pair is one visible step (#878). */
 }

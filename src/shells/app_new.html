@@ -203,12 +203,12 @@
       setAddUrl(addEl, url || '');
     },
     // fetch / file-pick / invalid-package failure → clear loading + inline error.
-    // ★ A4 (Session AD): the REASON rides the push (url · http · size · timeout · invalid · error)
+    // ★ A4 (Session AD): the REASON rides the push (url · http · size · timeout · invalid · error · ★ S19 F6: network)
     showUrlError(reason) {
       clearTimeout(fetchGrace);
       const r = String(reason || '');
       if (getBtn) setLoading(getBtn, false);
-      if (r === 'timeout') { setAddError(addEl, strings.appFetchTimeout || 'The link did not respond. Check your connection and try again.'); return; }
+      if (r === 'timeout' || r === 'network') { setAddError(addEl, strings.appFetchTimeout || 'The link did not respond. Check your connection and try again.'); return; }   // ★ S19 F6: `network` = DNS / connection
       if (r === 'http') { setAddError(addEl, strings.appFetchHttp || 'The app could not be downloaded from that link.'); return; }
       if (r === 'size') { setAddError(addEl, strings.appFetchTooLarge || 'That app package is too large.'); return; }
       setAddError(addEl, strings.appUrlInvalid || 'That link or file isn’t a valid mini app.');

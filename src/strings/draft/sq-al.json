@@ -503,7 +503,6 @@
   "keepContact": "Mbaj kontaktin",
   "keepContactRequest": "Mbaj kërkesën",
   "keepInvite": "Mbaje",
-  "keepOpen": "Mbajeni Spixi-n të hapur derisa të përfundojë transferimi",
   "keepRequest": "Mbaje",
   "keepWaiting": "Vazhdo pritjen",
   "kick": "Nxirr",
@@ -1053,5 +1052,10 @@
   "youInvited": "Keni dërguar një ftesë",
   "youJoinedApp": "U bashkuat me këtë aplikacion",
   "youRequested": "Kërkuat",
-  "yourAddress": "Adresa juaj"
+  "yourAddress": "Adresa juaj",
+  "blindGroupNotice": "Anëtarët nuk mund ta shohin identitetin e njëri-tjetrit. Në këtë grup nuk mund të dërgohen foto dhe skedarë.",
+  "keepOpenSent": "Mbajeni Spixi-n të hapur derisa të dërgohet.",
+  "keepOpenReceived": "Vjen drejtpërdrejt nga pajisja e dërguesit. Mbajeni Spixi-n të hapur.",
+  "momentAppInstallTitle": "Para se të instaloni {app}",
+  "devResetMomentsDone": "Rivendosja u dërgua. Rinisni aplikacionin."
 }

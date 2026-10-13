@@ -254,8 +254,13 @@ export function isOverlayOpen(el) {
  *  containment cannot pull focus out of it, whatever held focus at the tap (iOS can leave it on <body>). */
 export function topOverlayEl() { return stack.length ? stack[stack.length - 1].el : null; }
 
-/** Dismiss a specific overlay (default: top of stack). Returns true if one closed. */
-export function dismissOverlay(el) {
+/** Dismiss a specific overlay (default: top of stack). Returns true if one closed.
+ *  ★ S19 F2 (#1371, Android "Enter or paste" flicker): `{ instant: true }` skips the exit slide — the
+ *  transition is switched off and the node + scrim are removed SYNCHRONOUSLY, with every piece of the normal
+ *  close's bookkeeping (stack, listeners, focus restore, the host's data-overlay-open, onDismiss). For a sheet
+ *  whose next step raises the soft keyboard in the same tap: a bottom:0 sheet still sliding out jumps up when
+ *  the keyboard shrinks the viewport. */
+export function dismissOverlay(el, { instant = false } = {}) {
   const i = el ? stack.findIndex((s) => s.el === el) : stack.length - 1;
   if (i === -1 || stack.length === 0) return false;
   const [entry] = stack.splice(i, 1);
@@ -324,6 +329,13 @@ export function dismissOverlay(el) {
     const cb = liveOpts(entry).onDismiss || entry.opts.onDismiss;   // merge-safe (tip-audit M1)
     if (cb) cb();
   };
+  if (instant) {                                                  // ★ S19 F2 (#1371): no exit slide, gone now
+    entry.el.style.transition = 'none';
+    entry.scrim.style.transition = 'none';
+    try { p1Shown(p1Kind(entry.el) + '-close'); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
+    remove();
+    return true;
+  }
   entry.el.addEventListener('transitionend', onEnd);
   fallback = setTimeout(remove, 400); // > --duration-200; covers reduced-motion 0ms
   pendingRemoval.set(entry.el, remove);

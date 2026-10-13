@@ -751,6 +751,14 @@ export function createFileTile(name) {
 /* Explicit "Open file" affordance for a completed download (A8b, Damir F5): the
    whole bubble is already a tappable button, but a labelled control makes it
    obvious the transfer finished and the file is openable. Complete state only. */
+/* ★ S19 F13 (S18 walk, Damir 21:40): the keep-open line says which way the bytes go — MY file waits on my device sending,
+   a received one comes straight from the sender's device (P2P, no server copy). One line per direction; the old
+   direction-less keepOpen is retired (these were its only two readers). */
+function keepOpenText(direction, strings) {
+  return direction === 'sent'
+    ? (strings.keepOpenSent || 'Keep Spixi open until it’s sent.')
+    : (strings.keepOpenReceived || 'Comes directly from the sender’s device. Keep Spixi open.');
+}
 function fileOpenLabel(strings) {
   const s = document.createElement('span');
   s.className = 'c-fbubble__open';
@@ -853,7 +861,7 @@ export function createFileBubble({
     // transfer — brief muted line while in progress, removed on completion
     const hint = document.createElement('span');
     hint.className = 'c-fbubble__hint';
-    hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
+    hint.textContent = keepOpenText(direction, strings);   // ★ S19 F13: by direction
     col.append(hint);
   }
   if (state === 'complete' && onOpen) col.append(fileOpenLabel(strings));   // A8b: only advertise when openable
@@ -1091,7 +1099,7 @@ function fileFace(state, name, progress, strings, direction) {
   const line = document.createElement('span');
   if (state === 'progress') {
     line.className = 'c-mbubble__hint';
-    line.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';   // Damir's note: ON the tile
+    line.textContent = keepOpenText(direction, strings);   // Damir's note: ON the tile · ★ S19 F13: by direction
   } else {
     line.className = 'c-mbubble__cta';
     /* ★ #1147 (3): desktop (a mouse) says "Click to download"; touch keeps "Tap" */

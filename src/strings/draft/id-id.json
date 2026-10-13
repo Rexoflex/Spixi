@@ -314,7 +314,6 @@
   "joinTitle": "Gabung komunitas Spixi",
   "jumpToMention": "Lompat ke sebutan",
   "keepContact": "Simpan kontak",
-  "keepOpen": "Biarkan Spixi terbuka sampai transfer selesai",
   "keepWaiting": "Tetap menunggu",
   "kickBody": "Mereka dapat diundang kembali nanti.",
   "languageFailed": "Tidak dapat mengganti bahasa.",
@@ -951,5 +950,10 @@
   "momentAppBody": "Aplikasi ini berjalan di dalam Spixi. Buka hanya aplikasi dari orang yang Anda percayai.",
   "momentPayTitle": "Sebelum membayar",
   "momentPayBody": "Pembayaran tidak dapat dibatalkan. Periksa kontak dan jumlahnya di layar berikutnya. Biaya jaringan yang kecil masuk ke jaringan Ixian, bukan ke Spixi.",
-  "momentOpenSettings": "Buka Pengaturan"
+  "momentOpenSettings": "Buka Pengaturan",
+  "blindGroupNotice": "Anggota tidak dapat melihat identitas satu sama lain. Foto dan file tidak dapat dikirim di grup ini.",
+  "keepOpenSent": "Biarkan Spixi terbuka sampai selesai terkirim.",
+  "keepOpenReceived": "Dikirim langsung dari perangkat pengirim. Biarkan Spixi terbuka.",
+  "momentAppInstallTitle": "Sebelum memasang {app}",
+  "devResetMomentsDone": "Reset sent. Restart the app."
 }

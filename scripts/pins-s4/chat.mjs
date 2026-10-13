@@ -322,7 +322,8 @@ export default async function (h) {
     /* B (transferring): the ring (a progressbar), the percentage, the keepOpen line ON the tile, disabled, the pre-accept Cancel beside it */
     const tS = tl('iS');
     r.progressFace = !!tS.querySelector('.c-mbubble__ring[role="progressbar"] .c-fbubble__icon') && tS.disabled
-      && tS.querySelector('.c-mbubble__hint').textContent === ((W.SL && W.SL.keepOpen) || 'Keep Spixi open until the transfer completes')
+      /* re-based by S19 F13: the line is by direction — this tile is MINE (sending) → keepOpenSent */
+      && tS.querySelector('.c-mbubble__hint').textContent === ((W.SL && W.SL.keepOpenSent) || 'Keep Spixi open until it’s sent.')
       && !!rw('iS').querySelector(':scope > .c-fbubble__cancel')
       /* #46 r1 B-N1: MY transfer is "Sending", not "Downloading" — the ring and the tile's name */
       && tS.querySelector('.c-mbubble__ring').getAttribute('aria-label') === ((W.SL && W.SL['status-sending']) || 'Sending')

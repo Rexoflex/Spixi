@@ -4942,8 +4942,13 @@ function isOverlayOpen(el) {
  *  containment cannot pull focus out of it, whatever held focus at the tap (iOS can leave it on <body>). */
 function topOverlayEl() { return stack.length ? stack[stack.length - 1].el : null; }
 
-/** Dismiss a specific overlay (default: top of stack). Returns true if one closed. */
-function dismissOverlay(el) {
+/** Dismiss a specific overlay (default: top of stack). Returns true if one closed.
+ *  ★ S19 F2 (#1371, Android "Enter or paste" flicker): `{ instant: true }` skips the exit slide — the
+ *  transition is switched off and the node + scrim are removed SYNCHRONOUSLY, with every piece of the normal
+ *  close's bookkeeping (stack, listeners, focus restore, the host's data-overlay-open, onDismiss). For a sheet
+ *  whose next step raises the soft keyboard in the same tap: a bottom:0 sheet still sliding out jumps up when
+ *  the keyboard shrinks the viewport. */
+function dismissOverlay(el, { instant = false } = {}) {
   const i = el ? stack.findIndex((s) => s.el === el) : stack.length - 1;
   if (i === -1 || stack.length === 0) return false;
   const [entry] = stack.splice(i, 1);
@@ -5012,6 +5017,13 @@ function dismissOverlay(el) {
     const cb = liveOpts(entry).onDismiss || entry.opts.onDismiss;   // merge-safe (tip-audit M1)
     if (cb) cb();
   };
+  if (instant) {                                                  // ★ S19 F2 (#1371): no exit slide, gone now
+    entry.el.style.transition = 'none';
+    entry.scrim.style.transition = 'none';
+    try { p1Shown(p1Kind(entry.el) + '-close'); } catch (e) {}   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
+    remove();
+    return true;
+  }
   entry.el.addEventListener('transitionend', onEnd);
   fallback = setTimeout(remove, 400); // > --duration-200; covers reduced-motion 0ms
   pendingRemoval.set(entry.el, remove);
@@ -5046,7 +5058,7 @@ function dismissTopOverlay() {
  *   escDismiss   — Esc closes (default: true; safe dismiss path, ARIA APG)
  *   blurDismiss  — desktop: a window blur (click in another pane) closes it (★ S8 #1235; quick menus only)
  *   strings.sheet — aria-label fallback when there is no title ('Menu')
- * openSheet(el) / closeSheet(el) free fns (#44).
+ * openSheet(el) / closeSheet(el[, { instant }]) free fns (#44; ★ S19 F2 instant = no exit slide).
  */
 
 
@@ -5087,7 +5099,7 @@ function createSheet({
 }
 
 function openSheet(el) { openOverlay(el); }
-function closeSheet(el) { dismissOverlay(el); }
+function closeSheet(el, opts) { dismissOverlay(el, opts); }   // ★ S19 F2: opts = { instant }
 
 /* ---- src/components/modal.js ---- */
 /**
@@ -8765,6 +8777,14 @@ function createFileTile(name) {
 /* Explicit "Open file" affordance for a completed download (A8b, Damir F5): the
    whole bubble is already a tappable button, but a labelled control makes it
    obvious the transfer finished and the file is openable. Complete state only. */
+/* ★ S19 F13 (S18 walk, Damir 21:40): the keep-open line says which way the bytes go — MY file waits on my device sending,
+   a received one comes straight from the sender's device (P2P, no server copy). One line per direction; the old
+   direction-less keepOpen is retired (these were its only two readers). */
+function keepOpenText(direction, strings) {
+  return direction === 'sent'
+    ? (strings.keepOpenSent || 'Keep Spixi open until it’s sent.')
+    : (strings.keepOpenReceived || 'Comes directly from the sender’s device. Keep Spixi open.');
+}
 function fileOpenLabel(strings) {
   const s = document.createElement('span');
   s.className = 'c-fbubble__open';
@@ -8867,7 +8887,7 @@ function createFileBubble({
     // transfer — brief muted line while in progress, removed on completion
     const hint = document.createElement('span');
     hint.className = 'c-fbubble__hint';
-    hint.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';
+    hint.textContent = keepOpenText(direction, strings);   // ★ S19 F13: by direction
     col.append(hint);
   }
   if (state === 'complete' && onOpen) col.append(fileOpenLabel(strings));   // A8b: only advertise when openable
@@ -9105,7 +9125,7 @@ function fileFace(state, name, progress, strings, direction) {
   const line = document.createElement('span');
   if (state === 'progress') {
     line.className = 'c-mbubble__hint';
-    line.textContent = strings.keepOpen || 'Keep Spixi open until the transfer completes';   // Damir's note: ON the tile
+    line.textContent = keepOpenText(direction, strings);   // Damir's note: ON the tile · ★ S19 F13: by direction
   } else {
     line.className = 'c-mbubble__cta';
     /* ★ #1147 (3): desktop (a mouse) says "Click to download"; touch keeps "Tap" */
@@ -16210,6 +16230,8 @@ function setAddError(el, msg) {
  * createAppDetails({ app, strings, host, onInstall(app,ctrl), onUninstall, onLaunch,
  *                    onReport, onInstalled, onCopyUrl }) → view
  *   onInstall(app, { done, fail }) — the caller runs the real install and calls done()/fail().
+ *   beforeInstall(app, { install, confirm }) — optional (★ #46 S19 M4): the Install tap goes here first; the host calls
+ *     install() (straight to the install morph, no modal) or confirm() (the install-confirm modal). Absent = the modal.
  */
 
 
@@ -16385,7 +16407,7 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   return wrap;
 }
 
-function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onLaunchMulti, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
+function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onLaunchMulti, onReport, onInstalled, onCopyUrl, onOpen, beforeInstall = null } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-details';
   const caps = normalizeCaps(app.capabilities);
@@ -16583,7 +16605,14 @@ function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, o
     actions.className = 'c-app-details__actions';
     const installBtn = createButton({ label: strings.install || 'Install', type: 'fill', size: 56, width: 'full',
       icon: icon('download', { size: 20 }),
-      onClick: () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) });
+      onClick: () => {
+        /* ★ #46 S19 M4: a host may put ONE step before the install (App details: the app moment) — it calls install() (no
+           confirm: its own sheet was the confirm) or confirm() (today's modal); no hook = the modal, as before */
+        const confirm = () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled });
+        if (typeof beforeInstall === 'function') {
+          beforeInstall(app, { install: () => runInstall({ app, host, strings, onInstall, installBtn, onInstalled }), confirm });
+        } else confirm();
+      } });
     actions.append(installBtn);
     el.append(actions);
   }
@@ -25899,8 +25928,10 @@ function renderPickerChrome(st) {
       else if (st.opts.onBack) st.opts.onBack();
     },
     backLabel: strings.back || 'Back',
+    /* ★ S19 F12 (#1371): the confirm is the TONAL LABELLED PILL (topbar.js `text` action, the "Add app" precedent) —
+       "Next" (group) / "Start" (app invite) with the check glyph; syncNext keeps disabled + the count in the aria-label. */
     actions: multi
-      ? [{ icon: 'check', label: confirmLabel(st), onClick: () => pickerNext(st) }]
+      ? [{ icon: 'check', text: confirmLabel(st), label: confirmLabel(st), onClick: () => pickerNext(st) }]
       : [],
   });
   st.els.topbar.replaceWith(topbar);
@@ -27047,7 +27078,7 @@ function mountContacts({
      takeover — so a programmatic close of the takeover must take it down too, or a tab
      tap under an open chooser leaves a sheet over nothing. Declared here, above close(). */
   let addSheet = null;
-  const closeAddSheet = () => { if (addSheet) { const s = addSheet; addSheet = null; closeSheet(s); } };
+  const closeAddSheet = (opts) => { if (addSheet) { const s = addSheet; addSheet = null; closeSheet(s, opts); } };
 
   const close = (reason) => {
     if (closed) return;
@@ -27209,7 +27240,9 @@ function mountContacts({
       strings, host,
       onScan: () => { closeAddSheet(); mountAddContact(); bridge.send('ixian:contactscan'); },
       onEnter: () => {
-        closeAddSheet();
+        /* ★ S19 F2 (#1371, Android): the sheet goes INSTANTLY (no exit slide) — it is bottom:0, and the keyboard the
+           focus below raises shrinks the viewport mid-slide, so a sliding sheet jumped up. Scan keeps today's close. */
+        closeAddSheet({ instant: true });
         const panel = mountAddContact();
         // inside the tap that chose it, so the soft keyboard is allowed to come up with the field
         const input = panel.querySelector('.c-contacts-add__input');
@@ -34573,7 +34606,8 @@ function createMomentClient({ bridge, onSessionEnd = null } = {}) {
         if (id === 'app') { if (state.apps.indexOf(a) < 0) state.apps.push(a); }
         else if (id === 'lang') state.lang = '';
         else if (state.seen.indexOf(id) < 0) state.seen.push(id);
-        if (id !== 'firstixi' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
+        /* ★ #46 S19 N2: firstixi and lang never take the session (C#: S17MomentRules.takesSession, S19 F4) */
+        if (id !== 'firstixi' && id !== 'lang' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
       }
       if (!w) return;
       waits.delete(k);
@@ -34589,19 +34623,22 @@ function createMomentClient({ bridge, onSessionEnd = null } = {}) {
 }
 
 /** The CONFIRM-step moments (mic · app · pay): ask; a yes shows the sheet — its fill button = go(), every quiet close =
- *  stop(); a no, no cap or no answer within ASK_WAIT_MS = go() at once. A tap while the ask is on its way is ignored. */
-function momentBeforeAction(client, { id, arg = '', ctx = {}, ctxFor = null, host, strings = getStrings(), go, stop } = {}) {
+ *  stop(); a no, no cap or no answer within ASK_WAIT_MS = go() at once. A tap while the ask is on its way is ignored.
+ *  ★ #46 S19 M4: `otherwise` (optional) replaces go() whenever NO sheet showed (seen, refused, no cap, no answer) — App
+ *  details' Install: the moment REPLACES the install confirm when it shows, the confirm runs when it does not. */
+function momentBeforeAction(client, { id, arg = '', ctx = {}, ctxFor = null, host, strings = getStrings(), go, stop, otherwise = null } = {}) {
   /* #46 r1 (MINOR-5): a second tap while the ask is on its way STOPS (the host's latch is released), it never strands it */
   if (client && client.pending(id, arg)) { try { if (stop) stop(); } catch (e) {} return; }
   let done = false;
   const g = () => { if (done) return; done = true; try { if (go) go(); } catch (e) {} };
   const st = () => { if (done) return; done = true; try { if (stop) stop(); } catch (e) {} };
-  if (!client) { g(); return; }
+  const o = otherwise ? () => { if (done) return; done = true; try { otherwise(); } catch (e) {} } : g;
+  if (!client) { o(); return; }
   client.ask(id, arg, (caps) => {
     const c = ctxFor ? ctxFor(caps) : ctx;
     const sheet = showMomentSheet({ id, host, strings, ctx: c, onClose: (v) => (v === 'dismiss' ? st() : g()) });
-    if (!sheet) g();
-  }, g);
+    if (!sheet) o();
+  }, o);
 }
 
 /** The AFTER-the-result moments (lang · autodl · offline · firstixi): ask; a yes calls show(caps) — the host shows the

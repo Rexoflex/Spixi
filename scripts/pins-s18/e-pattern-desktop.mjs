@@ -2,13 +2,16 @@
  * On the BUILT shells (jsdom), a DESKTOP boot (?desktop=1 → :root[data-desktop], the #228 platform flag — no width query)
  * against a PHONE boot (?mobile=1), in BOTH themes, on EVERY canvas (the seven CHAT_GROUNDS ids):
  *   · chat.html, the root canvas: --chat-pattern-alpha-1 desktop = 0.8 × phone (and the phone value is today's, untouched:
- *     light 0.1024 · dark 0.0832 · light Aurora 0.192); the chat's own opacity is var(--chat-pattern-alpha-1) on both;
+ *     light 0.1024 · dark 0.0932 · light Aurora 0.192 — ★ S19 option B RE-BASE (Damir pick): dark × 1.12, 0.0832 → 0.0932, so the
+ *     desktop dark is 0.07456, was 0.06656); the chat's own opacity is var(--chat-pattern-alpha-1) on both;
  *   · the preview tiles (a descendant with its own data-chat-ground under every root canvas): alpha-1 AND the Background-tile
  *     cap --chat-pattern-tile-max are 0.8 × phone, so a BOOSTED tile, min(tile-max, alpha × boost) (patternLevelVar), is
  *     0.8 × its phone face for both boosts (6 · rings 4.5);
  *   · settings.html, the real Chat appearance screen: every Background tile face resolves to 0.8 × its phone value;
  *   · ΔL* (the #1029 / #1058 / #1351 method): the desktop ink still separates on Mist / the brand gradient / the dark canvas
- *     (floors 5 / 4 / 5 — 0.8 × the phone floors 6 / 5 / 7, rounded down);
+ *     (floors 5 / 4 / 5 — 0.8 × the phone floors 6 / 5 / 7, rounded down). ★ S19 option B RE-BASE: the dark ΔL* is measured on
+ *     the dark Mist GROUND the chat paints (its --gradient-chat #07090B; was the canvas-base #0C0E10, which B leaves for the
+ *     chrome) — desktop 5.75 at 0.07456 (A: 5.78 at 0.06656 on #0C0E10; B's ground at the old 0.06656 = 4.85 < 5, the break);
  *   · the token stays defined on bare :root (the orphan-token gate) — the desktop values live in :root[data-desktop] rules.
  * Deliberate breaks (S18 report): the dark desktop rule dropped → the root clause fails (dark 1.0 ×); the desktop tile
  * reset dropped → the tile clause fails (light tiles 1.0 ×). */
@@ -44,7 +47,7 @@ export default async function (h) {
     const ph = await readChat(false);
     const dk = await readChat(true);
     r.flags = !ph.flag && dk.flag && ph.opacity === 'var(--chat-pattern-alpha-1)' && dk.opacity === 'var(--chat-pattern-alpha-1)';
-    r.phoneToday = ph.v['light:flat'].a === 0.1024 && ph.v['dark:flat'].a === 0.0832 && ph.v['light:aurora'].a === 0.192 && ph.v['dark:aurora'].a === 0.0832;
+    r.phoneToday = ph.v['light:flat'].a === 0.1024 && ph.v['dark:flat'].a === 0.0932 && ph.v['light:aurora'].a === 0.192 && ph.v['dark:aurora'].a === 0.0932;   // ★ S19 option B RE-BASE: dark 0.0832 → 0.0932
     const keys = Object.keys(ph.v);
     const bad = { root: [], tile: [] };
     for (const k of keys) {
@@ -71,7 +74,7 @@ export default async function (h) {
     const mist = res('light', '--chat-canvas-base'), inkMist = res('light', '--chat-pattern-ink-mist');
     const gradInk = (/\[data-chat-ground='gradient'\] \{[^}]*--chat-pattern-ink: (#[0-9A-Fa-f]{6});/.exec(tokCss) || [])[1];
     const gradMid = (/linear-gradient\(180deg, #[0-9A-Fa-f]{6} 0%, (#[0-9A-Fa-f]{6}) 50%/.exec(tokCss) || [])[1];
-    const darkBase = res('dark', '--chat-canvas-base');
+    const darkBase = (/:root\[data-theme='dark'\]\[data-chat-ground='flat'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='flat'\] \{[^}]*--gradient-chat: (#[0-9A-Fa-f]{6});/.exec(tokCss) || [])[1];   // ★ S19 option B RE-BASE: the dark Mist ground #07090B (was res('dark', '--chat-canvas-base'))
     const a1 = dk.v['light:flat'].a, d1 = dk.v['dark:flat'].a;
     const dMist = Lstar(mist) - Lstar(mix(mist, inkMist, a1));
     const dGrad = gradInk && gradMid ? Lstar(gradMid) - Lstar(mix(gradMid, gradInk, a1)) : 0;

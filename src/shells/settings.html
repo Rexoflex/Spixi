@@ -2047,6 +2047,7 @@
    * fnRefs). SettingsPage.onLoad pushes these; loadAvatar also arrives after the
    * ixian:avatar picker. All coalesce into one hub rebuild.
    * ————————————————————————————————————————————————————————————————————————— */
+  let autoDlFlashTimer = 0;   // ★ S19 F9 (#1371): the auto-download row flash's cleanup (openScreen below)
   const handlers = {
     // Q4-③ (#270): call-ui wiring GONE — calls present on the native CallPage.
 
@@ -2347,7 +2348,7 @@
     /* ★ S17 A (#1338, 🟡 NEW push, P26): {"version":"<digits>","show":true|false} — the About row's "New" badge. Same
        validation as home.html; a bad push changes nothing. */
     /* ★ S17 F (#1340, 🟡 NEW push, P28): {"seen":[ids],"apps":[app ids],"lang":"<code>"|"","session":bool} — a pending
-       language asks once; C# answers yes for a new non-English language not seen before, in a session with no card */
+       language asks; C# answers yes for a non-English language not yet asked in THIS session (★ S19 F4: no session / card rule for lang) */
     setMoments(json) {
       if (!bridge.cap('moments')) return;
       moments.setState(String(json));
@@ -2367,6 +2368,18 @@
       setTimeout(() => {
         const row = (paneMode ? detailWrap : root).querySelector('[data-pref="photoAutoDl"]');
         if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
+        /* ★ S19 F9 (#1371): the row the moment sent the user to flashes ONCE (the wallet just-sent wash, settings-shell.css
+           c-settings-rowflash; reduced motion = no animation). Restarted cleanly if a second openScreen lands mid-flash. */
+        const btn = row && row.querySelector('.c-settings__row');
+        if (btn) {
+          clearTimeout(autoDlFlashTimer);   // a restart must not be cut short by the previous flash's cleanup
+          delete btn.dataset.flash;
+          void btn.offsetWidth;
+          btn.dataset.flash = '';
+          const done = () => { delete btn.dataset.flash; };
+          autoDlFlashTimer = setTimeout(done, 2400);   // reduced-motion / no-animation cleanup (the flashWalletTx precedent); animationend below
+          btn.addEventListener('animationend', (e) => { if (e.target === btn) { clearTimeout(autoDlFlashTimer); done(); } }, { once: true });
+        }
       }, 120);
     },
     setWhatsNew(json) {

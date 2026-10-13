@@ -32,8 +32,17 @@ export default async function (h) {
   const r2 = (x) => Math.round(x * 100) / 100;
 
   el.setAttribute('data-theme', 'dark');
+  /* re-based by S19 F10 (#1371): every dark CANVAS now carries its own received bubble (tokens.css, pinned in
+     pins-s19/r-dark-bubbles) — the chat's root always names one (Mist = 'flat' by default → #1F2326 since S19 option B, was #292B2D). This pick lives on as
+     the dark BLOCK value (outside a canvas), so it is read with the root's canvas attribute lifted for the read; the
+     default Mist bubble is checked below it. */
+  const groundWas = el.getAttribute('data-chat-ground');
+  el.removeAttribute('data-chat-ground');
   const [recv, text, meta, link, canvas, ink800, ink700] = ['--surface-bubble-received', '--text-bubble-received', '--text-bubble-received-meta',
     '--text-link', '--chat-canvas-base', '--ink-800', '--ink-700'].map((n) => hex(resolve(n)));
+  el.setAttribute('data-chat-ground', groundWas || 'flat');
+  const mist = hex(resolve('--surface-bubble-received'));
+  const mistText = hex(resolve('--text-bubble-received'));
   el.setAttribute('data-theme', 'light');
   const lightRecv = resolve('--surface-bubble-received').toLowerCase();
   const r = {}, n = {};
@@ -46,8 +55,9 @@ export default async function (h) {
     r.liftsMore = n.offCanvas > n.offCanvasWas;
   } else r.resolved = false;
   r.lightWhite = lightRecv === '#ffffff';
+  r.mistOwn = !!mist && !!mistText && groundWas === 'flat' && mist.map((v) => v.toString(16).padStart(2, '0')).join('') === '1f2326' && cr(mistText, mist) >= 7;   // ★ S19 option B RE-BASE (Damir pick): #1F2326, text 13.31 (was #292B2D, 11.95) · ★ S19 F10 re-base
   r.noErr = errs.length === 0;
   ok(Object.values(r).every(Boolean),
-    '★ Damir pick (2026-10-03): the DARK received bubble is one half step lighter — --ink-750 #1E2023, between ink-800 #1A1C1F and ink-700 #232528 (light stays #ffffff); computed on the built chat shell, its text / meta / link ink each hold ≥ 4.5:1 and it lifts further off the ink-950 canvas than ink-800 did — ' + JSON.stringify(r) + ' ' + JSON.stringify(n) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
+    '★ Damir pick (2026-10-03): the DARK received bubble is one half step lighter — --ink-750 #1E2023, between ink-800 #1A1C1F and ink-700 #232528 (light stays #ffffff); computed on the built chat shell, its text / meta / link ink each hold ≥ 4.5:1 and it lifts further off the ink-950 canvas than ink-800 did (re-based by S19 F10: this is the dark BLOCK value now — the default Mist canvas carries its own #1F2326 since S19 option B (was #292B2D), text ≥ 7:1) — ' + JSON.stringify(r) + ' ' + JSON.stringify(n) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
   dom.window.close();
 }

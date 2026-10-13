@@ -13,6 +13,8 @@
  * createAppDetails({ app, strings, host, onInstall(app,ctrl), onUninstall, onLaunch,
  *                    onReport, onInstalled, onCopyUrl }) → view
  *   onInstall(app, { done, fail }) — the caller runs the real install and calls done()/fail().
+ *   beforeInstall(app, { install, confirm }) — optional (★ #46 S19 M4): the Install tap goes here first; the host calls
+ *     install() (straight to the install morph, no modal) or confirm() (the install-confirm modal). Absent = the modal.
  */
 import { getStrings } from './strings-runtime.js';
 import { createAppIcon } from './apps-icon.js';
@@ -188,7 +190,7 @@ function capChips(caps, strings, { explain = false, reserve = false } = {}) {
   return wrap;
 }
 
-export function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onLaunchMulti, onReport, onInstalled, onCopyUrl, onOpen } = {}) {
+export function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, onUninstall, onLaunch, onLaunchMulti, onReport, onInstalled, onCopyUrl, onOpen, beforeInstall = null } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-details';
   const caps = normalizeCaps(app.capabilities);
@@ -386,7 +388,14 @@ export function createAppDetails({ app = {}, strings = getStrings(), host, onIns
     actions.className = 'c-app-details__actions';
     const installBtn = createButton({ label: strings.install || 'Install', type: 'fill', size: 56, width: 'full',
       icon: icon('download', { size: 20 }),
-      onClick: () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled }) });
+      onClick: () => {
+        /* ★ #46 S19 M4: a host may put ONE step before the install (App details: the app moment) — it calls install() (no
+           confirm: its own sheet was the confirm) or confirm() (today's modal); no hook = the modal, as before */
+        const confirm = () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled });
+        if (typeof beforeInstall === 'function') {
+          beforeInstall(app, { install: () => runInstall({ app, host, strings, onInstall, installBtn, onInstalled }), confirm });
+        } else confirm();
+      } });
     actions.append(installBtn);
     el.append(actions);
   }

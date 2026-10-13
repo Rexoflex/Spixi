@@ -229,6 +229,9 @@
      #181 · the older-history pill, #907) still seat a short log against it. */
   #messages::after { content: ""; flex: none; height: calc(var(--composer-h, 0px) + var(--composer-lift, 0px) + var(--spacing-4)); }   /* ★ Session I: + the floating composer's height (published by the ResizeObserver) so the log passes UNDER the pill */
   #messages > .c-sysnotice { margin-top: auto; margin-bottom: auto; }
+  /* ★ #46 S19 M2: the blind-group notice follows the secure notice as ONE group — the pair centres together (no auto gap between) */
+  #messages > .c-sysnotice[data-followed] { margin-bottom: 0; }
+  #messages > .c-sysnotice[data-blind-notice] { margin-top: var(--spacing-12); }
   /* A3 (#302): unread-elsewhere dot on the chat topbar back button. #48 grammar
      (error surface + a 2px ring in the HOST surface so it reads on any background) at
      topbar scale — ring in --surface-topbar, not the bottombar token the nav badge
@@ -861,7 +864,6 @@
   const CHAT_GROUND_IDS = ['flat', 'gradient', 'green', 'blue', 'aurora', 'dusk', 'ocean'];
   const CHAT_SENT_IDS = ['blue', 'violet', 'teal', 'pink', 'orange', 'graphite'];
   function readPatternPrefs() {
-    const de = document.documentElement.hasAttribute('data-desktop');
     let p = NaN, s = '', gr = '', t = NaN, sent = '', k = NaN;
     try {
       p = parseFloat(localStorage.getItem(PATTERN_PREF_KEYS.level));
@@ -875,9 +877,8 @@
     if (CHAT_SENT_IDS.indexOf(sent) < 0) sent = '';                          // ★ S17 C: '' = Auto (the canvas's own sent colour)
     k = isFinite(k) ? Math.round(Math.min(22, Math.max(4, k))) : NaN;       // ★ S17 C: NaN = the token default (18 px)
     // ★ N81 (#422): p is a LEVEL INDEX now. readPatternLevel migrates the legacy
-    // fractional alphas (0.3/0.5/0.7) and clamps; B2 (#256) platform-aware default
-    // survives unchanged — desktop Off, mobile Default.
-    p = readPatternLevel(p, de ? 0 : 1);
+    // fractional alphas (0.3/0.5/0.7) and clamps. ★ S19 F1: unset = 1 on every platform, as the head script + settings (#690)
+    p = readPatternLevel(p, 1);
     /* ★★ #835: ONE style left. The allowlist IS the migration for every retired style —
        'triangles' and 'lineart' (#690), and now 'doodles' and 'flow' — because a stored
        value that matches nothing falls through to the default instead of rendering
@@ -3043,6 +3044,7 @@
     rec.acceptAskedAt = now;
     bridge.send('ixian:acceptfile:' + rec.fileid);
     rec.manualAccept = true;                                   // ★ S17 F (#1340): the user asked for this one (the autodl moment)
+    rec.acceptEcho = true;                                     // ★ S19 F3: C#'s "0" echo of the accept is not the peer
     armOfflineMoment(rec);
     if (rec.group) setTimeout(() => { if (rec.fstate === 'offer' && !rec.transferStarted && gridMembers.has(String(rec.id))) renderLog(); }, ACCEPT_GUARD_MS + 50);   // the disabled Download all comes back
     return true;
@@ -3281,11 +3283,11 @@
     if (offlineMomentTimer || !moments.on() || moments.seen('offline') || mode.isMulti) return;
     offlineMomentTimer = setTimeout(() => {
       offlineMomentTimer = 0;
-      if (rec.transferStarted || rec.fstate === 'complete' || identity.online) return;
+      if (rec.peerTicked || rec.fstate === 'complete' || identity.online) return;
       if (document.visibilityState !== 'visible') return;
       const name = (identity.name && identity.name !== identity.address) ? identity.name : '';
       if (!name) return;                                       // "Waiting for {name}" needs a name
-      queueChatMoment('offline', { name }, () => !!rec.transferStarted || rec.fstate === 'complete');
+      queueChatMoment('offline', { name }, () => !!rec.peerTicked || rec.fstate === 'complete');
     }, OFFLINE_MOMENT_MS);
   }
   /* who invited me to an app: the 1:1 peer's name, or the group member's nick — never an address, never a placeholder */
@@ -5725,6 +5727,23 @@
       onLink: () => bridge.send('ixian:openLink:' + SECURE_LINK),
     });
   }
+  /* ★ S19 F11: a blind group says why it has no Photos / File (attachFlags' refusal) — under the secure notice */
+  function blindGroupNoticeOn() {
+    return modeKnown() && mode.isMulti && (mode.type === 1 || mode.type === 2) && mode.hidesAddresses;
+  }
+  let blindNoticeShown = false;
+  function createBlindGroupNotice() {
+    const s = window.SL || {};
+    const title = s.blindGroup || 'Blind group';
+    const el = createSystemNotice({
+      glyph: 'eye-off',
+      title,
+      text: s.blindGroupNotice || 'Members can’t see each other’s identity. Photos and files can’t be sent in this group.',
+      strings: Object.assign({}, s, { systemNotice: title }),   // ★ #46 S19 N1: its own accessible name, not a second "Chat security notice"
+    });
+    el.setAttribute('data-blind-notice', '');
+    return el;
+  }
 
   /* full re-render of the log from the model — used after any insert/delete so
    * grouping + timestamp order stay correct. Rebuilds date separators too.
@@ -5822,6 +5841,14 @@
        appears only once history is exhausted, which is also the demo contract
        (src/demo/chat.html:436-450) and #91's original intent. */
     if (!showOlder) frag.append(createSecureNotice());
+    blindNoticeShown = !showOlder && blindGroupNoticeOn();
+    if (blindNoticeShown) {
+      /* ★ #46 S19 M2: the pair centres as ONE group — the secure notice (appended just above: blindNoticeShown implies
+         !showOlder) is marked followed, so its auto margin below goes (chat.html #messages > .c-sysnotice[data-followed]) */
+      const secure = frag.lastElementChild;
+      if (secure && secure.classList.contains('c-sysnotice')) secure.setAttribute('data-followed', '');
+      frag.append(createBlindGroupNotice());
+    }
     /* #265 (Damir ③ / C10 FE-side): a FULFILLED payment request is TWO C#
      * messages — the original requestFunds (flips to ":"+txid → Completed) AND
      * a separate sentFunds direct-payment message carrying the SAME txid. One
@@ -6696,6 +6723,7 @@
          bridge.exposeAll. Do not add a syncAttachAffordance() call here. */
       mode.answeredFor = identity.address;
       if (chatSelect) chatSelect.refresh();   // ★ Session AE (round-3 MINOR-7, placed by round 4): the bar's Delete reads canDeleteRec through `deletable`, and canDeleteRec reads modeKnown() — so the re-evaluation must come AFTER the answer is recorded, or the first room answer leaves Delete refused until the next render
+      if ((!showOlder && blindGroupNoticeOn()) !== blindNoticeShown) renderLog();   // ★ S19 F11
       // channel UI is bot-gated (channel-as-title) — re-evaluate on any mode change
       renderTopbar();
       dbg('setChatMode', { type: t, cost, showCost, admin: mode.admin, notificationsString });
@@ -7675,6 +7703,9 @@
       // affordance mid-transfer (integer progress floors at 0 on big files, so
       // a progress>0 gate alone lost to renderLogNow rebuilds).
       rec.transferStarted = true;
+      /* ★ S19 F3: the first 0 push after our accept is C#'s echo; any other = the peer ticked (the offline moment reads it) */
+      if (rec.acceptEcho && !done && rec.progress === 0) rec.acceptEcho = false;
+      else { rec.peerTicked = true; rec.acceptEcho = false; }
       // BOTH directions tick then flip to complete (Damir F5: outgoing shows
       // progress too — the sender gets per-packet ticks, TransferManager:410).
       rec.fstate = done ? 'complete' : 'progress';

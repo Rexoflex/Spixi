@@ -314,7 +314,6 @@
   "joinTitle": "加入 Spixi 社区",
   "jumpToMention": "跳转到提及",
   "keepContact": "保留联系人",
-  "keepOpen": "请保持 Spixi 打开，直到传输完成",
   "keepWaiting": "继续等待",
   "kickBody": "之后可以重新邀请对方。",
   "languageFailed": "无法更改语言。",
@@ -950,5 +949,10 @@
   "momentAppBody": "它在 Spixi 内运行。只打开你信任的人发来的应用。",
   "momentPayTitle": "付款之前",
   "momentPayBody": "付款无法撤销。请在下一个界面核对联系人和金额。少量网络费用归 Ixian 网络，而非 Spixi。",
-  "momentOpenSettings": "打开设置"
+  "momentOpenSettings": "打开设置",
+  "blindGroupNotice": "成员之间无法查看彼此的身份。此群组中无法发送照片和文件。",
+  "keepOpenSent": "请保持 Spixi 打开，直到发送完成。",
+  "keepOpenReceived": "直接来自发送者的设备。请保持 Spixi 打开。",
+  "momentAppInstallTitle": "安装 {app} 之前",
+  "devResetMomentsDone": "Reset sent. Restart the app."
 }

@@ -7,7 +7,7 @@
  *   R3-N2 a preview landing in a re-flush's clear → add gap is held for its row (not dropped while C# counts it sent)
  *   R3-N3 a re-flush mid-transfer keeps the live ring (no 0 %, no offer again, no Cancel again)
  *   NIT-1 card and tile name a file by ONE rule (typed-bubbles fileNameAria), the live tick path too
- *   PILL  the composer pill reads the received-bubble token (dark = ink-750)
+ *   PILL  the composer pill reads the received-bubble token in light; dark = the neutral ink-750 (S19 #1372)
  *   C#    viewImage guards · A-N4 the transfer's channel · P-04 avatarForRow */
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, join, JSDOM, VirtualConsole, sleep } = h;
@@ -352,13 +352,15 @@ export default async function (h) {
     const field = cc.slice(cc.indexOf('.c-composer__field {'), cc.indexOf('}', cc.indexOf('.c-composer__field {')));
     const r = {
       lightRef: val(light, 'surface-composer-pill') === 'var(--surface-bubble-received)',
-      darkRef: val(dark, 'surface-composer-pill') === 'var(--surface-bubble-received)',
+      /* re-based by S19 #1372: the DARK pill is neutral ink-750 itself — the dark received bubble is now tinted per canvas
+         (option B, #1370) and a tinted pill dropped the reply title under 4.5 : 1 (pins-s17/i-chat-accent) */
+      darkRef: val(dark, 'surface-composer-pill') === 'var(--ink-750)',
       lightWhite: (resolve(light, 'surface-composer-pill') || '').toLowerCase() === '#ffffff',
       darkInk750: (resolve(dark, 'surface-composer-pill') || '').toUpperCase() === '#1E2023',
       consumes: /background: var\(--surface-composer-pill\);/.test(field),
     };
     ok(Object.values(r).every((v) => v === true),
-      '★ #1166 (#1159 / #1165 (11)): the composer pill reads the received-bubble token in BOTH themes (light = white, unchanged; dark = ink-750 #1E2023, was ink-800) and composer.css consumes the pill token — ' + JSON.stringify(r));
+      '★ #1166 (#1159 / #1165 (11)) · re-based S19 #1372: the composer pill reads the received-bubble token in LIGHT (white, unchanged) and is the neutral ink-750 #1E2023 in DARK (no longer the canvas-tinted received bubble) and composer.css consumes the pill token — ' + JSON.stringify(r));
   }
 
   /* ———————————— C#: the viewImage guards ———————————— */

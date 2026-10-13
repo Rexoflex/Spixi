@@ -31,8 +31,9 @@ namespace SPIXI.MiniApps
         private static readonly HttpClient httpClient = new HttpClient() { Timeout = TimeSpan.FromSeconds(15) };
 
         /// <summary>★ A4: why a fetch returned null — a fixed vocabulary the shell maps to a
-        /// localized line: url · http · size · timeout · invalid · error.</summary>
-        public enum FetchFailure { None, Url, Http, Size, Timeout, Invalid, Error }
+        /// localized line: url · http · size · timeout · invalid · error · network (★ S19 F6: the request
+        /// never got an answer — DNS / connection; an older shell shows its generic line for it).</summary>
+        public enum FetchFailure { None, Url, Http, Size, Timeout, Invalid, Error, Network }
         /// <summary>The whole-fetch deadline (HEAD + GET); the shells' 20 s grace must stay above it.</summary>
         public const int FETCH_DEADLINE_SECONDS = 15;
 
@@ -46,6 +47,7 @@ namespace SPIXI.MiniApps
                 case FetchFailure.Timeout: return "timeout";
                 case FetchFailure.Invalid: return "invalid";
                 case FetchFailure.Error: return "error";
+                case FetchFailure.Network: return "network";
                 default: return "";
             }
         }
@@ -171,12 +173,17 @@ namespace SPIXI.MiniApps
             }
             catch (HttpRequestException e)
             {
-                Logging.error("HTTP request exception occurred: " + e.Message);
-                return (null, FetchFailure.Http);
+                /* ★ S19 F6 (AA-LINK): no HTTP status = DNS / connection → `network` (S19FetchRules, csh); a status → `http`.
+                   The line names the exception TYPE and the reason word only — e.Message can hold the host name (tighter
+                   than base, gate row). */
+                FetchFailure f = S19FetchRules.isNetworkFailure(e.StatusCode.HasValue ? (int)e.StatusCode.Value : (int?)null, e.HttpRequestError)
+                    ? FetchFailure.Network : FetchFailure.Http;
+                Logging.error("App fetch failed: " + e.GetType().Name + " " + fetchFailureName(f));
+                return (null, f);
             }
             catch (Exception e)
             {
-                Logging.error("Exception occurred while downloading app data: " + e.Message);
+                Logging.error("App fetch failed: " + e.GetType().Name);   // ★ S19 F6: the type only, as above
                 return (null, FetchFailure.Error);
             }
         }

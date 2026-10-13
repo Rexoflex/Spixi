@@ -485,3 +485,11 @@ picks #1362. #46 r1 → r2 + security-only HIGH CLEAN. Smoke 5852 · CSH 436. Wa
 S18 walk recorded (#1369: 26 P · 2 F · 0 N/A; mechanisms from the Android + Windows logs and the recording). Picks #1370 (lang once per language per
 session · the app moment at Install · dark option B · blind notice · picker pill · transfer text). Built #1371 (F1–F13), #46 #1372 (security MINOR +
 5 MINOR fixed). Smoke 5914 / the 2 KNOWN (#136 · B3) · CSH 441. Walk sheet `docs/walk-s19.md`. A desktop-uplift session runs in parallel from the S19 commit (#1380+).
+
+### 2026-10-13 — DT-1 P1 (#1380–#1387): the desktop chat list polish + the Windows title bar (parallel track)
+Discovery + render + interview on 2026-10-12 (scope #1382, answers #1384; the second-device warning dropped after the mechanism check,
+#1383 → BE ask DEV-3; the multi-device v1 decision recorded #1381). Built on `c277ec5f`: A the desktop list (sections + fold, inset rows,
+hover pin · mute · info · more = the row menu's actions, #1385); B the Windows title bar "Spixi" in the token colours with a dev way switch
+for the spike (#1386, C# UNCOMPILED). #46 two rounds CLEAN (#1387). Pins +48 (pins-dt1), CSH 448. Walk `docs/walk-dt1.md`. Then (#1388) D
+deferred to the agent-support layout work; (#1389) the phone swipe swapped (Mute left, Pin right) as a separate patch. Smoke 5962 (P1) / 5963 (+ swipe). Next: the DT-1 walk (Windows + Android).
+

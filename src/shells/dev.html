@@ -141,6 +141,7 @@
     if (lastLog) setDevLog(devEl, lastLog);
     mountFlashDev();
     mountContainerDev();   // ★ S14 (#1282): also when no flash positions came yet
+    mountTitleBarDev();   // ★ DT-1 B: the screen rebuild keeps the title bar card
     mountFlagsDev();   // ★ S16 (#1312)
   }
 
@@ -245,6 +246,65 @@
         containerDev = word;
         paint();
         bridge.send('ixian:devflash:container:' + word);
+      });
+      card.append(b);
+    });
+    paint();
+    const after = body.querySelector(':scope > .c-dev-flash') || body.querySelector(':scope > .c-settings__note');
+    if (after && after.nextSibling) body.insertBefore(card, after.nextSibling);
+    else if (after) body.append(card);
+    else body.prepend(card);
+  }
+
+  /* ★ DT-1 B — the Windows title bar way for the STOP-rule spike (C# pushes setTitleBarDev on Windows only, so no dead row).
+     One of three: maui (MAUI Window.TitleBar, the default) · colors (the system bar, its colours set) · off (today's bar).
+     A tap sends `ixian:devflash:titlebar:<word>`, optimistic; C# echoes the STORED word. It acts after a restart (C# reads
+     the way once per start). The overlay-container card's grammar exactly. */
+  let titleBarDev = null;   // 'maui' | 'colors' | 'off' once C# told us
+  function mountTitleBarDev() {
+    if (!titleBarDev || !devEl) return;
+    const body = devEl.querySelector('.c-settings__body');
+    if (!body) return;
+    const old = body.querySelector('.c-dev-titlebar');
+    if (old) old.remove();
+    const card = document.createElement('div');
+    card.className = 'c-settings__section c-dev-titlebar';
+    card.setAttribute('role', 'radiogroup');
+    const head = document.createElement('p');
+    head.className = 'c-settings__note';
+    head.textContent = strings.devTitleBarTitle || 'Title bar (Windows, acts after a restart)';
+    card.setAttribute('aria-label', head.textContent);
+    card.append(head);
+    const opts = [
+      ['maui', strings.devTitleBarMaui || 'Spixi title bar (MAUI)'],
+      ['colors', strings.devTitleBarColors || 'System title bar, Spixi colours'],
+      ['off', strings.devTitleBarOff || 'Off (today)'],
+    ];
+    const paint = () => {
+      card.querySelectorAll('[data-titlebar]').forEach((b) => {
+        const on = b.dataset.titlebar === titleBarDev;
+        b.setAttribute('aria-checked', String(on));
+        const v = b.querySelector('.c-settings__row-value');
+        if (v) v.textContent = on ? (strings.devContainerOn || 'On') : '';
+      });
+    };
+    opts.forEach(([word, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'c-settings__row';
+      b.setAttribute('role', 'radio');
+      b.dataset.titlebar = word;
+      const lab = document.createElement('span');
+      lab.className = 'c-settings__row-label';
+      lab.textContent = label;
+      const val = document.createElement('span');
+      val.className = 'c-settings__row-value';
+      b.append(lab, val);
+      b.addEventListener('click', () => {
+        if (titleBarDev === word) return;
+        titleBarDev = word;
+        paint();
+        bridge.send('ixian:devflash:titlebar:' + word);
       });
       card.append(b);
     });
@@ -372,6 +432,13 @@
       if (w !== 'clip' && w !== 'shadow' && w !== 'none') return;
       containerDev = w;
       mountContainerDev();
+    },
+    /* ★ DT-1 B (🟡 new push, dev surface): the stored title bar way — one of three fixed words, anything else is ignored */
+    setTitleBarDev(v) {
+      const w = String(v || '');
+      if (w !== 'maui' && w !== 'colors' && w !== 'off') return;
+      titleBarDev = w;
+      mountTitleBarDev();
     },
     /* ★ S16 (#1312, 🟡 new push): the stored flag switches "s,m" (1 = ON); anything but two 0/1 digits is ignored. */
     setFlagsDev(v) {

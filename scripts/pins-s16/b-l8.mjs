@@ -224,9 +224,11 @@ export default async function (h) {
     reads: /Preferences\.Default\.Get\("devMode", false\)/.test(init) && /Preferences\.Default\.Get\(SecureWalletPassKey, 1\)/.test(init) && /Preferences\.Default\.Get\(MediaInputGateKey, 1\)/.test(init),
     rule: /SecureWalletPass = S16PassRules\.effectiveFlag\(dev, sp\);/.test(init) && /MediaInputGate = S16PassRules\.effectiveFlag\(dev, mg\);/.test(init)
       && /return !\(devMode && stored == 0\);/.test(RULES),
-    /* ★ S17 A / F re-base: one [FLAGS] line per flag family — S16's two flags, then S17Bridge, then S17Moments (each a fixed line) */
-    oneLine: (init.match(/Logging\.info\(/g) || []).length === 3 && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
-      && /Logging\.info\(S17Rules\.flagLine\(S17Bridge\)\);/.test(init) && /Logging\.info\(S17MomentRules\.flagLine\(S17Moments\)\);/.test(init),
+    /* ★ S17 A / F re-base: one [FLAGS] line per flag family — S16's two flags, then S17Bridge, then S17Moments (each a fixed line)
+       ★ DT-1 B re-base (#1386): + the Windows-only title bar way line, under #if WINDOWS (pins-dt1/b-titlebar.mjs) */
+    oneLine: (init.match(/Logging\.info\(/g) || []).length === 4 && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
+      && /Logging\.info\(S17Rules\.flagLine\(S17Bridge\)\);/.test(init) && /Logging\.info\(S17MomentRules\.flagLine\(S17Moments\)\);/.test(init)
+      && /#if WINDOWS\s*Logging\.info\(DtTitleBarRules\.flagLine\(DtTitleBarWay\)\);[^\n]*\s*#endif/.test(init),
   };
   /* ★ #46 r1 (R2 NIT-2): leaving dev mode drops both switches, so a later dev-mode-on cannot revive a stored 0 */
   const HPd = rd('Spixi/Pages/Home/HomePage.xaml.cs');

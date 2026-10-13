@@ -2894,6 +2894,14 @@ function trackRowHover(listEl, sel, keyOf) {
   return st;
 }
 
+/** ★ DT-1 A (#46 r2 m-2): forget the hovered row — an action that MOVES the row the pointer is on (the bar's pin re-sorts the
+ *  list) must not carry the hover to the row's new slot (the pointer is not there; WebView2 re-hit-tests the slot it is on). */
+function clearRowHover(listEl) {
+  const st = rowHoverLists.get(listEl);
+  if (st) st.key = null;
+  rowHoverClear(listEl, null);
+}
+
 /** Before a row is replaced (or the list cleared): which row keys are hovered / focused now. */
 function snapRowHover(listEl, oldRows) {
   const st = rowHoverLists.get(listEl);
@@ -2909,7 +2917,8 @@ function snapRowHover(listEl, oldRows) {
     let on = false;
     try { on = row.matches(':hover'); } catch (e) { /* engine without :hover matching */ }
     if (!hover && (on || row.hasAttribute('data-hover'))) hover = k;
-    if (ae && ae === row) focus = k;
+    /* ★ DT-1 A: a WRAPPER row (the desktop .c-chatlist-row, not focusable itself) holds the focus when a child has it */
+    if (ae && (ae === row || (row.tabIndex < 0 && row.contains(ae)))) focus = k;
   }
   return { hover, focus };
 }
@@ -2933,7 +2942,12 @@ function restoreRowFocus(listEl, snap) {
   const ae = document.activeElement;
   if (ae && ae !== document.body && ae.isConnected) return;   // focus already went somewhere on purpose
   for (const row of listEl.querySelectorAll(st.sel)) {
-    if (st.keyOf(row) === snap.focus) { try { row.focus({ preventScroll: true }); } catch (e) { /* detached */ } return; }
+    if (st.keyOf(row) === snap.focus) {
+      /* ★ DT-1 A: a wrapper row hands the focus to its own focusable row button (the action buttons are tabIndex -1) */
+      const target = row.tabIndex >= 0 ? row : (row.querySelector('button:not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])') || row);
+      try { target.focus({ preventScroll: true }); } catch (e) { /* detached */ }
+      return;
+    }
   }
 }
 
@@ -14595,13 +14609,16 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = getSt
  * opts: { strings, host, capabilities:{pin,mute,favorites,…}, rowMenu,
  *         onOpen, onHandshakeBlocked(chat), onRequestAccept(req,row),
  *         onRequestDecline(req), onChatInfo(chat), onModelChange(state),
- *         onPersist(action,chat), onNewChat }
+ *         onPersist(action,chat), onNewChat,
+ *         sections, onFold(key, folded), hoverActions }   // ★ DT-1 A (desktop only; the host passes them)
+ * state.fold = { pinned, chats } (★ DT-1 A): the folded sections — the host seeds it from its per-device key.
  * onNewChat = the zero-state CTA (host opens the contacts picker, the SAME
  * action as the FAB — no new bridge verb). Omit it and the CTA is not rendered.
  * capabilities gate BE-dependent features so they can be PARKED until BE ships
  * (#67/§8): pin/mute swipe + menu items render only when their flag is truthy.
  * Update APIs are FREE FUNCTIONS operating on (listEl, state, …) per #44.
  */
+
 
 
 
@@ -14680,6 +14697,30 @@ function orderedTimeline(state) {
     .sort((a, b) => b.ts - a.ts)                          // newest first; stable → chat before request on a tie
     .map(({ kind, item }) => ({ kind, item }));
   return [...pinned, ...flow];
+}
+
+/* ★ DT-1 A (Damir 2026-10-12, the "Spixi v1 Desktop Additions" render) — DESKTOP LIST SECTIONS. With opts.sections
+ * (the host passes it on desktop only), the All chip, at least one PINNED chat in the visible timeline and no search query, the list
+ * reads "Pinned · n" then "Chats · n" (requests count in Chats; the counts are rows, not unread). Each head folds; a
+ * folded section's rows are not rendered. No pinned chat, a query, or mobile → today's flat list, unchanged.
+ * ONE plan for the full render and the one-row patch, so the two can never disagree about what is on screen. */
+function chatsRenderPlan(state, opts = {}) {
+  const timeline = orderedTimeline(state);
+  /* #46 r1 (A-8): under a chip other than All the list stays flat — a folded section must never hide a filter's own
+     results (or its empty state) */
+  if (!opts.sections || (state.query || '').trim() || (state.filter || 'all') !== 'all') return timeline;
+  const isPinned = (e) => e.kind === 'chat' && !!e.item.pinned;
+  const pinned = timeline.filter(isPinned);
+  if (!pinned.length) return timeline;
+  const rest = timeline.filter((e) => !isPinned(e));
+  const fold = state.fold || {};
+  const plan = [{ kind: 'section', key: 'pinned', count: pinned.length, folded: !!fold.pinned }];
+  if (!fold.pinned) plan.push(...pinned);
+  if (rest.length) {
+    plan.push({ kind: 'section', key: 'chats', count: rest.length, folded: !!fold.chats });
+    if (!fold.chats) plan.push(...rest);
+  }
+  return plan;
 }
 
 /** Unread total excluding muted; a bare mention counts as 1 (mirrors #42 / the
@@ -14839,6 +14880,9 @@ function buildChatRowNode(listEl, state, c, opts, ctx) {
         onAction: (action) => { if (action === 'cancelHandshake') failHandshake(listEl, state, c, opts); },
       });
     }
+    /* ★ DT-1 A (#46 r1): on desktop a handshaking row is wrapped too — NO action (nothing to pin or mute yet), but the same
+       hover unit as every row, so #1171 carries its hover across the frequent re-renders of the 3 s hold */
+    if (opts.hoverActions && c.address) return wrapChatRowActions(listEl, state, c, el, el, opts, strings, caps, true);
     return el;
   }
   if (opts.rowMenu !== false) {                        // long-press/right-click → context sheet (step 4)
@@ -14850,10 +14894,11 @@ function buildChatRowNode(listEl, state, c, opts, ctx) {
     });
   }
   // swipe accelerator (step 5) — capability-gated; returns el unwrapped if parked
-  const node = wrapChatRowSwipe(el, {
+  let node = wrapChatRowSwipe(el, {
     chat: c, capabilities: caps, strings,
     onAction: (action, detail) => applyChatRowAction(listEl, state, c, action, opts, detail),
   });
+  if (opts.hoverActions && c.address) node = wrapChatRowActions(listEl, state, c, el, node, opts, strings, caps);   // ★ DT-1 A (desktop)
   /* ★ review MINOR-3 (#572 ③): a flush replaces every row, and a message arriving in
      ANY chat is enough. Without this the row under an open anchored menu drops back
      beneath the deep scrim mid-interaction — the exact symptom the lift fixes. */
@@ -14861,6 +14906,87 @@ function buildChatRowNode(listEl, state, c, opts, ctx) {
     node.dataset.menuLift = 'row';
   }
   return node;
+}
+
+/* ★ DT-1 A: one section head — a button (Enter / Space fold it), aria-expanded = the state, the label + the row
+ * count. The fold lives in state.fold; the host persists it per device through opts.onFold. */
+function buildSectionHead(listEl, state, sec, opts, strings) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'c-chats-section';
+  b.dataset.section = sec.key;
+  b.dataset.count = String(sec.count);   // #46 r1 (A-2): the one-row patch re-checks it (a folded section's count can move)
+  b.setAttribute('aria-expanded', sec.folded ? 'false' : 'true');
+  b.append(icon(sec.folded ? 'chevron-right' : 'chevron-down', { size: 16 }));
+  const label = document.createElement('span');
+  label.className = 'c-chats-section__label';
+  label.textContent = sec.key === 'pinned' ? (strings.pinnedSection || 'Pinned') : (strings.chats || 'Chats');
+  const count = document.createElement('span');
+  count.className = 'c-chats-section__count u-tabular';
+  count.textContent = String(sec.count);
+  b.append(label, count);
+  b.addEventListener('click', () => {
+    const fold = { ...(state.fold || {}) };
+    fold[sec.key] = !fold[sec.key];
+    state.fold = fold;
+    if (opts.onFold) { try { opts.onFold(sec.key, fold[sec.key]); } catch (e) { /* the host's store must not stop the fold */ } }
+    renderChatsList(listEl, state, opts);   // the head is rebuilt; renderChatsList hands the focus to its replacement
+  });
+  return b;
+}
+
+/* ★ DT-1 A: the DESKTOP hover actions — pin / unpin · mute / unmute · chat info · more, on the row the pointer is on
+ * (chatlist-item.css: fine pointer + :root[data-desktop] only). A row is a <button>, so the actions are its SIBLINGS
+ * in a .c-chatlist-row wrapper (a button inside a button is not allowed). Each one calls the SAME applyChatRowAction
+ * as the row menu (pin / mute / info — mute stays C#-owned through onPersist's ixian:mutechat and the setChatMuted
+ * echo); "more" raises the row's own contextmenu, so it IS today's row menu (attachChatRowMenu + the desktop anchor,
+ * placed at the button). Pointer accelerators, tabIndex -1 like the swipe actions: the keyboard path stays the row
+ * menu (Shift F10 / the context-menu key on the focused row), and Tab moves row to row as before. */
+function wrapChatRowActions(listEl, state, c, row, node, opts, strings, caps, bare = false) {
+  const wrap = document.createElement('div');
+  wrap.className = 'c-chatlist-row';
+  wrap.dataset.rowAddress = String(c.address || '');
+  const bar = document.createElement('span');
+  bar.className = 'c-chatlist-row__acts';
+  const add = (action, glyph, label, run) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-chatlist-row__act';
+    b.dataset.action = action;
+    b.tabIndex = -1;
+    b.setAttribute('aria-label', label);
+    b.title = label;
+    b.append(icon(glyph, { size: 18 }));
+    b.addEventListener('click', (e) => { e.stopPropagation(); run(b); });
+    bar.append(b);
+  };
+  const act = (action) => applyChatRowAction(listEl, state, c, action, opts);
+  if (bare) {                                           // a handshaking row: the hover unit, no action
+    wrap.dataset.acts = '0';
+    wrap.append(node, bar);
+    return wrap;
+  }
+  /* #46 r2 m-2: pin MOVES the row (into / out of Pinned) — the hover is not carried to its new slot */
+  if (caps.pin) add('pin', c.pinned ? 'pinned-off' : 'pin', c.pinned ? (strings.unpin || 'Unpin') : (strings.pin || 'Pin'), () => { clearRowHover(listEl); act('pin'); clearRowHover(listEl); });
+  if (caps.mute) add('mute', c.muted ? 'bell' : 'bell-off', c.muted ? (strings.unmute || 'Unmute') : (strings.mute || 'Mute'), () => act('mute'));
+  add('info', 'info-circle', strings.chatInfo || 'Chat info', () => act('info'));
+  if (opts.rowMenu !== false) {
+    add('more', 'dots', strings.moreOptions || 'More options', (b) => {
+      let x = 0;
+      let y = 0;
+      try { const r = b.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; } catch (e) { /* unmeasured */ }
+      /* a real right click is pointerdown (button 2) → contextmenu. The pointerdown matters: attachChatRowMenu's
+         "a long press already opened it" guard is reset only by a press ON THE ROW, so after one right click the
+         next contextmenu alone would be swallowed. Button 2 is ignored by the press paint (pressable.js) and the
+         long-press timer. */
+      const P = typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
+      row.dispatchEvent(new P('pointerdown', { bubbles: true, cancelable: true, button: 2, buttons: 2, clientX: x, clientY: y, pointerType: 'mouse' }));
+      row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+    });
+  }
+  wrap.dataset.acts = String(bar.children.length);   // the text column's reserve while the bar shows (chatlist-item.css)
+  wrap.append(node, bar);
+  return wrap;
 }
 
 /** (Re)render the whole list from the model. Full re-render; the row-level path is
@@ -14873,7 +14999,13 @@ function renderChatsList(listEl, state, opts = {}) {
      the rows go. The release is delivered to the node under the finger, so a row replaced
      mid-press never gets its own `pointerup` — its 500 ms timer survives the flush and
      opens a menu into a shell the user has already left. See chats-row-menu.js. */
-  const hoverSnap = snapRowHover(trackChatsHover(listEl)); // ★ #1171: the hovered / focused row survives the rebuild
+  const hoverSnap = snapRowHover(trackChatsHover(listEl, opts)); // ★ #1171: the hovered / focused row survives the rebuild
+  /* ★ DT-1 A: a focused section head (a fold by Enter, or a flush while it has focus) hands the focus to its replacement */
+  let secFocus = '';
+  try {
+    const ae = typeof document !== 'undefined' ? document.activeElement : null;
+    if (ae && ae.classList && ae.classList.contains('c-chats-section') && listEl.contains(ae)) secFocus = ae.dataset.section || '';
+  } catch (e) { /* no document */ }
   clearChatRowMenuTimers();
   listEl.textContent = '';                               // clear (detaches old rows + listeners for GC)
   const ctx = {
@@ -14883,9 +15015,11 @@ function renderChatsList(listEl, state, opts = {}) {
     liftedRow: liftedRowAddress(),                       // review MINOR-3: read ONCE per render
   };
 
-  // pinned chats on top, then requests + unpinned chats interleaved by recency
-  const timeline = orderedTimeline(state);
-  for (const { kind, item } of timeline) {
+  // pinned chats on top, then requests + unpinned chats interleaved by recency (★ DT-1 A: + the desktop section heads)
+  const plan = chatsRenderPlan(state, opts);
+  for (const entry of plan) {
+    if (entry.kind === 'section') { listEl.append(buildSectionHead(listEl, state, entry, opts, strings)); continue; }
+    const { kind, item } = entry;
     if (kind === 'request') { listEl.append(buildChatRequestNode(item, opts, strings)); continue; }
     const node = buildChatRowNode(listEl, state, item, opts, ctx);
     carryRowHover(listEl, node, hoverSnap);              // ★ #1171: before the append — its first style is already the hover paint
@@ -14913,18 +15047,34 @@ function renderChatsList(listEl, state, opts = {}) {
     }
   }
 
-  if (!timeline.length) {
+  if (!plan.length) {
     const emptyEl = chatsEmptyState(state, strings, opts);
     if (emptyEl) listEl.append(emptyEl);           // null = gated load window (★)
   }
   restoreRowFocus(listEl, hoverSnap);                    // ★ #1171: a focused row's replacement takes the focus back
+  /* #46 r1 (A-1 MAJOR): the restoreRowFocus rules — a document WITHOUT focus (desktop: the user types in the chat pane's
+     own WebView2) never takes it back, and focus that already went somewhere on purpose stays there */
+  if (secFocus) {
+    let mayFocus = true;
+    try {
+      if (typeof document.hasFocus === 'function' && !document.hasFocus()) mayFocus = false;
+      const ae = document.activeElement;
+      if (ae && ae !== document.body && ae.isConnected) mayFocus = false;
+    } catch (e) { mayFocus = false; }
+    const head = mayFocus ? Array.from(listEl.querySelectorAll('.c-chats-section')).find((h) => h.dataset.section === secFocus) : null;
+    if (head) { try { head.focus({ preventScroll: true }); } catch (e) { /* detached */ } }
+  }
   return listEl;
 }
 
 /* ★ #1171 — the chats list's hover tracker (chatlist-item.js trackRowHover): the hoverable element is the row
  * button, keyed by the address it already wears (#587). Idempotent; installed by the first render. */
-function trackChatsHover(listEl) {
-  trackRowHover(listEl, '.c-chatlist-item', (row) => row.dataset.address || '');
+function trackChatsHover(listEl, opts = {}) {
+  /* ★ DT-1 A: with the desktop hover actions the hoverable unit is the .c-chatlist-row wrapper (the row button AND
+     its action bar), keyed by the address it wears as data-row-address — the pointer on an action is still "on" it */
+  /* #46 r1 (A-5): a handshaking row is wrapped too (no actions), so every desktop row is one .c-chatlist-row unit */
+  if (opts.hoverActions) trackRowHover(listEl, '.c-chatlist-row', (row) => row.dataset.rowAddress || '');
+  else trackRowHover(listEl, '.c-chatlist-item', (row) => row.dataset.address || '');
   return listEl;
 }
 
@@ -14936,18 +15086,26 @@ function trackChatsHover(listEl) {
 function chatRowNodeKey(node) {
   if (!node || node.nodeType !== 1) return null;
   if (node.classList.contains('c-contact-request')) return 'r:' + (node.dataset.requestAddress || '');
+  if (node.classList.contains('c-chats-section')) return 's:' + (node.dataset.section || '');   // ★ DT-1 A
   const btn = node.classList.contains('c-chatlist-item') ? node : node.querySelector('.c-chatlist-item');
   return btn && btn.dataset.address ? 'c:' + btn.dataset.address : null;
 }
 
 function patchChatRows(listEl, state, addresses, opts = {}) {
   const want = new Set((addresses || []).filter(Boolean).map(String));
-  const timeline = orderedTimeline(state);
+  const timeline = chatsRenderPlan(state, opts);   // ★ DT-1 A: the render's own plan (section heads, folded sections out)
   const kids = Array.from(listEl.children);
   if (!timeline.length || kids.length !== timeline.length) return false;
   const targets = [];
   const keys = new Set();
   for (let i = 0; i < timeline.length; i++) {
+    if (timeline[i].kind === 'section') {
+      const skey = 's:' + timeline[i].key;
+      if (keys.has(skey) || chatRowNodeKey(kids[i]) !== skey) return false;
+      if (kids[i].dataset.count !== String(timeline[i].count)) return false;   // #46 r1 (A-2): a stale count → the full render
+      keys.add(skey);
+      continue;
+    }
     const { kind, item } = timeline[i];
     if (!item || !item.address) return false;              // no stable key → full render
     const key = (kind === 'request' ? 'r:' : 'c:') + item.address;
@@ -14970,7 +15128,7 @@ function patchChatRows(listEl, state, addresses, opts = {}) {
   };
   // ★ #1171: a replaced row is a NEW node, never `:hover` until WebView2 re-hit-tests — carry the hover (and the
   // keyboard focus) across. Snapped from the rows being replaced; the tracker knows the hovered key.
-  const hoverSnap = snapRowHover(trackChatsHover(listEl), targets.map((i) => kids[i]));
+  const hoverSnap = snapRowHover(trackChatsHover(listEl, opts), targets.map((i) => kids[i]));
   for (const i of targets) {
     const node = buildChatRowNode(listEl, state, timeline[i].item, opts, ctx);
     carryRowHover(listEl, node, hoverSnap);
@@ -35585,5 +35743,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, radioArrows: radioArrows, createThemePicker: createThemePicker, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, clearRowHover: clearRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsRenderPlan: chatsRenderPlan, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, radioArrows: radioArrows, createThemePicker: createThemePicker, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

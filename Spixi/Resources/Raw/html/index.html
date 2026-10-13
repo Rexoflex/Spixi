@@ -1322,6 +1322,81 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    #228: trigger = platform flag (shell boot), not viewport — constant on resize. */
 :root[data-desktop] .c-chatlist-item { padding-block: var(--spacing-8); }
 
+/* ★ DT-1 A (Damir 2026-10-12, the "Spixi v1 Desktop Additions" render) — DESKTOP ROWS ARE INSET, ROUNDED SHAPES. The
+   selected, pinned, hovered and pressed paints (and the base.css press layer, border-radius: inherit) sit inside an
+   8 px gutter with the radius-12 corner the #268 menu-source row already uses. Avatars, sizes and weights do not move
+   (#227). The phone keeps full-bleed rows (no rule outside :root[data-desktop]). */
+:root[data-desktop] .c-chatlist-item {
+  width: auto;
+  margin-inline: var(--spacing-8);
+  border-radius: var(--radius-12);
+}
+/* #46 r1 (A-4): a request card in the same list takes the same gutter + corner, so its avatar and name stay in the rows'
+   column (they sat 8 px left of the inset rows) */
+:root[data-desktop] .c-chats-list > .c-contact-request {
+  margin-inline: var(--spacing-8);
+  border-radius: var(--radius-12);
+}
+
+/* ★ DT-1 A — THE DESKTOP HOVER ACTIONS (chats-shell.js wrapChatRowActions): a .c-chatlist-row wrapper holds the row
+   button and, as its sibling, the action bar (pin / mute / chat info / more). Shown ONLY for a fine pointer on desktop
+   (#43): never on touch, never by keyboard focus (the buttons are pointer accelerators; the keyboard path is the row
+   menu). A handshaking row is wrapped with NO action (data-acts="0": no bar, its time stays). While it shows, the time and the badges give way, and the text column stops short of the bar (data-acts =
+   the number of buttons, so the reserve fits the bar). The wrapper is the hover unit, so the row keeps its hover paint
+   while the pointer is on a button, and a live row replace carries it (#1171: [data-hover] on the wrapper). */
+.c-chatlist-row { position: relative; display: flex; flex-direction: column; }
+.c-chatlist-row__acts { display: none; pointer-events: none; }   /* #46 r1 (A-3): the bar's gaps fall through to the row (open / right click) */
+.c-chatlist-row__act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--spacing-24) + var(--spacing-4));
+  height: calc(var(--spacing-24) + var(--spacing-4));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  pointer-events: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  :root[data-desktop] .c-chatlist-row:not([data-acts="0"]):hover > .c-chatlist-row__acts,
+  :root[data-desktop] .c-chatlist-row:not([data-acts="0"])[data-hover] > .c-chatlist-row__acts {
+    display: flex;
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: var(--spacing-16);
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+  /* #46 r1 (A-6): VISUALLY hidden, not display:none — the time and the unread count stay in the row's accessible name
+     (a screen reader with mouse tracking still hears them); out of the flow, so the text column's reserve is the bar */
+  :root[data-desktop] .c-chatlist-row:not([data-acts="0"]):hover > .c-chatlist-item .c-chatlist-item__right,
+  :root[data-desktop] .c-chatlist-row:not([data-acts="0"])[data-hover] > .c-chatlist-item .c-chatlist-item__right {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  :root[data-desktop] .c-chatlist-row[data-acts="1"]:hover > .c-chatlist-item .c-chatlist-item__content,
+  :root[data-desktop] .c-chatlist-row[data-acts="1"][data-hover] > .c-chatlist-item .c-chatlist-item__content { padding-inline-end: calc(1 * (var(--spacing-24) + var(--spacing-4))); }
+  :root[data-desktop] .c-chatlist-row[data-acts="2"]:hover > .c-chatlist-item .c-chatlist-item__content,
+  :root[data-desktop] .c-chatlist-row[data-acts="2"][data-hover] > .c-chatlist-item .c-chatlist-item__content { padding-inline-end: calc(2 * (var(--spacing-24) + var(--spacing-4)) + var(--spacing-2)); }
+  :root[data-desktop] .c-chatlist-row[data-acts="3"]:hover > .c-chatlist-item .c-chatlist-item__content,
+  :root[data-desktop] .c-chatlist-row[data-acts="3"][data-hover] > .c-chatlist-item .c-chatlist-item__content { padding-inline-end: calc(3 * (var(--spacing-24) + var(--spacing-4)) + 2 * var(--spacing-2)); }
+  :root[data-desktop] .c-chatlist-row[data-acts="4"]:hover > .c-chatlist-item .c-chatlist-item__content,
+  :root[data-desktop] .c-chatlist-row[data-acts="4"][data-hover] > .c-chatlist-item .c-chatlist-item__content { padding-inline-end: calc(4 * (var(--spacing-24) + var(--spacing-4)) + 3 * var(--spacing-2)); }
+  /* the row's own hover paint, held while the pointer is on the bar (the item is not :hover there) — the same guards
+     and paint as the .c-chatlist-item:hover rule above (keep them in step; transition-free, see that rule) */
+  :root[data-desktop] .c-chatlist-row:hover > .c-chatlist-item:not([aria-current]):not([data-pinned]),
+  :root[data-desktop] .c-chatlist-row[data-hover] > .c-chatlist-item:not([aria-current]):not([data-pinned]) { background-color: var(--surface-interactive-hover); }
+  .c-chatlist-row__act:hover { background: var(--surface-interactive-pressed); color: var(--icon-neutral-01); }
+}
+
 /* ★ S10 P4 (#1254, Damir pick 2B, default 2 lines): "Message preview: 2 lines" (Chat appearance → home.html sets
    :root[data-preview-lines]). The excerpt becomes ONE inline flow — the sender ("Han Solo: "), the kind glyph and the
    text wrap together, clamped at 2 lines; a word too long for the line breaks anywhere. Every row keeps the 2-line
@@ -3644,6 +3719,36 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-neutral-02);
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
+}
+
+/* ★ DT-1 A (Damir 2026-10-12, the "Spixi v1 Desktop Additions" render): the DESKTOP section heads — "Pinned · n" and
+   "Chats · n", only while at least one chat is pinned (chats-shell.js chatsRenderPlan; the host passes opts.sections on
+   desktop only, so a phone never builds one). A button: the chevron says the fold (down = open), the count is the
+   section's rows. Quiet label ink; it never competes with a row. */
+.c-chats-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  width: 100%;
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-chats-section svg { flex: none; color: var(--icon-neutral-02); }
+/* #46 r1 (A-7): the head is a full-width child of the scroller, which clips the global +2 px outline — draw it inside */
+.c-chats-section:focus-visible { outline-offset: calc(-1 * var(--outline-width-2)); border-radius: var(--radius-8); }
+.c-chats-section__count { font-weight: var(--font-weight-regular); }
+[dir="rtl"] .c-chats-section[aria-expanded="false"] svg { transform: scaleX(-1); }   /* the folded chevron points along the reading direction */
+@media (hover: hover) and (pointer: fine) {
+  .c-chats-section:hover { color: var(--text-neutral-01); }
+  .c-chats-section:hover svg { color: var(--icon-neutral-01); }
 }
 
 </style>
@@ -8600,7 +8705,27 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
     const arr = JSON.parse(localStorage.getItem(PINS_KEY) || '[]');
     if (Array.isArray(arr)) for (const a of arr) if (typeof a === 'string') pinnedChats.add(a);
   } catch (e) {}
-  function savePins() { try { localStorage.setItem(PINS_KEY, JSON.stringify([...pinnedChats])); } catch (e) {} }
+  function savePins() {
+    try { localStorage.setItem(PINS_KEY, JSON.stringify([...pinnedChats])); } catch (e) {}
+    resetFoldIfNoPins();   // ★ DT-1 A (#46 r2 m-1): every path that drops a pin (unpin · delete · hide · forget) comes through here
+  }
+  /* ★ DT-1 A (desktop): the folded list sections, per device — the spixi.pins class (a UI preference of this device,
+     never peer data, wiped with app data). Exactly { pinned, chats } as booleans; anything else reads as "open". */
+  const FOLD_KEY = 'spixi.chats.fold';
+  try {
+    const f = JSON.parse(localStorage.getItem(FOLD_KEY) || '{}');
+    if (f && typeof f === 'object') state.fold = { pinned: f.pinned === true, chats: f.chats === true };
+  } catch (e) {}
+  function saveFold(fold) {
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify({ pinned: !!(fold && fold.pinned), chats: !!(fold && fold.chats) })); } catch (e) {}
+  }
+  /* the last pin gone → the sections go, and so does a stale fold (else the next pin opens with every other chat behind a
+     closed "Chats" head). Keyed on the PERSISTED pin set, never on state.chats (a re-flush empties that for a moment). */
+  function resetFoldIfNoPins() {
+    if (pinnedChats.size || !state.fold || !(state.fold.pinned || state.fold.chats)) return;
+    state.fold = { pinned: false, chats: false };
+    saveFold(state.fold);
+  }
   /* CH2 (Damir): after Accept, hold the "Setting up a secure connection…"
    * row for a MINIMUM ~3s so it reads as real (the C# contacts re-flush would
    * otherwise replace it sub-second). While an address is held: clearChats keeps its
@@ -8777,6 +8902,11 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
        muted ROW treatment (a toned-down count badge PLUS the bell-off glyph) needs nothing
        new either: createIndicators has rendered both since Damir's review on 2026-07-02. */
     capabilities: { pin: true, mute: true, favorites: true, delete: true },   // ★ CH4 (Session AD): favorites live
+    /* ★ DT-1 A: desktop only — the Pinned / Chats section heads (folded per device) and the row hover actions.
+       A phone passes neither, so its list is exactly today's. */
+    sections: isDesktop,
+    hoverActions: isDesktop,
+    onFold: () => saveFold(state.fold),
     // onModelChange fires on EVERY re-render — including row-menu delete/accept that
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
     // chip counts here so a delete or an accept never leaves a stale chip count.

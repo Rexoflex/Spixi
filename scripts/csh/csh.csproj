@@ -76,6 +76,7 @@
     <Compile Include="../../Spixi/Utils/S17Rules.cs" />   <!-- ★ S17 (#1338/#1339, P26): What's new + the bar ink rules (tests: S17Tests.cs) -->
     <Compile Include="../../Spixi/Utils/S17MomentRules.cs" />   <!-- ★ S17 F (#1340, P28): the Moment sheets rules (tests: S17MomentTests.cs) -->
     <Compile Include="../../Spixi/Utils/S19FetchRules.cs" />   <!-- ★ S19 F6 (AA-LINK): the link fetch's network / http reason (tests: S19FetchTests.cs) -->
+    <Compile Include="../../Spixi/Utils/DtTitleBarRules.cs" />   <!-- ★ DT-1 B: the Windows title bar's way switch, title and token palette (tests: DtTitleBarTests.cs) -->
     <Compile Include="../../Spixi/Utils/S16PassRules.cs" />   <!-- ★ S16 a-l8 (#1312, L8): the walletpass store's flags, sources, verify rule + decision core (tests: S16PassTests.cs) -->
     <Compile Include="../../Spixi/Utils/SpixiFlags.cs" /><Compile Include="../../Spixi/Meta/WalletPassStore.cs" />   <!-- ★ S16 #46 r1 (R4 MAJOR-4): the REAL walletpass shell, run end to end over StubsS16.cs (tests: S16StoreTests.cs) -->
     <Compile Include="../../Spixi/Utils/S16SecRules.cs" /><Compile Include="../../Spixi/Utils/GenericEventArgs.cs" />   <!-- ★ S16 a-sec (#1320 F1–F5, #1313 MAJOR #9): the security batch's pure rules + SPIXI.EventArgs<T> (tests: S16SecTests.cs) -->

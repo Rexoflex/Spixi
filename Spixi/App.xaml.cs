@@ -1439,6 +1439,9 @@ public partial class App : Application
         if (window != null)
         {
             window.Title = "Spixi IM";
+#if WINDOWS
+            SPIXI.DtTitleBar.onCreateWindow(window);   // ★ DT-1 B (Q1): "Spixi" in the token colours (the way picks the bar; off = today)
+#endif
 #if MACCATALYST
             window.Created += (s, e) => ThemeManager.applyMacWindowAppearance();   // ★ E-W7: the title follows the app theme from the first frame
 #endif

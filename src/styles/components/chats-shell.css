@@ -12,3 +12,33 @@
   font-size: var(--font-size-body-md);
   line-height: var(--line-height-body-md);
 }
+
+/* ★ DT-1 A (Damir 2026-10-12, the "Spixi v1 Desktop Additions" render): the DESKTOP section heads — "Pinned · n" and
+   "Chats · n", only while at least one chat is pinned (chats-shell.js chatsRenderPlan; the host passes opts.sections on
+   desktop only, so a phone never builds one). A button: the chevron says the fold (down = open), the count is the
+   section's rows. Quiet label ink; it never competes with a row. */
+.c-chats-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  width: 100%;
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-label-xs);
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
+.c-chats-section svg { flex: none; color: var(--icon-neutral-02); }
+/* #46 r1 (A-7): the head is a full-width child of the scroller, which clips the global +2 px outline — draw it inside */
+.c-chats-section:focus-visible { outline-offset: calc(-1 * var(--outline-width-2)); border-radius: var(--radius-8); }
+.c-chats-section__count { font-weight: var(--font-weight-regular); }
+[dir="rtl"] .c-chats-section[aria-expanded="false"] svg { transform: scaleX(-1); }   /* the folded chevron points along the reading direction */
+@media (hover: hover) and (pointer: fine) {
+  .c-chats-section:hover { color: var(--text-neutral-01); }
+  .c-chats-section:hover svg { color: var(--icon-neutral-01); }
+}

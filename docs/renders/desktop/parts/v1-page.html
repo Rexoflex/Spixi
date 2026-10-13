@@ -1,5 +1,5 @@
 <title>Spixi v1 Desktop Additions</title>
-<meta name="description" content="Spixi v1 desktop: four low-risk additions, today next to v1 +, Windows 11 and macOS, light and dark, real tokens.">
+<meta name="description" content="Spixi v1 desktop, session DT-1 scope: chat list polish, the Windows title bar in the token colours, the second-device warning, chat info that grows the window. Today next to v1 +, Windows 11 and macOS, light and dark, real tokens.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
@@ -39,26 +39,54 @@
 .toc a b { display: block; font-weight: 600; margin-bottom: 2px; }
 .toc a span { color: var(--muted); font-size: 13px; }
 .toc a i { font: 500 12px/1 var(--mono); font-style: normal; color: var(--accent); display: block; margin-bottom: 8px; }
+/* DT-1 additions */
+.dk .v1-tb__word { font-family: var(--font-ui); font-weight: 600; font-size: 13px; color: var(--text-neutral-01); }
+.dk .v1-info { flex: none; display: flex; min-height: 0; }
+.dk .v1-scr { position: absolute; inset: 0; background: linear-gradient(135deg, var(--wall-a), var(--wall-b)); overflow: hidden; }
+.dk .v1-win { position: absolute; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: var(--surface-screen);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .28), 0 0 0 1px var(--outline-neutral-02); }
+.dk .v1-win--mac { border-radius: 12px; }
+.dk .v1-ghost { position: absolute; border: 2px dashed var(--text-neutral-02); border-radius: 8px; z-index: 2; pointer-events: none; }
+.dk .v1-ghost span { position: absolute; top: -34px; left: 0; font: 600 14px/1 var(--font-ui); color: var(--text-neutral-01); background: var(--surface-screen); padding: 6px 8px; border-radius: 6px; }
+.dk .v1-dim { position: absolute; display: flex; align-items: center; gap: 8px; font: 600 15px/1 var(--font-ui); color: var(--text-neutral-01); }
+.dk .v1-dim i { flex: 1; height: 2px; background: var(--text-neutral-01); }
+.dk .v1-dim span { background: var(--surface-screen); padding: 6px 10px; border-radius: 6px; white-space: nowrap; }
+.dk .v1-menubar { position: absolute; left: 0; right: 0; top: 0; height: 34px; display: flex; align-items: center; gap: 22px; padding: 0 18px;
+  background: color-mix(in srgb, var(--surface-screen) 70%, transparent); font: 500 15px/1 -apple-system, "SF Pro Text", system-ui, sans-serif; color: var(--text-neutral-01); }
+.note { margin-top: 18px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); max-width: 92ch; font-size: 14px; line-height: 1.55; }
+.note b { color: var(--ink); }
+.note--stop { border-color: var(--accent); }
+.note .k2 { font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--accent); display: block; margin-bottom: 8px; }
+.note code { overflow-wrap: anywhere; }
+.g3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px 18px; margin-top: 20px; align-items: start; }
+@media (max-width: 900px) { .g3 { grid-template-columns: 1fr; } }
+.g2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 18px; margin-top: 20px; align-items: start; }
+@media (max-width: 760px) { .g2 { grid-template-columns: 1fr; } }
+.g3 figcaption, .g2 figcaption { font: 13px/1.5 var(--body); color: var(--muted); margin-top: 10px; }
+.g3 figcaption b, .g2 figcaption b { color: var(--ink); font-weight: 600; }
+.tag--rec { background: var(--accent); color: var(--bg); }
+.g3 figcaption .tag, .g2 figcaption .tag { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: .02em; text-transform: uppercase; padding: 4px 6px; border-radius: 4px; margin-right: 6px; vertical-align: 1px; }
+.g3 figcaption > b, .g2 figcaption > b, .stack figcaption > b { display: block; margin-bottom: 2px; }
 </style>
 <script>document.documentElement.setAttribute('data-desktop', '');</script>
 
 <main class="page">
   <header>
-    <p class="kicker">Spixi · desktop · v1 additions · render only, nothing built</p>
-    <h1>What v1 desktop can add now</h1>
-    <p class="lede">Four small changes that make v1 desktop feel less like a phone port, without new risk. Each frame pair shows today's v1 desktop and the same window with the change. The frames are drawn with the real <code>tokens.css</code> and the real icon set, at 1440 × 900, with Windows 11 and macOS chrome. Use the bar to switch light and dark.</p>
+    <p class="kicker">Spixi · desktop · v1 additions · session DT-1 scope · render only, nothing built</p>
+    <h1>What v1 desktop adds in DT-1</h1>
+    <p class="lede">The DT-1 scope (Damir, 12 Oct 2026, with the interview answers of 21:5x): the chat list polish, the Windows title bar in Spixi's colours with the word "Spixi" and no search box, and chat info that grows the window instead of squeezing the chat. The second-device warning is dropped from DT-1 (the mechanism check failed). The Spixi logo stays in the rail on Windows and Mac. The Mac keeps today's title strip. Frames use the real <code>tokens.css</code> and icon set, with Windows 11 and macOS chrome. Use the bar to switch light and dark.</p>
     <div class="facts">
       <span class="fact"><b>Page verbs</b> none new</span>
       <span class="fact"><b>Money path</b> not touched</span>
       <span class="fact"><b>WebViews</b> none new, chat stays isolated</span>
-      <span class="fact"><b>Effort</b> 3–4 sessions in total</span>
+      <span class="fact"><b>Mac</b> A + D (the title strip is v1.1)</span><span class="fact"><b>Patches</b> P1 = A + B · P2 = D</span>
       <span class="fact"><b>Data</b> fictional</span>
     </div>
     <ul class="toc">
-      <li><a href="#add-1"><i>1 · Windows · ~1 session</i><b>Native title bar</b><span>Icon, name and a search box in the window bar; one new C# push.</span></a></li>
-      <li><a href="#add-2"><i>2 · macOS · 0.5–1 session</i><b>Use the title strip</b><span>The headers move up into the empty band; CSS only.</span></a></li>
-      <li><a href="#add-3"><i>3 · both · ~1 session</i><b>Chat list polish</b><span>Pinned and Chats sections, inset rows, hover actions.</span></a></li>
-      <li><a href="#add-4"><i>4 · both · 0.5–1 session</i><b>Second-device warning</b><span>The existing banner, when the account is live on another device.</span></a></li>
+      <li><a href="#add-a"><i>A · both · no C#</i><b>Chat list polish</b><span>Pinned and Chats sections, inset rows, hover actions.</span></a></li>
+      <li><a href="#add-b"><i>B · Windows · C#</i><b>Title bar in Spixi colours</b><span>Token colours, light and dark. No search box. The content is Q1.</span></a></li>
+      <li><a href="#add-c"><i>C · dropped from DT-1 (Q2)</i><b>Second-device warning</b><span>Spixi cannot see the other device without a new request. A BE ask instead.</span></a></li>
+      <li><a href="#add-d"><i>D · Windows, then Mac · C# · patch 2</i><b>Chat info grows the window</b><span>#1179 (b): grows right when there is room, else squeezes.</span></a></li>
     </ul>
   </header>
 
@@ -67,57 +95,78 @@
   </div>
 
   <section class="add" id="add-0" aria-labelledby="ov-h">
-    <div class="add__h"><h2 id="ov-h">Today, and v1 with all four</h2></div>
-    <p class="sum muted">The whole window, before and after. The chat area does not change: it stays in its own WebView, with the same header, bubbles and composer.</p>
+    <div class="add__h"><h2 id="ov-h">Today, and v1 with A + B</h2></div>
+    <p class="sum muted">The whole window, before and after. The chat area does not change: it stays in its own WebView, with the same header, bubbles and composer. The list keeps its own search field on both systems.</p>
     <div class="np">
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"><figcaption><b><span class="tag tag--now">Today</span>Windows 11</b>The default window title bar, the logo in the rail, the search field in the list, one flat list of full-width rows.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>Windows 11</b>Spixi's own title bar with the search box, Pinned and Chats sections, inset rounded rows.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="mac" tabindex="0"><figcaption><b><span class="tag tag--now">Today</span>macOS</b>An empty title strip across the window (the shells pad below it), the logo in the rail, one flat list.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="mac" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>macOS</b>The window buttons on the rail, the list and chat headers in the strip, the same list polish as Windows.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"><figcaption><b><span class="tag tag--now">Today</span>Windows 11</b>The default title bar in the Windows theme colours ("Spixi IM"), the logo in the rail, one flat list of full-width rows.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="win" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>Windows 11</b>The bar in the token colours with "Spixi" (Q1, recommended). The logo stays in the rail. Pinned and Chats sections, inset rows.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="mac" tabindex="0"><figcaption><b><span class="tag tag--now">Today</span>macOS</b>The native title strip above the WebViews, the logo in the rail, one flat list.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="mac" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>macOS</b>The title strip and the rail stay as today. Only the list polish changes.</figcaption></figure>
     </div>
   </section>
 
-  <section class="add" id="add-1" aria-labelledby="a1-h">
-    <div class="add__h"><span class="add__n">1</span><h2 id="a1-h">Native title bar · Windows</h2></div>
-    <div class="add__meta"><span><b>How</b> MAUI Window.TitleBar</span><span><b>Bridge</b> 1 new push: setChatFilter(text)</span><span><b>Page verbs</b> none</span><span><b>Effort</b> ~1 session</span></div>
-    <p class="sum">The bar shows the Spixi icon and name and a centred "Search chats" box. The box is a native field; typing pushes the text to the home shell, which runs the filter it has today. <code>Ctrl K</code> focuses it from anywhere, also from inside the chat. The colours come from the tokens, so the bar follows light and dark. The list's own search field goes away on Windows.</p>
-    <div class="stack">
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,230" tabindex="0"><figcaption><span class="tag tag--now">Today</span>The default title bar in system colours; the search field sits in the list.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,230" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Spixi's title bar: icon, name, the search box with <code>Ctrl K</code>, the caption buttons. The logo leaves the rail.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="4" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,300" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Typing "mi" in the bar filters the list in the shell, as the list field does today.</figcaption></figure>
-    </div>
-  </section>
-
-  <section class="add" id="add-2" aria-labelledby="a2-h">
-    <div class="add__h"><span class="add__n">2</span><h2 id="a2-h">Use the title strip · macOS</h2></div>
-    <div class="add__meta"><span><b>How</b> CSS in home.html and chat.html</span><span><b>Bridge</b> none (the --safe-top push exists)</span><span><b>Check first</b> drag and clicks in the strip</span><span><b>Effort</b> 0.5–1 session</span></div>
-    <p class="sum">Today every shell pads below the title strip, so an empty band runs across the top of the window. With the change, the window buttons sit at the top of the rail and the list and chat headers sit in the band, as Mail and Messages do. The list keeps its own search field (Mac pattern). Before the work, check on a Mac that the window still drags from the band and that a click on an HTML button in the band reaches the page.</p>
-    <div class="stack">
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,1440,230" tabindex="0"><figcaption><span class="tag tag--now">Today</span>The empty strip with the window buttons; the headers start below it.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,1440,230" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>The window buttons on the rail; "Chats" and the chat header in the strip. The window gets 28 px of height back.</figcaption></figure>
-    </div>
-  </section>
-
-  <section class="add" id="add-3" aria-labelledby="a3-h">
-    <div class="add__h"><span class="add__n">3</span><h2 id="a3-h">Chat list polish · both</h2></div>
-    <div class="add__meta"><span><b>How</b> chatlist-item.css under :root[data-desktop] + the chats list</span><span><b>Bridge</b> none (row-menu actions)</span><span><b>Page verbs</b> none</span><span><b>Effort</b> ~1 session</span></div>
-    <p class="sum">"Pinned" and "Chats" headers with counts, which fold. Rounded, inset shapes for the selected and the hovered row. On hover, four buttons on the row: pin, mute, chat info and more. They call the same actions as the row menu, so no new verb. The mobile list does not change.</p>
+  <section class="add" id="add-a" aria-labelledby="aa-h">
+    <div class="add__h"><span class="add__n">A</span><h2 id="aa-h">Chat list polish · Windows and Mac</h2></div>
+    <div class="add__meta"><span><b>How</b> chatlist-item.css under :root[data-desktop] + chats-shell.js</span><span><b>Bridge</b> none (row-menu actions)</span><span><b>Mobile</b> unchanged</span></div>
+    <p class="sum">"Pinned · n" and "Chats · n" headers, only when at least one chat is pinned. Both fold, and the fold is kept per device (<code>spixi.chats.fold</code>, the <code>spixi.pins</code> class). Rounded, inset shapes for the selected and the hovered row. On hover (pointer only), four buttons on the row: pin, mute, chat info and more. They call the same <code>onAction('pin' | 'mute' | 'info')</code> as the row menu, so no new verb. Right click, the context-menu key and <code>Shift F10</code> still open the row menu.</p>
     <div class="g4">
       <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,32,480,700" tabindex="0"><figcaption><span class="tag tag--now">Today</span>One flat list, full-width rows.</figcaption></figure>
       <figure class="fr fr--np" data-autofr data-v="v1" data-i="2" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,40,480,700" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Sections and a hover row with pin, mute, info, more.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="5" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,40,480,700" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Pinned folded; the fold is kept per device.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="2" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,480,700" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>The same on macOS, with the list's own search field.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="5" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,40,480,700" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>Pinned folded. The fold is kept per device.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="2" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,28,480,700" tabindex="0"><figcaption><span class="tag tag--new">v1 +</span>The same on macOS, under the title strip of today.</figcaption></figure>
     </div>
+    <div class="note"><span class="k2">Defaults the build takes (say if you want another)</span>No section rows while a search query is active (the filtered list stays flat). With a chip filter (Unread, Groups), the sections show only when a pinned chat is in the filtered list. Pending request rows count in "Chats". The counts are rows in each section, not unread counts.</div>
   </section>
 
-  <section class="add" id="add-4" aria-labelledby="a4-h">
-    <div class="add__h"><span class="add__n">4</span><h2 id="a4-h">Second-device warning · both</h2></div>
-    <div class="add__meta"><span><b>How</b> C# reads our own presence entries</span><span><b>Bridge</b> none (existing showWarning)</span><span><b>Also on</b> mobile</span><span><b>Effort</b> 0.5–1 session</span></div>
-    <p class="sum">When the same account is live on another device, new messages can go to that device instead of this one. C# sees this in our own presence entries (one per device) and shows the existing home banner with a fixed text. The user can close it. It goes away when the other device is quiet for some minutes. This is the v1 step from the multi-device note; real multi-device sync stays a Core topic.</p>
-    <div class="np">
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="3" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,40,960,440" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>Windows 11</b>The banner above the list, under the title bar.</figcaption></figure>
-      <figure class="fr fr--np" data-autofr data-v="v1" data-i="3" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,960,440" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>macOS</b>The same banner under the list header in the strip.</figcaption></figure>
+  <section class="add" id="add-b" aria-labelledby="ab-h">
+    <div class="add__h"><span class="add__n">B</span><h2 id="ab-h">Windows title bar in Spixi colours · Q1</h2></div>
+    <div class="add__meta"><span><b>Way 1</b> MAUI Window.TitleBar</span><span><b>Way 2 (fallback)</b> AppWindow.TitleBar colours only</span><span><b>Bridge</b> none</span><span><b>Search</b> none (the list keeps its field)</span></div>
+    <p class="sum">Today the bar is the system bar in system colours with the caption "Spixi IM" (dark in light mode, #1276). With the change it takes the token colours in light and dark, set again on every theme change. A spike decides the way: drag, double-click to maximise, Snap, the resize band (#1272) and the 384 DIP minimum must all pass with way 1, else way 2. Q1 is what the bar shows.</p>
+    <div class="stack">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="0" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,120" tabindex="0"><figcaption><span class="tag tag--now">Today</span>The default system bar, "Spixi IM". Its colours follow the Windows theme, not Spixi (dark on a dark Windows while Spixi is light, #1276).</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,120" tabindex="0"><figcaption><b><span class="tag tag--rec">Recommended</span>"Spixi" only · picked (Q1)</b>The logo is already in the rail, so the bar does not show it two times.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="4" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,120" tabindex="0"><figcaption><b>Icon + name</b>The Windows convention. The logo shows two times (bar and rail).</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="6" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,0,1440,120" tabindex="0"><figcaption><b>Caption buttons only</b>The cleanest bar. The window has no visible name.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="1" data-w="1440" data-h="900" data-t="dark" data-os="win" data-crop="0,0,1440,120" tabindex="0"><figcaption><b>"Spixi" only · dark</b></figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="4" data-w="1440" data-h="900" data-t="dark" data-os="win" data-crop="0,0,1440,120" tabindex="0"><figcaption><b>Icon + name · dark</b></figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="6" data-w="1440" data-h="900" data-t="dark" data-os="win" data-crop="0,0,1440,120" tabindex="0"><figcaption><b>Caption buttons only · dark</b></figcaption></figure>
     </div>
+    <div class="note"><span class="k2">Way 2 note</span>If the spike sends us to way 2 (the system bar, colours only), the system draws the window title. Then Q1 only sets <code>window.Title</code> ("Spixi" or "Spixi IM"). "Caption buttons only" is not possible with way 2.</div>
+  </section>
+
+  <section class="add" id="add-c" aria-labelledby="ac-h">
+    <div class="add__h"><span class="add__n">C</span><h2 id="ac-h">Second-device warning · dropped from DT-1</h2></div>
+    <div class="add__meta"><span><b>Shows through</b> the existing showWarning banner</span><span><b>Text</b> fixed, Damir's copy</span><span><b>Status</b> dropped (Damir, Q2) → BE ask</span></div>
+    <p class="sum">The planned banner, with Damir's fixed text. The discovery (Ixian-Core <code>097341a</code>) found that Spixi does not receive the presence of its own address from other devices today, so the rule has nothing to read. Damir (Q2): drop C from DT-1; record the 14:21 decision and a BE ask. The banner below is kept for later.</p>
+    <div class="np">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="3" data-w="1440" data-h="900" data-t="light" data-os="win" data-crop="0,32,960,440" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>Windows 11</b>The banner above the search field.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="3" data-w="1440" data-h="900" data-t="light" data-os="mac" data-crop="0,0,960,440" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>macOS</b>The same banner under the title strip.</figcaption></figure>
+    </div>
+    <div class="note note--stop"><span class="k2">Finding (read in the tree)</span>
+      <b>1 · No subscription to our own address.</b> A client subscribes to keepalives only for its friends (<code>CoreNetworkProtocol.subscribeToEvents</code>, the friend cuckoo filter, <code>:1312–1323</code>). The node forwards a keepalive to a client only when the client is subscribed to that address (<code>NetworkServer.cs:799</code>). Spixi never asks for its own presence: <code>getPresence2</code> goes out only for an unknown wallet, from inside <code>receiveKeepAlive</code>.<br>
+      <b>2 · Core erases the other-device entries of our own address.</b> When a keepalive for OUR wallet comes from a device id we do not hold, Core resets our entry to this device only (<code>PresenceList.cs:766–771, also :687–692</code>, <code>curNodePresence.addresses.Clear()</code>). A full presence update (<code>updateEntry</code>, <code>:172–219</code>) would add the other device, but nothing asks for one.<br>
+      <b>3 · The banner cannot clear itself.</b> In the home shell only a connectivity text and "" have a clear path. Any other text stays until the user closes it (<code>home.html:4812–4842</code>). "It clears when the other device goes quiet" needs a new push or a shell change.<br>
+      So C needs a NEW network request, and Core behaviour we do not own. The DT-1 STOP rule applies. No Core change.</div>
+  </section>
+
+  <section class="add" id="add-d" aria-labelledby="ad-h">
+    <div class="add__h"><span class="add__n">D</span><h2 id="ad-h">Chat info grows the window · #1179 (b) · Q3</h2></div>
+    <div class="add__meta"><span><b>Windows</b> AppWindow.MoveAndResize against DisplayArea.WorkArea</span><span><b>Mac</b> UIWindowScene.RequestGeometryUpdate (can be refused → squeeze)</span><span><b>Saved size</b> never includes the pane (#1073)</span></div>
+    <p class="sum">Today chat info opens as a 360 px column beside the chat and squeezes the conversation. With the change, a restored window (not maximised, not full screen, not snapped) grows by the pane width when the work area has room ON THE RIGHT, so the conversation keeps its width. No room on the right → squeeze as today (Damir, Q3). On close it shrinks back by the same amount, only if the user did not resize or move the window in the meantime. A 1920 × 1080 screen, a 1180 px window.</p>
+    <div class="g2">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="7" data-w="1920" data-h="1080" data-t="light" data-os="win" tabindex="0"><figcaption><b>Before</b>Chat info closed. The conversation is 708 px.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="8" data-w="1920" data-h="1080" data-t="light" data-os="win" tabindex="0"><figcaption><b><span class="tag tag--now">Today</span>Squeeze</b>Info opens in the same window. The conversation drops to 348 px. Maximised, full-screen and snapped windows keep this.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="9" data-w="1920" data-h="1080" data-t="light" data-os="win" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>Grow right</b>The window grows by 360 px to the right. The conversation keeps 708 px. Close → back to 1180 px.</figcaption></figure>
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="10" data-w="1920" data-h="1080" data-t="light" data-os="win" tabindex="0"><figcaption><b>Not picked · move left</b>Q3 option not taken: with no room on the right the window does NOT move; it squeezes as today.</figcaption></figure>
+    </div>
+    <div class="stack">
+      <figure class="fr fr--np" data-autofr data-v="v1" data-i="11" data-w="1920" data-h="1080" data-t="light" data-os="mac" tabindex="0"><figcaption><b><span class="tag tag--new">v1 +</span>macOS · grow right</b>The same with <code>RequestGeometryUpdate</code>. If macOS refuses the geometry, the pane squeezes as today.</figcaption></figure>
+    </div>
+    <div class="note"><span class="k2">Found in the tree</span>
+      <b>Motion.</b> Today the pane arrives with the "width" motion: column 2 runs 0 → 360 in 220 ms (<code>HomePage.xaml.cs:202–212</code>). If the window grows by 360 at the same time, the conversation first gets wider and then narrower. The build sets column 2 to the full width at once when it grows (the new window area is the motion), and keeps the motion of today for the squeeze.<br>
+      <b>Save rule (Windows).</b> The size is saved in the window mapper closure (<code>Platforms/Windows/App.xaml.cs:173–223</code>) on every Restored size change. The grow must tell that closure the pane amount, so it saves the size without the pane, also when the app closes while the pane is open. B also edits this file, so B and D run in order, B first.<br>
+      <b>Mac save.</b> Spixi saves no window size on the Mac; macOS restores the window frame itself. If the app quits with the pane open, macOS can bring back the grown frame. Walk row DT-MAC-RESTART checks it.<br>
+      <b>Follow.</b> The pane follows a chat switch (#1179 a). The window stays grown while it follows. It shrinks only when the pane closes.</div>
   </section>
 
   <section class="add" id="spec">
@@ -125,7 +174,7 @@
   </section>
 
   <footer class="foot">
-    Built by <code>docs/renders/desktop/build-render.mjs</code> from <code>parts/v1.js</code>, <code>parts/v1-page.html</code>, <code>V1-ADDITIONS.md</code>, <code>src/styles/tokens.css</code> and <code>src/components/icons.js</code>. "Today" is drawn with the same kit as "v1 +", so the only differences in a pair are the additions; it is close to the shipped v1 desktop but not a screenshot. The window chrome copies the OS look on purpose. The three v1.1 directions are in <code>desktop-render.html</code>.
+    Built by <code>docs/renders/desktop/build-render.mjs</code> from <code>parts/v1.js</code>, <code>parts/v1-page.html</code>, <code>V1-ADDITIONS.md</code>, <code>src/styles/tokens.css</code> and <code>src/components/icons.js</code>. "Today" is drawn with the same kit as "v1 +", so the only differences in a pair are the additions; it is close to the shipped v1 desktop but not a screenshot. The chat info pane is the kit's info column (an approximation of today's #247 pane). The window chrome copies the OS look on purpose. The three v1.1 directions are in <code>desktop-render.html</code>.
   </footer>
 </main>
 <script>

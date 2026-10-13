@@ -2034,3 +2034,19 @@ Packet: P28 (the S19 note at its end) for F4 / F5; F6 is the P06 fetch (`showUrl
 | F6 reason word `network` in `showUrlError(<reason>)` (MiniAppManager `FetchFailure.Network` → `fetchFailureName` → AppNewPage / HomePage push) | a fixed word; a request exception with no HTTP status (DNS / connection / TLS / a platform handler's failure) → `network`, a status or a server-side protocol fault → `http` (`S19FetchRules.isNetworkFailure`, csh `S19FetchTests`); home.html + app_new.html map it to the existing `appFetchTimeout` line (textContent, unchanged sink) | ours, safe |
 | F6 log lines `App fetch failed: <Type> <http\|network>` · `App fetch failed: <Type>` (replace `HTTP request exception occurred: <e.Message>` · `Exception occurred while downloading app data: <e.Message>`) | the type name + a fixed word; `e.Message` (it can name the host of the link) is no longer logged (pin `q-network.mjs` noMessage). Not changed: `Invalid or insecure app URL: <url>` (the user's own typed link, before any request) | ours, tighter than base |
 | String `momentAppInstallTitle` "Before you install {app}" (+ 12 drafts) | text only; `{app}` = the app name through `moFill` → textContent | ours, safe |
+
+## DT-1 P1 (#1385 · #1386) — the desktop chat list polish + the Windows title bar (2026-10-13)
+
+Security-only #46 at high over B (the dev verb, the push, the log lines) and the new storage key: CLEAN (#1387). The wrapper's `data-row-address` is the same address the row already wears as `data-address` (#587) — no new data class.
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| Key `spixi.chats.fold` — `{"pinned":bool,"chats":bool}`, home.html, desktop only | a UI preference of this device (the `spixi.pins` class, try/catch); NO peer data (no address, no name); the reader accepts only `=== true` per field, anything else reads as open | ours, safe |
+| Hover actions on a desktop chat row (pin · mute · chat info · more) | NO new verb: the same `applyChatRowAction` as the row menu (`ixian:mutechat:` · `ixian:chatinfo:`; pin is the existing `spixi.pins`); "more" re-raises the row's own contextmenu (today's menu). Labels are fixed strings (aria-label / title); no peer text in an attribute | ours, safe |
+| Section heads "Pinned · n" / "Chats · n" | textContent: a fixed string + a row count | ours, safe |
+| Verb `ixian:devflash:titlebar:<off\|maui\|colors>` — dev.html → DevPage (dev surface) | exactly one of three words (`DtTitleBarRules.parseWayVerb`) AND the `devMode` preference on, else nothing is stored; routed before the generic `ixian:devflash:` branch; a failure logs its type name | ours, safe · 🟡 (dev) |
+| Push `window.setTitleBarDev(<word>)` — DevPage → dev.html, Windows only | a fixed word from `DtTitleBarRules.wayWord`; the shell accepts only the three words (pin `b-titlebar.mjs`), textContent labels | ours, safe · 🟡 (dev) |
+| Pref `devTitleBarWay` (int) | read once per start (`SpixiFlags.init` → `wayThatActs`): a non-default way acts only while dev mode is on; goes with the wipe (Preferences.Clear) | ours, safe |
+| Log lines `[DT] titlebar way=<w> theme=<light\|dark> custom=<0\|1>` (one per apply) · `[FLAGS] dttitlebar=<w>` (Windows, once per start) · `[DT] titlebar <create\|attach\|apply\|dispatch\|hide> failed: <Type>` · `DevPage: title bar switch failed: <Type>` | fixed words + a type name (built by the pure `DtTitleBarRules.applyLine` / `flagLine`, csh `DtTitleBarTests`) | ours, safe |
+| Title bar colours (MAUI `Window.TitleBar` / `AppWindow.TitleBar`, the list from the pure `DtTitleBarRules.captionColours`) · way 2 only: `AppWindow.TitleBar.ExtendsContentIntoTitleBar = false` + a MAUI `Window.TitleBar` hidden once its handler exists · a `UISettings.ColorValuesChanged` re-apply · Windows 10 (build < 22000) paints `off` | constants from tokens.css; no WebView setting, no root paint (#1276), no input from a page | ours, safe |
+

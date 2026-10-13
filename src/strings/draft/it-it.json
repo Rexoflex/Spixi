@@ -962,5 +962,10 @@
   "keepOpenSent": "Tieni Spixi aperto finché l’invio non è completato.",
   "keepOpenReceived": "Arriva direttamente dal dispositivo del mittente. Tieni Spixi aperto.",
   "momentAppInstallTitle": "Prima di installare {app}",
-  "devResetMomentsDone": "Reset sent. Restart the app."
+  "devResetMomentsDone": "Reset sent. Restart the app.",
+  "pinnedSection": "Fissate",
+  "devTitleBarTitle": "Title bar (Windows, acts after a restart)",
+  "devTitleBarMaui": "Spixi title bar (MAUI)",
+  "devTitleBarColors": "System title bar, Spixi colours",
+  "devTitleBarOff": "Off (today)"
 }

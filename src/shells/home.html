@@ -1780,7 +1780,27 @@
     const arr = JSON.parse(localStorage.getItem(PINS_KEY) || '[]');
     if (Array.isArray(arr)) for (const a of arr) if (typeof a === 'string') pinnedChats.add(a);
   } catch (e) {}
-  function savePins() { try { localStorage.setItem(PINS_KEY, JSON.stringify([...pinnedChats])); } catch (e) {} }
+  function savePins() {
+    try { localStorage.setItem(PINS_KEY, JSON.stringify([...pinnedChats])); } catch (e) {}
+    resetFoldIfNoPins();   // ★ DT-1 A (#46 r2 m-1): every path that drops a pin (unpin · delete · hide · forget) comes through here
+  }
+  /* ★ DT-1 A (desktop): the folded list sections, per device — the spixi.pins class (a UI preference of this device,
+     never peer data, wiped with app data). Exactly { pinned, chats } as booleans; anything else reads as "open". */
+  const FOLD_KEY = 'spixi.chats.fold';
+  try {
+    const f = JSON.parse(localStorage.getItem(FOLD_KEY) || '{}');
+    if (f && typeof f === 'object') state.fold = { pinned: f.pinned === true, chats: f.chats === true };
+  } catch (e) {}
+  function saveFold(fold) {
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify({ pinned: !!(fold && fold.pinned), chats: !!(fold && fold.chats) })); } catch (e) {}
+  }
+  /* the last pin gone → the sections go, and so does a stale fold (else the next pin opens with every other chat behind a
+     closed "Chats" head). Keyed on the PERSISTED pin set, never on state.chats (a re-flush empties that for a moment). */
+  function resetFoldIfNoPins() {
+    if (pinnedChats.size || !state.fold || !(state.fold.pinned || state.fold.chats)) return;
+    state.fold = { pinned: false, chats: false };
+    saveFold(state.fold);
+  }
   /* CH2 (Damir): after Accept, hold the "Setting up a secure connection…"
    * row for a MINIMUM ~3s so it reads as real (the C# contacts re-flush would
    * otherwise replace it sub-second). While an address is held: clearChats keeps its
@@ -1957,6 +1977,11 @@
        muted ROW treatment (a toned-down count badge PLUS the bell-off glyph) needs nothing
        new either: createIndicators has rendered both since Damir's review on 2026-07-02. */
     capabilities: { pin: true, mute: true, favorites: true, delete: true },   // ★ CH4 (Session AD): favorites live
+    /* ★ DT-1 A: desktop only — the Pinned / Chats section heads (folded per device) and the row hover actions.
+       A phone passes neither, so its list is exactly today's. */
+    sections: isDesktop,
+    hoverActions: isDesktop,
+    onFold: () => saveFold(state.fold),
     // onModelChange fires on EVERY re-render — including row-menu delete/accept that
     // re-render directly (not via renderChatsNow) — so update the nav badge AND the
     // chip counts here so a delete or an accept never leaves a stale chip count.

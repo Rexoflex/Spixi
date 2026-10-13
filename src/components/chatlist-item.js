@@ -330,6 +330,14 @@ export function trackRowHover(listEl, sel, keyOf) {
   return st;
 }
 
+/** ★ DT-1 A (#46 r2 m-2): forget the hovered row — an action that MOVES the row the pointer is on (the bar's pin re-sorts the
+ *  list) must not carry the hover to the row's new slot (the pointer is not there; WebView2 re-hit-tests the slot it is on). */
+export function clearRowHover(listEl) {
+  const st = rowHoverLists.get(listEl);
+  if (st) st.key = null;
+  rowHoverClear(listEl, null);
+}
+
 /** Before a row is replaced (or the list cleared): which row keys are hovered / focused now. */
 export function snapRowHover(listEl, oldRows) {
   const st = rowHoverLists.get(listEl);
@@ -345,7 +353,8 @@ export function snapRowHover(listEl, oldRows) {
     let on = false;
     try { on = row.matches(':hover'); } catch (e) { /* engine without :hover matching */ }
     if (!hover && (on || row.hasAttribute('data-hover'))) hover = k;
-    if (ae && ae === row) focus = k;
+    /* ★ DT-1 A: a WRAPPER row (the desktop .c-chatlist-row, not focusable itself) holds the focus when a child has it */
+    if (ae && (ae === row || (row.tabIndex < 0 && row.contains(ae)))) focus = k;
   }
   return { hover, focus };
 }
@@ -369,6 +378,11 @@ export function restoreRowFocus(listEl, snap) {
   const ae = document.activeElement;
   if (ae && ae !== document.body && ae.isConnected) return;   // focus already went somewhere on purpose
   for (const row of listEl.querySelectorAll(st.sel)) {
-    if (st.keyOf(row) === snap.focus) { try { row.focus({ preventScroll: true }); } catch (e) { /* detached */ } return; }
+    if (st.keyOf(row) === snap.focus) {
+      /* ★ DT-1 A: a wrapper row hands the focus to its own focusable row button (the action buttons are tabIndex -1) */
+      const target = row.tabIndex >= 0 ? row : (row.querySelector('button:not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])') || row);
+      try { target.focus({ preventScroll: true }); } catch (e) { /* detached */ }
+      return;
+    }
   }
 }

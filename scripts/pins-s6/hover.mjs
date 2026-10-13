@@ -50,6 +50,10 @@ export default async function (h) {
   const rows = [[A, 'Alice', now - 10], [B, 'Bob', now - 20], [C, 'Carol', now - 30]];
   const batch = () => JSON.stringify({ strs: [], items: rows.map(([a, n, t]) => ({ f: 'addChat', a: chatArgs(a, n, t) })) });
   const rowOf = (d, addr) => d.querySelector('.c-chats-list .c-chatlist-item[data-address="' + addr + '"]');
+  /* ★ DT-1 A RE-BASE (#1385): on DESKTOP (jsdom reads desktop here) the hover UNIT is the .c-chatlist-row wrapper (the row
+     button + its hover actions) — the mark and the row's own pointerleave live there; a phone row is its own unit. */
+  const unitOf = (el) => (el && el.closest && el.closest('.c-chatlist-row')) || el;
+  const hv = (el) => !!el && unitOf(el).hasAttribute('data-hover');
   const chatsBoot = async () => { const s = await boot(); s.push('addChats', batch()); await s.frame(); return s; };
 
   /* ── chats patch: the hovered row, replaced by setContactStatus / addChat, keeps its hover ── */
@@ -62,12 +66,12 @@ export default async function (h) {
     await s.frame();
     const b1 = rowOf(s.d, B);
     r.replaced = !!b1 && b1 !== b0;                                 // the patch path really replaced the node
-    r.statusCarries = !!b1 && (b1 === b0 || b1.hasAttribute('data-hover'));
-    r.othersClean = !rowOf(s.d, A).hasAttribute('data-hover') && !rowOf(s.d, C).hasAttribute('data-hover');
+    r.statusCarries = !!b1 && (b1 === b0 || hv(b1));
+    r.othersClean = !hv(rowOf(s.d, A)) && !hv(rowOf(s.d, C));
     s.push('addChat', ...chatArgs(B, 'Bob', now - 20, { excerpt: 'a newer line', online: 'True', unread: 3 }));   // same slot: excerpt/receipt edge
     await s.frame();
     const b2 = rowOf(s.d, B);
-    r.addChatCarries = !!b2 && (b2 === b1 || b2.hasAttribute('data-hover'));
+    r.addChatCarries = !!b2 && (b2 === b1 || hv(b2));
     r.oneMark = s.d.querySelectorAll('.c-chats-list [data-hover]').length === 1;
     ok(Object.values(r).every((v) => v === true),
       '★ #1171 (chats patch): the row under the mouse, REPLACED by a live setContactStatus / addChat (P-03 patchChatRows), is born with data-hover (the new node is not :hover until WebView2 re-hit-tests); no other row is marked — ' + JSON.stringify(r));
@@ -82,8 +86,8 @@ export default async function (h) {
     s.push('addChats', batch());                                     // a full flush: textContent = '' + rebuild
     await s.frame();
     const c1 = rowOf(s.d, C);
-    const r = { replaced: !!c1 && c1 !== c0, carries: !!c1 && c1.hasAttribute('data-hover'),
-      othersClean: !rowOf(s.d, A).hasAttribute('data-hover') && !rowOf(s.d, B).hasAttribute('data-hover') };
+    const r = { replaced: !!c1 && c1 !== c0, carries: !!c1 && hv(c1),
+      othersClean: !hv(rowOf(s.d, A)) && !hv(rowOf(s.d, B)) };
     ok(Object.values(r).every((v) => v === true),
       '★ #1171 (chats flush): a full chats re-render (addChats) rebuilds the hovered row with data-hover, and only that row — ' + JSON.stringify(r));
     try { s.dom.window.close(); } catch (e) {}
@@ -97,27 +101,27 @@ export default async function (h) {
     s.push('setContactStatus', B, 'True', '0', '', '0');
     await s.frame();
     const b1 = rowOf(s.d, B);
-    r.marked = b1.hasAttribute('data-hover');
-    s.ptr(b1, 'pointerleave');                                       // the row's own pointerleave
-    r.leaveClears = !b1.hasAttribute('data-hover');
+    r.marked = hv(b1);
+    s.ptr(unitOf(b1), 'pointerleave');                               // the unit's own pointerleave (★ DT-1 re-base: the wrapper on desktop)
+    r.leaveClears = !hv(b1);
     // the mouse goes off the list entirely: the next replace must NOT mark the row
     s.ptr(b1, 'pointerout', { relatedTarget: s.d.body });          // (a real browser also sends the list a pointerleave; the pointerout alone must do)
     s.push('setContactStatus', B, 'False', '0', '', '0');
     await s.frame();
-    r.offListNoMark = !rowOf(s.d, B).hasAttribute('data-hover');
+    r.offListNoMark = !hv(rowOf(s.d, B));
     // the mouse is on A, B is the row that updates → B is not marked
     s.hoverOn(rowOf(s.d, A));
     s.push('setContactStatus', B, 'True', '1', '', '0');
     await s.frame();
-    r.nonHoveredClean = !rowOf(s.d, B).hasAttribute('data-hover');
+    r.nonHoveredClean = !hv(rowOf(s.d, B));
     // a carried mark is dropped when the mouse moves onto another row
     s.hoverOn(rowOf(s.d, B));
     s.push('setContactStatus', B, 'True', '2', '', '0');
     await s.frame();
     const bm = rowOf(s.d, B);
-    const markedAgain = bm.hasAttribute('data-hover');
+    const markedAgain = hv(bm);
     s.hoverOn(rowOf(s.d, C));
-    r.moveAwayClears = markedAgain && !bm.hasAttribute('data-hover');
+    r.moveAwayClears = markedAgain && !hv(bm);
     ok(Object.values(r).every((v) => v === true),
       '★ #1171 (chats leave): pointerleave on the carried row clears data-hover; after the mouse leaves the list a replace marks nothing; a row the mouse is NOT on gets no data-hover; moving onto another row drops the carried mark — ' + JSON.stringify(r));
     try { s.dom.window.close(); } catch (e) {}

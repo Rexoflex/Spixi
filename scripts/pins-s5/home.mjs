@@ -58,7 +58,9 @@ export default async function (h) {
     return JSON.stringify({ strs: [], items });
   };
   const rowOf = (d, addr) => d.querySelector('.c-chats-list .c-chatlist-item[data-address="' + addr + '"]');
-  const topOf = (d, addr) => { const r = rowOf(d, addr); return r ? (r.closest('.c-swipe') || r) : null; };
+  /* ★ DT-1 A RE-BASE (#1385): the list's top-level node for a row is its swipe wrapper (phone), its .c-chatlist-row wrapper
+     (desktop: the row + its hover actions; jsdom reads desktop here) or the row itself */
+  const topOf = (d, addr) => { const r = rowOf(d, addr); return r ? (r.closest('.c-swipe') || r.closest('.c-chatlist-row') || r) : null; };
   const listKids = (d) => Array.from(d.querySelector('.c-chats-list').children);
 
   /* ── P-03 batch: ONE push renders exactly what the per-row burst rendered ── */

@@ -1,0 +1,26 @@
+DT-1 P1: desktop chat list polish + the Windows title bar
+
+1380-1388 (the desktop-uplift track; Damir 2026-10-12/13):
+
+- Desktop chat list (Windows + Mac; the phone list is unchanged):
+  "Pinned n" and "Chats n" section heads when a chat is pinned (All
+  chip, no search); each head folds, kept per device in
+  spixi.chats.fold; the last pin gone resets a stale fold. Rows are
+  inset, rounded shapes. On hover a row shows pin, mute, chat info and
+  more: the same actions as the row menu (mute stays C#-owned), more
+  opens the row menu itself. The bar is a pointer accelerator; the
+  keyboard path stays the row menu. The one-row patch keeps working
+  with the heads (#1166). New string pinnedSection.
+- Windows title bar: "Spixi" in the token colours, light and dark,
+  following the app theme. Two ways behind a dev switch for the spike
+  (Developer > Title bar): MAUI Window.TitleBar (default) and the
+  system bar with its colours. Windows 10 keeps today's bar. The
+  colour constants are paired with tokens.css by a pin.
+- Chat info growing the window (#1179 b) is deferred to the agent
+  layout work.
+- The second-device warning is dropped from DT-1 (Spixi cannot see its
+  own other-device presence without a new request); a BE ask (DEV-3).
+- Pins scripts/pins-dt1 (48), pins-s6/hover re-based on the hover unit,
+  csh DtTitleBarTests (7), INDEX ceiling 644 (measured). The render
+  "Spixi v1 Desktop Additions" and V1-ADDITIONS.md follow the DT-1
+  scope. #46: two rounds, CLEAN.

@@ -183,3 +183,5 @@ stated in **#905**; #906 is the legal-hold loop row. L35 cites both.
 | L133 | A default flip of a privacy switch turns a latent input path on for everyone — sanitize the peer-controlled value first. | #1346 | — |
 | L134 | A pin with a hard ms threshold flakes when the bundle grows — measure the margin against the path it must exclude (250 → 400 vs the 450 ms timer). | #1350 | — |
 | L135 | Reuse-first is a rule for HUMAN translations; for a language whose legacy file is also AI, the per-key draft must win, or values written for another site (all-caps chips, colons) leak in. | #1368 | — |
+| L136 | Every focus hand-back in a desktop shell follows the restoreRowFocus rules (no `document.hasFocus()` → no focus): the panes are separate WebViews, and a re-render must never pull the keyboard out of the chat composer. | #1387 | — |
+| L137 | A MAUI platform view set before its handler exists does not reach the platform (TitleBar.IsVisible at CreateWindow is dropped): act on HandlerChanged, and mark the path UNVERIFIED until a device shows it. | #1387 | — |

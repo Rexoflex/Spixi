@@ -1057,5 +1057,10 @@
   "keepOpenSent": "Mbajeni Spixi-n të hapur derisa të dërgohet.",
   "keepOpenReceived": "Vjen drejtpërdrejt nga pajisja e dërguesit. Mbajeni Spixi-n të hapur.",
   "momentAppInstallTitle": "Para se të instaloni {app}",
-  "devResetMomentsDone": "Rivendosja u dërgua. Rinisni aplikacionin."
+  "devResetMomentsDone": "Rivendosja u dërgua. Rinisni aplikacionin.",
+  "pinnedSection": "Të fiksuara",
+  "devTitleBarTitle": "Shiriti i titullit (Windows, vepron pas një rinisjeje)",
+  "devTitleBarMaui": "Shiriti i titullit i Spixi (MAUI)",
+  "devTitleBarColors": "Shiriti i titullit i sistemit, ngjyrat e Spixi",
+  "devTitleBarOff": "Joaktiv (si sot)"
 }

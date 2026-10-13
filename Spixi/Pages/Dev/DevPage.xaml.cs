@@ -162,6 +162,26 @@ namespace SPIXI
                 }
                 pushContainerDev();
             }
+            else if (current_url.StartsWith("ixian:devflash:titlebar:", StringComparison.Ordinal))
+            {
+                /* ★ DT-1 B (#1312 rule 1, dev surface, the devflash verb's own tail): `ixian:devflash:titlebar:<off|maui|colors>` —
+                 * the Windows title bar way for the STOP-rule spike (DtTitleBarRules). One of three fixed words and dev mode
+                 * on, or nothing is stored; then echo. Its own int preference; read once per start (SpixiFlags), so a change
+                 * acts at the NEXT start. Before the generic devflash branch below, which would otherwise take the verb. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false)
+                        && DtTitleBarRules.parseWayVerb(current_url.Substring("ixian:devflash:titlebar:".Length), out int way))
+                    {
+                        Preferences.Default.Set(DtTitleBarRules.PrefKey, way);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: title bar switch failed: " + ex.GetType().Name);
+                }
+                pushTitleBarDev();
+            }
             else if (current_url.StartsWith("ixian:devflash:", StringComparison.Ordinal))
             {
                 /* ★ S11 C (#1262, 🟡 new verb, dev surface): `ixian:devflash:<candidate|grounds|input>:<0|1>` — the 10-FLASH
@@ -207,6 +227,7 @@ namespace SPIXI
             pushFlagsDev();   // ★ S16 (#1312): the SpixiFlags switches (stored values; they act at the next start)
             // ★ S18 D3: the Reset moment sheets row shows only for an exe that has `ixian:devmoments:reset` (no dead row)
             Utils.sendUiCommand(this, "setCaps", "devmoments");
+            pushTitleBarDev();    // ★ DT-1 B: the title bar way (Windows only)
 
             string srcLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log");
             string destLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log.tmp");
@@ -264,6 +285,23 @@ namespace SPIXI
             {
             }
             Utils.sendUiCommand(this, "window.setContainerDev", S11ChatRules.containerWord(mode));
+#endif
+        }
+
+        /** ★ DT-1 B (🟡 new push, dev surface): the STORED title bar way as a fixed word (off | maui | colors). Windows only —
+         *  it acts nowhere else, so no other platform shows the row (the "no dead switch" rule). Guarded reference. */
+        private void pushTitleBarDev()
+        {
+#if WINDOWS
+            int way = DtTitleBarRules.WayMaui;
+            try
+            {
+                way = Preferences.Default.Get(DtTitleBarRules.PrefKey, DtTitleBarRules.WayMaui);
+            }
+            catch (Exception)
+            {
+            }
+            Utils.sendUiCommand(this, "window.setTitleBarDev", DtTitleBarRules.wayWord(way));
 #endif
         }
 

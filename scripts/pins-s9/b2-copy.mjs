@@ -5,6 +5,8 @@
  *     ★ re-based by S20 T (ON-1): the two-step Create — the same intents on the new screen (see the block)
  *   · the same screen under ?lang=de-de paints the de-de DRAFTS of the new keys (the keys reach the dictionaries)
  *   · A-10: the welcome slide and the About text say "End-to-end encrypted" and never "on your device" for messages
+ *     ★ S20F re-base (#1425): the welcome slide now carries Damir's post-quantum line (encrypted on the device AND sent
+ *     peer to peer); a sentence that opens on "Encrypted on your device" (the S-07 at-rest reading) still fails
  * Deliberate breaks: see the S9 B2 report. */
 import { b2Kit } from './b2-kit.mjs';
 export default async function (h) {
@@ -46,8 +48,11 @@ export default async function (h) {
     ok(s.sent.every((c) => !/^ixian:create:/.test(c)), '★ S9 #1246: the empty-password submit sends no create verb');
     /* A-10 on the welcome slides (same document) */
     const all = s.d.body.textContent;
-    ok(/End-to-end encrypted and opened only by the person you sent to\./.test(all) && !/Encrypted on your device/i.test(all),
-      '★ S9 A-10 (#1245): the welcome slide says "End-to-end encrypted …", never "Encrypted on your device"');
+    /* ★ S20F W-5 re-base (#1425, Damir 12:27 "Add pq to honest"): the slide says the post-quantum line, which names the
+       device as WHERE the message is encrypted and says it is SENT (in transit) — the A-10 defect (S-07: a sentence that
+       opens on "Encrypted on your device", read as encryption at rest) must still never come back */
+    ok(/Post-quantum encrypted on your device and sent peer to peer\. Only the person you write to can read it\./.test(all) && !/(^|[.!?]\s*)Encrypted on your device/.test(all),
+      '★ S9 A-10 (#1245) → S20F (#1425): the welcome slide says "Post-quantum encrypted on your device and sent peer to peer …" (in transit), never a sentence opening "Encrypted on your device"');
     s.dom.window.close();
 
     /* —— Create, de-de: the keys come from the drafts —— (★ S20 T re-base: the hint lines are gone; the banner

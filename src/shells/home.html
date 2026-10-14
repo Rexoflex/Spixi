@@ -127,28 +127,14 @@
      the wrapper is the flex item — the banner inside needs no flex rule) */
   #chats-banner, #wallet-banner, #apps-banner { flex: none; }
   #chat-scroll, #wallet-scroll, #apps-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  /* ★ #918 (Session AC — AND-31 / AND-32): A SHORT LANDSCAPE VIEWPORT.
-     A phone in landscape is ~412 px tall. Measured on the built shell at 915×412 (facts in
-     docs/sheets/session-ac/): the wallet hero (282) + the sticky tools (120) left #wallet-scroll
-     66 px in total — the list itself had no room; the apps header (search row + Explore
-     banner, 176) left the empty state 116 px, scrolling UNDER a banner that never moved.
-     WALLET: the VIEW is the scroller and the inner scroller is a plain block, so the hero rides
-     away with the content (the view then has 348 px, ~228 for the list under the stuck tools);
-     the sticky tools keep sticking — against the view now. attachWalletScroll's hero collapse
-     is dormant here by design (the hero scrolls away instead), which also sidesteps the
-     recorded "the list must always be allowed to minimize the hero" — a landscape-only dial.
-     APPS keeps its portrait mechanics (inner scroller, search row in view) and turns the
-     Explore banner into ONE LINE beside the search (#924): a sticky search row inside a header
-     that scrolls away can stick no further than that header's box, so "let the header ride
-     away" would have taken the active search filter with it (the BUG-3 invariant).
-     ★ #922 (r-review MAJOR-1): the rules key on the DEVICE flag `:root[data-landscape]`
-     (landscape-runtime.js — screen.orientation + a phone-sized short side), NOT on a viewport
-     media query. On Android landscape HomePage goes TWO-PANE at ≥ 700 DIP and this shell lives
-     in a ~400 × 412 column whose viewport reports PORTRAIT while the phone is on its side — the
-     `(max-height: 500px) and (orientation: landscape)` query this block first shipped with
-     never matched there. The device flag is also immune to the keyboard (adjustResize shrinks
-     the viewport, never the screen — the height-only query's portrait-with-keyboard trap is
-     gone by construction) and to the pane split. The flag is never set on desktop. */
+  #wallet-scroll { background: var(--surface-screen); }   /* ★ S20F W-10: the band covers the hero's leaving body */
+  /* ★ #918 (Session AC — AND-31 / AND-32; S20F trimmed): A SHORT LANDSCAPE VIEWPORT (~412 px; measured in
+     docs/sheets/session-ac/). WALLET: the VIEW scrolls and the inner scroller is a plain block, so the hero rides away and
+     the sticky tools stick against the view (the hero collapse is dormant here by design). APPS keeps its inner scroller
+     and turns the Explore banner into one line beside the search (#924; a sticky search inside a header that scrolls away
+     would take the active filter with it — BUG-3). ★ #922: keyed on the DEVICE flag :root[data-landscape]
+     (landscape-runtime.js), not a viewport query — the Android two-pane column reports portrait, and the flag ignores the
+     keyboard and the pane split; never set on desktop. */
   :root[data-landscape] #wallet-view { overflow-y: auto; -webkit-overflow-scrolling: touch; }
   :root[data-landscape] #wallet-scroll { flex: none; min-height: auto; overflow-y: visible; }
   /* the wallet tools stick at y=0 once the hero has scrolled out, under the status bar the
@@ -790,34 +776,10 @@
       + ' | ' + walletGeomText();
   }
 
-  /* ★★ iOS-59 (#501 measured → FIXED in the 2026-08-24 batch) — the probe STAYS.
-   *
-   * Damir on device: "the wallet activity list must ALWAYS be allowed to minimize the
-   * hero. With few transactions a hard swipe juggles the whole screen and snaps back."
-   *
-   * History, kept on purpose: a first fix was REVERTED for reasoning about the wrong
-   * DOM (#501). `#wallet-hero` (:305) and `#wallet-scroll` (:311) are SIBLINGS, both
-   * flex children of `#wallet-view`, and the scroller is `flex: 1` (:104) — so a
-   * collapse ENLARGES the scroller's viewport, DROPS the maximum scroll offset,
-   * clamps `scrollTop` to 0, and the old `top <= 1 → expand` read that clamp as
-   * "the user is at the top". That loop is the oscillator Damir felt as flicker.
-   *
-   * The shipped fix lives in wallet-shell.js `attachWalletScroll`: a MEASURED,
-   * DEFICIT-SIZED reserve spacer (#46 r1/r2 — clamp(0, top − maxPre + delta): only
-   * what the clamp would consume, tracked to the hero's shrink frame by frame) and
-   * a geometry-change LATCH (an event in which scrollHeight/clientHeight moved is
-   * a layout consequence, never a finger — it can no longer expand the hero).
-   *
-   * The probe stays, and now also prints `pad` (the live reserve height). The
-   * acceptance arithmetic for a device round (r2 W-MINOR-6, corrected r3 — each
-   * earlier form would fail a correct build): after a collapse settles,
-   *   range == max(top_at_collapse, maxPre − delta)
-   *     (== top only when the list is short or the user was near the bottom;
-   *      a long list settles at maxPre − delta, still above top)
-   *   pad   == 0 on a long list · == top − maxPre + delta on a short one
-   * and the INVARIANT is: `range` never dips below `top` in any sample.
-   * Read-only, dev-mode only, and it allocates nothing: it measures elements that are
-   * already laid out, on the HUD's existing once-a-second render. */
+  /* ★★ iOS-59 (#501 → fixed 2026-08-24; S20F trimmed): the wallet geometry probe STAYS (dev HUD, read-only). Hero and
+   * scroller are SIBLINGS, so a collapse grows the viewport; the fix is attachWalletScroll's deficit reserve + latch.
+   * After a collapse settles: range == max(top_at_collapse, maxPre − delta), pad == 0 on a long list, == top − maxPre +
+   * delta on a short one; INVARIANT: range never dips below top in any sample. */
   function walletGeomText() {
     try {
       const sc = document.getElementById('wallet-scroll');
@@ -841,8 +803,10 @@
   }
 
   let renderDevHud = () => {};   // #321: assigned inside the dev IIFE; updateDebugInfo routes here
+  let devModeOn = () => false;   // ★ S20F W-1: set in the dev IIFE
   (function () {
     let devMode = slCarrier('sl-devmode', 'false') === 'true';
+    devModeOn = () => devMode;
     const actionsWrap = chatsTopbarEl.querySelector('.c-topbar__actions');
     let devBtn = null;
     /* #321 (R5 parity): live HUD — HomePage.updateDebugOverlay pushes C#-composed
@@ -1578,12 +1542,14 @@
         // preserves tap order.
         deferToPaint(() => bridge.send('ixian:settings'));
         setNavActive(nav, 'account');
+        seePane(true);   // ★ S20F W-1: this WebView opened the pane
         // BUG-3: the Account pane is a peer stage OVER this shell — the tab under it
         // is left, so its query goes with the visit (same rule as a takeover).
         leaveSurfaceSearch();
         return;
       }
       activeNav = id;
+      railDiag('onChange', id);
       /* ⚠ #589 (round-2 review): DO NOT clear the pane flag here. An earlier draft did,
          to avoid a one-frame snap-back, and it created the exact bug this row exists to
          remove. `reloadShell` sets `suppressNextTabOverlayExit` for ~5.5 s, and inside
@@ -1683,6 +1649,34 @@
   function syncNav() {
     setNavActive(nav, railTarget());
   }
+  /* ★ S20F W-1 (#1409): the belt — on the flag's write / focus / visible, toward Account only, never under a takeover,
+     only for a pane this WebView SAW open (r1 C-1: not a stranded flag); the sighting is in sessionStorage so a re-bake
+     (reloadShell, same WebView) keeps it (r2 MINOR-2). */
+  const PANE_SEEN_KEY = 'spixi.pane.seen';
+  let paneSeen = false;
+  try { paneSeen = sessionStorage.getItem(PANE_SEEN_KEY) === '1'; } catch (e) {}
+  function seePane(on) {
+    paneSeen = !!on;
+    try { if (on) sessionStorage.setItem(PANE_SEEN_KEY, '1'); else sessionStorage.removeItem(PANE_SEEN_KEY); } catch (e) {}
+  }
+  function railBelt() { if (paneSeen && inAccountContext() && homeOverlayLevel() < 2) syncNav(); }
+  window.addEventListener('storage', (e) => {
+    if (!e || (e.key !== PANE_OPEN_KEY && e.key !== null)) return;
+    if (e.key === PANE_OPEN_KEY) seePane(e.newValue === '1');
+    railBelt();
+  });
+  window.addEventListener('focus', railBelt);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) railBelt(); });
+  /* the dev line (C-2): the rail STILL off Account 1.5 s after a writer, under a seen pane; fixed words + a nav id */
+  function railDiag(writer, id) {
+    if (id === 'account' || !(devModeOn() || document.documentElement.hasAttribute('data-p1'))) return;
+    setTimeout(() => {
+      const cur = nav.querySelector('.c-bottomnav__item[aria-current]');
+      if (!paneSeen || !accountPaneOpen() || contactsFromAccount || !cur || cur.dataset.id !== id) return;   // still THIS writer's tab
+      try { console.warn('[RAIL] ' + writer + ' lit ' + id + ' while the Account pane flag is set'); } catch (e) {}
+      try { window.Spixi.p1Log('shell rail-stuck w=' + writer.toLowerCase() + ' id=' + id); } catch (e) {}
+    }, 1500);
+  }
 
   /* ★ S11's store retired (Session AD) — "land on the tab I tapped in Account" is ONE
    * PUSH now. settings.html sends `ixian:landtab:<id>` before its exit verb; SettingsPage
@@ -1709,6 +1703,7 @@
        ≤ 600 ms old — SpixiContentPage.popOnCoverPainted). Fixed verb, no payload;
        harmless when nothing waits. */
     if (id === 'contacts') {
+      seePane(true);   // ★ S20F W-1: the hand-off came FROM the pane
       openContacts('directory', '', { returnTo: 'account' });   // ★ C4: Back returns to Account, never Chats
       syncNav();                                                // ★ L6: …and the rail says so
       requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1719,6 +1714,7 @@
     if (id === 'account' || !NAV_TO_TAB[id]) return;
     activeNav = id;
     setNavActive(nav, id);
+    railDiag('landOnTab', id);
     showView(id);
     bridge.send('ixian:tab:' + NAV_TO_TAB[id]);             // C# loads tab2/tab3 data
     /* ★ #1133 lever 10: a tab land is a hand-off too — answer at the 2nd rAF. No onHandoff
@@ -3968,7 +3964,7 @@
     // unconditional write that clobbered the Account highlight the CONTACTS hand-off
     // had just set one line above, which is the "rail jumps to CHATS" Damir reported.
     // railTarget() answers the same question for every writer.
-    onSettingsClosed() { clearAccountPaneFlag(); syncNav(); },
+    onSettingsClosed() { clearAccountPaneFlag(); seePane(false); syncNav(); },
     /* ★ B7: C# fires this when the Account page becomes visible (fresh + parked re-present). */
     onSettingsShown() {
       const r = accountHoldRelease;   // #46 r2 NIT: release THIS hold on the frame — never a newer one that started meanwhile
@@ -4013,6 +4009,7 @@
       if (activeNav !== 'apps') {
         activeNav = 'apps';
         setNavActive(nav, 'apps');
+        railDiag('pickAppTargets', 'apps');
         showView('apps');
         deferToPaint(() => bridge.send('ixian:tab:' + (NAV_TO_TAB.apps || 'apps')));
       }
@@ -4350,6 +4347,7 @@
       closeHomeTakeovers();   // W2: the incoming push has the same hole as onChange
       setNavActive(nav, navId);
       showView(navId);
+      railDiag('selectTab', navId);
       /* ★★ #589: C# echoes selectTab(currentTab) on EVERY load, and after a language
          re-bake that echo lands with the Account pane still pinned — so it re-lit
          Chats over the top of any boot-time correction. The highlight is corrected

@@ -1174,7 +1174,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    its content (direction disc · amount) starts and ends on the same --spacing-16 as the search pill,
    the chips row (.c-wallet-tools) and the sync row (.c-scanprog). Was spacing-12 (txlist-item.css):
    4px off on both sides. Logical, so RTL mirrors it. */
-.c-wallet-txlist > .c-txlist-item { padding-inline: var(--spacing-16); }
+.c-wallet-txlist > .c-txlist-item { padding-inline: var(--spacing-16); contain: content; }   /* ★ W-10 */
+/* ★ S20F W-10: own layer (phone) — the flip moves the scroller; without it every row re-records (55 → 16 ms) */
+:root:not([data-desktop]) .c-wallet-txlist { will-change: transform; }
 /* ★ S20 J2 (#1440): the day-group header (not sticky) */
 .c-wallet-day {
   padding: var(--spacing-16) var(--spacing-16) var(--spacing-4);

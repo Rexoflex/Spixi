@@ -835,6 +835,7 @@
   --outline-neutral-02: var(--neutral-200);
   --outline-neutral-03: var(--neutral-300);
   --outline-neutral-04: var(--neutral-400);
+  --outline-fmt-code: var(--outline-neutral-02);   /* ★ S20F W-11 (#1409): the code chip / block rule on a received bubble */
   /* ★ Session Z (#884 ⑤ + #882 (b)): THE HAIRLINE INSIDE A CARD, one role for both themes.
      A card is --surface-card (light neutral-50 / dark neutral-800), and no neutral-0N step
      sits right on it in BOTH ramps: -01 is neutral-100 on 50 in light (1.04, fine as a
@@ -1170,6 +1171,7 @@
   --outline-neutral-02: var(--neutral-700);
   --outline-neutral-03: var(--neutral-600);
   --outline-neutral-04: var(--neutral-500);
+  --outline-fmt-code: var(--outline-neutral-04);   /* ★ S20F W-11: neutral-02 (ink-700) vanished on the dark bubbles */
   --outline-on-card: var(--neutral-600);   /* ★ Session Z (#884 ⑤): 1.187 on the neutral-800 card (ink-600 on ink-800 after ②) — see the light block */
   --outline-neutral-inverse-01: var(--neutral-50);
   --outline-neutral-inverse-02: var(--neutral-200);
@@ -1935,6 +1937,7 @@
   --surface-wash-on-hero: rgba(255, 255, 255, 0.12);
   --surface-wash-on-hero-pressed: rgba(255, 255, 255, 0.18);
   --surface-wash-on-hero-strong: rgba(255, 255, 255, 0.24);   /* S20 J2: the action circle press */
+  --outline-on-hero: rgba(255, 255, 255, 0.45);   /* ★ S20F W-11 (#1409): the code chip / block rule on the sent bubble */
   /* ★★ #1193 (#1168 A): the ring TRACK on --surface-scrim-strong — a stronger white wash, so the track shows on a
      light photo; over a white photo the --icon-on-scrim fill on it ≈ 3.6:1 (≥ 3). Mode-less (the scrim under it is). */
   --surface-wash-on-scrim-strong: rgba(255, 255, 255, 0.28);
@@ -2749,13 +2752,32 @@
    NOT changed (Damir): the read ticks (on the coloured bubble) and the wallet.
    ★ #46 r1 (M1): the pick attribute is data-chat-sent (was written data-sent-colour — a dead selector; the pick on <html> =
    :root resolved anyway). (③) every accent token has a BARE :root value = today's action token, so no theme or engine
-   ever reads an undefined one; the guard re-points them. */
+   ever reads an undefined one; the guard re-points them.
+   ★ S20F W-3 (#1443 · #1444): the in-bubble controls (typed-bubbles.css / media-bubble.css) add five:
+     --chat-accent-hover / -pressed   the fill 10 % / 18 % toward black
+     --chat-accent-on                 white on the fill (the S17 C rule: ≥ 4.5 : 1 on every sent colour)
+     --chat-accent-ink-sent           the ink on a SENT card: light = 22 % toward black (the plain colour 4.19 : 1 on the
+                                      sent tint), dark = the dark ink
+     --chat-accent-ink-recv           the ink on the RECEIVED bubble ground = --chat-accent-ink, but dark Graphite lifts
+                                      60 % (50 % = 3.96 : 1 on the dark Ocean bubble; pins-s20f/c-accent walks all 98)
+   ★ S20F #46 r1: --chat-accent-ink-strong (hover / pressed ink, and the canvas Cancel at rest: light 22 % toward black,
+   dark = the received ink) · --chat-accent-ink-deep (the canvas Cancel pressed: light 40 %) · --chat-accent-fill (the
+   in-bubble fill = the accent; dark Graphite / Teal / Blue lift 25 / 20 / 15 % so a filled button is a shape on the card,
+   1.06 → ≥ 1.5 : 1; hover / pressed derive from it) */
 :root {
   --chat-accent: var(--surface-action-default);
   --chat-accent-ink: var(--icon-action-default);
   --chat-accent-tonal: var(--surface-action-tonal-default);
   --chat-accent-tonal-hover: var(--surface-action-tonal-hover);
   --chat-accent-band: var(--surface-select-row);
+  --chat-accent-hover: var(--surface-action-hover);
+  --chat-accent-pressed: var(--surface-action-pressed);
+  --chat-accent-on: var(--text-neutral-on-action);
+  --chat-accent-ink-sent: var(--icon-action-default);
+  --chat-accent-ink-recv: var(--icon-action-default);
+  --chat-accent-ink-strong: var(--text-action-hover);
+  --chat-accent-ink-deep: var(--text-action-pressed);
+  --chat-accent-fill: var(--surface-action-default);
 }
 @supports (color: color-mix(in srgb, red 50%, blue)) {
   :root, [data-chat-ground], [data-chat-sent] {
@@ -2764,11 +2786,32 @@
     --chat-accent-tonal: color-mix(in srgb, var(--surface-bubble-sent) 16%, #FFFFFF);   /* sanctioned: a mix over the light tray / pill white */
     --chat-accent-tonal-hover: color-mix(in srgb, var(--surface-bubble-sent) 26%, #FFFFFF);   /* sanctioned */
     --chat-accent-band: color-mix(in srgb, var(--surface-bubble-sent) 16%, transparent);
+    --chat-accent-fill: var(--chat-accent);
+    --chat-accent-hover: color-mix(in srgb, var(--chat-accent-fill), #000000 10%);   /* sanctioned: black is the mix target */
+    --chat-accent-pressed: color-mix(in srgb, var(--chat-accent-fill), #000000 18%);   /* sanctioned */
+    --chat-accent-on: #FFFFFF;   /* sanctioned: the white the S17 C pin measures */
+    --chat-accent-ink-sent: color-mix(in srgb, var(--surface-bubble-sent), #000000 22%);   /* sanctioned */
+    --chat-accent-ink-recv: var(--chat-accent-ink);
+    --chat-accent-ink-strong: color-mix(in srgb, var(--surface-bubble-sent), #000000 22%);   /* sanctioned */
+    --chat-accent-ink-deep: color-mix(in srgb, var(--surface-bubble-sent), #000000 40%);   /* sanctioned */
   }
   [data-theme='dark'], [data-theme='dark'] [data-chat-ground], [data-theme='dark'] [data-chat-sent] {
     --chat-accent-ink: color-mix(in srgb, var(--surface-bubble-sent), #FFFFFF 50%);   /* sanctioned: the lift toward white */
     --chat-accent-tonal: color-mix(in srgb, var(--surface-bubble-sent) 38%, #1A1C1F);   /* sanctioned: over the dark sheet grey */
     --chat-accent-tonal-hover: color-mix(in srgb, var(--surface-bubble-sent) 50%, #1A1C1F);   /* sanctioned */
     --chat-accent-band: color-mix(in srgb, var(--surface-bubble-sent) 30%, transparent);
+    --chat-accent-ink-sent: color-mix(in srgb, var(--surface-bubble-sent), #FFFFFF 50%);   /* sanctioned: = the dark ink */
+    --chat-accent-ink-strong: var(--chat-accent-ink-recv);
+    --chat-accent-ink-deep: var(--chat-accent-ink-recv);
+  }
+  [data-theme='dark'][data-chat-sent='graphite'], [data-theme='dark'] [data-chat-sent='graphite'] {
+    --chat-accent-ink-recv: color-mix(in srgb, var(--surface-bubble-sent), #FFFFFF 60%);   /* sanctioned: 50 % read 3.96 : 1 on the dark Ocean bubble */
+    --chat-accent-fill: color-mix(in srgb, var(--surface-bubble-sent), #FFFFFF 25%);   /* sanctioned: 1.06 → 1.89 : 1 on the card, white 6.31 */
+  }
+  [data-theme='dark'][data-chat-sent='teal'], [data-theme='dark'] [data-chat-sent='teal'] {
+    --chat-accent-fill: color-mix(in srgb, var(--surface-bubble-sent), #FFFFFF 20%);   /* sanctioned: 1.23 → 2.12, white 5.60 */
+  }
+  [data-theme='dark'][data-chat-sent='blue'], [data-theme='dark'] [data-chat-sent='blue'] {
+    --chat-accent-fill: color-mix(in srgb, var(--surface-bubble-sent), #FFFFFF 15%);   /* sanctioned: 1.40 → 2.05, white 5.82 */
   }
 }

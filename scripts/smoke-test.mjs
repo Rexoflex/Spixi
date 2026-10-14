@@ -4516,8 +4516,8 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     scroll(20);
     ok('compact' in heroEl.dataset,
       '★ oscillator (Damir\'s dial): ~20px of downward GESTURE collapses the hero — no absolute 120px offset a 5-transaction account can never reach. "It should minimise the hero any time you scroll down, so it\'s always the same effect"');   // r3: settled range == max(top, maxPre − delta)
-    ok(reserve.style.height === '0px' || reserve.style.height === '',
-      '★ oscillator r1 MAJOR-1 (the BULGE): at the collapse INSTANT the reserve is 0 — the hero has not shrunk yet, and landing the full reserve at t=0 opened a reserve-wide scroll bulge a fling walked into (blank space, then a clamp-back stall)');
+    ok(reserve.style.height === '156px' && 'compact' in heroEl.dataset,
+      '★ oscillator r1 MAJOR-1 (the BULGE) → ★ S20F W-10 re-base (#1409): the hero height now changes ONCE, so the deficit lands IN THE FLIP\'S TASK (156px when the scroll event returns) — no frame has the reserve without the grown viewport, so no bulge; a hero height transition coming back is pins-s20f/h-hero (1)');
     heroRO.fire();   // the hero finished shrinking (fixture geometry flips instantly)
     ok(reserve.style.height === '156px',
       '★ oscillator r1 MAJOR-4 (DEFICIT-SIZED): the reserve tracks to clamp(0, top − maxPre + delta) = 20 − 60 + 196 = 156px, NOT the full 196 — only what the clamp would consume, so a long list reserves ZERO and no list ends in a hero of blank');
@@ -4748,8 +4748,8 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(d.querySelectorAll('.c-launch__slide').length === 4 && dots.length === 4,
     'carousel: 4 slides + 4 dots (the SHIPPED legacy tour, step1–4 reused)');
   const arts = [...d.querySelectorAll('.c-launch__slide .c-launch__illo-img')];
-  ok(arts.length === 4 && arts.every((im, i) => im.getAttribute('data-illo') === 'welcome' + (i + 1)),   /* ★ S11 B re-base (#1262): the step1–4 PNGs → the inline set (behaviour: pins-s11/b-launch.mjs) */
-    'slides carry the welcome 1–4 art IN ORDER (★ S11 B: the inline illustration set; was the step1–4 PNGs, N45; dark set — welcome is pinned dark)');
+  ok(arts.length === 4 && arts.map((im) => im.getAttribute('data-illo')).join() === 'welcome2,welcome1,welcome3,welcome4',   /* ★ S11 B re-base (#1262): the step1–4 PNGs → the inline set — ★ S20F W-5 re-base (#1425): the new order (behaviour: pins-s20f/l-slides.mjs) */
+    'slides carry the welcome art IN THE #1425 ORDER — the ID card, the orbit, the wallet, the apps (★ S11 B: the inline illustration set; was the step1–4 PNGs, N45; dark set — welcome is pinned dark)');
   ok(dots[0].getAttribute('aria-selected') === 'true', 'dot 1 selected at rest (roving tabindex)');
   dots[2].click();
   ok(dots[2].getAttribute('aria-selected') === 'true'
@@ -7149,7 +7149,7 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
      Account page tells HomePage the tapped tab over the bridge (`ixian:landtab:<id>`)
      and HomePage PUSHES `landOnTab(id)` into this document, deterministic on every
      WebView. onSettingsClosed only clears the pane flag and re-asks the rail. */
-  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); syncNav\(\); \}/.test(homeSh)
+  ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\);(?: seePane\(false\);)? syncNav\(\); \}/.test(homeSh)   /* ★ S20F W-1 re-base (#1409): + the belt's sighting clear (pins-s20f/h-rail) */
     && !/consumeLandTab|LANDTAB_KEY|spixi\.landtab/.test(homeSh)
     && /landOnTab\(id\) \{ landOnTabNow\(id\); \}/.test(homeSh),
     '#314 landtab → S11: onSettingsClosed no longer consumes a storage hand-off — the tab arrives as the landOnTab PUSH, and the storage/focus/visibility trio is gone');
@@ -15656,8 +15656,8 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       "★ iOS-59 → #501 → FIXED (reshaped by #46 r1): the reserve is BACK with the sign understood — the hero is a SIBLING, a collapse GROWS the viewport and DROPS the max scroll offset — and the reserve is MEASURED from the element, never a constant");
     ok(/reserveTarget = Math\.max\(0, Math\.min\(m\.delta, top - maxPre \+ m\.delta\)\);/.test(wsJs),
       '★ oscillator r1 MAJOR-4 (DEFICIT-SIZED): the reserve target is clamp(0, top − maxPre + delta, delta) — exactly what the clamp would consume. A full-delta reserve held the maximum INVARIANT, which meant every compact list ended in ~a hero of blank; the deficit reserves ZERO on a long list and only the clamp depth on a short one');
-    ok(/const maxPre = Math\.max\(0, scrollEl\.scrollHeight - scrollEl\.clientHeight\);[\s\S]{0,2400}?applyReserve\(heroRO \? trackedReserve\(\) : reserveTarget\);[\s\S]{0,900}?setWalletHeroCompact\(hero, true\)/.test(wsJs),
-      '★ oscillator: maxPre and top are read BEFORE the flip, the reserve is applied BEFORE the flip, and with a hero RO it starts at ZERO and tracks the shrink (r1 MAJOR-1: landing the full reserve at t=0 opened a 300ms scroll BULGE a fling walked into)');
+    ok(/const maxPre = Math\.max\(0, scrollEl\.scrollHeight - scrollEl\.clientHeight\);[\s\S]{0,2400}?applyReserve\(reserveTarget\);[\s\S]{0,600}?setWalletHeroCompact\(hero, true\)/.test(wsJs),
+      '★ oscillator: maxPre and top are read BEFORE the flip and the reserve is applied BEFORE the flip — ★ S20F W-10 re-base (#1409): at its TARGET, because the hero height now changes once in the same task (r1 MAJOR-1\'s bulge needed a height animation; pins-s20f/h-hero pins there is none)');
     ok(/heroRO = new ResizeObserver\(\(\) => \{[\s\S]{0,500}?if \(!collapsed \|\| heroExpandedRest <= 0\) return;\s*\n\s*applyReserve\(trackedReserve\(\)\);/.test(wsJs)
       && /Math\.min\(reserveTarget, Math\.max\(0, heroExpandedRest - hero\.offsetHeight\)\)/.test(wsJs),
       '★ oscillator r1 MAJOR-1 (TRACKED): the hero RO feeds the reserve min(target, expandedRest − liveHeight) frame by frame — RO callbacks run after layout and before paint, so the maximum is right in every painted frame; no-RO engines fall back to the instant deficit');
@@ -24294,7 +24294,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      * answers "what should the rail say" and every writer asks it. */
     ok(/function railTarget\(\)/.test(home) && /return inAccountContext\(\) \? 'account' : activeNav;/.test(home),
       '★★ L6, ONE ANSWER: railTarget() is the single place that decides the rail. Four writers is how the Account highlight got clobbered by the stale tab one line later');
-    ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\); syncNav\(\); \}/.test(home) && !/setNavActive\(nav, activeNav\)/.test((home.match(/onSettingsClosed\(\) \{[^\n]*/) || [''])[0]),
+    ok(/onSettingsClosed\(\) \{ clearAccountPaneFlag\(\);(?: seePane\(false\);)? syncNav\(\); \}/.test(home) /* ★ S20F W-1 re-base: + the sighting clear */ && !/setNavActive\(nav, activeNav\)/.test((home.match(/onSettingsClosed\(\) \{[^\n]*/) || [''])[0]),
       '★★ L6: …and the handler that clobbered it now ASKS. It used to end setNavActive(nav, activeNav) unconditionally, with a comment calling that "a consistent no-op" — true only for the tab-id branch it was written for (Session AD S11: the consumeLandTab call between them is retired with the storage hand-off)');
     ok(/accountPaneOpen\(\) \|\| contactsFromAccount/.test(home),
       '★ L6, ONE PREDICATE: the Account pane and the Account-launched directory answer "is the user inside Account" in one place');
@@ -30482,7 +30482,7 @@ console.log('★★ handover-gate fix batch — the security pins');
     const keysTested = storAll.map((h) => [...h.matchAll(/([A-Z_]+_KEY|[A-Z_]+_PREFIX|'spixi\.[a-z.]+')/g)].map((x) => x[1]).join('+'));
     const retiredKey = storAll.some((h) => /spixi\.exdel|spixi\.landtab|spixi\.backup|LANDTAB|EXDEL|BACKUP_STAMP/.test(h));
     const storAnyForm = (homeCode.match(/addEventListener\s*\(\s*(['"`])storage\1/g) || []).length;   // every spelling incl. the spaced one
-    ok(storAll.length === 4 && storHandlers.length === 4 && storAnyForm === 4 &&   /* ★ S10 P4 re-base (#1254): + the head script's spixi.chat.previewlines listener (behaviour: pins-s10/d-preview.mjs) */ !onstorage && !retiredKey && stor.length > 40 && /e\.key !== PINS_KEY/.test(stor) && /pinnedChats\.clear\(\)/.test(stor),
+    ok(storAll.length === 5 && storHandlers.length === 5 && storAnyForm === 5 &&   /* ★ S10 P4 re-base (#1254): + the head script's spixi.chat.previewlines listener (behaviour: pins-s10/d-preview.mjs) · ★ S20F W-1 re-base (#1409): + the rail belt's PANE_OPEN_KEY listener (behaviour: pins-s20f/h-rail.mjs) */ !onstorage && !retiredKey && stor.length > 40 && /e\.key !== PINS_KEY/.test(stor) && /pinnedChats\.clear\(\)/.test(stor),
       '★ gate 5 (derived: ' + storAll.length + ' storage listeners, keys ' + keysTested.join(' · ') + '; retired families absent): home.html re-seeds pinnedChats from the `storage` event keyed on PINS_KEY. A storage event never fires in the document that wrote the value, so this cannot fight savePins — and without it a home document that was open during a contact-details removal writes the address back');
   }
 
@@ -42491,6 +42491,7 @@ for (const mod of ['a-add-app', 'b-add-contact', 'c-addsheet', 'd-new-group', 'e
 for (const mod of ['p-pattern', 'p-offline', 'p-blind', 'p-keepopen', 'q-lang', 'q-app-install', 'q-network', 'r-addsheet-instant', 'r-apps-grid-hover', 'r-dev-reset-toast', 'r-autodl-flash', 'r-picker-pill', 'r-dark-bubbles']) await (await import(new URL('./pins-s19/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S19 (the S18 walk fix round, #1369–#1379) — p = chat (pattern default, offline echo, blind notice, transfer text) · q = moments + C# (lang per session, app at Install, network reason) · r = the rest (add-contact sheet instant close, apps grid hover, Reset toast, autodl flash, picker pill, dark received bubbles)
 for (const mod of ['p-tray', 'p-strip', 'p-send', 'q-meta', 'q-size', 'q-pay', 'q-file', 'q-app', 'f-grammar', 'f-render', 'f-strip', 'f-bar', 'f-copy', 'f-linkcap', 'f-r1', 'r-apps-run', 'r-dark-grounds', 'r-notice-card', 'r-group-photo-rtl', 'r-install-wait', 'r-account-toggle', 's-filesize', 'u-face', 'u-days', 'u-amount', 'u-hero', 'u-spoof']) await (await import(new URL('./pins-s20/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20 (combined, #1374–#1402, #1440) — p = composer ↔ list motion · q = meta 0.7, file size, payment / file / app layout · f = message formatting · r = apps Run, dark grounds, notice card, group photo + RTL, install wait, Account toggle inset · s = the C# file size · u = the wallet
 for (const mod of ['a-steps', 'b-commit', 'c-restore', 'd-look', 'e-desktop', 'f-copy-font-motion']) await (await import(new URL('./pins-on1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ ON-1 (the launch flow, #1420–#1422)
+for (const mod of ['c-accent', 'c-tray', 'c-code', 'c-react', 'l-slides', 'l-fade', 'l-inset', 'l-card', 'l-retry', 'l-kb', 'h-rail', 'h-hero', 'h-downloads']) await (await import(new URL('./pins-s20f/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20F (the S20 walk fix round, #1407–#1410, #1424–#1427, #1443–#1445) — c = chat (W-3 accent · W-9 tray layer · W-11 code · W-13 reaction pills) · l = launch (W-5 slides · W-4 fade · W-6 inset · W-7 card anchor · W-8 retry · the iOS keyboard reveal) · h = home / settings / wallet (W-1 rail belt · W-10 hero · W-12 downloads)
 for (const mod of ['a-list', 'a-plan', 'b-titlebar', 'c-density', 'd-pinned']) await (await import(new URL('./pins-dt1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ DT-1 (the desktop uplift, P1, #1380–#1399) — a = the chat list polish (sections + fold, hover actions = the row menu's actions, inset rows, desktop-only CSS, the patch path, the phone unchanged) · b = the Windows title bar (S20 #1395: the `maui` / `colors` ways deleted, `off` = the only way)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

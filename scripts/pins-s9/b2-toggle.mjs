@@ -8,7 +8,8 @@
  *   · the description's start indent = the disc's width + the title line's gap (it starts under the title), in the
  *     Account context (30 + 16) — resolved from the cascade
  *   · the switch keeps its name + description (aria-label = title, aria-describedby → this row's sub)
- *   · every Privacy row and the hub's App lock row get it
+ *   · every Privacy row gets it (★ S20F W-2 re-base, #1408/#1409 = B: the hub's App lock / Confirm payments rows are the
+ *     chevron row now — asserted NOT layout B here, their geometry in pins-s20/r-account-toggle.mjs)
  * Deliberate breaks: see the S9 B2 f2 report. */
 import { b2Kit } from './b2-kit.mjs';
 export default async function (h) {
@@ -60,9 +61,13 @@ export default async function (h) {
     const gap = sr ? px(sr, cs(sr).rowGap || cs(sr).getPropertyValue('row-gap')) : NaN;
     ok(Number.isFinite(overhang) && overhang > 0 && gap >= overhang,
       '★ S9 #46 r3 n3: the switch\'s 44 px tap layer ends above the description (row-gap ' + gap + ' ≥ tap overhang ' + overhang + ')');
-    ok(hub.length >= 1 && hub.every((x) => x.ok) && priv.length === 5 && priv.every((x) => x.ok),
-      '★ S9 toggle B: every stacked switch row (hub ' + hub.length + ' · Privacy ' + priv.length + ') puts title + switch on grid row 1, the description on row 2 across both columns, the disc in the title flow, the indent = disc + title gap, and keeps the switch name/description — '
-      + JSON.stringify((priv.find((x) => !x.ok) || hub.find((x) => !x.ok) || priv[0])));
+    /* ★ S20F W-2 re-base (#1408 + #1409 = B): the HUB's switch rows left layout B for the chevron-row geometry (behaviour:
+       pins-s20/r-account-toggle.mjs) — here they must be NOT layout B (stack not `contents`, disc not in the title flow) and
+       keep the switch's name/description; every Privacy row keeps layout B exactly as before. */
+    const hubChevron = hub.length >= 1 && hub.every((x) => x.res && !x.res.contents && !x.res.discFlow && x.res.a11y);
+    ok(hubChevron && priv.length === 5 && priv.every((x) => x.ok),
+      '★ S9 toggle B (Privacy ' + priv.length + '; ★ S20F W-2: the hub ' + hub.length + ' row(s) are the chevron row now): every Privacy switch row puts title + switch on grid row 1, the description on row 2 across both columns, the disc in the title flow, the indent = disc + title gap, and keeps the switch name/description — '
+      + JSON.stringify((priv.find((x) => !x.ok) || (!hubChevron && hub[0]) || priv[0])));
     s.dom.window.close();
 
     /* —— a switch row WITHOUT a description keeps today's one-line row (Notifications → Allow notifications) —— */

@@ -590,3 +590,28 @@
   color: var(--text-error);
   color: color-mix(in srgb, var(--text-error) 88%, #000);   /* sanctioned: U-03 — black is the mix target (12 % darker), not a paint */
 }
+
+/* ★ S20F W-3 (#1443 · #1444): every in-bubble control on the chat accent (tokens.css --chat-accent*); destructive keeps
+   red, the failed badge error-600, disabled the disabled tokens. Outside the guard: today's blue. */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-tcard .c-button:not([data-intent="destructive"]) {
+    --_fill: var(--chat-accent-fill);
+    --_fill-hover: var(--chat-accent-hover);
+    --_fill-pressed: var(--chat-accent-pressed);
+    --_on-fill: var(--chat-accent-on);
+    --_ink: var(--chat-accent-ink-recv);
+    --_ink-hover: var(--chat-accent-ink-strong);
+    --_ink-pressed: var(--chat-accent-ink-strong);
+    --_outline: var(--_ink);
+    --_tonal: var(--chat-accent-tonal);
+  }
+  .c-bubble-row[data-direction="sent"] .c-tcard .c-button:not([data-intent="destructive"]) { --_ink: var(--chat-accent-ink-sent); }
+  .c-fbubble:not([data-state="failed"]) .c-fbubble__badge,
+  .c-fbubble__pair > .c-fbubble__cancel[data-on-tile] { background: var(--chat-accent-fill); color: var(--chat-accent-on); }
+  /* the photo tile's Cancel is on the canvas: the deeper steps */
+  .c-bubble-row > .c-fbubble__cancel { color: var(--chat-accent-ink-strong); }
+  .c-bubble-row > .c-fbubble__cancel:active { color: var(--chat-accent-ink-deep); }
+  @media (hover: hover) and (pointer: fine) { .c-bubble-row > .c-fbubble__cancel:hover { color: var(--chat-accent-ink-deep); } }
+  .c-fbubble__fill { background: var(--chat-accent-ink-recv); }
+  .c-fbubble__meta[data-cta] { color: var(--chat-accent-ink-recv); }
+}

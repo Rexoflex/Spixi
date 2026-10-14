@@ -17911,7 +17911,12 @@ function createWalletHero({
   const f = document.createElement('div');
   f.className = 'c-wallet-hero__fiat u-tabular';
   bal.append(f);
-  el.append(bal);
+  /* ★ S20F W-10 (#1409): balance + actions share ONE body — compact takes it out of the flow in one step and it leaves
+     by transform + opacity (wallet-hero.css); the zones below keep their own classes (inert / aria per zone). */
+  const main = document.createElement('div');
+  main.className = 'c-wallet-hero__main';
+  main.append(bal);
+  el.append(main);
 
   const actions = document.createElement('div');
   actions.className = 'c-wallet-hero__actions';
@@ -17921,7 +17926,7 @@ function createWalletHero({
     quickAction({ glyph: 'arrow-down-left', label: strings.receive || 'Receive', onClick: onReceive }),
     quickAction({ glyph: 'scan', label: strings.scan || 'Scan', onClick: onScan }),
   );
-  el.append(actions);
+  main.append(actions);
 
   store.set(el, { balance, fiat, hidden: !!hidden, strings });
   renderAmounts(el);
@@ -18660,6 +18665,7 @@ function renderWalletTxList(listEl, state, opts = {}) {
           : openTxSheet({ tx: t, host: opts.host, strings, onExplorer: opts.onExplorer });
       },
     });
+    for (const im of row.querySelectorAll('img')) im.decoding = 'async';   // ★ S20F W-10: a photo decodes off the scroll frame
     carryRowHover(listEl, row, hoverSnap);
     listEl.append(row);
   }
@@ -18844,15 +18850,12 @@ function createWalletTools(state, opts = {}) {
  *        the ordinary short-list ground, not a defect. The collapse behaviour
  *        itself stays identical on every account (the dial); only the invisible
  *        pad size adapts.
- *    (2) TRACKED, not instant. The viewport grows over the 300 ms transition;
- *        landing the whole reserve at t=0 opened a reserve-wide scroll BULGE a
- *        fling walked into — blank space, then a clamp-back stall (r1 MAJOR-1,
- *        measured). A ResizeObserver on the HERO now feeds the reserve
- *        `min(target, expandedRest − heroHeight)` frame by frame — RO callbacks
- *        run after layout and before paint, so the maximum is right in every
- *        painted frame. No-RO engines fall back to the instant target: the
- *        bulge is bounded by the deficit there, and jsdom (which has no RO) is
- *        that fallback.
+ *    (2) IN THE FLIP'S TASK. r1 MAJOR-1: while the hero's height animated, a
+ *        reserve landed whole at t=0 opened a scroll BULGE a fling walked into.
+ *        ★ S20F W-10 (#1409): the height now changes ONCE, in the same task as
+ *        the reserve, so the target lands at once and no frame has one without
+ *        the other. The hero RO (`min(target, expandedRest − heroHeight)`) stays
+ *        as the belt: it re-feeds the same value after the flip's layout.
  *    The delta and rest heights are MEASURED from the element, never constants,
  *    and CACHED for 400 ms around a flip so a fast up-down flick cannot make the
  *    probe cut a running transition (r1 MINOR-6).
@@ -18895,6 +18898,52 @@ function createWalletTools(state, opts = {}) {
  *  mid-search). Returns detach().
  */
 function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal = 24 } = {}) {
+  /* ★ S20F W-10 (#1409): THE MOTION — the flip lays out ONCE. The BAND (what sits between the hero's slot and the
+   * scroller, the scroller included) rides a compensating translateY so no row jumps: collapse = the layout at once,
+   * the band from +delta to 0; expand = the compact layout HELD ([data-held]) while the band slides to +delta, then
+   * the height lands in the same task as the band's release. The hero's own layers move by transform + opacity
+   * (wallet-hero.css). Tokens --duration-300 / --easing-standard; 0 ms (reduced motion), no WAAPI (jsdom) or a
+   * hidden hero = instant, the same end state. */
+  const tok = (n, f) => { try { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f; } catch (e) { return f; } };
+  let slot = hero || null;
+  while (slot && slot.parentElement && slot.parentElement !== scrollEl.parentElement) slot = slot.parentElement;
+  const band = () => {
+    const out = [];
+    if (!slot || slot.parentElement !== scrollEl.parentElement) return out;
+    for (let n = slot.nextElementSibling; n; n = n.nextElementSibling) { out.push(n); if (n === scrollEl) break; }
+    return out;
+  };
+  let bandRun = null;
+  const bandYNow = () => {
+    try { const m = /^matrix\(([^)]*)\)$/.exec(getComputedStyle(scrollEl).transform); return m ? (parseFloat(m[1].split(',')[5]) || 0) : 0; } catch (e) { return 0; }
+  };
+  const stopBand = () => {
+    const r = bandRun;
+    bandRun = null;
+    if (!r) return;
+    clearTimeout(r.timer);
+    for (const a of r.anims) { try { a.cancel(); } catch (e) {} }
+  };
+  const endHold = () => { if (hero) delete hero.dataset.held; };
+  const slide = (from, to, hold, onEnd) => {
+    stopBand();
+    const ms = parseFloat(tok('--duration-300', '300ms'));
+    const els = band();
+    const r = { anims: [], timer: 0 };
+    if (ms > 0 && (hold || Math.abs(from - to) >= 0.5)) {
+      for (const el of els) {
+        if (typeof el.animate !== 'function') continue;
+        try { r.anims.push(el.animate([{ transform: 'translateY(' + from + 'px)' }, { transform: 'translateY(' + to + 'px)' }], { duration: ms, easing: tok('--easing-standard', 'ease'), fill: hold ? 'forwards' : 'none' })); } catch (e) {}
+      }
+    }
+    if (!r.anims.length) { if (onEnd) onEnd(); return; }
+    bandRun = r;
+    const fin = () => { if (bandRun !== r) return; if (onEnd) onEnd(); stopBand(); };   // the height lands with the release
+    r.anims[0].onfinish = fin;
+    r.timer = setTimeout(fin, ms + 120);
+  };
+  endHold();
+
   let lastTop = scrollEl.scrollTop || 0;
   let lastS = scrollEl.scrollHeight;
   let lastV = scrollEl.clientHeight;
@@ -18970,19 +19019,26 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
     if (!hero || !hero.isConnected) return { expanded: 0, compact: 0, delta: 0 };
     if (!force && cachedMeasure && (performance.now() - lastFlipAt) < 400) return cachedMeasure;
     const wasCompact = 'compact' in hero.dataset;
+    const wasHeld = 'held' in hero.dataset;
     hero.dataset.measuring = '';
     let expanded = 0, compact = 0;
     try {
+      delete hero.dataset.held;
       delete hero.dataset.compact;
       expanded = hero.offsetHeight;
       hero.dataset.compact = '';
       compact = hero.offsetHeight;
     } finally {
       if (wasCompact) hero.dataset.compact = ''; else delete hero.dataset.compact;
+      if (wasHeld) hero.dataset.held = '';
       void hero.offsetHeight;             // settle layout BEFORE transitions come back
       delete hero.dataset.measuring;
     }
     cachedMeasure = { expanded, compact, delta: Math.max(0, expanded - compact) };
+    if (expanded > 0) {   // W-10: the expanded layer keeps this box while compact (wallet-hero.css)
+      hero.style.setProperty('--wallet-hero-full', expanded + 'px');
+      hero.style.setProperty('--wallet-hero-delta', cachedMeasure.delta + 'px');
+    }
     return cachedMeasure;
   };
 
@@ -18999,6 +19055,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
 
   const collapse = () => {
     if (collapsed) return;
+    if (hero && 'held' in hero.dataset) return;   // W-10: an expand is landing — the gesture keeps accumulating
     collapsed = true;
     /* ★ r2 W-MAJOR-1: maxPre and top are read BEFORE the measurement probe runs —
      * the probe's attribute toggle + offsetHeight read force a REAL compact-hero
@@ -19018,20 +19075,20 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
     if (m.expanded > 0) heroExpandedRest = m.expanded;
     /* ★ DEFICIT-SIZED (r1): only what the clamp would consume. */
     reserveTarget = Math.max(0, Math.min(m.delta, top - maxPre + m.delta));
-    /* ★ TRACKED (r1): with a hero RO the reserve starts at 0 and follows the
-     * shrinking hero frame by frame; without one it lands instantly (bounded by
-     * the deficit). Reserve set BEFORE the flip either way, so the maximum never
-     * dips below `top` in any painted frame. */
-    applyReserve(heroRO ? trackedReserve() : reserveTarget);
+    /* ★ W-10: the height changes ONCE, so the target lands BEFORE the flip in the same task — the maximum never
+     * dips below `top` in any painted frame (the hero RO only re-feeds this value). */
+    applyReserve(reserveTarget);
     lastFlipAt = performance.now();
     /* r2 W-MINOR-3: a fresh compact state owes the NEXT collapse a fresh gesture —
      * see expand() for the 1px-re-collapse trace. */
     down = 0; up = 0;
     if (hero) setWalletHeroCompact(hero, true);
+    if (m.delta > 0) slide((bandRun ? bandYNow() : 0) + m.delta, 0, false);   // W-10: the band does not jump
   };
   const expand = () => {
     if (!collapsed) return;
     collapsed = false;
+    const lift = hero && hero.isConnected ? measureHero().delta : 0;   // W-10: the band's travel (cached around a flip)
     lastFlipAt = performance.now();
     /* ★ r2 W-MINOR-3: the gesture accumulators reset with the state. Four of the
      * five expand paths are not gestures (attach, the valve, the belt, the
@@ -19040,6 +19097,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
      * hero, bypassing the dial entirely. */
     down = 0; up = 0;
     if (hero) setWalletHeroCompact(hero, false);
+    if (lift > 0) { hero.dataset.held = ''; slide(bandRun ? bandYNow() : 0, lift, true, endHold); } else stopBand();
     /* removing the reserve while the viewport is still large can clamp — but expand
      * only ever runs at top ≤ 1 or with no scroll range, where a clamp is a no-op. */
     applyReserve(0);
@@ -19179,6 +19237,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
 
   return () => {
     scrollEl.removeEventListener('scroll', onScroll);
+    stopBand(); endHold();   // W-10: a tab switch lands any running motion
     clearTimeout(valveRetry); valveRetry = 0;
     if (ro) ro.disconnect();
     if (heroRO) heroRO.disconnect();
@@ -32224,7 +32283,13 @@ function appScreenShell(className, title, onBack) {
  * Downloads — createSettingsDownloads({ files, host, onBack, onOpenFile,
  * onDeleteFile, onClearAll, onShowInChat, strings }).
  * files: [{ name, time, size?, sender?, senderKey? }] (time = epoch seconds, or an old exe's opaque ctime string).
- * Free fn: setDownloads(el, files) — the clearFiles/addFile wholesale mirror.
+ * Free fn: setDownloads(el, files, { sendersKnown }) — the clearFiles/addFile wholesale mirror.
+ * ★ S20F W-12 (#1409): `waiting` = no empty state until the first setDownloads (the host's quiet window decides
+ *   "empty"); `awaitSenders` = the From row is RESERVED (laid out, invisible, inert) from the first non-empty paint
+ *   until a setDownloads with sendersKnown — so phase 2 moves no row. Without a sender then, the row goes (the one
+ *   remaining move, #46 r1 C-3 — recorded); a phase 2 that never comes releases it DL_SENDERS_BACKSTOP_MS after the
+ *   first non-empty paint (C-4, the #326 completes-never grammar; 12 s — a phase 2 slower than that moves the list twice,
+ *   −52 then +52: the recorded trade, #46 r2 MINOR-3).
  *
  * ★ S17 E (#1336, downloads-contributors-render.html, LOCKED): the premium screen —
  *   · a SUMMARY card: "{n} files · {total}", a storage bar by kind (one colour per kind, grows in once), a legend with
@@ -32242,6 +32307,7 @@ function appScreenShell(className, title, onBack) {
 const DL_GLYPH = { image: 'photo', pdf: 'file-text', doc: 'file-text', archive: 'file-zip', audio: 'volume', video: 'player-play', code: 'code', other: 'file-isr' };
 const DL_LONG_PRESS_MS = 500;
 const DL_LEGEND_MAX = 4;          // kinds named in the bar + legend; the rest is "Other"
+const DL_SENDERS_BACKSTOP_MS = 12000;   // ★ S20F W-12 (#46 r2 MINOR-3): a phase 2 slower than this is a scan failure in practice
 /* the family's name in the legend when its files carry more than one format (one format = the format itself: PDF, ZIP) */
 function dlKindLabel(family, strings) {
   switch (family) {
@@ -32272,10 +32338,14 @@ function createSettingsDownloads({
   onDeleteFile,                  // (name, ctrl) — ixian:delete:<name>; C# re-pushes the list
   onClearAll,                    // (ctrl) — ixian:deleted; the host re-asks the list
   onShowInChat,                  // ★★ #1107 (name) — ixian:showDownloadInChat:<name>; only for a file with a known sender
+  waiting = false,               // ★ W-12: the list is on its way — no empty state before the first setDownloads
+  awaitSenders = false,          // ★ W-12: phase 2 will answer — reserve the From row until it does
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dl', strings.downloads || 'Downloads', onBack);
+  let sendersPending = !!awaitSenders;
+  let sendersBackstop = 0;
   let senderKey = '';                  // '' = all senders
   let kindFilter = 'all';              // 'all' | 'photo' | 'file'
   let current = [];
@@ -32722,8 +32792,12 @@ function createSettingsDownloads({
     const mixed = hasPhoto && hasFile;
     if (!mixed) kindFilter = 'all';        // a filter on a kind no longer listed is cleared — its chips hide with it
     kindWrap.hidden = !mixed;
-    controls.hidden = !mixed && senders.size === 0;
-    fromChip.hidden = senders.size === 0;
+    const reserve = sendersPending && senders.size === 0 && current.length > 0;   // ★ W-12: the row phase 2 fills
+    if (reserve && !sendersBackstop) sendersBackstop = setTimeout(() => { sendersPending = false; if (el.isConnected) paintList(); }, DL_SENDERS_BACKSTOP_MS);
+    controls.hidden = !mixed && senders.size === 0 && !reserve;
+    fromChip.hidden = senders.size === 0 && !reserve;
+    if (reserve) { fromChip.dataset.reserved = ''; fromChip.disabled = true; fromChip.setAttribute('aria-hidden', 'true'); }
+    else if ('reserved' in fromChip.dataset) { delete fromChip.dataset.reserved; fromChip.disabled = false; fromChip.removeAttribute('aria-hidden'); }
     for (const [id, c] of kindChips) c.setAttribute('aria-pressed', String(id === kindFilter));
 
     /* newest first (stable: an old exe's opaque time sorts as 0 and keeps C#'s order) */
@@ -32793,16 +32867,19 @@ function createSettingsDownloads({
     paintFromChip();
   }
 
-  function render(list) {
+  function render(list, opts) {
+    if (opts && opts.sendersKnown) { sendersPending = false; clearTimeout(sendersBackstop); }
     current = (list || []).map((f) => Object.assign({}, f, { name: String(f && f.name != null ? f.name : '') }));
     renderSenders(current);
     const has = current.length > 0;
     sum.hidden = !has;
-    empty.hidden = has;
+    empty.hidden = has || waitingFirst;
+    waitingFirst = false;
     searchWrap.hidden = current.length < SEARCH_MIN;
     paintSummary();
     paintList();
   }
+  let waitingFirst = !!waiting;            // ★ W-12: the build paint is not the list's answer
   render(files);
 
   el._dlRender = render;                   // setDownloads hook
@@ -32824,8 +32901,8 @@ function setDownloadsAvatars(el, entries = []) {
 }
 
 /** Wholesale list update — mirrors the clearFiles + addFile(name, ctime[, size]) push. */
-function setDownloads(el, files = []) {
-  if (el._dlRender) el._dlRender(files);
+function setDownloads(el, files = [], opts) {
+  if (el._dlRender) el._dlRender(files, opts);
 }
 
 /**
@@ -34006,9 +34083,69 @@ function guardRings(st) {
   if (allQuiet.length) rings.dataset.quiet = allQuiet.join(' ');   // a set with every ring hidden (informational)
   else delete rings.dataset.quiet;
 }
+/* ★ S20F W-7 (#1426 = a2): in the ≥ 900 px two-column layout the card header sits where STEP 2 sits
+   centred, so step 1 → 2 moves nothing; restore / retry anchor at their own normal-state centre, so the
+   wrong-password line grows the card DOWNWARD only. rows 2–5 = topbar top → footer bottom, minus what the
+   visible error / honest lines add (box + margins + the flex gap): ★ #46 r1 (MINOR-1) no live region is
+   toggled. ★ r2 (MINOR-4): the rows depend on the WIDTH and the fonts, not the height — they are cached per
+   (view, width, fonts) and the anchor follows the current room height without a re-measure. Create on step 1
+   with no cache reads step 2 OUT OF FLOW (absolute + visibility hidden on its fields / footer, one synchronous
+   read, no paint between) — step 1, with the focused nickname, is never hidden. Written as --launch-card-top on
+   the view (launch.html: the first grid row); an unchanged room does nothing (the fitArt key grammar). */
+const twoColumn = () => onDesktop() && typeof matchMedia === 'function' && matchMedia('(min-width: 900px)').matches;
+const isShown = (e, top) => { for (let x = e; x && x !== top; x = x.parentElement) if (x.hidden) return false; return true; };
+function quietPx(e) {
+  const cs = getComputedStyle(e);
+  const par = e.parentElement;
+  const sib = par && [...par.children].some((c) => c !== e && !c.hidden);
+  const gap = sib ? (parseFloat(getComputedStyle(par).rowGap) || 0) : 0;
+  return e.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0) + gap;
+}
+function cardRows(v) {
+  const bar = v.querySelector(':scope > .c-topbar');
+  const p1 = v.querySelector('.c-launch__step[data-step="1"]'), p2 = v.querySelector('.c-launch__step[data-step="2"]');
+  if (!bar) return 0;
+  const quiet = (region) => { let q = 0; for (const e of region.querySelectorAll('.c-launch__ferr, .c-launch__honest')) if (isShown(e, v)) q += quietPx(e); return q; };
+  if (!p2 || !p2.hidden) {                       // restore / retry, or create with step 2 on screen
+    const foot = p2 ? p2.querySelector('.c-launch__footer') : v.querySelector(':scope > .c-launch__footer');
+    return foot ? foot.getBoundingClientRect().bottom - bar.getBoundingClientRect().top - quiet(p2 || v) : 0;
+  }
+  const f1 = p1 && p1.querySelector('.c-launch__fields');
+  const parts = [p2.querySelector('.c-launch__fields'), p2.querySelector('.c-launch__footer')];
+  if (!f1 || parts.some((x) => !x)) return 0;
+  const head = f1.getBoundingClientRect().top - bar.getBoundingClientRect().top;   // rows 2–3 (topbar + progress) are shared
+  p2.hidden = false;
+  parts.forEach((x) => { x.style.position = 'absolute'; x.style.visibility = 'hidden'; });
+  const rows = head + parts[0].offsetHeight + parts[1].offsetHeight - quiet(p2);
+  parts.forEach((x) => { x.style.position = ''; x.style.visibility = ''; });
+  p2.hidden = true;
+  return rows;
+}
+function fitCard(st) {
+  const v = st.views[st.view];
+  if (!v || !v.classList.contains('c-launch__form') || !v.clientHeight || !twoColumn()) return;
+  const fonts = document.fonts ? document.fonts.status : '';
+  const key = [st.view, v.clientWidth, v.clientHeight, fonts].join('|');
+  const keys = st.cardKeys || (st.cardKeys = {});
+  if (keys[st.view] === key) return;
+  const rowKey = [st.view, v.clientWidth, fonts].join('|');
+  const cache = st.cardRows || (st.cardRows = {});
+  let rows = cache[rowKey];
+  if (rows === undefined) {
+    rows = cardRows(v);
+    if (rows > 0) cache[rowKey] = rows;
+  }
+  if (!(rows > 0)) return;
+  const cs = getComputedStyle(v);
+  const room = v.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+  v.style.setProperty('--launch-card-top', Math.max(0, Math.floor((room - rows) / 2)) + 'px');
+  keys[st.view] = key;
+}
+
 /* after a switch: now (static layouts) and once the slide / step motion has settled */
 function guardRingsSoon(st) {
   const run = () => {
+    try { fitCard(st); } catch { /* layout only */ }   // ★ S20F W-7: before the rings read the boxes
     try { if (st.fitArt) st.fitArt(); } catch { /* art fit only */ }   // ★ #46 r2: the art first — the rings guard reads the result
     try { guardRings(st); } catch { /* decoration only — never block a switch */ }
   };
@@ -34181,16 +34318,16 @@ function buildWelcome(st) {
      miss and no error rung. The launch subtree is pinned dark, so --il-* resolve dark. */
   const defs = [
     {
-      art: illoWelcome1,
-      title: strings.slide1Title || 'Built for you. Owned by you.',
-      // ★ S9 A-10 (#1245, audit S-07): "Encrypted on your device" read as encryption AT REST
-      //   (history is not encrypted at rest, CORE-11) → in-transit wording, NEW key.
-      copy: strings.slide1Copy2 || 'End-to-end encrypted and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
+      /* ★ S20F W-5 (#1425): the new order — slide 1 = the nickname promise with the ID-card art (was slide 2) */
+      art: illoWelcome2,
+      title: strings.slide1Title2 || 'Private chat. No phone number.',
+      copy: strings.slide1Copy3 || 'Sign up with a nickname. No email, no ID, nothing personal.',
     },
     {
-      art: illoWelcome2,
-      title: strings.slide2Title || 'No phone number. No email. Just a nickname.',
-      copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal. The account is yours alone.',
+      /* ★ #1425: "post-quantum" supersedes #702 for the welcome only (the rsa2 gap is recorded); no server line (#703) */
+      art: illoWelcome1,
+      title: strings.slide2Title2 || 'Private by design.',
+      copy: strings.slide2Copy2 || 'Post-quantum encrypted on your device and sent peer to peer. Only the person you write to can read it.',
     },
     {
       art: illoWelcome3,
@@ -34202,8 +34339,8 @@ function buildWelcome(st) {
     },
     {
       art: illoWelcome4,
-      title: strings.slide4Title || 'Mini Apps, right inside your chats.',
-      copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world, all without ever leaving the conversation.',
+      title: strings.slide4Title2 || 'Play and plan together.',
+      copy: strings.slide4Copy2 || 'Mini apps like Blitz Chess and Split open right in your chats.',
     },
   ];
   const slides = defs.map((s, i) => {
@@ -34247,9 +34384,22 @@ function buildWelcome(st) {
   });
 
   st.slide = 0;
+  /* ★ S20F W-4 (#1426): the 24 px side fade ONLY while the track moves (at rest the slide text sits
+     8 px from the edge, a resting mask would fade it). data-moving = set when the transform changes
+     (not under reduced motion, not on a detached build), cleared on the track's transitionend + a belt. */
+  let movingT = 0;
+  const stopMoving = () => { clearTimeout(movingT); car.removeAttribute('data-moving'); };
+  track.addEventListener('transitionend', (e) => { if (e.target === track) stopMoving(); });
   const go = (i) => {
     st.slide = Math.max(0, Math.min(defs.length - 1, i));
-    track.style.transform = 'translateX(' + (st.slide * -100) + '%)';
+    const tf = 'translateX(' + (st.slide * -100) + '%)';
+    if (track.style.transform !== tf && v.isConnected
+      && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      car.setAttribute('data-moving', '');
+      clearTimeout(movingT);
+      movingT = setTimeout(stopMoving, 600);       // completes-never backstop (#326): > --duration-300
+    }
+    track.style.transform = tf;
     slides.forEach((s, k) => s.setAttribute('aria-hidden', String(k !== st.slide)));
     dotBtns.forEach((b, k) => {
       b.setAttribute('aria-selected', String(k === st.slide));
@@ -34257,7 +34407,7 @@ function buildWelcome(st) {
     });
   };
 
-  // gentle autoplay (premium-tour idiom): wraps every 5s until the user takes
+  // gentle autoplay (premium-tour idiom): wraps every 7s until the user takes
   // control (any manual nav/swipe = theirs now); prefers-reduced-motion = off;
   // self-stops when the shell leaves the DOM (demo/jsdom re-creation guard)
   let autoTimer = null;
@@ -34271,7 +34421,7 @@ function buildWelcome(st) {
     autoTimer = setInterval(() => {
       if (!v.isConnected) { stopAuto(); return; }
       if (st.view === 'welcome') go((st.slide + 1) % defs.length);
-    }, 5000);
+    }, 7000);   // ★ S20F W-5 (#1425): 5 s → 7 s (reading time)
   }
   st.stopAuto = stopAuto;
   st.els.carousel = car;
@@ -34362,7 +34512,8 @@ function buildWelcome(st) {
     go(st.slide + (dx < 0 ? 1 : -1));
   });
 
-  v.append(car, dots);
+  /* ★ S20F W-5 (#1425/#1426): one quiet line under the dots — plain text, not a link; hidden at L2 (CSS) */
+  v.append(car, dots, mk('p', 'c-launch__oss', strings.welcomeOpenSource || 'Open source'));
 
   // — CTAs: always enabled, pinned; internal routing (the shell ABSORBS the
   //   legacy pages). ⚠ SUPERSEDED by #1421 (1): consent is recorded at THIS tap
@@ -35103,56 +35254,53 @@ function buildRestore(st) {
   return v;
 }
 
-/* —— retry (boot: the SAVED password failed) ———————————————————— */
+/* —— retry (boot: the SAVED password failed) ————————————————————————————
+ * ★ S20F W-8 (#1426): rebuilt on the RESTORE form frame — the same topbar, the restore art + "Welcome
+ * back" + retryCopy, ONE launchField ("Wallet password"), restore's error line, and "Unlock" directly
+ * under the field (launch-form.css: the body does not grow). Behaviour as before: the password is never
+ * trimmed, scrubbed on back / done / pagehide, one submit in flight; fail('') = the silent restore under
+ * C#'s native alert (+ focus), fail(msg) = inline. */
 
 function buildRetry(st) {
   const { opts } = st;
   const strings = st.strings;
   const v = document.createElement('div');
-  v.className = 'c-launch__view';
+  v.className = 'c-launch__view c-launch__form';
   v.dataset.launchView = 'retry';
 
   const pw = passwordField({ label: strings.walletPassword || 'Wallet password', current: true, strings });
-  const scrub = () => { pw.input.value = ''; pw.mask(); };
+  const pwF = launchField({ input: pw.input, label: strings.walletPassword || 'Wallet password', end: [pw.wrap.querySelector('.c-lock__reveal')] });
+  const scrub = () => { pw.input.value = ''; pw.mask(); pwF.sync(); };
   st.scrubs.push(scrub);
 
-  v.append(createTopbar({
-    variant: 'view',
-    title: strings.retryTitle || 'Unlock your wallet',
-    backLabel: strings.back || 'Back',
-    onBack: () => {
-      scrub();
-      show(st, 'welcome');
-      try { if (opts.onBack) opts.onBack('retry'); } catch { /* nav — legacy pop */ }
-    },
-  }));
+  const { bar } = formTopbar(st, strings.retryTitle || 'Unlock your wallet', () => {
+    scrub();
+    show(st, 'welcome');
+    try { if (opts.onBack) opts.onBack('retry'); } catch { /* nav — legacy pop */ }
+  });
+  v.append(bar);
 
-  const body = document.createElement('div');
-  body.className = 'c-launch__body u-scroll';
-  const copy = document.createElement('p');
-  copy.className = 'c-launch__note';
-  copy.textContent = strings.retryCopy
-    || 'Your wallet couldn’t be unlocked with the saved password. Enter it to continue.';
-  body.append(copy);
-
-  const card = document.createElement('div');
-  card.className = 'c-launch__card';
-  card.append(pw.wrap);
-  const err = errLine();
-  card.append(err);
-  body.append(card);
+  const body = mk('div', 'c-launch__body u-scroll');
+  const hero = mk('div', 'c-launch__hero');
+  hero.append(illoRestore({ className: 'c-launch__hero-illo' }),   // its own build (#1422: a clone duplicates the gradient ids)
+    mk('h2', 'c-launch__hero-title', strings.restoreHeroTitle || 'Welcome back'),
+    mk('p', 'c-launch__hero-copy', strings.retryCopy
+      || 'Your wallet couldn’t be unlocked with the saved password. Enter it to continue.'));
+  const fields = mk('div', 'c-launch__fields');
+  const err = launchErrLine();
+  fields.append(pwF.field, err);
+  body.append(hero, fields);
   v.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-launch__footer';
+  const footer = mk('div', 'c-launch__footer');
   const cta = createButton({ label: strings.proceed || 'Unlock', size: 56, width: 'full' });
   footer.append(cta);
   v.append(footer);
 
-  const setError = (msg, focusEl) => {
-    err.textContent = msg;
-    err.hidden = !msg;
-    if (msg && focusEl) focusEl.focus();
+  const setError = (msg, red) => {
+    err.setMessage(msg);
+    pwF.setError(!!msg && red);
+    if (msg) pw.input.focus();
   };
   pw.input.addEventListener('input', () => setError(''));
 
@@ -35160,7 +35308,7 @@ function buildRetry(st) {
   const submit = () => {
     if (inFlight) return;
     const p = pw.input.value;                    // NOT trimmed
-    if (!p) return setError(strings.passwordEmpty || 'Enter your wallet password.', pw.input);
+    if (!p) return setError(strings.passwordEmpty || 'Enter your wallet password.', false);
     setError('');
     inFlight = true;
     pw.input.disabled = true;
@@ -35179,7 +35327,7 @@ function buildRetry(st) {
         inFlight = false;
         pw.input.disabled = false;
         setLoading(cta, false);
-        if (msg) setError(msg, pw.input); else pw.input.focus();
+        if (msg) setError(msg, true); else pw.input.focus();
       },
     );
     try {
@@ -35302,11 +35450,13 @@ function launchShellBack(el) {
   return true;
 }
 
-/** ★ #46 r5: run the welcome fit NOW (art size, logo, compact level) — the shell runs it itself on every resize
+/** ★ #46 r5: run the welcome fit NOW (art size, logo, compact level; ★ S20F: + the desktop card anchor) — the shell runs it itself on every resize
  *  (next frame); a host or a test that changed the layout synchronously can call it. No-op when nothing moved. */
 function launchWelcomeFit(el) {
   const st = launchState.get(el);
-  if (st && st.fitArt) st.fitArt();
+  if (!st) return;
+  try { fitCard(st); } catch { /* layout only */ }   // ★ S20F W-7: the form card anchor too (#46 r1)
+  if (st.fitArt) st.fitArt();
 }
 
 /** ← setVersion(Config.version) — quiet welcome footer line. */

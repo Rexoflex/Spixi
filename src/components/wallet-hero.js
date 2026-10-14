@@ -134,7 +134,12 @@ export function createWalletHero({
   const f = document.createElement('div');
   f.className = 'c-wallet-hero__fiat u-tabular';
   bal.append(f);
-  el.append(bal);
+  /* ★ S20F W-10 (#1409): balance + actions share ONE body — compact takes it out of the flow in one step and it leaves
+     by transform + opacity (wallet-hero.css); the zones below keep their own classes (inert / aria per zone). */
+  const main = document.createElement('div');
+  main.className = 'c-wallet-hero__main';
+  main.append(bal);
+  el.append(main);
 
   const actions = document.createElement('div');
   actions.className = 'c-wallet-hero__actions';
@@ -144,7 +149,7 @@ export function createWalletHero({
     quickAction({ glyph: 'arrow-down-left', label: strings.receive || 'Receive', onClick: onReceive }),
     quickAction({ glyph: 'scan', label: strings.scan || 'Scan', onClick: onScan }),
   );
-  el.append(actions);
+  main.append(actions);
 
   store.set(el, { balance, fiat, hidden: !!hidden, strings });
   renderAmounts(el);

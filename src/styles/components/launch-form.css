@@ -45,7 +45,7 @@
 :root[data-desktop] .c-launch__rings-tr { width: clamp(140px, 11vw, 240px); height: clamp(140px, 11vw, 240px); }
 :root[data-desktop] .c-launch__rings-bl { width: clamp(180px, 16vw, 300px); height: clamp(180px, 16vw, 300px); }
 
-/* —— the lifted backdrop: create + restore only (welcome + retry keep --gradient-launch) —— */
+/* —— the lifted backdrop: create + restore + ★ S20F W-8 retry (welcome keeps --gradient-launch) —— */
 .c-launch__form {
   background: var(--gradient-launch-form);
   color: var(--text-neutral-01);
@@ -80,6 +80,9 @@
 .c-launch__progress i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
 .c-launch__progress i[data-on] { background: var(--launch-brand); }
 
+/* ★ S20F W-8 (#1426): retry's "Unlock" sits directly under the field — its body does not grow, so the
+   footer follows it (it still lifts above the keyboard: the body is what shrinks, #615) */
+.c-launch__form[data-launch-view="retry"] .c-launch__body { flex: 0 1 auto; }
 /* a create step = its own body + footer (the #615 pair) */
 .c-launch__step { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .c-launch__form .c-launch__body { padding: var(--spacing-24) var(--spacing-24) var(--spacing-16); }
@@ -413,6 +416,26 @@ html[dir="rtl"] .c-launch__step[data-enter="back"] { animation-name: c-launch-st
   .c-launch__step[data-enter="back"],
   html[dir="rtl"] .c-launch__step[data-enter] { animation: c-launch-fade-in 140ms linear both; }
 }
+
+/* ══ ★ S20F welcome additions — here, not in launch-shell.css, so settings.html (which links that file for the
+   legal sheet) does not carry them ══ */
+/* ★ S20F W-4 (#1426): the side fade, ONLY while the track moves (launch-shell.js go() sets data-moving) */
+.c-launch__carousel[data-moving] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);   /* sanctioned: mask stops */
+          mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);   /* sanctioned: mask stops */
+}
+/* ★ S20F W-5 (#1425/#1426): "Open source" under the dots — a muted caption; off at the L2 tight level */
+.c-launch__oss {
+  flex: none;
+  margin: 0;
+  padding-bottom: var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  letter-spacing: 0.02em;           /* sanctioned: caption tracking */
+}
+.c-launch__welcome[data-compact="2"] .c-launch__oss { display: none; }
 
 /* ══ desktop (Windows / Mac), Part B: the two-column layout at a window ≥ 900 px lives in the
    LAUNCH SHELL's own <style> (src/shells/launch.html) — a component stylesheet carries no ≥ 700 px

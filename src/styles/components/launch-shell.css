@@ -371,22 +371,6 @@
   margin-bottom: var(--kb-inset, 0px);
   padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
 }
-/* retry keeps its card + note (the form views below have their own) */
-.c-launch__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-12);
-}
-/* the shared password field (c-lock__field) goes glass on the launch gradient
-   too — exactly the lock screen's `.c-lock .c-lock__input` treatment (retry) */
-.c-launch .c-lock__input { background: rgba(255, 255, 255, 0.07); } /* sanctioned: glass */
-.c-launch__note {
-  margin: 0;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-}
-
 /* ★ ON-1 (#1420–#1422): the create / restore form look, the rings layer and the motion live in
    launch-form.css — linked by the launch shell ALONE (settings.html links this file for the
    legal sheet only and must not carry ~19 KB of launch form rules). */

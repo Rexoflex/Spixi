@@ -169,6 +169,7 @@
    must not clip: its ::after reaches the 44 px hit box). The full name rides `title` and the accessible name (settings-app.js). */
 .c-settings-dl__from-btn { flex: 0 1 auto; min-width: 0; margin-inline-start: auto; max-width: 70%; white-space: nowrap; color: var(--text-action-default); }
 .c-settings-dl__from-btn[hidden] { display: none; }
+.c-settings-dl__from-btn[data-reserved] { visibility: hidden; }   /* ★ S20F W-12: laid out until phase 2 answers — the list does not move */
 .c-settings-dl__from-btn svg { flex: none; }
 .c-settings-dl__from-label { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-settings-dl__from { white-space: nowrap; }

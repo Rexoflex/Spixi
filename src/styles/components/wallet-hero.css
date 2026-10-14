@@ -33,26 +33,40 @@
 }
 .c-wallet-hero[data-compact] .c-wallet-hero__compactbal { opacity: 1; }
 
-/* minimized hero: balance block + actions collapse (binary triggered CSS transition —
-   the #114 pattern; reduced motion zeroes the duration tokens globally) */
-.c-wallet-hero__balance,
-.c-wallet-hero__actions {
-  max-height: 160px;                          /* > natural height; enables the collapse transition */
-  overflow: hidden;
-  transition: max-height var(--duration-300) var(--easing-standard),
-              opacity var(--duration-300) var(--easing-standard),
-              padding-block var(--duration-300) var(--easing-standard);
+/* ★ S20F W-10 (#1409): ONE layout per flip, no layout transition here. ::before = the expanded look (kept at the
+   expanded box), it and the body move by transform + opacity; [data-held] = an expand holding the compact layout. */
+.c-wallet-hero { position: relative; isolation: isolate; }
+.c-wallet-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: inherit;
+  border-radius: inherit;
+  transition: transform var(--duration-300) var(--easing-standard);   /* opacity back at once: a fade-in washes the band */
 }
-.c-wallet-hero[data-compact] .c-wallet-hero__balance,
-.c-wallet-hero[data-compact] .c-wallet-hero__actions {
-  max-height: 0;
+.c-wallet-hero[data-compact]::before,
+.c-wallet-hero[data-held]::before { bottom: auto; height: var(--wallet-hero-full, 100%); }
+.c-wallet-hero[data-compact]::before {
+  transform: translateY(calc(-1 * var(--wallet-hero-delta, 0px)));
   opacity: 0;
-  padding-block: 0;
+  transition: transform var(--duration-300) var(--easing-standard), opacity var(--duration-100) var(--easing-standard) var(--duration-200);
+}
+.c-wallet-hero__main { transition: transform var(--duration-300) var(--easing-standard), opacity var(--duration-200) var(--easing-standard); }
+.c-wallet-hero[data-compact] .c-wallet-hero__main,
+.c-wallet-hero[data-held] .c-wallet-hero__main { position: absolute; inset-inline: 0; }
+.c-wallet-hero[data-compact] .c-wallet-hero__main {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(calc(-1 * var(--spacing-16)));
+  transition: transform var(--duration-300) var(--easing-standard), opacity var(--duration-200) var(--easing-standard), visibility 0s linear var(--duration-300);
 }
 .c-wallet-hero[data-compact] { padding-block-end: var(--spacing-8); }
-.c-wallet-hero { transition: padding var(--duration-300) var(--easing-standard); }
 
 /* Measurement probe (attachWalletScroll reads both rest heights in one pass): no transition, children included */
+.c-wallet-hero[data-measuring]::before,
 .c-wallet-hero[data-measuring],
 .c-wallet-hero[data-measuring] * { transition: none !important; }
 

@@ -140,7 +140,13 @@ function appScreenShell(className, title, onBack) {
  * Downloads — createSettingsDownloads({ files, host, onBack, onOpenFile,
  * onDeleteFile, onClearAll, onShowInChat, strings }).
  * files: [{ name, time, size?, sender?, senderKey? }] (time = epoch seconds, or an old exe's opaque ctime string).
- * Free fn: setDownloads(el, files) — the clearFiles/addFile wholesale mirror.
+ * Free fn: setDownloads(el, files, { sendersKnown }) — the clearFiles/addFile wholesale mirror.
+ * ★ S20F W-12 (#1409): `waiting` = no empty state until the first setDownloads (the host's quiet window decides
+ *   "empty"); `awaitSenders` = the From row is RESERVED (laid out, invisible, inert) from the first non-empty paint
+ *   until a setDownloads with sendersKnown — so phase 2 moves no row. Without a sender then, the row goes (the one
+ *   remaining move, #46 r1 C-3 — recorded); a phase 2 that never comes releases it DL_SENDERS_BACKSTOP_MS after the
+ *   first non-empty paint (C-4, the #326 completes-never grammar; 12 s — a phase 2 slower than that moves the list twice,
+ *   −52 then +52: the recorded trade, #46 r2 MINOR-3).
  *
  * ★ S17 E (#1336, downloads-contributors-render.html, LOCKED): the premium screen —
  *   · a SUMMARY card: "{n} files · {total}", a storage bar by kind (one colour per kind, grows in once), a legend with
@@ -158,6 +164,7 @@ function appScreenShell(className, title, onBack) {
 const DL_GLYPH = { image: 'photo', pdf: 'file-text', doc: 'file-text', archive: 'file-zip', audio: 'volume', video: 'player-play', code: 'code', other: 'file-isr' };
 const DL_LONG_PRESS_MS = 500;
 const DL_LEGEND_MAX = 4;          // kinds named in the bar + legend; the rest is "Other"
+const DL_SENDERS_BACKSTOP_MS = 12000;   // ★ S20F W-12 (#46 r2 MINOR-3): a phase 2 slower than this is a scan failure in practice
 /* the family's name in the legend when its files carry more than one format (one format = the format itself: PDF, ZIP) */
 function dlKindLabel(family, strings) {
   switch (family) {
@@ -188,10 +195,14 @@ export function createSettingsDownloads({
   onDeleteFile,                  // (name, ctrl) — ixian:delete:<name>; C# re-pushes the list
   onClearAll,                    // (ctrl) — ixian:deleted; the host re-asks the list
   onShowInChat,                  // ★★ #1107 (name) — ixian:showDownloadInChat:<name>; only for a file with a known sender
+  waiting = false,               // ★ W-12: the list is on its way — no empty state before the first setDownloads
+  awaitSenders = false,          // ★ W-12: phase 2 will answer — reserve the From row until it does
   strings = getStrings(),
 } = {}) {
   const { el, body, live } = appScreenShell(
     'c-settings-dl', strings.downloads || 'Downloads', onBack);
+  let sendersPending = !!awaitSenders;
+  let sendersBackstop = 0;
   let senderKey = '';                  // '' = all senders
   let kindFilter = 'all';              // 'all' | 'photo' | 'file'
   let current = [];
@@ -638,8 +649,12 @@ export function createSettingsDownloads({
     const mixed = hasPhoto && hasFile;
     if (!mixed) kindFilter = 'all';        // a filter on a kind no longer listed is cleared — its chips hide with it
     kindWrap.hidden = !mixed;
-    controls.hidden = !mixed && senders.size === 0;
-    fromChip.hidden = senders.size === 0;
+    const reserve = sendersPending && senders.size === 0 && current.length > 0;   // ★ W-12: the row phase 2 fills
+    if (reserve && !sendersBackstop) sendersBackstop = setTimeout(() => { sendersPending = false; if (el.isConnected) paintList(); }, DL_SENDERS_BACKSTOP_MS);
+    controls.hidden = !mixed && senders.size === 0 && !reserve;
+    fromChip.hidden = senders.size === 0 && !reserve;
+    if (reserve) { fromChip.dataset.reserved = ''; fromChip.disabled = true; fromChip.setAttribute('aria-hidden', 'true'); }
+    else if ('reserved' in fromChip.dataset) { delete fromChip.dataset.reserved; fromChip.disabled = false; fromChip.removeAttribute('aria-hidden'); }
     for (const [id, c] of kindChips) c.setAttribute('aria-pressed', String(id === kindFilter));
 
     /* newest first (stable: an old exe's opaque time sorts as 0 and keeps C#'s order) */
@@ -709,16 +724,19 @@ export function createSettingsDownloads({
     paintFromChip();
   }
 
-  function render(list) {
+  function render(list, opts) {
+    if (opts && opts.sendersKnown) { sendersPending = false; clearTimeout(sendersBackstop); }
     current = (list || []).map((f) => Object.assign({}, f, { name: String(f && f.name != null ? f.name : '') }));
     renderSenders(current);
     const has = current.length > 0;
     sum.hidden = !has;
-    empty.hidden = has;
+    empty.hidden = has || waitingFirst;
+    waitingFirst = false;
     searchWrap.hidden = current.length < SEARCH_MIN;
     paintSummary();
     paintList();
   }
+  let waitingFirst = !!waiting;            // ★ W-12: the build paint is not the list's answer
   render(files);
 
   el._dlRender = render;                   // setDownloads hook
@@ -740,8 +758,8 @@ export function setDownloadsAvatars(el, entries = []) {
 }
 
 /** Wholesale list update — mirrors the clearFiles + addFile(name, ctime[, size]) push. */
-export function setDownloads(el, files = []) {
-  if (el._dlRender) el._dlRender(files);
+export function setDownloads(el, files = [], opts) {
+  if (el._dlRender) el._dlRender(files, opts);
 }
 
 /**

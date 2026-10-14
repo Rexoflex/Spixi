@@ -37,17 +37,12 @@
 }
 .c-bubble-row[data-direction="received"] .c-reactions[data-placement="overlap"] { inset-inline-start: var(--spacing-8); }
 .c-bubble-row[data-direction="sent"] .c-reactions[data-placement="overlap"] { inset-inline-end: var(--spacing-8); }
-.c-bubble-row[data-reactions="overlap"] { padding-bottom: var(--spacing-20); } /* overhang reserve · ★ #966 (Damir, AF walk — #951 option B): PADDING, not margin. The composer fade masks the ROW and a mask paints nothing outside the border box, so with a margin the pill hung outside the box and showed CROPPED under the composer; inside the box it dissolves with its bubble. The #940 round-2 cost (the select tick 8 px off its disc) is gone since #963 — the circle and tick are measured from the row TOP, which padding-bottom does not move. */
-/* ★ Session I (Damir's walk): on an emoji-only STICKER the meta sits in a chip at the
-   bottom-right — exactly where the overlap pill lands — so the pill covered the time.
-   On a sticker the pill goes to the OTHER bottom corner (inline-start), both directions;
-   the chip stays where it is. (0,5,0) beats the two direction rules above. */
+.c-bubble-row[data-reactions="overlap"] { padding-bottom: var(--spacing-20); } /* overhang reserve · ★ #966 (#951 B): PADDING, not margin — the composer fade masks the ROW, and a mask paints nothing outside the border box (a margin cropped the pill) */
+/* ★ Session I: on an emoji-only STICKER the time chip sits where the overlap pill lands — the pill takes the other bottom
+   corner; (0,5,0) beats the two direction rules above. */
 .c-bubble-row[data-direction] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: 0; inset-inline-end: auto; }
-/* ★ Session K (#753 ③a, Damir: on a RECEIVED sticker the pill covered the time chip): the
-   rule above was direction-blind, but the chip is not — a sent sticker is a flex column
-   aligned to the end (chip bottom-RIGHT, pill goes left), a received sticker's chip sits
-   at inline-START (block flow, message-bubble.css) — so on received the pill takes the
-   OTHER corner, inline-end. Same specificity as the rule above, later in source, so it wins. */
+/* ★ Session K (#753 ③a): a RECEIVED sticker's chip sits at inline-start (a sent one at the end), so on received the pill
+   takes inline-end; same specificity, later in source. */
 .c-bubble-row[data-direction="received"] .c-bubble[data-emoji-only] .c-reactions[data-placement="overlap"] { inset-inline-start: auto; inset-inline-end: 0; }
 /* cards lack the bubble's position:relative — overlap needs the anchor */
 .c-bubble-row[data-reactions="overlap"] .c-tcard,
@@ -128,12 +123,8 @@
 
 /* tip pill (c-badge) alignment inside the row */
 .c-reactions__tip { align-self: center; }
-/* ★ #591 (Damir): the tip pill draws from SUCCESS instead of warning — a tip is money
-   that ARRIVED, and warning is the role this app reserves for "something may be off".
-   ⚠ The swap alone lost AA in light (7.04 → 4.28 at 12px bold). The ink is NOT patched
-   here: `--text-success` itself moved one step in LIGHT ONLY — see tokens.css. Scoping a
-   colour fix to one pill would have left the same failure on the three other surfaces
-   that already use this pair. */
+/* ★ #591 (Damir): the tip pill draws from SUCCESS (money that arrived), not warning; the light AA fix lives in tokens.css
+   (--text-success moved one step), not here — the other surfaces share the pair. */
 
 /* —— inspect sheet content (openReactionsSheet) —— */
 .c-reactmenu { display: flex; flex-direction: column; }
@@ -162,3 +153,15 @@
 .c-bubble-row[data-log-end] { padding-bottom: var(--spacing-20); }
 /* ★ S9: a photo-group CELL is a grid item — its pill reserve would break the grid (the group row reserves, above) */
 .c-mgrid > .c-bubble-row[data-reactions="overlap"] { padding-bottom: 0; }
+/* ★ S20F W-13 (Damir 16:18, the #1443 rule): my pill + the live hover / press borders on the chat accent (received-inside +
+   overlap; the sent-inside wash pills stay) */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-bubble-row[data-direction="received"] .c-reactions[data-placement="inside"] .c-reactions__pill[aria-pressed="true"],
+  .c-reactions[data-placement="overlap"] .c-reactions__pill[aria-pressed="true"] { background: var(--chat-accent-tonal-hover); border-color: var(--chat-accent-ink-deep); color: var(--chat-accent-ink-strong); }
+  .c-bubble-row[data-direction="received"] .c-reactions[data-placement="inside"] .c-reactions__pill:not([aria-disabled="true"]):active,
+  .c-reactions[data-placement="overlap"] .c-reactions__pill:not([aria-disabled="true"]):active { border-color: var(--chat-accent-ink-strong); }
+  @media (hover: hover) and (pointer: fine) {
+    .c-bubble-row[data-direction="received"] .c-reactions[data-placement="inside"] .c-reactions__pill:not([aria-disabled="true"]):hover,
+    .c-reactions[data-placement="overlap"] .c-reactions__pill:not([aria-disabled="true"]):hover { border-color: var(--chat-accent-ink-strong); }
+  }
+}

@@ -99,43 +99,23 @@
      where it landed in #391; AND-7 makes it visible on Android too. The WELCOME view is
      .c-launch__welcome, has no topbar, and owns its inset in launch-shell.css:40. */
 
-  /* W15 (#348): on a wide window the FORM views (create / restore / retry)
-     stretched their content from edge to edge. Cap the CONTENT COLUMN only.
-       · .c-launch keeps the full-bleed --gradient-launch — the brand surface is
-         never capped.
-       · The hero and tour art size themselves (min(46vw,176px) / min(58vw,232px)
-         in launch-shell.css), so the illustrations are untouched.
-       · The topbar is excluded, exactly as contact_new.html does it, so Back
-         stays at the screen edge.
-       · The welcome view needs nothing — its carousel is already max-width 360
-         and its CTAs 320 (launch-shell.css).
-     GATED ON WIDTH, not on the desktop UA sniff: the sniff is the suspected
-     cause of W10, and a width test is the same signal C# already uses for its
-     own pane breakpoint (HomePage.OnPageSizeChanged — `Width < 700`).
-     ★ review NIT-15: cap the body's CHILDREN, not the body. .c-launch__body is the
-     scrolling column (it carries u-scroll), so capping it would move the scrollbar ~640px
-     in from the window edge on a wide window. The footer is not a scroller, so it
-     caps directly. */
-  /* ★ ON-1 (#1422): create + restore lay out on their own now (launch-shell.css: a 460 px
-     column below 900 px, two columns on a desktop window ≥ 900 px), so this cap is the
-     RETRY view's alone — scoped to it, or its id-weight would cap the desktop grid cells. */
-  @media (min-width: 700px) {
-    #launch-root [data-launch-view="retry"] .c-launch__body > *,
-    #launch-root [data-launch-view="retry"] .c-launch__footer {
-      width: 100%;
-      max-width: 640px;
-      margin-inline: auto;
-    }
-  }
-
   /* ══ desktop (Windows / Mac), Part B ══════════════════════════════════════════════════
-     No launch frame of its own: the Windows bar already says "Spixi", so no brand here. */
+     No launch frame of its own: the Windows bar already says "Spixi", so no brand here.
+     ★ S20F W-8 (#1426): the W15 retry cap is gone — retry rides the create / restore form frame.
+     ★ S20F W-6 (#1426): 24 px above the header on a desktop window (--safe-top is 0 there; the topbar
+     pads by it itself, so only what it leaves of the 24 is added) — the < 900 px form column and the
+     welcome; the ≥ 900 px grid below keeps its own 48 px. */
+  :root[data-desktop] .c-launch__form { padding-top: max(0px, var(--spacing-24) - var(--safe-top, 0px)); }
+  :root[data-desktop] .c-launch__welcome { padding-top: max(var(--spacing-24), var(--safe-top, 0px)); }
+  :root[data-desktop] .c-launch__welcome[data-compact="2"] { padding-top: max(var(--spacing-8), var(--safe-top, 0px)); }   /* ★ #46 r1 NIT-1: the L2 tight level keeps its 8 */
   @media (min-width: 900px) {
     /* two columns: the hero on the left (~46 %), ONE 460 px card on the right */
     :root[data-desktop] .c-launch__form {
       display: grid;
       grid-template-columns: 46% 1fr;
-      grid-template-rows: 1fr auto auto auto auto 1fr;
+      /* ★ S20F W-7 (#1426 = a2): the first row = where the step-2 / normal-state card sits centred
+         (launch-shell.js fitCard writes it); 1fr = centred until the first measure */
+      grid-template-rows: var(--launch-card-top, 1fr) auto auto auto auto 1fr;
       padding: 48px 0;
       overflow-y: auto;
     }
@@ -532,6 +512,20 @@
       if (px === last) return;
       last = px;
       document.documentElement.style.setProperty('--kb-inset', px + 'px');
+      if (px > 0) revealFocused();
+    }
+    /* ★ S20F #46 r1 (MAJOR-2): the inset lands AFTER iOS's own focus-time scroll, and the lifted footer shrinks
+       the body under the focused field (retry / restore carry the art above it) — so once per inset change the
+       focused launch field is brought back into the body's view, only when it is not fully visible there. */
+    function revealFocused() {
+      const a = document.activeElement;
+      if (!a || typeof a.matches !== 'function' || !a.matches('.c-launch input, .c-launch textarea')) return;
+      const box = a.closest('.c-launch__field') || a;
+      const sc = a.closest('.c-launch__body');
+      const r = box.getBoundingClientRect();
+      const lo = sc ? sc.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+      if (r.top >= lo.top && r.bottom <= lo.bottom) return;
+      try { box.scrollIntoView({ block: 'nearest' }); } catch (e) { /* a courtesy */ }
     }
     function apply() {
       if (!vv || nativeKb) return;

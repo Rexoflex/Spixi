@@ -412,7 +412,7 @@ intro-retry-invalidpassword-text = Невозможно расшифровать
 lock-description = Spixi ЗАБЛОКИРОВАН
 lock-placeholder = Введите пароль
 lock-error = Пароль не верный
-lock-unlock = Разблокировть
+lock-unlock = Разблокировать
 lock-change = Сменить кошелёк
 
 ; Settings Screen

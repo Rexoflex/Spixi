@@ -489,3 +489,4 @@ scripts/_*.tmp.mjs
 /f5repro.mjs
 /README-FIRST.txt
 /Claude outputs/
+scripts/.run-pins-tmp.mjs

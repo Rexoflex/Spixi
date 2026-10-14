@@ -244,6 +244,7 @@ export function renderWalletTxList(listEl, state, opts = {}) {
           : openTxSheet({ tx: t, host: opts.host, strings, onExplorer: opts.onExplorer });
       },
     });
+    for (const im of row.querySelectorAll('img')) im.decoding = 'async';   // ★ S20F W-10: a photo decodes off the scroll frame
     carryRowHover(listEl, row, hoverSnap);
     listEl.append(row);
   }
@@ -428,15 +429,12 @@ export function createWalletTools(state, opts = {}) {
  *        the ordinary short-list ground, not a defect. The collapse behaviour
  *        itself stays identical on every account (the dial); only the invisible
  *        pad size adapts.
- *    (2) TRACKED, not instant. The viewport grows over the 300 ms transition;
- *        landing the whole reserve at t=0 opened a reserve-wide scroll BULGE a
- *        fling walked into — blank space, then a clamp-back stall (r1 MAJOR-1,
- *        measured). A ResizeObserver on the HERO now feeds the reserve
- *        `min(target, expandedRest − heroHeight)` frame by frame — RO callbacks
- *        run after layout and before paint, so the maximum is right in every
- *        painted frame. No-RO engines fall back to the instant target: the
- *        bulge is bounded by the deficit there, and jsdom (which has no RO) is
- *        that fallback.
+ *    (2) IN THE FLIP'S TASK. r1 MAJOR-1: while the hero's height animated, a
+ *        reserve landed whole at t=0 opened a scroll BULGE a fling walked into.
+ *        ★ S20F W-10 (#1409): the height now changes ONCE, in the same task as
+ *        the reserve, so the target lands at once and no frame has one without
+ *        the other. The hero RO (`min(target, expandedRest − heroHeight)`) stays
+ *        as the belt: it re-feeds the same value after the flip's layout.
  *    The delta and rest heights are MEASURED from the element, never constants,
  *    and CACHED for 400 ms around a flip so a fast up-down flick cannot make the
  *    probe cut a running transition (r1 MINOR-6).
@@ -479,6 +477,52 @@ export function createWalletTools(state, opts = {}) {
  *  mid-search). Returns detach().
  */
 export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal = 24 } = {}) {
+  /* ★ S20F W-10 (#1409): THE MOTION — the flip lays out ONCE. The BAND (what sits between the hero's slot and the
+   * scroller, the scroller included) rides a compensating translateY so no row jumps: collapse = the layout at once,
+   * the band from +delta to 0; expand = the compact layout HELD ([data-held]) while the band slides to +delta, then
+   * the height lands in the same task as the band's release. The hero's own layers move by transform + opacity
+   * (wallet-hero.css). Tokens --duration-300 / --easing-standard; 0 ms (reduced motion), no WAAPI (jsdom) or a
+   * hidden hero = instant, the same end state. */
+  const tok = (n, f) => { try { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f; } catch (e) { return f; } };
+  let slot = hero || null;
+  while (slot && slot.parentElement && slot.parentElement !== scrollEl.parentElement) slot = slot.parentElement;
+  const band = () => {
+    const out = [];
+    if (!slot || slot.parentElement !== scrollEl.parentElement) return out;
+    for (let n = slot.nextElementSibling; n; n = n.nextElementSibling) { out.push(n); if (n === scrollEl) break; }
+    return out;
+  };
+  let bandRun = null;
+  const bandYNow = () => {
+    try { const m = /^matrix\(([^)]*)\)$/.exec(getComputedStyle(scrollEl).transform); return m ? (parseFloat(m[1].split(',')[5]) || 0) : 0; } catch (e) { return 0; }
+  };
+  const stopBand = () => {
+    const r = bandRun;
+    bandRun = null;
+    if (!r) return;
+    clearTimeout(r.timer);
+    for (const a of r.anims) { try { a.cancel(); } catch (e) {} }
+  };
+  const endHold = () => { if (hero) delete hero.dataset.held; };
+  const slide = (from, to, hold, onEnd) => {
+    stopBand();
+    const ms = parseFloat(tok('--duration-300', '300ms'));
+    const els = band();
+    const r = { anims: [], timer: 0 };
+    if (ms > 0 && (hold || Math.abs(from - to) >= 0.5)) {
+      for (const el of els) {
+        if (typeof el.animate !== 'function') continue;
+        try { r.anims.push(el.animate([{ transform: 'translateY(' + from + 'px)' }, { transform: 'translateY(' + to + 'px)' }], { duration: ms, easing: tok('--easing-standard', 'ease'), fill: hold ? 'forwards' : 'none' })); } catch (e) {}
+      }
+    }
+    if (!r.anims.length) { if (onEnd) onEnd(); return; }
+    bandRun = r;
+    const fin = () => { if (bandRun !== r) return; if (onEnd) onEnd(); stopBand(); };   // the height lands with the release
+    r.anims[0].onfinish = fin;
+    r.timer = setTimeout(fin, ms + 120);
+  };
+  endHold();
+
   let lastTop = scrollEl.scrollTop || 0;
   let lastS = scrollEl.scrollHeight;
   let lastV = scrollEl.clientHeight;
@@ -554,19 +598,26 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
     if (!hero || !hero.isConnected) return { expanded: 0, compact: 0, delta: 0 };
     if (!force && cachedMeasure && (performance.now() - lastFlipAt) < 400) return cachedMeasure;
     const wasCompact = 'compact' in hero.dataset;
+    const wasHeld = 'held' in hero.dataset;
     hero.dataset.measuring = '';
     let expanded = 0, compact = 0;
     try {
+      delete hero.dataset.held;
       delete hero.dataset.compact;
       expanded = hero.offsetHeight;
       hero.dataset.compact = '';
       compact = hero.offsetHeight;
     } finally {
       if (wasCompact) hero.dataset.compact = ''; else delete hero.dataset.compact;
+      if (wasHeld) hero.dataset.held = '';
       void hero.offsetHeight;             // settle layout BEFORE transitions come back
       delete hero.dataset.measuring;
     }
     cachedMeasure = { expanded, compact, delta: Math.max(0, expanded - compact) };
+    if (expanded > 0) {   // W-10: the expanded layer keeps this box while compact (wallet-hero.css)
+      hero.style.setProperty('--wallet-hero-full', expanded + 'px');
+      hero.style.setProperty('--wallet-hero-delta', cachedMeasure.delta + 'px');
+    }
     return cachedMeasure;
   };
 
@@ -583,6 +634,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
 
   const collapse = () => {
     if (collapsed) return;
+    if (hero && 'held' in hero.dataset) return;   // W-10: an expand is landing — the gesture keeps accumulating
     collapsed = true;
     /* ★ r2 W-MAJOR-1: maxPre and top are read BEFORE the measurement probe runs —
      * the probe's attribute toggle + offsetHeight read force a REAL compact-hero
@@ -602,20 +654,20 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
     if (m.expanded > 0) heroExpandedRest = m.expanded;
     /* ★ DEFICIT-SIZED (r1): only what the clamp would consume. */
     reserveTarget = Math.max(0, Math.min(m.delta, top - maxPre + m.delta));
-    /* ★ TRACKED (r1): with a hero RO the reserve starts at 0 and follows the
-     * shrinking hero frame by frame; without one it lands instantly (bounded by
-     * the deficit). Reserve set BEFORE the flip either way, so the maximum never
-     * dips below `top` in any painted frame. */
-    applyReserve(heroRO ? trackedReserve() : reserveTarget);
+    /* ★ W-10: the height changes ONCE, so the target lands BEFORE the flip in the same task — the maximum never
+     * dips below `top` in any painted frame (the hero RO only re-feeds this value). */
+    applyReserve(reserveTarget);
     lastFlipAt = performance.now();
     /* r2 W-MINOR-3: a fresh compact state owes the NEXT collapse a fresh gesture —
      * see expand() for the 1px-re-collapse trace. */
     down = 0; up = 0;
     if (hero) setWalletHeroCompact(hero, true);
+    if (m.delta > 0) slide((bandRun ? bandYNow() : 0) + m.delta, 0, false);   // W-10: the band does not jump
   };
   const expand = () => {
     if (!collapsed) return;
     collapsed = false;
+    const lift = hero && hero.isConnected ? measureHero().delta : 0;   // W-10: the band's travel (cached around a flip)
     lastFlipAt = performance.now();
     /* ★ r2 W-MINOR-3: the gesture accumulators reset with the state. Four of the
      * five expand paths are not gestures (attach, the valve, the belt, the
@@ -624,6 +676,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
      * hero, bypassing the dial entirely. */
     down = 0; up = 0;
     if (hero) setWalletHeroCompact(hero, false);
+    if (lift > 0) { hero.dataset.held = ''; slide(bandRun ? bandYNow() : 0, lift, true, endHold); } else stopBand();
     /* removing the reserve while the viewport is still large can clamp — but expand
      * only ever runs at top ≤ 1 or with no scroll range, where a clamp is a no-op. */
     applyReserve(0);
@@ -763,6 +816,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
 
   return () => {
     scrollEl.removeEventListener('scroll', onScroll);
+    stopBand(); endHold();   // W-10: a tab switch lands any running motion
     clearTimeout(valveRetry); valveRetry = 0;
     if (ro) ro.disconnect();
     if (heroRO) heroRO.disconnect();

@@ -1117,5 +1117,12 @@
   "paying": "Po paguhet…",
   "inviteSent": "Ftesa u dërgua",
   "devFlagsS20Size": "Madhësia e skedarit te skedarët e dërguar (S20)",
-  "welcomeConsent": "Duke vazhduar, pranoni dokumentet {terms} dhe {privacy}."
+  "welcomeConsent": "Duke vazhduar, pranoni dokumentet {terms} dhe {privacy}.",
+  "slide1Title2": "Bisedë private. Pa numër telefoni.",
+  "slide1Copy3": "Regjistrohuni me një pseudonim. Pa email, pa ID, asgjë personale.",
+  "slide2Title2": "Privatësi që në themel.",
+  "slide2Copy2": "Enkriptohen post-kuantik në pajisjen tuaj dhe dërgohen drejtpërdrejt. Vetëm personi të cilit i shkruani mund t'i lexojë.",
+  "slide4Title2": "Luani dhe planifikoni së bashku.",
+  "slide4Copy2": "Mini-aplikacione si Blitz Chess dhe Split hapen drejt në bisedat tuaja.",
+  "welcomeOpenSource": "Burim i hapur"
 }

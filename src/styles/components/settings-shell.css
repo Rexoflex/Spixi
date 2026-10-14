@@ -1003,10 +1003,15 @@
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
 .c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
-/* ★ S20 I (#1401, supersedes #1378 I): on the Account HUB a layout-B toggle row keeps its layout; only its TOP inset moves —
-   6 → 13 px puts the disc 13 px into the row (Theme's, a centred 56 px row), so App lock as a card's first row sits 17 px from
-   the card edge like every first nav row (was 10). Sub → next title = 19 px (the stacked chevron rows' 10 + 10 rhythm). */
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] { padding-top: 13px; }   /* sanctioned: the 56 px row's centred-disc offset ((56 − 30) / 2) */
+/* ★ S20F W-2 (#1408 + #1409 = B, supersedes #1401): on the Account HUB a switch row with a sub = the CHEVRON-ROW geometry —
+   66 px (the stacked row's height), the account 6 px padding, title + sub ONE block (the stack is a flex column again, not
+   display: contents), the disc absolute-centred (N59b), the switch centred; the sub's 2 px (the account rule the layout-B
+   `margin: 0` overrode) is the 1 px the centred block was off. Privacy / Notifications keep layout B (hub root only).
+   The switch's tap layer (::after −8 px) ends at the column gap — clear of the sub. */
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] { min-height: calc(var(--row-h-stacked) + 6px); row-gap: 0; }   /* sanctioned: +6 = the account stacked-row step (:1000) */
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: flex; grid-column: 1; grid-row: 1; min-width: 0; }
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: absolute; inset-inline-start: 0; top: 50%; transform: translateY(-50%); }
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub { grid-column: auto; grid-row: auto; margin-top: 2px; padding-inline-start: 0; }   /* sanctioned: 2px = the account sub margin (:1004) */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.

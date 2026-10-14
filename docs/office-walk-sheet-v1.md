@@ -1,7 +1,7 @@
 # Office walk sheet — v1, iPhone + Mac
 
 Created S13, 2026-10-09. Source: `docs/freeze-inventory-2026-10-08.md` §1 + §4 step 3, `docs/release-readiness.md` §V (V-31, V-32) / S2 / S3.
-Updated S15 (§5), S16 (§6), **S20 (2026-10-14): the "Session 20 update" section below + §7–§13** (every iPhone / Mac row owed from S17 → S20 and ON-1).
+Updated S15 (§5), S16 (§6), **S20 (2026-10-14): the "Session 20 update" section below + §7–§13**, **S20F (2026-10-14): §14** (the S20 walk fix round, I / M — a SEPARATE walk from the Windows + Android sheet `docs/walk-s20f.md`, Damir 14:40) (every iPhone / Mac row owed from S17 → S20 and ON-1).
 This is the **first iOS + Mac compile of the C# from sessions 2–20** and the first I/M walk of any V row (the last office walk is #1114).
 Platform: **I** = iPhone · **M** = Mac (Catalyst) · **both** = walk on each, write two results (e.g. "I P · M F").
 Fill P / F / N/A. Paste the iPhone + Mac logs with the results. Each fail → mechanism first (#294), then the fix round, then `freeze-v1`.
@@ -386,3 +386,24 @@ Source `docs/prompts/session-on1.md` §6 (row IDs) + #1421 (consent at the welco
 | ON-DK2 | M | 1) Open create. 2) Press Tab through the view. 3) On step 2 fill both fields; press Return on the confirm field. 4) Open restore. | 1: the focus starts in the nickname field. 2: back → fields → eye buttons → checks → button. 3: Return runs "Create my account" only when it is on. 4: the focus starts in the password field. | | ON-1 Part B (keyboard and focus) |
 
 **Result line for DECISIONS:** `WALK #n (office, S20 build, iPhone + Mac): n P · n F · n N/A` — one row; list the F rows; each F = mechanism first (#294).
+
+## 14 · S20F rows (DECISIONS #1407–#1414 · #1424–#1427 · #1443–#1445) — the S20 walk fix round, I / M
+
+Walk on the S20F build (the same build as §12 / §13 once the S20F patch is in). The peers run S20F too. No C# changed in S20F.
+
+| ID | Pl | Steps | Expected | P/F/N/A | Note |
+|---|---|---|---|---|---|
+| S20F-BUILD-IM | both | 1) Wipe `obj` / `bin` (the html changed, #320). 2) Plain build, then Run. 3) Open the welcome screen (a device / Mac user with no account you need). | Welcome slide 1 reads "Private chat. No phone number." and "Open source" shows under the dots. Only this build has these. | | this build only |
+| ON-KB | I | 1) Retry ("Unlock your wallet", see ON-RT1 in `docs/walk-s20f.md` for how to reach it): tap the password field. 2) Restore: pick the file, tap the password field. 3) Create step 2: tap Password. 4) iPhone SE size if you have one. | Each time the keyboard opens, the field you tapped stays fully visible above the keyboard (before S20F it went under it, #1427). | | #46 r1 MAJOR-2 |
+| ON-RT1-I | I | 1) Reach retry. 2) Wrong password → Unlock. 3) Back. | The restore art, "Welcome back", the field, Unlock right under the field. 2: the native alert, then the field with the value kept. 3: welcome; the field is cleared. | | #1427 W-8 |
+| ON-DK1-M | M | 1) Window 1280 × 800: create step 1 → Continue → back. 2) Drag-resize the window while on step 1 with the nickname focused. 3) Window ~700 × 890: create. 4) Restore with a wrong password (wide window). | 1: the card header and progress bar do not move between the steps. 2: the nickname keeps the focus and the text; no flicker. 3: space above the back arrow (not under the traffic lights). 4: the card grows downward only. | | #1427 W-6 · W-7 (the WebKit check, #1413 ⑧) |
+| ON-SLIDES-IM | both | 1) Read the 4 slides. 2) Swipe slowly; watch the side edges. 3) Deutsch, slide 2. | 1: the #1425 order and texts (ID card · orbit · wallet · apps). 2: the moving slide fades at both side edges; at rest the text is sharp. 3: "…Peer-to-Peer gesendet…", no "von Gerät zu Gerät". | | #1425 · #1426 W-4 |
+| ACC-IM | both | 1) Canvas Meadow, light: a payment request in (Pay / Decline), an app invite (Join), a file offer (↓ badge). 2) React 😂 to a received message. 3) Dark theme, canvas Dusk. 4) Press and hold Decline. | Pay / Join filled in the canvas colour, Decline outlined in it, the ↓ badge in it, your reaction pill a soft canvas tint with a canvas edge — never the global blue. Pressed labels stay readable. | | #1445 W-3 · W-13 |
+| TRAY-PICS-I | I | 1) A chat with a 5-photo group just above the composer. 2) Scroll up a little. 3) Tap ⊕, close, three times. | The tray always covers the photos. | | #1411 W-9 |
+| CODE-IM | both | 1) Send `run `npm install` first` and a ``` block. 2) Compare with an @-mention. | Inline code has a thin outline and no fill; it does not look like the mention chip. The block has padding and a start rule. Nothing runs past the bubble. | | #1411 W-11 |
+| APPLOCK-IM | both | 1) Account: App lock vs Chat appearance. 2) Privacy. | App lock = the same row look as Chat appearance (centred two-line block, switch centred). Privacy rows unchanged. | | #1408 W-2 |
+| RAIL-M | M | 1) Account open in the pane. 2) List density changes, Cmd+Tab away and back. 3) Tap Chats. 4) Quit Spixi with Account open (Cmd+Q). Start again, tap Chats, Cmd+Tab away and back. | 2: the rail stays on Account. 3: Chats. 4: the rail stays on Chats. | | #1411 W-1 |
+| HERO-I | I | 1) Wallet with 50+ rows. Scroll down slowly, then up to the top. | The hero shrinks and opens in one smooth motion; the list does not shake. | | #1411 W-10 |
+| DL-I | I | 1) Downloads with 20+ files from several contacts. 2) Delete one. | The list shows once without jumps; "From: Everyone" does not push it; every file is there; a delete updates at once. | | #1411 W-12 |
+
+**Result line for DECISIONS (§14 part):** fold into the office WALK row — `… · §14 S20F: n P · n F · n N/A (12 rows; both rows count twice)`.

@@ -1,7 +1,9 @@
 /* ==== ON-1 F (Part D · #1421 (4) · the reduced-motion rule) — slide 3, Sora latin-ext, the short fade ====
  * On the BUILT shells (jsdom):
  *   (1) Part D: the welcome slide 3 (English) says IXI and never "money", and promises no "instant" — the
- *       built intro.html as painted, and the en-us dictionary it reads.
+ *       built intro.html as painted, and the en-us dictionary it reads. ★ S20F W-5 re-base (#1425): slide 3 keeps
+ *       its place and its wallet art (welcome3) in the new order, and NO slide says "money" (the new copy included);
+ *       the order itself is pinned by pins-s20f/l-slides.mjs.
  *   (2) Sora latin-ext reaches the LAUNCH shell only: intro.html carries a second 'Sora' @font-face (a woff2
  *       data: URI) whose unicode-range covers č š ž ć đ Đ ė ą į ų ū — "Ana Kovač · Gabija Kazlauskaitė · Đorđe" —
  *       and no other built shell carries that face (settings / index / chat).
@@ -34,7 +36,8 @@ export default async function (h) {
     const t3 = slide3 ? slide3.textContent : '';
     const en = JSON.parse(readFileSync(join(root, 'src/strings/en-us.json'), 'utf8'));
     const welcomeText = [...d.querySelectorAll('.c-launch__slide')].map((x) => x.textContent).join(' ');
-    ok(/\bIXI\b/.test(t3) && !/money/i.test(t3) && !/instant/i.test(t3) && !/money/i.test(welcomeText)
+    const art3 = slide3 && slide3.querySelector('.c-launch__illo-img');
+    ok(/\bIXI\b/.test(t3) && !/money/i.test(t3) && !/instant/i.test(t3) && !/money/i.test(welcomeText) && !!art3 && art3.getAttribute('data-illo') === 'welcome3'
        && en.slide3Title === 'Send IXI like a message.' && !/money|instant/i.test(en.slide3Title + ' ' + en.slide3Copy),
       '★ ON-1 F (Part D): welcome slide 3 says IXI and never "money", promises no "instant" (painted + en-us) — ' + JSON.stringify(t3));
 

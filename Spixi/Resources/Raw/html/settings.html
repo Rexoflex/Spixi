@@ -2074,10 +2074,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
 .c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
-/* ★ S20 I (#1401, supersedes #1378 I): on the Account HUB a layout-B toggle row keeps its layout; only its TOP inset moves —
-   6 → 13 px puts the disc 13 px into the row (Theme's, a centred 56 px row), so App lock as a card's first row sits 17 px from
-   the card edge like every first nav row (was 10). Sub → next title = 19 px (the stacked chevron rows' 10 + 10 rhythm). */
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] { padding-top: 13px; }   /* sanctioned: the 56 px row's centred-disc offset ((56 − 30) / 2) */
+/* ★ S20F W-2 (#1408 + #1409 = B, supersedes #1401): on the Account HUB a switch row with a sub = the CHEVRON-ROW geometry —
+   66 px (the stacked row's height), the account 6 px padding, title + sub ONE block (the stack is a flex column again, not
+   display: contents), the disc absolute-centred (N59b), the switch centred; the sub's 2 px (the account rule the layout-B
+   `margin: 0` overrode) is the 1 px the centred block was off. Privacy / Notifications keep layout B (hub root only).
+   The switch's tap layer (::after −8 px) ends at the column gap — clear of the sub. */
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] { min-height: calc(var(--row-h-stacked) + 6px); row-gap: 0; }   /* sanctioned: +6 = the account stacked-row step (:1000) */
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: flex; grid-column: 1; grid-row: 1; min-width: 0; }
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: absolute; inset-inline-start: 0; top: 50%; transform: translateY(-50%); }
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub { grid-column: auto; grid-row: auto; margin-top: 2px; padding-inline-start: 0; }   /* sanctioned: 2px = the account sub margin (:1004) */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.
@@ -2504,6 +2509,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    must not clip: its ::after reaches the 44 px hit box). The full name rides `title` and the accessible name (settings-app.js). */
 .c-settings-dl__from-btn { flex: 0 1 auto; min-width: 0; margin-inline-start: auto; max-width: 70%; white-space: nowrap; color: var(--text-action-default); }
 .c-settings-dl__from-btn[hidden] { display: none; }
+.c-settings-dl__from-btn[data-reserved] { visibility: hidden; }   /* ★ S20F W-12: laid out until phase 2 answers — the list does not move */
 .c-settings-dl__from-btn svg { flex: none; }
 .c-settings-dl__from-label { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-settings-dl__from { white-space: nowrap; }
@@ -3920,6 +3926,31 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
   color: color-mix(in srgb, var(--text-error) 88%, #000);   /* sanctioned: U-03 — black is the mix target (12 % darker), not a paint */
 }
 
+/* ★ S20F W-3 (#1443 · #1444): every in-bubble control on the chat accent (tokens.css --chat-accent*); destructive keeps
+   red, the failed badge error-600, disabled the disabled tokens. Outside the guard: today's blue. */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-tcard .c-button:not([data-intent="destructive"]) {
+    --_fill: var(--chat-accent-fill);
+    --_fill-hover: var(--chat-accent-hover);
+    --_fill-pressed: var(--chat-accent-pressed);
+    --_on-fill: var(--chat-accent-on);
+    --_ink: var(--chat-accent-ink-recv);
+    --_ink-hover: var(--chat-accent-ink-strong);
+    --_ink-pressed: var(--chat-accent-ink-strong);
+    --_outline: var(--_ink);
+    --_tonal: var(--chat-accent-tonal);
+  }
+  .c-bubble-row[data-direction="sent"] .c-tcard .c-button:not([data-intent="destructive"]) { --_ink: var(--chat-accent-ink-sent); }
+  .c-fbubble:not([data-state="failed"]) .c-fbubble__badge,
+  .c-fbubble__pair > .c-fbubble__cancel[data-on-tile] { background: var(--chat-accent-fill); color: var(--chat-accent-on); }
+  /* the photo tile's Cancel is on the canvas: the deeper steps */
+  .c-bubble-row > .c-fbubble__cancel { color: var(--chat-accent-ink-strong); }
+  .c-bubble-row > .c-fbubble__cancel:active { color: var(--chat-accent-ink-deep); }
+  @media (hover: hover) and (pointer: fine) { .c-bubble-row > .c-fbubble__cancel:hover { color: var(--chat-accent-ink-deep); } }
+  .c-fbubble__fill { background: var(--chat-accent-ink-recv); }
+  .c-fbubble__meta[data-cta] { color: var(--chat-accent-ink-recv); }
+}
+
 </style><!-- ★ A3 (#1126): the Downloads rows reuse the chat's file-type tile (.c-fbubble__icon / __ext) -->
 <style data-src="../styles/components/search-field.css">
 /* c-search-field — text-field/large specialization (docs/chip-search-spec.md,
@@ -4407,22 +4438,6 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
   margin-bottom: var(--kb-inset, 0px);
   padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
 }
-/* retry keeps its card + note (the form views below have their own) */
-.c-launch__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-12);
-}
-/* the shared password field (c-lock__field) goes glass on the launch gradient
-   too — exactly the lock screen's `.c-lock .c-lock__input` treatment (retry) */
-.c-launch .c-lock__input { background: rgba(255, 255, 255, 0.07); } /* sanctioned: glass */
-.c-launch__note {
-  margin: 0;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-}
-
 /* ★ ON-1 (#1420–#1422): the create / restore form look, the rings layer and the motion live in
    launch-form.css — linked by the launch shell ALONE (settings.html links this file for the
    legal sheet only and must not carry ~19 KB of launch form rules). */
@@ -8320,8 +8335,15 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   function dlWithSenders(list) {
     return list.map((f) => { const s = dlSenders.get(f.name); return s ? Object.assign({}, f, s) : f; });
   }
+  /* ★ S20F W-12 (#1409): on a screen's FIRST load an EMPTY buffer (a clearFiles with nothing behind it yet) waits a longer
+     quiet window — the empty state paints only if no file comes; one file re-arms the short settle. A later re-push (a
+     delete, Delete all) keeps 80 ms: the deleted rows must not linger (#46 r1 C-8). */
+  const DL_SETTLE_MS = 80, DL_EMPTY_MS = 400;
+  let dlSendersIn = false;      // ★ W-12: this screen's phase 2 answered (the From row is reserved until it does)
+  let dlFirst = false;          // ★ W-12: this screen has not painted its first answer yet
   function dlSettle() {
     clearTimeout(dlTimer);
+    const wait = dlFirst && dlBuf && dlBuf.length === 0 ? DL_EMPTY_MS : DL_SETTLE_MS;
     dlTimer = setTimeout(() => {
       dlTimer = 0;
       // Q1 review (#267 loop): the burst can settle AFTER the user left the
@@ -8331,11 +8353,11 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       if (!downloadsEl || !downloadsEl.isConnected) { downloadsEl = null; dlBuf = null; return; }
       if (dlBuf !== null) {
         const dlN = dlBuf.length;
-        dlLast = dlBuf;
-        setDownloads(downloadsEl, dlWithSenders(dlBuf)); dlBuf = null;
+        dlLast = dlBuf; dlFirst = false;
+        setDownloads(downloadsEl, dlWithSenders(dlBuf), { sendersKnown: dlSendersIn }); dlBuf = null;
         if (subView === 'downloads') cdperfSub('list', ' n=' + dlN);   // [CDPERF]: the C# round trip as its own term
       }
-    }, 80);
+    }, wait);
   }
   /* Q1 review (#267 loop): leaving the Downloads sublevel RELEASES it. renderLayout
    * replaces the detail/root children, so a retained downloadsEl is a detached node
@@ -9872,8 +9894,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
         releaseDownloads();
         dlSenders = new Map();   // (#46 r3 R3-1) a NEW Downloads screen never paints the previous scan's senders — they come with ITS phase 2
         dlAvatars = [];          // ★ S10 F7: nor the previous scan's avatars
+        dlLast = []; dlSendersIn = false; dlFirst = true;   // ★ W-12: a new screen appends to nothing, its From row waits for ITS phase 2
         downloadsEl = createSettingsDownloads({
           files: [], host: document.body, strings,
+          waiting: true, awaitSenders: true,   // ★ W-12: no empty state before the first settle; the From row reserved
           onBack: showHub,
           // Q1 review (#267 loop, MAJOR): the name is PEER-SUPPLIED (TransferManager
           // writes transfer.fileName verbatim) and rides an URL — it MUST be encoded.
@@ -10483,11 +10507,13 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
     // ctime is a LOCALE-OPAQUE DateTime.ToString() → displayed verbatim, never parsed.
     // (#46 r1 B2) the senders survive a re-push (delete, re-render): setDownloadSenders REPLACES them; clearing here made
     // the From filter, the "from" lines and Show in chat vanish and come back on every delete
-    clearFiles() { dlBuf = []; dlSettle(); },
+    clearFiles() { dlBuf = []; dlSettle(); },   // ★ W-12: the ONLY start of a new list
     // ★★ #1107: the 3rd arg is the size in bytes (an older exe sends two args → no size shown)
     addFile(name, ctime, size) {
-      if (dlBuf === null) dlBuf = [];
-      dlBuf.push({ name: name || '', time: ctime || '', size: /^\d{1,15}$/.test(String(size || '')) ? Number(size) : 0 });
+      if (dlBuf === null) dlBuf = dlLast.slice();   // ★ W-12: a file after a settled paint ADDS to the list on screen
+      const f = { name: name || '', time: ctime || '', size: /^\d{1,15}$/.test(String(size || '')) ? Number(size) : 0 };
+      const at = dlBuf.findIndex((x) => x.name === f.name);   // the same name again replaces its row (one file, one row)
+      if (at >= 0) dlBuf[at] = f; else dlBuf.push(f);
       dlSettle();
     },
     /* ★★ #1107 — phase 2: [[file name, sender label, sender key], …] for the files whose sender C# found THROUGH the
@@ -10505,7 +10531,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
          avatars go with it; setDownloadAvatars follows right after. */
       dlAvatars = [];
       if (downloadsEl) setDownloadsAvatars(downloadsEl, dlAvatars);
-      if (downloadsEl && downloadsEl.isConnected && dlBuf === null) setDownloads(downloadsEl, dlWithSenders(dlLast));
+      dlSendersIn = true;
+      if (downloadsEl && downloadsEl.isConnected && dlBuf === null) setDownloads(downloadsEl, dlWithSenders(dlLast), { sendersKnown: true });
     },
     /* ★ S10 F7 (#1254) — 🟡 NEW push, right after every setDownloadSenders: [[senderKey, dataUri], …] for the senders
        with an avatar file. Validated: an array ≤ 256 rows; key = a string ≤ 128 chars; value = a local

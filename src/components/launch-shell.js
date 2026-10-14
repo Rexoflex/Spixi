@@ -394,9 +394,69 @@ function guardRings(st) {
   if (allQuiet.length) rings.dataset.quiet = allQuiet.join(' ');   // a set with every ring hidden (informational)
   else delete rings.dataset.quiet;
 }
+/* ★ S20F W-7 (#1426 = a2): in the ≥ 900 px two-column layout the card header sits where STEP 2 sits
+   centred, so step 1 → 2 moves nothing; restore / retry anchor at their own normal-state centre, so the
+   wrong-password line grows the card DOWNWARD only. rows 2–5 = topbar top → footer bottom, minus what the
+   visible error / honest lines add (box + margins + the flex gap): ★ #46 r1 (MINOR-1) no live region is
+   toggled. ★ r2 (MINOR-4): the rows depend on the WIDTH and the fonts, not the height — they are cached per
+   (view, width, fonts) and the anchor follows the current room height without a re-measure. Create on step 1
+   with no cache reads step 2 OUT OF FLOW (absolute + visibility hidden on its fields / footer, one synchronous
+   read, no paint between) — step 1, with the focused nickname, is never hidden. Written as --launch-card-top on
+   the view (launch.html: the first grid row); an unchanged room does nothing (the fitArt key grammar). */
+const twoColumn = () => onDesktop() && typeof matchMedia === 'function' && matchMedia('(min-width: 900px)').matches;
+const isShown = (e, top) => { for (let x = e; x && x !== top; x = x.parentElement) if (x.hidden) return false; return true; };
+function quietPx(e) {
+  const cs = getComputedStyle(e);
+  const par = e.parentElement;
+  const sib = par && [...par.children].some((c) => c !== e && !c.hidden);
+  const gap = sib ? (parseFloat(getComputedStyle(par).rowGap) || 0) : 0;
+  return e.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0) + gap;
+}
+function cardRows(v) {
+  const bar = v.querySelector(':scope > .c-topbar');
+  const p1 = v.querySelector('.c-launch__step[data-step="1"]'), p2 = v.querySelector('.c-launch__step[data-step="2"]');
+  if (!bar) return 0;
+  const quiet = (region) => { let q = 0; for (const e of region.querySelectorAll('.c-launch__ferr, .c-launch__honest')) if (isShown(e, v)) q += quietPx(e); return q; };
+  if (!p2 || !p2.hidden) {                       // restore / retry, or create with step 2 on screen
+    const foot = p2 ? p2.querySelector('.c-launch__footer') : v.querySelector(':scope > .c-launch__footer');
+    return foot ? foot.getBoundingClientRect().bottom - bar.getBoundingClientRect().top - quiet(p2 || v) : 0;
+  }
+  const f1 = p1 && p1.querySelector('.c-launch__fields');
+  const parts = [p2.querySelector('.c-launch__fields'), p2.querySelector('.c-launch__footer')];
+  if (!f1 || parts.some((x) => !x)) return 0;
+  const head = f1.getBoundingClientRect().top - bar.getBoundingClientRect().top;   // rows 2–3 (topbar + progress) are shared
+  p2.hidden = false;
+  parts.forEach((x) => { x.style.position = 'absolute'; x.style.visibility = 'hidden'; });
+  const rows = head + parts[0].offsetHeight + parts[1].offsetHeight - quiet(p2);
+  parts.forEach((x) => { x.style.position = ''; x.style.visibility = ''; });
+  p2.hidden = true;
+  return rows;
+}
+function fitCard(st) {
+  const v = st.views[st.view];
+  if (!v || !v.classList.contains('c-launch__form') || !v.clientHeight || !twoColumn()) return;
+  const fonts = document.fonts ? document.fonts.status : '';
+  const key = [st.view, v.clientWidth, v.clientHeight, fonts].join('|');
+  const keys = st.cardKeys || (st.cardKeys = {});
+  if (keys[st.view] === key) return;
+  const rowKey = [st.view, v.clientWidth, fonts].join('|');
+  const cache = st.cardRows || (st.cardRows = {});
+  let rows = cache[rowKey];
+  if (rows === undefined) {
+    rows = cardRows(v);
+    if (rows > 0) cache[rowKey] = rows;
+  }
+  if (!(rows > 0)) return;
+  const cs = getComputedStyle(v);
+  const room = v.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+  v.style.setProperty('--launch-card-top', Math.max(0, Math.floor((room - rows) / 2)) + 'px');
+  keys[st.view] = key;
+}
+
 /* after a switch: now (static layouts) and once the slide / step motion has settled */
 function guardRingsSoon(st) {
   const run = () => {
+    try { fitCard(st); } catch { /* layout only */ }   // ★ S20F W-7: before the rings read the boxes
     try { if (st.fitArt) st.fitArt(); } catch { /* art fit only */ }   // ★ #46 r2: the art first — the rings guard reads the result
     try { guardRings(st); } catch { /* decoration only — never block a switch */ }
   };
@@ -569,16 +629,16 @@ function buildWelcome(st) {
      miss and no error rung. The launch subtree is pinned dark, so --il-* resolve dark. */
   const defs = [
     {
-      art: illoWelcome1,
-      title: strings.slide1Title || 'Built for you. Owned by you.',
-      // ★ S9 A-10 (#1245, audit S-07): "Encrypted on your device" read as encryption AT REST
-      //   (history is not encrypted at rest, CORE-11) → in-transit wording, NEW key.
-      copy: strings.slide1Copy2 || 'End-to-end encrypted and opened only by the person you sent to. Simple, private messaging with no account and no phone number.',
+      /* ★ S20F W-5 (#1425): the new order — slide 1 = the nickname promise with the ID-card art (was slide 2) */
+      art: illoWelcome2,
+      title: strings.slide1Title2 || 'Private chat. No phone number.',
+      copy: strings.slide1Copy3 || 'Sign up with a nickname. No email, no ID, nothing personal.',
     },
     {
-      art: illoWelcome2,
-      title: strings.slide2Title || 'No phone number. No email. Just a nickname.',
-      copy: strings.slide2Copy || 'Your unique Spixi address is the only identity you need. Sign up in seconds and share nothing personal. The account is yours alone.',
+      /* ★ #1425: "post-quantum" supersedes #702 for the welcome only (the rsa2 gap is recorded); no server line (#703) */
+      art: illoWelcome1,
+      title: strings.slide2Title2 || 'Private by design.',
+      copy: strings.slide2Copy2 || 'Post-quantum encrypted on your device and sent peer to peer. Only the person you write to can read it.',
     },
     {
       art: illoWelcome3,
@@ -590,8 +650,8 @@ function buildWelcome(st) {
     },
     {
       art: illoWelcome4,
-      title: strings.slide4Title || 'Mini Apps, right inside your chats.',
-      copy: strings.slide4Copy || 'Play games, run tools, chat with on-device AI, or automate your world, all without ever leaving the conversation.',
+      title: strings.slide4Title2 || 'Play and plan together.',
+      copy: strings.slide4Copy2 || 'Mini apps like Blitz Chess and Split open right in your chats.',
     },
   ];
   const slides = defs.map((s, i) => {
@@ -635,9 +695,22 @@ function buildWelcome(st) {
   });
 
   st.slide = 0;
+  /* ★ S20F W-4 (#1426): the 24 px side fade ONLY while the track moves (at rest the slide text sits
+     8 px from the edge, a resting mask would fade it). data-moving = set when the transform changes
+     (not under reduced motion, not on a detached build), cleared on the track's transitionend + a belt. */
+  let movingT = 0;
+  const stopMoving = () => { clearTimeout(movingT); car.removeAttribute('data-moving'); };
+  track.addEventListener('transitionend', (e) => { if (e.target === track) stopMoving(); });
   const go = (i) => {
     st.slide = Math.max(0, Math.min(defs.length - 1, i));
-    track.style.transform = 'translateX(' + (st.slide * -100) + '%)';
+    const tf = 'translateX(' + (st.slide * -100) + '%)';
+    if (track.style.transform !== tf && v.isConnected
+      && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      car.setAttribute('data-moving', '');
+      clearTimeout(movingT);
+      movingT = setTimeout(stopMoving, 600);       // completes-never backstop (#326): > --duration-300
+    }
+    track.style.transform = tf;
     slides.forEach((s, k) => s.setAttribute('aria-hidden', String(k !== st.slide)));
     dotBtns.forEach((b, k) => {
       b.setAttribute('aria-selected', String(k === st.slide));
@@ -645,7 +718,7 @@ function buildWelcome(st) {
     });
   };
 
-  // gentle autoplay (premium-tour idiom): wraps every 5s until the user takes
+  // gentle autoplay (premium-tour idiom): wraps every 7s until the user takes
   // control (any manual nav/swipe = theirs now); prefers-reduced-motion = off;
   // self-stops when the shell leaves the DOM (demo/jsdom re-creation guard)
   let autoTimer = null;
@@ -659,7 +732,7 @@ function buildWelcome(st) {
     autoTimer = setInterval(() => {
       if (!v.isConnected) { stopAuto(); return; }
       if (st.view === 'welcome') go((st.slide + 1) % defs.length);
-    }, 5000);
+    }, 7000);   // ★ S20F W-5 (#1425): 5 s → 7 s (reading time)
   }
   st.stopAuto = stopAuto;
   st.els.carousel = car;
@@ -750,7 +823,8 @@ function buildWelcome(st) {
     go(st.slide + (dx < 0 ? 1 : -1));
   });
 
-  v.append(car, dots);
+  /* ★ S20F W-5 (#1425/#1426): one quiet line under the dots — plain text, not a link; hidden at L2 (CSS) */
+  v.append(car, dots, mk('p', 'c-launch__oss', strings.welcomeOpenSource || 'Open source'));
 
   // — CTAs: always enabled, pinned; internal routing (the shell ABSORBS the
   //   legacy pages). ⚠ SUPERSEDED by #1421 (1): consent is recorded at THIS tap
@@ -1491,56 +1565,53 @@ function buildRestore(st) {
   return v;
 }
 
-/* —— retry (boot: the SAVED password failed) ———————————————————— */
+/* —— retry (boot: the SAVED password failed) ————————————————————————————
+ * ★ S20F W-8 (#1426): rebuilt on the RESTORE form frame — the same topbar, the restore art + "Welcome
+ * back" + retryCopy, ONE launchField ("Wallet password"), restore's error line, and "Unlock" directly
+ * under the field (launch-form.css: the body does not grow). Behaviour as before: the password is never
+ * trimmed, scrubbed on back / done / pagehide, one submit in flight; fail('') = the silent restore under
+ * C#'s native alert (+ focus), fail(msg) = inline. */
 
 function buildRetry(st) {
   const { opts } = st;
   const strings = st.strings;
   const v = document.createElement('div');
-  v.className = 'c-launch__view';
+  v.className = 'c-launch__view c-launch__form';
   v.dataset.launchView = 'retry';
 
   const pw = passwordField({ label: strings.walletPassword || 'Wallet password', current: true, strings });
-  const scrub = () => { pw.input.value = ''; pw.mask(); };
+  const pwF = launchField({ input: pw.input, label: strings.walletPassword || 'Wallet password', end: [pw.wrap.querySelector('.c-lock__reveal')] });
+  const scrub = () => { pw.input.value = ''; pw.mask(); pwF.sync(); };
   st.scrubs.push(scrub);
 
-  v.append(createTopbar({
-    variant: 'view',
-    title: strings.retryTitle || 'Unlock your wallet',
-    backLabel: strings.back || 'Back',
-    onBack: () => {
-      scrub();
-      show(st, 'welcome');
-      try { if (opts.onBack) opts.onBack('retry'); } catch { /* nav — legacy pop */ }
-    },
-  }));
+  const { bar } = formTopbar(st, strings.retryTitle || 'Unlock your wallet', () => {
+    scrub();
+    show(st, 'welcome');
+    try { if (opts.onBack) opts.onBack('retry'); } catch { /* nav — legacy pop */ }
+  });
+  v.append(bar);
 
-  const body = document.createElement('div');
-  body.className = 'c-launch__body u-scroll';
-  const copy = document.createElement('p');
-  copy.className = 'c-launch__note';
-  copy.textContent = strings.retryCopy
-    || 'Your wallet couldn’t be unlocked with the saved password. Enter it to continue.';
-  body.append(copy);
-
-  const card = document.createElement('div');
-  card.className = 'c-launch__card';
-  card.append(pw.wrap);
-  const err = errLine();
-  card.append(err);
-  body.append(card);
+  const body = mk('div', 'c-launch__body u-scroll');
+  const hero = mk('div', 'c-launch__hero');
+  hero.append(illoRestore({ className: 'c-launch__hero-illo' }),   // its own build (#1422: a clone duplicates the gradient ids)
+    mk('h2', 'c-launch__hero-title', strings.restoreHeroTitle || 'Welcome back'),
+    mk('p', 'c-launch__hero-copy', strings.retryCopy
+      || 'Your wallet couldn’t be unlocked with the saved password. Enter it to continue.'));
+  const fields = mk('div', 'c-launch__fields');
+  const err = launchErrLine();
+  fields.append(pwF.field, err);
+  body.append(hero, fields);
   v.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-launch__footer';
+  const footer = mk('div', 'c-launch__footer');
   const cta = createButton({ label: strings.proceed || 'Unlock', size: 56, width: 'full' });
   footer.append(cta);
   v.append(footer);
 
-  const setError = (msg, focusEl) => {
-    err.textContent = msg;
-    err.hidden = !msg;
-    if (msg && focusEl) focusEl.focus();
+  const setError = (msg, red) => {
+    err.setMessage(msg);
+    pwF.setError(!!msg && red);
+    if (msg) pw.input.focus();
   };
   pw.input.addEventListener('input', () => setError(''));
 
@@ -1548,7 +1619,7 @@ function buildRetry(st) {
   const submit = () => {
     if (inFlight) return;
     const p = pw.input.value;                    // NOT trimmed
-    if (!p) return setError(strings.passwordEmpty || 'Enter your wallet password.', pw.input);
+    if (!p) return setError(strings.passwordEmpty || 'Enter your wallet password.', false);
     setError('');
     inFlight = true;
     pw.input.disabled = true;
@@ -1567,7 +1638,7 @@ function buildRetry(st) {
         inFlight = false;
         pw.input.disabled = false;
         setLoading(cta, false);
-        if (msg) setError(msg, pw.input); else pw.input.focus();
+        if (msg) setError(msg, true); else pw.input.focus();
       },
     );
     try {
@@ -1690,11 +1761,13 @@ export function launchShellBack(el) {
   return true;
 }
 
-/** ★ #46 r5: run the welcome fit NOW (art size, logo, compact level) — the shell runs it itself on every resize
+/** ★ #46 r5: run the welcome fit NOW (art size, logo, compact level; ★ S20F: + the desktop card anchor) — the shell runs it itself on every resize
  *  (next frame); a host or a test that changed the layout synchronously can call it. No-op when nothing moved. */
 export function launchWelcomeFit(el) {
   const st = launchState.get(el);
-  if (st && st.fitArt) st.fitArt();
+  if (!st) return;
+  try { fitCard(st); } catch { /* layout only */ }   // ★ S20F W-7: the form card anchor too (#46 r1)
+  if (st.fitArt) st.fitArt();
 }
 
 /** ← setVersion(Config.version) — quiet welcome footer line. */

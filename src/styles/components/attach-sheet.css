@@ -64,6 +64,10 @@
   background: var(--surface-composer);
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   padding-inline: var(--spacing-16);
+  /* ★ S20F W-9 (#1409): the slot's layer — the log's positioned internals (photo cells, stamps: z 1–3) painted OVER a
+     z-auto tray. Never isolation on #messages (message-menu.css: the lift must clear the scrim). */
+  position: relative;
+  z-index: var(--z-10);
 }
 /* ★ Session AE: max(the keyboard slot, the tray's own tiles). `--tray-content-h` is measured and
    published by attach-sheet.js at mount (publishTrayContentHeight); without it the slot alone

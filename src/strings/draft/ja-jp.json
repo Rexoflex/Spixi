@@ -1015,5 +1015,12 @@
   "paying": "支払い中…",
   "inviteSent": "招待を送信しました",
   "devFlagsS20Size": "File size on sent files (S20)",
-  "welcomeConsent": "続行すると、{terms}および{privacy}に同意したものとみなされます。"
+  "welcomeConsent": "続行すると、{terms}および{privacy}に同意したものとみなされます。",
+  "slide1Title2": "プライベートなチャット。電話番号は不要。",
+  "slide1Copy3": "ニックネームで登録。メールも ID も、個人情報も不要です。",
+  "slide2Title2": "プライバシーを前提に設計。",
+  "slide2Copy2": "端末上でポスト量子暗号化し、ピアツーピアで送信。読めるのは送信先の相手だけです。",
+  "slide4Title2": "一緒に遊んで、一緒に計画。",
+  "slide4Copy2": "Blitz Chess や Split などのミニアプリが、チャットの中で開きます。",
+  "welcomeOpenSource": "オープンソース"
 }

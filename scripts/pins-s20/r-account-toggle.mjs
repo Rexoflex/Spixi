@@ -1,15 +1,15 @@
-/* ==== S20 I (#1401, Damir 17:59 — supersedes #1378 I: "the only issue was the top padding of the group that didn't match") ====
- * The Account HUB's toggle rows KEEP the S9 layout B (title + switch on row 1, the sub on row 2); only the TOP inset of a toggle
- * row matches the other rows, so App lock as the FIRST row of "Security & privacy" sits as far from the card's top edge as Theme
- * does in "Preferences" (Chromium, 390: Theme icon 17 px from the card edge; App lock was 10, now 17; sub → next title 19 px,
- * the stacked chevron rows' 10 + 10 rhythm).
- * On the BUILT settings.html (jsdom computed style — the cascade; jsdom has no layout, so the insets are derived from it):
- *   · layoutB: every hub switch row with a sub is still the layout B grid (the stack display: contents);
- *   · inset: a nav row centres its 30 px disc in its min-height (no padding beyond it), so Theme's disc sits (min-height − disc)
- *     / 2 into the row; a layout-B row's disc sits at its padding-top (the disc is in the 30 px title line). The two first-row
- *     insets — the card's padding-top + that offset — are EQUAL (0 px; #46 S20 r1 — jsdom values are exact) for Preferences (Theme) and Security & privacy (App lock);
- *   · Privacy (the settings <body> is .c-account too) keeps today's 6 px top and layout B — the rule is scoped to the hub root.
- * Deliberate break (S20 R report): the hub padding-top rule deleted → inset fails (App lock row offset 6 vs Theme 13; Chromium: 10 vs 17 px from the card edge). */
+/* ==== S20 I → ★ S20F W-2 RE-BASE (#1408 + #1409 = B, supersedes #1401) — the Account HUB switch row = a chevron row ====
+ * On the BUILT settings.html (jsdom computed style — the cascade; no layout, so the geometry is compared as the RULES
+ * that make it): every hub switch row with a sub (App lock, Confirm payments) carries the SAME box as a stacked chevron
+ * row of the hub ("Chat appearance"): min-height (66 = --row-h-stacked + 6), padding-top / -bottom (the account 6 px),
+ * the stack a flex COLUMN (title + sub one block — not display: contents), its disc absolute + top 50 % + translateY(−50 %)
+ * (N59b), the sub's 2 px top margin and no indent; the row is ONE grid row (row-gap 0) with the switch centred in it.
+ * The first-row inset therefore matches Theme / Chat appearance (the same 6 px top in the same card padding).
+ * Privacy (the settings <body> is .c-account too) keeps the S9 layout B and its 6 px top — the rule is the hub root's.
+ * Was (S20 I, #1401): layout B kept + padding-top 13 — that is exactly what the `chevron` clause now rejects.
+ * Deliberate breaks (S20F home report): ① settings-shell.css: `padding-top: 13px` back on the hub switch row → chevron
+ * fails (padTop 13 vs 6) + inset fails; ② the hub stack `display: flex` rule deleted → chevron fails (stack contents vs
+ * flex); ③ the sub's `margin-top: 2px` dropped → chevron fails (0 vs 2px — the 1 px the centred block was off). */
 import { b2Kit } from '../pins-s9/b2-kit.mjs';
 export default async function (h) {
   const { ok, sleep } = h;
@@ -33,18 +33,21 @@ export default async function (h) {
     const padTop = (el) => { const pb = cs(el).getPropertyValue('padding-block').trim(); const v = cs(el).paddingTop; return px(el, v) || px(el, pb.split(/\s+/)[0]) || 0; };
     const hub = d.querySelector('.c-settings--hub');
     const sw = [...hub.querySelectorAll('.c-settings__row[data-row="switch"]')].filter((x) => x.querySelector('.c-settings__row-sub'));
-    r.layoutB = sw.length === 2 && sw.every((row) => cs(row).display === 'grid' && cs(row.querySelector('.c-settings__row-label--stack')).display === 'contents');
-    const cardOf = (row) => row.closest('.c-settings__group');
-    const theme = [...hub.querySelectorAll('.c-settings__row')].find((x) => /^\s*Theme/.test(x.textContent || ''));
-    const lock = sw[0];
-    const disc = (row) => row.querySelector('.c-disc');
-    const navOffset = (row) => { const mh = px(row, cs(row).minHeight), dh = px(disc(row), cs(disc(row)).height); return Math.max(padTop(row), (mh - dh) / 2); };
-    n.theme = theme && { card: padTop(cardOf(theme)), rowMinH: px(theme, cs(theme).minHeight), disc: px(disc(theme), cs(disc(theme)).height), offset: navOffset(theme), first: cardOf(theme).querySelector('.c-settings__row') === theme };
-    n.lock = lock && { card: padTop(cardOf(lock)), padTop: padTop(lock), first: cardOf(lock).querySelector('.c-settings__row') === lock };
-    const insetTheme = n.theme && n.theme.card + n.theme.offset, insetLock = n.lock && n.lock.card + n.lock.padTop;
-    n.insets = { theme: insetTheme, lock: insetLock };
-    r.inset = !!n.theme && !!n.lock && n.theme.first && n.lock.first && n.theme.disc === 30 && Number.isFinite(insetTheme) && insetTheme === insetLock
-      && sw.every((row) => padTop(row) === n.lock.padTop);
+    const rowBy = (re) => [...hub.querySelectorAll('.c-settings__row')].find((x) => re.test(x.textContent || ''));
+    const chev = rowBy(/^\s*Chat appearance/), theme = rowBy(/^\s*Theme/);
+    const sig = (row) => {
+      const st = row.querySelector('.c-settings__row-label--stack'), dc = st && st.querySelector('.c-disc'), sub = st && st.querySelector('.c-settings__row-sub');
+      return [px(row, cs(row).minHeight), padTop(row), px(row, cs(row).paddingBottom) || px(row, cs(row).getPropertyValue('padding-block').trim().split(/\s+/).pop()),
+        st && cs(st).display, st && cs(st).flexDirection, st && px(st, cs(st).paddingInlineStart || cs(st).getPropertyValue('padding-inline-start')),
+        dc && cs(dc).position, dc && cs(dc).top, dc && cs(dc).transform, sub && cs(sub).marginTop, sub && (px(sub, cs(sub).paddingInlineStart || cs(sub).getPropertyValue('padding-inline-start')) || 0)].join(' ');
+    };
+    n.chevron = chev && sig(chev);
+    n.switches = sw.map(sig);
+    n.grid = sw.map((row) => [cs(row).display, cs(row).rowGap, cs(row).alignItems, cs(row.querySelector('.c-settings__switch')).gridRow].join(' '));
+    n.themeTop = theme && padTop(theme);
+    r.chevron = sw.length === 2 && !!chev && sw.every((row) => sig(row) === n.chevron) && /^66 6 /.test(n.chevron) && / flex column /.test(n.chevron) && / absolute 50% translateY\(-50%\) 2px /.test(n.chevron);
+    r.inset = sw.length === 2 && n.grid.every((g) => /^grid 0(px)? center 1$/.test(g)) && n.themeTop === 6 && sw.every((row) => padTop(row) === n.themeTop)
+      && sw[0].closest('.c-settings__group').querySelector('.c-settings__row') === sw[0] && padTop(sw[0].closest('.c-settings__group')) === padTop(theme.closest('.c-settings__group'));
     /* Privacy: today's 6 px top + layout B */
     const pr = [...d.querySelectorAll('button.c-settings__row')].find((x) => /^\s*Privacy/.test(x.textContent || ''));
     if (pr) pr.click();
@@ -54,9 +57,9 @@ export default async function (h) {
     r.privacy = priv.length >= 3 && n.privacy.every((v) => v === 'grid contents 6') && d.body.classList.contains('c-account');
     r.noErr = s.errs.length === 0;
   } catch (e) { r.threw = e.message; } finally { if (s) { try { s.dom.window.close(); } catch (e) {} } }
-  const c = (k, m) => ok(r[k] === true, m + ' — ' + JSON.stringify(r[k] === true ? { [k]: true, n: k === 'privacy' ? n.privacy : n.insets } : { [k]: r[k], threw: r.threw, n }).slice(0, 1200));
-  c('layoutB', '★ S20 I (#1401): the Account hub toggle rows (App lock, Confirm payments) KEEP the S9 layout B — the grid, the stack display: contents');
-  c('inset', '★ S20 I (#1401): App lock as the first row of its card sits EXACTLY as far from the card top as Theme (card padding + the row\'s disc offset, 0 px; Theme centres its 30 px disc in its min-height, a layout-B row puts it at its padding-top); both toggle rows share that top');
+  const c = (k, m) => ok(r[k] === true, m + ' — ' + JSON.stringify(r[k] === true ? { [k]: true, n: k === 'privacy' ? n.privacy : n.chevron } : { [k]: r[k], threw: r.threw, n }).slice(0, 1600));
+  c('chevron', '★ S20F W-2 (#1408/#1409 B): the hub switch rows (App lock, Confirm payments) carry the stacked CHEVRON row\'s box — 66 px, the 6 px account top, title + sub one flex column, the disc absolute-centred, the sub\'s 2 px — identical to "Chat appearance"');
+  c('inset', '★ S20F W-2: one grid row (row-gap 0) with the switch centred; App lock opens its card with the same 6 px top as Theme in the same card padding (the #1401 13 px is gone)');
   c('privacy', '★ S20 I: Privacy keeps layout B and today\'s 6 px top (the rule is scoped to the hub root, not the .c-account <body>)');
   c('noErr', '★ S20 I: no page error');
 }

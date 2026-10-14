@@ -1,19 +1,21 @@
 /* S20 F (#1378): formatted text in the bubble (msg-format.js) + the composer's Aa format bar (format-bar.js).
-   Chip / block fill = the reply quote's pair (received: --surface-bubble-received-quote · sent: --surface-wash-on-hero).
+   ★ S20F W-11 (#1409): inline code = an OUTLINE chip, no fill (the @-mention is the filled pill); the block keeps the
+   quote fill + a 3 px start rule. Rule ink: received --outline-fmt-code · sent --outline-on-hero.
    The bar is absolute above the composer (the @ popover's family): opening it never changes the composer height. */
 .c-fmt-b { font-weight: var(--font-weight-semibold); }
 .c-fmt-i { font-style: italic; }
 .c-fmt-s { text-decoration: line-through; }
 .c-fmt-code, .c-fmt-pre {
+  --fmt-rule: var(--outline-fmt-code);
   font-family: var(--font-mono);
-  background: var(--surface-bubble-received-quote);
   border-radius: var(--radius-4);
 }
 .c-bubble-row[data-direction="sent"] .c-fmt-code,
-.c-bubble-row[data-direction="sent"] .c-fmt-pre { background: var(--surface-wash-on-hero); }
+.c-bubble-row[data-direction="sent"] .c-fmt-pre { --fmt-rule: var(--outline-on-hero); }
 .c-fmt-code {
   font-size: 0.9em;
-  padding: 0 var(--spacing-4);
+  padding: 1px 6px;   /* sanctioned: 1 / 6 = the chip's block / inline room (no 1 or 6 step) */
+  box-shadow: inset 0 0 0 var(--outline-width-1) var(--fmt-rule);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   overflow-wrap: anywhere;
@@ -22,9 +24,11 @@
 .c-fmt-pre {
   display: block;
   max-width: 100%;
-  margin: var(--spacing-4) 0;
-  padding: var(--spacing-4) var(--spacing-8);
+  margin: var(--spacing-8) 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-inline-start: 3px solid var(--fmt-rule);   /* sanctioned: the code rule; the pre is dir=ltr, so it is the code's start */
   border-radius: var(--radius-8);
+  background: var(--surface-bubble-received-quote);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   white-space: pre;
@@ -32,6 +36,7 @@
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
 }
+.c-bubble-row[data-direction="sent"] .c-fmt-pre { background: var(--surface-wash-on-hero); }
 .c-fmt-pre:first-child { margin-block-start: 0; }
 .c-fmt-pre:last-child { margin-block-end: 0; }
 

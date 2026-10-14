@@ -2423,10 +2423,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
 .c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
-/* ★ S20 I (#1401, supersedes #1378 I): on the Account HUB a layout-B toggle row keeps its layout; only its TOP inset moves —
-   6 → 13 px puts the disc 13 px into the row (Theme's, a centred 56 px row), so App lock as a card's first row sits 17 px from
-   the card edge like every first nav row (was 10). Sub → next title = 19 px (the stacked chevron rows' 10 + 10 rhythm). */
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] { padding-top: 13px; }   /* sanctioned: the 56 px row's centred-disc offset ((56 − 30) / 2) */
+/* ★ S20F W-2 (#1408 + #1409 = B, supersedes #1401): on the Account HUB a switch row with a sub = the CHEVRON-ROW geometry —
+   66 px (the stacked row's height), the account 6 px padding, title + sub ONE block (the stack is a flex column again, not
+   display: contents), the disc absolute-centred (N59b), the switch centred; the sub's 2 px (the account rule the layout-B
+   `margin: 0` overrode) is the 1 px the centred block was off. Privacy / Notifications keep layout B (hub root only).
+   The switch's tap layer (::after −8 px) ends at the column gap — clear of the sub. */
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] { min-height: calc(var(--row-h-stacked) + 6px); row-gap: 0; }   /* sanctioned: +6 = the account stacked-row step (:1000) */
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: flex; grid-column: 1; grid-row: 1; min-width: 0; }
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: absolute; inset-inline-start: 0; top: 50%; transform: translateY(-50%); }
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub { grid-column: auto; grid-row: auto; margin-top: 2px; padding-inline-start: 0; }   /* sanctioned: 2px = the account sub margin (:1004) */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.
@@ -3562,22 +3567,6 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   margin-bottom: var(--kb-inset, 0px);
   padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
 }
-/* retry keeps its card + note (the form views below have their own) */
-.c-launch__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-12);
-}
-/* the shared password field (c-lock__field) goes glass on the launch gradient
-   too — exactly the lock screen's `.c-lock .c-lock__input` treatment (retry) */
-.c-launch .c-lock__input { background: rgba(255, 255, 255, 0.07); } /* sanctioned: glass */
-.c-launch__note {
-  margin: 0;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-}
-
 /* ★ ON-1 (#1420–#1422): the create / restore form look, the rings layer and the motion live in
    launch-form.css — linked by the launch shell ALONE (settings.html links this file for the
    legal sheet only and must not carry ~19 KB of launch form rules). */
@@ -3653,7 +3642,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 :root[data-desktop] .c-launch__rings-tr { width: clamp(140px, 11vw, 240px); height: clamp(140px, 11vw, 240px); }
 :root[data-desktop] .c-launch__rings-bl { width: clamp(180px, 16vw, 300px); height: clamp(180px, 16vw, 300px); }
 
-/* —— the lifted backdrop: create + restore only (welcome + retry keep --gradient-launch) —— */
+/* —— the lifted backdrop: create + restore + ★ S20F W-8 retry (welcome keeps --gradient-launch) —— */
 .c-launch__form {
   background: var(--gradient-launch-form);
   color: var(--text-neutral-01);
@@ -3688,6 +3677,9 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-launch__progress i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
 .c-launch__progress i[data-on] { background: var(--launch-brand); }
 
+/* ★ S20F W-8 (#1426): retry's "Unlock" sits directly under the field — its body does not grow, so the
+   footer follows it (it still lifts above the keyboard: the body is what shrinks, #615) */
+.c-launch__form[data-launch-view="retry"] .c-launch__body { flex: 0 1 auto; }
 /* a create step = its own body + footer (the #615 pair) */
 .c-launch__step { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .c-launch__form .c-launch__body { padding: var(--spacing-24) var(--spacing-24) var(--spacing-16); }
@@ -4022,6 +4014,26 @@ html[dir="rtl"] .c-launch__step[data-enter="back"] { animation-name: c-launch-st
   html[dir="rtl"] .c-launch__step[data-enter] { animation: c-launch-fade-in 140ms linear both; }
 }
 
+/* ══ ★ S20F welcome additions — here, not in launch-shell.css, so settings.html (which links that file for the
+   legal sheet) does not carry them ══ */
+/* ★ S20F W-4 (#1426): the side fade, ONLY while the track moves (launch-shell.js go() sets data-moving) */
+.c-launch__carousel[data-moving] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);   /* sanctioned: mask stops */
+          mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);   /* sanctioned: mask stops */
+}
+/* ★ S20F W-5 (#1425/#1426): "Open source" under the dots — a muted caption; off at the L2 tight level */
+.c-launch__oss {
+  flex: none;
+  margin: 0;
+  padding-bottom: var(--spacing-4);
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  letter-spacing: 0.02em;           /* sanctioned: caption tracking */
+}
+.c-launch__welcome[data-compact="2"] .c-launch__oss { display: none; }
+
 /* ══ desktop (Windows / Mac), Part B: the two-column layout at a window ≥ 900 px lives in the
    LAUNCH SHELL's own <style> (src/shells/launch.html) — a component stylesheet carries no ≥ 700 px
    viewport query (#228 gate: desktop is composition in the shell layer). Below 900 px the rules
@@ -4249,43 +4261,23 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
      where it landed in #391; AND-7 makes it visible on Android too. The WELCOME view is
      .c-launch__welcome, has no topbar, and owns its inset in launch-shell.css:40. */
 
-  /* W15 (#348): on a wide window the FORM views (create / restore / retry)
-     stretched their content from edge to edge. Cap the CONTENT COLUMN only.
-       · .c-launch keeps the full-bleed --gradient-launch — the brand surface is
-         never capped.
-       · The hero and tour art size themselves (min(46vw,176px) / min(58vw,232px)
-         in launch-shell.css), so the illustrations are untouched.
-       · The topbar is excluded, exactly as contact_new.html does it, so Back
-         stays at the screen edge.
-       · The welcome view needs nothing — its carousel is already max-width 360
-         and its CTAs 320 (launch-shell.css).
-     GATED ON WIDTH, not on the desktop UA sniff: the sniff is the suspected
-     cause of W10, and a width test is the same signal C# already uses for its
-     own pane breakpoint (HomePage.OnPageSizeChanged — `Width < 700`).
-     ★ review NIT-15: cap the body's CHILDREN, not the body. .c-launch__body is the
-     scrolling column (it carries u-scroll), so capping it would move the scrollbar ~640px
-     in from the window edge on a wide window. The footer is not a scroller, so it
-     caps directly. */
-  /* ★ ON-1 (#1422): create + restore lay out on their own now (launch-shell.css: a 460 px
-     column below 900 px, two columns on a desktop window ≥ 900 px), so this cap is the
-     RETRY view's alone — scoped to it, or its id-weight would cap the desktop grid cells. */
-  @media (min-width: 700px) {
-    #launch-root [data-launch-view="retry"] .c-launch__body > *,
-    #launch-root [data-launch-view="retry"] .c-launch__footer {
-      width: 100%;
-      max-width: 640px;
-      margin-inline: auto;
-    }
-  }
-
   /* ══ desktop (Windows / Mac), Part B ══════════════════════════════════════════════════
-     No launch frame of its own: the Windows bar already says "Spixi", so no brand here. */
+     No launch frame of its own: the Windows bar already says "Spixi", so no brand here.
+     ★ S20F W-8 (#1426): the W15 retry cap is gone — retry rides the create / restore form frame.
+     ★ S20F W-6 (#1426): 24 px above the header on a desktop window (--safe-top is 0 there; the topbar
+     pads by it itself, so only what it leaves of the 24 is added) — the < 900 px form column and the
+     welcome; the ≥ 900 px grid below keeps its own 48 px. */
+  :root[data-desktop] .c-launch__form { padding-top: max(0px, var(--spacing-24) - var(--safe-top, 0px)); }
+  :root[data-desktop] .c-launch__welcome { padding-top: max(var(--spacing-24), var(--safe-top, 0px)); }
+  :root[data-desktop] .c-launch__welcome[data-compact="2"] { padding-top: max(var(--spacing-8), var(--safe-top, 0px)); }   /* ★ #46 r1 NIT-1: the L2 tight level keeps its 8 */
   @media (min-width: 900px) {
     /* two columns: the hero on the left (~46 %), ONE 460 px card on the right */
     :root[data-desktop] .c-launch__form {
       display: grid;
       grid-template-columns: 46% 1fr;
-      grid-template-rows: 1fr auto auto auto auto 1fr;
+      /* ★ S20F W-7 (#1426 = a2): the first row = where the step-2 / normal-state card sits centred
+         (launch-shell.js fitCard writes it); 1fr = centred until the first measure */
+      grid-template-rows: var(--launch-card-top, 1fr) auto auto auto auto 1fr;
       padding: 48px 0;
       overflow-y: auto;
     }
@@ -4683,6 +4675,20 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
       if (px === last) return;
       last = px;
       document.documentElement.style.setProperty('--kb-inset', px + 'px');
+      if (px > 0) revealFocused();
+    }
+    /* ★ S20F #46 r1 (MAJOR-2): the inset lands AFTER iOS's own focus-time scroll, and the lifted footer shrinks
+       the body under the focused field (retry / restore carry the art above it) — so once per inset change the
+       focused launch field is brought back into the body's view, only when it is not fully visible there. */
+    function revealFocused() {
+      const a = document.activeElement;
+      if (!a || typeof a.matches !== 'function' || !a.matches('.c-launch input, .c-launch textarea')) return;
+      const box = a.closest('.c-launch__field') || a;
+      const sc = a.closest('.c-launch__body');
+      const r = box.getBoundingClientRect();
+      const lo = sc ? sc.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+      if (r.top >= lo.top && r.bottom <= lo.bottom) return;
+      try { box.scrollIntoView({ block: 'nearest' }); } catch (e) { /* a courtesy */ }
     }
     function apply() {
       if (!vv || nativeKb) return;

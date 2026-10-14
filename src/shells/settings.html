@@ -349,8 +349,15 @@
   function dlWithSenders(list) {
     return list.map((f) => { const s = dlSenders.get(f.name); return s ? Object.assign({}, f, s) : f; });
   }
+  /* ★ S20F W-12 (#1409): on a screen's FIRST load an EMPTY buffer (a clearFiles with nothing behind it yet) waits a longer
+     quiet window — the empty state paints only if no file comes; one file re-arms the short settle. A later re-push (a
+     delete, Delete all) keeps 80 ms: the deleted rows must not linger (#46 r1 C-8). */
+  const DL_SETTLE_MS = 80, DL_EMPTY_MS = 400;
+  let dlSendersIn = false;      // ★ W-12: this screen's phase 2 answered (the From row is reserved until it does)
+  let dlFirst = false;          // ★ W-12: this screen has not painted its first answer yet
   function dlSettle() {
     clearTimeout(dlTimer);
+    const wait = dlFirst && dlBuf && dlBuf.length === 0 ? DL_EMPTY_MS : DL_SETTLE_MS;
     dlTimer = setTimeout(() => {
       dlTimer = 0;
       // Q1 review (#267 loop): the burst can settle AFTER the user left the
@@ -360,11 +367,11 @@
       if (!downloadsEl || !downloadsEl.isConnected) { downloadsEl = null; dlBuf = null; return; }
       if (dlBuf !== null) {
         const dlN = dlBuf.length;
-        dlLast = dlBuf;
-        setDownloads(downloadsEl, dlWithSenders(dlBuf)); dlBuf = null;
+        dlLast = dlBuf; dlFirst = false;
+        setDownloads(downloadsEl, dlWithSenders(dlBuf), { sendersKnown: dlSendersIn }); dlBuf = null;
         if (subView === 'downloads') cdperfSub('list', ' n=' + dlN);   // [CDPERF]: the C# round trip as its own term
       }
-    }, 80);
+    }, wait);
   }
   /* Q1 review (#267 loop): leaving the Downloads sublevel RELEASES it. renderLayout
    * replaces the detail/root children, so a retained downloadsEl is a detached node
@@ -1901,8 +1908,10 @@
         releaseDownloads();
         dlSenders = new Map();   // (#46 r3 R3-1) a NEW Downloads screen never paints the previous scan's senders — they come with ITS phase 2
         dlAvatars = [];          // ★ S10 F7: nor the previous scan's avatars
+        dlLast = []; dlSendersIn = false; dlFirst = true;   // ★ W-12: a new screen appends to nothing, its From row waits for ITS phase 2
         downloadsEl = createSettingsDownloads({
           files: [], host: document.body, strings,
+          waiting: true, awaitSenders: true,   // ★ W-12: no empty state before the first settle; the From row reserved
           onBack: showHub,
           // Q1 review (#267 loop, MAJOR): the name is PEER-SUPPLIED (TransferManager
           // writes transfer.fileName verbatim) and rides an URL — it MUST be encoded.
@@ -2512,11 +2521,13 @@
     // ctime is a LOCALE-OPAQUE DateTime.ToString() → displayed verbatim, never parsed.
     // (#46 r1 B2) the senders survive a re-push (delete, re-render): setDownloadSenders REPLACES them; clearing here made
     // the From filter, the "from" lines and Show in chat vanish and come back on every delete
-    clearFiles() { dlBuf = []; dlSettle(); },
+    clearFiles() { dlBuf = []; dlSettle(); },   // ★ W-12: the ONLY start of a new list
     // ★★ #1107: the 3rd arg is the size in bytes (an older exe sends two args → no size shown)
     addFile(name, ctime, size) {
-      if (dlBuf === null) dlBuf = [];
-      dlBuf.push({ name: name || '', time: ctime || '', size: /^\d{1,15}$/.test(String(size || '')) ? Number(size) : 0 });
+      if (dlBuf === null) dlBuf = dlLast.slice();   // ★ W-12: a file after a settled paint ADDS to the list on screen
+      const f = { name: name || '', time: ctime || '', size: /^\d{1,15}$/.test(String(size || '')) ? Number(size) : 0 };
+      const at = dlBuf.findIndex((x) => x.name === f.name);   // the same name again replaces its row (one file, one row)
+      if (at >= 0) dlBuf[at] = f; else dlBuf.push(f);
       dlSettle();
     },
     /* ★★ #1107 — phase 2: [[file name, sender label, sender key], …] for the files whose sender C# found THROUGH the
@@ -2534,7 +2545,8 @@
          avatars go with it; setDownloadAvatars follows right after. */
       dlAvatars = [];
       if (downloadsEl) setDownloadsAvatars(downloadsEl, dlAvatars);
-      if (downloadsEl && downloadsEl.isConnected && dlBuf === null) setDownloads(downloadsEl, dlWithSenders(dlLast));
+      dlSendersIn = true;
+      if (downloadsEl && downloadsEl.isConnected && dlBuf === null) setDownloads(downloadsEl, dlWithSenders(dlLast), { sendersKnown: true });
     },
     /* ★ S10 F7 (#1254) — 🟡 NEW push, right after every setDownloadSenders: [[senderKey, dataUri], …] for the senders
        with an avatar file. Validated: an array ≤ 256 rows; key = a string ≤ 128 chars; value = a local

@@ -8,15 +8,9 @@
   /* width lives on the ANCHOR (audit r4: the tile's 75% went cyclic against
      the shrink-wrapped anchor and collapsed to ~0) */
   width: 100%;
-  /* DEFAULT placeholder geometry (Damir F5 2026-07-08): before load — and before
-     any sender dims — reserve a bubble-sized box (4:3) so the tile isn't a tiny
-     strip that then jumps to full size when the GIF arrives. The inline
-     aspect-ratio (sender dims, or the natural aspect set on load) overrides this. */
+  /* the 4:3 placeholder box before load / before sender dims (Damir F5 2026-07-08); the inline aspect-ratio overrides it */
   aspect-ratio: 4 / 3;
-  /* tall media caps at the 320 bubble rail, but NEVER past ~half the visible
-     scroll area — a portrait GIF used to render half under the composer
-     (Damir F5 2026-07-08). vh keeps it inside #messages on any screen; the
-     full uncropped frame is one tap away in the viewer. */
+  /* the card rail, never past ~half the scroll area (a portrait GIF ran under the composer, F5 2026-07-08) */
   max-height: min(var(--layout-card-max), 45vh); /* #337: card rail — not the 680 desktop bubble raise */
   min-height: 96px;                     /* dimension-less messages still get a tile */
   padding: 0;
@@ -25,12 +19,7 @@
   overflow: hidden;
   background: var(--surface-neutral-02);
   box-sizing: border-box;
-  /* ★ N81 (#422, #46 audit): this surface floated on the light-BLUE canvas and
-     relied on elevation to separate, so it took the same incoming hairline the
-     received bubble carries.
-     ★ N82(b) (#427): the token is `transparent` in BOTH themes now (Damir's pick
-     on the rendered comparison), so this rule paints nothing and is kept only as
-     the one-line reversal hook. See tokens.css --border-bubble-received. */
+  /* ★ N81 (#422) → N82(b) (#427): the received hairline — transparent in both themes, kept as the one-line reversal hook */
   box-shadow: inset 0 0 0 1px var(--border-bubble-received);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -51,10 +40,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  /* contain (was cover): show the WHOLE GIF/image, never crop it (Damir F5
-     2026-07-08 — cover was cutting the frame off). The tile is sized to the
-     natural aspect on load, so contain fills exactly; extreme portraits
-     letterbox against the tile background rather than getting cropped. */
+  /* contain: the whole frame, never cropped (Damir F5 2026-07-08); the tile is sized to the natural aspect */
   object-fit: contain;
   opacity: 0;
   transition: opacity var(--duration-200) var(--easing-standard);
@@ -135,31 +121,18 @@
    outgoing GIF/image reads as "yours", matching the sent bubble (Damir 2026-07-08). */
 .c-bubble-row[data-direction="sent"] .c-mbubble {
   border: 2px solid var(--surface-bubble-sent);
-  /* ★ N81 (#422, break-my-verdict MINOR-1): drop the incoming hairline on the SENT
-     side, exactly as typed-bubbles.css does for the cards. An inset shadow paints at
-     the padding edge, i.e. INSIDE this 2px border — the same nested composite that
-     was removed one file over and missed here. */
+  /* ★ N81 (#422 MINOR-1): no incoming hairline on the sent side (it painted inside the 2px border) */
   box-shadow: none;
 }
 
-/* iOS-17 (#283): the tile can now be NARROWER than the anchor (media-bubble.js
-   fitTile caps width at the natural/height-capped size — no more letterbox).
-   The anchor keeps its definite width (audit r4), so hug the tile to the row's
-   outer edge on the sent side; received stays at the inline start. The overlap
-   reaction pills already pin to the same edges (reactions.css inset-inline),
-   so they keep landing ON the tile. */
+/* iOS-17 (#283): the tile can be narrower than the anchor (fitTile) — hug the sent row's outer edge */
 .c-bubble-row[data-direction="sent"] .c-mbubble { margin-inline-start: auto; }
 
-/* ★★ A5 #1124 (Damir #1133 (3)) — an IMAGE FILE on the tile (typed-bubbles.js createImageFileBubble).
-   With no picture (offer · transferring · complete before its preview · failed) the tile stands on the
-   INCOMING BUBBLE GROUND — white in light (Damir's note: "white, not grey"), the bubble ground in dark — with the
-   received bubble's lift; a sent tile keeps the sent 2px border above. The picture, once loaded, covers it. */
+/* ★★ A5 #1124 (#1133 (3)): an IMAGE FILE tile with no picture stands on the incoming bubble ground + its lift */
 .c-mbubble[data-file] {
   background: var(--surface-bubble-received);
   color: var(--text-bubble-received);
-  /* ★ #1148 (2) edge per side (Damir: "white outline like incoming, blue like outgoing"): a received tile is framed in
-     the incoming ground + the incoming edge outside it (#989 hairline, an OUTER ring: inset paints under the picture) + lift.
-     ★ #1151 A-EDGE: 3px (was 2 — it read as 1 px on the phone; Damir), both sides, desktop + mobile */
+  /* ★ #1148 (2) edge per side: received = the incoming ground + the #989 outer hairline + lift; ★ #1151: 3px */
   border: 3px solid var(--surface-bubble-received);
   box-shadow: 0 0 0 1px var(--outline-hairline), var(--bubble-elevation);
 }
@@ -201,9 +174,7 @@
   visibility: hidden;
   transition: visibility 0s linear var(--duration-200);
 }
-/* #46 r2 R2-1: MY photo while it is still SENDING shows its picture (tileShowsPicture) — the face stays ON it, on a
-   scrim: the ring + the percentage + the keep-open line read on the picture (mode-less on-scrim inks); the document
-   glyph goes (the picture says what it is). The final flip hides the face as for any loaded tile. */
+/* #46 r2 R2-1: MY sending photo keeps the face ON the picture, on a scrim (mode-less on-scrim inks) */
 .c-mbubble[data-file="progress"][data-state="loaded"] .c-mbubble__file {
   visibility: visible;
   transition: opacity var(--duration-200) var(--easing-standard);   /* #1147 (5): from quiet, the scrim face fades in with the picture (was none: no fade existed) */
@@ -301,11 +272,8 @@
 }
 .c-mbubble__time, .c-mbubble__stamp { z-index: 1; }   /* above the face */
 
-/* ★ #1170: the group head on a TILE (media, photo file, file card). The label is the text row's own
-   .c-bubble__sender (same face, hue, button, Owner chip — message-bubble.css); it sits ABOVE the tile instead of
-   inside a bubble, so it takes the bubble's inline padding as its indent (it lines up with a text row's name) and
-   the in-bubble gap below it. A file card is wrapped in a column so the label can sit on top; the column carries the
-   card rail (a definite base), the card fills it. */
+/* ★ #1170: the group head ABOVE a tile — the text row's .c-bubble__sender, indented by the bubble padding; a file card
+   sits in a column (the card rail) under it */
 .c-bubble__sender--tile {
   padding-inline: var(--bubble-pad-x);
   margin-bottom: var(--spacing-4);
@@ -316,18 +284,14 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
-  /* #46 r1 m2: a DEFINITE width (the card rail), so reactions.js measureOverlapFloor (parent clientWidth) can grow a short
-     card for its pills (#570) — the card inside keeps its own size (align-items: flex-start) */
+  /* #46 r1 m2: a definite width (the card rail), so reactions.js measureOverlapFloor can grow a short card for its pills */
   width: min(var(--bubble-max-pct), var(--layout-card-max));
   max-width: 100%;
 }
 .c-tile-col > .c-fbubble { max-width: 100%; }
 
-/* ★★ S9 (#1244 G = A): the photo group bubble — the photo-file tiles in one 3 px frame, with the caption under them.
-   ★★ S11 G (#1263 a = A, Telegram grammar): a MOSAIC of every photo (≤ 10) in rows of 1–4. The grid is 12 columns; a
-   cell spans 12 / (its row's length) (data-row, media-bubble.js addPhotoGridCell); the box's aspect ratio and the row
-   heights come from media-bubble.js mosaicGeometry (inline — sanctioned runtime geometry), so every cell has a definite
-   size and the tiles fill it. */
+/* ★★ S9 (#1244) → S11 G (#1263 a): the photo group = a MOSAIC (≤ 10) in rows of 1–4 on a 12-column grid; the ratio +
+   row heights come inline from media-bubble.js mosaicGeometry (sanctioned runtime geometry) */
 .c-mgrid-col { display: block; }
 .c-bubble-row[data-direction="sent"] .c-mgrid-col { margin-inline-start: auto; }
 .c-mgrid-box {
@@ -386,8 +350,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 .c-mgrid > .c-mgrid__cell:not(:last-child) .c-mbubble__stamp { display: none; }
 /* ★ S11 G: with a footer the time is the footer's — no cell carries one */
 .c-mgrid-box[data-dlall] .c-mgrid .c-mbubble__time { display: none; }
-/* ★ S11 G (#1263 a): past MOSAIC_MAX a passive "+N" LABEL over the last cell — never a button, never an event target
-   (the cell's own tap and menu stay live under it; S10's button took the right-click, walk #1260) */
+/* ★ S11 G (#1263 a): past MOSAIC_MAX a passive "+N" label over the last cell (never a button or an event target) */
 .c-mgrid__more {
   position: absolute;
   inset: 0;
@@ -453,11 +416,7 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 .c-mgrid .c-mbubble__time,
 .c-mgrid .c-mbubble__stamp { z-index: 3; }
-/* ★ S11 G (#1263 a): ONE Reply affordance BESIDE the album, never on the photos. The desktop hover button is placed
-   from messageMenuTarget — for a group row that is the FIRST cell's tile, so it landed over the second photo (walk
-   #1260). On a group row the button is a plain flex item instead: after the album on a received row, before it on a
-   sent one, centred on it; the --reply-btn-x / -y geometry is not used. It takes no room the album needs (the column
-   is at most the card rail). */
+/* ★ S11 G (#1263 a): ONE Reply beside the album (a flex item: after it received, before it sent), never on the photos */
 :root[data-desktop] .c-mgrid-row > .c-bubble-row__reply {
   position: relative;
   left: auto;
@@ -468,9 +427,8 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 .c-bubble-row[data-direction="sent"].c-mgrid-row > .c-bubble-row__reply + .c-mgrid-col { margin-inline-start: 0; }
 
-/* ★★ S11 G (#1258 + #1263 c = A): the PREVIEW in an offer (media-bubble.js setTilePreview). The blurred picture lies
-   under the face (.c-mbubble__preview keeps today's 12 px blur); an OFFER hides its file face and shows a centre ↓ disc
-   with the size; downloading / failed keep their face, on a scrim over the picture (the #46 r2 R2-1 scrim grammar). */
+/* ★★ S11 G (#1258 + #1263 c = A): the offer PREVIEW (setTilePreview) — the blurred picture under the face; an offer shows a
+   centre ↓ disc + the size; downloading / failed keep their face on a scrim */
 .c-mbubble[data-file][data-pv] { background: var(--surface-neutral-02); }
 .c-mbubble[data-pv][data-file="offer"] .c-mbubble__file { visibility: hidden; }
 .c-mbubble__pvmark {
@@ -514,3 +472,11 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 .c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__ring-track { stroke: var(--surface-wash-on-scrim-strong); }
 .c-mbubble[data-pv]:not([data-file="offer"]):not([data-state="loaded"]) .c-mbubble__ring-fill { stroke: var(--icon-on-scrim); }
 .c-mbubble[data-file][data-pv]:not([data-state="loaded"]) .c-mbubble__time { background: var(--surface-scrim); color: var(--text-on-scrim); }
+/* ★ S20F W-3 (#1444): the tile's offer line, ring fill and Download all on the chat accent */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .c-mbubble__cta { color: var(--chat-accent-ink-recv); }
+  .c-mgrid__dlall { color: var(--chat-accent-ink-recv); --surface-action-tonal-default: var(--chat-accent-tonal); }
+  .c-mgrid__dlall:active { color: var(--chat-accent-ink-strong); }
+  @media (hover: hover) and (pointer: fine) { .c-mgrid__dlall:hover { color: var(--chat-accent-ink-strong); } }
+  .c-mbubble__ring-fill { stroke: var(--chat-accent-ink-recv); }
+}

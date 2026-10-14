@@ -1022,5 +1022,12 @@
   "paying": "Pagamento…",
   "inviteSent": "Invito inviato",
   "devFlagsS20Size": "File size on sent files (S20)",
-  "welcomeConsent": "Continuando, accetti i {terms} e l’{privacy}."
+  "welcomeConsent": "Continuando, accetti i {terms} e l’{privacy}.",
+  "slide1Title2": "Chat privata. Niente numero di telefono.",
+  "slide1Copy3": "Registrati con un nickname. Niente email, niente ID, niente di personale.",
+  "slide2Title2": "Pensata per la privacy.",
+  "slide2Copy2": "Crittografia post-quantistica sul tuo dispositivo e invio peer to peer. Solo la persona a cui scrivi può leggere i tuoi messaggi.",
+  "slide4Title2": "Gioca e organizza insieme.",
+  "slide4Copy2": "Le mini app come Blitz Chess e Split si aprono direttamente nelle tue chat.",
+  "welcomeOpenSource": "Open source"
 }

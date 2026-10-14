@@ -2,6 +2,8 @@
  * On the BUILT intro.html (launch.html → LaunchPage; jsdom):
  *   · the four slides draw welcome1…welcome4 IN ORDER (W1 round 3 · W2 round 1 · W3 round 3 · W4 round 1) and the
  *     restore hero draws restore (round 3) — decorative svgs, no <img>, no images/onboarding path left in the bundle
+ *     ★ S20F W-5 re-base (#1425): the order is now welcome2 · welcome1 · welcome3 · welcome4 (the ID card leads); the
+ *     retry hero (W-8, #1426) draws restore too — its own build
  *   · the art sits under the launch dark pin (closest [data-theme] = dark) and the BUILT token sheet's dark block
  *     carries the dark --il-* set, so the pinned subtree resolves the dark drawing
  *   · one entrance per slide: the built rule `.c-launch__slide[aria-hidden="true"] .il * { animation-play-state:
@@ -23,10 +25,12 @@ export default async function (h) {
     const names = arts.map((a) => a && a.getAttribute('data-illo'));
     const bundle = readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.bundle.js'), 'utf8');
     const lsCode = h.stripCode(readFileSync(join(root, 'src/components/launch-shell.js'), 'utf8'));
-    ok(slides.length === 4 && JSON.stringify(names) === '["welcome1","welcome2","welcome3","welcome4"]' && arts.every(deco)
+    const retryHero = d.querySelector('[data-launch-view="retry"] .c-launch__hero > svg.c-launch__hero-illo');
+    ok(slides.length === 4 && JSON.stringify(names) === '["welcome2","welcome1","welcome3","welcome4"]' && arts.every(deco)
        && !d.querySelector('.c-launch__carousel img') && deco(hero) && hero.getAttribute('data-illo') === 'restore'
+       && deco(retryHero) && retryHero.getAttribute('data-illo') === 'restore' && retryHero !== hero
        && !/images\/onboarding\//.test(lsCode) && !/base \+ '[\w-]+\.png'/.test(bundle),
-      '★ S11 B (#1262): the welcome carousel draws welcome1–4 in order and the restore hero draws restore — inline, decorative, no <img>, no onboarding PNG path left — ' + JSON.stringify(names));
+      '★ S11 B (#1262) → ★ S20F (#1425): the welcome carousel draws welcome2 · 1 · 3 · 4 in order and the restore + retry heroes draw restore — inline, decorative, no <img>, no onboarding PNG path left — ' + JSON.stringify(names));
 
     const pin = (x) => { const t = x && x.closest('[data-theme]'); return t ? t.dataset.theme : null; };
     const tok = stripCssComments(readFileSync(join(root, 'Spixi/Resources/Raw/html/spixi.tokens.css'), 'utf8'));

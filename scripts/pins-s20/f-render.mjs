@@ -7,13 +7,14 @@
  *   · the block = pre.c-fmt-pre "const a = *1*;" (no mark parsed inside), the text either side without blank lines
  *   · XSS: the `<img onerror>` stays TEXT — no img element in the bubble, the handler never ran, and no innerHTML /
  *     outerHTML / insertAdjacentHTML write carried the message text (a setter spy over the whole render)
- *   · the look (cascade winners on the built document): bold = var(--font-weight-semibold) (600); the chip / block fill =
- *     var(--surface-bubble-received-quote) on the received bubble and var(--surface-wash-on-hero) on the sent one; the block
+ *   · the look (cascade winners on the built document): bold = var(--font-weight-semibold) (600); ★ S20F W-11 (#1409): the
+ *     code chip has NO fill (an inset outline in var(--fmt-rule) = --outline-fmt-code on the received bubble); the block fill
+ *     = var(--surface-wash-on-hero) on the sent one; the block
  *     = white-space pre + overflow-x auto + max-width 100% (scrolls sideways inside the bubble)
  *   · markup INSIDE a mark / a code chip / a block (`*<b>x</b>*`, `<img onerror>` in backticks, `<i>` in a ```) stays text
  * Deliberate breaks (S20 F report): renderFormat writes the code chip with innerHTML → the XSS clauses fail · the bubble
  * back on the old linkifyInto(body, text…) → the bold / code clauses fail · onText called for code → the code clause fails ·
- * the sent background rule deleted → the look clause fails. */
+ * the sent background rule deleted → the look clause fails · (S20F re-base) the chip's quote fill put back → the look clause fails. */
 import { b1Kit } from '../pins-s9/b1-kit.mjs';
 import { cascade } from '../pins-s19/r-cascade.mjs';
 export default async function (h) {
@@ -66,7 +67,8 @@ export default async function (h) {
     const C = cascade(W);
     const pre2 = pre;
     k.look = !!b && C.win(b, 'font-weight') === 'var(--font-weight-semibold)'
-      && !!code && C.win(code, 'background') === 'var(--surface-bubble-received-quote)'
+      && !!code && !C.win(code, 'background') && C.win(code, '--fmt-rule') === 'var(--outline-fmt-code)'   /* ★ S20F W-11 (#1409): NO fill — an inset outline (pins-s20f/c-code); was the quote fill */
+      && /var\(--fmt-rule\)/.test(C.win(code, 'box-shadow'))
       && !!pre2 && C.win(pre2, 'background') === 'var(--surface-wash-on-hero)'
       && C.win(pre2, 'white-space') === 'pre' && C.win(pre2, 'overflow-x') === 'auto' && C.win(pre2, 'max-width') === '100%'
       && C.win(code, 'font-family') === 'var(--font-mono)';
@@ -76,6 +78,6 @@ export default async function (h) {
   finally { if (s) s.W.close(); }
   const dbg = k._dbg; delete k._dbg;
   ok(Object.values(k).every((x) => x === true),
-    '★ S20 F (#1378): formatted rows on the BUILT chat.html — bold / italic / strike / code / a ``` block, a mention + a link INSIDE bold, nothing parsed inside code, the <img onerror> stays text (no HTML write), the chip / block fills per direction' +
+    '★ S20 F (#1378): formatted rows on the BUILT chat.html — bold / italic / strike / code / a ``` block, a mention + a link INSIDE bold, nothing parsed inside code, the <img onerror> stays text (no HTML write), the outline chip (no fill, S20F W-11) + the block fill per direction' +
     (Object.values(k).every((x) => x === true) ? '' : ' — ' + JSON.stringify(k) + ' ' + dbg));
 }

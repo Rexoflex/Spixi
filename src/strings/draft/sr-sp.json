@@ -1091,5 +1091,12 @@
   "paying": "Plaćanje…",
   "inviteSent": "Pozivnica poslata",
   "devFlagsS20Size": "File size on sent files (S20)",
-  "welcomeConsent": "Nastavljanjem prihvatate dokumente {terms} i {privacy}."
+  "welcomeConsent": "Nastavljanjem prihvatate dokumente {terms} i {privacy}.",
+  "slide1Title2": "Privatno dopisivanje. Bez broja telefona.",
+  "slide1Copy3": "Registrujte se nadimkom. Bez imejla, bez ID-ja, ništa lično.",
+  "slide2Title2": "Privatno od samog početka.",
+  "slide2Copy2": "Postkvantno šifrovano na vašem uređaju i poslato direktno. Samo osoba kojoj pišete može to da pročita.",
+  "slide4Title2": "Igrajte i planirajte zajedno.",
+  "slide4Copy2": "Mini aplikacije kao što su Blitz Chess i Split otvaraju se pravo u vašim razgovorima.",
+  "welcomeOpenSource": "Otvoreni kod"
 }

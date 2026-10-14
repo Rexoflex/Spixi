@@ -1014,5 +1014,12 @@
   "paying": "Mokama…",
   "inviteSent": "Kvietimas išsiųstas",
   "devFlagsS20Size": "File size on sent files (S20)",
-  "welcomeConsent": "Tęsdami sutinkate su {terms} ir {privacy}."
+  "welcomeConsent": "Tęsdami sutinkate su {terms} ir {privacy}.",
+  "slide1Title2": "Privatūs pokalbiai. Be telefono numerio.",
+  "slide1Copy3": "Registruokitės slapyvardžiu. Be el. pašto, be ID, nieko asmeniško.",
+  "slide2Title2": "Privatumas iš esmės.",
+  "slide2Copy2": "Postkvantiškai užšifruojama jūsų įrenginyje ir siunčiama tiesiogiai. Perskaityti gali tik tas, kuriam rašote.",
+  "slide4Title2": "Žaiskite ir planuokite kartu.",
+  "slide4Copy2": "Mini programėlės, tokios kaip Blitz Chess ir Split, atsidaro tiesiog jūsų pokalbiuose.",
+  "welcomeOpenSource": "Atvirasis kodas"
 }

@@ -1,0 +1,16 @@
+Session 20F: the S20 walk fix round (W-1 … W-13)
+
+- Records: WALK #1407 (S20, Windows + Android: 93 P · 3 F · 3 N/A) and #1424 (ON rows); WT-HERO stays today's hero
+- W-1: the desktop rail re-syncs from the Account pane flag only when the pane was seen in this document (sessionStorage sighting survives a re-bake); dev-only [RAIL] / [P1] rail-stuck line
+- W-2: the Account hub App lock row uses the chevron-row geometry; Privacy / Notifications unchanged
+- W-3 + W-13: every in-bubble control and my own reaction pill take the chat accent (new tokens: fill lift for dark Graphite / Teal / Blue, ink-strong / -deep / -sent / -recv); labels >= 4.5 : 1 at rest, hover and pressed on 7 canvases x 7 sent colours x 2 themes
+- W-4 / W-5: the welcome slides fade at the side edges while they move; the new order and texts in 14 locales (7 keys added, 6 retired), "Open source" under the dots, 7 s autoplay; slide 2 uses each locale's own peer-to-peer term
+- W-6 / W-7 / W-8: 24 px top inset on desktop launch views; the create card anchored where step 2 sits centred (no jump); retry rebuilt on the restore form frame; the iOS keyboard no longer hides the focused launch field
+- W-9: the attach tray paints above the photo tiles (z-10, not a stacking context on the log)
+- W-10: the wallet hero collapses with one layout flip and a transform slide; rows contain: content
+- W-11: inline code as an outlined chip, a padded code block with a start rule
+- W-12: Downloads keeps every file under slow pushes, waits before the empty state on first load, reserves the From row until the senders arrive
+- ru: "Разблокировать" typo fixed (lang/ru-ru.txt, glossary, draft)
+- Pins: scripts/pins-s20f (13 modules + the paint-tray Playwright check), re-based pins-s20 / pins-s9 / pins-s11 / pins-on1; scripts/run-pins.mjs
+- #46 loop CLEAN at r4; smoke 6148 / the 2 KNOWN; CSH 451; no C# changed
+- Docs: DECISIONS #1407-#1414, #1424-#1427, #1443-#1445; walk-s20f.md + walk Artifact (Windows + Android); office sheet section 14 (iPhone + Mac); handoff-2026-10-14b; prompts/session-20g.md; lessons L145-L148

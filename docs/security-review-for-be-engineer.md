@@ -931,3 +931,21 @@ Full rows: `docs/security-handover-gate.md` "Session 11". T1 row **B-33**. The q
 | Offer preview | Our sender now fills `FileTransfer.preview` (present since 0e85a4b8, length-prefixed, an old reader skips it): ≤ 8 KB JPEG, ≤ 96 px, no metadata, photos only. Please confirm the extra ≤ 8 KB per photo header is fine for the stream, the offline storage and the push paths. The receiver bounds it (≤ 64 KB read, ≤ 8 KB accepted, SOF ≤ 256 px), re-encodes it in C# and shows it only for approved contacts with "Load pictures" on. |
 | Photo auto-download | Opt-in (Privacy, default Off): photos ≤ 10 MB from approved contacts (never bot rooms; groups only with an approved sender) are accepted without a tap through the same accept as the Download tap. Limits: ≤ 4 in flight, ≤ 50 MB per chat per 24 h. Please confirm the limits, and that the accept signal to the sender (presence-like) is acceptable when the user opted in. |
 | New verbs / pushes | `ixian:updateHelp` (C#-owned URL) · `ixian:hint:*` · `ixian:hintsoff` · `ixian:photoAutoDl` · `ixian:savePhoto` (C# resolves its own file) · `ixian:devflash` (dev only); pushes `setHints` · `setHintsOff` · `setPhotoAutoDl` · `paintAck` · `setOfferPreview` · `setFlashDev`; addFile arg 20. All exact-grammar, capability-gated, ignored by an older shell. |
+
+## Session 20F addenda (2026-10-14, WALK #1407) — from the S20 Android log; Ixian-Core rows (yours), no change of ours
+
+### ⚠ NIT (Ixian-Core) — `FriendList` logs the contact folder path when a contact file fails to load
+Core `Streaming/Friends/FriendList.cs:611` (`loadFriends`): `Logging.error("Exception occured while loading contact {0}: {1}", acc, e)` —
+`acc` is the contact's FOLDER path, and the folder name is the contact's wallet address, so the full address lands in the
+shareable log (the same class as the `removeFriend` NIT above). Seen once on Android after a restart: an
+`EndOfStreamException` on a truncated `account.ixi` (11:59:41). Two asks: (1) log a short form of the address (or none);
+(2) is a truncated contact file a known state (an interrupted write)? The contact is skipped silently today.
+
+### ⚠ BUG (Ixian-Core) — NullReferenceException in `PendingMessageProcessor.processPendingMessages()`
+Seen once (Android, 12:10:22, Spixi S20 build) with no user action; the loop survived. The app has no stack beyond the
+method name. Please check the null path (a pending message whose friend / stream was removed while it waited?).
+
+### ℹ DEPENDENCY — the welcome slide now says "Post-quantum encrypted" (DECISIONS #1425, Damir 12:27)
+True on `spixi2` (ECDH + ML-KEM-1024, `CoreStreamProcessor.cs:1919`); NOT true for a peer that falls back to `rsa2`
+(RSA-4096, `:1618/1623`). Damir accepted the gap because old peers will be deprecated (#702). When `rsa2` is removed,
+tell us — the claim then holds on every path. If `rsa2` must stay long-term, the welcome copy goes back to the #702 wording.

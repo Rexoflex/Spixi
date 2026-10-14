@@ -554,7 +554,7 @@
   "restoreTitle": "Restaurez votre compte",
   "restored": "Restauré",
   "resume": "Reprendre",
-  "retryCopy": "Votre portefeuille n'a pas pu être déverrouillé avec le mot de passe enregistré. Saisissez-le pour continuer.",
+  "retryCopy": "Votre portefeuille n’a pas pu être déverrouillé avec le mot de passe enregistré. Saisissez-le pour continuer.",
   "retryTitle": "Déverrouillez votre portefeuille",
   "revealAmounts": "Afficher les montants",
   "reviewSend": "Vérifier",
@@ -1091,5 +1091,12 @@
   "paying": "Paiement…",
   "inviteSent": "Invitation envoyée",
   "devFlagsS20Size": "File size on sent files (S20)",
-  "welcomeConsent": "En continuant, vous acceptez les {terms} et la {privacy}."
+  "welcomeConsent": "En continuant, vous acceptez les {terms} et la {privacy}.",
+  "slide1Title2": "Messagerie privée. Sans numéro de téléphone.",
+  "slide1Copy3": "Inscrivez-vous avec un nom. Pas d’e-mail, pas d’ID, rien de personnel.",
+  "slide2Title2": "Privé dès la conception.",
+  "slide2Copy2": "Chiffrement post-quantique sur votre appareil, envoi de pair à pair. Seule la personne à qui vous écrivez peut lire vos messages.",
+  "slide4Title2": "Jouez et organisez ensemble.",
+  "slide4Copy2": "Des mini-apps comme Blitz Chess et Split s’ouvrent directement dans vos conversations.",
+  "welcomeOpenSource": "Open source"
 }

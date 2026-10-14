@@ -1,4 +1,6 @@
 /* ==== S20 Q — J1 (#1440, the v3 doc's I1; Damir 16:36 + 17:52 / 17:54 "TODAY'S colours, change only the layout"): THE PAYMENT BUBBLE ====
+ * ★ S20F re-base (#1443 · #1444): "today's colours" now holds for the card SURFACES only — the in-bubble BUTTONS follow the chat
+ * accent (Damir 2026-10-14); ①b pins that a payment card's buttons carry the same accent palette as an app card's.
  * On the BUILT chat.html (jsdom; the real bundle + the shell's own cascade):
  *   · colours unchanged: a sent and a received payment card compute the SAME background / border / box-shadow as a
  *     non-payment .c-tcard on the same side (today's .c-tcard rules), and the sent one is --surface-card-sent /
@@ -17,8 +19,10 @@
  * (`.c-tcard[data-layout="stack"] { background: var(--surface-bubble-sent) }`) → colours · the time moved to the badge row
  * even beside buttons → layout · `strike` also on failed → strike · Decline without the onDecline gate → decline · fiatShown always true → fiat ·
  * payName drops the nick → shellNames · (#46 r1) Pay wired without oneShot (onClick: onPay) → latch · `white-space: nowrap` back on
- * .c-tcard__amount → wrap · (#46 r3) named() without the FSI / PDI → bidi + shellNames · (#46 r4) the control strip removed → bidi · (#46 r5) the strip widened back to \p{Cf} → bidi · (#46 r2 n4) --tcard-pad-end 9 → 8 px, or the amount line-height 1 → 1.1 → approved. */
+ * .c-tcard__amount → wrap · (#46 r3) named() without the FSI / PDI → bidi + shellNames · (#46 r4) the control strip removed → bidi · (#46 r5) the strip widened back to \p{Cf} → bidi · (#46 r2 n4) --tcard-pad-end 9 → 8 px, or the amount line-height 1 → 1.1 → approved · (S20F) the typed-bubbles.css accent remap scoped to
+ * `.c-tcard[data-kind="app"]` → buttons. */
 import { b1Kit } from '../pins-s9/b1-kit.mjs';
+import { cascade } from '../pins-s19/r-cascade.mjs';
 export default async function (h) {
   const { ok, sleep } = h;
   const K = b1Kit(h);
@@ -53,6 +57,15 @@ export default async function (h) {
       r.colours = paint(sentPay) === paint(sentApp) && paint(recvPay) === paint(recvApp)
         && /--surface-card-sent/.test(paint(sentPay)) && /--outline-card-sent/.test(cs(sentPay).boxShadow)
         && !/--surface-bubble-sent/.test(paint(sentPay)) && /--surface-bubble-received/.test(paint(recvPay));
+      /* ①b ★ S20F W-3 (#1443 supersedes the colour part of #1440 for the BUTTONS): the card SURFACES above stay today's; the
+         payment card's buttons take the chat accent exactly as an app card's do (pins-s20f/c-accent holds the whole chain) */
+      const C = cascade(W);
+      const reqPay = mk({ role: 'request-in', flow: 'out', amount: '4', status: 'actionable', onPay: noop, onDecline: noop });
+      const [pDec, pPay] = [...reqPay.querySelectorAll('.c-button')];
+      const [aDec, aJoin] = [...(() => { const row = S.createAppBubble({ name: 'Chess', state: 'invite', strings: {}, onJoin: noop, onDecline: noop }); host.append(row); return row; })().querySelectorAll('.c-button')];
+      const pal = (b) => ['--_fill', '--_ink', '--_outline', '--_on-fill'].map((x) => C.win(b, x)).join(' ');
+      got.btnPal = { pay: pal(pPay), join: pal(aJoin), payDecline: pal(pDec), appDecline: pal(aDec) };
+      r.buttons = pal(pPay) === pal(aJoin) && pal(pDec) === pal(aDec) && /^var\(--chat-accent-fill\) /.test(pal(pPay)) && !/--surface-action-default/.test(pal(pPay));
       /* ② layout order + the time's home */
       const kids = (el) => [...el.children].filter((c) => !c.classList.contains('c-tcard__hit')).map((c) => c.className.split(' ')[0]);
       const withBtns = mk({ role: 'request-out', flow: 'in', amount: '12', status: 'pending', onCancel: noop }).querySelector('.c-tcard');
@@ -147,6 +160,6 @@ export default async function (h) {
     r.shellNames = got.shell1 === 'Sent you' && /^\+12 IXI$/.test(got.shell1Amt || '') && got.shellGroup === '\u2068Ana\u2069 sent you';
   } catch (e) { r.err = e.message; }
   ok(Object.values(r).every((v) => v === true),
-    '★★ S20 Q J1 (#1440) the payment bubble on the built chat shell: today\'s card colours on both sides (equal to a non-payment .c-tcard, the sent tint never the sent bubble), label row → 28 px amount → badge row → buttons with the time in the label row only beside buttons, declined / canceled struck (the number) and failed not, ✕ for all three, Decline only when wired, Pay disabled when short (+ its caption), fiat hidden below 0.01, "+" on money in, setPaymentStatus in place, and the shell\'s labels ("Sent you" in 1:1 · "<nick> sent you" in a group) — '
+    '★★ S20 Q J1 (#1440) the payment bubble on the built chat shell: today\'s card colours on both sides (S20F: the buttons on the chat accent, the same palette as an app card\'s, #1443) (equal to a non-payment .c-tcard, the sent tint never the sent bubble), label row → 28 px amount → badge row → buttons with the time in the label row only beside buttons, declined / canceled struck (the number) and failed not, ✕ for all three, Decline only when wired, Pay disabled when short (+ its caption), fiat hidden below 0.01, "+" on money in, setPaymentStatus in place, and the shell\'s labels ("Sent you" in 1:1 · "<nick> sent you" in a group) — '
     + JSON.stringify({ r, got }));
 }

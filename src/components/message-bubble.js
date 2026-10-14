@@ -60,6 +60,8 @@ import { createBadge } from './badge.js';
 import { dayBucketLabel, docLocale, timeOpts } from './timestamp.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { fileNameAria, createFileTile } from './typed-bubbles.js';   // ★ #1166 r5 NIT-1: the ONE file-name rule (build + live)
+import { renderFormat } from './msg-format.js';   // ★ S20 F (#1378): *bold* _italic_ ~strike~ `code` ``` blocks
+import { LINKIFY_MAX, urlSpans } from './link-rule.js';   // ★ S20 F (#46 r1): the one link rule (linkify + the format pass)
 
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
@@ -75,12 +77,8 @@ function bubbleTime(d) {
    prefixed for the CLICK; the display stays as the user typed it. OG/thumbnail
    link previews remain §8/BE-gated (sender-composed card, be-cutover §82) —
    client-side unfurl is CORS-blocked + an IP-leak (#232 human-BE-review class). */
-const BARE_TLDS = 'com|org|net|io|ai|app|dev|co|me|xyz|info|news|link|site|online|network|finance|exchange|market|money|cash|gg|tv|sh|so|to|us|uk|de|fr|es|it|nl|pl|cz|sk|ch|at|se|no|fi|dk|be|pt|gr|hr|rs|ba|si|hu|ro|bg|eu|ca|au|nz|jp|kr|in|br|mx|ar|za|tr|il|ae|sg|hk|tw|id|th|vn|ph|my';
-const URL_RE = new RegExp(
-  'https?:\\/\\/[^\\s<>"\']+' +
-  '|www\\.[^\\s<>"\']+' +
-  '|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:' + BARE_TLDS + ')(?:\\/[^\\s<>"\']*)?',
-  'gi');
+/* ★ S20 F (#46 r1 MINOR-1): BARE_TLDS + URL_RE + the #231c guard / trims + LINKIFY_MAX moved to link-rule.js — the ONE link
+   rule, read by linkify here AND by the format pass (msg-format.js), which must never split a URL it would link. */
 /* #231c: a long URL used to wrap across 3+ bubble lines with a dangling tail
    (Damir screenshot) — display is truncated past 64 chars; the button carries
    the FULL url on click/title and the shell's confirm modal shows it in full
@@ -261,13 +259,7 @@ function appendWithMentions(parent, text, mention) {
   if (!mention || !text || text.indexOf('@') === -1) { parent.append(text); return; }
   forEachMentionSplit(text, mention, (run) => parent.append(run), (span) => parent.append(span));
 }
-/* #235 DoS guard: the bare-domain alternation backtracks per start position on
-   a crafted no-TLD token ("a.a.a.a…" ~50KB) → an O(n²) matchAll scan freezes
-   the chat pane (victim-side render DoS; isolated to the chat WebView per §1,
-   but still a freeze). Real chat messages are far below this cap — oversized
-   text skips linkify entirely and renders as plain text (mentions still work;
-   the mention pass is a single linear exec). */
-const LINKIFY_MAX = 4096;
+/* #235 DoS guard: LINKIFY_MAX lives in link-rule.js (oversized text skips linkify; mentions still work). */
 /* #314 ORDERING (Damir F5 2026-08-07, repro'd first per #215): linkify used to run
    OUTER and mentions only in its gaps — a multi-word roster nick with a URL-looking
    word ("@Bob site.com") had "site.com" consumed as a LINK BUTTON before the
@@ -288,20 +280,8 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
 }
 function linkifyPlain(parent, text, onLinkClick) {
   let last = 0;
-  for (const m of text.matchAll(URL_RE)) {
-    // #231c email/token guard: a scheme-less match glued to a word char, @, dot,
-    // dash or slash is part of a larger token ("a@b.com", "path/x.com") → stays
-    // plain text (the skipped run is flushed by the next match / tail append).
-    const prev = m.index > 0 ? text[m.index - 1] : '';
-    if (prev && /[\w@.\-\/]/.test(prev)) continue;
-    let url = m[0];
-    const trail = url.match(/[.,!?;:]+$/);
-    if (trail) url = url.slice(0, url.length - trail[0].length);
-    // unbalanced closing parens are sentence punctuation: "(see https://x.com)"
-    while (url.endsWith(')') &&
-           (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
-    if (!url) continue;
-    if (m.index > last) parent.append(text.slice(last, m.index));
+  for (const { start, url } of urlSpans(text)) {   // link-rule.js: the #231c glued-token guard + the punctuation / paren trims
+    if (start > last) parent.append(text.slice(last, start));
     const href = /^https?:\/\//i.test(url) ? url : 'https://' + url;  // #231c: click target for scheme-less links
     const b = document.createElement('button');
     b.type = 'button';
@@ -310,7 +290,7 @@ function linkifyPlain(parent, text, onLinkClick) {
     b.title = url;
     if (onLinkClick) b.addEventListener('click', () => onLinkClick(href));
     parent.append(b);
-    last = m.index + url.length;
+    last = start + url.length;
   }
   if (last < text.length) parent.append(text.slice(last));
 }
@@ -486,7 +466,12 @@ export function createMessageBubble({
   } else {
     const body = document.createElement('span');
     body.className = 'c-bubble__text';
-    linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
+    /* ★ S20 F (#1378): the formatting pass runs FIRST and hands every plain run (never code) to the mention + linkify
+       pass, so a mention or a link inside *bold* still works and nothing inside `code` is touched. DOM-built (msg-format.js). */
+    /* #235 DoS guard, decided ONCE per message (S20 #46 F2): the format pass splits the text into runs, so a per-run
+       check let a 61 KB message of runs just under LINKIFY_MAX linkify every run. Over the cap: mentions only, no links. */
+    const big = text.length > LINKIFY_MAX;
+    body.append(renderFormat(text, { onText: (run, parent) => (big ? appendWithMentions(parent, run, mention) : linkifyInto(parent, run, onLinkClick, mention)) })); // URLs → link buttons, @names → mention spans, rest plain
     el.append(body);
   }
 

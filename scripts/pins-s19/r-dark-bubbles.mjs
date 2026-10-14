@@ -20,6 +20,9 @@
  *   · the settings tiles inherit nothing: under a dark Aurora root a Mist tile and an Iris tile keep their own bubble;
  *   · ★ #46 S19 M3: the file card's progress TRACK — on a RECEIVED card it reads --surface-bubble-received-quote and is
  *     ≥ 1.15 : 1 on its canvas bubble (all 7 dark canvases); on a SENT card (--surface-card-sent) it keeps neutral-04.
+ * ★ re-based by S20 R (#1403, Damir 19:54): the dark bubbles moved to the S19 B bubble at OKLCH C × 0.85, L + 0.015 and the quotes
+ *   were re-derived (values + numbers in tokens.css and pins-s20/r-dark-grounds); this pin holds RELATIONS, not values — every
+ *   clause still holds on the S20 values (bubble vs stop 1.35–1.65, quote 1.25–1.26, still darker + more saturated than A).
  * Deliberate breaks (S19 F10 report): the Ocean rule's bubble line deleted (canvas fails: Ocean falls back to #1E2023, darker
  * than its light stop) · hue 0's dark name lightness back to 60 % (names fails) · the dark quote rule back to
  * --surface-neutral-04 (quote fails) · the dark played voice disc back to --neutral-500 (voice fails) · #46 S19 M3: the track

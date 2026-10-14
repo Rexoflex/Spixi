@@ -43,6 +43,7 @@ Lines = the line count of the diff output (`git diff … | wc -l`; in PowerShell
 | P25 mic + clipboard gate | 38 184 / 27 320 | `Spixi/Pages/Chat/SingleChatPage.xaml.cs:8249 · Spixi/Utils/S16SecRules.cs:60` (:8234 · :58) | — |
 | P26 What's new | 18 681 / 10 387 | `Spixi/Utils/S17Rules.cs` (whole file) | — |
 | P28 Moment sheets | 50 766 / 30 407 | `Spixi/Utils/S17MomentRules.cs` (whole file) | `SAutoDownload.cs`, `SLocalOnlyStore.cs`, `BackupPage.xaml.cs`, `wallet-send.js` |
+| P29 file size (S20) | — (new) | `Spixi/Pages/Chat/SingleChatPage.xaml.cs` `fileSizeArgOf` · `Spixi/Utils/S11MediaRules.cs` `fileSizeArg` | — |
 
 P27 is reserved (not built). P03's question moved to P24.
 
@@ -79,6 +80,7 @@ git diff 0e85a4b8..HEAD --output="$d\P24.diff" -- Spixi/Utils/S16PassRules.cs Sp
 git diff 0e85a4b8..HEAD --output="$d\P25.diff" -- Spixi/Utils/S16SecRules.cs Spixi/Pages/Chat/SingleChatPage.xaml.cs Spixi/Pages/Home/HomePage.xaml.cs Spixi/Utils/SpixiFlags.cs Spixi/Pages/Dev/DevPage.xaml.cs Spixi/App.xaml.cs Spixi/Utils/SpixiContentPage.cs src/shells/chat.html src/components/composer.js src/shells/dev.html
 git diff 0e85a4b8..HEAD --output="$d\P26.diff" -- Spixi/Utils/S17Rules.cs Spixi/Pages/Home/HomePage.xaml.cs Spixi/Pages/Settings/SettingsPage.xaml.cs Spixi/Utils/SpixiFlags.cs Spixi/Pages/Dev/DevPage.xaml.cs src/components/whats-new.js src/shells/home.html src/shells/settings.html src/shells/dev.html
 git diff 0e85a4b8..HEAD --output="$d\P28.diff" -- Spixi/Utils/S17MomentRules.cs Spixi/Meta/SMoments.cs Spixi/Utils/SpixiContentPage.cs Spixi/Pages/Home/HomePage.xaml.cs Spixi/Pages/Settings/SettingsPage.xaml.cs Spixi/Pages/Chat/SingleChatPage.xaml.cs Spixi/Pages/Contacts/ContactDetails.xaml.cs Spixi/Utils/SpixiFlags.cs Spixi/Pages/Dev/DevPage.xaml.cs src/components/moment-sheet.js src/shells/home.html src/shells/chat.html src/shells/settings.html src/shells/contact_details.html src/shells/dev.html Spixi/Meta/SAutoDownload.cs Spixi/Meta/SLocalOnlyStore.cs Spixi/Pages/Settings/BackupPage.xaml.cs src/components/wallet-send.js
+git diff 0e85a4b8..HEAD --output="$d\P29.diff" -- Spixi/Utils/S11MediaRules.cs Spixi/Pages/Chat/SingleChatPage.xaml.cs Spixi/Utils/SpixiFlags.cs Spixi/Pages/Dev/DevPage.xaml.cs
 Get-ChildItem $d | Select-Object Name, @{n='Lines';e={(Get-Content $_.FullName).Count}}
 explorer $d
 ```

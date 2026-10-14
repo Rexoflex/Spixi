@@ -15,6 +15,7 @@ namespace SPIXI
         public const string MediaInputGateKey = "flagMediaInputGate";       // int pref; absent = default (1)
         public const string S17BridgeKey = "flagS17Bridge";                 // int pref; absent = default (1) — ★ S17 (#1338/#1339, P26)
         public const string S17MomentsKey = "flagS17Moments";               // int pref; absent = default (1) — ★ S17 F (#1340, P28)
+        public const string S20FileSizeKey = "flagS20FileSize";             // int pref; absent = default (1) — ★ S20 E (#1376, P29)
 
         /** L8: the wallet password lives in SecureStorage (WalletPassStore). OFF = the legacy plaintext preference. */
         public static bool SecureWalletPass { get; private set; } = true;
@@ -31,15 +32,15 @@ namespace SPIXI
          *  ixian:moment:* verbs and the one-shot `ixian:openPrivacy` on a chat page. OFF = exactly the old behaviour. */
         public static bool S17Moments { get; private set; } = true;
 
-        /** ★ DT-1 B: the Windows title bar way (DtTitleBarRules: off (default, the Windows look — #1392) · maui · colors) — a dev-mode switch for the
-         *  STOP-rule spike (Developer › Title bar). Read here on every platform; only Platforms/Windows/DtTitleBar.cs acts on it. */
-        public static int DtTitleBarWay { get; private set; } = DtTitleBarRules.WayDefault;
+        /** ★ S20 E (#1376, P29): addFile arg 20 = the file size in BOTH directions (S11MediaRules.fileSizeArg: the received
+         *  header size, the outgoing transfer's size, one stat of the C#-resolved sent copy). OFF = offerSizeArg (received
+         *  offers only — the old behaviour). */
+        public static bool S20FileSize { get; private set; } = true;
 
         public static void init()
         {
             bool dev = false;
-            int sp = 1, mg = 1, sb = 1, sm = 1;
-            int tbw = DtTitleBarRules.WayDefault;
+            int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1;
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -47,6 +48,7 @@ namespace SPIXI
                 mg = Preferences.Default.Get(MediaInputGateKey, 1);
                 sb = Preferences.Default.Get(S17BridgeKey, 1);
                 sm = Preferences.Default.Get(S17MomentsKey, 1);
+                fs = Preferences.Default.Get(S20FileSizeKey, 1);
             }
             catch (Exception ex)
             {
@@ -61,19 +63,8 @@ namespace SPIXI
             Logging.info(S17Rules.flagLine(S17Bridge));
             S17Moments = S16PassRules.effectiveFlag(dev, sm);
             Logging.info(S17MomentRules.flagLine(S17Moments));
-            /* #46 r1 (B NIT-2): its own try, AFTER the release flags — a bad stored value must not skip their reads */
-            try
-            {
-                tbw = Preferences.Default.Get(DtTitleBarRules.PrefKey, DtTitleBarRules.WayDefault);
-            }
-            catch (Exception)
-            {
-                tbw = DtTitleBarRules.WayDefault;
-            }
-            DtTitleBarWay = DtTitleBarRules.wayThatActs(dev, tbw);
-#if WINDOWS
-            Logging.info(DtTitleBarRules.flagLine(DtTitleBarWay));   // ★ DT-1 B: the way acts on Windows only
-#endif
+            S20FileSize = S16PassRules.effectiveFlag(dev, fs);
+            Logging.info(S11MediaRules.fileSizeFlagLine(S20FileSize));
         }
     }
 }

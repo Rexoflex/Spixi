@@ -5,10 +5,7 @@
 .c-tcard {
   /* #337 (W4 ride-along): card rail = --layout-card-max, NOT the text-bubble
      token — the 680px desktop bubble raise must not stretch fixed-width cards */
-  /* ★ #591 (Damir 2026-08-26): "all calls and payments bubbles should wrap and not
-     be fixed length." This was a fixed WIDTH, so a two-word payment card was drawn at
-     the full card rail with a lake of empty space beside its text. It hugs its content
-     now and the rail becomes the CAP, which is what the call card has done since #265. */
+  /* ★ #591: cards hug their content; the rail is the cap */
   width: fit-content;
   max-width: min(var(--bubble-max-pct), var(--layout-card-max));
   padding: var(--spacing-12);
@@ -39,12 +36,6 @@
    sentence and a sentence should wrap. */
 .c-tcard__title, .c-tcard__call-meta, .c-tcard__note { overflow-wrap: anywhere; }
 
-.c-tcard__head {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  margin-bottom: var(--spacing-8);
-}
 .c-tcard__title {
   flex: 1;
   min-width: 0;
@@ -64,32 +55,50 @@
   color: var(--text-neutral-02);
 }
 
-/* amount (payment) — Sora, tone-driven per Figma */
+/* amount (payment), tone-driven · S20 J1 (#1440); only the number is struck (declined / canceled). #46 r1 MINOR-4 (the #1013
+   r2 M1): a long amount WRAPS ("IXI" first, then the number) and never leaves the bubble */
 .c-tcard__amount {
+  margin-top: var(--tcard-stack-gap);
   font-family: var(--font-primary);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-heading-sm);
-  line-height: var(--line-height-heading-sm);
-  letter-spacing: var(--tracking-heading-sm);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--tcard-amount-size);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 /* ★ #1004 (D-03, Damir 2026-09-28): a pending amount is NOT a warning — orange read as an error.
    The status (chip / quiet foot) carries "pending"; the number stays the primary ink. Was --text-warning. */
 .c-tcard__amount[data-tone="pending"] { color: var(--text-neutral-01); }
 .c-tcard__amount[data-tone="positive"] { color: var(--text-amount-positive); }   /* ★ #1048 */
 .c-tcard__amount[data-tone="neutral"] { color: var(--text-neutral-01); }
-.c-tcard__amount[data-tone="void"] {
-  color: var(--text-neutral-disabled);
-  text-decoration: line-through;
-}
-.c-tcard__unit { font-size: 0.62em; font-weight: var(--font-weight-bold); } /* 0.62 sanctioned: IXI/amount ratio from Figma payment cards */
+.c-tcard__amount[data-tone="void"] { color: var(--text-neutral-disabled); }
+.c-tcard__amount[data-strike] .c-tcard__num { text-decoration: line-through; text-decoration-thickness: 2px; }
+.c-tcard__unit { font-size: var(--tcard-unit-size); font-weight: var(--font-weight-semibold); letter-spacing: 0; }
 .c-tcard__fiat {
-  font-size: var(--font-size-body-sm);
+  margin-top: var(--spacing-2);
+  font-size: var(--tcard-label-size);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
 .c-tcard__fiat[data-tone="void"] { text-decoration: line-through; color: var(--text-neutral-disabled); }
 
-.c-tcard__badge { margin-top: var(--spacing-8); }
+/* ★ S20 J1 (#1440): the stacked payment bubble — layout + type size only; colours are the .c-tcard rules above */
+.c-tcard[data-layout="stack"] {
+  position: relative;
+  min-width: min(var(--bubble-max-pct), var(--tcard-stack-min));
+  padding: var(--tcard-stack-gap) var(--spacing-12) var(--tcard-pad-end);
+}
+.c-tcard[data-layout="stack"][data-acts] { min-width: min(var(--bubble-max-pct), var(--tcard-stack-min-acts)); }
+.c-tcard__top { display: flex; align-items: center; gap: var(--spacing-8); }
+.c-tcard__top > .c-tcard__medallion { width: var(--size-avatar-24); height: var(--size-avatar-24); }
+.c-tcard__top > .c-tcard__label { flex: 1 1 auto; font-size: var(--tcard-label-size); line-height: 1.2; }
+.c-tcard__top > .c-tcard__time { margin-inline-start: auto; }
+.c-tcard__bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--tcard-stack-gap); margin-top: var(--tcard-stack-gap); }
+.c-tcard__badge { display: inline-flex; }
+.c-tcard[data-layout="stack"] > .c-tcard__actions { position: relative; z-index: 1; margin-top: var(--tcard-stack-gap); }
+.c-tcard[data-layout="stack"] > .c-tcard__hit { inset: 0; }
 
 /* ★ #1020: a card that ACTS (the full card, #996) is at least wide enough for its two buttons side
    by side — #591's hug made a short app name stack Decline over Join as two full-width slabs. It
@@ -101,14 +110,7 @@
   gap: var(--spacing-8);
   margin-top: var(--spacing-12);
 }
-/* r2 backlog B4: flex:1 + nowrap labels overflowed the card at <320px —
-   buttons may shrink, labels ellipsize.
-   ★ Session J (Damir, de-de screenshot "App star…": "in some languages the buttons in
-   bubbles are not visible completely — should be full"): the ELLIPSIS IS GONE. A button
-   keeps its label's full width as its minimum (no `min-width: 0`), the row WRAPS, so on
-   a card too narrow for "Abbrechen" + "App starten" side by side the second button drops
-   to its own full-width row instead of losing its verb. The B4 overflow cannot return:
-   wrapping is what absorbs it now. Reversal = `min-width: 0` + the ellipsis trio. */
+/* r2 B4 → ★ Session J: no ellipsis — a button keeps its label's width and the row WRAPS (de-de "App starten") */
 .c-tcard__actions .c-button { flex: 1 1 auto; }
 /* ★ #1020: TWO actions sit side by side, equal width (secondary · primary) — actionsRow stamps
    data-width="full" (button.css: width 100%), which forced every pair onto two rows however wide
@@ -124,30 +126,6 @@
   color: var(--text-neutral-02);
 }
 
-/* Details › — hairline above, action-ink link row */
-.c-tcard__details {
-  margin-top: var(--spacing-12);
-  padding-top: var(--spacing-8);
-  border-top: var(--outline-width-1) solid var(--outline-card-divider);   /* ★ #993: own role — invisible on the dark received card (#989 review M1) */
-}
-.c-tcard__details-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  border: 0;
-  background: transparent;
-  padding: var(--spacing-4) 0;
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-label-sm);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--tracking-label-sm);
-  color: var(--text-action-default);
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-tcard__details-btn:hover { color: var(--text-action-hover); }
-}
-.c-tcard__details-btn:active { color: var(--text-action-pressed); }
 
 /* app identity row */
 .c-tcard__app {
@@ -180,6 +158,12 @@
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);   /* sanctioned: the #1001 avatar initials shadow */
 }
 .c-tcard__app-info { display: flex; flex-direction: column; min-width: 0; }
+/* ★ S20 J4 (#1440): the full app card, no header */
+.c-tcard[data-kind="app"]:not([data-layout]) .c-tcard__app-icon { width: var(--size-avatar-48); height: var(--size-avatar-48); }
+.c-tcard__app-line { display: flex; align-items: baseline; gap: var(--spacing-8); min-width: 0; }
+.c-tcard__app-line > .c-tcard__time { margin-inline-start: auto; }
+.c-tcard[data-kind="app"]:not([data-layout]) .c-tcard__app-name { font-size: var(--tcard-app-name-size); line-height: 1.25; font-weight: var(--font-weight-bold); min-width: 0; }
+.c-tcard[data-kind="app"]:not([data-layout]) .c-tcard__app-sub { font-size: var(--tcard-label-size); line-height: 1.3; font-weight: var(--font-weight-semibold); }
 .c-tcard__app-name {
   font-size: var(--font-size-label-md);
   line-height: var(--line-height-label-md);
@@ -290,11 +274,7 @@
   flex: none;
   transition: filter var(--duration-100) var(--easing-standard);
 }
-/* ★★ #1031 (dial M3, #1022): the white extension label is 11px bold — WCAG wants 4.5:1, and on the
-   raw avatar gradients it read 2.7–3.3:1 at the label's height (the tile's midpoint). A uniform 25% black
-   SHADE under the family gradient lifts every family to ≥ 4.5:1 at the midpoint (computed in the suite:
-   code 4.52 is the floor) while keeping the hue — the avatars keep the raw pairs (#364 covers initials).
-   One token, so the whole ladder moves together; rendered before/after both themes. */
+/* ★★ #1031: a uniform 25% shade under the family gradient keeps the white 11px label ≥ 4.5:1 (code 4.52 = the floor) */
 .c-fbubble__icon { background: var(--tile-shade), var(--disc-grad-neutral); }
 .c-fbubble__icon[data-kind="pdf"]     { background: var(--tile-shade), var(--disc-grad-11); }   /* rose */
 .c-fbubble__icon[data-kind="doc"]     { background: var(--tile-shade), var(--disc-grad-7); }    /* blue */
@@ -354,6 +334,9 @@
 .c-fbubble[data-state="failed"] .c-fbubble__meta { color: var(--text-error); }
 .c-fbubble__meta[data-cta] { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }   /* ★ #1021: "Tap to download" reads as the action */
 .c-fbubble__meta[data-pct] { font-variant-numeric: tabular-nums; }
+/* ★ S20 Q (#1376): the photo tile's offer line — the size in the quiet ink, a break between the two units */
+.c-mbubble__cta > .c-fbubble__size { color: var(--text-neutral-02); font-weight: var(--font-weight-regular); font-variant-numeric: tabular-nums; }
+.c-fbubble__size, .c-fbubble__go { display: inline-block; }
 .c-fbubble__track {
   height: var(--spacing-4);
   border-radius: var(--radius-full);
@@ -377,15 +360,6 @@
   font-size: var(--font-size-body-xs);
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
-}
-/* "Open file" affordance — complete state only (A8b). Link-like accent text so a
-   finished download reads as actionable; the whole bubble is the button. */
-.c-fbubble__open {
-  margin-top: var(--spacing-4);
-  font-size: var(--font-size-label-sm);
-  line-height: var(--line-height-label-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-action-default);
 }
 
 /* ★ #1190 (#1173 (4)): my file not on this device — the compact card, no tap feedback */
@@ -415,10 +389,7 @@
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
 }
-/* ★★ #1028 (walk P.22): a SENT file's time + delivery tick — one stamp, the text bubble's meta grammar
-   (time · tick, the same 2px gap the #1028 tick crossfade overlaps by). sending/sent/delivered read in the
-   stamp's own neutral ink (delivered stays neutral, iOS-16 #283); READ is the success green, as on a text
-   bubble; each tone is ≥ 3:1 on the sent card in both themes (smoke #1028, computed). */
+/* ★★ #1028 (P.22): a SENT file's time + tick = one stamp (the text bubble's meta grammar) */
 .c-fbubble__stamp {
   align-self: flex-end;
   flex: none;
@@ -491,6 +462,30 @@
 @media (hover: hover) and (pointer: fine) {
   .c-bubble-row > .c-fbubble__cancel:hover { color: var(--text-action-hover); }
 }
+/* ★ S20 J3 (#1440): the file card's Cancel = a ✕ in the tile-badge look, on the tile's corner (12 + 40 − 20 + 6; centred + 6) */
+.c-fbubble__pair { position: relative; display: flex; min-width: 0; max-width: min(var(--bubble-max-pct), var(--layout-card-max)); }
+.c-fbubble__pair > .c-fbubble { max-width: 100%; }
+.c-fbubble__pair > .c-fbubble__cancel[data-on-tile] {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: calc(var(--spacing-12) + var(--fbubble-badge-x));
+  top: calc(50% + var(--fbubble-badge-y));
+  width: var(--fbubble-badge-size);
+  height: var(--fbubble-badge-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 var(--fbubble-badge-ring) var(--surface-bubble-received);
+  cursor: pointer;
+}
+.c-bubble-row[data-direction="sent"] .c-fbubble__pair > .c-fbubble__cancel[data-on-tile] { box-shadow: 0 0 0 var(--fbubble-badge-ring) var(--surface-card-sent); }
+.c-fbubble__cancel[data-on-tile]::after { content: ''; position: absolute; inset: calc((var(--fbubble-badge-size) - var(--size-target-min)) / 2); border-radius: var(--radius-full); }   /* a ≥ 44 px hit, the visual unchanged */
+.c-fbubble__cancel[data-on-tile]:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
 
 /* ★ B2 (#533 ①): the app card's terminal tombstones — declined (theirs) / canceled (mine)
    read VOID: muted name + sub, the icon dimmed. Nothing else on the card changes. */
@@ -499,17 +494,9 @@
 .c-tcard[data-state="declined"] .c-tcard__app-name,
 .c-tcard[data-state="canceled"] .c-tcard__app-name { color: var(--text-neutral-02); }
 
-/* ★★ #996 THE RESKIN (Damir's pick: "keep today's cards, but have compact for settled") — the
-   COMPACT pill for a payment/app card with no button, and the shared medallion + padding the
-   one-row call card (#1006) reads too. A card with a button keeps the full .c-tcard rules above.
-   Surfaces, edges and lift are the .c-tcard rules above (#989 / #1003 tokens). */
-.c-tcard[data-layout] { padding: var(--spacing-8) var(--spacing-12); }
-/* The pill is a 2-column grid: the medallion spans the rows; the label takes the first line; the
-   value and the foot share ONE wrapping line (.c-tcard__line) — ★ #1013 (Opus r2 M1): the old
-   3-column grid (value · foot in their own tracks, minmax(max-content, …)) pushed the foot PAST the
-   card edge on 320–430px phones (measured +2…+79px); in a wrapping line the foot drops under the
-   amount, end-aligned, and nothing leaves the card. A long localized label still wraps on its own
-   line and never squeezes the amount. */
+/* ★★ #996 the COMPACT pill (settled app cards since S20 J1) + the shared medallion the call row (#1006) reads. */
+.c-tcard[data-layout="compact"] { padding: var(--spacing-8) var(--spacing-12); }
+/* the pill: medallion | label over ONE wrapping line (value + foot) — ★ #1013 (r2 M1): the foot drops under, never past the edge */
 .c-tcard__main {
   position: relative;
   display: grid;
@@ -552,7 +539,6 @@
   color: var(--text-neutral-02);
   overflow-wrap: break-word;
 }
-.c-tcard[data-layout] .c-tcard__amount { white-space: nowrap; }
 .c-tcard__foot {
   margin-inline-start: auto;       /* end-aligned on the amount's line, and on its own line when it wraps */
   display: inline-flex;
@@ -562,15 +548,6 @@
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
 }
-.c-tcard__status { display: inline-flex; align-items: center; gap: var(--spacing-4); }
-.c-tcard__status-dot {
-  width: 6px;              /* 6 sanctioned: the quiet status dot (#996) — a mark, not a badge */
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--icon-neutral-02);
-}
-.c-tcard__status[data-tone="success"] .c-tcard__status-dot { background: var(--icon-success); }
-.c-tcard__status[data-tone="error"] .c-tcard__status-dot { background: var(--icon-error); }
 /* the whole pill is the Details button: a stretched, transparent hit layer */
 .c-tcard__hit {
   position: absolute;
@@ -584,15 +561,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 .c-tcard__hit:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
-/* the hit layer is the FIRST child, so its states reach the medallion with a sibling
-   combinator (no :has — conservative-CSS baseline).
-   ★ #1013 (r2 m1): the #1012 m6 rule, applied to the pill — dark tonal-hover/-pressed are the
-   SOLID action blue and the medallion ink fell to 1.95:1 on the pressed one. The disc keeps its
-   fill; only the INK moves, exactly as the call-back disc does. */
+/* the hit layer is the FIRST child: a sibling combinator reaches the medallion (no :has); ★ #1013 r2 m1: only the INK moves */
 @media (hover: hover) and (pointer: fine) {
-  .c-tcard__hit:hover ~ .c-tcard__medallion { color: var(--icon-action-hover); }
+  .c-tcard__hit:hover ~ .c-tcard__medallion,
+  .c-tcard__hit:hover ~ .c-tcard__top > .c-tcard__medallion { color: var(--icon-action-hover); }
 }
-.c-tcard__hit:active ~ .c-tcard__medallion { color: var(--icon-action-pressed); }
+.c-tcard__hit:active ~ .c-tcard__medallion,
+.c-tcard__hit:active ~ .c-tcard__top > .c-tcard__medallion { color: var(--icon-action-pressed); }
 /* #1020: a monogram tile keeps its white initial under the pointer (the ink move is for the tonal disc) */
 @media (hover: hover) and (pointer: fine) {
   .c-tcard__hit:hover ~ .c-tcard__app-icon.c-tcard__app-icon--mono { color: #fff; }   /* sanctioned: the white initial (avatar grammar) */
@@ -600,28 +575,14 @@
 .c-tcard__hit:active ~ .c-tcard__app-icon.c-tcard__app-icon--mono { color: #fff; }   /* sanctioned: the white initial (avatar grammar) */
 .c-tcard[data-state="declined"] .c-tcard__medallion,
 .c-tcard[data-state="canceled"] .c-tcard__medallion { opacity: var(--opacity-disabled); }
-/* ★ #1009 (10a): completed = a small check (success ink) instead of the dot; a LIVE completion
-   (data-live-complete, one render only) crossfades the status in and draws the check once (≈400ms). */
-.c-tcard__status-check {
-  width: 12px;               /* 12 sanctioned: the quiet-status mark (#996) — the dot's companion */
-  height: 12px;
-  flex: none;
-  fill: none;
-  stroke: var(--icon-success);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
+/* ★ #1009 → S20 J1: a live completion fades the Completed badge in and wipes its check on (400 ms) */
 @keyframes c-tcard-status-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes c-tcard-check-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-.c-tcard[data-live-complete] .c-tcard__status { animation: c-tcard-status-in var(--duration-200) var(--easing-standard) both; }
-.c-tcard[data-live-complete] .c-tcard__status-check path {
-  stroke-dasharray: 1;
-  animation: c-tcard-check-draw calc(var(--duration-200) * 2) var(--easing-standard) both;   /* 400ms from the token */
-}
+@keyframes c-tcard-check-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.c-tcard[data-live-complete] .c-tcard__badge .c-badge { animation: c-tcard-status-in var(--duration-200) var(--easing-standard) both; }
+.c-tcard[data-live-complete] .c-tcard__badge svg { animation: c-tcard-check-wipe calc(var(--duration-200) * 2) var(--easing-standard) both; }
 @media (prefers-reduced-motion: reduce) {
-  .c-tcard[data-live-complete] .c-tcard__status,
-  .c-tcard[data-live-complete] .c-tcard__status-check path { animation: none; }
+  .c-tcard[data-live-complete] .c-tcard__badge .c-badge,
+  .c-tcard[data-live-complete] .c-tcard__badge svg { animation: none; }
 }
 
 /* ★ S9 U-03 (#1247, measured): 12 % toward black lifts the card's error badge from 4.44:1 to 5.31:1 light · 5.41:1 dark. */

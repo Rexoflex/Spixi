@@ -9,16 +9,20 @@
  *                        which owns launch-mode + uninstall; mobile v1 — replaces the ⋮)
  *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (kept for the standalone
  *                        apps-shell / demos; not used by the home apps tab)
- * onInfo and onMenu are independent; a caller passes whichever it wants. Creator
+ *   .c-app-item__run   — ★ S20 C (#1377): the trailing RUN button (player-play in a tonal disc) → onRun(app, btn).
+ *                        With onRun the tile tap is the DETAILS verb (the caller's onOpen) and the tile is named
+ *                        "Open details for X"; Run is its own button "Run X". No menu beside it (Uninstall and
+ *                        "Invite a contact" live on the details page).
+ * onInfo, onMenu and onRun are independent; a caller passes whichever it wants. Creator
  * (publisher) is a §8 field — rendered only when provided.
  *
- * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onInfo, onMenu }) → div
+ * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onInfo, onMenu, onRun }) → div
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createAppIcon } from './apps-icon.js';
 
-export function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onInfo, onMenu } = {}) {
+export function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onInfo, onMenu, onRun } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-item';
   el.dataset.layout = layout === 'grid' ? 'grid' : 'list';
@@ -27,7 +31,9 @@ export function createAppItem({ id, name = '', creator = '', icon: iconSrc = nul
   const open = document.createElement('button');
   open.type = 'button';
   open.className = 'c-app-item__open';
-  open.setAttribute('aria-label', name || (strings.app || 'App'));
+  const label = name || (strings.app || 'App');
+  // ★ S20 C (#1377): with a Run button the tile opens the details — its name says so (one button, one verb)
+  open.setAttribute('aria-label', onRun ? (strings.appOpenDetails || 'Open details for {name}').split('{name}').join(label) : label);
   open.append(createAppIcon({ src: iconSrc, name, size: layout === 'grid' ? 64 : 48 }));
 
   const text = document.createElement('span');
@@ -70,6 +76,17 @@ export function createAppItem({ id, name = '', creator = '', icon: iconSrc = nul
     menuBtn.append(icon('dots', { size: 24 }));
     menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
     el.append(menuBtn);
+  }
+
+  // ★ S20 C (#1377): Run — created ONLY when a handler is provided; launches the app (the caller's launch path).
+  if (onRun) {
+    const runBtn = document.createElement('button');
+    runBtn.type = 'button';
+    runBtn.className = 'c-app-item__run';
+    runBtn.setAttribute('aria-label', (strings.appRun || 'Run {name}').split('{name}').join(label));
+    runBtn.append(icon('player-play', { size: 18 }));
+    runBtn.addEventListener('click', (e) => { e.stopPropagation(); onRun({ id, name, creator }, runBtn); });
+    el.append(runBtn);
   }
 
   return el;

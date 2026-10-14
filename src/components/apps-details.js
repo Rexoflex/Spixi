@@ -13,8 +13,10 @@
  * createAppDetails({ app, strings, host, onInstall(app,ctrl), onUninstall, onLaunch,
  *                    onReport, onInstalled, onCopyUrl }) → view
  *   onInstall(app, { done, fail }) — the caller runs the real install and calls done()/fail().
- *   beforeInstall(app, { install, confirm }) — optional (★ #46 S19 M4): the Install tap goes here first; the host calls
- *     install() (straight to the install morph, no modal) or confirm() (the install-confirm modal). Absent = the modal.
+ *   beforeInstall(app, { install, confirm, settle }) — optional (★ #46 S19 M4): the Install tap goes here first; the host
+ *     calls install() (straight to the install morph, no modal) or confirm() (the install-confirm modal). Absent = the modal.
+ *     ★ S20 G (#1379): until the host calls one of them the button shows its loading morph; settle() ends that wait with
+ *     no action (the moment sheet showed, or it was closed).
  */
 import { getStrings } from './strings-runtime.js';
 import { createAppIcon } from './apps-icon.js';
@@ -393,7 +395,18 @@ export function createAppDetails({ app = {}, strings = getStrings(), host, onIns
            confirm: its own sheet was the confirm) or confirm() (today's modal); no hook = the modal, as before */
         const confirm = () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled });
         if (typeof beforeInstall === 'function') {
-          beforeInstall(app, { install: () => runInstall({ app, host, strings, onInstall, installBtn, onInstalled }), confirm });
+          /* ★ S20 G (#1379): the host's step may WAIT (the app moment asks C#, ≤ ASK_WAIT_MS 1.5 s) — the button shows the
+             loading morph for that wait (setLoading: spinner + aria-busy + disabled, so a second tap cannot ask twice).
+             Every way out settles it first: settle() (a sheet showed / it was closed), confirm() (the modal), install()
+             (runInstall keeps the same spinner running into the install morph). An answer inside the tap = no morph. */
+          let settled = false, waiting = false;
+          const settle = () => { if (settled) return; settled = true; if (waiting) { waiting = false; setLoading(installBtn, false); } };
+          beforeInstall(app, {
+            install: () => { settled = true; waiting = false; runInstall({ app, host, strings, onInstall, installBtn, onInstalled }); },
+            confirm: () => { settle(); confirm(); },
+            settle,
+          });
+          if (!settled) { waiting = true; setLoading(installBtn, true); }
         } else confirm();
       } });
     actions.append(installBtn);

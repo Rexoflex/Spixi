@@ -81,6 +81,25 @@ namespace SPIXI
                     Logging.warn("DevPage: moments reset failed: " + ex.GetType().Name);
                 }
             }
+            else if (current_url.StartsWith("ixian:devflash:s20size:", StringComparison.Ordinal))
+            {
+                /* ★ S20 E (#1312 rule 1, P29, dev surface): `ixian:devflash:s20size:<0|1>` — SpixiFlags.S20FileSize (the file size
+                 * in both directions); the S16 switches' rules exactly: dev mode on and "0" / "1", or nothing is stored; acts
+                 * at the next start. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false)
+                        && S16PassRules.parseFlagTail(current_url.Substring("ixian:devflash:s20size:".Length), out int value))
+                    {
+                        Preferences.Default.Set(SpixiFlags.S20FileSizeKey, value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: flag switch failed: " + ex.GetType().Name);
+                }
+                pushFlagsDev();
+            }
             else if (current_url.StartsWith("ixian:devflash:s17m:", StringComparison.Ordinal))
             {
                 /* ★ S17 F (#1312 rule 1, P28, dev surface): `ixian:devflash:s17m:<0|1>` — SpixiFlags.S17Moments (the Moment
@@ -162,26 +181,6 @@ namespace SPIXI
                 }
                 pushContainerDev();
             }
-            else if (current_url.StartsWith("ixian:devflash:titlebar:", StringComparison.Ordinal))
-            {
-                /* ★ DT-1 B (#1312 rule 1, dev surface, the devflash verb's own tail): `ixian:devflash:titlebar:<off|maui|colors>` —
-                 * the Windows title bar way for the STOP-rule spike (DtTitleBarRules). One of three fixed words and dev mode
-                 * on, or nothing is stored; then echo. Its own int preference; read once per start (SpixiFlags), so a change
-                 * acts at the NEXT start. Before the generic devflash branch below, which would otherwise take the verb. */
-                try
-                {
-                    if (Preferences.Default.Get("devMode", false)
-                        && DtTitleBarRules.parseWayVerb(current_url.Substring("ixian:devflash:titlebar:".Length), out int way))
-                    {
-                        Preferences.Default.Set(DtTitleBarRules.PrefKey, way);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.warn("DevPage: title bar switch failed: " + ex.GetType().Name);
-                }
-                pushTitleBarDev();
-            }
             else if (current_url.StartsWith("ixian:devflash:", StringComparison.Ordinal))
             {
                 /* ★ S11 C (#1262, 🟡 new verb, dev surface): `ixian:devflash:<candidate|grounds|input>:<0|1>` — the 10-FLASH
@@ -227,7 +226,6 @@ namespace SPIXI
             pushFlagsDev();   // ★ S16 (#1312): the SpixiFlags switches (stored values; they act at the next start)
             // ★ S18 D3: the Reset moment sheets row shows only for an exe that has `ixian:devmoments:reset` (no dead row)
             Utils.sendUiCommand(this, "setCaps", "devmoments");
-            pushTitleBarDev();    // ★ DT-1 B: the title bar way (Windows only)
 
             string srcLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log");
             string destLogPath = Path.Combine(Config.spixiUserFolder, "ixian.log.tmp");
@@ -288,34 +286,18 @@ namespace SPIXI
 #endif
         }
 
-        /** ★ DT-1 B (🟡 new push, dev surface): the STORED title bar way as a fixed word (off | maui | colors). Windows only —
-         *  it acts nowhere else, so no other platform shows the row (the "no dead switch" rule). Guarded reference. */
-        private void pushTitleBarDev()
-        {
-#if WINDOWS
-            int way = DtTitleBarRules.WayDefault;
-            try
-            {
-                way = Preferences.Default.Get(DtTitleBarRules.PrefKey, DtTitleBarRules.WayDefault);
-            }
-            catch (Exception)
-            {
-            }
-            Utils.sendUiCommand(this, "window.setTitleBarDev", DtTitleBarRules.wayWord(way));
-#endif
-        }
-
         /** ★ S16 (#1312, 🟡 new push): the STORED SpixiFlags switches "<securepass 0|1>,<mediagate 0|1>" (absent = 1). What
          *  acts in THIS run is SpixiFlags (read at start); the row says a change acts after a restart. Guarded reference. */
         private void pushFlagsDev()
         {
-            int sp = 1, mg = 1, sb = 1, sm = 1;
+            int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1;
             try
             {
                 sp = Preferences.Default.Get(SpixiFlags.SecureWalletPassKey, 1);
                 mg = Preferences.Default.Get(SpixiFlags.MediaInputGateKey, 1);
                 sb = Preferences.Default.Get(SpixiFlags.S17BridgeKey, 1);
                 sm = Preferences.Default.Get(SpixiFlags.S17MomentsKey, 1);
+                fs = Preferences.Default.Get(SpixiFlags.S20FileSizeKey, 1);
             }
             catch (Exception)
             {
@@ -323,6 +305,10 @@ namespace SPIXI
             // ★ S17: a third digit (the S17 bridge); an older dev.html reads the first two only
             // ★ S17 F: a fourth digit (the Moment sheets); an older dev.html reads what it knows
             Utils.sendUiCommand(this, "window.setFlagsDev", (sp == 0 ? "0" : "1") + "," + (mg == 0 ? "0" : "1") + "," + (sb == 0 ? "0" : "1") + "," + (sm == 0 ? "0" : "1"));
+            /* ★ S20 E (P29): the S20 switch rides its OWN guarded push "<s20size 0|1>" — dev.html's setFlagsDev regex is
+             * anchored at four digits, so a fifth would hide the whole card; a shell without the handler ignores this push
+             * (executeUiCommand: not a function). The dev.html row is a request (S20 S report). */
+            Utils.sendUiCommand(this, "window.setFlagsDevS20", fs == 0 ? "0" : "1");
         }
 
         // #321 (R5 parity): share/save the CURRENT log. The share copy is a stable

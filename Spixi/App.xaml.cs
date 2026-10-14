@@ -1440,7 +1440,7 @@ public partial class App : Application
         {
             window.Title = "Spixi IM";
 #if WINDOWS
-            SPIXI.DtTitleBar.onCreateWindow(window);   // ★ DT-1 B (Q1) → #1392: the caption "Spixi" on the Windows look (off, the default); the dev ways maui / colors repaint the bar
+            SPIXI.DtTitleBar.onCreateWindow(window);   // ★ DT-1 B (Q1) → #1392 → #1395: the caption "Spixi" on the Windows look (the only way)
 #endif
 #if MACCATALYST
             window.Created += (s, e) => ThemeManager.applyMacWindowAppearance();   // ★ E-W7: the title follows the app theme from the first frame

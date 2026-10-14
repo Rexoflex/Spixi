@@ -121,6 +121,15 @@
    the chips row (.c-wallet-tools) and the sync row (.c-scanprog). Was spacing-12 (txlist-item.css):
    4px off on both sides. Logical, so RTL mirrors it. */
 .c-wallet-txlist > .c-txlist-item { padding-inline: var(--spacing-16); }
+/* ★ S20 J2 (#1440): the day-group header (not sticky) */
+.c-wallet-day {
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-4);
+  font-family: var(--font-secondary);
+  font-size: 13px;
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
 
 /* just-sent flash (#136): one ~2s wash pulse guiding the eye to the fresh row.
    Raw 2s duration sanctioned like the #117 handshaking pulse (no token this long);

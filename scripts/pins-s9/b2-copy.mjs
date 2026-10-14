@@ -2,6 +2,7 @@
  * On the BUILT intro.html / settings.html (jsdom):
  *   · Create: NO "Wallet password" group label (the profile label stays), the two hint lines in order, the new
  *     callout title + body, and an empty password submits to "Choose a password." (no "wallet")
+ *     ★ re-based by S20 T (ON-1): the two-step Create — the same intents on the new screen (see the block)
  *   · the same screen under ?lang=de-de paints the de-de DRAFTS of the new keys (the keys reach the dictionaries)
  *   · A-10: the welcome slide and the About text say "End-to-end encrypted" and never "on your device" for messages
  * Deliberate breaks: see the S9 B2 report. */
@@ -12,31 +13,36 @@ export default async function (h) {
   const view = (d) => d.querySelector('[data-launch-view="create"]');
   const texts = (el, sel) => (el ? [...el.querySelectorAll(sel)].map((e) => e.textContent) : []);
   try {
-    /* —— Create, English —— */
+    /* —— Create, English —— ★ re-based by S20 T (ON-1, #1420–#1422): create is two steps; the INTENT holds —
+       no "Wallet password" anywhere on Create, the length rule up front (now the live "10+ characters" check),
+       the write-it-down banner, an empty password never reaches C# and nothing on the screen says "wallet password". */
     let s = await boot('intro.html');
     s.push('setLaunchView', 'create');
     await sleep(250);
     let v = view(s.d);
-    const labels = texts(v, '.c-launch__group-label');
-    ok(!!v && labels.length === 1 && labels[0] === 'Your profile',
-      '★ S9 #1246 O=A: the Create screen has no password group label — only "Your profile" — ' + JSON.stringify(labels));
-    const hints = texts(v, '.c-launch__hint');
-    ok(JSON.stringify(hints) === JSON.stringify(['Use at least 10 characters.', 'Use a long phrase that is easy for you to remember.']),
-      '★ S9 #1246 O=A: the two hint lines, length first, then the phrase line — ' + JSON.stringify(hints));
-    const cTitle = (v && v.querySelector('.c-launch__callout-title') || {}).textContent;
-    const cBody = (v && v.querySelector('.c-launch__callout-body') || {}).textContent;
-    ok(cTitle === 'Write this password down'
-      && cBody === 'It protects your account and wallet on this device. Nobody can reset it, not even Spixi.',
-    '★ S9 #1246 O=A: the callout says "Write this password down" + the reset line — ' + JSON.stringify([cTitle, cBody]));
-    /* an empty password → the new error (nick filled so the nick check passes) */
+    const typeIn = (el, val) => { if (el) { el.value = val; el.dispatchEvent(new s.W.Event('input', { bubbles: true })); } };
     const nick = v && v.querySelector('input[data-field="nick"]');
-    if (nick) { nick.value = 'Ana'; nick.dispatchEvent(new s.W.Event('input', { bubbles: true })); }
-    const cta = v && [...v.querySelectorAll('.c-launch__footer button')].pop();
+    typeIn(nick, 'Ana');
+    const next = v && v.querySelector('[data-step="1"] .c-launch__footer button');
+    if (next) next.click();
+    await sleep(50);
+    const labels = texts(v, '.c-launch__field-label');
+    ok(!!v && JSON.stringify(labels) === JSON.stringify(['Nickname', 'Password', 'Confirm password']) && !/wallet password/i.test(v.textContent),
+      '★ S9 #1246 O=A (S20 T re-base): the Create screen never says "Wallet password" — the fields say Nickname / Password / Confirm password — ' + JSON.stringify(labels));
+    const checks = texts(v, '.c-launch__check');
+    ok(JSON.stringify(checks) === JSON.stringify(['10+ characters', 'Passwords match']),
+      '★ S9 #1246 O=A (S20 T re-base): the length rule is shown UP FRONT, before any typing — the live check "10+ characters" (ENC_MIN), then the match check — ' + JSON.stringify(checks));
+    const cTitle = (v && v.querySelector('.c-launch__banner-title') || {}).textContent;
+    const cBody = (v && v.querySelector('.c-launch__banner-body') || {}).textContent;
+    const desk = s.d.documentElement.hasAttribute('data-desktop');   // jsdom's UA reads as a desktop OS
+    ok(cTitle === 'Write this password down'
+      && cBody === 'It unlocks your account and wallet on this ' + (desk ? 'device' : 'phone') + '. Nobody can reset it, not even Spixi.',
+    '★ S9 #1246 O=A (S20 T re-base): the banner says "Write this password down" + the reset line (the platform word) — ' + JSON.stringify([cTitle, cBody]));
+    /* an empty password → the commit stays OFF (nick filled so the nick step passes) */
+    const cta = v && v.querySelector('[data-step="2"] .c-launch__footer button');
     if (cta) cta.click();
     await sleep(50);
-    const errEl = v && v.querySelector('.c-launch__body [role="alert"]');
-    const errText = errEl && !errEl.hidden ? errEl.textContent : '';
-    ok(errText === 'Choose a password.', '★ S9 #1246: an empty password says "Choose a password." (no "wallet") — ' + JSON.stringify(errText));
+    ok(!!cta && cta.disabled, '★ S9 #1246 (S20 T re-base): an empty password cannot commit — "Create my account" is off');
     ok(s.sent.every((c) => !/^ixian:create:/.test(c)), '★ S9 #1246: the empty-password submit sends no create verb');
     /* A-10 on the welcome slides (same document) */
     const all = s.d.body.textContent;
@@ -44,15 +50,16 @@ export default async function (h) {
       '★ S9 A-10 (#1245): the welcome slide says "End-to-end encrypted …", never "Encrypted on your device"');
     s.dom.window.close();
 
-    /* —— Create, de-de: the new keys come from the drafts —— */
+    /* —— Create, de-de: the keys come from the drafts —— (★ S20 T re-base: the hint lines are gone; the banner
+       title + the field label are the translated keys this screen still reads) */
     s = await boot('intro.html', { query: 'lang=de-de' });
     s.push('setLaunchView', 'create');
     await sleep(250);
     v = view(s.d);
-    const deHints = texts(v, '.c-launch__hint');
-    const deTitle = (v && v.querySelector('.c-launch__callout-title') || {}).textContent;
-    ok(deHints[1] === 'Nimm einen langen Satz, den du dir leicht merken kannst.' && deTitle === 'Schreib dir dieses Passwort auf',
-      '★ S9 #1246: the de-de Create screen paints the NEW keys from the drafts — ' + JSON.stringify([deHints[1], deTitle]));
+    const deLabels = texts(v, '.c-launch__field-label');
+    const deTitle = (v && v.querySelector('.c-launch__banner-title') || {}).textContent;
+    ok(deLabels[1] === 'Passwort' && deTitle === 'Schreib dir dieses Passwort auf',
+      '★ S9 #1246: the de-de Create screen paints the translated keys from the drafts — ' + JSON.stringify([deLabels[1], deTitle]));
     s.dom.window.close();
 
     /* —— A-10 in Settings → About —— */

@@ -489,6 +489,9 @@ export function attachPressFeedback({
        never activate reads as a broken press. Scoped to the ancestor test, so
        every surface outside the selecting container keeps its feedback. */
     if (t.closest('[data-selecting]')) return;
+    /* ★ S20 C (#1377, #46 S20 r1): the app tile's trailing Run (and the older ⋮ / ⓘ) is its OWN control with its own :active
+       fill — a press that starts on it must not arm the tile's row sweep (the tile tap = details, Run = launch). */
+    if (t.matches('.c-app-item') && e.target.closest('.c-app-item__run, .c-app-item__menu, .c-app-item__info')) return;
     // D-16: a re-press interrupts the target's own afterlife (fade cancelled, the
     // press re-lights from the layer's current paint — the transform is already at
     // scaleX(1), so no re-sweep plays). Other rows' fades keep playing.

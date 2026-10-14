@@ -14,7 +14,6 @@
    untouched (the W9-④ scope). pressable.js carries the matching opt-out for the
    committed-fill mechanism ([data-selecting] ancestor bail). */
 [data-selecting] .c-bubble-row .c-button,
-[data-selecting] .c-bubble-row .c-tcard__details-btn,
 [data-selecting] .c-bubble-row .c-fbubble,
 [data-selecting] .c-bubble-row .c-fbubble__cancel,
 [data-selecting] .c-bubble-row .c-bubble-retry,

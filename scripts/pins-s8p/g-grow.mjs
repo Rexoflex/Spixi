@@ -1,4 +1,8 @@
 /* ==== S8 PICKS (P-G) — #1238 THE COMPOSER STRIP GROWS, on the BUILT chat shell (jsdom; the shared 7b boot kit).
+ * ★ re-based by S20 P (#1378, "keep the grow, it needs to be smooth"): the grow is a CLIP on the pill (inset(40px … round r)
+ * → inset(0px …)), the strip in the layout at full size from the first frame — no height / padding / margin keyframe; the
+ * S8 timings, the content fade, the swap, the held close, the m-5 reopen, the stall belt and reduced motion are unchanged.
+ * The bar reports 60 px + 40 for a strip. Full motion + reserve behaviour: pins-s20/p-strip.mjs.
  * jsdom has no WAAPI, so Element.prototype.animate is a RECORDING stub (the call, its keyframes, its options; finish /
  * cancel driven by the pin) and the strip reports a 40 px box. Asserted:
  *   · a FRESH Reply strip grows: ONE animate on the strip, duration = --duration-200, easing = --easing-standard, no
@@ -12,7 +16,7 @@
  *   · a timeline that never ticks (no onfinish) still ends: the strip leaves after the duration + slack; a PAUSED one stays
  *   · reduced motion (--duration-200: 0ms): no animate, the close is immediate
  *   · the slot ResizeObserver pins the log IN its callback: a grow while at the bottom puts scrollTop at the end
- *     before any frame runs (the rAF stays as the belt) ==== */
+ *     before any frame runs (★ S20 P: through setLogReserve; the S8 rAF belt is gone) ==== */
 import { s1Kit } from '../pins-s7b/s1-boot.mjs';
 
 export default async function (h) {
@@ -30,10 +34,19 @@ export default async function (h) {
       calls.push(a);
       return a;
     };
-    Object.defineProperty(W.HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return this.classList && this.classList.contains('c-composer__ctx') ? 40 : 0; } });
+    const none = (el) => el.style && el.style.display === 'none';
+    Object.defineProperty(W.HTMLElement.prototype, 'offsetHeight', { configurable: true, get() {
+      if (!this.classList) return 0;
+      if (this.classList.contains('c-composer__ctx')) return none(this) ? 0 : 40;
+      if (this.classList.contains('c-composer')) { const c = this.querySelector('.c-composer__ctx'); return 60 + (c && !none(c) ? 40 : 0); }
+      return 0;
+    } });
     return calls;
   };
-  const onStrip = (calls) => calls.filter((c) => c.el.classList.contains('c-composer__ctx'));
+  /* ★ S20 P re-base: the strip's motion = the pill's CLIP (the field) + the strip's content fade; onStrip = the clip */
+  const onStrip = (calls) => calls.filter((c) => c.el.classList.contains('c-composer__field'));
+  const fadeOf = (calls, st) => calls.filter((c) => c.el === st).pop();
+  const clipPx = (fr) => { const m = /^inset\(([\d.]+)px 0px 0px 0px round /.exec(String((fr && fr.clipPath) || '')); return m ? parseFloat(m[1]) : NaN; };
 
   await guard('S8 #1238 grow', async () => {
     const s = await open({ caps: 'reply,edit' });
@@ -45,13 +58,14 @@ export default async function (h) {
     await pick(W, d, 'aa05', 'Reply');
     const o = onStrip(calls);
     const st = strip(d);
-    r.oneOpen = o.length === 1 && o[0].el === st;
-    const fr = o[0] ? o[0].frames : [];
+    r.oneOpen = o.length === 1 && o[0].el === field(d) && !!st && st.parentElement === field(d);
+    const fr = fadeOf(calls, st) ? fadeOf(calls, st).frames : [];
     r.openTiming = !!o[0] && o[0].opts.duration === 200 && /cubic-bezier\(0\.2, ?0, ?0, ?1\)/.test(o[0].opts.easing) && (o[0].opts.fill || 'none') === 'none';
-    r.openFrames = fr.length === 3 && fr[0].height === '0px' && fr[0].paddingTop === '0px' && fr[0].marginTop === '0px' && fr[0].borderBottomWidth === '0px'
-      && Number(fr[0].opacity) === 0 && fr[1].offset === 0.3 && Number(fr[1].opacity) === 0 && fr[2].offset === 1 && Number(fr[2].opacity) === 1 && 'height' in fr[2];
+    r.openFrames = !!o[0] && clipPx(o[0].frames[0]) === 40 && clipPx(o[0].frames[1]) === 0
+      && fr.length === 3 && Number(fr[0].opacity) === 0 && fr[1].offset === 0.3 && Number(fr[1].opacity) === 0 && fr[2].offset === 1 && Number(fr[2].opacity) === 1
+      && calls.every((c) => c.frames.every((x) => !('height' in x) && !('paddingTop' in x) && !('marginTop' in x)));
     o[0] && o[0].finish();
-    r.openSettled = !st.hasAttribute('data-closing') && st.style.overflow === '';
+    r.openSettled = !st.hasAttribute('data-closing');
     /* swap */
     await pick(W, d, 'aa02', 'Edit');
     r.swap = onStrip(calls).length === 1 && d.querySelectorAll('.c-composer__ctx').length === 1 && strip(d).dataset.kind === 'edit' && !d.querySelector('[data-closing]');
@@ -61,8 +75,10 @@ export default async function (h) {
     d.querySelector('.c-composer__ctx-cancel').click();
     const c = onStrip(calls)[1];
     const closing = d.querySelector('.c-composer__ctx[data-closing]');
+    const cf = fadeOf(calls, closing);
     r.closeTiming = !!c && c.opts.duration === 150 && /cubic-bezier\(0\.3, ?0, ?1, ?1\)/.test(c.opts.easing) && c.opts.fill === 'forwards'
-      && c.frames.length === 3 && c.frames[1].offset === 0.5 && Number(c.frames[1].opacity) === 0 && c.frames[2].height === '0px';
+      && clipPx(c.frames[0]) === 0 && clipPx(c.frames[1]) === 40
+      && !!cf && cf.frames.length === 3 && cf.frames[1].offset === 0.5 && Number(cf.frames[1].opacity) === 0;
     r.closingInert = !!closing && closing.hasAttribute('inert') && closing.parentElement === field(d);
     r.ctxGoneAtOnce = W.Spixi.getComposerContext(comp) === null && field(d).dataset.ctx === 'closing';
     await sleep(20);
@@ -78,14 +94,14 @@ export default async function (h) {
     await sleep(20);
     /* a REPLY close too (an edit's close also flips the send disc's data-ctx, which would sync the mirror on its own) */
     r.replyMirrorOffNow = sent.slice(n1).filter((x) => /^ixian:chatoverlay:/.test(x)).pop() === 'ixian:chatoverlay:0' && !!d.querySelector('[data-closing]');
-    /* ★ #46 r1 (S8 picks m-5): the closing strip is part-way down (23 px on screen) — the new strip grows FROM that box,
-       never from 0 (a close + reopen inside 150 ms dropped the slot 32 px in one frame) */
-    closingA.el.style.height = '23px';
+    /* ★ #46 r1 (S8 picks m-5): the closing strip is part-way down (23 of its 40 px still on screen) — the new strip grows
+       FROM that pill, never from 0 (★ S20 P re-base: the close's clip progress; 17 px clipped → the new clip starts at 17) */
+    closingA.effect = { getComputedTiming: () => ({ progress: 17 / 40 }) };
     await pick(W, d, 'aa01', 'Reply');
     const fresh = onStrip(calls).pop();
     r.closingDropped = closingA.cancelled && d.querySelectorAll('.c-composer__ctx').length === 1 && !d.querySelector('[data-closing]')
       && fresh !== closingA && field(d).dataset.ctx === 'reply';
-    r.reopenFromOnScreen = !!fresh && fresh.frames[0].height === '23px' && Number(fresh.frames[0].opacity) === 0 && fresh.frames[2].offset === 1;
+    r.reopenFromOnScreen = !!fresh && clipPx(fresh.frames[0]) === 17 && clipPx(fresh.frames[1]) === 0 && !!fadeOf(calls, strip(d)) && Number(fadeOf(calls, strip(d)).frames[0].opacity) === 0;   // ★ S20 #46 r1: the content still fades in
     fresh.finish();
     /* a timeline that never ticks: no onfinish → the strip still leaves (duration + slack); a paused one stays */
     d.querySelector('.c-composer__ctx-cancel').click();
@@ -128,7 +144,7 @@ export default async function (h) {
     /* the pill grows 60 → 100 and the log's reserve with it: at the bottom before, at the end AFTER THE CALLBACK — no frame */
     g.pill = 100; g.sh = 3440;
     fire();
-    r.pinnedInCallback = top === 2840;
+    r.pinnedInCallback = top === 2840;   // ★ S20 P re-base: through setLogReserve, still IN the callback
     /* a reader scrolled up keeps their place */
     top = 1000; g.pill = 140; g.sh = 3480;
     fire();

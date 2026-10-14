@@ -1003,7 +1003,7 @@ button.c-bubble__sender {
 .c-bubble[data-emoji-only] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--text-neutral-02); }
 .c-bubble-row[data-direction="sent"] .c-bubble[data-emoji-only] { display: flex; flex-direction: column; align-items: flex-end; }
 /* ★ #1044 (Damir 2026-09-29, screenshots: the outgoing sticker's time + ticks sat on the grey canvas
-   chip, where the sent-tick inks — the near-white delivered at 0.571, the mint read — were near
+   chip, where the sent-tick inks — the near-white delivered (then 0.571, #1377: 0.7), the mint read — were near
    invisible in light): an OUTGOING emoji-only message's meta chip is the SENT bubble's colour, so
    its time and ticks are exactly the ones every other outgoing message shows (same inks, same
    contrast the bubble already measures — meta 5.05:1, read mint 4.52:1). Received stickers keep the
@@ -1229,35 +1229,24 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    a box-level opacity would cap the read tick at 0.7 too, since a child can never be
    more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
    be dimmed — the #48 rule). Received bubbles were untouched until #1041 (below). */
-/* ★ S9 U-03 (#1247, measured): 0.92 lifts the sent time from 3.30:1 to 4.53:1 light · 4.41:1 to 6.37:1 dark. */
-.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.92; }
+/* ★ S9 U-03 (#1247) had lifted the sent time to 0.92 (4.5:1) · ★★ S20 Q (#1377 B, Damir's dial option 2): the time, the ✓
+   (sent) and the ✓✓ (delivered) are ONE quiet weight again — the token, 0.7 — and only read + failed stand out at 1 (below).
+   Damir's knowing trade, measured on the built shells: the ticks ≥ 3:1 on 13 of 14 colour × theme pairs; the time under
+   4.5:1 on 11 / 14 (the incoming #1041 trade). The #692 delivered-only 0.571 rule is gone (this rule carries the tick). */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: var(--bubble-meta-opacity-sent); }
 /* ★ #1041 (Damir 2026-09-29, screenshot: "the incoming timestamp should be reduced opacity as well,
    it clashes with the actual message"): the RECEIVED meta row takes the same 0.7 on its children —
    one timestamp weight on both sides of the conversation. ⚠ Measured, and Damir's knowing trade (the
    A9 precedent on the sent side): 0.7 puts the light timestamp at 3.51:1 on the white bubble (dark
    5.14:1) — under 4.5:1 for small text in LIGHT. The timestamp is secondary metadata; the message is
    the content. Reversal = delete this rule. */
-.c-bubble-row[data-direction="received"] .c-bubble__meta > * { opacity: 0.7; }
+.c-bubble-row[data-direction="received"] .c-bubble__meta > * { opacity: var(--bubble-meta-opacity-received); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"],
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { opacity: 1; }
-/* ★ E1 (Damir 2026-08-29): the DELIVERED double-check drops below the rest of the
-   meta row so the READ tick separates. The measurement is the reason this is a real
-   change and not a preference: on the #1956b2 bubble the two glyphs were almost the
-   same LIGHTNESS — delivered L* 76.8, read L* 75.3 — and differed only in hue, which
-   is exactly why read did not pop. At 0.571 delivered lands at L* 70.0 and ΔE(read,
-   delivered) goes 43.3 → 48.6.
-   ⚠ 0.571, not the 0.525 that "reduce alpha by 25%" reads as literally: 0.525 puts
-   the glyph at 2.76:1 against the bubble, under the 3:1 non-text contrast floor this
-   file already tracks (audit findings 1+2, two rules up). 0.571 sits exactly ON 3.00:1
-   — an 18.4% reduction — and Damir took that trade knowingly.
-   ★ This targets the DELIVERED glyph ALONE. It must not be folded into the blanket
-   `.c-bubble__meta > *` rule above, which also carries the timestamp and the edited
-   marker; those stay at 0.7. And it needs no dark-mode twin: the sent bubble is the
-   same #1956b2 in both themes and --icon-bubble-delivered resolves to the same
-   --text-bubble-sent-meta in both, so ONE rule genuinely covers both modes. */
-.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { opacity: 0.571; }
+/* ★ E1 (#692, 2026-08-29) dropped the DELIVERED tick alone to 0.571 so read separated on lightness — RETIRED by #1377 B (S20):
+   the delivered tick takes the blanket sent-meta token above with the time and the ✓; read keeps its mint at 1. */
 /* ★ Session X (Damir 2026-09-17): the ticks keep ONE weight and ONE size — COLOUR is the only
-   differentiator (delivered = the meta ink at 0.571, read = --icon-bubble-read, the mint that
+   differentiator (delivered = the meta ink at the sent-meta opacity (#1377), read = --icon-bubble-read, the mint that
    clears 4.5:1 on the bubble). A heavier read tick shipped for one build and was REVERSED on
    his word (#877). Nothing here may thicken, enlarge or restyle a tick by state. */
 /* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
@@ -1432,7 +1421,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* ★ #1010 (10b): a LIVE tick change fades in (160ms) instead of snapping — setMessageStatus
    adds the class only outside the load burst. Reduced motion: no animation. */
 /* ⚠ #1012 (Opus r1 M2): NO `to` keyframe and fill `backwards` — a `to { opacity: 1 }` held by fill
-   `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered 0.571 /
+   `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered (now the #1377 sent-meta 0.7) /
    A9 sent 0.7 dims. The animation now runs from 0 to the element's OWN computed value and lets go. */
 /* ★ B10 (#1084 OV.10, measured: the 160 ms front-loaded fade read as a swap): 300 ms, symmetric curve, grows from 0.7. = TICK_FADE_MS / TICK_REPLAY_MS. */
 @keyframes c-tick-in { from { opacity: 0; transform: scale(0.7); } }
@@ -2342,10 +2331,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-tcard {
   /* #337 (W4 ride-along): card rail = --layout-card-max, NOT the text-bubble
      token — the 680px desktop bubble raise must not stretch fixed-width cards */
-  /* ★ #591 (Damir 2026-08-26): "all calls and payments bubbles should wrap and not
-     be fixed length." This was a fixed WIDTH, so a two-word payment card was drawn at
-     the full card rail with a lake of empty space beside its text. It hugs its content
-     now and the rail becomes the CAP, which is what the call card has done since #265. */
+  /* ★ #591: cards hug their content; the rail is the cap */
   width: fit-content;
   max-width: min(var(--bubble-max-pct), var(--layout-card-max));
   padding: var(--spacing-12);
@@ -2376,12 +2362,6 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    sentence and a sentence should wrap. */
 .c-tcard__title, .c-tcard__call-meta, .c-tcard__note { overflow-wrap: anywhere; }
 
-.c-tcard__head {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  margin-bottom: var(--spacing-8);
-}
 .c-tcard__title {
   flex: 1;
   min-width: 0;
@@ -2401,32 +2381,50 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--text-neutral-02);
 }
 
-/* amount (payment) — Sora, tone-driven per Figma */
+/* amount (payment), tone-driven · S20 J1 (#1440); only the number is struck (declined / canceled). #46 r1 MINOR-4 (the #1013
+   r2 M1): a long amount WRAPS ("IXI" first, then the number) and never leaves the bubble */
 .c-tcard__amount {
+  margin-top: var(--tcard-stack-gap);
   font-family: var(--font-primary);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-heading-sm);
-  line-height: var(--line-height-heading-sm);
-  letter-spacing: var(--tracking-heading-sm);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--tcard-amount-size);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 /* ★ #1004 (D-03, Damir 2026-09-28): a pending amount is NOT a warning — orange read as an error.
    The status (chip / quiet foot) carries "pending"; the number stays the primary ink. Was --text-warning. */
 .c-tcard__amount[data-tone="pending"] { color: var(--text-neutral-01); }
 .c-tcard__amount[data-tone="positive"] { color: var(--text-amount-positive); }   /* ★ #1048 */
 .c-tcard__amount[data-tone="neutral"] { color: var(--text-neutral-01); }
-.c-tcard__amount[data-tone="void"] {
-  color: var(--text-neutral-disabled);
-  text-decoration: line-through;
-}
-.c-tcard__unit { font-size: 0.62em; font-weight: var(--font-weight-bold); } /* 0.62 sanctioned: IXI/amount ratio from Figma payment cards */
+.c-tcard__amount[data-tone="void"] { color: var(--text-neutral-disabled); }
+.c-tcard__amount[data-strike] .c-tcard__num { text-decoration: line-through; text-decoration-thickness: 2px; }
+.c-tcard__unit { font-size: var(--tcard-unit-size); font-weight: var(--font-weight-semibold); letter-spacing: 0; }
 .c-tcard__fiat {
-  font-size: var(--font-size-body-sm);
+  margin-top: var(--spacing-2);
+  font-size: var(--tcard-label-size);
   line-height: var(--line-height-body-sm);
   color: var(--text-neutral-02);
 }
 .c-tcard__fiat[data-tone="void"] { text-decoration: line-through; color: var(--text-neutral-disabled); }
 
-.c-tcard__badge { margin-top: var(--spacing-8); }
+/* ★ S20 J1 (#1440): the stacked payment bubble — layout + type size only; colours are the .c-tcard rules above */
+.c-tcard[data-layout="stack"] {
+  position: relative;
+  min-width: min(var(--bubble-max-pct), var(--tcard-stack-min));
+  padding: var(--tcard-stack-gap) var(--spacing-12) var(--tcard-pad-end);
+}
+.c-tcard[data-layout="stack"][data-acts] { min-width: min(var(--bubble-max-pct), var(--tcard-stack-min-acts)); }
+.c-tcard__top { display: flex; align-items: center; gap: var(--spacing-8); }
+.c-tcard__top > .c-tcard__medallion { width: var(--size-avatar-24); height: var(--size-avatar-24); }
+.c-tcard__top > .c-tcard__label { flex: 1 1 auto; font-size: var(--tcard-label-size); line-height: 1.2; }
+.c-tcard__top > .c-tcard__time { margin-inline-start: auto; }
+.c-tcard__bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--tcard-stack-gap); margin-top: var(--tcard-stack-gap); }
+.c-tcard__badge { display: inline-flex; }
+.c-tcard[data-layout="stack"] > .c-tcard__actions { position: relative; z-index: 1; margin-top: var(--tcard-stack-gap); }
+.c-tcard[data-layout="stack"] > .c-tcard__hit { inset: 0; }
 
 /* ★ #1020: a card that ACTS (the full card, #996) is at least wide enough for its two buttons side
    by side — #591's hug made a short app name stack Decline over Join as two full-width slabs. It
@@ -2438,14 +2436,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   gap: var(--spacing-8);
   margin-top: var(--spacing-12);
 }
-/* r2 backlog B4: flex:1 + nowrap labels overflowed the card at <320px —
-   buttons may shrink, labels ellipsize.
-   ★ Session J (Damir, de-de screenshot "App star…": "in some languages the buttons in
-   bubbles are not visible completely — should be full"): the ELLIPSIS IS GONE. A button
-   keeps its label's full width as its minimum (no `min-width: 0`), the row WRAPS, so on
-   a card too narrow for "Abbrechen" + "App starten" side by side the second button drops
-   to its own full-width row instead of losing its verb. The B4 overflow cannot return:
-   wrapping is what absorbs it now. Reversal = `min-width: 0` + the ellipsis trio. */
+/* r2 B4 → ★ Session J: no ellipsis — a button keeps its label's width and the row WRAPS (de-de "App starten") */
 .c-tcard__actions .c-button { flex: 1 1 auto; }
 /* ★ #1020: TWO actions sit side by side, equal width (secondary · primary) — actionsRow stamps
    data-width="full" (button.css: width 100%), which forced every pair onto two rows however wide
@@ -2461,30 +2452,6 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--text-neutral-02);
 }
 
-/* Details › — hairline above, action-ink link row */
-.c-tcard__details {
-  margin-top: var(--spacing-12);
-  padding-top: var(--spacing-8);
-  border-top: var(--outline-width-1) solid var(--outline-card-divider);   /* ★ #993: own role — invisible on the dark received card (#989 review M1) */
-}
-.c-tcard__details-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  border: 0;
-  background: transparent;
-  padding: var(--spacing-4) 0;
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-label-sm);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--tracking-label-sm);
-  color: var(--text-action-default);
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  .c-tcard__details-btn:hover { color: var(--text-action-hover); }
-}
-.c-tcard__details-btn:active { color: var(--text-action-pressed); }
 
 /* app identity row */
 .c-tcard__app {
@@ -2517,6 +2484,12 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);   /* sanctioned: the #1001 avatar initials shadow */
 }
 .c-tcard__app-info { display: flex; flex-direction: column; min-width: 0; }
+/* ★ S20 J4 (#1440): the full app card, no header */
+.c-tcard[data-kind="app"]:not([data-layout]) .c-tcard__app-icon { width: var(--size-avatar-48); height: var(--size-avatar-48); }
+.c-tcard__app-line { display: flex; align-items: baseline; gap: var(--spacing-8); min-width: 0; }
+.c-tcard__app-line > .c-tcard__time { margin-inline-start: auto; }
+.c-tcard[data-kind="app"]:not([data-layout]) .c-tcard__app-name { font-size: var(--tcard-app-name-size); line-height: 1.25; font-weight: var(--font-weight-bold); min-width: 0; }
+.c-tcard[data-kind="app"]:not([data-layout]) .c-tcard__app-sub { font-size: var(--tcard-label-size); line-height: 1.3; font-weight: var(--font-weight-semibold); }
 .c-tcard__app-name {
   font-size: var(--font-size-label-md);
   line-height: var(--line-height-label-md);
@@ -2627,11 +2600,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   flex: none;
   transition: filter var(--duration-100) var(--easing-standard);
 }
-/* ★★ #1031 (dial M3, #1022): the white extension label is 11px bold — WCAG wants 4.5:1, and on the
-   raw avatar gradients it read 2.7–3.3:1 at the label's height (the tile's midpoint). A uniform 25% black
-   SHADE under the family gradient lifts every family to ≥ 4.5:1 at the midpoint (computed in the suite:
-   code 4.52 is the floor) while keeping the hue — the avatars keep the raw pairs (#364 covers initials).
-   One token, so the whole ladder moves together; rendered before/after both themes. */
+/* ★★ #1031: a uniform 25% shade under the family gradient keeps the white 11px label ≥ 4.5:1 (code 4.52 = the floor) */
 .c-fbubble__icon { background: var(--tile-shade), var(--disc-grad-neutral); }
 .c-fbubble__icon[data-kind="pdf"]     { background: var(--tile-shade), var(--disc-grad-11); }   /* rose */
 .c-fbubble__icon[data-kind="doc"]     { background: var(--tile-shade), var(--disc-grad-7); }    /* blue */
@@ -2691,6 +2660,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-fbubble[data-state="failed"] .c-fbubble__meta { color: var(--text-error); }
 .c-fbubble__meta[data-cta] { color: var(--text-action-default); font-weight: var(--font-weight-semibold); }   /* ★ #1021: "Tap to download" reads as the action */
 .c-fbubble__meta[data-pct] { font-variant-numeric: tabular-nums; }
+/* ★ S20 Q (#1376): the photo tile's offer line — the size in the quiet ink, a break between the two units */
+.c-mbubble__cta > .c-fbubble__size { color: var(--text-neutral-02); font-weight: var(--font-weight-regular); font-variant-numeric: tabular-nums; }
+.c-fbubble__size, .c-fbubble__go { display: inline-block; }
 .c-fbubble__track {
   height: var(--spacing-4);
   border-radius: var(--radius-full);
@@ -2714,15 +2686,6 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   font-size: var(--font-size-body-xs);
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
-}
-/* "Open file" affordance — complete state only (A8b). Link-like accent text so a
-   finished download reads as actionable; the whole bubble is the button. */
-.c-fbubble__open {
-  margin-top: var(--spacing-4);
-  font-size: var(--font-size-label-sm);
-  line-height: var(--line-height-label-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-action-default);
 }
 
 /* ★ #1190 (#1173 (4)): my file not on this device — the compact card, no tap feedback */
@@ -2752,10 +2715,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
 }
-/* ★★ #1028 (walk P.22): a SENT file's time + delivery tick — one stamp, the text bubble's meta grammar
-   (time · tick, the same 2px gap the #1028 tick crossfade overlaps by). sending/sent/delivered read in the
-   stamp's own neutral ink (delivered stays neutral, iOS-16 #283); READ is the success green, as on a text
-   bubble; each tone is ≥ 3:1 on the sent card in both themes (smoke #1028, computed). */
+/* ★★ #1028 (P.22): a SENT file's time + tick = one stamp (the text bubble's meta grammar) */
 .c-fbubble__stamp {
   align-self: flex-end;
   flex: none;
@@ -2828,6 +2788,30 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 @media (hover: hover) and (pointer: fine) {
   .c-bubble-row > .c-fbubble__cancel:hover { color: var(--text-action-hover); }
 }
+/* ★ S20 J3 (#1440): the file card's Cancel = a ✕ in the tile-badge look, on the tile's corner (12 + 40 − 20 + 6; centred + 6) */
+.c-fbubble__pair { position: relative; display: flex; min-width: 0; max-width: min(var(--bubble-max-pct), var(--layout-card-max)); }
+.c-fbubble__pair > .c-fbubble { max-width: 100%; }
+.c-fbubble__pair > .c-fbubble__cancel[data-on-tile] {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: calc(var(--spacing-12) + var(--fbubble-badge-x));
+  top: calc(50% + var(--fbubble-badge-y));
+  width: var(--fbubble-badge-size);
+  height: var(--fbubble-badge-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-action-default);
+  color: var(--text-neutral-on-action);
+  box-shadow: 0 0 0 var(--fbubble-badge-ring) var(--surface-bubble-received);
+  cursor: pointer;
+}
+.c-bubble-row[data-direction="sent"] .c-fbubble__pair > .c-fbubble__cancel[data-on-tile] { box-shadow: 0 0 0 var(--fbubble-badge-ring) var(--surface-card-sent); }
+.c-fbubble__cancel[data-on-tile]::after { content: ''; position: absolute; inset: calc((var(--fbubble-badge-size) - var(--size-target-min)) / 2); border-radius: var(--radius-full); }   /* a ≥ 44 px hit, the visual unchanged */
+.c-fbubble__cancel[data-on-tile]:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 2px; }
 
 /* ★ B2 (#533 ①): the app card's terminal tombstones — declined (theirs) / canceled (mine)
    read VOID: muted name + sub, the icon dimmed. Nothing else on the card changes. */
@@ -2836,17 +2820,9 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-tcard[data-state="declined"] .c-tcard__app-name,
 .c-tcard[data-state="canceled"] .c-tcard__app-name { color: var(--text-neutral-02); }
 
-/* ★★ #996 THE RESKIN (Damir's pick: "keep today's cards, but have compact for settled") — the
-   COMPACT pill for a payment/app card with no button, and the shared medallion + padding the
-   one-row call card (#1006) reads too. A card with a button keeps the full .c-tcard rules above.
-   Surfaces, edges and lift are the .c-tcard rules above (#989 / #1003 tokens). */
-.c-tcard[data-layout] { padding: var(--spacing-8) var(--spacing-12); }
-/* The pill is a 2-column grid: the medallion spans the rows; the label takes the first line; the
-   value and the foot share ONE wrapping line (.c-tcard__line) — ★ #1013 (Opus r2 M1): the old
-   3-column grid (value · foot in their own tracks, minmax(max-content, …)) pushed the foot PAST the
-   card edge on 320–430px phones (measured +2…+79px); in a wrapping line the foot drops under the
-   amount, end-aligned, and nothing leaves the card. A long localized label still wraps on its own
-   line and never squeezes the amount. */
+/* ★★ #996 the COMPACT pill (settled app cards since S20 J1) + the shared medallion the call row (#1006) reads. */
+.c-tcard[data-layout="compact"] { padding: var(--spacing-8) var(--spacing-12); }
+/* the pill: medallion | label over ONE wrapping line (value + foot) — ★ #1013 (r2 M1): the foot drops under, never past the edge */
 .c-tcard__main {
   position: relative;
   display: grid;
@@ -2889,7 +2865,6 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--text-neutral-02);
   overflow-wrap: break-word;
 }
-.c-tcard[data-layout] .c-tcard__amount { white-space: nowrap; }
 .c-tcard__foot {
   margin-inline-start: auto;       /* end-aligned on the amount's line, and on its own line when it wraps */
   display: inline-flex;
@@ -2899,15 +2874,6 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   line-height: var(--line-height-body-xs);
   color: var(--text-neutral-02);
 }
-.c-tcard__status { display: inline-flex; align-items: center; gap: var(--spacing-4); }
-.c-tcard__status-dot {
-  width: 6px;              /* 6 sanctioned: the quiet status dot (#996) — a mark, not a badge */
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--icon-neutral-02);
-}
-.c-tcard__status[data-tone="success"] .c-tcard__status-dot { background: var(--icon-success); }
-.c-tcard__status[data-tone="error"] .c-tcard__status-dot { background: var(--icon-error); }
 /* the whole pill is the Details button: a stretched, transparent hit layer */
 .c-tcard__hit {
   position: absolute;
@@ -2921,15 +2887,13 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
   -webkit-tap-highlight-color: transparent;
 }
 .c-tcard__hit:focus-visible { outline: 2px solid var(--outline-focus); outline-offset: 0; }
-/* the hit layer is the FIRST child, so its states reach the medallion with a sibling
-   combinator (no :has — conservative-CSS baseline).
-   ★ #1013 (r2 m1): the #1012 m6 rule, applied to the pill — dark tonal-hover/-pressed are the
-   SOLID action blue and the medallion ink fell to 1.95:1 on the pressed one. The disc keeps its
-   fill; only the INK moves, exactly as the call-back disc does. */
+/* the hit layer is the FIRST child: a sibling combinator reaches the medallion (no :has); ★ #1013 r2 m1: only the INK moves */
 @media (hover: hover) and (pointer: fine) {
-  .c-tcard__hit:hover ~ .c-tcard__medallion { color: var(--icon-action-hover); }
+  .c-tcard__hit:hover ~ .c-tcard__medallion,
+  .c-tcard__hit:hover ~ .c-tcard__top > .c-tcard__medallion { color: var(--icon-action-hover); }
 }
-.c-tcard__hit:active ~ .c-tcard__medallion { color: var(--icon-action-pressed); }
+.c-tcard__hit:active ~ .c-tcard__medallion,
+.c-tcard__hit:active ~ .c-tcard__top > .c-tcard__medallion { color: var(--icon-action-pressed); }
 /* #1020: a monogram tile keeps its white initial under the pointer (the ink move is for the tonal disc) */
 @media (hover: hover) and (pointer: fine) {
   .c-tcard__hit:hover ~ .c-tcard__app-icon.c-tcard__app-icon--mono { color: #fff; }   /* sanctioned: the white initial (avatar grammar) */
@@ -2937,28 +2901,14 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-tcard__hit:active ~ .c-tcard__app-icon.c-tcard__app-icon--mono { color: #fff; }   /* sanctioned: the white initial (avatar grammar) */
 .c-tcard[data-state="declined"] .c-tcard__medallion,
 .c-tcard[data-state="canceled"] .c-tcard__medallion { opacity: var(--opacity-disabled); }
-/* ★ #1009 (10a): completed = a small check (success ink) instead of the dot; a LIVE completion
-   (data-live-complete, one render only) crossfades the status in and draws the check once (≈400ms). */
-.c-tcard__status-check {
-  width: 12px;               /* 12 sanctioned: the quiet-status mark (#996) — the dot's companion */
-  height: 12px;
-  flex: none;
-  fill: none;
-  stroke: var(--icon-success);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
+/* ★ #1009 → S20 J1: a live completion fades the Completed badge in and wipes its check on (400 ms) */
 @keyframes c-tcard-status-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes c-tcard-check-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-.c-tcard[data-live-complete] .c-tcard__status { animation: c-tcard-status-in var(--duration-200) var(--easing-standard) both; }
-.c-tcard[data-live-complete] .c-tcard__status-check path {
-  stroke-dasharray: 1;
-  animation: c-tcard-check-draw calc(var(--duration-200) * 2) var(--easing-standard) both;   /* 400ms from the token */
-}
+@keyframes c-tcard-check-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.c-tcard[data-live-complete] .c-tcard__badge .c-badge { animation: c-tcard-status-in var(--duration-200) var(--easing-standard) both; }
+.c-tcard[data-live-complete] .c-tcard__badge svg { animation: c-tcard-check-wipe calc(var(--duration-200) * 2) var(--easing-standard) both; }
 @media (prefers-reduced-motion: reduce) {
-  .c-tcard[data-live-complete] .c-tcard__status,
-  .c-tcard[data-live-complete] .c-tcard__status-check path { animation: none; }
+  .c-tcard[data-live-complete] .c-tcard__badge .c-badge,
+  .c-tcard[data-live-complete] .c-tcard__badge svg { animation: none; }
 }
 
 /* ★ S9 U-03 (#1247, measured): 12 % toward black lifts the card's error badge from 4.44:1 to 5.31:1 light · 5.41:1 dark. */
@@ -4179,7 +4129,6 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    untouched (the W9-④ scope). pressable.js carries the matching opt-out for the
    committed-fill mechanism ([data-selecting] ancestor bail). */
 [data-selecting] .c-bubble-row .c-button,
-[data-selecting] .c-bubble-row .c-tcard__details-btn,
 [data-selecting] .c-bubble-row .c-fbubble,
 [data-selecting] .c-bubble-row .c-fbubble__cancel,
 [data-selecting] .c-bubble-row .c-bubble-retry,
@@ -4663,10 +4612,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 /* ═══ ★ #705 (Session G, Damir): the TRAY — the grid UNDER the composer ═══════
    In the document flow, directly after .c-composer, so the conversation shrinks
-   above it the way it does for the keyboard. Height animates 0 → the slot; the
-   slot is a literal because it is the keyboard's height class, not a layout
-   token (sanctioned, one place). overflow hidden so the grid does not paint
-   during the rise. */
+   above it the way it does for the keyboard. The slot is a literal because it is
+   the keyboard's height class, not a layout token (sanctioned, one place).
+   ★★ S20 A (#1378, A1): NO HEIGHT TRANSITION. The tray takes its full height in the
+   frame it opens (data-open lands with data-tray-open) and the rise is a TRANSFORM
+   slide run by attach-sheet.js — a `height` transition re-laid out the whole log on
+   every frame (the slot observer → --composer-h → #messages::after). */
 .c-attach-tray {
   flex: none;
   height: 0;
@@ -4675,7 +4626,6 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   background: var(--surface-composer);
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   padding-inline: var(--spacing-16);
-  transition: height var(--duration-200) var(--easing-standard);
 }
 /* ★ Session AE: max(the keyboard slot, the tray's own tiles). `--tray-content-h` is measured and
    published by attach-sheet.js at mount (publishTrayContentHeight); without it the slot alone
@@ -6271,6 +6221,111 @@ button.c-bubble__sender.c-bubble__sender--tile { padding-inline: var(--bubble-pa
 }
 
 </style><!-- ★ S10 P1 (#1254): the paste / attach strip (replaces the S9 preview sheet) -->
+<style data-src="../styles/components/format-bar.css">
+/* S20 F (#1378): formatted text in the bubble (msg-format.js) + the composer's Aa format bar (format-bar.js).
+   Chip / block fill = the reply quote's pair (received: --surface-bubble-received-quote · sent: --surface-wash-on-hero).
+   The bar is absolute above the composer (the @ popover's family): opening it never changes the composer height. */
+.c-fmt-b { font-weight: var(--font-weight-semibold); }
+.c-fmt-i { font-style: italic; }
+.c-fmt-s { text-decoration: line-through; }
+.c-fmt-code, .c-fmt-pre {
+  font-family: var(--font-mono);
+  background: var(--surface-bubble-received-quote);
+  border-radius: var(--radius-4);
+}
+.c-bubble-row[data-direction="sent"] .c-fmt-code,
+.c-bubble-row[data-direction="sent"] .c-fmt-pre { background: var(--surface-wash-on-hero); }
+.c-fmt-code {
+  font-size: 0.9em;
+  padding: 0 var(--spacing-4);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  overflow-wrap: anywhere;
+}
+/* a block: as typed, scrolls sideways inside the bubble's width */
+.c-fmt-pre {
+  display: block;
+  max-width: 100%;
+  margin: var(--spacing-4) 0;
+  padding: var(--spacing-4) var(--spacing-8);
+  border-radius: var(--radius-8);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: pre;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.c-fmt-pre:first-child { margin-block-start: 0; }
+.c-fmt-pre:last-child { margin-block-end: 0; }
+
+/* the Aa toggle: inside the pill, trailing; the 32 disc (--size-icon-32) fits the one-line row on every text scale (the pill never grows) */
+.c-fmtbar-toggle {
+  flex: none;
+  align-self: flex-end;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon-32);
+  height: var(--size-icon-32);
+  margin-block-end: calc((var(--line-height-body-md) + 2 * var(--composer-input-pad) - var(--size-icon-32)) / 2);
+  margin-inline-end: calc(-1 * var(--spacing-4));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  font: var(--font-weight-semibold) var(--font-size-body-sm)/1 var(--font-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-fmtbar-toggle::after { content: ''; position: absolute; inset: calc((var(--size-icon-32) - var(--size-target-min)) / 2); }
+.c-fmtbar-toggle[aria-pressed="true"] { background: var(--surface-action-tonal-default); color: var(--icon-action-default); }
+@media (hover: hover) and (pointer: fine) {
+  .c-fmtbar-toggle[aria-pressed="false"]:hover, .c-fmtbar__btn:hover { background: var(--surface-interactive-hover); }
+}
+.c-fmtbar-toggle:active, .c-fmtbar__btn:active { background: var(--surface-interactive-pressed); }
+
+.c-fmtbar {
+  position: absolute;
+  inset-inline-end: var(--spacing-12);
+  bottom: calc(100% + var(--spacing-8));
+  z-index: var(--z-30);
+  display: flex;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
+  background: var(--surface-menu);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  box-shadow: var(--elevation-3);
+}
+/* hidden · a recording hides the field · the @ picker owns the spot while open (:has alone: an engine without it drops
+   only that rule) */
+.c-fmtbar[hidden],
+.c-composer[data-rec] > .c-fmtbar { display: none; }
+.c-composer:has(> .c-composer__mentions) > .c-fmtbar { display: none; }
+.c-fmtbar__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--icon-neutral-01);
+  font: var(--font-size-body-md)/1 var(--font-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-fmtbar__btn[data-fmt="bold"] { font-weight: var(--font-weight-semibold); }
+.c-fmtbar__btn[data-fmt="italic"] { font-style: italic; }
+.c-fmtbar__btn[data-fmt="strike"] { text-decoration: line-through; }
+
+</style><!-- S20 F (#1378): formatting + the Aa bar -->
 <!-- ★ W-a (Damir F5 2026-08-23, root cause): the in-chat Pay compose (W5/#523) and
      its review sheet (.c-sendreview) render UNSTYLED without this link — default
      white input on both themes, name + address run-on, review rows concatenated.
@@ -6973,54 +7028,17 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   /* #43: every hover lives inside the hover-capable guard */
   @media (hover: hover) and (pointer: fine) { .chat-older__btn:not(:disabled):hover { background: var(--surface-interactive-hover, var(--surface-card)); } } /* #334 AND-18 guard */
   .chat-older__btn:disabled { cursor: default; color: var(--text-neutral-02); }
-  /* ★★ Session I (#731/#735, sheet 5 — Damir: "the composer must TRULY float, messages
-     pass under the pill"; his screenshot: the log ended above it). #711 made the bar
-     paint as three floating shapes but left it IN THE FLOW, so the log still stopped at
-     its top edge. The slot is absolutely positioned at the canvas bottom now (the canvas
-     is position:relative — message-bubble.css), and the log takes the published
-     --composer-h as its bottom reserve (a spacer box since #993 — padding failed on WebKit),
-     so the last bubble scrolls up out from under the pill and the pattern runs behind it. Everything that composed with the slot keeps
-     composing: the --kb-inset margin lifts an absolute box exactly as it lifted a flex
-     one; the tray mounts INSIDE the slot after the bar and the ResizeObserver republishes
-     the taller height; the request pane only exists in the 'incoming' lock, where the
-     composer is hidden; the chevron + @ FAB already offset by --composer-h. The 760
-     desktop column centres the slot with max-width + auto margins (align-self cannot
-     reach an absolute box). ⚠ NO stacking-context property on the slot or the canvas —
-     the message-menu row lift rule (message-menu.css) still holds. */
+  /* ★★ Session I (#731/#735, Damir: "the composer must TRULY float, messages pass under the pill"): the slot is ABSOLUTE
+     at the canvas bottom and the log takes --composer-h as its bottom reserve (#993), so the last bubble scrolls out
+     from under the pill. ⚠ NO stacking-context property on the slot or the canvas — the message-menu row lift holds. */
   #chat-composer { position: absolute; inset-inline: var(--safe-left, 0px) var(--safe-right, 0px); inset-block-end: 0; }   /* #926: the slot's containing block is the viewport, so it pads itself */   /* the log's matching reserve rides the #messages::after rule above (#993) */
-  /* ★ #711: the @ FAB sits ABOVE the floating composer — --composer-h is written on the
-     canvas by a ResizeObserver over #chat-composer (the chevron reads it in
-     scroll-latest.css). Falls back to 0 where nothing writes it. */
-  /* iOS-29 attempt 4 (#301) — CHANGED LEVER per #294: never resize <body> (that
-     fought WKWebView's own focus pan through three attempts). The flex column
-     keeps its 100% layout height; while the soft keyboard is up the composer is
-     pushed above it by a bottom margin driven from visualViewport (--kb-inset,
-     set by keyboardViewport()), and .c-chat-canvas (flex:1, min-height:0)
-     absorbs the difference — topbar stays, log shrinks, composer lifts.
-     The max(0px, … − var(--safe-bottom, 0px)) does two jobs: WebKit keeps
-     reporting the FULL safe-area inset with the keyboard up (#294 measurement),
-     so the composer's own inset padding is re-used as keyboard clearance
-     (no 34px dead cushion above the keyboard); and with the keyboard closed
-     (--kb-inset: 0) the max() clamps the negative result to 0 so the composer
-     is never pushed INTO the home indicator. */
-  /* ★★ N1 (#976, office walk 2026-09-24): "the keyboard lifts the composer but NOT the message log"
-     — while the ⊕ tray DOES lift it. The cause is Session I (#731): the slot became ABSOLUTE, so this
-     margin lifts the pill and nothing else; the log's bottom padding (--composer-h, the slot's
-     measured border box) never learned about the margin, and on iOS the layout viewport does not
-     shrink under the keyboard (WKWebView — the native lever writes --kb-inset instead). The tray
-     lifts the log because it GROWS the slot, which the ResizeObserver publishes. So the lift is ONE
-     named value, defined once here and read by every box that must clear the pill: the slot's
-     margin, the log's reserve (#messages::after, #993), the chevron and the @ FAB. Android (adjustResize) and desktop never
-     write --kb-inset, so the value is 0 there and nothing moves. */
+  /* iOS-29 (#301): never resize <body>; with the keyboard up the slot is lifted by a bottom margin from --kb-inset
+     (keyboardViewport()); max(0, … − --safe-bottom) re-uses the bar's own inset as clearance and never pushes it into
+     the home indicator. ★★ N1 (#976): the lift is ONE named value read by every box that must clear the pill — the
+     slot's margin, the log's reserve (#messages::after), the chevron and the @ FAB. Android / desktop never write it. */
   :root { --composer-lift: max(0px, calc(var(--kb-inset, 0px) - var(--safe-bottom, 0px))); }
   #chat-composer { margin-bottom: var(--composer-lift, 0px); }
-  /* iOS-53 r2 (#324): ride the keyboard, don't jump it. The native push lands at
-     the keyboard animation's START (WillChangeFrame), so transitioning the margin
-     over ~the keyboard's own duration/curve slides the composer in sync with the
-     keyboard; the canvas + log animate with it (the stick loop in the shell keeps
-     the newest message glued to the bottom through the slide). The bezier is the
-     community-measured UIKit keyboard curve. Engines that never set --kb-inset
-     (Android adjustResize, desktop) never trigger it. Reduced motion: instant. */
+  /* iOS-53 r2 (#324): ride the keyboard — the margin slides over the UIKit keyboard curve. Reduced motion: instant. */
   #chat-composer { transition: margin-bottom 280ms cubic-bezier(0.38, 0.7, 0.125, 1); }
   @media (prefers-reduced-motion: reduce) { #chat-composer { transition: none; } }
   /* ===== DESKTOP (:root[data-desktop]) — grey ground only. Dark desktop deepens
@@ -7469,6 +7487,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     setComposerMedia,               // ★ S10 P1: the composer's strip state — Send with photos, the caption cap (composer.js)
     createPhotoGridBubble, addPhotoGridCell,   // ★ S9 (#1244 G = A): the photo group bubble (media-bubble.js)
     MOSAIC_MAX, setTilePreview,     // ★ S11 G (#1263 a / c): the mosaic's cap · the blurred preview in an offer (media-bubble.js)
+    formatFileSizeOf,               // ★ S20 E (#1402): the paused tile's "1.1 / 2.4 MB"
     formatFileSize,                 // ★ S11 G (#1263 a): "Download all (n) · size" (timestamp.js since #46 r3 F4 — one size format app-wide)
     timeOpts, docLocale,            // ★ S9 a11y (#1206): the row's accessible name says its time like the bubble does (timestamp.js)
     p1Log,                          // ★ S9 (8-GROW-A): the dev-only [P1] grow line (p1.js; no-op unless <html data-p1>)
@@ -7519,6 +7538,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     openRevokeRequestFlow,   // ★ #562: the HIDE-request words — ONE surface with the chats-list flow
     copyText,                // ★ #993: the shared copy with the file:// fallback (menu Copy)
     formatLastSeen,          // ★ #1103: "last seen …" (the header sub-line when the contact is not online)
+    stripFormat,             // ★ S20 F (#1378): quote / strip excerpts drop the marks
   } = window.Spixi;
 
   /* —— W5 chat pattern STYLE (Damir 2026-08-12) ——————————————————————————————
@@ -8772,7 +8792,136 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   function pinLogEnd(held) {
     const row = held && held.isConnected ? held : heldReplyRow();
     if (row) keepRowInView(row);
-    else box.scrollTop = box.scrollHeight;
+    else box.scrollTop = logEndTop();   // ★ S20 A3 (#1378): the log's END — never the space a running rise borrows
+  }
+  /* ★★ S20 A3 (#1378): the list never scrolls into space that is about to disappear. My send's rise (#1301) translates
+     rows down, which grows the scrollable box; a pin during it scrolled into that space and riseOff's clamp snapped back
+     (the 4-line send: ~100 px past the end, then a snap). So the end is read with the rise off (it then CONTINUES). */
+  function logEndTop() {
+    if (!box.hasAttribute('data-rise')) return Math.max(0, box.scrollHeight - box.clientHeight);
+    box.removeAttribute('data-rise');
+    const end = Math.max(0, box.scrollHeight - box.clientHeight);
+    markRise();
+    return end;
+  }
+  /* ═══ ★★ S20 A (#1378): THE LOG'S BOTTOM RESERVE (--composer-h → #messages::after) HAS ONE WRITER, setLogReserve, and
+     it writes the scroll anchor in the same call — from the slot observer (a typed line, the media strip, the recording
+     bar, the field reset after a send) or the composer's planned moves (`c-composer-shift`: the tray, the reply / edit
+     strip). The composer moves by transform; the on-screen rows ride the same slide (slideRows), so nothing re-lays out
+     or writes scrollTop per frame. A planned close holds the reserve and slides the rows down; its end drops it. */
+  let reservePx = null;       // the --composer-h last written (px)
+  let reserveHold = false;    // a planned close is sliding (its token) — the slot observer leaves the reserve alone until its end
+  let logSlide = null;        // { from, to, at, ms, easing, hold, anims, timer }
+  const SLIDE_PROP = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('translate', '0px 1px')) ? 'translate' : 'transform';
+  const slideVal = (y) => (SLIDE_PROP === 'translate' ? '0px ' + y + 'px' : 'translateY(' + y + 'px)');
+  function stopLogSlide() {
+    const s = logSlide;
+    logSlide = null;
+    if (!s) return;
+    clearTimeout(s.timer);
+    for (const a of s.anims) { try { a.cancel(); } catch (_) {} }
+  }
+  /* renderLogNow re-marks the rebuilt rows; the slide CONTINUES (currentTime) */
+  function markLogSlide() {
+    const s = logSlide;
+    if (!s) return;
+    const e = performance.now() - s.at;
+    if (e >= s.ms && !s.hold) { stopLogSlide(); return; }
+    for (const a of s.anims) { try { a.cancel(); } catch (_) {} }
+    s.anims = [];
+    const span = Math.max(Math.abs(s.from), Math.abs(s.to));
+    const br = box.getBoundingClientRect();
+    for (let n = box.lastElementChild; n; n = n.previousElementSibling) {
+      const r = n.getBoundingClientRect();
+      if (r.bottom < br.top - span) break;
+      if (r.top > br.bottom + span) continue;
+      if (typeof n.animate !== 'function') continue;
+      try {
+        const a = n.animate([{ [SLIDE_PROP]: slideVal(s.from) }, { [SLIDE_PROP]: slideVal(s.to) }], { duration: s.ms, easing: s.easing, fill: s.hold ? 'forwards' : 'none' });
+        a.currentTime = Math.min(e, s.ms);
+        s.anims.push(a);
+      } catch (_) {}
+    }
+    if (!s.hold) { clearTimeout(s.timer); s.timer = setTimeout(() => { if (logSlide === s) stopLogSlide(); }, Math.max(0, s.ms - e) + 60); }
+  }
+  function slideRows(from, to, ms, easing, hold) {
+    stopLogSlide();
+    if (!(ms > 0) || (!hold && Math.abs(from - to) < 1)) return;
+    logSlide = { from, to, at: performance.now(), ms, easing: easing || 'ease', hold: !!hold, anims: [], timer: 0 };
+    markLogSlide();
+    composerFadeTrack(ms + 40);   // the band moves for ms — re-mask the rows under it until it lands
+  }
+  /* where the newest child is ON SCREEN (a running slide included) */
+  const logAnchorTop = () => { const n = box.lastElementChild; return n ? n.getBoundingClientRect().top : 0; };
+  /* a GROW re-pins a reader near the end (the 7b hold wins, on this planned reserve); a SHRINK clamps to the end; with `ms`
+     the rows slide from where they were on screen */
+  function setLogReserve(px, { ms = 0, easing = '' } = {}) {
+    const slotEl = document.getElementById('chat-composer');
+    const canvasEl = slotEl && slotEl.closest('.c-chat-canvas');
+    if (!canvasEl) return false;
+    const h = Math.max(0, Math.round(Number(px) || 0));
+    if (h === reservePx && !(ms > 0 && logSlide)) return false;   // the observer's echo of a planned move never touches its slide
+    const vis0 = logAnchorTop();
+    const grew = reservePx == null || h > reservePx;
+    const near = nearBottom();
+    stopLogSlide();
+    if (h !== reservePx) {
+      canvasEl.style.setProperty('--composer-h', h + 'px');
+      reservePx = h;
+      if (grew && near) pinLogEnd();   // ★ 7b (#1219): a held reply target stays in view instead
+      else if (!grew) { const end = logEndTop(); if (box.scrollTop > end) box.scrollTop = end; }   // the clamp, explicit: a running rise's borrowed space cannot hold it
+    }
+    if (ms > 0) {
+      const dy = vis0 - logAnchorTop();
+      if (Math.abs(dy) >= 1) slideRows(dy, 0, ms, easing, false);
+    }
+    return true;
+  }
+  /* a planned close: the slot shrinks by dy at its end — hold the reserve, slide the rows to where the shrink puts them */
+  function holdLogReserve(dy, ms, easing, from) {
+    if (!(ms > 0)) return;
+    const slotEl = document.getElementById('chat-composer');
+    const target = Math.max(0, (slotEl ? slotEl.offsetHeight : 0) - (Number(dy) || 0));
+    const shrink = reservePx == null ? 0 : Math.max(0, reservePx - target);
+    const vis0 = logAnchorTop();
+    stopLogSlide();
+    const cur = from != null ? from : vis0 - logAnchorTop();
+    const to = Math.max(0, shrink - Math.max(0, logEndTop() - box.scrollTop));
+    const hold = reserveHold = { at: performance.now(), dy, ms, easing };
+    slideRows(cur, to, ms, easing, true);
+    /* the belt: an end that never comes frees the reserve AND the held slide (#46 r1) */
+    setTimeout(() => { if (reserveHold === hold) { reserveHold = false; stopLogSlide(); const sl = document.getElementById('chat-composer'); if (sl) setLogReserve(sl.offsetHeight); } }, ms + 400);
+  }
+  /* the slot's height NOW → the reserve (the observer; renderLogNow first, so C#'s row that lands before the observer's
+     frame is pinned on the right reserve — A3). During a held close a real change lands at once, the held slide re-aims.
+     ★ S20 #46 r1–r2 (A3): while MY send waits for its row, the field reset's shrink waits a SHORT window (a normal echo)
+     and lands in the row's render (one rise of row − shrink); a slower echo → the shrink SLIDES down (never a snap) and
+     the row then rises as usual. `now` = land it ('slide' = with the composer's open motion). */
+  let shrinkWait = 0;
+  function syncLogReserve(h, now) {
+    const sl = document.getElementById('chat-composer');
+    if (h == null) h = sl ? sl.offsetHeight : 0;
+    const hd = reserveHold;
+    if (!hd && !now && reservePx != null && Math.round(h) < reservePx && sendRowPending()) {
+      if (!shrinkWait) shrinkWait = setTimeout(() => { shrinkWait = 0; syncLogReserve(null, 'slide'); }, 250);
+      return;
+    }
+    clearTimeout(shrinkWait); shrinkWait = 0;
+    if (!hd) { setLogReserve(h, now === 'slide' ? window.Spixi.composerMotion('open') : {}); return; }
+    if (Math.round(h) === reservePx) return;
+    const v0 = logAnchorTop();
+    stopLogSlide();
+    const off = v0 - logAnchorTop();
+    setLogReserve(h);
+    holdLogReserve(hd.dy, Math.max(16, hd.ms - (performance.now() - hd.at)), hd.easing, off);
+  }
+  function onComposerShift(e) {
+    const d = (e && e.detail) || {};
+    const slotEl = document.getElementById('chat-composer');
+    if (!slotEl) return;
+    if (d.phase === 'close') { holdLogReserve(d.dy, d.ms, d.easing); return; }
+    reserveHold = false;   // 'open' / 'end' / 'set': the layout has its new height NOW
+    setLogReserve(slotEl.offsetHeight, { ms: d.phase === 'open' ? d.ms : 0, easing: d.easing });
   }
   let replyHoldCut = 0;   // #46 r1 C-note: MY send ends the hold (a running stick's captured row too)
   function endReplyHold() {
@@ -8911,6 +9060,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
         if (raw.startsWith(pre) && raw.length > pre.length) { kind = k; text = raw.slice(pre.length); break; }
       }
     }
+    if (!kind) text = stripFormat(text);   // ★ S20 F (#1378)
     text = capQuoteText(text, REPLY_TEXT_MAX);
     /* the name is C#'s, sanitised and never an address (CONTRACT §1a NAME) — the D-19b ladder's "a real nickname
        always wins" holds in blind rooms too, and an empty name stays empty (no label, never a guess) */
@@ -9011,7 +9161,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     let text = '';
     let tile = null;
     if (!kind) {
-      text = String(rec.text || '').replace(/\s+/g, ' ').trim();
+      text = stripFormat(String(rec.text || '')).replace(/\s+/g, ' ').trim();   // ★ S20 F (#1378): strip before the fold
       text = capQuoteText(text, REPLY_TEXT_MAX);   // ★ r2 NIT: by grapheme, never a lone surrogate
     } else if (kind === 'file') {
       text = String(rec.name || '');
@@ -9796,6 +9946,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       direction: rec.direction,
       name: rec.name || '',
       meta: rec.meta || '',
+      size: rec.size || 0,   // ★ S20 Q (#1376 / #1377 E): addFile arg 20 (C# widens it to sent + completed files) → the card's size line
       state: rec.fstate,
       progress: rec.progress || 0,
       timestamp: rec.ts,
@@ -9903,18 +10054,20 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     if (!row || !rec || !rec.paused || rec.transferStarted || rec.fstate !== 'progress') return row;
     const el = row.querySelector('.c-fbubble__meta[data-pct], .c-mbubble__cap[data-pct]');
     const word = (window.SL && window.SL.filePaused) || 'Paused';
-    if (el) el.textContent = word + ' · ' + Math.round(Number(rec.progress) || 0) + '%';
+    const pctN = Math.round(Number(rec.progress) || 0);
+    const sizeTxt = Number(rec.size) > 0 ? formatFileSizeOf(Number(rec.size) * pctN / 100, Number(rec.size)) : '';   // ★ S20 E (#1402): "Paused · 1.1 / 2.4 MB" when the size is known
+    if (el) el.textContent = word + ' · ' + (sizeTxt || (pctN + '%'));
     const named = row.querySelector('.c-fbubble[data-state="progress"], .c-mbubble[data-file="progress"]');
     const bar = row.querySelector('.c-fbubble__track[role="progressbar"], .c-mbubble__ring[role="progressbar"]');
     if (!named || !el) return row;
     const was = { base: named.dataset.ariaBase, label: named.getAttribute('aria-label'), bar: bar ? bar.getAttribute('aria-label') : null };
-    named.dataset.ariaBase = word + ' ' + (rec.name || '');
+    named.dataset.ariaBase = word + ' ' + (rec.name || '') + (sizeTxt ? ', ' + sizeTxt : '');
     named.setAttribute('aria-label', named.dataset.ariaBase);
     if (bar) bar.setAttribute('aria-label', word);
     try {
       const mo = new MutationObserver(() => {
         mo.disconnect();
-        if (named.dataset.ariaBase !== word + ' ' + (rec.name || '')) return;   // a final flip already re-named it
+        if (named.dataset.ariaBase !== word + ' ' + (rec.name || '') + (sizeTxt ? ', ' + sizeTxt : '')) return;   // a final flip already re-named it
         if (was.base != null) named.dataset.ariaBase = was.base; else delete named.dataset.ariaBase;
         if (was.label != null) named.setAttribute('aria-label', was.label); else named.removeAttribute('aria-label');
         if (bar && was.bar != null) bar.setAttribute('aria-label', was.bar);
@@ -10184,6 +10337,10 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     return row;
   }
 
+  /* ★ S20 J1 (#1440): the counterpart's name in the payment label — only what the shell KNOWS: a received row's sender nick
+     (groups / bots). A 1:1 row carries no peer nick on the bridge → '' → the name-less label ("Sent you"; 🟡 noted, no C#). */
+  function payName(rec) { return rec.direction === 'received' && senderHasNick(rec) ? String(rec.senderNick) : ''; }
+
   function buildPaymentRow(rec) {
     /* #264 ①: the viewPayment ARG is the MESSAGE id, not the tx id —
      * C# onViewPayment (xaml:897-899) resolves the message by
@@ -10250,6 +10407,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
           flow: 'out',   // ★ #1013 (r4 NIT): their request, when I pay it, moves money OUT
           status: 'pending',
           title: rec.title || '',
+          name: payName(rec),   // ★ S20 J1
           amount: displayPaymentAmount(rec),
           fiat: rec.fiat || '',
           timestamp: rec.ts,
@@ -10262,6 +10420,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
         flow: 'out',   // ★ #1013 (r4 NIT)
         status: 'actionable',
         title: rec.title || '',
+        name: payName(rec),   // ★ S20 J1
         amount: displayPaymentAmount(rec),
         fiat: rec.fiat || '',
         // C2: C# judged the balance against the amount (fee excluded — the review
@@ -10289,6 +10448,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
         flow: 'in',   // ★ #1013 (r4 NIT): my request, when paid, moves money IN — kept for an in-place swap to the pill
         status: 'pending',
         title: rec.title || '',
+        name: payName(rec),   // ★ S20 J1
         amount: displayPaymentAmount(rec),
         fiat: rec.fiat || '',
         timestamp: rec.ts,
@@ -10303,6 +10463,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       /* ★ #996: a REQUEST's money moves against its message (my request paid = money IN) */
       flow: isRequestRec(rec) ? (rec.direction === 'sent' ? 'in' : 'out') : (rec.direction === 'sent' ? 'out' : 'in'),
       title: rec.title || '',
+      name: payName(rec),   // ★ S20 J1
       amount: displayPaymentAmount(rec),
       fiat: rec.fiat || '',
       status: rec.pstatus,
@@ -10857,7 +11018,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     setComposerContext(composerEl, {
       kind: 'edit',
       title: (window.SL && window.SL.editMessage) || 'Edit message',   // ★ r1 (N-8): the existing key
-      text: capQuoteText(String(live.text || '').replace(/\s+/g, ' ').trim(), REPLY_TEXT_MAX),   // ★ r2 NIT: grapheme cut
+      text: capQuoteText(stripFormat(String(live.text || '')).replace(/\s+/g, ' ').trim(), REPLY_TEXT_MAX),   // ★ r2 NIT: grapheme cut · ★ S20 F: stripped; the field keeps the marks
       prefillText: String(live.text || ''),
       editId: String(live.id),
       onCancel: endReplyHold,
@@ -11557,7 +11718,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   }
   function openTipForMessageNow(rec) {
     openTipSheet({
-      message: { id: rec.id, excerpt: (!isVoiceRec(rec) && rec.text) || undefined },   // ★ #1208: a voice row has no text to quote
+      message: { id: rec.id, excerpt: (!isVoiceRec(rec) && stripFormat(rec.text || '')) || undefined },   // ★ #1208: a voice row has no text to quote · ★ S20 F: stripped
       recipient: {
         // ★ #346 (review of #342): this ladder must match the avatar ladder below,
         // and it did not. `identity.name` is the GROUP's name in a group chat (C#
@@ -11773,45 +11934,14 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     syncChatOverlay();
     return true;
   }
-  /* ★★ R3-5 (#46 loop ROUND 3): THE TWO HAND-OFFS ARE MUTUALLY EXCLUSIVE, AND NOTHING USED TO
-     SAY SO. handKeyboardToTray (keyboard → tray) and handTrayToKeyboard (tray → keyboard) both
-     arm a 450 ms listener on 'resize', and `isAttachTrayOpen` is true for a HELD tray — so a
-     re-focus inside the reveal's window armed `drop` while `reveal` was still armed, and both
-     stood on the same event.
-     Before R2-8 that was covered by accident: one grow satisfied BOTH, reveal was registered
-     first, and drop's synchronous `closeAttachTray(tray, { instant: true })` removed the node
-     in the same dispatch, so nothing painted. R2-8 gave drop a SHRINK test, which un-cancelled
-     the pair: the grow now satisfies only reveal, the tray paints at its full slot, and drop
-     removes it on the keyboard's return shrink 100–300 ms later — ⊕ with the keyboard up, then
-     a tap in the composer inside 450 ms, and the tray flashes in and out. That is the
-     two-heights flash both hand-offs exist to prevent, assembled out of the two of them.
-     So arming one DISARMS the other, explicitly. Listener registration order is not a
-     mechanism: it is what silently covered this for one round, and it stopped covering it the
-     moment the two tests stopped agreeing on which resize they wanted.
-     `disarm` only unbinds — it never runs the action — and it is idempotent through `done`,
-     which every path already checks first.
-     REVERSAL: drop cancelKbHandoff() from the two arm sites and the pair can be armed together
-     again; with R2-8's direction guards in place that is a visible flash, not a silent no-op. */
+  /* ★★ R3-5 (#46 r3): THE TWO HAND-OFFS ARE MUTUALLY EXCLUSIVE — handKeyboardToTray (wants a viewport GROW) and
+     handTrayToKeyboard (wants a SHRINK) both arm a 450 ms resize listener, and a held tray counts as open, so arming one
+     DISARMS the other (the pair armed together flashed the tray in and out). `disarm` only unbinds, never acts. */
   let kbHandoffCancel = null;
   function cancelKbHandoff() { const c = kbHandoffCancel; kbHandoffCancel = null; if (c) c(); }
-  /* ★ #721 (Damir): the field was tapped while the tray is up — the keyboard is coming.
-     Hold the tray in place until the viewport shrinks (the keyboard has the slot), then
-     remove it in one frame; a 450 ms backstop covers an engine that never resizes (a
-     hardware keyboard, desktop). The bar never dips and rises between the two.
-     ★★ R2-8 (#46 loop ROUND 2): DROP ON A VIEWPORT SHRINK, NOT ON ANY RESIZE — the exact
-     mirror of the test B3 put on handKeyboardToTray's reveal, and it was missing here. B3's
-     own docblock calls this function "the mirror" while leaving in it the defect B3 had just
-     removed: any resize inside the 450 ms dropped the tray, so a chrome-bar jitter or a
-     rotation removed it BEFORE the keyboard arrived and the composer dipped to the bottom and
-     rose again — the two-heights flash, in the other direction. The keyboard arriving is a
-     SHRINK of kbViewportH() (reveal wants a GROW of the same number, through the same reader).
-     The 450 ms backstop below stays UNCONDITIONAL — it calls drop with NO event, so `if (e &&
-     …)` cannot gate it and a tray can never be stuck up on an engine that never resizes (a
-     hardware keyboard, desktop). Making the backstop conditional swaps a flash for a hang.
-     ★★ R3-5: and arming this one DISARMS handKeyboardToTray's reveal — see cancelKbHandoff
-     above. `isAttachTrayOpen` is true for a HELD tray, so this function is reachable while
-     that reveal is still armed, and the two want opposite resizes.
-     REVERSAL: drop the direction test and any jitter inside the window drops the tray again. */
+  /* ★ #721: the field was tapped while the tray is up — hold the tray until the viewport SHRINKS (R2-8: the keyboard
+     arrived, not any resize), then drop it in one frame; the 450 ms backstop is UNCONDITIONAL (an engine that never
+     resizes must not keep the tray up). */
   function handTrayToKeyboard() {
     if (!composerEl || !isAttachTrayOpen(composerEl)) return false;
     cancelKbHandoff();                                   // ★★ R3-5: one hand-off at a time
@@ -11842,9 +11972,9 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     return true;
   }
 
-  /* ★ Session K (K1): the keyboard is up and the ⊕ was tapped — mount the tray closed, blur
-     the field (the ⊕ button usually took focus already, #756), and open the tray in the
-     frame the viewport grows back. Returns the tray, or null when no tile survives. */
+  /* ★ Session K (K1): the keyboard is up and ⊕ was tapped — mount the tray closed, blur, open it in the frame the viewport
+     GROWS back (B3: the keyboard left, not any resize — measured by kbViewportH(), the reader the mirror shares); the
+     450 ms backstop is unconditional. */
   function handKeyboardToTray(trayArgs, input) {
     cancelKbHandoff();                                   // ★★ R3-5: one hand-off at a time
     const tray = openAttachTray({ ...trayArgs, hold: true });
@@ -11852,25 +11982,6 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     syncChatOverlay();                                   // back must close the tray before it closes the chat
     try { if (input && document.activeElement === input) input.blur(); } catch (_) {}
     let done = false;
-    /* ★★ B3 (#46 loop): REVEAL ON A VIEWPORT GROW, NOT ON ANY RESIZE. The whole point of the
-       hold is to open the tray in the frame the KEYBOARD HAS LEFT, and the keyboard leaving is
-       a GROW — the mirror test at the Android resize handler below already requires
-       `ih > lastIH + 60` before it clears kbUp, and this one had no direction and no magnitude
-       test at all. So any resize inside the window revealed the tray: a chrome-bar jitter, a
-       further SHRINK (a keyboard swapping to a taller IME / an emoji panel), a rotation — i.e.
-       exactly the frames where the keyboard is still on screen, which is the two-heights flash
-       K1 was built to remove. Measured through kbViewportH() — visualViewport where there is
-       one, because that is the surface that moves on iOS (innerHeight is constant under its
-       keyboard, #303) while on Android adjustResize vv.height tracks innerHeight 1:1 (AND-16):
-       one test, both engines, and ONE reader, shared with handTrayToKeyboard's mirrored SHRINK
-       test (R2-8) so the two hand-offs cannot come to measure different surfaces.
-       The 450 ms backstop below stays UNCONDITIONAL (it calls reveal with no event), so a tray
-       can never be stuck unrevealed on an engine that never resizes; this only decides which
-       resizes are allowed to beat it.
-       ★★ R3-5: "mirror" does NOT mean "cannot both be armed" — they can, and were. Arming this
-       one disarms handTrayToKeyboard's drop, and vice versa; see cancelKbHandoff above.
-       REVERSAL: drop the guard and the tray can again open on top of a keyboard that has not
-       left — the flash. Do NOT instead make the backstop conditional: that is the belt. */
     const baseH = kbViewportH();
     let backstop = 0;
     const disarm = () => {                              // ★★ R3-5: unbind only — never the action
@@ -12457,18 +12568,11 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    * Call the coalesced `renderLog()` from handlers; `renderLogNow()` is the
    * synchronous rebuild (also used for the first paint). */
   const TICK_REPLAY_MS = 300;   // ★ #1028 → B10 (#1084): the fade window (message-bubble.css c-tick-in/out, --duration-300)
-  /* ★ S15 E v2 (#1301, Damir 15:53 "a moving effect like WhatsApp, moving in from the direction of the composer"):
-     MY send RISES. The log is pinned to its end, so a new row at the bottom pushes the whole list up by its height h in
-     one frame. The rise animates that push instead: the rows on screen (and the h px above it, so the top edge never
-     opens a gap) start h px LOWER and slide to their places — the new bubble comes up from the composer edge, the older
-     ones move up with it. No fade. Measured, not guessed: h = the scrollHeight the render added, so a text bubble, a
-     reply, a photo grid or a new date chip all rise by exactly what they take.
-     WHEN: only the first NEW sent row after MY composer send (onSend arms, the first match consumes: another device's
-     row rises at most once) — or every new sent row inside the strip send's window (photos land one by one) — never in
-     a load (bursting · loadPhase · prependBatch · enterQuietUntil = the N53 re-flush window, closed early by
-     messagesDone), never when the user is scrolled up (the push is not on screen), never when the added height is more
-     than a screen. A re-render inside the 200 ms re-marks the rows with a NEGATIVE delay (continue, not restart).
-     Reduced motion: never armed (and the CSS has its own animation:none). */
+  /* ★ S15 E v2 (#1301, Damir "a moving effect like WhatsApp, moving in from the direction of the composer"): MY send RISES —
+     the rows on screen (and h px above) start h px lower and slide up; h = the scrollHeight the render added (measured).
+     Only the first NEW sent row after MY send (or every one inside the strip send's window); never in a load, a prepend,
+     the N53 re-flush window, scrolled up, or taller than a screen. A re-render inside the 200 ms CONTINUES (negative
+     delay). Reduced motion: never armed. */
   const ENTER_FX_MS = 200;               // --duration-200 (the c-send-rise rule below)
   const SEND_ENTER_WINDOW_MS = 3000;     // send → C#'s addMe (a slow Android round trip)
   let sendEnterUntil = 0;
@@ -12483,6 +12587,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     sendEnterUntil = enterReduced() ? 0 : performance.now() + SEND_ENTER_WINDOW_MS;
     sendEnterMulti = !!multi && sendEnterUntil > 0;
   }
+  function sendRowPending() { return risePending || performance.now() < sendEnterUntil; }
   function disarmSendEnter() { sendEnterUntil = 0; sendEnterMulti = false; risePending = false; riseOff(); }   // ★ S15 #46 r1 m-3: a re-flush / peer switch never slides the new log
   function takeSendEnter(existing, rec) {
     if (existing || !rec || rec.direction !== 'sent' || rec.eventChip) return false;
@@ -12525,10 +12630,13 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     /* ★ S15 #46 r1 m-1: a running rise translates the rows DOWN, and a transform grows scrollHeight — so nearBottom() and the
        riseFromH base would read the inflated box (no re-pin, the rows jump). Take the rise off FIRST; keep what is left of it. */
+    const withRow = risePending && reservePx != null;   // ★ S20 A3: my row lands WITH the field reset's shrink (#46 r1)
+    if (reservePx != null && !withRow) syncLogReserve();   // ★ S20 A3 (#1378): the field's reset re-reserves BEFORE this render pins
     const riseWas = riseAt ? { h: riseH, at: riseAt } : null;
     if (riseWas) riseOff();
     const scrollWasAtBottom = nearBottom();
     const riseFromH = risePending ? box.scrollHeight : -1;   // ★ S15 E v2 (#1301): the height before this row
+    if (withRow) syncLogReserve(null, true);   // the rise below is then measured as row − shrink
     // Build the whole log into a DETACHED fragment, then swap it in with ONE
     // replaceChildren — the live #messages box is NEVER momentarily empty, so a
     // paint can't catch a blank log mid-rebuild (Damir 2026-07-07 flicker). Also
@@ -12627,6 +12735,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     /* ★ S15 #46 r1 m-1: a render that is not a new rise CONTINUES the running one (same h, same start → the negative delay) */
     if (!riseAt && riseWas && performance.now() - riseWas.at < ENTER_FX_MS) { riseH = riseWas.h; riseAt = riseWas.at; }
     if (riseAt) markRise();
+    if (logSlide) markLogSlide();           // ★ S20 A (#1378): a composer slide in flight CONTINUES on the rebuilt rows
     firstRenderDone = true;                 // boot spinner is now gone
     if (typeof updateMentionFab === 'function') updateMentionFab();  // refresh @ jump FAB (#8)
     // Multi-select: every row node above is BRAND NEW, so the selection (kept by
@@ -15520,43 +15629,16 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   }, true);
   /* ★ 7b (#1219): the strip's open / close re-syncs the back mirror (setComposerContext writes field[data-ctx]) */
   try { new MutationObserver(syncChatOverlay).observe(composerEl, { subtree: true, attributes: true, attributeFilter: ['data-ctx'] }); } catch (e) {}
-  /* ★★ ORDER (Session AE, the #46 reviewer's MAJOR-1): this block sits ABOVE the #711 publish
-     block on purpose. `publish()` runs SYNCHRONOUSLY inside that block's `try` and now calls
-     scheduleComposerFade(); with the fade's `let` declarations below it the call threw a TDZ
-     ReferenceError, the outer catch only WARNED, and `new ResizeObserver(publish)` on the next
-     line was never reached — --composer-h froze at its boot value on every engine (the #869
-     class, in the same block, swallowed the same way). The built-shell boot gate now asserts
-     the observer attaches and no `[composer-h] publish failed` line is emitted. */
-  /* ★★ Session AE (#940, Damir: "an opacity screen for messages going behind the composer, same
-     as Telegram — the opacity drops at the SAME LEVEL as the composer, not above it") — MESSAGES
-     DISSOLVE INSIDE THE COMPOSER'S BAND. A row is opaque down to the bar's top edge and gone at
-     the bar's bottom edge; nothing above the bar is touched, so the newest message at rest
-     (#messages reserves --composer-h below it, #993) is never dimmed, and what sits behind the floating pill
-     reads as a fading continuation instead of a slice mid-word. Rendered and picked from
-     docs/sheets/session-ae/ (candidate A: no tint band, no blur — #892 retired the blur band,
-     #893's fade ABOVE the pill was declined).
-     ★★ WHY PER ROW AND NOT ONE mask-image ON #messages (the render used the scroller mask; the
-     pixels are identical): a mask on the scroller makes it a STACKING CONTEXT, and the long-press
-     lift (#506②, `[data-menu-lift]` z-42) can then never rise above the body-level scrim — PIN-B
-     (#46 loop MAJOR-2) forbids exactly that, and it is right. A mask on a ROW forms a context on
-     that row alone, which is the same box the lift already promotes; a LIFTED row drops its mask
-     (message-menu.css `[data-menu-lift]`) so the pressed message is always crisp.
-     THE GEOMETRY: the band is the BAR (`.c-composer`, not the slot — with the tray open the tray
-     is opaque and hides what is under it anyway), read live, so the keyboard lift (the slot's
-     margin, #303), the tray, a hidden composer (the request lock) and desktop all follow with no
-     second rule. One pass per frame, coalesced: the walk goes from the newest child backwards
-     and STOPS at the first child fully above the band; each intersecting child's rect is read and
-     its mask written in turn (a write of an inline style does not invalidate the rects read after
-     it, so this is one layout, not one per row); children that left the band are cleared from a
-     Set. The last string WRITTEN is remembered per element (a WeakMap) because the engine
-     re-serialises `#000` as `rgb(0, 0, 0)` — comparing against `el.style.maskImage` would rewrite
-     every masked row every frame. Besides scroll/resize/render/the keyboard lift, the pass is
-     re-armed on a `load` inside the log (a media tile that arrived), and on `transitionend` /
-     `animationend` bubbling from a row (a file card's hint leaving, the reaction pop, the
-     select-mode entrance) — the geometry changes that move a row without a scroll (the #46
-     reviewer's MINOR-6). A fling still trails by one frame: the pass runs on the scroll EVENT,
-     which is what every DOM-driven fade does; the rest matches the render at rest.
-     `composerFadeStops` is the pure arithmetic, kept separate so the suite can EXECUTE it. */
+  /* ★★ ORDER (Session AE, MAJOR-1): this block sits ABOVE the publish block — publish() calls scheduleComposerFade()
+     synchronously, and with the fade's `let`s below it the call threw a TDZ error and the observer never attached. */
+  /* ★★ Session AE (#940, Damir: "same as Telegram — the opacity drops at the SAME LEVEL as the composer") — rows DISSOLVE
+     INSIDE THE BAR's band (opaque down to the bar's top, gone at its bottom); the newest row at rest is never dimmed.
+     PER ROW, never one mask on #messages: a mask on the scroller is a stacking context and the long-press lift
+     (`[data-menu-lift]` z-42) could not rise above the scrim (PIN-B); a lifted row drops its mask. The band is the BAR,
+     read live (the keyboard lift, the tray, the request lock and desktop follow). One coalesced pass per frame, newest
+     child first, stopping at the first child above the band; the last string WRITTEN is kept per row (the engine
+     re-serialises #000). Re-armed on scroll / resize / render / a `load` / a row's transitionend or animationend.
+     `composerFadeStops` is the pure arithmetic (the suite executes it). */
   function composerFadeStops(rowTop, rowBottom, bandTop, bandBottom) {
     if (!(bandBottom > bandTop) || !(rowBottom > rowTop)) return null;
     if (rowBottom <= bandTop || rowTop >= bandBottom) return null;   // fully above · fully below (further down the log)
@@ -15601,12 +15683,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
      messagesDone push, onChatScreenLoaded, the fallback) it has already forced layout, so the pass runs
      synchronously AFTER the swap; a pending rAF is cancelled first so the frame is not masked twice. */
   function composerFadeNow() { if (composerFadeRaf) { cancelAnimationFrame(composerFadeRaf); composerFadeRaf = 0; } composerFadePass(); }
-  /* ★ round-3 MAJOR-1 (iOS): the bar does not JUMP for the keyboard, it slides — `#chat-composer` transitions
-     margin-bottom over 280 ms (the #303 lever) — and a single pass at the transition's first frame reads
-     the bar where it STARTED, so after the keyboard hid a row stayed faded mid-screen until the next
-     scroll (no resize fires under the WKWebView keyboard, the slot's ResizeObserver sees no margin, its
-     transitionend is outside the log). So the band is TRACKED: a pass every frame until the deadline,
-     plus the slot's own transitionend as the belt. Reduced motion has no transition; the first pass lands. */
+  /* ★ round-3 MAJOR-1 (iOS): the bar SLIDES for the keyboard (280 ms margin) — the band is tracked every frame until the
+     deadline (+ the slot's transitionend as the belt); the S20 composer slides track it the same way. */
   let composerFadeTrackEnd = 0;
   function composerFadeTrack(ms) { composerFadeTrackEnd = performance.now() + ms; scheduleComposerFade(); }
   box.addEventListener('scroll', scheduleComposerFade, { passive: true });
@@ -15620,43 +15698,16 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
      cost line, the tray. Where the API is missing the FABs keep the 0 fallback. */
   try {
     const slot = document.getElementById('chat-composer');
-    /* ★ Session K (walk K, Damir on K1: "when I'm in sheet mode the chat behind it moves down
-       behind the sheet, and jumps back up when I use the keyboard"): the slot is ABSOLUTE, so
-       a tray that grows it only grows the log's bottom PADDING — scrollTop stays, and the
-       newest bubbles sit hidden under the tray until the keyboard's adjustResize re-pin
-       (AND-16) snaps them back. Judge "was the reader at the bottom" on the geometry BEFORE
-       the padding changes (this callback runs before the var lands), and when the slot
-       GREW re-pin on the next frame — every observer tick of the 200 ms rise, so the log
-       follows the tray up; a scrolled-up reader keeps their place. Shrinks (the tray
-       leaving) need nothing: the keyboard path already re-pins. */
-    /* ★★ Session X (Damir's screenshot, 2026-09-17: the last bubble sat UNDER the pill in
-       every conversation): this block wrote the height to a canvas const that
-       Session U (#845–#857) DELETED together with the "Live flow" renderer it served —
-       and the inner `try { … } catch (_) {}` swallowed the ReferenceError, so
-       --composer-h was never written, #messages padded by spacing-4 alone, and every
-       `--composer-h` pin stayed green because each one reads the SOURCE string.
-       The target is now derived from the slot itself (the canvas is its ancestor —
-       message-bubble.css), `publish()` runs BEFORE the observer is constructed so an
-       engine without ResizeObserver still pads the log once (that is also what makes
-       the property observable to the built-shell boot pin), and nothing in here is
-       silenced: a throw reaches the outer catch, which now LOGS it. */
-    const canvasEl = slot.closest('.c-chat-canvas');
-    let lastSlotH = slot.offsetHeight;
+    /* ★ S20 A (#1378): the observer re-reserves through setLogReserve (pins in this callback: after layout, before paint —
+       the log moves in the frame the slot changed). A held close skips it. Session X: no swallowed throw here. */
     const publish = () => {
       const h = slot.offsetHeight;
-      const grew = h > lastSlotH;
-      lastSlotH = h;
-      const atBottom = nearBottom();
-      canvasEl.style.setProperty('--composer-h', h + 'px');
-      /* ★ S8 (#1238, the composer grow): pin IN this callback too — a ResizeObserver runs after layout and before paint,
-         so the log moves in the SAME frame as the growing pill. The rAF pin alone trailed one frame (measured on the
-         s8x prototype: the last bubble dipped 7 px under a growing reply strip, 9–12 px on an Edit's prefill line). The
-         rAF stays as the belt. pinLogEnd honours the 7b reply hold (a held target row stays in view instead). */
-      if (grew && atBottom) { pinLogEnd(); requestAnimationFrame(() => { pinLogEnd(); }); }   // ★ 7b (#1219): a held reply target stays in view instead
+      syncLogReserve(h);
       scheduleComposerFade();   // ★ Session AE: the band moved (tray, keyboard on iOS, a resize) — re-mask the rows under it
     };
     publish();
     if (typeof ResizeObserver === 'function') new ResizeObserver(publish).observe(slot);
+    slot.addEventListener('c-composer-shift', onComposerShift);   // ★ S20 A: the composer's planned moves (composer.js COMPOSER_SHIFT)
   } catch (e) { console.warn('[composer-h] publish failed — the log will not pad for the pill', e); }
   /* The ⊕ offers nothing at boot: the room type is not known yet, so it holds its place
      and stays invisible until setChatMode answers or the wait window closes. THE
@@ -16237,7 +16288,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     (function step() {
       if (performance.now() >= bootRepinEnd) return;
       if (nearBottom()) {
-        const max = box.scrollHeight - box.clientHeight;
+        const max = logEndTop();   // ★ S20 #46 r1: never the space a running rise borrows
         if (box.scrollTop < max) box.scrollTop = max;
       }
       bootRepinRaf = requestAnimationFrame(step);

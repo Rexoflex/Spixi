@@ -84,6 +84,38 @@
    whatever it is given rather than assuming a text baseline. */
 .c-launch__pill-flag { display: flex; align-items: center; line-height: 1; }
 
+/* ★ ON-1 Part C (#1422, pill P2 — the SAME change on phone and desktop): 44 px tall with a
+   48 px hit area (the ::before reaches 2 px past every edge), a larger flag + label, and a
+   caption under it — a globe + the existing `language` key (8.84 : 1). */
+.c-launch__lang { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; max-width: 100%; }
+.c-launch__lang .c-launch__pill {
+  position: relative;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 14px 0 12px;
+  gap: var(--spacing-8);
+  font-size: 15px;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.c-launch__lang .c-launch__pill::before { content: ''; position: absolute; inset: -3px; border-radius: inherit; }   /* the hit area: ★ #46 r1 — inset is from the PADDING box (inside the 1 px border): 42 + 2 × 3 = 48 */
+.c-launch__lang .c-launch__pill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.c-launch__lang .c-launch__pill-flag { font-size: 20px; }
+.c-launch__lang .c-launch__pill-flag img,
+.c-launch__lang .c-launch__pill-flag svg { width: 22px; height: auto; }
+.c-launch__lang-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-inline-start: 14px;
+  color: var(--launch-caption);
+  font-family: var(--font-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--font-weight-semibold);
+}
+.c-launch__lang-caption svg { flex: none; opacity: 0.9; }
+
 /* #160: bare glowing glyph, no disc chrome — the gradient's crown halo
    (--gradient-launch layer 1) backs it, the drop-shadow tightens it */
 .c-launch__logo {
@@ -129,18 +161,31 @@
    its viewBox ratio under height:auto) — capped so title+copy+CTAs always fit */
 .c-launch__illo-img {
   display: block;
-  width: min(58vw, 232px);          /* sanctioned: art measure on the 419px frame */
-  max-height: 40vh;
-  height: auto;
+  /* ★ #46 r2 (M2, Damir 22:4x): THE ART IS THE FLEXIBLE PART. The legal line under the buttons
+     took 44–76 px from the carousel and the slide copy ran past its clip in 10 of 14 locales.
+     The art is square (viewBox 240 × 240): its HEIGHT is the measure and the width follows
+     (aspect-ratio), so flex-shrink scales it down whole on a short screen; the title and the
+     copy are flex: none and never give way. Under a floor the slide drops the art
+     (data-art-off, launch-shell.js fitArt). */
+  flex: 0 1 auto;
+  min-height: 0;
+  height: min(58vw, 232px);         /* sanctioned: art measure on the 419px frame */
+  max-height: min(40vh, var(--launch-art-room, 40vh));   /* ★ #46 r3: ONE size per carousel — the smallest slide's room (fitArt) */
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
   margin-bottom: var(--spacing-8);
   user-select: none;
   -webkit-user-drag: none;
 }
+.c-launch__slide[data-art-off] .c-launch__illo-img { display: none; }
+
 /* ★ S11 B (#1262): a slide that is not on screen HOLDS its entrance at frame 0 — so each
    slide plays its one entrance when it first comes into view (go() clears aria-hidden),
    not all four at boot behind the track. Reduced motion: illo.css drops the animation. */
 .c-launch__slide[aria-hidden="true"] .il * { animation-play-state: paused; }
 .c-launch__slide-title {
+  flex: none;                       /* ★ #46 r2: the text never gives way — the art does */
   margin: 0;
   min-width: 0;
   color: var(--text-neutral-01);
@@ -149,6 +194,7 @@
   font-weight: var(--font-weight-semibold);
 }
 .c-launch__slide-copy {
+  flex: none;                       /* ★ #46 r2: the text never gives way — the art does */
   margin: 0;
   min-width: 0;
   color: var(--text-neutral-02);
@@ -178,16 +224,6 @@
   outline-offset: 2px;
 }
 
-/* fine print under the CTAs (premium consent — continuing = agreeing) */
-.c-launch__fineprint {
-  flex: none;
-  margin: 0;
-  padding-top: var(--spacing-12);
-  text-align: center;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-xs);
-}
 /* full-text terms sheet body (scrolls inside the sheet) */
 .c-launch__terms-body {
   max-height: 60vh;                 /* sanctioned: legal text scrolls, sheet doesn't grow unbounded */
@@ -266,6 +302,19 @@
   flex-direction: column;
   gap: var(--spacing-12);
 }
+/* ★ #46 r1: the legal line under the welcome buttons — the tap above records consent */
+.c-launch__legal {
+  flex: none;
+  width: 100%;
+  max-width: 320px;                 /* sanctioned: the CTA measure */
+  margin: 0;
+  padding-top: var(--spacing-12);
+  text-align: center;
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+}
 .c-launch__version {
   flex: none;
   margin: 0;
@@ -273,6 +322,10 @@
   color: var(--text-neutral-02);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  min-height: calc(var(--spacing-8) + var(--line-height-body-xs));   /* ★ #46 r3: the room is reserved before setVersion fills it */
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 /* —— themed form views (create / restore / retry) — scroll-column rules
@@ -313,144 +366,49 @@
      `.c-launch__body` (flex 1, min-height 0) gives up the room and scrolls. The
      document never resizes — the resize lever was falsified on device (#294).
      The home-indicator pad is handed back while the keyboard covers that strip, so the
-     button does not float twice, and every term is inert at `--kb-inset: 0`. */
+     button does not float twice, and every term is inert at `--kb-inset: 0`.
+     ★ ON-1: the same footer / body pair on BOTH create steps and on restore. */
   margin-bottom: var(--kb-inset, 0px);
   padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
 }
-/* consent line sits directly above the commit button (create/restore) */
-.c-launch__footer .c-launch__fineprint { padding-top: 0; }
+/* retry keeps its card + note (the form views below have their own) */
 .c-launch__card {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-12);
 }
-/* labelled form sections (create: profile · wallet password) — hierarchy over
-   a flat stack of anonymous inputs (Damir 2026-07-06 UX) */
-.c-launch__group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-12);
-}
-.c-launch__group-label {
-  margin: 0 0 calc(-1 * var(--spacing-4));
-  color: var(--text-neutral-01);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-semibold);
-}
-.c-launch__input {
-  width: 100%;
-  min-height: 48px;                 /* the c-lock__input rhythm beside 56 buttons */
-  padding: var(--spacing-8) var(--spacing-12);
-  border: var(--outline-width-1) solid rgba(255, 255, 255, 0.14); /* sanctioned: glass on the fixed gradient */
-  border-radius: var(--radius-12);
-  background: rgba(255, 255, 255, 0.07);                          /* sanctioned: glass (lock field precedent) */
-  color: var(--text-neutral-01);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
-}
-.c-launch__input::placeholder { color: var(--text-neutral-02); }
 /* the shared password field (c-lock__field) goes glass on the launch gradient
-   too — exactly the lock screen's `.c-lock .c-lock__input` treatment */
+   too — exactly the lock screen's `.c-lock .c-lock__input` treatment (retry) */
 .c-launch .c-lock__input { background: rgba(255, 255, 255, 0.07); } /* sanctioned: glass */
-.c-launch__input:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;              /* #51 text-field focus grammar */
-  border-color: var(--outline-action-default);
-}
 .c-launch__note {
   margin: 0;
   color: var(--text-neutral-02);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-sm);
 }
-/* proactive password-condition hint (BE minimum shown up front) */
-.c-launch__hint {
-  margin: calc(-1 * var(--spacing-4)) 0 0;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-xs);
-}
-/* prominent recovery callout — the "no backdoor" truth, impossible to miss
-   (Damir 2026-07-06). A tinted glass panel on the gradient, centered. */
-.c-launch__callout {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  padding: var(--spacing-16) var(--spacing-20);
-  border-radius: var(--radius-16);
-  background: rgba(95, 110, 235, 0.22);   /* sanctioned: periwinkle tint — borderless panel on the gradient */
-  text-align: center;
-}
-.c-launch__callout-title {
-  margin: 0;
-  color: var(--text-neutral-01);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
-  font-weight: var(--font-weight-semibold);
-}
-.c-launch__callout-body {
-  margin: 0;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-}
 
-/* restore hero (premium round 2026-07-06): a shielded-key glyph + welcome-back
-   line at the top; the form group drops to the lower third above the CTA */
-.c-launch__hero {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-12);
-  padding: var(--spacing-24) var(--spacing-8) 0;
-  text-align: center;
-}
-/* restore art — ★ S11 B (#1262): the inline set (176 slot), on the gradient, dark set */
-.c-launch__hero-illo {
-  display: block;
-  width: min(46vw, 176px);          /* sanctioned: art measure on the 419px frame */
-  max-height: 28vh;
-  height: auto;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-.c-launch__hero-title {
-  margin: 0;
-  color: var(--text-neutral-01);
-  font-family: var(--font-display);         /* #231 brand opt-in (matches slide titles) */
-  font-size: var(--font-size-heading-sm);   /* #58: titles ride heading-sm */
-  font-weight: var(--font-weight-semibold);
-}
-.c-launch__hero-copy {
-  margin: 0;
-  max-width: 320px;                 /* sanctioned: readable measure (lock kinship) */
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-}
-/* pushes the form group toward the CTA — "move the input+button lower" */
-.c-launch__lower {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-16);
-}
-.c-launch__avatar {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-16);
-}
-.c-launch__file {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  color: var(--text-neutral-01);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-  overflow-wrap: anywhere;          /* untrusted file names — never overflow */
-}
-.c-launch__file-check { display: flex; color: var(--icon-success); }
+/* ★ ON-1 (#1420–#1422): the create / restore form look, the rings layer and the motion live in
+   launch-form.css — linked by the launch shell ALONE (settings.html links this file for the
+   legal sheet only and must not carry ~19 KB of launch form rules). */
 
+/* ★ #46 r2 → r5: a SHORT welcome (any platform — a short desktop window, a landscape phone,
+   the 320 × 568 class). Decided by MEASURE in launch-shell.js fitArt (the monotonic ladder
+   there), not by a height query: data-compact="1" = the logo gives way so the ART can stay;
+   "2" = the tightest welcome, no art, when even the text does not fit with the logo. LAST in
+   this file on purpose — it overrides the base rules above. Nothing is reworded. */
+.c-launch__welcome[data-compact] .c-launch__logo { display: none; }
+.c-launch__welcome[data-compact] .c-launch__dots { padding: 6px 0; }
+.c-launch__welcome[data-compact] .c-launch__top { padding-top: 0; }
+.c-launch__welcome[data-compact] .c-launch__ctas { gap: var(--spacing-8); }
+.c-launch__welcome[data-compact] .c-launch__legal { padding-top: var(--spacing-8); }
+.c-launch__welcome[data-compact="2"] {
+  padding-top: max(var(--spacing-8), var(--safe-top, 0px));
+  padding-bottom: calc(var(--spacing-8) + var(--safe-bottom, 0px));
+}
+.c-launch__welcome[data-compact="2"] .c-launch__lang-caption { display: none; }   /* the pill's own label still says "Language: …" */
+.c-launch__welcome[data-compact="2"] .c-launch__legal { max-width: 480px; }      /* fewer lines where the window is wide enough */
+.c-launch__welcome[data-compact="2"] .c-launch__dots { padding: 2px 0; }
+.c-launch__welcome[data-compact="2"] .c-launch__slide { gap: var(--spacing-4); }
+.c-launch__welcome[data-compact="2"] .c-launch__carousel { max-width: 560px; }   /* a wide, short window (landscape phone) wraps the copy into fewer lines */
+.c-launch__welcome[data-compact="2"] .c-launch__ctas .c-button { height: 44px; min-height: 44px; }
+.c-launch__welcome[data-compact="2"] .c-launch__version { padding-top: var(--spacing-4); min-height: calc(var(--spacing-4) + var(--line-height-body-xs)); }

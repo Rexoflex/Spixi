@@ -62,6 +62,28 @@
 
 <link rel="stylesheet" href="spixi.tokens.css">
 <link rel="stylesheet" href="spixi.base.css">
+<style data-src="../styles/launch-font.css">
+/* ★ ON-1 (#1421 (4), #1422) — Sora latin-ext, the LAUNCH shell only.
+   The launch titles use --font-display (Sora) and now carry the user's name and the
+   translated slide titles; the bundled Sora face (base.css) is the Latin subset only, so
+   č š ž ć đ ė ą į ų ū fell back to a system font in the middle of a word. This is the
+   second face of the SAME family with a latin-ext unicode-range: the browser fetches it
+   only for those code points, the Latin file keeps everything else. Cyrillic and CJK stay
+   on the system font (decided).
+   Source: @fontsource-variable/sora 5.3.0, files/sora-latin-ext-wght-normal.woff2
+   (15.5 KB, SIL OFL 1.1 — src/assets/fonts/SORA-OFL.txt). Linked by src/shells/launch.html
+   ALONE (after base.css): the build inlines the font file of a linked sheet as a data: URI
+   (scripts/lib/inline.mjs), and every other shell must not carry the bytes. */
+@font-face {
+  font-family: 'Sora';
+  src: url(data:font/woff2;base64,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) format('woff2'); /* plain 'woff2': Safari rejects 'woff2-variations' (the base.css note) */
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+</style><!-- ★ ON-1 (#1421 (4)): Sora latin-ext (15.5 KB, OFL) — THIS shell only, after base.css's Latin face -->
 <style data-src="../styles/components/button.css">
 /* c-button — mirrors Figma button/{32,44,56}/{default,destructive}, type=fill|tonal|outline|text.
    Taxonomy: data-attributes mirror Figma names (DECISIONS.md #16).
@@ -2401,6 +2423,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
 .c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
+/* ★ S20 I (#1401, supersedes #1378 I): on the Account HUB a layout-B toggle row keeps its layout; only its TOP inset moves —
+   6 → 13 px puts the disc 13 px into the row (Theme's, a centred 56 px row), so App lock as a card's first row sits 17 px from
+   the card edge like every first nav row (was 10). Sub → next title = 19 px (the stacked chevron rows' 10 + 10 rhythm). */
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] { padding-top: 13px; }   /* sanctioned: the 56 px row's centred-disc offset ((56 − 30) / 2) */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.
@@ -3249,6 +3275,38 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
    whatever it is given rather than assuming a text baseline. */
 .c-launch__pill-flag { display: flex; align-items: center; line-height: 1; }
 
+/* ★ ON-1 Part C (#1422, pill P2 — the SAME change on phone and desktop): 44 px tall with a
+   48 px hit area (the ::before reaches 2 px past every edge), a larger flag + label, and a
+   caption under it — a globe + the existing `language` key (8.84 : 1). */
+.c-launch__lang { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; max-width: 100%; }
+.c-launch__lang .c-launch__pill {
+  position: relative;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 14px 0 12px;
+  gap: var(--spacing-8);
+  font-size: 15px;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.c-launch__lang .c-launch__pill::before { content: ''; position: absolute; inset: -3px; border-radius: inherit; }   /* the hit area: ★ #46 r1 — inset is from the PADDING box (inside the 1 px border): 42 + 2 × 3 = 48 */
+.c-launch__lang .c-launch__pill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.c-launch__lang .c-launch__pill-flag { font-size: 20px; }
+.c-launch__lang .c-launch__pill-flag img,
+.c-launch__lang .c-launch__pill-flag svg { width: 22px; height: auto; }
+.c-launch__lang-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-inline-start: 14px;
+  color: var(--launch-caption);
+  font-family: var(--font-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--font-weight-semibold);
+}
+.c-launch__lang-caption svg { flex: none; opacity: 0.9; }
+
 /* #160: bare glowing glyph, no disc chrome — the gradient's crown halo
    (--gradient-launch layer 1) backs it, the drop-shadow tightens it */
 .c-launch__logo {
@@ -3294,18 +3352,31 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
    its viewBox ratio under height:auto) — capped so title+copy+CTAs always fit */
 .c-launch__illo-img {
   display: block;
-  width: min(58vw, 232px);          /* sanctioned: art measure on the 419px frame */
-  max-height: 40vh;
-  height: auto;
+  /* ★ #46 r2 (M2, Damir 22:4x): THE ART IS THE FLEXIBLE PART. The legal line under the buttons
+     took 44–76 px from the carousel and the slide copy ran past its clip in 10 of 14 locales.
+     The art is square (viewBox 240 × 240): its HEIGHT is the measure and the width follows
+     (aspect-ratio), so flex-shrink scales it down whole on a short screen; the title and the
+     copy are flex: none and never give way. Under a floor the slide drops the art
+     (data-art-off, launch-shell.js fitArt). */
+  flex: 0 1 auto;
+  min-height: 0;
+  height: min(58vw, 232px);         /* sanctioned: art measure on the 419px frame */
+  max-height: min(40vh, var(--launch-art-room, 40vh));   /* ★ #46 r3: ONE size per carousel — the smallest slide's room (fitArt) */
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
   margin-bottom: var(--spacing-8);
   user-select: none;
   -webkit-user-drag: none;
 }
+.c-launch__slide[data-art-off] .c-launch__illo-img { display: none; }
+
 /* ★ S11 B (#1262): a slide that is not on screen HOLDS its entrance at frame 0 — so each
    slide plays its one entrance when it first comes into view (go() clears aria-hidden),
    not all four at boot behind the track. Reduced motion: illo.css drops the animation. */
 .c-launch__slide[aria-hidden="true"] .il * { animation-play-state: paused; }
 .c-launch__slide-title {
+  flex: none;                       /* ★ #46 r2: the text never gives way — the art does */
   margin: 0;
   min-width: 0;
   color: var(--text-neutral-01);
@@ -3314,6 +3385,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   font-weight: var(--font-weight-semibold);
 }
 .c-launch__slide-copy {
+  flex: none;                       /* ★ #46 r2: the text never gives way — the art does */
   margin: 0;
   min-width: 0;
   color: var(--text-neutral-02);
@@ -3343,16 +3415,6 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   outline-offset: 2px;
 }
 
-/* fine print under the CTAs (premium consent — continuing = agreeing) */
-.c-launch__fineprint {
-  flex: none;
-  margin: 0;
-  padding-top: var(--spacing-12);
-  text-align: center;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-xs);
-}
 /* full-text terms sheet body (scrolls inside the sheet) */
 .c-launch__terms-body {
   max-height: 60vh;                 /* sanctioned: legal text scrolls, sheet doesn't grow unbounded */
@@ -3431,6 +3493,19 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   flex-direction: column;
   gap: var(--spacing-12);
 }
+/* ★ #46 r1: the legal line under the welcome buttons — the tap above records consent */
+.c-launch__legal {
+  flex: none;
+  width: 100%;
+  max-width: 320px;                 /* sanctioned: the CTA measure */
+  margin: 0;
+  padding-top: var(--spacing-12);
+  text-align: center;
+  color: var(--text-neutral-02);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+}
 .c-launch__version {
   flex: none;
   margin: 0;
@@ -3438,6 +3513,10 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   color: var(--text-neutral-02);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs);
+  min-height: calc(var(--spacing-8) + var(--line-height-body-xs));   /* ★ #46 r3: the room is reserved before setVersion fills it */
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 /* —— themed form views (create / restore / retry) — scroll-column rules
@@ -3478,149 +3557,477 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
      `.c-launch__body` (flex 1, min-height 0) gives up the room and scrolls. The
      document never resizes — the resize lever was falsified on device (#294).
      The home-indicator pad is handed back while the keyboard covers that strip, so the
-     button does not float twice, and every term is inert at `--kb-inset: 0`. */
+     button does not float twice, and every term is inert at `--kb-inset: 0`.
+     ★ ON-1: the same footer / body pair on BOTH create steps and on restore. */
   margin-bottom: var(--kb-inset, 0px);
   padding-bottom: calc(var(--spacing-24) + max(0px, var(--safe-bottom, 0px) - var(--kb-inset, 0px)));
 }
-/* consent line sits directly above the commit button (create/restore) */
-.c-launch__footer .c-launch__fineprint { padding-top: 0; }
+/* retry keeps its card + note (the form views below have their own) */
 .c-launch__card {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-12);
 }
-/* labelled form sections (create: profile · wallet password) — hierarchy over
-   a flat stack of anonymous inputs (Damir 2026-07-06 UX) */
-.c-launch__group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-12);
-}
-.c-launch__group-label {
-  margin: 0 0 calc(-1 * var(--spacing-4));
-  color: var(--text-neutral-01);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-semibold);
-}
-.c-launch__input {
-  width: 100%;
-  min-height: 48px;                 /* the c-lock__input rhythm beside 56 buttons */
-  padding: var(--spacing-8) var(--spacing-12);
-  border: var(--outline-width-1) solid rgba(255, 255, 255, 0.14); /* sanctioned: glass on the fixed gradient */
-  border-radius: var(--radius-12);
-  background: rgba(255, 255, 255, 0.07);                          /* sanctioned: glass (lock field precedent) */
-  color: var(--text-neutral-01);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
-}
-.c-launch__input::placeholder { color: var(--text-neutral-02); }
 /* the shared password field (c-lock__field) goes glass on the launch gradient
-   too — exactly the lock screen's `.c-lock .c-lock__input` treatment */
+   too — exactly the lock screen's `.c-lock .c-lock__input` treatment (retry) */
 .c-launch .c-lock__input { background: rgba(255, 255, 255, 0.07); } /* sanctioned: glass */
-.c-launch__input:focus-visible {
-  outline: var(--outline-width-2) solid var(--outline-action-default);
-  outline-offset: 1px;              /* #51 text-field focus grammar */
-  border-color: var(--outline-action-default);
-}
 .c-launch__note {
   margin: 0;
   color: var(--text-neutral-02);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-sm);
 }
-/* proactive password-condition hint (BE minimum shown up front) */
-.c-launch__hint {
-  margin: calc(-1 * var(--spacing-4)) 0 0;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-xs);
+
+/* ★ ON-1 (#1420–#1422): the create / restore form look, the rings layer and the motion live in
+   launch-form.css — linked by the launch shell ALONE (settings.html links this file for the
+   legal sheet only and must not carry ~19 KB of launch form rules). */
+
+/* ★ #46 r2 → r5: a SHORT welcome (any platform — a short desktop window, a landscape phone,
+   the 320 × 568 class). Decided by MEASURE in launch-shell.js fitArt (the monotonic ladder
+   there), not by a height query: data-compact="1" = the logo gives way so the ART can stay;
+   "2" = the tightest welcome, no art, when even the text does not fit with the logo. LAST in
+   this file on purpose — it overrides the base rules above. Nothing is reworded. */
+.c-launch__welcome[data-compact] .c-launch__logo { display: none; }
+.c-launch__welcome[data-compact] .c-launch__dots { padding: 6px 0; }
+.c-launch__welcome[data-compact] .c-launch__top { padding-top: 0; }
+.c-launch__welcome[data-compact] .c-launch__ctas { gap: var(--spacing-8); }
+.c-launch__welcome[data-compact] .c-launch__legal { padding-top: var(--spacing-8); }
+.c-launch__welcome[data-compact="2"] {
+  padding-top: max(var(--spacing-8), var(--safe-top, 0px));
+  padding-bottom: calc(var(--spacing-8) + var(--safe-bottom, 0px));
 }
-/* prominent recovery callout — the "no backdoor" truth, impossible to miss
-   (Damir 2026-07-06). A tinted glass panel on the gradient, centered. */
-.c-launch__callout {
+.c-launch__welcome[data-compact="2"] .c-launch__lang-caption { display: none; }   /* the pill's own label still says "Language: …" */
+.c-launch__welcome[data-compact="2"] .c-launch__legal { max-width: 480px; }      /* fewer lines where the window is wide enough */
+.c-launch__welcome[data-compact="2"] .c-launch__dots { padding: 2px 0; }
+.c-launch__welcome[data-compact="2"] .c-launch__slide { gap: var(--spacing-4); }
+.c-launch__welcome[data-compact="2"] .c-launch__carousel { max-width: 560px; }   /* a wide, short window (landscape phone) wraps the copy into fewer lines */
+.c-launch__welcome[data-compact="2"] .c-launch__ctas .c-button { height: 44px; min-height: 44px; }
+.c-launch__welcome[data-compact="2"] .c-launch__version { padding-top: var(--spacing-4); min-height: calc(var(--spacing-4) + var(--line-height-body-xs)); }
+
+</style>
+<style data-src="../styles/components/launch-form.css">
+/* c-launch FORMS — ★ ON-1 (#1420–#1422): create (two steps) + restore, the shared corner
+   rings layer and the launch motion. Split out of launch-shell.css so ONLY the launch shell
+   (src/shells/launch.html) carries it; launch-shell.css keeps welcome, the legal sheet and
+   the #615 body / footer pair these rules build on. */
+
+/* ══ ★ ON-1 (#1420–#1422) — create (two steps) + restore ═══════════════════════════════
+   Damir's picks: BG 2 (--gradient-launch-form), CARD 2 "Slate", the app's own c-button
+   (solid fill, 56 px, no gradient, no coloured glow), NO outline on banners / cards / tags
+   (only input fields keep an edge). Every colour is a --launch-* token (tokens.css, the
+   block after --gradient-launch). */
+.c-launch { position: relative; isolation: isolate; }
+
+/* —— the rings: ONE shared layer above the views, under every sheet (#1422) ——
+   Static: no animation, no transform. A ring set that would reach content FADES (the
+   guard in launch-shell.js) — it never moves. */
+.c-launch__rings {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-30) + 1);              /* over the sliding view (z-30) — the sheets mount outside this section */
+  pointer-events: none;
+  overflow: hidden;
+}
+.c-launch__rings svg {
+  position: absolute;
+  display: block;
+  overflow: visible;
+  color: var(--launch-ring-stroke);
+}
+.c-launch__rings path {
+  fill: none; stroke: currentColor; stroke-width: 1.4px; vector-effect: non-scaling-stroke;
+  transition: opacity var(--duration-300) var(--easing-standard);   /* the guard's fade — never a move */
+}
+.c-launch__rings-tr { top: 0; right: 0; width: 130px; height: 130px; }
+.c-launch__rings-bl { bottom: 0; left: 0; width: 90px; height: 90px; }
+/* ★ #46 r1: the guard hides single rings whose stroke would cross content — the rest stay */
+.c-launch__rings path[data-quiet] { opacity: 0; }
+/* phone: the status-bar icons stay clean — transparent at 40 px, full at 72 px */
+:root:not([data-desktop]) .c-launch__rings-tr {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 40px, var(--launch-on-tile) 72px);
+          mask-image: linear-gradient(to bottom, transparent 40px, var(--launch-on-tile) 72px);
+}
+/* phone welcome: top right only — the two full-width buttons own the bottom */
+:root:not([data-desktop]) .c-launch[data-view="welcome"] .c-launch__rings-bl { opacity: 0; }
+/* desktop: both corners, scaled to the window */
+:root[data-desktop] .c-launch__rings-tr { width: clamp(140px, 11vw, 240px); height: clamp(140px, 11vw, 240px); }
+:root[data-desktop] .c-launch__rings-bl { width: clamp(180px, 16vw, 300px); height: clamp(180px, 16vw, 300px); }
+
+/* —— the lifted backdrop: create + restore only (welcome + retry keep --gradient-launch) —— */
+.c-launch__form {
+  background: var(--gradient-launch-form);
+  color: var(--text-neutral-01);
+}
+/* the slide ground travels with the view — no flash on welcome → create / restore */
+.c-launch > .c-subslide.c-launch__form { --subslide-ground: var(--gradient-launch-form); }
+
+/* header: the topbar (back + title) with the step label UNDER the title on the phone */
+.c-launch__form .c-topbar[data-variant="view"] { padding-inline: var(--spacing-8) var(--spacing-16); }
+.c-launch__head {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
-  padding: var(--spacing-16) var(--spacing-20);
-  border-radius: var(--radius-16);
-  background: rgba(95, 110, 235, 0.22);   /* sanctioned: periwinkle tint — borderless panel on the gradient */
-  text-align: center;
+  justify-content: center;
+  white-space: normal;
 }
-.c-launch__callout-title {
+.c-launch__head-title {
   margin: 0;
-  color: var(--text-neutral-01);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  line-height: 1.2;
+}
+.c-launch__head-step {
   font-family: var(--font-secondary);
-  font-size: var(--font-size-body-md);
+  font-size: var(--font-size-body-xs);
+  line-height: 16px;
   font-weight: var(--font-weight-semibold);
+  color: var(--launch-label);
 }
-.c-launch__callout-body {
-  margin: 0;
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-}
+.c-launch__progress { flex: none; display: flex; gap: 6px; margin: var(--spacing-4) var(--spacing-24) 0; }
+.c-launch__progress i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
+.c-launch__progress i[data-on] { background: var(--launch-brand); }
 
-/* restore hero (premium round 2026-07-06): a shielded-key glyph + welcome-back
-   line at the top; the form group drops to the lower third above the CTA */
+/* a create step = its own body + footer (the #615 pair) */
+.c-launch__step { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.c-launch__form .c-launch__body { padding: var(--spacing-24) var(--spacing-24) var(--spacing-16); }
+.c-launch__form .c-launch__footer { padding-top: var(--spacing-12); }
+/* below the two-column width: the phone layout, centred, at most 460 px (#1422 Part B) */
+.c-launch__form > .c-topbar,
+.c-launch__form .c-launch__body > *,
+.c-launch__form .c-launch__footer > * { width: 100%; max-width: 460px; margin-inline: auto; }
+.c-launch__form > .c-topbar { max-width: 476px; }
+.c-launch__form > .c-launch__progress { width: auto; max-width: calc(460px - 2 * var(--spacing-24)); }
+@media (min-width: 508px) { .c-launch__form > .c-launch__progress { margin-inline: auto; width: 100%; } }
+
+/* hero: photo / art · title · subline · tags */
 .c-launch__hero {
   flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-12);
-  padding: var(--spacing-24) var(--spacing-8) 0;
+  gap: var(--spacing-8);
   text-align: center;
 }
-/* restore art — ★ S11 B (#1262): the inline set (176 slot), on the gradient, dark set */
+.c-launch__hero-title {
+  margin: 12px 0 0;
+  max-width: 440px;
+  color: var(--text-neutral-01);
+  font-family: var(--font-display);            /* #231 brand opt-in — Sora (+ latin-ext, launch-font.css) */
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.c-launch__hero-copy {
+  margin: 0;
+  max-width: 330px;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 15px;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+/* restore art — ★ S11 B (#1262): the inline set, on the form backdrop, dark set */
 .c-launch__hero-illo {
   display: block;
-  width: min(46vw, 176px);          /* sanctioned: art measure on the 419px frame */
+  width: min(46vw, 168px);          /* sanctioned: art measure on the 390 px frame */
   max-height: 28vh;
   height: auto;
   user-select: none;
   -webkit-user-drag: none;
 }
-.c-launch__hero-title {
-  margin: 0;
-  color: var(--text-neutral-01);
-  font-family: var(--font-display);         /* #231 brand opt-in (matches slide titles) */
-  font-size: var(--font-size-heading-sm);   /* #58: titles ride heading-sm */
+
+/* the photo: brand-blue ring, a transparent gap, no glow (Decision 8) */
+.c-launch__photo {
+  position: relative;
+  flex: none;
+  width: 148px;
+  height: 148px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--launch-photo-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-launch__photo:focus-visible { outline: var(--outline-width-2) solid var(--launch-field-focus); outline-offset: 3px; }
+.c-launch__photo-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid var(--launch-brand);
+  padding: 4px;
+}
+.c-launch__photo-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--launch-photo-fill);
+}
+.c-launch__photo-img .c-avatar { width: 100% !important; height: 100% !important; }   /* the avatar fills the ring at any size (inline px from createAvatar) */
+.c-launch__photo[data-empty] .c-launch__photo-ring { border-color: var(--launch-photo-empty-ring); }
+.c-launch__badge {
+  position: absolute;
+  right: 2px;
+  bottom: 4px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--launch-on-tile);
+  background: var(--surface-action-default);
+  box-shadow: var(--launch-badge-shadow);
+}
+/* step 2: the same photo, smaller, with the orange lock */
+.c-launch__photo[data-size="sm"] { width: 104px; height: 104px; cursor: default; }
+.c-launch__photo[data-size="sm"] .c-launch__photo-ring { border: 0; padding: 0; }
+.c-launch__photo[data-size="sm"] .c-launch__badge { right: -6px; bottom: -2px; background: var(--launch-warn); }
+
+/* tags (no outline) */
+.c-launch__tags { align-self: stretch; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: var(--spacing-8); }
+.c-launch__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--launch-tag-bg);
+  box-shadow: var(--launch-inner-shadow);
+  color: var(--launch-text-tag);
+  font-family: var(--font-secondary);
+  font-size: 13px;
   font-weight: var(--font-weight-semibold);
 }
-.c-launch__hero-copy {
-  margin: 0;
-  max-width: 320px;                 /* sanctioned: readable measure (lock kinship) */
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-}
-/* pushes the form group toward the CTA — "move the input+button lower" */
-.c-launch__lower {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-16);
-}
-.c-launch__avatar {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-16);
-}
-.c-launch__file {
-  margin: 0;
+.c-launch__tag svg { flex: none; opacity: 0.85; }
+
+/* —— the floating-label field (wraps the shared inputs; only fields keep an edge) —— */
+.c-launch__fields { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-launch__field {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--spacing-8);
+  min-height: 58px;
+  padding: 0 var(--spacing-8) 0 var(--spacing-16);
+  border-radius: var(--launch-radius-inner);
+  background: var(--launch-field-fill);
+  box-shadow: inset 0 0 0 1.5px var(--launch-field-edge);
+}
+.c-launch__field[data-focus] { box-shadow: inset 0 0 0 2px var(--launch-field-focus), 0 0 0 4px var(--launch-field-focus-ring); }
+.c-launch__field[data-error] { box-shadow: inset 0 0 0 2px var(--launch-field-error); background: var(--launch-field-error-fill); }
+.c-launch__field-main { position: relative; flex: 1; min-width: 0; align-self: stretch; cursor: text; }
+.c-launch__field-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--font-weight-semibold);
+  pointer-events: none;
+  transition: top var(--duration-200) var(--easing-standard), font-size var(--duration-200) var(--easing-standard);
+}
+.c-launch__field[data-empty]:not([data-focus]) .c-launch__field-label { top: 50%; transform: translateY(-50%); font-size: 16px; font-weight: var(--font-weight-medium); }
+/* the shared input, re-skinned inside the field (lock-shell.css keeps its own look elsewhere) */
+.c-launch__field .c-launch__field-input {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 9px;
+  width: 100%;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
   color: var(--text-neutral-01);
   font-family: var(--font-secondary);
-  font-size: var(--font-size-body-sm);
-  overflow-wrap: anywhere;          /* untrusted file names — never overflow */
+  font-size: var(--font-size-body-md);
+  line-height: 24px;
 }
-.c-launch__file-check { display: flex; color: var(--icon-success); }
+.c-launch__field .c-launch__field-input:focus-visible { outline: 0; }   /* the FIELD draws the focus edge ([data-focus]) */
+.c-launch__field .c-launch__field-input[type="password"] { letter-spacing: 0.12em; }
+.c-launch__field-end { flex: none; display: flex; align-items: center; gap: 2px; }
+.c-launch__field-ok { width: 24px; height: 24px; margin-inline-end: var(--spacing-8); border-radius: 50%; display: grid; place-items: center; background: var(--launch-ok); color: var(--launch-on-tile); }
+.c-launch__field .c-lock__reveal {
+  position: static;
+  transform: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--launch-label);
+}
+.c-launch__ferr {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: -4px 4px 0;
+  color: var(--launch-text-error);
+  font-family: var(--font-secondary);
+  font-size: 13.5px;
+  line-height: 18px;
+  font-weight: var(--font-weight-semibold);
+}
+.c-launch__ferr svg { flex: none; margin-top: 1px; }
 
+/* strength bar (advice) + the two live checks */
+.c-launch__meter { display: flex; align-items: center; gap: 6px; margin: 0 4px; }
+.c-launch__meter i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
+.c-launch__meter[data-level="1"] i:nth-child(-n+1) { background: var(--launch-meter-1); }
+.c-launch__meter[data-level="2"] i:nth-child(-n+2) { background: var(--launch-meter-2); }
+.c-launch__meter[data-level="3"] i:nth-child(-n+3) { background: var(--launch-meter-3); }
+.c-launch__meter[data-level="4"] i:nth-child(-n+4) { background: var(--launch-meter-4); }
+.c-launch__meter-label {
+  flex: none;
+  min-width: 52px;
+  margin-inline-start: 6px;
+  text-align: end;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+}
+.c-launch__meter[data-level="1"] .c-launch__meter-label { color: var(--launch-meter-text-1); }
+.c-launch__meter[data-level="2"] .c-launch__meter-label { color: var(--launch-meter-text-2); }
+.c-launch__meter[data-level="3"] .c-launch__meter-label { color: var(--launch-meter-text-3); }
+.c-launch__meter[data-level="4"] .c-launch__meter-label { color: var(--launch-text-ok); }
+.c-launch__checks { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 4px; }
+.c-launch__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 13.5px;
+  line-height: 18px;
+}
+.c-launch__check b {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1.5px var(--launch-check-edge);
+}
+.c-launch__check[data-state="ok"] { color: var(--launch-text-ok); }
+.c-launch__check[data-state="ok"] b { background: var(--launch-ok); box-shadow: none; color: var(--launch-on-tile); }
+.c-launch__check[data-state="bad"] { color: var(--launch-text-error); }
+.c-launch__check[data-state="bad"] b { box-shadow: inset 0 0 0 1.5px var(--launch-text-error); color: var(--launch-text-error); }
 
-</style>
+/* the "write it down" banner (no outline) */
+.c-launch__banner {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: var(--launch-pad-inner);
+  border-radius: var(--launch-radius-inner);
+  background: var(--launch-warn-bg);
+  box-shadow: var(--launch-inner-shadow);
+  text-align: start;
+}
+.c-launch__tile {
+  flex: none;
+  width: var(--launch-tile);
+  height: var(--launch-tile);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--launch-on-tile);
+  background: var(--launch-warn);
+}
+.c-launch__banner-title { margin: 0 0 3px; color: var(--launch-text-warn-title); font-family: var(--font-secondary); font-size: 15px; line-height: 20px; font-weight: var(--font-weight-bold); }
+.c-launch__banner-body { margin: 0; color: var(--launch-text-body); font-family: var(--font-secondary); font-size: 14px; line-height: 19px; }
+
+/* the restore file card (no outline) */
+.c-launch__filecard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 0 var(--launch-pad-inner);
+  border: 0;
+  border-radius: var(--launch-radius-inner);
+  background: var(--launch-inner-bg);
+  box-shadow: var(--launch-inner-shadow);
+  color: var(--text-neutral-01);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-launch__filecard:focus-visible { outline: var(--outline-width-2) solid var(--launch-field-focus); outline-offset: 2px; }
+.c-launch__filecard:disabled { cursor: default; }
+.c-launch__filecard .c-launch__tile { background: var(--surface-action-default); }
+.c-launch__filecard[data-file-set] { background: var(--launch-ok-bg); }
+.c-launch__filecard[data-file-set] .c-launch__tile { background: var(--launch-ok); }
+.c-launch__filecard-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.c-launch__filecard-title { font-family: var(--font-secondary); font-size: 16px; line-height: 21px; font-weight: var(--font-weight-bold); overflow-wrap: anywhere; }   /* untrusted file names — never overflow */
+.c-launch__filecard-sub { color: var(--launch-label); font-family: var(--font-secondary); font-size: 13px; line-height: 17px; }
+.c-launch__filecard-end { flex: none; display: flex; align-items: center; color: var(--launch-label); }
+.c-launch__filecard-change { color: var(--text-accent); font-weight: var(--font-weight-semibold); }
+
+/* notes: the address note above Continue, the restore honesty line under the field */
+.c-launch__fnote {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--spacing-8);
+  margin: 0;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+.c-launch__fnote svg { flex: none; margin-top: 1px; }
+.c-launch__fnote[data-align="start"] { justify-content: flex-start; text-align: start; margin: 0 4px; }
+.c-launch__fnote[data-tone="key"] svg { color: var(--launch-key-ink); }
+/* the honest line under a busy create button (after 2 s, #1421 (2)) */
+.c-launch__honest { margin: -2px var(--spacing-8) 0; text-align: center; color: var(--launch-label); font-family: var(--font-secondary); font-size: 13px; line-height: 18px; }
+
+/* —— motion: step 1 ⇄ step 2 (the entering pane slides in on the subscreen clock) —— */
+.c-launch__step[data-enter="fwd"] { animation: c-launch-step-fwd 220ms var(--easing-standard) both; }   /* = the subscreen enter (subscreen-slide.css) */
+.c-launch__step[data-enter="back"] { animation: c-launch-step-back 220ms var(--easing-standard) both; }
+@keyframes c-launch-step-fwd { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes c-launch-step-back { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+html[dir="rtl"] .c-launch__step[data-enter="fwd"] { animation-name: c-launch-step-back; }
+html[dir="rtl"] .c-launch__step[data-enter="back"] { animation-name: c-launch-step-fwd; }
+@keyframes c-launch-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes c-launch-fade-out { from { opacity: 1; } to { opacity: 0; } }
+/* ★ ON-1: reduced motion = a SHORT FADE, not nothing — the welcome → create / restore
+   slide, step 1 → 2 and the desktop hero cross-fade (the duration tokens go to 0 there,
+   tokens.css, so the fade names its own short time). Desktop keeps the plain swap for the
+   welcome → form switch (#704). */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-desktop]) .c-launch > .c-subslide.c-subslide--in { animation: c-launch-fade-in 140ms linear both; }
+  :root:not([data-desktop]) .c-launch > .c-subslide.c-subslide--out { animation: c-launch-fade-out 120ms linear both; }
+  .c-launch__step[data-enter="fwd"],
+  .c-launch__step[data-enter="back"],
+  html[dir="rtl"] .c-launch__step[data-enter] { animation: c-launch-fade-in 140ms linear both; }
+}
+
+/* ══ desktop (Windows / Mac), Part B: the two-column layout at a window ≥ 900 px lives in the
+   LAUNCH SHELL's own <style> (src/shells/launch.html) — a component stylesheet carries no ≥ 700 px
+   viewport query (#228 gate: desktop is composition in the shell layer). Below 900 px the rules
+   above ARE the desktop layout: the phone column, centred, at most 460 px. ══ */
+
+</style><!-- ★ ON-1 (#1420–#1422): create / restore, the rings, the launch motion — this shell only -->
 <style data-src="../styles/components/illo.css">
 /* illo — ★ S11 B (#1262): motion for the inline illustration set (illustrations.js).
    ONE entrance, then the frame holds (every animation runs once, fill both; nothing
@@ -3859,13 +4266,89 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
      scrolling column (it carries u-scroll), so capping it would move the scrollbar ~640px
      in from the window edge on a wide window. The footer is not a scroller, so it
      caps directly. */
+  /* ★ ON-1 (#1422): create + restore lay out on their own now (launch-shell.css: a 460 px
+     column below 900 px, two columns on a desktop window ≥ 900 px), so this cap is the
+     RETRY view's alone — scoped to it, or its id-weight would cap the desktop grid cells. */
   @media (min-width: 700px) {
-    #launch-root .c-launch__body > *,
-    #launch-root .c-launch__footer {
+    #launch-root [data-launch-view="retry"] .c-launch__body > *,
+    #launch-root [data-launch-view="retry"] .c-launch__footer {
       width: 100%;
       max-width: 640px;
       margin-inline: auto;
     }
+  }
+
+  /* ══ desktop (Windows / Mac), Part B ══════════════════════════════════════════════════
+     No launch frame of its own: the Windows bar already says "Spixi", so no brand here. */
+  @media (min-width: 900px) {
+    /* two columns: the hero on the left (~46 %), ONE 460 px card on the right */
+    :root[data-desktop] .c-launch__form {
+      display: grid;
+      grid-template-columns: 46% 1fr;
+      grid-template-rows: 1fr auto auto auto auto 1fr;
+      padding: 48px 0;
+      overflow-y: auto;
+    }
+    :root[data-desktop] .c-launch__form > .c-topbar,
+    :root[data-desktop] .c-launch__form .c-launch__body > *,
+    :root[data-desktop] .c-launch__form .c-launch__footer > * { max-width: none; margin-inline: 0; }
+    :root[data-desktop] .c-launch__form .c-launch__step,
+    :root[data-desktop] .c-launch__form .c-launch__body { display: contents; }
+    :root[data-desktop] .c-launch__form .c-launch__hero {
+      grid-column: 1;
+      grid-row: 1 / -1;
+      align-self: center;
+      justify-self: center;
+      padding: 0 48px;
+      gap: var(--spacing-12);
+    }
+    :root[data-desktop] .c-launch__form .c-launch__hero-title { font-size: 38px; line-height: 1.12; max-width: 440px; margin-top: 18px; }
+    :root[data-desktop] .c-launch__form .c-launch__hero-copy { font-size: 17px; max-width: 380px; }
+    :root[data-desktop] .c-launch__photo:not([data-size="sm"]) { width: 168px; height: 168px; }
+    :root[data-desktop] .c-launch__photo[data-size="sm"] { width: 128px; height: 128px; }
+    :root[data-desktop] .c-launch__form .c-launch__hero-illo { width: 220px; max-height: none; }
+    /* the card: drawn once behind rows 2–5 of the right column (no outline — Decision 5) */
+    :root[data-desktop] .c-launch__form::before {
+      content: '';
+      grid-column: 2;
+      grid-row: 2 / 6;
+      justify-self: center;
+      width: 460px;
+      margin: -26px 0 -28px;
+      border-radius: var(--launch-radius-card);
+      background: var(--launch-card-bg);
+      -webkit-backdrop-filter: blur(24px);
+              backdrop-filter: blur(24px);
+      box-shadow: var(--launch-card-shadow);
+    }
+    :root[data-desktop] .c-launch__form > .c-topbar,
+    :root[data-desktop] .c-launch__form > .c-launch__progress,
+    :root[data-desktop] .c-launch__form .c-launch__fields,
+    :root[data-desktop] .c-launch__form .c-launch__footer {
+      grid-column: 2;
+      justify-self: center;
+      width: 404px;
+      position: relative;
+    }
+    :root[data-desktop] .c-launch__form > .c-topbar { grid-row: 2; height: auto; min-height: 44px; padding: 0; gap: var(--spacing-8); margin-left: -8px; width: 412px; position: relative; z-index: auto; }
+    :root[data-desktop] .c-launch__form .c-launch__head { flex-direction: row; align-items: center; justify-content: flex-start; }
+    :root[data-desktop] .c-launch__form .c-launch__head-title { font-size: 18px; }
+    :root[data-desktop] .c-launch__form .c-launch__head-step { margin-inline-start: auto; padding-inline-start: var(--spacing-8); font-size: 13px; }
+    :root[data-desktop] .c-launch__form > .c-launch__progress { grid-row: 3; margin: var(--spacing-8) 0 20px; max-width: none; }
+    :root[data-desktop] .c-launch__form .c-launch__fields { grid-row: 4; }
+    :root[data-desktop] .c-launch__form:not([data-progress]) > .c-topbar { margin-bottom: var(--spacing-16); }
+    :root[data-desktop] .c-launch__form .c-launch__footer { grid-row: 5; padding: var(--spacing-16) 0 0; margin: 0; }
+    /* step 1 → 2 on desktop: the hero cross-fades in place, the card content slides */
+    :root[data-desktop] .c-launch__step[data-enter] .c-launch__hero { animation: c-launch-fade-in 220ms var(--easing-standard) both; }
+    :root[data-desktop] .c-launch__step[data-enter="fwd"] .c-launch__fields,
+    :root[data-desktop] .c-launch__step[data-enter="fwd"] .c-launch__footer { animation: c-launch-step-fwd 220ms var(--easing-standard) both; }
+    :root[data-desktop] .c-launch__step[data-enter="back"] .c-launch__fields,
+    :root[data-desktop] .c-launch__step[data-enter="back"] .c-launch__footer { animation: c-launch-step-back 220ms var(--easing-standard) both; }
+  }
+  @media (min-width: 900px) and (prefers-reduced-motion: reduce) {
+    :root[data-desktop] .c-launch__step[data-enter] .c-launch__hero,
+    :root[data-desktop] .c-launch__step[data-enter] .c-launch__fields,
+    :root[data-desktop] .c-launch__step[data-enter] .c-launch__footer { animation: c-launch-fade-in 140ms linear both; }
   }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>
@@ -3933,6 +4416,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, launchShellBack,
+    setLaunchTerms,   // ★ #46 r1: showTerms arms the component's one consent latch
     /* ★★ L4 ROOT CAUSE (#714, Damir's logcat 2026-08-30: "view=create" on press one, the
        view did not move, "view=welcome" on press two, app exits). C# pushes
        `executeUiCommand(setLaunchView, …)` with setLaunchView as a BARE IDENTIFIER, and this
@@ -3985,15 +4469,14 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   /* —— consent ————————————————————————————————————————————————————————————
    * LaunchPage.onLoad pushes showTerms only when terms are NOT yet accepted. We
    * record consent (ixian:accept) ONCE, at the first Create/Restore tap on the
-   * welcome view. Premium round: "continuing = agreeing"
-   * (the fine-print consent line + in-app Terms/Privacy sheets render on the
-   * create/restore forms; the binding tap is the welcome CTA that navigates). */
-  let termsRequired = false, acceptSent = false;
-  function recordConsent() {
-    if (!termsRequired || acceptSent) return;
-    acceptSent = true;
-    bridge.send('ixian:accept');
-  }
+   * welcome view. Premium round: "continuing = agreeing".
+   * ★ ON-1 (#1421 (1)): this stays THE consent point; the fine-print line that sat on
+   * the create / restore forms is gone — ★ #46 r1: it now sits on WELCOME, under the two
+   * buttons whose tap records consent.
+   * ★ #46 r1 (MINOR-1): ONE latch, the component's. showTerms → setLaunchTerms arms it,
+   * the welcome tap runs emitAccept once, and onAcceptTerms below sends the verb. The
+   * shell's own recordConsent twin is gone (two latches for one verb is how a path dies
+   * unnoticed — the component's was dead in this shell before). */
 
   /* —— active locale ————————————————————————————————————————————————————————
    * A4 (Opus #46 loop): the shell never told launch-shell WHICH locale is active,
@@ -4033,9 +4516,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
        the hardware back button, and reporting it from the two CTA hooks meant every
        OTHER way the view can move — the retry lockout, a future entry point — told C#
        nothing, which is the reported "back exits the app from create/restore".
-       What is left here is the ONE thing only the host can do: record consent. */
-    onGoCreate: () => { recordConsent(); },
-    onGoRestore: () => { recordConsent(); },
+       ★ #46 r1: consent left these hooks too — the component records it (emitAccept) and
+       calls onAcceptTerms ONCE; the host only carries the verb. */
+    onAcceptTerms: () => bridge.send('ixian:accept'),
     /* the single view report. `ixian:view:<name>` is dispatched with the SAME anchored
        StartsWith grammar as the payload verbs (#393 MAJOR-2), and the three legacy bare
        verbs stay handled C#-side so a STALE built intro.html still tracks. */
@@ -4082,7 +4565,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
      * the dispatcher's own try/catch can run (the #258 addAppRequest lesson). */
     setTheme(name) { applyPushedTheme(name); },
     setVersion: (v) => setLaunchVersion(el, v),
-    showTerms: () => { termsRequired = true; },      // arm the one-shot ixian:accept
+    showTerms: () => setLaunchTerms(el, true),       // arm the component's one-shot ixian:accept (★ #46 r1)
     showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs
     /* ★ S15 (O-04, #1293): a launch with NO wallet file on the device starts from a clean WebView store. C# pushes this
        from LaunchPage.onLoad ONLY when no wallet file exists, so every spixi.* key it meets belongs to an
@@ -4110,11 +4593,14 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
     setUploadedFileName: (path) => setLaunchFile(el, baseName(path)),
     // restore: wrong password → inline error on the field (spec §2.3). One-shot
     // latch: C# fires showPasswordError THEN removeLoadingOverlay — the error wins.
-    showPasswordError: () => { if (activeCtrl) activeCtrl.fail(strings.restoreFailed || 'That password didn\u2019t open the backup.'); },
+    // ★ ON-1 BUG FIX: the reason is a flag, the component owns the words — and ONLY this
+    // push paints "wrong password" (the component shows it for a non-empty reason alone).
+    showPasswordError: () => { if (activeCtrl) activeCtrl.fail('wrong-password'); },
     /* the shared release. SILENT fail('') everywhere: create and retry are both
-       covered by a native alert that already spoke, and restore's own message
-       already landed through showPasswordError. fail('') keeps the typed values
-       and re-enables the form. */
+       covered by a native alert that already spoke, and so is every NON-password restore
+       failure (★ ON-1: those used to paint the wrong-password line under an alert that
+       said something else). fail('') keeps the typed values, the staged file, and
+       re-enables the form. */
     removeLoadingOverlay: () => { if (activeCtrl) activeCtrl.fail(''); },
   };
 

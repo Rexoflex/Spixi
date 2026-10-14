@@ -5568,6 +5568,58 @@ namespace SPIXI
             }
         }
 
+        /* ★ S20 E (#1376, P29, flag SpixiFlags.S20FileSize): addFile arg 20 for EVERY file row (S11MediaRules.fileSizeArg).
+         * received = the header size (`headerBytes`, the caller's fBytes) · sent in flight = the outgoing transfer's own size
+         * (exact id: getOutgoingTransfer matches with uid.Contains, unlocked — an empty id is never asked, a throw = "") ·
+         * ★ #46 S20 r1 (auditor B MINOR): sent, NOT done, and the transfer gone from memory (an app restart) = the length of
+         * the local copy instead · sent and done = ONE FileInfo.Length of the path C# resolves itself (SharedItems.localPathOf,
+         * the path localArgOf just found: asked only when fLocal == "1"). Never a WebView path; a throw = "". Runs where
+         * insertMessage runs (the UI thread on a load): + 1 File.Exists + 1 stat per COMPLETE SENT row present on this device
+         * and per UNFINISHED SENT row with no live transfer; nothing for any other row.
+         * friend_message.fileSize is NOT written (the voice limits read it). */
+        private static string fileSizeArgOf(FriendMessage message, ulong headerBytes, string fLocal)
+        {
+            ulong outgoing = 0;
+            long local = -1;
+            try
+            {
+                if (message.localSender && !message.completed)
+                {
+                    string id = message.transferId ?? "";
+                    if (id.Length > 0)
+                    {
+                        FileTransfer? t = TransferManager.getOutgoingTransfer(id);
+                        if (t != null && t.uid == id)
+                        {
+                            outgoing = t.fileSize;
+                        }
+                    }
+                    if (outgoing == 0)
+                    {
+                        string? path = SharedItems.localPathOf(message);   // the transfer is gone: C#'s own copy (localArgOf does not look at an unfinished row)
+                        if (path != null)
+                        {
+                            local = new FileInfo(path).Length;
+                        }
+                    }
+                }
+                else if (message.localSender && fLocal == "1")
+                {
+                    string? path = SharedItems.localPathOf(message);
+                    if (path != null)
+                    {
+                        local = new FileInfo(path).Length;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                outgoing = 0;
+                local = -1;   // missing / unreadable → "" (the card shows no size)
+            }
+            return S11MediaRules.fileSizeArg(message.localSender, message.completed, headerBytes, outgoing, local);
+        }
+
         /* ★ #1177 (Android: a big download, the phone locked mid-transfer — the reopened chat showed "Tap to download" for
          * ~5 s until the next updateFile). addFile only knows "0" / "100", the shell maps incoming + 0 % to the OFFER, and
          * its liveTransfers memory (R3-N3) dies with the document. TransferManager still holds the transfer: when it is
@@ -6247,7 +6299,9 @@ namespace SPIXI
                     {
                         ulong.TryParse(split[2], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out fBytes);
                     }
-                    string fSize = S11MediaRules.offerSizeArg(message.localSender, message.completed, fBytes);
+                    /* ★ S20 E (#1376, P29): flag ON = the size in BOTH directions (fileSizeArgOf: C#'s own sources only); OFF = the
+                     * S11 rule above (received offers only). */
+                    string fSize = SpixiFlags.S20FileSize ? fileSizeArgOf(message, fBytes, fLocal) : S11MediaRules.offerSizeArg(message.localSender, message.completed, fBytes);
                     string fTransfer = incomingTransferArg(message, uid);   // ★ #1177: arg 15 — "live:<pct>" / "paused:<pct>" / "" (an older shell ignores it)
                     deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
                     push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal, fVoice, fGroup, fPlayed, fSize);

@@ -50,10 +50,12 @@
 
 /* ═══ ★ #705 (Session G, Damir): the TRAY — the grid UNDER the composer ═══════
    In the document flow, directly after .c-composer, so the conversation shrinks
-   above it the way it does for the keyboard. Height animates 0 → the slot; the
-   slot is a literal because it is the keyboard's height class, not a layout
-   token (sanctioned, one place). overflow hidden so the grid does not paint
-   during the rise. */
+   above it the way it does for the keyboard. The slot is a literal because it is
+   the keyboard's height class, not a layout token (sanctioned, one place).
+   ★★ S20 A (#1378, A1): NO HEIGHT TRANSITION. The tray takes its full height in the
+   frame it opens (data-open lands with data-tray-open) and the rise is a TRANSFORM
+   slide run by attach-sheet.js — a `height` transition re-laid out the whole log on
+   every frame (the slot observer → --composer-h → #messages::after). */
 .c-attach-tray {
   flex: none;
   height: 0;
@@ -62,7 +64,6 @@
   background: var(--surface-composer);
   border-top: var(--outline-width-1) solid var(--outline-neutral-01);
   padding-inline: var(--spacing-16);
-  transition: height var(--duration-200) var(--easing-standard);
 }
 /* ★ Session AE: max(the keyboard slot, the tray's own tiles). `--tray-content-h` is measured and
    published by attach-sheet.js at mount (publishTrayContentHeight); without it the slot alone

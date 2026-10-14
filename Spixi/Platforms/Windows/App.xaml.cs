@@ -96,7 +96,6 @@ public partial class App : MauiWinUIApplication
             IntPtr windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);
             WindowId windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
             AppWindow appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-            SPIXI.DtTitleBar.attach(appWindow, nativeWindow);   // ★ DT-1 B: the caption colours from the tokens (the way decides how)
 
             // Window sizing pass (#226, docs/font-size-audit.md §3):
             // DPI-aware defaults + a REAL OS-enforced minimum + last-size restore.

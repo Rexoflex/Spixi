@@ -55,9 +55,9 @@ export default async function (h) {
     r.liftsMore = n.offCanvas > n.offCanvasWas;
   } else r.resolved = false;
   r.lightWhite = lightRecv === '#ffffff';
-  r.mistOwn = !!mist && !!mistText && groundWas === 'flat' && mist.map((v) => v.toString(16).padStart(2, '0')).join('') === '1f2326' && cr(mistText, mist) >= 7;   // ★ S19 option B RE-BASE (Damir pick): #1F2326, text 13.31 (was #292B2D, 11.95) · ★ S19 F10 re-base
+  r.mistOwn = !!mist && !!mistText && groundWas === 'flat' && mist.map((v) => v.toString(16).padStart(2, '0')).join('') === '232729' && cr(mistText, mist) >= 7;   // re-based by S20 R (#1403): #232729 (C × 0.85, L + 0.015 of #1F2326), text 12.67. ★ S19 option B RE-BASE (Damir pick): #1F2326, text 13.31 (was #292B2D, 11.95) · ★ S19 F10 re-base
   r.noErr = errs.length === 0;
   ok(Object.values(r).every(Boolean),
-    '★ Damir pick (2026-10-03): the DARK received bubble is one half step lighter — --ink-750 #1E2023, between ink-800 #1A1C1F and ink-700 #232528 (light stays #ffffff); computed on the built chat shell, its text / meta / link ink each hold ≥ 4.5:1 and it lifts further off the ink-950 canvas than ink-800 did (re-based by S19 F10: this is the dark BLOCK value now — the default Mist canvas carries its own #1F2326 since S19 option B (was #292B2D), text ≥ 7:1) — ' + JSON.stringify(r) + ' ' + JSON.stringify(n) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
+    '★ Damir pick (2026-10-03): the DARK received bubble is one half step lighter — --ink-750 #1E2023, between ink-800 #1A1C1F and ink-700 #232528 (light stays #ffffff); computed on the built chat shell, its text / meta / link ink each hold ≥ 4.5:1 and it lifts further off the ink-950 canvas than ink-800 did (re-based by S19 F10: this is the dark BLOCK value now — the default Mist canvas carries its own #232729 since S20 #1403 (S19 option B #1F2326, was #292B2D), text ≥ 7:1) — ' + JSON.stringify(r) + ' ' + JSON.stringify(n) + (errs.length ? ' errs=' + errs.slice(0, 2).join(' | ') : ''));
   dom.window.close();
 }

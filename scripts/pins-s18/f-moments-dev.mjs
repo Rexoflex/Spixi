@@ -112,8 +112,9 @@ export default async function (h) {
       && /public const string DevResetLine = "\[MO\] dev reset: moment sheets cleared";/.test(RU);
     /* the ask line: after decide, before the answer push, built by askLine from why() */
     const ans = body(SM, 'private static async Task answerAsync(');
-    const iDecide = ans.indexOf('S17MomentRules.decide(id, seen, sessionMoment, sessionCard, eligible)');
-    const iLine = ans.indexOf('string askLine = S17MomentRules.askLine(id, d, S17MomentRules.why(id, seen, sessionMoment, sessionCard, eligible));');
+    /* ★ re-based by S20 S (#1379 G): decide / why take the install-moment bit (atInstall) as a sixth argument */
+    const iDecide = ans.indexOf('S17MomentRules.decide(id, seen, sessionMoment, sessionCard, eligible, atInstall)');
+    const iLine = ans.indexOf('string askLine = S17MomentRules.askLine(id, d, S17MomentRules.why(id, seen, sessionMoment, sessionCard, eligible, atInstall));');
     const iLog = ans.search(/if \(askLine\.Length > 0 && askLines < S17MomentRules\.MaxAskLines\)[^\n]*\s*\{\s*askLines\+\+;\s*Logging\.info\(askLine\);\s*\}/);
     const iPush = ans.indexOf('"momentAnswer"');
     b.askPlace = iDecide > 0 && iLine > iDecide && iLog > iLine && iPush > iLog && iLog < ans.indexOf('markSeen(id, arg);');

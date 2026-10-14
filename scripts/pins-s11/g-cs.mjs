@@ -118,7 +118,9 @@ export default async function (h) {
   r.burst = /enqueueVoiceInfo\(v\.Key, v\.Value\);\s*\}\s*foreach \(KeyValuePair<string, FriendMessage> o in batch\.offers\)\s*\{\s*enqueueOfferPreview\(o\.Key\);\s*\}/.test(cs)
     && cs.indexOf('foreach (KeyValuePair<string, FriendMessage> o in batch.offers)') > cs.indexOf('Utils.sendUiCommand(this, "messagesDone");');
   /* ALBUM: arg 20 */
-  r.arg20 = /string fSize = S11MediaRules\.offerSizeArg\(message\.localSender, message\.completed, fBytes\);/.test(cs)
+  /* ★ re-based by S20 S (#1376, P29): arg 20 picks the S20 rule behind SpixiFlags.S20FileSize, the S11 rule = the OFF path;
+     the S20 rule's own wiring is pinned by scripts/pins-s20/s-filesize.mjs */
+  r.arg20 = /string fSize = SpixiFlags\.S20FileSize \? fileSizeArgOf\(message, fBytes, fLocal\) : S11MediaRules\.offerSizeArg\(message\.localSender, message\.completed, fBytes\);/.test(cs)
     && /push\(batch, "addFile",[^;]*fGroup, fPlayed, fSize\);\s*noteThumbCandidate\(message, name, batch\);\s*noteOfferPreview\(message, name, batch\);/.test(cs);
   /* SAVE */
   r.saveBranch = /else if \(current_url\.StartsWith\("ixian:savePhoto:", StringComparison\.Ordinal\)\)\s*\{\s*onSavePhoto\(current_url\.Substring\("ixian:savePhoto:"\.Length\)\);\s*\}/.test(cs);

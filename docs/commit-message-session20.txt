@@ -1,0 +1,58 @@
+Session 20: lock the chat UI, the launch flow (ON-1), payments + wallet layout
+
+1374-1406, 1420-1423, 1440-1442 (one combined session; Damir 2026-10-13):
+
+Chat
+- Composer height and the message list: one reserve writer moves the
+  list's bottom space once, in the same frame as the scroll anchor. The
+  attach tray and the reply / edit strip slide by transform / clip (the
+  strip keeps its grow look), so the list no longer stutters or jumps.
+  A long send holds the field shrink until its row renders (250 ms),
+  then slides; it never scrolls past the end and never snaps.
+- Sent bubble meta: time, sent tick and delivered tick all at 0.7.
+- Dark canvases: grounds one step darker; incoming bubbles less
+  saturated and a touch lighter, quotes re-derived.
+- File card: the size on a second line ("PDF · 2.4 MB",
+  "1.1 / 2.4 MB", "Paused · 1.1 / 2.4 MB"); units localised. C# sends
+  the size for sent and completed files too (flag S20FileSize, P29).
+- Message formatting: *bold* _italic_ ~strike~ `code` and ``` blocks,
+  DOM-built (no innerHTML), URLs stay one link, stripped in the reply
+  quote, chat-list preview and search; copy keeps the marks; an Aa
+  format bar and Ctrl+B / Ctrl+I / Ctrl+Shift+X; IME-safe. The link
+  rule moved to link-rule.js; C# S20FormatRules.Strip mirrors the
+  grammar (unwired: no notification carries message text).
+- Payment bubble: a stacked layout with today's colours (label row,
+  28 px amount, badge row; role labels; declined / canceled struck
+  through; Decline only when wired; Pay off when funds are short).
+  File card: cancel is a ✕ on the tile, no "Open file" link. App
+  cards: no header row, a larger name line.
+
+Apps, settings, wallet, small fixes
+- An app tile tap opens its details; the ⋮ became a Run button.
+- Account: the App lock row's top inset matches the other cards.
+- Wallet: contact photos with a direction badge, day groups (pending
+  rows on top), a real minus sign and the IXI unit, filled action
+  circles; the hero reads one token. A contact cannot borrow another
+  contact's photo or name through an address-shaped nickname.
+- The secure notice card on the darker grounds, one tab stop on "Set
+  group photo", RTL "n / 10", the install-wait spinner, the install
+  moment no longer takes the session.
+- Developer: the failed title-bar ways (maui / colors) are deleted;
+  a switch for S20FileSize.
+
+Launch flow (ON-1)
+- Create in two steps (photo + nickname, then password with a strength
+  bar and live checks), no setup screen, an honest line after 2 s.
+- Restore on one screen with a file card, "Password", a wrong-password
+  state that keeps the file, "Restoring…".
+- A calmer navy backdrop, slate cards, the solid primary button, static
+  corner rings, the language pill with a caption, slide 3 without
+  "money", a two-column desktop layout, Sora latin-ext (launch only).
+- The welcome carries the Terms / Privacy line under its buttons; the
+  slide art shrinks so text and the line always fit.
+
+Strings: 57 new keys in 13 locales, slide 3 and create1Sub re-translated.
+Pins: scripts/pins-s20 (27 modules), scripts/pins-on1 (6 modules).
+Smoke 6087 / the 2 KNOWN (#136, B3). CSH 451.
+C# not yet compiled for MAUI: SingleChatPage, DevPage, SpixiFlags,
+SMoments, DtTitleBar, App.xaml.cs (shared + Windows), ThemeManager.

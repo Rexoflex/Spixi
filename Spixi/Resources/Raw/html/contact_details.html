@@ -1053,8 +1053,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 </style><!-- c-modal (delete-history / remove-contact confirms) + c-sheet -->
 <style data-src="../styles/components/txlist-item.css">
-/* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
-   Figma rows are static; hover/pressed = #23 interactive tokens per #43. */
+/* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, #55; states #23/#43). */
 
 .c-txlist-item {
   display: flex;
@@ -1068,38 +1067,26 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   text-align: start;
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
-  /* 100ms intentional: micro-interaction, matches chatlist row hover */
   transition: background-color var(--duration-100) var(--easing-standard);
-  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
-     base.css — see chatlist-item.css for the note. State rules set colour only. */
+  /* 5c-ii: the press fill is base.css's ::before layer (chatlist-item.css) */
 }
-/* W4a (#348): the selected row uses the CHAT-ROW treatment, exactly.
-   The wallet row was left on --surface-interactive-selected while the chats list
-   moved to the action-tonal surface (Damir 2026-07-07, chatlist-item.css:22), so
-   the two lists showed DIFFERENT selected colours in the same desktop window. The
-   shell rule that set it even CLAIMED to "mirror the chats-list treatment"
-   (home.html) — it had stopped doing so. The rule now lives here, beside this
-   row's own hover and pressed rules and in the same order as the chat row, so the
-   two lists cannot drift apart again. */
+/* W4a (#348): selected = the CHAT-ROW treatment exactly, kept beside this row's hover so the lists cannot drift. */
 .c-txlist-item[aria-current] {
   background-color: var(--surface-action-tonal-default);
-  /* 5c-ii: the tonal-pressed fill rides base.css's ::before layer — no image here. */
+  --tx-ring: var(--surface-action-tonal-default);   /* S20: the face badge's ring follows the row */
 }
 @media (hover: hover) and (pointer: fine) {
-  /* ★ #353 (Damir): NO hover tint on a selected row — identical to the chat row,
-     see chatlist-item.css. :not([aria-current]) is load-bearing (source order).
-     ⚠ Keep this rule TRANSITION-FREE — see the chat row's B-4 note. */
+  /* ★ #353: no hover tint on a selected row (:not() is load-bearing); transition-free (B-4) */
   .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
   /* ★ #1171: the hovered row survives a live re-render (wallet-shell carryRowHover; see chatlist-item.css). */
   .c-txlist-item[data-hover]:not([aria-current]) { background-color: var(--surface-interactive-hover); }
+  .c-txlist-item:hover:not([aria-current]), .c-txlist-item[data-hover]:not([aria-current]) { --tx-ring: var(--surface-interactive-hover); }
 }
-/* 5c-i/ii: the :active fill mirrors are REMOVED — see chatlist-item.css. */
 
-/* #228 desktop row rhythm — same treatment as chat rows (#226/R3): 48px circle
-   + 2×8px padding ≈ 64px rows. Mobile keeps spacing-16. */
+/* #228: desktop row rhythm = chat rows (#226/R3) */
 :root[data-desktop] .c-txlist-item { padding-block: var(--spacing-8); }
 
-/* direction circle: 48, centered 24 arrow */
+/* direction circle (rows without a face: chat-info) */
 .c-txlist-item__direction {
   flex: none;
   display: flex;
@@ -1117,6 +1104,30 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-txlist-item[data-type="failed"] .c-txlist-item__direction { color: var(--text-error); }
 
+/* ★ S20 J2 (#1440): the wallet face — avatar (or the wallet disc) + a direction badge ringed in the list surface */
+.c-txlist-item__face { position: relative; flex: none; width: var(--size-target-min); height: var(--size-target-min); }
+.c-txlist-item__face .c-avatar__initials { font-size: 17px; }
+.c-txlist-item__wallet {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+.c-txlist-item__dir {
+  position: absolute;
+  inset-block-end: calc(-1 * var(--outline-width-2));
+  inset-inline-end: calc(-1 * var(--outline-width-2));
+  display: flex; align-items: center; justify-content: center;
+  width: var(--size-icon-20); height: var(--size-icon-20);
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--tx-ring, var(--surface-screen));
+  background: var(--surface-neutral-03);
+  color: var(--icon-neutral-01);
+}
+.c-txlist-item[data-direction="in"] .c-txlist-item__dir { background: var(--surface-success-inverse); color: var(--icon-success); }
+
 .c-txlist-item__content {
   display: flex;
   flex-direction: column;
@@ -1125,15 +1136,11 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 
 .c-txlist-item__name {
-  /* #277: row-title parity with chat rows (.c-chatlist-item__name) — label-lg
-     became the BUTTON role at the #227 type dial (16px desktop) while chat-row
-     names moved to body-lg (14px), and the always-semibold weight made
-     addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
-     label-lg semibold as the row's money emphasis (dial if too loud). */
-  font-size: var(--tx-name-size);            /* ★ Session I (sheet 2, #735⑦): 15 mobile / 14 desktop — was body-lg */
+  /* #277 → Session I (#735⑦): chat-row name parity */
+  font-size: var(--tx-name-size);
   line-height: var(--line-height-body-lg);
   letter-spacing: var(--tracking-body-lg);
-  font-weight: var(--tx-name-weight);        /* ★ Session I: semibold — #277's regular reversed on Damir's ruling */
+  font-weight: var(--tx-name-weight);
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1145,13 +1152,9 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   align-items: center;
   gap: var(--spacing-8);
   min-width: 0;
-  /* #286: belt — a non-shrinking child must never paint into the amounts column */
   overflow: hidden;
 }
-/* #286 (Damir F5, narrow desktop pane): the status badge's default min-width:auto
-   made it refuse to shrink below its label — it painted over the fiat amount.
-   Let it shrink; the label ellipsizes (icon + tint keep carrying the status,
-   and the full wording lives on the detail sheet). */
+/* #286: the badge may shrink, its label ellipsizes (narrow desktop pane) */
 .c-txlist-item__meta .c-badge { min-width: 0; }
 .c-txlist-item__meta .c-badge__label {
   min-width: 0;
@@ -1160,23 +1163,19 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 
 .c-txlist-item__time {
-  /* #231b: secondary list lines ride body-sm (chat-excerpt parity) — body-md
-     is the BUBBLE role since the #227 dial and outsized the 16px label-lg name */
+  /* #231b: secondary lines ride body-sm */
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
-  /* #288 review: as a flex child its automatic minimum size is its full min-content
-     width, so it never shrinks — the #286 overflow:hidden belt on __meta then CLIPS it
-     mid-glyph and the text-overflow below can never fire. */
+  /* #288: min-width 0, or the #286 belt clips it mid-glyph */
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* right column: amount over fiat, right-aligned. Amounts are bridge-formatted
-   (bounded in practice); max-width + ellipsis = belt-and-braces overflow guard */
+/* amount over fiat, end-aligned; max-width + ellipsis = overflow guard */
 .c-txlist-item__amounts {
   display: flex;
   flex-direction: column;
@@ -1199,26 +1198,25 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   color: var(--text-neutral-01);
 }
 .c-txlist-item__fiat {
-  font-size: var(--font-size-body-sm);   /* #231b: secondary-line parity (see __time) */
+  font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
-  /* Figma sent-fiat used text-neutral-01, every other type -02 — normalized to -02 (spec ①) */
   color: var(--text-neutral-02);
 }
 
-.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-amount-positive); }   /* ★ #1048: a green the eye separates from the black sent amounts */
+.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-amount-positive); }   /* ★ #1048 */
+/* S20 J2: the unit, 72 %, muted (received keeps its green) */
+.c-txlist-item__unit { font-size: 0.72em; font-weight: var(--font-weight-regular); letter-spacing: 0; color: var(--text-neutral-02); }
+.c-txlist-item[data-type="received"] .c-txlist-item__unit { color: inherit; }
 .c-txlist-item[data-type="pending"] .c-txlist-item__amount { color: var(--text-neutral-02); }
 .c-txlist-item[data-type="failed"] .c-txlist-item__amount,
 .c-txlist-item[data-type="failed"] .c-txlist-item__fiat {
-  /* Figma raw #6a717c = unbound token error (spec ②) — bound to disabled ink */
   color: var(--text-neutral-disabled);
   text-decoration: line-through;
   font-weight: var(--font-weight-regular);
 }
 
-/* ★ #1008 (U-04): a meta line too narrow for the badge's word AND the whole date shows the
-   badge as an ICON-ONLY chip (txlist-item.js measures and sets data-compact). The label is
-   VISUALLY hidden, not removed — it stays the chip's accessible name; `title` has the word. */
+/* ★ #1008 (U-04): too narrow for word + date → an icon-only chip; the label is VISUALLY hidden (still the name) */
 .c-txlist-item__meta[data-compact] .c-badge__label {
   position: absolute;
   width: 1px;

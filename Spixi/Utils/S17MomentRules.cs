@@ -83,11 +83,15 @@ namespace SPIXI
         /** MOMENTS.md: once per id (per language / per app); at most ONE per session and never in a session with a card —
          *  except firstixi (safety) and lang (★ S19 F4). Seen wins over everything; Consume wins over the session rule (it shows nothing). */
         public static Decision decide(string id, bool seen, bool sessionMoment, bool sessionCard, Eligible eligible)
+            => decide(id, seen, sessionMoment, sessionCard, eligible, false);
+
+        /** ★ S20 G (#1379): `installMoment` = this ask is the app moment AT INSTALL (see installMoment below) — exempt like lang. */
+        public static Decision decide(string id, bool seen, bool sessionMoment, bool sessionCard, Eligible eligible, bool installMoment)
         {
             if (seen) return Decision.Refuse;
             if (eligible == Eligible.Consume) return Decision.Consume;
             if (eligible == Eligible.Wait) return Decision.Refuse;
-            if (!exemptFromSession(id) && (sessionMoment || sessionCard)) return Decision.Refuse;
+            if (!exemptFromSession(id, installMoment) && (sessionMoment || sessionCard)) return Decision.Refuse;
             return Decision.Grant;
         }
 
@@ -98,6 +102,17 @@ namespace SPIXI
         /** Does this grant take the session? The exempt ids do not — a language sheet never blocks pay / mic / app / autodl /
          *  offline, and never holds home's cards back. */
         public static bool takesSession(string id) => !exemptFromSession(id);
+
+        /** ★ S20 G (#1379, the S19 residual "the install moment takes the session, so an unmarked app re-asks later"): the app
+         *  moment AT INSTALL — asked by App details (before Install, or before the Open pill of an app never opened) or the
+         *  corrective re-ask of an app C# unmarked after its install in this process (SMoments.unmarkApp: the package's caps
+         *  differ from the fetched ones the sheet showed). It stands in for the install confirm the user is already in, so it
+         *  is outside the one-per-session + card rule and never takes the session (the lang rule, S19 F4). Every other app
+         *  ask (the grid, an invite) keeps the rule. */
+        public static bool installMoment(string id, bool onAppDetails, bool unmarkedThisProcess) =>
+            id == "app" && (onAppDetails || unmarkedThisProcess);
+        public static bool exemptFromSession(string id, bool installMoment) => exemptFromSession(id) || (installMoment && id == "app");
+        public static bool takesSession(string id, bool installMoment) => !exemptFromSession(id, installMoment);
 
         /** ★ S19 F4: the language moment's own check — Settings only, the language the user just applied only, never English. */
         public static Eligible langEligible(bool onSettings, string? arg, string? pendingLang) =>
@@ -159,6 +174,44 @@ namespace SPIXI
             }
         }
 
+        /** ★ S20 G (#1379): the app ids C# unmarked after their install in THIS process (SMoments.unmarkApp) — their next app
+         *  ask is the corrective install moment (installMoment). Memory only; app ids validated on the way in; at most
+         *  MaxUnmarked (the oldest goes); an id leaves when its moment is granted; cleared by the dev reset. Locked. */
+        public const int MaxUnmarked = 40;
+        public sealed class UnmarkedApps
+        {
+            private readonly List<string> ids = new List<string>();
+            private readonly object gate = new object();
+
+            public void add(string? id)
+            {
+                if (!isAppId(id)) return;
+                lock (gate)
+                {
+                    ids.Remove(id!);
+                    ids.Add(id!);
+                    while (ids.Count > MaxUnmarked) ids.RemoveAt(0);
+                }
+            }
+
+            public bool has(string? id)
+            {
+                lock (gate) { return id != null && ids.Contains(id); }
+            }
+
+            public void remove(string? id)
+            {
+                lock (gate) { if (id != null) ids.Remove(id); }
+            }
+
+            public void clear()
+            {
+                lock (gate) { ids.Clear(); }
+            }
+
+            public int count { get { lock (gate) { return ids.Count; } } }
+        }
+
         /** ★ S19 F5 (MO-APP at Install): App details hosts ONE moment — `app`, for the page's OWN app id only (the app it shows,
          *  fetched or installed). Any other id or argument from that page is refused before it is read further. */
         public static bool appDetailsAsk(string? id, string? arg, string? pageAppId) =>
@@ -171,11 +224,14 @@ namespace SPIXI
         private static readonly string[] WhyWords = { "seen", "wait", "session", "card", "ok" };
 
         public static Why why(string id, bool seen, bool sessionMoment, bool sessionCard, Eligible eligible)
+            => why(id, seen, sessionMoment, sessionCard, eligible, false);
+
+        public static Why why(string id, bool seen, bool sessionMoment, bool sessionCard, Eligible eligible, bool installMoment)
         {
             if (seen) return Why.Seen;
             if (eligible == Eligible.Consume) return Why.Ok;
             if (eligible == Eligible.Wait) return Why.Wait;
-            if (!exemptFromSession(id))
+            if (!exemptFromSession(id, installMoment))
             {
                 if (sessionMoment) return Why.Session;
                 if (sessionCard) return Why.Card;

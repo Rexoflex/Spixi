@@ -1,0 +1,227 @@
+<title>Spixi Session 20 Walk</title>
+<style>
+/* Layout: one narrow column — commit steps, then a Windows part and an Android part (each: build steps, then walk rows), a sticky tally bar.
+   Tokens follow the Spixi redesign palette (ink neutrals, the Spixi blue). */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:780px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:8px 0 0;text-wrap:balance;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .tag{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 8px}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:8px;flex-wrap:wrap}
+nav.jump a{font:600 13px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:5px 12px;text-decoration:none}
+nav.jump a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps li{min-width:0}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.cmd button,.ctl button{font:600 12px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;flex:none}
+.exp{font-size:13px;color:var(--ink-2)}
+.exp b{color:var(--ink)}
+code{font:13px var(--mono);background:var(--brand-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:780px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{width:100%;min-height:120px;font:13px var(--mono)}
+.grp{font:600 12px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin:12px 0 0;text-wrap:balance}
+.both{font:600 11px var(--font);color:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:1px 7px}
+.note{font-size:13px;color:var(--ink-2);border-inline-start:3px solid var(--brand);padding-inline-start:10px}
+</style>
+
+
+<div class="wrap">
+  <header>
+    <h1>Spixi Session 20 Walk</h1>
+    <p class="sub"><b>Session 20 (#1374–#1404, #1420–#1422, #1440–#1441): the chat UI lock, the ON-1 launch flow, the J payment / file / app / wallet layout and the DT-1 leftovers.</b> Apply the patch and commit, build Windows (F5) and Android, then walk. ⚠ The S20 C# (SingleChatPage, S11MediaRules, SpixiFlags, DevPage, S17MomentRules, SMoments, DtTitleBar*, App.xaml.cs, ThemeManager) is UNCOMPILED for MAUI: this build is its first compile — a build error is a batch bug, paste it. Rows marked <span class="both">A+W</span> show in both parts. Mark each row P / F / N/A with a note, press <b>Copy results</b>, and paste the text plus the logs.</p>
+  </header>
+  <nav class="jump" aria-label="Parts">
+    <a href="#setup">1 · Set-up</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
+  </nav>
+
+  <h2 id="setup">Set-up <span class="tag">fresh PowerShell</span></h2>
+  <section class="box">
+    <h3>Patch + commit</h3>
+    <ol class="steps" id="steps-commit"></ol>
+  </section>
+  <section class="box">
+    <h3>Test data (have it before you start)</h3>
+    <ol class="steps" id="steps-data"></ol>
+  </section>
+  <p class="note">ON rows need the welcome screen. Walk them on a device or Windows user with no account you need. Android: Settings › Apps › Spixi › Storage › Clear storage. Windows: Settings › Apps › Installed apps › Spixi › Advanced options › Reset. Restore brings back NO chats (#1420). After ON-C4: Account › Backup › Back up now (keep the file and the password), clear the data again, then walk ON-R1–R3 with that file.</p>
+
+  <h2 id="windows">Windows <span class="tag">F5</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-win"></ol>
+  </section>
+  <div id="rows-win"></div>
+
+  <h2 id="android">Android <span class="tag">Debug</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-and"></ol>
+  </section>
+  <div id="rows-and"></div>
+  <p class="note">Moment rows (G-INSTALL-*): Developer › Reset moment sheets, then restart the app, before EACH row. Grep the log for <code>[MO]</code>. iOS / Mac rows go to the office sheet, not here.</p>
+  <textarea id="out" readonly aria-label="Results text" hidden></textarea>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+</div></div>
+
+<script>
+const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
+const ADB = '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe"';
+const WIPE_BIN = `cmd /c rd /s /q "\\\\?\\${REPO}\\Spixi\\bin"`;
+const WIPE_OBJ = 'Remove-Item -Recurse -Force Spixi\\obj -ErrorAction SilentlyContinue';
+const STEPS = {
+  commit: [
+    ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
+    ["Check the tree.", "git --no-optional-locks status --short", "Only untracked files (your notes). Other changes: stop and paste them."],
+    ["Apply the patch and commit. The commands are in the delivery message.", "", "See the delivery message (base hash, file count, commit subject, push)."],
+  ],
+  data: [
+    ["A chat with a large image and 70+ messages (A rows).", "", ""],
+    ["A group (PB-RECV, G rows).", "", ""],
+    ["A received file offer (a PDF of 2–3 MB, auto-download off) and a sent file (E, FB rows).", "", ""],
+    ["Payments in several states: sent, received, request in, request out, one declined (J1, WT rows).", "", ""],
+    ["A mini-app installed (C, APP-CARDS).", "", ""],
+    ["A second device as the peer, on the S20 build (B, F-MARKS, payments, files).", "", ""],
+  ],
+  win: [
+    ['Close Visual Studio (the wipe needs the files free).', '', ''],
+    ['Delete the build output: bin first (a WebView2 file has a 261-char path; Remove-Item stops on it, L139).', WIPE_BIN, 'No output.'],
+    ['Delete obj.', WIPE_OBJ, 'No output.'],
+    ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
+    ['Set the target.', '', 'Configuration <b>Debug</b>, target <b>Windows Machine</b>.'],
+    ['Press F5. Never use dotnet build for Windows (#663).', '', 'The app starts. A build error: paste it in the chat.'],
+    ['Walk the Windows rows below. Use a wide window.', '', ''],
+    ['Save the log.', '', 'Developer page → <b>Send log</b>. It saves <b>Downloads\\spixi-log-&lt;date&gt;.txt</b>.'],
+    ['Copy the log next to the other outputs (NOT into the repo folder).', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
+  ],
+  and: [
+    ['Close Visual Studio. Delete bin (the html changed, #320 / #449).', WIPE_BIN, 'No output.'],
+    ['Delete obj.', WIPE_OBJ, 'No output.'],
+    ['Connect the phone with USB. Check it.', ADB + ' devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large.', ADB + ' logcat -G 16M', 'No output.'],
+    ['Clear the log.', ADB + ' logcat -c', 'No output.'],
+    ['Build and deploy Debug.', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Debug -t:Run', 'The app opens on the phone. A build error: paste it.'],
+    ['Walk the Android rows below.', '', ''],
+    ['Show the flag and moment lines. Copy them into the chat.', ADB + " logcat -d -v time | Select-String '\\[FLAGS\\]|\\[MO\\]'", 'Includes <b>[FLAGS] s20filesize=1</b> and the <b>[MO] ask …</b> lines.'],
+    ['Save the full log as UTF-8.', ADB + ' logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s20.txt"', 'A file of a few MB.'],
+  ],
+};
+const W = 'w', A = 'a';
+const ROWS = [{"p":"w","g":"BUILD · this build only","id":"S20-BUILD-W","t":"S20-BUILD — this build only","d":"1) Wipe bin and obj (set-up b). 2) F5. 3) Open a chat. 4) Open the Apps tab.","e":"The build succeeds. The composer shows an \"Aa\" button at the end of the text field. Each app tile shows a round Run (▶) button where the ⋮ was. Only this build has these."},{"p":"a","g":"BUILD · this build only","id":"S20-BUILD-A","t":"S20-BUILD — this build only","d":"1) Wipe obj / bin. 2) Debug -t:Run. 3) Open a chat. 4) Read the log for ⟦[FLAGS]⟧.","e":"The build succeeds. The composer shows \"Aa\". The log has ⟦[FLAGS] s20filesize=1⟧. Only this build has these."},{"p":"aw","g":"A · Composer height ↔ the list (#1375, #1378 A2)","id":"A1-TRAY","t":"Tray open / close — #1375 A1","d":"1) Open the chat with the large image and 70+ messages. 2) Scroll to the end. Keep the keyboard down. 3) Start a screen video. 4) Tap ⊕. 5) Close the tray. 6) Do 4–5 three times. 7) Stop the video.","e":"Each open and each close is one smooth motion. The messages slide with the tray. They do not jump or stutter. The last message stays in view above the composer. Write the video file name in the note."},{"p":"aw","g":"A · Composer height ↔ the list (#1375, #1378 A2)","id":"A2-STRIP","t":"Reply / edit strip — #1378 A2 (keep the grow, transform only)","d":"1) Same chat, at the end. 2) Start a reply to a message. 3) Tap ✕ on the strip. 4) Edit one of your messages. 5) Tap ✕. 6) Start a reply and tap ✕ at once (under 0.5 s).","e":"2, 4: the strip grows smoothly above the field. The list moves up in the same smooth motion, with no jump. 3, 5: the strip goes and the list moves back smoothly. 6: no empty gap and no \"ghost\" strip stays. The last message sits right above the composer."},{"p":"aw","g":"A · Composer height ↔ the list (#1375, #1378 A2)","id":"A3-LONGSEND","t":"Long send + slow echo — #1375 A3","d":"1) At the end of a chat, type a message of 4 lines. 2) Send it. 3) Do 1–2 three times. 4) Close Spixi on the peer device. 5) Send a 4-line message, then a short one.","e":"2: the composer goes back to one line. The new bubble comes in at the bottom. The list never moves up past the end and never snaps back down. 5: the bubbles show ✓ (not delivered). The list slides smoothly and never snaps."},{"p":"aw","g":"B · Sent meta (#1377 B)","id":"B-META","t":"Sent time and ticks — #1377 B (0.7)","d":"1) Light theme. 2) Account › Chat appearance › Bubble colour › Blue. 3) In a chat, send one message with the peer online (✓✓) and one with the peer offline (✓). 4) Do 2–3 for Violet, Teal, Pink, Orange, Graphite. 5) Bubble colour Auto with Canvas Meadow (green). 6) Dark theme: do 2–5 again.","e":"On each colour, the time, ✓ and ✓✓ have the same dimness. No part is brighter than the others. Read ticks and the failed mark stay at full strength. Write each colour where the time is hard to read."},{"p":"aw","g":"C · Apps tile (#1377 C)","id":"C-APPS","t":"Tile tap = details, Run — #1377 C","d":"1) Apps tab, grid layout. 2) Tap an app tile. 3) Go back. Tap the round Run (▶) button on a tile. 4) List layout: do 2–3 again. 5) Windows: press Tab to a tile, then Enter. Go back. Press Tab to its Run button, then Enter.","e":"2: the details page of the app opens (the app does not start). 3: the app starts. There is no ⋮ menu. Uninstall and \"Invite a contact\" are on the details page only. 5: Enter on the tile opens the details. Enter on Run starts the app. The focus ring is visible on both."},{"p":"aw","g":"D · Dark grounds + incoming bubbles (#1377 D, #1403)","id":"D-DARK","t":"Dark grounds + incoming bubbles — #1377 D · #1403 (incoming time under 4.5 : 1)","d":"1) Dark theme. 2) Open a chat with incoming and outgoing messages. 3) Set the Canvas to each of the 7: Mist, Iris, Spixi, Meadow, Aurora, Dusk, Ocean.","e":"On each canvas: the ground is a step darker than in S19. The incoming bubble is clearly lighter than the ground. It is clearly different from the outgoing bubble. The text is easy to read. The pattern is still visible. Write the canvases where the small incoming time is hard to read."},{"p":"aw","g":"E · File size (#1376, #1402)","id":"E-IN","t":"Size on a received file — #1376 · #1402","d":"1) The peer sends a PDF of 2–3 MB (auto-download off). 2) Read the second line of the card. 3) Tap the card to download. Read the line. 4) The peer sends a second large file. Start its download. 5) Close Spixi on the peer. Wait 20 s. Leave the chat and open it again. 6) Let the first download finish.","e":"2: \"PDF · 2.4 MB\" (the real type and size). 3: \"1.1 / 2.4 MB\"; the first number grows. 5: \"Paused · 1.1 / 2.4 MB\". 6: \"PDF · 2.4 MB\". In Deutsch the number has a comma (\"2,4 MB\")."},{"p":"aw","g":"E · File size (#1376, #1402)","id":"E-SENT","t":"Size on a sent file + restart — #1376 (flag S20FileSize, P29) · #1402","d":"1) Send a PDF of 2–3 MB. Read the second line. 2) When it is sent, close Spixi. 3) Start Spixi. Open the chat.","e":"1: \"1.1 / 2.4 MB\" while it sends, then \"PDF · 2.4 MB\". 3: the sent card still reads \"PDF · 2.4 MB\" (before this build a sent file had no size)."},{"p":"aw","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-MARKS","t":"Each mark — #1378 F","d":"1) Send four messages: ⟦*bold*⟧ · ⟦_italic_⟧ · ⟦~strike~⟧ · ⟦`code`⟧. 2) Look at them on your device and on the peer (S20 build).","e":"Bold, italic, struck through, and code in a mono font on a tinted ground. The marks ⟦*⟧ ⟦_⟧ ⟦~⟧ ⟦`⟧ do not show. The peer shows the same."},{"p":"aw","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-PLAIN","t":"Plain cases — #1378 F (word-edge rule)","d":"1) Send: ⟦snake_case_name⟧ · ⟦2*3*4⟧ · ⟦file_v1_final⟧ · ⟦a * b * c⟧.","e":"Each message shows exactly as typed. No italic, no bold. The marks stay visible."},{"p":"aw","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-URL","t":"URL with underscores — #1378 F · #1404 F2","d":"1) Send ⟦https://example.com/my_file_name_v2.pdf⟧. 2) Send ⟦*https://ixian.io*⟧. 3) Tap the first link.","e":"1: one link over the whole URL. No italic. The underscores stay. 2: a bold link. 3: the link opens the full URL, with the underscores."},{"p":"aw","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-CODE","t":"Code + block — #1378 F","d":"1) Send one message of 3 lines: ⟦```⟧ · ⟦let a = *b*;⟧ · ⟦```⟧. 2) Send ⟦`*not bold*`⟧.","e":"1: one code block in a mono font. ⟦*b*⟧ shows with its stars, not bold. 2: inline code ⟦*not bold*⟧ with its stars, not bold."},{"p":"aw","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-STRIP","t":"Quote / preview / search — #1378 F","d":"1) Send ⟦*bold* _it_⟧. 2) Start a reply to it. Send the reply. 3) Go to Chats. Read the preview line of that chat. 4) Search for ⟦bold⟧.","e":"2: the quote in the strip and in the sent reply reads \"bold it\": plain text, no marks, no style. 3: the preview reads \"bold it\". 4: the search finds the message and shows plain text."},{"p":"aw","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-COPY","t":"Copy keeps marks — #1378 F","d":"1) Copy the message ⟦*bold* _it_⟧ (its menu › Copy). 2) Paste it into the composer.","e":"The pasted text is ⟦*bold* _it_⟧, as typed."},{"p":"aw","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-AA","t":"The Aa bar — #1378 F (input A + C)","d":"1) Type ⟦hello world⟧. Select \"world\". 2) Tap Aa. 3) Tap B. 4) Keep \"world\" selected. Tap B again. 5) Put the caret at the end. Tap I. Type ⟦x⟧. 6) Close the bar (Windows: Esc; Android: tap Aa).","e":"2: a small bar B · I · S · code opens above the composer. The composer and the list do not move. 3: the text is ⟦hello *world*⟧. 4: the text is ⟦hello world⟧ again. 5: ⟦_x_⟧ at the end. 6: the bar closes. The focus stays in the field. On Android the keyboard stays up."},{"p":"w","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-KEYS","t":"Desktop shortcuts — #1378 F","d":"1) Type three words. 2) Select the first word. Press Ctrl+B. 3) Select the second. Press Ctrl+I. 4) Select the third. Press Ctrl+Shift+X. 5) Press Ctrl+Z. 6) Open Aa. Hover B.","e":"2: ⟦*word*⟧. 3: ⟦_word_⟧. 4: ⟦~word~⟧. 5: the last wrap is undone. 6: the tooltip reads \"Bold (Ctrl+B)\"."},{"p":"a","g":"F · Message formatting (#1378 F, #1404 F2)","id":"F-IME","t":"IME does not break — #1378 F (never mid-IME)","d":"1) Add a Japanese (or Chinese pinyin) keyboard. 2) In the composer type ⟦nihon⟧. Pick 日本 from the list. 3) Type again. While the word is still underlined, open Aa and tap B. 4) Send ⟦*日本*⟧.","e":"2: the word commits normally. No letters are lost or doubled. 3: nothing happens while the word is underlined (no stray marks). 4: 日本 shows bold."},{"p":"aw","g":"G · Carried items (#1379)","id":"G-NOTICE","t":"Notice card on dark grounds — #1379","d":"1) Dark theme. 2) Scroll a 1:1 chat to the top (the secure notice card). 3) Set the Canvas to each of the 7. 4) Open a blind group.","e":"On every canvas the notice card is a neutral dark card, clearly apart from the darker ground. Its text reads well. In the blind group the \"Blind group\" card sits with it the same way."},{"p":"w","g":"G · Carried items (#1379)","id":"G-GPHOTO","t":"\"Set group photo\" one tab stop — #1379","d":"1) New chat › Create group: pick 2 › Next. 2) Press Tab until the focus is on \"Set group photo\". 3) Press Tab once more. 4) Click the text \"Set group photo\".","e":"2: one stop on the photo button. 3: the focus moves to the next control, not to \"Set group photo\" again. 4: the photo picker opens."},{"p":"a","g":"G · Carried items (#1379)","id":"G-INSTALL-WAIT","t":"Install-wait spinner — #1379","d":"1) Developer › Reset moment sheets. Restart. 2) Apps › Add app › paste a link to an app you do not have › Get app. 3) Tap Install. Tap it again at once. 4) Close the sheet.","e":"3: the Install button shows a spinner at once. The second tap does nothing. The sheet \"Before you install (app name)\" opens. 4: the button is normal again."},{"p":"a","g":"G · Carried items (#1379)","id":"G-INSTALL-ONCE","t":"Install moment once — #1379","d":"1) Developer › Reset moment sheets. Restart. 2) Privacy › auto-download off. 3) A contact sends a photo. Download it (the auto-download sheet shows). 4) Install a new app as in G-INSTALL-WAIT. 5) Later, open that app from Apps.","e":"4: the install sheet still shows (the earlier sheet does not block it). Log: ⟦[MO] ask id=app d=grant why=ok⟧. 5: no sheet."},{"p":"w","g":"H · DT-1 leftovers (#1394, #1395)","id":"DT2-DENS-HOVER","t":"Dense + hover (re-walk) — #1394 (unmarked in DT-1 r2)","d":"1) Account › Chat appearance › List density › Dense. 2) Hover a row with an unread badge. 3) Hover a pinned row. 4) Light and dark.","e":"The four buttons fit inside the row. The name stays readable. The badge and the time show again when the pointer leaves. Pinned and unread rows stay one line."},{"p":"a","g":"H · DT-1 leftovers (#1394, #1395)","id":"DT2-BUILD-A","t":"No density on the phone — #1394 (N/A later)","d":"1) The S20 Android build (S20-BUILD-A). 2) Account › Chat appearance.","e":"There is NO \"List density\" control (desktop only). Message preview is as before."},{"p":"a","g":"H · DT-1 leftovers (#1394, #1395)","id":"DT2-PHONE-SAME","t":"Phone list unchanged — #1394 (N/A later)","d":"1) Pin 2 chats. 2) Look at the chat list.","e":"Full-width rows, no gaps. The same row height and avatars as before."},{"p":"w","g":"H · DT-1 leftovers (#1394, #1395)","id":"CLOSE-W","t":"Close under F5 — #1394 (WinUI UnhandledException → Debugger.Break)","d":"1) F5. 2) Close the Spixi window (✕). 3) Do 1–2 three times. 4) If Visual Studio stops on a break: open Debug › Windows › Immediate. Type ⟦e.Exception.ToString()⟧. Press Enter. 5) Copy that result and the ⟦Exception thrown:⟧ lines from the Output window.","e":"Spixi closes 3 times. Visual Studio ends the debug session with no break. If it breaks: paste the text from steps 4–5 in the note."},{"p":"aw","g":"H · DT-1 leftovers (#1394, #1395)","id":"DT-CLEAN","t":"Developer page cleanup — #1395 · #1376 (P29)","d":"1) Open the Developer page. 2) Look at every card.","e":"There is no \"Title bar\" card. The \"Release flags\" card shows 5 switches: Wallet password in secure storage · Voice and paste only in the open chat · What’s new and the About bar ink (S17) · Moment sheets (S17) · File size on sent files (S20)."},{"p":"aw","g":"I · Account toggle rows (#1401)","id":"I-APPLOCK","t":"App lock top inset — #1401","d":"1) Open Account. 2) Compare the card with App lock and the card with Theme. 3) Light and dark.","e":"The App lock icon and title are the same distance from the top edge of their card as Theme in its card. The subtitle stays on the line under the title."},{"p":"aw","g":"J1 · Payment bubbles (#1440, #1441)","id":"PB-SENT","t":"Sent payment — #1440 J1","d":"1) In a 1:1 chat, send 1 IXI. 2) Watch the bubble until it completes.","e":"The bubble: a small medallion + \"You sent\", the amount large with a small \"IXI\", the \"Pending\" badge + the time at the foot. Then \"Completed\"; the check draws once. No fiat line when it is under 0.01."},{"p":"aw","g":"J1 · Payment bubbles (#1440, #1441)","id":"PB-RECV","t":"Received payment — #1440 J1 · #1441 (names only in groups)","d":"1) The peer sends you 1 IXI. 2) If you can, receive one in a group too.","e":"1: the label reads \"Sent you\" (no name in a 1:1 chat). When completed, the amount reads \"+1 IXI\". 2: in a group: \"(name) sent you\"."},{"p":"aw","g":"J1 · Payment bubbles (#1440, #1441)","id":"PB-REQ-IN","t":"Incoming request — #1440 J1 · #1441","d":"1) The peer requests 1 IXI. 2) Tap \"Pay 1 IXI\". Confirm on the native page. 3) The peer requests again. Tap Decline. 4) The peer requests more IXI than you have.","e":"1: \"Requested\" with the buttons \"Pay 1 IXI\" and Decline (the same size as before). 2: the native review page opens; then \"You paid\" and Completed. 3: \"You declined\", the amount struck through, ✕. 4: Pay is off. The text reads \"Not enough IXI to cover this amount plus the network fee.\""},{"p":"aw","g":"J1 · Payment bubbles (#1440, #1441)","id":"PB-REQ-OUT","t":"Outgoing request — #1440 J1 · #1441","d":"1) Request 1 IXI from the peer. 2) Tap Cancel request › Cancel request. 3) Request again. The peer pays. 4) Request again. The peer declines.","e":"1: \"You requested\", Pending, a \"Cancel request\" button. 2: the dialog \"Cancel this request?\"; then the request goes on both devices. 3: \"Paid you\", \"+1 IXI\", Completed. 4: \"Request declined\", the amount struck through, ✕."},{"p":"aw","g":"J1 · Payment bubbles (#1440, #1441)","id":"PB-FAIL","t":"Failed payment — #1440 J1","d":"1) Cause a failed send (for example: network off, then send 1 IXI). 2) If you cannot cause a failure, mark N/A (a render is enough).","e":"\"Payment failed\" with ✕. The amount is NOT struck through. A Retry button shows."},{"p":"aw","g":"J1 · Payment bubbles (#1440, #1441)","id":"PB-THEMES","t":"Colours unchanged — #1440 (today’s colours)","d":"1) Open one chat with payments, files and app cards. 2) Set the Canvas to each of the 7. 3) Set each bubble colour (Auto + 6). 4) Light and dark.","e":"The payment, file and app cards keep the S19 colours. Only the layout is new. The text reads well on each."},{"p":"w","g":"J1 · Payment bubbles (#1440, #1441)","id":"PB-DESK","t":"Payments on desktop — #1440 J1","d":"1) Wide window. Open the chat with payments. 2) Make the window narrow.","e":"The payment bubbles have the same stacked layout as on the phone. Nothing is cut or overlaps. The buttons stay inside the bubble."},{"p":"aw","g":"J3 · File bubble (#1440)","id":"FB-IN","t":"Received file — #1440 J3","d":"1) The peer sends a file (auto-download off). 2) Download it. 3) When it completes, tap the card.","e":"1: a document tile with the type, the name, \"PDF · 2.4 MB\" and a ↓ badge on the tile. 2: \"1.1 / 2.4 MB\" with a progress bar. 3: the file opens. There is no \"Open file\" link on the card."},{"p":"aw","g":"J3 · File bubble (#1440)","id":"FB-OUT","t":"Sent file + ✕ — #1440 J3 · #334","d":"1) Peer: auto-download off. 2) Send a file. Do not download it on the peer. 3) Tap the ✕ on the tile. 4) Send another file. The peer downloads it.","e":"2: the tile shows a ✕. There is no \"Cancel\" text button. 3: the file goes from the chat (on both devices). 4: \"1.1 / 2.4 MB\", then \"PDF · 2.4 MB\" with ✓✓. The ✕ goes when the transfer starts."},{"p":"aw","g":"J4 · App cards (#1440)","id":"APP-CARDS","t":"App cards — #1440 J4","d":"1) The peer sends you two app invites (⊕ › App invite). 2) Tap Join on one. Tap Decline on the other. 3) Send two invites to the peer. Cancel one. Tap Launch app on the other.","e":"No \"App invite\" header: a 48 px app icon, a small line, the app name large, the time. 2: Join shows the compact \"You joined\" line, as before. Decline works. 3: your invite reads \"Invite sent\" with Cancel and Launch app. Cancel removes it. Launch app starts the app. The call card is unchanged."},{"p":"aw","g":"J2 · Wallet (#1440, #1404 F1)","id":"WT-ROWS","t":"Wallet rows — #1440 J2 · #1404 F1","d":"1) Open the Wallet tab. 2) Look at the rows. 3) Find a payment to an address that is not a contact.","e":"2: each row has a 44 px contact photo (or initial) with a small direction badge, the amount with a minus sign \"−\" or \"+\", \"IXI\", and the time only. 3: a wallet glyph on a tinted disc."},{"p":"aw","g":"J2 · Wallet (#1440, #1404 F1)","id":"WT-DAYS","t":"Day groups — #1440 J2","d":"1) Wallet with payments on several days. 2) Scroll the list. 3) Use a filter. 4) Search a name. 5) Have one pending payment and one failed payment.","e":"2: the headers \"Today\", \"Yesterday\", then dates such as \"12 Oct\" (the year only when not this year). Each header shows once. 3–4: a day with no rows has no header. 5: the pending row stays on top, with no day header above it and with its full date and time. The failed row sits in its own day group with its failed look (#46 r5)."},{"p":"aw","g":"J2 · Wallet (#1440, #1404 F1)","id":"WT-HERO","t":"Hero colour (Damir picks) — #1440 J2 (dial)","d":"1) Wallet tab, light and dark. 2) Look at the hero (the balance area) and the three action circles. 3) Compare with the navy ground of the create screen (ON rows).","e":"The hero has today’s colour. The three action circles are filled, with no ring, all the same. Write in the note which hero colour you want: \"today\" or \"navy\"."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-C1","t":"Create step 1 — #1420 · #1422","d":"1) Welcome › Create new account. 2) Look at the screen. 3) Type a nickname. 4) Delete it. 5) Tap the camera badge. Pick a photo.","e":"2: \"Who are you on Spixi?\", \"1 of 2\", a large photo circle with a ring and a camera badge, the tags No phone number · No email · No ID, the nickname field, \"Your Spixi address is made on this phone.\" (Windows: \"device\"). Continue is off. 3: Continue is on. 4: off again. 5: the picker opens; the photo shows in the circle."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-C2","t":"Create step 2 + checks — #1420 · #1421 (1)","d":"1) Type a nickname. Tap Continue. 2) Type ⟦abc⟧ in Password. 3) Type a password of 10+ characters. 4) In Confirm, type a different text of the same length. 5) Correct the Confirm. 6) Type a long passphrase in both.","e":"1: \"Protect your account\", \"2 of 2\", your photo (or initial) with an orange lock badge, \"(name), this password locks your chats and your wallet on this phone.\" 2: \"Weak\"; \"10+ characters\" not checked; no red. 3: \"10+ characters\" checked. 4: Confirm turns red: \"The passwords don’t match yet.\" 5: \"Passwords match\" checked; the red goes. 6: the bar shows \"Strong\". The banner \"Write this password down\" is filled (no outline). Create my account is on only when both checks pass. No legal line on this step."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-C3","t":"Back keeps values — #1420","d":"1) Fill step 2. 2) Tap the back arrow. 3) Tap Continue. 4) Android: on step 2, press the hardware back (or the back gesture). 5) On step 1, press back.","e":"2: step 1 with the nickname and photo kept. 3: step 2 with both passwords kept. 4: step 1 with the values kept (not welcome; the app does not close). 5: welcome."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-C4","t":"Create → Chats + time — #1421 (2)","d":"1) Fill step 2. 2) Start a stopwatch. Tap Create my account. 3) Stop it when Chats shows.","e":"The button shows a spinner and \"Creating your account…\". After 2 s the line \"Making your keys on this phone. This can take a few seconds.\" shows under it. Then Chats opens. No other screen in between. Write the seconds in the note (your slowest Android; Windows)."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-R1","t":"Restore: file card — #1420 · #1422","d":"1) Welcome › Restore existing account. 2) Look at the screen. 3) Tap the file card. Pick the backup file.","e":"2: \"Restore your account\"; the card \"Choose backup file\" / \"The file you saved from Spixi\" with a chevron, no outline; the field label \"Password\" (\"Wallet password\" is nowhere); the key line \"Restoring needs this file and your password. Spixi can’t recover either for you.\" 3: the card turns green with the file name, a check and \"Change\"."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-R2","t":"Wrong password keeps file — #1420","d":"1) Type a wrong password. 2) Tap Restore account.","e":"The field turns red: \"That password didn’t open the backup.\" The chosen file stays (green card). No other alert shows."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-R3","t":"Restore → Chats + time — #1421 (3)","d":"1) Type the right password. 2) Start a stopwatch. Tap Restore account. 3) Stop it when Chats shows.","e":"The button shows a spinner and \"Restoring…\". Then Chats opens with the account (nickname, contacts, wallet). No slow screen. Write the seconds in the note."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-BG","t":"Backdrop, no flash — #1422 BG 2","d":"1) Welcome › Create new account. Watch the change. 2) Go back. Restore existing account. Watch. 3) Do 1–2 with the system theme light and dark.","e":"No flash (no white or black frame) on the slide. The create and restore ground is a calm navy, a little lighter than welcome; no violet or pink cast. The fields have a visible edge. The same in both system themes (the launch stays dark)."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-PILL","t":"Language pill — #1422 P2","d":"1) Welcome. Look at the top left. 2) Tap the pill. Pick Deutsch. 3) Set English again.","e":"1: a 44 px pill with the language name. Under it a small caption: a globe icon + \"Language\". 2: welcome shows German; the caption reads \"Sprache\". Windows shows the same pill."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-S3","t":"Slide 3 text — #1420 Part D","d":"1) Welcome. Swipe to slide 3. 2) Set Deutsch. Read slide 3. 3) Set English again.","e":"1: \"Send IXI like a message.\" / \"A private IXI wallet lives inside every chat. Send and request IXI in a tap.\" 2: \"Sende IXI wie eine Nachricht.\" No word for \"money\"."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-LEGAL","t":"Welcome legal line — #1421 (1)","d":"1) Welcome. Read the line under the two buttons. 2) Tap \"Terms of Use\". 3) Close the sheet. 4) Tap \"Privacy Policy\". 5) Close the sheet.","e":"1: \"By continuing, you agree to the Terms of Use and Privacy Policy.\" 2, 4: a sheet with that document opens. 3, 5: welcome shows again. Create did not start."},{"p":"a","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-ART","t":"Small phone art — #1422 (#46 r2: the art gives way)","d":"1) Android Settings › Display: set Display size and Font size to the largest (or use your smallest phone). 2) Open Spixi on welcome. 3) Swipe through all slides. 4) Set the sizes back.","e":"The art is smaller (or gone on a very short screen). It is the same size on every slide. The title, the text, both buttons and the legal line show in full. No text is cut."},{"p":"w","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-DK1","t":"Desktop two columns — #1420 Part B · #1422","d":"1) Welcome › Create new account. 2) Make the window wide (900 px or more; maximise). 3) Type a nickname. Continue. 4) Go back to welcome. Restore existing account. 5) Make the window narrow (under 900 px).","e":"2: two columns. Left: the large photo with its ring, the big title and the tags. Right: one card (460 px) with back, \"Create your account\", \"1 of 2\", the fields and the button; no outline. 3: the left photo changes to the lock badge (crossfade); the card content slides; the window does not jump. 4: left the restore illustration, right the card. 5: one column, the phone layout, centred (max 460 px). All texts say \"device\"."},{"p":"w","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-DK2","t":"Tab order + Enter — #1420 Part B","d":"1) Wide window, step 1. 2) Press Tab again and again. 3) Type a nickname. Press Enter. 4) On step 2, press Tab again and again. 5) Type a matching password of 10+ characters. Press Enter in Confirm. 6) Restore: pick a file. Type the password. Press Enter.","e":"1: the focus starts in the nickname field. 2, 4: the order is back → fields → eye buttons → button; the focus ring is always visible. 3: Enter runs Continue. Step 2: the focus starts in Password. 5: Enter runs Create my account (with a mismatch, Enter does nothing). 6: the focus starts in Password; Enter runs Restore."},{"p":"aw","g":"ON-1 · Launch flow (#1420–#1422) — on a device with no account you need (set-up f)","id":"ON-RINGS","t":"Corner rings — #1422 · ON-1 Decision 6","d":"1) Look at welcome, create step 1, step 2 and restore. 2) Go welcome → create and back. Watch the corners. 3) Windows: wide and narrow window.","e":"Thin, faint, still rings in the corners. Phone welcome: top right only, fading out under the status bar. Create and restore: top right and bottom left. Windows: top right and bottom left on every view. Never under text, fields, buttons or the pill. On the slide the rings do not move or flash."}];
+
+const KEY = 'spixi-walk-session20-v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function el(tag, attrs, kids){ const n = document.createElement(tag); for (const k in (attrs||{})) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'html') n.innerHTML = attrs[k]; else n.setAttribute(k, attrs[k]); } (kids||[]).forEach(c => c && n.append(c)); return n; }
+/* ⟦…⟧ = text to type or a log line → a <code> node (DOM-built, no innerHTML) */
+function rich(tag, text){ const n = document.createElement(tag); String(text).split(/⟦([^⟧]*)⟧/).forEach((part, i) => { if (i % 2) n.append(el('code', {text: part})); else if (part) n.append(part); }); return n; }
+async function copyText(text, btn){
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { const out = document.getElementById('out'); out.hidden = false; out.value = text; out.focus(); out.select(); btn.textContent = 'Select + Ctrl+C'; }
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+}
+function renderSteps(id, list){
+  const ol = document.getElementById(id);
+  list.forEach(([say, cmd, expect]) => {
+    const li = el('li', {}, [el('span', {text: say})]);
+    if (cmd) {
+      const b = el('button', {type:'button', 'aria-label':'Copy command'}); b.textContent = 'Copy'; b.dataset.label = 'Copy';
+      b.addEventListener('click', () => copyText(cmd, b));
+      li.append(el('div', {class:'cmd'}, [el('pre', {text: cmd}), b]));
+    }
+    if (expect) li.append(el('div', {class:'exp', html: 'Expect: ' + expect}));
+    ol.append(li);
+  });
+}
+renderSteps('steps-commit', STEPS.commit);
+renderSteps('steps-data', STEPS.data);
+renderSteps('steps-win', STEPS.win);
+renderSteps('steps-and', STEPS.and);
+/* one mark per row per platform: an A+W row is two cards, keyed id@w / id@a */
+const ITEMS = [];
+for (const plat of [W, A]) ROWS.filter(r => r.p.includes(plat)).forEach(r => ITEMS.push({ r, plat, key: r.p === 'aw' ? r.id + '@' + plat : r.id }));
+function renderRows(){
+  for (const [host, plat] of [['rows-win', W], ['rows-and', A]]) {
+    const box = document.getElementById(host); box.innerHTML = ''; box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '12px';
+    let grp = '';
+    ITEMS.filter(it => it.plat === plat).forEach(({ r, key }) => {
+      if (r.g !== grp) { grp = r.g; box.append(el('h3', {class:'grp', text: grp})); }
+      const s = state[key] || {};
+      const card = el('article', {class:'row', 'data-v': s.v || ''});
+      const top = el('div', {class:'top'}, [el('span', {class:'id', text:r.id}), el('span', {class:'title', text:r.t})]);
+      if (r.p === 'aw') top.append(el('span', {class:'both', text:'A+W'}));
+      card.append(top);
+      card.append(el('dl', {}, [el('dt', {text:'Do'}), rich('dd', r.d), el('dt', {text:'Pass if'}), rich('dd', r.e)]));
+      const ctl = el('div', {class:'ctl'});
+      [['P','Pass'],['F','Fail'],['N','N/A']].forEach(([k, lab]) => {
+        const b = el('button', {type:'button', 'data-k':k, 'aria-pressed': s.v === k ? 'true' : 'false'}); b.textContent = lab;
+        b.addEventListener('click', () => { state[key] = Object.assign({}, state[key], {v: s.v === k ? '' : k}); save(); renderRows(); tally(); });
+        ctl.append(b);
+      });
+      card.append(ctl);
+      const ta = el('textarea', {id:'note-' + key, 'aria-label':'Note for ' + r.id + (r.p === 'aw' ? (plat === W ? ' on Windows' : ' on Android') : ''), placeholder:'Note (what you saw, numbers, paste lines)'});
+      ta.value = s.n || '';
+      ta.addEventListener('input', () => { state[key] = Object.assign({}, state[key], {n: ta.value}); save(); });
+      card.append(ta);
+      box.append(card);
+    });
+  }
+}
+function counts(){ let p=0,f=0,n=0; ITEMS.forEach(it => { const v = (state[it.key]||{}).v; if (v==='P') p++; else if (v==='F') f++; else if (v==='N') n++; }); return {p,f,n}; }
+function tally(){ const c = counts(); const left = ITEMS.length - c.p - c.f - c.n;
+  document.getElementById('tally').innerHTML = `<b class="p">${c.p} P</b> · <b class="f">${c.f} F</b> · <b class="n">${c.n} N/A</b> · ${left} open`; }
+document.getElementById('copy').addEventListener('click', (ev) => {
+  const c = counts();
+  const lines = ITEMS.map(({ r, plat, key }) => { const s = state[key] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id} [${plat === W ? 'W' : 'A'}]: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
+  const text = `Walk session 20 (Windows F5 + Android Debug): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
+});
+document.getElementById('reset').addEventListener('click', (ev) => {
+  const b = ev.currentTarget;
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Clear'; }, 2500); return; }
+  state = {}; save(); b.dataset.armed = ''; b.textContent = 'Clear'; renderRows(); tally();
+});
+renderRows(); tally();
+</script>

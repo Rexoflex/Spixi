@@ -197,6 +197,67 @@ public class S17MomentTests
         Assert.AreEqual(100, S17MomentRules.MaxAskLines);   // the per-process cap SMoments applies (pin f-moments-dev askPlace)
     }
 
+    /* ★ S20 G (#1379): the app moment AT INSTALL (App details, or the re-ask of an app unmarked after its install) neither
+       waits for the session / a card nor takes the session — the S19 walk's `app d=refuse why=session` on Install after
+       autodl took it, and the corrective re-ask refused by the install moment's own session, are gone; every other app ask
+       (grid, invite) keeps the rule */
+    [TestMethod]
+    public void InstallMoment_ExemptAndNeverTakesTheSession()
+    {
+        var Y = S17MomentRules.Eligible.Yes; var W = S17MomentRules.Eligible.Wait; var C = S17MomentRules.Eligible.Consume;
+        Assert.IsTrue(S17MomentRules.installMoment("app", true, false), "App details");
+        Assert.IsTrue(S17MomentRules.installMoment("app", false, true), "the re-ask after an unmark");
+        Assert.IsFalse(S17MomentRules.installMoment("app", false, false), "the grid / an invite");
+        foreach (string id in S17MomentRules.Ids)
+            if (id != "app") Assert.IsFalse(S17MomentRules.installMoment(id, true, true), "only the app moment: " + id);
+        // the walk case: autodl took the session, then Install → granted now (was refuse why=session)
+        Assert.AreEqual(S17MomentRules.Decision.Grant, S17MomentRules.decide("app", false, true, false, Y, true));
+        Assert.AreEqual(S17MomentRules.Decision.Grant, S17MomentRules.decide("app", false, true, true, Y, true), "a card this session too");
+        Assert.AreEqual(S17MomentRules.Decision.Refuse, S17MomentRules.decide("app", false, true, false, Y, false), "the grid keeps the rule");
+        Assert.AreEqual(S17MomentRules.Decision.Refuse, S17MomentRules.decide("app", false, true, true, Y), "the 5-argument form = not at install");
+        // once per app and the id's own check still win
+        Assert.AreEqual(S17MomentRules.Decision.Refuse, S17MomentRules.decide("app", true, false, false, Y, true), "seen");
+        Assert.AreEqual(S17MomentRules.Decision.Refuse, S17MomentRules.decide("app", false, false, false, W, true), "wait");
+        // never takes the session (the corrective re-ask after it is not refused by it)
+        Assert.IsFalse(S17MomentRules.takesSession("app", true));
+        Assert.IsTrue(S17MomentRules.takesSession("app", false));
+        Assert.IsTrue(S17MomentRules.takesSession("pay", true), "only the app moment is exempt");
+        // the log line: why follows decide for both values, every combination
+        foreach (string id in S17MomentRules.Ids)
+            foreach (var e in new[] { Y, W, C })
+                for (int b = 0; b < 16; b++)
+                {
+                    bool seen = (b & 1) != 0, sm = (b & 2) != 0, sc = (b & 4) != 0, inst = (b & 8) != 0;
+                    var d = S17MomentRules.decide(id, seen, sm, sc, e, inst);
+                    var w = S17MomentRules.why(id, seen, sm, sc, e, inst);
+                    Assert.AreEqual(d == S17MomentRules.Decision.Refuse, w != S17MomentRules.Why.Ok, id + e + b);
+                    if (!inst) Assert.AreEqual(S17MomentRules.decide(id, seen, sm, sc, e), d, "5-arg = not at install " + id + e + b);
+                }
+        Assert.AreEqual("[MO] ask id=app d=grant why=ok", S17MomentRules.askLine("app", S17MomentRules.decide("app", false, true, false, Y, true), S17MomentRules.why("app", false, true, false, Y, true)));
+    }
+
+    [TestMethod]
+    public void UnmarkedApps_ValidatedCappedRemovedOnGrant()
+    {
+        var u = new S17MomentRules.UnmarkedApps();
+        u.add("com.ixian.chess");
+        u.add("bad id");
+        u.add("");
+        u.add(null);
+        u.add(new string('a', 129));
+        Assert.AreEqual(1, u.count, "only a valid app id goes in");
+        Assert.IsTrue(u.has("com.ixian.chess") && !u.has("bad id") && !u.has(null));
+        u.add("com.ixian.chess");
+        Assert.AreEqual(1, u.count, "no duplicate");
+        for (int i = 0; i < S17MomentRules.MaxUnmarked + 5; i++) u.add("app" + i);
+        Assert.AreEqual(S17MomentRules.MaxUnmarked, u.count, "capped");
+        Assert.IsFalse(u.has("com.ixian.chess"), "the oldest goes first");
+        u.remove("app44");
+        Assert.IsFalse(u.has("app44"));
+        u.clear();
+        Assert.AreEqual(0, u.count);
+    }
+
     [TestMethod]
     public void FlagLine_SaysOnlyTheBit()
     {

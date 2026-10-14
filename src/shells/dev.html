@@ -141,7 +141,6 @@
     if (lastLog) setDevLog(devEl, lastLog);
     mountFlashDev();
     mountContainerDev();   // ★ S14 (#1282): also when no flash positions came yet
-    mountTitleBarDev();   // ★ DT-1 B: the screen rebuild keeps the title bar card
     mountFlagsDev();   // ★ S16 (#1312)
   }
 
@@ -256,71 +255,12 @@
     else body.prepend(card);
   }
 
-  /* ★ DT-1 B — the Windows title bar way for the STOP-rule spike (C# pushes setTitleBarDev on Windows only, so no dead row).
-     One of three: off (the Windows look, the DEFAULT since #1392) · maui (MAUI Window.TitleBar) · colors (the system bar, its
-     colours set) — maui and colors failed the DT-1 walk and stay as dev experiments.
-     A tap sends `ixian:devflash:titlebar:<word>`, optimistic; C# echoes the STORED word. It acts after a restart (C# reads
-     the way once per start). The overlay-container card's grammar exactly. */
-  let titleBarDev = null;   // 'maui' | 'colors' | 'off' once C# told us
-  function mountTitleBarDev() {
-    if (!titleBarDev || !devEl) return;
-    const body = devEl.querySelector('.c-settings__body');
-    if (!body) return;
-    const old = body.querySelector('.c-dev-titlebar');
-    if (old) old.remove();
-    const card = document.createElement('div');
-    card.className = 'c-settings__section c-dev-titlebar';
-    card.setAttribute('role', 'radiogroup');
-    const head = document.createElement('p');
-    head.className = 'c-settings__note';
-    head.textContent = strings.devTitleBarTitle || 'Title bar (Windows, acts after a restart)';
-    card.setAttribute('aria-label', head.textContent);
-    card.append(head);
-    const opts = [
-      ['off', strings.devTitleBarOff || 'Windows title bar (default)'],
-      ['maui', strings.devTitleBarMaui || 'Spixi title bar (MAUI)'],
-      ['colors', strings.devTitleBarColors || 'System title bar, Spixi colours'],
-    ];
-    const paint = () => {
-      card.querySelectorAll('[data-titlebar]').forEach((b) => {
-        const on = b.dataset.titlebar === titleBarDev;
-        b.setAttribute('aria-checked', String(on));
-        const v = b.querySelector('.c-settings__row-value');
-        if (v) v.textContent = on ? (strings.devContainerOn || 'On') : '';
-      });
-    };
-    opts.forEach(([word, label]) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'c-settings__row';
-      b.setAttribute('role', 'radio');
-      b.dataset.titlebar = word;
-      const lab = document.createElement('span');
-      lab.className = 'c-settings__row-label';
-      lab.textContent = label;
-      const val = document.createElement('span');
-      val.className = 'c-settings__row-value';
-      b.append(lab, val);
-      b.addEventListener('click', () => {
-        if (titleBarDev === word) return;
-        titleBarDev = word;
-        paint();
-        bridge.send('ixian:devflash:titlebar:' + word);
-      });
-      card.append(b);
-    });
-    paint();
-    const after = body.querySelector(':scope > .c-dev-flash') || body.querySelector(':scope > .c-settings__note');
-    if (after && after.nextSibling) body.insertBefore(card, after.nextSibling);
-    else if (after) body.append(card);
-    else body.prepend(card);
-  }
-
   /* ★ S16 (#1312 rule 1) — the release-flag switches (SpixiFlags; every platform). C# pushes the STORED values
      (setFlagsDev "<securepass 0|1>,<mediagate 0|1>", 1 = the S16 path ON); an exe without the verb never does, so no dead
      row. A tap sends `ixian:devflash:<securepass|mediagate>:<1|0>`, optimistic; C# echoes. C# reads the flags once per
      start, so the card says a change acts after a restart. */
   let flagsDev = null;   // [securePassOn, mediaGateOn] once C# told us
+  let flagsDevS20 = null;   // ★ S20 (P29): the S20FileSize switch, its own push (setFlagsDev stays at 4 digits)
   const RESET_QUIET_MS = 1000;   // ★ S19 F8 (#1371): taps on Reset moment sheets inside this window after one are ignored
   let lastResetAt = -1e9;
   function mountFlagsDev() {
@@ -341,7 +281,8 @@
     ];
     if (flagsDev.length > 2) rows.push(['s17', strings.devFlagsS17 || 'What’s new and the About bar ink (S17)']);   // ★ S17 (P26)
     if (flagsDev.length > 3) rows.push(['s17m', strings.devFlagsS17m || 'Moment sheets (S17)']);   // ★ S17 F (P28)
-    rows.forEach(([name, label], i) => {
+    if (flagsDevS20 !== null) rows.push(['s20size', strings.devFlagsS20Size || 'File size on sent files (S20)', flagsDevS20]);   // ★ S20 E (P29)
+    rows.forEach(([name, label, own], i) => {
       const row = document.createElement('div');
       row.className = 'c-settings__row c-settings__row--static';
       row.dataset.row = 'switch';
@@ -354,7 +295,7 @@
       sw.setAttribute('role', 'switch');
       sw.setAttribute('aria-label', label);
       sw.dataset.flag = name;
-      sw.setAttribute('aria-checked', String(!!flagsDev[i]));
+      sw.setAttribute('aria-checked', String(own === undefined ? !!flagsDev[i] : !!own));
       const knob = document.createElement('span');
       knob.className = 'c-settings__switch-knob';
       sw.append(knob);
@@ -434,18 +375,18 @@
       containerDev = w;
       mountContainerDev();
     },
-    /* ★ DT-1 B (🟡 new push, dev surface): the stored title bar way — one of three fixed words, anything else is ignored */
-    setTitleBarDev(v) {
-      const w = String(v || '');
-      if (w !== 'maui' && w !== 'colors' && w !== 'off') return;
-      titleBarDev = w;
-      mountTitleBarDev();
-    },
     /* ★ S16 (#1312, 🟡 new push): the stored flag switches "s,m" (1 = ON); anything but two 0/1 digits is ignored. */
     setFlagsDev(v) {
       const m = /^([01]),([01])(?:,([01])(?:,([01]))?)?$/.exec(String(v || ''));   // ★ S17: an optional third digit (the S17 bridge) · ★ S17 F: a fourth (the Moment sheets)
       if (!m) return;
       flagsDev = [m[1] === '1', m[2] === '1'].concat(m[3] ? [m[3] === '1'] : []).concat(m[4] ? [m[4] === '1'] : []);
+      mountFlagsDev();
+    },
+    /* ★ S20 E (P29): the S20FileSize switch ("0" | "1"); C# pushes it after setFlagsDev. */
+    setFlagsDevS20(v) {
+      const w = String(v || '');
+      if (w !== '0' && w !== '1') return;
+      flagsDevS20 = w === '1';
       mountFlagsDev();
     },
   };

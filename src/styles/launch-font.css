@@ -1,0 +1,19 @@
+/* ★ ON-1 (#1421 (4), #1422) — Sora latin-ext, the LAUNCH shell only.
+   The launch titles use --font-display (Sora) and now carry the user's name and the
+   translated slide titles; the bundled Sora face (base.css) is the Latin subset only, so
+   č š ž ć đ ė ą į ų ū fell back to a system font in the middle of a word. This is the
+   second face of the SAME family with a latin-ext unicode-range: the browser fetches it
+   only for those code points, the Latin file keeps everything else. Cyrillic and CJK stay
+   on the system font (decided).
+   Source: @fontsource-variable/sora 5.3.0, files/sora-latin-ext-wght-normal.woff2
+   (15.5 KB, SIL OFL 1.1 — src/assets/fonts/SORA-OFL.txt). Linked by src/shells/launch.html
+   ALONE (after base.css): the build inlines the font file of a linked sheet as a data: URI
+   (scripts/lib/inline.mjs), and every other shell must not carry the bytes. */
+@font-face {
+  font-family: 'Sora';
+  src: url('../assets/fonts/sora-latin-ext-wght-normal.woff2') format('woff2'); /* plain 'woff2': Safari rejects 'woff2-variations' (the base.css note) */
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}

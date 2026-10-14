@@ -8,6 +8,13 @@
  * createTxItem({ txid, direction = 'out'|'in', status = 'confirmed'|'pending'|
  *                'failed', name, timestamp, timeText, amount, fiat, onClick, strings })
  *
+ * ★ S20 J2 (#1440) — the WALLET mode, opted into by the wallet list (renderWalletTxList):
+ *   face = { src, name, address, group, unknown } → a 44 px avatar (photo / monogram / group
+ *     avatar; unknown = the wallet glyph on a tonal disc) + a 20 px direction badge, in place
+ *     of the 48 px arrow circle. Without `face` (chat-info, demos) the arrow circle stays.
+ *   unit = 'IXI' → a real minus (U+2212) on the amount + fiat and the muted unit after it.
+ *   timeOnly → the day sits in the list's group header, the row shows the time alone.
+ *
  * timestamp = epoch ms → formatted via formatTxTimestamp (relative/locale, preferred).
  * timeText  = a PRE-FORMATTED display string shown verbatim (native-bridge path:
  *   addPaymentActivity ships an already-humanized time string, not epoch — see
@@ -16,7 +23,8 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createBadge } from './badge.js';
-import { formatTxTimestamp } from './timestamp.js';
+import { createAvatar } from './avatar.js';
+import { formatTxTimestamp, docLocale, timeOpts } from './timestamp.js';
 
 const BADGES = {
   pending: { type: 'warning', glyph: 'clock-hour-10', label: 'Pending', key: 'txPending' },
@@ -89,9 +97,17 @@ function watchTxMeta(meta) {
   txMetaRO.observe(meta);
 }
 
+const realMinus = (s) => String(s == null ? '' : s).replace(/^-/, '\u2212');
+/* ★ S20 J2 (#1440): the time alone — the day is the group header's (wallet-shell txDayLabel) */
+function txTimeOnly(ts) {
+  const d = new Date(ts);
+  return isNaN(d) ? '' : d.toLocaleTimeString(docLocale(), timeOpts({ hour: 'numeric' }));
+}
+
 export function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
   name = '', timestamp, timeText, amount = '', fiat = '', onClick, strings = getStrings(),
+  face = null, unit = '', timeOnly = false,
 } = {}) {
   // visual type: pending/failed override the direction presentation
   const type = status !== 'confirmed' ? status : (direction === 'in' ? 'received' : 'sent');
@@ -102,15 +118,35 @@ export function createTxItem({
   el.dataset.type = type;
   if (txid) el.dataset.txid = txid;
 
-  const circle = document.createElement('span');
-  circle.className = 'c-txlist-item__direction';
   // labeled, not aria-hidden: direction is otherwise color/icon-only (amount
   // signs aren't guaranteed — failed rows ship unsigned per Figma)
-  circle.append(icon(direction === 'in' ? 'arrow-down-left' : 'arrow-up-right', {
-    size: 24,
-    label: direction === 'in' ? (strings.received || 'Received') : (strings.sent || 'Sent'),
-  }));
-  el.append(circle);
+  const dirIcon = (size) => icon(direction === 'in' ? 'arrow-down-left' : 'arrow-up-right', {
+    size, label: direction === 'in' ? (strings.received || 'Received') : (strings.sent || 'Sent'),
+  });
+  if (face) {
+    // ★ S20 J2 (#1440): WHO first — the counterparty's face, the direction as a badge on it
+    const lead = document.createElement('span');
+    lead.className = 'c-txlist-item__face';
+    el.dataset.direction = direction;   // the badge colour follows the direction, a pending receive included
+    if (face.unknown) {
+      const disc = document.createElement('span');
+      disc.className = 'c-txlist-item__wallet';
+      disc.append(icon('wallet', { size: 24 }));
+      lead.append(disc);
+    } else {
+      lead.append(createAvatar({ src: face.src || null, name: face.name || '', address: face.address || '', size: 44, group: !!face.group }));
+    }
+    const badge = document.createElement('span');
+    badge.className = 'c-txlist-item__dir';
+    badge.append(dirIcon(12));
+    lead.append(badge);
+    el.append(lead);
+  } else {
+    const circle = document.createElement('span');
+    circle.className = 'c-txlist-item__direction';
+    circle.append(dirIcon(24));
+    el.append(circle);
+  }
 
   const content = document.createElement('span');
   content.className = 'c-txlist-item__content';
@@ -129,7 +165,7 @@ export function createTxItem({
   }
   const timeStr = (timeText != null && timeText !== '')
     ? timeText
-    : (timestamp != null ? formatTxTimestamp(timestamp) : null);
+    : (timestamp != null ? (timeOnly ? txTimeOnly(timestamp) : formatTxTimestamp(timestamp)) : null);
   if (timeStr) {
     const time = document.createElement('span');
     time.className = 'c-txlist-item__time u-tabular';
@@ -144,10 +180,17 @@ export function createTxItem({
   right.className = 'c-txlist-item__amounts';
   const amountEl = document.createElement('span');
   amountEl.className = 'c-txlist-item__amount u-tabular';
-  amountEl.textContent = amount;
+  // ★ S20 J2 (#1440): wallet mode — a real minus (U+2212), and the unit after the amount
+  amountEl.textContent = unit ? realMinus(amount) : amount;
+  if (unit && amount) {
+    const u = document.createElement('span');
+    u.className = 'c-txlist-item__unit';
+    u.textContent = ' ' + unit;
+    amountEl.append(u);
+  }
   const fiatEl = document.createElement('span');
   fiatEl.className = 'c-txlist-item__fiat u-tabular';
-  fiatEl.textContent = fiat;
+  fiatEl.textContent = unit ? realMinus(fiat) : fiat;
   right.append(amountEl, fiatEl);
   el.append(right);
 

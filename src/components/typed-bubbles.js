@@ -18,7 +18,7 @@ import { icon } from './icons.js';
 import { safeImageSrc, identityIndex } from './avatar.js';
 import { createButton } from './button.js';
 import { createBadge } from './badge.js';
-import { docLocale, timeOpts } from './timestamp.js';
+import { docLocale, timeOpts, formatFileSize, formatFileSizeOf } from './timestamp.js';   // ★ S20 Q (#1376): + the size line
 import { createStatusIcon } from './chatlist-item.js';   // ★ #1028 (P.22): the SENT file's tick — the text bubble's glyph set
 import { formatIxiAmount } from './money.js';   // #143: shared money module (was defined here)
 import { createMediaBubble, setMediaSrc } from './media-bubble.js';   // ★ A5 #1124 (#1133): an image FILE renders on the c-mbubble tile
@@ -35,61 +35,11 @@ let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C1
    the audit-r2 one-shot latch by construction — fresh card, fresh buttons) */
 const paymentOpts = new WeakMap();
 
-/** Card scaffold: row (direction-aligned) → card → header(title+time) + body
- *  slots. gutter (r2 backlog C8): group chats indent received TEXT bubbles by
- *  an avatar gutter — received cards take the same empty gutter so columns
- *  align (no avatar until card identity is designed, #66). */
-function card(direction, title, timestamp, modifier, gutter = false) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = 'single';
-  if (gutter && direction === 'received') {
-    const g = document.createElement('span');
-    g.className = 'c-bubble-row__gutter';
-    row.append(g);
-  }
-  const el = document.createElement('div');
-  el.className = 'c-tcard';
-  if (modifier) el.dataset.kind = modifier;
-  const head = document.createElement('div');
-  head.className = 'c-tcard__head';
-  const t = document.createElement('span');
-  t.className = 'c-tcard__title';
-  t.textContent = title;
-  head.append(t);
-  if (timestamp != null) {
-    const d = new Date(timestamp);
-    if (!isNaN(d)) { // audit r2: a malformed bridge ts must not kill the card
-      const time = document.createElement('time');
-      time.className = 'c-tcard__time u-tabular';
-      time.setAttribute('datetime', d.toISOString());
-      time.textContent = cardTime(d);
-      head.append(time);
-    }
-  }
-  el.append(head);
-  row.append(el);
-  return { row, el };
-}
-
 function actionsRow(...buttons) {
   const r = document.createElement('div');
   r.className = 'c-tcard__actions';
   for (const b of buttons) if (b) { b.dataset.width = 'full'; r.append(b); }
   return r;
-}
-
-function detailsLink(onDetails, strings) {
-  const wrap = document.createElement('div');
-  wrap.className = 'c-tcard__details';
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'c-tcard__details-btn';
-  btn.append(document.createTextNode(strings.details || 'Details'), icon('chevron-right', { size: 16 }));
-  if (onDetails) btn.addEventListener('click', onDetails);
-  wrap.append(btn);
-  return wrap;
 }
 
 /* Action guards (audit r2): a double-activation on Pay/Join/etc. re-fired the
@@ -119,48 +69,6 @@ function reentryGuard(fn) {
   };
 }
 
-/* ★★ #996 THE CARD RESKIN — Damir's pick (2026-09-28): "keep today's cards, but have compact for
- * settled". A payment or app card that carries a BUTTON (Pay · Decline · Cancel request · Retry ·
- * Join · Get app · Launch · Resume) keeps today's full card, unchanged. A card with NOTHING to
- * act on becomes the COMPACT pill (ref-payment-sent-compact): medallion · a small label over a
- * large value · a QUIET status (tiny dot + one low-contrast word) with the time in the foot, NO
- * memo line, and the whole pill is the Details button. Every state, verb and bridge field is the
- * A card's — only the layout of the settled ones moves. The helpers below are shared with the
- * call card (#1006), so they sit OUTSIDE any grammar switch (Opus r1 m4). */
-
-/* ★ #996: the QUIET status — a tiny tinted dot + one low-contrast word, in the foot.
- * Replaces the coloured badge on the reskinned cards. `tone` drives only the dot. */
-const PAYMENT_STATUS_WORD = {
-  pending: ['pending', 'Pending'], completed: ['completed', 'Completed'],
-  declined: ['declined', 'Declined'], canceled: ['canceled', 'Canceled'],
-  failed: ['failed', 'Failed'], processing: ['processing', 'Processing'],
-};
-function quietStatus(status, strings) {
-  const w = PAYMENT_STATUS_WORD[status];
-  if (!w) return null;
-  const tone = { pending: 'neutral', processing: 'neutral', completed: 'success', declined: 'error', canceled: 'neutral', failed: 'error' }[status];
-  const s = document.createElement('span');
-  s.className = 'c-tcard__status';
-  s.dataset.tone = tone;
-  let mark;
-  if (status === 'completed') {
-    /* ★ #1009 (10a): completed carries a small CHECK instead of the dot — drawn once
-       (stroke-dash) when the card completed LIVE (data-live-complete on the card). */
-    mark = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    mark.setAttribute('viewBox', '0 0 12 12');
-    mark.setAttribute('class', 'c-tcard__status-check');
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M2.5 6.2 5 8.6 9.5 3.6');
-    path.setAttribute('pathLength', '1');
-    mark.append(path);
-  } else {
-    mark = document.createElement('span');
-    mark.className = 'c-tcard__status-dot';
-  }
-  mark.setAttribute('aria-hidden', 'true');
-  s.append(mark, document.createTextNode(strings[w[0]] || w[1]));
-  return s;
-}
 function timeEl(timestamp) {
   if (timestamp == null) return null;
   const d = new Date(timestamp);
@@ -171,23 +79,14 @@ function timeEl(timestamp) {
   t.textContent = cardTime(d);
   return t;
 }
-function amountNode(amount, tone) {
-  const a = document.createElement('span');
-  a.className = 'c-tcard__amount u-tabular';
-  a.dataset.tone = tone;
-  a.append(document.createTextNode(formatIxiAmount(amount) + ' '));
-  const unit = document.createElement('span');
-  unit.className = 'c-tcard__unit';
-  unit.textContent = 'IXI';
-  a.append(unit);
-  return a;
-}
 function amountTone(status, amount) {
   return status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
     : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
     : 'pending';
 }
-/* The row scaffold without the old header (the compact + full grammars own their own). */
+/* The row scaffold: row (direction-aligned) → card. gutter (r2 backlog C8): group chats indent received TEXT bubbles by
+   an avatar gutter — received cards take the same empty gutter so columns align. `layout` (optional) names the card's
+   grammar: 'stack' = the S20 payment bubble · 'compact' = the #996 pill (settled app cards) and the #1006 call row. */
 function cardShell(direction, modifier, layout, gutter) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -201,14 +100,13 @@ function cardShell(direction, modifier, layout, gutter) {
   const el = document.createElement('div');
   el.className = 'c-tcard';
   if (modifier) el.dataset.kind = modifier;
-  el.dataset.layout = layout;
+  if (layout) el.dataset.layout = layout;
   row.append(el);
   return { row, el };
 }
-/* COMPACT pill (ref-payment-sent-compact): medallion · small label over a large value ·
- * the foot (quiet status + time) at the block end. When `onOpen` exists the WHOLE pill
- * is one button (a stretched hit layer), so Details stays reachable with no link row. */
-function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, onOpen, openLabel, strings }) {
+/* #996 COMPACT pill (settled app cards — the payment pill is retired by S20 J1): medallion · small label over a large
+ * value · the time at the line's end. When `onOpen` exists the WHOLE pill is one button (a stretched hit layer). */
+function compactMain({ glyph, iconEl, label, valueEl, subEl, timestamp, onOpen, openLabel }) {
   const main = document.createElement('div');
   main.className = 'c-tcard__main';
   const med = iconEl || document.createElement('span');
@@ -220,16 +118,12 @@ function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, 
   const lab = document.createElement('span');
   lab.className = 'c-tcard__label';
   lab.textContent = label;
-  /* ★ #1013 (Opus r2 M1): the value and the foot share ONE wrapping line. In a grid cell of their
-     own, a long amount + "Processing · 14:05" ran PAST the card edge on a 320–360px phone; in a
-     wrapping line the foot drops under the amount (end-aligned) when both do not fit. */
+  /* ★ #1013 (Opus r2 M1): the value and the foot share ONE wrapping line (the foot drops under, end-aligned) */
   const line = document.createElement('span');
   line.className = 'c-tcard__line';
   line.append(valueEl);
   const foot = document.createElement('span');
   foot.className = 'c-tcard__foot';
-  const st = status ? quietStatus(status, strings) : null;
-  if (st) foot.append(st);
   const t = timeEl(timestamp);
   if (t) foot.append(t);
   if (foot.childNodes.length) line.append(foot);
@@ -247,6 +141,59 @@ function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, 
   return main;
 }
 
+/* ★★ S20 J1 (#1440, Damir 16:36 "like a message" + 17:52 / 17:54 "keep TODAY'S colours, change only the layout") — THE
+ * PAYMENT BUBBLE, one stacked layout for all 14 states (supersedes the #996 compact pill + the header card; their
+ * behaviour stays): ① the label row — today's medallion at 24 px + the role label (+ the time when the bubble has
+ * buttons) · ② the amount, 28 px, with today's data-tone · ③ the fiat line (hidden below 0.01) · ④ the foot — today's
+ * tonal badge + the time · then today's .c-button pair. Surfaces / edges / inks are the .c-tcard rules, unchanged.
+ * Labels come from role + flow + status (the shell always sends them; C#'s localized `title` is only the fallback for
+ * an unknown role). {name} = the counterpart's display name WHEN THE SHELL KNOWS IT (a group sender's nick) — a 1:1
+ * row carries no peer nick on the bridge, so the label drops the name ("Sent you", "Requested"; 🟡 noted, no C#). */
+function payBadge(status, strings) {   // today's tonal badges: [type, label, glyph]
+  return {
+    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
+    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
+    completed: ['success', strings.completed || 'Completed', 'check'],
+    declined: ['error', strings.declined || 'Declined', 'cancel'],
+    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
+  }[status] || null;
+}
+function named(name, withName, bare) {
+  /* a replacer FUNCTION (GATE 34: "$'" in a nick is text) · #46 r3: the nick is bidi-ISOLATED (FSI … PDI) so an RTL or "!"-ending
+     nick cannot reorder the label (face.label feeds the aria words too) · #46 r4/r5: first the nick's own BIDI controls (U+202A–202E,
+     U+2066–2069, U+200E, U+200F, U+061C), C0/C1 controls and U+2028/2029 go, so a PDI + RLO cannot close the isolate early.
+     Narrower than FileRowRules.cs sanitizeMemberName (:171, all of Cf): ZWJ / ZWNJ / emoji tags / variation selectors are TEXT
+     here (a family emoji, Persian می‌شود, a Scotland flag) and the label must read like the nick everywhere else. */
+  const n = String(name || '').replace(/[\p{Cc}\u2028\u2029\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]/gu, '').trim();
+  return n ? String(withName).replace('{name}', () => '\u2068' + n + '\u2069') : bare;
+}
+/* The face of a payment: label · glyph · whether a COMPLETED amount gets its "+". A settled REQUEST arrives as role
+   sent / received with the money's `flow` against the message (my request paid = sent + in; theirs paid = received + out). */
+function paymentFace(role, flow, status, name, strings) {
+  const X = 'x';
+  if (role !== 'request-in' && role !== 'request-out' && role !== 'sent' && role !== 'received') return null;
+  const request = role === 'request-in' || role === 'request-out' || (role === 'received' && flow === 'out') || (role === 'sent' && flow === 'in');
+  const mine = role === 'request-out' || role === 'sent';
+  if (status === 'canceled') return { label: strings.payYouCanceled || 'You canceled', glyph: X };
+  if (!request) {
+    if (mine) return status === 'failed' ? { label: strings.paymentFailed || 'Payment failed', glyph: X } : { label: strings.payYouSent || 'You sent', glyph: 'arrow-up-right' };
+    return { label: named(name, strings.payNameSentYou || '{name} sent you', strings.paySentYou || 'Sent you'), glyph: status === 'failed' ? X : 'arrow-down-left', plus: true };
+  }
+  if (mine) {
+    if (status === 'completed') return { label: named(name, strings.payNamePaidYou || '{name} paid you', strings.payPaidYou || 'Paid you'), glyph: 'arrow-down-left', plus: true };
+    if (status === 'declined') return { label: named(name, strings.payNameDeclined || '{name} declined', strings.payRequestDeclined || 'Request declined'), glyph: X };
+    return { label: strings.youRequested || 'You requested', glyph: status === 'failed' ? X : 'wallet' };
+  }
+  if (status === 'completed') return { label: named(name, strings.payYouPaidName || 'You paid {name}', strings.payYouPaid || 'You paid'), glyph: 'arrow-up-right' };
+  if (status === 'declined') return { label: strings.payYouDeclined || 'You declined', glyph: X };
+  return { label: named(name, strings.payNameRequested || '{name} requested', strings.requested || 'Requested'), glyph: status === 'failed' ? X : 'wallet' };
+}
+/* the fiat line is noise below one cent (Damir): "<$0.01", a zero, or no digits → no line */
+function fiatShown(fiat) {
+  const f = String(fiat == null ? '' : fiat).trim();
+  return !!f && !/^</.test(f) && /[1-9]/.test(f);
+}
+
 /**
  * Payment card — covers incoming/outgoing requests AND direct payments.
  * role: 'request-in' (Pay/Decline) · 'request-out' (Cancel request) ·
@@ -256,10 +203,8 @@ function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, 
  */
 export function createPaymentBubble({
   role = 'request-in',
-  title = '',             // optional verbatim override — the native bridge already
-                          // sends a correctly-worded, LOCALIZED title (request vs
-                          // sent vs received) that the shell can't reconstruct from
-                          // role alone; when present it wins over the role-derived one
+  title = '',             // C#'s localized title — S20 J1: only the FALLBACK label (an unknown role); the role label wins
+  name = '',              // ★ S20 J1: the counterpart's display name when the shell knows it ('' → the name-less label)
   amount = '',            // pre-formatted (bridge sends strings)
   fiat = '',
   status = 'actionable',
@@ -268,138 +213,122 @@ export function createPaymentBubble({
   gutter = false,         // group chats: align with gutter-indented text bubbles (C8)
   celebrate = false,      // ★ #1009 (10a): this card COMPLETED LIVE — draw the check once (the shell passes it one render only)
   flow = '',              // ★ #996 'in' | 'out' — which way the MONEY moved (a request's is the
-                          // opposite of its message direction); picks the medallion arrow
+                          // opposite of its message direction); picks the arrow and the label
   onPay, onDecline, onCancel, onRetry, onDetails,
   strings = getStrings(),
 } = {}) {
   // peer-initiated events sit on the received side (audit MAJOR: 'received' was right-aligned)
   const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
-  const titles = {
-    'request-in': strings.paymentRequest || 'Payment request',
-    'request-out': strings.youRequested || 'You requested',
-    sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
-    received: strings.paymentReceived || 'Payment received',
-  };
-  /* ★ #996: the card has an ACTION when it will draw a button — the exact predicates of the
-     button branches below, so the two can never disagree. No action → the compact pill. */
-  const hasAction = (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed'))
-    || (role === 'request-out' && status === 'pending')
-    || (role === 'sent' && status === 'failed');
-  if (!hasAction) {
-    const row2 = paymentCompact({ role, flow, celebrate, direction, label: title || titles[role] || '', amount, fiat, status, timestamp, gutter, onDetails, strings });
-    paymentOpts.set(row2, { role, flow, title, amount, fiat, status, insufficient, timestamp, gutter, onPay, onDecline, onCancel, onRetry, onDetails, strings });
-    return row2;
-  }
-  const { row, el } = card(direction, title || titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
+  const face = paymentFace(role, flow, status, String(name || '').trim(), strings) || { label: title || '', glyph: 'wallet' };
+  const { row, el } = cardShell(direction, 'payment', 'stack', gutter);
   row.dataset.status = status;
+  if (celebrate && status === 'completed') el.dataset.liveComplete = '';
 
-  const amountEl = document.createElement('div');
-  amountEl.className = 'c-tcard__amount u-tabular';
-  amountEl.dataset.tone =
-    status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
-    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
-    : 'pending';
-  amountEl.append(document.createTextNode(formatIxiAmount(amount) + ' '));
+  /* the amount: a "+" only on money that ARRIVED and completed (a received payment · my request paid); any sign the
+     shell put on stays off otherwise (a pending receipt is not yet +). Only a plain number takes a sign (never '?'). */
+  const bare = String(amount == null ? '' : amount).trim().replace(/^\+/, '');
+  const shownAmount = face.plus && status === 'completed' && /^[\d,]+(\.\d+)?$/.test(bare) ? '+' + bare : bare;
+  const tone = amountTone(status, shownAmount);
+  const strike = status === 'declined' || status === 'canceled';   // failed stays readable: Retry can still send it
+
+  /* buttons — the #996 predicates; processing = ONE loading button */
+  let actions = null, pay = null;
+  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
+    if (status === 'processing') {
+      actions = actionsRow(createButton({ label: strings.paying || 'Paying…', type: 'fill', size: 32, loading: true }));
+    } else {
+      // #264 (no dead buttons): Decline renders ONLY when the host wires a decline path
+      const decline = onDecline ? createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }) : null;
+      pay = status === 'failed'
+        ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
+        : createButton({ label: String(strings.payAmountIxi || 'Pay {amount} IXI').replace('{amount}', () => formatIxiAmount(bare)), type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
+      actions = actionsRow(decline, pay);
+    }
+  } else if (role === 'request-out' && status === 'pending') {
+    actions = actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) }));
+  } else if (role === 'sent' && status === 'failed') {
+    actions = actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) }));
+  }
+  if (actions) el.dataset.acts = '';
+
+  /* Details: the whole bubble opens it (the stretched hit layer, under the buttons) — completed, a direct payment still
+     pending, or (#523) a request card the host gave a target. No target → no layer (no dead tap). */
+  const details = onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending') || !!actions)
+    ? reentryGuard(onDetails) : null;
+  const badge = payBadge(status, strings);
+  const words = [face.label, formatIxiAmount(shownAmount) + ' IXI', fiatShown(fiat) ? fiat : '', badge ? badge[1] : '', details ? (strings.details || 'Details') : ''].filter(Boolean).join(', ');
+  if (details) {
+    const hit = document.createElement('button');
+    hit.type = 'button';
+    hit.className = 'c-tcard__hit';
+    hit.setAttribute('aria-label', words);
+    hit.addEventListener('click', details);
+    el.append(hit);   // FIRST child: `.c-tcard__hit:hover ~ .c-tcard__top …` (no :has)
+  } else {
+    el.setAttribute('role', 'group');
+    el.setAttribute('aria-label', words);
+  }
+
+  const top = document.createElement('div');
+  top.className = 'c-tcard__top';
+  const med = document.createElement('span');
+  med.className = 'c-tcard__medallion';
+  med.setAttribute('aria-hidden', 'true');
+  med.append(icon(face.glyph, { size: 14 }));
+  const lab = document.createElement('span');
+  lab.className = 'c-tcard__label';
+  lab.textContent = face.label;   // textContent: the name is peer data
+  top.append(med, lab);
+  const t = timeEl(timestamp);
+  if (actions && t) top.append(t);
+  el.append(top);
+
+  const amt = document.createElement('div');
+  amt.className = 'c-tcard__amount u-tabular';
+  amt.dataset.tone = tone;
+  if (strike) amt.dataset.strike = '';
+  const num = document.createElement('span');
+  num.className = 'c-tcard__num';
+  num.textContent = formatIxiAmount(shownAmount);
   const unit = document.createElement('span');
   unit.className = 'c-tcard__unit';
   unit.textContent = 'IXI';
-  amountEl.append(unit);
-  el.append(amountEl);
+  amt.append(num, document.createTextNode(' '), unit);
+  el.append(amt);
 
-  if (fiat) {
+  if (fiatShown(fiat)) {
     const f = document.createElement('div');
     f.className = 'c-tcard__fiat u-tabular';
-    if (status === 'declined' || status === 'canceled' || status === 'failed') f.dataset.tone = 'void';
+    if (strike) f.dataset.tone = 'void';
     f.textContent = fiat;
     el.append(f);
   }
 
-  const BADGES = {
-    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
-    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
-    completed: ['success', strings.completed || 'Completed', 'check'],
-    declined: ['error', strings.declined || 'Declined', 'cancel'],
-    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
-  };
-  if (BADGES[status]) {
-    const [type, label, glyph] = BADGES[status];
-    const wrap = document.createElement('div');
-    wrap.className = 'c-tcard__badge';
-    wrap.append(createBadge({ type, weight: 'tonal', label, icon: glyph }));
-    el.append(wrap);
-  }
-
-  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
-    // #264 (no-dead-buttons canon, the #214 End-session precedent): Decline renders
-    // ONLY when the host wires a decline path. On the frozen bridge the shell has
-    // no in-chat decline verb — Pay routes to the NATIVE review page (C# signs;
-    // the user can still back out there), so a dead Decline would be a lie.
-    const decline = onDecline
-      ? createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' })
-      : null;
-    const pay = status === 'failed'
-      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
-      : status === 'processing'
-        // Damir 2026-07-03: spinner + check read as two icons — while
-        // processing the check goes away and the label says what's happening
-        ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
-        : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
-    el.append(actionsRow(decline, pay));   // actionsRow null-filters — no dead Decline slot
-    // loop fix (#523): with the in-place Pay, the NATIVE payment view is only
-    // reachable through Details — render it when the host wires one.
-    if (onDetails) el.append(detailsLink(reentryGuard(onDetails), strings));
-    if (insufficient) {
-      const note = document.createElement('div');
-      note.className = 'c-tcard__note';
-      note.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
-      // r2 backlog C15: the disabled Pay must point AT the reason for AT users
-      note.id = 'c-tcard-note-' + (++tcardNoteUid);
-      pay.setAttribute('aria-describedby', note.id);
-      el.append(note);
+  if (badge || (!actions && t)) {
+    const foot = document.createElement('div');
+    foot.className = 'c-tcard__bottom';
+    if (badge) {
+      const wrap = document.createElement('span');
+      wrap.className = 'c-tcard__badge';
+      wrap.append(createBadge({ type: badge[0], weight: 'tonal', label: badge[1], icon: badge[2] }));
+      foot.append(wrap);
     }
-  } else if (role === 'request-out' && status === 'pending') {
-    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
-    if (onDetails) el.append(detailsLink(reentryGuard(onDetails), strings));   // loop fix (#523)
-  } else if (role === 'sent' && status === 'failed') {
-    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
-  } else if (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending'))) {
-    // details link only when the caller supplies a target — a payment the bridge
-    // can't open (no txid / view disabled) must not show a dead "Details" button
-    el.append(detailsLink(reentryGuard(onDetails), strings));
+    if (!actions && t) foot.append(t);
+    el.append(foot);
+  }
+  if (actions) el.append(actions);
+  if (pay && insufficient && status === 'actionable') {
+    const note = document.createElement('div');
+    note.className = 'c-tcard__note';
+    note.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
+    note.id = 'c-tcard-note-' + (++tcardNoteUid);   // r2 backlog C15: the disabled Pay points AT the reason
+    pay.setAttribute('aria-describedby', note.id);
+    el.append(note);
   }
   paymentOpts.set(row, {
-    role, flow, title, amount, fiat, status, insufficient, timestamp, gutter,   // ★ #1013 (r2 n2): flow, so a full → compact re-render keeps the money arrow
+    role, flow, title, name, amount, fiat, status, insufficient, timestamp, gutter,
     onPay, onDecline, onCancel, onRetry, onDetails, strings,
   });
-  return row;
-}
-
-/* ★ #996 the COMPACT payment pill — only ever for a card with no button (createPaymentBubble
- * decides). Details: the whole pill opens it, exactly where the A card drew its link — completed,
- * or a direct payment still pending — and only when the host wires a target. */
-function paymentCompact({ role, flow, celebrate, direction, label, amount, fiat, status, timestamp, gutter, onDetails, strings }) {
-  const { row, el } = cardShell(direction, 'payment', 'compact', gutter);
-  row.dataset.status = status;
-  if (celebrate && status === 'completed') el.dataset.liveComplete = '';
-  const tone = amountTone(status, amount);
-  let fiatEl = null;
-  if (fiat) {
-    fiatEl = document.createElement('span');
-    fiatEl.className = 'c-tcard__fiat u-tabular';
-    if (tone === 'void') fiatEl.dataset.tone = 'void';
-    fiatEl.textContent = fiat;
-  }
-  const details = (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')))
-    ? reentryGuard(onDetails) : null;
-  /* the arrow shows which way the MONEY went; an open request (nothing moved yet) and a void
-     card are the wallet. Without `flow` the role decides (a direct payment's direction = its money's). */
-  const openRequest = (role === 'request-in' || role === 'request-out') && status !== 'completed';   // ★ #1013: a PAID request moved money — it takes the flow arrow
-  const f = flow || (role === 'sent' ? 'out' : role === 'received' ? 'in' : '');
-  const glyph = openRequest || !f || tone === 'void' ? 'wallet' : (f === 'out' ? 'arrow-up-right' : 'arrow-down-left');
-  const shown = PAYMENT_STATUS_WORD[status] ? status : null;
-  const words = [label, formatIxiAmount(amount) + ' IXI', fiat, shown ? (strings[shown] || PAYMENT_STATUS_WORD[shown][1]) : '', details ? (strings.details || 'Details') : ''].filter(Boolean).join(', ');
-  el.append(compactMain({ glyph, label, valueEl: amountNode(amount, tone), subEl: fiatEl, status: shown, timestamp, onOpen: details, openLabel: words, strings }));
-  if (!details) { el.setAttribute('role', 'group'); el.setAttribute('aria-label', words); }
   return row;
 }
 
@@ -431,16 +360,15 @@ export function createAppBubble({
   strings = getStrings(),
 } = {}) {
   const dir = direction || (state === 'invited' ? 'sent' : 'received');
-  // header follows the session lifecycle (audit: "App invite" was stale post-join)
-  const title = (state === 'in-session' || state === 'ended')
-    ? (strings.appSession || 'App session')
-    : (strings.appInvite || 'App invite');
   /* ★ #996: the exact predicates of the button branches below — no button → the compact pill */
   const hasAction = state === 'invite' || state === 'invited' || state === 'in-session'
     || (state === 'joined' && !!(onOpenAgain || onJoin))
     || (state === 'missing' && !!(onDecline || onGet));
   if (!hasAction) return appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings });
-  const { row, el } = card(dir, title, timestamp, 'app', gutter);
+  /* ★★ S20 J4 (#1440, the v3 doc's I4 — Damir confirms at the build render): the "App invite" / "App session" HEADER
+     row is gone — a 48 px icon, then a 13 px semibold line (what happened) over the 18 px bold app name with the time at
+     the end of that line; the buttons stay as today under the icon row. Colours, states and handlers unchanged. */
+  const { row, el } = cardShell(dir, 'app', null, gutter);
   if (state === 'declined' || state === 'canceled') el.dataset.state = state;   // terminal tombstones: void tone (css)
 
   const id = document.createElement('div');
@@ -451,11 +379,16 @@ export function createAppBubble({
   const nm = document.createElement('span');
   nm.className = 'c-tcard__app-name';
   nm.textContent = name;
+  const line = document.createElement('span');
+  line.className = 'c-tcard__app-line';
+  line.append(nm);
+  const t = timeEl(timestamp);
+  if (t) line.append(t);
   const sub = document.createElement('span');
   sub.className = 'c-tcard__app-sub';
   sub.textContent = {
     invite: strings.invitedYou || 'Invited you to join',
-    invited: strings.youInvited || 'You have sent an invite',
+    invited: strings.inviteSent || 'Invite sent',   // ★ S20 J4: the short line (was youInvited "You have sent an invite")
     missing: strings.invitedYou || 'Invited you to join',
     declined: dir === 'sent' ? appDeclinedByPeer(strings) : (strings.declinedInvite || 'You declined this invite'),   // ★ S8 (#1233)
     canceled: strings.canceledInvite || 'You canceled this invite',   // ★ B2 (#533 ①): the sender's terminal tombstone
@@ -463,7 +396,7 @@ export function createAppBubble({
     ended: strings.sessionEnded || 'Session ended',
     joined: strings.youJoinedApp || 'You joined this app',   // ★ S9 (8-APP)
   }[state] || ''; // audit r2: unknown state rendered "undefined"
-  col.append(nm, sub);
+  col.append(sub, line);
   id.append(ic, col);
   el.append(id);
 
@@ -563,7 +496,7 @@ function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
   const nm = document.createElement('span');
   nm.className = 'c-tcard__app-name';
   nm.textContent = name;
-  el.append(compactMain({ iconEl: appIconEl(iconUrl, name), label: subText, valueEl: nm, status: null, timestamp, onOpen: null, openLabel: '', strings }));
+  el.append(compactMain({ iconEl: appIconEl(iconUrl, name), label: subText, valueEl: nm, timestamp, onOpen: null, openLabel: '' }));
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', [name, subText].filter(Boolean).join(', '));
   return row;
@@ -685,12 +618,61 @@ export function fillFileName(el, name) {
    createFileBubble AND setFileProgress (audit r2: the progress→complete flip
    left "Downloading …" aria + the old glyph on the button). */
 /* #46 r3 R3-m2: ONE rule for MY transfer, card AND tile — "Sending <name>" (a download stays "Downloading") */
-function fileAria(state, name, strings, direction = 'received') {
+/* ★ S20 Q (#1376 / #1377 E): a known size joins the name — "Download report.pdf, 2.4 MB" (unknown = today's label) */
+function fileAria(state, name, strings, direction = 'received', bytes = 0) {
+  const size = formatFileSize(bytes, strings);
   return (state === 'offer' ? (strings.download || 'Download')
     : state === 'failed' ? (strings.retry || 'Retry')
     : state === 'progress' ? tileProgressWord(direction, strings)
     : (strings.open || 'Open'))
-    + ' ' + name;
+    + ' ' + name + (size ? ', ' + size : '');
+}
+/* ★★ S20 Q (#1376 / #1377 E, Damir 16:40 design): the SIZE on the card's second line, when C# sent it (addFile arg 20 →
+   rec.size > 0; unknown = 0 = today's text). offer "2.4 MB · Tap to download" (desktop "Click") · transfer "1.1 / 2.4 MB"
+   (done = size × the integer pct) · complete "2.4 MB · PDF" (the extension upper-case; none → the size alone) · failed and
+   "not available" as before. textContent only (the name is peer data). */
+function fileBytes(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+function fileExtUpper(name) {
+  const s = String(name == null ? '' : name);
+  const dot = s.lastIndexOf('.');
+  const ext = dot > 0 && dot < s.length - 1 ? s.slice(dot + 1) : '';
+  return ext && ext.length <= 8 && !/\s/.test(ext) ? ext.toUpperCase() : '';   // #1005's rule: a longer tail is not an extension
+}
+function downloadCta(strings) {
+  /* ★ #1147 (3): a mouse clicks — :root[data-desktop] says "Click to download"; touch keeps "Tap" */
+  return document.documentElement.hasAttribute('data-desktop') ? (strings.clickToDownload || 'Click to download') : (strings.tapToDownload || 'Tap to download');
+}
+function pctInt(v) { return Math.max(0, Math.min(100, Math.round(Number(v) || 0))); }
+/* the offer's call to action, with the size in front in the quiet ink (textContent reads "2.4 MB · Tap to download") */
+function fillCtaLine(el, bytes, strings) {
+  const size = formatFileSize(bytes, strings);
+  el.textContent = '';
+  if (size) {
+    const sz = document.createElement('span');
+    sz.className = 'c-fbubble__size';
+    sz.textContent = size + ' ·';   // the space is a plain text node between the units (an inline-block trims its own)
+    const go = document.createElement('span');
+    go.className = 'c-fbubble__go';   // a narrow card breaks BETWEEN the size and the action, never inside "Tap to download"
+    go.textContent = downloadCta(strings);
+    el.append(sz, ' ', go);
+    return;
+  }
+  el.append(downloadCta(strings));
+}
+/* ★ S20 Q (#1402, v3 Damir 18:02 — supersedes the #1377 E text): offer AND complete read "PDF · 2.4 MB" (the type first; no
+   extension → the size alone) — the tile's ↓ badge says "download", so a sized offer drops "Tap to download" (an unknown
+   size keeps it, fillCtaLine) · transfer "1.1 / 2.4 MB" (the percentage only without a size) */
+function fileSizeLine(state, bytes, progress, name, strings) {
+  if (state === 'progress') return bytes ? formatFileSizeOf(bytes * pctInt(progress) / 100, bytes, strings) : pctInt(progress) + '%';
+  if (state === 'complete' || state === 'offer') {
+    const size = formatFileSize(bytes, strings);
+    const ext = size ? fileExtUpper(name) : '';
+    return size ? (ext ? ext + ' · ' + size : size) : '';
+  }
+  return '';
 }
 function fileGlyph(state) {
   return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
@@ -759,12 +741,6 @@ function keepOpenText(direction, strings) {
     ? (strings.keepOpenSent || 'Keep Spixi open until it’s sent.')
     : (strings.keepOpenReceived || 'Comes directly from the sender’s device. Keep Spixi open.');
 }
-function fileOpenLabel(strings) {
-  const s = document.createElement('span');
-  s.className = 'c-fbubble__open';
-  s.textContent = strings.openFile || 'Open file';
-  return s;
-}
 
 /** File transfer bubble (Figma compact style; progress/failed = gap fill #66).
  *  state: 'offer' (incoming, accept) | 'progress' (0-100) | 'complete' | 'failed' */
@@ -780,8 +756,10 @@ export function createFileBubble({
   onCancel,                // #334: sender-side cancel while the offer is un-accepted (shell-gated)
   status = null,           // ★ #1028 (walk P.22): a SENT file's delivery tick — 'sending'|'sent'|'delivered'|'read' (null = none)
   unavailable = false,     // ★ #1190 (#1173 (4)): a COMPLETE file whose file is not on this device (C#'s addFile arg 16 = "0")
+  size = 0,                // ★ S20 Q (#1376): the file's byte count (C#'s addFile arg 20; 0 / "" = unknown → today's text)
   strings = getStrings(),
 } = {}) {
+  const bytes = fileBytes(size);
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
   row.dataset.direction = direction;
@@ -801,6 +779,7 @@ export function createFileBubble({
   el.className = 'c-fbubble';
   el.dataset.state = state;
   if (gone) { el.dataset.unavailable = ''; el.setAttribute('aria-disabled', 'true'); }
+  if (bytes && !gone) el.dataset.bytes = String(bytes);   // ★ S20 Q: setFileProgress reads it for "1.1 / 2.4 MB" and the final line
   // ONE persistent dispatcher keyed on live state — the state can flip later via
   // setFileProgress (audit r2: a progress-created bubble bound NO handler, so the
   // finished download was an enabled button that did nothing). Progress state has
@@ -818,7 +797,7 @@ export function createFileBubble({
   /* ★ #1035 (#46 auditor B, M3): the BASE label is kept on the card so the sent file's tick state can be
      appended (here and on every live change — message-bubble.js syncFileTickAria); an explicit aria-label
      on a <button> replaces its content, so the tick's own label is never heard otherwise. */
-  el.dataset.ariaBase = gone ? name + ', ' + meta : fileAria(state, name, strings, direction);   // ★ #1190: never "Open <name>" on a card that opens nothing
+  el.dataset.ariaBase = gone ? name + ', ' + meta : fileAria(state, name, strings, direction, bytes);   // ★ #1190: never "Open <name>" on a card that opens nothing
   el.setAttribute('aria-label', el.dataset.ariaBase);
 
   el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
@@ -833,14 +812,13 @@ export function createFileBubble({
   /* ★ #1021: the second line always SAYS something — C# sends no size, so `meta` is usually
      empty and an offer read as a bare file name. offer = the call to action (action ink), progress
      = the percentage (updated in place), failed = the retry line; an explicit meta still wins. */
-  const pctOf = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0))) + '%';
-  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
-    : meta ? meta
-    /* ★ #1147 (3): a mouse clicks — :root[data-desktop] says "Click to download"; touch keeps "Tap" */
-    : state === 'offer' ? (document.documentElement.hasAttribute('data-desktop') ? (strings.clickToDownload || 'Click to download') : (strings.tapToDownload || 'Tap to download'))
-    : state === 'progress' ? pctOf(progress)
-    : '';
-  if (!meta && state === 'offer') mt.dataset.cta = '';
+  /* ★ S20 Q (#1376 / #1377 E): + the size (fileSizeLine / fillCtaLine above) when it is known */
+  if (state === 'failed') mt.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
+  else if (meta) mt.textContent = meta;
+  else if (state === 'offer' && !bytes) fillCtaLine(mt, 0, strings);   // no size → today's call to action
+  else mt.textContent = fileSizeLine(state, bytes, progress, name, strings);
+  if (!meta && state !== 'failed') mt.dataset.auto = '';   // a computed line: setFileProgress rewrites it on a flip
+  if (!meta && state === 'offer' && !bytes) mt.dataset.cta = '';
   if (!meta && state === 'progress') mt.dataset.pct = '';
   col.append(nm, mt);
   if (state === 'progress') {
@@ -864,7 +842,7 @@ export function createFileBubble({
     hint.textContent = keepOpenText(direction, strings);   // ★ S19 F13: by direction
     col.append(hint);
   }
-  if (state === 'complete' && onOpen) col.append(fileOpenLabel(strings));   // A8b: only advertise when openable
+  /* ★ S20 J3 (#1440): no "Open file" link (A8b's) — the whole bubble already opens the file */
   el.append(col);
 
   /* ★★ #1028 (walk P.22, Damir: "a SENT file needs a delivered double check, like text messages"):
@@ -899,17 +877,25 @@ export function createFileBubble({
   }
   /* #334 (Damir ask): CANCEL on a sent-but-not-yet-accepted file offer. A
    * SIBLING of the bubble (the bubble itself is a <button> — nesting is
-   * invalid HTML); sent rows are flex-end, so it sits LEFT of the bubble.
+   * invalid HTML, and a disabled progress button swallows its children's clicks).
    * setFileProgress drops it the moment packets flow or a final state lands
-   * (post-accept cancel = a different, BE-gated story — fileCancel row). */
+   * (post-accept cancel = a different, BE-gated story — fileCancel row).
+   * ★ S20 J3 (#1440): it is no longer a "Cancel" text button OUTSIDE the bubble — it is a ✕ badge ON THE TILE (today's
+   * tile-badge look). The card and the ✕ share a positioned pair, so the ✕ sits on the tile's corner (css); same
+   * handler, same latch, same accessible name. */
   if (onCancel) {
+    const pair = document.createElement('span');
+    pair.className = 'c-fbubble__pair';
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'c-fbubble__cancel';
-    cancelBtn.textContent = strings.cancel || 'Cancel';
+    cancelBtn.dataset.onTile = '';
+    cancelBtn.append(icon('x', { size: 12 }));
     cancelBtn.setAttribute('aria-label', (strings.cancelTransfer || 'Cancel sending') + ' ' + name);
     cancelBtn.addEventListener('click', oneShot(onCancel));
-    row.append(cancelBtn);
+    pair.append(el, cancelBtn);
+    row.append(pair);
+    return row;
   }
   row.append(el);
   return row;
@@ -1060,7 +1046,7 @@ function jpegSizeOf(b) {
   return undefined;
 }
 
-function fileFace(state, name, progress, strings, direction) {
+function fileFace(state, name, progress, strings, direction, bytes = 0) {
   const face = document.createElement('span');
   face.className = 'c-mbubble__file';
   const glyph = fileTile(name, 'complete');          // the card's document tile; the state is said in words below
@@ -1102,9 +1088,9 @@ function fileFace(state, name, progress, strings, direction) {
     line.textContent = keepOpenText(direction, strings);   // Damir's note: ON the tile · ★ S19 F13: by direction
   } else {
     line.className = 'c-mbubble__cta';
-    /* ★ #1147 (3): desktop (a mouse) says "Click to download"; touch keeps "Tap" */
-    line.textContent = state === 'offer' ? (document.documentElement.hasAttribute('data-desktop') ? (strings.clickToDownload || 'Click to download') : (strings.tapToDownload || 'Tap to download'))
-      : state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
+    /* ★ #1147 (3): desktop (a mouse) says "Click to download"; touch keeps "Tap" · ★ S20 Q (#1376): the offer leads with the size */
+    if (state === 'offer') fillCtaLine(line, bytes, strings);
+    else line.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
       : (strings.openFile || 'Open file');
   }
   face.append(line);
@@ -1141,8 +1127,10 @@ export function createImageFileBubble({
   onLoad,
   onThumbError,        // #46 r1 B-1: the preview failed to decode → the tile dropped it; the shell forgets it too
   quietKey = null,     // ★ #1147 (5): the message id — the quiet wait is per message, not per re-built tile
+  size = 0,            // ★ S20 Q (#1376): the byte count — on the offer's call-to-action line and in the name (no other tile text)
   strings = getStrings(),
 } = {}) {
+  const bytes = fileBytes(size);
   const pic = tileShowsPicture(state, direction) && thumb ? String(thumb) : '';   // #46 r2 R2-1
   let tileEl = null;
   /* #1147 (5): the face comes back (it fades in — the --duration-200 opacity transition) */
@@ -1164,7 +1152,7 @@ export function createImageFileBubble({
   const el = row.querySelector('.c-mbubble');
   tileEl = el;
   el.dataset.file = state;
-  el.dataset.ariaBase = tileAria(state, name, strings, direction);
+  el.dataset.ariaBase = tileAria(state, name, strings, direction, bytes);
   /* #1147 (5): a LOCAL photo tile not showing its picture yet waits QUIET; a tile the r3 "seen" path showed at once
      (loaded now) never does. After the wait with no picture (still idle), the face fades in; a picture DECODING then
      keeps the quiet until it lands (loaded) or fails (onSrcError above). */
@@ -1175,7 +1163,7 @@ export function createImageFileBubble({
       setTimeout(() => { if (el.dataset.state === 'idle') unquiet(); }, left);
     }
   }
-  fileTileCtl.set(el, { name, strings, direction });
+  fileTileCtl.set(el, { name, strings, direction, bytes });
   // ONE dispatcher keyed on the LIVE file state (the card's rule). While the picture LOADS a tap does nothing (it is
   // a frame or two for a local data: URI) — never two actions for one tap; a failed picture is dropped (above).
   const handlers = {
@@ -1189,7 +1177,7 @@ export function createImageFileBubble({
     if (h) h(e);
   });
   if (state === 'progress') el.disabled = true;
-  el.append(fileFace(state, name, progress, strings, direction));
+  el.append(fileFace(state, name, progress, strings, direction, bytes));
   const tick = direction === 'sent' && status ? createStatusIcon(status) : null;
   if (tick) {
     tick.setAttribute('width', 14);
@@ -1238,9 +1226,9 @@ function setImageFileProgress(rowEl, tile, p, opts) {
   tile.disabled = false;
   delete tile.dataset.acted;   // re-arm after an accept latch
   const face = tile.querySelector('.c-mbubble__file');
-  const next = fileFace(finalState, ctl.name, p, strings, ctl.direction);
+  const next = fileFace(finalState, ctl.name, p, strings, ctl.direction, ctl.bytes || 0);
   if (face) face.replaceWith(next); else tile.append(next);
-  tile.dataset.ariaBase = tileAria(finalState, ctl.name, strings, ctl.direction);
+  tile.dataset.ariaBase = tileAria(finalState, ctl.name, strings, ctl.direction, ctl.bytes || 0);
   tile.setAttribute('aria-label', fileNameAria(tile));
 }
 
@@ -1271,9 +1259,10 @@ export function setFileProgress(rowEl, progress, opts = {}) {
   const track = rowEl.querySelector('.c-fbubble__track');
   if (track) track.setAttribute('aria-valuenow', String(p));
   const metaEl = rowEl.querySelector('.c-fbubble__meta');
-  if (metaEl && opts.meta) metaEl.textContent = opts.meta;
-  else if (metaEl && metaEl.hasAttribute('data-pct')) metaEl.textContent = Math.round(p) + '%';   // ★ #1021: the live percentage (#1024: rounded like creation)
   const bubble = rowEl.querySelector('.c-fbubble');
+  const bytes = bubble ? fileBytes(bubble.dataset.bytes) : 0;   // ★ S20 Q (#1376): the size the card was built with
+  if (metaEl && opts.meta) metaEl.textContent = opts.meta;
+  else if (metaEl && metaEl.hasAttribute('data-pct')) metaEl.textContent = fileSizeLine('progress', bytes, p, '', opts.strings || getStrings());   // ★ #1021: the live percentage (#1024: rounded like creation) · S20 Q: "1.1 / 2.4 MB" when the size is known
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
   // #334: the cancel affordance lives only in the PRE-accept window — the first
   // packet tick or any final state removes it (post-accept retraction is BE).
@@ -1291,7 +1280,7 @@ export function setFileProgress(rowEl, progress, opts = {}) {
     if (hint) hint.remove(); // keep-open hint is progress-only
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
-    bubble.dataset.ariaBase = fileAria(finalState, nm ? nm.textContent : '', strings);
+    bubble.dataset.ariaBase = fileAria(finalState, nm ? nm.textContent : '', strings, undefined, bytes);
     bubble.setAttribute('aria-label', fileNameAria(bubble));   // ★ #1035: keep the tick's state in the name — ★ #1166 r5 NIT-1: the one rule
     // ★ #1021: the tile keeps its extension; only the corner badge follows the state
     const ic = bubble.querySelector('.c-fbubble__icon');
@@ -1301,17 +1290,8 @@ export function setFileProgress(rowEl, progress, opts = {}) {
       const nb = fileBadge(finalState);
       if (nb) ic.append(nb);
     }
-    if (metaEl && (metaEl.hasAttribute('data-pct') || metaEl.hasAttribute('data-cta'))) { metaEl.removeAttribute('data-pct'); metaEl.removeAttribute('data-cta'); if (!opts.meta) metaEl.textContent = ''; }   // ★ #1024: a final flip also drops the offer's call to action
-    // "Open file" affordance appears on completion, is dropped on a failed flip.
-    const existingOpen = bubble.querySelector('.c-fbubble__open');
-    if (finalState === 'complete') {
-      if (!existingOpen) {
-        const infoCol = bubble.querySelector('.c-fbubble__info');
-        if (infoCol) infoCol.append(fileOpenLabel(strings));
-      }
-    } else if (existingOpen) {
-      existingOpen.remove();
-    }
+    if (metaEl && (metaEl.hasAttribute('data-pct') || metaEl.hasAttribute('data-cta') || metaEl.hasAttribute('data-auto'))) { metaEl.removeAttribute('data-pct'); metaEl.removeAttribute('data-cta'); if (!opts.meta) metaEl.textContent = fileSizeLine(finalState, bytes, p, nm ? nm.textContent : '', strings); }   // ★ #1024: a final flip also drops the offer's call to action · S20 Q (#1402): complete → "PDF · 2.4 MB" (unknown size → '')
+    /* ★ S20 J3: no "Open file" link on any state (the whole bubble opens the file) */
     if (finalState === 'failed' && metaEl && !opts.meta) {
       metaEl.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
     }

@@ -63,7 +63,10 @@ const FILES = [
   'src/components/glass-card.js',   // ★ S11 A (#1262): the update card + the hint cards (strings-runtime + icons)
   'src/components/toast.js',
   'src/components/callbar.js',
+  'src/components/link-rule.js',       // ★ S20 F (#46 r1): the one link rule — before msg-format + message-bubble (both read it)
+  'src/components/msg-format.js',      // ★ S20 F (#1378): the formatting parse / render / strip — before message-bubble (its consumer) and the shells
   'src/components/message-bubble.js',
+  'src/components/format-bar.js',      // ★ S20 F (#1378): the Aa format bar — before composer (it mounts it)
   'src/components/composer.js',
   'src/components/typed-bubbles.js',
   'src/components/reactions.js',

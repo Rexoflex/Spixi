@@ -125,8 +125,8 @@ export default async function (h) {
       /* ★ S17 C v3 RE-BASE (Damir 21:50): the dark Meadow / Spixi are FULL COVERAGE (no fade to the canvas), new gaps.
          ★ S19 option B RE-BASE (Damir pick, "Dark Bubble Options"): every dark stop L × 0.85, the gaps re-derived over the new middle —
          Meadow #05221A → #05130F gap #1E3748 (was #0F2C23 → #0B1A16, #243E4E) · Spixi #06193E → #050D28 gap #1E3160 (was #0F2349 → #0A1430, #233867) */
-      darkGreen: has(dg, '--gradient-chat: linear-gradient(160deg, #05221A 0%, #05130F 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #BFE8CB;') && has(dg, '--surface-select-row-gap: #1E3748;'),
-      darkBlue: has(db, '--gradient-chat: linear-gradient(160deg, #06193E 0%, #050D28 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C2DDFB;') && has(db, '--surface-select-row-gap: #1E3160;'),
+      darkGreen: has(dg, '--gradient-chat: linear-gradient(160deg, #001A12 0%, #020D0A 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #BFE8CB;') && has(dg, '--surface-select-row-gap: #1B3243;'),   // re-based by S20 R (#1377 D: L × 0.85 again; was #05221A → #05130F gap #1E3748)
+      darkBlue: has(db, '--gradient-chat: linear-gradient(160deg, #021135 0%, #020721 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C2DDFB;') && has(db, '--surface-select-row-gap: #1C2C5A;'),   // re-based by S20 R (#1377 D; was #06193E → #050D28 gap #1E3160)
       noticeEdge: !rule(chatH, D('blue').map((x) => x + ' .c-sysnotice__card')),   /* ★ #1354 RE-BASE: the hairline RETIRED — the neutral card shares no canvas's hue */
       /* ★ S17 C RE-BASE (#1334): the dark "top stop" dot faces are RETIRED — a 92 × 124 mini chat paints the whole ramp
          through --gradient-chat (the same token rules the chat uses), so no dark tile reads as a black disc */

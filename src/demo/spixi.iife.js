@@ -1688,17 +1688,37 @@ function formatLastSeen(epochSec, strings = getStrings(), now = Date.now()) {
 
 /** ★ S11 F4 (#1263): moved here from shared-items.js (a pure formatter; this module owns no stylesheet).
  *  0 → '' · 512 B · 12 KB · 3.4 MB · 1.2 GB (one decimal under 10, the locale's decimal mark; binary steps, the
- *  convention of every file manager the app sits beside). */
-function formatFileSize(bytes) {
+ *  convention of every file manager the app sits beside).
+ *  ★ S20 Q (#1376): the UNITS are localised (strings unitB / unitKB / unitMB / unitGB, English fallback); the optional
+ *  `strings` argument follows the components' rule (default = the active window.SL). */
+function sizeUnits(strings) {
+  return [strings.unitB || 'B', strings.unitKB || 'KB', strings.unitMB || 'MB', strings.unitGB || 'GB'];
+}
+/* the step a byte count lands on: { v (the scaled value), u (0 B · 1 KB · 2 MB · 3 GB) } */
+function sizeStep(b) {
+  let v = b; let u = 0;
+  while (v >= 1024 && u < 3) { v /= 1024; u += 1; }
+  return { v, u };
+}
+function sizeNumber(v, u) {
+  try { return new Intl.NumberFormat(docLocale(), { maximumFractionDigits: u === 0 || v >= 10 ? 0 : 1 }).format(v); }   // (#46 r1 B7) the locale's decimal mark
+  catch (e) { return u === 0 ? String(Math.round(v)) : (v < 10 ? v.toFixed(1) : String(Math.round(v))); }
+}
+function formatFileSize(bytes, strings = getStrings()) {
   const b = Number(bytes);
   if (!Number.isFinite(b) || b <= 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let v = b; let u = 0;
-  while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
-  let n;
-  try { n = new Intl.NumberFormat(docLocale(), { maximumFractionDigits: u === 0 || v >= 10 ? 0 : 1 }).format(v); }   // (#46 r1 B7) the locale's decimal mark
-  catch (e) { n = u === 0 ? String(Math.round(v)) : (v < 10 ? v.toFixed(1) : String(Math.round(v))); }
-  return n + ' ' + units[u];
+  const { v, u } = sizeStep(b);
+  return sizeNumber(v, u) + ' ' + sizeUnits(strings || {})[u];
+}
+
+/** ★ S20 Q (#1376 / #1377 E): a transfer's "1.1 / 2.4 MB" — the done part in the TOTAL's unit (one unit, said once), the
+ *  same number rule as formatFileSize. done is clamped to 0…total. Unknown total (≤ 0 / not a number) → ''. */
+function formatFileSizeOf(doneBytes, totalBytes, strings = getStrings()) {
+  const t = Number(totalBytes);
+  if (!Number.isFinite(t) || t <= 0) return '';
+  const d = Math.max(0, Math.min(t, Number(doneBytes) || 0));
+  const { v, u } = sizeStep(t);
+  return sizeNumber(d / Math.pow(1024, u), u) + ' / ' + sizeNumber(v, u) + ' ' + sizeUnits(strings || {})[u];
 }
 
 /* ---- src/components/avatar.js ---- */
@@ -2429,6 +2449,9 @@ function attachPressFeedback({
        never activate reads as a broken press. Scoped to the ancestor test, so
        every surface outside the selecting container keeps its feedback. */
     if (t.closest('[data-selecting]')) return;
+    /* ★ S20 C (#1377, #46 S20 r1): the app tile's trailing Run (and the older ⋮ / ⓘ) is its OWN control with its own :active
+       fill — a press that starts on it must not arm the tile's row sweep (the tile tap = details, Run = launch). */
+    if (t.matches('.c-app-item') && e.target.closest('.c-app-item__run, .c-app-item__menu, .c-app-item__info')) return;
     // D-16: a re-press interrupts the target's own afterlife (fade cancelled, the
     // press re-lights from the layer's current paint — the transform is already at
     // scaleX(1), so no re-sweep plays). Other rows' fades keep playing.
@@ -4552,11 +4575,19 @@ function createBadge({
  * createTxItem({ txid, direction = 'out'|'in', status = 'confirmed'|'pending'|
  *                'failed', name, timestamp, timeText, amount, fiat, onClick, strings })
  *
+ * ★ S20 J2 (#1440) — the WALLET mode, opted into by the wallet list (renderWalletTxList):
+ *   face = { src, name, address, group, unknown } → a 44 px avatar (photo / monogram / group
+ *     avatar; unknown = the wallet glyph on a tonal disc) + a 20 px direction badge, in place
+ *     of the 48 px arrow circle. Without `face` (chat-info, demos) the arrow circle stays.
+ *   unit = 'IXI' → a real minus (U+2212) on the amount + fiat and the muted unit after it.
+ *   timeOnly → the day sits in the list's group header, the row shows the time alone.
+ *
  * timestamp = epoch ms → formatted via formatTxTimestamp (relative/locale, preferred).
  * timeText  = a PRE-FORMATTED display string shown verbatim (native-bridge path:
  *   addPaymentActivity ships an already-humanized time string, not epoch — see
  *   docs/be-cutover-brief "Other shells" W1). When both are present, timeText wins.
  */
+
 
 
 
@@ -4633,9 +4664,17 @@ function watchTxMeta(meta) {
   txMetaRO.observe(meta);
 }
 
+const realMinus = (s) => String(s == null ? '' : s).replace(/^-/, '\u2212');
+/* ★ S20 J2 (#1440): the time alone — the day is the group header's (wallet-shell txDayLabel) */
+function txTimeOnly(ts) {
+  const d = new Date(ts);
+  return isNaN(d) ? '' : d.toLocaleTimeString(docLocale(), timeOpts({ hour: 'numeric' }));
+}
+
 function createTxItem({
   txid = '', direction = 'out', status = 'confirmed',
   name = '', timestamp, timeText, amount = '', fiat = '', onClick, strings = getStrings(),
+  face = null, unit = '', timeOnly = false,
 } = {}) {
   // visual type: pending/failed override the direction presentation
   const type = status !== 'confirmed' ? status : (direction === 'in' ? 'received' : 'sent');
@@ -4646,15 +4685,35 @@ function createTxItem({
   el.dataset.type = type;
   if (txid) el.dataset.txid = txid;
 
-  const circle = document.createElement('span');
-  circle.className = 'c-txlist-item__direction';
   // labeled, not aria-hidden: direction is otherwise color/icon-only (amount
   // signs aren't guaranteed — failed rows ship unsigned per Figma)
-  circle.append(icon(direction === 'in' ? 'arrow-down-left' : 'arrow-up-right', {
-    size: 24,
-    label: direction === 'in' ? (strings.received || 'Received') : (strings.sent || 'Sent'),
-  }));
-  el.append(circle);
+  const dirIcon = (size) => icon(direction === 'in' ? 'arrow-down-left' : 'arrow-up-right', {
+    size, label: direction === 'in' ? (strings.received || 'Received') : (strings.sent || 'Sent'),
+  });
+  if (face) {
+    // ★ S20 J2 (#1440): WHO first — the counterparty's face, the direction as a badge on it
+    const lead = document.createElement('span');
+    lead.className = 'c-txlist-item__face';
+    el.dataset.direction = direction;   // the badge colour follows the direction, a pending receive included
+    if (face.unknown) {
+      const disc = document.createElement('span');
+      disc.className = 'c-txlist-item__wallet';
+      disc.append(icon('wallet', { size: 24 }));
+      lead.append(disc);
+    } else {
+      lead.append(createAvatar({ src: face.src || null, name: face.name || '', address: face.address || '', size: 44, group: !!face.group }));
+    }
+    const badge = document.createElement('span');
+    badge.className = 'c-txlist-item__dir';
+    badge.append(dirIcon(12));
+    lead.append(badge);
+    el.append(lead);
+  } else {
+    const circle = document.createElement('span');
+    circle.className = 'c-txlist-item__direction';
+    circle.append(dirIcon(24));
+    el.append(circle);
+  }
 
   const content = document.createElement('span');
   content.className = 'c-txlist-item__content';
@@ -4673,7 +4732,7 @@ function createTxItem({
   }
   const timeStr = (timeText != null && timeText !== '')
     ? timeText
-    : (timestamp != null ? formatTxTimestamp(timestamp) : null);
+    : (timestamp != null ? (timeOnly ? txTimeOnly(timestamp) : formatTxTimestamp(timestamp)) : null);
   if (timeStr) {
     const time = document.createElement('span');
     time.className = 'c-txlist-item__time u-tabular';
@@ -4688,10 +4747,17 @@ function createTxItem({
   right.className = 'c-txlist-item__amounts';
   const amountEl = document.createElement('span');
   amountEl.className = 'c-txlist-item__amount u-tabular';
-  amountEl.textContent = amount;
+  // ★ S20 J2 (#1440): wallet mode — a real minus (U+2212), and the unit after the amount
+  amountEl.textContent = unit ? realMinus(amount) : amount;
+  if (unit && amount) {
+    const u = document.createElement('span');
+    u.className = 'c-txlist-item__unit';
+    u.textContent = ' ' + unit;
+    amountEl.append(u);
+  }
   const fiatEl = document.createElement('span');
   fiatEl.className = 'c-txlist-item__fiat u-tabular';
-  fiatEl.textContent = fiat;
+  fiatEl.textContent = unit ? realMinus(fiat) : fiat;
   right.append(amountEl, fiatEl);
   el.append(right);
 
@@ -6145,6 +6211,275 @@ function hideCallBar(host = document.body) {
   return true;
 }
 
+/* ---- src/components/link-rule.js ---- */
+/**
+ * link-rule — THE link rule of a chat message (#231c, #235; moved here by S20 F #46 r1 MINOR-1 from message-bubble.js).
+ * Read by linkify (message-bubble.js) AND by the format pass (msg-format.js), which must never split a URL that linkify
+ * would link (`…/main/__init__.py`, `site.com/*promo*`). The C# twin is Spixi/Utils/LinkRule.cs (#1106 parity pin).
+ *
+ * #231c: URLs = https?:// · www. · bare domains on a common-TLD whitelist ("github.com" links; file.txt / node.js stay
+ * text). A scheme-less match glued to a word char, @, dot, dash or slash is part of a larger token ("a@b.com",
+ * "path/x.com") → not a URL. Trailing sentence punctuation and unbalanced closing parens are not part of the URL.
+ * #235 DoS guard: the bare-domain alternation backtracks per start position on a crafted no-TLD token ("a.a.a.a…"
+ * ~50KB) → an O(n²) scan; text longer than LINKIFY_MAX is never scanned (no links; mentions still work).
+ */
+const LINKIFY_MAX = 4096;
+const BARE_TLDS = 'com|org|net|io|ai|app|dev|co|me|xyz|info|news|link|site|online|network|finance|exchange|market|money|cash|gg|tv|sh|so|to|us|uk|de|fr|es|it|nl|pl|cz|sk|ch|at|se|no|fi|dk|be|pt|gr|hr|rs|ba|si|hu|ro|bg|eu|ca|au|nz|jp|kr|in|br|mx|ar|za|tr|il|ae|sg|hk|tw|id|th|vn|ph|my';
+const URL_RE = new RegExp(
+  'https?:\\/\\/[^\\s<>"\']+' +
+  '|www\\.[^\\s<>"\']+' +
+  '|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:' + BARE_TLDS + ')(?:\\/[^\\s<>"\']*)?',
+  'gi');
+
+/** The URLs linkify would link in `text`: [{ start, end, url }] in order (end = start + url.length). */
+function urlSpans(text) {
+  const out = [];
+  for (const m of String(text).matchAll(URL_RE)) {
+    const prev = m.index > 0 ? text[m.index - 1] : '';
+    if (prev && /[\w@.\-\/]/.test(prev)) continue;
+    let url = m[0];
+    const trail = url.match(/[.,!?;:]+$/);
+    if (trail) url = url.slice(0, url.length - trail[0].length);
+    // unbalanced closing parens are sentence punctuation: "(see https://x.com)"
+    while (url.endsWith(')') &&
+           (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
+    if (!url) continue;
+    out.push({ start: m.index, end: m.index + url.length, url });
+  }
+  return out;
+}
+
+/* ---- src/components/msg-format.js ---- */
+/**
+ * msg-format — WhatsApp-style message formatting (S20 F, DECISIONS #1378).
+ *
+ *   *bold*  _italic_  ~strike~  `code`  ```block```
+ *
+ * The grammar is SHARED with the C# strip (builder S): both read the vectors in
+ * scripts/pins-s20/f-vectors.json, whose "grammar" field is the exact rule set this
+ * file implements. Syntax inspired by ixian-platform/Spixi PR #50; no code taken from it
+ * (it escaped twice and wrote innerHTML). Everything here builds DOM nodes and text
+ * nodes — the message text is never parsed as HTML.
+ *
+ * parseFormat(text)            → token tree: a string = text; ['b'|'i'|'s', ...children];
+ *                                ['code', text]; ['pre', text]
+ * renderFormat(text, {onText}) → DocumentFragment. onText(run, parent) receives every
+ *                                PLAIN run (outside code) so the bubble's mention +
+ *                                linkify pass can split it; default = a text node.
+ * stripFormat(text)            → plain text, marks and fences dropped (quote, chat-list
+ *                                preview, search). Copy keeps the text AS TYPED.
+ *
+ * URLs (#46 r1 MINOR-1): a URL that linkify would link (link-rule.js, the same rule, the same #235 cap) is opaque to
+ * the marks — no mark opens or closes inside it, so `…/main/__init__.py` and `site.com/*promo*` stay one link; marks
+ * AROUND it still apply (`*https://ixian.io*` = a bold link). A URL's trailing * _ ~ are not part of it (like linkify's
+ * trailing punctuation), so the closing mark of `*https://ixian.io*` stays a mark.
+ *
+ * Cost: O(n log n) — every closer search is a binary search over pre-computed closer
+ * positions bounded by the line end, so a crafted 64 000-char run of openers cannot
+ * freeze the chat (the same class as the linkify DoS guard, #235).
+ */
+
+
+
+const FMT_MARK_TAG = { '*': 'b', '_': 'i', '~': 's' };
+const FMT_LD_RE = /[\p{L}\p{N}]/u;      // letter / digit, Unicode-aware (C#: char.IsLetterOrDigit)
+const FMT_WS_RE = /\s/;                 // whitespace (C#: char.IsWhiteSpace)
+const FMT_FENCE = '```';
+
+function fmtIsLD(ch) { return !!ch && FMT_LD_RE.test(ch); }
+function fmtIsWS(ch) { return !!ch && FMT_WS_RE.test(ch); }
+
+/* first index in the sorted array `arr` whose value is >= x */
+function fmtLowerBound(arr, x) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid] < x) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+
+function fmtCtx(s) {
+  const n = s.length;
+  // nl[i] = index of the first '\n' at or after i (n when none)
+  const nl = new Int32Array(n + 1);
+  nl[n] = n;
+  for (let i = n - 1; i >= 0; i--) nl[i] = s[i] === '\n' ? i : nl[i + 1];
+  // positions inside a URL linkify would link (≤ the #235 cap only — over it nothing is linked, nothing is protected)
+  const inUrl = new Uint8Array(n);
+  if (n <= LINKIFY_MAX && /[*_~]/.test(s)) {
+    for (const sp of urlSpans(s)) {
+      let e = sp.end;
+      while (e > sp.start && /[*_~]/.test(s[e - 1])) e--;   // a URL's trailing marks are marks
+      inUrl.fill(1, sp.start, e);
+    }
+  }
+  // valid CLOSER positions per mark: preceded by a non-space, followed by the end or a non-letter/digit, not in a URL
+  const closers = { '*': [], '_': [], '~': [] };
+  for (let j = 1; j < n; j++) {
+    const c = s[j];
+    if (c !== '*' && c !== '_' && c !== '~') continue;
+    if (inUrl[j]) continue;
+    if (fmtIsWS(s[j - 1])) continue;
+    if (j + 1 < n && fmtIsLD(s[j + 1])) continue;
+    closers[c].push(j);
+  }
+  return { s, n, nl, closers, inUrl };
+}
+
+/* step 3: emphasis in the run [a, b) — pushes strings / nodes onto out */
+function fmtEmph(ctx, a, b, out) {
+  const { s, nl, closers, inUrl } = ctx;
+  let i = a, textStart = a;
+  while (i < b) {
+    const c = s[i];
+    const tag = FMT_MARK_TAG[c];
+    if (tag && !inUrl[i] && (i === a || !fmtIsLD(s[i - 1])) && i + 1 < b && !fmtIsWS(s[i + 1])) {
+      const list = closers[c];
+      const k = fmtLowerBound(list, i + 2);
+      const j = k < list.length ? list[k] : -1;
+      const limit = Math.min(b, nl[i + 1]);   // no newline inside, never past the run
+      if (j !== -1 && j < limit) {
+        if (i > textStart) fmtPushText(out, s.slice(textStart, i));
+        const kids = [];
+        fmtEmph(ctx, i + 1, j, kids);
+        if (ctx.spans) ctx.spans.push([tag, i, j + 1]);
+        out.push([tag, ...kids]);
+        i = j + 1;
+        textStart = i;
+        continue;
+      }
+    }
+    i++;
+  }
+  if (b > textStart) fmtPushText(out, s.slice(textStart, b));
+}
+
+function fmtPushText(out, str) {
+  if (!str) return;
+  const last = out.length ? out[out.length - 1] : null;
+  if (typeof last === 'string') out[out.length - 1] = last + str;
+  else out.push(str);
+}
+
+/* step 2: inline code in the segment [a, b), emphasis in the runs between */
+function fmtInline(ctx, a, b, out) {
+  const { s, nl } = ctx;
+  let runStart = a;
+  let k = s.indexOf('`', a);
+  while (k !== -1 && k < b) {
+    const m = s.indexOf('`', k + 1);
+    if (m !== -1 && m < b && m < nl[k] && m > k + 1) {
+      fmtEmph(ctx, runStart, k, out);
+      out.push(['code', s.slice(k + 1, m)]);
+      if (ctx.spans) ctx.spans.push(['code', k, m + 1]);
+      runStart = m + 1;
+      k = s.indexOf('`', m + 1);
+    } else {
+      k = m;   // literal backtick; the next candidate is the next backtick
+    }
+  }
+  fmtEmph(ctx, runStart, b, out);
+}
+
+/** The token tree (see the header). Adjacent text is merged. */
+function parseFormat(text) { return fmtParse(text, null); }
+
+/** Where each matched node sits: [kind, start, end) with its marks / fences — the Aa bar's unwrap test (#46 r1 MINOR-2). */
+function formatSpans(text) {
+  const spans = [];
+  fmtParse(text, spans);
+  return spans;
+}
+
+function fmtParse(text, spans) {
+  const s = text == null ? '' : String(text);
+  const out = [];
+  if (!s) return out;
+  const ctx = fmtCtx(s);
+  ctx.spans = spans;
+  // step 1: code blocks — an opening fence at a line start, closed by the next ``` anywhere
+  let segStart = 0;
+  let p = 0;
+  while (p <= s.length - 3) {
+    const f = s.indexOf(FMT_FENCE, p);
+    if (f === -1) break;
+    if (f !== 0 && s[f - 1] !== '\n') { p = f + 1; continue; }
+    const close = s.indexOf(FMT_FENCE, f + 3);
+    if (close === -1) break;   // no later ``` at all → no later block can close either
+    let body = s.slice(f + 3, close);
+    if (body.startsWith('\n')) body = body.slice(1);
+    if (body.endsWith('\n')) body = body.slice(0, -1);
+    if (!body) { p = f + 1; continue; }
+    fmtInline(ctx, segStart, f, out);
+    out.push(['pre', body]);
+    if (spans) spans.push(['pre', f, close + 3]);
+    segStart = p = close + 3;
+  }
+  fmtInline(ctx, segStart, s.length, out);
+  return out;
+}
+
+function fmtStripNodes(nodes) {
+  let r = '';
+  for (const n of nodes) {
+    if (typeof n === 'string') r += n;
+    else if (n[0] === 'code' || n[0] === 'pre') r += n[1];
+    else r += fmtStripNodes(n.slice(1));
+  }
+  return r;
+}
+
+/** Plain text: matched marks and fences dropped, the content kept as typed. */
+function stripFormat(text) {
+  const s = text == null ? '' : String(text);
+  if (!/[*_~`]/.test(s)) return s;   // the common case: nothing to parse
+  return fmtStripNodes(parseFormat(s));
+}
+
+const FMT_TAG_EL = { b: 'strong', i: 'em', s: 's' };
+const FMT_TAG_CLASS = { b: 'c-fmt-b', i: 'c-fmt-i', s: 'c-fmt-s' };
+
+function fmtDefaultOnText(run, parent) { parent.append(document.createTextNode(run)); }
+
+function fmtRenderNodes(nodes, parent, onText) {
+  for (let x = 0; x < nodes.length; x++) {
+    const n = nodes[x];
+    if (typeof n === 'string') {
+      /* a block is a block box: the one newline that separates it from the text around it would add a blank line */
+      let t = n;
+      if (x > 0 && Array.isArray(nodes[x - 1]) && nodes[x - 1][0] === 'pre' && t[0] === '\n') t = t.slice(1);
+      if (x + 1 < nodes.length && Array.isArray(nodes[x + 1]) && nodes[x + 1][0] === 'pre' && t.endsWith('\n')) t = t.slice(0, -1);
+      if (t) onText(t, parent);
+      continue;
+    }
+    const kind = n[0];
+    if (kind === 'code') {
+      const c = document.createElement('code');
+      c.className = 'c-fmt-code';
+      c.dir = 'ltr';                           // code reads left to right inside an RTL message (an isolated run)
+      c.textContent = n[1];                    // as typed — no mention / link / mark inside code
+      parent.append(c);
+    } else if (kind === 'pre') {
+      const p = document.createElement('pre');
+      p.className = 'c-fmt-pre';
+      p.dir = 'ltr';
+      p.textContent = n[1];
+      p.tabIndex = 0;                          // a sideways-scrolling block must be reachable by keyboard
+      parent.append(p);
+    } else {
+      const e = document.createElement(FMT_TAG_EL[kind]);
+      e.className = FMT_TAG_CLASS[kind];
+      fmtRenderNodes(n.slice(1), e, onText);
+      parent.append(e);
+    }
+  }
+}
+
+/** DOM render — never innerHTML. onText(run, parent) appends a plain run into parent. */
+function renderFormat(text, { onText = fmtDefaultOnText } = {}) {
+  const frag = document.createDocumentFragment();
+  fmtRenderNodes(parseFormat(text), frag, onText || fmtDefaultOnText);
+  return frag;
+}
+
 /* ---- src/components/message-bubble.js ---- */
 /**
  * c-bubble — chat message bubble (Figma message-bubble 11288:4442; DECISIONS
@@ -6209,6 +6544,8 @@ function bubbleAvatarSize() {
 
 
 
+
+
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
 }
@@ -6223,12 +6560,8 @@ function bubbleTime(d) {
    prefixed for the CLICK; the display stays as the user typed it. OG/thumbnail
    link previews remain §8/BE-gated (sender-composed card, be-cutover §82) —
    client-side unfurl is CORS-blocked + an IP-leak (#232 human-BE-review class). */
-const BARE_TLDS = 'com|org|net|io|ai|app|dev|co|me|xyz|info|news|link|site|online|network|finance|exchange|market|money|cash|gg|tv|sh|so|to|us|uk|de|fr|es|it|nl|pl|cz|sk|ch|at|se|no|fi|dk|be|pt|gr|hr|rs|ba|si|hu|ro|bg|eu|ca|au|nz|jp|kr|in|br|mx|ar|za|tr|il|ae|sg|hk|tw|id|th|vn|ph|my';
-const URL_RE = new RegExp(
-  'https?:\\/\\/[^\\s<>"\']+' +
-  '|www\\.[^\\s<>"\']+' +
-  '|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:' + BARE_TLDS + ')(?:\\/[^\\s<>"\']*)?',
-  'gi');
+/* ★ S20 F (#46 r1 MINOR-1): BARE_TLDS + URL_RE + the #231c guard / trims + LINKIFY_MAX moved to link-rule.js — the ONE link
+   rule, read by linkify here AND by the format pass (msg-format.js), which must never split a URL it would link. */
 /* #231c: a long URL used to wrap across 3+ bubble lines with a dangling tail
    (Damir screenshot) — display is truncated past 64 chars; the button carries
    the FULL url on click/title and the shell's confirm modal shows it in full
@@ -6409,13 +6742,7 @@ function appendWithMentions(parent, text, mention) {
   if (!mention || !text || text.indexOf('@') === -1) { parent.append(text); return; }
   forEachMentionSplit(text, mention, (run) => parent.append(run), (span) => parent.append(span));
 }
-/* #235 DoS guard: the bare-domain alternation backtracks per start position on
-   a crafted no-TLD token ("a.a.a.a…" ~50KB) → an O(n²) matchAll scan freezes
-   the chat pane (victim-side render DoS; isolated to the chat WebView per §1,
-   but still a freeze). Real chat messages are far below this cap — oversized
-   text skips linkify entirely and renders as plain text (mentions still work;
-   the mention pass is a single linear exec). */
-const LINKIFY_MAX = 4096;
+/* #235 DoS guard: LINKIFY_MAX lives in link-rule.js (oversized text skips linkify; mentions still work). */
 /* #314 ORDERING (Damir F5 2026-08-07, repro'd first per #215): linkify used to run
    OUTER and mentions only in its gaps — a multi-word roster nick with a URL-looking
    word ("@Bob site.com") had "site.com" consumed as a LINK BUTTON before the
@@ -6436,20 +6763,8 @@ function linkifyInto(parent, text, onLinkClick, mention = null) {
 }
 function linkifyPlain(parent, text, onLinkClick) {
   let last = 0;
-  for (const m of text.matchAll(URL_RE)) {
-    // #231c email/token guard: a scheme-less match glued to a word char, @, dot,
-    // dash or slash is part of a larger token ("a@b.com", "path/x.com") → stays
-    // plain text (the skipped run is flushed by the next match / tail append).
-    const prev = m.index > 0 ? text[m.index - 1] : '';
-    if (prev && /[\w@.\-\/]/.test(prev)) continue;
-    let url = m[0];
-    const trail = url.match(/[.,!?;:]+$/);
-    if (trail) url = url.slice(0, url.length - trail[0].length);
-    // unbalanced closing parens are sentence punctuation: "(see https://x.com)"
-    while (url.endsWith(')') &&
-           (url.split('(').length < url.split(')').length)) url = url.slice(0, -1);
-    if (!url) continue;
-    if (m.index > last) parent.append(text.slice(last, m.index));
+  for (const { start, url } of urlSpans(text)) {   // link-rule.js: the #231c glued-token guard + the punctuation / paren trims
+    if (start > last) parent.append(text.slice(last, start));
     const href = /^https?:\/\//i.test(url) ? url : 'https://' + url;  // #231c: click target for scheme-less links
     const b = document.createElement('button');
     b.type = 'button';
@@ -6458,7 +6773,7 @@ function linkifyPlain(parent, text, onLinkClick) {
     b.title = url;
     if (onLinkClick) b.addEventListener('click', () => onLinkClick(href));
     parent.append(b);
-    last = m.index + url.length;
+    last = start + url.length;
   }
   if (last < text.length) parent.append(text.slice(last));
 }
@@ -6634,7 +6949,12 @@ function createMessageBubble({
   } else {
     const body = document.createElement('span');
     body.className = 'c-bubble__text';
-    linkifyInto(body, text, onLinkClick, mention); // URLs → link buttons, @names → mention spans, rest plain
+    /* ★ S20 F (#1378): the formatting pass runs FIRST and hands every plain run (never code) to the mention + linkify
+       pass, so a mention or a link inside *bold* still works and nothing inside `code` is touched. DOM-built (msg-format.js). */
+    /* #235 DoS guard, decided ONCE per message (S20 #46 F2): the format pass splits the text into runs, so a per-run
+       check let a 61 KB message of runs just under LINKIFY_MAX linkify every run. Over the cap: mentions only, no links. */
+    const big = text.length > LINKIFY_MAX;
+    body.append(renderFormat(text, { onText: (run, parent) => (big ? appendWithMentions(parent, run, mention) : linkifyInto(parent, run, onLinkClick, mention)) })); // URLs → link buttons, @names → mention spans, rest plain
     el.append(body);
   }
 
@@ -7149,6 +7469,224 @@ function setVoiceBubble(row, patch, strings = getStrings()) {
   return true;
 }
 
+/* ---- src/components/format-bar.js ---- */
+/**
+ * c-fmtbar — the composer's "Aa" format bar (S20 F, DECISIONS #1378; input A + C).
+ *
+ * Typing the marks always works (A). This adds C: an "Aa" toggle inside the pill (trailing side) that opens a small bar
+ * ABOVE the composer — the @-autocomplete's surface family (composer.css .c-composer__mentions) — with Bold · Italic ·
+ * Strike · Code. A button wraps the selection in the mark (or inserts a pair and puts the caret between); pressed on a
+ * selection that is already wrapped, it unwraps it. Desktop (data-desktop): Ctrl+B / Ctrl+I / Ctrl+Shift+X (Cmd on a Mac).
+ *
+ * The bar is position:absolute on the composer root (format-bar.css), like the @ popover: it never changes the
+ * composer's height, so the list reserve (P's composer ↔ list motion) never moves when it opens or closes.
+ *
+ * a11y: the toggle is aria-pressed; the bar is a role=toolbar with labelled buttons; Esc closes it and focus returns to
+ * the textarea. Buttons take mousedown/preventDefault so a mouse or touch press never blurs the field (the keyboard
+ * stays up on a phone and the selection is kept).
+ *
+ * mountFormatBar(composerEl, { field, input, strings }) → { open, close, apply, toggle, bar, button }
+ * applyFormat(input, kind) — kind ∈ 'bold' | 'italic' | 'strike' | 'code'; exported for the shortcuts and the pins.
+ */
+
+
+
+const FMT_MARK = { bold: '*', italic: '_', strike: '~', code: '`' };
+const FMT_KINDS = ['bold', 'italic', 'strike', 'code'];
+const FMT_TAG = { bold: 'b', italic: 'i', strike: 's', code: 'code' };
+let fmtSeq = 0;
+
+function fmtIsMacLike() {
+  try { return /Mac|iPhone|iPad/.test(navigator.platform || '') || /Macintosh/.test(navigator.userAgent || ''); } catch (_) { return false; }
+}
+
+/* Replace [s, e) with text and select [selS, selE). execCommand('insertText') keeps the field's undo history (Ctrl+Z
+   undoes the wrap); where it is missing or refused, setRangeText + a synthetic input event does the same edit. */
+function fmtReplaceRange(input, s, e, text, selS, selE) {
+  const expected = input.value.slice(0, s) + text + input.value.slice(e);
+  try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); }
+  input.setSelectionRange(s, e);
+  let ok = false;
+  try { ok = typeof document.execCommand === 'function' && document.execCommand('insertText', false, text); } catch (_) { ok = false; }
+  if (!ok || input.value !== expected) {
+    input.value = expected;
+    input.dispatchEvent(new Event('input', { bubbles: true }));   // grow + the send state (isTrusted=false → no ixian:typing)
+  }
+  try { input.setSelectionRange(selS, selE); } catch (_) {}
+}
+
+/** Wrap / unwrap the selection of `input` in the mark for `kind` (see the header). */
+function applyFormat(input, kind) {
+  const M = FMT_MARK[kind];
+  if (!M || !input) return false;
+  const v = input.value;
+  let s = input.selectionStart == null ? v.length : input.selectionStart;
+  let e = input.selectionEnd == null ? s : input.selectionEnd;
+  // the marks must hug text (#1378 grammar: an opener is followed by a non-space, a closer preceded by one)
+  while (s < e && /\s/.test(v[s])) s++;
+  while (e > s && /\s/.test(v[e - 1])) e--;
+  if (s === e) {                                               // nothing selected: a pair, the caret between
+    fmtReplaceRange(input, s, s, M + M, s + 1, s + 1);
+    return true;
+  }
+  const sel = v.slice(s, e);
+  /* ★ #46 r1 MINOR-2: unwrap ONLY a pair the grammar really matched as ONE node of this kind (marks just outside the
+     selection, or the selection's own outer marks) — never a literal star of `a*b*c` or two nodes of `*a* and *b*` */
+  const tag = FMT_TAG[kind];
+  const spans = formatSpans(v);
+  const isNode = (a, b) => spans.some((sp) => sp[0] === tag && sp[1] === a && sp[2] === b);
+  if (s > 0 && isNode(s - 1, e + 1)) {                         // already wrapped (marks just outside) → unwrap
+    fmtReplaceRange(input, s - 1, e + 1, sel, s - 1, e - 1);
+    return true;
+  }
+  if (isNode(s, e)) {                                          // the marks inside the selection → unwrap
+    fmtReplaceRange(input, s, e, sel.slice(1, -1), s, e - 2);
+    return true;
+  }
+  if (kind === 'code' && (sel.includes('\n') || sel.includes('`'))) {   // several lines, or backticks inside → a ``` block
+    if (sel.includes('```')) return false;                     // a fence inside cannot be wrapped as code at all
+    const lead = s === 0 || v[s - 1] === '\n' ? '' : '\n';
+    const tail = e === v.length || v[e] === '\n' ? '' : '\n';
+    const text = lead + '```\n' + sel + '\n```' + tail;
+    const at = s + lead.length + 4;
+    fmtReplaceRange(input, s, e, text, at, at + sel.length);
+    return true;
+  }
+  if (sel.includes('\n')) {                                    // a mark never spans a line: wrap each line's text
+    const text = sel.split('\n').map((line) => {
+      const m = /^(\s*)(.*?)(\s*)$/.exec(line);
+      return m && m[2] ? m[1] + M + m[2] + M + m[3] : line;
+    }).join('\n');
+    fmtReplaceRange(input, s, e, text, s, s + text.length);
+    return true;
+  }
+  fmtReplaceRange(input, s, e, M + sel + M, s + 1, e + 1);
+  return true;
+}
+
+function fmtShortcutKind(e, mac) {
+  const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+  if (!mod || e.altKey) return null;
+  const k = String(e.key || '').toLowerCase();
+  if (!e.shiftKey && k === 'b') return 'bold';
+  if (!e.shiftKey && k === 'i') return 'italic';
+  if (e.shiftKey && k === 'x') return 'strike';
+  return null;
+}
+
+function mountFormatBar(el, { field, input, strings = {} } = {}) {
+  if (!el || !field || !input) return null;
+  const id = 'c-fmtbar-' + (++fmtSeq);
+  /* ★ #46 r1 MINOR-3: an IME composition owns the field until it commits — an edit inside it (`hello wor` + Bold →
+     `hello wor**`) is lost or doubled by the commit. While composing, the bar and the shortcuts do nothing. */
+  let composing = false;
+  input.addEventListener('compositionstart', () => { composing = true; });
+  input.addEventListener('compositionend', () => { composing = false; });
+  input.addEventListener('blur', () => { composing = false; });
+  const mac = fmtIsMacLike();
+  const desktop = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-desktop');
+  const labels = {
+    bold: strings.formatBold || 'Bold',
+    italic: strings.formatItalic || 'Italic',
+    strike: strings.formatStrike || 'Strikethrough',
+    code: strings.formatCode || 'Code',
+  };
+  const keys = { bold: 'B', italic: 'I', strike: 'Shift+X' };
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'c-fmtbar-toggle';
+  toggle.setAttribute('aria-label', strings.formatText || 'Text formatting');
+  toggle.setAttribute('aria-pressed', 'false');
+  toggle.setAttribute('aria-controls', id);
+  const aa = document.createElement('span');
+  aa.className = 'c-fmtbar-toggle__glyph';
+  aa.setAttribute('aria-hidden', 'true');
+  aa.textContent = 'Aa';
+  toggle.append(aa);
+  field.append(toggle);
+
+  const bar = document.createElement('div');
+  bar.className = 'c-fmtbar';
+  bar.id = id;
+  bar.hidden = true;
+  bar.setAttribute('role', 'toolbar');
+  bar.setAttribute('aria-label', strings.formatText || 'Text formatting');
+  for (const kind of FMT_KINDS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-fmtbar__btn';
+    b.dataset.fmt = kind;
+    b.setAttribute('aria-label', labels[kind]);
+    if (kind === 'code') b.append(icon('code', { size: 20 }));
+    else {
+      const g = document.createElement('span');
+      g.className = 'c-fmtbar__glyph';
+      g.setAttribute('aria-hidden', 'true');
+      g.textContent = kind === 'bold' ? 'B' : kind === 'italic' ? 'I' : 'S';
+      b.append(g);
+    }
+    if (keys[kind] && desktop()) {
+      const combo = (mac ? '⌘' : 'Ctrl+') + keys[kind];
+      b.title = labels[kind] + ' (' + combo + ')';
+      b.setAttribute('aria-keyshortcuts', (mac ? 'Meta+' : 'Control+') + keys[kind]);
+    }
+    b.addEventListener('mousedown', (e) => e.preventDefault());   // keep the field's focus + selection
+    b.addEventListener('click', () => { if (!composing) applyFormat(input, kind); });   // ★ #46 r1 MINOR-3: never mid-IME
+    bar.append(b);
+  }
+  // DOM order = tab order: the field (… input, Aa) → the bar → the send disc
+  el.insertBefore(bar, field.nextSibling);
+
+  const isOpen = () => !bar.hidden;
+  const open = () => {
+    bar.hidden = false;
+    toggle.setAttribute('aria-pressed', 'true');
+    el.setAttribute('data-fmt-open', '');
+  };
+  const close = ({ refocus = false } = {}) => {
+    if (!isOpen()) return;
+    bar.hidden = true;
+    toggle.setAttribute('aria-pressed', 'false');
+    el.removeAttribute('data-fmt-open');
+    if (refocus) { try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); } }
+  };
+  const flip = () => (isOpen() ? close() : open());
+
+  toggle.addEventListener('mousedown', (e) => e.preventDefault());
+  toggle.addEventListener('click', flip);
+
+  // Esc closes the bar (before the reply / edit strip's own Esc — capture, after the @ picker's, which wired first)
+  const onEsc = (e) => {
+    if (e.key !== 'Escape' || !isOpen() || e.isComposing) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    close({ refocus: true });
+  };
+  input.addEventListener('keydown', onEsc, true);
+  bar.addEventListener('keydown', onEsc);
+  toggle.addEventListener('keydown', onEsc);
+
+  // desktop shortcuts — on the field only, so Ctrl+B elsewhere keeps its own meaning
+  input.addEventListener('keydown', (e) => {
+    if (!desktop() || composing || e.isComposing || e.keyCode === 229) return;
+    const kind = fmtShortcutKind(e, mac);
+    if (!kind) return;
+    e.preventDefault();
+    applyFormat(input, kind);
+  });
+
+  /* the bar goes away when focus MOVES to another control outside the composer (Tab out, a click on a focusable
+     control). ★ #46 r1: no settle timer — focusout's relatedTarget already names where focus goes; focus going nowhere
+     (a tap on the list, the window losing focus: relatedTarget null) keeps the bar, which is a toggle. */
+  el.addEventListener('focusout', (e) => {
+    const to = e.relatedTarget;
+    if (to && !el.contains(to)) close();
+  });
+
+  return { open, close, toggle: flip, apply: (kind) => applyFormat(input, kind), bar, button: toggle };
+}
+
 /* ---- src/components/composer.js ---- */
 /**
  * c-composer — chat input bar (Figma `input` 11306:7242 + `send` 11306:7223;
@@ -7179,6 +7717,7 @@ function setVoiceBubble(row, patch, strings = getStrings()) {
  * onTooLong(len, max) — fired on a blocked send attempt (Enter or the button), so
  *   the shell can toast. The over-limit state is otherwise silent and visual.
  */
+
 
 
 
@@ -7419,6 +7958,7 @@ function createComposer({
   });
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);
+  mountFormatBar(el, { field, input, strings });   // S20 F hook (#1378): Aa toggle + the bar above the composer (absolute — no height change)
 
   /* ★ #46 r1 NIT: Escape in the composer area (the bar's ✕, the ➤ disc) cancels a recording — the ✕'s own path */
   el.addEventListener('keydown', (e) => {
@@ -7620,59 +8160,126 @@ function ctxTile(tile) {
   return t;
 }
 
-/* ★★ S8 (#1238, Damir 2026-10-07: "as you wrote") — THE STRIP GROWS, the tx-detail drawer grammar (wallet-shell.js #1056).
-   WAAPI on the strip's box: height, block padding, block margins and the hairline go 0 → their resting values, so the
-   PILL grows and the slot's ResizeObserver (chat.html) re-pins the log inside its own callback — the bubbles ride up
-   with the pill, no dip. OPEN = --duration-200 on --easing-standard, the content hidden for the first 30 % and fading
-   in after (it never shows squashed). CLOSE = 0.75 × that (150 ms) on --easing-accelerate, the content gone in the first
-   half; a closing strip is `inert` + [data-closing] (no tap, no focus, not read) and leaves the DOM at the end. No
-   overshoot. Durations AND easings are READ from the tokens, so reduced motion (the tokens are 0 ms there) and an
-   engine without WAAPI are instant — the same end state; the CSS rise (c-composer-ctx-in) is that engine's fallback. */
-const ctxAnims = new WeakMap();   // strip → its running Animation
+/* ═══ ★★ S20 A (#1378): THE COMPOSER MOVES BY TRANSFORM, THE LOG'S RESERVE MOVES ONCE. A height change lands in the
+ * layout in ONE frame and the host (chat.html setLogReserve) re-reserves the log once, on `c-composer-shift`
+ * (detail.phase: 'open' = grew now, slide the rows · 'close' = will shrink by detail.dy, hold the reserve · 'end' / 'set'
+ * = changed now, no slide). Motion = transform / clip only (a height animation re-laid out the log every frame — A1/A2).
+ * Durations + easings from the tokens (reduced motion / no WAAPI: instant, same end state). Never a transform on
+ * #chat-composer itself. */
+const COMPOSER_SHIFT = 'c-composer-shift';   // the shell listens for this name
 function ctxToken(name, fallback) {
   try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; } catch (e) { return fallback; }
 }
-function ctxStripMotion(strip, open, done, fromBox) {
-  let fired = false;
+/* 'open' = --duration-200 standard; a close (the strip, the tray) = 0.75 × on accelerate (#1238: it leaves faster) */
+function composerMotion(kind) {
+  const base = parseFloat(ctxToken('--duration-200', '200ms'));
+  const shut = kind !== 'open';
+  const ms = Number.isFinite(base) ? Math.round(shut ? base * 0.75 : base) : 0;
+  const easing = shut ? ctxToken('--easing-accelerate', 'cubic-bezier(0.3, 0, 1, 1)') : ctxToken('--easing-standard', 'cubic-bezier(0.2, 0, 0, 1)');
+  return { ms, easing };
+}
+function emitComposerShift(el, phase, detail = {}) {
+  if (!el) return;
+  try { el.dispatchEvent(new CustomEvent(COMPOSER_SHIFT, { bubbles: true, detail: { ...detail, phase } })); } catch (e) {}
+}
+const bandAnims = new WeakMap();   // element → its running slide
+/* the translateY on screen now (a running slide included) */
+function bandY(el) {
+  try {
+    const t = getComputedStyle(el).transform;
+    if (!t || t === 'none') return 0;
+    const m = /^matrix(3d)?\(([^)]*)\)$/.exec(t);
+    if (!m) return 0;
+    const v = m[2].split(',').map(parseFloat);
+    const y = m[1] ? v[13] : v[5];
+    return Number.isFinite(y) ? y : 0;
+  } catch (e) { return 0; }
+}
+function canSlide(el) { return !!el && typeof el.animate === 'function'; }
+/* hold = fill forwards: a close keeps its end until the caller lands the layout change and stops it (same frame) */
+function slideBand(els, from, to, ms, easing, hold = false) {
+  const out = [];
+  for (const el of els) {
+    if (!el) continue;
+    const run = bandAnims.get(el);
+    if (run) { try { run.cancel(); } catch (e) {} bandAnims.delete(el); }
+    if (!(ms > 0) || !canSlide(el) || (!hold && Math.abs(from - to) < 0.5)) continue;
+    try {
+      const a = el.animate([{ transform: 'translateY(' + from + 'px)' }, { transform: 'translateY(' + to + 'px)' }], { duration: ms, easing, fill: hold ? 'forwards' : 'none' });
+      bandAnims.set(el, a);
+      out.push(a);
+    } catch (e) {}
+  }
+  return out;
+}
+function stopBand(els) {
+  for (const el of els) {
+    const run = el && bandAnims.get(el);
+    if (run) { try { run.cancel(); } catch (e) {} bandAnims.delete(el); }
+  }
+}
+/* what sits above the pill in the slot (the media strip, the cost line) rides the pill's top edge */
+function bandAbove(el, stop) {
+  const out = [];
+  const slot = el.parentElement;
+  if (slot) for (const c of slot.children) { if (c === el) break; out.push(c); }
+  for (const c of el.children) { if (c === stop) break; out.push(c); }
+  return out;
+}
+
+/* ★★ THE STRIP STILL LOOKS LIKE IT GROWS (#1238 kept, #1378): it is in the layout at full size at once; the PILL's top
+   edge is a clip (inset(clip … round <the pill's radius>)) opening to 0, the band above rides it, the content is hidden
+   30 % then fades in. The close is the mirror (150 ms accelerate, [data-closing] + inert), its end removes the strip.
+   m-5 kept: a reopen inside a close starts from the pill's top as it is on screen. */
+const ctxRuns = new WeakMap();   // composer el → { strip, open, anims, clip: [from, to], at, ms, done }
+function ctxClipNow(el) {   // how many px of the pill's top the running strip motion hides right now
+  const r = ctxRuns.get(el);
+  if (!r) return 0;
+  let p = 1;
+  try { const t = r.anims[0] && r.anims[0].effect && r.anims[0].effect.getComputedTiming(); if (t && t.progress != null) p = t.progress; } catch (e) {}
+  return r.clip[0] + (r.clip[1] - r.clip[0]) * p;
+}
+function stopCtxRun(el) {
+  const r = ctxRuns.get(el);
+  if (!r) return;
+  ctxRuns.delete(el);
+  r.done = true;
+  clearTimeout(r.timer);
+  for (const a of r.anims) { try { a.cancel(); } catch (e) {} }
+  stopBand(r.band);
+}
+function ctxStripMotion(el, field, strip, open, clipFrom, clipTo, done) {
+  const { ms, easing } = composerMotion(open ? 'open' : 'strip-close');
+  /* ★ S20 #46 r1 (MAJOR): a close inside the open's 200 ms ends the OPEN run here — its late finish (onfinish or the
+     timer) used to stop the CLOSE run without its end: a ghost strip and a held log slide that never let go */
+  let op0 = '1';
+  try { op0 = getComputedStyle(strip).opacity || '1'; } catch (e) {}   // read BEFORE the open's fade is cancelled
+  stopCtxRun(el);
+  let r = null;
   const finish = () => {
-    if (fired) return;
-    fired = true;
-    ctxAnims.delete(strip);
-    if (open) strip.style.overflow = '';
+    if (r) { if (r.done) return; if (ctxRuns.get(el) === r) stopCtxRun(el); else r.done = true; }
     if (done) done();
   };
   if (!open) { strip.dataset.closing = ''; strip.setAttribute('inert', ''); }
-  const base = parseFloat(ctxToken('--duration-200', '200ms'));
-  const ms = Number.isFinite(base) ? Math.round(open ? base : base * 0.75) : 0;
-  if (!ms || typeof strip.animate !== 'function' || !strip.offsetHeight) { finish(); return; }
-  /* FROM = what is on screen now — a close that lands mid-grow starts from the half-grown box, not from full */
-  const cs = getComputedStyle(strip);
-  const now = { height: cs.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderBottomWidth: cs.borderBottomWidth };
-  const fromOpacity = cs.opacity;
-  const run = ctxAnims.get(strip);
-  if (run) run.cancel();
-  const shut = { height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px', borderBottomWidth: '0px' };
-  strip.style.animation = 'none';   // the CSS rise is the no-WAAPI fallback only (never put back: that would replay it)
-  strip.style.overflow = 'hidden';
-  /* ★ #46 r1 (S8 picks m-5): a strip that REPLACES a closing one opens from that strip's box AS IT IS ON SCREEN
-     (fromBox, measured before it left) — the same FROM = on-screen rule as a close mid-grow; from 0 the slot dropped
-     32 px in one frame on a close + reopen inside the 150 ms */
-  const frames = open
-    ? [{ ...(fromBox || shut), opacity: 0, offset: 0 }, { opacity: 0, offset: 0.3 }, { ...now, opacity: 1, offset: 1 }]
-    : [{ ...now, opacity: fromOpacity, offset: 0 }, { opacity: 0, offset: 0.5 }, { ...shut, opacity: 0, offset: 1 }];
-  let a;
+  if (!(ms > 0) || !canSlide(field) || Math.abs(clipFrom - clipTo) < 0.5) { finish(); return false; }
+  const rad = (() => { try { return getComputedStyle(field).borderTopLeftRadius || '0px'; } catch (e) { return '0px'; } })();
+  const clip = (px) => 'inset(' + Math.max(0, px) + 'px 0px 0px 0px round ' + rad + ')';
+  const band = bandAbove(el, field);
+  r = { strip, open, anims: [], band, clip: [clipFrom, clipTo], ms, done: false, timer: 0 };
+  ctxRuns.set(el, r);
+  strip.style.animation = 'none';   // the CSS rise (c-composer-ctx-in) is the no-WAAPI fallback only
   try {
-    a = strip.animate(frames, {
-      duration: ms,
-      easing: open ? ctxToken('--easing-standard', 'cubic-bezier(0.2, 0, 0, 1)') : ctxToken('--easing-accelerate', 'cubic-bezier(0.3, 0, 1, 1)'),
-      fill: open ? 'none' : 'forwards',
-    });
-  } catch (e) { finish(); return; }
-  ctxAnims.set(strip, a);
-  a.onfinish = finish;
-  /* a timeline that does not tick (a hidden pane) must not leave a strip half-way — the end state lands anyway
-     (a PAUSED animation is someone's deliberate hold — devtools, a frame-by-frame render — and is left alone) */
-  setTimeout(() => { if (!fired && ctxAnims.get(strip) === a && a.playState !== 'paused') { a.cancel(); finish(); } }, ms + 120);
+    r.anims.push(field.animate([{ clipPath: clip(clipFrom) }, { clipPath: clip(clipTo) }], { duration: ms, easing, fill: open ? 'none' : 'forwards' }));
+    const fade = open
+      ? [{ opacity: 0, offset: 0 }, { opacity: 0, offset: 0.3 }, { opacity: 1, offset: 1 }]
+      : [{ opacity: op0, offset: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 0, offset: 1 }];
+    r.anims.push(strip.animate(fade, { duration: ms, easing, fill: open ? 'none' : 'forwards' }));
+  } catch (e) { finish(); return false; }
+  slideBand(band, clipFrom, clipTo, ms, easing, !open);
+  r.anims[0].onfinish = finish;
+  const a0 = r.anims[0];   // a timeline that never ticks still ends (a PAUSED one is a deliberate hold: left alone)
+  r.timer = setTimeout(() => { if (!r.done && ctxRuns.get(el) === r && a0.playState !== 'paused') finish(); }, ms + 120);
+  return true;
 }
 
 /**
@@ -7688,22 +8295,19 @@ function ctxStripMotion(strip, open, done, fromBox) {
 function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
   const field = el.querySelector('.c-composer__field');
+  const vis = el.offsetHeight - ctxClipNow(el);   // ★ S20 A: the pill's top on screen now (m-5: a reopen starts there)
   /* ★ S8 (#1238): a strip still CLOSING is dropped at once (a new context, or a second close, wins). An open strip is
      either SWAPPED in place (Reply ⇄ Edit: no collapse, no grow) or, on a close, collapsed by ctxStripMotion below. */
-  let fromBox = null;   // ★ #46 r1 (m-5): the closing strip's box on screen now — a new strip grows FROM it
+  let droppedClosing = false;
   for (const old of el.querySelectorAll('.c-composer__ctx[data-closing]')) {
-    if (!fromBox && ctx && old.offsetHeight) {
-      const cs = getComputedStyle(old);
-      fromBox = { height: cs.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderBottomWidth: cs.borderBottomWidth };
-    }
-    const a = ctxAnims.get(old);
-    if (a) a.cancel();
-    ctxAnims.delete(old);
+    const r = ctxRuns.get(el);
+    if (r && r.strip === old) stopCtxRun(el);
     old.remove();
+    droppedClosing = true;
   }
   const prev = el.querySelector('.c-composer__ctx');
   const closing = !!prev && !ctx;
-  if (prev && !closing) { const a = ctxAnims.get(prev); if (a) a.cancel(); ctxAnims.delete(prev); prev.remove(); }
+  if (prev && !closing) { const r = ctxRuns.get(el); if (r && r.strip === prev) stopCtxRun(el); prev.remove(); }
   if (field && !closing) delete field.dataset.ctx;
   // freeze audit: REPLACING an active edit ctx (e.g. Reply picked mid-edit)
   // must give the pre-edit draft back — else the old message text sends as
@@ -7719,11 +8323,21 @@ function setComposerContext(el, ctx) {
       /* the field keeps its wrap while the strip collapses; the value flips to 'closing' at once, so the back mirror
          (chat.html observes data-ctx) learns NOW that no context is open, not 150 ms later */
       if (field) field.dataset.ctx = 'closing';
-      ctxStripMotion(prev, false, () => {
+      /* ★ S20 A: the layout is HELD while the pill's top clips down (the closed height measured with the strip out of
+         the flow for one read — no paint between); the removal + the reserve land together at the end */
+      const full = el.offsetHeight;
+      prev.style.display = 'none';
+      const shut = el.offsetHeight;
+      prev.style.display = '';
+      const clipNow = Math.max(0, full - vis);   // a close mid-grow starts from the half-grown pill
+      const end = () => {
         prev.remove();
         if (field && !field.querySelector(':scope > .c-composer__ctx')) delete field.dataset.ctx;
-      });
-    }
+        emitComposerShift(el, 'end');
+      };
+      const m = composerMotion('strip-close');
+      if (ctxStripMotion(el, field, prev, false, clipNow, full - shut, end)) emitComposerShift(el, 'close', { dy: full - shut, ms: m.ms, easing: m.easing });
+    } else if (droppedClosing) emitComposerShift(el, 'end');
     resyncComposer(el);
     return;
   }
@@ -7763,7 +8377,6 @@ function setComposerContext(el, ctx) {
      (no :has() — the WebView baseline). The COST line (#86) stays a bar line above the pill, so it is still topmost. */
   if (field) { field.dataset.ctx = ctx.kind; field.prepend(strip); }
   else el.prepend(strip);
-  if (!prev) ctxStripMotion(strip, true, null, fromBox);   // ★ S8 (#1238): a FRESH strip grows (from a closing one's box, m-5); a swap (Reply over Edit) stays put
 
   if (input) {
     if (ctx.kind === 'edit' && ctx.prefill !== false) {
@@ -7788,6 +8401,14 @@ function setComposerContext(el, ctx) {
       });
     }
     try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }   // ★ 7b (#1219): the shell keeps the target row in view
+  }
+  /* ★ S20 A: a FRESH strip is at full size now (an edit's prefill included) — one reserve move, the clip grows the pill.
+     A swap (Reply over Edit) stays put: the slot observer re-reserves. */
+  if (!prev && field) {
+    const clipFrom = Math.max(0, el.offsetHeight - vis);
+    const m = composerMotion('open');
+    const ran = ctxStripMotion(el, field, strip, true, clipFrom, 0, null);
+    emitComposerShift(el, 'open', { ms: ran ? m.ms : 0, easing: m.easing, dy: clipFrom });
   }
   resyncComposer(el);   // ★ #1199: Save ⇄ Send, and the disabled state, for the context now up
 }
@@ -8075,61 +8696,11 @@ let tcardNoteUid = 0; // aria-describedby ids for insufficient-balance notes (C1
    the audit-r2 one-shot latch by construction — fresh card, fresh buttons) */
 const paymentOpts = new WeakMap();
 
-/** Card scaffold: row (direction-aligned) → card → header(title+time) + body
- *  slots. gutter (r2 backlog C8): group chats indent received TEXT bubbles by
- *  an avatar gutter — received cards take the same empty gutter so columns
- *  align (no avatar until card identity is designed, #66). */
-function card(direction, title, timestamp, modifier, gutter = false) {
-  const row = document.createElement('div');
-  row.className = 'c-bubble-row';
-  row.dataset.direction = direction;
-  row.dataset.position = 'single';
-  if (gutter && direction === 'received') {
-    const g = document.createElement('span');
-    g.className = 'c-bubble-row__gutter';
-    row.append(g);
-  }
-  const el = document.createElement('div');
-  el.className = 'c-tcard';
-  if (modifier) el.dataset.kind = modifier;
-  const head = document.createElement('div');
-  head.className = 'c-tcard__head';
-  const t = document.createElement('span');
-  t.className = 'c-tcard__title';
-  t.textContent = title;
-  head.append(t);
-  if (timestamp != null) {
-    const d = new Date(timestamp);
-    if (!isNaN(d)) { // audit r2: a malformed bridge ts must not kill the card
-      const time = document.createElement('time');
-      time.className = 'c-tcard__time u-tabular';
-      time.setAttribute('datetime', d.toISOString());
-      time.textContent = cardTime(d);
-      head.append(time);
-    }
-  }
-  el.append(head);
-  row.append(el);
-  return { row, el };
-}
-
 function actionsRow(...buttons) {
   const r = document.createElement('div');
   r.className = 'c-tcard__actions';
   for (const b of buttons) if (b) { b.dataset.width = 'full'; r.append(b); }
   return r;
-}
-
-function detailsLink(onDetails, strings) {
-  const wrap = document.createElement('div');
-  wrap.className = 'c-tcard__details';
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'c-tcard__details-btn';
-  btn.append(document.createTextNode(strings.details || 'Details'), icon('chevron-right', { size: 16 }));
-  if (onDetails) btn.addEventListener('click', onDetails);
-  wrap.append(btn);
-  return wrap;
 }
 
 /* Action guards (audit r2): a double-activation on Pay/Join/etc. re-fired the
@@ -8159,48 +8730,6 @@ function reentryGuard(fn) {
   };
 }
 
-/* ★★ #996 THE CARD RESKIN — Damir's pick (2026-09-28): "keep today's cards, but have compact for
- * settled". A payment or app card that carries a BUTTON (Pay · Decline · Cancel request · Retry ·
- * Join · Get app · Launch · Resume) keeps today's full card, unchanged. A card with NOTHING to
- * act on becomes the COMPACT pill (ref-payment-sent-compact): medallion · a small label over a
- * large value · a QUIET status (tiny dot + one low-contrast word) with the time in the foot, NO
- * memo line, and the whole pill is the Details button. Every state, verb and bridge field is the
- * A card's — only the layout of the settled ones moves. The helpers below are shared with the
- * call card (#1006), so they sit OUTSIDE any grammar switch (Opus r1 m4). */
-
-/* ★ #996: the QUIET status — a tiny tinted dot + one low-contrast word, in the foot.
- * Replaces the coloured badge on the reskinned cards. `tone` drives only the dot. */
-const PAYMENT_STATUS_WORD = {
-  pending: ['pending', 'Pending'], completed: ['completed', 'Completed'],
-  declined: ['declined', 'Declined'], canceled: ['canceled', 'Canceled'],
-  failed: ['failed', 'Failed'], processing: ['processing', 'Processing'],
-};
-function quietStatus(status, strings) {
-  const w = PAYMENT_STATUS_WORD[status];
-  if (!w) return null;
-  const tone = { pending: 'neutral', processing: 'neutral', completed: 'success', declined: 'error', canceled: 'neutral', failed: 'error' }[status];
-  const s = document.createElement('span');
-  s.className = 'c-tcard__status';
-  s.dataset.tone = tone;
-  let mark;
-  if (status === 'completed') {
-    /* ★ #1009 (10a): completed carries a small CHECK instead of the dot — drawn once
-       (stroke-dash) when the card completed LIVE (data-live-complete on the card). */
-    mark = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    mark.setAttribute('viewBox', '0 0 12 12');
-    mark.setAttribute('class', 'c-tcard__status-check');
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M2.5 6.2 5 8.6 9.5 3.6');
-    path.setAttribute('pathLength', '1');
-    mark.append(path);
-  } else {
-    mark = document.createElement('span');
-    mark.className = 'c-tcard__status-dot';
-  }
-  mark.setAttribute('aria-hidden', 'true');
-  s.append(mark, document.createTextNode(strings[w[0]] || w[1]));
-  return s;
-}
 function timeEl(timestamp) {
   if (timestamp == null) return null;
   const d = new Date(timestamp);
@@ -8211,23 +8740,14 @@ function timeEl(timestamp) {
   t.textContent = cardTime(d);
   return t;
 }
-function amountNode(amount, tone) {
-  const a = document.createElement('span');
-  a.className = 'c-tcard__amount u-tabular';
-  a.dataset.tone = tone;
-  a.append(document.createTextNode(formatIxiAmount(amount) + ' '));
-  const unit = document.createElement('span');
-  unit.className = 'c-tcard__unit';
-  unit.textContent = 'IXI';
-  a.append(unit);
-  return a;
-}
 function amountTone(status, amount) {
   return status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
     : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
     : 'pending';
 }
-/* The row scaffold without the old header (the compact + full grammars own their own). */
+/* The row scaffold: row (direction-aligned) → card. gutter (r2 backlog C8): group chats indent received TEXT bubbles by
+   an avatar gutter — received cards take the same empty gutter so columns align. `layout` (optional) names the card's
+   grammar: 'stack' = the S20 payment bubble · 'compact' = the #996 pill (settled app cards) and the #1006 call row. */
 function cardShell(direction, modifier, layout, gutter) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -8241,14 +8761,13 @@ function cardShell(direction, modifier, layout, gutter) {
   const el = document.createElement('div');
   el.className = 'c-tcard';
   if (modifier) el.dataset.kind = modifier;
-  el.dataset.layout = layout;
+  if (layout) el.dataset.layout = layout;
   row.append(el);
   return { row, el };
 }
-/* COMPACT pill (ref-payment-sent-compact): medallion · small label over a large value ·
- * the foot (quiet status + time) at the block end. When `onOpen` exists the WHOLE pill
- * is one button (a stretched hit layer), so Details stays reachable with no link row. */
-function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, onOpen, openLabel, strings }) {
+/* #996 COMPACT pill (settled app cards — the payment pill is retired by S20 J1): medallion · small label over a large
+ * value · the time at the line's end. When `onOpen` exists the WHOLE pill is one button (a stretched hit layer). */
+function compactMain({ glyph, iconEl, label, valueEl, subEl, timestamp, onOpen, openLabel }) {
   const main = document.createElement('div');
   main.className = 'c-tcard__main';
   const med = iconEl || document.createElement('span');
@@ -8260,16 +8779,12 @@ function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, 
   const lab = document.createElement('span');
   lab.className = 'c-tcard__label';
   lab.textContent = label;
-  /* ★ #1013 (Opus r2 M1): the value and the foot share ONE wrapping line. In a grid cell of their
-     own, a long amount + "Processing · 14:05" ran PAST the card edge on a 320–360px phone; in a
-     wrapping line the foot drops under the amount (end-aligned) when both do not fit. */
+  /* ★ #1013 (Opus r2 M1): the value and the foot share ONE wrapping line (the foot drops under, end-aligned) */
   const line = document.createElement('span');
   line.className = 'c-tcard__line';
   line.append(valueEl);
   const foot = document.createElement('span');
   foot.className = 'c-tcard__foot';
-  const st = status ? quietStatus(status, strings) : null;
-  if (st) foot.append(st);
   const t = timeEl(timestamp);
   if (t) foot.append(t);
   if (foot.childNodes.length) line.append(foot);
@@ -8287,6 +8802,59 @@ function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, 
   return main;
 }
 
+/* ★★ S20 J1 (#1440, Damir 16:36 "like a message" + 17:52 / 17:54 "keep TODAY'S colours, change only the layout") — THE
+ * PAYMENT BUBBLE, one stacked layout for all 14 states (supersedes the #996 compact pill + the header card; their
+ * behaviour stays): ① the label row — today's medallion at 24 px + the role label (+ the time when the bubble has
+ * buttons) · ② the amount, 28 px, with today's data-tone · ③ the fiat line (hidden below 0.01) · ④ the foot — today's
+ * tonal badge + the time · then today's .c-button pair. Surfaces / edges / inks are the .c-tcard rules, unchanged.
+ * Labels come from role + flow + status (the shell always sends them; C#'s localized `title` is only the fallback for
+ * an unknown role). {name} = the counterpart's display name WHEN THE SHELL KNOWS IT (a group sender's nick) — a 1:1
+ * row carries no peer nick on the bridge, so the label drops the name ("Sent you", "Requested"; 🟡 noted, no C#). */
+function payBadge(status, strings) {   // today's tonal badges: [type, label, glyph]
+  return {
+    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
+    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
+    completed: ['success', strings.completed || 'Completed', 'check'],
+    declined: ['error', strings.declined || 'Declined', 'cancel'],
+    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
+  }[status] || null;
+}
+function named(name, withName, bare) {
+  /* a replacer FUNCTION (GATE 34: "$'" in a nick is text) · #46 r3: the nick is bidi-ISOLATED (FSI … PDI) so an RTL or "!"-ending
+     nick cannot reorder the label (face.label feeds the aria words too) · #46 r4/r5: first the nick's own BIDI controls (U+202A–202E,
+     U+2066–2069, U+200E, U+200F, U+061C), C0/C1 controls and U+2028/2029 go, so a PDI + RLO cannot close the isolate early.
+     Narrower than FileRowRules.cs sanitizeMemberName (:171, all of Cf): ZWJ / ZWNJ / emoji tags / variation selectors are TEXT
+     here (a family emoji, Persian می‌شود, a Scotland flag) and the label must read like the nick everywhere else. */
+  const n = String(name || '').replace(/[\p{Cc}\u2028\u2029\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]/gu, '').trim();
+  return n ? String(withName).replace('{name}', () => '\u2068' + n + '\u2069') : bare;
+}
+/* The face of a payment: label · glyph · whether a COMPLETED amount gets its "+". A settled REQUEST arrives as role
+   sent / received with the money's `flow` against the message (my request paid = sent + in; theirs paid = received + out). */
+function paymentFace(role, flow, status, name, strings) {
+  const X = 'x';
+  if (role !== 'request-in' && role !== 'request-out' && role !== 'sent' && role !== 'received') return null;
+  const request = role === 'request-in' || role === 'request-out' || (role === 'received' && flow === 'out') || (role === 'sent' && flow === 'in');
+  const mine = role === 'request-out' || role === 'sent';
+  if (status === 'canceled') return { label: strings.payYouCanceled || 'You canceled', glyph: X };
+  if (!request) {
+    if (mine) return status === 'failed' ? { label: strings.paymentFailed || 'Payment failed', glyph: X } : { label: strings.payYouSent || 'You sent', glyph: 'arrow-up-right' };
+    return { label: named(name, strings.payNameSentYou || '{name} sent you', strings.paySentYou || 'Sent you'), glyph: status === 'failed' ? X : 'arrow-down-left', plus: true };
+  }
+  if (mine) {
+    if (status === 'completed') return { label: named(name, strings.payNamePaidYou || '{name} paid you', strings.payPaidYou || 'Paid you'), glyph: 'arrow-down-left', plus: true };
+    if (status === 'declined') return { label: named(name, strings.payNameDeclined || '{name} declined', strings.payRequestDeclined || 'Request declined'), glyph: X };
+    return { label: strings.youRequested || 'You requested', glyph: status === 'failed' ? X : 'wallet' };
+  }
+  if (status === 'completed') return { label: named(name, strings.payYouPaidName || 'You paid {name}', strings.payYouPaid || 'You paid'), glyph: 'arrow-up-right' };
+  if (status === 'declined') return { label: strings.payYouDeclined || 'You declined', glyph: X };
+  return { label: named(name, strings.payNameRequested || '{name} requested', strings.requested || 'Requested'), glyph: status === 'failed' ? X : 'wallet' };
+}
+/* the fiat line is noise below one cent (Damir): "<$0.01", a zero, or no digits → no line */
+function fiatShown(fiat) {
+  const f = String(fiat == null ? '' : fiat).trim();
+  return !!f && !/^</.test(f) && /[1-9]/.test(f);
+}
+
 /**
  * Payment card — covers incoming/outgoing requests AND direct payments.
  * role: 'request-in' (Pay/Decline) · 'request-out' (Cancel request) ·
@@ -8296,10 +8864,8 @@ function compactMain({ glyph, iconEl, label, valueEl, subEl, status, timestamp, 
  */
 function createPaymentBubble({
   role = 'request-in',
-  title = '',             // optional verbatim override — the native bridge already
-                          // sends a correctly-worded, LOCALIZED title (request vs
-                          // sent vs received) that the shell can't reconstruct from
-                          // role alone; when present it wins over the role-derived one
+  title = '',             // C#'s localized title — S20 J1: only the FALLBACK label (an unknown role); the role label wins
+  name = '',              // ★ S20 J1: the counterpart's display name when the shell knows it ('' → the name-less label)
   amount = '',            // pre-formatted (bridge sends strings)
   fiat = '',
   status = 'actionable',
@@ -8308,138 +8874,122 @@ function createPaymentBubble({
   gutter = false,         // group chats: align with gutter-indented text bubbles (C8)
   celebrate = false,      // ★ #1009 (10a): this card COMPLETED LIVE — draw the check once (the shell passes it one render only)
   flow = '',              // ★ #996 'in' | 'out' — which way the MONEY moved (a request's is the
-                          // opposite of its message direction); picks the medallion arrow
+                          // opposite of its message direction); picks the arrow and the label
   onPay, onDecline, onCancel, onRetry, onDetails,
   strings = getStrings(),
 } = {}) {
   // peer-initiated events sit on the received side (audit MAJOR: 'received' was right-aligned)
   const direction = (role === 'request-in' || role === 'received') ? 'received' : 'sent';
-  const titles = {
-    'request-in': strings.paymentRequest || 'Payment request',
-    'request-out': strings.youRequested || 'You requested',
-    sent: status === 'failed' ? (strings.paymentFailed || 'Payment failed') : (strings.paymentSent || 'Payment sent'),
-    received: strings.paymentReceived || 'Payment received',
-  };
-  /* ★ #996: the card has an ACTION when it will draw a button — the exact predicates of the
-     button branches below, so the two can never disagree. No action → the compact pill. */
-  const hasAction = (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed'))
-    || (role === 'request-out' && status === 'pending')
-    || (role === 'sent' && status === 'failed');
-  if (!hasAction) {
-    const row2 = paymentCompact({ role, flow, celebrate, direction, label: title || titles[role] || '', amount, fiat, status, timestamp, gutter, onDetails, strings });
-    paymentOpts.set(row2, { role, flow, title, amount, fiat, status, insufficient, timestamp, gutter, onPay, onDecline, onCancel, onRetry, onDetails, strings });
-    return row2;
-  }
-  const { row, el } = card(direction, title || titles[role] || '', timestamp, 'payment', gutter); // audit r2: unknown role rendered "undefined"
+  const face = paymentFace(role, flow, status, String(name || '').trim(), strings) || { label: title || '', glyph: 'wallet' };
+  const { row, el } = cardShell(direction, 'payment', 'stack', gutter);
   row.dataset.status = status;
+  if (celebrate && status === 'completed') el.dataset.liveComplete = '';
 
-  const amountEl = document.createElement('div');
-  amountEl.className = 'c-tcard__amount u-tabular';
-  amountEl.dataset.tone =
-    status === 'completed' ? (String(amount).startsWith('+') ? 'positive' : 'neutral')
-    : (status === 'declined' || status === 'canceled' || status === 'failed') ? 'void'
-    : 'pending';
-  amountEl.append(document.createTextNode(formatIxiAmount(amount) + ' '));
+  /* the amount: a "+" only on money that ARRIVED and completed (a received payment · my request paid); any sign the
+     shell put on stays off otherwise (a pending receipt is not yet +). Only a plain number takes a sign (never '?'). */
+  const bare = String(amount == null ? '' : amount).trim().replace(/^\+/, '');
+  const shownAmount = face.plus && status === 'completed' && /^[\d,]+(\.\d+)?$/.test(bare) ? '+' + bare : bare;
+  const tone = amountTone(status, shownAmount);
+  const strike = status === 'declined' || status === 'canceled';   // failed stays readable: Retry can still send it
+
+  /* buttons — the #996 predicates; processing = ONE loading button */
+  let actions = null, pay = null;
+  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
+    if (status === 'processing') {
+      actions = actionsRow(createButton({ label: strings.paying || 'Paying…', type: 'fill', size: 32, loading: true }));
+    } else {
+      // #264 (no dead buttons): Decline renders ONLY when the host wires a decline path
+      const decline = onDecline ? createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline) }) : null;
+      pay = status === 'failed'
+        ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
+        : createButton({ label: String(strings.payAmountIxi || 'Pay {amount} IXI').replace('{amount}', () => formatIxiAmount(bare)), type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
+      actions = actionsRow(decline, pay);
+    }
+  } else if (role === 'request-out' && status === 'pending') {
+    actions = actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) }));
+  } else if (role === 'sent' && status === 'failed') {
+    actions = actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) }));
+  }
+  if (actions) el.dataset.acts = '';
+
+  /* Details: the whole bubble opens it (the stretched hit layer, under the buttons) — completed, a direct payment still
+     pending, or (#523) a request card the host gave a target. No target → no layer (no dead tap). */
+  const details = onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending') || !!actions)
+    ? reentryGuard(onDetails) : null;
+  const badge = payBadge(status, strings);
+  const words = [face.label, formatIxiAmount(shownAmount) + ' IXI', fiatShown(fiat) ? fiat : '', badge ? badge[1] : '', details ? (strings.details || 'Details') : ''].filter(Boolean).join(', ');
+  if (details) {
+    const hit = document.createElement('button');
+    hit.type = 'button';
+    hit.className = 'c-tcard__hit';
+    hit.setAttribute('aria-label', words);
+    hit.addEventListener('click', details);
+    el.append(hit);   // FIRST child: `.c-tcard__hit:hover ~ .c-tcard__top …` (no :has)
+  } else {
+    el.setAttribute('role', 'group');
+    el.setAttribute('aria-label', words);
+  }
+
+  const top = document.createElement('div');
+  top.className = 'c-tcard__top';
+  const med = document.createElement('span');
+  med.className = 'c-tcard__medallion';
+  med.setAttribute('aria-hidden', 'true');
+  med.append(icon(face.glyph, { size: 14 }));
+  const lab = document.createElement('span');
+  lab.className = 'c-tcard__label';
+  lab.textContent = face.label;   // textContent: the name is peer data
+  top.append(med, lab);
+  const t = timeEl(timestamp);
+  if (actions && t) top.append(t);
+  el.append(top);
+
+  const amt = document.createElement('div');
+  amt.className = 'c-tcard__amount u-tabular';
+  amt.dataset.tone = tone;
+  if (strike) amt.dataset.strike = '';
+  const num = document.createElement('span');
+  num.className = 'c-tcard__num';
+  num.textContent = formatIxiAmount(shownAmount);
   const unit = document.createElement('span');
   unit.className = 'c-tcard__unit';
   unit.textContent = 'IXI';
-  amountEl.append(unit);
-  el.append(amountEl);
+  amt.append(num, document.createTextNode(' '), unit);
+  el.append(amt);
 
-  if (fiat) {
+  if (fiatShown(fiat)) {
     const f = document.createElement('div');
     f.className = 'c-tcard__fiat u-tabular';
-    if (status === 'declined' || status === 'canceled' || status === 'failed') f.dataset.tone = 'void';
+    if (strike) f.dataset.tone = 'void';
     f.textContent = fiat;
     el.append(f);
   }
 
-  const BADGES = {
-    pending: ['warning', strings.pending || 'Pending', 'clock-hour-10'],
-    failed: ['error', strings.failed || 'Failed', 'alert-square-rounded'],
-    completed: ['success', strings.completed || 'Completed', 'check'],
-    declined: ['error', strings.declined || 'Declined', 'cancel'],
-    canceled: ['info', strings.canceled || 'Canceled', 'circle-x'],
-  };
-  if (BADGES[status]) {
-    const [type, label, glyph] = BADGES[status];
-    const wrap = document.createElement('div');
-    wrap.className = 'c-tcard__badge';
-    wrap.append(createBadge({ type, weight: 'tonal', label, icon: glyph }));
-    el.append(wrap);
-  }
-
-  if (role === 'request-in' && (status === 'actionable' || status === 'processing' || status === 'failed')) {
-    // #264 (no-dead-buttons canon, the #214 End-session precedent): Decline renders
-    // ONLY when the host wires a decline path. On the frozen bridge the shell has
-    // no in-chat decline verb — Pay routes to the NATIVE review page (C# signs;
-    // the user can still back out there), so a dead Decline would be a lie.
-    const decline = onDecline
-      ? createButton({ label: strings.decline || 'Decline', type: 'outline', size: 32, onClick: oneShot(onDecline), disabled: status === 'processing' })
-      : null;
-    const pay = status === 'failed'
-      ? createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })
-      : status === 'processing'
-        // Damir 2026-07-03: spinner + check read as two icons — while
-        // processing the check goes away and the label says what's happening
-        ? createButton({ label: strings.processing || 'Processing', type: 'fill', size: 32, loading: true })
-        : createButton({ label: strings.pay || 'Pay', type: 'fill', size: 32, icon: icon('check', { size: 16 }), onClick: oneShot(onPay), disabled: insufficient });
-    el.append(actionsRow(decline, pay));   // actionsRow null-filters — no dead Decline slot
-    // loop fix (#523): with the in-place Pay, the NATIVE payment view is only
-    // reachable through Details — render it when the host wires one.
-    if (onDetails) el.append(detailsLink(reentryGuard(onDetails), strings));
-    if (insufficient) {
-      const note = document.createElement('div');
-      note.className = 'c-tcard__note';
-      note.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
-      // r2 backlog C15: the disabled Pay must point AT the reason for AT users
-      note.id = 'c-tcard-note-' + (++tcardNoteUid);
-      pay.setAttribute('aria-describedby', note.id);
-      el.append(note);
+  if (badge || (!actions && t)) {
+    const foot = document.createElement('div');
+    foot.className = 'c-tcard__bottom';
+    if (badge) {
+      const wrap = document.createElement('span');
+      wrap.className = 'c-tcard__badge';
+      wrap.append(createBadge({ type: badge[0], weight: 'tonal', label: badge[1], icon: badge[2] }));
+      foot.append(wrap);
     }
-  } else if (role === 'request-out' && status === 'pending') {
-    el.append(actionsRow(createButton({ label: strings.cancelRequest || 'Cancel request', type: 'outline', size: 32, onClick: oneShot(onCancel) })));
-    if (onDetails) el.append(detailsLink(reentryGuard(onDetails), strings));   // loop fix (#523)
-  } else if (role === 'sent' && status === 'failed') {
-    el.append(actionsRow(createButton({ label: strings.retry || 'Retry', type: 'fill', size: 32, icon: icon('rotate-clockwise-2', { size: 16 }), onClick: reentryGuard(onRetry) })));
-  } else if (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending'))) {
-    // details link only when the caller supplies a target — a payment the bridge
-    // can't open (no txid / view disabled) must not show a dead "Details" button
-    el.append(detailsLink(reentryGuard(onDetails), strings));
+    if (!actions && t) foot.append(t);
+    el.append(foot);
+  }
+  if (actions) el.append(actions);
+  if (pay && insufficient && status === 'actionable') {
+    const note = document.createElement('div');
+    note.className = 'c-tcard__note';
+    note.textContent = strings.insufficient || 'Not enough IXI to cover this amount plus the network fee.';
+    note.id = 'c-tcard-note-' + (++tcardNoteUid);   // r2 backlog C15: the disabled Pay points AT the reason
+    pay.setAttribute('aria-describedby', note.id);
+    el.append(note);
   }
   paymentOpts.set(row, {
-    role, flow, title, amount, fiat, status, insufficient, timestamp, gutter,   // ★ #1013 (r2 n2): flow, so a full → compact re-render keeps the money arrow
+    role, flow, title, name, amount, fiat, status, insufficient, timestamp, gutter,
     onPay, onDecline, onCancel, onRetry, onDetails, strings,
   });
-  return row;
-}
-
-/* ★ #996 the COMPACT payment pill — only ever for a card with no button (createPaymentBubble
- * decides). Details: the whole pill opens it, exactly where the A card drew its link — completed,
- * or a direct payment still pending — and only when the host wires a target. */
-function paymentCompact({ role, flow, celebrate, direction, label, amount, fiat, status, timestamp, gutter, onDetails, strings }) {
-  const { row, el } = cardShell(direction, 'payment', 'compact', gutter);
-  row.dataset.status = status;
-  if (celebrate && status === 'completed') el.dataset.liveComplete = '';
-  const tone = amountTone(status, amount);
-  let fiatEl = null;
-  if (fiat) {
-    fiatEl = document.createElement('span');
-    fiatEl.className = 'c-tcard__fiat u-tabular';
-    if (tone === 'void') fiatEl.dataset.tone = 'void';
-    fiatEl.textContent = fiat;
-  }
-  const details = (onDetails && (status === 'completed' || ((role === 'sent' || role === 'received') && status === 'pending')))
-    ? reentryGuard(onDetails) : null;
-  /* the arrow shows which way the MONEY went; an open request (nothing moved yet) and a void
-     card are the wallet. Without `flow` the role decides (a direct payment's direction = its money's). */
-  const openRequest = (role === 'request-in' || role === 'request-out') && status !== 'completed';   // ★ #1013: a PAID request moved money — it takes the flow arrow
-  const f = flow || (role === 'sent' ? 'out' : role === 'received' ? 'in' : '');
-  const glyph = openRequest || !f || tone === 'void' ? 'wallet' : (f === 'out' ? 'arrow-up-right' : 'arrow-down-left');
-  const shown = PAYMENT_STATUS_WORD[status] ? status : null;
-  const words = [label, formatIxiAmount(amount) + ' IXI', fiat, shown ? (strings[shown] || PAYMENT_STATUS_WORD[shown][1]) : '', details ? (strings.details || 'Details') : ''].filter(Boolean).join(', ');
-  el.append(compactMain({ glyph, label, valueEl: amountNode(amount, tone), subEl: fiatEl, status: shown, timestamp, onOpen: details, openLabel: words, strings }));
-  if (!details) { el.setAttribute('role', 'group'); el.setAttribute('aria-label', words); }
   return row;
 }
 
@@ -8471,16 +9021,15 @@ function createAppBubble({
   strings = getStrings(),
 } = {}) {
   const dir = direction || (state === 'invited' ? 'sent' : 'received');
-  // header follows the session lifecycle (audit: "App invite" was stale post-join)
-  const title = (state === 'in-session' || state === 'ended')
-    ? (strings.appSession || 'App session')
-    : (strings.appInvite || 'App invite');
   /* ★ #996: the exact predicates of the button branches below — no button → the compact pill */
   const hasAction = state === 'invite' || state === 'invited' || state === 'in-session'
     || (state === 'joined' && !!(onOpenAgain || onJoin))
     || (state === 'missing' && !!(onDecline || onGet));
   if (!hasAction) return appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings });
-  const { row, el } = card(dir, title, timestamp, 'app', gutter);
+  /* ★★ S20 J4 (#1440, the v3 doc's I4 — Damir confirms at the build render): the "App invite" / "App session" HEADER
+     row is gone — a 48 px icon, then a 13 px semibold line (what happened) over the 18 px bold app name with the time at
+     the end of that line; the buttons stay as today under the icon row. Colours, states and handlers unchanged. */
+  const { row, el } = cardShell(dir, 'app', null, gutter);
   if (state === 'declined' || state === 'canceled') el.dataset.state = state;   // terminal tombstones: void tone (css)
 
   const id = document.createElement('div');
@@ -8491,11 +9040,16 @@ function createAppBubble({
   const nm = document.createElement('span');
   nm.className = 'c-tcard__app-name';
   nm.textContent = name;
+  const line = document.createElement('span');
+  line.className = 'c-tcard__app-line';
+  line.append(nm);
+  const t = timeEl(timestamp);
+  if (t) line.append(t);
   const sub = document.createElement('span');
   sub.className = 'c-tcard__app-sub';
   sub.textContent = {
     invite: strings.invitedYou || 'Invited you to join',
-    invited: strings.youInvited || 'You have sent an invite',
+    invited: strings.inviteSent || 'Invite sent',   // ★ S20 J4: the short line (was youInvited "You have sent an invite")
     missing: strings.invitedYou || 'Invited you to join',
     declined: dir === 'sent' ? appDeclinedByPeer(strings) : (strings.declinedInvite || 'You declined this invite'),   // ★ S8 (#1233)
     canceled: strings.canceledInvite || 'You canceled this invite',   // ★ B2 (#533 ①): the sender's terminal tombstone
@@ -8503,7 +9057,7 @@ function createAppBubble({
     ended: strings.sessionEnded || 'Session ended',
     joined: strings.youJoinedApp || 'You joined this app',   // ★ S9 (8-APP)
   }[state] || ''; // audit r2: unknown state rendered "undefined"
-  col.append(nm, sub);
+  col.append(sub, line);
   id.append(ic, col);
   el.append(id);
 
@@ -8603,7 +9157,7 @@ function appCompact({ name, iconUrl, state, dir, timestamp, gutter, strings }) {
   const nm = document.createElement('span');
   nm.className = 'c-tcard__app-name';
   nm.textContent = name;
-  el.append(compactMain({ iconEl: appIconEl(iconUrl, name), label: subText, valueEl: nm, status: null, timestamp, onOpen: null, openLabel: '', strings }));
+  el.append(compactMain({ iconEl: appIconEl(iconUrl, name), label: subText, valueEl: nm, timestamp, onOpen: null, openLabel: '' }));
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', [name, subText].filter(Boolean).join(', '));
   return row;
@@ -8725,12 +9279,61 @@ function fillFileName(el, name) {
    createFileBubble AND setFileProgress (audit r2: the progress→complete flip
    left "Downloading …" aria + the old glyph on the button). */
 /* #46 r3 R3-m2: ONE rule for MY transfer, card AND tile — "Sending <name>" (a download stays "Downloading") */
-function fileAria(state, name, strings, direction = 'received') {
+/* ★ S20 Q (#1376 / #1377 E): a known size joins the name — "Download report.pdf, 2.4 MB" (unknown = today's label) */
+function fileAria(state, name, strings, direction = 'received', bytes = 0) {
+  const size = formatFileSize(bytes, strings);
   return (state === 'offer' ? (strings.download || 'Download')
     : state === 'failed' ? (strings.retry || 'Retry')
     : state === 'progress' ? tileProgressWord(direction, strings)
     : (strings.open || 'Open'))
-    + ' ' + name;
+    + ' ' + name + (size ? ', ' + size : '');
+}
+/* ★★ S20 Q (#1376 / #1377 E, Damir 16:40 design): the SIZE on the card's second line, when C# sent it (addFile arg 20 →
+   rec.size > 0; unknown = 0 = today's text). offer "2.4 MB · Tap to download" (desktop "Click") · transfer "1.1 / 2.4 MB"
+   (done = size × the integer pct) · complete "2.4 MB · PDF" (the extension upper-case; none → the size alone) · failed and
+   "not available" as before. textContent only (the name is peer data). */
+function fileBytes(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+function fileExtUpper(name) {
+  const s = String(name == null ? '' : name);
+  const dot = s.lastIndexOf('.');
+  const ext = dot > 0 && dot < s.length - 1 ? s.slice(dot + 1) : '';
+  return ext && ext.length <= 8 && !/\s/.test(ext) ? ext.toUpperCase() : '';   // #1005's rule: a longer tail is not an extension
+}
+function downloadCta(strings) {
+  /* ★ #1147 (3): a mouse clicks — :root[data-desktop] says "Click to download"; touch keeps "Tap" */
+  return document.documentElement.hasAttribute('data-desktop') ? (strings.clickToDownload || 'Click to download') : (strings.tapToDownload || 'Tap to download');
+}
+function pctInt(v) { return Math.max(0, Math.min(100, Math.round(Number(v) || 0))); }
+/* the offer's call to action, with the size in front in the quiet ink (textContent reads "2.4 MB · Tap to download") */
+function fillCtaLine(el, bytes, strings) {
+  const size = formatFileSize(bytes, strings);
+  el.textContent = '';
+  if (size) {
+    const sz = document.createElement('span');
+    sz.className = 'c-fbubble__size';
+    sz.textContent = size + ' ·';   // the space is a plain text node between the units (an inline-block trims its own)
+    const go = document.createElement('span');
+    go.className = 'c-fbubble__go';   // a narrow card breaks BETWEEN the size and the action, never inside "Tap to download"
+    go.textContent = downloadCta(strings);
+    el.append(sz, ' ', go);
+    return;
+  }
+  el.append(downloadCta(strings));
+}
+/* ★ S20 Q (#1402, v3 Damir 18:02 — supersedes the #1377 E text): offer AND complete read "PDF · 2.4 MB" (the type first; no
+   extension → the size alone) — the tile's ↓ badge says "download", so a sized offer drops "Tap to download" (an unknown
+   size keeps it, fillCtaLine) · transfer "1.1 / 2.4 MB" (the percentage only without a size) */
+function fileSizeLine(state, bytes, progress, name, strings) {
+  if (state === 'progress') return bytes ? formatFileSizeOf(bytes * pctInt(progress) / 100, bytes, strings) : pctInt(progress) + '%';
+  if (state === 'complete' || state === 'offer') {
+    const size = formatFileSize(bytes, strings);
+    const ext = size ? fileExtUpper(name) : '';
+    return size ? (ext ? ext + ' · ' + size : size) : '';
+  }
+  return '';
 }
 function fileGlyph(state) {
   return state === 'failed' ? 'rotate-clockwise-2' : state === 'offer' ? 'download' : 'file-isr';
@@ -8799,12 +9402,6 @@ function keepOpenText(direction, strings) {
     ? (strings.keepOpenSent || 'Keep Spixi open until it’s sent.')
     : (strings.keepOpenReceived || 'Comes directly from the sender’s device. Keep Spixi open.');
 }
-function fileOpenLabel(strings) {
-  const s = document.createElement('span');
-  s.className = 'c-fbubble__open';
-  s.textContent = strings.openFile || 'Open file';
-  return s;
-}
 
 /** File transfer bubble (Figma compact style; progress/failed = gap fill #66).
  *  state: 'offer' (incoming, accept) | 'progress' (0-100) | 'complete' | 'failed' */
@@ -8820,8 +9417,10 @@ function createFileBubble({
   onCancel,                // #334: sender-side cancel while the offer is un-accepted (shell-gated)
   status = null,           // ★ #1028 (walk P.22): a SENT file's delivery tick — 'sending'|'sent'|'delivered'|'read' (null = none)
   unavailable = false,     // ★ #1190 (#1173 (4)): a COMPLETE file whose file is not on this device (C#'s addFile arg 16 = "0")
+  size = 0,                // ★ S20 Q (#1376): the file's byte count (C#'s addFile arg 20; 0 / "" = unknown → today's text)
   strings = getStrings(),
 } = {}) {
+  const bytes = fileBytes(size);
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
   row.dataset.direction = direction;
@@ -8841,6 +9440,7 @@ function createFileBubble({
   el.className = 'c-fbubble';
   el.dataset.state = state;
   if (gone) { el.dataset.unavailable = ''; el.setAttribute('aria-disabled', 'true'); }
+  if (bytes && !gone) el.dataset.bytes = String(bytes);   // ★ S20 Q: setFileProgress reads it for "1.1 / 2.4 MB" and the final line
   // ONE persistent dispatcher keyed on live state — the state can flip later via
   // setFileProgress (audit r2: a progress-created bubble bound NO handler, so the
   // finished download was an enabled button that did nothing). Progress state has
@@ -8858,7 +9458,7 @@ function createFileBubble({
   /* ★ #1035 (#46 auditor B, M3): the BASE label is kept on the card so the sent file's tick state can be
      appended (here and on every live change — message-bubble.js syncFileTickAria); an explicit aria-label
      on a <button> replaces its content, so the tick's own label is never heard otherwise. */
-  el.dataset.ariaBase = gone ? name + ', ' + meta : fileAria(state, name, strings, direction);   // ★ #1190: never "Open <name>" on a card that opens nothing
+  el.dataset.ariaBase = gone ? name + ', ' + meta : fileAria(state, name, strings, direction, bytes);   // ★ #1190: never "Open <name>" on a card that opens nothing
   el.setAttribute('aria-label', el.dataset.ariaBase);
 
   el.append(fileTile(name, state));   // ★ #1021: the document tile (extension · family colour · state badge)
@@ -8873,14 +9473,13 @@ function createFileBubble({
   /* ★ #1021: the second line always SAYS something — C# sends no size, so `meta` is usually
      empty and an offer read as a bare file name. offer = the call to action (action ink), progress
      = the percentage (updated in place), failed = the retry line; an explicit meta still wins. */
-  const pctOf = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0))) + '%';
-  mt.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
-    : meta ? meta
-    /* ★ #1147 (3): a mouse clicks — :root[data-desktop] says "Click to download"; touch keeps "Tap" */
-    : state === 'offer' ? (document.documentElement.hasAttribute('data-desktop') ? (strings.clickToDownload || 'Click to download') : (strings.tapToDownload || 'Tap to download'))
-    : state === 'progress' ? pctOf(progress)
-    : '';
-  if (!meta && state === 'offer') mt.dataset.cta = '';
+  /* ★ S20 Q (#1376 / #1377 E): + the size (fileSizeLine / fillCtaLine above) when it is known */
+  if (state === 'failed') mt.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
+  else if (meta) mt.textContent = meta;
+  else if (state === 'offer' && !bytes) fillCtaLine(mt, 0, strings);   // no size → today's call to action
+  else mt.textContent = fileSizeLine(state, bytes, progress, name, strings);
+  if (!meta && state !== 'failed') mt.dataset.auto = '';   // a computed line: setFileProgress rewrites it on a flip
+  if (!meta && state === 'offer' && !bytes) mt.dataset.cta = '';
   if (!meta && state === 'progress') mt.dataset.pct = '';
   col.append(nm, mt);
   if (state === 'progress') {
@@ -8904,7 +9503,7 @@ function createFileBubble({
     hint.textContent = keepOpenText(direction, strings);   // ★ S19 F13: by direction
     col.append(hint);
   }
-  if (state === 'complete' && onOpen) col.append(fileOpenLabel(strings));   // A8b: only advertise when openable
+  /* ★ S20 J3 (#1440): no "Open file" link (A8b's) — the whole bubble already opens the file */
   el.append(col);
 
   /* ★★ #1028 (walk P.22, Damir: "a SENT file needs a delivered double check, like text messages"):
@@ -8939,17 +9538,25 @@ function createFileBubble({
   }
   /* #334 (Damir ask): CANCEL on a sent-but-not-yet-accepted file offer. A
    * SIBLING of the bubble (the bubble itself is a <button> — nesting is
-   * invalid HTML); sent rows are flex-end, so it sits LEFT of the bubble.
+   * invalid HTML, and a disabled progress button swallows its children's clicks).
    * setFileProgress drops it the moment packets flow or a final state lands
-   * (post-accept cancel = a different, BE-gated story — fileCancel row). */
+   * (post-accept cancel = a different, BE-gated story — fileCancel row).
+   * ★ S20 J3 (#1440): it is no longer a "Cancel" text button OUTSIDE the bubble — it is a ✕ badge ON THE TILE (today's
+   * tile-badge look). The card and the ✕ share a positioned pair, so the ✕ sits on the tile's corner (css); same
+   * handler, same latch, same accessible name. */
   if (onCancel) {
+    const pair = document.createElement('span');
+    pair.className = 'c-fbubble__pair';
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'c-fbubble__cancel';
-    cancelBtn.textContent = strings.cancel || 'Cancel';
+    cancelBtn.dataset.onTile = '';
+    cancelBtn.append(icon('x', { size: 12 }));
     cancelBtn.setAttribute('aria-label', (strings.cancelTransfer || 'Cancel sending') + ' ' + name);
     cancelBtn.addEventListener('click', oneShot(onCancel));
-    row.append(cancelBtn);
+    pair.append(el, cancelBtn);
+    row.append(pair);
+    return row;
   }
   row.append(el);
   return row;
@@ -9100,7 +9707,7 @@ function jpegSizeOf(b) {
   return undefined;
 }
 
-function fileFace(state, name, progress, strings, direction) {
+function fileFace(state, name, progress, strings, direction, bytes = 0) {
   const face = document.createElement('span');
   face.className = 'c-mbubble__file';
   const glyph = fileTile(name, 'complete');          // the card's document tile; the state is said in words below
@@ -9142,9 +9749,9 @@ function fileFace(state, name, progress, strings, direction) {
     line.textContent = keepOpenText(direction, strings);   // Damir's note: ON the tile · ★ S19 F13: by direction
   } else {
     line.className = 'c-mbubble__cta';
-    /* ★ #1147 (3): desktop (a mouse) says "Click to download"; touch keeps "Tap" */
-    line.textContent = state === 'offer' ? (document.documentElement.hasAttribute('data-desktop') ? (strings.clickToDownload || 'Click to download') : (strings.tapToDownload || 'Tap to download'))
-      : state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
+    /* ★ #1147 (3): desktop (a mouse) says "Click to download"; touch keeps "Tap" · ★ S20 Q (#1376): the offer leads with the size */
+    if (state === 'offer') fillCtaLine(line, bytes, strings);
+    else line.textContent = state === 'failed' ? (strings.transferFailed || 'Transfer failed · Tap to retry')
       : (strings.openFile || 'Open file');
   }
   face.append(line);
@@ -9181,8 +9788,10 @@ function createImageFileBubble({
   onLoad,
   onThumbError,        // #46 r1 B-1: the preview failed to decode → the tile dropped it; the shell forgets it too
   quietKey = null,     // ★ #1147 (5): the message id — the quiet wait is per message, not per re-built tile
+  size = 0,            // ★ S20 Q (#1376): the byte count — on the offer's call-to-action line and in the name (no other tile text)
   strings = getStrings(),
 } = {}) {
+  const bytes = fileBytes(size);
   const pic = tileShowsPicture(state, direction) && thumb ? String(thumb) : '';   // #46 r2 R2-1
   let tileEl = null;
   /* #1147 (5): the face comes back (it fades in — the --duration-200 opacity transition) */
@@ -9204,7 +9813,7 @@ function createImageFileBubble({
   const el = row.querySelector('.c-mbubble');
   tileEl = el;
   el.dataset.file = state;
-  el.dataset.ariaBase = tileAria(state, name, strings, direction);
+  el.dataset.ariaBase = tileAria(state, name, strings, direction, bytes);
   /* #1147 (5): a LOCAL photo tile not showing its picture yet waits QUIET; a tile the r3 "seen" path showed at once
      (loaded now) never does. After the wait with no picture (still idle), the face fades in; a picture DECODING then
      keeps the quiet until it lands (loaded) or fails (onSrcError above). */
@@ -9215,7 +9824,7 @@ function createImageFileBubble({
       setTimeout(() => { if (el.dataset.state === 'idle') unquiet(); }, left);
     }
   }
-  fileTileCtl.set(el, { name, strings, direction });
+  fileTileCtl.set(el, { name, strings, direction, bytes });
   // ONE dispatcher keyed on the LIVE file state (the card's rule). While the picture LOADS a tap does nothing (it is
   // a frame or two for a local data: URI) — never two actions for one tap; a failed picture is dropped (above).
   const handlers = {
@@ -9229,7 +9838,7 @@ function createImageFileBubble({
     if (h) h(e);
   });
   if (state === 'progress') el.disabled = true;
-  el.append(fileFace(state, name, progress, strings, direction));
+  el.append(fileFace(state, name, progress, strings, direction, bytes));
   const tick = direction === 'sent' && status ? createStatusIcon(status) : null;
   if (tick) {
     tick.setAttribute('width', 14);
@@ -9278,9 +9887,9 @@ function setImageFileProgress(rowEl, tile, p, opts) {
   tile.disabled = false;
   delete tile.dataset.acted;   // re-arm after an accept latch
   const face = tile.querySelector('.c-mbubble__file');
-  const next = fileFace(finalState, ctl.name, p, strings, ctl.direction);
+  const next = fileFace(finalState, ctl.name, p, strings, ctl.direction, ctl.bytes || 0);
   if (face) face.replaceWith(next); else tile.append(next);
-  tile.dataset.ariaBase = tileAria(finalState, ctl.name, strings, ctl.direction);
+  tile.dataset.ariaBase = tileAria(finalState, ctl.name, strings, ctl.direction, ctl.bytes || 0);
   tile.setAttribute('aria-label', fileNameAria(tile));
 }
 
@@ -9311,9 +9920,10 @@ function setFileProgress(rowEl, progress, opts = {}) {
   const track = rowEl.querySelector('.c-fbubble__track');
   if (track) track.setAttribute('aria-valuenow', String(p));
   const metaEl = rowEl.querySelector('.c-fbubble__meta');
-  if (metaEl && opts.meta) metaEl.textContent = opts.meta;
-  else if (metaEl && metaEl.hasAttribute('data-pct')) metaEl.textContent = Math.round(p) + '%';   // ★ #1021: the live percentage (#1024: rounded like creation)
   const bubble = rowEl.querySelector('.c-fbubble');
+  const bytes = bubble ? fileBytes(bubble.dataset.bytes) : 0;   // ★ S20 Q (#1376): the size the card was built with
+  if (metaEl && opts.meta) metaEl.textContent = opts.meta;
+  else if (metaEl && metaEl.hasAttribute('data-pct')) metaEl.textContent = fileSizeLine('progress', bytes, p, '', opts.strings || getStrings());   // ★ #1021: the live percentage (#1024: rounded like creation) · S20 Q: "1.1 / 2.4 MB" when the size is known
   const finalState = opts.state || (p >= 100 ? 'complete' : null);
   // #334: the cancel affordance lives only in the PRE-accept window — the first
   // packet tick or any final state removes it (post-accept retraction is BE).
@@ -9331,7 +9941,7 @@ function setFileProgress(rowEl, progress, opts = {}) {
     if (hint) hint.remove(); // keep-open hint is progress-only
     // refresh name + glyph for the new state (audit r2: stale "Downloading" aria)
     const nm = bubble.querySelector('.c-fbubble__name');
-    bubble.dataset.ariaBase = fileAria(finalState, nm ? nm.textContent : '', strings);
+    bubble.dataset.ariaBase = fileAria(finalState, nm ? nm.textContent : '', strings, undefined, bytes);
     bubble.setAttribute('aria-label', fileNameAria(bubble));   // ★ #1035: keep the tick's state in the name — ★ #1166 r5 NIT-1: the one rule
     // ★ #1021: the tile keeps its extension; only the corner badge follows the state
     const ic = bubble.querySelector('.c-fbubble__icon');
@@ -9341,17 +9951,8 @@ function setFileProgress(rowEl, progress, opts = {}) {
       const nb = fileBadge(finalState);
       if (nb) ic.append(nb);
     }
-    if (metaEl && (metaEl.hasAttribute('data-pct') || metaEl.hasAttribute('data-cta'))) { metaEl.removeAttribute('data-pct'); metaEl.removeAttribute('data-cta'); if (!opts.meta) metaEl.textContent = ''; }   // ★ #1024: a final flip also drops the offer's call to action
-    // "Open file" affordance appears on completion, is dropped on a failed flip.
-    const existingOpen = bubble.querySelector('.c-fbubble__open');
-    if (finalState === 'complete') {
-      if (!existingOpen) {
-        const infoCol = bubble.querySelector('.c-fbubble__info');
-        if (infoCol) infoCol.append(fileOpenLabel(strings));
-      }
-    } else if (existingOpen) {
-      existingOpen.remove();
-    }
+    if (metaEl && (metaEl.hasAttribute('data-pct') || metaEl.hasAttribute('data-cta') || metaEl.hasAttribute('data-auto'))) { metaEl.removeAttribute('data-pct'); metaEl.removeAttribute('data-cta'); if (!opts.meta) metaEl.textContent = fileSizeLine(finalState, bytes, p, nm ? nm.textContent : '', strings); }   // ★ #1024: a final flip also drops the offer's call to action · S20 Q (#1402): complete → "PDF · 2.4 MB" (unknown size → '')
+    /* ★ S20 J3: no "Open file" link on any state (the whole bubble opens the file) */
     if (finalState === 'failed' && metaEl && !opts.meta) {
       metaEl.textContent = strings.transferFailed || 'Transfer failed · Tap to retry';
     }
@@ -11099,6 +11700,7 @@ function attachLazyHistory(box, { onLoadMore, threshold = 160, strings = getStri
 
 
 
+
 const ATTACH_ACTIONS = [
   /* ★ #1355 (Damir 13:41 "having payment as the last 2 items"): the ORDER is Photos · Camera · File / App invite · Pay ·
      Request — the most used first, the two money tiles last. Was File · Photos · Camera / Pay · Request · App invite. */
@@ -11231,6 +11833,9 @@ function openAttachTray({ composerEl, media = false, camera = false, apps = true
   if (!composerEl || !composerEl.parentNode) return null;
   const tiles = attachTilesFor({ media, camera, apps, payments, files });
   if (!tiles.length) return null;
+  const slot = composerEl.parentElement;
+  const vis = slot.offsetHeight - bandY(composerEl);   // ★ S20 A: the bar's top on screen now (a closing slide included)
+  let inset = composerEl.hasAttribute('data-tray-open') ? null : composerEl.offsetHeight;   // the bar before it gives up the inset
   const existing = composerEl.nextElementSibling;
   if (existing && existing.classList.contains('c-attach-tray')) {
     /* ★ Session H review MINOR-1 (auditor A): a CLOSING tray kept the class for its
@@ -11239,8 +11844,8 @@ function openAttachTray({ composerEl, media = false, camera = false, apps = true
        drop it now and build fresh, so ⊕ during the exit re-opens in one tap. */
     const st = trayState.get(existing);
     if (!st || !st.closing) return existing;   // genuinely open — no-op
-    existing.remove();
-    trayState.delete(existing);
+    if (inset == null) inset = -(st.inset || 0);   // the dying tray already holds the inset: carry its measure
+    abortTrayClose(existing);
   }
 
   const tray = document.createElement('div');
@@ -11262,69 +11867,54 @@ function openAttachTray({ composerEl, media = false, camera = false, apps = true
   publishTrayContentHeight(tray);
   watchTrayContent(tray);
   if (hold) {
-    tray.dataset.instant = '';   // no height transition: it opens in ONE frame when revealed
+    tray.dataset.instant = '';   // no slide: it opens in ONE frame when revealed
     return tray;                 // closed until revealAttachTray(tray) — which hands over the inset (B1)
   }
-  /* ★ B1: the non-hold paths open in THIS frame, so the hand-off happens in this frame too —
-     byte-identical to what the mount used to do. Only the held path defers it. */
+  /* ★ B1 + ★★ S20 A (#1378, "the inset drop before every rise"): data-tray-open AND data-open land in THIS frame — the
+     rise path used to give the tray its height two rAFs later, so the bar's foot dropped 46 px (3-button bar) first. */
   markComposerTrayOpen(composerEl);
+  tray.dataset.open = '';
+  trayState.get(tray).inset = inset < 0 ? -inset : Math.max(0, (inset || 0) - composerEl.offsetHeight);
   if (instant) {
-    tray.dataset.instant = '';   // attach-sheet.css: no height transition on this tray
-    tray.dataset.open = '';
+    tray.dataset.instant = '';   // #721: swapped with the keyboard, not animated
+    emitComposerShift(composerEl, 'set');
     return tray;
   }
-  // two rAFs so the closed height paints first and the rise animates
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (tray.isConnected && !trayState.get(tray).closing) tray.dataset.open = '';
-  }));
+  /* ★★ S20 A (#1378, A1): full height from the first frame (the log re-reserves ONCE on 'open'); the rise is transform
+     only — the tray up from below, the bar from where it was on screen. The height transition re-laid out the log on
+     every frame (3–4 frames 34–107 ms apart in Damir's recording). */
+  const { ms, easing } = composerMotion('open');
+  const from = Math.max(0, slot.offsetHeight - vis);
+  const T = tray.offsetHeight;
+  const ran = ms > 0 && canSlide(tray) && T > 0;
+  if (ran) {
+    slideBand(trayBand(slot, tray), from, 0, ms, easing);
+    slideBand([tray], T, 0, ms, easing);
+  }
+  emitComposerShift(composerEl, 'open', { ms: ran ? ms : 0, easing, dy: from });
   return tray;
 }
+function trayBand(slot, tray) {
+  const out = [];
+  if (slot) for (const c of slot.children) { if (c === tray) break; out.push(c); }
+  return out;
+}
 
-/* ★★ B1 (#46 loop, MAJOR on iPhone X-class) — WHO CARRIES THE HOME-INDICATOR INSET.
- * The contract: composer.css pads the bar by `--composer-pad-block + var(--safe-bottom)`;
- * attach-sheet.css `.c-composer[data-tray-open]` drops that to a flat `--spacing-8` because the
- * TRAY is bottom-most chrome then and carries the inset itself (`.c-attach-tray .c-attach` pads
- * `--spacing-16 + var(--safe-bottom)`).
- * THE DEFECT: the attribute was written at MOUNT. On the Session-K `hold` path the mount is up
- * to 450 ms before the tray gets a height, and a held tray is `height:0; overflow:hidden` — its
- * env() padding is CLIPPED, so for that whole window nobody carried the inset. Measured on an
- * iPhone with a home indicator, portrait: the bar's bottom pad went 6+34=40 → 8, i.e. the pill
- * AND (through --composer-h → #messages) the whole bottom of the conversation dropped 32 px at
- * the instant of the ⊕ tap, sat there for the keyboard-hide window, then the tray arrived.
- * (Android WAS 6 → 8 and no defect while `--safe-bottom` read 0 there — the root view was
- * padded by the insets listener instead. Since ★ AND-45 (Session Y) the shell carries the
- * nav-bar inset itself, so Android behaves exactly like iOS here: the drop is
- * `--composer-pad-block + --safe-bottom` → `--spacing-8` (6+48 → 8 on a 3-button bar), and a
- * held tray clips its inset for the same window. The rule below protects both.) Before K1 the `instant` path set both attributes in
- * one frame, so the change was swallowed inside the ~268 px swap.
- * THE RULE: THE COMPOSER SURRENDERS THE INSET ONLY IN THE FRAME SOMETHING ELSE TAKES IT — the
- * non-hold paths above (which open in that same frame), and revealAttachTray for a held tray.
- * It is NOT taken back on reveal: staying set is the intended END state, and closeAttachTray is
- * the one place it comes off — a hold cancelled inside the window therefore leaves the composer
- * exactly as it was found (removeAttribute on an attribute never written is a no-op).
- * REVERSAL: write this at mount again (above `composerEl.after(tray)`, unconditional) and the
- * 32 px lurch returns on every notched iPhone whose keyboard is up when ⊕ is tapped. */
+/* ★★ B1 (#46 loop) — WHO CARRIES THE HOME-INDICATOR INSET. The bar pads `--composer-pad-block + --safe-bottom`;
+ * `.c-composer[data-tray-open]` drops that to `--spacing-8` because the TRAY (bottom-most chrome then) carries the inset.
+ * THE RULE: the composer surrenders the inset ONLY in the frame something else takes it — the non-hold paths (which open
+ * in that frame) and revealAttachTray for a held tray (a held tray has no height: its inset would be clipped, and the pill
+ * + the log dropped 32 px on a notched iPhone / 46 px on a 3-button Android bar). Only the close's END takes it back, so
+ * a hold cancelled in its window leaves the composer exactly as found (removing a never-written attribute is a no-op).
+ * REVERSAL: write it at mount again and the lurch returns. */
 function markComposerTrayOpen(composerEl) {
   if (composerEl) composerEl.setAttribute('data-tray-open', '');
 }
 
-/* ★ Session AE (Damir on Android: the ⊕ tray opened with its second tile row cut off until a
-   keyboard had been opened once). The tray's open height is the keyboard SLOT
-   (attach-sheet.css: `var(--kb-slot-h, 268px)`), and the slot is only MEASURED after the
-   first keyboard round; until then it is the 268 literal. AND-45 moved the navigation-bar
-   inset INSIDE the tray's padding, so two tile rows now need 244 px + `--safe-bottom` — on a
-   48 px three-button bar that is ~300 px in a 267 px box, and the second row's labels sit
-   under the bar. The `--kb-inset` cap the handoff suspected is not the mechanism: Android
-   adjustResize never writes it.
-   THE RULE: the tray is never shorter than its own tiles; the keyboard slot governs only when
-   it is the larger of the two. The content height is measured HERE at mount and again on every
-   resize of the grid (watchTrayContent below), and published as `--tray-content-h`; the stylesheet takes
-   `max(slot, content)`. Measured before the tray has a height: the grid is a block child of
-   a 0-height overflow-hidden parent, so its own box is still its content — the parent clips,
-   it does not constrain. The tray's top border is added because its box-sizing is
-   border-box. ⚠ The trade this buys is a jump on the keyboard ↔ tray swap (#721/#753) equal to
-   the difference, only when a device's keyboard is SHORTER than two tile rows — Damir's dial
-   (DECISIONS, Session AE); the alternative was clipped controls on every fresh install. */
+/* ★ Session AE: the tray is never shorter than its own tiles — the open height is max(the keyboard slot, the grid),
+   the grid measured here (before the tray has a height its box is still its content) and again on every grid resize,
+   published as `--tray-content-h`; + the top border (border-box). The trade: a jump on the keyboard ↔ tray swap when a
+   keyboard is shorter than two tile rows (Damir's dial) instead of clipped tiles on a fresh install. */
 function publishTrayContentHeight(tray) {
   try {
     const grid = tray.querySelector('.c-attach');
@@ -11335,11 +11925,8 @@ function publishTrayContentHeight(tray) {
     tray.style.setProperty('--tray-content-h', Math.ceil(content + border) + 'px');
   } catch (_) { /* no layout engine (jsdom) or a detached tray: the stylesheet's slot fallback stands */ }
 }
-/* ★ Session AE (the #46 reviewer's MINOR-4): the content is not a constant for the tray's life — a
-   rotation, a `setInsetBottom`/`setInsetSides` push (--safe-bottom is INSIDE the measured padding)
-   or a width change while the tray is open re-flows the grid. A ResizeObserver on the GRID re-publishes
-   on every such change (window resize is the belt where the API is missing); closeAttachTray
-   disconnects it. Without this a portrait 301 followed by a rotation kept 301 in a ~390 px viewport. */
+/* ★ Session AE (MINOR-4): a rotation / inset push / width change re-flows the grid — a ResizeObserver on it re-publishes
+   (window resize is the belt); closeAttachTray disconnects it. */
 function watchTrayContent(tray) {
   const st = trayState.get(tray);
   const grid = tray.querySelector('.c-attach');
@@ -11364,8 +11951,11 @@ function unwatchTrayContent(tray) {
 function revealAttachTray(tray) {
   const st = tray && trayState.get(tray);
   if (!st || st.closing || !tray.isConnected) return false;
+  const h0 = st.composerEl.offsetHeight;
   markComposerTrayOpen(st.composerEl);   // ★ B1: the inset hand-off, in the frame the tray gets its height
   tray.dataset.open = '';
+  st.inset = Math.max(0, h0 - st.composerEl.offsetHeight);   // ★ S20 A: what the bar gave up (the close's slide adds it back)
+  emitComposerShift(st.composerEl, 'set');   // ★ S20 A: the reserve in this same frame
   return true;
 }
 
@@ -11373,28 +11963,54 @@ function revealAttachTray(tray) {
    about to take the slot: the caller holds the tray until the viewport actually shrinks
    (the keyboard is up), then drops it in one frame, so the composer never dips to the
    bottom and rises again between the two. */
+/* ★★ S20 A (#1378, "the jump at the start of the close"): data-tray-open came off FIRST (+46 px) and the height shrank
+   per frame. Now the layout is HELD: the bar + tray slide down by transform (the shell holds the reserve, slides the
+   rows), and the removal, the attribute and the reserve land in the frame the slide ends. */
 function closeAttachTray(tray, { instant = false } = {}) {
   const st = tray && trayState.get(tray);
   if (!st || st.closing) return false;
   st.closing = true;
   unwatchTrayContent(tray);   // ★ Session AE: the grid observer + resize belt go with the tray
-  const btn = st.composerEl.querySelector('.c-composer__attach');
+  const composerEl = st.composerEl;
+  const btn = composerEl.querySelector('.c-composer__attach');
   if (btn) btn.setAttribute('aria-expanded', 'false');
-  st.composerEl.removeAttribute('data-tray-open');
-  if (instant) { tray.remove(); trayState.delete(tray); return true; }
-  delete tray.dataset.open;
+  const slot = composerEl.parentElement;
+  const band = trayBand(slot, tray);
   let done = false;
-  const remove = () => {
+  const end = () => {
     if (done) return;
     done = true;
-    tray.removeEventListener('transitionend', onEnd);
+    clearTimeout(st.timer);
+    if (trayState.get(tray) !== st) return;   // aborted by a re-open (abortTrayClose) — the new tray owns the bar now
+    stopBand(band);
+    stopBand([tray]);
     tray.remove();
     trayState.delete(tray);
+    st.composerEl.removeAttribute('data-tray-open');
+    emitComposerShift(composerEl, 'end');
   };
-  const onEnd = (e) => { if (e.target === tray && e.propertyName === 'height') remove(); };
-  tray.addEventListener('transitionend', onEnd);
-  setTimeout(remove, TRAY_EXIT_MS);
+  st.end = end;
+  const { ms, easing } = composerMotion('close');
+  const opened = tray.dataset.open !== undefined && tray.isConnected && !!slot;
+  if (instant || !opened || !(ms > 0) || !canSlide(tray)) { end(); return true; }
+  const T = tray.offsetHeight;
+  const dy = Math.max(0, T - (st.inset || 0));   // the slot shrinks by the tray, less the inset the bar takes back
+  if (!(T > 0)) { end(); return true; }
+  emitComposerShift(composerEl, 'close', { dy, ms, easing });
+  slideBand(band, bandY(composerEl), dy, ms, easing, true);   // a close mid-open starts where the band is on screen
+  const [a] = slideBand([tray], bandY(tray), T, ms, easing, true);
+  if (a) a.onfinish = end;
+  st.timer = setTimeout(end, Math.max(TRAY_EXIT_MS, ms + 120));   // a timeline that does not tick still ends
   return true;
+}
+/* a re-open inside the close: the dying tray goes now, without its end (the new 'open' re-reserves) */
+function abortTrayClose(tray) {
+  const st = trayState.get(tray);
+  if (st) clearTimeout(st.timer);
+  stopBand(trayBand(tray.parentElement, tray));
+  stopBand([tray]);
+  tray.remove();
+  trayState.delete(tray);
 }
 
 function isAttachTrayOpen(composerEl) {
@@ -15550,16 +16166,20 @@ function createAppIcon({ src = null, name = '', size = 48 } = {}) {
  *                        which owns launch-mode + uninstall; mobile v1 — replaces the ⋮)
  *   .c-app-item__menu  — the ⋮ overflow → onMenu(app, btn) (kept for the standalone
  *                        apps-shell / demos; not used by the home apps tab)
- * onInfo and onMenu are independent; a caller passes whichever it wants. Creator
+ *   .c-app-item__run   — ★ S20 C (#1377): the trailing RUN button (player-play in a tonal disc) → onRun(app, btn).
+ *                        With onRun the tile tap is the DETAILS verb (the caller's onOpen) and the tile is named
+ *                        "Open details for X"; Run is its own button "Run X". No menu beside it (Uninstall and
+ *                        "Invite a contact" live on the details page).
+ * onInfo, onMenu and onRun are independent; a caller passes whichever it wants. Creator
  * (publisher) is a §8 field — rendered only when provided.
  *
- * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onInfo, onMenu }) → div
+ * createAppItem({ id, name, creator, icon, layout, strings, onOpen, onInfo, onMenu, onRun }) → div
  */
 
 
 
 
-function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onInfo, onMenu } = {}) {
+function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layout = 'list', strings = getStrings(), onOpen, onInfo, onMenu, onRun } = {}) {
   const el = document.createElement('div');
   el.className = 'c-app-item';
   el.dataset.layout = layout === 'grid' ? 'grid' : 'list';
@@ -15568,7 +16188,9 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
   const open = document.createElement('button');
   open.type = 'button';
   open.className = 'c-app-item__open';
-  open.setAttribute('aria-label', name || (strings.app || 'App'));
+  const label = name || (strings.app || 'App');
+  // ★ S20 C (#1377): with a Run button the tile opens the details — its name says so (one button, one verb)
+  open.setAttribute('aria-label', onRun ? (strings.appOpenDetails || 'Open details for {name}').split('{name}').join(label) : label);
   open.append(createAppIcon({ src: iconSrc, name, size: layout === 'grid' ? 64 : 48 }));
 
   const text = document.createElement('span');
@@ -15611,6 +16233,17 @@ function createAppItem({ id, name = '', creator = '', icon: iconSrc = null, layo
     menuBtn.append(icon('dots', { size: 24 }));
     menuBtn.addEventListener('click', (e) => { e.stopPropagation(); onMenu({ id, name, creator }, menuBtn); });
     el.append(menuBtn);
+  }
+
+  // ★ S20 C (#1377): Run — created ONLY when a handler is provided; launches the app (the caller's launch path).
+  if (onRun) {
+    const runBtn = document.createElement('button');
+    runBtn.type = 'button';
+    runBtn.className = 'c-app-item__run';
+    runBtn.setAttribute('aria-label', (strings.appRun || 'Run {name}').split('{name}').join(label));
+    runBtn.append(icon('player-play', { size: 18 }));
+    runBtn.addEventListener('click', (e) => { e.stopPropagation(); onRun({ id, name, creator }, runBtn); });
+    el.append(runBtn);
   }
 
   return el;
@@ -15709,7 +16342,8 @@ function openAppMenu({ app = {}, host, onAction, allowInvite = false, strings = 
  *   app:   { id, name, icon, creator }
  *   state: { apps:[], query:'', layout:'list'|'grid' }
  * opts:  { strings, host, onLaunch(app), onOpen(app), onUninstall(app), onModelChange,
- *          emptyIllustration, onAddApp }
+ *          emptyIllustration, onAddApp, appRun }
+ *         ★ S20 C (#1377): appRun:true → the tile tap = onOpen (details), a Run button = onLaunch, no menu.
  *         onLaunch = primary tap (launch the app + record recent); onOpen = open details
  *         (the ⋮ "App details" action). Recents model: recordRecent / orderedRecents.
  *         emptyIllustration + onAddApp drive the FULL empty state (c-empty-state) shown
@@ -15795,8 +16429,9 @@ function rowKey(app, i) {
 }
 /** Cheap field-wise equality — deliberately NOT a joined signature string, which
  *  would copy the whole data-URI icon on every render (the cost we came to remove). */
-function rowFresh(hit, a, layout, hasInfo, hasMenu) {
+function rowFresh(hit, a, layout, hasInfo, hasMenu, hasRun) {
   return !!hit
+    && hit.hasRun === hasRun
     && hit.layout === layout
     && hit.name === (a.name || '')
     && hit.creator === (a.creator || '')
@@ -15868,8 +16503,11 @@ function renderAppsList(listEl, state, opts = {}) {
 
   const cache = cacheFor(listEl);
   const apps = orderedApps(state);
-  const hasInfo = !!(opts.appMenu === false && opts.onOpen);
-  const hasMenu = opts.appMenu !== false;
+  /* ★ S20 C (#1377): `appRun: true` = the tile tap opens the DETAILS (opts.onOpen) and a trailing Run button launches
+     (opts.onLaunch); no ⋮ and no ⓘ beside it (Uninstall / "Invite a contact" live on the details page). */
+  const hasRun = !!(opts.appRun && opts.onOpen && opts.onLaunch);
+  const hasInfo = !hasRun && !!(opts.appMenu === false && opts.onOpen);
+  const hasMenu = !hasRun && opts.appMenu !== false;
 
   // Cache keys, de-duplicated. A feed CAN hand us two entries sharing an id (a
   // double addApp for the same app, a malformed manifest): the shared key made
@@ -15893,11 +16531,13 @@ function renderAppsList(listEl, state, opts = {}) {
   const nodes = apps.map((a, i) => {
     const key = keys[i];
     const hit = cache.rows.get(key);
-    if (rowFresh(hit, a, layout, hasInfo, hasMenu)) return hit.el;
+    if (rowFresh(hit, a, layout, hasInfo, hasMenu, hasRun)) return hit.el;
     const cur = () => cache.live.get(key) || a;          // always the CURRENT model object
     const el = createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onLaunch ? () => opts.onLaunch(cur()) : undefined,   // tap → LAUNCH the app
+      // tap → LAUNCH the app; ★ S20 C (#1377): with appRun the tap opens the DETAILS and Run launches
+      onOpen: hasRun ? () => opts.onOpen(cur()) : (opts.onLaunch ? () => opts.onLaunch(cur()) : undefined),
+      onRun: hasRun ? () => opts.onLaunch(cur()) : undefined,
       // ⓘ info → open details (launch-mode/uninstall live there). Mobile v1 uses this
       // INSTEAD of the ⋮ menu: wired only when the menu is off (appMenu:false) and a
       // details handler exists — so a menu-driven surface (demos) never doubles up.
@@ -15909,7 +16549,7 @@ function renderAppsList(listEl, state, opts = {}) {
         onAction: (action) => applyAppAction(listEl, state, cur(), action, opts),
       }),
     });
-    cache.rows.set(key, { el, layout, name: a.name || '', creator: a.creator || '', icon: a.icon || null, hasInfo, hasMenu });
+    cache.rows.set(key, { el, layout, name: a.name || '', creator: a.creator || '', icon: a.icon || null, hasInfo, hasMenu, hasRun });
     return el;
   });
   const emptyEl = apps.length ? null : appsEmptyNode(cache, state, opts, strings);
@@ -16390,8 +17030,10 @@ function setAddError(el, msg) {
  * createAppDetails({ app, strings, host, onInstall(app,ctrl), onUninstall, onLaunch,
  *                    onReport, onInstalled, onCopyUrl }) → view
  *   onInstall(app, { done, fail }) — the caller runs the real install and calls done()/fail().
- *   beforeInstall(app, { install, confirm }) — optional (★ #46 S19 M4): the Install tap goes here first; the host calls
- *     install() (straight to the install morph, no modal) or confirm() (the install-confirm modal). Absent = the modal.
+ *   beforeInstall(app, { install, confirm, settle }) — optional (★ #46 S19 M4): the Install tap goes here first; the host
+ *     calls install() (straight to the install morph, no modal) or confirm() (the install-confirm modal). Absent = the modal.
+ *     ★ S20 G (#1379): until the host calls one of them the button shows its loading morph; settle() ends that wait with
+ *     no action (the moment sheet showed, or it was closed).
  */
 
 
@@ -16770,7 +17412,18 @@ function createAppDetails({ app = {}, strings = getStrings(), host, onInstall, o
            confirm: its own sheet was the confirm) or confirm() (today's modal); no hook = the modal, as before */
         const confirm = () => openInstallConfirm({ app, caps, host, strings, onInstall, installBtn, onInstalled });
         if (typeof beforeInstall === 'function') {
-          beforeInstall(app, { install: () => runInstall({ app, host, strings, onInstall, installBtn, onInstalled }), confirm });
+          /* ★ S20 G (#1379): the host's step may WAIT (the app moment asks C#, ≤ ASK_WAIT_MS 1.5 s) — the button shows the
+             loading morph for that wait (setLoading: spinner + aria-busy + disabled, so a second tap cannot ask twice).
+             Every way out settles it first: settle() (a sheet showed / it was closed), confirm() (the modal), install()
+             (runInstall keeps the same spinner running into the install morph). An answer inside the tap = no morph. */
+          let settled = false, waiting = false;
+          const settle = () => { if (settled) return; settled = true; if (waiting) { waiting = false; setLoading(installBtn, false); } };
+          beforeInstall(app, {
+            install: () => { settled = true; waiting = false; runInstall({ app, host, strings, onInstall, installBtn, onInstalled }); },
+            confirm: () => { settle(); confirm(); },
+            settle,
+          });
+          if (!settled) { waiting = true; setLoading(installBtn, true); }
         } else confirm();
       } });
     actions.append(installBtn);
@@ -17144,6 +17797,15 @@ function parseAppsFeed(json, state) {
  *                    onSend, onReceive, onScan, onToggleHidden }) → header
  * Free fns (#44): setWalletBalance(el, { balance, fiat }) — bridge balance tick;
  *                 setBalanceHidden(el, hidden) — eye state (shell owns persistence, §7).
+ *
+ * ★ S20 J2 (#1440) — THE HERO COLOUR IS ONE TOKEN, `--gradient-wallet-hero` (tokens.css, beside
+ * --gradient-hero-overlay). Shipped = A, today's: `var(--gradient-hero-overlay), var(--surface-hero)`.
+ * Candidate B (Damir picks it with the ON-1 backdrop) = the ON-1 BG 2 navy, fixed-dark in both themes;
+ * once T's `--gradient-launch-form` is merged, B is simply `--gradient-wallet-hero: var(--gradient-launch-form);`:
+ *   radial-gradient(90% 45% at 50% 18%, rgba(108, 122, 226, 0.20) 0%, rgba(108, 122, 226, 0) 70%),
+ *   radial-gradient(90% 55% at 0% 100%, rgba(66, 122, 236, 0.16) 0%, rgba(66, 122, 236, 0) 70%),
+ *   linear-gradient(200deg, #22214a 0%, #1b1b40 45%, #151634 100%)
+ * The action circles are a wash FILL, no ring (wallet-hero.css), all three identical (#135).
  */
 
 
@@ -17924,6 +18586,25 @@ function walletEmpty(state, strings, opts = {}) {
   return el;
 }
 
+/* ★ S20 J2 (#1440): the day-group label — "Today", "Yesterday", then the locale short date (the year
+   only when it is not this year). Not dayBucketLabel: the chat ladder names weekdays for 2–6 days. */
+function txDayLabel(ts, strings, now = Date.now()) {
+  const d = new Date(ts), n = new Date(now);
+  if (isNaN(d)) return '';
+  const sod = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((sod(n) - sod(d)) / 864e5);
+  if (diff <= 0) return strings.today || 'Today';   // a future epoch (clock skew) reads as Today, never as a date
+  if (diff === 1) return strings.yesterday || 'Yesterday';
+  return d.toLocaleDateString(docLocale(), d.getFullYear() === n.getFullYear()
+    ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+}
+/* ★ S20 J2 (#1440): the row face from the tx model alone (demos; the host's opts.faceOf joins its roster):
+   an avatar / contact / group → the avatar grammar; a bare address → the unknown-address wallet disc. */
+function txFace(tx) {
+  if (tx.avatar || tx.contact || tx.group || !tx.address) return { src: tx.avatar || null, name: tx.name, address: tx.address, group: !!tx.group };
+  return { unknown: true };
+}
+
 function renderWalletTxList(listEl, state, opts = {}) {
   const strings = opts.strings || getStrings();
   /* ★ #1171: every addPaymentActivity burst rebuilds every row — a hovered row (keyed by txid) is born with
@@ -17932,9 +18613,38 @@ function renderWalletTxList(listEl, state, opts = {}) {
   const hoverSnap = snapRowHover(listEl);
   listEl.textContent = '';
   const txs = orderedTxs(state);
-  for (const tx of txs) {
+  /* ★ S20 J2 (#1440): DAY GROUPS — a header ("Today" · "Yesterday" · the locale short date, the year
+     when not this year) opens each run of rows from one day; the rows then show the time alone. Built
+     AFTER the filter + search (orderedTxs), so an emptied day never draws a header. A row with no epoch
+     (an old exe's pre-formatted time) has no day: it gets no header and keeps its full time text.
+     `data-day` stamps the calendar day of this render — the host re-renders when it rolls over. */
+  /* ★ #46 r3–r5: C# pushes the ledger by STATUS (Rejected, Reverted, Pending, then the rest newest-first), so push order
+     is not date order. Only PENDING rows lead (in progress: no header, full date + time). Every other row — failed ones
+     too (Rejected / Reverted / Expired all arrive as "error"; the shell cannot tell them apart) — is grouped by day,
+     sorted newest-first (stable) when every row carries an epoch, each header once. */
+  const now = Date.now();
+  listEl.dataset.day = new Date(now).toDateString();
+  const lead = txs.filter((t) => t.status === 'pending');
+  const settled = txs.filter((t) => t.status !== 'pending');
+  if (settled.every((t) => typeof t.timestamp === 'number')) settled.sort((a, b) => b.timestamp - a.timestamp);
+  let lastDay = '';
+  for (const tx of lead.concat(settled)) {
+    const grouped = !lead.includes(tx);
+    const day = grouped && tx.timestamp != null ? txDayLabel(tx.timestamp, strings, now) : '';
+    if (day && day !== lastDay) {
+      const h = document.createElement('div');
+      h.className = 'c-wallet-day';
+      h.setAttribute('role', 'heading');
+      h.setAttribute('aria-level', '3');
+      h.textContent = day;
+      listEl.append(h);
+    }
+    if (day) lastDay = day;   // #46 r1: a row without an epoch keeps the run's day (no repeated header)
     const row = createTxItem({
       ...tx, strings,
+      // ★ S20 J2 (#1440): the wallet row grammar — the counterparty's face, the unit, the time alone
+      face: (typeof opts.faceOf === 'function' ? opts.faceOf(tx) : null) || txFace(tx),
+      unit: 'IXI', timeOnly: grouped,
       // B3 (#256): opts.onTx routes a row tap to the host (production: the
       // ixian:txdetails:<txid> bridge round-trip → the wallet_sent.html detail
       // page/pane). A txid-less row keeps the in-page sheet — the detail page is
@@ -26049,17 +26759,28 @@ function syncNext(st) {
     st.els.minHint.hidden = false;
     const group = !isAppPick(st);
     st.els.minHint.dataset.cap = group && n >= GROUP_MAX_MEMBERS ? 'full' : '';
-    st.els.minHint.textContent = (group && n >= GROUP_MAX_MEMBERS)
+    if (group && n < GROUP_MAX_MEMBERS && n >= min) {
+      /* ★ S20 G (#1379): the "n / 10" counter is an LTR ISOLATE — in an RTL document the bare "3 / 10" run was reordered
+         to read "10 / 3". The line itself keeps the document direction (its alignment), only the count is isolated. */
+      st.els.minHint.replaceChildren(groupCounterNode(strings, n));
+    } else st.els.minHint.textContent = (group && n >= GROUP_MAX_MEMBERS)
       ? (strings.groupLimitNote || 'A group can have up to 10 members besides you.')
       : n >= min
-      ? (group
-        ? (strings.groupCounter || '{n} / {max}').split('{n}').join(String(n)).split('{max}').join(String(GROUP_MAX_MEMBERS))
-        : (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n)))
+      ? (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n))
       : (isAppPick(st)
         ? (strings.appNeedsOne || 'Select at least one contact or group to invite.')
         : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.'));
   }
   syncGroupCap(st);
+}
+
+/* ★ S20 G (#1379): "n / 10" as an LTR isolate (dir="ltr" → unicode-bidi: isolate), so the count reads n-then-cap in an
+   RTL document too; the members head and the picker line share it. */
+function groupCounterNode(strings, n) {
+  const c = document.createElement('span');
+  c.dir = 'ltr';
+  c.textContent = (strings.groupCounter || '{n} / {max}').split('{n}').join(String(n)).split('{max}').join(String(GROUP_MAX_MEMBERS));
+  return c;
 }
 
 /* A7 (#348, Damir F5): the single-select title depends on WHY the picker is open.
@@ -26709,6 +27430,12 @@ function createGroupSetup({
   photoLabel.type = 'button';
   photoLabel.className = 'c-contacts-group__photo-label';
   photoLabel.textContent = strings.setGroupPhoto || 'Set group photo';
+  /* ★ S20 G (#1379): ONE tab stop — the label is the same pick as the photo button (which carries the same name), so it is
+     a pointer target only: out of the tab order and hidden from the accessibility tree (a keyboard user met "Set group
+     photo" twice in a row). */
+  photoLabel.tabIndex = -1;
+  photoLabel.setAttribute('aria-hidden', 'true');
+  photoLabel.addEventListener('mousedown', (e) => e.preventDefault());   // a mouse press must not focus the hidden label either (#46 S20 r1)
   let avatarBusy = false;
   const pickPhoto = () => {
     if (!onPickAvatar || avatarBusy) return;
@@ -26818,8 +27545,7 @@ function createGroupSetup({
 
   let inFlight = false;   // declared before the first renderMembers() — it reads it
   const renderMembers = () => {
-    membersCount.textContent = (strings.groupCounter || '{n} / {max}')
-      .split('{n}').join(String(list.length)).split('{max}').join(String(GROUP_MAX_MEMBERS));
+    membersCount.replaceChildren(groupCounterNode(strings, list.length));   // ★ S20 G (#1379): the LTR isolate
     chips.textContent = '';
     list.forEach((m, idx) => {
       // F6: splice by the closed-over index rather than list.indexOf(m) — object
@@ -32938,10 +33664,15 @@ const LEGAL_DOCS = {
  *   view switch always happens in place. The native shell uses them to record
  *   consent and to keep C# in step with the on-screen view.
  *   Ctrl contract (spec §3): one-shot done/fail; NO auto-release anywhere —
- *   create has no covering alert (indefinite loading, flag §6②); restore
- *   fails via showPasswordError → ctrl.fail(msg); retry's host maps
- *   removeLoadingOverlay → ctrl.fail('') = SILENT restore (the native alert
- *   already spoke — the unlock-screen grammar).
+ *   create has no covering alert (indefinite loading, flag §6②); restore:
+ *   ★ ON-1 — fail(<any reason>) = C#'s showPasswordError (the red field + the
+ *   wrong-password line, the file stays), fail('') = removeLoadingOverlay under
+ *   a native alert = a SILENT re-enable; retry's host maps removeLoadingOverlay →
+ *   ctrl.fail('') = SILENT restore (the native alert already spoke).
+ *   ★ ON-1 (#1420–#1422): create = two steps in ONE view, ONE commit; onAcceptTerms
+ *   fires once at the WELCOME tap (#1421 (1)); back from create step 2 = step 1,
+ *   values kept, re-reported as `create` (no C# change); the corner rings are ONE
+ *   static layer above the views and under the sheets.
  *
  * Free fns (#44, C#→JS mirrors): setLaunchView(el, view) ·
  *   setLaunchVersion(el, v) ← setVersion · setLaunchTerms(el, required) ←
@@ -32964,6 +33695,7 @@ const LEGAL_DOCS = {
 const launchState = new WeakMap(); // el → st
 
 const LAUNCH_VIEWS = ['welcome', 'create', 'restore', 'retry'];
+let legalSeq = 0;                                // ★ #46 r2: a unique id per shell for the welcome legal line
 
 function launchCtrl(onDone, onFail) {            // one-shot (lockCtrl grammar)
   let used = false;
@@ -33002,6 +33734,9 @@ function show(st, view, silent) {
      UNHIDDEN under an entering form and is unhidden BEFORE a leaving one, so the slide
      always runs over the page it reveals. A switch landing mid-flight settles the
      previous one first (settle → its reveal → this one). */
+  /* ★ ON-1: create always opens on step 1 (a re-entry from welcome starts the flow again;
+     the nickname is kept, the passwords were scrubbed on the way out) */
+  if (changed && view === 'create' && st.createGoStep && st.createStep !== 1) st.createGoStep(1, { animate: false, focus: false });
   const prevNode = prev ? st.views[prev] : null;
   const nextNode = st.views[view];
   if (changed && prevNode && nextNode && st.root.isConnected) {
@@ -33021,6 +33756,32 @@ function show(st, view, silent) {
   if (changed && !silent && st.opts && st.opts.onViewChange) {
     try { st.opts.onViewChange(view); } catch { /* report only — never block the switch */ }
   }
+  if (changed) {
+    /* ★ ON-1 Part B: on desktop the first field takes focus — the nickname on create,
+       the password on restore (a phone does not pop its keyboard over the art). */
+    if (prev && onDesktop()) {
+      if (view === 'create' && st.focusCreate) st.focusCreate();
+      if (view === 'restore' && st.focusRestore) st.focusRestore();
+    }
+    if (st.rings) guardRingsSoon(st);
+  }
+}
+
+/* ★ ON-1 (#1421/#1422): BACK FROM CREATE STEP 2 LANDS ON STEP 1, values kept — with NO C#
+ * change. C#'s hardware back (OnBackButtonPressed → switchView("welcome")) and the iOS
+ * swipe (launchShellBack) both believe create is ONE level; while step 2 is up they now
+ * show step 1 instead, and re-report `create` through the one report point so C#'s
+ * currentView (which switchView just set to welcome) is create again — the next back
+ * then leaves to welcome as before. Returns true when it consumed the back. */
+function createStepBack(st) {
+  if (st.view !== 'create' || st.createStep !== 2 || !st.createGoStep) return false;
+  /* ★ #46 r1: while the account is being made the user stays on step 2 (the spinner) — the
+     back is consumed and C# hears `create` again, nothing moves */
+  if (!st.createBusy) st.createGoStep(1);
+  if (st.opts && st.opts.onViewChange) {
+    try { st.opts.onViewChange('create'); } catch { /* report only */ }
+  }
+  return true;
 }
 
 const errLine = () => {
@@ -33030,6 +33791,231 @@ const errLine = () => {
   err.hidden = true;
   return err;
 };
+
+/* —— ON-1 building blocks (#1420–#1422) ——————————————————————————————————————————
+ * Everything below is built with createElement + textContent: the nickname and the
+ * backup file name are untrusted text. */
+
+const mk = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+};
+/* {name} / {n} / {total} fill — the value lands in a text node, never in markup */
+const fillIn = (s, map) => String(s).replace(/\{(\w+)\}/g, (m, k) => (k in map ? String(map[k]) : m));
+/* phone vs desktop wording = TWO keys chosen at runtime by data-desktop (typed-bubbles.js:840 pattern) */
+const onDesktop = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-desktop');
+/* ★ #46 r1: the "device" wording also fits a TABLET (it is not a phone). The shell's own
+   sniff keeps an iPad / Android tablet on the phone LAYOUT (launch.html — no data-desktop);
+   only the word follows the device class: iPad (or the Macintosh UA with touch, iPadOS) and
+   an Android UA without "Mobile". */
+const onTablet = () => {
+  if (typeof navigator === 'undefined') return false;
+  const u = String(navigator.userAgent || '');
+  return /iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1) || (/Android/.test(u) && !/Mobile/.test(u));
+};
+const deviceWords = () => onDesktop() || onTablet();
+/* an Enter that closes an IME composition is not a submit (composer.js:239 grammar) */
+const imeBusy = (e) => !!(e && (e.isComposing || e.keyCode === 229));
+
+/* An error line with the info glyph (ON-1 look) on the shared c-lock__error grammar. The
+   message sits in its own span so the glyph never reaches textContent comparisons. */
+function launchErrLine() {
+  const err = errLine();
+  err.classList.add('c-launch__ferr');
+  const glyph = icon('info-circle', { size: 16 });
+  glyph.setAttribute('aria-hidden', 'true');
+  const msg = mk('span', 'c-launch__ferr-text');
+  err.append(glyph, msg);
+  err.setMessage = (text) => { msg.textContent = text || ''; err.hidden = !text; };
+  return err;
+}
+
+/* ★ ON-1: the floating-label field. It WRAPS the shared inputs (passwordField's input +
+   eye, or the nickname input) — the field logic is not forked; only the launch look is
+   added around it. The label is the visible text (the placeholder is cleared) and floats
+   above the value once there is one or the field has focus. */
+function launchField({ input, label, end = [] }) {
+  const field = mk('div', 'c-launch__field');
+  const main = mk('label', 'c-launch__field-main');
+  const lab = mk('span', 'c-launch__field-label', label);
+  input.placeholder = '';
+  input.classList.add('c-launch__field-input');
+  main.append(lab, input);
+  const endEl = mk('div', 'c-launch__field-end');
+  const ok = mk('span', 'c-launch__field-ok');
+  ok.setAttribute('aria-hidden', 'true');
+  ok.hidden = true;
+  ok.append(icon('check', { size: 14 }));
+  endEl.append(ok, ...end);
+  field.append(main, endEl);
+  const sync = () => field.toggleAttribute('data-empty', !input.value);
+  input.addEventListener('input', sync);
+  input.addEventListener('focus', () => field.setAttribute('data-focus', ''));
+  input.addEventListener('blur', () => field.removeAttribute('data-focus'));
+  sync();
+  return {
+    field, input, sync,
+    setOk: (on) => { ok.hidden = !on; },
+    setError: (on) => field.toggleAttribute('data-error', !!on),
+  };
+}
+
+/* ★ ON-1: the strength bar's rule — length first, a bonus for a long passphrase. It only
+   ADVISES; the ≥ ENC_MIN rule is the one that gates the button. No library (Decision). */
+function launchStrength(pw) {
+  const n = String(pw || '').length;
+  if (!n) return 0;
+  let s = n < ENC_MIN ? 1 : n < 14 ? 2 : n < 18 ? 3 : 4;
+  if (n >= 16 && /\s/.test(pw) && s < 4) s += 1;   // a long phrase with spaces
+  return s;
+}
+
+/* ★ ON-1: the photo. Step 1 = a button (the existing avatar hook opens the picker — the
+   badge sits inside it, so both open it); step 2 = the same photo, smaller, with the
+   orange lock, or the initial avatar when there is no photo. */
+function launchPhoto({ small = false }) {
+  const b = mk(small ? 'div' : 'button', 'c-launch__photo');
+  if (small) b.dataset.size = 'sm';
+  else b.type = 'button';
+  const ring = mk('span', 'c-launch__photo-ring');
+  const img = mk('span', 'c-launch__photo-img');
+  ring.append(img);
+  const badge = mk('span', 'c-launch__badge');
+  badge.setAttribute('aria-hidden', 'true');
+  b.append(ring, badge);
+  return { el: b, img, badge };
+}
+
+/* —— the corner contour rings (#1422): ONE static layer for the whole shell ——
+   Slightly wobbly concentric contours (the posters/contours.js look) as a static SVG —
+   deterministic, no script animation, no CSS animation. viewBox 0 0 100 100; TR centres
+   just off the top-right corner, BL off the bottom-left. */
+const RINGS = {
+  tr: { cx: 107.7, cy: -7.7, radii: [18, 26, 34, 42, 50, 58, 66, 74, 82], a0: 84, a1: 186, seed: 7 },
+  bl: { cx: -8, cy: 108, radii: [16, 24, 32, 40, 48, 56, 64, 72], a0: 264, a1: 366, seed: 11 },
+};
+function ringRand(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function ringPaths({ cx, cy, radii, a0, a1, seed }) {
+  const r = ringRand(seed);
+  const p1 = r() * 6.28, p2 = r() * 6.28, p3 = r() * 6.28;
+  const rmax = radii[radii.length - 1];
+  return radii.map((R, i) => {
+    const k = 0.55 + 0.45 * (R / rmax);           // the wobble grows outward; rings never cross
+    const drift = i * 0.11;
+    let d = '';
+    for (let a = a0; a <= a1 + 0.001; a += 2) {
+      const t = (a * Math.PI) / 180;
+      const w = k * (0.9 * Math.sin(3 * t + p1 + drift) + 0.6 * Math.sin(5 * t + p2 - drift) + 0.35 * Math.sin(9 * t + p3));
+      d += (d ? 'L' : 'M') + (cx + (R + w) * Math.cos(t)).toFixed(2) + ' ' + (cy + (R + w) * Math.sin(t)).toFixed(2);
+    }
+    return d;
+  });
+}
+function ringsSvg(kind) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  svg.setAttribute('class', 'c-launch__rings-' + kind);
+  for (const d of ringPaths(RINGS[kind])) {
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', d);
+    svg.append(p);
+  }
+  return svg;
+}
+
+/* Keep the rings off the content — ★ #46 r1 (auditor B): per RING STROKE, not per set.
+   The first guard tested whole content boxes against the OUTER radius, so the full-width
+   footer button always silenced the bottom-left set and the progress bar the top-right one
+   — create showed no rings on a phone. Now each ring is tested on its own: a ring is hidden
+   only when its stroke (the wobble amplitude + half the stroke + a 3 px margin) actually
+   crosses a content box (text, a control, a field, a tag, the pill, the art). The inner
+   rings stay. A ring never moves; a hidden one fades (launch-form.css). Layout-blind hosts
+   (jsdom) see zero-size boxes and keep every ring.
+   launchRingQuiet(kind, svgRect, boxes) → the indexes of the rings to hide (pure; pinned). */
+function launchRingQuiet(kind, rect, boxes) {
+  const g = RINGS[kind];
+  if (!g || !rect || !(rect.width > 0)) return [];
+  const sx = rect.width / 100, sy = rect.height / 100;
+  const cx = rect.left + g.cx * sx, cy = rect.top + g.cy * sy;
+  const tol = 1.85 * sx + 0.7 + 3;               // max wobble (ringPaths: 0.9 + 0.6 + 0.35) + half the 1.4 px stroke + 3 px air
+  const out = [];
+  g.radii.forEach((r, i) => {
+    const R = r * sx;
+    const crosses = (boxes || []).some((q) => {
+      if (!(q.width > 0 && q.height > 0)) return false;
+      const near = Math.hypot(Math.max(q.left - cx, 0, cx - q.right), Math.max(q.top - cy, 0, cy - q.bottom));
+      const far = Math.hypot(Math.max(Math.abs(q.left - cx), Math.abs(q.right - cx)), Math.max(Math.abs(q.top - cy), Math.abs(q.bottom - cy)));
+      return near <= R + tol && far >= R - tol;   // the circle of radius R passes through the box
+    });
+    if (crosses) out.push(i);
+  });
+  return out;
+}
+/* the content boxes the guard keeps the rings off (viewport rects) */
+function ringBoxes(st) {
+  const root = st.root, rings = st.rings;
+  const shown = (e) => { for (let x = e; x && x !== root; x = x.parentElement) if (x.hidden) return false; return true; };
+  const boxes = [];
+  const tw = document.createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */);
+  let n;
+  while ((n = tw.nextNode())) {
+    const p = n.parentElement;
+    if (!n.nodeValue.trim() || !p || rings.contains(p) || !shown(p)) continue;
+    const r = document.createRange();
+    r.selectNodeContents(n);
+    for (const q of r.getClientRects ? r.getClientRects() : []) boxes.push(q);
+  }
+  root.querySelectorAll('button, input, .c-launch__field, .c-launch__tag, .c-launch__banner, .c-launch__photo, .c-launch__hero-illo, .c-launch__logo, .c-launch__progress, .c-launch__pill')
+    .forEach((e) => { if (shown(e)) boxes.push(e.getBoundingClientRect()); });
+  return boxes.map((q) => ({ left: q.left, top: q.top, right: q.right, bottom: q.bottom, width: q.width, height: q.height }));
+}
+/** The guard's inputs for one shell, for a render harness: { boxes, tr, bl } (viewport rects). */
+function launchRingGeometry(el) {
+  const st = launchState.get(el);
+  if (!st || !st.rings) return null;
+  const rect = (k) => { const svg = st.rings.querySelector('.c-launch__rings-' + k); if (!svg) return null; const b = svg.getBoundingClientRect(); return { left: b.left, top: b.top, width: b.width, height: b.height }; };
+  return { boxes: ringBoxes(st), tr: rect('tr'), bl: rect('bl') };
+}
+function guardRings(st) {
+  const root = st.root;
+  const rings = st.rings;
+  if (!root || !rings || !root.isConnected) return;
+  const boxes = ringBoxes(st);
+  const allQuiet = [];
+  for (const kind of ['tr', 'bl']) {
+    const svg = rings.querySelector('.c-launch__rings-' + kind);
+    if (!svg) continue;
+    const hide = launchRingQuiet(kind, svg.getBoundingClientRect(), boxes);
+    const paths = svg.querySelectorAll('path');
+    paths.forEach((p, i) => p.toggleAttribute('data-quiet', hide.includes(i)));
+    if (paths.length && hide.length === paths.length) allQuiet.push(kind);
+  }
+  if (allQuiet.length) rings.dataset.quiet = allQuiet.join(' ');   // a set with every ring hidden (informational)
+  else delete rings.dataset.quiet;
+}
+/* after a switch: now (static layouts) and once the slide / step motion has settled */
+function guardRingsSoon(st) {
+  const run = () => {
+    try { if (st.fitArt) st.fitArt(); } catch { /* art fit only */ }   // ★ #46 r2: the art first — the rings guard reads the result
+    try { guardRings(st); } catch { /* decoration only — never block a switch */ }
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+  clearTimeout(st.ringsT);
+  st.ringsT = setTimeout(run, 320);
+}
 
 const textInput = ({ label, name }) => {
   const input = document.createElement('input');
@@ -33160,7 +34146,19 @@ function buildWelcome(st) {
      ⚠⚠ It also spelled the carrier out in prose, and that is not free: generatePage
      substitutes text-based and does not skip comments (N83), and this file is inlined
      whole into the bundle. The marker is named indirectly here for that reason. */
-  top.append(langPill);
+  /* ★ ON-1 Part C (#1422, pill P2 — phone AND desktop): the pill grows to 44 px (a 48 px
+     hit area, launch-shell.css) and gains a small caption under it — a globe + the
+     EXISTING `language` key — so a user who cannot read the current language still finds
+     the control. The caption is aria-hidden: the pill's own label already says
+     "Language: …". LaunchPage.xaml.cs:73-84 is untouched. */
+  const lang = document.createElement('div');
+  lang.className = 'c-launch__lang';
+  const caption = document.createElement('span');
+  caption.className = 'c-launch__lang-caption';
+  caption.setAttribute('aria-hidden', 'true');
+  caption.append(icon('world', { size: 14 }), mk('span', null, strings.language || 'Language'));
+  lang.append(langPill, caption);
+  top.append(lang);
   v.append(top);
 
   const logo = document.createElement('span');
@@ -33196,8 +34194,11 @@ function buildWelcome(st) {
     },
     {
       art: illoWelcome3,
-      title: strings.slide3Title || 'Send money like you send a message.',
-      copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and receive payments in a tap, as simple and instant as saying hello.',
+      /* ★ ON-1 Part D (store wording rule): say IXI, never "money", and promise no
+         "instant". The English source changed under the SAME keys — every locale is
+         re-translated through the pipeline (strings/T.json: RETRANSLATE). */
+      title: strings.slide3Title || 'Send IXI like a message.',
+      copy: strings.slide3Copy || 'A private IXI wallet lives inside every chat. Send and request IXI in a tap.',
     },
     {
       art: illoWelcome4,
@@ -33273,6 +34274,81 @@ function buildWelcome(st) {
     }, 5000);
   }
   st.stopAuto = stopAuto;
+  st.els.carousel = car;
+
+  /* ★ #46 r2 (M2, Damir 22:4x: "the slide ART shrinks on short screens"): the title and the
+     copy never clip — the art is the flexible part. CSS lets it shrink (flex-shrink, square
+     aspect kept, launch-shell.css); below a floor it would only be a smudge, so a slide whose
+     room for art is under ART_FLOOR px drops its art (data-art-off) and gives the text the
+     space. Measured per slide from the TEXT heights alone, so the decision does not depend
+     on the art's own state (no flip-flop). Layout-blind hosts (height 0) leave it alone. */
+  const ART_FLOOR = 72;                          // sanctioned: px — under this the art is noise
+  /* ★ #46 r3 (MINOR-B): ONE art size for the whole carousel — the smallest room any slide
+     has — so the title does not jump as autoplay pages; and when that smallest room is under
+     the floor, EVERY slide drops its art (not just the tight ones). The size rides
+     --launch-art-room on the carousel (launch-shell.css caps the art height with it). */
+  /* ★ #46 r4 → ★ r5 (M1): the LOGO and the welcome spacing are part of the room too. ONE
+     decision per fit, measured synchronously (no frame paints between the trial states), and
+     MONOTONIC in the window height — a shorter welcome never shows more than a taller one,
+     with the art weighing more than the logo ({art + logo} > {art} > {logo} > {}):
+       L0 + art   — the art fits at its floor with the logo;
+       L1 + art   — it fits only without the logo (data-compact="1": logo hidden, spacing
+                    tighter) — L1 is used ONLY when it keeps the art (1280 × 560 keeps its art);
+       L0 − art   — the art does not fit either way, but the text fits WITH the logo;
+       L2 − art   — even that does not fit: the tightest welcome (data-compact="2": smaller
+                    paddings, the pill caption folds, 44 px buttons, a wider copy column).
+                    Never art at L2 — it would come back below a height that had dropped it.
+     Limits (recorded in DECISIONS, not fixed): the text can still clip on a landscape phone
+     at 568 × 320 / 640 × 280 and under a large text zoom — L2 is the floor of this ladder.
+     ★ r5 (NIT) → ★ r6 (MAJOR, structural): a fit whose INPUTS did not change does nothing
+     (no trial layouts, no attribute writes). The input is the ROOM itself, not its causes:
+     the carousel box at the level it was decided for (it takes every pixel the welcome
+     column has left — an inset push, a version / legal line, the window, the padding of a
+     level all show up there), the column width, and the font state. r5 keyed the welcome
+     box and missed the safe-area PADDING inside it (C# inset pushes after the first fit).
+     The carousel is observed again (the fit still runs in the next frame — no RO loop); a
+     fit that changed the level re-reads its own result, finds the same key and stops. */
+  let fitKey = '';
+  const roomKey = () => [v.dataset.compact || '0', v.clientWidth, car.clientWidth, car.clientHeight,
+    (typeof document !== 'undefined' && document.fonts) ? document.fonts.status : ''].join('|');
+  st.fitArt = () => {
+    const measure = () => {
+      let minRoom = Infinity, minText = Infinity;
+      for (const sl of slides) {
+        const h = sl.clientHeight;
+        if (!sl.clientWidth) return null;          // layout-blind host (or not laid out yet): leave it alone — a 0 px TALL slide is real (a squeezed window)
+        const cs = getComputedStyle(sl);
+        const gap = parseFloat(cs.rowGap || cs.gap) || 0;
+        const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+        let text = 0;
+        for (const t of sl.querySelectorAll('.c-launch__slide-title, .c-launch__slide-copy')) text += t.getBoundingClientRect().height;
+        const art = sl.querySelector('.c-launch__illo-img');
+        const artMargin = art ? (parseFloat(getComputedStyle(art).marginBottom) || 0) : 0;
+        minRoom = Math.min(minRoom, h - pad - text - 2 * gap - artMargin);
+        minText = Math.min(minText, h - pad - text - gap);
+      }
+      return { minRoom, minText };
+    };
+    if (roomKey() === fitKey && car.clientWidth) return;   // the room it was decided for has not moved
+    const setLevel = (n) => { if (n) v.dataset.compact = String(n); else delete v.dataset.compact; };
+    const before = v.dataset.compact;
+    setLevel(0);
+    const m0 = measure();
+    if (!m0) { if (before) v.dataset.compact = before; return; }
+    let level = 0, art = false, m = m0;
+    if (m0.minRoom >= ART_FLOOR) { art = true; }
+    else {
+      setLevel(1);
+      const m1 = measure() || m0;
+      if (m1.minRoom >= ART_FLOOR) { level = 1; art = true; m = m1; }
+      else if (m0.minText >= 0) { level = 0; setLevel(0); }
+      else { level = 2; setLevel(2); }
+    }
+    for (const sl of slides) sl.toggleAttribute('data-art-off', !art);
+    if (art) car.style.setProperty('--launch-art-room', Math.floor(m.minRoom) + 'px');
+    else car.style.removeProperty('--launch-art-room');
+    fitKey = roomKey();                            // read AFTER the decision: the room at the level now on screen
+  };
 
   // pointer swipe (pan-y stays native — CSS touch-action)
   let downX = null;
@@ -33289,9 +34365,8 @@ function buildWelcome(st) {
   v.append(car, dots);
 
   // — CTAs: always enabled, pinned; internal routing (the shell ABSORBS the
-  //   legacy pages). CONSENT moved to the create/restore forms (Damir
-  //   2026-07-06): the welcome is a clean brand choice, and ixian:accept now
-  //   fires at the BINDING action (the actual create/restore commit), not here —
+  //   legacy pages). ⚠ SUPERSEDED by #1421 (1): consent is recorded at THIS tap
+  //   (below), not at the create/restore commit —
   const ctas = document.createElement('div');
   ctas.className = 'c-launch__ctas';
   const createBtn = createButton({ label: strings.createCta || 'Create new account', size: 56, width: 'full' });
@@ -33303,22 +34378,59 @@ function buildWelcome(st) {
      which view is on screen (C# needs that for the hardware back button). The
      switch happens either way, so a throwing or absent hook cannot strand the
      user on the welcome screen. */
+  /* ★ ON-1 (#1421 (1)) + #46 r1: CONSENT IS RECORDED HERE, at the welcome tap, and ONLY
+     here: emitAccept (latched once) is the one path — launch.html arms it with
+     setLaunchTerms on C#'s showTerms push and sends ixian:accept from onAcceptTerms (its own
+     recordConsent latch is gone). The legal line under these buttons is what the tap agrees to. */
   createBtn.addEventListener('click', () => {
     stopAuto();
+    emitAccept(st);
     try { if (opts.onGoCreate) opts.onGoCreate(); } catch { /* notify only */ }
     show(st, 'create');
   });
   restoreBtn.addEventListener('click', () => {
     stopAuto();
+    emitAccept(st);
     try { if (opts.onGoRestore) opts.onGoRestore(); } catch { /* notify only */ }
     show(st, 'restore');
   });
   ctas.append(createBtn, restoreBtn);
   v.append(ctas);
 
+  /* ★ #46 r1 (Damir: "consent stays at welcome — the legal line stays where the tap records
+     it"): ONE small line under the two buttons, because the tap above records consent
+     (ixian:accept, emitAccept). Both links open the in-app legal sheets (openDocSheet +
+     legalDocText — the same documents Account → About shows). The line is a template so a
+     translation can order the two links; every piece lands as a text node or a button. */
+  const legal = document.createElement('p');
+  legal.className = 'c-launch__legal';
+  const legalLink = (text, open) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'c-launch__link';
+    b.textContent = text;
+    b.addEventListener('click', open);
+    return b;
+  };
+  const tpl = strings.welcomeConsent || 'By continuing, you agree to the {terms} and {privacy}.';
+  for (const part of String(tpl).split(/(\{terms\}|\{privacy\})/)) {
+    if (part === '{terms}') legal.append(legalLink(strings.termsLink || 'Terms of Use', () => openDocSheet(st, strings.termsTitle || 'Terms of Use', legalDocText('terms'))));
+    else if (part === '{privacy}') legal.append(legalLink(strings.privacyLink || 'Privacy Policy', () => openDocSheet(st, strings.privacyTitle || 'Privacy Policy', legalDocText('privacy'))));
+    else if (part) legal.append(part);
+  }
+  v.append(legal);
+  /* ★ #46 r2 (m3): the consent text is announced WITH the two buttons that record it */
+  legal.id = 'c-launch-legal-' + (++legalSeq);
+  createBtn.setAttribute('aria-describedby', legal.id);
+  restoreBtn.setAttribute('aria-describedby', legal.id);
+
+  /* ★ #46 r3 (MINOR-A): the version line's room is RESERVED from the first paint (min-height
+     in launch-shell.css) — C#'s setVersion arrives after it, and a line that appeared then
+     took ~32 px from the carousel and re-sized the art under the user's eyes. Empty = an
+     empty, aria-hidden box (nothing to announce). */
   const version = document.createElement('p');
   version.className = 'c-launch__version';
-  version.hidden = true;
+  version.setAttribute('aria-hidden', 'true');
   v.append(version);
 
   st.els.version = version;
@@ -33498,342 +34610,495 @@ function openLegalDoc({ doc = 'terms', host, strings = getStrings() } = {}) {
   }
 }
 
-// one-shot ixian:accept — emitted at the binding action (create/restore commit)
+// one-shot ixian:accept — ★ ON-1 (#1421 (1)): emitted at the WELCOME tap (Create new /
+// Restore existing), latched to one. The consent fine-print line that sat above the
+// create / restore commit is gone with it: Damir's pick carries no legal line on step 2
+// or restore. The Terms / Privacy sheets stay reachable from Account → About
+// (openLegalDoc below).
 function emitAccept(st) {
   if (!st.termsRequired || st.acceptSent) return;
   st.acceptSent = true;
   try { if (st.opts.onAcceptTerms) st.opts.onAcceptTerms(); } catch { /* pref */ }
 }
 
-// consent line for the commit screens: "{lead} [Terms of Use] and acknowledge
-// the [Privacy Policy]." — both open IN-APP (openDocSheet)
-function consentLine(st, lead) {
-  const strings = st.strings;
-  const fine = document.createElement('p');
-  fine.className = 'c-launch__fineprint';
-  fine.append((lead || 'By continuing, you agree to the') + ' ');
-  const termsLink = document.createElement('button');
-  termsLink.type = 'button';
-  termsLink.className = 'c-launch__link';
-  termsLink.textContent = strings.termsLink || 'Terms of Use';
-  termsLink.addEventListener('click', () => openDocSheet(st, strings.termsTitle || 'Terms of Use', legalDocText('terms')));
-  fine.append(termsLink);
-  fine.append(' ' + (strings.finePrintAck || 'and acknowledge the') + ' ');
-  const privacyLink = document.createElement('button');
-  privacyLink.type = 'button';
-  privacyLink.className = 'c-launch__link';
-  privacyLink.textContent = strings.privacyLink || 'Privacy Policy';
-  privacyLink.addEventListener('click', () => openDocSheet(st, strings.privacyTitle || 'Privacy Policy', legalDocText('privacy')));
-  fine.append(privacyLink, '.');
-  return fine;
-}
+/* —— the form views (★ ON-1, #1420–#1422) ——————————————————————————————————————
+ * Create = TWO steps inside ONE view and ONE commit to C# (`create:<nick>:<password>`);
+ * restore = one screen. Both ride the lifted --gradient-launch-form backdrop and share the
+ * #615 keyboard structure: `.c-launch__body` scrolls, `.c-launch__footer` (the commit
+ * button) lifts by --kb-inset. On a desktop window ≥ 900 px the same DOM lays out in two
+ * columns (the hero left, ONE 460 px card right) — CSS only, no second tree. */
 
-/* —— create (themed form view) ————————————————————————————————— */
+/* the shared topbar + the step label UNDER the title (phone: the top-right corner belongs
+   to the rings; desktop: the label moves to the card's right edge by CSS) */
+function formTopbar(st, title, onBack) {
+  const strings = st.strings;
+  const bar = createTopbar({ variant: 'view', title: '', backLabel: strings.back || 'Back', onBack });
+  const t = bar.querySelector('.c-topbar__title');
+  const titleEl = mk('h1', 'c-launch__head-title', title);   // the view's heading (the hero title is the visual one)
+  const stepEl = mk('span', 'c-launch__head-step');
+  stepEl.hidden = true;
+  if (t) { t.textContent = ''; t.classList.add('c-launch__head'); t.append(titleEl, stepEl); }
+  return { bar, stepEl };
+}
 
 function buildCreate(st) {
   const { opts } = st;
   const strings = st.strings;
   const v = document.createElement('div');
-  v.className = 'c-launch__view';
+  v.className = 'c-launch__view c-launch__form';
   v.dataset.launchView = 'create';
+  v.dataset.progress = '';
 
-  const pw = passwordField({ label: strings.password || 'Password', strings });               // new-password (★ S9 #1246 O = A: no group label — the field says "Password")
+  /* —— the fields (the shared inputs, wrapped) —— */
+  const nickIn = textInput({ label: strings.nickname || 'Nickname', name: 'nick' });
+  const nickF = launchField({ input: nickIn, label: strings.nickname || 'Nickname' });
+  const pw = passwordField({ label: strings.password || 'Password', strings });               // new-password
   const rp = passwordField({ label: strings.repeatPassword || 'Confirm password', strings });  // new-password
-  const scrub = () => { pw.input.value = ''; rp.input.value = ''; pw.mask(); rp.mask(); };
+  const pwF = launchField({ input: pw.input, label: strings.password || 'Password', end: [pw.wrap.querySelector('.c-lock__reveal')] });
+  const rpF = launchField({ input: rp.input, label: strings.repeatPassword || 'Confirm password', end: [rp.wrap.querySelector('.c-lock__reveal')] });
+  const scrub = () => {
+    pw.input.value = ''; rp.input.value = ''; pw.mask(); rp.mask();
+    pwF.sync(); rpF.sync();
+    if (st.createSync) st.createSync();
+  };
   st.scrubs.push(scrub);
 
-  v.append(createTopbar({
-    variant: 'view',
-    title: strings.createTitle || 'Create your account',
-    backLabel: strings.back || 'Back',
-    onBack: () => {
-      scrub();                                   // SECURITY §5: scrub before leaving
-      show(st, 'welcome');
-      try { if (opts.onBack) opts.onBack('create'); } catch { /* nav */ }
-    },
-  }));
+  /* —— header: back · "Create your account" · "1 of 2" + the two-segment progress —— */
+  const { bar, stepEl } = formTopbar(st, strings.createTitle || 'Create your account', () => {
+    // ★ ON-1: step 2 → step 1 keeps every value (no scrub); step 1 → welcome scrubs (SECURITY §5)
+    if (st.createBusy && st.createStep === 2) return;   // ★ #46 r1: no back while the account is being made — ★ r2 (n2): on STEP 2 only (a re-entered step 1 must leave)
+    if (st.createStep === 2) { goStep(1); return; }
+    scrub();
+    show(st, 'welcome');
+    try { if (opts.onBack) opts.onBack('create'); } catch { /* nav */ }
+  });
+  stepEl.hidden = false;
+  const progress = mk('div', 'c-launch__progress');
+  progress.setAttribute('role', 'progressbar');
+  progress.setAttribute('aria-valuemin', '1');
+  progress.setAttribute('aria-valuemax', '2');
+  const seg1 = mk('i'), seg2 = mk('i');
+  progress.append(seg1, seg2);
+  v.append(bar, progress);
 
-  const body = document.createElement('div');
-  body.className = 'c-launch__body u-scroll';
-
-  // — Profile group (Damir 2026-07-06 UX: two LABELLED sections read better than
-  //   three anonymous stacked inputs). Avatar + nickname belong together —
-  const gProfile = document.createElement('div');
-  gProfile.className = 'c-launch__group';
-  const lProfile = document.createElement('p');
-  lProfile.className = 'c-launch__group-label';
-  lProfile.textContent = strings.createProfileLabel || 'Your profile';
-  gProfile.append(lProfile);
-
-  // avatar preview: identity forms as the nick is typed (deterministic hue —
-  // the avatar system IS the identity imagery, illustrations-plan §2)
-  const avRow = document.createElement('div');
-  avRow.className = 'c-launch__avatar';
-  const avSlot = document.createElement('span');
-  avSlot.className = 'c-launch__avatar-slot';
-  const renderAvatar = () => {
-    avSlot.replaceChildren(createAvatar({
-      src: st.avatarSrc || null,
-      name: nick.value.trim() || '·',
-      size: 96,
-    }));
-  };
-  const avBtn = createButton({ label: strings.addPhoto || 'Add a photo', type: 'outline', size: 44 });
-  avBtn.addEventListener('click', () => {
-    // ixian:avatar → native picker → loadAvatar(path) → setLaunchAvatar
+  /* —— step 1 "Who are you on Spixi?": photo → title → tags → nickname (#1422: one order) —— */
+  const pane1 = mk('div', 'c-launch__step');
+  pane1.dataset.step = '1';
+  const body1 = mk('div', 'c-launch__body u-scroll');
+  const hero1 = mk('div', 'c-launch__hero');
+  const photo1 = launchPhoto({ small: false });
+  photo1.el.addEventListener('click', () => {
+    // ixian:avatar → native picker → loadAvatar(path) → setLaunchAvatar (C# writes the photo at pick time)
     try { if (opts.onPickAvatar) opts.onPickAvatar(); } catch { /* picker */ }
   });
-  avRow.append(avSlot, avBtn);
-  const nick = textInput({ label: strings.nickname || 'Nickname', name: 'nick' });
-  nick.addEventListener('input', () => { if (!st.avatarSrc) renderAvatar(); setError(''); });
-  gProfile.append(avRow, nick);
-  body.append(gProfile);
+  const tags = mk('div', 'c-launch__tags');
+  for (const [ic, text] of [
+    ['phone-off', strings.hintNoPhoneTitle || 'No phone number'],
+    ['at', strings.tagNoEmail || 'No email'],
+    ['shield-lock', strings.tagNoId || 'No ID'],
+  ]) {
+    const tag = mk('span', 'c-launch__tag');
+    const g = icon(ic, { size: 15 });
+    g.setAttribute('aria-hidden', 'true');
+    tag.append(g, mk('span', null, text));
+    tags.append(tag);
+  }
+  hero1.append(photo1.el,
+    mk('h2', 'c-launch__hero-title', strings.create1Title || 'Who are you on Spixi?'),
+    mk('p', 'c-launch__hero-copy', strings.create1Sub || 'Pick a nickname. A photo is optional.'),
+    tags);
+  const fields1 = mk('div', 'c-launch__fields');
+  const err1 = launchErrLine();
+  fields1.append(nickF.field, err1);
+  body1.append(hero1, fields1);
+  const foot1 = mk('div', 'c-launch__footer');
+  const addr = mk('p', 'c-launch__fnote');
+  const lockG = icon('lock', { size: 15 });
+  lockG.setAttribute('aria-hidden', 'true');
+  addr.append(lockG, mk('span', null, deviceWords()
+    ? (strings.addressNoteDevice || 'Your Spixi address is made on this device.')
+    : (strings.addressNotePhone || 'Your Spixi address is made on this phone.')));
+  const next = createButton({ label: strings.continue || 'Continue', size: 56, width: 'full', disabled: true });
+  foot1.append(addr, next);
+  pane1.append(body1, foot1);
 
-  // — Password group: the two secrets + the hints. ★ S9 (#1246 O = A, #1139): NO group
-  //   label any more — "Wallet password" over fields that already say "Password" /
-  //   "Confirm password" read as a third, different secret. —
-  const gSec = document.createElement('div');
-  gSec.className = 'c-launch__group';
-  gSec.append(pw.wrap, rp.wrap);
-  // proactive password condition (BE requires ENC_MIN) — shown UP FRONT, not
-  // only as a post-submit error (Damir 2026-07-06)
-  const hint = document.createElement('p');
-  hint.className = 'c-launch__hint';
-  hint.textContent = (strings.passwordHint || 'Use at least {n} characters.').replace('{n}', String(ENC_MIN));
-  // ★ S9 (#1246, #1139): the second hint line — how to pick one, not only how long
-  const hint2 = document.createElement('p');
-  hint2.className = 'c-launch__hint';
-  hint2.textContent = strings.passwordPhraseHint || 'Use a long phrase that is easy for you to remember.';
-  gSec.append(hint, hint2);
-  body.append(gSec);
-
-  const err = errLine();
-  body.append(err);
-
-  // prominent recovery callout (Damir 2026-07-06: "make it impossible to miss")
-  // — self-custody has no backdoor. A tinted panel, not a quiet footnote.
-  const warn = document.createElement('div');
-  warn.className = 'c-launch__callout';
-  warn.setAttribute('role', 'note');
-  const warnTitle = document.createElement('p');
-  warnTitle.className = 'c-launch__callout-title';
-  // ★ S9 (#1246): NEW keys — a changed meaning on the old keys would keep the old text in the drafts
-  warnTitle.textContent = strings.createWarnTitle2 || 'Write this password down';
-  const warnBody = document.createElement('p');
-  warnBody.className = 'c-launch__callout-body';
-  warnBody.textContent = strings.createWarnBody2
-    || 'It protects your account and wallet on this device. Nobody can reset it, not even Spixi.';
-  warn.append(warnTitle, warnBody);
-  body.append(warn);
-  v.append(body);
-
-  const footer = document.createElement('div');
-  footer.className = 'c-launch__footer';
-  // consent at the binding action, right above the commit button (Damir 2026-07-06)
-  const consent = consentLine(st, strings.createConsent || 'By creating an account, you agree to the');
-  const cta = createButton({ label: strings.createSubmit || 'Create my account', size: 56, width: 'full' });
-  footer.append(consent, cta);
-  v.append(footer);
-
-  const setError = (msg, focusEl) => {
-    err.textContent = msg;
-    err.hidden = !msg;
-    if (msg && focusEl) focusEl.focus();
+  /* —— step 2 "Protect your account" —— */
+  const pane2 = mk('div', 'c-launch__step');
+  pane2.dataset.step = '2';
+  pane2.hidden = true;
+  const body2 = mk('div', 'c-launch__body u-scroll');
+  const hero2 = mk('div', 'c-launch__hero');
+  const photo2 = launchPhoto({ small: true });
+  photo2.badge.append(icon('lock', { size: 18 }));
+  const sub2 = mk('p', 'c-launch__hero-copy');
+  hero2.append(photo2.el, mk('h2', 'c-launch__hero-title', strings.create2Title || 'Protect your account'), sub2);
+  const fields2 = mk('div', 'c-launch__fields');
+  const mismatch = launchErrLine();
+  mismatch.classList.add('c-launch__mismatch');
+  const meter = mk('div', 'c-launch__meter');
+  meter.dataset.level = '0';
+  for (let i = 0; i < 4; i++) meter.append(mk('i'));
+  const meterLabel = mk('span', 'c-launch__meter-label');
+  meterLabel.setAttribute('aria-live', 'polite');
+  meter.append(meterLabel);
+  const LEVELS = [
+    strings.strengthWeak || 'Weak',
+    strings.strengthFair || 'Fair',
+    strings.strengthGood || 'Good',
+    strings.strengthStrong || 'Strong',
+  ];
+  const checks = mk('div', 'c-launch__checks');
+  const check = (text) => {
+    const c = mk('span', 'c-launch__check');
+    c.dataset.state = 'idle';
+    const b = mk('b');
+    b.setAttribute('aria-hidden', 'true');
+    c.append(b, mk('span', null, text));
+    checks.append(c);
+    return { c, b };
   };
-  pw.input.addEventListener('input', () => setError(''));
-  rp.input.addEventListener('input', () => setError(''));
+  const chkLen = check(fillIn(strings.checkLength || '{n}+ characters', { n: ENC_MIN }));
+  const chkMatch = check(strings.checkMatch || 'Passwords match');
+  const setCheck = ({ c, b }, state) => {
+    if (c.dataset.state === state) return;
+    c.dataset.state = state;
+    b.replaceChildren();
+    if (state === 'ok') b.append(icon('check', { size: 12 }));
+    if (state === 'bad') b.append(icon('x', { size: 11 }));
+  };
+  const err2 = launchErrLine();
+  const banner = mk('div', 'c-launch__banner');
+  banner.setAttribute('role', 'note');
+  const tile = mk('span', 'c-launch__tile');
+  tile.setAttribute('aria-hidden', 'true');
+  tile.append(icon('key', { size: 20 }));
+  const bannerText = mk('div', 'c-launch__banner-text');
+  bannerText.append(
+    mk('p', 'c-launch__banner-title', strings.createWarnTitle2 || 'Write this password down'),
+    mk('p', 'c-launch__banner-body', deviceWords()
+      ? (strings.createWarnBodyDevice || 'It unlocks your account and wallet on this device. Nobody can reset it, not even Spixi.')
+      : (strings.createWarnBodyPhone || 'It unlocks your account and wallet on this phone. Nobody can reset it, not even Spixi.')));
+  banner.append(tile, bannerText);
+  fields2.append(pwF.field, rpF.field, mismatch, meter, checks, err2, banner);
+  body2.append(hero2, fields2);
+  const foot2 = mk('div', 'c-launch__footer');
+  const cta = createButton({ label: strings.createSubmit || 'Create my account', size: 56, width: 'full', disabled: true });
+  const ctaLabel = () => cta.querySelector('.c-button__label');
+  /* ★ #1421 (2): create runs RSA-4096 keygen OFF the UI thread (LaunchPage), so the spinner
+     moves; after 2 s ONE honest line says why it can take a while. No setup screen. */
+  const honest = mk('p', 'c-launch__honest', deviceWords()
+    ? (strings.creatingSlowDevice || 'Making your keys on this device. This can take a few seconds.')
+    : (strings.creatingSlowPhone || 'Making your keys on this phone. This can take a few seconds.'));
+  honest.setAttribute('role', 'status');
+  honest.hidden = true;
+  foot2.append(cta, honest);
+  pane2.append(body2, foot2);
+  v.append(pane1, pane2);
 
+  /* —— live state —— */
   let inFlight = false;
-  const submit = () => {
-    if (inFlight) return;
-    const name = nick.value.trim();              // nick IS trimmed (display name); passwords NEVER
+  let honestT = 0;
+  let rpBlurred = false;
+  const sync = () => {
+    const name = nickIn.value.trim();
+    next.disabled = !name || inFlight;
+    nickF.setOk(!!name && !name.includes(':'));
     const p = pw.input.value, r = rp.input.value;
-    if (!name) return setError(strings.nickEmpty || 'Pick a nickname.', nick);
+    const lenOk = p.length >= ENC_MIN;
+    const match = !!r && r === p;
+    // the confirm field shouts only once it is as long as the password, or after it lost focus
+    const shout = !!r && !match && (r.length >= p.length || rpBlurred);
+    const lvl = launchStrength(p);
+    meter.dataset.level = String(lvl);
+    meterLabel.textContent = lvl ? LEVELS[lvl - 1] : '';
+    setCheck(chkLen, lenOk ? 'ok' : 'idle');
+    setCheck(chkMatch, match ? 'ok' : shout ? 'bad' : 'idle');
+    rpF.setOk(match);
+    rpF.setError(shout);
+    mismatch.setMessage(shout ? (strings.mismatchYet || 'The passwords don’t match yet.') : '');
+    if (!inFlight) cta.disabled = !(lenOk && match);
+  };
+  st.createSync = sync;
+  nickIn.addEventListener('input', () => { if (!st.avatarSrc) renderAvatar(); err1.setMessage(''); sync(); });
+  pw.input.addEventListener('input', () => { err2.setMessage(''); sync(); });
+  rp.input.addEventListener('input', () => { err2.setMessage(''); if (!rp.input.value) rpBlurred = false; sync(); });
+  rp.input.addEventListener('blur', () => { if (rp.input.value) { rpBlurred = true; sync(); } });
+
+  /* —— the step switch (★ ON-1: one view, two panes; the progress, the label and the hero
+     follow). Motion: the entering pane slides in (phone) / the card content slides and the
+     hero cross-fades (desktop) — launch-shell.css; reduced motion = a short fade. —— */
+  const goStep = (n, { animate = true, focus = true } = {}) => {
+    const from = st.createStep;
+    st.createStep = n;
+    v.dataset.createStep = String(n);   // the panes carry data-step; the view says which one is up
+    pane1.hidden = n !== 1;
+    pane2.hidden = n !== 2;
+    seg1.toggleAttribute('data-on', true);
+    seg2.toggleAttribute('data-on', n === 2);
+    progress.setAttribute('aria-valuenow', String(n));
+    stepEl.textContent = fillIn(strings.stepOf || '{n} of {total}', { n, total: 2 });
+    progress.setAttribute('aria-label', stepEl.textContent);
+    if (n === 2) {
+      const name = nickIn.value.trim();
+      sub2.textContent = fillIn(deviceWords()
+        ? (strings.create2SubDevice || '{name}, this password locks your chats and your wallet on this device.')
+        : (strings.create2SubPhone || '{name}, this password locks your chats and your wallet on this phone.'), { name });
+      renderAvatar();
+    }
+    const pane = n === 1 ? pane1 : pane2;
+    if (animate && from && from !== n && v.isConnected) {
+      pane.dataset.enter = n > from ? 'fwd' : 'back';
+      const done = () => { delete pane.dataset.enter; };
+      pane.addEventListener('animationend', (e) => { if (e.target === pane || pane.contains(e.target)) done(); }, { once: true });
+      setTimeout(done, 480);   // completes-never backstop (#326)
+    }
+    if (focus) {
+      try { (n === 1 ? nickIn : pw.input).focus({ preventScroll: true }); } catch { /* focus is a courtesy */ }
+    }
+    if (st.root) guardRingsSoon(st);
+  };
+  st.createGoStep = goStep;
+
+  const toStep2 = () => {
+    if (inFlight || next.disabled) return;
+    const name = nickIn.value.trim();
+    if (!name) { err1.setMessage(strings.nickEmpty || 'Pick a nickname.'); return; }
     if (name.includes(':')) {
       // C# splits create:<nick>:<password> on the FIRST ':' (launch-spec §1)
-      return setError(strings.nickColon || 'Nicknames can’t contain “:”.', nick);
+      err1.setMessage(strings.nickColon || 'Nicknames can’t contain “:”.');
+      nickIn.focus();
+      return;
     }
-    if (!p) return setError(strings.passwordEmpty3 || 'Choose a password.', pw.input);   // ★ S9 (#1246): no "wallet" (new key)
+    err1.setMessage('');
+    goStep(2);
+  };
+  next.addEventListener('click', toStep2);
+  // Enter on the LAST field of the step runs the main button — only while it is on
+  nickIn.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !imeBusy(e) && !next.disabled) toStep2(); });
+
+  const submit = () => {
+    if (inFlight) return;
+    const name = nickIn.value.trim();              // nick IS trimmed (display name); passwords NEVER
+    const p = pw.input.value, r = rp.input.value;
+    const fail1 = (msg) => { goStep(1); err1.setMessage(msg); nickIn.focus(); };
+    if (!name) return fail1(strings.nickEmpty || 'Pick a nickname.');
+    if (name.includes(':')) return fail1(strings.nickColon || 'Nicknames can’t contain “:”.');
+    const fail2 = (msg, f) => { err2.setMessage(msg); if (f) f.focus(); };
+    if (!p) return fail2(strings.passwordEmpty3 || 'Choose a password.', pw.input);   // ★ S9 (#1246): no "wallet"
     if (p.length < ENC_MIN) {
-      return setError((strings.newTooShort || 'The password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), pw.input);
+      return fail2((strings.newTooShort || 'The password needs at least {n} characters.').replace('{n}', String(ENC_MIN)), pw.input);
     }
-    if (p !== r) return setError(strings.repeatMismatch || 'The passwords don’t match.', rp.input);
+    if (p !== r) return fail2(strings.repeatMismatch || 'The passwords don’t match.', rp.input);
     if (p.includes(name + ':')) {
       // Replace(nick+":","") corruption hazard — never sent (launch-spec §1; §9 C# ask)
-      return setError(strings.badPassword || 'That password contains an unsupported character sequence.', pw.input);
+      return fail2(strings.badPassword || 'That password contains an unsupported character sequence.', pw.input);
     }
-    setError('');
+    err2.setMessage('');
     inFlight = true;
-    nick.disabled = true; pw.input.disabled = true; rp.input.disabled = true; avBtn.disabled = true;
+    /* ★ #46 r1: the user STAYS on step 2 while the account is being made (and after success,
+       until C# navigates) — back is held, so a later fail(msg) lands on the step on screen */
+    st.createBusy = true;
+    nickIn.disabled = true; pw.input.disabled = true; rp.input.disabled = true; photo1.el.disabled = true;
+    next.disabled = true;
+    const label = ctaLabel();
+    if (label) label.textContent = strings.creatingAccount || 'Creating your account…';
     setLoading(cta, true);
-    // NO auto-release (spec §2.2): wallet generation takes seconds and there
-    // is no covering native alert — the morph is the loading truth (flag §6②).
+    clearTimeout(honestT);
+    honestT = setTimeout(() => { if (inFlight) honest.hidden = false; }, 2000);
+    const settle = () => {
+      inFlight = false;
+      clearTimeout(honestT);
+      honest.hidden = true;
+      setLoading(cta, false);
+      const l = ctaLabel();
+      if (l) l.textContent = strings.createSubmit || 'Create my account';
+    };
+    // NO auto-release (spec §2.2): C# navigates on success and pushes removeLoadingOverlay
+    // (→ fail('')) behind its own native alert on failure.
     const ctrl = launchCtrl(
       () => {
-        /* ★ N76: C# navigates to Home from here — there is no tail to hop to any
-           more. Hold the success morph and leave the form disabled: the ONLY
-           thing that follows this state is the native page change. Re-enabling
-           the fields would offer a second create on a screen that is leaving. */
-        inFlight = false;
-        setLoading(cta, false);
+        /* ★ N76: C# navigates to Home from here. Hold the success morph and leave the form
+           disabled — the only thing that follows is the native page change. */
+        settle();
+        cta.disabled = true;
         setSuccess(cta, { label: strings.created || 'Account created' });
-        scrub();                                 // SECURITY §5
+        scrub();                                   // SECURITY §5
       },
       (msg) => {
-        inFlight = false;
-        nick.disabled = false; pw.input.disabled = false; rp.input.disabled = false; avBtn.disabled = false;
-        setLoading(cta, false);
-        if (msg) setError(msg, pw.input);
+        settle();
+        st.createBusy = false;
+        nickIn.disabled = false; pw.input.disabled = false; rp.input.disabled = false; photo1.el.disabled = false;
+        sync();
+        if (msg) err2.setMessage(msg);
       },
     );
-    emitAccept(st);                              // consent at the binding action (spec §5)
     try {
       if (opts.onCreateAccount) opts.onCreateAccount(name, p, ctrl); else ctrl.done();
     } catch { ctrl.fail(strings.createFailed || 'Something went wrong creating the account.'); } // #141-m4
   };
   cta.addEventListener('click', submit);
-  rp.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  rp.input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !imeBusy(e) && !cta.disabled) submit(); });
 
+  /* the photo on both steps: the picked photo, else step 1 asks for one (camera) and step 2
+     shows the initial avatar — the avatar system IS the identity imagery */
+  const renderAvatar = () => {
+    const name = nickIn.value.trim();
+    const has = !!st.avatarSrc;
+    photo1.el.toggleAttribute('data-empty', !has);
+    photo1.el.setAttribute('aria-label', has ? (strings.changePhoto || 'Change photo') : (strings.addPhoto || 'Add a photo'));
+    photo1.img.replaceChildren(has
+      ? createAvatar({ src: st.avatarSrc, name: name || '·', size: 148 })
+      : icon('camera', { size: 40 }));
+    photo1.badge.replaceChildren(icon(has ? 'pencil' : 'camera', { size: 18 }));
+    photo2.img.replaceChildren(createAvatar({ src: st.avatarSrc || null, name: name || '·', size: 104 }));
+  };
   renderAvatar();
   st.renderAvatar = renderAvatar;
+  st.createStep = 0;
+  goStep(1, { animate: false, focus: false });
+  sync();
+  st.focusCreate = () => { try { nickIn.focus({ preventScroll: true }); } catch { /* courtesy */ } };
   return v;
 }
 
-/* —— restore (themed form view) ———————————————————————————————— */
+/* —— restore (★ ON-1: one screen — the file card, "Password", the honesty line) —— */
 
 function buildRestore(st) {
   const { opts } = st;
   const strings = st.strings;
   const v = document.createElement('div');
-  v.className = 'c-launch__view';
+  v.className = 'c-launch__view c-launch__form';
   v.dataset.launchView = 'restore';
 
-  const pw = passwordField({ label: strings.walletPassword || 'Wallet password', current: true, strings }); // existing secret — off
-  const scrub = () => { pw.input.value = ''; pw.mask(); };
+  // ★ ON-1 (Decision 3): the field says "Password", the same word as on create — "Wallet
+  // password" is gone from this view
+  const pw = passwordField({ label: strings.password || 'Password', current: true, strings }); // existing secret — off
+  const pwF = launchField({ input: pw.input, label: strings.password || 'Password', end: [pw.wrap.querySelector('.c-lock__reveal')] });
+  const scrub = () => { pw.input.value = ''; pw.mask(); pwF.sync(); if (st.restoreSync) st.restoreSync(); };
   st.scrubs.push(scrub);
 
-  v.append(createTopbar({
-    variant: 'view',
-    title: strings.restoreTitle || 'Restore your account',
-    backLabel: strings.back || 'Back',
-    onBack: () => {
-      scrub();
-      show(st, 'welcome');
-      try { if (opts.onBack) opts.onBack('restore'); } catch { /* nav */ }
-    },
-  }));
-
-  const body = document.createElement('div');
-  body.className = 'c-launch__body u-scroll';
-
-  // — premium hero (Damir 2026-07-06: "more premium; move the input+button
-  //   lower"; premium round 2: the SHIPPED legacy restore illustration + a warm
-  //   welcome-back line anchor the top, the form group drops toward the CTA
-  //   (c-launch__lower margin-top:auto) —
-  const hero = document.createElement('div');
-  hero.className = 'c-launch__hero';
-  // ★ S11 B (#1262): the approved restore art (round 3), inline, decorative — dark set (pinned)
-  const heroIllo = illoRestore({ className: 'c-launch__hero-illo' });
-  const heroTitle = document.createElement('h1');   // the view's primary heading (topbar title is a nav label div)
-  heroTitle.className = 'c-launch__hero-title';
-  heroTitle.textContent = strings.restoreHeroTitle || 'Welcome back';
-  const heroCopy = document.createElement('p');
-  heroCopy.className = 'c-launch__hero-copy';
-  heroCopy.textContent = strings.restoreHeroCopy
-    || 'Choose your backup file and enter your wallet password to bring your account back to this device.';
-  hero.append(heroIllo, heroTitle, heroCopy);
-  body.append(hero);
-
-  // — form group, pinned to the lower third above the CTA —
-  const lower = document.createElement('div');
-  lower.className = 'c-launch__lower';
-
-  const card = document.createElement('div');
-  card.className = 'c-launch__card';
-  const fileBtn = createButton({
-    label: strings.chooseFile || 'Choose backup file…',
-    type: 'outline', size: 56, width: 'full', icon: icon('file-isr', { size: 20 }),
+  const { bar } = formTopbar(st, strings.restoreTitle || 'Restore your account', () => {
+    scrub();
+    show(st, 'welcome');
+    try { if (opts.onBack) opts.onBack('restore'); } catch { /* nav */ }
   });
-  fileBtn.addEventListener('click', () => {
+  v.append(bar);
+
+  const body = mk('div', 'c-launch__body u-scroll');
+  const hero = mk('div', 'c-launch__hero');
+  // ★ #1422: the art is BUILT by illoRestore() for this view (a clone would duplicate the
+  // drawing's SVG gradient ids) — the approved restore art (S11 B #1262), decorative
+  const heroIllo = illoRestore({ className: 'c-launch__hero-illo' });
+  hero.append(heroIllo,
+    mk('h2', 'c-launch__hero-title', strings.restoreHeroTitle || 'Welcome back'),
+    // the backup holds the wallet, the contacts and the own photo — NOT the chats (#1420)
+    mk('p', 'c-launch__hero-copy', strings.restoreSub || 'Your backup file and password bring back your account, contacts and wallet.'));
+
+  const fields = mk('div', 'c-launch__fields');
+  /* the file CARD (no outline — Decision 5): empty = "Choose backup file" + where it comes
+     from + a chevron; chosen = green, the file name (textContent: untrusted), "Change".
+     The native dialog is the existing verb; drag and drop is a follow-up (no shell handles
+     a file drop today). */
+  const card = mk('button', 'c-launch__filecard');
+  card.type = 'button';
+  const fTile = mk('span', 'c-launch__tile');
+  fTile.setAttribute('aria-hidden', 'true');
+  const fText = mk('span', 'c-launch__filecard-text');
+  const fTitle = mk('span', 'c-launch__filecard-title');
+  const fSub = mk('span', 'c-launch__filecard-sub');
+  fText.append(fTitle, fSub);
+  const fEnd = mk('span', 'c-launch__filecard-end');
+  fEnd.setAttribute('aria-hidden', 'true');
+  card.append(fTile, fText, fEnd);
+  card.addEventListener('click', () => {
     try { if (opts.onSelectFile) opts.onSelectFile(); } catch { /* picker */ }
   });
-  const fileRow = document.createElement('p');
-  fileRow.className = 'c-launch__file';
-  fileRow.hidden = true;
-  const fileGlyph = document.createElement('span');
-  fileGlyph.className = 'c-launch__file-check';
-  fileGlyph.setAttribute('aria-hidden', 'true');
-  fileGlyph.append(icon('check', { size: 16 }));
-  const fileName = document.createElement('span');
-  fileName.className = 'c-launch__file-name';    // textContent only — names are untrusted
-  fileRow.append(fileGlyph, fileName);
-  card.append(fileBtn, fileRow, pw.wrap);
-  const err = errLine();
-  card.append(err);
-  lower.append(card);
-
+  const err = launchErrLine();
+  const note = mk('p', 'c-launch__fnote');
+  note.dataset.align = 'start';
+  note.dataset.tone = 'key';
+  const keyG = icon('key', { size: 15 });
+  keyG.setAttribute('aria-hidden', 'true');
   // honesty line kept (spec §2.3): self-custody has no recovery path
-  const note = document.createElement('p');
-  note.className = 'c-launch__note';
-  note.textContent = strings.restoreNote
-    || 'Restoring needs this file and your password. Spixi can’t recover either for you.';
-  lower.append(note);
-  body.append(lower);
+  note.append(keyG, mk('span', null, strings.restoreNote
+    || 'Restoring needs this file and your password. Spixi can’t recover either for you.'));
+  fields.append(card, pwF.field, err, note);
+  body.append(hero, fields);
   v.append(body);
 
-  const footer = document.createElement('div');
-  footer.className = 'c-launch__footer';
-  // consent at the binding action, right above the commit button (Damir 2026-07-06)
-  const consent = consentLine(st, strings.restoreConsent || 'By restoring your account, you agree to the');
-  const cta = createButton({ label: strings.restoreSubmit || 'Restore account', size: 56, width: 'full' });
-  footer.append(consent, cta);
+  const footer = mk('div', 'c-launch__footer');
+  const cta = createButton({ label: strings.restoreSubmit || 'Restore account', size: 56, width: 'full', disabled: true });
+  footer.append(cta);
   v.append(footer);
 
-  const setError = (msg, focusEl) => {
-    err.textContent = msg;
-    err.hidden = !msg;
-    if (msg && focusEl) focusEl.focus();
-  };
-  pw.input.addEventListener('input', () => setError(''));
-
   let inFlight = false;
+  const sync = () => { if (!inFlight) cta.disabled = !(st.fileName && pw.input.value); };
+  st.restoreSync = sync;
+  const setWrong = (on) => {
+    pwF.setError(on);
+    err.setMessage(on ? (strings.restoreFailed || 'That password didn’t open the backup.') : '');
+  };
+  pw.input.addEventListener('input', () => { setWrong(false); sync(); });
+
   const submit = () => {
     if (inFlight) return;
-    if (!st.fileName) return setError(strings.fileEmpty || 'Choose your backup file first.');
-    const p = pw.input.value;                    // NOT trimmed
-    if (!p) return setError(strings.passwordEmpty || 'Enter your wallet password.', pw.input);
-    setError('');
+    if (!st.fileName) { err.setMessage(strings.fileEmpty || 'Choose your backup file first.'); return; }
+    const p = pw.input.value;                      // NOT trimmed
+    if (!p) { err.setMessage(strings.passwordEmpty || 'Enter your wallet password.'); pw.input.focus(); return; }
+    setWrong(false);
     inFlight = true;
-    pw.input.disabled = true; fileBtn.disabled = true;
+    pw.input.disabled = true; card.disabled = true;
+    const label = cta.querySelector('.c-button__label');
+    if (label) label.textContent = strings.restoringAccount || 'Restoring…';
     setLoading(cta, true);
-    // no auto-release: restore HAS an explicit fail signal — the host maps
-    // showPasswordError (+removeLoadingOverlay; one-shot latch absorbs the
-    // double signal) → ctrl.fail(msg) (spec §2.3)
+    const settle = () => {
+      inFlight = false;
+      setLoading(cta, false);
+      const l = cta.querySelector('.c-button__label');
+      if (l) l.textContent = strings.restoreSubmit || 'Restore account';
+    };
+    /* ★ ON-1 BUG FIX: ONLY C#'s showPasswordError means "wrong password". The host maps it
+       to fail(<a reason>); every other failure arrives as removeLoadingOverlay → fail('')
+       UNDER a native alert that already said what went wrong — that path used to paint
+       "That password didn't open the backup" beneath an alert saying something else. Now
+       it re-enables the form silently. The staged file stays either way (C# keeps it). */
     const ctrl = launchCtrl(
-      () => {                                    // C# navigates to Home
-        inFlight = false;
-        setLoading(cta, false);
+      () => {                                      // C# navigates to Home
+        settle();
+        cta.disabled = true;
         setSuccess(cta, { label: strings.restored || 'Restored' });
         scrub();
       },
-      (msg) => {
-        inFlight = false;
-        pw.input.disabled = false; fileBtn.disabled = false;
-        setLoading(cta, false);
-        setError(msg || strings.restoreFailed || 'That password didn’t open the backup.', pw.input);
+      (reason) => {
+        settle();
+        pw.input.disabled = false; card.disabled = false;
+        sync();
+        if (reason) {
+          setWrong(true);
+          try { pw.input.focus(); pw.input.select(); } catch { /* courtesy */ }
+        }
       },
     );
-    emitAccept(st);                              // consent at the binding action (spec §5)
     try {
       if (opts.onRestore) opts.onRestore(p, ctrl); else ctrl.done();
-    } catch { ctrl.fail(); }                     // #141-m4
+    } catch { ctrl.fail(''); }                     // #141-m4 (silent: a host fault is not a password verdict)
   };
   cta.addEventListener('click', submit);
-  pw.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  pw.input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !imeBusy(e) && !cta.disabled) submit(); });
 
-  st.els.fileRow = fileRow;
-  st.els.fileName = fileName;
-  st.els.fileBtn = fileBtn;
+  /* the card paints from st.fileName (setLaunchFile) */
+  st.renderFile = () => {
+    const has = !!st.fileName;
+    card.toggleAttribute('data-file-set', has);
+    fTile.replaceChildren(icon(has ? 'check' : 'download', { size: 20 }));
+    fTitle.textContent = has ? st.fileName : (strings.fileChoose || 'Choose backup file');
+    fSub.textContent = has ? (strings.fileChange || 'Change') : (strings.fileSub || 'The file you saved from Spixi');
+    fSub.classList.toggle('c-launch__filecard-change', has);
+    fEnd.replaceChildren(...(has ? [] : [icon('chevron-right', { size: 20 })]));
+    sync();
+  };
+  st.renderFile();
+  st.focusRestore = () => { try { pw.input.focus({ preventScroll: true }); } catch { /* courtesy */ } };
   st.els.fileCard = card;
   return v;
 }
@@ -33922,7 +35187,7 @@ function buildRetry(st) {
     } catch { ctrl.fail(''); }                   // #141-m4 (silent — alert-covered path)
   };
   cta.addEventListener('click', submit);
-  pw.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  pw.input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !imeBusy(e)) submit(); });
 
   return v;
 }
@@ -33960,6 +35225,31 @@ function createLaunchShell(opts = {}) {
   st.views.retry = buildRetry(st);
   el.append(st.views.welcome, st.views.create, st.views.restore, st.views.retry);
 
+  /* ★ ON-1 (#1422): THE RINGS — ONE shared layer for every view, never per view, never
+     re-created on a switch, so nothing moves or flashes on the welcome → create / restore
+     slide. It sits ABOVE the views (the sliding view is an opaque layer at --z-30 — a
+     layer behind the views would vanish for the length of the slide) and under every
+     sheet (sheets mount on the host, outside this section). pointer-events: none. */
+  const rings = document.createElement('div');
+  rings.className = 'c-launch__rings';
+  rings.setAttribute('aria-hidden', 'true');
+  rings.append(ringsSvg('tr'), ringsSvg('bl'));
+  el.append(rings);
+  st.rings = rings;
+  guardRingsSoon(st);                            // ★ #46 r2: the first fit (art + rings) once laid out
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => guardRingsSoon(st)); } catch { /* no font API */ }
+  if (typeof ResizeObserver === 'function') {
+    try {
+      /* ★ #46 r5 (NIT): the fit runs in the NEXT frame (guardRingsSoon → rAF), never inside the observer callback —
+         its trial layouts resize what is observed, which is the "ResizeObserver loop completed" error.
+         ★ r6: the CAROUSEL is observed too — its box IS the room (an inset push changes it without resizing the
+         shell); the fit's own level change re-triggers once and stops on the unchanged room key. */
+      const ro = new ResizeObserver(() => guardRingsSoon(st));
+      ro.observe(el);
+      if (st.els.carousel) ro.observe(st.els.carousel);
+    } catch { /* decoration only */ }
+  }
+
   // SECURITY §5 + #162 grammar: ONE window-level pagehide listener scrubs
   // every password field the shell owns (backgrounded WebView). The shell IS
   // the page (no unmount hook), so the listener self-cleans on the first
@@ -33983,6 +35273,8 @@ function createLaunchShell(opts = {}) {
 function setLaunchView(el, view) {
   const st = launchState.get(el);
   if (!st || !LAUNCH_VIEWS.includes(view) || st.view === view) return;
+  // ★ ON-1: C#'s hardware back while create step 2 is up = step 1 (values kept, re-reported)
+  if (view === 'welcome' && createStepBack(st)) return;
   /* ★ review MINOR-1 (SECURITY §5): every view switch the COMPONENT drives scrubs the
      password fields it leaves behind (the topbar Back handlers do it explicitly). This
      entry point is the one C# drives — hardware back, and the retry lockout — and it
@@ -34002,6 +35294,7 @@ function setLaunchView(el, view) {
 function launchShellBack(el) {
   const st = launchState.get(el);
   if (!st || st.view === 'welcome') return false;
+  if (createStepBack(st)) return true;           // ★ ON-1: step 2 → step 1 first
   const from = st.view;
   st.scrubs.forEach((s) => { try { s(); } catch { /* a dead field must not block the switch */ } });
   show(st, 'welcome');
@@ -34009,12 +35302,20 @@ function launchShellBack(el) {
   return true;
 }
 
+/** ★ #46 r5: run the welcome fit NOW (art size, logo, compact level) — the shell runs it itself on every resize
+ *  (next frame); a host or a test that changed the layout synchronously can call it. No-op when nothing moved. */
+function launchWelcomeFit(el) {
+  const st = launchState.get(el);
+  if (st && st.fitArt) st.fitArt();
+}
+
 /** ← setVersion(Config.version) — quiet welcome footer line. */
 function setLaunchVersion(el, v) {
   const st = launchState.get(el);
   if (!st) return;
   st.els.version.textContent = v || '';
-  st.els.version.hidden = !v;
+  // ★ #46 r3: never `hidden` — the box keeps its reserved height either way, only its text and a11y change
+  if (v) st.els.version.removeAttribute('aria-hidden'); else st.els.version.setAttribute('aria-hidden', 'true');
 }
 
 /** ← showTerms() — C# only calls it when terms are NOT yet accepted. Premium
@@ -34040,17 +35341,11 @@ function setLaunchFile(el, name) {
   const st = launchState.get(el);
   if (!st) return;
   st.fileName = name || '';
-  st.els.fileName.textContent = st.fileName;
-  st.els.fileRow.hidden = !st.fileName;
-  /* ★ #1034 (polish Q1, release-readiness §3): the FILE-SET state is distinct — once a file is picked the
-     picker stops asking to "Choose" a file it already has and offers to REPLACE it; the ✓ row carries the
-     name. Cleared again (label back) if C# ever pushes an empty name. The card carries `data-file-set` as a
-     structural hook (#1035: no stylesheet reads it yet — the LABEL carries the state); the button keeps its
-     role and its handler (the same picker verb). */
-  const strings = st.strings || getStrings();
-  const label = st.els.fileBtn && st.els.fileBtn.querySelector('.c-button__label');
-  if (label) label.textContent = st.fileName ? (strings.replaceFile || 'Replace file') : (strings.chooseFile || 'Choose backup file…');
-  if (st.els.fileCard) st.els.fileCard.toggleAttribute('data-file-set', !!st.fileName);
+  /* ★ #1034 → ★ ON-1: the FILE-SET state is distinct — the file card turns green and
+     carries the name (textContent: C# sends the name only, no date) with "Change"; an
+     empty name flips it back to "Choose backup file". `data-file-set` is the state hook
+     the stylesheet reads now. The card keeps its role and its handler (the same verb). */
+  if (st.renderFile) st.renderFile();
 }
 
 /* ---- src/components/backup-nudge.js ---- */
@@ -35809,5 +37104,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, clearRowHover: clearRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsRenderPlan: chatsRenderPlan, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, radioArrows: radioArrows, createThemePicker: createThemePicker, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, formatFileSizeOf: formatFileSizeOf, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, clearRowHover: clearRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, LINKIFY_MAX: LINKIFY_MAX, urlSpans: urlSpans, parseFormat: parseFormat, formatSpans: formatSpans, stripFormat: stripFormat, renderFormat: renderFormat, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, applyFormat: applyFormat, mountFormatBar: mountFormatBar, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, composerMotion: composerMotion, emitComposerShift: emitComposerShift, bandY: bandY, canSlide: canSlide, slideBand: slideBand, stopBand: stopBand, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsRenderPlan: chatsRenderPlan, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, txDayLabel: txDayLabel, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, radioArrows: radioArrows, createThemePicker: createThemePicker, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, launchRingQuiet: launchRingQuiet, launchRingGeometry: launchRingGeometry, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, launchWelcomeFit: launchWelcomeFit, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

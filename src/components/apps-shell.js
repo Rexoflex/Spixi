@@ -8,7 +8,8 @@
  *   app:   { id, name, icon, creator }
  *   state: { apps:[], query:'', layout:'list'|'grid' }
  * opts:  { strings, host, onLaunch(app), onOpen(app), onUninstall(app), onModelChange,
- *          emptyIllustration, onAddApp }
+ *          emptyIllustration, onAddApp, appRun }
+ *         ★ S20 C (#1377): appRun:true → the tile tap = onOpen (details), a Run button = onLaunch, no menu.
  *         onLaunch = primary tap (launch the app + record recent); onOpen = open details
  *         (the ⋮ "App details" action). Recents model: recordRecent / orderedRecents.
  *         emptyIllustration + onAddApp drive the FULL empty state (c-empty-state) shown
@@ -94,8 +95,9 @@ function rowKey(app, i) {
 }
 /** Cheap field-wise equality — deliberately NOT a joined signature string, which
  *  would copy the whole data-URI icon on every render (the cost we came to remove). */
-function rowFresh(hit, a, layout, hasInfo, hasMenu) {
+function rowFresh(hit, a, layout, hasInfo, hasMenu, hasRun) {
   return !!hit
+    && hit.hasRun === hasRun
     && hit.layout === layout
     && hit.name === (a.name || '')
     && hit.creator === (a.creator || '')
@@ -167,8 +169,11 @@ export function renderAppsList(listEl, state, opts = {}) {
 
   const cache = cacheFor(listEl);
   const apps = orderedApps(state);
-  const hasInfo = !!(opts.appMenu === false && opts.onOpen);
-  const hasMenu = opts.appMenu !== false;
+  /* ★ S20 C (#1377): `appRun: true` = the tile tap opens the DETAILS (opts.onOpen) and a trailing Run button launches
+     (opts.onLaunch); no ⋮ and no ⓘ beside it (Uninstall / "Invite a contact" live on the details page). */
+  const hasRun = !!(opts.appRun && opts.onOpen && opts.onLaunch);
+  const hasInfo = !hasRun && !!(opts.appMenu === false && opts.onOpen);
+  const hasMenu = !hasRun && opts.appMenu !== false;
 
   // Cache keys, de-duplicated. A feed CAN hand us two entries sharing an id (a
   // double addApp for the same app, a malformed manifest): the shared key made
@@ -192,11 +197,13 @@ export function renderAppsList(listEl, state, opts = {}) {
   const nodes = apps.map((a, i) => {
     const key = keys[i];
     const hit = cache.rows.get(key);
-    if (rowFresh(hit, a, layout, hasInfo, hasMenu)) return hit.el;
+    if (rowFresh(hit, a, layout, hasInfo, hasMenu, hasRun)) return hit.el;
     const cur = () => cache.live.get(key) || a;          // always the CURRENT model object
     const el = createAppItem({
       ...a, layout, strings,
-      onOpen: opts.onLaunch ? () => opts.onLaunch(cur()) : undefined,   // tap → LAUNCH the app
+      // tap → LAUNCH the app; ★ S20 C (#1377): with appRun the tap opens the DETAILS and Run launches
+      onOpen: hasRun ? () => opts.onOpen(cur()) : (opts.onLaunch ? () => opts.onLaunch(cur()) : undefined),
+      onRun: hasRun ? () => opts.onLaunch(cur()) : undefined,
       // ⓘ info → open details (launch-mode/uninstall live there). Mobile v1 uses this
       // INSTEAD of the ⋮ menu: wired only when the menu is off (appMenu:false) and a
       // details handler exists — so a menu-driven surface (demos) never doubles up.
@@ -208,7 +215,7 @@ export function renderAppsList(listEl, state, opts = {}) {
         onAction: (action) => applyAppAction(listEl, state, cur(), action, opts),
       }),
     });
-    cache.rows.set(key, { el, layout, name: a.name || '', creator: a.creator || '', icon: a.icon || null, hasInfo, hasMenu });
+    cache.rows.set(key, { el, layout, name: a.name || '', creator: a.creator || '', icon: a.icon || null, hasInfo, hasMenu, hasRun });
     return el;
   });
   const emptyEl = apps.length ? null : appsEmptyNode(cache, state, opts, strings);

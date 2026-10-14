@@ -215,6 +215,32 @@ namespace SPIXI
             return size.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        /** ★ S20 E (#1376, P29, flag SpixiFlags.S20FileSize — offerSizeArg above stays the OFF path): addFile arg 20 in BOTH
+         *  directions — invariant digits, or "" when the size is not known. Each source is C#'s own:
+         *  received (offer or done) = the header size · sent in flight = the outgoing transfer's size (0 = none), else (the
+         *  transfer gone after a restart, #46 S20 r1) the local copy's length · sent and done = the length of the C#-resolved local copy (-1 = not measured / missing). A 0 size is "" (unknown). */
+        public static string fileSizeArg(bool localSender, bool completed, ulong headerBytes, ulong outgoingBytes, long localFileBytes)
+        {
+            ulong bytes;
+            if (!localSender)
+            {
+                bytes = headerBytes;
+            }
+            else if (!completed)
+            {
+                // ★ #46 S20 r1 (auditor B MINOR): the live transfer first; gone (an app restart) → the local copy
+                bytes = outgoingBytes > 0 ? outgoingBytes : (localFileBytes > 0 ? (ulong)localFileBytes : 0);
+            }
+            else
+            {
+                bytes = localFileBytes > 0 ? (ulong)localFileBytes : 0;
+            }
+            return bytes == 0 ? "" : bytes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /** ★ S20 E (P29): the start log line of SpixiFlags.S20FileSize — fixed words. */
+        public static string fileSizeFlagLine(bool on) => "[FLAGS] s20filesize=" + (on ? "1" : "0");
+
         /** The cache key: the peer (the chat) + the message id hex (lower case) — a preview is never shown in another chat. */
         public static string offerKey(string peer, string msgHex)
         {

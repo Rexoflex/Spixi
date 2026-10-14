@@ -110,13 +110,16 @@ export default async function (h) {
     b.eligible = /case "lang":\s*eligible = S17MomentRules\.langEligible\(page is SettingsPage, arg, pendingLang\);\s*break;/.test(ans)
       && /public static Eligible langEligible\(bool onSettings, string\? arg, string\? pendingLang\) =>\s*onSettings && isLangCode\(arg\) && !isEnglish\(arg!\) && string\.Equals\(arg, pendingLang, StringComparison\.Ordinal\)/.test(RU);
     /* the session bit and the home push follow takesSession — never taken by lang */
-    b.session = (ans.match(/S17MomentRules\.takesSession\(id\)/g) || []).length === 2
-      && /if \(S17MomentRules\.takesSession\(id\)\)\s*\{\s*sessionMoment = true;\s*startSession\(\);\s*\}/.test(ans);
+    /* ★ re-based by S20 S (#1379 G): takesSession(id, atInstall) — lang is still never taking it (exemptFromSession(id) below) */
+    b.session = (ans.match(/S17MomentRules\.takesSession\(id, atInstall\)/g) || []).length === 2
+      && /if \(S17MomentRules\.takesSession\(id, atInstall\)\)\s*\{\s*sessionMoment = true;\s*startSession\(\);\s*\}/.test(ans);
     b.reset = /sessionLangs\.clear\(\);/.test(reset) && /pendingLang = "";/.test(reset);
     b.rules = /public static bool exemptFromSession\(string id\) => id == "firstixi" \|\| id == "lang";/.test(RU)
       && /public static bool takesSession\(string id\) => !exemptFromSession\(id\);/.test(RU)
-      && /if \(!exemptFromSession\(id\) && \(sessionMoment \|\| sessionCard\)\) return Decision\.Refuse;/.test(RU)
-      && /if \(!exemptFromSession\(id\)\)\s*\{\s*if \(sessionMoment\) return Why\.Session;\s*if \(sessionCard\) return Why\.Card;/.test(RU)
+      /* ★ re-based by S20 S (#1379 G): the 6-argument decide / why read exemptFromSession(id, installMoment), which keeps lang */
+      && /if \(!exemptFromSession\(id, installMoment\) && \(sessionMoment \|\| sessionCard\)\) return Decision\.Refuse;/.test(RU)
+      && /if \(!exemptFromSession\(id, installMoment\)\)\s*\{\s*if \(sessionMoment\) return Why\.Session;\s*if \(sessionCard\) return Why\.Card;/.test(RU)
+      && /public static bool exemptFromSession\(string id, bool installMoment\) => exemptFromSession\(id\) \|\| \(installMoment && id == "app"\);/.test(RU)
       && !/id != "firstixi"/.test(RU);
     b.csh = /public void Lang_OncePerLanguagePerSession_ExemptAndNeverTakesTheSession\(\)/.test(rd('scripts/csh/S17MomentTests.cs'));
   } catch (e) { b.threw = e.message; }

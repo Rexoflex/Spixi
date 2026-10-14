@@ -62,6 +62,7 @@
 <link rel="preload" href="../assets/fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../styles/tokens.css">
 <link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/launch-font.css"><!-- ★ ON-1 (#1421 (4)): Sora latin-ext (15.5 KB, OFL) — THIS shell only, after base.css's Latin face -->
 <link rel="stylesheet" href="../styles/components/button.css">
 <link rel="stylesheet" href="../styles/components/topbar.css">
 <link rel="stylesheet" href="../styles/components/avatar.css">
@@ -71,6 +72,7 @@
 <link rel="stylesheet" href="../styles/components/settings-shell.css"><!-- language/theme sheets (one picker grammar) -->
 <link rel="stylesheet" href="../styles/components/settings-screens.css"><!-- #147 theme preview tiles -->
 <link rel="stylesheet" href="../styles/components/launch-shell.css">
+<link rel="stylesheet" href="../styles/components/launch-form.css"><!-- ★ ON-1 (#1420–#1422): create / restore, the rings, the launch motion — this shell only -->
 <link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/subscreen-slide.css"><!-- ★ Session H: the in-shell subscreen slide (walk row 31) -->
 <style>
@@ -114,13 +116,89 @@
      scrolling column (it carries u-scroll), so capping it would move the scrollbar ~640px
      in from the window edge on a wide window. The footer is not a scroller, so it
      caps directly. */
+  /* ★ ON-1 (#1422): create + restore lay out on their own now (launch-shell.css: a 460 px
+     column below 900 px, two columns on a desktop window ≥ 900 px), so this cap is the
+     RETRY view's alone — scoped to it, or its id-weight would cap the desktop grid cells. */
   @media (min-width: 700px) {
-    #launch-root .c-launch__body > *,
-    #launch-root .c-launch__footer {
+    #launch-root [data-launch-view="retry"] .c-launch__body > *,
+    #launch-root [data-launch-view="retry"] .c-launch__footer {
       width: 100%;
       max-width: 640px;
       margin-inline: auto;
     }
+  }
+
+  /* ══ desktop (Windows / Mac), Part B ══════════════════════════════════════════════════
+     No launch frame of its own: the Windows bar already says "Spixi", so no brand here. */
+  @media (min-width: 900px) {
+    /* two columns: the hero on the left (~46 %), ONE 460 px card on the right */
+    :root[data-desktop] .c-launch__form {
+      display: grid;
+      grid-template-columns: 46% 1fr;
+      grid-template-rows: 1fr auto auto auto auto 1fr;
+      padding: 48px 0;
+      overflow-y: auto;
+    }
+    :root[data-desktop] .c-launch__form > .c-topbar,
+    :root[data-desktop] .c-launch__form .c-launch__body > *,
+    :root[data-desktop] .c-launch__form .c-launch__footer > * { max-width: none; margin-inline: 0; }
+    :root[data-desktop] .c-launch__form .c-launch__step,
+    :root[data-desktop] .c-launch__form .c-launch__body { display: contents; }
+    :root[data-desktop] .c-launch__form .c-launch__hero {
+      grid-column: 1;
+      grid-row: 1 / -1;
+      align-self: center;
+      justify-self: center;
+      padding: 0 48px;
+      gap: var(--spacing-12);
+    }
+    :root[data-desktop] .c-launch__form .c-launch__hero-title { font-size: 38px; line-height: 1.12; max-width: 440px; margin-top: 18px; }
+    :root[data-desktop] .c-launch__form .c-launch__hero-copy { font-size: 17px; max-width: 380px; }
+    :root[data-desktop] .c-launch__photo:not([data-size="sm"]) { width: 168px; height: 168px; }
+    :root[data-desktop] .c-launch__photo[data-size="sm"] { width: 128px; height: 128px; }
+    :root[data-desktop] .c-launch__form .c-launch__hero-illo { width: 220px; max-height: none; }
+    /* the card: drawn once behind rows 2–5 of the right column (no outline — Decision 5) */
+    :root[data-desktop] .c-launch__form::before {
+      content: '';
+      grid-column: 2;
+      grid-row: 2 / 6;
+      justify-self: center;
+      width: 460px;
+      margin: -26px 0 -28px;
+      border-radius: var(--launch-radius-card);
+      background: var(--launch-card-bg);
+      -webkit-backdrop-filter: blur(24px);
+              backdrop-filter: blur(24px);
+      box-shadow: var(--launch-card-shadow);
+    }
+    :root[data-desktop] .c-launch__form > .c-topbar,
+    :root[data-desktop] .c-launch__form > .c-launch__progress,
+    :root[data-desktop] .c-launch__form .c-launch__fields,
+    :root[data-desktop] .c-launch__form .c-launch__footer {
+      grid-column: 2;
+      justify-self: center;
+      width: 404px;
+      position: relative;
+    }
+    :root[data-desktop] .c-launch__form > .c-topbar { grid-row: 2; height: auto; min-height: 44px; padding: 0; gap: var(--spacing-8); margin-left: -8px; width: 412px; position: relative; z-index: auto; }
+    :root[data-desktop] .c-launch__form .c-launch__head { flex-direction: row; align-items: center; justify-content: flex-start; }
+    :root[data-desktop] .c-launch__form .c-launch__head-title { font-size: 18px; }
+    :root[data-desktop] .c-launch__form .c-launch__head-step { margin-inline-start: auto; padding-inline-start: var(--spacing-8); font-size: 13px; }
+    :root[data-desktop] .c-launch__form > .c-launch__progress { grid-row: 3; margin: var(--spacing-8) 0 20px; max-width: none; }
+    :root[data-desktop] .c-launch__form .c-launch__fields { grid-row: 4; }
+    :root[data-desktop] .c-launch__form:not([data-progress]) > .c-topbar { margin-bottom: var(--spacing-16); }
+    :root[data-desktop] .c-launch__form .c-launch__footer { grid-row: 5; padding: var(--spacing-16) 0 0; margin: 0; }
+    /* step 1 → 2 on desktop: the hero cross-fades in place, the card content slides */
+    :root[data-desktop] .c-launch__step[data-enter] .c-launch__hero { animation: c-launch-fade-in 220ms var(--easing-standard) both; }
+    :root[data-desktop] .c-launch__step[data-enter="fwd"] .c-launch__fields,
+    :root[data-desktop] .c-launch__step[data-enter="fwd"] .c-launch__footer { animation: c-launch-step-fwd 220ms var(--easing-standard) both; }
+    :root[data-desktop] .c-launch__step[data-enter="back"] .c-launch__fields,
+    :root[data-desktop] .c-launch__step[data-enter="back"] .c-launch__footer { animation: c-launch-step-back 220ms var(--easing-standard) both; }
+  }
+  @media (min-width: 900px) and (prefers-reduced-motion: reduce) {
+    :root[data-desktop] .c-launch__step[data-enter] .c-launch__hero,
+    :root[data-desktop] .c-launch__step[data-enter] .c-launch__fields,
+    :root[data-desktop] .c-launch__step[data-enter] .c-launch__footer { animation: c-launch-fade-in 140ms linear both; }
   }
 </style>
 </head>
@@ -187,6 +265,7 @@
    * ————————————————————————————————————————————————————————————————————————— */
   const {
     createLaunchShell, setLaunchVersion, setLaunchAvatar, setLaunchFile, launchShellBack,
+    setLaunchTerms,   // ★ #46 r1: showTerms arms the component's one consent latch
     /* ★★ L4 ROOT CAUSE (#714, Damir's logcat 2026-08-30: "view=create" on press one, the
        view did not move, "view=welcome" on press two, app exits). C# pushes
        `executeUiCommand(setLaunchView, …)` with setLaunchView as a BARE IDENTIFIER, and this
@@ -239,15 +318,14 @@
   /* —— consent ————————————————————————————————————————————————————————————
    * LaunchPage.onLoad pushes showTerms only when terms are NOT yet accepted. We
    * record consent (ixian:accept) ONCE, at the first Create/Restore tap on the
-   * welcome view. Premium round: "continuing = agreeing"
-   * (the fine-print consent line + in-app Terms/Privacy sheets render on the
-   * create/restore forms; the binding tap is the welcome CTA that navigates). */
-  let termsRequired = false, acceptSent = false;
-  function recordConsent() {
-    if (!termsRequired || acceptSent) return;
-    acceptSent = true;
-    bridge.send('ixian:accept');
-  }
+   * welcome view. Premium round: "continuing = agreeing".
+   * ★ ON-1 (#1421 (1)): this stays THE consent point; the fine-print line that sat on
+   * the create / restore forms is gone — ★ #46 r1: it now sits on WELCOME, under the two
+   * buttons whose tap records consent.
+   * ★ #46 r1 (MINOR-1): ONE latch, the component's. showTerms → setLaunchTerms arms it,
+   * the welcome tap runs emitAccept once, and onAcceptTerms below sends the verb. The
+   * shell's own recordConsent twin is gone (two latches for one verb is how a path dies
+   * unnoticed — the component's was dead in this shell before). */
 
   /* —— active locale ————————————————————————————————————————————————————————
    * A4 (Opus #46 loop): the shell never told launch-shell WHICH locale is active,
@@ -287,9 +365,9 @@
        the hardware back button, and reporting it from the two CTA hooks meant every
        OTHER way the view can move — the retry lockout, a future entry point — told C#
        nothing, which is the reported "back exits the app from create/restore".
-       What is left here is the ONE thing only the host can do: record consent. */
-    onGoCreate: () => { recordConsent(); },
-    onGoRestore: () => { recordConsent(); },
+       ★ #46 r1: consent left these hooks too — the component records it (emitAccept) and
+       calls onAcceptTerms ONCE; the host only carries the verb. */
+    onAcceptTerms: () => bridge.send('ixian:accept'),
     /* the single view report. `ixian:view:<name>` is dispatched with the SAME anchored
        StartsWith grammar as the payload verbs (#393 MAJOR-2), and the three legacy bare
        verbs stay handled C#-side so a STALE built intro.html still tracks. */
@@ -336,7 +414,7 @@
      * the dispatcher's own try/catch can run (the #258 addAppRequest lesson). */
     setTheme(name) { applyPushedTheme(name); },
     setVersion: (v) => setLaunchVersion(el, v),
-    showTerms: () => { termsRequired = true; },      // arm the one-shot ixian:accept
+    showTerms: () => setLaunchTerms(el, true),       // arm the component's one-shot ixian:accept (★ #46 r1)
     showOnboardingSection: () => {},                 // legacy no-op: welcome always shows CTAs
     /* ★ S15 (O-04, #1293): a launch with NO wallet file on the device starts from a clean WebView store. C# pushes this
        from LaunchPage.onLoad ONLY when no wallet file exists, so every spixi.* key it meets belongs to an
@@ -364,11 +442,14 @@
     setUploadedFileName: (path) => setLaunchFile(el, baseName(path)),
     // restore: wrong password → inline error on the field (spec §2.3). One-shot
     // latch: C# fires showPasswordError THEN removeLoadingOverlay — the error wins.
-    showPasswordError: () => { if (activeCtrl) activeCtrl.fail(strings.restoreFailed || 'That password didn\u2019t open the backup.'); },
+    // ★ ON-1 BUG FIX: the reason is a flag, the component owns the words — and ONLY this
+    // push paints "wrong password" (the component shows it for a non-empty reason alone).
+    showPasswordError: () => { if (activeCtrl) activeCtrl.fail('wrong-password'); },
     /* the shared release. SILENT fail('') everywhere: create and retry are both
-       covered by a native alert that already spoke, and restore's own message
-       already landed through showPasswordError. fail('') keeps the typed values
-       and re-enables the form. */
+       covered by a native alert that already spoke, and so is every NON-password restore
+       failure (★ ON-1: those used to paint the wrong-password line under an alert that
+       said something else). fail('') keeps the typed values, the staged file, and
+       re-enables the form. */
     removeLoadingOverlay: () => { if (activeCtrl) activeCtrl.fail(''); },
   };
 

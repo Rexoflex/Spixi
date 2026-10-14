@@ -262,7 +262,7 @@ button.c-bubble__sender {
 .c-bubble[data-emoji-only] .c-bubble__meta .c-status-icon[data-tone="delivered"] { color: var(--text-neutral-02); }
 .c-bubble-row[data-direction="sent"] .c-bubble[data-emoji-only] { display: flex; flex-direction: column; align-items: flex-end; }
 /* ★ #1044 (Damir 2026-09-29, screenshots: the outgoing sticker's time + ticks sat on the grey canvas
-   chip, where the sent-tick inks — the near-white delivered at 0.571, the mint read — were near
+   chip, where the sent-tick inks — the near-white delivered (then 0.571, #1377: 0.7), the mint read — were near
    invisible in light): an OUTGOING emoji-only message's meta chip is the SENT bubble's colour, so
    its time and ticks are exactly the ones every other outgoing message shows (same inks, same
    contrast the bubble already measures — meta 5.05:1, read mint 4.52:1). Received stickers keep the
@@ -488,35 +488,24 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
    a box-level opacity would cap the read tick at 0.7 too, since a child can never be
    more opaque than its parent. The failed glyph keeps 1.0 as well (an error must not
    be dimmed — the #48 rule). Received bubbles were untouched until #1041 (below). */
-/* ★ S9 U-03 (#1247, measured): 0.92 lifts the sent time from 3.30:1 to 4.53:1 light · 4.41:1 to 6.37:1 dark. */
-.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.92; }
+/* ★ S9 U-03 (#1247) had lifted the sent time to 0.92 (4.5:1) · ★★ S20 Q (#1377 B, Damir's dial option 2): the time, the ✓
+   (sent) and the ✓✓ (delivered) are ONE quiet weight again — the token, 0.7 — and only read + failed stand out at 1 (below).
+   Damir's knowing trade, measured on the built shells: the ticks ≥ 3:1 on 13 of 14 colour × theme pairs; the time under
+   4.5:1 on 11 / 14 (the incoming #1041 trade). The #692 delivered-only 0.571 rule is gone (this rule carries the tick). */
+.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: var(--bubble-meta-opacity-sent); }
 /* ★ #1041 (Damir 2026-09-29, screenshot: "the incoming timestamp should be reduced opacity as well,
    it clashes with the actual message"): the RECEIVED meta row takes the same 0.7 on its children —
    one timestamp weight on both sides of the conversation. ⚠ Measured, and Damir's knowing trade (the
    A9 precedent on the sent side): 0.7 puts the light timestamp at 3.51:1 on the white bubble (dark
    5.14:1) — under 4.5:1 for small text in LIGHT. The timestamp is secondary metadata; the message is
    the content. Reversal = delete this rule. */
-.c-bubble-row[data-direction="received"] .c-bubble__meta > * { opacity: 0.7; }
+.c-bubble-row[data-direction="received"] .c-bubble__meta > * { opacity: var(--bubble-meta-opacity-received); }
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="read"],
 .c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="failed"] { opacity: 1; }
-/* ★ E1 (Damir 2026-08-29): the DELIVERED double-check drops below the rest of the
-   meta row so the READ tick separates. The measurement is the reason this is a real
-   change and not a preference: on the #1956b2 bubble the two glyphs were almost the
-   same LIGHTNESS — delivered L* 76.8, read L* 75.3 — and differed only in hue, which
-   is exactly why read did not pop. At 0.571 delivered lands at L* 70.0 and ΔE(read,
-   delivered) goes 43.3 → 48.6.
-   ⚠ 0.571, not the 0.525 that "reduce alpha by 25%" reads as literally: 0.525 puts
-   the glyph at 2.76:1 against the bubble, under the 3:1 non-text contrast floor this
-   file already tracks (audit findings 1+2, two rules up). 0.571 sits exactly ON 3.00:1
-   — an 18.4% reduction — and Damir took that trade knowingly.
-   ★ This targets the DELIVERED glyph ALONE. It must not be folded into the blanket
-   `.c-bubble__meta > *` rule above, which also carries the timestamp and the edited
-   marker; those stay at 0.7. And it needs no dark-mode twin: the sent bubble is the
-   same #1956b2 in both themes and --icon-bubble-delivered resolves to the same
-   --text-bubble-sent-meta in both, so ONE rule genuinely covers both modes. */
-.c-bubble-row[data-direction="sent"] .c-bubble__meta .c-status-icon[data-tone="delivered"] { opacity: 0.571; }
+/* ★ E1 (#692, 2026-08-29) dropped the DELIVERED tick alone to 0.571 so read separated on lightness — RETIRED by #1377 B (S20):
+   the delivered tick takes the blanket sent-meta token above with the time and the ✓; read keeps its mint at 1. */
 /* ★ Session X (Damir 2026-09-17): the ticks keep ONE weight and ONE size — COLOUR is the only
-   differentiator (delivered = the meta ink at 0.571, read = --icon-bubble-read, the mint that
+   differentiator (delivered = the meta ink at the sent-meta opacity (#1377), read = --icon-bubble-read, the mint that
    clears 4.5:1 on the bubble). A heavier read tick shipped for one build and was REVERSED on
    his word (#877). Nothing here may thicken, enlarge or restyle a tick by state. */
 /* A2 (#302): paid marker. Inherits the meta ink on BOTH directions — those inks are
@@ -691,7 +680,7 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 /* ★ #1010 (10b): a LIVE tick change fades in (160ms) instead of snapping — setMessageStatus
    adds the class only outside the load burst. Reduced motion: no animation. */
 /* ⚠ #1012 (Opus r1 M2): NO `to` keyframe and fill `backwards` — a `to { opacity: 1 }` held by fill
-   `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered 0.571 /
+   `both` pinned every live-changed tick at FULL opacity for good, beating the E1 delivered (now the #1377 sent-meta 0.7) /
    A9 sent 0.7 dims. The animation now runs from 0 to the element's OWN computed value and lets go. */
 /* ★ B10 (#1084 OV.10, measured: the 160 ms front-loaded fade read as a swap): 300 ms, symmetric curve, grows from 0.7. = TICK_FADE_MS / TICK_REPLAY_MS. */
 @keyframes c-tick-in { from { opacity: 0; transform: scale(0.7); } }

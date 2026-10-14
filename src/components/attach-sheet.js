@@ -48,6 +48,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
+import { composerMotion, emitComposerShift, slideBand, stopBand, bandY, canSlide } from './composer.js';   // ★ S20 A (#1378): the one composer motion
 
 const ATTACH_ACTIONS = [
   /* ★ #1355 (Damir 13:41 "having payment as the last 2 items"): the ORDER is Photos · Camera · File / App invite · Pay ·
@@ -181,6 +182,9 @@ export function openAttachTray({ composerEl, media = false, camera = false, apps
   if (!composerEl || !composerEl.parentNode) return null;
   const tiles = attachTilesFor({ media, camera, apps, payments, files });
   if (!tiles.length) return null;
+  const slot = composerEl.parentElement;
+  const vis = slot.offsetHeight - bandY(composerEl);   // ★ S20 A: the bar's top on screen now (a closing slide included)
+  let inset = composerEl.hasAttribute('data-tray-open') ? null : composerEl.offsetHeight;   // the bar before it gives up the inset
   const existing = composerEl.nextElementSibling;
   if (existing && existing.classList.contains('c-attach-tray')) {
     /* ★ Session H review MINOR-1 (auditor A): a CLOSING tray kept the class for its
@@ -189,8 +193,8 @@ export function openAttachTray({ composerEl, media = false, camera = false, apps
        drop it now and build fresh, so ⊕ during the exit re-opens in one tap. */
     const st = trayState.get(existing);
     if (!st || !st.closing) return existing;   // genuinely open — no-op
-    existing.remove();
-    trayState.delete(existing);
+    if (inset == null) inset = -(st.inset || 0);   // the dying tray already holds the inset: carry its measure
+    abortTrayClose(existing);
   }
 
   const tray = document.createElement('div');
@@ -212,69 +216,54 @@ export function openAttachTray({ composerEl, media = false, camera = false, apps
   publishTrayContentHeight(tray);
   watchTrayContent(tray);
   if (hold) {
-    tray.dataset.instant = '';   // no height transition: it opens in ONE frame when revealed
+    tray.dataset.instant = '';   // no slide: it opens in ONE frame when revealed
     return tray;                 // closed until revealAttachTray(tray) — which hands over the inset (B1)
   }
-  /* ★ B1: the non-hold paths open in THIS frame, so the hand-off happens in this frame too —
-     byte-identical to what the mount used to do. Only the held path defers it. */
+  /* ★ B1 + ★★ S20 A (#1378, "the inset drop before every rise"): data-tray-open AND data-open land in THIS frame — the
+     rise path used to give the tray its height two rAFs later, so the bar's foot dropped 46 px (3-button bar) first. */
   markComposerTrayOpen(composerEl);
+  tray.dataset.open = '';
+  trayState.get(tray).inset = inset < 0 ? -inset : Math.max(0, (inset || 0) - composerEl.offsetHeight);
   if (instant) {
-    tray.dataset.instant = '';   // attach-sheet.css: no height transition on this tray
-    tray.dataset.open = '';
+    tray.dataset.instant = '';   // #721: swapped with the keyboard, not animated
+    emitComposerShift(composerEl, 'set');
     return tray;
   }
-  // two rAFs so the closed height paints first and the rise animates
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (tray.isConnected && !trayState.get(tray).closing) tray.dataset.open = '';
-  }));
+  /* ★★ S20 A (#1378, A1): full height from the first frame (the log re-reserves ONCE on 'open'); the rise is transform
+     only — the tray up from below, the bar from where it was on screen. The height transition re-laid out the log on
+     every frame (3–4 frames 34–107 ms apart in Damir's recording). */
+  const { ms, easing } = composerMotion('open');
+  const from = Math.max(0, slot.offsetHeight - vis);
+  const T = tray.offsetHeight;
+  const ran = ms > 0 && canSlide(tray) && T > 0;
+  if (ran) {
+    slideBand(trayBand(slot, tray), from, 0, ms, easing);
+    slideBand([tray], T, 0, ms, easing);
+  }
+  emitComposerShift(composerEl, 'open', { ms: ran ? ms : 0, easing, dy: from });
   return tray;
 }
+function trayBand(slot, tray) {
+  const out = [];
+  if (slot) for (const c of slot.children) { if (c === tray) break; out.push(c); }
+  return out;
+}
 
-/* ★★ B1 (#46 loop, MAJOR on iPhone X-class) — WHO CARRIES THE HOME-INDICATOR INSET.
- * The contract: composer.css pads the bar by `--composer-pad-block + var(--safe-bottom)`;
- * attach-sheet.css `.c-composer[data-tray-open]` drops that to a flat `--spacing-8` because the
- * TRAY is bottom-most chrome then and carries the inset itself (`.c-attach-tray .c-attach` pads
- * `--spacing-16 + var(--safe-bottom)`).
- * THE DEFECT: the attribute was written at MOUNT. On the Session-K `hold` path the mount is up
- * to 450 ms before the tray gets a height, and a held tray is `height:0; overflow:hidden` — its
- * env() padding is CLIPPED, so for that whole window nobody carried the inset. Measured on an
- * iPhone with a home indicator, portrait: the bar's bottom pad went 6+34=40 → 8, i.e. the pill
- * AND (through --composer-h → #messages) the whole bottom of the conversation dropped 32 px at
- * the instant of the ⊕ tap, sat there for the keyboard-hide window, then the tray arrived.
- * (Android WAS 6 → 8 and no defect while `--safe-bottom` read 0 there — the root view was
- * padded by the insets listener instead. Since ★ AND-45 (Session Y) the shell carries the
- * nav-bar inset itself, so Android behaves exactly like iOS here: the drop is
- * `--composer-pad-block + --safe-bottom` → `--spacing-8` (6+48 → 8 on a 3-button bar), and a
- * held tray clips its inset for the same window. The rule below protects both.) Before K1 the `instant` path set both attributes in
- * one frame, so the change was swallowed inside the ~268 px swap.
- * THE RULE: THE COMPOSER SURRENDERS THE INSET ONLY IN THE FRAME SOMETHING ELSE TAKES IT — the
- * non-hold paths above (which open in that same frame), and revealAttachTray for a held tray.
- * It is NOT taken back on reveal: staying set is the intended END state, and closeAttachTray is
- * the one place it comes off — a hold cancelled inside the window therefore leaves the composer
- * exactly as it was found (removeAttribute on an attribute never written is a no-op).
- * REVERSAL: write this at mount again (above `composerEl.after(tray)`, unconditional) and the
- * 32 px lurch returns on every notched iPhone whose keyboard is up when ⊕ is tapped. */
+/* ★★ B1 (#46 loop) — WHO CARRIES THE HOME-INDICATOR INSET. The bar pads `--composer-pad-block + --safe-bottom`;
+ * `.c-composer[data-tray-open]` drops that to `--spacing-8` because the TRAY (bottom-most chrome then) carries the inset.
+ * THE RULE: the composer surrenders the inset ONLY in the frame something else takes it — the non-hold paths (which open
+ * in that frame) and revealAttachTray for a held tray (a held tray has no height: its inset would be clipped, and the pill
+ * + the log dropped 32 px on a notched iPhone / 46 px on a 3-button Android bar). Only the close's END takes it back, so
+ * a hold cancelled in its window leaves the composer exactly as found (removing a never-written attribute is a no-op).
+ * REVERSAL: write it at mount again and the lurch returns. */
 function markComposerTrayOpen(composerEl) {
   if (composerEl) composerEl.setAttribute('data-tray-open', '');
 }
 
-/* ★ Session AE (Damir on Android: the ⊕ tray opened with its second tile row cut off until a
-   keyboard had been opened once). The tray's open height is the keyboard SLOT
-   (attach-sheet.css: `var(--kb-slot-h, 268px)`), and the slot is only MEASURED after the
-   first keyboard round; until then it is the 268 literal. AND-45 moved the navigation-bar
-   inset INSIDE the tray's padding, so two tile rows now need 244 px + `--safe-bottom` — on a
-   48 px three-button bar that is ~300 px in a 267 px box, and the second row's labels sit
-   under the bar. The `--kb-inset` cap the handoff suspected is not the mechanism: Android
-   adjustResize never writes it.
-   THE RULE: the tray is never shorter than its own tiles; the keyboard slot governs only when
-   it is the larger of the two. The content height is measured HERE at mount and again on every
-   resize of the grid (watchTrayContent below), and published as `--tray-content-h`; the stylesheet takes
-   `max(slot, content)`. Measured before the tray has a height: the grid is a block child of
-   a 0-height overflow-hidden parent, so its own box is still its content — the parent clips,
-   it does not constrain. The tray's top border is added because its box-sizing is
-   border-box. ⚠ The trade this buys is a jump on the keyboard ↔ tray swap (#721/#753) equal to
-   the difference, only when a device's keyboard is SHORTER than two tile rows — Damir's dial
-   (DECISIONS, Session AE); the alternative was clipped controls on every fresh install. */
+/* ★ Session AE: the tray is never shorter than its own tiles — the open height is max(the keyboard slot, the grid),
+   the grid measured here (before the tray has a height its box is still its content) and again on every grid resize,
+   published as `--tray-content-h`; + the top border (border-box). The trade: a jump on the keyboard ↔ tray swap when a
+   keyboard is shorter than two tile rows (Damir's dial) instead of clipped tiles on a fresh install. */
 function publishTrayContentHeight(tray) {
   try {
     const grid = tray.querySelector('.c-attach');
@@ -285,11 +274,8 @@ function publishTrayContentHeight(tray) {
     tray.style.setProperty('--tray-content-h', Math.ceil(content + border) + 'px');
   } catch (_) { /* no layout engine (jsdom) or a detached tray: the stylesheet's slot fallback stands */ }
 }
-/* ★ Session AE (the #46 reviewer's MINOR-4): the content is not a constant for the tray's life — a
-   rotation, a `setInsetBottom`/`setInsetSides` push (--safe-bottom is INSIDE the measured padding)
-   or a width change while the tray is open re-flows the grid. A ResizeObserver on the GRID re-publishes
-   on every such change (window resize is the belt where the API is missing); closeAttachTray
-   disconnects it. Without this a portrait 301 followed by a rotation kept 301 in a ~390 px viewport. */
+/* ★ Session AE (MINOR-4): a rotation / inset push / width change re-flows the grid — a ResizeObserver on it re-publishes
+   (window resize is the belt); closeAttachTray disconnects it. */
 function watchTrayContent(tray) {
   const st = trayState.get(tray);
   const grid = tray.querySelector('.c-attach');
@@ -314,8 +300,11 @@ function unwatchTrayContent(tray) {
 export function revealAttachTray(tray) {
   const st = tray && trayState.get(tray);
   if (!st || st.closing || !tray.isConnected) return false;
+  const h0 = st.composerEl.offsetHeight;
   markComposerTrayOpen(st.composerEl);   // ★ B1: the inset hand-off, in the frame the tray gets its height
   tray.dataset.open = '';
+  st.inset = Math.max(0, h0 - st.composerEl.offsetHeight);   // ★ S20 A: what the bar gave up (the close's slide adds it back)
+  emitComposerShift(st.composerEl, 'set');   // ★ S20 A: the reserve in this same frame
   return true;
 }
 
@@ -323,28 +312,54 @@ export function revealAttachTray(tray) {
    about to take the slot: the caller holds the tray until the viewport actually shrinks
    (the keyboard is up), then drops it in one frame, so the composer never dips to the
    bottom and rises again between the two. */
+/* ★★ S20 A (#1378, "the jump at the start of the close"): data-tray-open came off FIRST (+46 px) and the height shrank
+   per frame. Now the layout is HELD: the bar + tray slide down by transform (the shell holds the reserve, slides the
+   rows), and the removal, the attribute and the reserve land in the frame the slide ends. */
 export function closeAttachTray(tray, { instant = false } = {}) {
   const st = tray && trayState.get(tray);
   if (!st || st.closing) return false;
   st.closing = true;
   unwatchTrayContent(tray);   // ★ Session AE: the grid observer + resize belt go with the tray
-  const btn = st.composerEl.querySelector('.c-composer__attach');
+  const composerEl = st.composerEl;
+  const btn = composerEl.querySelector('.c-composer__attach');
   if (btn) btn.setAttribute('aria-expanded', 'false');
-  st.composerEl.removeAttribute('data-tray-open');
-  if (instant) { tray.remove(); trayState.delete(tray); return true; }
-  delete tray.dataset.open;
+  const slot = composerEl.parentElement;
+  const band = trayBand(slot, tray);
   let done = false;
-  const remove = () => {
+  const end = () => {
     if (done) return;
     done = true;
-    tray.removeEventListener('transitionend', onEnd);
+    clearTimeout(st.timer);
+    if (trayState.get(tray) !== st) return;   // aborted by a re-open (abortTrayClose) — the new tray owns the bar now
+    stopBand(band);
+    stopBand([tray]);
     tray.remove();
     trayState.delete(tray);
+    st.composerEl.removeAttribute('data-tray-open');
+    emitComposerShift(composerEl, 'end');
   };
-  const onEnd = (e) => { if (e.target === tray && e.propertyName === 'height') remove(); };
-  tray.addEventListener('transitionend', onEnd);
-  setTimeout(remove, TRAY_EXIT_MS);
+  st.end = end;
+  const { ms, easing } = composerMotion('close');
+  const opened = tray.dataset.open !== undefined && tray.isConnected && !!slot;
+  if (instant || !opened || !(ms > 0) || !canSlide(tray)) { end(); return true; }
+  const T = tray.offsetHeight;
+  const dy = Math.max(0, T - (st.inset || 0));   // the slot shrinks by the tray, less the inset the bar takes back
+  if (!(T > 0)) { end(); return true; }
+  emitComposerShift(composerEl, 'close', { dy, ms, easing });
+  slideBand(band, bandY(composerEl), dy, ms, easing, true);   // a close mid-open starts where the band is on screen
+  const [a] = slideBand([tray], bandY(tray), T, ms, easing, true);
+  if (a) a.onfinish = end;
+  st.timer = setTimeout(end, Math.max(TRAY_EXIT_MS, ms + 120));   // a timeline that does not tick still ends
   return true;
+}
+/* a re-open inside the close: the dying tray goes now, without its end (the new 'open' re-reserves) */
+function abortTrayClose(tray) {
+  const st = trayState.get(tray);
+  if (st) clearTimeout(st.timer);
+  stopBand(trayBand(tray.parentElement, tray));
+  stopBand([tray]);
+  tray.remove();
+  trayState.delete(tray);
 }
 
 export function isAttachTrayOpen(composerEl) {

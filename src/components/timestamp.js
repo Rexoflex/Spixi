@@ -147,15 +147,35 @@ export function formatLastSeen(epochSec, strings = getStrings(), now = Date.now(
 
 /** ★ S11 F4 (#1263): moved here from shared-items.js (a pure formatter; this module owns no stylesheet).
  *  0 → '' · 512 B · 12 KB · 3.4 MB · 1.2 GB (one decimal under 10, the locale's decimal mark; binary steps, the
- *  convention of every file manager the app sits beside). */
-export function formatFileSize(bytes) {
+ *  convention of every file manager the app sits beside).
+ *  ★ S20 Q (#1376): the UNITS are localised (strings unitB / unitKB / unitMB / unitGB, English fallback); the optional
+ *  `strings` argument follows the components' rule (default = the active window.SL). */
+function sizeUnits(strings) {
+  return [strings.unitB || 'B', strings.unitKB || 'KB', strings.unitMB || 'MB', strings.unitGB || 'GB'];
+}
+/* the step a byte count lands on: { v (the scaled value), u (0 B · 1 KB · 2 MB · 3 GB) } */
+function sizeStep(b) {
+  let v = b; let u = 0;
+  while (v >= 1024 && u < 3) { v /= 1024; u += 1; }
+  return { v, u };
+}
+function sizeNumber(v, u) {
+  try { return new Intl.NumberFormat(docLocale(), { maximumFractionDigits: u === 0 || v >= 10 ? 0 : 1 }).format(v); }   // (#46 r1 B7) the locale's decimal mark
+  catch (e) { return u === 0 ? String(Math.round(v)) : (v < 10 ? v.toFixed(1) : String(Math.round(v))); }
+}
+export function formatFileSize(bytes, strings = getStrings()) {
   const b = Number(bytes);
   if (!Number.isFinite(b) || b <= 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let v = b; let u = 0;
-  while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
-  let n;
-  try { n = new Intl.NumberFormat(docLocale(), { maximumFractionDigits: u === 0 || v >= 10 ? 0 : 1 }).format(v); }   // (#46 r1 B7) the locale's decimal mark
-  catch (e) { n = u === 0 ? String(Math.round(v)) : (v < 10 ? v.toFixed(1) : String(Math.round(v))); }
-  return n + ' ' + units[u];
+  const { v, u } = sizeStep(b);
+  return sizeNumber(v, u) + ' ' + sizeUnits(strings || {})[u];
+}
+
+/** ★ S20 Q (#1376 / #1377 E): a transfer's "1.1 / 2.4 MB" — the done part in the TOTAL's unit (one unit, said once), the
+ *  same number rule as formatFileSize. done is clamped to 0…total. Unknown total (≤ 0 / not a number) → ''. */
+export function formatFileSizeOf(doneBytes, totalBytes, strings = getStrings()) {
+  const t = Number(totalBytes);
+  if (!Number.isFinite(t) || t <= 0) return '';
+  const d = Math.max(0, Math.min(t, Number(doneBytes) || 0));
+  const { v, u } = sizeStep(t);
+  return sizeNumber(d / Math.pow(1024, u), u) + ' / ' + sizeNumber(v, u) + ' ' + sizeUnits(strings || {})[u];
 }

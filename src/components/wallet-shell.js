@@ -45,7 +45,7 @@ import { createSearchField } from './search-field.js';
 import { createScanRing, setScanRing } from './scan-progress.js';   // #452: the sheet card's ring
 import { setWalletHeroCompact } from './wallet-hero.js';
 import { createSheet, openSheet, closeSheet } from './sheet.js';
-import { formatTxTimestamp } from './timestamp.js';
+import { formatTxTimestamp, docLocale } from './timestamp.js';
 import { icon } from './icons.js';
 import { createEmptyState } from './empty-state.js';
 import { illoWalletEmpty } from './illustrations.js';   // ★ S11 B (#1262): the wallet zero-state art
@@ -170,6 +170,25 @@ function walletEmpty(state, strings, opts = {}) {
   return el;
 }
 
+/* ★ S20 J2 (#1440): the day-group label — "Today", "Yesterday", then the locale short date (the year
+   only when it is not this year). Not dayBucketLabel: the chat ladder names weekdays for 2–6 days. */
+export function txDayLabel(ts, strings, now = Date.now()) {
+  const d = new Date(ts), n = new Date(now);
+  if (isNaN(d)) return '';
+  const sod = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((sod(n) - sod(d)) / 864e5);
+  if (diff <= 0) return strings.today || 'Today';   // a future epoch (clock skew) reads as Today, never as a date
+  if (diff === 1) return strings.yesterday || 'Yesterday';
+  return d.toLocaleDateString(docLocale(), d.getFullYear() === n.getFullYear()
+    ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+}
+/* ★ S20 J2 (#1440): the row face from the tx model alone (demos; the host's opts.faceOf joins its roster):
+   an avatar / contact / group → the avatar grammar; a bare address → the unknown-address wallet disc. */
+function txFace(tx) {
+  if (tx.avatar || tx.contact || tx.group || !tx.address) return { src: tx.avatar || null, name: tx.name, address: tx.address, group: !!tx.group };
+  return { unknown: true };
+}
+
 export function renderWalletTxList(listEl, state, opts = {}) {
   const strings = opts.strings || getStrings();
   /* ★ #1171: every addPaymentActivity burst rebuilds every row — a hovered row (keyed by txid) is born with
@@ -178,9 +197,38 @@ export function renderWalletTxList(listEl, state, opts = {}) {
   const hoverSnap = snapRowHover(listEl);
   listEl.textContent = '';
   const txs = orderedTxs(state);
-  for (const tx of txs) {
+  /* ★ S20 J2 (#1440): DAY GROUPS — a header ("Today" · "Yesterday" · the locale short date, the year
+     when not this year) opens each run of rows from one day; the rows then show the time alone. Built
+     AFTER the filter + search (orderedTxs), so an emptied day never draws a header. A row with no epoch
+     (an old exe's pre-formatted time) has no day: it gets no header and keeps its full time text.
+     `data-day` stamps the calendar day of this render — the host re-renders when it rolls over. */
+  /* ★ #46 r3–r5: C# pushes the ledger by STATUS (Rejected, Reverted, Pending, then the rest newest-first), so push order
+     is not date order. Only PENDING rows lead (in progress: no header, full date + time). Every other row — failed ones
+     too (Rejected / Reverted / Expired all arrive as "error"; the shell cannot tell them apart) — is grouped by day,
+     sorted newest-first (stable) when every row carries an epoch, each header once. */
+  const now = Date.now();
+  listEl.dataset.day = new Date(now).toDateString();
+  const lead = txs.filter((t) => t.status === 'pending');
+  const settled = txs.filter((t) => t.status !== 'pending');
+  if (settled.every((t) => typeof t.timestamp === 'number')) settled.sort((a, b) => b.timestamp - a.timestamp);
+  let lastDay = '';
+  for (const tx of lead.concat(settled)) {
+    const grouped = !lead.includes(tx);
+    const day = grouped && tx.timestamp != null ? txDayLabel(tx.timestamp, strings, now) : '';
+    if (day && day !== lastDay) {
+      const h = document.createElement('div');
+      h.className = 'c-wallet-day';
+      h.setAttribute('role', 'heading');
+      h.setAttribute('aria-level', '3');
+      h.textContent = day;
+      listEl.append(h);
+    }
+    if (day) lastDay = day;   // #46 r1: a row without an epoch keeps the run's day (no repeated header)
     const row = createTxItem({
       ...tx, strings,
+      // ★ S20 J2 (#1440): the wallet row grammar — the counterparty's face, the unit, the time alone
+      face: (typeof opts.faceOf === 'function' ? opts.faceOf(tx) : null) || txFace(tx),
+      unit: 'IXI', timeOnly: grouped,
       // B3 (#256): opts.onTx routes a row tap to the host (production: the
       // ixian:txdetails:<txid> bridge round-trip → the wallet_sent.html detail
       // page/pane). A txid-less row keeps the in-page sheet — the detail page is

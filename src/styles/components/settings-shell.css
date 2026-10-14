@@ -1003,6 +1003,10 @@
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
 .c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
+/* ★ S20 I (#1401, supersedes #1378 I): on the Account HUB a layout-B toggle row keeps its layout; only its TOP inset moves —
+   6 → 13 px puts the disc 13 px into the row (Theme's, a centred 56 px row), so App lock as a card's first row sits 17 px from
+   the card edge like every first nav row (was 10). Sub → next title = 19 px (the stacked chevron rows' 10 + 10 rhythm). */
+.c-settings--hub.c-account .c-settings__row[data-row="switch"] { padding-top: 13px; }   /* sanctioned: the 56 px row's centred-disc offset ((56 − 30) / 2) */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.

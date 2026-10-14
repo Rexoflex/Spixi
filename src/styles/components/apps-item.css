@@ -64,7 +64,8 @@
 
 /* —— trailing ⓘ info / ⋮ overflow (share the round icon-button treatment) —— */
 .c-app-item__menu,
-.c-app-item__info {
+.c-app-item__info,
+.c-app-item__run {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -127,3 +128,12 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
   inset-block-start: var(--spacing-8);
   inset-inline-end: var(--spacing-8);
 }
+
+/* ★ S20 C (#1377): Run = player-play 18 in a 36 px tonal disc (the tile tap opens the details); 44 px tap layer */
+.c-app-item__run { position: relative; width: 36px; height: 36px; padding: 0; background: var(--surface-action-tonal-default); color: var(--icon-action-default); }
+.c-app-item__run::after { content: ''; position: absolute; inset: -4px; border-radius: inherit; }
+.c-app-item__run svg { width: 18px; height: 18px; }
+@media (hover: hover) and (pointer: fine) { .c-app-item__run:hover { background: var(--surface-action-tonal-hover); } }
+.c-app-item__run:active { background: var(--surface-action-tonal-pressed); }
+.c-app-item[data-layout="list"] .c-app-item__run { margin-inline-end: var(--spacing-12); }
+.c-app-item[data-layout="grid"] .c-app-item__run { position: absolute; inset-block-start: var(--spacing-12); inset-inline-end: var(--spacing-12); }

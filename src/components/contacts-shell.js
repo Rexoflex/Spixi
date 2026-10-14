@@ -383,17 +383,28 @@ function syncNext(st) {
     st.els.minHint.hidden = false;
     const group = !isAppPick(st);
     st.els.minHint.dataset.cap = group && n >= GROUP_MAX_MEMBERS ? 'full' : '';
-    st.els.minHint.textContent = (group && n >= GROUP_MAX_MEMBERS)
+    if (group && n < GROUP_MAX_MEMBERS && n >= min) {
+      /* ★ S20 G (#1379): the "n / 10" counter is an LTR ISOLATE — in an RTL document the bare "3 / 10" run was reordered
+         to read "10 / 3". The line itself keeps the document direction (its alignment), only the count is isolated. */
+      st.els.minHint.replaceChildren(groupCounterNode(strings, n));
+    } else st.els.minHint.textContent = (group && n >= GROUP_MAX_MEMBERS)
       ? (strings.groupLimitNote || 'A group can have up to 10 members besides you.')
       : n >= min
-      ? (group
-        ? (strings.groupCounter || '{n} / {max}').split('{n}').join(String(n)).split('{max}').join(String(GROUP_MAX_MEMBERS))
-        : (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n)))
+      ? (strings.groupSelectedCount || '{n} selected').replace('{n}', String(n))
       : (isAppPick(st)
         ? (strings.appNeedsOne || 'Select at least one contact or group to invite.')
         : (strings.groupNeedsTwo || 'Select at least 2 people to create a group.'));
   }
   syncGroupCap(st);
+}
+
+/* ★ S20 G (#1379): "n / 10" as an LTR isolate (dir="ltr" → unicode-bidi: isolate), so the count reads n-then-cap in an
+   RTL document too; the members head and the picker line share it. */
+function groupCounterNode(strings, n) {
+  const c = document.createElement('span');
+  c.dir = 'ltr';
+  c.textContent = (strings.groupCounter || '{n} / {max}').split('{n}').join(String(n)).split('{max}').join(String(GROUP_MAX_MEMBERS));
+  return c;
 }
 
 /* A7 (#348, Damir F5): the single-select title depends on WHY the picker is open.
@@ -1043,6 +1054,12 @@ export function createGroupSetup({
   photoLabel.type = 'button';
   photoLabel.className = 'c-contacts-group__photo-label';
   photoLabel.textContent = strings.setGroupPhoto || 'Set group photo';
+  /* ★ S20 G (#1379): ONE tab stop — the label is the same pick as the photo button (which carries the same name), so it is
+     a pointer target only: out of the tab order and hidden from the accessibility tree (a keyboard user met "Set group
+     photo" twice in a row). */
+  photoLabel.tabIndex = -1;
+  photoLabel.setAttribute('aria-hidden', 'true');
+  photoLabel.addEventListener('mousedown', (e) => e.preventDefault());   // a mouse press must not focus the hidden label either (#46 S20 r1)
   let avatarBusy = false;
   const pickPhoto = () => {
     if (!onPickAvatar || avatarBusy) return;
@@ -1152,8 +1169,7 @@ export function createGroupSetup({
 
   let inFlight = false;   // declared before the first renderMembers() — it reads it
   const renderMembers = () => {
-    membersCount.textContent = (strings.groupCounter || '{n} / {max}')
-      .split('{n}').join(String(list.length)).split('{max}').join(String(GROUP_MAX_MEMBERS));
+    membersCount.replaceChildren(groupCounterNode(strings, list.length));   // ★ S20 G (#1379): the LTR isolate
     chips.textContent = '';
     list.forEach((m, idx) => {
       // F6: splice by the closed-over index rather than list.indexOf(m) — object

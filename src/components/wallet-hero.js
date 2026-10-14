@@ -20,6 +20,15 @@
  *                    onSend, onReceive, onScan, onToggleHidden }) → header
  * Free fns (#44): setWalletBalance(el, { balance, fiat }) — bridge balance tick;
  *                 setBalanceHidden(el, hidden) — eye state (shell owns persistence, §7).
+ *
+ * ★ S20 J2 (#1440) — THE HERO COLOUR IS ONE TOKEN, `--gradient-wallet-hero` (tokens.css, beside
+ * --gradient-hero-overlay). Shipped = A, today's: `var(--gradient-hero-overlay), var(--surface-hero)`.
+ * Candidate B (Damir picks it with the ON-1 backdrop) = the ON-1 BG 2 navy, fixed-dark in both themes;
+ * once T's `--gradient-launch-form` is merged, B is simply `--gradient-wallet-hero: var(--gradient-launch-form);`:
+ *   radial-gradient(90% 45% at 50% 18%, rgba(108, 122, 226, 0.20) 0%, rgba(108, 122, 226, 0) 70%),
+ *   radial-gradient(90% 55% at 0% 100%, rgba(66, 122, 236, 0.16) 0%, rgba(66, 122, 236, 0) 70%),
+ *   linear-gradient(200deg, #22214a 0%, #1b1b40 45%, #151634 100%)
+ * The action circles are a wash FILL, no ring (wallet-hero.css), all three identical (#135).
  */
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';

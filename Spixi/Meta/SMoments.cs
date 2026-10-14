@@ -43,6 +43,8 @@ namespace SPIXI.Meta
         private static int askLines;            // ★ S18 D3: [MO] ask lines written by this process (capped at S17MomentRules.MaxAskLines)
         /* ★ S19 F4 (MO-LANG): the languages whose moment showed in THIS session — memory only, never stored (a restart asks again) */
         private static readonly S17MomentRules.SessionLangs sessionLangs = new S17MomentRules.SessionLangs();
+        /* ★ S20 G (#1379): the apps unmarked after their install in this process — their next ask is the install moment */
+        private static readonly S17MomentRules.UnmarkedApps unmarkedApps = new S17MomentRules.UnmarkedApps();
 
         /** A session = the process, at most this long after its first moment / card (then both bits clear). */
         public const long SessionMs = S17MomentRules.MaxSessionMs;
@@ -218,9 +220,12 @@ namespace SPIXI.Meta
 
             expireSession();
             bool seen = isSeen(id, arg);
-            S17MomentRules.Decision d = S17MomentRules.decide(id, seen, sessionMoment, sessionCard, eligible);
+            /* ★ S20 G (#1379): the app moment at install (App details, or the re-ask after an unmark) neither waits for nor takes
+             * the session — S17MomentRules.installMoment */
+            bool atInstall = S17MomentRules.installMoment(id, page is AppDetailsPage, unmarkedApps.has(arg));
+            S17MomentRules.Decision d = S17MomentRules.decide(id, seen, sessionMoment, sessionCard, eligible, atInstall);
             /* ★ S18 D3: one line per ask — fixed words + an id from the fixed set (S17MomentRules.askLine); no code, no app id */
-            string askLine = S17MomentRules.askLine(id, d, S17MomentRules.why(id, seen, sessionMoment, sessionCard, eligible));
+            string askLine = S17MomentRules.askLine(id, d, S17MomentRules.why(id, seen, sessionMoment, sessionCard, eligible, atInstall));
             if (askLine.Length > 0 && askLines < S17MomentRules.MaxAskLines)   // a page spamming asks cannot flood ixian.log
             {
                 askLines++;
@@ -233,7 +238,8 @@ namespace SPIXI.Meta
             }
             if (yes)
             {
-                if (S17MomentRules.takesSession(id))
+                if (atInstall) unmarkedApps.remove(arg);   // ★ S20 G: the corrective sheet showed — the next ask follows the rule again
+                if (S17MomentRules.takesSession(id, atInstall))
                 {
                     sessionMoment = true;
                     startSession();
@@ -250,7 +256,7 @@ namespace SPIXI.Meta
             {
                 global::SPIXI.Utils.sendUiCommand(page, "momentAnswer", id, arg, yes ? "1" : "0", yes ? caps : "");
                 /* home holds its own cards back for the rest of the session: tell it now when the moment showed elsewhere */
-                if (yes && S17MomentRules.takesSession(id))
+                if (yes && S17MomentRules.takesSession(id, atInstall))
                 {
                     HomePage? home = HomePage.InstanceOrNull();
                     if (home != null && !ReferenceEquals(home, page)) pushTo(home);
@@ -315,6 +321,7 @@ namespace SPIXI.Meta
             sessionSince = 0;
             pendingLang = "";
             sessionLangs.clear();   // ★ S19 F4: the session's languages (memory) — moments.langs above is an S17 / S18 leftover
+            unmarkedApps.clear();   // ★ S20 G
             privacyOpen = null;
             privacyOpenUntil = 0;
             askLines = 0;
@@ -331,6 +338,7 @@ namespace SPIXI.Meta
             try
             {
                 SLocalOnlyStore.setDeferred(S17MomentRules.KeyApps, S17MomentRules.removeFromList(SLocalOnlyStore.get(S17MomentRules.KeyApps), appId!, S17MomentRules.isAppId));
+                unmarkedApps.add(appId);   // ★ S20 G (#1379): its next ask is the corrective install moment (outside the session rule)
                 Logging.info("[MO] app moment: the installed app differs, asks again");
             }
             catch (Exception e)

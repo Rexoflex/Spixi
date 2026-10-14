@@ -32,6 +32,7 @@ import { icon } from './icons.js';
 import { createAvatar, safeImageSrc } from './avatar.js';
 import { formatVoiceClock, fillVoiceSlots } from './message-bubble.js';   // ★ #1208: the one m:ss clock (the bubble and the bar agree)
 import { fileKind } from './typed-bubbles.js';   // ★ 7b (#1214): the strip's file tile wears the file card's family colours
+import { mountFormatBar } from './format-bar.js';   // S20 F hook (#1378): the Aa format bar
 
 /* ★ #1065 r2 (break-my-verdict MINOR-3): the message menu can now be open WHILE the composer keeps
    focus (overlay.js keepEditableFocus stamps data-keep-editable on its root, removed synchronously at
@@ -267,6 +268,7 @@ export function createComposer({
   });
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);
+  mountFormatBar(el, { field, input, strings });   // S20 F hook (#1378): Aa toggle + the bar above the composer (absolute — no height change)
 
   /* ★ #46 r1 NIT: Escape in the composer area (the bar's ✕, the ➤ disc) cancels a recording — the ✕'s own path */
   el.addEventListener('keydown', (e) => {
@@ -468,59 +470,126 @@ function ctxTile(tile) {
   return t;
 }
 
-/* ★★ S8 (#1238, Damir 2026-10-07: "as you wrote") — THE STRIP GROWS, the tx-detail drawer grammar (wallet-shell.js #1056).
-   WAAPI on the strip's box: height, block padding, block margins and the hairline go 0 → their resting values, so the
-   PILL grows and the slot's ResizeObserver (chat.html) re-pins the log inside its own callback — the bubbles ride up
-   with the pill, no dip. OPEN = --duration-200 on --easing-standard, the content hidden for the first 30 % and fading
-   in after (it never shows squashed). CLOSE = 0.75 × that (150 ms) on --easing-accelerate, the content gone in the first
-   half; a closing strip is `inert` + [data-closing] (no tap, no focus, not read) and leaves the DOM at the end. No
-   overshoot. Durations AND easings are READ from the tokens, so reduced motion (the tokens are 0 ms there) and an
-   engine without WAAPI are instant — the same end state; the CSS rise (c-composer-ctx-in) is that engine's fallback. */
-const ctxAnims = new WeakMap();   // strip → its running Animation
+/* ═══ ★★ S20 A (#1378): THE COMPOSER MOVES BY TRANSFORM, THE LOG'S RESERVE MOVES ONCE. A height change lands in the
+ * layout in ONE frame and the host (chat.html setLogReserve) re-reserves the log once, on `c-composer-shift`
+ * (detail.phase: 'open' = grew now, slide the rows · 'close' = will shrink by detail.dy, hold the reserve · 'end' / 'set'
+ * = changed now, no slide). Motion = transform / clip only (a height animation re-laid out the log every frame — A1/A2).
+ * Durations + easings from the tokens (reduced motion / no WAAPI: instant, same end state). Never a transform on
+ * #chat-composer itself. */
+const COMPOSER_SHIFT = 'c-composer-shift';   // the shell listens for this name
 function ctxToken(name, fallback) {
   try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; } catch (e) { return fallback; }
 }
-function ctxStripMotion(strip, open, done, fromBox) {
-  let fired = false;
+/* 'open' = --duration-200 standard; a close (the strip, the tray) = 0.75 × on accelerate (#1238: it leaves faster) */
+export function composerMotion(kind) {
+  const base = parseFloat(ctxToken('--duration-200', '200ms'));
+  const shut = kind !== 'open';
+  const ms = Number.isFinite(base) ? Math.round(shut ? base * 0.75 : base) : 0;
+  const easing = shut ? ctxToken('--easing-accelerate', 'cubic-bezier(0.3, 0, 1, 1)') : ctxToken('--easing-standard', 'cubic-bezier(0.2, 0, 0, 1)');
+  return { ms, easing };
+}
+export function emitComposerShift(el, phase, detail = {}) {
+  if (!el) return;
+  try { el.dispatchEvent(new CustomEvent(COMPOSER_SHIFT, { bubbles: true, detail: { ...detail, phase } })); } catch (e) {}
+}
+const bandAnims = new WeakMap();   // element → its running slide
+/* the translateY on screen now (a running slide included) */
+export function bandY(el) {
+  try {
+    const t = getComputedStyle(el).transform;
+    if (!t || t === 'none') return 0;
+    const m = /^matrix(3d)?\(([^)]*)\)$/.exec(t);
+    if (!m) return 0;
+    const v = m[2].split(',').map(parseFloat);
+    const y = m[1] ? v[13] : v[5];
+    return Number.isFinite(y) ? y : 0;
+  } catch (e) { return 0; }
+}
+export function canSlide(el) { return !!el && typeof el.animate === 'function'; }
+/* hold = fill forwards: a close keeps its end until the caller lands the layout change and stops it (same frame) */
+export function slideBand(els, from, to, ms, easing, hold = false) {
+  const out = [];
+  for (const el of els) {
+    if (!el) continue;
+    const run = bandAnims.get(el);
+    if (run) { try { run.cancel(); } catch (e) {} bandAnims.delete(el); }
+    if (!(ms > 0) || !canSlide(el) || (!hold && Math.abs(from - to) < 0.5)) continue;
+    try {
+      const a = el.animate([{ transform: 'translateY(' + from + 'px)' }, { transform: 'translateY(' + to + 'px)' }], { duration: ms, easing, fill: hold ? 'forwards' : 'none' });
+      bandAnims.set(el, a);
+      out.push(a);
+    } catch (e) {}
+  }
+  return out;
+}
+export function stopBand(els) {
+  for (const el of els) {
+    const run = el && bandAnims.get(el);
+    if (run) { try { run.cancel(); } catch (e) {} bandAnims.delete(el); }
+  }
+}
+/* what sits above the pill in the slot (the media strip, the cost line) rides the pill's top edge */
+function bandAbove(el, stop) {
+  const out = [];
+  const slot = el.parentElement;
+  if (slot) for (const c of slot.children) { if (c === el) break; out.push(c); }
+  for (const c of el.children) { if (c === stop) break; out.push(c); }
+  return out;
+}
+
+/* ★★ THE STRIP STILL LOOKS LIKE IT GROWS (#1238 kept, #1378): it is in the layout at full size at once; the PILL's top
+   edge is a clip (inset(clip … round <the pill's radius>)) opening to 0, the band above rides it, the content is hidden
+   30 % then fades in. The close is the mirror (150 ms accelerate, [data-closing] + inert), its end removes the strip.
+   m-5 kept: a reopen inside a close starts from the pill's top as it is on screen. */
+const ctxRuns = new WeakMap();   // composer el → { strip, open, anims, clip: [from, to], at, ms, done }
+function ctxClipNow(el) {   // how many px of the pill's top the running strip motion hides right now
+  const r = ctxRuns.get(el);
+  if (!r) return 0;
+  let p = 1;
+  try { const t = r.anims[0] && r.anims[0].effect && r.anims[0].effect.getComputedTiming(); if (t && t.progress != null) p = t.progress; } catch (e) {}
+  return r.clip[0] + (r.clip[1] - r.clip[0]) * p;
+}
+function stopCtxRun(el) {
+  const r = ctxRuns.get(el);
+  if (!r) return;
+  ctxRuns.delete(el);
+  r.done = true;
+  clearTimeout(r.timer);
+  for (const a of r.anims) { try { a.cancel(); } catch (e) {} }
+  stopBand(r.band);
+}
+function ctxStripMotion(el, field, strip, open, clipFrom, clipTo, done) {
+  const { ms, easing } = composerMotion(open ? 'open' : 'strip-close');
+  /* ★ S20 #46 r1 (MAJOR): a close inside the open's 200 ms ends the OPEN run here — its late finish (onfinish or the
+     timer) used to stop the CLOSE run without its end: a ghost strip and a held log slide that never let go */
+  let op0 = '1';
+  try { op0 = getComputedStyle(strip).opacity || '1'; } catch (e) {}   // read BEFORE the open's fade is cancelled
+  stopCtxRun(el);
+  let r = null;
   const finish = () => {
-    if (fired) return;
-    fired = true;
-    ctxAnims.delete(strip);
-    if (open) strip.style.overflow = '';
+    if (r) { if (r.done) return; if (ctxRuns.get(el) === r) stopCtxRun(el); else r.done = true; }
     if (done) done();
   };
   if (!open) { strip.dataset.closing = ''; strip.setAttribute('inert', ''); }
-  const base = parseFloat(ctxToken('--duration-200', '200ms'));
-  const ms = Number.isFinite(base) ? Math.round(open ? base : base * 0.75) : 0;
-  if (!ms || typeof strip.animate !== 'function' || !strip.offsetHeight) { finish(); return; }
-  /* FROM = what is on screen now — a close that lands mid-grow starts from the half-grown box, not from full */
-  const cs = getComputedStyle(strip);
-  const now = { height: cs.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderBottomWidth: cs.borderBottomWidth };
-  const fromOpacity = cs.opacity;
-  const run = ctxAnims.get(strip);
-  if (run) run.cancel();
-  const shut = { height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px', borderBottomWidth: '0px' };
-  strip.style.animation = 'none';   // the CSS rise is the no-WAAPI fallback only (never put back: that would replay it)
-  strip.style.overflow = 'hidden';
-  /* ★ #46 r1 (S8 picks m-5): a strip that REPLACES a closing one opens from that strip's box AS IT IS ON SCREEN
-     (fromBox, measured before it left) — the same FROM = on-screen rule as a close mid-grow; from 0 the slot dropped
-     32 px in one frame on a close + reopen inside the 150 ms */
-  const frames = open
-    ? [{ ...(fromBox || shut), opacity: 0, offset: 0 }, { opacity: 0, offset: 0.3 }, { ...now, opacity: 1, offset: 1 }]
-    : [{ ...now, opacity: fromOpacity, offset: 0 }, { opacity: 0, offset: 0.5 }, { ...shut, opacity: 0, offset: 1 }];
-  let a;
+  if (!(ms > 0) || !canSlide(field) || Math.abs(clipFrom - clipTo) < 0.5) { finish(); return false; }
+  const rad = (() => { try { return getComputedStyle(field).borderTopLeftRadius || '0px'; } catch (e) { return '0px'; } })();
+  const clip = (px) => 'inset(' + Math.max(0, px) + 'px 0px 0px 0px round ' + rad + ')';
+  const band = bandAbove(el, field);
+  r = { strip, open, anims: [], band, clip: [clipFrom, clipTo], ms, done: false, timer: 0 };
+  ctxRuns.set(el, r);
+  strip.style.animation = 'none';   // the CSS rise (c-composer-ctx-in) is the no-WAAPI fallback only
   try {
-    a = strip.animate(frames, {
-      duration: ms,
-      easing: open ? ctxToken('--easing-standard', 'cubic-bezier(0.2, 0, 0, 1)') : ctxToken('--easing-accelerate', 'cubic-bezier(0.3, 0, 1, 1)'),
-      fill: open ? 'none' : 'forwards',
-    });
-  } catch (e) { finish(); return; }
-  ctxAnims.set(strip, a);
-  a.onfinish = finish;
-  /* a timeline that does not tick (a hidden pane) must not leave a strip half-way — the end state lands anyway
-     (a PAUSED animation is someone's deliberate hold — devtools, a frame-by-frame render — and is left alone) */
-  setTimeout(() => { if (!fired && ctxAnims.get(strip) === a && a.playState !== 'paused') { a.cancel(); finish(); } }, ms + 120);
+    r.anims.push(field.animate([{ clipPath: clip(clipFrom) }, { clipPath: clip(clipTo) }], { duration: ms, easing, fill: open ? 'none' : 'forwards' }));
+    const fade = open
+      ? [{ opacity: 0, offset: 0 }, { opacity: 0, offset: 0.3 }, { opacity: 1, offset: 1 }]
+      : [{ opacity: op0, offset: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 0, offset: 1 }];
+    r.anims.push(strip.animate(fade, { duration: ms, easing, fill: open ? 'none' : 'forwards' }));
+  } catch (e) { finish(); return false; }
+  slideBand(band, clipFrom, clipTo, ms, easing, !open);
+  r.anims[0].onfinish = finish;
+  const a0 = r.anims[0];   // a timeline that never ticks still ends (a PAUSED one is a deliberate hold: left alone)
+  r.timer = setTimeout(() => { if (!r.done && ctxRuns.get(el) === r && a0.playState !== 'paused') finish(); }, ms + 120);
+  return true;
 }
 
 /**
@@ -536,22 +605,19 @@ function ctxStripMotion(strip, open, done, fromBox) {
 export function setComposerContext(el, ctx) {
   const input = el.querySelector('.c-composer__input');
   const field = el.querySelector('.c-composer__field');
+  const vis = el.offsetHeight - ctxClipNow(el);   // ★ S20 A: the pill's top on screen now (m-5: a reopen starts there)
   /* ★ S8 (#1238): a strip still CLOSING is dropped at once (a new context, or a second close, wins). An open strip is
      either SWAPPED in place (Reply ⇄ Edit: no collapse, no grow) or, on a close, collapsed by ctxStripMotion below. */
-  let fromBox = null;   // ★ #46 r1 (m-5): the closing strip's box on screen now — a new strip grows FROM it
+  let droppedClosing = false;
   for (const old of el.querySelectorAll('.c-composer__ctx[data-closing]')) {
-    if (!fromBox && ctx && old.offsetHeight) {
-      const cs = getComputedStyle(old);
-      fromBox = { height: cs.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderBottomWidth: cs.borderBottomWidth };
-    }
-    const a = ctxAnims.get(old);
-    if (a) a.cancel();
-    ctxAnims.delete(old);
+    const r = ctxRuns.get(el);
+    if (r && r.strip === old) stopCtxRun(el);
     old.remove();
+    droppedClosing = true;
   }
   const prev = el.querySelector('.c-composer__ctx');
   const closing = !!prev && !ctx;
-  if (prev && !closing) { const a = ctxAnims.get(prev); if (a) a.cancel(); ctxAnims.delete(prev); prev.remove(); }
+  if (prev && !closing) { const r = ctxRuns.get(el); if (r && r.strip === prev) stopCtxRun(el); prev.remove(); }
   if (field && !closing) delete field.dataset.ctx;
   // freeze audit: REPLACING an active edit ctx (e.g. Reply picked mid-edit)
   // must give the pre-edit draft back — else the old message text sends as
@@ -567,11 +633,21 @@ export function setComposerContext(el, ctx) {
       /* the field keeps its wrap while the strip collapses; the value flips to 'closing' at once, so the back mirror
          (chat.html observes data-ctx) learns NOW that no context is open, not 150 ms later */
       if (field) field.dataset.ctx = 'closing';
-      ctxStripMotion(prev, false, () => {
+      /* ★ S20 A: the layout is HELD while the pill's top clips down (the closed height measured with the strip out of
+         the flow for one read — no paint between); the removal + the reserve land together at the end */
+      const full = el.offsetHeight;
+      prev.style.display = 'none';
+      const shut = el.offsetHeight;
+      prev.style.display = '';
+      const clipNow = Math.max(0, full - vis);   // a close mid-grow starts from the half-grown pill
+      const end = () => {
         prev.remove();
         if (field && !field.querySelector(':scope > .c-composer__ctx')) delete field.dataset.ctx;
-      });
-    }
+        emitComposerShift(el, 'end');
+      };
+      const m = composerMotion('strip-close');
+      if (ctxStripMotion(el, field, prev, false, clipNow, full - shut, end)) emitComposerShift(el, 'close', { dy: full - shut, ms: m.ms, easing: m.easing });
+    } else if (droppedClosing) emitComposerShift(el, 'end');
     resyncComposer(el);
     return;
   }
@@ -611,7 +687,6 @@ export function setComposerContext(el, ctx) {
      (no :has() — the WebView baseline). The COST line (#86) stays a bar line above the pill, so it is still topmost. */
   if (field) { field.dataset.ctx = ctx.kind; field.prepend(strip); }
   else el.prepend(strip);
-  if (!prev) ctxStripMotion(strip, true, null, fromBox);   // ★ S8 (#1238): a FRESH strip grows (from a closing one's box, m-5); a swap (Reply over Edit) stays put
 
   if (input) {
     if (ctx.kind === 'edit' && ctx.prefill !== false) {
@@ -636,6 +711,14 @@ export function setComposerContext(el, ctx) {
       });
     }
     try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }   // ★ 7b (#1219): the shell keeps the target row in view
+  }
+  /* ★ S20 A: a FRESH strip is at full size now (an edit's prefill included) — one reserve move, the clip grows the pill.
+     A swap (Reply over Edit) stays put: the slot observer re-reserves. */
+  if (!prev && field) {
+    const clipFrom = Math.max(0, el.offsetHeight - vis);
+    const m = composerMotion('open');
+    const ran = ctxStripMotion(el, field, strip, true, clipFrom, 0, null);
+    emitComposerShift(el, 'open', { ms: ran ? m.ms : 0, easing: m.easing, dy: clipFrom });
   }
   resyncComposer(el);   // ★ #1199: Save ⇄ Send, and the disabled state, for the context now up
 }

@@ -1,0 +1,102 @@
+/* S20 F (#1378): formatted text in the bubble (msg-format.js) + the composer's Aa format bar (format-bar.js).
+   Chip / block fill = the reply quote's pair (received: --surface-bubble-received-quote · sent: --surface-wash-on-hero).
+   The bar is absolute above the composer (the @ popover's family): opening it never changes the composer height. */
+.c-fmt-b { font-weight: var(--font-weight-semibold); }
+.c-fmt-i { font-style: italic; }
+.c-fmt-s { text-decoration: line-through; }
+.c-fmt-code, .c-fmt-pre {
+  font-family: var(--font-mono);
+  background: var(--surface-bubble-received-quote);
+  border-radius: var(--radius-4);
+}
+.c-bubble-row[data-direction="sent"] .c-fmt-code,
+.c-bubble-row[data-direction="sent"] .c-fmt-pre { background: var(--surface-wash-on-hero); }
+.c-fmt-code {
+  font-size: 0.9em;
+  padding: 0 var(--spacing-4);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  overflow-wrap: anywhere;
+}
+/* a block: as typed, scrolls sideways inside the bubble's width */
+.c-fmt-pre {
+  display: block;
+  max-width: 100%;
+  margin: var(--spacing-4) 0;
+  padding: var(--spacing-4) var(--spacing-8);
+  border-radius: var(--radius-8);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  white-space: pre;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.c-fmt-pre:first-child { margin-block-start: 0; }
+.c-fmt-pre:last-child { margin-block-end: 0; }
+
+/* the Aa toggle: inside the pill, trailing; the 32 disc (--size-icon-32) fits the one-line row on every text scale (the pill never grows) */
+.c-fmtbar-toggle {
+  flex: none;
+  align-self: flex-end;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon-32);
+  height: var(--size-icon-32);
+  margin-block-end: calc((var(--line-height-body-md) + 2 * var(--composer-input-pad) - var(--size-icon-32)) / 2);
+  margin-inline-end: calc(-1 * var(--spacing-4));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  font: var(--font-weight-semibold) var(--font-size-body-sm)/1 var(--font-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-100) var(--easing-standard);
+}
+.c-fmtbar-toggle::after { content: ''; position: absolute; inset: calc((var(--size-icon-32) - var(--size-target-min)) / 2); }
+.c-fmtbar-toggle[aria-pressed="true"] { background: var(--surface-action-tonal-default); color: var(--icon-action-default); }
+@media (hover: hover) and (pointer: fine) {
+  .c-fmtbar-toggle[aria-pressed="false"]:hover, .c-fmtbar__btn:hover { background: var(--surface-interactive-hover); }
+}
+.c-fmtbar-toggle:active, .c-fmtbar__btn:active { background: var(--surface-interactive-pressed); }
+
+.c-fmtbar {
+  position: absolute;
+  inset-inline-end: var(--spacing-12);
+  bottom: calc(100% + var(--spacing-8));
+  z-index: var(--z-30);
+  display: flex;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
+  background: var(--surface-menu);
+  border: var(--outline-width-1) solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  box-shadow: var(--elevation-3);
+}
+/* hidden · a recording hides the field · the @ picker owns the spot while open (:has alone: an engine without it drops
+   only that rule) */
+.c-fmtbar[hidden],
+.c-composer[data-rec] > .c-fmtbar { display: none; }
+.c-composer:has(> .c-composer__mentions) > .c-fmtbar { display: none; }
+.c-fmtbar__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--icon-neutral-01);
+  font: var(--font-size-body-md)/1 var(--font-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-fmtbar__btn[data-fmt="bold"] { font-weight: var(--font-weight-semibold); }
+.c-fmtbar__btn[data-fmt="italic"] { font-style: italic; }
+.c-fmtbar__btn[data-fmt="strike"] { text-decoration: line-through; }

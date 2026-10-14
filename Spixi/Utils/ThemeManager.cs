@@ -47,9 +47,6 @@ namespace SPIXI
             activeAppearance = appearance;
 
             Preferences.Default.Set("appearance", (int)activeAppearance);
-#if WINDOWS
-            DtTitleBar.apply();   // ★ DT-1 B: the title bar follows the APP theme (boot, every pick, every OS flip under System)
-#endif
             SpixiLocalization.addCustomString("SpixiThemeName", appearance_name);
             // ★ Session N (legacy purge): the second carrier, SpixiThemeMode
             // ("<theme>-<appearance>.css"), is GONE. Its only consumers were the four

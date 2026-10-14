@@ -7,7 +7,7 @@ namespace SPIXI
     /** ★★ #1106: the chat bubble's link rule in C# (pure — Spixi-UnitTests/LinkRuleTests.cs executes it). */
     public static class LinkRule
     {
-        /* —— the link rule: a PORT of src/components/message-bubble.js URL_RE + linkifyPlain (pattern, flags, the
+        /* —— the link rule: a PORT of src/components/link-rule.js (moved from message-bubble.js in S20) URL_RE + linkifyPlain (pattern, flags, the
          * glued-token guard, the trailing-punctuation and unbalanced-paren trims, the 4096 cap). The mention split
          * that runs before linkify in the shell is not ported: a URL-shaped word INSIDE a multi-word @mention lists
          * as a link here (stated in #1106). The smoke pin compares BARE_TLDS and the three alternatives. —— */
@@ -24,9 +24,29 @@ namespace SPIXI
         public static List<string> extract(string? text)
         {
             List<string> links = new List<string>();
+            foreach (Span sp in spans(text))
+            {
+                links.Add(sp.url);
+            }
+            return links;
+        }
+
+        /** One link: [start, end) in the text (UTF-16 units; end = start + url.Length) and its display form. */
+        public readonly struct Span
+        {
+            public readonly int start, end;
+            public readonly string url;
+            public Span(int start, int end, string url) { this.start = start; this.end = end; this.url = url; }
+        }
+
+        /** ★ S20 F (#46 r1 MINOR-1, #1378): the links WITH their positions — src/components/link-rule.js urlSpans (the format
+         *  strip keeps a URL opaque to the marks, S20FormatRules). The same rule as extract, which now reads it. */
+        public static List<Span> spans(string? text)
+        {
+            List<Span> outList = new List<Span>();
             if (string.IsNullOrEmpty(text) || text.Length > LinkifyMax)
             {
-                return links;
+                return outList;
             }
             MatchCollection ms;
             try
@@ -45,15 +65,15 @@ namespace SPIXI
                     }
                     if (url.Length > 0)
                     {
-                        links.Add(url);
+                        outList.Add(new Span(m.Index, m.Index + url.Length, url));
                     }
                 }
             }
             catch (RegexMatchTimeoutException)
             {
-                // the shell's own cap keeps real text far below this; a pathological text lists no links
+                // the shell's own cap keeps real text far below this; a pathological text lists no more links
             }
-            return links;
+            return outList;
         }
 
     }

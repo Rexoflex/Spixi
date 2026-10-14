@@ -2,7 +2,7 @@
    Ports the app-frame demo recipe into the component (tokens verbatim). */
 
 .c-wallet-hero {
-  background: var(--gradient-hero-overlay), var(--surface-hero);
+  background: var(--gradient-wallet-hero);   /* S20 J2 */
   color: var(--text-on-hero);
   /* the hero owns the top safe-area so the status-bar region paints hero-colored with
      NO seam (Damir #134; the #22 watch-item surface — C# inset stays transparent) */
@@ -52,11 +52,7 @@
 .c-wallet-hero[data-compact] { padding-block-end: var(--spacing-8); }
 .c-wallet-hero { transition: padding var(--duration-300) var(--easing-standard); }
 
-/* Measurement probe (wallet scroll reserve, handoff 2026-08-24 §1): attachWalletScroll
-   toggles [data-compact] under this attribute to read BOTH rest heights in one
-   synchronous pass. Transitions must not smear the toggle or the numbers are the
-   mid-animation ones. The `*` leg matters: the collapse transition lives on the
-   __balance/__actions children, not on the hero itself. */
+/* Measurement probe (attachWalletScroll reads both rest heights in one pass): no transition, children included */
 .c-wallet-hero[data-measuring],
 .c-wallet-hero[data-measuring] * { transition: none !important; }
 
@@ -68,9 +64,7 @@
 }
 .c-wallet-hero__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
 .c-wallet-hero__amount {
-  /* Damir 2026-07-10 (#228): the IXI balance keeps the BRAND face (Sora) after
-     the B1 system-ui swap — Sora is already data-URI-embedded in every shell
-     for the wordmark, so zero extra bytes/perf. Title/fiat/actions stay native. */
+  /* #228: the balance keeps the brand face (Sora, already embedded) */
   font-family: var(--font-display);
   font-size: var(--font-size-heading-lg);
   line-height: var(--line-height-heading-lg);
@@ -115,7 +109,7 @@
   width: 56px; height: 56px;                   /* sanctioned: matches the button/56 scale (app-frame recipe) */
   border-radius: var(--radius-full);
   display: flex; align-items: center; justify-content: center;
-  border: var(--outline-width-1) solid var(--text-on-hero-muted);
+  background: var(--surface-wash-on-hero);     /* S20 J2 (#1440): a fill, no ring; all three alike (#135) */
   color: var(--icon-on-hero);
   transition: background-color var(--duration-100) var(--easing-standard);
 }
@@ -126,32 +120,21 @@
 .c-wallet-hero__eye:focus-visible,
 .c-wallet-hero__qa:focus-visible { outline-color: var(--icon-on-hero); }
 
-/* hover/pressed — on-hero washes (#43 guarded, #49 ink discipline).
-   AND-38 r2 (#355): the eye's :active moved INSIDE the desktop gate. The eye is
-   the balance toggle, and the toggle shows no pressed paint outside this gate
-   (Damir's dial, from the A52). A fine-pointer press keeps its feedback — that
-   includes a finger tap on a hover-capable hybrid, an accepted edge. The
-   quick-action circles keep their ungated :active — they navigate, they are
-   not the toggle. */
+/* hover/pressed — on-hero washes (#43, #49). AND-38 r2 (#355): the eye (the balance toggle) presses only
+   inside the desktop gate; the action circles keep an ungated :active (they navigate). */
 @media (hover: hover) and (pointer: fine) {
   .c-wallet-hero__eye:hover { background: var(--surface-wash-on-hero); color: var(--text-on-hero-muted); }
-  .c-wallet-hero__qa:hover .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero); }
+  .c-wallet-hero__qa:hover .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-pressed); }
   .c-wallet-hero__eye:active { background: var(--surface-wash-on-hero-pressed); }
 }
-.c-wallet-hero__qa:active .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-pressed); }
+.c-wallet-hero__qa:active .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-strong); }
 
-/* tap-to-hide affordance (Damir #135): the whole balance block + compact balance toggle.
-   The compact balance is a ghost while the hero is expanded (opacity 0) — it must not
-   be a clickable invisible region (audit m1). */
+/* tap-to-hide (#135); the hidden compact balance is not a clickable ghost (audit m1) */
 .c-wallet-hero__balance { cursor: pointer; }
 .c-wallet-hero__compactbal { cursor: pointer; pointer-events: none; }
 .c-wallet-hero[data-compact] .c-wallet-hero__compactbal { pointer-events: auto; }
 
-/* AND-38 (#355): the balance toggle shows NO pressed state — the value just swaps
-   (Damir's dial, 2026-08-16). All three tap targets carry a click handler, so
-   Android paints its native tap highlight across the whole block without this.
-   pressable.js is not involved: no press family matches the hero ancestry
-   (home.html:290 — the hero sits directly in #wallet-view). */
+/* AND-38 (#355): no pressed state on the balance toggle — kill Android's native tap highlight */
 .c-wallet-hero__balance,
 .c-wallet-hero__compactbal,
 .c-wallet-hero__eye {

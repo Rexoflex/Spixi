@@ -153,6 +153,32 @@ public class S11MediaTests
         Assert.AreEqual("18446744073709551615", S11MediaRules.offerSizeArg(false, false, ulong.MaxValue), "no sign, no group separator");
     }
 
+    /* ★ S20 E (#1376, P29): the flag-ON rule — both directions, each from its own C# source */
+    [TestMethod]
+    public void file_size_arg_both_directions_each_source_its_own()
+    {
+        // received: the header size, offer AND done; the other two sources are never read
+        Assert.AreEqual("845312", S11MediaRules.fileSizeArg(false, false, 845312, 7, 9), "received offer → the header");
+        Assert.AreEqual("845312", S11MediaRules.fileSizeArg(false, true, 845312, 7, 9), "received done → the header (new: was '')");
+        Assert.AreEqual("", S11MediaRules.fileSizeArg(false, true, 0, 7, 9), "received, header size unknown → ''");
+        // sent in flight: the outgoing transfer only
+        Assert.AreEqual("1200", S11MediaRules.fileSizeArg(true, false, 845312, 1200, 9), "sent in flight → the transfer (it wins over the disk)");
+        // ★ #46 S20 r1 (auditor B MINOR): the transfer gone (an app restart) → the C#-resolved local copy; never the header
+        Assert.AreEqual("9", S11MediaRules.fileSizeArg(true, false, 845312, 0, 9), "sent, unfinished, no transfer → the local copy");
+        Assert.AreEqual("", S11MediaRules.fileSizeArg(true, false, 845312, 0, -1), "no transfer, no local copy → '' (never the header)");
+        Assert.AreEqual("", S11MediaRules.fileSizeArg(true, false, 845312, 0, 0), "an empty local copy → ''");
+        // sent done: the local copy only
+        Assert.AreEqual("4096", S11MediaRules.fileSizeArg(true, true, 845312, 1200, 4096), "sent done → the local copy");
+        Assert.AreEqual("", S11MediaRules.fileSizeArg(true, true, 845312, 1200, -1), "sent done, missing → ''");
+        Assert.AreEqual("", S11MediaRules.fileSizeArg(true, true, 845312, 1200, 0), "sent done, empty → ''");
+        // digits only: invariant, no sign, no separator
+        Assert.AreEqual("18446744073709551615", S11MediaRules.fileSizeArg(false, false, ulong.MaxValue, 0, -1));
+        Assert.AreEqual("9223372036854775807", S11MediaRules.fileSizeArg(true, true, 0, 0, long.MaxValue));
+        Assert.AreEqual("", S11MediaRules.fileSizeArg(true, true, 0, 0, long.MinValue), "negative → ''");
+        // the OFF path is unchanged (offerSizeArg): a sent / done row still says ''
+        Assert.AreEqual("", S11MediaRules.offerSizeArg(true, true, 845312));
+    }
+
     [TestMethod]
     public void cache_is_bounded_first_writer_wins_and_keyed_per_chat()
     {

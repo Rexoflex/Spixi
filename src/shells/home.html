@@ -537,6 +537,7 @@
     fiatLine,                              // ★ #1040: one fiat display rule (2 dp, sub-cent = "<$0.01")
     zeroAmount,                          // N32: absolute-zero balance → "0.00" (money.js dial),
     applyPushedTheme,
+    stripFormat,                         // S20 F (#1378)
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
@@ -1437,10 +1438,14 @@
   // the row pushes → the open takeover flashes its "No contacts" empty state for a
   // frame. An 80ms timer re-armed on every push only fires once the whole burst
   // settles (there is no clearContactsDone signal for the directory roster).
+  let rosterFaceSig = '';
   function scheduleContactsRender() {
     clearTimeout(contactsRenderTimer);
     contactsRenderTimer = setTimeout(() => {
       if (contactsView) contactsView.setContacts(directoryRoster());   // iOS-26: groups INCLUDED, chip-filtered
+      // S20 J2: a real roster change re-renders the wallet faces
+      const sig = contactsRoster.map((c) => c && c.address + '\u0001' + c.name + '\u0001' + c.avatar).join('\u0002');
+      if (sig !== rosterFaceSig) { rosterFaceSig = sig; if (walletState.txs.length) scheduleWalletRender(); }
     }, 80);
   }
 
@@ -2375,12 +2380,12 @@
     if (k === 'reply') {   // ★ S8 (#1236): peer text → the B4 canon, like `text`
       // ★ S8 r1 (#1236): a reply whose body is a lone GIF link keeps the GIF mapping — the reply glyph + "GIF", never the raw URL
       if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'reply', text: 'GIF' };
-      return { type: 'reply', text: canonExcerptText(decoded) };
+      return { type: 'reply', text: canonExcerptText(stripFormat(decoded)) };   // S20 F (#1378)
     }
-    if (k === 'photo') return { type: 'photo', text: canonExcerptText(decoded) };   // ★ S9: a caption is PEER text → the B4 canon, like `text`
+    if (k === 'photo') return { type: 'photo', text: canonExcerptText(stripFormat(decoded)) };   // ★ S9: a caption is PEER text → the B4 canon, like `text`
     if (k !== 'text') return { type: k, text: trimmed };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
-    return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
+    return { type: 'text', text: canonExcerptText(stripFormat(decoded)) };          // B4 (#231) · S20 F (#1378)
   }
 
   /* —— composer drafts (CH7). chat.html persists the unsent composer text to
@@ -2400,7 +2405,7 @@
   function excerptFor(address, raw, statusType, name, excerptKind, sender) {
     const peerTyping = statusType === 'typing' || excerptKind === 'typing';
     const draft = peerTyping ? '' : getDraft(address);
-    if (draft) return { type: 'draft', text: draft };
+    if (draft) return { type: 'draft', text: stripFormat(draft) };   // S20 F (#1378)
     const ex = excerptFromPush(raw, statusType, name, excerptKind);
     /* ★ #944: who wrote the tail of a GROUP / BOT-room row ("George: hi there").
        C# decides WHETHER (rooms only, never an event kind; an own tail = "You", #969 —
@@ -2739,6 +2744,8 @@
      tab silently falls back to English literals. Delegating keeps a later setStrings()
      swap live too. */
   const walletStrings = slWith({});
+  // S20 #46 F1: a contact uses this address as its nickname → no join
+  const txAddrSpoofed = (a) => contactsRoster.some((c) => c && c.address !== a && c.name === a);
 
   /* ★ #440/#443: the last blockchain-scan report, kept so the "Missing a transaction?"
      sheet can answer with the real state instead of a generic reassurance. Derived
@@ -2788,20 +2795,33 @@
      * roster (loadContacts, same page) knows the rest. Join at OPEN time:
      *   address-shaped counterparty → roster row by address → nickname + avatar;
      *   nickname counterparty      → roster row by name    → address + avatar
-     *     (first match on a duplicate nickname — the W4 ambiguity, accepted).
+     *     (★ S20 #46 F1: ONE person only — a duplicate nickname no longer joins).
      * ★ #285/#288 hide fail-safe: when the wallet is HIDDEN the tx object's
      * display fields already carry the mask (applyWalletVisibility) — return it
      * UNTOUCHED, never join, so enrichment can't leak name/address/avatar around
      * the mask. Enrichment reads _raw (the true values) only on the visible leg. */
+    /* S20 J2 (#1440): the row face (#46 F1 / F3) */
+    faceOf: (tx) => {
+      const r = tx._raw;
+      if (walletHidden || !r || (r.address && txAddrSpoofed(r.address))) return { unknown: true };
+      const m = (c) => c && (r.address ? c.address === r.address : c.name === r.name);
+      const ppl = contactsRoster.filter((c) => m(c) && !isGroupContact(c));
+      const hits = ppl.length ? ppl : contactsRoster.filter((c) => m(c) && isGroupContact(c));
+      const c = hits.length === 1 ? hits[0] : null;
+      if (c) return { src: c.avatar, name: c.name !== c.address ? c.name : '', address: c.address, group: isGroupContact(c) };
+      return r.address ? { unknown: true } : { name: r.name };
+    },
     enrichTx: (tx) => {
       if (walletHidden || !tx || !tx._raw) return tx;
       const raw = tx._raw;
       // #46 r1 MINOR-2: PEOPLE only — iOS-26 put groups into contactsRoster, and a
       // name-collision join could print a GROUP's address as the copyable payment
       // counterparty (the #255/peopleRoster money fence, same reasoning).
+      if (raw.address && txAddrSpoofed(raw.address)) return tx;   // ★ S20 #46 F1
       const byAddr = raw.address ? contactsRoster.find((c) => c && !isGroupContact(c) && c.address === raw.address) : null;
-      const byName = !byAddr && raw.name ? contactsRoster.find((c) => c && !isGroupContact(c) && c.name === raw.name) : null;
-      const hit = byAddr || byName;
+      // ★ S20 #46 F1: a nickname joins only when ONE person carries it
+      const named = !byAddr && raw.name ? contactsRoster.filter((c) => c && !isGroupContact(c) && c.name === raw.name) : [];
+      const hit = byAddr || (named.length === 1 ? named[0] : null);
       if (!hit) return tx;
       /* ★ #449 (Damir on device, twice: the tx header showed a FULL 65-character
          address). Reported as a truncation bug and it is not one — BOTH ingest paths
@@ -3294,6 +3314,7 @@
    * (confirm modal → ixian:uninstall:<id> → HomePage.onUninstallApp → MiniAppManager
    * .remove). Discover + direct-launch/recents remain deferred to the standalone
    * apps-shell repoint — see docs/be-cutover-brief.md.
+   * ★ S20 C (#1377) SUPERSEDES the tap / ⋮ above: tap = details, a Run button launches, no tile menu.
    * ————————————————————————————————————————————————————————————————————————— */
   /* ★★ Session M (#775) — GRID BY DEFAULT, AND THE VIEW SURVIVES A RESTART.
      Damir, walk L: he set the view, restarted, and it was gone. Both readings of that are
@@ -3352,14 +3373,14 @@
       if (!app || app.id == null || app.id === '') return;
       appMoment(app, () => openContacts('app', app.id));   // ★ S17 F (#1340)
     },
-    // details → the app's details page (launch-mode + permissions live there); reached
-    // via the ⋮ menu's "App details" action (onOpen).
+    // details → the app's details page; ★ S20 C (#1377): the tile TAP (Run = onLaunch)
     onOpen: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
     // A1: uninstall from the ⋮ menu — the list-scoped verb now exists (HomePage
     // onUninstallApp → MiniAppManager.remove; C# re-pushes the trimmed list).
     onUninstall: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:uninstall:' + app.id); },
     onModelChange: () => {},
     appMenu: true,    // A1: ⋮ menu (App details · Uninstall w/ confirm) now that uninstall has a verb
+    appRun: true,     // S20 C (#1377)
     // EMPTY STATE (nothing installed): illustration + headline + supporting line + a
     // secondary "Add app" CTA. ★ S11 A2: inline art by name (illustrations.js).
 
@@ -4914,7 +4935,10 @@
   bridge.exposeAll(handlers);
 
   /* —— live relative timestamps ("2h", "yesterday", …) ————————————————————— */
-  startTimestampTicker(() => refreshTimestamps(list));
+  startTimestampTicker(() => {
+    refreshTimestamps(list);
+    if (walletList.dataset.day && walletList.dataset.day !== new Date().toDateString()) scheduleWalletRender();   // S20 J2
+  });
 
   /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
    *    the legacy onload() timing (spixi.js:88 → window load). Firing it

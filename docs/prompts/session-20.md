@@ -1,18 +1,34 @@
-# Session 20 — lock the chat UI: the S19 walk record, Damir's 13 Oct notes, file size, message formatting
+# Session 20 (combined) — lock the chat UI + the launch flow (ON-1) + the DT-1 leftovers
 
-Paste this as the first message of a NEW chat. Chat replies in ASD-STE100 (#931). PowerShell blocks with every delivery, each starting with the full `cd` (Damir 2026-10-13).
+RECONCILED 2026-10-13 16:2x (Damir: "combine into this session, so once we are done, all that remains is the macOS and iOS walks before the next pre-launch steps"). This ONE session merges four sources: the S20 prompt below (§2 A–G) · `claude/s20-additions-2026-10-13.md` (the DT-1 chat notes) · the ON-1 prompt, NEWER copy (`docs/prompts/session-on1.md` = `Claude outputs/onboarding-uplift/session-on1-prompt.md`, 181 lines, with "Also needed" + "Follow-ups") · the DT-1 walk leftovers. Chat replies in ASD-STE100 (#931). PowerShell blocks with every delivery, each starting with the full `cd`.
 
-Goal of this session: every visible chat item Damir raised on 13 Oct is decided and built, so the look and feel is LOCKED before any code-optimisation / perf-lever work (Damir 2026-10-13 10:57). Privacy levels move to Session 21. The launch-flow uplift is its own session (ON-1, project doc `claude/session-on1-prompt.md`) and may run in parallel (see §4).
+**Exit criterion.** Android + Windows walks of everything below are PASS (or each F fixed and re-walked), the patch is committed by Damir, and `docs/office-walk-sheet-v1.md` holds every owed iPhone / Mac row (S17 → this session). After that, only the office walk (iPhone + Mac) stands between us and S21 (privacy levels) → the perf levers → the freeze.
 
-## 0 · Precondition (stop if it fails)
-- `git --no-optional-locks log --oneline -4` on Damir's clone: the top is `7a7316df DT-1 round 2: list density, the Windows title bar look, pinned rows` (or a later DT / ON commit on top of it); HEAD = origin/redesign/frontend; only the two known untracked docs.
-- Read: `CLAUDE.md` → `docs/handoff-2026-10-13.md` (S19) → `docs/handoff-2026-10-13-dt1-r2.md` (DT-1: the desktop list, the phone swipe sides, the title bar; it did NOT touch chat.html) → DECISIONS #1369–#1373 and #1385–#1393 → the project docs `claude/session-19-status.md`, `claude/s20-additions-2026-10-13.md`, `claude/message-formatting-proposal-2026-10-13.md`.
-- DECISIONS numbers: this session uses **#1374–#1379, then #1400–#1419**. DT owns #1380–#1399 (next free #1394). ON-1 owns #1420–#1439. Lessons: next free L136.
-- Cloud twin: clone the repo AND `ixian-platform/Ixian-Core` at `097341a` next to it (smoke reads `../Ixian-Core`); `apt-get install -y dotnet-sdk-8.0` for CSH. Baseline (DT-1 r2): smoke **5965** / the 2 KNOWN (#136 · B3) · CSH **448**. Known flakes: #1147 (5) photo fade and `pins-s14/d-backup-about` (boot wait) under load — re-run alone; `pins-s15/e-send-enter` in the first hour after midnight.
+## 0 · Precondition (checked 16:2x — PASS)
+- Damir's clone: HEAD `b4387636` "Session 20 prompt: reconciled after DT-1" on `7a7316df` (DT-1 r2) = origin/redesign/frontend; only the two known untracked docs. Ixian-Core `097341a`.
+- Cloud twin: the repo + `ixian-platform/Ixian-Core` at `097341a` next to it; `dotnet-sdk-8.0`; `npm i --no-save jsdom eslint globals tree-sitter tree-sitter-c-sharp` (ONE command). Baseline: smoke **5965** / the 2 KNOWN · CSH **448** (re-measure; a different number → stop).
+- Read: `CLAUDE.md` → `docs/handoff-2026-10-13.md` (S19) → `docs/handoff-2026-10-13-dt1-r2.md` → DECISIONS #1369–#1373, #1385–#1393 → `docs/prompts/session-on1.md` → project docs `claude/message-formatting-proposal-2026-10-13.md`, `claude/welcome-language-pill-todo-2026-10-13.md`, `claude/store-launch-kit-2026-10-12.md` (the wording rule).
+
+## 0b · Reconciliation (where the sources disagreed)
+| # | Conflict | Resolution |
+|---|---|---|
+| R1 | S20 §4 and ON-1 planned two parallel sessions + a rebase of the second | ONE session, ONE base (`b4387636`), ONE delivery (§3 step 7). No rebase step. |
+| R2 | Two ON-1 copies | The newer one wins (adds Sora latin-ext, the claim checks, reduced motion, the follow-ups). |
+| R3 | ON-1 Part B "if the rings dial is on" vs Decision 6 "decided, not a dial" | The rings are ON (Decision 6, 16:06). Not a dial. |
+| R4 | ON-1 "C# change = 🟡 row + BE note + T1 row" vs CLAUDE.md #1312 | #1312 governs our C#: flag (old path = fallback) + a packet in `docs/be-review-pack/` (next P29) + its gate row + a security-only #46 at HIGH; ALSO the 🟡 row and the T1 row. |
+| R5 | S20 prompt "Lessons: next free L136" | DT-1 used L136–L139 → next free **L140**. |
+| R6 | DECISIONS blocks | S20 chat items **#1374–#1379, then #1400–#1419** · DT leftovers **#1394–#1399** (#1394 = WALK DT-1 R2) · ON-1 **#1420–#1439**. One block per track, even in one session. |
+| R7 | The two recordings (`screen-20261013-110733.mp4`, `1791888337119_…mp4`) | NOT on disk in the project folder. Their frame readings in §2 A are the record; the mechanism uses Playwright stamps on the built shell + `[P1]`-style log lines on Damir's device. |
+| R8 | ON-1 "the welcome stays as it is" vs the pill, slide 3 and the rings on welcome | Only the welcome BACKDROP stays. The pill (Part C), slide 3 (Part D) and the top-right rings change welcome. |
+| R9 | Two walk sheets (S20 + ON-1) and the DT leftovers | ONE walk sheet `docs/walk-s20.md` + ONE Artifact "Spixi Session 20 Walk": the S20 rows, the ON-* rows, DT2-DENS-HOVER (re-walk), DT2-BUILD-A, DT2-PHONE-SAME, a CLOSE row for the Windows debug break. |
+| R10 | Two render pages | Two Artifacts (they answer different questions): "Spixi Session 20 Dials" (chat: B, C, D, E, F) and "Spixi Launch Flow Dials" (ON-1: backdrops, buttons, cards, pill, the states with the rings, desktop). Interview rounds ≤ 4 questions. |
+| R11 | `tokens.css` + `src/strings/draft/*.json` are touched by both tracks | One owner for each shared file in the build contract; the strings pipeline runs ONCE after the merge. |
 
 ## 1 · Record first (no code)
 - **#1374** `WALK #1374 (S19 build c277ec5f, Windows F5 + Android Debug): 16 P · 0 F · 0 N/A` (Damir 2026-10-13 11:20; results + his two notes in `docs/walk-s19.md`; Android log `Claude outputs/android-s19.txt` — `[MO] ask id=lang d=grant` once per new language, none for the repeat; `app d=refuse why=session` after autodl took the session, the known residual).
-- **#1375** the queue: items A–G below, one row, each with its source and time.
+- **#1375** the queue: items A–G (§2) + ON-1 (§2b) + H (§2c), one row, each with its source and time.
+- **#1394** `WALK DT-1 R2 (Damir 16:17, Windows F5): 8 P · 0 F · 2 N/A + 1 unmarked`. PASS: DT2-BUILD-W · DT2-TB-LOOK · DT2-TB-MARK · DT2-TB-DEVOFF · DT2-PIN · DT2-DENS-LIVE · DT2-DENS-PREVIEW · DT2-DENS-RESTART. Unmarked: DT2-DENS-HOVER (re-walk in S20). N/A "later": DT2-BUILD-A · DT2-PHONE-SAME (walk with the S20 Android walk). DT2-TB-MARK: the "═" mark is Visual Studio's Debug in-app toolbar (XAML Hot Reload), not ours, not in Release → the #1391 open item is CLOSED.
+- **#1420** ON-1 opened: Damir's Decisions 1–8 + Parts B–D as approved 15:54 / 16:05 / 16:06 / 16:08 (one row; quote the prompt, do not reopen).
 
 ## 2 · The items
 **A · Composer height ↔ the message list (ONE item, three symptoms; mechanism first).**
@@ -33,17 +49,29 @@ Goal of this session: every visible chat item Damir raised on 13 Oct is decided 
 
 **G · Carried open items** (S19 handoff §3, ask in the interview, render where visual): the incoming bubble colour picker (proposal) · Mist dark ground vs the ink-950 chrome · the neutral secure notice on the darker grounds · the phone About / Contributors title over the art · the duplicate "Set group photo" tab stop · RTL "n / 10" · the install moment takes the session (an unmarked app re-asks later) · the details ask has no loading morph.
 
-## 3 · Order
-1. Precondition + §1 rows.
-2. Mechanism for A (stamps, no fix yet) and for E (the size data path).
-3. ONE render page, the Artifact "Spixi Session 20 Dials", on the BUILT shells, both themes: B (3 options + contrast table), C, D (per canvas + contrast), E (placement), F (link to the formatting page + the composer bar if picked). A clickable interview (≤ 4 per round). **No build before "go".**
-4. Build CONTRACT-FIRST, one owner per file: P = composer / list motion (A) · Q = bubbles (B, E frontend, F) · R = apps tile (C) + dark tokens (D) · S = the small C# (F notification strip, E size arg) behind flags. Parallel focused reviewers.
-5. Pins in `scripts/pins-s20/`, each with a deliberate break; register in `smoke-test.mjs`. ONE full smoke alone (`setsid`, wait loop); CSH; #46 to CLEAN; security-only #46 at HIGH for any C# / bridge change.
-6. Walk sheet `docs/walk-s20.md` + the Artifact "Spixi Session 20 Walk": A1–A3 on Android + Windows (a chat with large images; record a screen video), B per sent colour, C, D per canvas, E incoming / sent / completed, F syntax + plain cases + quote / preview / notification strip.
-7. END: ONE patch on the then-current HEAD (`git add -N` → `git --no-optional-locks diff --binary HEAD`), verified with a temp `GIT_INDEX_FILE` + write-tree compare; SendUserFile + `Claude outputs`; a read-only `git apply --check` on Damir's clone; commit message file; DECISIONS rows; CLAUDE.md "where we are now"; the handoff; `docs/prompts/session-21.md` (privacy levels: option 1 = Relaxed · Balanced · Private presets over the real switches, "Custom" computed by the shell, a "This changes" list, one undo; render first).
+## 2b · ON-1 — the launch flow (full text: `docs/prompts/session-on1.md`; do not reopen its Decisions 1–8)
+Create in two steps (photo + nickname → password) · no setup screen · restore on one screen (file card, "Password", the honesty line, the wrong-password state, "Restoring…") · the slow restore screen only after 2 s, stages only if C# reports them · no outlines (filled surfaces) · the lifted, LESS violet backdrop token `--gradient-launch-form` on create / restore · the static corner rings in ONE shared layer (welcome top-right on the phone; create / restore / desktop top-right + bottom-left) · the solid primary button (no gradient, no coloured glow) · calmer cards · Part B desktop two columns ≥ 900 px (460 px card) · Part C the welcome language pill (option B) · Part D slide 3 "Send IXI like a message." in 14 locales · Sora latin-ext · the claim checks (address made on the device; create < 2 s on the slowest target — if not, STOP and tell Damir) · reduced motion. Pins + walk rows: as listed in `session-on1.md`.
 
-## 4 · Running beside ON-1
-ON-1 (launch flow) touches the launch shell, `launch-shell.css`, launch tokens and strings. This session touches chat / composer / apps / tokens for the chat grounds / strings. The file sets overlap ONLY in the string drafts (`src/strings/draft/*.json`), `tokens.css` and the generated output. Whichever delivers SECOND rebases on the first commit: re-run the generators, merge the drafts by key, re-verify the patch on the new HEAD. Never hand Damir a patch cut on an old base.
+## 2c · H — the DT-1 leftovers
+- H1 DT2-DENS-HOVER: re-walk only (no code unless it fails).
+- H2 DT2-BUILD-A + DT2-PHONE-SAME: walk with the S20 Android build.
+- H3 The Windows Debug break on close (Damir 16:15, WinUI `UnhandledException` → `Debugger.Break()`): no exception text yet. A walk row CLOSE-W: close Spixi 3× under F5; if it breaks, run `e.Exception.ToString()` in the Immediate Window and copy the `Exception thrown:` lines from Output. Mechanism first; check whether it predates DT-1.
+- H4 "Developer mode, I can't enter that screen" (DT-1 walk note): ask Damir which screen in round 1.
+- H5 Offer: delete the failed title-bar ways `maui` / `colors` (~150 lines of C#, a dev verb, a push, a card, 4 strings) now that the Windows look passed. If Damir says yes, it is in this delivery (DT range row).
+- H6 Walk sheets: the Windows wipe = `cmd /c rd /s /q "\\?\<repo>\Spixi\bin"` + `Remove-Item -Recurse -Force Spixi\obj` (L139).
+
+## 3 · Order
+1. Precondition + the §1 rows.
+2. Mechanism, no fix yet: A (stamps), E (the size data path), ON-1 (one paragraph per C# hook: create payload, errors, restore progress; the two claims; the create time; the Android back for step 2; the keyboard today; the DT-1 desktop launch frame and its flag; reduced motion; file drops).
+3. Interview round 1 (scope; clickable). Then the two render pages on the BUILT shells, both themes (R10). Interview rounds 2+ (the dials). **No build before "go".**
+4. Build CONTRACT-FIRST, one owner per file: P = composer / list motion (A) · Q = bubbles (B, E frontend, F) · R = apps tile (C) + dark chat tokens (D) · S = the small C# (F notification strip, E size arg, ON-1 hooks if any, H5 if yes) behind flags · T = the launch shell + launch CSS + fonts (ON-1) · ONE owner for `tokens.css` and the string drafts (merges the others' requests). Parallel focused reviewers.
+5. Pins in `scripts/pins-s20/` (chat) and `scripts/pins-on1/` (launch), each with a deliberate break; register in `smoke-test.mjs`. ONE full smoke alone (`setsid`, wait loop); CSH; #46 to CLEAN; security-only #46 at HIGH for any C# / bridge change.
+6. Walk: ONE sheet `docs/walk-s20.md` + the Artifact "Spixi Session 20 Walk" (R9): A1–A3 (a chat with large images; record a screen video), B per sent colour, C, D per canvas, E incoming / sent / completed, F syntax + plain cases + quote / preview / notification strip, every ON-* row, H1–H3. Android + Windows, light + dark.
+7. END: ONE patch on the then-current HEAD (`git add -N` → `git --no-optional-locks diff --binary HEAD`), verified with a temp `GIT_INDEX_FILE` + write-tree compare; SendUserFile + `Claude outputs`; a read-only `git apply --check` on Damir's clone; `docs/commit-message-session20.txt`; DECISIONS rows; CLAUDE.md "where we are now"; the handoff; status-log; lessons (from L140).
+8. Walk round: Damir walks → `WALK #n` rows (S20 block and ON block) → each F mechanism first → a fix patch → re-walk, until PASS. Then update `docs/office-walk-sheet-v1.md` with every owed iPhone / Mac row from S17, S18, S19, sq-al, DT-1, DT-1 r2, this session (incl. the ON-* rows and Sora latin-ext on iOS / Mac) → `docs/prompts/session-21.md` (privacy levels: option 1 = Relaxed · Balanced · Private presets over the real switches, "Custom" computed by the shell, a "This changes" list, one undo; render first).
+
+## 4 · Follow-ups to note (not in this session)
+The store video start scene + store screenshots of the old create screen (re-render after ON-1 ships) · the welcome copy proposal (not approved) · the per-language `previewSender` names · the chat-style restore.
 
 ## 5 · Rules (unchanged)
 Cloud clone only; never commit / push from the cloud; ★ COMMIT RULE (no attribution lines); no Ixian-Core change; C# touches no risky parts; #1312 for our bridge / C# changes (flag, packet, gate row, security-only #46 at HIGH); `git --no-optional-locks` on the mounted repo, never Damir's index; ONE full smoke at a time (2 cores); mechanism first (#294); verify claims in the tree (#215); tokens, not literals (GATE 64 `sanctioned:`; the orphan-token gate); state any KB-ceiling move with measured chars (CHAT_KB_CEIL 957 · INDEX 649).

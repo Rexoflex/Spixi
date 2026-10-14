@@ -1,0 +1,420 @@
+/* c-launch FORMS — ★ ON-1 (#1420–#1422): create (two steps) + restore, the shared corner
+   rings layer and the launch motion. Split out of launch-shell.css so ONLY the launch shell
+   (src/shells/launch.html) carries it; launch-shell.css keeps welcome, the legal sheet and
+   the #615 body / footer pair these rules build on. */
+
+/* ══ ★ ON-1 (#1420–#1422) — create (two steps) + restore ═══════════════════════════════
+   Damir's picks: BG 2 (--gradient-launch-form), CARD 2 "Slate", the app's own c-button
+   (solid fill, 56 px, no gradient, no coloured glow), NO outline on banners / cards / tags
+   (only input fields keep an edge). Every colour is a --launch-* token (tokens.css, the
+   block after --gradient-launch). */
+.c-launch { position: relative; isolation: isolate; }
+
+/* —— the rings: ONE shared layer above the views, under every sheet (#1422) ——
+   Static: no animation, no transform. A ring set that would reach content FADES (the
+   guard in launch-shell.js) — it never moves. */
+.c-launch__rings {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-30) + 1);              /* over the sliding view (z-30) — the sheets mount outside this section */
+  pointer-events: none;
+  overflow: hidden;
+}
+.c-launch__rings svg {
+  position: absolute;
+  display: block;
+  overflow: visible;
+  color: var(--launch-ring-stroke);
+}
+.c-launch__rings path {
+  fill: none; stroke: currentColor; stroke-width: 1.4px; vector-effect: non-scaling-stroke;
+  transition: opacity var(--duration-300) var(--easing-standard);   /* the guard's fade — never a move */
+}
+.c-launch__rings-tr { top: 0; right: 0; width: 130px; height: 130px; }
+.c-launch__rings-bl { bottom: 0; left: 0; width: 90px; height: 90px; }
+/* ★ #46 r1: the guard hides single rings whose stroke would cross content — the rest stay */
+.c-launch__rings path[data-quiet] { opacity: 0; }
+/* phone: the status-bar icons stay clean — transparent at 40 px, full at 72 px */
+:root:not([data-desktop]) .c-launch__rings-tr {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 40px, var(--launch-on-tile) 72px);
+          mask-image: linear-gradient(to bottom, transparent 40px, var(--launch-on-tile) 72px);
+}
+/* phone welcome: top right only — the two full-width buttons own the bottom */
+:root:not([data-desktop]) .c-launch[data-view="welcome"] .c-launch__rings-bl { opacity: 0; }
+/* desktop: both corners, scaled to the window */
+:root[data-desktop] .c-launch__rings-tr { width: clamp(140px, 11vw, 240px); height: clamp(140px, 11vw, 240px); }
+:root[data-desktop] .c-launch__rings-bl { width: clamp(180px, 16vw, 300px); height: clamp(180px, 16vw, 300px); }
+
+/* —— the lifted backdrop: create + restore only (welcome + retry keep --gradient-launch) —— */
+.c-launch__form {
+  background: var(--gradient-launch-form);
+  color: var(--text-neutral-01);
+}
+/* the slide ground travels with the view — no flash on welcome → create / restore */
+.c-launch > .c-subslide.c-launch__form { --subslide-ground: var(--gradient-launch-form); }
+
+/* header: the topbar (back + title) with the step label UNDER the title on the phone */
+.c-launch__form .c-topbar[data-variant="view"] { padding-inline: var(--spacing-8) var(--spacing-16); }
+.c-launch__head {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  white-space: normal;
+}
+.c-launch__head-title {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  line-height: 1.2;
+}
+.c-launch__head-step {
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-xs);
+  line-height: 16px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--launch-label);
+}
+.c-launch__progress { flex: none; display: flex; gap: 6px; margin: var(--spacing-4) var(--spacing-24) 0; }
+.c-launch__progress i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
+.c-launch__progress i[data-on] { background: var(--launch-brand); }
+
+/* a create step = its own body + footer (the #615 pair) */
+.c-launch__step { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.c-launch__form .c-launch__body { padding: var(--spacing-24) var(--spacing-24) var(--spacing-16); }
+.c-launch__form .c-launch__footer { padding-top: var(--spacing-12); }
+/* below the two-column width: the phone layout, centred, at most 460 px (#1422 Part B) */
+.c-launch__form > .c-topbar,
+.c-launch__form .c-launch__body > *,
+.c-launch__form .c-launch__footer > * { width: 100%; max-width: 460px; margin-inline: auto; }
+.c-launch__form > .c-topbar { max-width: 476px; }
+.c-launch__form > .c-launch__progress { width: auto; max-width: calc(460px - 2 * var(--spacing-24)); }
+@media (min-width: 508px) { .c-launch__form > .c-launch__progress { margin-inline: auto; width: 100%; } }
+
+/* hero: photo / art · title · subline · tags */
+.c-launch__hero {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  text-align: center;
+}
+.c-launch__hero-title {
+  margin: 12px 0 0;
+  max-width: 440px;
+  color: var(--text-neutral-01);
+  font-family: var(--font-display);            /* #231 brand opt-in — Sora (+ latin-ext, launch-font.css) */
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.c-launch__hero-copy {
+  margin: 0;
+  max-width: 330px;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 15px;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+/* restore art — ★ S11 B (#1262): the inline set, on the form backdrop, dark set */
+.c-launch__hero-illo {
+  display: block;
+  width: min(46vw, 168px);          /* sanctioned: art measure on the 390 px frame */
+  max-height: 28vh;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* the photo: brand-blue ring, a transparent gap, no glow (Decision 8) */
+.c-launch__photo {
+  position: relative;
+  flex: none;
+  width: 148px;
+  height: 148px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--launch-photo-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-launch__photo:focus-visible { outline: var(--outline-width-2) solid var(--launch-field-focus); outline-offset: 3px; }
+.c-launch__photo-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid var(--launch-brand);
+  padding: 4px;
+}
+.c-launch__photo-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--launch-photo-fill);
+}
+.c-launch__photo-img .c-avatar { width: 100% !important; height: 100% !important; }   /* the avatar fills the ring at any size (inline px from createAvatar) */
+.c-launch__photo[data-empty] .c-launch__photo-ring { border-color: var(--launch-photo-empty-ring); }
+.c-launch__badge {
+  position: absolute;
+  right: 2px;
+  bottom: 4px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--launch-on-tile);
+  background: var(--surface-action-default);
+  box-shadow: var(--launch-badge-shadow);
+}
+/* step 2: the same photo, smaller, with the orange lock */
+.c-launch__photo[data-size="sm"] { width: 104px; height: 104px; cursor: default; }
+.c-launch__photo[data-size="sm"] .c-launch__photo-ring { border: 0; padding: 0; }
+.c-launch__photo[data-size="sm"] .c-launch__badge { right: -6px; bottom: -2px; background: var(--launch-warn); }
+
+/* tags (no outline) */
+.c-launch__tags { align-self: stretch; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: var(--spacing-8); }
+.c-launch__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--launch-tag-bg);
+  box-shadow: var(--launch-inner-shadow);
+  color: var(--launch-text-tag);
+  font-family: var(--font-secondary);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+.c-launch__tag svg { flex: none; opacity: 0.85; }
+
+/* —— the floating-label field (wraps the shared inputs; only fields keep an edge) —— */
+.c-launch__fields { display: flex; flex-direction: column; gap: var(--spacing-12); }
+.c-launch__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 58px;
+  padding: 0 var(--spacing-8) 0 var(--spacing-16);
+  border-radius: var(--launch-radius-inner);
+  background: var(--launch-field-fill);
+  box-shadow: inset 0 0 0 1.5px var(--launch-field-edge);
+}
+.c-launch__field[data-focus] { box-shadow: inset 0 0 0 2px var(--launch-field-focus), 0 0 0 4px var(--launch-field-focus-ring); }
+.c-launch__field[data-error] { box-shadow: inset 0 0 0 2px var(--launch-field-error); background: var(--launch-field-error-fill); }
+.c-launch__field-main { position: relative; flex: 1; min-width: 0; align-self: stretch; cursor: text; }
+.c-launch__field-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--font-weight-semibold);
+  pointer-events: none;
+  transition: top var(--duration-200) var(--easing-standard), font-size var(--duration-200) var(--easing-standard);
+}
+.c-launch__field[data-empty]:not([data-focus]) .c-launch__field-label { top: 50%; transform: translateY(-50%); font-size: 16px; font-weight: var(--font-weight-medium); }
+/* the shared input, re-skinned inside the field (lock-shell.css keeps its own look elsewhere) */
+.c-launch__field .c-launch__field-input {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 9px;
+  width: 100%;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-neutral-01);
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-body-md);
+  line-height: 24px;
+}
+.c-launch__field .c-launch__field-input:focus-visible { outline: 0; }   /* the FIELD draws the focus edge ([data-focus]) */
+.c-launch__field .c-launch__field-input[type="password"] { letter-spacing: 0.12em; }
+.c-launch__field-end { flex: none; display: flex; align-items: center; gap: 2px; }
+.c-launch__field-ok { width: 24px; height: 24px; margin-inline-end: var(--spacing-8); border-radius: 50%; display: grid; place-items: center; background: var(--launch-ok); color: var(--launch-on-tile); }
+.c-launch__field .c-lock__reveal {
+  position: static;
+  transform: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--launch-label);
+}
+.c-launch__ferr {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: -4px 4px 0;
+  color: var(--launch-text-error);
+  font-family: var(--font-secondary);
+  font-size: 13.5px;
+  line-height: 18px;
+  font-weight: var(--font-weight-semibold);
+}
+.c-launch__ferr svg { flex: none; margin-top: 1px; }
+
+/* strength bar (advice) + the two live checks */
+.c-launch__meter { display: flex; align-items: center; gap: 6px; margin: 0 4px; }
+.c-launch__meter i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
+.c-launch__meter[data-level="1"] i:nth-child(-n+1) { background: var(--launch-meter-1); }
+.c-launch__meter[data-level="2"] i:nth-child(-n+2) { background: var(--launch-meter-2); }
+.c-launch__meter[data-level="3"] i:nth-child(-n+3) { background: var(--launch-meter-3); }
+.c-launch__meter[data-level="4"] i:nth-child(-n+4) { background: var(--launch-meter-4); }
+.c-launch__meter-label {
+  flex: none;
+  min-width: 52px;
+  margin-inline-start: 6px;
+  text-align: end;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+}
+.c-launch__meter[data-level="1"] .c-launch__meter-label { color: var(--launch-meter-text-1); }
+.c-launch__meter[data-level="2"] .c-launch__meter-label { color: var(--launch-meter-text-2); }
+.c-launch__meter[data-level="3"] .c-launch__meter-label { color: var(--launch-meter-text-3); }
+.c-launch__meter[data-level="4"] .c-launch__meter-label { color: var(--launch-text-ok); }
+.c-launch__checks { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 4px; }
+.c-launch__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 13.5px;
+  line-height: 18px;
+}
+.c-launch__check b {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1.5px var(--launch-check-edge);
+}
+.c-launch__check[data-state="ok"] { color: var(--launch-text-ok); }
+.c-launch__check[data-state="ok"] b { background: var(--launch-ok); box-shadow: none; color: var(--launch-on-tile); }
+.c-launch__check[data-state="bad"] { color: var(--launch-text-error); }
+.c-launch__check[data-state="bad"] b { box-shadow: inset 0 0 0 1.5px var(--launch-text-error); color: var(--launch-text-error); }
+
+/* the "write it down" banner (no outline) */
+.c-launch__banner {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: var(--launch-pad-inner);
+  border-radius: var(--launch-radius-inner);
+  background: var(--launch-warn-bg);
+  box-shadow: var(--launch-inner-shadow);
+  text-align: start;
+}
+.c-launch__tile {
+  flex: none;
+  width: var(--launch-tile);
+  height: var(--launch-tile);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--launch-on-tile);
+  background: var(--launch-warn);
+}
+.c-launch__banner-title { margin: 0 0 3px; color: var(--launch-text-warn-title); font-family: var(--font-secondary); font-size: 15px; line-height: 20px; font-weight: var(--font-weight-bold); }
+.c-launch__banner-body { margin: 0; color: var(--launch-text-body); font-family: var(--font-secondary); font-size: 14px; line-height: 19px; }
+
+/* the restore file card (no outline) */
+.c-launch__filecard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 0 var(--launch-pad-inner);
+  border: 0;
+  border-radius: var(--launch-radius-inner);
+  background: var(--launch-inner-bg);
+  box-shadow: var(--launch-inner-shadow);
+  color: var(--text-neutral-01);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-launch__filecard:focus-visible { outline: var(--outline-width-2) solid var(--launch-field-focus); outline-offset: 2px; }
+.c-launch__filecard:disabled { cursor: default; }
+.c-launch__filecard .c-launch__tile { background: var(--surface-action-default); }
+.c-launch__filecard[data-file-set] { background: var(--launch-ok-bg); }
+.c-launch__filecard[data-file-set] .c-launch__tile { background: var(--launch-ok); }
+.c-launch__filecard-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.c-launch__filecard-title { font-family: var(--font-secondary); font-size: 16px; line-height: 21px; font-weight: var(--font-weight-bold); overflow-wrap: anywhere; }   /* untrusted file names — never overflow */
+.c-launch__filecard-sub { color: var(--launch-label); font-family: var(--font-secondary); font-size: 13px; line-height: 17px; }
+.c-launch__filecard-end { flex: none; display: flex; align-items: center; color: var(--launch-label); }
+.c-launch__filecard-change { color: var(--text-accent); font-weight: var(--font-weight-semibold); }
+
+/* notes: the address note above Continue, the restore honesty line under the field */
+.c-launch__fnote {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--spacing-8);
+  margin: 0;
+  color: var(--launch-label);
+  font-family: var(--font-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+.c-launch__fnote svg { flex: none; margin-top: 1px; }
+.c-launch__fnote[data-align="start"] { justify-content: flex-start; text-align: start; margin: 0 4px; }
+.c-launch__fnote[data-tone="key"] svg { color: var(--launch-key-ink); }
+/* the honest line under a busy create button (after 2 s, #1421 (2)) */
+.c-launch__honest { margin: -2px var(--spacing-8) 0; text-align: center; color: var(--launch-label); font-family: var(--font-secondary); font-size: 13px; line-height: 18px; }
+
+/* —— motion: step 1 ⇄ step 2 (the entering pane slides in on the subscreen clock) —— */
+.c-launch__step[data-enter="fwd"] { animation: c-launch-step-fwd 220ms var(--easing-standard) both; }   /* = the subscreen enter (subscreen-slide.css) */
+.c-launch__step[data-enter="back"] { animation: c-launch-step-back 220ms var(--easing-standard) both; }
+@keyframes c-launch-step-fwd { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes c-launch-step-back { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+html[dir="rtl"] .c-launch__step[data-enter="fwd"] { animation-name: c-launch-step-back; }
+html[dir="rtl"] .c-launch__step[data-enter="back"] { animation-name: c-launch-step-fwd; }
+@keyframes c-launch-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes c-launch-fade-out { from { opacity: 1; } to { opacity: 0; } }
+/* ★ ON-1: reduced motion = a SHORT FADE, not nothing — the welcome → create / restore
+   slide, step 1 → 2 and the desktop hero cross-fade (the duration tokens go to 0 there,
+   tokens.css, so the fade names its own short time). Desktop keeps the plain swap for the
+   welcome → form switch (#704). */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-desktop]) .c-launch > .c-subslide.c-subslide--in { animation: c-launch-fade-in 140ms linear both; }
+  :root:not([data-desktop]) .c-launch > .c-subslide.c-subslide--out { animation: c-launch-fade-out 120ms linear both; }
+  .c-launch__step[data-enter="fwd"],
+  .c-launch__step[data-enter="back"],
+  html[dir="rtl"] .c-launch__step[data-enter] { animation: c-launch-fade-in 140ms linear both; }
+}
+
+/* ══ desktop (Windows / Mac), Part B: the two-column layout at a window ≥ 900 px lives in the
+   LAUNCH SHELL's own <style> (src/shells/launch.html) — a component stylesheet carries no ≥ 700 px
+   viewport query (#228 gate: desktop is composition in the shell layer). Below 900 px the rules
+   above ARE the desktop layout: the phone column, centred, at most 460 px. ══ */

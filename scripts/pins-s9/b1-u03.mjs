@@ -3,7 +3,12 @@
  * token chain (--text-bubble-sent-meta over --surface-bubble-sent; --text-error over --surface-error-inverse, 12 % toward
  * black on the card — the color-mix in typed-bubbles.css), light, then <html data-theme="dark">. WCAG 2 relative luminance.
  * Deliberate breaks (S9 B1 hand-back): the sent meta 0.92 → 0.7 → sentLight · the card badge rule's color-mix removed
- * (color: var(--text-error) only) → badgeLight */
+ * (color: var(--text-error) only) → badgeLight
+ * ★ RE-BASED by S20 Q (#1377 B, Damir's dial option 2 supersedes #1247's 0.92): the sent time is at the --bubble-meta-opacity-sent
+ * token = 0.7 — Damir's knowing trade (the incoming #1041 one): measured 3.30:1 light · 4.41:1 dark on the default bubble, so
+ * the time's floor here is 3:1 (the tick floor #1377 measured), no longer 4.5:1. The badge keeps 4.5:1.
+ * S20 break: the token 0.7 → 0.92 → op false · → 0.5 → op + sentLight (2.20:1) · (#46 r1) a dark-only --text-bubble-sent-meta one
+ * step dimmer → sentDark */
 import { b1Kit } from './b1-kit.mjs';
 export default async function (h) {
   const { ok } = h;
@@ -24,7 +29,10 @@ export default async function (h) {
     const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
     const mix = (fg, bg, a) => fg.map((c, i) => c * a + bg[i] * (1 - a));
     const time = K.rowOf(d, 'cc02').querySelector('.c-bubble__meta time') || K.rowOf(d, 'cc02').querySelector('.c-bubble__meta > *');
-    const op = Number(W.getComputedStyle(time).opacity);
+    /* ★ re-based by S20 Q (#1377): the winning value is now a token — var() resolved through the root (jsdom does not) */
+    const opRaw = W.getComputedStyle(time).opacity.trim();
+    const opVar = /^var\((--[\w-]+)\)$/.exec(opRaw);
+    const op = Number(opVar ? resolve(opVar[1]) : opRaw);
     /* the card badge: its winning colour declaration must be the color-mix toward black at 12 % */
     const badgeRule = [...d.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } })
       .filter((ru) => ru.selectorText === '.c-tcard__badge .c-badge[data-weight="tonal"][data-type="error"]');
@@ -40,9 +48,9 @@ export default async function (h) {
     const light = measure();
     d.documentElement.setAttribute('data-theme', 'dark');
     const dark = measure();
-    r.op = op > 0.9 && op <= 1;
-    r.sentLight = light.sent >= 4.5;
-    r.sentDark = dark.sent >= 4.5;
+    r.op = Math.abs(op - 0.7) < 1e-9;   // ★ re-based by S20 Q (#1377): was 0.92 (> 0.9)
+    r.sentLight = light.sent >= 3.2;    // ★ re-based by S20 Q (#1377): was ≥ 4.5 — the 0.7 time is Damir's knowing trade (measured 3.30)
+    r.sentDark = dark.sent >= 4.3;      // (measured 4.41) — #46 r1 auditor C: floors just under the measurement, so a step down is caught
     r.badgeLight = light.badge >= 4.5;
     r.badgeDark = dark.badge >= 4.5;
     r.values = [light.sent, dark.sent, light.badge, dark.badge].map((x) => x.toFixed(2)).join('/');
@@ -50,5 +58,5 @@ export default async function (h) {
   } catch (e) { r.err = e.message; }
   const { values, ...flags } = r;
   ok(Object.values(flags).every((x) => x === true),
-    '★ S9 B1 U-03 (#1247) on the built chat shell: the sent time (its winning opacity over the sent bubble) and the card\'s "Failed" badge measure ≥ 4.5:1 in light AND dark (sent L/D · badge L/D = ' + values + ') — ' + JSON.stringify(flags));
+    '★ S9 B1 U-03 (#1247, re-based S20 Q #1377) on the built chat shell: the sent time sits at the 0.7 sent-meta opacity and still ≥ 3.2:1 light / 4.3:1 dark over the sent bubble, the card\'s "Failed" badge ≥ 4.5:1, in light AND dark (sent L/D · badge L/D = ' + values + ') — ' + JSON.stringify(flags));
 }

@@ -192,7 +192,7 @@
   /** ★ S19 F5: the app moment, then go(). Install = its own title ("Before you install {app}") and the Install label on the
    *  fill button; the body is the app moment's (the trust line) with the app's capability rows. A quiet close = stop().
    *  ★ #46 S19 M4: `otherwise` = what runs when NO sheet shows (Install: the component's install confirm). */
-  function appMoment(a, { install = false, go, stop = null, otherwise = null }) {
+  function appMoment(a, { install = false, go, stop = null, otherwise = null, shown = null }) {
     if (!a || a.id == null || a.id === '') { if (otherwise) otherwise(); else if (stop) stop(); return; }
     const s = install
       ? Object.assign({}, strings, {
@@ -202,7 +202,8 @@
       : strings;
     momentBeforeAction(moments, {
       id: 'app', arg: String(a.id), host: document.body, strings: s,
-      ctxFor: (caps) => ({ app: a.name || '', caps }),
+      // ★ S20 G (#1379): ctxFor runs the moment the yes lands, right before the sheet shows → `shown` ends the Install wait
+      ctxFor: (caps) => { if (shown) { try { shown(); } catch (e) {} } return { app: a.name || '', caps }; },
       go, stop, otherwise,
     });
   }
@@ -229,7 +230,9 @@
       // ★ S19 F5 + #46 S19 M4: ONE question before ixian:install — the app moment, asked FIRST, REPLACES the install
       // confirm when it shows (its Install = the install; Cancel / back / scrim = nothing); when it does not show (seen,
       // refused, no cap, no answer within ASK_WAIT_MS) the component's install confirm runs as before
-      beforeInstall: (a, { install, confirm }) => appMoment(a, { install: true, go: install, stop: null, otherwise: confirm }),
+      // ★ S20 G (#1379): the Install button morphs to loading while the ask is on its way (≤ ASK_WAIT_MS); `settle` ends it when
+      // the sheet shows (shown) and on a quiet close (stop — still no install, as before)
+      beforeInstall: (a, { install, confirm, settle }) => appMoment(a, { install: true, go: install, stop: settle || null, otherwise: confirm, shown: settle || null }),
       // install — fire the intent, stash the ctrl; C#'s showInstall* resolves it.
       onInstall: (a, ctrl) => { pendingInstallCtrl = ctrl; bridge.send('ixian:install'); },
       // after the success morph the component calls onInstalled → re-render as installed

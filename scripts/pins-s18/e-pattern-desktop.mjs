@@ -47,7 +47,7 @@ export default async function (h) {
     const ph = await readChat(false);
     const dk = await readChat(true);
     r.flags = !ph.flag && dk.flag && ph.opacity === 'var(--chat-pattern-alpha-1)' && dk.opacity === 'var(--chat-pattern-alpha-1)';
-    r.phoneToday = ph.v['light:flat'].a === 0.1024 && ph.v['dark:flat'].a === 0.0932 && ph.v['light:aurora'].a === 0.192 && ph.v['dark:aurora'].a === 0.0932;   // ★ S19 option B RE-BASE: dark 0.0832 → 0.0932
+    r.phoneToday = ph.v['light:flat'].a === 0.1024 && ph.v['dark:flat'].a === 0.101 && ph.v['light:aurora'].a === 0.192 && ph.v['dark:aurora'].a === 0.101;   // re-based by S20 R (#1377 D: 0.0932 → 0.101, desktop 0.0808; ΔL* on #040607 5.69)   // ★ S19 option B RE-BASE: dark 0.0832 → 0.0932
     const keys = Object.keys(ph.v);
     const bad = { root: [], tile: [] };
     for (const k of keys) {

@@ -4747,8 +4747,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 </style><!-- ★ Session H: the in-shell subscreen slide (walk row 31) -->
 <!-- wallet tab (tab2, ARCHITECTURE §5 — home shell internal view) -->
 <style data-src="../styles/components/txlist-item.css">
-/* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, DECISIONS #55).
-   Figma rows are static; hover/pressed = #23 interactive tokens per #43. */
+/* c-txlist-item — wallet transaction row (docs/tx-row-spec.md, #55; states #23/#43). */
 
 .c-txlist-item {
   display: flex;
@@ -4762,38 +4761,26 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   text-align: start;
   font-family: var(--font-secondary);
   -webkit-tap-highlight-color: transparent;
-  /* 100ms intentional: micro-interaction, matches chatlist row hover */
   transition: background-color var(--duration-100) var(--easing-standard);
-  /* 5c-ii (2026-08-24): the press fill MOVED to the compositor ::before layer in
-     base.css — see chatlist-item.css for the note. State rules set colour only. */
+  /* 5c-ii: the press fill is base.css's ::before layer (chatlist-item.css) */
 }
-/* W4a (#348): the selected row uses the CHAT-ROW treatment, exactly.
-   The wallet row was left on --surface-interactive-selected while the chats list
-   moved to the action-tonal surface (Damir 2026-07-07, chatlist-item.css:22), so
-   the two lists showed DIFFERENT selected colours in the same desktop window. The
-   shell rule that set it even CLAIMED to "mirror the chats-list treatment"
-   (home.html) — it had stopped doing so. The rule now lives here, beside this
-   row's own hover and pressed rules and in the same order as the chat row, so the
-   two lists cannot drift apart again. */
+/* W4a (#348): selected = the CHAT-ROW treatment exactly, kept beside this row's hover so the lists cannot drift. */
 .c-txlist-item[aria-current] {
   background-color: var(--surface-action-tonal-default);
-  /* 5c-ii: the tonal-pressed fill rides base.css's ::before layer — no image here. */
+  --tx-ring: var(--surface-action-tonal-default);   /* S20: the face badge's ring follows the row */
 }
 @media (hover: hover) and (pointer: fine) {
-  /* ★ #353 (Damir): NO hover tint on a selected row — identical to the chat row,
-     see chatlist-item.css. :not([aria-current]) is load-bearing (source order).
-     ⚠ Keep this rule TRANSITION-FREE — see the chat row's B-4 note. */
+  /* ★ #353: no hover tint on a selected row (:not() is load-bearing); transition-free (B-4) */
   .c-txlist-item:hover:not([aria-current]) { background-color: var(--surface-interactive-hover); }
   /* ★ #1171: the hovered row survives a live re-render (wallet-shell carryRowHover; see chatlist-item.css). */
   .c-txlist-item[data-hover]:not([aria-current]) { background-color: var(--surface-interactive-hover); }
+  .c-txlist-item:hover:not([aria-current]), .c-txlist-item[data-hover]:not([aria-current]) { --tx-ring: var(--surface-interactive-hover); }
 }
-/* 5c-i/ii: the :active fill mirrors are REMOVED — see chatlist-item.css. */
 
-/* #228 desktop row rhythm — same treatment as chat rows (#226/R3): 48px circle
-   + 2×8px padding ≈ 64px rows. Mobile keeps spacing-16. */
+/* #228: desktop row rhythm = chat rows (#226/R3) */
 :root[data-desktop] .c-txlist-item { padding-block: var(--spacing-8); }
 
-/* direction circle: 48, centered 24 arrow */
+/* direction circle (rows without a face: chat-info) */
 .c-txlist-item__direction {
   flex: none;
   display: flex;
@@ -4811,6 +4798,30 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 }
 .c-txlist-item[data-type="failed"] .c-txlist-item__direction { color: var(--text-error); }
 
+/* ★ S20 J2 (#1440): the wallet face — avatar (or the wallet disc) + a direction badge ringed in the list surface */
+.c-txlist-item__face { position: relative; flex: none; width: var(--size-target-min); height: var(--size-target-min); }
+.c-txlist-item__face .c-avatar__initials { font-size: 17px; }
+.c-txlist-item__wallet {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--surface-action-tonal-default);
+  color: var(--icon-action-default);
+}
+.c-txlist-item__dir {
+  position: absolute;
+  inset-block-end: calc(-1 * var(--outline-width-2));
+  inset-inline-end: calc(-1 * var(--outline-width-2));
+  display: flex; align-items: center; justify-content: center;
+  width: var(--size-icon-20); height: var(--size-icon-20);
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: var(--outline-width-2) solid var(--tx-ring, var(--surface-screen));
+  background: var(--surface-neutral-03);
+  color: var(--icon-neutral-01);
+}
+.c-txlist-item[data-direction="in"] .c-txlist-item__dir { background: var(--surface-success-inverse); color: var(--icon-success); }
+
 .c-txlist-item__content {
   display: flex;
   flex-direction: column;
@@ -4819,15 +4830,11 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 }
 
 .c-txlist-item__name {
-  /* #277: row-title parity with chat rows (.c-chatlist-item__name) — label-lg
-     became the BUTTON role at the #227 type dial (16px desktop) while chat-row
-     names moved to body-lg (14px), and the always-semibold weight made
-     addresses read outsized (Damir F5). body-lg regular; the AMOUNT keeps
-     label-lg semibold as the row's money emphasis (dial if too loud). */
-  font-size: var(--tx-name-size);            /* ★ Session I (sheet 2, #735⑦): 15 mobile / 14 desktop — was body-lg */
+  /* #277 → Session I (#735⑦): chat-row name parity */
+  font-size: var(--tx-name-size);
   line-height: var(--line-height-body-lg);
   letter-spacing: var(--tracking-body-lg);
-  font-weight: var(--tx-name-weight);        /* ★ Session I: semibold — #277's regular reversed on Damir's ruling */
+  font-weight: var(--tx-name-weight);
   color: var(--text-neutral-01);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4839,13 +4846,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   align-items: center;
   gap: var(--spacing-8);
   min-width: 0;
-  /* #286: belt — a non-shrinking child must never paint into the amounts column */
   overflow: hidden;
 }
-/* #286 (Damir F5, narrow desktop pane): the status badge's default min-width:auto
-   made it refuse to shrink below its label — it painted over the fiat amount.
-   Let it shrink; the label ellipsizes (icon + tint keep carrying the status,
-   and the full wording lives on the detail sheet). */
+/* #286: the badge may shrink, its label ellipsizes (narrow desktop pane) */
 .c-txlist-item__meta .c-badge { min-width: 0; }
 .c-txlist-item__meta .c-badge__label {
   min-width: 0;
@@ -4854,23 +4857,19 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 }
 
 .c-txlist-item__time {
-  /* #231b: secondary list lines ride body-sm (chat-excerpt parity) — body-md
-     is the BUBBLE role since the #227 dial and outsized the 16px label-lg name */
+  /* #231b: secondary lines ride body-sm */
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
   color: var(--text-neutral-02);
-  /* #288 review: as a flex child its automatic minimum size is its full min-content
-     width, so it never shrinks — the #286 overflow:hidden belt on __meta then CLIPS it
-     mid-glyph and the text-overflow below can never fire. */
+  /* #288: min-width 0, or the #286 belt clips it mid-glyph */
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* right column: amount over fiat, right-aligned. Amounts are bridge-formatted
-   (bounded in practice); max-width + ellipsis = belt-and-braces overflow guard */
+/* amount over fiat, end-aligned; max-width + ellipsis = overflow guard */
 .c-txlist-item__amounts {
   display: flex;
   flex-direction: column;
@@ -4893,26 +4892,25 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   color: var(--text-neutral-01);
 }
 .c-txlist-item__fiat {
-  font-size: var(--font-size-body-sm);   /* #231b: secondary-line parity (see __time) */
+  font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
   letter-spacing: var(--tracking-body-sm);
-  /* Figma sent-fiat used text-neutral-01, every other type -02 — normalized to -02 (spec ①) */
   color: var(--text-neutral-02);
 }
 
-.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-amount-positive); }   /* ★ #1048: a green the eye separates from the black sent amounts */
+.c-txlist-item[data-type="received"] .c-txlist-item__amount { color: var(--text-amount-positive); }   /* ★ #1048 */
+/* S20 J2: the unit, 72 %, muted (received keeps its green) */
+.c-txlist-item__unit { font-size: 0.72em; font-weight: var(--font-weight-regular); letter-spacing: 0; color: var(--text-neutral-02); }
+.c-txlist-item[data-type="received"] .c-txlist-item__unit { color: inherit; }
 .c-txlist-item[data-type="pending"] .c-txlist-item__amount { color: var(--text-neutral-02); }
 .c-txlist-item[data-type="failed"] .c-txlist-item__amount,
 .c-txlist-item[data-type="failed"] .c-txlist-item__fiat {
-  /* Figma raw #6a717c = unbound token error (spec ②) — bound to disabled ink */
   color: var(--text-neutral-disabled);
   text-decoration: line-through;
   font-weight: var(--font-weight-regular);
 }
 
-/* ★ #1008 (U-04): a meta line too narrow for the badge's word AND the whole date shows the
-   badge as an ICON-ONLY chip (txlist-item.js measures and sets data-compact). The label is
-   VISUALLY hidden, not removed — it stays the chip's accessible name; `title` has the word. */
+/* ★ #1008 (U-04): too narrow for word + date → an icon-only chip; the label is VISUALLY hidden (still the name) */
 .c-txlist-item__meta[data-compact] .c-badge__label {
   position: absolute;
   width: 1px;
@@ -4932,7 +4930,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    Ports the app-frame demo recipe into the component (tokens verbatim). */
 
 .c-wallet-hero {
-  background: var(--gradient-hero-overlay), var(--surface-hero);
+  background: var(--gradient-wallet-hero);   /* S20 J2 */
   color: var(--text-on-hero);
   /* the hero owns the top safe-area so the status-bar region paints hero-colored with
      NO seam (Damir #134; the #22 watch-item surface — C# inset stays transparent) */
@@ -4982,11 +4980,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-wallet-hero[data-compact] { padding-block-end: var(--spacing-8); }
 .c-wallet-hero { transition: padding var(--duration-300) var(--easing-standard); }
 
-/* Measurement probe (wallet scroll reserve, handoff 2026-08-24 §1): attachWalletScroll
-   toggles [data-compact] under this attribute to read BOTH rest heights in one
-   synchronous pass. Transitions must not smear the toggle or the numbers are the
-   mid-animation ones. The `*` leg matters: the collapse transition lives on the
-   __balance/__actions children, not on the hero itself. */
+/* Measurement probe (attachWalletScroll reads both rest heights in one pass): no transition, children included */
 .c-wallet-hero[data-measuring],
 .c-wallet-hero[data-measuring] * { transition: none !important; }
 
@@ -4998,9 +4992,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 }
 .c-wallet-hero__amountrow { display: flex; align-items: center; gap: var(--spacing-12); }
 .c-wallet-hero__amount {
-  /* Damir 2026-07-10 (#228): the IXI balance keeps the BRAND face (Sora) after
-     the B1 system-ui swap — Sora is already data-URI-embedded in every shell
-     for the wordmark, so zero extra bytes/perf. Title/fiat/actions stay native. */
+  /* #228: the balance keeps the brand face (Sora, already embedded) */
   font-family: var(--font-display);
   font-size: var(--font-size-heading-lg);
   line-height: var(--line-height-heading-lg);
@@ -5045,7 +5037,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   width: 56px; height: 56px;                   /* sanctioned: matches the button/56 scale (app-frame recipe) */
   border-radius: var(--radius-full);
   display: flex; align-items: center; justify-content: center;
-  border: var(--outline-width-1) solid var(--text-on-hero-muted);
+  background: var(--surface-wash-on-hero);     /* S20 J2 (#1440): a fill, no ring; all three alike (#135) */
   color: var(--icon-on-hero);
   transition: background-color var(--duration-100) var(--easing-standard);
 }
@@ -5056,32 +5048,21 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 .c-wallet-hero__eye:focus-visible,
 .c-wallet-hero__qa:focus-visible { outline-color: var(--icon-on-hero); }
 
-/* hover/pressed — on-hero washes (#43 guarded, #49 ink discipline).
-   AND-38 r2 (#355): the eye's :active moved INSIDE the desktop gate. The eye is
-   the balance toggle, and the toggle shows no pressed paint outside this gate
-   (Damir's dial, from the A52). A fine-pointer press keeps its feedback — that
-   includes a finger tap on a hover-capable hybrid, an accepted edge. The
-   quick-action circles keep their ungated :active — they navigate, they are
-   not the toggle. */
+/* hover/pressed — on-hero washes (#43, #49). AND-38 r2 (#355): the eye (the balance toggle) presses only
+   inside the desktop gate; the action circles keep an ungated :active (they navigate). */
 @media (hover: hover) and (pointer: fine) {
   .c-wallet-hero__eye:hover { background: var(--surface-wash-on-hero); color: var(--text-on-hero-muted); }
-  .c-wallet-hero__qa:hover .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero); }
+  .c-wallet-hero__qa:hover .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-pressed); }
   .c-wallet-hero__eye:active { background: var(--surface-wash-on-hero-pressed); }
 }
-.c-wallet-hero__qa:active .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-pressed); }
+.c-wallet-hero__qa:active .c-wallet-hero__qacircle { background: var(--surface-wash-on-hero-strong); }
 
-/* tap-to-hide affordance (Damir #135): the whole balance block + compact balance toggle.
-   The compact balance is a ghost while the hero is expanded (opacity 0) — it must not
-   be a clickable invisible region (audit m1). */
+/* tap-to-hide (#135); the hidden compact balance is not a clickable ghost (audit m1) */
 .c-wallet-hero__balance { cursor: pointer; }
 .c-wallet-hero__compactbal { cursor: pointer; pointer-events: none; }
 .c-wallet-hero[data-compact] .c-wallet-hero__compactbal { pointer-events: auto; }
 
-/* AND-38 (#355): the balance toggle shows NO pressed state — the value just swaps
-   (Damir's dial, 2026-08-16). All three tap targets carry a click handler, so
-   Android paints its native tap highlight across the whole block without this.
-   pressable.js is not involved: no press family matches the hero ancestry
-   (home.html:290 — the hero sits directly in #wallet-view). */
+/* AND-38 (#355): no pressed state on the balance toggle — kill Android's native tap highlight */
 .c-wallet-hero__balance,
 .c-wallet-hero__compactbal,
 .c-wallet-hero__eye {
@@ -5213,6 +5194,15 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
    the chips row (.c-wallet-tools) and the sync row (.c-scanprog). Was spacing-12 (txlist-item.css):
    4px off on both sides. Logical, so RTL mirrors it. */
 .c-wallet-txlist > .c-txlist-item { padding-inline: var(--spacing-16); }
+/* ★ S20 J2 (#1440): the day-group header (not sticky) */
+.c-wallet-day {
+  padding: var(--spacing-16) var(--spacing-16) var(--spacing-4);
+  font-family: var(--font-secondary);
+  font-size: 13px;
+  line-height: var(--line-height-label-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-neutral-02);
+}
 
 /* just-sent flash (#136): one ~2s wash pulse guiding the eye to the fresh row.
    Raw 2s duration sanctioned like the #117 handshaking pulse (no token this long);
@@ -6543,7 +6533,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 
 /* —— trailing ⓘ info / ⋮ overflow (share the round icon-button treatment) —— */
 .c-app-item__menu,
-.c-app-item__info {
+.c-app-item__info,
+.c-app-item__run {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -6606,6 +6597,15 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
   inset-block-start: var(--spacing-8);
   inset-inline-end: var(--spacing-8);
 }
+
+/* ★ S20 C (#1377): Run = player-play 18 in a 36 px tonal disc (the tile tap opens the details); 44 px tap layer */
+.c-app-item__run { position: relative; width: 36px; height: 36px; padding: 0; background: var(--surface-action-tonal-default); color: var(--icon-action-default); }
+.c-app-item__run::after { content: ''; position: absolute; inset: -4px; border-radius: inherit; }
+.c-app-item__run svg { width: 18px; height: 18px; }
+@media (hover: hover) and (pointer: fine) { .c-app-item__run:hover { background: var(--surface-action-tonal-hover); } }
+.c-app-item__run:active { background: var(--surface-action-tonal-pressed); }
+.c-app-item[data-layout="list"] .c-app-item__run { margin-inline-end: var(--spacing-12); }
+.c-app-item[data-layout="grid"] .c-app-item__run { position: absolute; inset-block-start: var(--spacing-12); inset-inline-end: var(--spacing-12); }
 
 </style>
 <style data-src="../styles/components/apps-shell.css">
@@ -7496,6 +7496,7 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
     fiatLine,                              // ★ #1040: one fiat display rule (2 dp, sub-cent = "<$0.01")
     zeroAmount,                          // N32: absolute-zero balance → "0.00" (money.js dial),
     applyPushedTheme,
+    stripFormat,                         // S20 F (#1378)
   } = window.Spixi;
   const icon = window.SpixiIcons.icon;
   // A4 (Batch A): thread the ACTIVE dictionary — `{}` forced every component to
@@ -8396,10 +8397,14 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
   // the row pushes → the open takeover flashes its "No contacts" empty state for a
   // frame. An 80ms timer re-armed on every push only fires once the whole burst
   // settles (there is no clearContactsDone signal for the directory roster).
+  let rosterFaceSig = '';
   function scheduleContactsRender() {
     clearTimeout(contactsRenderTimer);
     contactsRenderTimer = setTimeout(() => {
       if (contactsView) contactsView.setContacts(directoryRoster());   // iOS-26: groups INCLUDED, chip-filtered
+      // S20 J2: a real roster change re-renders the wallet faces
+      const sig = contactsRoster.map((c) => c && c.address + '\u0001' + c.name + '\u0001' + c.avatar).join('\u0002');
+      if (sig !== rosterFaceSig) { rosterFaceSig = sig; if (walletState.txs.length) scheduleWalletRender(); }
     }, 80);
   }
 
@@ -9334,12 +9339,12 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
     if (k === 'reply') {   // ★ S8 (#1236): peer text → the B4 canon, like `text`
       // ★ S8 r1 (#1236): a reply whose body is a lone GIF link keeps the GIF mapping — the reply glyph + "GIF", never the raw URL
       if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'reply', text: 'GIF' };
-      return { type: 'reply', text: canonExcerptText(decoded) };
+      return { type: 'reply', text: canonExcerptText(stripFormat(decoded)) };   // S20 F (#1378)
     }
-    if (k === 'photo') return { type: 'photo', text: canonExcerptText(decoded) };   // ★ S9: a caption is PEER text → the B4 canon, like `text`
+    if (k === 'photo') return { type: 'photo', text: canonExcerptText(stripFormat(decoded)) };   // ★ S9: a caption is PEER text → the B4 canon, like `text`
     if (k !== 'text') return { type: k, text: trimmed };
     if (trimmed && isGifExcerptUrl(trimmed)) return { type: 'gif', text: 'GIF' };   // parity w/ chat.html buildMediaRow
-    return { type: 'text', text: canonExcerptText(decoded) };                       // B4 (#231)
+    return { type: 'text', text: canonExcerptText(stripFormat(decoded)) };          // B4 (#231) · S20 F (#1378)
   }
 
   /* —— composer drafts (CH7). chat.html persists the unsent composer text to
@@ -9359,7 +9364,7 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
   function excerptFor(address, raw, statusType, name, excerptKind, sender) {
     const peerTyping = statusType === 'typing' || excerptKind === 'typing';
     const draft = peerTyping ? '' : getDraft(address);
-    if (draft) return { type: 'draft', text: draft };
+    if (draft) return { type: 'draft', text: stripFormat(draft) };   // S20 F (#1378)
     const ex = excerptFromPush(raw, statusType, name, excerptKind);
     /* ★ #944: who wrote the tail of a GROUP / BOT-room row ("George: hi there").
        C# decides WHETHER (rooms only, never an event kind; an own tail = "You", #969 —
@@ -9698,6 +9703,8 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
      tab silently falls back to English literals. Delegating keeps a later setStrings()
      swap live too. */
   const walletStrings = slWith({});
+  // S20 #46 F1: a contact uses this address as its nickname → no join
+  const txAddrSpoofed = (a) => contactsRoster.some((c) => c && c.address !== a && c.name === a);
 
   /* ★ #440/#443: the last blockchain-scan report, kept so the "Missing a transaction?"
      sheet can answer with the real state instead of a generic reassurance. Derived
@@ -9747,20 +9754,33 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
      * roster (loadContacts, same page) knows the rest. Join at OPEN time:
      *   address-shaped counterparty → roster row by address → nickname + avatar;
      *   nickname counterparty      → roster row by name    → address + avatar
-     *     (first match on a duplicate nickname — the W4 ambiguity, accepted).
+     *     (★ S20 #46 F1: ONE person only — a duplicate nickname no longer joins).
      * ★ #285/#288 hide fail-safe: when the wallet is HIDDEN the tx object's
      * display fields already carry the mask (applyWalletVisibility) — return it
      * UNTOUCHED, never join, so enrichment can't leak name/address/avatar around
      * the mask. Enrichment reads _raw (the true values) only on the visible leg. */
+    /* S20 J2 (#1440): the row face (#46 F1 / F3) */
+    faceOf: (tx) => {
+      const r = tx._raw;
+      if (walletHidden || !r || (r.address && txAddrSpoofed(r.address))) return { unknown: true };
+      const m = (c) => c && (r.address ? c.address === r.address : c.name === r.name);
+      const ppl = contactsRoster.filter((c) => m(c) && !isGroupContact(c));
+      const hits = ppl.length ? ppl : contactsRoster.filter((c) => m(c) && isGroupContact(c));
+      const c = hits.length === 1 ? hits[0] : null;
+      if (c) return { src: c.avatar, name: c.name !== c.address ? c.name : '', address: c.address, group: isGroupContact(c) };
+      return r.address ? { unknown: true } : { name: r.name };
+    },
     enrichTx: (tx) => {
       if (walletHidden || !tx || !tx._raw) return tx;
       const raw = tx._raw;
       // #46 r1 MINOR-2: PEOPLE only — iOS-26 put groups into contactsRoster, and a
       // name-collision join could print a GROUP's address as the copyable payment
       // counterparty (the #255/peopleRoster money fence, same reasoning).
+      if (raw.address && txAddrSpoofed(raw.address)) return tx;   // ★ S20 #46 F1
       const byAddr = raw.address ? contactsRoster.find((c) => c && !isGroupContact(c) && c.address === raw.address) : null;
-      const byName = !byAddr && raw.name ? contactsRoster.find((c) => c && !isGroupContact(c) && c.name === raw.name) : null;
-      const hit = byAddr || byName;
+      // ★ S20 #46 F1: a nickname joins only when ONE person carries it
+      const named = !byAddr && raw.name ? contactsRoster.filter((c) => c && !isGroupContact(c) && c.name === raw.name) : [];
+      const hit = byAddr || (named.length === 1 ? named[0] : null);
       if (!hit) return tx;
       /* ★ #449 (Damir on device, twice: the tx header showed a FULL 65-character
          address). Reported as a truncation bug and it is not one — BOTH ingest paths
@@ -10253,6 +10273,7 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
    * (confirm modal → ixian:uninstall:<id> → HomePage.onUninstallApp → MiniAppManager
    * .remove). Discover + direct-launch/recents remain deferred to the standalone
    * apps-shell repoint — see docs/be-cutover-brief.md.
+   * ★ S20 C (#1377) SUPERSEDES the tap / ⋮ above: tap = details, a Run button launches, no tile menu.
    * ————————————————————————————————————————————————————————————————————————— */
   /* ★★ Session M (#775) — GRID BY DEFAULT, AND THE VIEW SURVIVES A RESTART.
      Damir, walk L: he set the view, restarted, and it was gone. Both readings of that are
@@ -10311,14 +10332,14 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
       if (!app || app.id == null || app.id === '') return;
       appMoment(app, () => openContacts('app', app.id));   // ★ S17 F (#1340)
     },
-    // details → the app's details page (launch-mode + permissions live there); reached
-    // via the ⋮ menu's "App details" action (onOpen).
+    // details → the app's details page; ★ S20 C (#1377): the tile TAP (Run = onLaunch)
     onOpen: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:appDetails:' + app.id); },
     // A1: uninstall from the ⋮ menu — the list-scoped verb now exists (HomePage
     // onUninstallApp → MiniAppManager.remove; C# re-pushes the trimmed list).
     onUninstall: (app) => { if (app && app.id != null && app.id !== '') bridge.send('ixian:uninstall:' + app.id); },
     onModelChange: () => {},
     appMenu: true,    // A1: ⋮ menu (App details · Uninstall w/ confirm) now that uninstall has a verb
+    appRun: true,     // S20 C (#1377)
     // EMPTY STATE (nothing installed): illustration + headline + supporting line + a
     // secondary "Add app" CTA. ★ S11 A2: inline art by name (illustrations.js).
 
@@ -11873,7 +11894,10 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
   bridge.exposeAll(handlers);
 
   /* —— live relative timestamps ("2h", "yesterday", …) ————————————————————— */
-  startTimestampTicker(() => refreshTimestamps(list));
+  startTimestampTicker(() => {
+    refreshTimestamps(list);
+    if (walletList.dataset.day && walletList.dataset.day !== new Date().toDateString()) scheduleWalletRender();   // S20 J2
+  });
 
   /* —— page ready — fire ixian:onload AFTER the document fully loads, matching
    *    the legacy onload() timing (spixi.js:88 → window load). Firing it

@@ -4799,8 +4799,14 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   const ctas = [...d.querySelectorAll('.c-launch__ctas .c-button')];
   ok(ctas.length === 2 && ctas.every((b) => !b.disabled),
     'welcome shows two enabled path choices (Create new / Restore existing)');
-  ok(!d.querySelector('.c-launch__welcome .c-launch__fineprint') && !d.querySelector('.c-launch__terms-box'),
-    'welcome carries NO consent line or checkbox — consent lives on the create/restore forms');
+  {   /* ★ re-based by S20 T #46 r1 (#1421 (1), Damir: "the legal line stays where the tap records it"): consent is the
+         welcome tap, so the ONE consent line sits on welcome, under the buttons — still no checkbox (continuing =
+         agreeing); both links are in-app sheet buttons (behaviour: pins-on1/b-commit.mjs) */
+    const legalW = d.querySelector('.c-launch__welcome .c-launch__legal');
+    ok(!!legalW && legalW.querySelectorAll('button.c-launch__link').length === 2 && /Terms of Use/.test(legalW.textContent) && /Privacy Policy/.test(legalW.textContent)
+       && !d.querySelector('.c-launch__terms-box') && !d.querySelector('.c-launch__view .c-launch__legal'),
+      'welcome carries the ONE consent line (Terms + Privacy, under the buttons whose tap records consent) and no checkbox; the create / restore forms carry none');
+  }
 
   // —— create: inline gates (launch-spec §2.2 — incl. BOTH C# parse hazards) ——
   ctas[0].click();
@@ -4839,33 +4845,39 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     ok(seen.join() === 'restore,welcome', '★ F-2: an unchanged view reports nothing');
     vp.remove();
   }
+  /* ★ re-based by S20 T (#1420–#1422): create is TWO steps in one view (step 1 = nickname +
+     Continue, step 2 = the passwords + "Create my account"), the commit stays ONE call; the
+     inline gates keep their intent (empty nick / ':' in nick / short / mismatch / "<nick>:"
+     never reach C#) — Continue and Create are simply OFF until their step is valid, and the
+     two gates a button cannot see (':' and "<nick>:") still answer inline. No consent line on
+     create / restore any more (#1421 (1)): consent is the welcome tap. */
   const create = d.querySelector('[data-launch-view="create"]');
   const nick = create.querySelector('.c-launch__input');
   const [cpw, crp] = [...create.querySelectorAll('.c-lock__input')];
-  const cerr = create.querySelector('.c-lock__error');
-  const cbtn = create.querySelector('.c-launch__footer .c-button');
-  // consent moved onto the commit form, above the button (Damir 2026-07-06)
-  const cconsent = create.querySelector('.c-launch__footer .c-launch__fineprint');
-  ok(!!cconsent && /Terms of Use/.test(cconsent.textContent) && /Privacy Policy/.test(cconsent.textContent)
-    && /creating an account/i.test(cconsent.textContent),
-    'create form carries the consent line (Terms + Privacy) directly above the commit button');
-  ok(cbtn.textContent.includes('Create my account'),
-    'commit CTA reads "Create my account" — distinct from the welcome "Create new account"');
-  cconsent.querySelector('.c-launch__link').click();
-  ok(!!d.querySelector('.c-launch__terms-body'), 'the consent Terms link opens the in-app terms sheet');
-  W.Spixi.dismissTopOverlay();
-  await sleep(400);
-  cbtn.click();
-  ok(!cerr.hidden, 'empty nickname blocks create');
-  nick.value = 'Da:mir'; cbtn.click();
-  ok(!cerr.hidden && cerr.textContent.includes(':'),
+  const step1 = create.querySelector('.c-launch__step[data-step="1"]');
+  const step2 = create.querySelector('.c-launch__step[data-step="2"]');
+  const cerr = step1.querySelector('.c-lock__error');
+  const cerr2 = step2.querySelector('.c-lock__error:not(.c-launch__mismatch)');
+  const cnext = step1.querySelector('.c-launch__footer .c-button');
+  const cbtn = step2.querySelector('.c-launch__footer .c-button');
+  const typeIn = (el, v) => { el.value = v; el.dispatchEvent(new W.Event('input', { bubbles: true })); };
+  ok(!d.querySelector('.c-launch__fineprint') && !create.querySelector('.c-launch__link'),
+    '★ S20 T re-base (#1421 (1)): the create and restore forms carry NO consent line — consent is the welcome tap (the old pin: "the consent line sits above the commit button")');
+  ok(cbtn.textContent.includes('Create my account') && cnext.textContent.includes('Continue'),
+    'commit CTA reads "Create my account" — distinct from the welcome "Create new account" (★ S20 T: step 1 carries Continue)');
+  cnext.click();
+  ok(cnext.disabled && !step1.hidden && step2.hidden, 'empty nickname blocks create (★ S20 T: Continue is OFF and stays on step 1)');
+  typeIn(nick, 'Da:mir'); cnext.click();
+  ok(!cerr.hidden && cerr.textContent.includes(':') && step2.hidden,
     'nick containing ":" never sent (C# splits create:<nick>:<password> on the FIRST colon)');
-  nick.value = 'Damir'; cpw.value = 'short'; crp.value = 'short'; cbtn.click();
-  ok(!cerr.hidden, 'short password blocked (ENC_MIN — ONE truth shared with encpass)');
-  cpw.value = 'longenough1'; crp.value = 'different1'; cbtn.click();
-  ok(!cerr.hidden, 'repeat mismatch blocked');
-  cpw.value = 'xxDamir:yy'; crp.value = 'xxDamir:yy'; cbtn.click();
-  ok(!cerr.hidden,
+  typeIn(nick, 'Damir'); cnext.click();
+  ok(!step2.hidden && step1.hidden, '★ S20 T: a valid nickname moves to step 2');
+  typeIn(cpw, 'short'); typeIn(crp, 'short'); cbtn.click();
+  ok(cbtn.disabled, 'short password blocked (ENC_MIN — ONE truth shared with encpass; ★ S20 T: the button is off)');
+  typeIn(cpw, 'longenough1'); typeIn(crp, 'different1'); cbtn.click();
+  ok(cbtn.disabled, 'repeat mismatch blocked');
+  typeIn(cpw, 'xxDamir:yy'); typeIn(crp, 'xxDamir:yy'); cbtn.click();
+  ok(!cerr2.hidden,
     'password containing "<nick>:" never sent (C# Replace corruption hazard, launch-spec §1)');
 
   // —— functional pagehide scrub + re-mask (the #162 grammar, launch-wide) ——
@@ -4877,7 +4889,7 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
     'window pagehide scrubs + RE-MASKS the create fields (SECURITY §5)');
 
   // —— create done(): scrub, hold the success morph — C# navigates to Home ——
-  nick.value = 'Damir'; cpw.value = 'hunter2hunter2'; crp.value = 'hunter2hunter2';
+  typeIn(nick, 'Damir'); typeIn(cpw, 'hunter2hunter2'); typeIn(crp, 'hunter2hunter2');
   cbtn.click();
   /* ★ N44 (#402) — VERIFIED ALREADY BUILT, now PINNED so it cannot regress silently.
    * The worklist carried "spinner-on-button masking create/restore work" as an open
@@ -4900,19 +4912,20 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   const rbtn = restore.querySelector('.c-launch__footer .c-button');
   const rerr = restore.querySelector('.c-lock__error');
   const rpw = restore.querySelector('.c-lock__input');
+  typeIn(rpw, 'wrongpass');
   rbtn.click();
-  ok(!rerr.hidden, 'restore blocked until a backup file is picked');
-  restore.querySelector('.c-launch__card .c-button').click();   // Choose backup file…
+  ok(rbtn.disabled && !rbtn.querySelector('.c-button__spinner'), 'restore blocked until a backup file is picked (★ S20 T: the button is off until a file AND a password)');
+  restore.querySelector('.c-launch__filecard').click();   // Choose backup file
   await sleep(600);                              // demo picker resolves at 400ms
-  ok(!restore.querySelector('.c-launch__file').hidden
-    && restore.querySelector('.c-launch__file-name').textContent.includes('spixi-backup'),
-    'setUploadedFileName renders the picked file (+ check glyph)');
-  rpw.value = 'wrongpass'; rbtn.click();
+  ok(restore.querySelector('.c-launch__filecard').hasAttribute('data-file-set')
+    && restore.querySelector('.c-launch__filecard-title').textContent.includes('spixi-backup'),
+    'setUploadedFileName renders the picked file (★ S20 T: the green file card carries the name)');
+  rbtn.click();
   ok(!!rbtn.querySelector('.c-button__spinner') && rbtn.getAttribute('aria-busy') === 'true',
     '★ N44 (#402): RESTORE masks its wait the same way (the sibling half — the wrong-password path below then releases it)');
   await sleep(1100);
-  ok(!rerr.hidden && !rpw.disabled,
-    'wrong restore password → INLINE error, fields restored (showPasswordError → ctrl.fail(msg), spec §2.3)');
+  ok(!rerr.hidden && !rpw.disabled && restore.querySelector('.c-launch__filecard').hasAttribute('data-file-set'),
+    'wrong restore password → INLINE error, fields restored (showPasswordError → ctrl.fail(msg), spec §2.3) — ★ S20 T: the file stays');
 
   // —— retry: the native-alert contract → SILENT restore, value kept ——
   W.Spixi.setLaunchView(shell, 'retry');
@@ -4937,21 +4950,29 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(apiPw.value === 'ghost',
     'the pagehide listener self-cleans once the shell leaves the DOM (no ghost scrubbing — leak guard)');
 
-  // —— consent fires at the BINDING action (create commit), not the welcome tap,
-  //    and is latched to ONE ixian:accept (Damir 2026-07-06) ——
+  // —— ★ re-based by S20 T (#1421 (1)): consent fires at the WELCOME tap, latched to ONE
+  //    ixian:accept — never again at the create commit ——
   let accepts = 0;
   const cShell = W.Spixi.createLaunchShell({
-    view: 'create', termsRequired: true,
+    view: 'welcome', termsRequired: true,
     onAcceptTerms: () => { accepts += 1; },
     onCreateAccount: (n, p, ctrl) => ctrl.done(),
   });
   d.body.append(cShell);
+  const [goC, goR] = [...cShell.querySelectorAll('.c-launch__ctas .c-button')];
+  goC.click();
+  const acceptsAtTap = accepts;
+  W.Spixi.launchShellBack(cShell);
+  goR.click();
+  W.Spixi.launchShellBack(cShell);
+  goC.click();
   const cf = cShell.querySelector('[data-launch-view="create"]');
-  cf.querySelector('.c-launch__input').value = 'Zed';
-  [...cf.querySelectorAll('.c-lock__input')].forEach((i) => { i.value = 'longenough1'; });
-  const cfBtn = cf.querySelector('.c-launch__footer .c-button');
+  typeIn(cf.querySelector('.c-launch__input'), 'Zed');
+  cf.querySelector('[data-step="1"] .c-launch__footer .c-button').click();
+  [...cf.querySelectorAll('.c-lock__input')].forEach((i) => typeIn(i, 'longenough1'));
+  const cfBtn = cf.querySelector('[data-step="2"] .c-launch__footer .c-button');
   cfBtn.click(); cfBtn.click();
-  ok(accepts === 1, 'ixian:accept fires ONCE on the create commit (consent at the binding action, latched)');
+  ok(acceptsAtTap === 1 && accepts === 1, 'ixian:accept fires ONCE, at the welcome tap (★ S20 T #1421: not at the create commit; latched across Create / Restore / re-entry) — ' + JSON.stringify({ acceptsAtTap, accepts }));
   cShell.remove();
 
   // —— [L2, Damir 2026-07-06]: the UNLOCK screen scrubs on pagehide too ——
@@ -5003,8 +5024,17 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   ok(/touch-action: pan-y/.test(lcss), 'carousel owns horizontal swipe only — vertical scroll stays native');
   ok(/isConnected/.test(ljs) && /isConnected/.test(lockjs2),
     'both window-pagehide listeners are self-cleaning (launch shell + [L2] lock screen)');
-  ok((ljs.match(/\.trim\(\)/g) || []).length === 2 && /nick\.value\.trim\(\)/.test(ljs),
-    'the ONLY trims are the nickname (display name) — passwords are NEVER trimmed');
+  {   /* ★ re-based by S20 T (ON-1) — ★ #46 r1 (auditor C): EVERY trim call in the shell's code (trim / trimStart /
+         trimEnd / trimLeft / trimRight, any receiver form: `x.trim()`, `String(p).trim()`, `(p || '').trim()`, `p?.trim()`) is found, and each
+         must sit on an ALLOWED receiver — the nickname (`nickIn.value`, five reads in the two-step create) or a text
+         node (`n.nodeValue`, the rings guard). A password receiver of any shape fails. Behaviour: pins-on1/b-commit.mjs
+         sends a password with spaces around it and asserts the create verb carries it unchanged. */
+    const code = stripCode(ljs);
+    const calls = [...code.matchAll(/\.trim(?:Start|End|Left|Right)?\s*\(/g)]   /* ★ #46 r2 (n1): + trimLeft / trimRight. Out of its reach: `.trim.call(…)` / `String.prototype.trim.apply`, a regex strip (`replace(/^\s+|\s+$/g, '')`) — a review catches those, the behaviour clause in b-commit catches the effect */.map((m) => ({ before: code.slice(Math.max(0, m.index - 24), m.index), call: m[0] }));
+    const allowed = calls.filter((c) => /(?:^|[^\w.$])(?:nickIn\.value|n\.nodeValue)$/.test(c.before) && /^\.trim\($/.test(c.call));
+    ok(calls.length >= 2 && allowed.length === calls.length && /nickIn\.value\.trim\(\)/.test(code),
+      'the ONLY trims are the nickname (display name) — passwords are NEVER trimmed — ' + calls.length + ' trim call(s), ' + allowed.length + ' on an allowed receiver: ' + JSON.stringify(calls.filter((c) => !allowed.includes(c)).map((c) => c.before.slice(-16) + c.call)));
+  }
   /* ★ Gate row O-10 — THE ILLUSTRATION SLOT IS RETIRED, AND THIS PIN ASSERTS THE
      RETIREMENT, not a missing name. `illoSlot` built a decorative `.c-launch__illo` whose
      fallback was an inline SVG written through innerHTML; it had NO caller (iOS-2 shipped
@@ -7128,7 +7158,10 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
   ok(/enrichTx: \(tx\) => \{\s*\n?\s*if \(walletHidden \|\| !tx \|\| !tx\._raw\) return tx;/.test(homeSh),
     'R6 ★: the hide mask is the FIRST check in enrichTx — a hidden wallet returns the masked row UNTOUCHED (the #285/#288 fail-safe: enrichment can never leak name/address/avatar around the mask)');
   ok(/const byAddr = raw\.address \? contactsRoster\.find\(\(c\) => c && !isGroupContact\(c\)/.test(homeSh)
-    && /const byName = !byAddr && raw\.name \? contactsRoster\.find\(\(c\) => c && !isGroupContact\(c\)/.test(homeSh),
+    /* re-based by S20 U (#1404): the name leg is now `named` — a FILTER over people, joined only when exactly one person
+       carries the nickname (#46 F1); still people only (the money fence). Behaviour: pins-s20/u-spoof.mjs ③. */
+    && /const named = !byAddr && raw\.name \? contactsRoster\.filter\(\(c\) => c && !isGroupContact\(c\)/.test(homeSh)
+    && /const hit = byAddr \|\| \(named\.length === 1 \? named\[0\] : null\);/.test(homeSh),
     'R6 (#46 r1 MINOR-2): the roster join resolves counterparties over PEOPLE only — a name-collision must never print a GROUP address as the copyable payment counterparty (the #255 money-fence reasoning)');
   ok(/opts\.enrichTx === 'function'\) \? \(opts\.enrichTx\(tx\) \|\| tx\) : tx/.test(walletJs),
     'R6: wallet-shell rows pass through the host decorator when supplied; demos (no decorator) keep the raw row');
@@ -7657,7 +7690,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
     '★★ #1058: LIGHT pattern = #2A3140 @ 16% on Mist, Strong 20% (Damir picked from the contours ladder: "light barely visible" at 7.5%). Superseded: ★★ #1039: LIGHT pattern = #2A3140 @ 7.5% on Mist (walk OV.16: "need stronger" at 6%). Superseded: ★★ #1029: LIGHT pattern = #2A3140 @ 6% on Mist (walk P.8: "almost invisible" at 4.5%). Superseded: ★★ #1002: LIGHT pattern = #2A3140 @ 4.5% on Mist (Damir 2026-09-28). Superseded: ★★★ Session J: LIGHT pattern = #051C8E @ 6% (Damir 2026-09-02). Superseded: Session I k2 #83058E @ 6%. Superseded before that: AUG (Damir 2026-08-30): LIGHT pattern = rgba(6,22,99,0.06) — a deep brand indigo. The tile is a MASK, so the artwork\'s own colour is discarded and this token alone decides the ink. MEASURED on the #EBF0F5 ground: ΔL* −4.53, STRONGER than the #231F20 @5% it replaces (−3.53) and back in the range E1c approved (−3.47/−4.26); the composited stroke lands at hue 266° against the ground\'s 256°, the same cool family. It also holds on the GRADIENT option: −3.66 teal / −4.39 periwinkle. ⚠ alpha-2 is pinned but UNREACHABLE — Strong is retired; the token is kept one line from returning. Superseded: AUG TILE: LIGHT pattern = rgba(35,31,32,0.05) at Default — the doodle-pattern-aug ARTWORK colour, since the tile is a mask and this token is the only thing that decides the hue. ⚠ MEASURED AND DELIBERATELY SOFTER: .05 reads ΔL* −2.90 teal / −3.40 green against E1c\'s −3.47 / −4.26, i.e. ~17% fainter than what shipped; .06 would have matched it almost exactly (−3.47 / −4.08) and Damir chose .05 on the render. Superseded, and the E1c reasoning is kept because it is still the record of why the ground moved: E1c (Damir 2026-08-29): LIGHT pattern = rgba(18,59,71,0.07) at Default. The ink followed the ground onto the teal (hue only — the two inks are within 0.03 L* at this alpha) and .06→.07 RESTORES the approved strength rather than raising it: on the old near-white ground the stroke sat 4.03 L* below it, on the colourful one .06 reached only 2.96/3.62 and .07 gives 3.47/4.26. Superseded: rgba(33,57,75,0.06) at Default, 0.1 at Strong. The ink carries a HUE now (slate, C* 1.80 → 2.43 on the composited stroke) and the Default alpha rose because the doodles tile lays down 1.15× the ink of the triangles tile it replaced, yet read as blank at 0.042. Supersedes the N81 pair (#181a20 / 0.042)');
   // ★ #711 re-based (Damir on device, 2026-08-30): 0.05 → 0.03 — "reduce dark by 2%". The ink stays white; the 0.05 reasoning below is kept as the superseded ruling.
   /* ★ Session J re-base (#758, Damir 2026-09-03): dark ink #C6CFFD @ 4% — the white @ 3% below is the superseded ruling. */
-  ok(/--chat-pattern-ink: #C6CFFD;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.0932;/.test(darkN81)   /* ★ S19 option B RE-BASE (Damir pick, "Dark Bubble Options"): × 1.12, 0.0832 → 0.0932 — the B grounds are L × 0.85 and the pattern keeps A's visibility on them (desktop 0.07456). ★ S18 D1: the PHONE value; desktop 0.06656 (× 0.8, pins-s18/e-pattern-desktop). ★ #1351 RE-BASE (S17 walk, Damir 2026-10-12): −20 % again, 0.104 → 0.0832. ★ S17 C v3 RE-BASE (Damir 21:57): −20 %, 0.13 → 0.104. ★ #1058 (Damir, ladder): 0.04 → 0.13 */
+  ok(/--chat-pattern-ink: #C6CFFD;/.test(darkN81) && /--chat-pattern-alpha-1: 0\.101;/.test(darkN81)   /* re-based by S20 R (#1377 D: 0.0932 → 0.101 on the darker grounds). ★ S19 option B RE-BASE (Damir pick, "Dark Bubble Options"): × 1.12, 0.0832 → 0.0932 — the B grounds are L × 0.85 and the pattern keeps A's visibility on them (desktop 0.07456). ★ S18 D1: the PHONE value; desktop 0.06656 (× 0.8, pins-s18/e-pattern-desktop). ★ #1351 RE-BASE (S17 walk, Damir 2026-10-12): −20 % again, 0.104 → 0.0832. ★ S17 C v3 RE-BASE (Damir 21:57): −20 %, 0.13 → 0.104. ★ #1058 (Damir, ladder): 0.04 → 0.13 */
     && /--chat-pattern-alpha-2: 0\.18;/.test(darkN81),   /* ★ #1058: Strong 0.1 → 0.18, stays above alpha-1 */
     '★★ #1058: DARK pattern = #C6CFFD @ 13%, Strong 18% (Damir: "dark almost invisible" at 4%). Superseded: ★★★ AUG TILE (Damir 2026-08-30) → #711: DARK pattern = rgba(255,255,255,0.03) (was 0.05 until his device call the same evening). ⚠⚠ THIS PIN IS A REVERSAL AND IT IS PINNED AS ONE. The 2026-07-03 ruling in tokens.css says the pattern is "theme-colored, not white (white isn\'t premium, Damir)", and dark has carried a tinted ink ever since. Damir reversed it on 2026-08-30. ★ The measurement is the reassurance: white @ .05 reads ΔL* +5.64 against the #701 canvas where #bbd0ff @ .065 read +5.89 — the STRENGTH is unchanged within 4%, so what moved is the HUE, not the visibility. The superseded reasoning is kept verbatim because a ruling that quietly disappears is how it gets fixed back: E1: DARK pattern = rgba(187,208,255,0.065) at Default, 0.1 at Strong — its OWN hue, not light\'s. MEASURED trade-off behind the value: a bluer ink is a darker ink, so #bbd0ff buys C* 3.37 → 5.29 for 1.2 L*, while #8fb3ee bought 6.04 for 2.3 L* and was rejected on that arithmetic. Supersedes #f0f4ff / 0.045');
   ok(/--chat-pattern-ink-mist: #2A3140;/.test(lightN81) !== /--chat-pattern-ink-mist: #2A3140;/.test(darkN81)
@@ -7796,7 +7829,7 @@ console.log('#315 — Account as a peer tab (iOS-46 route (a): park + re-present
        ground (and must not — a second source for the flip is the drift this role removes). */
     const tokZ = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const tokZdark = tokZ.split('[data-theme="dark"] {')[1].split('\n}')[0];
-    ok(/--surface-notice-card: var\(--ink-750\);/.test(tokZdark)   /* ★ #1354 RE-BASE (Damir 13:14): the NEUTRAL dark card (#1E2023) */
+    ok(/--surface-notice-card: var\(--ink-800\);/.test(tokZdark)   /* re-based by S20 R (#1379 G): one ramp step down, ink-800 #1A1C1F, under the pill on the darker grounds (pins-s20/r-notice-card). ★ #1354 RE-BASE (Damir 13:14): the NEUTRAL dark card (#1E2023) */
        && !/\[data-theme="dark"\] \.c-sysnotice__card \{[^}]*background/.test(noticeNC)
        && /\.c-sysnotice__medallion \{[^}]*background: var\(--surface-bubble-sent\);[^}]*color: var\(--text-bubble-sent\);/.test(noticeNC),
       '★ #1354 (Damir 13:14, "more neutral so it fits into each theme"): the dark notice card is NEUTRAL (--ink-750 #1E2023, the dark received bubble step) and its medallion wears the canvas SENT colour with the sent ink — Superseded: N82(c) → #884 ③: the dark notice card is the deepened #0c1a4a — the dark value of --surface-notice-card, painted by the token and by NO component rule (84% saturation, and still DARKER than the grey-800 it replaces) — Damir asked to go further after seeing the first #141c33 render');
@@ -10065,7 +10098,7 @@ console.log('multi-message selection (selection topbar + bulk delete)');
          && /box\.addEventListener\('transitionend', scheduleComposerFade, \{ passive: true \}\);/.test(chF) && /box\.addEventListener\('animationend', scheduleComposerFade, \{ passive: true \}\);/.test(chF)
          && /document\.getElementById\('chat-composer'\)\.addEventListener\('transitionend', scheduleComposerFade, \{ passive: true \}\);/.test(chF)
          && /function scheduleComposerFade\(\) \{ if \(!composerFadeRaf\) composerFadeRaf = requestAnimationFrame\(composerFadePass\); \}/.test(chF)
-         && (chF.match(/scheduleComposerFade\(\);/g) || []).length === 3 && (chF.match(/composerFadeNow\(\);/g) || []).length === 1 && (chF.match(/composerFadeTrack\(/g) || []).length === 2,
+         && (chF.match(/scheduleComposerFade\(\);/g) || []).length === 3 && (chF.match(/composerFadeNow\(\);/g) || []).length === 1 && (chF.match(/composerFadeTrack\(/g) || []).length === 3,   /* re-based by S20 P (#1378): + slideRows — a composer slide (tray / strip) TRACKS the band through its slide, like the iOS lift */
         '★★ Session AE (#940) ③: the pass is re-armed from every writer that can move a row relative to the bar — the log\'s scroll (passive) · a window resize · a `load` captured inside the log · transitionend/animationend bubbling from a row · the slot\'s own transitionend · the composer\'s ResizeObserver publish (tray, desktop) — setInset TRACKS the 280 ms iOS slide (composerFadeTrack: a pass per frame until the deadline), and renderLogNow runs the pass SYNCHRONOUSLY AFTER the node swap: 3 scheduled sites (publish · the track entry · the track tail) + 1 immediate + 6 listeners, no more, no fewer');
       /* ④ the band is the BAR and the mask never lands on the scroller; a lifted row drops it */
       const mmF = stripCssComments(readFileSync(join(root, 'src/styles/components/message-menu.css'), 'utf8'));
@@ -12425,7 +12458,7 @@ console.log('N-batch — static pins (N5 · N22 · N24 · N36 · N38 · N2a · N
        * Latin-only by design (r3 N2 logged): extend to \p{Lu} when the 7
        * older locales' caps ride the copy round. */
       const midShout = (v) => /[A-ZÀ-ŽĀ-Ž]{4,}/.test(String(v));
-      const idMid = ['lockTitle', 'paymentSent', 'paymentReceived'].filter((k) => midShout(idDict[k]));
+      const idMid = ['lockTitle', 'payYouSent', 'paySentYou'].filter((k) => midShout(idDict[k]));   /* ★ re-based by S20 Q (#1440 J1): the payment titles retired (paymentSent / paymentReceived) — the role labels are the bubble's words now */
       ok(idMid.length === 0,
         'N4 r3: the id-id lock title + payment bubble titles carry no mid-value shout' + (idMid.length ? ' — SHOUTING: ' + idMid.join(', ') : ''));
     }
@@ -18692,7 +18725,7 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     }
     ok(!/Logging\.(error|warn)\([^;]*ex\.Message/.test(scA) && !/ixian:removecontact failed: " \+ ex\.Message/.test(hpA),
       'loop r1: no handler logs ex.Message on a peer-supplied token (Core\'s Address ctor formats the base58 into it)');
-    ok(/\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta > \* \{ opacity: 0\.92; \}/.test(mbcss)   /* ★ S9 U-03 re-base: 0.7 → 0.92 (4.53:1 light · 6.37:1 dark, measured; pins-s9/b1-u03.mjs) */
+    ok(/\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta > \* \{ opacity: var\(--bubble-meta-opacity-sent\); \}/.test(mbcss)   /* ★ S9 U-03 re-base: 0.7 → 0.92 · ★ re-based by S20 Q (#1377): the token (0.7; the behaviour = pins-s20/q-meta.mjs) */
       && /\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="read"\],\s*\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="failed"\] \{ opacity: 1; \}/.test(mbcss)
       && !/\.c-bubble__meta \{[^}]*opacity/.test(mbcss),
       '★ A9: outgoing timestamp + edited marker at 0.7 alpha on the CHILDREN (a box opacity would cap the read tick), the READ tick (and failed) at 1.0; received bubbles take the same 0.7 since #1041 (pinned in the #1040 block). ⚠ E1 amended the DELIVERED glyph out of that 0.7 group — see the pin below; this one still owns the blanket rule and the 1.0 pair');
@@ -18706,15 +18739,16 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
          2.76:1 against the bubble, under the 3:1 non-text floor this file already tracks
          (audit findings 1+2). 0.571 sits exactly ON 3.00:1 — an 18.4% reduction — and
          Damir took that trade knowingly rather than having it taken for him. */
-      const deliveredRule = /\.c-bubble-row\[data-direction="sent"\] \.c-bubble__meta \.c-status-icon\[data-tone="delivered"\] \{ opacity: 0\.571; \}/;
-      ok(deliveredRule.test(mbcss),
-        '★★ E1: the DELIVERED double-check sits at 0.571, below the rest of the meta row, so the READ tick separates on LIGHTNESS and not on hue alone (ΔE 43.3 → 48.6)');
-      ok(mbcss.search(deliveredRule) > mbcss.indexOf('.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.92; }') && mbcss.indexOf('.c-bubble-row[data-direction="sent"] .c-bubble__meta > * { opacity: 0.92; }') > 0,   /* ★ S9 U-03 re-base: the SENT blanket rule is 0.92 */
-        '★ E1: the delivered rule comes AFTER the blanket 0.7 in source order. It also outranks it on specificity, so this is belt and braces — but a future refactor that flattens the selector would leave source order as the only thing deciding, and a 0.7 that wins puts the tick back where it started');
-      ok(!/\.c-bubble__meta > \* \{ opacity: 0\.5/.test(mbcss),
-        '★★ E1: the drop targets the DELIVERED GLYPH ALONE. Damir asked for "just that case" — folding it into the blanket rule would have dimmed the timestamp and the edited marker with it, which is a legibility regression sold as a receipt fix');
-      ok((mbcss.match(/\[data-tone="delivered"\] \{ opacity:/g) || []).length === 1,
-        '★ E1: ONE delivered-opacity declaration. There is deliberately no dark-mode twin — the sent bubble is the same #1956b2 in both themes and --icon-bubble-delivered resolves to the same --text-bubble-sent-meta in both, so "both modes" is genuinely one rule. A second copy under [data-theme="dark"] would be a home that can drift');
+      /* ★ re-based by S20 Q (#1377 B, Damir's dial option 2): the E1 delivered-only 0.571 is SUPERSEDED — the time, ✓ and ✓✓
+         share ONE sent-meta opacity (the --bubble-meta-opacity-sent token, 0.7) and only read + failed stand at 1. The four E1
+         assertions that stood here (0.571 present · after the blanket rule · not folded into it · one declaration) now assert
+         the inverse: NO separate delivered opacity rule (a second home would drift from the token), the token is 0.7. The
+         computed behaviour (0.7 / 0.7 / 0.7 / read 1) is pins-s20/q-meta.mjs. */
+      ok((mbcss.match(/\[data-tone="delivered"\] \{ opacity:/g) || []).length === 0,
+        '★ #1377 (re-based E1): no delivered-only opacity rule in message-bubble.css — the delivered tick takes the blanket sent-meta token with the time and the ✓');
+      const tokQ = stripCssComments(readFileSync(join(root, 'src/styles/tokens.css'), 'utf8'));
+      ok((tokQ.match(/--bubble-meta-opacity-sent:\s*([^;]+);/g) || []).length === 1 && /--bubble-meta-opacity-sent:\s*0\.7;/.test(tokQ),
+        '★ #1377: --bubble-meta-opacity-sent is ONE declaration (no theme twin — the rule is the same in both modes) and it is 0.7');
     }
   }
 }
@@ -25226,7 +25260,7 @@ console.log('#713–#721: the walk fixes');
     ok(/function handTrayToKeyboard\(\)/.test(ch) && /window\.addEventListener\('resize', drop\);/.test(ch) && /setTimeout\(drop, 450\);/.test(ch)
        && /closeAttachTray\(tray, \{ instant: true \}\);/.test(ch) && /input\.addEventListener\('focus', \(\) => \{ handTrayToKeyboard\(\); \}\);/.test(ch)
        && /instant: !!input && document\.activeElement === input,/.test(ch) && /if \(kbUp\) \{\s*handKeyboardToTray\(trayArgs, input\);/.test(ch)   /* ★ #756 re-base: the keyboard's own state decides · ★ Session K (K1) re-base: kbUp routes to the HOLD (keyboard → tray); `instant` is the no-soft-keyboard focus case only */
-       && /if \(instant\) \{ tray\.remove\(\); trayState\.delete\(tray\); return true; \}/.test(as) && /tray\.dataset\.instant = '';/.test(as)
+       && /if \(instant \|\| !opened \|\| !\(ms > 0\) \|\| !canSlide\(tray\)\) \{ end\(\); return true; \}/.test(as) && /tray\.remove\(\);\s*trayState\.delete\(tray\);\s*st\.composerEl\.removeAttribute\('data-tray-open'\);/.test(as) && /tray\.dataset\.instant = '';/.test(as)   /* re-based by S20 P (#1378): the instant close lands the end in ONE call — the tray, its state, the inset and the reserve ('end') together */
        && /\.c-attach-tray\[data-instant\] \{ transition: none; \}/.test(rdF('src/styles/components/attach-sheet.css')),
       '★ #721: a tap in the field HOLDS the tray until the viewport shrinks (the keyboard has the slot) and then drops it in one frame; ★ Session K (K1): opening while the keyboard is up is the MIRROR hold — the tray takes the slot in the frame the keyboard leaves (the instant swap flashed: keyboard + tray for the 100–300 ms the keyboard took to go)');
   }
@@ -25731,7 +25765,9 @@ console.log('Session H ⑥: the A-round fixes (back-during-slide · shield · tr
   }
   /* ★ A MINOR-1: a closing tray is not "already open" */
   const as = nc(rdF('src/components/attach-sheet.js'));
-  ok(/const st = trayState\.get\(existing\);\s*if \(!st \|\| !st\.closing\) return existing;\s*existing\.remove\(\);\s*trayState\.delete\(existing\);/.test(as),
+  /* re-based by S20 P (#1378): the dying tray is dropped through abortTrayClose (removed + forgotten, its end never runs) */
+  ok(/const st = trayState\.get\(existing\);\s*if \(!st \|\| !st\.closing\) return existing;[^}]*abortTrayClose\(existing\);/.test(as)
+     && /function abortTrayClose\(tray\) \{[^}]*tray\.remove\(\);\s*trayState\.delete\(tray\);/.test(as),
     '★ A MINOR-1: ⊕ during the tray\'s 300 ms exit drops the dying tray and opens fresh — the third tap works instead of no-opping');
   /* ★ A MINOR-2: rebuildHub settles an in-flight slide */
   const set = nc(rdF('src/shells/settings.html'));
@@ -25866,9 +25902,10 @@ console.log('Session I ①: legal docs baked at build time (#733)');
     '★ #733: TERMS_DEFAULT and PRIVACY_DEFAULT are gone from launch-shell.js AND the shipped bundle (the hand-written summaries retire)');
   ok(!/collects no personal data|does not collect any personal data/.test(stripCode(shipped)) && !/collects no personal data/.test(gen),
     '★ #733/#730: the false "collects no personal data" claim is at ZERO hits in the shipped bundle and in the baked documents (it lived in TERMS_DEFAULT after #730 fixed the privacy side)');
-  ok((lsCode.match(/legalDocText\('terms'\)/g) || []).length >= 2 && (lsCode.match(/legalDocText\('privacy'\)/g) || []).length >= 2
+  ok((lsCode.match(/legalDocText\('terms'\)/g) || []).length >= 1 && (lsCode.match(/legalDocText\('privacy'\)/g) || []).length >= 1
+     && (lsCode.match(/openDocSheet\(/g) || []).length === (lsCode.match(/legalDocText\('(?:terms|privacy)'\)/g) || []).length + 1   /* every caller of the sheet reads legalDocText (+1 = the definition) */
      && !/strings\.termsBody|strings\.privacyBody/.test(lsCode),
-    '★ #733: all four openers (consent line ×2, openLegalDoc ×2) read legalDocText() — no strings.termsBody / strings.privacyBody override can shadow the baked document');
+    '★ #733: every opener (openLegalDoc ×2 — ★ re-based by S20 T #1421 (1): the consent line ×2 left the create / restore forms) reads legalDocText() — no strings.termsBody / strings.privacyBody override can shadow the baked document');
   ok(/LEGAL_LEAD_ENGLISH_ONLY \+ '\\n\\n' \+ baked\.text/.test(lsCode) && /if \(doc === 'privacy'\) return PRIVACY_HELD_SUMMARY/.test(lsCode),
     '★ #733: legalDocText = the English-only lead + the baked text; a HELD privacy document falls back to the honest #730 summary (the claim boundaries stay)');
   ok(/import \{ LEGAL_DOCS \} from '\.\/legal-docs\.js'/.test(ls) && /bakeLegalDocs\(root\)/.test(bb) && bb.indexOf("'src/components/legal-docs.js'") < bb.indexOf("'src/components/launch-shell.js'"),
@@ -27570,8 +27607,10 @@ console.log('Session K: chat open on the shell\'s paint · the localized-documen
       '★ Session K (#757 ① r2): the clear-scrim rule is presentation-independent AND out-specifies the mobile deep wash ((0,3,0) on line 19) — one tag, one grammar');
   }
   /* ★ walk K, Damir on K1: "the chat behind it moves down behind the sheet, and jumps back up when I use the keyboard" */
-  ok(/const grew = h > lastSlotH;/.test(ch) && /const atBottom = nearBottom\(\);/.test(ch) && /if \(grew && atBottom\) \{ pinLogEnd\(\); requestAnimationFrame\(\(\) => \{ pinLogEnd\(\); \}\); \}/.test(ch)   /* ★ S8 (#1238) re-based: the pin runs IN the callback too, the rAF stays (behaviour: pins-s8p/g-grow.mjs) */ && /else box\.scrollTop = box\.scrollHeight;/.test(ch)   /* ★ 7b (#1219) re-based: the one pin write (a held reply target wins) */
-     && ch.indexOf('const atBottom = nearBottom();') < ch.indexOf("setProperty('--composer-h', h + 'px')"),
+  /* re-based by S20 P (#1378): the observer re-reserves through setLogReserve, which judges "near the end" BEFORE the reserve lands and
+     re-pins a GROW in the same call (no rAF belt: one scrollTop write); behaviour: pins-s20/p-tray.mjs (+ readerKept) */
+  ok(/const h = slot\.offsetHeight;\s*syncLogReserve\(h\);/.test(ch) && /if \(!hd\) \{ setLogReserve\(h, now === 'slide' \? window\.Spixi\.composerMotion\('open'\) : \{\}\); return; \}/.test(ch)   /* re-based by S20 P (#1378, #46 r2): a late send shrink slides */ && /const grew = reservePx == null \|\| h > reservePx;/.test(ch) && /const near = nearBottom\(\);/.test(ch) && /if \(grew && near\) pinLogEnd\(\);/.test(ch) && /else box\.scrollTop = logEndTop\(\);/.test(ch)   /* ★ 7b (#1219): the one pin write (a held reply target wins) */
+     && ch.indexOf('const near = nearBottom();') < ch.indexOf("setProperty('--composer-h', h + 'px')"),
     '★ Session K (walk K K1 note): when the composer slot GROWS (the tray) and the reader was at the bottom — judged BEFORE the padding lands — the log re-pins on the next frame, so the newest bubbles never hide under the tray until the keyboard\'s AND-16 re-pin snaps them back');
   /* ★ #766 (Damir: "everything should open as soon as possible without any delay unless it's unavoidable") */
   {
@@ -37829,7 +37868,9 @@ console.log('Office fix round (#974–#981)');
   const sel = cssStrip(rd('src/styles/components/chat-select.css'));
   const prev = cssStrip(rd('src/styles/components/settings-screens.css'));
   const r = {};
-  r.divider = /\.c-tcard__details \{[^}]*border-top: var\(--outline-width-1\) solid var\(--outline-card-divider\);/.test(typed) && !/\.c-tcard__details \{[^}]*--outline-neutral-01/.test(typed);
+  /* ★ re-based by S20 Q (#1440 J1): the Details LINK ROW is gone with the stacked payment bubble (the whole bubble opens Details
+     through the stretched hit layer) — so no .c-tcard__details rule (and no divider) may survive in the card sheet */
+  r.divider = !/\.c-tcard__details\b/.test(typed);
   r.selected = /\[data-selecting\] \.c-bubble-row\[data-selected\] \{[^}]*--outline-card-sent: var\(--outline-card-sent-selected\);/.test(sel);
   r.preview = /\.c-settings-appearance__bubble\[data-side='received'\] \{[^}]*box-shadow: inset 0 0 0 1px var\(--border-bubble-received\), inset 0 0 0 1px var\(--outline-hairline\), inset 0 1px 0 var\(--highlight-top\);/.test(prev)
     && /\.c-settings-appearance__bubble\[data-side='received'\] \{[^}]*border-start-start-radius: var\(--bubble-radius-origin\);/.test(prev)
@@ -37984,7 +38025,8 @@ console.log('★★ #1001–#1010 — the premium polish round');
     ok(/\.c-tcard__amount\[data-tone="pending"\] \{ color: var\(--text-neutral-01\); \}/.test(tb)
        && !/\.c-tcard__amount[^{]*\{[^}]*--text-warning/.test(tb)
        && /\.c-tcard__amount\[data-tone="positive"\] \{ color: var\(--text-amount-positive\); \}/.test(tb)   /* ★ #1048: the amount green, one step brighter in light */
-       && /\.c-tcard__amount\[data-tone="void"\] \{[^}]*text-decoration: line-through;/.test(tb),
+       && /\.c-tcard__amount\[data-strike\] \.c-tcard__num \{[^}]*text-decoration: line-through;/.test(tb)   /* ★ re-based by S20 Q (#1440 J1): the NUMBER is struck (declined / canceled), not "IXI", and failed is not */
+       && !/\.c-tcard__amount\[data-tone="void"\] \{[^}]*text-decoration/.test(tb),
       '★★ #1004: pending amounts use the primary ink (the status carries "pending"); completed incoming stays green, void stays struck — no amount reads --text-warning');
   }
 
@@ -38128,9 +38170,10 @@ console.log('★★ #1001–#1010 — the premium polish round');
       for (const status of ['actionable', 'pending', 'processing', 'failed', 'completed', 'declined', 'canceled']) {
         const r = S.createPaymentBubble({ role, status, amount: '5', timestamp: Date.now(), strings: {}, ...all });
         const el = r.querySelector('.c-tcard');
-        const compact = el.dataset.layout === 'compact';
-        const buttons = r.querySelectorAll('.c-button').length;
-        if (compact === (buttons > 0)) mism.push(role + '/' + status + (compact ? ' compact+' + buttons + 'btn' : ' full, no button'));
+        /* ★ re-based by S20 Q (#1440 J1): ONE stacked layout for every payment (the pill + header card retired); the
+           product rule below — which states ACT — is unchanged and now reads "has buttons" directly */
+        const compact = !r.querySelectorAll('.c-button').length;
+        if (el.dataset.layout !== 'stack') mism.push(role + '/' + status + ' not the stacked bubble');
         /* the equivalence alone cannot see a predicate that NARROWS (a pill that hides the
            Retry is consistent with itself), so the contract of which states ACT is pinned too —
            it is the product rule, not an implementation detail: the user can pay, decline,
@@ -38138,7 +38181,7 @@ console.log('★★ #1001–#1010 — the premium polish round');
         const mustAct = (role === 'request-in' && ['actionable', 'processing', 'failed'].includes(status))
           || (role === 'request-out' && status === 'pending') || (role === 'sent' && status === 'failed');
         if (mustAct !== !compact) mism.push(role + '/' + status + (mustAct ? ' lost its actions' : ' gained a full card'));
-        if (compact && (r.querySelector('.c-badge') || (status !== 'actionable' && !r.querySelector('.c-tcard__status')))) mism.push(role + '/' + status + ' compact without the quiet status');
+        if (['pending', 'completed', 'failed', 'declined', 'canceled'].includes(status) !== !!r.querySelector('.c-tcard__badge .c-badge[data-weight="tonal"]')) mism.push(role + '/' + status + ' badge mismatch');   // ★ S20 J1: today's tonal badge on every settled / pending state
       }
     }
     const appMism = [];
@@ -38150,7 +38193,7 @@ console.log('★★ #1001–#1010 — the premium polish round');
       if (['invite', 'invited', 'missing', 'in-session'].includes(state) === compact) appMism.push(state + (compact ? ' lost its actions' : ' gained a full card'));
     }
     ok(mism.length === 0 && appMism.length === 0,
-      '★★ #996: COMPACT ⇔ NO ACTION BUTTON, over every payment role × status and every app state with every handler wired — and every compact payment carries the quiet status, never the old badge. Mismatches: '
+      '★★ #996 (re-based S20 J1 #1440): every payment role × status is the stacked bubble and ACTS exactly where the product rule says (Pay · Decline · Retry · Cancel request), with today\'s tonal badge on every pending / settled state; app cards: COMPACT ⇔ NO ACTION BUTTON. Mismatches: '
       + JSON.stringify(mism.concat(appMism)));
 
     /* the pill's Details: ONE stretched button when there is somewhere to go, a labelled group
@@ -38158,7 +38201,7 @@ console.log('★★ #1001–#1010 — the premium polish round');
     let fired = 0;
     const withD = S.createPaymentBubble({ role: 'sent', status: 'completed', amount: '12.5', timestamp: Date.now(), strings: {}, onDetails: () => { fired++; } });
     const hit = withD.querySelector('.c-tcard__hit');
-    const main = withD.querySelector('.c-tcard__main');
+    const main = withD.querySelector('.c-tcard');   // ★ re-based by S20 Q (#1440 J1): the layer is the CARD's first child (was .c-tcard__main)
     hit && hit.click(); hit && hit.click();
     const noD = S.createPaymentBubble({ role: 'request-out', status: 'declined', amount: '3', timestamp: Date.now(), strings: {} });
     ok(!!hit && main.firstElementChild === hit && hit.tagName === 'BUTTON' && /12\.5 IXI/.test(hit.getAttribute('aria-label')) && /Details/.test(hit.getAttribute('aria-label'))
@@ -38170,9 +38213,11 @@ console.log('★★ #1001–#1010 — the premium polish round');
     const live = S.createPaymentBubble({ role: 'sent', status: 'completed', amount: '1', celebrate: true, timestamp: Date.now(), strings: {} });
     const hist = S.createPaymentBubble({ role: 'sent', status: 'completed', amount: '1', timestamp: Date.now(), strings: {} });
     const pend = S.createPaymentBubble({ role: 'sent', status: 'pending', amount: '1', celebrate: true, timestamp: Date.now(), strings: {} });
-    ok(live.querySelector('.c-tcard').hasAttribute('data-live-complete') && !!live.querySelector('.c-tcard__status-check')
-       && !hist.querySelector('.c-tcard').hasAttribute('data-live-complete') && !!hist.querySelector('.c-tcard__status-check')
-       && !pend.querySelector('.c-tcard').hasAttribute('data-live-complete') && !pend.querySelector('.c-tcard__status-check'),
+    /* ★ re-based by S20 Q (#1440 J1): the check is the Completed badge's (today's tonal badge; the live draw = a wipe of its glyph) */
+    const ok1009 = (r) => !!r.querySelector('.c-tcard__badge .c-badge[data-type="success"] svg');
+    ok(live.querySelector('.c-tcard').hasAttribute('data-live-complete') && ok1009(live)
+       && !hist.querySelector('.c-tcard').hasAttribute('data-live-complete') && ok1009(hist)
+       && !pend.querySelector('.c-tcard').hasAttribute('data-live-complete') && !ok1009(pend),
       '★★ #1009 (10a): data-live-complete marks ONLY a card that completed live (celebrate + completed); a history card shows the check without the draw, and a pending card has no check at all');
     /* ★ #1013 (r3 NIT-2): the money arrow survives an in-place status swap from a FULL card to a pill */
     const reqOut = S.createPaymentBubble({ role: 'request-out', flow: 'in', status: 'pending', amount: '7', timestamp: Date.now(), strings: {}, onCancel: () => {} });
@@ -38181,7 +38226,7 @@ console.log('★★ #1001–#1010 — the premium polish round');
     const med = swapped.querySelector('.c-tcard__medallion');
     const mk = W.SpixiIcons && W.SpixiIcons.icon;
     const same = (name) => !!med && !!mk && med.querySelector('svg').innerHTML === mk(name).innerHTML;
-    ok(reqOut.querySelector('.c-tcard').dataset.layout !== 'compact' && swapped.querySelector('.c-tcard').dataset.layout === 'compact'
+    ok(!!reqOut.querySelector('.c-button') && !swapped.querySelector('.c-button')   /* ★ re-based by S20 Q (#1440 J1): one layout — the swap drops the button (was full → pill) */
        && same('arrow-down-left') && !same('wallet') && !same('arrow-up-right'),
       '★ #1013 (r3 NIT-2): a full request-out card swapped to completed (setPaymentStatus, no flow in the patch) becomes a pill that keeps the stored money flow (the chat shell now passes flow on the request-out card too) — the arrow is IN, not the wallet or the role guess');
     swapped.remove();
@@ -38308,15 +38353,16 @@ console.log('★★ #1001–#1010 — the premium polish round');
     const lineRule = (tb.match(/\n\.c-tcard__line \{[^}]*\}/) || [''])[0];
     const footRule = (tb.match(/\n\.c-tcard__foot \{[^}]*\}/) || [''])[0];
     /* the DOM half, executed: the amount and the foot are children of ONE line element */
-    const pill = S.createPaymentBubble({ role: 'sent', status: 'completed', amount: '999999.99', timestamp: Date.now(), strings: {} });
+    /* ★ re-based by S20 Q (#1440 J1): the payment pill is retired — the settled APP pill is the line's remaining reader */
+    const pill = S.createAppBubble({ name: 'A very long app name for the line', state: 'declined', timestamp: Date.now(), strings: {} });
     const ln = pill.querySelector('.c-tcard__line');
     ok(/grid-template-columns: auto minmax\(0, 1fr\);/.test(mainRule) && !/max-content/.test(mainRule)
        && /grid-template-areas: "med label" "med line" "med sub";/.test(mainRule)
        && /display: flex;/.test(lineRule) && /flex-wrap: wrap;/.test(lineRule) && /min-width: 0;/.test(lineRule)
        && /margin-inline-start: auto;/.test(footRule)
-       && !!ln && ln.children.length === 2 && ln.children[0].classList.contains('c-tcard__amount') && ln.children[1].classList.contains('c-tcard__foot'),
+       && !!ln && ln.children.length === 2 && ln.children[0].classList.contains('c-tcard__app-name') && ln.children[1].classList.contains('c-tcard__foot'),
       '★★ #1013 (r2 M1): the amount and the foot share ONE wrapping line in a shrinkable track, so on a 320–430px phone the foot drops UNDER the amount instead of running past the card edge (the old minmax(max-content, …) grid measured +2…+79px). Layout is not measurable in jsdom; the render (narrow-*.png, 0px overflow at 320/360/393/430) and the walk row carry the pixels');
-    const medRules = [...tb.matchAll(/\.c-tcard__hit:(hover|active) ~ \.c-tcard__medallion \{[^}]*\}/g)].map((m) => m[0]);
+    const medRules = [...tb.matchAll(/\.c-tcard__hit:(hover|active) ~ \.c-tcard__medallion,\s*\.c-tcard__hit:\1 ~ \.c-tcard__top > \.c-tcard__medallion \{[^}]*\}/g)].map((m) => m[0]);   /* ★ re-based by S20 Q (#1440 J1): + the stacked bubble's label-row medallion */
     ok(medRules.length === 2 && medRules.every((r) => /color: var\(--icon-action-(hover|pressed)\);/.test(r) && !/background/.test(r)),
       '★ #1013 (r2 m1): the pill medallion under the pointer moves its INK only — the dark tonal-hover/-pressed fill is the solid action blue and the medallion ink fell to 1.95:1 on it (the #1012 m6 call-back rule)');
     /* ★ #1013 (r3 MINOR-2): a WALK, not three samples — every sublevel stylesheet, every
@@ -38882,7 +38928,7 @@ console.log('★★ #1028+ — the overnight finalization');
        ★ #1351 RE-BASE (S17 walk, Damir 2026-10-12 11:20, "reduce the opacity of background patterns by 20 % in all cases"):
        light 0.1024 / dark 0.0832 — ΔL* 6.74 / 5.64 / 7.32 measured; the floors follow his pick one step down (6 / 5 / 7).
        ★ S17 C v3 RE-BASE (Damir 21:57): light 0.128 / dark 0.104 — ΔL* 8.52 / 7.07 / 9.32, floors 8 / 7 / 9 (superseded) */
-    ok(a1 === 0.1024 && d1 === 0.0932 && darkMist === '#07090B' && dMist >= 6 && dGrad >= 5 && dDark >= 7 && strongAbove,
+    ok(a1 === 0.1024 && d1 === 0.101 && darkMist === '#040607' && dMist >= 6 && dGrad >= 5 && dDark >= 7 && strongAbove,   /* re-based by S20 R (#1377 D): the Mist ground L × 0.85 again (#040607) + dark 0.0932 → 0.101 — ΔL* 7.75 (the S20 ground at 0.0932 = 7.10) */
       '★ #1058 + #1039 (walk OV.16) + #1029 (walk P.8): the pattern alpha is light ' + a1 + ' / dark ' + d1 + ' — the ink separates by ΔL* ' + dMist.toFixed(2) + ' on Mist, ' + dGrad.toFixed(2) + ' on the brand gradient and ' + dDark.toFixed(2) + ' on the dark Mist ground ' + darkMist + ' (S19 option B: 0.0932 on #07090B; was 4.97 / 4.19 / 2.80 at 0.075 / 0.04); Strong stays above the default in both themes: ' + strongAbove);
   }
   {
@@ -38893,10 +38939,10 @@ console.log('★★ #1028+ — the overnight finalization');
          (was #1C1645 → #0D1030, gap #2A3165); the flat descendant paints the B Mist ground #07090B (was var(--chat-canvas-base)).
          ★ S17 C v3 RE-BASE (Damir 21:50): the dark Iris is FULL COVERAGE now (#1C1645 → #0D1030, no fade to the canvas) with its own
          ink, gap and flat bubble — the #1066 fade (#151B36 → #11142A → the canvas, gap #273259) is the superseded value */
-      ok(/:root\[data-theme='dark'\]\[data-chat-ground='gradient'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='gradient'\] \{\s*--gradient-chat: linear-gradient\(160deg, #140C3B 0%, #080928 100%\), var\(--chat-canvas-base\);\s*--chat-pattern-ink: #C6CFFD;\s*--surface-select-row-gap: #252B5F;\s*--surface-bubble-sent: #4B31B7;/.test(tk66)
+      ok(/:root\[data-theme='dark'\]\[data-chat-ground='gradient'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='gradient'\] \{\s*--gradient-chat: linear-gradient\(160deg, #0E0433 0%, #050422 100%\), var\(--chat-canvas-base\);\s*--chat-pattern-ink: #C6CFFD;\s*--surface-select-row-gap: #212659;\s*--surface-bubble-sent: #4B31B7;/.test(tk66)
          /* ★ S17 C RE-BASE (#1334): the #1066 r2 dark "top stop" dot face is RETIRED — a 92 × 124 mini chat shows the whole ramp */
          && !/\.c-settings-appearance__dot-face\[data-chat-ground='gradient'\] \{/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8')))
-         && /:root\[data-theme='dark'\] \[data-chat-ground='flat'\] \{\s*--gradient-chat: #07090B;\s*--surface-bubble-sent: #1A4A96;/.test(tk66)   /* ★ S19 option B RE-BASE: the flat descendant = the B Mist ground #07090B (was var(--chat-canvas-base)). ★ S17 C v3: + the flat tile's own bubble (no other canvas's colour leaks into it) */
+         && /:root\[data-theme='dark'\] \[data-chat-ground='flat'\] \{\s*--gradient-chat: #040607;\s*--surface-bubble-sent: #1A4A96;/.test(tk66)   /* re-based by S20 R (#1377 D): #07090B → #040607; the Iris above #140C3B / #080928 gap #252B5F → #0E0433 / #050422 gap #212659 */   /* ★ S19 option B RE-BASE: the flat descendant = the B Mist ground #07090B (was var(--chat-canvas-base)). ★ S17 C v3: + the flat tile's own bubble (no other canvas's colour leaks into it) */
          && /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='gradient'\]/.test(tk66)
          /* #46 r1 (C MINOR-1): the notice card gets its edge back on the dark gradient; (C MINOR-3) the failed badge keeps the loud red */
          && !/:root\[data-theme='dark'\](?:\[data-chat-ground='gradient'\]| \[data-chat-ground='gradient'\]) \.c-sysnotice__card/.test(stripCssComments(readFileSync(join(root, 'src/styles/components/system-notice.css'), 'utf8')))   /* ★ #1354: the #1066 DARK hairline RETIRED with the neutral card (the light white-card rule stays) */
@@ -39222,18 +39268,21 @@ console.log('★★ #1028+ — the overnight finalization');
   }
   {
     /* —— #1034 (polish Q1): the restore view's FILE-SET state is distinct —— */
+    /* ★ re-based by S20 T (ON-1 #1420–#1422): the picker is the green FILE CARD now — same intent: a picked file
+       stops asking to "Choose" and shows the name with "Change" (+ data-file-set, which the stylesheet now reads);
+       an empty name flips it back. */
     const W = mkWin(), S = W.Spixi, d = W.document;
     const el = S.createLaunchShell({ view: 'restore', strings: {} });
     d.body.append(el);
-    const btnLabel = () => { const c = el.querySelector('.c-launch__card'); const b = c && c.querySelector('.c-button .c-button__label'); return b ? b.textContent : null; };
-    const card = () => el.querySelector('.c-launch__card');
-    const before = btnLabel();
+    const card = () => el.querySelector('.c-launch__filecard');
+    const read = () => [card().querySelector('.c-launch__filecard-title').textContent, card().querySelector('.c-launch__filecard-sub').textContent];
+    const before = read();
     S.setLaunchFile(el, 'spixi-backup.ixi');
-    const set = btnLabel(), setAttr = card().hasAttribute('data-file-set'), rowShown = !el.querySelector('.c-launch__file').hidden;
+    const set = read(), setAttr = card().hasAttribute('data-file-set');
     S.setLaunchFile(el, '');
-    const back = btnLabel(), backAttr = card().hasAttribute('data-file-set');
-    ok(before === 'Choose backup file…' && set === 'Replace file' && setAttr && rowShown && back === 'Choose backup file…' && !backAttr,
-      '★ #1034 (polish Q1): picking a backup file flips the picker to "Replace file" (+ data-file-set, the ✓ row shows the name); an empty name flips it back — ' + JSON.stringify({ before, set, setAttr, rowShown, back, backAttr }));
+    const back = read(), backAttr = card().hasAttribute('data-file-set');
+    ok(before[0] === 'Choose backup file' && set[0] === 'spixi-backup.ixi' && set[1] === 'Change' && setAttr && back[0] === 'Choose backup file' && !backAttr,
+      '★ #1034 (polish Q1): picking a backup file flips the picker from "Choose backup file" to the file name + "Change" (+ data-file-set); an empty name flips it back — ' + JSON.stringify({ before, set, setAttr, back, backAttr }));
     W.close();
   }
   {
@@ -39251,6 +39300,7 @@ console.log('★★ #1028+ — the overnight finalization');
       '--surface-bubble-received': 'a chat bubble — never inside a sheet',
       '--surface-composer-pill': 'the composer — never inside a sheet',
       '--surface-chat-chip': 'the day/time chip on the chat canvas',
+      '--surface-notice-card': 'the secure-notice card on the chat canvas — never inside a sheet (re-based by S20 R, #1379 G: ink-800 now, under the pill + the Mist bubble on the darker grounds)',
       '--text-neutral-inverse-02': 'ink on an INVERSE (light) chip — no fill on the sheet',
       '--icon-neutral-inverse-02': 'ink on an INVERSE (light) chip — no fill on the sheet',
       '--disc-neutral-bg': 'no component consumer (tokens only)',
@@ -39538,7 +39588,9 @@ console.log('★★ #1028+ — the overnight finalization');
     const csw = stripCode(rdO('Spixi/Utils/SpixiContentPage.cs'));
     r.warmNullFallback = /try \{ repaintSystemBars\(visibleSurfacePage\(null\)\); \}/.test(csw);
     /* ★ #1041 (Damir: the incoming timestamp "clashes with the message"): received meta children at 0.7, like sent */
-    r.recvMeta = /\.c-bubble-row\[data-direction="received"\] \.c-bubble__meta > \* \{ opacity: 0\.7; \}/.test(stripCssComments(rdO('src/styles/components/message-bubble.css')));
+    /* ★ re-based by S20 Q (#46 r1 MINOR-6): the literal is the --bubble-meta-opacity-received token now — the rule reads it, the token is 0.7 */
+    r.recvMeta = /\.c-bubble-row\[data-direction="received"\] \.c-bubble__meta > \* \{ opacity: var\(--bubble-meta-opacity-received\); \}/.test(stripCssComments(rdO('src/styles/components/message-bubble.css')))
+      && /--bubble-meta-opacity-received:\s*0\.7;/.test(stripCssComments(rdO('src/styles/tokens.css')));
     /* ★ #1047 (Damir picked C): read = brand-500 in both themes, ≥ 3:1 on the list ground AND the pinned wash */
     r.readTick = readTok === '--icon-tick-read' && delTok === '--icon-neutral-03'
       && resolveTok('light', readTok) === resolveTok('light', '--brand-500') && resolveTok('dark', readTok) === resolveTok('light', '--brand-500')
@@ -40211,7 +40263,7 @@ console.log('#1080 — walk #1074–#1078 fix round');
     const ladder = /const CHAT_GROUND_IDS = \['flat', 'gradient', 'green', 'blue', 'aurora', 'dusk', 'ocean'\];/.test(stripCode(ch)) && /if \(CHAT_GROUND_IDS\.indexOf\(gr\) < 0\) gr = 'flat';/.test(stripCode(ch));
     const third = /if \(\['flat', 'gradient', 'green', 'blue', 'aurora', 'dusk', 'ocean'\]\.indexOf\(gr\) >= 0\) chatGround = gr;/.test(st);
     const lightRule = /:root:not\(\[data-theme='dark'\]\)\[data-chat-ground='green'\],\s*:root:not\(\[data-theme='dark'\]\) \[data-chat-ground='green'\]\s*\{/.test(tokensCss);
-    const darkRule = /:root\[data-theme='dark'\]\[data-chat-ground='green'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='green'\]\s*\{[^}]*--gradient-chat: linear-gradient\(160deg, #05221A 0%, #05130F 100%\)/.test(tokensCss);   // ★ S8: now = the dark DG1 rule EXISTS · ★ S17 C v3 RE-BASE: full coverage · ★ S19 option B RE-BASE (Damir pick): L × 0.85 (was #0F2C23 → #0B1A16)
+    const darkRule = /:root\[data-theme='dark'\]\[data-chat-ground='green'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='green'\]\s*\{[^}]*--gradient-chat: linear-gradient\(160deg, #001A12 0%, #020D0A 100%\)/.test(tokensCss);   /* re-based by S20 R (#1377 D: was #05221A → #05130F) */   // ★ S8: now = the dark DG1 rule EXISTS · ★ S17 C v3 RE-BASE: full coverage · ★ S19 option B RE-BASE (Damir pick): L × 0.85 (was #0F2C23 → #0B1A16)
     const extract = /groundGreenGradient: 'Meadow'/.test(rd8('scripts/extract-strings.mjs'));   // ★ S17 C RE-BASE
     /* behaviour (#46 r1): in DARK a stored 'green' shows TWO dots, none of them green, the flat one checked —
        and a tap on that flat dot still WRITES 'flat' (the stored light-only pick must stay reachable) */
@@ -40829,7 +40881,7 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
   {
     const home = stripCode(rdX('src/shells/home.html'));
     const fn = home.slice(home.indexOf('function excerptFor(address, raw, statusType, name, excerptKind, sender) {'));
-    ok(/const peerTyping = statusType === 'typing' \|\| excerptKind === 'typing';\s*const draft = peerTyping \? '' : getDraft\(address\);\s*if \(draft\) return \{ type: 'draft', text: draft \};/.test(fn.slice(0, 400))
+    ok(/const peerTyping = statusType === 'typing' \|\| excerptKind === 'typing';\s*const draft = peerTyping \? '' : getDraft\(address\);\s*if \(draft\) return \{ type: 'draft', text: stripFormat\(draft\) \};/.test(fn.slice(0, 400))   /* re-based by S20 F (#1378): the draft line is stripped of the format marks */
        && /else if \(chat\.excerpt\.type !== 'draft' && chat\.excerpt\.type !== 'typing'\) chat\.excerpt = rx\.excerpt;/.test(home),
       '★★ B12 (office walk #1084, N2: "with a draft in the chat, peer typing does not show in the row"): the draft used to win over everything; a typing push now wins over the draft (and over the sticky reaction), and the draft returns without new code — C# re-pushes the row with no typing status when the peer sends or stops (StreamProcessor.handleFriendIsTyping sets shouldRefreshContacts on both edges)');
   }
@@ -41183,7 +41235,7 @@ console.log('#1101–#1107 — session 1');
 
   /* —— Part 5 (#1106): the C# LINK RULE is the shell's rule (derived from BOTH sources, compared) —— */
   {
-    const js = stripCode(rdX('src/components/message-bubble.js'));   /* (#46 r1 C9) a comment cannot fake a clause */
+    const js = stripCode(rdX('src/components/link-rule.js'));   /* (#46 r1 C9) a comment cannot fake a clause · re-based by S20 F (#46 r1 MINOR-1, #1378): the link rule moved from message-bubble.js to link-rule.js (linkify + the format pass read it) */
     const cs = stripCode(rdX('Spixi/Utils/LinkRule.cs'));
     const jsTlds = (/const BARE_TLDS = '([^']+)';/.exec(js) || [])[1];
     const csTlds = (/public const string BareTlds = "([^"]+)";/.exec(cs) || [])[1];
@@ -42437,7 +42489,9 @@ for (const mod of ['a-sec', 'b-l8', 'c-fix']) await (await import(new URL('./pin
 for (const mod of ['d-set', 'b-about', 'c-appearance', 'e-downloads', 'e-picks', 'a-whatsnew', 'f-moments', 'f-moments2', 'g-slide-layer', 'h-theme-picker', 'i-chat-accent', 'j-danger-align', 'k-sparkle-swap', 'l-address-card']) await (await import(new URL('./pins-s17/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S17 (#1331–#1350) — d = the illustration set · b = About · c = Chat appearance · e = settings screens · a = What's new · f = Moment sheets · g = the slide layer out of the flow (#1351)
 for (const mod of ['a-add-app', 'b-add-contact', 'c-addsheet', 'd-new-group', 'e-pattern-desktop', 'e-dl-chip', 'e-offline', 'e-heart', 'e-theme-sync', 'e-tips-move', 'f-moments-dev', 'g-desktop-header']) await (await import(new URL('./pins-s18/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S18 (#1359 – #1361) — a = Add app tiles · b = Add contact (field states, known row, the Address label, the new key) · c = the coloured sheet medallions · d = the New group identity card + the members card (Create waits below 2) · e = the S17 walk fixes (desktop pattern ×0.8, the From chip, offline 5 s, the heart, ONE theme value, Tips on Notifications) · f = the moments dev reset + the [MO] ask line · g = the About / Contributors header in the desktop pane (option B)
 for (const mod of ['p-pattern', 'p-offline', 'p-blind', 'p-keepopen', 'q-lang', 'q-app-install', 'q-network', 'r-addsheet-instant', 'r-apps-grid-hover', 'r-dev-reset-toast', 'r-autodl-flash', 'r-picker-pill', 'r-dark-bubbles']) await (await import(new URL('./pins-s19/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S19 (the S18 walk fix round, #1369–#1379) — p = chat (pattern default, offline echo, blind notice, transfer text) · q = moments + C# (lang per session, app at Install, network reason) · r = the rest (add-contact sheet instant close, apps grid hover, Reset toast, autodl flash, picker pill, dark received bubbles)
-for (const mod of ['a-list', 'a-plan', 'b-titlebar', 'c-density', 'd-pinned']) await (await import(new URL('./pins-dt1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ DT-1 (the desktop uplift, P1, #1380–#1399) — a = the chat list polish (sections + fold, hover actions = the row menu's actions, inset rows, desktop-only CSS, the patch path, the phone unchanged) · b = the Windows title bar (the C# colours paired with tokens.css, the wiring, the dev way switch)
+for (const mod of ['p-tray', 'p-strip', 'p-send', 'q-meta', 'q-size', 'q-pay', 'q-file', 'q-app', 'f-grammar', 'f-render', 'f-strip', 'f-bar', 'f-copy', 'f-linkcap', 'f-r1', 'r-apps-run', 'r-dark-grounds', 'r-notice-card', 'r-group-photo-rtl', 'r-install-wait', 'r-account-toggle', 's-filesize', 'u-face', 'u-days', 'u-amount', 'u-hero', 'u-spoof']) await (await import(new URL('./pins-s20/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20 (combined, #1374–#1402, #1440) — p = composer ↔ list motion · q = meta 0.7, file size, payment / file / app layout · f = message formatting · r = apps Run, dark grounds, notice card, group photo + RTL, install wait, Account toggle inset · s = the C# file size · u = the wallet
+for (const mod of ['a-steps', 'b-commit', 'c-restore', 'd-look', 'e-desktop', 'f-copy-font-motion']) await (await import(new URL('./pins-on1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ ON-1 (the launch flow, #1420–#1422)
+for (const mod of ['a-list', 'a-plan', 'b-titlebar', 'c-density', 'd-pinned']) await (await import(new URL('./pins-dt1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ DT-1 (the desktop uplift, P1, #1380–#1399) — a = the chat list polish (sections + fold, hover actions = the row menu's actions, inset rows, desktop-only CSS, the patch path, the phone unchanged) · b = the Windows title bar (S20 #1395: the `maui` / `colors` ways deleted, `off` = the only way)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

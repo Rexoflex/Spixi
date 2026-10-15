@@ -2110,3 +2110,15 @@ Packet: NEW P31 (flags `V1IxiHelp`, `V1Hints`) + a P28 addendum. ⚠ C# UNCOMPIL
 | M4 — 4 C# lang values × 13 locales + 7 JS keys × 13 drafts | strings only (lang txt: no `"`, one line, BOM kept — pinned) | ours, safe |
 
 Surface counts: `ixian:` verbs **+2 dev verbs** (`devflash:v1ixihelp`, `devflash:v1hints`); the moment / hint verbs gain fixed ids, not new verbs · `spixi.*` keys **+0** · prefs **+2** · pushes **+1** (`setFlagsDevV1`, dev only) · log lines **+2** `[FLAGS]` · sinks **+0** · fetches **+0**.
+
+## Session 20H Drop A (#1455) — the lock alert keys, the iOS location keys, the desktop Account width (2026-10-15)
+
+No packet (no flag): a string-key correction and a plist removal close holes, no behaviour change (the #1312 "close a hole → no flag" precedent, S16 #1321).
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| X-1 — `LockPage.doUnlock` wrong-password alert: `intro-restore-file-invalidpassword-*` (in NO lang file since upstream 9e519975 → `_SL` = null → a blank native alert) → `intro-retry-invalidpassword-*` (all 14 files; LaunchPage's same case) | none — two existing lang keys; the unlock path, the password handling and the fingerprint alert (`global-lock-invalidpassword-*`) are unchanged | **legacy, fixed (blank alert)** — present at the fork point `0e85a4b8` (LockPage.xaml.cs:110) |
+| X-2 — iOS `Info.plist`: `NSLocationAlwaysUsageDescription` + `NSLocationWhenInUseUsageDescription` REMOVED (text "needed for push notifications" was false; no Spixi / PushService code CALLS location — the Essentials Geolocation and OneSignal location bindings are present but unused) | less surface: two permission purpose strings fewer; the office row OW-H-LOC checks the main binary + the native frameworks with `nm` (managed .dll hits do not count) and the first Release upload for ITMS-90683 | **legacy, fixed (false purpose string)** — added upstream 44a57708 (2023-01-09) · 🟡 verify at the office |
+| F-A — `settings.html` `:root[data-desktop] #settings-root { min-width: 0; }` | CSS layout only | ours, safe |
+
+Surface counts: verbs +0 · `spixi.*` keys +0 · prefs +0 · pushes +0 · log lines +0 · iOS purpose strings −2.

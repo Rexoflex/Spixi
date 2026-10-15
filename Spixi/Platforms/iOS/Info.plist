@@ -43,10 +43,10 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Spixi uses the camera to scan QR codes and to take photos for chats.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Location access is needed for push notifications when app is in background</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Location access is needed for push notifications when app is in use</string>
+	<!-- ★ S20H X-2: the two NSLocation* purpose strings are REMOVED. Their text ("needed for push notifications") was false:
+	     no Spixi or push code calls location (App Review 5.1.1 risk). Office check OW-H-LOC (DECISIONS #1455): `nm -um` on the
+	     main binary and the native frameworks must show no CLLocation symbol, and a Release upload no ITMS-90683 mail; otherwise
+	     restore both keys with an honest text. -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Spixi uses the microphone for voice calls and to record voice messages.</string>
 	<!-- ★ V1A-M Drop 1 (compile-risk report R-1): the photo viewer's Save opens the share sheet on iOS / Mac

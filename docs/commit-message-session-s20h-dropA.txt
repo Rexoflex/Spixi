@@ -1,0 +1,15 @@
+Session 20H Drop A: the lock alert text, the iOS location keys, Chat appearance on a narrow desktop window
+
+- X-1 (m009): the lock screen's wrong-password alert was blank (title and text keys in no lang file since
+  upstream 9e519975; _SL returned null). LockPage.doUnlock now uses intro-retry-invalidpassword-title / -text
+  (all 14 lang files; LaunchPage's same case). Legacy, no flag.
+- X-2: the iOS Info.plist no longer declares NSLocationAlwaysUsageDescription / NSLocationWhenInUseUsageDescription.
+  Their reason ("needed for push notifications") was false; nothing in Spixi calls location. Office row OW-H-LOC
+  checks the main binary + native frameworks for CoreLocation symbols (DECISIONS #1455, 🟡 until then).
+- F-A: on desktop the Account root is a row flex item beside the rail; min-width:auto kept it at its content width
+  (Chat appearance's 782 px tile row), so a narrow window cut the right side and the two-column switch misfired.
+  settings.html: :root[data-desktop] #settings-root { min-width: 0; }.
+- Pins: scripts/pins-s20h/x-keys.mjs (every C# _SL literal key exists; the lock alert keys in 14 files; no iOS
+  NSLocation* key), a-desktop.mjs (the desktop root may shrink), a-sweep.mjs (Chromium layout sweep, not in smoke).
+- Docs: DECISIONS #1453 (WALK S20G 34 P), #1454 (S20H rulings), #1455 (Drop A as built); the gate doc; the office
+  walk §16 phase 14 + its Artifact; docs/walk-s20h.md.

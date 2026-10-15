@@ -488,7 +488,10 @@ namespace SPIXI
             WalletStorage ws = new WalletStorage(target_filepath);
             if (!ws.verifyWallet(target_filepath, pass))
             {
-                displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-invalidpassword-title"), SpixiLocalization._SL("intro-restore-file-invalidpassword-text"), SpixiLocalization._SL("global-dialog-ok"));
+                /* ★ S20H X-1 (m009, legacy since the fork point): the old intro-restore-file-invalidpassword-* keys exist in NO lang file
+                 * (upstream 9e519975 deleted them), so _SL returned null and the alert showed no title and no text. The retry
+                 * keys are the same case (LaunchPage uses them for a wrong password) and exist in all 14 lang files. */
+                displaySpixiAlert(SpixiLocalization._SL("intro-retry-invalidpassword-title"), SpixiLocalization._SL("intro-retry-invalidpassword-text"), SpixiLocalization._SL("global-dialog-ok"));
             }
             else
             {

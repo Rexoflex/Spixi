@@ -8155,6 +8155,10 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
      LEFT RAIL (c-bottomnav--rail variant), first in the row. Mobile untouched. */
   :root[data-desktop] body { flex-direction: row; }
   :root[data-desktop] #settings-nav { order: -1; display: flex; }
+  /* ★ S20H F-A: the root is a ROW flex item on desktop (rail + root). With the default min-width:auto it could not
+     shrink below its content — Chat appearance's 7 canvas tiles (782 px) — so a narrow window cut the right side and
+     the two-column observer read 782 px. Same as the landscape-rail rule below. */
+  :root[data-desktop] #settings-root { min-width: 0; }
   /* ★ #922 (Session AC): the LANDSCAPE RAIL — the peer-tab nav as a left column on an Android
      phone in landscape (attachLandscapeRail sets the flag from the DEVICE flag; mirrors home.html).
      The #334 iOS-59 sublevel hide below still applies: a sublevel owns its exit, rail or bar. */

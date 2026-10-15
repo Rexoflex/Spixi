@@ -1,0 +1,13 @@
+Session V1A-M Drop 1: iOS / Mac compile-risk review, the office walk run, the photo-library key
+
+- docs/ios-mac-compile-risk-2026-10-15.md: read-only review of the 144 files changed since the last
+  iOS + Mac compile (b9528a91, walk #1114), five disjoint auditors. ERROR 0 · LIKELY 0 · RUNTIME 2 ·
+  WATCH 12. The cloud cannot build iOS; the office build is the proof.
+- R-1: NSPhotoLibraryAddUsageDescription in the iOS and the Mac Info.plist. The viewer Save opens the
+  share sheet; its "Save Image" writes to the photo library and iOS ends an app that has no usage
+  key. Plist only, no code.
+- docs/office-walk-sheet-v1.md §16: ONE ordered office run for 2026-10-15 — build, copy the data
+  first (L149), the compile-risk rows OW-*, every owed §7–§15 row by area, create, restore, undo
+  (145 rows · iPhone 113 legs · Mac 115 legs). S20-B1 is replaced by OW-B1.
+- docs/walk-artifact-office-2026-10-15.html: the same run as the Artifact "Spixi Office Walk
+  2026-10-15" (results saved for Claude).

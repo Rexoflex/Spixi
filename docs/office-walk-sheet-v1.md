@@ -1,7 +1,7 @@
 # Office walk sheet — v1, iPhone + Mac
 
 Created S13, 2026-10-09. Source: `docs/freeze-inventory-2026-10-08.md` §1 + §4 step 3, `docs/release-readiness.md` §V (V-31, V-32) / S2 / S3.
-Updated S15 (§5), S16 (§6), **S20 (2026-10-14): the "Session 20 update" section below + §7–§13**, **S20F (2026-10-14): §14** (the S20 walk fix round, I / M — a SEPARATE walk from the Windows + Android sheet `docs/walk-s20f.md`, Damir 14:40) (every iPhone / Mac row owed from S17 → S20 and ON-1).
+Updated S15 (§5), S16 (§6), **S20 (2026-10-14): the "Session 20 update" section below + §7–§13**, **V1A-M (2026-10-15): §16 — the ONE ordered run for the office walk today (rows of §7–§15 + the compile-risk rows `OW-*`, `docs/ios-mac-compile-risk-2026-10-15.md`)**, **S20F (2026-10-14): §14** (the S20 walk fix round, I / M — a SEPARATE walk from the Windows + Android sheet `docs/walk-s20f.md`, Damir 14:40) (every iPhone / Mac row owed from S17 → S20 and ON-1).
 This is the **first iOS + Mac compile of the C# from sessions 2–20** and the first I/M walk of any V row (the last office walk is #1114).
 Platform: **I** = iPhone · **M** = Mac (Catalyst) · **both** = walk on each, write two results (e.g. "I P · M F").
 Fill P / F / N/A. Paste the iPhone + Mac logs with the results. Each fail → mechanism first (#294), then the fix round, then `freeze-v1`.
@@ -422,3 +422,255 @@ Walk on the S20G build. ★ FIRST COMPILE of the S20G C# on iOS / Mac: `RestoreM
 | F2-VO-I | I | 1) Welcome, VoiceOver ON. 2) Swipe to the slide dots and through the slides; wait 30 s on a dot. 3) Leave the dots. | 2: the slides do NOT turn while VoiceOver focus is in the carousel. 3: after ~15 s they turn again. | | #1428 C-F2 |
 | R1-IM | both | Account › App lock; Privacy; Notifications. | Every switch in the vertical middle of its title + description. | | #1421 |
 | F3-Q2-IM | both | Welcome at the smallest size; Deutsch, Русский. | The version line "Spixi 0.9.22 · Open source"; tighter slide text; nothing clipped; "Konto wiederherstellen" / "Восстановить аккаунт" fit. | | #1428 |
+
+## 16 · Office walk 2026-10-15 (V1A-M) — ONE ordered run, iPhone + Mac
+
+Created V1A-M Drop 1. The same run as the Artifact "Spixi Office Walk 2026-10-15" (results go into the Artifact; paste them here or tell Claude). Build = the S20G commit (`2a469442`) + `session-v1am-drop1.patch`, or the V1A-M commit if Drop 2 is committed. Rows from §7–§15 are walked as written there (the ID points to the row); the new rows (`OW-*`) are written in full below. S20-B1 is replaced by OW-B1. §0–§6 rows stay owed (not in this run).
+
+Rows: 145 · iPhone legs 113 · Mac legs 115. ★ L149: OW-COPY before phase 4; phases 11–12 delete the account (the copy / backup is the only way back; OW-UNDO at the end).
+
+### 1 · Build and first start
+
+Wipe obj / bin, plain build, Run (#320). The BUILD rows show something only this build has.
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | S20-B0 | M | §S20 update |
+| 2 | OW-B1 | both | new (below) |
+| 3 | S20G-BUILD-IM | both | §15 |
+| 4 | S20-B2 | both | §S20 update |
+| 5 | OW-B2 | both | new (below) |
+| 6 | OW-DROP2-BUILD | both | new (below) |
+
+### 2 · Copy the data first
+
+★ L149: do this before ANY row that touches the account.
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | OW-COPY | both | new (below) |
+
+### 3 · Compile-risk checks (new on iPhone / Mac)
+
+From docs/ios-mac-compile-risk-2026-10-15.md: code that only Apple builds run.
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | OW-SAVE | both | new (below) |
+| 2 | OW-L8-M | M | new (below) |
+| 3 | OW-WEB-M | M | new (below) |
+| 4 | OW-VOICE | both | new (below) |
+| 5 | OW-RING-M | M | new (below) |
+| 6 | OW-THEME-M | M | new (below) |
+| 7 | OW-PANE-M | M | new (below) |
+| 8 | OW-PHOTOS-I | I | new (below) |
+| 9 | OW-PASTE | both | new (below) |
+
+### 4 · Your account — Chat
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | S20-A1 | I | §12 |
+| 2 | S20-A1-KB | I | §12 |
+| 3 | S20-A-LIFT | I | §12 |
+| 4 | S20-A2 | both | §12 |
+| 5 | S20-A3 | both | §12 |
+| 6 | S20-A-RM | both | §12 |
+| 7 | TRAY-PICS-I | I | §14 |
+| 8 | R6-I | I | §15 |
+| 9 | S20-F1 | both | §12 |
+| 10 | S20-LINK | both | §12 |
+| 11 | S20-F2 | I | §12 |
+| 12 | S20-F3 | I | §12 |
+| 13 | S20-F4 | M | §12 |
+| 14 | CODE-IM | both | §14 |
+| 15 | S20-B | both | §12 |
+| 16 | S20-D | both | §12 |
+| 17 | N1-N2-IM | both | §15 |
+| 18 | S20-G1 | both | §12 |
+| 19 | ACC-IM | both | §14 |
+| 20 | S17-CA | both | §7 |
+| 21 | S17-CORNERS | both | §7 |
+| 22 | S17-ACCENT | both | §7 |
+| 23 | S18-PT-DESKTOP | M | §8 |
+| 24 | S19-PT-STALE | M | §9 |
+| 25 | S17-ATTACH | both | §7 |
+| 26 | S19-BG-NOTICE | both | §9 |
+| 27 | S20-E | both | §12 |
+| 28 | S20-E-FLAG | I | §12 |
+| 29 | S19-KEEPOPEN | both | §9 |
+| 30 | S20-J1 | both | §12 |
+| 31 | S20-J3 | both | §12 |
+| 32 | S20-J4 | both | §12 |
+| 33 | F1-IM | both | §15 |
+
+### 5 · Your account — Chats list
+
+Mac desktop list + the phone list.
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | DT-LIST-SECT | M | §11 |
+| 2 | DT-LIST-FOLD | M | §11 |
+| 3 | DT-LIST-HOVER | M | §11 |
+| 4 | DT-LIST-KEYS | M | §11 |
+| 5 | DT-LIST-INSET | M | §11 |
+| 6 | DT-LIST-FOCUS | M | §11 |
+| 7 | DT-RAIL-LOGO | M | §11 |
+| 8 | DT2-PIN | M | §11 |
+| 9 | DT2-DENS-LIVE | M | §11 |
+| 10 | DT2-DENS-PREVIEW | M | §11 |
+| 11 | DT2-DENS-RESTART | M | §11 |
+| 12 | DT2-DENS-HOVER | M | §11 |
+| 13 | RAIL-M | M | §14 |
+| 14 | DT-PHONE-SAME | I | §11 |
+| 15 | DT-SWIPE | I | §11 |
+
+### 6 · Your account — Contacts and groups
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | S17-AD-CARD | both | §7 |
+| 2 | S18-AD-PEER | both | §8 |
+| 3 | S18-AC-SHEET | M | §8 |
+| 4 | S18-AC-FIELD | both | §8 |
+| 5 | S18-AC-KNOWN | both | §8 |
+| 6 | S19-AC-NOFLICKER | I | §9 |
+| 7 | S18-NG | I | §8 |
+| 8 | S18-NG-LIMITS | I | §8 |
+| 9 | S18-NG-BLIND | M | §8 |
+| 10 | S20-G2 | M | §12 |
+
+### 7 · Your account — Apps and Wallet
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | S18-AA-TILES | both | §8 |
+| 2 | S18-AA-LINK | both | §8 |
+| 3 | S19-AA-HOVER | M | §9 |
+| 4 | S20-C | both | §12 |
+| 5 | S20-J2 | both | §12 |
+| 6 | HERO-I | I | §14 |
+
+### 8 · Your account — Account and settings
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | S17-HUB | both | §7 |
+| 2 | S20-I | both | §12 |
+| 3 | APPLOCK-IM | both | §14 |
+| 4 | R1-IM | both | §15 |
+| 5 | S17-TH | both | §7 |
+| 6 | S18-TH-SYNC | both | §8 |
+| 7 | S18-TIPS | both | §8 |
+| 8 | S17-WN-ABOUT | both | §7 |
+| 9 | S17-ABOUT-I | I | §7 |
+| 10 | S18-DC-DESKTOP | M | §8 |
+| 11 | S17-SLIDE | I | §7 |
+| 12 | S17-ART | both | §7 |
+| 13 | S17-DL | both | §7 |
+| 14 | DL-I | I | §14 |
+| 15 | S17-DD | both | §7 |
+| 16 | S20-DEV | both | §12 |
+
+### 9 · Moment sheets
+
+Developer › Reset moment sheets, then restart, before EACH row.
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | S19-MO-RESET | both | §9 |
+| 2 | S17-MO-MIC | both | §7 |
+| 3 | S17-MO-PAY | both | §7 |
+| 4 | S17-MO-APP | both | §7 |
+| 5 | S20-G4 | both | §12 |
+| 6 | S19-MO-LANG | both | §9 |
+| 7 | S19-MO-OFFLINE | both | §9 |
+| 8 | S19-MO-AUTODL | both | §9 |
+
+### 10 · Albanian (end on English)
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | SQ-LIST | both | §10 |
+| 2 | SQ-PICK | I | §10 |
+| 3 | SQ-NOTE | both | §10 |
+| 4 | SQ-NATIVE | I | §10 |
+| 5 | SQ-AMOUNT | I | §10 |
+| 6 | SQ-DATES | both | §10 |
+| 7 | SQ-FIT | I | §10 |
+| 8 | SQ-FIT-M | M | §10 |
+
+### 11 · Backup, delete, welcome and create
+
+The account is deleted here. OW-COPY must be done.
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | OW-BACKUP | both | new (below) |
+| 2 | S20F-BUILD-IM | both | §14 |
+| 3 | ON-LEGAL | both | §13 |
+| 4 | ON-PILL | both | §13 |
+| 5 | ON-S3 | both | §13 |
+| 6 | ON-SLIDES-IM | both | §14 |
+| 7 | F3-Q2-IM | both | §15 |
+| 8 | F2-VO-I | I | §15 |
+| 9 | ON-BG | both | §13 |
+| 10 | ON-RINGS | both | §13 |
+| 11 | ON-RM | both | §13 |
+| 12 | ON-DK1 | M | §13 |
+| 13 | ON-DK1-M | M | §14 |
+| 14 | ON-DK2 | M | §13 |
+| 15 | ON-FONT | both | §13 |
+| 16 | ON-C1 | both | §13 |
+| 17 | ON-PHOTO | I | §13 |
+| 18 | ON-KB | I | §13 |
+| 19 | ON-C2 | both | §13 |
+| 20 | ON-C3 | both | §13 |
+| 21 | ON-SWIPE | I | §13 |
+| 22 | ON-C4 | both | §13 |
+| 23 | S17-WN | both | §7 |
+| 24 | S17-NT-SENDER | I | §7 |
+| 25 | S17-MO-IXI | I | §7 |
+
+### 12 · Delete again and restore
+
+| # | ID | Pl | Source |
+|---|---|---|---|
+| 1 | OW-DELETE2 | both | new (below) |
+| 2 | ON-R1 | both | §13 |
+| 3 | ON-R2 | both | §13 |
+| 4 | ON-R3 | both | §13 |
+| 5 | ON-KB-S20F | I | §14 (the row named ON-KB) |
+| 6 | ON-RT1-I | I | §14 |
+| 7 | P0-ASK-M | M | §15 |
+| 8 | OW-UNDO | both | new (below) |
+
+### 13 · Drop 2 rows (V1A-M features)
+
+Filled after Drop 2 is built and walked on Windows + Android. Empty until then.
+
+(none yet — Drop 2)
+
+### New rows (OW-*)
+
+| ID | Pl | Steps | Expected | P/F/N/A | Note |
+|---|---|---|---|---|---|
+| OW-B1 | both | 1) `git pull --ff-only`. 2) `git log -1 --oneline`. 3) Delete `Spixi/obj` and `Spixi/bin`. 4) Plain build (not incremental) for iOS (device) and for Mac Catalyst. 5) Run. | 2: the newest commit — "Session V1A-M …" if Damir committed Drop 2, else "Session 20G …" (2a469442). 4: both builds succeed. Warnings (nullable CS86xx, obsolete CA1422) are expected and are not errors (no TreatWarningsAsErrors). Paste any ERROR with file:line — the compile-risk report expects none. | | replaces S20-B1 · #320 · first I / M compile of the C# since b9528a91 (#1114) · `docs/ios-mac-compile-risk-2026-10-15.md` |
+| OW-B2 | both | Do S20-B2 (below). Also read the first-start log for the S20G flag line. | As S20-B2, plus one `[FLAGS] s20g=1`. | | S20G flag line (RestoreMoves.cs:221) |
+| OW-COPY | both | Mac: 1) Quit Spixi (Cmd+Q). 2) Find the data folder: Terminal `mdfind -name wallet.ixi` (expected `~/Documents/Spixi`). 3) Copy the whole `Spixi` folder to `Spixi-copy-2026-10-15` next to it. iPhone: 4) Account › Backup: make a backup file; save it to Files; write down its password. 5) Note: chats do NOT come back from a backup (#1420). | Mac: the copy exists and holds `wallet.ixi`. iPhone: the backup file is in Files and you have its password. Only now walk rows that touch the account. | | ★ L149 · the walk deletes the account twice (phases 11–12) · to undo on the Mac: quit, rename the folder back |
+| OW-SAVE | both | 1) Open a received photo in the viewer. 2) Tap Save. 3) iPhone: in the share sheet tap "Save Image". Mac: pick "Add to Photos", then try "Save to Files" / Save. 4) Read the log. | iPhone: a system prompt "Spixi would like to add to your Photos" with the text "Spixi saves the photos you choose to your photo library.", then the photo is in Photos — NO crash. Mac: the share menu shows; the photo lands in Photos / the folder. If nothing shows on the Mac: the log has `savephoto r=fail` (write it). | | R-1 · fixed by `session-v1am-drop1.patch` (NSPhotoLibraryAddUsageDescription). WITHOUT the patch iOS ends the app at step 3 — then write F + the crash log |
+| OW-L8-M | M | 1) After S20-B2, quit Spixi (Cmd+Q). 2) Start it. 3) Read the log for `[L8]`. 4) Quit and start once more. | 2–4: no password question at start; `[L8] … read=hit`. If you see `-34018`, `MissingEntitlement`, `read=miss` or the password screen on EVERY start: write F (the Mac has no keychain entitlement — R-2). | | R-2 · #1323 · WalletPassStore.cs:270 · fix = a Mac Entitlements.plist with keychain-access-groups (not in this drop) |
+| OW-WEB-M | M | 1) Open Scan (QR). 2) Open a mini app. 3) Type in a chat composer and in a settings field. 4) Tap an https link in a chat. | 1: the camera prompt, then the preview (log `[cam-perm]`). 2: the app loads. 3: typing works; no input-accessory bar glitches. 4: the browser opens. | | W-1 · first Mac compile of Platforms/iOS/iOSWebViewHandler.cs (csproj target, #1245) |
+| OW-VOICE | both | 1) In a chat, hold the mic; record 5 s; send. 2) Play a received voice message. 3) iPhone: record again and lock the phone at 3 s; unlock. 4) iPhone: play a long one and lock the phone. | 1–2: record, level meter, send and play all work. 3–4: write what happens (no `audio` background mode → recording / playback stops; the clip so far is kept, no crash). | | W-3 · the voice-message lane (#1208) has never run on Apple · VoiceClips.cs |
+| OW-RING-M | M | 1) The peer calls the Mac. 2) Tap Silence. 3) Call again; Accept. | 1: the Mac rings. 2: the ring stops; the call keeps ringing on screen. 3: the ring stops; call audio starts cleanly. | | W-4 · new Mac `startRinging` (SPlatformUtils.cs:47) |
+| OW-THEME-M | M | 1) macOS appearance Dark. 2) Spixi Account › Theme › Light. 3) Pick System. 4) Switch macOS to Light, then Dark. | 3: the pages AND the title bar go dark at once, no reopen. 4: Spixi follows each time. | | W-5 · ThemeManager.cs:36-41, 65-100 (Mac title-bar theme) |
+| OW-PANE-M | M | 1) Wide window; open a chat. 2) Open chat info; close it. 3) With info open, switch to another chat 3 times. | The info column slides open and closed; the chat does not flicker or jump; the column never stays half-open. | | W-6 · #1166 lever 7, first run on the Mac (HomePage.xaml.cs:718) |
+| OW-PHOTOS-I | I | 1) In a chat: ⊕ › Photos › pick 10 photos › Send. 2) Time from Send until every tile shows its thumbnail. | All 10 send. Write the seconds (Android does it with one decode per photo; the Apple path decodes 3+ times). | | W-7 · SingleChatPage.xaml.cs:3111 |
+| OW-PASTE | both | iPhone: 1) Copy a photo in Photos. 2) In a chat composer, Paste. 3) Do it again; tap Don't Allow. Mac: 4) Take a screenshot to the clipboard (Ctrl+Shift+Cmd+4); paste in a chat. 5) Copy an image FILE in Finder; paste. | 2: the system asks "Allow Paste" once; Allow → the photo tile. 3: write the message shown (expected the misleading "clipboard empty"). 4: the tile. 5: write what shows (expected "clipboard empty"). | | W-8 · W-9 · SClipboardImage (iOS 16+ paste prompt; Finder file = file URL, not image data) |
+| OW-BACKUP | both | 1) Account › Backup: make a backup file. 2) Keep it and its password (the restore rows need it). 3) Account › Delete data… › Delete account. | 3: the welcome screen. | | walk order step 3–4 · the restore rows use this file |
+| OW-DELETE2 | both | 1) Account › Delete data… › Delete account (the account made in ON-C4). | The welcome screen. | | walk order step 5 |
+| OW-UNDO | both | Mac: 1) Quit Spixi. 2) Rename the walk's `Spixi` folder to `Spixi-walk-2026-10-15`. 3) Rename `Spixi-copy-2026-10-15` back to `Spixi`. 4) Start Spixi. iPhone: 5) Restore your real account from your real backup file (welcome › Restore). | 4: your own account, contacts and chats. 5: your account and contacts (chats do not come back, #1420). | | end of the walk · L149 |
+| OW-DROP2-BUILD | both | Only if Damir committed Drop 2: open the screen named in the Drop 2 section's build row. | Filled in Drop 2 (a thing only the V1A-M build has). If Drop 2 is not committed: N/A. | | Drop 2 |
+
+**Result line for DECISIONS:** `WALK #n (office 2026-10-15, iPhone + Mac): n P · n F · n N/A` — list the F rows; each F = mechanism first (#294).

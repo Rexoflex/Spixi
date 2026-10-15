@@ -11,6 +11,11 @@
 	<string>Spixi uses the camera to scan QR codes and to take photos for chats.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Spixi uses the microphone for voice calls and to record voice messages.</string>
+	<!-- ★ V1A-M Drop 1 (compile-risk report R-1): the photo viewer's Save opens the share sheet on iOS / Mac
+	     (SingleChatPage savePhoto -> SFileOperations.share). Its "Save Image" / "Add to Photos" writes to the
+	     photo library; without this key iOS terminates the app. -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Spixi saves the photos you choose to your photo library.</string>
 	<!-- ★ B1 (office walk #1084): 1 + 2 alone run Catalyst in the iPad idiom, which scales the
 	     WHOLE window to 77 % (every WebView + native chrome) - "text too small on the MacBook".
 	     6 = the Mac idiom ("Optimize for Mac", 100 %). Desktop detection does not move with it:

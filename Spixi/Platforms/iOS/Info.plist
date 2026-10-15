@@ -49,6 +49,11 @@
 	<string>Location access is needed for push notifications when app is in use</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Spixi uses the microphone for voice calls and to record voice messages.</string>
+	<!-- ★ V1A-M Drop 1 (compile-risk report R-1): the photo viewer's Save opens the share sheet on iOS / Mac
+	     (SingleChatPage savePhoto -> SFileOperations.share). Its "Save Image" / "Add to Photos" writes to the
+	     photo library; without this key iOS terminates the app. -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Spixi saves the photos you choose to your photo library.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Biometric authentication for unlocking the app</string>
 	<key>CFBundleVersion</key>
